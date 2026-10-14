@@ -8,6 +8,8 @@ import type {
   AutomationBindingSetInput,
   AutomationCapabilities,
   AutomationChangeInput,
+  AutomationConnectionProfile,
+  AutomationConnectionProfileInput,
   AutomationDecisionInput,
   AutomationDependencyReport,
   AutomationExport,
@@ -15,6 +17,7 @@ import type {
   AutomationHealthReport,
   AutomationJob,
   AutomationLifecycleInput,
+  AutomationPairingGrant,
   AutomationPage,
   AutomationPauseState,
   AutomationPreviewInput,
@@ -23,6 +26,8 @@ import type {
   AutomationRuleInput,
   AutomationRun,
   AutomationSubmissionResult,
+  AutomationTarget,
+  AutomationTargetInput,
   AutomationUndoInput,
 } from './automationTypes'
 
@@ -82,6 +87,15 @@ export interface AutomationApi {
   /** Approve or reject the exact proposal (its digest) through the existing Approvals ledger. */
   decideJob(id: string, input: AutomationDecisionInput, revision: string): Promise<AutomationSubmissionResult>
   exportAutomations(signal?: AbortSignal): Promise<AutomationExport>
+  listConnectionProfiles(cursor?: string | null, signal?: AbortSignal): Promise<AutomationPage<AutomationConnectionProfile>>
+  /** Changing the client, credential, opt-in or worker catalog unpairs its targets (server rule). */
+  replaceConnectionProfile(id: string, input: AutomationConnectionProfileInput, revision: string): Promise<AutomationConnectionProfile>
+  listTargets(cursor?: string | null, signal?: AbortSignal): Promise<AutomationPage<AutomationTarget>>
+  createTarget(input: AutomationTargetInput): Promise<AutomationTarget>
+  replaceTarget(id: string, input: AutomationTargetInput, revision: string): Promise<AutomationTarget>
+  /** Mints a five-minute, one-use pairing grant. Show the code once; never store or log it. */
+  issuePairing(targetId: string, revision: string): Promise<AutomationPairingGrant>
+  revokeTarget(id: string, revision: string): Promise<AutomationTarget>
 }
 
 /** The strong entity tag the backend issues for a revision. */
@@ -311,6 +325,35 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       intent: `decide:${input.decision}`,
     }),
     exportAutomations: async (signal) => read(`${BASE}/export`, signal),
+    listConnectionProfiles: async (cursor, signal) => page<AutomationConnectionProfile>(
+      await read(`${BASE}/connection-profiles${query({ cursor })}`, signal),
+      'connection',
+    ),
+    replaceConnectionProfile: async (id, input, revision) => write('PUT', `${BASE}/connection-profiles/${opaqueId(id, 'connection')}`, {
+      body: input,
+      revision,
+      intent: 'replace',
+    }),
+    listTargets: async (cursor, signal) => page<AutomationTarget>(
+      await read(`${BASE}/targets${query({ cursor })}`, signal),
+      'worker',
+    ),
+    createTarget: async (input) => write('POST', `${BASE}/targets`, { body: input, intent: 'create' }),
+    replaceTarget: async (id, input, revision) => write('PUT', `${BASE}/targets/${opaqueId(id, 'worker')}`, {
+      body: input,
+      revision,
+      intent: 'replace',
+    }),
+    issuePairing: async (targetId, revision) => write('POST', `${BASE}/targets/${opaqueId(targetId, 'worker')}/pairings`, {
+      body: { reason: 'Owner issued a one-use pairing code.' },
+      revision,
+      intent: 'pair',
+    }),
+    revokeTarget: async (id, revision) => write('POST', `${BASE}/targets/${opaqueId(id, 'worker')}/revoke`, {
+      body: { reason: 'Owner revoked this worker.' },
+      revision,
+      intent: 'revoke',
+    }),
   }
 }
 

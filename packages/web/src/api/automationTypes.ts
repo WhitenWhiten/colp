@@ -48,5 +48,12 @@ export type AutomationTaskType = Schemas['AutomationTaskSpec']['type']
 
 export type AutomationExport = Schemas['AutomationAutomationExport']
 
+export type AutomationConnectionProfile = Schemas['AutomationConnectionProfile']
+export type AutomationConnectionProfileInput = Schemas['AutomationConnectionProfileInput']
+export type AutomationTarget = Schemas['AutomationTarget']
+export type AutomationTargetInput = Schemas['AutomationTargetInput']
+/** The one-use code is in this response only; a replayed command returns `code: null`. */
+export type AutomationPairingGrant = Schemas['AutomationPairingGrant']
+
 /** Every automation list: opaque cursor, newest first unless the resource says otherwise. */
 export type AutomationPage<T> = { items: T[]; nextCursor: string | null }

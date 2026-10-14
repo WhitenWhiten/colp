@@ -3,7 +3,7 @@ import type { AgentConnectCopy } from '../../api/agentsClient'
 import { CommandBlock } from '../../components/CommandBlock'
 import { TabList } from '../../components/TabList'
 
-export type ConnectClient = 'claude' | 'codex' | 'other' | 'key'
+export type ConnectClient = 'claude' | 'codex' | 'other' | 'key' | 'worker'
 
 const CLIENTS: ReadonlyArray<{ id: ConnectClient; label: string }> = [
   { id: 'claude', label: 'Claude Code' },
@@ -11,6 +11,21 @@ const CLIENTS: ReadonlyArray<{ id: ConnectClient; label: string }> = [
   { id: 'other', label: 'Other clients' },
   { id: 'key', label: 'API key' },
 ]
+
+const WORKER_CLIENT = { id: 'worker' as const, label: 'Automation worker' }
+
+/** The reference polling worker (docs/automation/agents.md), pointed at this server. */
+function workerCommand(origin: string): string {
+  return [
+    `export COLP_ORIGIN=${origin}`,
+    'export COLP_TARGET_ID=your_target_id',
+    'export COLP_ADAPTER=examples/worker-script/deterministic-summary.mjs',
+    'export COLP_JOURNAL=/private/worker-state/summary.json',
+    '# Also set COLP_ACCESS_TOKEN, COLP_PAIRING_ID, COLP_PAIRING_CODE',
+    '# and COLP_PAIRING_COMMAND_ID from your secret manager.',
+    'node examples/worker-script/claim-and-summarize.mjs',
+  ].join('\n')
+}
 
 function Step({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -31,19 +46,24 @@ export function ConnectGuide({
   connect,
   keyPanel,
   initialClient = 'claude',
+  automationOrigin,
 }: {
   connect: AgentConnectCopy
   keyPanel: ReactNode
   initialClient?: ConnectClient
+  /** This server's address, where it has automations; adds the worker tab. */
+  automationOrigin?: string
 }) {
-  const [client, setClient] = useState<ConnectClient>(initialClient)
+  const [chosen, setClient] = useState<ConnectClient>(initialClient)
+  const clients = automationOrigin ? [...CLIENTS, WORKER_CLIENT] : CLIENTS
+  const client = chosen === 'worker' && !automationOrigin ? 'claude' : chosen
   return (
     <div className="agents-connect">
       <TabList
         label="Client"
         className="view-switch agents-tabs"
         value={client}
-        options={CLIENTS}
+        options={clients}
         tabIdFor={(id) => `agents-tab-${id}`}
         panelIdFor={(id) => `agents-panel-${id}`}
         onChange={(id) => setClient(id)}
@@ -121,6 +141,45 @@ export function ConnectGuide({
             <Step title="Ask for a change">
               <p className="agents-note">
                 Try “Move my design links into a Design folder.” The plan shows up on Approvals for you to review.
+              </p>
+            </Step>
+          </ol>
+        )}
+        {client === 'worker' && automationOrigin && (
+          <ol className="agents-steps">
+            <Step title="Give it its own key">
+              <p className="agents-note">
+                Issue an API key for the worker alone (the API key tab) and exchange it for a token with the{' '}
+                <code>automation:work</code> permission. It needs no permission to change your library: its results come
+                back as proposals. A key no other worker or tool uses is required for restricted rules.
+              </p>
+            </Step>
+            <Step title="Let its agent do rule work">
+              <p className="agents-note">
+                Once it has connected, its card under Connected agents shows <strong>Automations</strong>. Turn on{' '}
+                <strong>Use for automations</strong> and <strong>Do rule work</strong>. An agent appears there after its
+                automation connection is registered with the server’s automation API; this page can’t register one for you.
+              </p>
+            </Step>
+            <Step title="Add a worker and pair it">
+              <p className="agents-note">
+                Under Automation workers, add a worker for that agent and press Pair. The one-use code is shown once and
+                works for five minutes. It isn’t saved anywhere, so copy it straight into the worker’s environment.
+              </p>
+            </Step>
+            <Step title="Run it">
+              <CommandBlock label="reference worker command" command={workerCommand(automationOrigin)} />
+              <p className="agents-note">
+                This is the reference worker from <code>examples/worker-script</code>; any worker using the same calls works.
+                It checks for work every minute by default. Add <code>--once</code> for a single pass.
+              </p>
+            </Step>
+            <Step title="Checking for work, or events?">
+              <p className="agents-note">
+                A worker that checks for work runs anywhere that can reach this server, including a home network. Events wake
+                hosted agents instead, which needs this server at a public HTTPS address and a subscription the server verifies;
+                choosing events doesn’t make it active. Hosted agent services may also need a plan or workspace that allows
+                custom MCP servers. COLP doesn’t create hosted agents or check those plans for you.
               </p>
             </Step>
           </ol>

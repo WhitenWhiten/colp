@@ -155,6 +155,13 @@ export function fakeApi(): Mocked<AutomationApi> {
     cancelRun: vi.fn(async (id: string) => run(id, 'rule-1', { status: 'cancelled', revision: '3' })),
     getJob: vi.fn(async (id: string) => job(id, 'succeeded')),
     retryJob: vi.fn(async (id: string) => job(id, 'ready', { revision: '5', attemptGeneration: 2 })),
+    listConnectionProfiles: vi.fn(async () => ({ items: [], nextCursor: null })),
+    replaceConnectionProfile: vi.fn(),
+    listTargets: vi.fn(async () => ({ items: [], nextCursor: null })),
+    createTarget: vi.fn(),
+    replaceTarget: vi.fn(),
+    issuePairing: vi.fn(),
+    revokeTarget: vi.fn(),
     decideJob: vi.fn(async (id: string) => ({ jobId: id, resultId: 'result-1', proposalDigest: 'd'.repeat(64), status: 'awaitingApproval' as const, effectReceiptIds: [], diagnostics: [] })),
     exportAutomations: vi.fn(),
   }

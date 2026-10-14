@@ -8,6 +8,7 @@ import {
   type AgentsApi,
   type IssuedAgentKey,
 } from '../api/agentsClient'
+import { automationApi as defaultAutomationApi, type AutomationApi } from '../api/automationClient'
 import { ProductApiError } from '../api/errors'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/AppToast'
@@ -18,8 +19,11 @@ import { Icon } from '../components/Icon'
 import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
 import { loginPath } from '../lib/chrome'
+import { useAutomationStatus } from '../lib/automationStatus'
 import { plural } from '../lib/plural'
 import { AgentCard, type AgentActivity } from './agents/AgentCard'
+import { AgentAutomationOptIns, AutomationWorkersSection } from './agents/AutomationWorkers'
+import { useAutomationWorkers } from './agents/automationWorkers'
 import { ConnectGuide } from './agents/ConnectGuide'
 import '../styles/agents.css'
 
@@ -47,9 +51,11 @@ const RULES: ReadonlyArray<{ icon: 'lock' | 'check' | 'refresh'; title: string; 
 
 export function Agents({
   api = agentsApi,
+  automationApi = defaultAutomationApi,
   origin,
 }: {
   api?: AgentsApi
+  automationApi?: AutomationApi
   origin?: string
 } = {}) {
   const pageOrigin = origin ?? (typeof window === 'undefined' ? '' : window.location.origin)
@@ -58,6 +64,9 @@ export function Agents({
   const accountId = isLoggedIn ? user?.accountId ?? null : null
   const confirm = useConfirm()
   const { success, error: toastError } = useToast()
+  // Workers and opt-ins appear only where the server has automations.
+  const automationsOn = useAutomationStatus(accountId, automationApi).state === 'available'
+  const workers = useAutomationWorkers(isLoggedIn && automationsOn, automationApi)
   const [agents, setAgents] = useState<AgentSummary[]>([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -368,6 +377,12 @@ export function Agents({
                         onPolicy={(policy) => void setPolicy(agent, policy)}
                         onToggleActivity={() => void toggleActivity(agent)}
                         onRevoke={() => void revoke(agent)}
+                        automation={automationsOn ? (() => {
+                          const mine = workers.data.profiles.filter((profile) => profile.configuration.authorizedClientId === agent.id)
+                          return mine.map((profile) => (
+                            <AgentAutomationOptIns key={profile.id} profile={profile} workers={workers} showName={mine.length > 1} />
+                          ))
+                        })() : undefined}
                       />
                     </li>
                   ))}
@@ -376,11 +391,15 @@ export function Agents({
             </section>
           )}
 
+          {isLoggedIn && automationsOn && (
+            <AutomationWorkersSection workers={workers} agents={agents} origin={pageOrigin} />
+          )}
+
           <section className="agents-section" aria-labelledby="agents-connect">
             <div className="agents-section-head">
               <h2 id="agents-connect">Connect an agent</h2>
             </div>
-            <ConnectGuide connect={connect} keyPanel={keyPanel} />
+            <ConnectGuide connect={connect} keyPanel={keyPanel} automationOrigin={automationsOn ? pageOrigin : undefined} />
           </section>
         </div>
 

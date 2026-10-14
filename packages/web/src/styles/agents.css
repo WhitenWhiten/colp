@@ -391,6 +391,152 @@
   gap: var(--space-3);
 }
 
+/* ——— Automations (AU-21/AU-26) ———
+   An agent's opt-ins sit on its card as settings switches; workers reuse
+   the agent card anatomy, with the server's readiness as the badge and
+   its reason in words. The one-use pairing code reuses the secret block. */
+
+.agents-section-action {
+  margin-left: auto;
+}
+
+.agents-section-action svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.agent-automation {
+  display: grid;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.agent-automation h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.agent-automation h4 svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted);
+}
+
+.agent-automation-row:last-child {
+  border-bottom: 0;
+}
+
+.agents-worker-reason {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+  overflow-wrap: anywhere;
+}
+
+.agents-worker-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.agents-worker-facts > div {
+  display: grid;
+  gap: var(--hair-15);
+}
+
+@media (min-width: 640px) {
+  .agents-worker-facts > div {
+    grid-template-columns: 10rem minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+}
+
+.agents-worker-facts dt {
+  color: var(--muted);
+}
+
+.agents-worker-facts dd {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: var(--leading-snug);
+}
+
+.agents-worker-grant > .btn {
+  justify-self: start;
+}
+
+.agents-worker-actions {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.agents-worker-actions > .btn-danger-ghost {
+  margin-left: auto;
+}
+
+.agents-worker-new {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.agents-worker-new-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.agents-worker-new-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* A form with several questions reads top to bottom, unlike the key form. */
+.agents-worker-form {
+  display: grid;
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.agents-worker-form .field {
+  max-width: 28rem;
+}
+
+.agents-worker-form > .btn {
+  justify-self: start;
+}
+
+.agents-worker-hint {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--warning-soft);
+  color: var(--ink);
+}
+
+.agents-worker-orphans {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.agents-worker-orphans h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
 /* ——— How approvals work ———
    A quiet reference column: hairline card on the page colour, glyphs
    without tiles, and the way on to Approvals at the end. */
@@ -482,7 +628,8 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .agent-card-head > .btn {
+  .agent-card-head > .btn,
+  .agent-card-head > .agents-worker-badge {
     grid-column: 1 / -1;
     justify-self: start;
   }

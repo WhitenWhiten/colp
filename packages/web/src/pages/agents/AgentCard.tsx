@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { AgentAuditRecord, AgentPolicy, AgentSummary } from '../../api/agentsClient'
 import { Icon } from '../../components/Icon'
@@ -124,10 +125,13 @@ export function AgentCard({
   onPolicy,
   onToggleActivity,
   onRevoke,
+  automation,
 }: {
   agent: AgentSummary
   busy: boolean
   activity: AgentActivity
+  /** This agent's automation opt-ins, where the server has automations and a connection for it. */
+  automation?: ReactNode
   onPolicy: (policy: AgentPolicy) => void
   onToggleActivity: () => void
   onRevoke: () => void
@@ -169,6 +173,8 @@ export function AgentCard({
       </div>
 
       <ScopeList scopes={agent.scopes} kind={agent.kind} />
+
+      {automation}
 
       <div className="agent-card-foot">
         <button

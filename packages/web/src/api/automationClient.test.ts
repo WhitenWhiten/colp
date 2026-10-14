@@ -117,6 +117,23 @@ describe('automation client', () => {
     expect(JSON.parse(String(init.body))).toEqual({ decision: 'approve', proposalDigest: 'd'.repeat(64), reason: 'Owner approved.' })
   })
 
+  it('issues a pairing code and changes opt-ins on the resource revision', async () => {
+    const fetchImpl = vi.fn(async () => json(201, { pairingId: 'p', targetId: 't', code: 'c', expiresAt: '2099-01-01T00:00:00Z' }))
+    const api = createAutomationApi(fetchImpl)
+    await api.issuePairing('target-1', '3')
+    await api.replaceConnectionProfile('profile-1', {
+      name: 'Worker', automationEnabled: true, authorizedClientId: 'client', credentialBindingId: 'binding', catalogs: ['automationWorker'],
+    }, '4')
+    const [pairUrl, pairInit] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    const [profileUrl, profileInit] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit]
+    expect(pairUrl).toBe('/api/v1/me/automations/targets/target-1/pairings')
+    expect(new Headers(pairInit.headers).get('If-Match')).toBe('"3"')
+    expect(JSON.parse(String(pairInit.body))).toEqual({ reason: 'Owner issued a one-use pairing code.' })
+    expect(profileUrl).toBe('/api/v1/me/automations/connection-profiles/profile-1')
+    expect(profileInit.method).toBe('PUT')
+    expect(new Headers(profileInit.headers).get('If-Match')).toBe('"4"')
+  })
+
   it('reads a job, a rule’s dependencies and a sized run page', async () => {
     const fetchImpl = vi.fn(async () => json(200, { items: [], nextCursor: null }))
     const api = createAutomationApi(fetchImpl)
