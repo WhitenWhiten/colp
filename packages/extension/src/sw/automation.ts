@@ -249,13 +249,14 @@ async function placementViews(ownerKey: string): Promise<AutomationPlacementView
 async function serverView(owner: AutomationOwner, record: BundleRecord, origin: string): Promise<AutomationServerView | null> {
   const status = await createServerStatusStore(automationArea(), automationOwnerKey(owner)).read();
   if (record.problem?.kind === 'unavailable' || status.problem?.kind === 'unavailable') return null;
-  const local = record.bundle?.rules ?? [], inBrowser = new Set(local.map((rule) => rule.ruleId));
+  const local = record.bundle?.rules ?? [], bundled = new Set(local.map((rule) => rule.ruleId));
   const names = new Map<string, string>([...local.map((rule) => [rule.ruleId, rule.definition.name] as const),
     ...status.rules.map((rule) => [rule.id, rule.name] as const)]);
   const problem = status.problem && (status.fetchedAt === null || status.problem.at >= status.fetchedAt) ? status.problem.kind : null;
   return {
     fetchedAt: status.fetchedAt, problem,
-    rules: status.rules.map((rule) => ({ id: rule.id, name: rule.name, state: rule.state, inBrowser: inBrowser.has(rule.id),
+    // A paused bundle carries no rules, so the rule's own definition says whether it files bookmarks here.
+    rules: status.rules.map((rule) => ({ id: rule.id, name: rule.name, state: rule.state, inBrowser: rule.intake ?? bundled.has(rule.id),
       waiting: rule.usage?.waiting ?? null, held: rule.usage?.held ?? null, approvals: rule.usage?.approvals ?? null, cost: rule.usage?.cost || null })),
     runs: status.runs.map((run) => ({ id: run.id, ruleName: names.get(run.ruleId) ?? null, kind: run.kind, status: run.status, held: run.held,
       explanation: run.explanation, at: run.createdAt, unread: run.unread, outputCount: run.outputCount,

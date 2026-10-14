@@ -71,7 +71,7 @@ export interface AutomationServerRuleView {
   readonly id: string;
   readonly name: string;
   readonly state: 'draft' | 'active' | 'degraded' | 'blocked' | 'paused' | 'archived';
-  /** In this browser's bundle (it files bookmarks here), or only on the server. */
+  /** It files bookmarks in the browser, even while a pause keeps it out of the bundle; false: it works only on the server. */
   readonly inBrowser: boolean;
   /** Jobs ready for an agent, held by a cap, and waiting for the Owner's approval; null before the server reports usage. */
   readonly waiting: number | null;

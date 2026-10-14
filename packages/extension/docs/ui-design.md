@@ -161,8 +161,12 @@ what this browser did:
   for problems. The row opens the run on the web in a new tab.
 - **Server state on rules.** A rule row adds its server state when it isn't simply on ("On, with
   problems", Blocked, Paused). It also adds the server's own counts (jobs waiting for an agent, held
-  by a limit, needing approval) and the server's cost wording. Rules with no browser part, such as
-  a digest, are listed too: "Works on your server; nothing to file here."
+  by a limit, needing approval) and the server's cost wording. Rules with no browser part (no
+  intake), such as a digest, are listed too: "Works on your server; nothing to file here." A paused
+  bundle carries no rules, so while paused the group lists only those and its lede says the filing
+  rules come back when automations resume.
+- **Narrow pages.** Below 540px the rule, placement and run rows follow the other library lists:
+  the badge drops under the text, the title may take two lines and the meta line wraps.
 - **Freshness.** One muted line under the runs: "Updated 2 minutes ago." A failed read keeps the
   last runs and says so with a warning icon: "Couldn’t reach your server. Showing what it said
   3 hours ago."

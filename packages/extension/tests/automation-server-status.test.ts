@@ -57,7 +57,7 @@ describe('the kept copy', () => {
     const record = await store.apply({ ok: true, rules: [serverRule({ usage })],
       runs: [serverRun({ status: 'waiting', held: true, explanation: 'Explicit hold: awaiting an Owner decision to continue the original pinned work.' })] }, NOW);
     expect(record).toEqual({ version: 1, ownerKey: OWNER, fetchedAt: NOW, lastAttemptAt: NOW, failures: 0, problem: null,
-      rules: [{ id: 'rule-arxiv', name: 'Place research papers in Academic', state: 'active',
+      rules: [{ id: 'rule-arxiv', name: 'Place research papers in Academic', state: 'active', intake: true,
         usage: { since: NOW - 7 * DAY, runs: 12, waiting: 7, held: 1, approvals: 2, cost: 'Billed by your agent' } }],
       runs: [{ id: 'run-1', ruleId: 'rule-arxiv', kind: 'intake', status: 'waiting', held: true, unread: false, outputCount: 0,
         explanation: 'Explicit hold: awaiting an Owner decision to continue the original pinned work.', createdAt: NOW, updatedAt: NOW }] });

@@ -1491,3 +1491,11 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-freshness { display: flex; align-items: center; gap: var(--hair-40); margin: var(--space-2) var(--hair-15) 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-freshness svg { flex: none; width: 0.8rem; height: 0.8rem; }
 .automation-freshness[data-tone="warning"] svg { color: var(--warning); }
+/* Narrow: as on the other library lists, a row's badge drops under its text and a meta line wraps,
+   so a rule's name is never cut to one letter between the folder and the time. */
+@media (max-width: 540px) {
+  .automation-rules .list-row { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--hair-30); }
+  .automation-rules .list-row > .list-row-tail { grid-column: 2; justify-self: start; flex-wrap: wrap; }
+  .automation-rules .list-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; white-space: normal; }
+  .automation-rules .list-row-meta { flex-wrap: wrap; row-gap: 0; white-space: normal; }
+}

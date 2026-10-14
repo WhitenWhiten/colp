@@ -36,7 +36,7 @@ beforeEach(async () => {
       setTitle: async ({ title }: { title: string }) => { f.badge.title = title; } } });
   answers = {
     '/api/v1/me/automations/rules': () => json({ items: [serverRule({ name: 'arXiv papers', state: 'degraded' }),
-      serverRule({ id: 'rule-digest', name: 'Weekly digest' })], nextCursor: null }),
+      serverRule({ id: 'rule-digest', name: 'Weekly digest', intake: false })], nextCursor: null }),
     '/api/v1/me/automations/runs': () => json({ items: [serverRun({ id: 'run-1', status: 'waiting', held: true }),
       serverRun({ id: 'run-2', ruleId: 'rule-digest', kind: 'batch', unread: true, outputCount: 1 }), serverRun({ id: 'run-3', ruleId: 'rule-gone' })], nextCursor: null }),
   };
@@ -79,6 +79,14 @@ describe('the server’s status in the worker', () => {
     vi.setSystemTime(NOW + 150_000);
     await refreshAutomation();
     expect(f.fetch).not.toHaveBeenCalled();
+  });
+
+  it('still knows which rules file bookmarks here while a pause keeps them out of the bundle', async () => {
+    await createBundleStore(automationArea(), owner).install(ruleBundle([], { revision: 'b-2', settingsRevision: 2, paused: true }), NOW);
+    await refreshAutomation({ manual: true });
+    const { state, rules, server } = await automationStateView();
+    expect([state, rules]).toEqual(['paused', []]);
+    expect(server?.rules.map((rule) => [rule.id, rule.inBrowser])).toEqual([['rule-arxiv', true], ['rule-digest', false]]);
   });
 
   it('shows nothing for a server without automations, and stops asking it', async () => {

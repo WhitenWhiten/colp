@@ -23,8 +23,11 @@ export interface AutomationsPane {
 
 function statusLine(view: AutomationStateView): { tone: 'success' | 'warning' | 'off'; label: string; hint: string } {
   switch (view.state) {
-    case 'active': return { tone: 'success', label: tn('automation_statusOnRules', view.rules.length, 'On · $1 rule', 'On · $1 rules'),
-      hint: t('automation_statusOnHint', 'Bookmarks you save go straight to the folder a rule picks, even offline.') };
+    case 'active': return view.rules.length
+      ? { tone: 'success', label: tn('automation_statusOnRules', view.rules.length, 'On · $1 rule', 'On · $1 rules'),
+        hint: t('automation_statusOnHint', 'Bookmarks you save go straight to the folder a rule picks, even offline.') }
+      : { tone: 'success', label: t('automation_statusOn', 'On'),
+        hint: t('automation_statusOnNoRulesHint', 'None of your rules file bookmarks in this browser yet.') };
     case 'paused': return { tone: 'warning', label: t('automation_statusPaused', 'Paused'), hint: pausedHint(view) };
     case 'expired': return { tone: 'warning', label: t('automation_statusOutOfDate', 'Out of date'),
       hint: t('automation_statusOutOfDateHint', 'Rules are out of date; connect to refresh. Saving still works, at the folder you choose.') };
@@ -86,9 +89,11 @@ function statusGroup(view: AutomationStateView, refresh: () => void, busy: boole
     const [before = '', after = ''] = t('automation_updatedAt', 'Updated $1.', '\u0000').split('\u0000');
     freshness.append(before, when(view.lastRefreshAt), after, ' ');
   }
-  freshness.append(view.expiresAt && view.state !== 'expired'
-    ? t('automation_freshnessHint', 'This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check.', formatMoment(view.expiresAt))
-    : t('automation_freshnessHintShort', 'This browser checks every 5 minutes. A pause you make on the web reaches it at the next check.'));
+  // Without rules here yet there is no copy to keep offline and no pause to pass on.
+  freshness.append(view.state === 'none' ? t('automation_freshnessHintNone', 'This browser checks for rules every 5 minutes.')
+    : view.expiresAt && view.state !== 'expired'
+      ? t('automation_freshnessHint', 'This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check.', formatMoment(view.expiresAt))
+      : t('automation_freshnessHintShort', 'This browser checks every 5 minutes. A pause you make on the web reaches it at the next check.'));
   card.append(row(t('automation_ruleUpdates', 'Rule updates'), freshness, check));
   return group('automation-browser-heading', t('automation_onThisBrowser', 'On this browser'), card);
 }
@@ -146,8 +151,10 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     withServer(item, main, rule, null);
     list.append(item);
   }
-  return group('automation-rules-heading', t('automation_rules', 'Rules'), list,
-    t('automation_rulesLede', 'A folder you pick yourself always wins over a rule.'));
+  // A paused bundle carries no rules: say where the filing rules went instead of listing them.
+  return group('automation-rules-heading', t('automation_rules', 'Rules'), list, view.state === 'paused'
+    ? t('automation_rulesPausedLede', 'Rules that file bookmarks come back here when you resume automations on the web.')
+    : t('automation_rulesLede', 'A folder you pick yourself always wins over a rule.'));
 }
 
 function placementsGroup(view: AutomationStateView): HTMLElement | null {

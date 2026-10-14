@@ -436,7 +436,8 @@ export function installStub(messages) {
             run('run-5', 'Recipes from my favourite food sites', 'failed', 27 * 3600e3, { explanation: 'Destination unavailable.' })] };
         return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements, server,
           pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,
-          expiresAt: state === 'expired' ? now - 3600e3 : now + 6 * 86400e3, lastRefreshAt: state === 'none' && !has('auto-off') ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),
+          // Without a bundle the worker has neither an expiry nor a good refresh to report.
+          expiresAt: state === 'expired' ? now - 3600e3 : state === 'none' ? null : now + 6 * 86400e3, lastRefreshAt: state === 'none' ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),
           problem: has('auto-rejected') ? 'rejected' : has('auto-off') ? 'unavailable' : state === 'expired' ? 'offline' : null, webUrl: 'https://known.example/automations' } };
       }
       case 'known.capture.check': case 'known.capture.resume': case 'known.capture.edit.cancel': case 'known.capture.feedback': case 'known.capture.presented': case 'known.connectivity.online': case 'known.favicon.drain': return { ok: true };

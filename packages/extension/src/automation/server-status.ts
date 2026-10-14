@@ -23,6 +23,11 @@ export interface ServerRuleStatus {
   readonly id: string;
   readonly name: string;
   readonly state: Rule['effectiveState'];
+  /**
+   * It files new bookmarks (an intake part), so browsers carry it in their
+   * bundle while it is on. Missing from a copy read before this was kept.
+   */
+  readonly intake?: boolean;
   /** The server's usage projection (M2); null before it reports one. */
   readonly usage: {
     readonly since: number; readonly runs: number; readonly waiting: number; readonly held: number;
@@ -88,7 +93,7 @@ export async function readServerStatus(serverOrigin: string, fetcher: typeof fet
 
 function ruleStatus(rule: Rule): ServerRuleStatus {
   const usage = rule.usage;
-  return { id: rule.id, name: rule.definition.name, state: rule.effectiveState,
+  return { id: rule.id, name: rule.definition.name, state: rule.effectiveState, intake: rule.definition.intake !== undefined,
     usage: usage ? { since: Date.parse(usage.periodStart), runs: usage.admittedRuns, waiting: usage.readyJobs, held: usage.heldJobs,
       approvals: usage.awaitingApprovalJobs ?? null, cost: usage.costDisplay } : null };
 }

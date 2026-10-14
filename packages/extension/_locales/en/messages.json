@@ -194,6 +194,9 @@
   "automation_freshnessHint": {
     "message": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
   },
+  "automation_freshnessHintNone": {
+    "message": "This browser checks for rules every 5 minutes."
+  },
   "automation_freshnessHintShort": {
     "message": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
@@ -356,6 +359,9 @@
   "automation_rulesOutOfDateSaved": {
     "message": "Rules are out of date; connect to refresh. The page stayed where you saved it."
   },
+  "automation_rulesPausedLede": {
+    "message": "Rules that file bookmarks come back here when you resume automations on the web."
+  },
   "automation_runBlocked": {
     "message": "Blocked"
   },
@@ -455,8 +461,14 @@
   "automation_statusNotSetUp": {
     "message": "Not set up"
   },
+  "automation_statusOn": {
+    "message": "On"
+  },
   "automation_statusOnHint": {
     "message": "Bookmarks you save go straight to the folder a rule picks, even offline."
+  },
+  "automation_statusOnNoRulesHint": {
+    "message": "None of your rules file bookmarks in this browser yet."
   },
   "automation_statusOnRules_one": {
     "message": "On · $1 rule"

@@ -58,7 +58,10 @@ describe('run and placement words', () => {
     const link = row.querySelector('a')!;
     expect(link.href).toBe('https://colp.example/automations/runs/run-1');
     expect([link.target, link.rel]).toEqual(['_blank', 'noreferrer']);
-    expect(text(row)).toMatch(/^Batch Rule “arXiv papers” · .+ · Batch On hold$/u);
+    // The kind is said once: in the title when the server gave no explanation, in the meta when it did.
+    expect(text(row)).toMatch(/^Batch Rule “arXiv papers” · \d+ minutes ago On hold$/u);
+    expect(text(runRow(run({ kind: 'batch', explanation: 'Destination unavailable.' }))))
+      .toMatch(/^Not moved: the rule’s folder is unavailable\. Rule “arXiv papers” · .+ · Batch Done$/u);
     expect(text(runRow(run({ ruleName: null })))).toMatch(/^New bookmark A rule · /u);
   });
 
@@ -126,6 +129,19 @@ describe('Options › Automations with the server’s status', () => {
     expect(group.querySelector<HTMLAnchorElement>('a.btn')!.href).toBe('https://colp.example/automations');
     expect(group.querySelector('.automation-freshness')).toBeNull();
     expect(body.querySelector('[aria-labelledby="automation-placements-heading"]')).not.toBeNull();
+  });
+
+  it('says where the filing rules went while paused, and lists only the rules that work on the server', async () => {
+    const rules = (await render(view({ state: 'paused', rules: [] }))).querySelector('[aria-labelledby="automation-rules-heading"]')!;
+    expect(text(rules)).toBe('Rules Rules that file bookmarks come back here when you resume automations on the web. '
+      + 'Weekly digest Works on your server; nothing to file here. Billed by your agent');
+  });
+
+  it('says plainly when no rule files bookmarks here, and has no offline copy to promise before the first bundle', async () => {
+    const on = await render(view({ rules: [] }));
+    expect(text(on.querySelector('.set-row'))).toBe('Status None of your rules file bookmarks in this browser yet. On');
+    const none = await render(view({ state: 'none', rules: [], expiresAt: null, lastRefreshAt: null }));
+    expect(text(none.querySelectorAll('.set-row')[1]!)).toBe('Rule updates This browser checks for rules every 5 minutes. Check now');
   });
 
   it('keeps showing the last runs with their age while the server is unreachable, and hides the section without server automations', async () => {

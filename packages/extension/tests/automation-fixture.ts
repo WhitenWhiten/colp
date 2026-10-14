@@ -49,10 +49,12 @@ export function intakeFacts(url: string, parent?: FolderRef, extra: Partial<Even
       ...(parent ? { parent, ancestors: [parent] } : {}), ...extra } };
 }
 
-/** A rule as `GET /api/v1/me/automations/rules` lists it. */
-export function serverRule(input: { readonly id?: string; readonly name?: string; readonly state?: Rule['effectiveState']; readonly usage?: Rule['usage'] } = {}): Rule {
+/** A rule as `GET /api/v1/me/automations/rules` lists it. `intake: false`: a rule with no browser part (a digest, say). */
+export function serverRule(input: { readonly id?: string; readonly name?: string; readonly state?: Rule['effectiveState']; readonly usage?: Rule['usage'];
+  readonly intake?: false } = {}): Rule {
+  const { intake, ...definition } = structuredClone(M1_RULE);
   return { id: input.id ?? 'rule-arxiv', revision: '1', desiredState: 'enabled', effectiveState: input.state ?? 'active',
-    definition: { ...structuredClone(M1_RULE), ...(input.name ? { name: input.name } : {}) }, bindingSetId: 'bindings-1',
+    definition: { ...definition, ...(input.intake === false ? {} : { intake }), ...(input.name ? { name: input.name } : {}) }, bindingSetId: 'bindings-1',
     createdAt: new Date(NOW - DAY).toISOString(), updatedAt: new Date(NOW - DAY).toISOString(), ...(input.usage ? { usage: input.usage } : {}) };
 }
 

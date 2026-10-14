@@ -109,7 +109,8 @@ export function runRow(run: AutomationRunView): HTMLElement {
   const meta = el('p', undefined, 'list-row-meta');
   meta.append(el('span', run.ruleName ? t('automation_placementRule', 'Rule “$1”', run.ruleName) : t('automation_runSomeRule', 'A rule'), 'grow'),
     el('span', undefined, 'sep'), when(run.at));
-  if (run.kind !== 'intake') meta.append(el('span', undefined, 'sep'), el('span', RUN_KIND[run.kind]()));
+  // The kind, unless the title already is it.
+  if (run.kind !== 'intake' && run.explanation) meta.append(el('span', undefined, 'sep'), el('span', RUN_KIND[run.kind]()));
   main.append(title, meta);
   const tail = el('div', undefined, 'list-row-tail');
   tail.append(runBadge(run), createIcon('arrow-up-right', 14));
