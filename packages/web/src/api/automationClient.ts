@@ -17,6 +17,7 @@ import type {
   AutomationHealthReport,
   AutomationJob,
   AutomationLifecycleInput,
+  AutomationOperationReceipt,
   AutomationPairingGrant,
   AutomationPage,
   AutomationPauseState,
@@ -25,6 +26,7 @@ import type {
   AutomationRule,
   AutomationRuleInput,
   AutomationRun,
+  AutomationRunOutput,
   AutomationSubmissionResult,
   AutomationTarget,
   AutomationTargetInput,
@@ -79,6 +81,10 @@ export interface AutomationApi {
   listRuns(query?: RunQuery, signal?: AbortSignal): Promise<AutomationPage<AutomationRun>>
   getRun(id: string, signal?: AbortSignal): Promise<AutomationRun>
   undoRunEffect(runId: string, input: AutomationUndoInput, revision: string): Promise<AutomationRun>
+  /** Text a run produced, oldest first; 404 when its source bookmarks are gone. */
+  listRunOutputs(runId: string, page?: { cursor?: string | null; limit?: number }, signal?: AbortSignal): Promise<AutomationPage<AutomationRunOutput>>
+  /** Marks outputs read up to and including this one; a later output stays unread. */
+  markRunRead(runId: string, throughOutputId: string, revision: string): Promise<AutomationOperationReceipt>
   /** Stops remaining work; completed effects stay. */
   cancelRun(runId: string, revision: string): Promise<AutomationRun>
   getJob(id: string, signal?: AbortSignal): Promise<AutomationJob>
@@ -307,6 +313,18 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       body: input,
       revision,
       intent: `undo:${input.effectReceiptId}`,
+    }),
+    listRunOutputs: async (runId, outputPage = {}, signal) => page<AutomationRunOutput>(
+      await read(`${BASE}/runs/${opaqueId(runId, 'run')}/outputs${query({
+        cursor: outputPage.cursor,
+        limit: outputPage.limit === undefined ? undefined : String(outputPage.limit),
+      })}`, signal),
+      'output',
+    ),
+    markRunRead: async (runId, throughOutputId, revision) => write('POST', `${BASE}/runs/${opaqueId(runId, 'run')}/read`, {
+      body: { throughOutputId },
+      revision,
+      intent: `read:${throughOutputId}`,
     }),
     cancelRun: async (runId, revision) => write('POST', `${BASE}/runs/${opaqueId(runId, 'run')}/cancel`, {
       body: { reason: 'Owner cancelled the remaining work of this run.' },

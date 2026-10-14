@@ -134,6 +134,19 @@ describe('automation client', () => {
     expect(new Headers(profileInit.headers).get('If-Match')).toBe('"4"')
   })
 
+  it('pages a run’s outputs and marks read through one output on the run revision', async () => {
+    const fetchImpl = vi.fn(async () => json(200, { items: [], nextCursor: null }))
+    const api = createAutomationApi(fetchImpl)
+    await api.listRunOutputs('run-1', { cursor: 'c2', limit: 3 })
+    await api.markRunRead('run-1', 'output-9', '5')
+    const [listUrl] = fetchImpl.mock.calls[0] as unknown as [string]
+    const [readUrl, readInit] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit]
+    expect(listUrl).toBe('/api/v1/me/automations/runs/run-1/outputs?cursor=c2&limit=3')
+    expect(readUrl).toBe('/api/v1/me/automations/runs/run-1/read')
+    expect(new Headers(readInit.headers).get('If-Match')).toBe('"5"')
+    expect(JSON.parse(String(readInit.body))).toEqual({ throughOutputId: 'output-9' })
+  })
+
   it('reads a job, a rule’s dependencies and a sized run page', async () => {
     const fetchImpl = vi.fn(async () => json(200, { items: [], nextCursor: null }))
     const api = createAutomationApi(fetchImpl)

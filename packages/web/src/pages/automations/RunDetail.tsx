@@ -25,6 +25,7 @@ import {
 } from './copy'
 import { rulePath, runPath } from './paths'
 import { RunEffects } from './RunEffects'
+import { RunOutputs } from './RunOutputs'
 import { errorMessage, isStale, useAutomationDeps, useLoad } from './shared'
 import { UsagePanel } from './UsagePanel'
 
@@ -80,7 +81,7 @@ function JobRow({ job, busy, onRetry }: { job: AutomationJob; busy: boolean; onR
   const status = JOB_STATUS[job.status]
   const explanation = runExplanation(job.explanation)
   return (
-    <li className="automation-job" data-job-id={job.id} data-status={job.status}>
+    <li className="automation-job" id={`job-${job.id}`} data-job-id={job.id} data-status={job.status}>
       <div className="automation-job-body">
         <p className="automation-job-title">
           {capitalize(taskPhrase(job.task.type))}
@@ -217,6 +218,8 @@ export function RunDetail() {
               <span>{explanation}</span>
             </p>
           )}
+
+          {shown.outputCount > 0 && <RunOutputs run={shown} onRunChanged={run.reload} />}
 
           <section className="automations-section" aria-labelledby="automation-run-effects">
             <div className="automations-section-head">

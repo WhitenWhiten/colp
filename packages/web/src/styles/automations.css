@@ -1112,4 +1112,126 @@
   list-style: none;
   font-size: var(--text-sm);
 }
+/* ——— What a run wrote, and the Digests list (AU-24) ———
+   Reading text first: a comfortable measure, the worker's words kept as
+   plain text with their line breaks, provenance and sources beneath. */
+.automation-outputs {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.automation-output {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.automation-output-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.automation-output-text {
+  max-width: var(--measure);
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: var(--leading-copy);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.automation-output-sources > summary {
+  width: fit-content;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.automation-output-sources ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.automation-output-sources li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  color: var(--ink-2);
+}
+
+.automation-output-sources time {
+  color: var(--muted);
+}
+
+.automation-digests {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.automation-digest {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.automation-digest-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.automation-digest-head h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* Read digests step back; unread ones keep full ink and their badge. */
+.automation-digest:not([data-unread]) .automation-digest-head h2 {
+  color: var(--ink-2);
+  font-weight: var(--weight-medium);
+}
+
+.automation-digest-head h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.automation-digest-head h2 a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.automation-digest-snippet {
+  display: -webkit-box;
+  max-width: var(--measure);
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-copy);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
 }

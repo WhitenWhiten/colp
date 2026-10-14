@@ -274,6 +274,7 @@ export function AutomationsHome() {
             >
               {pauseState?.paused ? 'Resume all' : 'Pause all'}
             </button>
+            <Link className="btn btn-ghost" to="/automations/digests">Digests</Link>
             <Link className="btn btn-primary" to="/automations/new">New rule</Link>
           </>
         )}

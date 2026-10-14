@@ -96,4 +96,5 @@ Each web task is committed separately. The commit column is filled in by the nex
 | AW-12 | Done locally (mocked API; no hosted run) | `979dd9e`, [Automations page, editor, preview, bookmark history](evidence/aw-12.md) |
 | AW-34 | Done locally (mocked API; no hosted run) | `db0f7e3`, [rule and run pages, waiting work, allowance](evidence/aw-34.md) |
 | AW-52 | Done locally (mocked API; no hosted run) | `5e410ac`, [automation plan approvals and effect-specific Undo](evidence/aw-52.md) |
-| AW-53 | Done locally (mocked API; no hosted run) | [agent opt-ins, worker pairing, connection guide](evidence/aw-53.md) |
+| AW-53 | Done locally (mocked API; no hosted run) | `c549fb9`, [agent opt-ins, worker pairing, connection guide](evidence/aw-53.md) |
+| AW-45 | Done locally (mocked API; no hosted run) | [Digests and run text output](evidence/aw-45.md) |
