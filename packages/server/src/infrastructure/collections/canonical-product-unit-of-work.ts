@@ -79,12 +79,14 @@ export function createPostgresCanonicalMutationUnitOfWork(
     async execute(work) {
       let committedRebalanceCount: number | undefined;
       const result = await unitOfWork.execute(async ({ transaction }) => {
+      const replicaLocks = new Set<string>();
       const rawCanonical = createCanonicalMutationApplication(createPostgresCanonicalMutationPorts(transaction, {
         outboxIdGenerator: options.outboxIdGenerator,
         faultInjector: options.canonicalFaultInjector,
         metrics: options.metrics,
         positionRebalanceWindow: options.positionRebalanceWindow,
         invalidateSyncReplicasOnNodeMutation: true,
+        replicaLocksAlreadyHeld: collectionId => replicaLocks.has(collectionId),
         socialRouteFaultInjector: options.socialRouteFaultInjector,
         reportSourceInvalidation: options.reportSourceInvalidation,
       }));
@@ -99,6 +101,7 @@ export function createPostgresCanonicalMutationUnitOfWork(
           // `recovery_required`. Lock the replica rows first so the pair is
           // never taken in the opposite order from Sync Push/Pull/Ack.
           await lockActiveSyncReplicasForCollection(transaction, collectionId);
+          replicaLocks.add(collectionId);
           return collections.lockForUpdate(collectionId);
         },
       };

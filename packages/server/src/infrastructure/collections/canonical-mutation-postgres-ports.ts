@@ -299,6 +299,8 @@ export interface PostgresCanonicalMutationPortOptions {
   readonly resourceIdClaimOwner?: PostgresCanonicalResourceIdClaimOwner;
   /** Non-Sync writers have no COLP Replica/Sequence identity, so force Snapshot recovery. */
   readonly invalidateSyncReplicasOnNodeMutation?: boolean;
+  /** Product admission already holds this transaction's replica gate and row locks. */
+  readonly replicaLocksAlreadyHeld?: (collectionId: string) => boolean;
   readonly socialRouteFaultInjector?: SocialCollectionChangeRouteFaultInjector;
   /** Overrides the host KNOWN_FEATURE_AUTOMATION_CAPTURE switch (tests and explicit compositions). */
   readonly automationCapture?: boolean;
@@ -707,6 +709,7 @@ export function createPostgresCanonicalMutationPorts(
     outboxIdGenerator: options.outboxIdGenerator,
     reportSourceInvalidation: options.reportSourceInvalidation,
   };
+  let lockedRead: (CollectionRow & { transaction_now: Date }) | undefined;
   type PreparedWrite = CanonicalResourceWrite<PostgresCanonicalPlanFacts>;
   type PreparedEvent = CanonicalDomainEvent<PostgresCanonicalPlanFacts>;
   async function writeCollection(tx: DatabaseTransaction, write: PreparedWrite): Promise<void> {
@@ -746,11 +749,10 @@ export function createPostgresCanonicalMutationPorts(
           return;
   }
   async function writeNode(tx: DatabaseTransaction, write: PreparedWrite): Promise<void> {
-        const nowResult = await sql<{ now: Date }>`select current_timestamp as now`.execute(tx);
-        const now = nowResult.rows[0]!.now;
+        const facts = postgresPlanFacts(write.plan);
+        if (facts.resourceKind !== 'node') invariant('node writer requires its node plan');
+        const { now, node: current } = facts.reads;
         const { mutation, allocation } = write;
-
-        const current = await loadNode(tx, mutation.target.collectionId, mutation.target.resourceId);
         if (mutation.action !== 'delete' && (allocation.rebalancedSiblings?.length ?? 0) > 0) {
           await stageRebalancedPositions(
             tx,
@@ -1022,8 +1024,11 @@ export function createPostgresCanonicalMutationPorts(
           });
         }
         const parentIds = Object.keys(allocation.childrenRevisions);
-        const parents = parentIds.length ? await tx.selectFrom('nodes').selectAll()
-          .where('collection_id', '=', mutation.target.collectionId).where('id', 'in', parentIds).execute() : [];
+        // The allocator only reads. Rebalance/delete writes can change parents
+        // before this point; all other mutations reuse the locked planner read.
+        const parents = mutation.action !== 'delete' && !allocation.rebalancedSiblings?.length ? facts.reads.parents
+          : parentIds.length ? await tx.selectFrom('nodes').selectAll()
+            .where('collection_id', '=', mutation.target.collectionId).where('id', 'in', parentIds).execute() : [];
         const parentWrites = parentIds.map(parentId => {
           const parent = parents.find(row => row.id === parentId);
           if (!parent || parent.deleted_at !== null) invariant('parent disappeared while collection was locked');
@@ -1047,7 +1052,7 @@ export function createPostgresCanonicalMutationPorts(
             RETURNING n.id`.execute(tx);
           if (result.rows.length !== parentWrites.length) invariant('canonical parent revision write lost a row', true);
         }
-        const collection = await loadCollection(tx, mutation.target.collectionId);
+        const collection = mutation.action === 'delete' ? await loadCollection(tx, mutation.target.collectionId) : facts.reads.collection;
         if (!collection) invariant('collection disappeared while locked');
         const intendedCollection: CollectionRow = {
           ...collection,
@@ -1325,10 +1330,12 @@ export function createPostgresCanonicalMutationPorts(
         // Take those replica row locks first so this transaction never holds
         // collections while waiting on sync_replicas, which is the exact
         // inverse of the Sync Push/Pull/Ack authority prefix.
-        if (options.invalidateSyncReplicasOnNodeMutation) {
+        if (options.invalidateSyncReplicasOnNodeMutation && !options.replicaLocksAlreadyHeld?.(collectionId)) {
           await lockActiveSyncReplicasForCollection(tx, collectionId);
         }
-        const row = await loadCollection(tx, collectionId, true);
+        const row = await tx.selectFrom('collections').selectAll()
+          .select(sql<Date>`current_timestamp`.as('transaction_now')).where('id', '=', collectionId).forUpdate().executeTakeFirst();
+        lockedRead = row;
         if (!row || row.deleted_at !== null) return null;
         assertExistingCollectionAuthority(row);
         return {
@@ -1512,7 +1519,7 @@ export function createPostgresCanonicalMutationPorts(
         const automation = captureAutomation ? await planAutomationFacts(tx, input, current ?? null, afterFields,
           input.mutation.action === 'update' || input.mutation.action === 'delete' ? current!.parent_id : targetParent) : null;
         return {
-          facts: Object.freeze({ resourceKind: 'node', action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId, automation }),
+          facts: Object.freeze({ resourceKind: 'node', reads: { node: current ?? null, parents: parentRows, collection: lockedRead!, now: lockedRead!.transaction_now }, action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId, automation }),
           operationId: input.operationId,
           collectionId: input.collectionId,
           mutation: {
