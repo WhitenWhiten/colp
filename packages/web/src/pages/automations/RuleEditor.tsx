@@ -48,6 +48,22 @@ function folderKey(collectionId: string, nodeId: string) {
   return `${collectionId}/${nodeId}`
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+/** Enough shape for this page to describe it; the server validates everything else. */
+function looksLikeDefinition(value: Record<string, unknown>): value is AutomationRuleDefinition {
+  const { match } = value
+  const grouped = isObject(match) && (match.kind === 'all' || match.kind === 'any')
+  return typeof value.name === 'string'
+    && isObject(value.scope)
+    && isObject(match)
+    && (!grouped || (Array.isArray(match.items) && match.items.every(isObject)))
+    && isObject(value.trigger)
+    && isObject(value.policy)
+    && Array.isArray(value.tasks) && value.tasks.every(isObject)
+    && Array.isArray(value.roles)
+}
+
 export function RuleEditor() {
   const { ruleId } = useParams<{ ruleId?: string }>()
   const [search] = useSearchParams()
@@ -55,7 +71,7 @@ export function RuleEditor() {
   const navigate = useNavigate()
   const confirm = useConfirm()
   const { api, folders } = useAutomationDeps()
-  const { success, error: toastError } = useToast()
+  const { toast, success, error: toastError } = useToast()
   const creating = ruleId === undefined
 
   const capabilities = useLoad('capabilities', (signal) => api.getCapabilities(signal))
@@ -260,14 +276,23 @@ export function RuleEditor() {
       setShowProblems(true)
       return
     }
+    const base = saved ?? editing
+    if (base && !dirty) {
+      // Nothing to store: the rule keeps its state, so don't claim it was saved or paused.
+      toast(`No changes to save in “${base.definition.name}”.`)
+      navigate('/automations')
+      return
+    }
     setBusy('save')
     try {
       const rule = await store()
       setInitialKey(builtKey)
       await tidyBindings(rule.bindingSetId)
-      success(editing?.desiredState === 'enabled'
+      success(base?.desiredState === 'enabled'
         ? `Saved “${rule.definition.name}”. It stays paused until you preview it and turn it on.`
-        : `Saved “${rule.definition.name}” as a draft.`)
+        : rule.desiredState === 'draft'
+          ? `Saved “${rule.definition.name}” as a draft.`
+          : `Saved “${rule.definition.name}”.`)
       navigate('/automations')
     } catch (error) {
       toastError(errorMessage(error, 'Could not save this rule.'))
@@ -332,11 +357,15 @@ export function RuleEditor() {
       setJsonError('This is not valid JSON.')
       return
     }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    if (!isObject(parsed)) {
       setJsonError('Paste a rule definition: one JSON object.')
       return
     }
-    const next = parsed as AutomationRuleDefinition
+    if (!looksLikeDefinition(parsed)) {
+      setJsonError('A rule definition needs name, roles, scope, match, trigger, tasks and policy.')
+      return
+    }
+    const next = parsed
     setJsonError(null)
     // A definition the form can show goes back into the form; anything else is kept as written.
     const seeded = form.folderId
@@ -383,7 +412,7 @@ export function RuleEditor() {
           {jsonDefinition ? (
             <p className="automation-json-note" role="status" data-testid="automation-json-note">
               <Icon name="code" />
-              <span>This rule uses options the form can’t show. Edit it as JSON below; the folder in step 2 still applies.</span>
+              <span>This rule uses options the form can’t show. Edit it as JSON below; the folder in step 1 still applies.</span>
             </p>
           ) : null}
           <ol className="automation-steps">
@@ -539,10 +568,11 @@ export function RuleEditor() {
             )}
           </ol>
 
-          <details className="automation-disclosure">
-            <summary>More options</summary>
-            <div className="automation-options">
-              {!jsonDefinition && (
+          {/* A JSON-only rule keeps its name, priority and cap in the JSON. */}
+          {!jsonDefinition && (
+            <details className="automation-disclosure">
+              <summary>More options</summary>
+              <div className="automation-options">
                 <div className="field">
                   <label htmlFor="automation-name">Name</label>
                   <input
@@ -555,39 +585,35 @@ export function RuleEditor() {
                   />
                   <p className="field-hint">Shown in your rule list. Left empty, the rule is named “{fallbackName}”.</p>
                 </div>
-              )}
-              {!jsonDefinition && (
-                <>
-                  <div className="field">
-                    <label htmlFor="automation-priority">Priority</label>
-                    <input
-                      id="automation-priority"
-                      type="number"
-                      inputMode="numeric"
-                      min={-1000}
-                      max={1000}
-                      value={draft.priority}
-                      onChange={(event) => update({ priority: Number.isFinite(event.target.valueAsNumber) ? Math.trunc(event.target.valueAsNumber) : DEFAULT_PRIORITY })}
-                    />
-                    <p className="field-hint">When two rules want different folders for one bookmark, the higher priority wins. Equal priorities leave it where you saved it.</p>
-                  </div>
-                  <div className="field">
-                    <label htmlFor="automation-daily">Most runs a day</label>
-                    <input
-                      id="automation-daily"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      max={10000}
-                      value={draft.maxRunsPerDay}
-                      onChange={(event) => update({ maxRunsPerDay: Number.isFinite(event.target.valueAsNumber) ? Math.max(1, Math.trunc(event.target.valueAsNumber)) : 100 })}
-                    />
-                    <p className="field-hint">A safety cap. Bookmarks past it are still saved, just not filed.</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </details>
+                <div className="field">
+                  <label htmlFor="automation-priority">Priority</label>
+                  <input
+                    id="automation-priority"
+                    type="number"
+                    inputMode="numeric"
+                    min={-1000}
+                    max={1000}
+                    value={draft.priority}
+                    onChange={(event) => update({ priority: Number.isFinite(event.target.valueAsNumber) ? Math.trunc(event.target.valueAsNumber) : DEFAULT_PRIORITY })}
+                  />
+                  <p className="field-hint">When two rules want different folders for one bookmark, the higher priority wins. Equal priorities leave it where you saved it.</p>
+                </div>
+                <div className="field">
+                  <label htmlFor="automation-daily">Most runs a day</label>
+                  <input
+                    id="automation-daily"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={10000}
+                    value={draft.maxRunsPerDay}
+                    onChange={(event) => update({ maxRunsPerDay: Number.isFinite(event.target.valueAsNumber) ? Math.max(1, Math.trunc(event.target.valueAsNumber)) : 100 })}
+                  />
+                  <p className="field-hint">A safety cap. Bookmarks past it are still saved, just not filed.</p>
+                </div>
+              </div>
+            </details>
+          )}
 
           <details
             className="automation-disclosure"

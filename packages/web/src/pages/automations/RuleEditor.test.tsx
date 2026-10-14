@@ -158,5 +158,33 @@ describe('Rule editor', () => {
     expect(advanced?.open).toBe(true)
     expect((document.getElementById('automation-json') as HTMLTextAreaElement).value).toContain('"kind": "not"')
     expect(conditionInput()).toBeNull()
+    // Name, priority and the daily cap live in the JSON; an empty "More options" is not offered.
+    expect([...document.querySelectorAll('summary')].map((item) => item.textContent)).not.toContain('More options')
+  })
+
+  it('refuses pasted JSON that is not a whole rule definition, and keeps the page', async () => {
+    await readyNew()
+    const textarea = document.getElementById('automation-json') as HTMLTextAreaElement
+    typeInto(textarea, '{"name": "Half a rule"}')
+    click(buttonNamed('Apply JSON'))
+    await waitForDom(() => Boolean(document.querySelector('[role="alert"]')))
+    expect(document.querySelector('[role="alert"]')?.textContent)
+      .toBe('A rule definition needs name, roles, scope, match, trigger, tasks and policy.')
+    expect(document.querySelector('[data-testid="automation-json-note"]')).toBeNull()
+    expect(document.querySelector('[data-testid="automation-sentence"]')?.textContent)
+      .toBe('When a bookmark saved to Personal matches its conditions, move it to Academic.')
+  })
+
+  it('does not claim an unchanged rule was saved or paused', async () => {
+    const api = fakeApi()
+    api.getRule.mockResolvedValue(rule('rule-arxiv', 'Papers to Academic'))
+    api.getBindingSet.mockResolvedValue(binding('bind-rule-arxiv', 'f-academic'))
+    mount('/automations/rules/rule-arxiv/edit', api)
+    await waitForDom(() => select('automation-folder')?.value === 'f-academic' && conditionInput()?.value === 'arxiv.org')
+    click(buttonNamed('Save changes'))
+    await waitForDom(() => toast.toast.mock.calls.length === 1)
+    expect(toast.toast).toHaveBeenCalledWith('No changes to save in “Papers to Academic”.')
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(api.replaceRule).not.toHaveBeenCalled()
   })
 })

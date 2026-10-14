@@ -212,7 +212,7 @@ export function RuleDetail() {
             <RuleSentence
               rule={shown}
               collectionTitle={collection ?? null}
-              folderTitle={folder === null ? 'a folder that is gone' : folder?.title ?? null}
+              folder={folder}
             />
           </section>
 

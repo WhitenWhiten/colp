@@ -341,6 +341,8 @@ function AutomationPlanNotes({ approval, automation }: { approval: WriteApproval
   if (job.status === 'review' && approval.status === 'cancelled') notes.push('You denied it. Nothing from this step was applied.')
   if (effect?.status === 'reverted') notes.push('Undone.')
   else if (effect && !effect.undoAvailable) notes.push(undoReason(effect.undoReason))
+  // An empty block would still take a row (and its gap) in the card.
+  if (notes.length === 0 && !run) return null
   return (
     <div className="write-approval-automation" data-testid="approval-automation-notes">
       {notes.map((note) => <p key={note}>{note}</p>)}

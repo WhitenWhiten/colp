@@ -71,7 +71,7 @@ export function UsagePanel({
         <p className="automation-panel-text">
           {scope === 'rule'
             ? 'This rule only files bookmarks, so there is no agent work or cost to show. Counts appear here once a rule asks an agent to do something.'
-            : 'This run had no agent work.'}
+            : 'The server kept no counts for this run.'}
         </p>
       </section>
     )

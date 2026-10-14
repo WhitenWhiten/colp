@@ -515,6 +515,18 @@
   max-width: 28rem;
 }
 
+.agents-worker-form .field-hint {
+  margin: 0;
+}
+
+/* Choice groups read as fields: their legend matches a field label (as .cc-kind). */
+.agents-worker-form .option-group legend {
+  margin-bottom: var(--space-1);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
 .agents-worker-form > .btn {
   justify-self: start;
 }
@@ -642,6 +654,11 @@
   .agents-tabs {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* With the Automation worker tab there are five: the last takes a row. */
+  .agents-tabs > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   .agents-form .field {

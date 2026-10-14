@@ -539,11 +539,11 @@ export function AutomationWorkersSection({
         </div>
       )}
 
-      {data.status === 'ready' && data.targets.length === 0 && !adding && (
+      {data.status === 'ready' && active.length === 0 && !adding && (
         <EmptyState
           icon="bolt"
           className="empty-state--compact agents-empty"
-          title="No workers yet"
+          title={revoked > 0 ? 'No active workers' : 'No workers yet'}
           description="Rules that only file bookmarks need no worker. Add one when a rule asks an agent to summarize or tag."
         />
       )}

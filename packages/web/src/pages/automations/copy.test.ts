@@ -36,6 +36,15 @@ describe('automation copy', () => {
       .toBe('When a bookmark saved to its collection has “Paper” in its title or is tagged ml, move it to its folder.')
   })
 
+  it('speaks of a batch in the plural, and never sets a missing folder as the owner’s value', () => {
+    const batch = { ...definition, trigger: { mode: 'countBatch' as const, count: 5, distinctBy: 'node' as const, partition: 'rule' as const } }
+    expect(sentenceText(ruleSentence(batch, { collection: 'Personal', folder: 'Academic' })))
+      .toBe('Every 5 bookmarks saved to Personal that are from arxiv.org, move them to Academic.')
+    const gone = ruleSentence(definition, { collection: 'Personal', folder: null, folderGone: true })
+    expect(sentenceText(gone)).toBe('When a bookmark saved to Personal is from arxiv.org, move it to a folder that is gone.')
+    expect(gone.find((part) => part.text === 'a folder that is gone')?.term).toBeFalsy()
+  })
+
   it('does not paraphrase a condition the form cannot show', () => {
     const negated = { ...definition, match: { kind: 'not' as const, item: definition.match } }
     expect(sentenceText(ruleSentence(negated, { collection: 'Personal', folder: 'Academic' })))

@@ -14,16 +14,18 @@ export function Sentence({ parts, className }: { parts: readonly SentencePart[];
   )
 }
 
+/** `folder`: the destination as the library has it now; `null` when it is gone, `undefined` while loading. */
 export function RuleSentence({
   rule,
   collectionTitle,
-  folderTitle,
+  folder,
   className,
 }: {
   rule: AutomationRule
   collectionTitle: string | null
-  folderTitle: string | null
+  folder: { title: string } | null | undefined
   className?: string
 }) {
-  return <Sentence className={className} parts={ruleSentence(rule.definition, { collection: collectionTitle, folder: folderTitle })} />
+  const names = { collection: collectionTitle, folder: folder?.title ?? null, folderGone: folder === null }
+  return <Sentence className={className} parts={ruleSentence(rule.definition, names)} />
 }

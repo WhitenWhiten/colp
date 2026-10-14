@@ -111,6 +111,7 @@ export function PreviewPanel({
       {groups.map((group) => (
         <details key={group.outcome} className="automation-preview-group" open={group.outcome !== 'notMatched'}>
           <summary>
+            <Icon name="chevron-right" className="automation-disclosure-chevron" />
             <StatusBadge tone={group.tone}>{group.label}</StatusBadge>
             <span className="automation-preview-count">{plural(group.decisions.length, 'bookmark')}</span>
           </summary>

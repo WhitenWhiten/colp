@@ -293,7 +293,7 @@ export function RunOnce() {
             <RuleSentence
               rule={shown}
               collectionTitle={collectionTitle ?? null}
-              folderTitle={destination === null ? 'a folder that is gone' : destination?.title ?? null}
+              folder={destination}
             />
           </section>
 
@@ -354,6 +354,7 @@ export function RunOnce() {
                 {preview.sample.length > 0 && (
                   <details className="automation-preview-group" open>
                     <summary>
+                      <Icon name="chevron-right" className="automation-disclosure-chevron" />
                       <span className="automation-sample-title">A sample</span>
                       <span className="automation-preview-count">{plural(preview.sample.length, 'bookmark')}</span>
                     </summary>

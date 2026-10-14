@@ -35,30 +35,34 @@ export function conditionOption(kind: ConditionKind) {
 /** A sentence part; terms are the owner's own values and get emphasis. */
 export type SentencePart = { text: string; term?: boolean }
 
-function conditionParts(predicate: AutomationPredicate): SentencePart[] | null {
+/** `many`: the subject is several bookmarks ("Every 5 bookmarks … that are from …"). */
+function conditionParts(predicate: AutomationPredicate, many: boolean): SentencePart[] | null {
   const kind = conditionKindOf(predicate)
   if (!kind || predicate.kind !== 'field' || typeof predicate.value !== 'string') return null
   const value = predicate.value
+  const is = many ? 'are' : 'is'
+  const has = many ? 'have' : 'has'
   switch (kind) {
-    case 'siteIs': return [{ text: 'is from ' }, { text: value, term: true }]
-    case 'siteEndsWith': return [{ text: 'is from ' }, { text: value, term: true }, { text: ' or a subdomain' }]
-    case 'titleContains': return [{ text: 'has ' }, { text: `“${value}”`, term: true }, { text: ' in its title' }]
-    case 'hasTag': return [{ text: 'is tagged ' }, { text: value, term: true }]
-    case 'pathStartsWith': return [{ text: 'has a link path starting with ' }, { text: value, term: true }]
+    case 'siteIs': return [{ text: `${is} from ` }, { text: value, term: true }]
+    case 'siteEndsWith': return [{ text: `${is} from ` }, { text: value, term: true }, { text: ' or a subdomain' }]
+    case 'titleContains': return [{ text: `${has} ` }, { text: `“${value}”`, term: true }, { text: many ? ' in their titles' : ' in its title' }]
+    case 'hasTag': return [{ text: `${is} tagged ` }, { text: value, term: true }]
+    case 'pathStartsWith': return [{ text: `${has} a link path starting with ` }, { text: value, term: true }]
   }
 }
 
-function matchParts(match: AutomationPredicate): SentencePart[] {
+function matchParts(match: AutomationPredicate, many: boolean): SentencePart[] {
+  const fallback = [{ text: many ? 'match its conditions' : 'matches its conditions' }]
   const items = match.kind === 'all' || match.kind === 'any' ? match.items : [match]
   const joiner = match.kind === 'any' ? ' or ' : ' and '
   const parts: SentencePart[] = []
   for (const [index, item] of items.entries()) {
-    const described = conditionParts(item)
-    if (!described) return [{ text: 'matches its conditions' }]
+    const described = conditionParts(item, many)
+    if (!described) return fallback
     if (index > 0) parts.push({ text: joiner })
     parts.push(...described)
   }
-  return parts.length > 0 ? parts : [{ text: 'matches its conditions' }]
+  return parts.length > 0 ? parts : fallback
 }
 
 const TASK_PHRASES: Record<string, string> = {
@@ -82,21 +86,24 @@ function listPhrase(items: readonly string[]): string {
 
 /**
  * "When a bookmark saved to Personal is from arxiv.org, move it to Academic."
- * Names are the current ones the page could read; a missing one says so.
+ * Names are the current ones the page could read; a missing one says so,
+ * and only the owner's own values are set as terms.
  */
 export function ruleSentence(
   definition: AutomationRuleDefinition,
-  names: { collection: string | null; folder: string | null },
+  names: { collection: string | null; folder: string | null; folderGone?: boolean },
 ): SentencePart[] {
   const parts: SentencePart[] = []
   const trigger = definition.trigger
-  parts.push({ text: trigger.mode === 'countBatch' ? `Every ${trigger.count} bookmarks saved to ` : 'When a bookmark saved to ' })
+  const many = trigger.mode === 'countBatch'
+  parts.push({ text: many ? `Every ${trigger.count} bookmarks saved to ` : 'When a bookmark saved to ' })
   parts.push({ text: names.collection ?? 'its collection', term: names.collection !== null })
-  parts.push({ text: trigger.mode === 'countBatch' ? ' that ' : ' ' })
-  parts.push(...matchParts(definition.match))
+  parts.push({ text: many ? ' that ' : ' ' })
+  parts.push(...matchParts(definition.match, many))
   if (definition.intake) {
-    parts.push({ text: ', move it to ' })
-    parts.push({ text: names.folder ?? 'its folder', term: names.folder !== null })
+    parts.push({ text: many ? ', move them to ' : ', move it to ' })
+    if (names.folderGone) parts.push({ text: 'a folder that is gone' })
+    else parts.push({ text: names.folder ?? 'its folder', term: names.folder !== null })
   }
   if (definition.tasks.length > 0) {
     parts.push({ text: definition.intake ? ', then ask an agent to ' : ', ask an agent to ' })

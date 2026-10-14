@@ -95,7 +95,9 @@ function JobRow({ job, busy, onRetry }: { job: AutomationJob; busy: boolean; onR
         </p>
       </div>
       {job.status === 'awaitingApproval' && (
-        <Link className="btn btn-secondary btn-sm" to="/approvals">Review in Approvals</Link>
+        <Link className="btn btn-secondary btn-sm" to={job.planId ? `/approvals/${encodeURIComponent(job.planId)}` : '/approvals'}>
+          Review in Approvals
+        </Link>
       )}
       {job.status === 'uncertain' && (
         <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onRetry}>Try again</button>
@@ -273,7 +275,8 @@ export function RunDetail() {
         </div>
 
         <div className="automation-side">
-          {(shown.usage || shown.jobIds.length > 0) && (
+          {/* Without the server's counts there is nothing true to say here; the steps are listed beside it. */}
+          {shown.usage && (
             <UsagePanel usage={shown.usage} title="This run’s work" headingId="automation-run-usage" scope="run" />
           )}
           <dl className="automation-facts" aria-label="About this run">

@@ -18,8 +18,10 @@
     gap: var(--space-10);
   }
 
-  .automations-aside,
-  .automation-side {
+  /* Only the short reference column follows the reader. The rule and run
+     pages' side column (.automation-side) is often taller than the window,
+     and a sticky column that tall hides its end until the page ends. */
+  .automations-aside {
     position: sticky;
     top: calc(var(--header-h) + var(--space-5));
   }
@@ -90,8 +92,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  max-width: var(--measure-wide);
-  margin: 0 0 var(--space-6);
+  margin: 0;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -352,9 +353,16 @@
     gap: var(--space-8);
   }
 
+  /* The preview can outgrow the window; like .resource-aside, the column
+     then scrolls inside itself so Turn on / Start stays reachable. The
+     padding keeps focus rings of its full-width buttons inside the scroller. */
   .automation-editor-side {
     position: sticky;
     top: calc(var(--header-h) + var(--space-5));
+    max-height: calc(100dvh - var(--header-h) - var(--space-8));
+    margin: calc(-1 * var(--hair-40));
+    padding: var(--hair-40);
+    overflow-y: auto;
   }
 }
 
@@ -572,6 +580,11 @@
   padding: var(--space-4) var(--space-5) var(--space-5);
 }
 
+.automation-options .field-hint,
+.automation-json .field-hint {
+  margin: 0;
+}
+
 .automation-options .field input {
   max-width: 22rem;
 }
@@ -697,6 +710,24 @@
   align-items: center;
   gap: var(--space-2);
   cursor: pointer;
+  list-style: none;
+}
+
+.automation-preview-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A flex summary loses its marker; the chevron says the group opens. */
+.automation-disclosure-chevron {
+  flex-shrink: 0;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.automation-preview-group[open] > summary .automation-disclosure-chevron {
+  transform: rotate(90deg);
 }
 
 .automation-preview-count {
@@ -742,11 +773,13 @@
   align-self: flex-start;
 }
 
+/* Its own block, so a collapsed group above doesn't seem to own it. */
 .automation-preview-warnings {
   display: grid;
   gap: var(--space-1);
   margin: 0;
-  padding-left: var(--space-5);
+  padding: var(--space-3) 0 0 var(--space-5);
+  border-top: 1px solid var(--line);
   color: var(--ink-2);
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
@@ -890,7 +923,7 @@
 }
 /* ——— Rule and run pages ———
    Same two columns as the list: the story in the main column, counts and
-   facts in a side column that follows the reader from 1100 px. */
+   facts in a side column beside it from 1100 px. */
 .automation-side {
   display: grid;
   gap: var(--space-4);

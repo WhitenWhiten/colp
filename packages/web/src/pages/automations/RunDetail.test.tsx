@@ -72,14 +72,15 @@ describe('Run detail', () => {
   it('shows each agent step with only the action its state allows', async () => {
     const api = withRun({ status: 'running', jobIds: ['job-a', 'job-b', 'job-c', 'job-d'], usage: usage() })
     api.getJob.mockImplementation(async (id: string) => ({
-      'job-a': job('job-a', 'awaitingApproval'),
+      'job-a': job('job-a', 'awaitingApproval', { planId: 'plan-a' }),
       'job-b': job('job-b', 'uncertain', { task: { ...job('x', 'ready').task, type: 'tags.generate' } }),
       'job-c': job('job-c', 'stale'),
     })[id] ?? Promise.reject(new ProductApiError({ status: 404, code: 'resource_not_found', message: 'This step is no longer available.' })))
     mount(api)
     await waitForDom(() => document.querySelectorAll('[data-job-id]').length === 3)
     const approval = document.querySelector('[data-job-id="job-a"]')
-    expect(approval?.querySelector('a')?.getAttribute('href')).toBe('/approvals')
+    expect(approval?.querySelector('a')?.getAttribute('href')).toBe('/approvals/plan-a')
+    expect(document.querySelector('[data-testid="automation-usage"]')).not.toBeNull()
     expect(approval?.querySelector('button')).toBeNull()
     const uncertain = document.querySelector('[data-job-id="job-b"]')
     expect(text('[data-job-id="job-b"] p')).toContain('Suggest tags')
@@ -101,6 +102,8 @@ describe('Run detail', () => {
     api.retryJob.mockRejectedValue(new ProductApiError({ status: 409, code: 'automation_retry_unavailable', message: 'No pinned calls remain.' }))
     mount(api)
     await waitForDom(() => Boolean(buttonNamed('Try again')))
+    // Without the server's counts the side says nothing rather than "no agent work".
+    expect(document.querySelector('[data-testid="automation-usage"]')).toBeNull()
     click(buttonNamed('Try again'))
     await waitForDom(() => toast.error.mock.calls.length === 1)
     expect(toast.error).toHaveBeenCalledWith('No pinned calls remain.')

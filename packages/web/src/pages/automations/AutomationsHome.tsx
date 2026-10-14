@@ -89,7 +89,7 @@ function RuleCard({
       <RuleSentence
         rule={rule}
         collectionTitle={collection ?? null}
-        folderTitle={folder === null ? 'a folder that is gone' : folder?.title ?? null}
+        folder={folder}
       />
       <footer className="automation-rule-foot">
         <p className="automation-meta">
@@ -205,10 +205,11 @@ export function AutomationsHome() {
   }
 
   async function revalidate(incident: AutomationHealthIncident) {
-    const rule = ruleList?.find((item) => item.id === incident.ruleId)
-    if (!rule) return
     setBusyId(incident.id)
+    let rule = ruleList?.find((item) => item.id === incident.ruleId)
     try {
+      // A notice can be about a rule past the first page of the list.
+      rule ??= await api.getRule(incident.ruleId)
       const report = await api.revalidateRule(rule.id, rule.revision)
       incidents.reload()
       rules.reload()
@@ -280,15 +281,15 @@ export function AutomationsHome() {
         )}
       />
 
-      {pauseState?.paused && (
-        <p className="automations-paused" role="status" data-testid="automations-paused">
-          <Icon name="info" />
-          <span>{pausedLine(pauseState)}</span>
-        </p>
-      )}
-
       <div className="automations-layout">
         <div className="automations-main">
+          {pauseState?.paused && (
+            <p className="automations-paused" role="status" data-testid="automations-paused">
+              <Icon name="info" />
+              <span>{pausedLine(pauseState)}</span>
+            </p>
+          )}
+
           <NeedsAttention
             incidents={openIncidents}
             decisions={decisions}
@@ -331,7 +332,7 @@ export function AutomationsHome() {
                 className="automations-empty"
                 data-testid="automations-empty"
                 title="No rules yet"
-                description="A rule files bookmarks for you, such as “pages from arxiv.org go to Academic”. Start here, or open a folder in your library and choose Automate…."
+                description="A rule files bookmarks for you, such as “pages from arxiv.org go to Academic”. Start here, or choose Automate… on a folder in your library."
                 action={(
                   <>
                     <Link className="btn btn-primary btn-sm" to="/automations/new">New rule</Link>
