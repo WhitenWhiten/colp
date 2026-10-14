@@ -7,6 +7,7 @@ import { automationWorkerFixture } from '../../support/automation-worker-fixture
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { automationWorkPrincipal,createMcpApplicationContext,createAutomationToolPort,withAutomationCatalog,type McpApplicationFacade } from '../../../src/modules/mcp/index.js';
 import { writeAgentPolicy } from '../../../src/infrastructure/collections/index.js';
+import { convergeOwnerWork } from '../../../src/infrastructure/automation/index.js';
 import { readRepositoryFile } from '../../support/repository-files.js';
 
 describeWithPostgres('AW-31 authenticated polling and typed canonical orchestration',() => {
@@ -108,6 +109,26 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     const node = await f.db.selectFrom('nodes').select(['parent_id','payload_json']).where('id','=','fresh-paper').executeTakeFirstOrThrow();
     expect(node.parent_id).toBe('topic');expect(node.payload_json?.tags).toEqual(['research']);
     expect((await sql`SELECT * FROM automation_jobs`.execute(f.db)).rows).toHaveLength(3);
+  });
+  test('the maintenance sweep schedules the successor of a task that finished while paused',async () => {
+    await setup('aw31_paused_successor',{ three: true });
+    const job = (await read('/jobs')).json().items[0],inputs = (await read(`/jobs/${job.id}/inputs?deliveryHandle=${job.deliveryHandle}`)).json().items;
+    const lease = (await post(`/jobs/${job.id}/claim`,{ deliveryHandle: job.deliveryHandle })).json();
+    const pause = async (paused: boolean) => {
+      const current = await f.app.inject({ url: '/api/v1/me/automations/pause',headers: { cookie: f.owner.cookie } });
+      const changed = await f.ownerPost('/pause',{ paused },String(current.headers.etag));expect(changed.statusCode,changed.body).toBe(200);
+    };
+    await pause(true);
+    // keepParent needs no canonical effect, so the result succeeds while paused and scheduling stops there.
+    const result = await post(`/jobs/${job.id}/results`,{ claimToken: lease.claimToken,generation: lease.generation,inputDigest: lease.inputDigest,outputContract: job.task.outputContract,
+      output: { kind: 'placement',decision: 'keepParent',reason: 'Already filed',evidence: [{ kind: 'source',reference: inputs[0].sourceEventId,observedAt: new Date().toISOString() }] } });
+    expect(result.statusCode,result.body).toBe(200);expect(result.json().status).toBe('succeeded');
+    await pause(false);
+    const states = async () => (await sql<{ task_id: string; state: string }>`SELECT task_id,state FROM automation_jobs ORDER BY task_id`.execute(f.db)).rows;
+    expect(await states()).toEqual([{ task_id: 'refine',state: 'succeeded' },{ task_id: 'summary',state: 'pending' },{ task_id: 'tags',state: 'pending' }]);
+    // No worker lists here: an events-mode target only hears of a job once it is ready.
+    await convergeOwnerWork(f.db,f.owner.accountId,'server');
+    expect(await states()).toEqual([{ task_id: 'refine',state: 'succeeded' },{ task_id: 'summary',state: 'pending' },{ task_id: 'tags',state: 'ready' }]);
   });
   test('missing execution policy holds every optional call while M1 still commits deterministic placement',async () => {
     await setup('aw31_no_policy',{ policyEnabled: false });
