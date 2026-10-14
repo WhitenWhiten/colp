@@ -58,3 +58,10 @@ A review of BE-1..BE-5 found high, medium, code, test, documentation and low-sev
 each fix is a separate commit. The [post-review record](evidence/post-review-fixes.md) maps every
 finding to its commit, lists the earlier R1–R16 round, and gives the reasons for the findings
 left unchanged.
+
+## AC-39 capacity follow-up (2026-10-14 UTC)
+
+The s2 load experiment **failed saving availability** at 100 run-once members.
+See [AC-39 evidence](evidence/ac-39.md) for the environment, raw measurements,
+concurrency controls and unexecuted scope. This does not extend the backend
+delivery claims into release acceptance or authorize larger capacity defaults.

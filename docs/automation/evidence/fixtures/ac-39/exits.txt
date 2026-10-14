@@ -1,0 +1,4 @@
+manual exit=143
+rules exit=1
+queue exit=1
+evaluator exit=0

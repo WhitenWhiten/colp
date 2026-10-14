@@ -98,9 +98,11 @@ T8's missing tests ship with their fixes: `fact-capture` (H1), `bundles` (H4),
 
 ## Open before release
 
-AC-39 (load and evaluator budgets) has not run, and no evidence file covers it. M10 and M13 rest on
-bounds that nobody has measured yet. AC-39 should record how long a 1,000-bookmark run-once holds
-the Sync replica gate while saves wait, and how preview and admission scale with the rule count.
+AC-39 (load and evaluator budgets) was subsequently attempted on s2 and **failed**;
+see [the measurements and evidence boundaries](ac-39.md). A 100-bookmark run-once
+already held the Sync replica gate for over 19 seconds and caused concurrent saves
+to fail. Larger manual loads were stopped. M10 and M13 remain release concerns;
+the documented upper bounds are not validated deployment capacity.
 
 ## Verification
 
