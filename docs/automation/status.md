@@ -99,3 +99,11 @@ Each web task is committed separately. The commit column is filled in by the nex
 | AW-53 | Done locally (mocked API; no hosted run) | `c549fb9`, [agent opt-ins, worker pairing, connection guide](evidence/aw-53.md) |
 | AW-45 | Done locally (mocked API; no hosted run) | `5b45543`, [Digests and run text output](evidence/aw-45.md) |
 | AW-59 | Done locally (mocked API; no hosted run) | `f35d610`, [run-once preview and explicit start](evidence/aw-59.md) |
+
+## Extension delivery on `main` (2026-10-14)
+
+Each extension task is committed separately. The commit column is filled in by the next task's commit.
+
+| Task | Status | Commit / evidence |
+| --- | --- | --- |
+| AW-49 | Done locally (unit tests, xvfb screenshots with stubbed messages; no real server run) | [bundle installation and binding projection](evidence/aw-49.md) |

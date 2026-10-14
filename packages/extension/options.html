@@ -29,6 +29,7 @@
         <a class="side-item" data-step="history" id="nav-history" href="#history"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="clock"></svg><span data-i18n="common_history">History</span></a>
         <a class="side-item" data-step="subscriptions" id="nav-subscriptions" href="#subscriptions"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="rss"></svg><span data-i18n="common_subscriptions">Subscriptions</span></a>
         <a class="side-item" data-step="sync" id="nav-sync" href="#sync"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="sync"></svg><span data-i18n="common_sync">Sync</span></a>
+        <a class="side-item" data-step="automations" id="nav-automations" href="#automations"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="fork"></svg><span data-i18n="automation_pane">Automations</span></a>
         <div class="side-label" data-i18n="common_settings">Settings</div>
         <a class="side-item" data-step="saving" id="nav-saving" href="#saving"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="bookmark"></svg><span data-i18n="common_saving2">Saving</span></a>
         <a class="side-item" data-step="ai" id="nav-ai" href="#ai"><svg class="nav-icon" width="16" height="16" aria-hidden="true" focusable="false" data-icon="sparkle"></svg><span data-i18n="prefs_aiSuggestions">AI suggestions</span></a>
@@ -513,6 +514,18 @@
             </div>
           </div>
         </section>
+      </section>
+
+      <!-- Automations: options-pane.ts renders the body from the worker's installed rule bundle. -->
+      <section id="automations-card" class="main-inner" hidden aria-labelledby="automations-heading">
+        <header class="page-head">
+          <div class="page-head-copy">
+            <h1 id="automations-heading" data-i18n="automation_pane">Automations</h1>
+            <p data-i18n="automation_lede">Rules on your server file the bookmarks you save into the right folder. You create and change them on the web.</p>
+          </div>
+          <div class="page-head-actions"><a class="btn btn-secondary btn-sm" data-automations-web hidden target="_blank" rel="noreferrer"><span data-i18n="automation_openWeb">Open Automations</span><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg></a></div>
+        </header>
+        <div class="automation-body" data-automations-body></div>
       </section>
 
       <!-- Saving -->

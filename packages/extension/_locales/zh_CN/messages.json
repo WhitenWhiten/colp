@@ -139,6 +139,146 @@
     "message": "已登录，接下来请选择此浏览器同步的内容。",
     "description": "You're signed in — now choose where this browser syncs."
   },
+  "automation_checkNow": {
+    "message": "立即检查",
+    "description": "Check now"
+  },
+  "automation_checking": {
+    "message": "正在检查…",
+    "description": "Checking…"
+  },
+  "automation_freshnessHint": {
+    "message": "此浏览器每 5 分钟检查一次。离线时会一直使用本地副本，直到 $1；你在网页上暂停后，下次检查时这里就会生效。",
+    "description": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
+  },
+  "automation_freshnessHintShort": {
+    "message": "此浏览器每 5 分钟检查一次。你在网页上暂停后，下次检查时这里就会生效。",
+    "description": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
+  },
+  "automation_lede": {
+    "message": "服务器上的规则会把你保存的书签放进合适的文件夹。规则在网页上创建和修改。",
+    "description": "Rules on your server file the bookmarks you save into the right folder. You create and change them on the web."
+  },
+  "automation_loadFailed": {
+    "message": "无法读取此浏览器中的自动化。请重新加载页面后再试。",
+    "description": "Couldn’t read automations in this browser. Reload the page to try again."
+  },
+  "automation_noRulesHint": {
+    "message": "在网页上打开一个文件夹并选择“自动化…”，即可把某个网站的页面自动放到那里。",
+    "description": "On the web, open a folder and choose Automate… to file pages from a site there."
+  },
+  "automation_noRulesPausedHint": {
+    "message": "在网页上恢复自动化后，规则会重新出现在这里。",
+    "description": "Rules come back here when you resume automations on the web."
+  },
+  "automation_noRulesTitle": {
+    "message": "这里还没有规则",
+    "description": "No rules here yet"
+  },
+  "automation_noticeRejected": {
+    "message": "服务器发来的规则无法在此浏览器使用，之前的规则继续有效。",
+    "description": "The server sent rules this browser can’t use. The previous rules stay in force."
+  },
+  "automation_onThisBrowser": {
+    "message": "此浏览器",
+    "description": "On this browser"
+  },
+  "automation_openWeb": {
+    "message": "打开自动化",
+    "description": "Open Automations"
+  },
+  "automation_pane": {
+    "message": "自动化",
+    "description": "Automations"
+  },
+  "automation_pausedByYouOn": {
+    "message": "你已于 $1 暂停。书签会留在你保存时选择的文件夹。",
+    "description": "Paused by you on $1. Bookmarks keep the folder you save them to."
+  },
+  "automation_pausedCapacity": {
+    "message": "服务器正在处理积压，已暂停。书签会留在你保存时选择的文件夹。",
+    "description": "Paused while the server catches up. Bookmarks keep the folder you save them to."
+  },
+  "automation_pausedHint": {
+    "message": "服务器上已暂停。书签会留在你保存时选择的文件夹。",
+    "description": "Paused on the server. Bookmarks keep the folder you save them to."
+  },
+  "automation_pausedRestore": {
+    "message": "服务器恢复数据后已暂停。书签会留在你保存时选择的文件夹。",
+    "description": "Paused after a server restore. Bookmarks keep the folder you save them to."
+  },
+  "automation_ruleFilesTo": {
+    "message": "放入 $1",
+    "description": "Files into $1"
+  },
+  "automation_ruleFolderMissing": {
+    "message": "它的文件夹不在此浏览器的同步文件夹中，规则暂时等待。",
+    "description": "Its folder isn’t in this browser’s synced folders, so the rule waits."
+  },
+  "automation_ruleUpdates": {
+    "message": "规则更新",
+    "description": "Rule updates"
+  },
+  "automation_ruleWaiting": {
+    "message": "等待中",
+    "description": "Waiting"
+  },
+  "automation_rules": {
+    "message": "规则",
+    "description": "Rules"
+  },
+  "automation_rulesLede": {
+    "message": "你亲自选择的文件夹始终优先于规则。",
+    "description": "A folder you pick yourself always wins over a rule."
+  },
+  "automation_signInHint": {
+    "message": "规则保存在你的服务器上，会在你保存书签时自动归档。不使用规则也可以保存和整理书签。",
+    "description": "Rules live on your server and file bookmarks as you save them. Saving and organizing work without them."
+  },
+  "automation_signInTitle": {
+    "message": "登录以使用自动化",
+    "description": "Sign in to use automations"
+  },
+  "automation_status": {
+    "message": "状态",
+    "description": "Status"
+  },
+  "automation_statusNoneHint": {
+    "message": "此浏览器还没有收到任何规则。",
+    "description": "No rules have reached this browser yet."
+  },
+  "automation_statusNotSetUp": {
+    "message": "未设置",
+    "description": "Not set up"
+  },
+  "automation_statusOnHint": {
+    "message": "保存的书签会直接进入规则选定的文件夹，离线时也一样。",
+    "description": "Bookmarks you save go straight to the folder a rule picks, even offline."
+  },
+  "automation_statusOnRules_other": {
+    "message": "已开启 · $1 条规则",
+    "description": "On · $1 rules"
+  },
+  "automation_statusOutOfDate": {
+    "message": "已过期",
+    "description": "Out of date"
+  },
+  "automation_statusOutOfDateHint": {
+    "message": "规则已过期，请连接以刷新。保存仍可正常使用，书签会放到你选择的文件夹。",
+    "description": "Rules are out of date; connect to refresh. Saving still works, at the folder you choose."
+  },
+  "automation_statusPaused": {
+    "message": "已暂停",
+    "description": "Paused"
+  },
+  "automation_statusUnavailableHint": {
+    "message": "此服务器未开启自动化。",
+    "description": "Automations aren’t turned on for this server."
+  },
+  "automation_updatedAt": {
+    "message": "$1更新。",
+    "description": "Updated $1."
+  },
   "backup_completed": {
     "message": "已将 $1 个项目和 $2 条历史记录恢复到此浏览器。",
     "description": "Restored $1 items and $2 history records to this browser."

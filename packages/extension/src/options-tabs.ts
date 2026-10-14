@@ -9,7 +9,7 @@
  * The rail itself is the site's `.view-switch` segmented control (chrome.css,
  * mirrored from design/shared-chrome.css).
  */
-export type HubPane = 'bookmarks' | 'history' | 'subscriptions' | 'sync' | 'saving' | 'ai' | 'general' | 'account' | 'help';
+export type HubPane = 'bookmarks' | 'history' | 'subscriptions' | 'sync' | 'automations' | 'saving' | 'ai' | 'general' | 'account' | 'help';
 export type SyncView = 'collections' | 'folders' | 'center' | 'import';
 export type AccountView = 'session' | 'credits';
 export type SubscriptionView = 'list' | 'new' | 'detail' | 'history';
@@ -22,6 +22,7 @@ export const paneViews: Readonly<Record<HubPane, readonly HubView[]>> = {
   history: [],
   subscriptions: ['list', 'new', 'detail', 'history'],
   sync: ['collections', 'folders', 'center', 'import'],
+  automations: [],
   saving: [],
   ai: [],
   general: [],

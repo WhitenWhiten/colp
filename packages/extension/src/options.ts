@@ -37,6 +37,7 @@ import { bindLogoutConfirm, openLogoutConfirm } from './logout-confirm-ui.js';
 import { bindServerAccount } from './server-account-ui.js';
 import { formatMoment, t } from './i18n.js';
 import { bindPageLanguage, hydrateInfoTips } from './page-language.js';
+import { bindAutomationsPane } from './automation/options-pane.js';
 
 hydrateIcons(document); bindSelectPills();
 const languageReady = bindPageLanguage(() => { hydrateInfoTips(); paintSelectPills(); paintWelcomeSteps(element('welcome-steps')); });
@@ -61,6 +62,7 @@ const panes: Record<HubPane, HTMLElement> = {
   history: element('history-card'),
   subscriptions: element('subscriptions-card'),
   sync: element('sync-card'),
+  automations: element('automations-card'),
   saving: element('saving-card'),
   ai: element('ai-card'),
   general: element('general-card'),
@@ -68,6 +70,7 @@ const panes: Record<HubPane, HTMLElement> = {
   help: element('help-card'),
 };
 bindCaptureSyncNavigation(panes.sync);
+const automations = bindAutomationsPane(panes.automations);
 const captureShell = createCaptureShell(document.querySelector<HTMLElement>('.main')!);
 const subscriptionsShell = createSubscriptionsShell(document.querySelector<HTMLElement>('.main')!, hash => navigation.navigate(hash));
 const navigation = createOptionsRouter(panes, route => {
@@ -302,4 +305,5 @@ function activatePane(route: HubRoute): void {
   if (route.pane === 'sync' && route.view === 'folders') folders.setPreselect(route.params.get('native') ?? undefined);
   if (route.pane === 'sync' && connected) { void collections.load(!collections.hasRows()).then(() => collections.renderSelected()); void folders.load(); void personalSync.refresh(); }
   if (route.pane === 'bookmarks') void bookmarkManager.activate(); else bookmarkManager.deactivate();
+  if (route.pane === 'automations') automations.activate(); else automations.deactivate();
 }

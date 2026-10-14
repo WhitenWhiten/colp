@@ -47,7 +47,7 @@ const clearMemory = async (page) => { await page.waitForSelector('[data-capture-
 // Every settings page, in sidebar order, with the route it has today. Signed in and signed out are both shot.
 const PAGES = [
   ['bookmarks', 'bookmarks'], ['history', 'history'], ['subscriptions', 'subscriptions'],
-  ['sync', 'sync'], ['sync-folders', 'sync/folders'], ['sync-status', 'sync/center'], ['sync-import', 'sync/import'],
+  ['sync', 'sync'], ['sync-folders', 'sync/folders'], ['sync-status', 'sync/center'], ['sync-import', 'sync/import'], ['automations', 'automations'],
   ['saving', 'saving'], ['ai', 'ai'], ['general', 'general'], ['account', 'account'], ['credits', 'account/credits'], ['help', 'help'],
 ];
 // Other options states: [name, url, prepare, fullPage]
@@ -70,6 +70,7 @@ const STATES = [
   ['sync-progress-paused', 'options.html?shot=syncrun,ps-paused#sync/center'],
   ['sync-progress-paused-prep', 'options.html?shot=syncprep,ps-paused#sync/folders'],
   ['manual-saving', 'options.html?shot=manual#saving'],
+  ...['paused', 'expired', 'none', 'off', 'rejected', 'missing', 'empty'].map((name) => [`automations-${name}`, `options.html?shot=auto-${name}#automations`]),
   ['manual-ai', 'options.html?shot=manual#ai'],
 ];
 

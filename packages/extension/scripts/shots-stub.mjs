@@ -26,6 +26,8 @@
 //     imp-active, imp-paused, imp-attn, imp-done                        an import is running / paused / needs attention / complete
 //     ingress     bookmarks are listed as not included in sync
 //     tabs-notabs, tabs-dupe, tabs-confirmed, tabs-long, tabs-many      Save tabs states (see the TABS block below)
+//   Automations page: auto-paused, auto-expired, auto-none, auto-off (server has no automations), auto-rejected,
+//     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card).
 export function installStub(messages) {
@@ -372,6 +374,18 @@ export function installStub(messages) {
       case 'known.classification.folder': return { ok: true, nativeFolder: { folderId: msg.folderId, nativeId: msg.folderId, title: nodes.get(msg.folderId)?.title ?? '' } };
       case 'known.save.native': return { ok: true, previewOpened: true };
       case 'known.capture.context': return { ok: true, actionPopup: true };
+      case 'known.automation.state': case 'known.automation.refresh': {
+        const state = has('auto-paused') ? 'paused' : has('auto-expired') ? 'expired' : has('auto-none', 'auto-off') ? 'none' : 'active';
+        const rules = state !== 'active' || has('auto-empty') ? [] : [
+          { id: 'r1', name: 'arXiv papers', folder: 'Academic', resolved: true },
+          { id: 'r2', name: 'GitHub repositories to Programming', folder: 'Programming', resolved: true },
+          { id: 'r3', name: 'Recipes from my favourite food sites', folder: null, resolved: !has('auto-missing') }];
+        if (rules[2] && rules[2].resolved) rules[2].folder = 'Cooking';
+        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules,
+          pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,
+          expiresAt: state === 'expired' ? now - 3600e3 : now + 6 * 86400e3, lastRefreshAt: state === 'none' && !has('auto-off') ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),
+          problem: has('auto-rejected') ? 'rejected' : has('auto-off') ? 'unavailable' : state === 'expired' ? 'offline' : null, webUrl: 'https://known.example/automations' } };
+      }
       case 'known.capture.check': case 'known.capture.resume': case 'known.capture.edit.cancel': case 'known.capture.feedback': case 'known.capture.presented': case 'known.connectivity.online': case 'known.favicon.drain': return { ok: true };
       default: return { ok: false, error: 'unavailable' };
     }

@@ -79,6 +79,8 @@ import { validLocalImportRequest } from './local-import/contracts.js';
 import { handleLocalImport, LOCAL_IMPORT_ALARM, wakeLocalImports } from './sw/local-import.js';
 import { exportLocalBackup, validBackupExportRequest } from './local-backup/export.js';
 import { handleSaveStatus } from './sw/save-status.js';
+import { validAutomationRequest } from './automation/messages.js';
+import { AUTOMATION_ALARM, handleAutomationRequest, installAutomationRuntime, refreshAutomation } from './sw/automation.js';
 import { currentSyncScope, stateAfterFailure } from './sw/scope.js';
 import { createSyncEffectAuthority } from './sync-effect-authority.js';
 import { createChromePullBookmarkApi } from './pull-bookmark-api.js';
@@ -96,6 +98,7 @@ scheduleNativeFoldersFirst();
 installClassificationAuthorityListener();
 void initI18n();
 installNativeSaveEntries();
+installAutomationRuntime();
 void wakeLocalImports().catch(() => undefined);
 chrome.runtime.onStartup.addListener(() => {
   void flushBookmarkPreferences().catch(() => undefined);
@@ -135,6 +138,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === FAVICON_SIDECAR_ALARM) void drainFaviconSidecarsForCurrentScope();
   if (alarm.name === BOOKMARK_RECOVERY_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
   if (alarm.name === BOOKMARK_RECONCILE_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
+  if (alarm.name === AUTOMATION_ALARM) void refreshAutomation().catch(() => undefined);
 });
 self.addEventListener('online', (event) => {
   if (event.isTrusted && navigator.onLine === true) {
@@ -317,6 +321,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     // read above (no lane, no wake, no gesture); `park:` rows never leave here.
     void handleIngressDiagnosticsRequest(ingressDiagnosticsDeps).then(respond,
       () => respond({ ok: false, error: 'state_unavailable' } satisfies IngressDiagnosticsResponse));
+    return true;
+  }
+  if (validAutomationRequest(message)) {
+    void handleAutomationRequest(message).then(respond, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }
   if (validSaveStatusRequest(message)) {

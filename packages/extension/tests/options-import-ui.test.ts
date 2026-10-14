@@ -71,8 +71,8 @@ describe('P3-35 extension options import UI', () => {
     for (const pane of ['nav-account', 'nav-saving', 'nav-sync', 'nav-bookmarks', 'collection-grid']) {
       assert.match(html, new RegExp(`id="${pane}"`));
     }
-    // The sidebar lists the four library pages, the four settings pages and Help & diagnostics.
-    assert.equal((html.match(/class="side-item" data-step=/g) ?? []).length, 9);
+    // The sidebar lists the five library pages (Automations included), the four settings pages and Help & diagnostics.
+    assert.equal((html.match(/class="side-item" data-step=/g) ?? []).length, 10);
     assert.match(html, /data-pane="bookmarks"/);
     assert.match(html, /id="saving-card"/);
     assert.match(html, /id="sync-card"/);

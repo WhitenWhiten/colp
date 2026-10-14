@@ -110,6 +110,114 @@
   "auth_youreSignedNowChoose": {
     "message": "You're signed in — now choose where this browser syncs."
   },
+  "automation_checkNow": {
+    "message": "Check now"
+  },
+  "automation_checking": {
+    "message": "Checking…"
+  },
+  "automation_freshnessHint": {
+    "message": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
+  },
+  "automation_freshnessHintShort": {
+    "message": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
+  },
+  "automation_lede": {
+    "message": "Rules on your server file the bookmarks you save into the right folder. You create and change them on the web."
+  },
+  "automation_loadFailed": {
+    "message": "Couldn’t read automations in this browser. Reload the page to try again."
+  },
+  "automation_noRulesHint": {
+    "message": "On the web, open a folder and choose Automate… to file pages from a site there."
+  },
+  "automation_noRulesPausedHint": {
+    "message": "Rules come back here when you resume automations on the web."
+  },
+  "automation_noRulesTitle": {
+    "message": "No rules here yet"
+  },
+  "automation_noticeRejected": {
+    "message": "The server sent rules this browser can’t use. The previous rules stay in force."
+  },
+  "automation_onThisBrowser": {
+    "message": "On this browser"
+  },
+  "automation_openWeb": {
+    "message": "Open Automations"
+  },
+  "automation_pane": {
+    "message": "Automations"
+  },
+  "automation_pausedByYouOn": {
+    "message": "Paused by you on $1. Bookmarks keep the folder you save them to."
+  },
+  "automation_pausedCapacity": {
+    "message": "Paused while the server catches up. Bookmarks keep the folder you save them to."
+  },
+  "automation_pausedHint": {
+    "message": "Paused on the server. Bookmarks keep the folder you save them to."
+  },
+  "automation_pausedRestore": {
+    "message": "Paused after a server restore. Bookmarks keep the folder you save them to."
+  },
+  "automation_ruleFilesTo": {
+    "message": "Files into $1"
+  },
+  "automation_ruleFolderMissing": {
+    "message": "Its folder isn’t in this browser’s synced folders, so the rule waits."
+  },
+  "automation_ruleUpdates": {
+    "message": "Rule updates"
+  },
+  "automation_ruleWaiting": {
+    "message": "Waiting"
+  },
+  "automation_rules": {
+    "message": "Rules"
+  },
+  "automation_rulesLede": {
+    "message": "A folder you pick yourself always wins over a rule."
+  },
+  "automation_signInHint": {
+    "message": "Rules live on your server and file bookmarks as you save them. Saving and organizing work without them."
+  },
+  "automation_signInTitle": {
+    "message": "Sign in to use automations"
+  },
+  "automation_status": {
+    "message": "Status"
+  },
+  "automation_statusNoneHint": {
+    "message": "No rules have reached this browser yet."
+  },
+  "automation_statusNotSetUp": {
+    "message": "Not set up"
+  },
+  "automation_statusOnHint": {
+    "message": "Bookmarks you save go straight to the folder a rule picks, even offline."
+  },
+  "automation_statusOnRules_one": {
+    "message": "On · $1 rule"
+  },
+  "automation_statusOnRules_other": {
+    "message": "On · $1 rules"
+  },
+  "automation_statusOutOfDate": {
+    "message": "Out of date"
+  },
+  "automation_statusOutOfDateHint": {
+    "message": "Rules are out of date; connect to refresh. Saving still works, at the folder you choose."
+  },
+  "automation_statusPaused": {
+    "message": "Paused"
+  },
+  "automation_statusUnavailableHint": {
+    "message": "Automations aren’t turned on for this server."
+  },
+  "automation_updatedAt": {
+    "message": "Updated $1."
+  },
   "backup_completed": {
     "message": "Restored $1 items and $2 history records to this browser."
   },

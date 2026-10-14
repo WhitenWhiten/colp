@@ -13,7 +13,7 @@ export function validCaptureNavigation(value: unknown): value is CaptureNavigati
   return raw.kind === 'known.capture.navigation.get' ? Object.keys(raw).length === 1
     : raw.kind === 'known.capture.navigation.set' && Object.keys(raw).length === 2 && typeof raw.hash === 'string'
       // Every pane the router can write must be listed, or the last-page memory never takes.
-      && raw.hash.length <= 1024 && /^#(?:capture|saving|history|subscriptions|ai|general|help|account|bookmarks|collection|folders|import|sync|credits|native-wait-settings)(?:[/?]|$)/u.test(raw.hash)
+      && raw.hash.length <= 1024 && /^#(?:capture|saving|history|subscriptions|automations|ai|general|help|account|bookmarks|collection|folders|import|sync|credits|native-wait-settings)(?:[/?]|$)/u.test(raw.hash)
       && !/[\u0000-\u001f]/u.test(raw.hash);
 }
 export async function handleCaptureNavigation(request: CaptureNavigationRequest) {

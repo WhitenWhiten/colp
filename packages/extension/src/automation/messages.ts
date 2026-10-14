@@ -1,0 +1,41 @@
+/** Options ↔ worker messages for the Automations page. Read-only except an explicit refresh. */
+
+/** chrome.storage.local key of the installed bundle record (bundle-store.ts); pages watch it to repaint. */
+export const AUTOMATION_BUNDLE_KEY = 'known.automation.bundle.v1';
+
+export type AutomationRequest =
+  | { readonly kind: 'known.automation.state' }
+  | { readonly kind: 'known.automation.refresh'; readonly userGesture: true };
+
+export function validAutomationRequest(value: unknown): value is AutomationRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const raw = value as Record<string, unknown>;
+  if (raw.kind === 'known.automation.state') return Object.keys(raw).length === 1;
+  return raw.kind === 'known.automation.refresh' && raw.userGesture === true && Object.keys(raw).length === 2;
+}
+
+export interface AutomationRuleView {
+  readonly id: string;
+  readonly name: string;
+  /** The destination's title in this browser, when it is mapped here. */
+  readonly folder: string | null;
+  readonly resolved: boolean;
+}
+
+export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';
+
+export interface AutomationStateView {
+  readonly account: 'signedOut' | 'signedIn';
+  /** `none`: no bundle yet. `active`/`paused`: what the installed bundle says. `expired`: placement is off until a refresh. */
+  readonly state: 'none' | 'active' | 'paused' | 'expired';
+  readonly rules: readonly AutomationRuleView[];
+  readonly pausedAt: number | null;
+  readonly pausedBy: 'owner' | 'restore' | 'capacity' | null;
+  readonly expiresAt: number | null;
+  readonly lastRefreshAt: number | null;
+  readonly problem: AutomationProblem | null;
+  /** The web Automations page on the connected server. */
+  readonly webUrl: string | null;
+}
+
+export type AutomationResponse = { readonly ok: true; readonly state: AutomationStateView } | { readonly ok: false; readonly error: string };

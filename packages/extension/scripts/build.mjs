@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { syncTokens } from './sync-tokens.mjs';
+import { automationAjvPlugin } from './automation-ajv-plugin.mjs';
 
 // On by default; KNOWN_EXTENSION_CLASSIFICATION_LOCAL=false builds without the local panel.
 const classificationLocal=process.env.KNOWN_EXTENSION_CLASSIFICATION_LOCAL!=='false';
@@ -14,6 +15,7 @@ const environment = process.argv[2] ?? 'production';
 if (!['development', 'staging', 'production'].includes(environment)) throw new Error('Expected development, staging or production');
 const root = resolve(import.meta.dirname, '..'); const output = resolve(root, 'dist', environment);
 await promisify(execFile)(process.execPath, [resolve(root, 'scripts/generate-bookmark-operation-validators.mjs'), '--check']);
+await promisify(execFile)(process.execPath, [resolve(root, 'scripts/generate-automation-validators.mjs'), '--check']);
 const configFlag = process.argv.indexOf('--config');
 if (configFlag >= 0 && (environment !== 'production' || configFlag !== 3 || process.argv.length !== 5)) {
   throw new Error('A deployment config is supported only as: build.mjs production --config <file>');
@@ -35,7 +37,7 @@ await build({ entryPoints: { 'service-worker': resolve(root, 'src/service-worker
   'bookmark-event-queue': resolve(root, 'src/bookmark-event-queue.ts'),
   'bookmark-import-plan': resolve(root, 'src/bookmark-import-plan.ts'),
   'import-preview': resolve(root, 'src/import-preview.ts') },
-  bundle: true, format: 'esm', platform: 'browser', target: 'chrome121', outdir: output, sourcemap: environment === 'production' ? false : 'external',
+  bundle: true, format: 'esm', platform: 'browser', target: 'chrome121', outdir: output, plugins: [automationAjvPlugin(root)], sourcemap: environment === 'production' ? false : 'external',
   // Evidence RPC (fault injection, state export) may only exist in non-production
   // builds and the e2e fixture; every real production deployment must be 'false'.
   define: { __KNOWN_EXTENSION_CLASSIFICATION_LOCAL__:String(classificationLocal), __KNOWN_EXTENSION_EVIDENCE__: environment === 'production' && config.deploymentId !== 'e2e-fixture' ? 'false' : 'true' },

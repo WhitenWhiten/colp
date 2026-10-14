@@ -105,7 +105,7 @@ Sidebar (`15rem`, on paper, divided from the main column by a hairline):
 ```
 wordmark
 identity: avatar · name · sync line ("Synced · 2 min ago" / "Not signed in · Sign in")
-Library   Bookmarks · History · Subscriptions · Sync
+Library   Bookmarks · History · Subscriptions · Sync · Automations
 Settings  Saving · AI suggestions · General · Account
 bottom    Help & diagnostics · version
 ```
@@ -121,6 +121,7 @@ bar whose items wrap onto a second line, so every destination stays visible.
 | `#history` | Saved-page history grouped by day; one badge per row, problems only |
 | `#subscriptions` | Subscriptions; defaults as the last group |
 | `#sync/...` | Collection, folders, status, import (connect card when signed out) |
+| `#automations` | The server's rule bundle on this browser: status, freshness and offline expiry, each rule's folder here; rules are edited on the web |
 | `#saving` | Toolbar mode, result panel, default folder, placement, shortcuts |
 | `#ai` | Provider choice, Know-N authorization, own AI service, correction memory |
 | `#general` | Language, permissions, export / backup / restore |
