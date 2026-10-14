@@ -61,10 +61,10 @@ These commits came before the review, and no evidence or status document recorde
 | M14 | `12d885e` | Owner erasure cascades, SQL-built Events bodies are checked before delivery, and migration code is frozen. |
 | C3 | `87f1297` | Bindings are imported statically, and stores are no longer called through `this`. |
 | M15 | `6c7dd63` | The tool generator fails when the MCP catalog's copy of a definition shadows the canonical one. |
-| L7 | `b9897e4` | Dropped the unused `format` field from automation plan operations. |
+| L7 (format) | `b9897e4` | Dropped the unused `format` field from automation plan operations. |
 | L6 | `267cff2` | Role-graph issues point at roles by array index. |
 | L4 | `c5e9827` | Events subscription failures map to specific JSON-RPC codes instead of one invalid-params message. |
-| L7 | `8669a30` | Delivery retries, bundle expiry and secret grace use the database clock. |
+| L7 (clock) | `8669a30` | Delivery retries, bundle expiry and secret grace use the database clock. |
 | T1 | `ac0fb4d` | Lease tests use a job admitted by the real pipeline and real target authorization. |
 | T5 | `689c0ce` | Fixtures are read by repository path, not the working directory. |
 | T6 | `efae5ab` | The upgrade test is named for what it covers. |
@@ -74,9 +74,10 @@ These commits came before the review, and no evidence or status document recorde
 | C2 | `9b7a5d0`, `49ddd47` | The run output store and the worker read store were expanded from the dense one-line style. |
 | M12 | `5cd7f4d` | Rule, run and job GETs no longer write. Convergence moved to the worker maintenance sweep. |
 | L3 | `973a60c` | Every Owner route checks path identities with one shared check. |
-| L7 | `c415c4d` | The webhook master key can be rotated with `AUTOMATION_WEBHOOK_PREVIOUS_MASTER_KEY`. |
+| L7 (key rotation) | `c415c4d` | The webhook master key can be rotated with `AUTOMATION_WEBHOOK_PREVIOUS_MASTER_KEY`. |
 | L2 | `59dce95` | `heldJobs` counts only jobs under a run hold or the global pause. |
 | T7 | `578f5cd` | Exact revalidation and contested counts replace `toBeGreaterThan(0)`. |
+| M12 (sweep) | `ed78e7e` | The maintenance sweep advances pending tasks that nothing else schedules: the successor of a task that finished while paused, and runs whose plan the sweep reconciled. Events-mode work no longer waits for a worker to list jobs. |
 
 T8's missing tests ship with their fixes: `fact-capture` (H1), `bundles` (H4),
 `worker-pipeline` (H5) and core `normalization` (M1).
@@ -84,15 +85,22 @@ T8's missing tests ship with their fixes: `fact-capture` (H1), `bundles` (H4),
 ## Deliberately unchanged
 
 - **M10:** Placement keeps the collection-version prerequisite, and run-once stays atomic. AC-50 and AC-64 require this, so the 2,000-node placement bound and the 1,000-item run-once bound are documented limits, not defects.
-- **M12 (worker list):** The worker's job list still advances its own queue: it is the only scheduler for pending runs. Every other read is now write-free.
+- **M12 (worker list):** The worker's job list still advances its own target's queue, so a polling worker sees new work without waiting for the sweep. It is no longer the only scheduler for pending runs: the maintenance sweep also advances them (`ed78e7e`). Every other read is now write-free.
 - **M13:** The per-Owner account lock orders every automation transaction for that Owner, and authorization and stale-marking upgrade to write locks. Switching reads to `FOR SHARE` would require lock upgrades that can deadlock, so the lock stays. The global claim lock and the server daily cap are how the design enforces cross-Owner caps. Per-Owner fairness is left to the per-rule and per-Owner caps.
+- **M13 (preview and admission):** Preview still loads bindings and resolves folders for each competing rule, and admission still resolves bindings while it holds the run locks. Both are bounded by the 500-rule limit per Owner (C6). Batching them is left until AC-39 shows they matter.
 - **M14 (remainder):** The English backfill strings match the exact earlier constants. The legacy-decode error stays fail-loud.
 - **M15 (remainder):** Events types stay in core, and the interface-only services stay where they are. Moving them changes the package surface without changing behavior.
 - **M16:** Typing the remaining automation tables in Kysely is low value. The `McpStoredPlan` cast is one isolated, commented boundary.
 - **T1 (remainder):** `automation-job-fixture` still inserts jobs with SQL for tests that only need a job row. Lease and pipeline behavior is covered through real admission (`ac0fb4d`, `worker-pipeline`).
 - **L1:** A user-chosen pause returns 503 `automation_paused`, as the design's API error table specifies.
-- **L5:** `automation-catalog` throws `TypeError` for a protocol misuse, following the existing facade convention.
-- **"Redundant checks":** This finding named no specific sites, so there was nothing concrete to change.
+- **L5:** `automation-catalog` throws `TypeError('Invalid Resource URI.')` because the MCP read adapter maps exactly that error to InvalidParams, as the existing facade does. Another error type would break that mapping.
+- **L7 (redundant checks):** This finding named no specific sites, so there was nothing concrete to change.
+
+## Open before release
+
+AC-39 (load and evaluator budgets) has not run, and no evidence file covers it. M10 and M13 rest on
+bounds that nobody has measured yet. AC-39 should record how long a 1,000-bookmark run-once holds
+the Sync replica gate while saves wait, and how preview and admission scale with the rule count.
 
 ## Verification
 
@@ -102,6 +110,9 @@ Node 22. At `578f5cd`, also under Node 22:
 - Server typecheck, import boundaries and the runtime manifest check: clean.
 - Automation unit tests: server 60/60, core 41/41.
 - Full automation integration suite: 48 files, 231/231 tests passed (`npm run test:integration:file`, about 34 minutes).
+
+For `ed78e7e`, the new worker-pipeline test failed without the fix (the successor stayed pending),
+and `worker-pipeline` plus `approval-undo` passed 27/27 with it under Node 22, with a clean typecheck.
 
 The SDK tarball was
 re-vendored in several commits (H8, M5, L4), so a squash merge keeps only the final tarball
