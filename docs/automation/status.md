@@ -72,3 +72,9 @@ regressions. The [s2 re-verification of `75d921c`](evidence/ac-39-s2-reverificat
 passed rule scaling and finite queue recovery, but both 100-member manual saving
 scenarios still failed. AC-39 remains failed; the reduced manual query count has
 not resolved the long collection-lock hold.
+
+The subsequent [canonical SQL optimization and s2 test](evidence/ac-39-canonical-sql.md)
+(`1c168ad`) reduced the single-save 100-member run from 12.87 to 10.57 seconds and
+queries from 4368 to 3568. Same-collection saving still timed out, and burst saving
+still failed. Rule scaling passed; queue recovery completed all 51 jobs, but save
+p95 was 1.10 seconds and failed its 1-second limit. **AC-39 remains failed.**

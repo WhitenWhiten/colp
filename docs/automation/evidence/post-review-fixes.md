@@ -107,6 +107,9 @@ The [local optimization follow-up](ac-39-local-optimization.md) addresses repeat
 inspection reads and manual batch overhead with a measured small-workload baseline.
 The [s2 re-verification](ac-39-s2-reverification.md) confirms the rule-read improvement,
 but manual saving still times out and the release gate remains open.
+The [canonical SQL follow-up](ac-39-canonical-sql.md) further reduces queries, but
+the next s2 verification still fails manual saving; queue save p95 also exceeds
+its limit. The release gate remains open.
 
 ## Verification
 
