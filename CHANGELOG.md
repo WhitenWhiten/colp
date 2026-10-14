@@ -4,13 +4,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-### Node.js package
-
-- Added `negotiatePublicationVersion` and `normalizePublicationSupportedVersions` (`server`), and `PublicationHttpReadInput.protocolVersionHeader` / `accept` / `supportedVersions`. `publicationHttpReadFromRequest` now reads `Collection-Protocol-Version` and `Accept` so hosts composed through `publicationHttpRead` answer `406 unsupported_version` with `supportedVersions` (SPECIFICATION §12) for an unsupported exact header value or an unsupported `Accept` `version` parameter, while quoted parameters, `q=0` ranges, unrelated media types and supported or absent versions are not rejected (PUB-0041).
-- The static example `examples/publication-server.mjs` documents that it ignores `limit`/cursor and what a paging host must do.
-- Heavy tests carry explicit timeouts instead of relying on wall-clock defaults.
-- Added the `@know-n/colp/automation` subpath. Until it is released, the package is versioned `0.2.0-automation.0` and the server vendors that build instead of the published `0.1.3`.
-
 ### Conformance runner
 
 - Probes `406 unsupported_version` with an unsupported `Collection-Protocol-Version` on the Directory URL (PUB-0041).
@@ -19,12 +12,32 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - The Know-N browser extension moved into `packages/extension`, with its own CI jobs and release workflow. It keeps its own version; see its [CHANGELOG](packages/extension/CHANGELOG.md).
 
+## [0.2.0] - 2026-10-14
+
+The protocol, the canonical Schema, the seven Profiles and the Requirements Digest are unchanged from 0.1.3. This release adds optional Automation APIs that sit outside protocol conformance.
+
+### Node.js package
+
+- Added the experimental `@know-n/colp/automation` subpath (ESM and CommonJS) for host-neutral Automation rules: closed contracts and validation for the `colp.automation/v1` rule format and the `browser-bounded-v1` profile (`validateAutomation`, `validateM1Rule`, `validateTaskGraph`); URL, host, path and event-fact normalization (`normalizeUrl`, `normalizeHost`, `normalizeEventFacts`); bounded finite predicates (`compilePredicate`, `preparePredicateInput`); versioned digests for rules, bindings and task inputs (`ruleSemanticDigest`, `bindingSemanticDigest`, `taskInputDigest`); placement arbitration (`arbitratePlacement`) and role-graph analysis (`analyzeRoleGraph`). The contract reports itself as `0.2.1-design` (`AUTOMATION_CONTRACT_VERSION`) and, like the other experimental entry points, may change before a stable release. The format is described in `docs/AUTOMATION_BROWSER_PROFILE.md`, which is now included in the package.
+- `@know-n/colp/mcp` exports a pinned MCP Events profile for Automation wake-ups. `parseMcpEventsParams` validates `events/list`, `events/subscribe` and `events/unsubscribe` parameters (webhook delivery to an `https` URL, with a `whsec_` secret on subscribe), `MCP_AUTOMATION_EVENT_DESCRIPTOR` describes the `colp.automation.triggered` event, and `McpEventsError` carries the JSON-RPC error code. `createMcp20260728DiscoverResult` accepts and keeps an empty `events` capability and rejects any other value.
+
 ## [0.1.3] - 2026-10-12
 
 ### Node.js package
 
 - MCP `changes.plan` and `changes.commit` now request standard URL elicitation for approval and advertise the `awaiting_approval` fallback in their output schemas. Unsupported clients and answered interactions that still await owner approval receive the fallback without an unbounded retry loop. Elicitation answers never grant approval.
 - Publication GET and publisher write URLs are rejected before dispatch when a valid opaque ID such as `.` or `..` would expand to a whole path segment that URL normalization removes (which retargeted the request, with credentials, to another resource). The same guard applies to `expandAuthoritativeEffectPageUrl` and paged-effect validation in `@know-n/colp/sync`, so an effect-page URL can no longer resolve to a different path than the effect it names. Query-bound and sentinel-bound templates (`?id={id}`, `/c/~{id}`, `{id}.json`) and the opaque-ID grammar are unchanged.
+
+## [0.1.2] - 2026-10-10
+
+This section was added with 0.2.0. It lists the changes that shipped in 0.1.2 but had been left under Unreleased.
+
+### Node.js package
+
+- Added `negotiatePublicationVersion` and `normalizePublicationSupportedVersions` (`server`), and `PublicationHttpReadInput.protocolVersionHeader` / `accept` / `supportedVersions`. `publicationHttpReadFromRequest` now reads `Collection-Protocol-Version` and `Accept` so hosts composed through `publicationHttpRead` answer `406 unsupported_version` with `supportedVersions` (SPECIFICATION §12) for an unsupported exact header value or an unsupported `Accept` `version` parameter, while quoted parameters, `q=0` ranges, unrelated media types and supported or absent versions are not rejected (PUB-0041).
+- The draft Schema adds the move, subtree-delete and search MCP input/result definitions and the `changePlan.approvedBy` field.
+- The static example `examples/publication-server.mjs` documents that it ignores `limit`/cursor and what a paging host must do.
+- Heavy tests carry explicit timeouts instead of relying on wall-clock defaults.
 
 ## [0.1.1] - 2026-10-07
 

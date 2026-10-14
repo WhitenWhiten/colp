@@ -6,7 +6,7 @@ COLP is an open protocol for bookmarks and curated knowledge collections: one da
 
 This package is the protocol logic without a server. It validates wire documents, decides what each request may do, and coordinates the durable steps of a write or a sync exchange. You supply the HTTP routes, authentication, and storage by implementing small port interfaces; the package calls them in the order the protocol requires and checks what they return.
 
-> **Package version:** `0.1.3`. The package implements all seven protocol profiles: `core`, `publication`, `publisher`, `feed`, `sync`, `mcp-read`, and `mcp-write`. The protocol remains a draft; earlier packages did not promise a stable COLP 0.1 wire baseline.
+> **Package version:** `0.2.0`. The package implements all seven protocol profiles: `core`, `publication`, `publisher`, `feed`, `sync`, `mcp-read`, and `mcp-write`. The protocol remains a draft; earlier packages did not promise a stable COLP 0.1 wire baseline.
 
 ## Contents
 
@@ -23,7 +23,7 @@ This package is the protocol logic without a server. It validates wire documents
 Requires Node.js 22 or later. Install from npm:
 
 ```bash
-npm install @know-n/colp@0.1.3
+npm install @know-n/colp@0.2.0
 ```
 
 TypeScript declarations are included. Import the API for your task from a subpath:
@@ -48,7 +48,7 @@ To use a local repository build:
 git clone https://github.com/WhitenWhiten/colp.git && cd colp
 npm run install:package && npm run build
 cd packages/node && npm pack
-cd /path/to/your-project && npm install /path/to/know-n-colp-0.1.3.tgz
+cd /path/to/your-project && npm install /path/to/know-n-colp-0.2.0.tgz
 ```
 
 ## Quick start
@@ -164,7 +164,7 @@ To build a real host, replace the two in-memory adapters with your own (`SyncSes
 
 ## Entry points
 
-The public subpaths are `schema`, `types`, `semantic`, `client`, `server`, `publisher`, `adapters`, `feed`, `sync`, `sync/canonical`, `sync/browser`, `testing`, `delivery`, `conformance`, `security`, `mcp`, and `mcp/2026-07-28`. Import each one as `@know-n/colp/<subpath>`, for example `@know-n/colp/sync`, so that loading one domain does not initialize unrelated schemas and runtime state. The raw JSON Schema is also exported as `@know-n/colp/schema/collection-protocol.schema.json`.
+The public subpaths are `schema`, `types`, `semantic`, `client`, `server`, `publisher`, `adapters`, `feed`, `sync`, `sync/canonical`, `sync/browser`, `testing`, `delivery`, `conformance`, `security`, `mcp`, `mcp/2026-07-28`, and `automation`. Import each one as `@know-n/colp/<subpath>`, for example `@know-n/colp/sync`, so that loading one domain does not initialize unrelated schemas and runtime state. The raw JSON Schema is also exported as `@know-n/colp/schema/collection-protocol.schema.json`.
 
 | Entry point | Use it to | Maturity |
 |---|---|---|
@@ -184,6 +184,7 @@ The public subpaths are `schema`, `types`, `semantic`, `client`, `server`, `publ
 | `conformance` | Plan and run deployment probes, and decide which profiles you may claim | Deployed |
 | `delivery` | Check the recommended order for delivering profiles | Experimental |
 | `testing` | Use a fixed clock, deterministic IDs, and in-memory ports in tests | Tests only |
+| `automation` | Validate and evaluate Automation rules: closed contracts, URL and fact normalization, finite predicates, digests, task-graph and placement checks | Experimental |
 
 "Deployed" entry points have also run inside a deployed host application. "Experimental" ones behave as tested, but no host has shaped their APIs yet, so expect more changes there before a stable release.
 
@@ -193,6 +194,7 @@ A few rules about where things live:
 - **`testing`** holds test-only helpers: a fixed clock, a deterministic ID generator, the unverified Replica auth proof, and in-memory reference adapters for the Sync Session store and the Sequence unit of work. Use them to exercise coordinators without a database and as a known-good comparison for a real adapter; never wire them into a deployment.
 - **The package root** exports only `protocolVersion`, `packageStatus`, and `supportedProfiles`. It is package metadata, not an API barrel.
 - **MCP**: the Modern MCP `2026-07-28` surface, Read and Write, is available only from `mcp` (or the explicit `mcp/2026-07-28`).
+- **Automation**: `automation` and the MCP Events exports on `mcp` (`events/*` with webhook delivery of `colp.automation.triggered`) are optional and outside protocol conformance; they add no Profile and do not change the Requirements Digest. The rule format is described in [`docs/AUTOMATION_BROWSER_PROFILE.md`](docs/AUTOMATION_BROWSER_PROFILE.md).
 - `nestjs` in the source tree is internal reference code, not a public package surface.
 
 ## Guides
