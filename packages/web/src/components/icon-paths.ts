@@ -17,6 +17,8 @@ export const SHARED_ICON_PATHS = {
   bell: 'M5 17h14l-1.5-3V9a5.5 5.5 0 0 0-11 0v5Zm4.5 3a3.5 3.5 0 0 0 5 0',
   book: 'M12 6.5v14M12 6.5C9.5 4.5 6.5 4 3.5 4.5v14c3-.5 6 0 8.5 2 2.5-2 5.5-2.5 8.5-2v-14c-3-.5-6 0-8.5 2Z',
   bookmark: 'M7.5 3.5h9a2 2 0 0 1 2 2v15L12 17l-6.5 3.5v-15a2 2 0 0 1 2-2Z',
+  // Automations: a rule that acts on its own.
+  bolt: 'M13.5 3.5 5.5 13.5h6l-1 7 8-10h-6Z',
   check: 'm5 12 4.5 4.5L19 7',
   'chevron-down': 'm6.5 9.5 5.5 5 5.5-5',
   'chevron-right': 'm9.5 6.5 5 5.5-5 5.5',

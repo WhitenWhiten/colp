@@ -86,3 +86,11 @@ saves without errors; same-collection save p95 was 3.366 seconds and still faile
 the latency gate. **AC-39 remains open.** Start returns before completion for large
 runs, and completed effects are retained on interruption. Larger final capacity
 and complete dispatcher acceptance remain unverified.
+
+## Web delivery on `main` (2026-10-14)
+
+Each web task is committed separately. The commit column is filled in by the next task's commit.
+
+| Task | Status | Commit / evidence |
+| --- | --- | --- |
+| AW-12 | Done locally (mocked API; no hosted run) | [Automations page, editor, preview, bookmark history](evidence/aw-12.md) |

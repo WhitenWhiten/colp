@@ -5,7 +5,11 @@
  * OpenAPI copy inside packages/web. The server generator
  * (packages/server/scripts/generate-openapi.mjs) still emits the full Known
  * client from openapi/product-v1.yaml; this script is the web type generator
- * and it takes the trimmed document as its only input.
+ * and it takes the trimmed document as its main input.
+ *
+ * Automations are optional and stay out of the trimmed document. Their types
+ * come from the server's producer mirror, openapi/fragments/automations.yaml
+ * (kept in step with product-v1.yaml by sync-automation-openapi.mjs).
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -16,6 +20,8 @@ import openapiTS, { astToString, COMMENT_HEADER } from 'openapi-typescript'
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const documentPath = path.resolve(webRoot, '../server/openapi/colp-server-v1.yaml')
 const outputPath = path.resolve(webRoot, 'src/generated/colp-server-v1.ts')
+const automationPath = path.resolve(webRoot, '../server/openapi/fragments/automations.yaml')
+const automationOutputPath = path.resolve(webRoot, 'src/generated/automations-v1.ts')
 
 /** Sibling shape constraints apply to every anyOf branch. Same transform as the server generator. */
 function preserveAnyOfSiblings(value) {
@@ -41,3 +47,19 @@ const banner = `/**
 `
 await writeFile(outputPath, `${banner}${COMMENT_HEADER}${astToString(typeAst)}`, 'utf8')
 console.log(`Wrote ${path.relative(webRoot, outputPath)} from packages/server/openapi/colp-server-v1.yaml`)
+
+// The fragment is paths + components only; wrap it as a document.
+const fragment = parse(await readFile(automationPath, 'utf8'))
+const automationAst = await openapiTS(preserveAnyOfSiblings({
+  openapi: '3.1.0',
+  info: { title: 'COLP Automations', version: '0.2.1-design' },
+  ...fragment,
+}))
+const automationBanner = `/**
+ * Generated from packages/server/openapi/fragments/automations.yaml.
+ * Do not edit. Regenerate with npm run generate:api-types.
+ */
+
+`
+await writeFile(automationOutputPath, `${automationBanner}${COMMENT_HEADER}${astToString(automationAst)}`, 'utf8')
+console.log(`Wrote ${path.relative(webRoot, automationOutputPath)} from packages/server/openapi/fragments/automations.yaml`)

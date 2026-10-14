@@ -329,7 +329,8 @@
 :root[data-edition='self-hosted'] .stepper-index,
 :root[data-edition='self-hosted'] .auth-steps > li::before,
 :root[data-edition='self-hosted'] .agents-step::before,
-:root[data-edition='self-hosted'] .import-step::before {
+:root[data-edition='self-hosted'] .import-step::before,
+:root[data-edition='self-hosted'] .automation-step-index {
   display: grid;
   place-items: start center;
   width: 1.5rem;

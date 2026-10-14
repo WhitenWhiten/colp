@@ -30,6 +30,8 @@ import type { LibraryDeskOrder } from './ordering'
 import type { LibraryDeskSelection } from './selection'
 import { LibraryTagFilterBar, type LibraryTagFilter } from './tags'
 import { toggleTag } from '../../lib/libraryTags'
+import { useAutomationStatus } from '../../lib/automationStatus'
+import { useAuth } from '../../auth/AuthContext'
 
 /** Covers a Gallery folder card's mosaic shows. */
 const FOLDER_COVER_LIMIT = 4
@@ -98,6 +100,9 @@ export function BookmarkArea({
     folderPath,
   } = data
   const { reorderSection } = order
+  // Folder rows offer "Automate…" only where the server has automations.
+  const { isLoggedIn, user } = useAuth()
+  const automationsOn = useAutomationStatus(isLoggedIn ? user?.accountId ?? null : null).state === 'available'
   const {
     selectMode,
     selectedIds,
@@ -592,6 +597,9 @@ export function BookmarkArea({
                     title={node.title}
                     canMove={Boolean(caps?.moveNode)}
                     canDelete={Boolean(caps?.deleteNode)}
+                    automateTo={automationsOn && snap
+                      ? `/automations/new?collectionId=${encodeURIComponent(snap.collection.id)}&folderId=${encodeURIComponent(node.id)}`
+                      : undefined}
                     onEdit={() => onEditNode(node.id)}
                     onMove={() => setPicker({ mode: 'move', nodes: [node] })}
                     onDelete={() => void requestDelete([node])}

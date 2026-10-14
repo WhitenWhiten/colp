@@ -10,7 +10,8 @@ import { useServerFeatureUnavailable } from '../lib/serverFeatureAvailability'
 import { useBodyScrollLock } from '../lib/useBodyScrollLock'
 import { useExitAnimation } from '../lib/useExitAnimation'
 import { useFocusTrap } from '../lib/useFocusTrap'
-import { APP_NAV, isAppNavActive, isAuthPath, loginPath } from '../lib/chrome'
+import { appNav, isAppNavActive, isAuthPath, loginPath } from '../lib/chrome'
+import { useAutomationStatus } from '../lib/automationStatus'
 import { searchShortcutLabel } from '../lib/shortcutLabel'
 import { useSettingsDialog } from '../lib/useSettingsDialog'
 import { AccountMenu } from './topnav/AccountMenu'
@@ -69,7 +70,11 @@ export function TopNav() {
   // Site search covers the owner's library and answers a guest with a
   // sign-in wall, so a visitor on a shared link is not offered it.
   const showSearch = showChrome && isLoggedIn
-  const primaryNav = isLoggedIn ? APP_NAV : []
+  /* Automations appear once the server says it has them; "Paused" rides on
+     the entry so a paused library is visible from every page (AU-14). */
+  const automation = useAutomationStatus(isLoggedIn ? user?.accountId ?? null : null)
+  const primaryNav = isLoggedIn ? appNav(automation.state === 'available') : []
+  const automationsPaused = automation.state === 'available' && automation.paused
   // Sign-in and sign-up pages link to each other in their cards already.
   const showLogin = !isLoggedIn && !authRoute
   // The drawer holds the owner's tools and account; a visitor has none, and
@@ -170,6 +175,9 @@ export function TopNav() {
                   onFocus={() => prefetchRoute(l.to)}
                 >
                   {l.label}
+                  {l.to === '/automations' && automationsPaused && (
+                    <span className="nav-link-flag" data-testid="automations-paused-flag">Paused</span>
+                  )}
                 </NavLink>
               ))}
             </nav>

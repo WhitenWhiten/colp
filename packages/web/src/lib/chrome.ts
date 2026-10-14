@@ -14,6 +14,18 @@ export const APP_NAV = [
   { to: '/approvals', label: 'Approvals' },
 ] as const
 
+/** Shown after Library once the server says it offers automations. */
+export const AUTOMATIONS_NAV = { to: '/automations', label: 'Automations' } as const
+
+export type AppNavItem = { readonly to: string; readonly label: string }
+
+/** The signed-in primary nav, with Automations next to Agents when the server has it. */
+export function appNav(automations: boolean): readonly AppNavItem[] {
+  if (!automations) return APP_NAV
+  const [library, ...rest] = APP_NAV
+  return [library, AUTOMATIONS_NAV, ...rest]
+}
+
 export function isAuthPath(pathname: string): boolean {
   return AUTH_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 }

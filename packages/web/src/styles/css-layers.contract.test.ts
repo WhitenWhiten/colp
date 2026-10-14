@@ -35,6 +35,7 @@ const OWNER_MAP: Record<string, string | string[]> = {
   'sync.css': 'pages',
   'write-approvals.css': 'pages',
   'agents.css': 'pages',
+  'automations.css': 'pages',
   'extension.css': 'pages',
   'import.css': 'pages',
   'pages-shared.css': 'pages',
@@ -129,6 +130,8 @@ const SHARED_ROUTE_STYLESHEETS: Record<string, string[]> = {
   // Absence poster (404 digits + unavailable subjects). Loaded by each route
   // that paints the stage, not by the entry.
   'not-found.css': ['NotFound.tsx', 'Collection.tsx', 'Graph.tsx', 'ResourceDetail.tsx'],
+  // Automations: the rule pages, and the bookmark page's Automation section.
+  'automations.css': ['Automations.tsx', 'ResourceDetail.tsx'],
 }
 
 function stripComments(source: string): string {

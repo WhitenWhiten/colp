@@ -6,6 +6,7 @@ import { settingsRedirectTo } from './lib/useSettingsDialog'
 import { Landing } from './pages/Landing'
 const About = lazyWithRetry('About', async () => (await import('./components/SelfHostedAbout')).SelfHostedAbout)
 const Agents = lazyWithRetry('Agents', async () => (await import('./pages/Agents')).Agents)
+const Automations = lazyWithRetry('Automations', async () => (await import('./pages/Automations')).Automations)
 const Collection = lazyWithRetry('Collection', async () => (await import('./pages/Collection')).Collection)
 const Library = lazyWithRetry('Library', async () => (await import('./pages/Library')).Library)
 const CollectionEditor = lazyWithRetry('CollectionEditor', async () => (await import('./pages/CollectionEditor')).CollectionEditor)
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="about" element={<About />} />
           <Route path="mcp" element={<Navigate to="/agents" replace />} />
           <Route path="agents" element={<Agents />} />
+          <Route path="automations/*" element={<Automations />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

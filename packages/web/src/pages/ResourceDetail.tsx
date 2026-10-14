@@ -29,6 +29,10 @@ import { AnnotationText } from '../components/annotation-markdown'
 // Route-owned stylesheet (see main.tsx); ships with this route chunk.
 import '../styles/not-found.css'
 import '../styles/resource-detail.css'
+// Shared with the Automations pages: the Automation section's history rows.
+import '../styles/automations.css'
+import { BookmarkAutomation } from './automations/BookmarkAutomation'
+import { useAutomationStatus } from '../lib/automationStatus'
 import { UGC_REL } from '../lib/ugcRel'
 import { brandedTitle, productName } from '../lib/edition'
 
@@ -152,8 +156,10 @@ export function ResourceDetail() {
 function ResourceDetailContent() {
   const { id = '' } = useParams()
   const [searchParams] = useSearchParams()
-  const { isLoggedIn, bootstrapping } = useAuth()
+  const { isLoggedIn, bootstrapping, user } = useAuth()
   const allowWrite = isLoggedIn || bootstrapping
+  // The Automation section asks only a server that offers automations.
+  const automation = useAutomationStatus(isLoggedIn ? user?.accountId ?? null : null)
   const resolved = useResourceNode(id, searchParams.get('fromGraph') === '1')
   const annotationsEnabled = isLive('annotations')
     || String(import.meta.env?.VITE_ANNOTATIONS_ACCEPTANCE ?? '').toLowerCase() === 'true'
@@ -444,6 +450,10 @@ function ResourceDetailContent() {
                   <p className="meta">Open this bookmark from its collection to see notes.</p>
                 ) : null}
               </section>
+            )}
+
+            {isLoggedIn && collectionId && !isContainer && automation.state === 'available' && (
+              <BookmarkAutomation collectionId={collectionId} nodeId={node.id} />
             )}
 
             {relationsEnabled && allowWrite ? (

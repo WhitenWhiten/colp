@@ -164,6 +164,7 @@ export function LibraryFolderMenu({
   title,
   canMove,
   canDelete,
+  automateTo,
   onEdit,
   onMove,
   onDelete,
@@ -171,6 +172,8 @@ export function LibraryFolderMenu({
   title: string
   canMove: boolean
   canDelete: boolean
+  /** A new rule that files bookmarks into this folder; absent where automations are off. */
+  automateTo?: string
   onEdit: () => void
   onMove: () => void
   onDelete: () => void
@@ -182,6 +185,17 @@ export function LibraryFolderMenu({
           <button type="button" role="menuitem" tabIndex={-1} onClick={() => run(onEdit)}>
             Edit details
           </button>
+          {automateTo && (
+            <Link
+              to={automateTo}
+              role="menuitem"
+              tabIndex={-1}
+              onKeyDown={onMenuLinkKeyDown}
+              onClick={() => run(() => undefined)}
+            >
+              Automate…
+            </Link>
+          )}
           {canMove && (
             <button type="button" role="menuitem" tabIndex={-1} onClick={() => run(onMove)}>
               Move to…
