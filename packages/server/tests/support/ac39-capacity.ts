@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
-import { sql, type KyselyPlugin } from 'kysely';
+import { sql, PostgresQueryCompiler, type KyselyPlugin } from 'kysely';
 import { Pool } from 'pg';
 import { compilePredicate, type Predicate } from '@know-n/colp/automation';
 import { readRepositoryFile } from './repository-files.js';
@@ -87,7 +87,22 @@ async function manual(count: number, round: number) {
     setAutomationCaptureEnabled(true);
     const baseline = await traffic(sameOwnerSave);
     let queries = 0;
-    const plugin: KyselyPlugin = { transformQuery: ({ node }) => { queries++; return node; }, transformResult: async ({ result }) => result };
+    const profileSql = process.env.AC39_PROFILE_SQL === '1';
+    const timings: { sql: string; ms: number }[] = [];
+    const pending = new Map<object, { sql: string; start: number }>();
+    const compiler = new PostgresQueryCompiler();
+    const plugin: KyselyPlugin = {
+      transformQuery: ({ node, queryId }) => {
+        queries++;
+        if (profileSql) pending.set(queryId, { sql: compiler.compileQuery(node, queryId).sql, start: performance.now() });
+        return node;
+      },
+      transformResult: async ({ result, queryId }) => {
+        const timing = pending.get(queryId);
+        if (timing) { timings.push({ sql: timing.sql, ms: performance.now() - timing.start }); pending.delete(queryId); }
+        return result;
+      },
+    };
     const uow = createAutomationUnitOfWork(f.db.withPlugin(plugin), 'server', { runtimeEnabled: true });
     const begin = performance.now();
     const preview = await uow.execute(f.owner, ports => ports.runOnce!.preview(f.rule.id, {
@@ -103,7 +118,7 @@ async function manual(count: number, round: number) {
       record({ count, round, previewMs, previewQueries, overLimitRejected: true }); return;
     }
     assert.equal(preview.canStart, true);
-    queries = 0;
+    queries = 0; timings.length = 0;
     const start = performance.now();
     let finished = false, firstGate: number | undefined, lastGate: number | undefined, maxWaiters = 0;
     const run = uow.execute(f.owner, ports => ports.runOnce!.start(f.rule.id, { previewId: preview.id, previewDigest: preview.previewDigest }))
@@ -129,6 +144,9 @@ async function manual(count: number, round: number) {
     // Always settle writers before dropping their schema, including a failed run.
     const result = await run.catch(async error => { await writes; await monitor; throw error; });
     const runMs = performance.now() - start, runQueries = queries;
+    if (profileSql) record({ kind: 'sqlProfile', count, round, runMs, monotonicUs: Number(process.hrtime.bigint() / 1000n),
+      sqlMs: timings.reduce((sum, row) => sum + row.ms, 0),
+      slowest: timings.toSorted((a, b) => b.ms - a.ms).slice(0, 20).map(row => ({ ...row, sql: row.sql.slice(0, 800) })) });
     const [sameCollection, sameOwner, foreignOwner] = await writes;
     await monitor;
     assert.equal(result.childRunIds?.length, count);

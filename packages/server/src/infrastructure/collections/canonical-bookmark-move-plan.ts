@@ -40,6 +40,7 @@ export async function planBookmarkMoves(original: CollectionRow, rows: readonly 
   const nodes = new Map(rows.map(row => [row.id, row]));
   const changed = new Map<string, NodeRow>();
   const paths = new Map<string, NodeRow[]>();
+  const validatedParents = new Set<string>();
   const path = (id: string) => {
     let result = paths.get(id);
     if (result) return result;
@@ -74,7 +75,9 @@ export async function planBookmarkMoves(original: CollectionRow, rows: readonly 
         invalid('bookmark batch member changed or is not a distinct cross-folder move');
       const extensions = assertExistingNodeAuthority(node);
       const childrenOf = [node.parent_id!, m.parentId];
-      for (const id of childrenOf) assertExistingNodeAuthority(path(id)[0]!);
+      for (const id of childrenOf) if (!validatedParents.has(id)) {
+        assertExistingNodeAuthority(path(id)[0]!); validatedParents.add(id);
+      }
       return { operationId: input.operationId, collectionId: collection.id,
         facts: { before: node, sourceAncestors: path(node.parent_id!), targetAncestors: path(m.parentId) },
         mutation: { ...m, fields: { extensions, kindFields: { kind: node.kind, title: node.title, url: node.url,
@@ -99,11 +102,9 @@ export async function planBookmarkMoves(original: CollectionRow, rows: readonly 
       const target = siblings.get(after.parent_id!) ?? []; target.push(after); siblings.set(after.parent_id!, target);
       for (const [id, revision] of Object.entries(a.childrenRevisions)) {
         const parent = { ...nodes.get(id)!, children_revision: revision, updated_at: now };
-        parent.payload_json = payloadFor(parent); nodes.set(id, parent); changed.set(id, parent);
+        nodes.set(id, parent); changed.set(id, parent);
       }
       collection = { ...collection, commit_ordinal: a.commitOrdinal, content_revision: a.contentRevision!, updated_at: now };
-      collection.payload_json = assertMaterialized('collection', collection.id,
-        materializeCollectionPayload(collectionProjection(collection)), existingExtensions(collection.payload_json));
     } },
     operations: { async appendCanonicalOperation(_, record) { operation = record; } },
     audit: { async appendAuditEvent() { /* Flushed with the operation's identical canonical payload. */ } },
@@ -115,5 +116,10 @@ export async function planBookmarkMoves(original: CollectionRow, rows: readonly 
     const result = await app.execute({ transaction: undefined }, input);
     moves.push({ input, result, event: event!, operation: operation!, after: nodes.get(input.mutation.target.resourceId)! });
   }
+  // Intermediate parent/collection revisions are retained in each allocation;
+  // only their final payload is persisted, so materialize shared rows once.
+  for (const row of changed.values()) if (row.kind === 'folder') row.payload_json = payloadFor(row);
+  collection.payload_json = assertMaterialized('collection', collection.id,
+    materializeCollectionPayload(collectionProjection(collection)), existingExtensions(collection.payload_json));
   return { collection, changed: [...changed.values()], moves };
 }
