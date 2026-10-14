@@ -131,6 +131,37 @@ describe('self-hosted preset', () => {
     expect(SECRET_NAMES.filter((name) => name.endsWith('_ENDPOINT'))).toEqual([]);
   });
 
+  it('turns automation on and derives the events key unless overridden', () => {
+    const env = baseEnv();
+    applySelfHostedPreset(env);
+    const config = loadConfig(env);
+    expect(config).toMatchObject({
+      automationRulesEnabled: true,
+      automationCaptureEnabled: true,
+      automationAdmissionEnabled: true,
+      automationWorkEnabled: true,
+      mcpEventsEnabled: true,
+    });
+    expect(config.automationWebhookMasterKey).toHaveLength(32);
+
+    const off = baseEnv({
+      KNOWN_FEATURE_AUTOMATION_RULES: 'false',
+      KNOWN_FEATURE_AUTOMATION_CAPTURE: 'false',
+      KNOWN_FEATURE_AUTOMATION_ADMISSION: 'false',
+      KNOWN_FEATURE_AUTOMATION_WORK: 'false',
+      KNOWN_FEATURE_MCP_EVENTS: 'false',
+    });
+    applySelfHostedPreset(off);
+    expect(loadConfig(off)).toMatchObject({
+      automationRulesEnabled: false,
+      automationCaptureEnabled: false,
+      automationAdmissionEnabled: false,
+      automationWorkEnabled: false,
+      mcpEventsEnabled: false,
+    });
+    expect(loadConfig(off).automationWebhookMasterKey).toBeUndefined();
+  });
+
   it('keeps an explicit override', () => {
     const env = baseEnv({ KNOWN_FEATURE_LINK_HEALTH: 'false', PUBLICATION_ORIGIN: 'https://override.test' });
     applySelfHostedPreset(env);

@@ -17,9 +17,11 @@ import { createECDH, createHash, hkdfSync } from 'node:crypto';
  *   cache readiness probe does not require Redis.
  * - Object storage is not configured. Flag-off features that would require a
  *   bucket stay off, so loadConfig does not demand R2 credentials.
- * - KNOWN_FEATURE flags other than MCP read/write/compat, account credentials,
- *   collection history, favicon policy, link health and link preview are
- *   false, which skips their production credential checks.
+ * - Automation (rules, capture, admission, work, and MCP events) is on.
+ *   An empty AUTOMATION_WEBHOOK_MASTER_KEY is derived from COLP_SERVER_SECRET.
+ *   Other KNOWN_FEATURE flags besides MCP read/write/compat, account
+ *   credentials, collection history, favicon policy, link health and link
+ *   preview are false, which skips their production credential checks.
  * - Sync Sessions are on. SYNC_OAUTH_JWKS_URI is checked with the relaxed
  *   endpoint policy, and the SYNC_OAUTH_* URLs may be loopback http where the
  *   origin may be (bootstrap/config-sync.ts).
@@ -28,6 +30,7 @@ import { createECDH, createHash, hkdfSync } from 'node:crypto';
 export const SECRET_NAMES = [
   'AUTH_RATE_LIMIT_KEY_SECRET',
   'AUTOMATION_CURSOR_HMAC_KEY',
+  'AUTOMATION_WEBHOOK_MASTER_KEY',
   'BETTER_AUTH_SECRET',
   'BETTER_AUTH_SESSION_TOKEN_KEYS',
   'COLLABORATION_INVITE_RATE_LIMIT_KEY_SECRET',
@@ -97,6 +100,10 @@ export const KEY_ID_NAMES = [
 
 export const FEATURE_NAMES = [
   'KNOWN_FEATURE_ACCOUNT_CREDENTIALS',
+  'KNOWN_FEATURE_AUTOMATION_ADMISSION',
+  'KNOWN_FEATURE_AUTOMATION_CAPTURE',
+  'KNOWN_FEATURE_AUTOMATION_RULES',
+  'KNOWN_FEATURE_AUTOMATION_WORK',
   'KNOWN_FEATURE_BOOKMARK_SUBSCRIPTIONS',
   'KNOWN_FEATURE_CLASSIFICATION',
   'KNOWN_FEATURE_CLASSIFICATION_AUTO_TAGS',
@@ -118,6 +125,7 @@ export const FEATURE_NAMES = [
   'KNOWN_FEATURE_LINK_HEALTH',
   'KNOWN_FEATURE_LINK_PREVIEW',
   'KNOWN_FEATURE_MCP_COMPAT',
+  'KNOWN_FEATURE_MCP_EVENTS',
   'KNOWN_FEATURE_MCP_READ',
   'KNOWN_FEATURE_MCP_WRITE',
   'KNOWN_FEATURE_NOTIFICATIONS',
@@ -133,7 +141,12 @@ export const FEATURES_ON = new Set<string>([
   'KNOWN_FEATURE_MCP_READ',
   'KNOWN_FEATURE_MCP_WRITE',
   'KNOWN_FEATURE_MCP_COMPAT',
+  'KNOWN_FEATURE_MCP_EVENTS',
   'KNOWN_FEATURE_ACCOUNT_CREDENTIALS',
+  'KNOWN_FEATURE_AUTOMATION_RULES',
+  'KNOWN_FEATURE_AUTOMATION_CAPTURE',
+  'KNOWN_FEATURE_AUTOMATION_ADMISSION',
+  'KNOWN_FEATURE_AUTOMATION_WORK',
   'KNOWN_FEATURE_COLLECTION_HISTORY',
   'KNOWN_FEATURE_LINK_HEALTH',
   'KNOWN_FEATURE_LINK_PREVIEW',
