@@ -1,7 +1,9 @@
 import type { IconName } from '../../components/Icon'
 import type { StatusTone } from '../../components/StatusBadge'
 import type {
+  AutomationDependency,
   AutomationHealthIncident,
+  AutomationJob,
   AutomationPredicate,
   AutomationPreviewDecision,
   AutomationRule,
@@ -134,6 +136,79 @@ export const RUN_STATUS: Record<AutomationRun['status'], { label: string; tone: 
   blocked: { label: 'Blocked', tone: 'danger' },
   cancelled: { label: 'Cancelled', tone: 'muted' },
   failed: { label: 'Failed', tone: 'danger' },
+}
+
+/** What each run state means for the owner, under its badge. */
+export const RUN_STATUS_DETAIL: Record<AutomationRun['status'], string> = {
+  waiting: 'Waiting to start. It goes on by itself once its work can run.',
+  running: 'Running now.',
+  review: 'Stopped for your decision. Nothing more happens until you change the rule or cancel this run.',
+  completed: 'Finished.',
+  partial: 'Partly finished. What was done is kept; the rest did not happen.',
+  blocked: 'Blocked. It won’t go on until the problem is fixed.',
+  cancelled: 'Cancelled. Anything already done stays.',
+  failed: 'Failed. Nothing more will happen for this run.',
+}
+
+/** A run page's title: short, so the server's explanation can say the rest. */
+export const RUN_HEADLINE: Record<AutomationRun['status'], string> = {
+  waiting: 'Run waiting to start',
+  running: 'Run in progress',
+  review: 'Run needs your decision',
+  completed: 'Run finished',
+  partial: 'Run partly finished',
+  blocked: 'Run blocked',
+  cancelled: 'Run cancelled',
+  failed: 'Run failed',
+}
+
+/** Runs that still have work left to cancel; the server decides whether it can. */
+export function runHasRemainingWork(status: AutomationRun['status']): boolean {
+  return status === 'waiting' || status === 'running' || status === 'blocked' || status === 'review'
+}
+
+export const RULE_STATE_DETAIL: Record<AutomationRule['effectiveState'], string> = {
+  draft: 'Not on yet. Preview it and turn it on to start filing bookmarks.',
+  active: 'On. It files matching bookmarks as you save them.',
+  degraded: 'On, but something it depends on needs a look.',
+  blocked: 'Stopped until the problem is fixed. Bookmarks are still saved where you put them.',
+  paused: 'Paused. Bookmarks are saved as usual and this rule doesn’t file them. Preview it again to turn it back on.',
+  archived: 'Archived. Its history stays; it can’t be turned on again.',
+}
+
+export const JOB_STATUS: Record<AutomationJob['status'], { label: string; tone: StatusTone; detail: string }> = {
+  pending: { label: 'Waiting', tone: 'neutral', detail: 'Waiting for an earlier step or for what it needs.' },
+  ready: { label: 'Ready', tone: 'neutral', detail: 'Ready for an agent to pick up.' },
+  leased: { label: 'With an agent', tone: 'accent', detail: 'An agent is working on it.' },
+  awaitingApproval: { label: 'Needs your approval', tone: 'warning', detail: 'The agent proposed a change. Nothing is applied until you approve it.' },
+  committing: { label: 'Saving', tone: 'accent', detail: 'Saving the approved result.' },
+  succeeded: { label: 'Done', tone: 'success', detail: '' },
+  failed: { label: 'Failed', tone: 'danger', detail: 'It did not finish.' },
+  blocked: { label: 'Blocked', tone: 'danger', detail: 'Stopped by a limit, a missing permission or an unavailable agent.' },
+  cancelled: { label: 'Cancelled', tone: 'muted', detail: 'Cancelled before it finished.' },
+  uncertain: { label: 'Outcome unknown', tone: 'warning', detail: 'COLP couldn’t confirm whether the agent finished. Try again checks that it is safe first.' },
+  review: { label: 'Not applied', tone: 'warning', detail: 'Declined or set aside for review. Nothing from this step was applied.' },
+  stale: { label: 'Out of date', tone: 'muted', detail: 'The bookmark changed after this started, so its result was not used.' },
+}
+
+const DEPENDENCY_KIND: Record<AutomationDependency['kind'], string> = {
+  folder: 'Its folder',
+  ancestor: 'Folders above it',
+  vocabulary: 'Tag list',
+  executor: 'Agent',
+  subscription: 'Agent wake-up',
+  permission: 'Access',
+  runtime: 'Automation service',
+}
+
+export function dependencyLabel(kind: AutomationDependency['kind']): string {
+  return DEPENDENCY_KIND[kind]
+}
+
+export const DEPENDENCY_STATUS: Record<AutomationDependency['status'], { label: string; tone: StatusTone }> = {
+  valid: { label: 'OK', tone: 'success' },
+  warning: { label: 'Check', tone: 'warning' },
+  blocked: { label: 'Blocked', tone: 'danger' },
 }
 
 export const RUN_KIND: Record<AutomationRun['kind'], string> = {

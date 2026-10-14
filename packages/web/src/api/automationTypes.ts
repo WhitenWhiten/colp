@@ -32,6 +32,8 @@ export type AutomationBindingSet = Schemas['AutomationBindingSet']
 export type AutomationBindingSetInput = Schemas['AutomationBindingSetInput']
 
 export type AutomationHealthReport = Schemas['AutomationHealthReport']
+export type AutomationDependencyReport = Schemas['AutomationDependencyReport']
+export type AutomationDependency = Schemas['AutomationDependency']
 export type AutomationHealthIncident = Schemas['AutomationHealthIncident']
 export type AutomationPauseState = Schemas['AutomationPauseState']
 
@@ -39,6 +41,8 @@ export type AutomationRun = Schemas['AutomationRun']
 export type AutomationEffectReceipt = Schemas['AutomationEffectReceiptView']
 export type AutomationOperationReceipt = Schemas['AutomationOperationReceipt']
 export type AutomationUndoInput = Schemas['AutomationUndoInput']
+export type AutomationJob = Schemas['AutomationJob']
+export type AutomationTaskType = Schemas['AutomationTaskSpec']['type']
 
 export type AutomationExport = Schemas['AutomationAutomationExport']
 

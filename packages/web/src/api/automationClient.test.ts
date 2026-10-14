@@ -91,6 +91,34 @@ describe('automation client', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
+  it('cancels a run and retries a job as commands on that resource’s revision', async () => {
+    const fetchImpl = vi.fn(async () => json(200, { id: 'x' }))
+    const api = createAutomationApi(fetchImpl)
+    await api.cancelRun('run-1', '8')
+    await api.retryJob('job-1', '4')
+    const [cancelUrl, cancelInit] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    const [retryUrl, retryInit] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit]
+    expect(cancelUrl).toBe('/api/v1/me/automations/runs/run-1/cancel')
+    expect(new Headers(cancelInit.headers).get('If-Match')).toBe('"8"')
+    expect(JSON.parse(String(cancelInit.body))).toEqual({ reason: 'Owner cancelled the remaining work of this run.' })
+    expect(retryUrl).toBe('/api/v1/me/automations/jobs/job-1/retry')
+    expect(new Headers(retryInit.headers).get('If-Match')).toBe('"4"')
+    expect(new Headers(retryInit.headers).get('Known-Command-Id')).toMatch(UUID_V4)
+  })
+
+  it('reads a job, a rule’s dependencies and a sized run page', async () => {
+    const fetchImpl = vi.fn(async () => json(200, { items: [], nextCursor: null }))
+    const api = createAutomationApi(fetchImpl)
+    await api.getJob('job-1')
+    await api.getRuleDependencies('rule-1')
+    await api.listRuns({ cursor: 'c', limit: 100 })
+    expect(fetchImpl.mock.calls.map((call) => String(call[0 as never]))).toEqual([
+      '/api/v1/me/automations/jobs/job-1',
+      '/api/v1/me/automations/rules/rule-1/dependencies',
+      '/api/v1/me/automations/runs?cursor=c&limit=100',
+    ])
+  })
+
   it('asks for a new sign-in when there is no CSRF token', async () => {
     clearSession()
     const fetchImpl = vi.fn(async () => json(200, {}))

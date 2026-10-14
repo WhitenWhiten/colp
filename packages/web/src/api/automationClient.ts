@@ -8,9 +8,11 @@ import type {
   AutomationBindingSetInput,
   AutomationCapabilities,
   AutomationChangeInput,
+  AutomationDependencyReport,
   AutomationExport,
   AutomationHealthIncident,
   AutomationHealthReport,
+  AutomationJob,
   AutomationLifecycleInput,
   AutomationPage,
   AutomationPauseState,
@@ -38,6 +40,8 @@ type FetchLike = typeof fetch
 
 export type RunQuery = {
   cursor?: string | null
+  /** Page size, 1–100; the server defaults to 50. */
+  limit?: number
   /** Bookmark history: both or neither. */
   collectionId?: string
   nodeId?: string
@@ -61,12 +65,18 @@ export interface AutomationApi {
   /** Only a set no rule revision ever referenced can be deleted. */
   deleteBindingSet(id: string, revision: string): Promise<void>
   getRuleHealth(id: string, signal?: AbortSignal): Promise<AutomationHealthReport>
+  getRuleDependencies(id: string, signal?: AbortSignal): Promise<AutomationDependencyReport>
   revalidateRule(id: string, revision: string): Promise<AutomationHealthReport>
   listIncidents(cursor?: string | null, signal?: AbortSignal): Promise<AutomationPage<AutomationHealthIncident>>
   acknowledgeIncident(id: string): Promise<AutomationHealthIncident>
   listRuns(query?: RunQuery, signal?: AbortSignal): Promise<AutomationPage<AutomationRun>>
   getRun(id: string, signal?: AbortSignal): Promise<AutomationRun>
   undoRunEffect(runId: string, input: AutomationUndoInput, revision: string): Promise<AutomationRun>
+  /** Stops remaining work; completed effects stay. */
+  cancelRun(runId: string, revision: string): Promise<AutomationRun>
+  getJob(id: string, signal?: AbortSignal): Promise<AutomationJob>
+  /** The server decides whether the work is eligible (uncertain, no proposal, calls left). */
+  retryJob(id: string, revision: string): Promise<AutomationJob>
   exportAutomations(signal?: AbortSignal): Promise<AutomationExport>
 }
 
@@ -251,6 +261,7 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       await write('DELETE', `${BASE}/binding-sets/${opaqueId(id, 'binding set')}`, { revision, intent: 'delete' })
     },
     getRuleHealth: async (id, signal) => read(`${BASE}/rules/${opaqueId(id, 'rule')}/health`, signal),
+    getRuleDependencies: async (id, signal) => read(`${BASE}/rules/${opaqueId(id, 'rule')}/dependencies`, signal),
     revalidateRule: async (id, revision) => write('POST', `${BASE}/rules/${opaqueId(id, 'rule')}/revalidate`, {
       body: { reason: 'Owner asked to check the rule again.' },
       revision,
@@ -267,6 +278,7 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
     listRuns: async (runQuery = {}, signal) => page<AutomationRun>(
       await read(`${BASE}/runs${query({
         cursor: runQuery.cursor,
+        limit: runQuery.limit === undefined ? undefined : String(runQuery.limit),
         collectionId: runQuery.collectionId,
         nodeId: runQuery.nodeId,
       })}`, signal),
@@ -277,6 +289,17 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       body: input,
       revision,
       intent: `undo:${input.effectReceiptId}`,
+    }),
+    cancelRun: async (runId, revision) => write('POST', `${BASE}/runs/${opaqueId(runId, 'run')}/cancel`, {
+      body: { reason: 'Owner cancelled the remaining work of this run.' },
+      revision,
+      intent: 'cancel',
+    }),
+    getJob: async (id, signal) => read(`${BASE}/jobs/${opaqueId(id, 'job')}`, signal),
+    retryJob: async (id, revision) => write('POST', `${BASE}/jobs/${opaqueId(id, 'job')}/retry`, {
+      body: { reason: 'Owner asked to try the uncertain work again.' },
+      revision,
+      intent: 'retry',
     }),
     exportAutomations: async (signal) => read(`${BASE}/export`, signal),
   }

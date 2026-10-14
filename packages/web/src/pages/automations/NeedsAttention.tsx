@@ -4,6 +4,7 @@ import { Icon } from '../../components/Icon'
 import { formatDate, formatDateTime } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
 import { capitalize, incidentCopy, incidentNeedsAgent, incidentNeedsFolder, runExplanation } from './copy'
+import { ruleEditPath } from './paths'
 
 /* What the owner should look at first (AU-03/04/05/22): open notices from
    the backend's health checks, and runs the backend left for a decision.
@@ -75,7 +76,7 @@ export function NeedsAttention({
               </div>
               <div className="automation-notice-actions">
                 {incidentNeedsFolder(incident) && (
-                  <Link className="btn btn-secondary btn-sm" to={`/automations/rules/${encodeURIComponent(incident.ruleId)}/edit`}>
+                  <Link className="btn btn-secondary btn-sm" to={ruleEditPath(incident.ruleId)}>
                     Choose another folder
                   </Link>
                 )}
@@ -86,7 +87,7 @@ export function NeedsAttention({
                   <Link className="btn btn-secondary btn-sm" to="/agents">Open Agents</Link>
                 )}
                 {(incident.code === 'ruleConflict' || incident.code === 'highUndoRate') && (
-                  <Link className="btn btn-secondary btn-sm" to={`/automations/rules/${encodeURIComponent(incident.ruleId)}/edit`}>
+                  <Link className="btn btn-secondary btn-sm" to={ruleEditPath(incident.ruleId)}>
                     Edit rule
                   </Link>
                 )}
@@ -125,7 +126,7 @@ export function NeedsAttention({
                   <Link className="btn btn-secondary btn-sm" to={runHref(first.id)}>View</Link>
                 )}
                 {group.runs.map((run) => (
-                  <Link key={run.id} className="btn btn-ghost btn-sm" to={`/automations/rules/${encodeURIComponent(run.ruleId)}/edit`}>
+                  <Link key={run.id} className="btn btn-ghost btn-sm" to={ruleEditPath(run.ruleId)}>
                     {disagree ? `Edit “${ruleName(run.ruleId) ?? 'rule'}”` : 'Edit rule'}
                   </Link>
                 ))}

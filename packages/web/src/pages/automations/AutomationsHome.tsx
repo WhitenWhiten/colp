@@ -14,6 +14,7 @@ import { formatDate, formatDateTime } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
 import { isAutomationUnavailableError, publishAutomationPause, publishAutomationUnavailable } from '../../lib/automationStatus'
 import { decisionGroups, NeedsAttention } from './NeedsAttention'
+import { ruleEditPath, rulePath, runPath } from './paths'
 import { RuleSentence } from './RuleSentence'
 import { errorMessage, isStale, RuleStateBadge, useAutomationDeps, useLoad } from './shared'
 import { useAutomationNames, type AutomationNames } from './useAutomationNames'
@@ -75,13 +76,13 @@ function RuleCard({
 }) {
   const folder = names.ruleFolder(rule)
   const collection = names.collectionTitle(rule.definition.scope.collectionId)
-  const editHref = `/automations/rules/${encodeURIComponent(rule.id)}/edit`
+  const editHref = ruleEditPath(rule.id)
   const canPause = rule.desiredState === 'enabled'
   return (
     <article className="automation-rule" data-rule-id={rule.id} aria-labelledby={`automation-rule-${rule.id}`}>
       <header className="automation-rule-head">
         <h3 id={`automation-rule-${rule.id}`}>
-          <Link to={editHref}>{rule.definition.name}</Link>
+          <Link to={rulePath(rule.id)}>{rule.definition.name}</Link>
         </h3>
         <RuleStateBadge state={rule.effectiveState} />
       </header>
@@ -292,6 +293,7 @@ export function AutomationsHome() {
             decisions={decisions}
             ruleName={ruleName}
             busyId={busyId}
+            runHref={runPath}
             onAcknowledge={(incident) => void acknowledge(incident)}
             onRevalidate={(incident) => void revalidate(incident)}
           />

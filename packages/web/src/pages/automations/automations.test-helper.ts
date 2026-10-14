@@ -4,10 +4,12 @@ import type { AutomationApi } from '../../api/automationClient'
 import type {
   AutomationBindingSet,
   AutomationHealthIncident,
+  AutomationJob,
   AutomationPauseState,
   AutomationPreviewResult,
   AutomationRule,
   AutomationRuleDefinition,
+  AutomationRuleUsage,
   AutomationRun,
 } from '../../api/automationTypes'
 import type { AutomationDeps } from './shared'
@@ -83,6 +85,27 @@ export function run(id: string, ruleId: string, patch: Partial<AutomationRun> = 
   }
 }
 
+export function usage(patch: Partial<AutomationRuleUsage> = {}): AutomationRuleUsage {
+  return {
+    periodStart: '2026-09-14T00:00:00.000Z', periodEnd: '2026-10-14T00:00:00.000Z', admittedRuns: 37,
+    readyJobs: 2, succeededJobs: 29, heldJobs: 4, pendingJobs: 1, leasedJobs: 0, committingJobs: 0,
+    policyBlockedJobs: 3, budgetBlockedJobs: 2, awaitingApprovalJobs: 2, uncertainJobs: 1,
+    optionalCalls: 34, unknownCostCalls: 3, reportedCostMicros: '1250000', externalCosts: 'unknownDisclosed',
+    costDisplay: 'External cost is unknown for one or more calls; reported amounts are unverified observations.',
+    budgetDay: '2026-10-14', dailyRunLimit: 20, reservedRuns: 17, remainingRuns: 3, deliveryCapability: 'unavailable', acceptedDeliveries: null,
+    ...patch,
+  }
+}
+
+export function job(id: string, status: AutomationJob['status'], patch: Partial<AutomationJob> = {}): AutomationJob {
+  return {
+    id, revision: '4', runId: 'run-1', status, inputDigest: 'a'.repeat(64), allowedFolders: [], inputsPaged: false,
+    attemptGeneration: 1, createdAt: T,
+    task: { id: 'summary', type: 'summary.generate', after: [], executorRole: 'researchEnricher', required: true, outputContract: 'summary.sourced.v1', inputFields: ['url'], instruction: 'Summarize.' },
+    ...patch,
+  }
+}
+
 export function previewResult(id = 'preview-1'): AutomationPreviewResult {
   return {
     previewId: id,
@@ -118,13 +141,20 @@ export function fakeApi(): Mocked<AutomationApi> {
     createBindingSet: vi.fn(async () => binding('bind-new', 'f-academic')),
     replaceBindingSet: vi.fn(async (id: string) => binding(id, 'f-academic')),
     deleteBindingSet: vi.fn(async () => undefined),
-    getRuleHealth: vi.fn(),
+    getRuleHealth: vi.fn(async (id: string) => ({ ruleId: id, checkedAt: T, effectiveState: 'active' as const, incidents: [] as AutomationHealthIncident[] })),
+    getRuleDependencies: vi.fn(async (id: string) => ({ ruleId: id, dependencies: [
+      { kind: 'folder' as const, role: 'destination', resourceId: 'f-academic', revision: '1', status: 'valid' as const },
+      { kind: 'runtime' as const, role: 'intake', resourceId: 'automation-m1', revision: 'm1', status: 'valid' as const },
+    ] })),
     revalidateRule: vi.fn(async (id: string) => ({ ruleId: id, checkedAt: T, effectiveState: 'active' as const, incidents: [] })),
     listIncidents: vi.fn(async () => ({ items: [] as AutomationHealthIncident[], nextCursor: null })),
     acknowledgeIncident: vi.fn(async () => incident({ state: 'acknowledged' })),
     listRuns: vi.fn(async () => ({ items: [] as AutomationRun[], nextCursor: null })),
-    getRun: vi.fn(),
+    getRun: vi.fn(async (id: string) => run(id, 'rule-1')),
     undoRunEffect: vi.fn(async (id: string) => run(id, 'rule-1')),
+    cancelRun: vi.fn(async (id: string) => run(id, 'rule-1', { status: 'cancelled', revision: '3' })),
+    getJob: vi.fn(async (id: string) => job(id, 'succeeded')),
+    retryJob: vi.fn(async (id: string) => job(id, 'ready', { revision: '5', attemptGeneration: 2 })),
     exportAutomations: vi.fn(),
   }
   return api as unknown as Mocked<AutomationApi>
