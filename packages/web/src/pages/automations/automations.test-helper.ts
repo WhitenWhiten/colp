@@ -155,6 +155,7 @@ export function fakeApi(): Mocked<AutomationApi> {
     cancelRun: vi.fn(async (id: string) => run(id, 'rule-1', { status: 'cancelled', revision: '3' })),
     getJob: vi.fn(async (id: string) => job(id, 'succeeded')),
     retryJob: vi.fn(async (id: string) => job(id, 'ready', { revision: '5', attemptGeneration: 2 })),
+    decideJob: vi.fn(async (id: string) => ({ jobId: id, resultId: 'result-1', proposalDigest: 'd'.repeat(64), status: 'awaitingApproval' as const, effectReceiptIds: [], diagnostics: [] })),
     exportAutomations: vi.fn(),
   }
   return api as unknown as Mocked<AutomationApi>

@@ -33,6 +33,11 @@
   margin-top: var(--space-4);
 }
 
+/* Automations and agents share one queue; the switch only narrows it. */
+.write-approvals-sources {
+  justify-self: start;
+}
+
 /* R7-27: chrome from .panel.panel-raised; grid layout stays local.
    Read top to bottom: status and risk, what the agent wants (title), the
    changes one per row, how much it touches, then the decision. */
@@ -455,6 +460,20 @@
   margin: 0;
   color: var(--muted);
   font-size: var(--text-sm);
+}
+
+/* An automation plan's notes: what its job and its effect say now. */
+.write-approval-automation {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.write-approval-automation p {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 719px) {

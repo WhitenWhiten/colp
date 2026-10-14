@@ -11,7 +11,11 @@ import { StatusBadge } from '../../components/StatusBadge'
 import { consentScopeMeta } from '../../lib/oauthScopes'
 import { plural } from '../../lib/plural'
 import { loginPath } from '../../lib/chrome'
+import { undoReason } from '../automations/copy'
+import { rulePath, runPath } from '../automations/paths'
+import { automationSummary, type AutomationPlan, type AutomationPlanState } from './automation'
 import {
+  effectiveStatus,
   formatInstant,
   isDecisionAllowed,
   keyChangeForOperation,
@@ -48,10 +52,20 @@ const APPROVED_BY_TEXT: Record<'policy' | 'owner', string> = {
   owner: 'Approved by you. You can undo it.',
 }
 
+/** A confirmed automation plan: its rule and job, and the commands its card sends instead. */
+export type AutomationCardControls = {
+  plan: AutomationPlan
+  state: AutomationPlanState
+  onDecide: (decision: 'approve' | 'reject') => void
+  onUndo: () => void
+  onProposeAgain: () => void
+}
+
 export function ApprovalCard({
   approval,
   draft,
   collectionTitles,
+  automation,
   onDecision,
   onRefresh,
   onStartNew,
@@ -60,13 +74,15 @@ export function ApprovalCard({
   approval: WriteApprovalView
   draft: DecisionDraft
   collectionTitles: ReadonlyMap<string, string>
+  automation?: AutomationCardControls
   onDecision: (decision: WriteApprovalDecision, replay?: boolean) => void
   onRefresh: () => void
   onStartNew: () => void
   onUndo: (force: boolean) => Promise<void>
 }) {
   const location = useLocation()
-  const approvedBy = approvalApprovedBy(approval)
+  // An automation change is undone through its own effect receipt, never by restoring a collection version.
+  const approvedBy = automation ? null : approvalApprovedBy(approval)
   const [undoing, setUndoing] = useState(false)
   const [undoNeedsForce, setUndoNeedsForce] = useState(false)
   const [undoError, setUndoError] = useState<string | null>(null)
@@ -89,9 +105,9 @@ export function ApprovalCard({
       setUndoing(false)
     }
   }
-  const busy = draft.phase === 'submitting'
-  const blocked = draft.phase === 'blocked'
-  const terminal = !allowed && !busy && draft.phase !== 'unknown'
+  const busy = automation ? automation.state.busy : draft.phase === 'submitting'
+  const blocked = !automation && draft.phase === 'blocked'
+  const terminal = !allowed && !busy && (automation !== undefined || draft.phase !== 'unknown')
   const tone = statusTone(approval)
   const keyChanges = approval.operations.flatMap((operation) => {
     const change = keyChangeForOperation(operation, approval.target)
@@ -103,6 +119,7 @@ export function ApprovalCard({
       className={`panel panel-raised write-approval-card is-${approval.status}`}
       data-plan-id={approval.planId}
       data-status={approval.status}
+      data-source={automation ? 'automation' : 'agent'}
     >
       <header className="write-approval-card-head">
         <div className="write-approval-badges">
@@ -111,18 +128,33 @@ export function ApprovalCard({
             {statusLabel(approval)}
           </StatusBadge>
           <StatusBadge tone={RISK_TONE[approval.risk]}>{RISK_LABEL[approval.risk]} risk</StatusBadge>
+          {automation && (
+            <StatusBadge tone="accent" data-testid="approval-automation-badge">
+              <Icon name="bolt" />
+              Automation
+            </StatusBadge>
+          )}
         </div>
         <h2 id={`write-approval-${approval.planId}`}>
           <Link to={`/approvals/${encodeURIComponent(approval.planId)}`}>
-            {approval.summary}
+            {automation ? automationSummary(approval.summary) : approval.summary}
           </Link>
         </h2>
         <dl className="write-approval-facts" aria-label="Approval facts">
-          <div><dt>Requested by</dt><dd>{approval.agent?.name ?? approval.agent?.clientId ?? 'Unknown agent'}</dd></div>
+          {automation && (
+            <div>
+              <dt>From rule</dt>
+              <dd><Link to={rulePath(automation.plan.ruleId)}>{automation.plan.ruleName ?? 'Open rule'}</Link></dd>
+            </div>
+          )}
+          <div>
+            <dt>{automation ? 'Proposed by' : 'Requested by'}</dt>
+            <dd>{approval.agent?.name ?? approval.agent?.clientId ?? 'Unknown agent'}</dd>
+          </div>
           <div><dt>Created</dt><dd>{formatInstant(approval.createdAt)}</dd></div>
           <div><dt>Expires</dt><dd>{formatInstant(approval.expiresAt)}</dd></div>
         </dl>
-        {approval.reason && <p className="write-approval-reason"><strong>Agent-provided reason:</strong> {approval.reason}</p>}
+        {approval.reason && !automation && <p className="write-approval-reason"><strong>Agent-provided reason:</strong> {approval.reason}</p>}
       </header>
 
       {keyChanges.length > 0 && (
@@ -179,11 +211,15 @@ export function ApprovalCard({
         </p>
       </section>
 
-      {draft.message && (
+      {!automation && draft.message && (
         <div className={`write-approval-message ${DRAFT_PHASE_CLASS[draft.phase]}`} role="alert">
           {draft.message}
         </div>
       )}
+      {automation?.state.message && (
+        <div className="write-approval-message is-blocked" role="alert">{automation.state.message}</div>
+      )}
+      {automation && <AutomationPlanNotes approval={approval} automation={automation} />}
 
       {approvedBy && (
         <p className="write-approval-approved-by">{APPROVED_BY_TEXT[approvedBy]}</p>
@@ -217,7 +253,23 @@ export function ApprovalCard({
           </button>
         )}
         {undoError && <p className="field-error" role="alert">{undoError}</p>}
-        {allowed && !busy && !blocked && draft.phase !== 'unknown' && draft.phase !== 'stale' && (
+        {automation && allowed && !busy && (
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => automation.onDecide('reject')}>
+              Deny
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={!automation.plan.job.proposalDigest}
+              onClick={() => automation.onDecide('approve')}
+            >
+              Approve
+            </button>
+          </>
+        )}
+        {automation && <AutomationPlanActions approval={approval} automation={automation} busy={busy} />}
+        {!automation && allowed && !busy && !blocked && draft.phase !== 'unknown' && draft.phase !== 'stale' && (
           <>
             <button
               type="button"
@@ -235,7 +287,7 @@ export function ApprovalCard({
             </button>
           </>
         )}
-        {draft.phase === 'unknown' && (
+        {!automation && draft.phase === 'unknown' && (
           <button
             type="button"
             className="btn btn-primary btn-sm"
@@ -244,7 +296,7 @@ export function ApprovalCard({
             Retry decision
           </button>
         )}
-        {draft.phase === 'stale' && draft.desiredDecision && (
+        {!automation && draft.phase === 'stale' && draft.desiredDecision && (
           <button
             type="button"
             className="btn btn-primary btn-sm"
@@ -253,7 +305,7 @@ export function ApprovalCard({
             Confirm {draft.desiredDecision === 'approve' ? 'approval' : 'denial'} with latest
           </button>
         )}
-        {draft.phase === 'refresh_required' && (
+        {!automation && draft.phase === 'refresh_required' && (
           <button type="button" className="btn btn-secondary btn-sm" onClick={onRefresh}>
             Refresh approval
           </button>
@@ -263,7 +315,7 @@ export function ApprovalCard({
             ? <button type="button" className="btn btn-secondary btn-sm" onClick={onStartNew}>Start new decision</button>
             : <Link to={loginPath(location.pathname, location.search)} className="btn btn-secondary btn-sm">Sign in</Link>
         )}
-        {busy && <span role="status" className="write-approval-busy">Submitting decision…</span>}
+        {!automation && busy && <span role="status" className="write-approval-busy">Submitting decision…</span>}
         {terminal && (
           <div className={`write-approval-terminal ${TONE_CLASS[tone]}`} role="status">
             <span className="write-approval-terminal-icon">
@@ -277,6 +329,58 @@ export function ApprovalCard({
         )}
       </footer>
     </article>
+  )
+}
+
+/* What the plan's job and effect say now: a stale proposal, an undone or
+   not-undoable change (in the receipt's own reason), a link to the run. */
+function AutomationPlanNotes({ approval, automation }: { approval: WriteApprovalView; automation: AutomationCardControls }) {
+  const { job, effect, run } = automation.plan
+  const notes: string[] = []
+  if (job.status === 'stale') notes.push('The bookmark changed after this was proposed, so it can’t be applied as it is.')
+  if (job.status === 'review' && approval.status === 'cancelled') notes.push('You denied it. Nothing from this step was applied.')
+  if (effect?.status === 'reverted') notes.push('Undone.')
+  else if (effect && !effect.undoAvailable) notes.push(undoReason(effect.undoReason))
+  return (
+    <div className="write-approval-automation" data-testid="approval-automation-notes">
+      {notes.map((note) => <p key={note}>{note}</p>)}
+      {run && <p><Link to={runPath(run.id)}>See the run</Link></p>}
+    </div>
+  )
+}
+
+function AutomationPlanActions({
+  approval,
+  automation,
+  busy,
+}: {
+  approval: WriteApprovalView
+  automation: AutomationCardControls
+  busy: boolean
+}) {
+  const { job, effect } = automation.plan
+  const expired = effectiveStatus(approval) === 'expired'
+  return (
+    <>
+      {effect?.undoAvailable && (
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          data-testid="approval-automation-undo"
+          disabled={busy}
+          title={undoReason(effect.undoReason)}
+          onClick={automation.onUndo}
+        >
+          Undo this change
+        </button>
+      )}
+      {expired && job.status === 'review' && (
+        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={automation.onProposeAgain}>
+          Propose again
+        </button>
+      )}
+      {busy && <span role="status" className="write-approval-busy">Working…</span>}
+    </>
   )
 }
 

@@ -42,6 +42,8 @@ export type AutomationEffectReceipt = Schemas['AutomationEffectReceiptView']
 export type AutomationOperationReceipt = Schemas['AutomationOperationReceipt']
 export type AutomationUndoInput = Schemas['AutomationUndoInput']
 export type AutomationJob = Schemas['AutomationJob']
+export type AutomationDecisionInput = Schemas['AutomationDecisionInput']
+export type AutomationSubmissionResult = Schemas['AutomationSubmissionResult']
 export type AutomationTaskType = Schemas['AutomationTaskSpec']['type']
 
 export type AutomationExport = Schemas['AutomationAutomationExport']

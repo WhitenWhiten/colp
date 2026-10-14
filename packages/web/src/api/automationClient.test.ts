@@ -106,6 +106,17 @@ describe('automation client', () => {
     expect(new Headers(retryInit.headers).get('Known-Command-Id')).toMatch(UUID_V4)
   })
 
+  it('decides a proposal by its exact digest on the job revision', async () => {
+    const fetchImpl = vi.fn(async () => json(200, { jobId: 'job-1', status: 'awaitingApproval' }))
+    await createAutomationApi(fetchImpl).decideJob('job-1', { decision: 'approve', proposalDigest: 'd'.repeat(64), reason: 'Owner approved.' }, '7')
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/v1/me/automations/jobs/job-1/decision')
+    const headers = new Headers(init.headers)
+    expect(headers.get('If-Match')).toBe('"7"')
+    expect(headers.get('X-CSRF-Token')).toBe('csrf-auto')
+    expect(JSON.parse(String(init.body))).toEqual({ decision: 'approve', proposalDigest: 'd'.repeat(64), reason: 'Owner approved.' })
+  })
+
   it('reads a job, a rule’s dependencies and a sized run page', async () => {
     const fetchImpl = vi.fn(async () => json(200, { items: [], nextCursor: null }))
     const api = createAutomationApi(fetchImpl)

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { AutomationEffectReceipt, AutomationRun } from '../../api/automationTypes'
 import { useToast } from '../../components/AppToast'
 import { StatusBadge } from '../../components/StatusBadge'
@@ -39,6 +40,11 @@ function EffectRow({
         </p>
         {!effect.undoAvailable && effect.status === 'committed' && (
           <p className="automation-effect-note" data-testid="automation-undo-reason">{undoReason(effect.undoReason)}</p>
+        )}
+        {effect.kind === 'plan' && effect.planId && (
+          <p className="automation-effect-note">
+            <Link to={`/approvals/${encodeURIComponent(effect.planId)}`}>See the approved change</Link>
+          </p>
         )}
       </div>
       {effect.undoAvailable && (

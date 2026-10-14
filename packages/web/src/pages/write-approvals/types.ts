@@ -48,6 +48,8 @@ const OPERATION_LABELS: Record<string, string> = {
   set_visibility: 'Change visibility',
   move_node: 'Move',
   delete_subtree: 'Delete with everything inside',
+  update_node: 'Edit details',
+  create_annotation: 'Add a note',
 }
 
 /** A pending plan past its expiry reads as expired everywhere. */

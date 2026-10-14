@@ -94,4 +94,5 @@ Each web task is committed separately. The commit column is filled in by the nex
 | Task | Status | Commit / evidence |
 | --- | --- | --- |
 | AW-12 | Done locally (mocked API; no hosted run) | `979dd9e`, [Automations page, editor, preview, bookmark history](evidence/aw-12.md) |
-| AW-34 | Done locally (mocked API; no hosted run) | [rule and run pages, waiting work, allowance](evidence/aw-34.md) |
+| AW-34 | Done locally (mocked API; no hosted run) | `db0f7e3`, [rule and run pages, waiting work, allowance](evidence/aw-34.md) |
+| AW-52 | Done locally (mocked API; no hosted run) | [automation plan approvals and effect-specific Undo](evidence/aw-52.md) |

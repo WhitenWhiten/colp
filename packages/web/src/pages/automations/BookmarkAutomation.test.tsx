@@ -72,6 +72,17 @@ describe('Bookmark automation history', () => {
       .toBe('Can’t undo: the bookmark changed after this, so nothing was changed.')
   })
 
+  it('links an agent change to the approval it came from, with its own Undo', async () => {
+    const api = fakeApi()
+    api.listRuns.mockResolvedValue({ items: [run('run-1', 'rule-arxiv', {
+      effects: [effect({ id: 'eff-plan', kind: 'plan', planId: 'automation-job-1' })],
+    })], nextCursor: null })
+    mount(api)
+    await waitForDom(() => Boolean(buttonNamed('Undo')))
+    expect(document.querySelector('[data-testid="automation-effect-title"]')?.textContent).toBe('Agent change')
+    expect(document.querySelector('a[href="/approvals/automation-job-1"]')?.textContent).toBe('See the approved change')
+  })
+
   it('reports a refused Undo without claiming anything changed', async () => {
     const api = fakeApi()
     api.listRuns.mockResolvedValue({ items: [run('run-1', 'rule-arxiv', { effects: [effect()] })], nextCursor: null })

@@ -1,13 +1,18 @@
+import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { productClient } from '../../api'
 import { Breadcrumb } from '../../components/Breadcrumb'
 import { EmptyState } from '../../components/EmptyState'
+import { FilterRail } from '../../components/FilterRail'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
 import { RouteState } from '../../components/RouteState'
 import { ApprovalCard } from './approvalCard'
+import { useAutomationPlanActions, useAutomationPlans } from './automation'
 import type { WriteApprovalsData } from './data'
 import { idleDraft } from './types'
+
+type Source = 'all' | 'automation' | 'agents'
 
 export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
   const {
@@ -28,6 +33,15 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
     startNewDecision,
     handleUndo,
   } = data
+  const plans = useAutomationPlans(approvals)
+  const refresh = useCallback(() => { void load('refresh') }, [load])
+  const automation = useAutomationPlanActions(refresh)
+  const [source, setSource] = useState<Source>('all')
+  const automationCount = approvals.filter((approval) => plans.has(approval.planId)).length
+  const showSources = !detailMode && automationCount > 0
+  const shown = !showSources || source === 'all'
+    ? approvals
+    : approvals.filter((approval) => plans.has(approval.planId) === (source === 'automation'))
 
   return (
     <PageShell>
@@ -155,18 +169,42 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
 
         {!authPending && !loading && !loadError && !invalidPlanId && !missingDetail && approvals.length > 0 && (
           <div className="write-approvals-list">
-            {approvals.map((approval) => (
+            {showSources && (
+              <FilterRail<Source>
+                variant="segments"
+                className="view-switch write-approvals-sources"
+                label="Show approvals from"
+                value={source}
+                options={[
+                  { value: 'all', label: 'All' },
+                  { value: 'automation', label: `Automations · ${automationCount}` },
+                  { value: 'agents', label: `Agents · ${approvals.length - automationCount}` },
+                ]}
+                onChange={setSource}
+              />
+            )}
+            {shown.map((approval) => {
+              const plan = plans.get(approval.planId)
+              return (
               <ApprovalCard
                 key={approval.planId}
                 approval={approval}
                 draft={drafts[approval.planId] ?? idleDraft}
                 collectionTitles={collectionTitles}
+                automation={plan ? {
+                  plan,
+                  state: automation.stateOf(approval.planId),
+                  onDecide: (decision) => automation.decide(approval, plan, decision),
+                  onUndo: () => automation.undo(approval, plan),
+                  onProposeAgain: () => automation.proposeAgain(approval, plan),
+                } : undefined}
                 onDecision={(decision, replay) => void handleDecision(approval, decision, replay)}
                 onRefresh={() => void retryRefresh(approval)}
                 onStartNew={() => startNewDecision(approval.planId)}
                 onUndo={(force) => handleUndo(approval, force)}
               />
-            ))}
+              )
+            })}
           </div>
         )}
     </PageShell>

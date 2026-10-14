@@ -8,6 +8,7 @@ import type {
   AutomationBindingSetInput,
   AutomationCapabilities,
   AutomationChangeInput,
+  AutomationDecisionInput,
   AutomationDependencyReport,
   AutomationExport,
   AutomationHealthIncident,
@@ -21,6 +22,7 @@ import type {
   AutomationRule,
   AutomationRuleInput,
   AutomationRun,
+  AutomationSubmissionResult,
   AutomationUndoInput,
 } from './automationTypes'
 
@@ -77,6 +79,8 @@ export interface AutomationApi {
   getJob(id: string, signal?: AbortSignal): Promise<AutomationJob>
   /** The server decides whether the work is eligible (uncertain, no proposal, calls left). */
   retryJob(id: string, revision: string): Promise<AutomationJob>
+  /** Approve or reject the exact proposal (its digest) through the existing Approvals ledger. */
+  decideJob(id: string, input: AutomationDecisionInput, revision: string): Promise<AutomationSubmissionResult>
   exportAutomations(signal?: AbortSignal): Promise<AutomationExport>
 }
 
@@ -300,6 +304,11 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       body: { reason: 'Owner asked to try the uncertain work again.' },
       revision,
       intent: 'retry',
+    }),
+    decideJob: async (id, input, revision) => write('POST', `${BASE}/jobs/${opaqueId(id, 'job')}/decision`, {
+      body: input,
+      revision,
+      intent: `decide:${input.decision}`,
     }),
     exportAutomations: async (signal) => read(`${BASE}/export`, signal),
   }
