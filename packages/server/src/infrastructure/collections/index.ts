@@ -220,3 +220,5 @@ export {
   type LinkPreviewEgressInjection,
 } from './link-preview-egress-fixture.js';
 export { withCanonicalTreeCapacityBatch, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
+
+export { canonicalBookmarkMoveBatch } from './canonical-bookmark-move-batch.js';

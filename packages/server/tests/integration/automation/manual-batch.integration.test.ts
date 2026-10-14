@@ -22,8 +22,28 @@ describeWithPostgres('Atomic manual placement batches', () => {
     const uow = createAutomationUnitOfWork(f.db.withPlugin(plugin), 'server', { runtimeEnabled: true });
     const started = await uow.execute(f.owner, ports => ports.runOnce!.start(f.rule.id, { previewId: p.id, previewDigest: p.previewDigest }));
     expect(started.childRunIds).toHaveLength(20);
-    expect(queries).toBeLessThan(800); // Previous batch adapter: 928; retain every operation's evidence.
+    expect(queries).toBeLessThan(110); // Previous adapter: 768; bulk writes retain per-operation evidence.
     expect(await f.db.selectFrom('nodes').select('id').where('parent_id', '=', 'academic').execute()).toHaveLength(20);
+    const evidence = (await sql`SELECT r.id FROM automation_effect_receipts r
+      JOIN automation_event_facts f ON f.operation_id=r.operation_id
+      JOIN operations o ON o.operation_id=f.operation_id AND o.commit_ordinal=f.commit_ordinal
+      JOIN operation_payloads p ON p.operation_id=o.operation_id
+      JOIN audit_events a ON a.operation_id=o.operation_id
+      JOIN audit_event_payloads ap ON ap.event_id=a.id AND ap.details_json=p.payload_json
+      JOIN nodes n ON n.id=f.node_id AND n.resource_revision=r.after_revision
+      JOIN resource_revisions rr ON rr.resource_id=n.id AND rr.revision=n.resource_revision AND rr.ordinal=f.commit_ordinal
+      JOIN content_revisions cr ON cr.collection_id=f.collection_id AND cr.ordinal=f.commit_ordinal
+      JOIN sync_node_revision_history h ON h.operation_id=o.operation_id AND h.payload_json=n.payload_json
+      JOIN outbox_events e ON e.domain_event_id=f.source_event_id AND e.event_type='node.moved'
+        AND e.payload_json->>'contentRevision'=cr.revision AND e.payload_json->>'resourceRevision'=n.resource_revision
+      JOIN children_revisions src ON src.collection_id=f.collection_id AND src.parent_id='root'
+        AND src.ordinal=f.commit_ordinal AND src.revision=e.payload_json->>'sourceChildrenRevision'
+      JOIN children_revisions dst ON dst.collection_id=f.collection_id AND dst.parent_id='academic'
+        AND dst.ordinal=f.commit_ordinal AND dst.revision=e.payload_json->>'targetChildrenRevision'
+      JOIN outbox_events ingest ON ingest.domain_event_id=f.source_event_id AND ingest.event_type='automation.source.committed'
+      WHERE f.facts_json#>>'{before,parentId}'='root' AND f.facts_json#>>'{after,parentId}'='academic'
+        AND f.facts_json#>>'{after,resourceRevision}'=n.resource_revision`.execute(f.db)).rows;
+    expect(evidence).toHaveLength(20);
     await f.db.transaction().execute(async tx => {
       expect((await sql`SELECT node_id FROM canonical_tree_capacity_dirty WHERE collection_id='collection'`.execute(tx)).rows).toEqual([]);
       expect(await readCanonicalTreeCapacity(tx, 'collection')).toEqual(await measureCanonicalTree(tx, 'collection'));
@@ -48,6 +68,17 @@ describeWithPostgres('Atomic manual placement batches', () => {
     expect(await f.db.selectFrom('nodes').selectAll().orderBy('id').execute()).toEqual(before);
     expect((await sql`SELECT id FROM automation_runs`.execute(f.db)).rows).toEqual([]);
     expect((await sql`SELECT id FROM automation_effect_receipts`.execute(f.db)).rows).toEqual([]);
+  });
+
+  test('an exhausted append position falls back to canonical rebalance without losing effects', async () => {
+    f = await automationRuntimeFixture('manual_batch_rebalance', true);
+    await f.createNode('tail', 'academic', 'Tail', 'https://example.org/tail');
+    const exhausted = 'z'.repeat(128);
+    await sql`UPDATE nodes SET position_token=${exhausted},payload_json=jsonb_set(payload_json,'{position}',to_jsonb(${exhausted}::text)) WHERE id='tail'`.execute(f.db);
+    const p = await preview();
+    await f.uow.execute(f.owner, ports => ports.runOnce!.start(f.rule.id, { previewId: p.id, previewDigest: p.previewDigest }));
+    expect((await f.db.selectFrom('nodes').select('parent_id').where('id', '=', 'paper').executeTakeFirst())?.parent_id).toBe('academic');
+    expect((await sql`SELECT id FROM automation_effect_receipts`.execute(f.db)).rows).toHaveLength(1);
   });
 
   test('a failed receipt insert rolls back every move, run, reservation and outbox event', async () => {

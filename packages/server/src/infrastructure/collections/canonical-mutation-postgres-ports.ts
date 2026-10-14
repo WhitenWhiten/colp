@@ -170,7 +170,7 @@ function generateOutboxId(): string {
   return randomBytes(16).toString('base64url');
 }
 
-interface CollectionRow {
+export interface CollectionRow {
   id: string;
   owner_subject_id: string;
   title: string;
@@ -193,7 +193,7 @@ interface CollectionRow {
   payload_authority_status: 'pending' | 'backfilled' | 'malformed' | null;
 }
 
-interface NodeRow {
+export interface NodeRow {
   id: string;
   collection_id: string;
   parent_id: string | null;
@@ -317,7 +317,7 @@ function assertExactlyOneUpdated(result: { readonly numUpdatedRows: bigint }, de
   if (result.numUpdatedRows !== 1n) invariant(`${description} updated ${result.numUpdatedRows} rows instead of one`);
 }
 
-function collectionProjection(row: CollectionRow) {
+export function collectionProjection(row: CollectionRow) {
   return {
     id: row.id,
     ownerSubjectId: row.owner_subject_id,
@@ -337,7 +337,7 @@ function collectionProjection(row: CollectionRow) {
   };
 }
 
-function nodeProjection(row: NodeRow) {
+export function nodeProjection(row: NodeRow) {
   return {
     id: row.id,
     collectionId: row.collection_id,
@@ -359,7 +359,7 @@ function nodeProjection(row: NodeRow) {
   };
 }
 
-function assertExistingNodeAuthority(row: NodeRow): JsonObject {
+export function assertExistingNodeAuthority(row: NodeRow): JsonObject {
   const validated = validateResourcePayload('node', row.payload_json);
   if (!validated.ok) {
     invariant(`node payload is invalid at ${validated.fieldPath || '$'}: ${validated.reason}`, true);
@@ -390,7 +390,7 @@ function assertExistingNodeAuthority(row: NodeRow): JsonObject {
   return extensions;
 }
 
-function assertExistingCollectionAuthority(row: CollectionRow): JsonObject {
+export function assertExistingCollectionAuthority(row: CollectionRow): JsonObject {
   const validated = validateResourcePayload('collection', row.payload_json);
   if (!validated.ok) {
     invariant(`collection payload is invalid at ${validated.fieldPath || '$'}: ${validated.reason}`, true);
@@ -420,7 +420,7 @@ function assertExistingCollectionAuthority(row: CollectionRow): JsonObject {
   return extensions;
 }
 
-function assertMaterialized(
+export function assertMaterialized(
   resourceType: CollectionNodeKind,
   resourceId: string,
   materialized: ReturnType<typeof materializeCollectionPayload>,
@@ -1724,7 +1724,7 @@ export function createPostgresCanonicalMutationPorts(
 
 }
 
-async function assertCollectionReadBack(
+export async function assertCollectionReadBack(
   tx: DatabaseTransaction,
   id: string,
   expected: JsonObject,
@@ -1748,7 +1748,7 @@ async function assertNodeReadBack(
   assertNodeWriteResult(row as NodeRow, expected, intended);
 }
 
-function assertNodeWriteResult(row: NodeRow, expected: JsonObject, intended: NodeRow): void {
+export function assertNodeWriteResult(row: NodeRow, expected: JsonObject, intended: NodeRow): void {
   assertAuthoritativeFields('node', row, intended, NODE_AUTHORITY_FIELDS);
   const comparison = compareResourcePayload({
     resourceType: 'node',

@@ -65,14 +65,31 @@ export async function planAutomationFacts(tx: DatabaseTransaction, input: Canoni
 /** Private bounded facts only; no description, readable content, extensions or credential payload. */
 export async function captureAutomationFacts(tx: DatabaseTransaction, event: CanonicalDomainEvent,
   input: CanonicalMutationInput, allocation: AllocatedMutationState, planned: PlannedAutomationFacts): Promise<void> {
+  await captureAutomationFactsBatch(tx, [{ event, input, allocation, planned }]);
+}
+
+export async function captureAutomationFactsBatch(tx: DatabaseTransaction, entries: readonly {
+  event: CanonicalDomainEvent; input: CanonicalMutationInput; allocation: AllocatedMutationState; planned: PlannedAutomationFacts;
+}[]) {
+  if (!entries.length) return;
+  const rows = entries.map(e => automationFactValues(e.event, e.input, e.allocation, e.planned));
+  await sql`INSERT INTO automation_event_facts
+    (source_event_id,operation_id,collection_id,node_id,commit_ordinal,occurred_at,origin,facts_json,facts_version,root_run_id)
+    SELECT source_event_id,operation_id,collection_id,node_id,commit_ordinal,clock_timestamp(),origin,facts_json,1,root_run_id
+    FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS i(source_event_id text,operation_id text,
+      collection_id text,node_id text,commit_ordinal bigint,origin text,facts_json jsonb,root_run_id text)`.execute(tx);
+}
+
+/** Shared by single canonical writes and the atomic bookmark move batch. */
+function automationFactValues(event: CanonicalDomainEvent, input: CanonicalMutationInput,
+  allocation: AllocatedMutationState, planned: PlannedAutomationFacts) {
   const context = input.automationContext ?? { origin: input.operationSyncWire ? 'sync' : 'system' };
   const origin = input.mutation.action === 'restore' ? 'restore' : context.origin;
   const facts = { ...planned, after: planned.after ? { ...planned.after, resourceRevision: allocation.resourceRevision! } : null,
     intakeDisposition: input.intakeDisposition ?? 'unknown',
     action: input.mutation.action, actorPrincipalId: input.actor.principalId,
     rootRunId: context.rootRunId ?? null, stageId: context.stageId ?? null, hopCount: context.hopCount ?? 0 };
-  await sql`INSERT INTO automation_event_facts
-    (source_event_id, operation_id, collection_id, node_id, commit_ordinal, occurred_at, origin, facts_json, facts_version, root_run_id)
-    VALUES (${event.domainEventId}, ${event.operationId}, ${event.collectionId}, ${event.aggregateId},
-      ${event.commitOrdinal}, clock_timestamp(), ${origin}, ${JSON.stringify(facts)}::jsonb, 1, ${context.rootRunId ?? null})`.execute(tx);
+  return { source_event_id: event.domainEventId, operation_id: event.operationId, collection_id: event.collectionId,
+    node_id: event.aggregateId, commit_ordinal: allocation.commitOrdinal.toString(),
+    origin, facts_json: facts, facts_version: 1, root_run_id: context.rootRunId ?? null };
 }

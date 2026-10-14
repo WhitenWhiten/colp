@@ -5,7 +5,7 @@ import { AutomationError, parseContract, type AutomationActor, type AutomationPo
 import type { RunOnceService } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { manualConfiguration, previewManualRun, type ManualSnapshot } from './manual-preview-store.js';
-import { lockPlacementCollection, canonicalPlacementMove } from './canonical-placement.js';
+import { lockPlacementCollection, canonicalPlacementMove, placementMoveInput, canonicalPlacementMoveBatch } from './canonical-placement.js';
 import { recordPlacementHistory, recordPlacementHistories } from './placement-history-store.js';
 import { validateManualMembers, insertManualRuns } from './manual-run-members.js';
 import { initializeRunTasks, advanceRunTasks } from './task-scheduler.js';
@@ -77,8 +77,17 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
       }
       await withCanonicalTreeCapacityBatch(tx, snapshot.collectionId, async admission => {
         const placements: { runId: string; operationId: string }[] = [];
+        let batched = false;
+        if (!runTasks) {
+          const moves = children.flatMap(({ member, id }) => member.plan.kind === 'placed'
+            && nodes.get(member.event.nodeId)!.parent_id !== member.plan.folder.nodeId ? [{ runId: id,
+              input: placementMoveInput(actor, { collectionId: snapshot.collectionId, nodeId: member.event.nodeId,
+                parentId: member.plan.folder.nodeId, expectedRevision: member.revision, runId: id, stage: 'intake' }) }] : []);
+          batched = await canonicalPlacementMoveBatch(tx, snapshot.collectionId, moves.map(move => move.input), admission);
+          if (batched) placements.push(...moves.map(move => ({ runId: move.runId, operationId: move.input.operationId })));
+        }
         for (const { member, id } of children) {
-          if (member.plan.kind === 'placed' && nodes.get(member.event.nodeId)!.parent_id !== member.plan.folder.nodeId) {
+          if (!batched && member.plan.kind === 'placed' && nodes.get(member.event.nodeId)!.parent_id !== member.plan.folder.nodeId) {
             const moved = await canonicalPlacementMove(tx, actor, { collectionId: snapshot.collectionId, nodeId: member.event.nodeId, parentId: member.plan.folder.nodeId, expectedRevision: member.revision, runId: id, stage: 'intake' }, admission);
             // Successors must see their receipt before their immutable inputs are pinned.
             if (runTasks) await recordPlacementHistory(tx, actor, serverUuid, id, moved.operationId);

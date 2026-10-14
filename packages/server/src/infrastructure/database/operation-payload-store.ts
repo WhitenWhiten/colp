@@ -35,17 +35,23 @@ export async function appendOperationWithPayload(
   transaction: DatabaseTransaction,
   input: AppendOperationWithPayloadInput,
 ): Promise<void> {
-  const payloadJson = JSON.stringify(input.payloadJson);
-  const syncWireJson = input.syncWireJson == null ? null : JSON.stringify(input.syncWireJson);
+  return appendOperationsWithPayload(transaction, [input]);
+}
+
+/** Same immutable insert primitive for an atomic canonical batch. */
+export async function appendOperationsWithPayload(transaction: DatabaseTransaction,
+  inputs: readonly AppendOperationWithPayloadInput[]): Promise<void> {
+  if (!inputs.length) return;
+  const rows = inputs.map(input => ({ operation_id: input.operationId, collection_id: input.collectionId,
+    commit_ordinal: input.commitOrdinal.toString(), operation_type: input.operationType,
+    payload_json: input.payloadJson, sync_wire_json: input.syncWireJson ?? null,
+    actor_principal_id: input.actorPrincipalId, created_at: input.createdAt?.toISOString() ?? null }));
   await sql`WITH supplied AS (
-      SELECT ${input.operationId}::text AS operation_id,
-        ${input.collectionId}::text AS collection_id,
-        ${input.commitOrdinal}::bigint AS commit_ordinal,
-        ${input.operationType}::text AS operation_type,
-        ${payloadJson}::jsonb AS payload_json,
-        ${syncWireJson}::jsonb AS sync_wire_json,
-        ${input.actorPrincipalId}::text AS actor_principal_id,
-        coalesce(${input.createdAt ?? null}::timestamptz, current_timestamp) AS created_at
+      SELECT operation_id, collection_id, commit_ordinal, operation_type, payload_json, sync_wire_json,
+        actor_principal_id, coalesce(created_at, current_timestamp) AS created_at
+      FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS i(operation_id text, collection_id text,
+        commit_ordinal bigint, operation_type text, payload_json jsonb, sync_wire_json jsonb,
+        actor_principal_id text, created_at timestamptz)
     ), materialized AS (
       SELECT supplied.*,
         date_trunc('month', created_at AT TIME ZONE 'UTC')::date AS payload_bucket,
