@@ -1,7 +1,9 @@
-import { createBundleStore, automationOwnerKey, bundleState, chromeLocalArea } from '../automation/bundle-store.js';
+import { createBundleStore, automationOwnerKey, bundleState } from '../automation/bundle-store.js';
 import type { CreateEvidence } from '../automation/causation.js';
 import { SETTLE_MS, settleObservedCreate, type Observation, type ObservedPlacement, type ObservedPorts } from '../automation/observed-create.js';
 import { decidePreSave } from '../automation/pre-save.js';
+import { automationDatabase } from '../automation/indexeddb-store.js';
+import { recoverPlacementIntents } from '../automation/recovery.js';
 import { newPlacementReceipt } from '../automation/receipt-sync.js';
 import { personalBookmarks } from '../bookmark-subscriptions/guards.js';
 import type { CaptureAutomation } from '../capture/contracts.js';
@@ -9,7 +11,7 @@ import { createLocalImportStore } from '../local-import/store.js';
 import { presentSaveFeedback } from '../save-feedback.js';
 import { observedSaveLine } from '../save-status.js';
 import type { SyncScope } from '../sync-state-store.js';
-import { automationProjectionDeps, recordPlacementReceipt } from './automation.js';
+import { automationArea, automationProjectionDeps, recordPlacementReceipt } from './automation.js';
 import { hasBookmarkPermission, sw, syncState } from './runtime.js';
 import { currentSyncScope } from './scope.js';
 
@@ -51,7 +53,7 @@ async function observedScope(): Promise<SyncScope | null> {
 async function rulesInForce(): Promise<SyncScope | null> {
   const scope = await observedScope();
   if (!scope || !await hasBookmarkPermission()) return null;
-  const record = await createBundleStore(chromeLocalArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
+  const record = await createBundleStore(automationArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
   return bundleState(record, Date.now()).state === 'active' && record.bundle?.rules.length ? scope : null;
 }
 
@@ -59,7 +61,20 @@ export function installObservedCreates(): void {
   const mark = (active: boolean) => () => { void session.set(IMPORT_KEY, { active, at: Date.now() } satisfies ImportWindow).catch(() => undefined); };
   try { chrome.bookmarks?.onImportBegan?.addListener(mark(true)); chrome.bookmarks?.onImportEnded?.addListener(mark(false)); }
   catch { /* Without import events, a Know-N import is still recognized; a browser import may be judged as new bookmarks. */ }
-  void settleDue().catch(() => undefined);
+  void resumeObservedCreates().catch(() => undefined);
+}
+
+/** Worker start and the automation alarm: finish moves a crash cut short, then judge what is due. */
+export async function resumeObservedCreates(): Promise<void> {
+  const scope = await observedScope();
+  const database = automationDatabase();
+  await exclusive(() => recoverPlacementIntents({
+    ownerKey: scope ? automationOwnerKey({ serverOrigin: scope.serverOrigin, accountId: scope.accountId }) : null, now: Date.now(),
+    list: () => database.intents.list(), remove: (intentId) => database.intents.remove(intentId),
+    async node(nativeId) { return (await chrome.bookmarks.get(nativeId).catch(() => []))[0] ?? null; },
+    record: (intent) => recordObservedPlacement(intent, intent.ownerKey),
+  }));
+  await settleDue();
 }
 
 /** A bookmark appeared outside the extension's own saves: judge it after the settle window. */
@@ -114,11 +129,22 @@ function observedPorts(): ObservedPorts {
     async decide(input) {
       const scope = await observedScope();
       if (!scope) return null;
-      const record = await createBundleStore(chromeLocalArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
+      const record = await createBundleStore(automationArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
       return decidePreSave({ record, now: Date.now(), scope, deps: automationProjectionDeps(scope) }, input);
     },
+    id: () => crypto.randomUUID(),
+    async intend(placement, from) {
+      const scope = await observedScope();
+      if (!scope) throw new Error('automation_scope_unavailable');
+      await automationDatabase().intents.put({ ...placement, intentId: placement.id, fromParentId: from.parentId, dateAdded: from.dateAdded,
+        ownerKey: automationOwnerKey({ serverOrigin: scope.serverOrigin, accountId: scope.accountId }), createdAt: Date.now() });
+    },
     async move(nativeId, parentNativeId) { await personalBookmarks.move(nativeId, { parentId: parentNativeId }); },
-    record: recordObservedPlacement,
+    async record(placement) {
+      const scope = await observedScope();
+      if (scope) await recordObservedPlacement(placement, automationOwnerKey({ serverOrigin: scope.serverOrigin, accountId: scope.accountId }));
+      await automationDatabase().intents.remove(placement.id);
+    },
     async notify({ automation, title, nativeId }) {
       const line = observedSaveLine(automation, title);
       if (!line) return;
@@ -148,16 +174,16 @@ async function createEvidence(observation: Observation): Promise<CreateEvidence>
   };
 }
 
-async function recordObservedPlacement(placement: ObservedPlacement): Promise<void> {
+/** The receipt carries the placement's id, so writing it again after a crash adds nothing. */
+async function recordObservedPlacement(placement: ObservedPlacement, ownerKey: string): Promise<void> {
   const automation: CaptureAutomation = placement.automation;
-  const scope = await observedScope();
-  if (!scope || !automation.destination) return;
+  if (!automation.destination) return;
   const { rule } = automation;
   await recordPlacementReceipt(newPlacementReceipt({
-    ownerKey: automationOwnerKey({ serverOrigin: scope.serverOrigin, accountId: scope.accountId }),
+    ownerKey,
     collectionId: automation.collectionId, replicaId: automation.replicaId, generation: automation.generation, path: 'observed',
     rule: { id: rule.id, name: rule.name, revision: rule.revision, bindingRevision: rule.bindingRevision, bundleRevision: automation.bundleRevision },
     destination: automation.destination, destinationTitle: automation.folderTitle ?? '', satisfies: [...automation.satisfies],
     ...(placement.beforeFolder ? { beforeFolder: placement.beforeFolder } : {}), page: placement.page, native: placement.native,
-  }, placement.native.movedAt));
+  }, placement.native.movedAt, placement.id));
 }

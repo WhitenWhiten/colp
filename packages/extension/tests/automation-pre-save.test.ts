@@ -28,7 +28,7 @@ function deps(mappings: Readonly<Record<string, string>> = { bar: '1', academic:
   };
 }
 const record = (bundle: RuleBundle | null, serverUuid: string | null = SERVER_UUID): BundleRecord => ({ version: 1, ownerKey: 'owner', bundle,
-  serverUuid, installedAt: NOW, lastRefreshAt: NOW, lastAttemptAt: NOW, pausedSince: null, problem: null });
+  serverUuid, installedAt: NOW, lastRefreshAt: NOW, lastAttemptAt: NOW, failures: 0, pausedSince: null, problem: null });
 const scope = { collectionId: COLLECTION_ID, replicaId: 'replica-1', generation: 3 };
 const arxiv = { url: 'https://arxiv.org/abs/2410.00001', title: 'A paper', parentNativeId: '21', explicit: false };
 const decide = (bundle: RuleBundle | null, input: Partial<typeof arxiv> = {}, options: { readonly now?: number; readonly deps?: ProjectionDeps } = {}) =>

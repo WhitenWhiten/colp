@@ -1,6 +1,8 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
-import { createBundleStore, chromeLocalArea } from '../src/automation/bundle-store.js';
+import { createBundleStore } from '../src/automation/bundle-store.js';
 import { createReceiptStore } from '../src/automation/receipt-sync.js';
 import type { CaptureAutomation, CaptureTask } from '../src/capture/contracts.js';
 import { COLLECTION_ID, NOW, compiledRule, ruleBundle } from './automation-fixture.js';
@@ -28,7 +30,7 @@ vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => f.sync, loa
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => scope }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 
-import { handleAutomationRequest, preSaveDecision, recordPreSaveReceipt } from '../src/sw/automation.js';
+import { automationArea, handleAutomationRequest, preSaveDecision, recordPreSaveReceipt, recoverPreSaveReceipts } from '../src/sw/automation.js';
 
 const scope = { serverOrigin: 'https://colp.example', accountId: 'owner', authorityGeneration: 1, collectionId: COLLECTION_ID };
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
@@ -38,9 +40,10 @@ const nodes: Record<string, { id: string; title: string; parentId: string }> = {
 
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW);
+  vi.stubGlobal('indexedDB', new IDBFactory());
   vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() },
     bookmarks: { get: async (id: string) => nodes[id] ? [nodes[id]] : [] } });
-  await createBundleStore(chromeLocalArea(), owner).install(ruleBundle([compiledRule()], { revision: 'b-3', settingsRevision: 3 }), NOW);
+  await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule()], { revision: 'b-3', settingsRevision: 3 }), NOW);
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -57,7 +60,7 @@ describe('pre-save in the worker', () => {
   it('answers the popup’s preview without placing anything', async () => {
     expect(await handleAutomationRequest({ kind: 'known.automation.match', ...page })).toEqual({ ok: true,
       match: { outcome: 'placed', ruleName: 'Place research papers in Academic', ruleCount: 1, folderNativeId: '10', folderTitle: 'Academic' } });
-    expect(await createReceiptStore(chromeLocalArea()).list()).toEqual([]);
+    expect(await createReceiptStore(automationArea()).list()).toEqual([]);
   });
 
   it('receipts a placed save once, under the capture id, with the native observation kept local', async () => {
@@ -65,7 +68,7 @@ describe('pre-save in the worker', () => {
     const saved: CaptureTask = { ...base, captureId: '0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00', scope, save: 'local-saved', disposition: 'new',
       nativeId: '55', targetNativeId: '10', title: 'A paper', url: page.url, savedAt: NOW, automation };
     await recordPreSaveReceipt(saved);
-    const receipts = createReceiptStore(chromeLocalArea());
+    const receipts = createReceiptStore(automationArea());
     expect(await receipts.list()).toEqual([expect.objectContaining({
       localReceiptId: saved.captureId, ownerKey: JSON.stringify(['https://colp.example', 'owner']), collectionId: COLLECTION_ID,
       replicaId: 'replica-1', generation: 2, path: 'preSave', state: 'local', satisfies: ['classify.root'],
@@ -80,5 +83,18 @@ describe('pre-save in the worker', () => {
     await recordPreSaveReceipt({ ...saved, captureId: '1b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00', automation: kept });
     await recordPreSaveReceipt({ ...saved, captureId: '2b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00', save: 'failed' });
     expect(await receipts.list()).toHaveLength(1);
+  });
+
+  it('writes a receipt a worker stop cut off on wake, and leaves written ones as they are', async () => {
+    const automation = (await preSaveDecision(scope, page))!.automation;
+    const saved = (captureId: string): CaptureTask => ({ ...base, captureId, scope, save: 'local-saved', disposition: 'new',
+      nativeId: '55', targetNativeId: '10', title: 'A paper', url: page.url, savedAt: NOW, automation });
+    const receipts = createReceiptStore(automationArea());
+    await recordPreSaveReceipt(saved('0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00'));
+    await receipts.update('0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00', (receipt) => ({ ...receipt, state: 'accepted' }), NOW);
+    expect(await recoverPreSaveReceipts([saved('0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00'), saved('3b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00')])).toBe(1);
+    expect((await receipts.list()).map((receipt) => [receipt.localReceiptId, receipt.state])).toEqual(expect.arrayContaining([
+      ['0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00', 'accepted'], ['3b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f00', 'local']]));
+    expect(await recoverPreSaveReceipts([])).toBe(0);
   });
 });

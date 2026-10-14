@@ -2,6 +2,7 @@ import { chromium, expect, test, type Page } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { automationState, putAutomationState } from './automation-store.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { openExtensionOptions } from './extension-auth.js';
 import { compiledRule, ruleBundle } from '../tests/automation-fixture.js';
@@ -39,9 +40,9 @@ test('a page starred into a browser root is filed by rule once; the Owner’s fo
     const scoped = { scope: { collectionId: scope.collectionId } };
     const bundle = ruleBundle([compiledRule({ folder: folder('academic'), definition: scoped }),
       compiledRule({ ruleId: 'rule-example', host: 'example.test', folder: folder('academic'), definition: scoped })], { issuedAt: Date.now() });
-    await page.evaluate((record) => chrome.storage.local.set({ 'known.automation.bundle.v1': record }), {
+    await putAutomationState(page, 'known.automation.bundle.v1', {
       version: 1, ownerKey: JSON.stringify([scope.serverOrigin, scope.accountId]), bundle, serverUuid: SERVER_UUID,
-      installedAt: Date.now(), lastRefreshAt: Date.now(), lastAttemptAt: Date.now(), pausedSince: null, problem: null });
+      installedAt: Date.now(), lastRefreshAt: Date.now(), lastAttemptAt: Date.now(), failures: 0, pausedSince: null, problem: null });
 
     // AC-09: starred into the Bookmarks bar.
     const starred = await page.evaluate((parentId) => chrome.bookmarks.create({ parentId, title: 'Attention Is All You Need',
@@ -73,8 +74,8 @@ test('a page starred into a browser root is filed by rule once; the Owner’s fo
     expect(await page.evaluate(() => (chrome.action as unknown as { getTitle(details: object): Promise<string> }).getTitle({}))).toBe(notice);
     expect(await page.evaluate(async () => (await chrome.storage.local.get('known.save.feedback.v1'))['known.save.feedback.v1']))
       .toMatchObject({ code: 'saved', entry: 'page', message: notice, nativeId: starred.id });
-    const receipts = await page.evaluate(async () => (await chrome.storage.local.get('known.automation.receipts.v1'))['known.automation.receipts.v1']) as
-      { path: string; native: { nativeId: string; destinationNativeId: string }; beforeFolder?: { nodeId: string } }[];
+    const receipts = await automationState<{ path: string; native: { nativeId: string; destinationNativeId: string }; beforeFolder?: { nodeId: string } }[]>(
+      page, 'known.automation.receipts.v1');
     expect(receipts).toEqual([expect.objectContaining({ path: 'observed', native: expect.objectContaining({ nativeId: starred.id,
       destinationNativeId: academic.id }), beforeFolder: expect.objectContaining({ nodeId: 'event-evidence-root' }) })]);
   } finally {

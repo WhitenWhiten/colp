@@ -2,7 +2,7 @@ import { createIcon } from '../icons.js';
 import { button, el, emptyBlock, inlineAlert } from '../library-dom.js';
 import { formatMoment, t, tn } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
-import { AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY, type AutomationPlacementView, type AutomationResponse,
+import { AUTOMATION_CHANGED_KEY, type AutomationPlacementView, type AutomationResponse,
   type AutomationStateView } from './messages.js';
 
 /**
@@ -190,7 +190,7 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     body.replaceChildren(...parts);
   }
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (active && area === 'local' && (AUTOMATION_BUNDLE_KEY in changes || AUTOMATION_RECEIPTS_KEY in changes)) void load('known.automation.state');
+    if (active && area === 'local' && AUTOMATION_CHANGED_KEY in changes) void load('known.automation.state');
   });
   return {
     activate() { active = true; void load('known.automation.state'); },

@@ -36,6 +36,8 @@ export interface Observation {
 }
 export interface NativeBookmark { readonly id: string; readonly parentId?: string; readonly title: string; readonly url?: string; readonly dateAdded?: number }
 export interface ObservedPlacement {
+  /** Names the write-ahead intent and, once the move happened, the receipt. */
+  readonly id: string;
   readonly automation: CaptureAutomation;
   readonly beforeFolder?: FolderRef;
   readonly page: { readonly title: string; readonly url: string };
@@ -49,8 +51,11 @@ export interface ObservedPorts {
   intakeRoot(folderNativeId: string): Promise<boolean>;
   evidence(observation: Observation): Promise<CreateEvidence>;
   decide(input: PreSaveInput): Promise<PreSaveDecision | null>;
+  id(): string;
+  /** Written before the move, so a crash between the move and its receipt is recovered from native evidence. */
+  intend(placement: ObservedPlacement, from: { readonly parentId: string; readonly dateAdded: number | null }): Promise<void>;
   move(nativeId: string, parentNativeId: string): Promise<void>;
-  /** The placement's receipt, written before anything is sent. */
+  /** The placement's receipt, written before anything is sent; the intent is then done. */
   record(placement: ObservedPlacement): Promise<void>;
   /** The one notice for this bookmark. */
   notify(outcome: { readonly automation: CaptureAutomation; readonly title: string; readonly nativeId: string }): Promise<void>;
@@ -84,10 +89,11 @@ export async function settleObservedCreate(ports: ObservedPorts, observation: Ob
   // The last word is the Owner's: anything they changed since stops the move.
   const current = await ports.node(observation.nativeId);
   if (!current || current.parentId !== node.parentId || current.url !== node.url) return skipped('edited');
+  const placement: ObservedPlacement = { id: ports.id(), automation, ...(decision.parent ? { beforeFolder: decision.parent } : {}),
+    page: { title: current.title, url: node.url }, native: { nativeId: node.id, destinationNativeId: decision.targetNativeId, movedAt: ports.now() } };
+  await ports.intend(placement, { parentId: node.parentId, dateAdded: observation.dateAdded });
   await ports.move(node.id, decision.targetNativeId);
-  const movedAt = ports.now();
-  await ports.record({ automation, ...(decision.parent ? { beforeFolder: decision.parent } : {}),
-    page: { title: current.title, url: node.url }, native: { nativeId: node.id, destinationNativeId: decision.targetNativeId, movedAt } });
+  await ports.record(placement);
   await ports.notify({ automation, title: current.title, nativeId: node.id });
   return { kind: 'placed', automation };
 }

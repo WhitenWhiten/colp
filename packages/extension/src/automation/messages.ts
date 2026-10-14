@@ -4,10 +4,15 @@
  * an explicit refresh.
  */
 
-/** chrome.storage.local key of the installed bundle record (bundle-store.ts); pages watch it to repaint. */
+/** Key of the installed bundle record (bundle-store.ts). */
 export const AUTOMATION_BUNDLE_KEY = 'known.automation.bundle.v1';
-/** chrome.storage.local key of this browser's placement receipts (receipt-sync.ts). */
+/** Key of this browser's placement receipts (receipt-sync.ts). */
 export const AUTOMATION_RECEIPTS_KEY = 'known.automation.receipts.v1';
+/**
+ * The bundle and receipts live in IndexedDB (indexeddb-store.ts) under the two keys above. The worker bumps
+ * this chrome.storage.local marker after each write so open pages repaint.
+ */
+export const AUTOMATION_CHANGED_KEY = 'known.automation.changed.v1';
 
 export type AutomationRequest =
   | { readonly kind: 'known.automation.state' }

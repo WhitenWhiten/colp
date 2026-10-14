@@ -8,12 +8,13 @@ import type { CaptureAutomation, CaptureSource } from '../src/capture/contracts.
  * here, and a placement becomes the create's parent, never a later move.
  */
 const f = vi.hoisted(() => ({
-  scope: { serverOrigin: 'https://known.test', accountId: 'owner', authorityGeneration: 1, collectionId: 'c_personal' },
+  scope: { serverOrigin: 'https://known.test', accountId: 'owner' as string, authorityGeneration: 1, collectionId: 'c_personal' },
   mode: 'manual' as 'manual' | 'automatic',
   local: false,
   tagMode: 'suggest' as 'off' | 'suggest' | 'add',
   consent: null as null | { readonly expiresAt: number },
   decide: vi.fn(),
+  recover: vi.fn(async (_tasks: readonly unknown[]) => 0),
   unavailable: new Set<string>(),
 }));
 
@@ -32,7 +33,7 @@ vi.mock('../src/capture/control.js', () => ({ readCaptureControl: async () => ({
 vi.mock('../src/classification-local-session.js', () => ({ localClassificationEnabled: async () => f.local }));
 vi.mock('../src/sw/capture-history.js', () => ({ captureDeviceId: async () => 'device' }));
 vi.mock('../src/sw/capture-local.js', () => ({ captureTagMode: async () => f.tagMode }));
-vi.mock('../src/sw/automation.js', () => ({ preSaveDecision: f.decide, recordPreSaveReceipt: vi.fn() }));
+vi.mock('../src/sw/automation.js', () => ({ preSaveDecision: f.decide, recordPreSaveReceipt: vi.fn(), recoverPreSaveReceipts: f.recover }));
 vi.mock('../src/sw/capture-classification.js', () => ({ classifySavedCapture: vi.fn(), undoSavedCapture: vi.fn() }));
 vi.mock('../src/sw/capture-annotation.js', () => ({ persistCaptureAnnotation: vi.fn() }));
 vi.mock('../src/sw/bookmark-pins.js', () => ({ pinNode: vi.fn() }));
@@ -41,7 +42,7 @@ vi.mock('../src/sw/capture-result-recovery.js', () => ({ inspectCaptureDecision:
 vi.mock('../src/sw/capture-remove.js', () => ({ cancelRemovedCapture: vi.fn() }));
 vi.mock('../src/classification-product-client.js', () => ({ createClassificationProductClient: vi.fn() }));
 
-import { startCapture } from '../src/sw/capture.js';
+import { captureStore, startCapture, wakeCaptures } from '../src/sw/capture.js';
 
 const placed: CaptureAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1,
   satisfies: ['classify.root'], rule: { id: 'rule-arxiv', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'digest' },
@@ -54,7 +55,7 @@ const start = (source: CaptureSource, extra: { readonly folderChoice?: 'explicit
     url: `https://arxiv.org/abs/2410.${String(command).padStart(5, '0')}`, title: 'A paper', ...extra });
 
 beforeEach(() => {
-  f.mode = 'manual'; f.local = false; f.tagMode = 'suggest'; f.consent = null; f.unavailable.clear();
+  f.scope = { ...f.scope, accountId: 'owner' }; f.mode = 'manual'; f.local = false; f.tagMode = 'suggest'; f.consent = null; f.unavailable.clear();
   f.decide.mockReset().mockResolvedValue({ automation: placed, targetNativeId: '10' });
   vi.stubGlobal('chrome', { tabs: { get: async () => null, query: async () => [] }, runtime: { sendMessage: async () => undefined } });
 });
@@ -112,5 +113,26 @@ describe('which classifier an automatic save may use after a rule', () => {
     // No rule: the save is classified as before (the default folder 21 is outside the synced range here, so local only).
     f.local = true;
     expect((await start('context-page')).classification).toBe('waiting');
+  });
+});
+
+describe('a placed save’s receipt after a worker stop', () => {
+  it('is handed to receipt recovery on wake, while a save that was not placed or is a week old is not', async () => {
+    const saved = async (automation: CaptureAutomation, savedAt = Date.now()) => {
+      const task = await start('manual-popup');
+      const current = (await captureStore.get(f.scope, task.captureId))!;
+      const next = { ...current, save: 'local-saved' as const, nativeId: `n-${current.captureId}`, savedAt, automation, revision: current.revision + 1 };
+      await captureStore.update(next, current.revision);
+      return next;
+    };
+    // Its own account: the earlier saves here are not this wake's business.
+    f.scope = { ...f.scope, accountId: 'woken' };
+    const fresh = await saved(placed);
+    await saved({ ...placed, outcome: 'kept', satisfies: [] });
+    await saved(placed, Date.now() - 8 * 86_400_000);
+    f.recover.mockClear();
+    await wakeCaptures();
+    expect(f.recover).toHaveBeenCalledOnce();
+    expect(f.recover.mock.calls[0]![0]).toEqual([expect.objectContaining({ captureId: fresh.captureId })]);
   });
 });

@@ -25,7 +25,8 @@ import { persistCaptureAnnotation } from './capture-annotation.js';
 import { pinNode } from './bookmark-pins.js';
 import { annotationForCaptureStart, type BookmarkAnnotationInput } from '../bookmark-annotation-store.js';
 import { blockedPlacement } from '../automation/pre-save.js';
-import { preSaveDecision, recordPreSaveReceipt } from './automation.js';
+import { preSaveDecision, recordPreSaveReceipt, recoverPreSaveReceipts } from './automation.js';
+import { RECEIPT_MAX_AGE_MS } from '../automation/receipt-sync.js';
 import { captureTagMode } from './capture-local.js';
 
 export const CAPTURE_ALARM = 'known-capture-recovery';
@@ -99,9 +100,12 @@ export function resumeCapture(task: CaptureTask): Promise<CaptureTask> {
 
 export async function wakeCaptures(): Promise<void> {
   const scope = await currentCaptureScope();
+  const placed: CaptureTask[] = [], now = Date.now();
   let before: readonly [number, string] | undefined;
   for (;;) {
     const page = await captureStore.list(scope, before);
+    for (const task of page) if (task.automation?.outcome === 'placed' && task.save === 'local-saved' && task.disposition === 'new'
+      && now - (task.savedAt ?? task.createdAt) < RECEIPT_MAX_AGE_MS) placed.push(task);
     for (const task of page) if (task.disposition === 'new' && (['unsubmitted', 'unknown'].includes(task.save)
       || task.save === 'local-saved' && task.annotation && !task.annotationPersisted
       || (task.automaticIntent && ['waiting', 'running'].includes(task.classification)))) {
@@ -111,6 +115,8 @@ export async function wakeCaptures(): Promise<void> {
     if (!last || page.length < 50) break;
     before = [last.createdAt, last.captureId];
   }
+  // A placed save's receipt that a worker stop cut off between the save and its acknowledgement.
+  await recoverPreSaveReceipts(placed).catch(() => undefined);
 }
 
 export async function handleCaptureRequest(request: CaptureRequest, sender: chrome.runtime.MessageSender) {

@@ -167,6 +167,20 @@ describe('receipt delivery', () => {
     expect((await store.list())[0]).toMatchObject({ state: 'local', canonical: { nodeId: 'node-paper' } });
   });
 
+  it('needs attention once its bookmark is gone for good before its create reached the server', async () => {
+    const store = createReceiptStore(memoryArea());
+    await store.add(receipt(), NOW);
+    const gone = { present: async () => false };
+    // Within the hour it may still be an undo in flight: it waits.
+    await syncReceipts(store, context(gone, []).value);
+    expect((await store.list())[0]).toMatchObject({ state: 'local', attempts: 1 });
+    await syncReceipts(store, context({ present: async () => true }, [], { now: NOW + 3_600_001 }).value);
+    expect((await store.list())[0]!.state).toBe('local');
+    // Gone at the next attempt: there is no identity to join, and nothing is guessed.
+    await syncReceipts(store, context(gone, [], { now: NOW + 7_200_000 }).value);
+    expect((await store.list())[0]).toMatchObject({ state: 'attention', attention: 'identityUnknown' });
+  });
+
   it('survives a worker restart: receipts are durable before any network work', async () => {
     const area = memoryArea();
     await createReceiptStore(area).add(receipt(), NOW);

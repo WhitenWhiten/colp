@@ -2,7 +2,7 @@ import { validateAutomation, type BundleAckInput, type PauseState } from '@know-
 import { acknowledgeRuleBundle, fetchRuleBundle, postIntakeReceipt, type DeviceAuthority, type DeviceProblem } from '../automation/device-client.js';
 import { readReplicaDeviceId } from '../automation/device-identity.js';
 import { projectRule, type ProjectionDeps } from '../automation/binding-projector.js';
-import { automationOwnerKey, bundleState, chromeLocalArea, createBundleStore, type AutomationOwner, type BundleRecord,
+import { automationOwnerKey, bundleState, createBundleStore, refreshDue, type AutomationOwner, type BundleRecord,
   type RefreshProblem } from '../automation/bundle-store.js';
 import { ruleCollectionId } from '../automation/runtime-profile.js';
 import { createReceiptStore, newPlacementReceipt, settled, syncReceipts, type PlacementReceipt } from '../automation/receipt-sync.js';
@@ -12,11 +12,15 @@ import type { AutomationMatchView, AutomationPlacementView, AutomationRequest, A
   AutomationStateView } from '../automation/messages.js';
 import type { CaptureScope, CaptureTask } from '../capture/contracts.js';
 import { currentCaptureScope } from './capture-native.js';
+import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState } from './runtime.js';
 import { currentSyncScope, loadConfig, pushSessionAuthority } from './scope.js';
+
+/** Bundle and receipts live in the automation IndexedDB store. */
+export const automationArea = () => automationDatabase().area();
 
 /**
  * Keeps this browser's copy of the account's rule bundle current.
@@ -28,7 +32,6 @@ import { currentSyncScope, loadConfig, pushSessionAuthority } from './scope.js';
  */
 export const AUTOMATION_ALARM = 'known-automation';
 export const AUTOMATION_REFRESH_MINUTES = 5;
-const MIN_REFRESH_GAP_MS = 60_000;
 const DEVICE_KEY = 'known.automation.device.v1';
 const PAUSE_KEY = 'known.automation.pause.v1';
 
@@ -53,9 +56,9 @@ export function refreshAutomation(options: { readonly manual?: boolean } = {}): 
 async function run(manual: boolean): Promise<void> {
   const owner = await currentOwner();
   if (!owner) return;
-  const bundles = createBundleStore(chromeLocalArea(), owner), receipts = createReceiptStore(chromeLocalArea()), now = Date.now();
+  const bundles = createBundleStore(automationArea(), owner), receipts = createReceiptStore(automationArea()), now = Date.now();
   const record = await bundles.read(), ownerKey = automationOwnerKey(owner);
-  const bundleDue = manual || record.lastAttemptAt === null || now - record.lastAttemptAt >= MIN_REFRESH_GAP_MS;
+  const bundleDue = manual || refreshDue(record, now);
   const receiptsDue = (await receipts.list()).some((receipt) => receipt.ownerKey === ownerKey && !settled(receipt.state) && receipt.nextAttemptAt <= now);
   if (!bundleDue && !receiptsDue) return;
   let authority: Awaited<ReturnType<typeof pushSessionAuthority>>;
@@ -86,10 +89,11 @@ async function refreshBundle(owner: AutomationOwner, bundles: ReturnType<typeof 
 async function flushReceipts(owner: AutomationOwner, device: DeviceAuthority, replicaGeneration: number): Promise<void> {
   const scope = await currentSyncScope().catch(() => null);
   if (!scope || !Number.isSafeInteger(replicaGeneration)) return;
-  await syncReceipts(createReceiptStore(chromeLocalArea()), {
+  await syncReceipts(createReceiptStore(automationArea()), {
     ownerKey: automationOwnerKey(owner), collectionId: scope.collectionId, replicaId: scope.replicaId, generation: scope.generation,
     deviceId: await replicaDeviceId(owner, scope.replicaId), replicaGeneration, now: Date.now(),
-    evidence: syncReceiptEvidence(syncState, scope),
+    evidence: { ...syncReceiptEvidence(syncState, scope),
+      present: async (nativeId) => (await chrome.bookmarks.get(nativeId).catch(() => [])).length > 0 },
     // Each attempt is a new command: the receipt id, not the command, makes a retry idempotent.
     post: (input) => postIntakeReceipt(device, input, crypto.randomUUID()),
   });
@@ -97,13 +101,13 @@ async function flushReceipts(owner: AutomationOwner, device: DeviceAuthority, re
 
 /** Persist a placement this browser just made; it is sent once its Sync operations exist. */
 export async function recordPlacementReceipt(receipt: PlacementReceipt): Promise<void> {
-  if (await createReceiptStore(chromeLocalArea()).add(receipt, Date.now())) void refreshAutomation().catch(() => undefined);
+  if (await createReceiptStore(automationArea()).add(receipt, Date.now())) void refreshAutomation().catch(() => undefined);
 }
 
 /** The installed rules' decision for a save about to happen; null when automations do not apply here. */
 export async function preSaveDecision(scope: CaptureScope, input: PreSaveInput): Promise<PreSaveDecision | null> {
   if (!scope.accountId || !scope.collectionId || !await hasBookmarkPermission()) return null;
-  const record = await createBundleStore(chromeLocalArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
+  const record = await createBundleStore(automationArea(), { serverOrigin: scope.serverOrigin, accountId: scope.accountId }).read();
   if (!record.bundle) return null;
   // Rules place only while this browser syncs the collection they belong to.
   const sync = await currentSyncScope().catch(() => null);
@@ -124,6 +128,18 @@ export async function recordPreSaveReceipt(task: CaptureTask): Promise<void> {
     destination: automation.destination, destinationTitle: automation.folderTitle ?? '', satisfies: [...automation.satisfies],
     page: { title: task.title, url: task.url }, native: { nativeId: task.nativeId, destinationNativeId: task.targetNativeId },
   }, task.savedAt ?? Date.now(), task.captureId));
+}
+
+/**
+ * Worker wake: a placed save whose receipt a worker stop cut off gets it now.
+ * Receipts already written are left as they are; the receipt list is read once.
+ */
+export async function recoverPreSaveReceipts(tasks: readonly CaptureTask[]): Promise<number> {
+  if (!tasks.length) return 0;
+  const written = new Set((await createReceiptStore(automationArea()).list()).map((receipt) => receipt.localReceiptId));
+  const missing = tasks.filter((task) => !written.has(task.captureId));
+  for (const task of missing) await recordPreSaveReceipt(task);
+  return missing.length;
 }
 
 /** What a save of this page would do, for the popup to show before Save. Never places anything. */
@@ -204,7 +220,7 @@ const PLACEMENT_STATE: Record<PlacementReceipt['state'], AutomationPlacementView
   local: 'waitingForSync', waitingForSync: 'waitingForSync', accepted: 'confirmed', review: 'review', rejected: 'rejected', attention: 'attention' };
 
 async function placementViews(ownerKey: string): Promise<AutomationPlacementView[]> {
-  const receipts = (await createReceiptStore(chromeLocalArea()).list()).filter((receipt) => receipt.ownerKey === ownerKey).slice(0, 10);
+  const receipts = (await createReceiptStore(automationArea()).list()).filter((receipt) => receipt.ownerKey === ownerKey).slice(0, 10);
   return receipts.map((receipt) => {
     let host = '';
     try { host = new URL(receipt.page.url).hostname; } catch { /* the title stands alone */ }
@@ -220,7 +236,7 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const webUrl = origin ? `${origin.replace(/\/$/u, '')}/automations` : null;
   const blank = { rules: [], placements: [], pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl };
   if (!owner) return { account: 'signedOut', state: 'none', ...blank };
-  const record = await createBundleStore(chromeLocalArea(), owner).read();
+  const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
   const pause = (await chrome.storage.local.get(PAUSE_KEY))[PAUSE_KEY] as { ownerKey?: string; pausedAt?: string | null; pausedBy?: AutomationStateView['pausedBy'] } | undefined;
   const pauseKnown = current.state === 'paused' && pause?.ownerKey === automationOwnerKey(owner);

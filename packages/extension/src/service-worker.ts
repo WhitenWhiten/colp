@@ -81,7 +81,7 @@ import { exportLocalBackup, validBackupExportRequest } from './local-backup/expo
 import { handleSaveStatus } from './sw/save-status.js';
 import { validAutomationRequest } from './automation/messages.js';
 import { AUTOMATION_ALARM, handleAutomationRequest, installAutomationRuntime, refreshAutomation } from './sw/automation.js';
-import { installObservedCreates, settleDue } from './sw/automation-observed.js';
+import { installObservedCreates, resumeObservedCreates } from './sw/automation-observed.js';
 import { currentSyncScope, stateAfterFailure } from './sw/scope.js';
 import { createSyncEffectAuthority } from './sync-effect-authority.js';
 import { createChromePullBookmarkApi } from './pull-bookmark-api.js';
@@ -140,7 +140,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === FAVICON_SIDECAR_ALARM) void drainFaviconSidecarsForCurrentScope();
   if (alarm.name === BOOKMARK_RECOVERY_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
   if (alarm.name === BOOKMARK_RECONCILE_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
-  if (alarm.name === AUTOMATION_ALARM) { void refreshAutomation().catch(() => undefined); void settleDue().catch(() => undefined); }
+  if (alarm.name === AUTOMATION_ALARM) { void refreshAutomation().catch(() => undefined); void resumeObservedCreates().catch(() => undefined); }
 });
 self.addEventListener('online', (event) => {
   if (event.isTrusted && navigator.onLine === true) {

@@ -31,6 +31,8 @@ export interface BundleRecord {
   /** Last time the server answered with a bundle this device accepted (new or unchanged). */
   readonly lastRefreshAt: number | null;
   readonly lastAttemptAt: number | null;
+  /** Refreshes that failed in a row; the next one backs off (refreshDue). */
+  readonly failures: number;
   /** When this device first saw the current pause. */
   readonly pausedSince: number | null;
   readonly problem: { readonly kind: RefreshProblem; readonly reason?: BundleRejection | 'stale'; readonly at: number } | null;
@@ -45,20 +47,14 @@ export type BundleState =
   | { readonly state: 'paused'; readonly since: number | null; readonly expiresAt: number }
   | { readonly state: 'expired'; readonly expiredAt: number };
 
+/** Where the record is kept: the automation IndexedDB store (indexeddb-store.ts). */
 export interface AutomationStateArea {
   get(key: string): Promise<unknown>;
   set(key: string, value: unknown): Promise<void>;
 }
 
-export function chromeLocalArea(): AutomationStateArea {
-  return {
-    async get(key) { return (await chrome.storage.local.get(key))[key]; },
-    async set(key, value) { await chrome.storage.local.set({ [key]: value }); },
-  };
-}
-
 const empty = (ownerKey: string): BundleRecord => ({ version: 1, ownerKey, bundle: null, serverUuid: null, installedAt: null,
-  lastRefreshAt: null, lastAttemptAt: null, pausedSince: null, problem: null });
+  lastRefreshAt: null, lastAttemptAt: null, failures: 0, pausedSince: null, problem: null });
 
 function parseRecord(value: unknown, ownerKey: string): BundleRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return empty(ownerKey);
@@ -75,6 +71,17 @@ export function bundleState(record: BundleRecord, now: number): BundleState {
   const expiresAt = Date.parse(bundle.expiresAt);
   if (!(expiresAt > now)) return { state: 'expired', expiredAt: expiresAt };
   return bundle.paused ? { state: 'paused', since: record.pausedSince, expiresAt } : { state: 'active', bundle, expiresAt };
+}
+
+/**
+ * Checks are at least a minute apart. Failures in a row (offline, server
+ * errors, rate limits, rejected bundles) double the gap up to 15 minutes, so a
+ * pause still lands soon after the server is back; the installed copy stays in
+ * force meanwhile, and a manual check always runs.
+ */
+export function refreshDue(record: BundleRecord, now: number): boolean {
+  if (record.lastAttemptAt === null) return true;
+  return now - record.lastAttemptAt >= Math.min(900_000, 60_000 * 2 ** Math.min(record.failures, 4));
 }
 
 /** Older settings never replace newer ones; an equal sequence may only refresh expiry, never lift a pause. */
@@ -107,7 +114,7 @@ export function createBundleStore(area: AutomationStateArea, owner: AutomationOw
         const check = checkBundle(value, now);
         const reason = !check.ok ? check.reason : supersedes(check.bundle, current.bundle) ? undefined : 'stale' as const;
         if (!check.ok || reason) {
-          const record = await write({ ...current, lastAttemptAt: now,
+          const record = await write({ ...current, lastAttemptAt: now, failures: current.failures + 1,
             problem: { kind: 'rejected', reason: reason ?? (check as { reason: BundleRejection }).reason, at: now } });
           return { kind: 'rejected', reason: reason ?? (check as { reason: BundleRejection }).reason, record };
         }
@@ -115,13 +122,14 @@ export function createBundleStore(area: AutomationStateArea, owner: AutomationOw
         const unchanged = previous?.digest === next.digest;
         const pausedSince = next.paused ? (previous?.paused ? current.pausedSince : now) : null;
         const record = await write({ ...current, bundle: next, serverUuid: check.serverUuid ?? current.serverUuid,
-          installedAt: unchanged ? current.installedAt : now, lastRefreshAt: now, lastAttemptAt: now, pausedSince, problem: null });
+          installedAt: unchanged ? current.installedAt : now, lastRefreshAt: now, lastAttemptAt: now, failures: 0, pausedSince, problem: null });
         return { kind: unchanged ? 'unchanged' : 'installed', record };
       });
     },
     /** A refresh that did not reach a bundle: the installed one stays in force until it expires. */
     recordProblem(kind: Exclude<RefreshProblem, 'rejected'>, now: number): Promise<BundleRecord> {
-      return exclusive(async () => write({ ...await read(), lastAttemptAt: now, problem: { kind, at: now } }));
+      return exclusive(async () => { const current = await read();
+        return write({ ...current, lastAttemptAt: now, failures: current.failures + 1, problem: { kind, at: now } }); });
     },
   };
 }

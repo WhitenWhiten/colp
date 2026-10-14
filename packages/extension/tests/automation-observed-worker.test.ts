@@ -1,6 +1,9 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
-import { chromeLocalArea, createBundleStore } from '../src/automation/bundle-store.js';
+import { createBundleStore } from '../src/automation/bundle-store.js';
+import { automationDatabase } from '../src/automation/indexeddb-store.js';
 import { COLLECTION_ID, NOW, compiledRule, folderRef, ruleBundle } from './automation-fixture.js';
 
 /**
@@ -33,7 +36,9 @@ vi.mock('../src/sw/runtime.js', () => ({
 vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => f.scope }));
 vi.mock('../src/sw/automation.js', async () => {
   const runtime = await import('../src/sw/runtime.js');
+  const { automationDatabase: database } = await import('../src/automation/indexeddb-store.js');
   return {
+    automationArea: () => database().area(),
     recordPlacementReceipt: async (receipt: unknown) => { f.receipts.push(receipt); },
     automationProjectionDeps: (scope: unknown) => ({
       mappingByColpId: (colpId: string) => runtime.syncState.getMappingByColpId(scope as never, colpId),
@@ -50,7 +55,7 @@ vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ personalBookmarks: {
 vi.mock('../src/local-import/store.js', () => ({ createLocalImportStore: () => ({ plan: async () => (f.importing ? { state: 'running' } : undefined) }) }));
 vi.mock('../src/save-feedback.js', () => ({ presentSaveFeedback: async (feedback: unknown) => { f.feedback.push(feedback); } }));
 
-import { installObservedCreates, observeCreatedBookmark, observeRemovedBookmark, settleDue } from '../src/sw/automation-observed.js';
+import { installObservedCreates, observeCreatedBookmark, observeRemovedBookmark, resumeObservedCreates, settleDue } from '../src/sw/automation-observed.js';
 
 const tree = f.tree;
 const paper = { url: 'https://arxiv.org/abs/1706.03762', title: 'Attention Is All You Need' };
@@ -67,6 +72,7 @@ beforeEach(async () => {
   tree.clear();
   for (const node of [{ id: '1', parentId: '0', title: 'Bookmarks bar', folderType: 'bookmarks-bar' }, { id: '2', parentId: '0', title: 'Other bookmarks', folderType: 'other' },
     { id: '10', parentId: '1', title: 'Academic' }, { id: '20', parentId: '1', title: 'Reading' }]) tree.set(node.id, node);
+  vi.stubGlobal('indexedDB', new IDBFactory());
   vi.stubGlobal('chrome', {
     storage: { local: new MemoryStorageArea(), session: new MemoryStorageArea() },
     bookmarks: { get: async (id: string) => (tree.has(id) ? [tree.get(id)!] : []),
@@ -74,7 +80,7 @@ beforeEach(async () => {
       onImportEnded: { addListener: (listener: () => void) => { f.imports[1] = listener; } } },
     runtime: { sendMessage: async () => undefined },
   });
-  await createBundleStore(chromeLocalArea(), { serverOrigin: 'https://colp.example', accountId: 'owner' })
+  await createBundleStore(automationDatabase().area(), { serverOrigin: 'https://colp.example', accountId: 'owner' })
     .install(ruleBundle([compiledRule({ folder: folderRef('academic') })]), NOW);
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -85,8 +91,12 @@ describe('observed creations in the worker', () => {
     await settleDue();
     expect(f.moves).toEqual([]);
     vi.setSystemTime(NOW + 3_000);
+    // The settle timer fires on its own; its intent and receipt are IndexedDB writes.
     await vi.advanceTimersByTimeAsync(3_100);
-    expect(f.moves).toEqual([['n1', '10']]);
+    await vi.waitFor(() => expect(f.moves).toEqual([['n1', '10']]));
+    await vi.waitFor(() => expect(f.receipts).toHaveLength(1));
+    // The write-ahead intent is done once its receipt exists.
+    expect(await automationDatabase().intents.list()).toEqual([]);
     expect(f.receipts).toEqual([expect.objectContaining({ path: 'observed', collectionId: COLLECTION_ID, replicaId: 'replica-1', generation: 2,
       beforeFolder: folderRef('other'), native: expect.objectContaining({ nativeId: 'n1', destinationNativeId: '10' }) })]);
     expect(f.feedback).toEqual([expect.objectContaining({ code: 'saved', entry: 'page', nativeId: 'n1',
@@ -134,8 +144,25 @@ describe('observed creations in the worker', () => {
     expect(f.moves).toEqual([['n4', '10']]);
   });
 
+  it('receipts a move a worker crash cut off from its receipt, and never makes a move late', async () => {
+    const ownerKey = JSON.stringify(['https://colp.example', 'owner']);
+    const automation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1, satisfies: ['classify.root'],
+      rule: { id: 'rule-arxiv', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'd' }, destination: folderRef('academic'),
+      folderTitle: 'Academic', fromNativeId: '2', collectionId: COLLECTION_ID, replicaId: 'replica-1', generation: 2 } as const;
+    const intent = (intentId: string, nativeId: string) => ({ intentId, id: intentId, ownerKey, fromParentId: '2', dateAdded: NOW, createdAt: NOW,
+      automation, page: paper, native: { nativeId, destinationNativeId: '10', movedAt: NOW } });
+    tree.set('n1', { id: 'n1', parentId: '10', title: paper.title, url: paper.url, dateAdded: NOW });
+    tree.set('n2', { id: 'n2', parentId: '2', title: paper.title, url: paper.url, dateAdded: NOW });
+    await automationDatabase().intents.put(intent('moved', 'n1'));
+    await automationDatabase().intents.put(intent('not-moved', 'n2'));
+    await resumeObservedCreates();
+    expect(f.receipts).toEqual([expect.objectContaining({ localReceiptId: 'moved', path: 'observed', native: expect.objectContaining({ nativeId: 'n1' }) })]);
+    expect(f.moves).toEqual([]);
+    expect(await automationDatabase().intents.list()).toEqual([]);
+  });
+
   it('observes nothing for an account without rules in force', async () => {
-    await createBundleStore(chromeLocalArea(), { serverOrigin: 'https://colp.example', accountId: 'owner' })
+    await createBundleStore(automationDatabase().area(), { serverOrigin: 'https://colp.example', accountId: 'owner' })
       .install(ruleBundle([], { paused: true, settingsRevision: 2 }), NOW);
     await star('n1');
     expect(await chrome.storage.session.get('known.automation.observed.v1')).toEqual({});

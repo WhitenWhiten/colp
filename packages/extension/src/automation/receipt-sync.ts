@@ -57,12 +57,16 @@ export interface ReceiptEvidence {
   create(nativeId: string): Promise<CanonicalCreate | null>;
   /** The applied Sync move of this bookmark into `destinationNativeId` observed after `since`. */
   move(nativeId: string, destinationNativeId: string, since: number): Promise<string | null>;
+  /** Whether the native bookmark still exists. */
+  present?(nativeId: string): Promise<boolean>;
 }
 
 const MAX_RECEIPTS = 300;
 const KEEP_SETTLED_MS = 30 * 86_400_000;
 /** A receipt that cannot be joined within the server's own bundle lifetime is no longer worth sending. */
 export const RECEIPT_MAX_AGE_MS = 7 * 86_400_000;
+/** A bookmark gone this long without its create ever reaching the server can no longer be joined. */
+export const ORPHAN_AFTER_MS = 3_600_000;
 export const settled = (state: ReceiptState) => state === 'accepted' || state === 'review' || state === 'rejected' || state === 'attention';
 
 /** Exponential backoff from 30 seconds to one hour. */
@@ -171,7 +175,13 @@ export async function syncReceipts(store: ReceiptStore, context: ReceiptSyncCont
     }
     if (context.now - receipt.createdAt > RECEIPT_MAX_AGE_MS) { await settle('attention', { attention: 'expired' }); continue; }
     const created = await context.evidence.create(receipt.native.nativeId);
-    if (!created) { pending += 1; await retry(); continue; }
+    if (!created) {
+      // Removed before its create reached the server: no identity to join, so it needs attention, never a guess.
+      if (context.now - receipt.createdAt > ORPHAN_AFTER_MS && context.evidence.present && !await context.evidence.present(receipt.native.nativeId)) {
+        await settle('attention', { attention: 'identityUnknown' }); continue;
+      }
+      pending += 1; await retry(); continue;
+    }
     if (receipt.canonical && receipt.canonical.nodeId !== created.nodeId) { await settle('attention', { attention: 'identityUnknown' }); continue; }
     // An observed correction is joined to its move. A create the queue already placed in the
     // destination (the move folded into it) needs no move.

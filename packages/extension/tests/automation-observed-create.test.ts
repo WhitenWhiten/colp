@@ -28,21 +28,24 @@ const root = { serverUuid: 's', collectionId: 'c', nodeId: 'other' };
 const NOW = 1_000_000;
 
 let nodes: Map<string, NativeBookmark>, evidence: CreateEvidence, decision: PreSaveDecision | null, clock: number;
+const order: string[] = [];
 const ports = {
   now: () => clock,
   node: vi.fn(async (id: string) => nodes.get(id) ?? null),
   intakeRoot: vi.fn(async (id: string) => ['1', '2', '3'].includes(id)),
   evidence: vi.fn(async () => evidence),
   decide: vi.fn(async () => decision),
-  move: vi.fn(async (id: string, parentId: string) => { nodes.set(id, { ...nodes.get(id)!, parentId }); }),
-  record: vi.fn(async () => undefined),
+  id: () => 'placement-1',
+  intend: vi.fn(async () => { order.push('intend'); }),
+  move: vi.fn(async (id: string, parentId: string) => { order.push('move'); nodes.set(id, { ...nodes.get(id)!, parentId }); }),
+  record: vi.fn(async () => { order.push('record'); }),
   notify: vi.fn(async () => undefined),
 } satisfies ObservedPorts;
 const observation = (over: Partial<Observation> = {}): Observation =>
   ({ nativeId: 'n1', url: 'https://arxiv.org/abs/1', parentId: '2', dateAdded: 5, observedAt: NOW, ...over });
 
 beforeEach(() => {
-  clock = NOW + 3_000; evidence = local;
+  clock = NOW + 3_000; evidence = local; order.length = 0;
   decision = { automation: placed, targetNativeId: '10', parent: root };
   nodes = new Map([['n1', { id: 'n1', parentId: '2', title: 'A paper', url: 'https://arxiv.org/abs/1', dateAdded: 5 }]]);
   for (const port of Object.values(ports)) if (vi.isMockFunction(port)) port.mockClear();
@@ -54,8 +57,12 @@ describe('settling an observed creation', () => {
     expect(ports.decide).toHaveBeenCalledWith({ url: 'https://arxiv.org/abs/1', title: 'A paper', parentNativeId: '2', explicit: false });
     expect(ports.move).toHaveBeenCalledOnce();
     expect(ports.move).toHaveBeenCalledWith('n1', '10');
-    expect(ports.record).toHaveBeenCalledWith({ automation: placed, beforeFolder: root, page: { title: 'A paper', url: 'https://arxiv.org/abs/1' },
-      native: { nativeId: 'n1', destinationNativeId: '10', movedAt: clock } });
+    const placement = { id: 'placement-1', automation: placed, beforeFolder: root, page: { title: 'A paper', url: 'https://arxiv.org/abs/1' },
+      native: { nativeId: 'n1', destinationNativeId: '10', movedAt: clock } };
+    // The intent is durable before the move, the receipt follows it.
+    expect(ports.intend).toHaveBeenCalledWith(placement, { parentId: '2', dateAdded: 5 });
+    expect(ports.record).toHaveBeenCalledWith(placement);
+    expect(order).toEqual(['intend', 'move', 'record']);
     expect(ports.notify).toHaveBeenCalledOnce();
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUTOMATION_BUNDLE_KEY, bundleState, createBundleStore, type AutomationStateArea } from '../src/automation/bundle-store.js';
+import { AUTOMATION_BUNDLE_KEY, bundleState, createBundleStore, refreshDue, type AutomationStateArea } from '../src/automation/bundle-store.js';
 import { DAY, NOW, compiledRule, ruleBundle } from './automation-fixture.js';
 
 function memoryArea(): AutomationStateArea & { readonly values: Map<string, unknown> } {
@@ -63,6 +63,22 @@ describe('installed rule bundle', () => {
     const record = await store.recordProblem('offline', NOW + 5);
     expect(record).toMatchObject({ lastRefreshAt: NOW, lastAttemptAt: NOW + 5, problem: { kind: 'offline', at: NOW + 5 } });
     expect(bundleState(record, NOW + 6).state).toBe('active');
+  });
+
+  it('backs off after failed refreshes, up to 15 minutes, and a good refresh resets the wait', async () => {
+    const store = createBundleStore(memoryArea(), owner);
+    expect(refreshDue(await store.read(), NOW)).toBe(true);
+    let record = await store.install(ruleBundle([compiledRule()]), NOW).then(() => store.read());
+    expect([refreshDue(record, NOW + 59_999), refreshDue(record, NOW + 60_000)]).toEqual([false, true]);
+    for (let failure = 1; failure <= 8; failure += 1) record = await store.recordProblem('offline', NOW);
+    expect(record.failures).toBe(8);
+    // 2, 4, 8 minutes, then never more than 15: a pause still lands soon after the server is back.
+    expect([refreshDue(record, NOW + 899_999), refreshDue(record, NOW + 900_000)]).toEqual([false, true]);
+    record = await store.recordProblem('offline', NOW).then(() => store.recordProblem('offline', NOW));
+    expect(refreshDue({ ...record, failures: 2 }, NOW + 239_999)).toBe(false);
+    expect(refreshDue({ ...record, failures: 2 }, NOW + 240_000)).toBe(true);
+    await store.install(ruleBundle([compiledRule()], { settingsRevision: 2 }), NOW + 900_000);
+    expect(await store.read()).toMatchObject({ failures: 0, lastAttemptAt: NOW + 900_000 });
   });
 
   it('never hands one account another account’s rules', async () => {
