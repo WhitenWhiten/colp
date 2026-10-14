@@ -1,3 +1,4 @@
+import { AUTOMATION_CONFIGURATION_OPERATION_IDS, AUTOMATION_DEVICE_OPERATION_IDS, AUTOMATION_WORK_OPERATION_IDS, AUTOMATION_WORK_JOB_OPERATION_IDS } from './product-route-manifest.js';
 import { installClassificationExtensionCors } from './classification-extension-cors.js';
 import { assertSharedProductRateLimiters } from './product-rate-limit-assertion.js';
 import { randomUUID } from 'node:crypto';
@@ -402,6 +403,10 @@ export function buildApiApp(input: AppDependencies) {
     // are always registered (503 when the store is absent). Skip GET coverage
     // so complete apps without R2 still start. Do not stub 503 GET handlers.
     excludeOperationIds: [
+      ...(config.automationWorkEnabled && input.automationPairing && input.mcpReadTransport?.oauthVerifier ? [] : AUTOMATION_WORK_OPERATION_IDS),
+      ...(input.automationPairing && !input.automationWorker ? AUTOMATION_WORK_JOB_OPERATION_IDS : []),
+      ...(input.automationUnitOfWork ? [] : AUTOMATION_CONFIGURATION_OPERATION_IDS),
+      ...(config.automationAdmissionEnabled && input.automationDeviceUnitOfWork && input.syncSessionRoutes ? [] : AUTOMATION_DEVICE_OPERATION_IDS),
       ...(config.betterAuth.enabled ? LEGACY_OIDC_OPERATION_IDS : []),
       ...BOOKMARK_FAVICON_DEFERRED_OPERATION_IDS,
       ...(faviconStore ? [] : ['getBookmarkFavicon']),

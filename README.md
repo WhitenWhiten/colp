@@ -249,3 +249,5 @@ Issues and pull requests are welcome, and questions and early ideas go to [Discu
 ## License
 
 [Apache License 2.0](LICENSE). The license does not cover the Know-N name, logo or wordmark used by the browser extension; see its [README](packages/extension/README.md#license).
+
+[Automation backend design and evidence](docs/automation/README.md)

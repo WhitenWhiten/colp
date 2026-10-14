@@ -39,6 +39,8 @@ export type McpApplicationToolResult =
   | McpApplicationRejectedResult;
 
 export interface McpApplicationToolList {
+  /** Private profile identity; dynamic catalogs must use zero wire-cache TTL. */
+  readonly cacheKey?: string;
   readonly tools: readonly McpApplicationToolDescriptor[];
   readonly nextCursor?: string;
 }

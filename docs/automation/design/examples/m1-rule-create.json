@@ -1,0 +1,59 @@
+{
+  "definition": {
+    "apiVersion": "colp.automation/v1",
+    "name": "Place research papers in Academic",
+    "description": "M1 deterministic placement only; no agent, execution policy or model request.",
+    "roles": [
+      {
+        "key": "academicRoot",
+        "kind": "folder",
+        "required": true,
+        "description": "Primary home for academic papers"
+      }
+    ],
+    "on": "bookmark.intake",
+    "scope": {
+      "collectionId": "c_personal"
+    },
+    "match": {
+      "kind": "field",
+      "field": "bookmark.url.host",
+      "op": "eq",
+      "value": "arxiv.org"
+    },
+    "intake": {
+      "folderRole": "academicRoot",
+      "constraint": "withinSubtree",
+      "satisfies": [
+        "classify.root"
+      ],
+      "onUnusableBinding": "keepOriginalAndBlock",
+      "respectExplicitSelection": true
+    },
+    "trigger": {
+      "mode": "each"
+    },
+    "tasks": [],
+    "route": {
+      "mode": "targets",
+      "targetIds": [],
+      "execution": "single"
+    },
+    "policy": {
+      "history": "fromActivation",
+      "imports": "exclude",
+      "restores": "exclude",
+      "userEdits": "preserve",
+      "sameStageReentry": "deny",
+      "maxHops": 8,
+      "conflictingPlacement": "review",
+      "privacy": "standard",
+      "broadcastAllowed": false,
+      "maxRunsPerDay": 100,
+      "pauseMode": "stopAdmissionHoldPending",
+      "missingInput": "defer"
+    },
+    "priority": 100
+  },
+  "bindingSetId": "bindings_academic"
+}

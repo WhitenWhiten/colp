@@ -39,6 +39,7 @@ RUN npm run build \
 FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS server-build
 WORKDIR /app
 COPY packages/server/package.json packages/server/package-lock.json ./
+COPY packages/server/vendor ./vendor
 # Lifecycle scripts stay off (repo .npmrc). esbuild still needs its install
 # script for the migrations bundle in `npm run build`. Same idea as Know-N's
 # devops/docker/backend.Dockerfile: migrations/*.ts use syntax Node's type
@@ -57,6 +58,7 @@ RUN npm run build \
 FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS runtime-deps
 WORKDIR /app
 COPY packages/server/runtime/package.json packages/server/runtime/package-lock.json ./
+COPY packages/server/vendor ./vendor
 # Native modules (@node-rs/argon2) ship prebuilt binaries, so
 # lifecycle scripts stay off. The runtime lock is a pruned subset of the dev
 # lock (CI runs `npm run runtime:manifest:check`); test tooling must be absent.

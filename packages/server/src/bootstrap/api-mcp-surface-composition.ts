@@ -1,3 +1,9 @@
+import { createWebhookVerifier } from '../infrastructure/automation/index.js';
+import { createSubscriptionStore } from '../infrastructure/automation/index.js';
+import { createMcpEventsAdapter } from '../modules/mcp/index.js';
+import { createAutomationUnitOfWork,createAutomationWorkerService,createResultSubmissionPort,createProposalPlanGateway,createTargetWorkerService,createApprovedProposalApplier } from '../infrastructure/automation/index.js';
+import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
+import { AutomationError } from '../modules/automation/index.js';
 import { createLocalIssuerJwks } from '../infrastructure/auth/local-issuer-jwks.js';
 import { createPostgresNodesSearchPorts } from '../infrastructure/search/index.js';
 import { createSearchCursorSigner } from '../modules/search/index.js';
@@ -6,6 +12,7 @@ import { createPhase4bMcpWriteComposition } from './mcp-write-composition.js';
 import { createMcpReadOAuthTransportDependencies, createMcpSecurityEpochReader,
   type McpReadOAuthTransportDependenciesOptions } from './api-mcp-oauth-composition.js';
 import {
+  withAutomationCatalog,createAutomationToolPort,automationWorkPrincipal,
   PHASE4B_MCP_CONFIG_DEFAULT_REQUEST_RATE_LIMIT,
   createPhase4bMcpCollectionResourceCursorKeyring,
   createPhase4bMcpCollectionResourceProjection,
@@ -49,6 +56,10 @@ import { createPhase4bMcpApplicationFacadeFromColpAdapters } from '../transport/
 import { settleBestEffort } from '../infrastructure/async/best-effort.js';
 
 export interface ApiMcpSurfaceComposition {
+  readonly automationWorker?: import('../modules/automation/index.js').AutomationWorkerService;
+  readonly automationApprovals?: import('../modules/automation/index.js').ApprovedProposalApplier;
+  readonly automationWorkAdmit?: (actor: import('../modules/automation/index.js').WorkPrincipal) => Promise<void>;
+  readonly automationTargetWorker?: ReturnType<typeof createTargetWorkerService>;
   readonly mcpCollectionResourceCursorKeys: ReturnType<typeof createPhase4bMcpCollectionResourceCursorKeyring> | undefined;
   readonly mcpChangeSignalSource: ReturnType<typeof createPostgresMcpChangeSignalSource> | undefined;
   readonly mcpReadResourceProjection: ReturnType<typeof createPhase4bMcpCollectionResourceProjection> | undefined;
@@ -268,6 +279,16 @@ export async function composeApiMcpSurface(input: {
     }
   }
   let mcpWriteComposition: ReturnType<typeof createPhase4bMcpWriteComposition> | undefined;
+  // Worker HTTP shares the MCP request budget per worker connection, like the MCP surface it mirrors.
+  const automationAdmission = (kind: 'pair' | 'work',message: string) => async (actor: import('../modules/automation/index.js').WorkPrincipal) => {
+    const verdict = await mcpRateLimiter!.consume({ policy: 'request',facts: JSON.stringify([`automation-${kind}`,actor.accountId,actor.clientId,actor.credentialBindingId]) });
+    if (verdict.kind !== 'allowed') throw new AutomationError(verdict.kind === 'denied' ? 'rate_limited' : 'feature_temporarily_unavailable',message,[],null,verdict.kind === 'denied' ? verdict.decision.retryAfterSeconds : 30);
+  };
+  const automationTargetWorker = config.automationWorkEnabled && mcpReadOAuthDependencies.oauthVerifier && mcpRateLimiter
+    ? createTargetWorkerService(database.db,createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,mcpOauthRevocationStore)),
+      automationAdmission('pair','Pairing admission is unavailable.')) : undefined;
+  let automationResults: ReturnType<typeof createResultSubmissionPort> | undefined;
+  let automationWorker: ReturnType<typeof createAutomationWorkerService> | undefined;
   const grantMcp = composeCredentialGrantMcp({
     config,
     securityEpoch: createMcpSecurityEpochReader(config, mcpOauthRevocationStore),
@@ -296,11 +317,16 @@ export async function composeApiMcpSurface(input: {
       identityUnitOfWork,
       ...(reportSourceInvalidation === undefined
         ? {} : { reportSourceInvalidation }),
-      ...(grantRuntime === undefined ? {} : {
-        beforeBeginCommit: createCollectionGrantCommitGuard({ db: database.db, ...grantRuntime }),
-      }),
+      beforeBeginCommit: async input => {
+        if (grantRuntime) await createCollectionGrantCommitGuard({ db: database.db,...grantRuntime })(input);
+        await automationResults?.guard(input.transaction,input.planId);
+      },
     });
     grantMcp.bindCollectionPlanStore(mcpWriteComposition.store);
+  }
+  if (automationTargetWorker && mcpWriteComposition) {
+    automationResults=createResultSubmissionPort(database.db,config.publication.serverUuid,automationTargetWorker.authorize,createProposalPlanGateway(database.db,mcpWriteComposition.changePlanOptions));
+    automationWorker=createAutomationWorkerService(database.db,config.publication.serverUuid,automationTargetWorker,automationResults,config.productEditorCursor.current.key,config.automationServerDailyRunCap ?? 1000);
   }
   const nodesSearch = config.mcp
     ? createPostgresNodesSearchPorts({
@@ -312,7 +338,7 @@ export async function composeApiMcpSurface(input: {
         }),
       })
     : undefined;
-  const mcpApplicationFacade = config.mcp
+  let mcpApplicationFacade = config.mcp
     && mcpReadResourceProjection
     && mcpSnapshotResourceProjection
     && mcpNodeResourceProjection
@@ -328,7 +354,21 @@ export async function composeApiMcpSurface(input: {
       ...(nodesSearch === undefined ? {} : { nodesSearch }),
     })
     : undefined;
+  if (mcpApplicationFacade && automationTargetWorker) {
+    const verifyTargetBinding=createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,mcpOauthRevocationStore));
+    mcpApplicationFacade=withAutomationCatalog(mcpApplicationFacade,createAutomationToolPort({
+      access: async context => context.principal.kind === 'anonymous' ? Promise.resolve(null) : automationTargetWorker.access(automationWorkPrincipal(context)).then(access => access ? { ...access,workAvailable: !!automationWorker } : null),
+      configurations: createAutomationUnitOfWork(database.db,config.publication.serverUuid,{ eventsEnabled:config.mcpEventsEnabled === true && !!automationWorker,runtimeEnabled: true,workerEnabled: !!automationWorker,verifyTargetBinding }),
+      worker: automationWorker,pairing: automationTargetWorker,cursorKey: config.productEditorCursor.current.key,
+    }));
+  }
+  if (config.mcpEventsEnabled && mcpApplicationFacade && automationTargetWorker && automationWorker) {
+    mcpApplicationFacade = { ...mcpApplicationFacade, events: createMcpEventsAdapter(createSubscriptionStore(database.db, automationTargetWorker, config.automationWebhookMasterKey ? createWebhookVerifier(config.automationWebhookMasterKey,{ ...(config.automationWebhookPreviousMasterKey ? { previousMasterKey: config.automationWebhookPreviousMasterKey } : {}) }) : undefined)) };
+  }
   return {
+    ...(automationWorker ? { automationWorker } : {}),
+    ...(automationResults ? { automationApprovals: createApprovedProposalApplier(database.db,config.publication.serverUuid,automationResults) } : {}),
+    ...(automationTargetWorker ? { automationWorkAdmit: automationAdmission('work','Worker admission is unavailable.') } : {}),
     mcpCollectionResourceCursorKeys,
     mcpChangeSignalSource,
     mcpReadResourceProjection,
@@ -337,6 +377,7 @@ export async function composeApiMcpSurface(input: {
     mcpReadToolAdapter,
     mcpOauthRevocationStore,
     mcpReadOAuthDependencies,
+    ...(automationTargetWorker ? { automationTargetWorker } : {}),
     mcpRateLimiter,
     mcpWriteComposition,
     mcpApplicationFacade,

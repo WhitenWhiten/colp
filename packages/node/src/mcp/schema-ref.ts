@@ -68,7 +68,9 @@ export function materializeClosedMcpToolSchema(
   }
   assertSchemaWithinBudget(schema);
   const rewritten = rewriteCanonicalRefs(schema);
-  const defs = referencedCanonicalDefs(rewritten);
+  const localDefs = schema.$defs;
+  const defs = referencedCanonicalDefs(rewritten, localDefs !== null && typeof localDefs === 'object' && !Array.isArray(localDefs)
+    ? localDefs as Readonly<Record<string, unknown>> : {});
   const closed = defs === undefined
     ? rewritten
     : { ...(rewritten as Record<string, unknown>), $defs: defs };
@@ -139,11 +141,11 @@ function rewriteCanonicalRefs(value: unknown): unknown {
   return next;
 }
 
-function referencedCanonicalDefs(schema: unknown): Record<string, unknown> | undefined {
+function referencedCanonicalDefs(schema: unknown, localDefs: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
   const roots = new Set<string>();
   collectDefNames(schema, roots);
   if (roots.size === 0) return undefined;
-  const allDefs = collectionProtocolSchema.$defs as Readonly<Record<string, unknown>>;
+  const allDefs: Readonly<Record<string, unknown>> = { ...collectionProtocolSchema.$defs, ...localDefs };
   const needed = new Set<string>();
   const visit = (name: string): void => {
     if (needed.has(name)) return;

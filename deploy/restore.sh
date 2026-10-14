@@ -54,6 +54,38 @@ fi
 "${reader[@]}" | docker compose exec -T db pg_restore -U "${db_user}" -d "${db_name}" \
   --exit-on-error --single-transaction
 
+# Restored rules never resume admission before the Owner revalidates them.
+docker compose exec -T db psql -U "${db_user}" -d "${db_name}" -v ON_ERROR_STOP=1 <<'SQL'
+DO $$ BEGIN
+  IF to_regclass('automation_settings') IS NOT NULL THEN
+    INSERT INTO automation_settings (owner_id, paused, paused_at, paused_by, revision)
+      SELECT id, true, now(), 'restore', 1 FROM accounts
+      ON CONFLICT (owner_id) DO UPDATE SET paused = true, paused_at = now(),
+        paused_by = 'restore', revision = automation_settings.revision + 1;
+  END IF;
+  IF to_regclass('automation_configuration_epochs') IS NOT NULL THEN
+    INSERT INTO automation_configuration_epochs(owner_id, revision)
+      SELECT a.id, greatest(coalesce(s.revision,0),coalesce(b.revision,0))+1 FROM accounts a
+      LEFT JOIN automation_settings s ON s.owner_id=a.id
+      LEFT JOIN (SELECT owner_id,max(settings_revision) AS revision FROM automation_device_bundles GROUP BY owner_id) b ON b.owner_id=a.id
+      ON CONFLICT (owner_id) DO UPDATE SET revision=greatest(automation_configuration_epochs.revision,excluded.revision)+1;
+  END IF;
+  IF to_regclass('automation_job_attempts') IS NOT NULL THEN
+    UPDATE automation_job_attempts SET outcome='unknownOutcome' WHERE outcome='leased';
+    UPDATE automation_jobs SET state='uncertain',revision=revision+1,
+      explanation='Restored external attempt has unknown outcome; reconcile before an explicit retry.' WHERE state='leased';
+  END IF;
+  IF to_regclass('automation_event_subscriptions') IS NOT NULL THEN
+    UPDATE automation_event_subscriptions SET state='revalidation',generation=generation+1,
+      secret_ciphertext=NULL,previous_secret_ciphertext=NULL,previous_secret_until=NULL WHERE state IN ('active','verifying');
+  END IF;
+  IF to_regclass('automation_event_deliveries') IS NOT NULL THEN
+    UPDATE automation_event_deliveries SET state='cancelled',generation=generation+1,lease_until=NULL,next_attempt_at=NULL,
+      last_error_code='restore_revalidation' WHERE state IN ('pending','retrying','sending');
+  END IF;
+END $$;
+SQL
+
 docker compose up -d
 
 # Ask the server inside its container, so a tls-internal CA the host does not

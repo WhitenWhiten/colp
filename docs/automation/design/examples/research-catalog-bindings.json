@@ -1,0 +1,66 @@
+{
+  "name": "Institutional research archive bindings",
+  "values": {
+    "catalogRoot": {
+      "kind": "folder",
+      "folder": {
+        "serverUuid": "server_demo",
+        "collectionId": "c_research_archive",
+        "nodeId": "n_catalog_root"
+      },
+      "followIdentity": true,
+      "onUnavailable": "block",
+      "notifyOn": [
+        "rename",
+        "move",
+        "delete",
+        "permission",
+        "syncScope"
+      ]
+    },
+    "catalogWorker": {
+      "kind": "executor",
+      "executorId": "exec_research_archive"
+    },
+    "entityDirectories": {
+      "kind": "entityMap",
+      "entries": [
+        {
+          "entityKey": "catalog:research-group:materials",
+          "label": "Materials Research Group",
+          "aliases": [],
+          "folder": {
+            "serverUuid": "server_demo",
+            "collectionId": "c_research_archive",
+            "nodeId": "n_materials_group"
+          }
+        },
+        {
+          "entityKey": "catalog:research-group:climate",
+          "label": "Climate Research Group",
+          "aliases": [],
+          "folder": {
+            "serverUuid": "server_demo",
+            "collectionId": "c_research_archive",
+            "nodeId": "n_climate_group"
+          }
+        }
+      ],
+      "onUnmapped": "review",
+      "onMultiple": "review"
+    },
+    "catalogTags": {
+      "kind": "vocabulary",
+      "entries": [
+        {
+          "key": "materials_science",
+          "label": "Materials science"
+        },
+        {
+          "key": "climate_data",
+          "label": "Climate data"
+        }
+      ]
+    }
+  }
+}

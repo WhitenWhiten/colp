@@ -1,0 +1,192 @@
+{
+  "kind": "contract-fixtures-not-execution-evidence",
+  "consumer": "AW-52",
+  "scenarios": [
+    {
+      "label": "approved",
+      "job": {
+        "id": "job.fixture",
+        "revision": "1",
+        "runId": "run.fixture",
+        "task": {
+          "id": "summary",
+          "type": "summary.generate",
+          "after": [],
+          "executorRole": "researchEnricher",
+          "required": true,
+          "outputContract": "summary.sourced.v1",
+          "inputFields": [
+            "url",
+            "title",
+            "tags",
+            "description"
+          ],
+          "instruction": "Write an English paper summary, stating whether only an abstract was available."
+        },
+        "status": "succeeded",
+        "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "targetId": "target.fixture",
+        "allowedFolders": [],
+        "inputsPaged": false,
+        "attemptGeneration": 1,
+        "createdAt": "2026-10-13T00:00:00Z"
+      },
+      "explanation": "Same approved plan committed; linked effect available."
+    },
+    {
+      "label": "awaitingApproval",
+      "job": {
+        "id": "job.fixture",
+        "revision": "1",
+        "runId": "run.fixture",
+        "task": {
+          "id": "summary",
+          "type": "summary.generate",
+          "after": [],
+          "executorRole": "researchEnricher",
+          "required": true,
+          "outputContract": "summary.sourced.v1",
+          "inputFields": [
+            "url",
+            "title",
+            "tags",
+            "description"
+          ],
+          "instruction": "Write an English paper summary, stating whether only an abstract was available."
+        },
+        "status": "awaitingApproval",
+        "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "targetId": "target.fixture",
+        "allowedFolders": [],
+        "inputsPaged": false,
+        "attemptGeneration": 1,
+        "createdAt": "2026-10-13T00:00:00Z"
+      },
+      "explanation": "Awaiting the existing Owner Approval."
+    },
+    {
+      "label": "declined",
+      "job": {
+        "id": "job.fixture",
+        "revision": "1",
+        "runId": "run.fixture",
+        "task": {
+          "id": "summary",
+          "type": "summary.generate",
+          "after": [],
+          "executorRole": "researchEnricher",
+          "required": true,
+          "outputContract": "summary.sourced.v1",
+          "inputFields": [
+            "url",
+            "title",
+            "tags",
+            "description"
+          ],
+          "instruction": "Write an English paper summary, stating whether only an abstract was available."
+        },
+        "status": "review",
+        "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "targetId": "target.fixture",
+        "allowedFolders": [],
+        "inputsPaged": false,
+        "attemptGeneration": 1,
+        "createdAt": "2026-10-13T00:00:00Z"
+      },
+      "explanation": "The existing Approval declined the proposal; no canonical effect."
+    },
+    {
+      "label": "revoked",
+      "job": {
+        "id": "job.fixture",
+        "revision": "1",
+        "runId": "run.fixture",
+        "task": {
+          "id": "summary",
+          "type": "summary.generate",
+          "after": [],
+          "executorRole": "researchEnricher",
+          "required": true,
+          "outputContract": "summary.sourced.v1",
+          "inputFields": [
+            "url",
+            "title",
+            "tags",
+            "description"
+          ],
+          "instruction": "Write an English paper summary, stating whether only an abstract was available."
+        },
+        "status": "blocked",
+        "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "targetId": "target.fixture",
+        "allowedFolders": [],
+        "inputsPaged": false,
+        "attemptGeneration": 1,
+        "createdAt": "2026-10-13T00:00:00Z"
+      },
+      "explanation": "Current target or credential authority unavailable; no new effect."
+    },
+    {
+      "label": "stale",
+      "job": {
+        "id": "job.fixture",
+        "revision": "1",
+        "runId": "run.fixture",
+        "task": {
+          "id": "summary",
+          "type": "summary.generate",
+          "after": [],
+          "executorRole": "researchEnricher",
+          "required": true,
+          "outputContract": "summary.sourced.v1",
+          "inputFields": [
+            "url",
+            "title",
+            "tags",
+            "description"
+          ],
+          "instruction": "Write an English paper summary, stating whether only an abstract was available."
+        },
+        "status": "stale",
+        "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "targetId": "target.fixture",
+        "allowedFolders": [],
+        "inputsPaged": false,
+        "attemptGeneration": 1,
+        "createdAt": "2026-10-13T00:00:00Z"
+      },
+      "explanation": "A newer canonical edit invalidated the input."
+    },
+    {
+      "label": "undo-unavailable",
+      "job": {
+        "id": "job.fixture",
+        "revision": "1",
+        "runId": "run.fixture",
+        "task": {
+          "id": "summary",
+          "type": "summary.generate",
+          "after": [],
+          "executorRole": "researchEnricher",
+          "required": true,
+          "outputContract": "summary.sourced.v1",
+          "inputFields": [
+            "url",
+            "title",
+            "tags",
+            "description"
+          ],
+          "instruction": "Write an English paper summary, stating whether only an abstract was available."
+        },
+        "status": "succeeded",
+        "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "targetId": "target.fixture",
+        "allowedFolders": [],
+        "inputsPaged": false,
+        "attemptGeneration": 1,
+        "createdAt": "2026-10-13T00:00:00Z"
+      },
+      "explanation": "Tree versions do not restore tags or notes."
+    }
+  ]
+}

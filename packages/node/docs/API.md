@@ -199,3 +199,12 @@ Every entry point is covered by the package's own tests. Some have also run insi
 | `types`, `schema`, `semantic`, `server`, `mcp`, `conformance`, `sync/canonical`, and the Sequence-owner Sync host | `client`, `publisher`, `feed`, `security`, `adapters`, `delivery`, `sync/browser`, and the Push-owner Sync host |
 
 Experimental entry points behave as tested, but no host has shaped their APIs yet, so expect more changes there.
+
+## Optional Automation module
+
+`@know-n/colp/automation` exports the reviewed closed data contracts and pure bounded rules. It is outside protocol MUST/conformance traceability. See [finite profile](AUTOMATION_BROWSER_PROFILE.md). No host adapters or side effects are included.
+
+Placement arbitration requires explicit intent and returns a placement decision;
+task satisfaction comes from the evaluated rule declaration. Role constraints are
+validated and ordered by `analyzeRoleGraph`, with `intakeRoleKeys` identifying the
+stage's transitive dependencies.

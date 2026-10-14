@@ -1,0 +1,591 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "EventArguments": {
+      "type": "object",
+      "properties": {
+        "targetId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        }
+      },
+      "required": [
+        "targetId"
+      ],
+      "additionalProperties": false
+    },
+    "WebhookDestination": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "webhook"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "secret": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^whsec_[A-Za-z0-9+/]+={0,2}$"
+        }
+      },
+      "required": [
+        "mode",
+        "url",
+        "secret"
+      ],
+      "additionalProperties": false
+    },
+    "WebhookAddress": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "webhook"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        }
+      },
+      "required": [
+        "mode",
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "SubscribeParams": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "colp.automation.triggered"
+        },
+        "arguments": {
+          "$ref": "#/$defs/EventArguments"
+        },
+        "delivery": {
+          "$ref": "#/$defs/WebhookDestination"
+        },
+        "cursor": {
+          "type": "null"
+        },
+        "ttlMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Reserved metadata is handled by the existing pinned MCP codec before method-level validation."
+        }
+      },
+      "required": [
+        "name",
+        "arguments",
+        "delivery"
+      ],
+      "additionalProperties": false
+    },
+    "UnsubscribeParams": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "colp.automation.triggered"
+        },
+        "arguments": {
+          "$ref": "#/$defs/EventArguments"
+        },
+        "delivery": {
+          "$ref": "#/$defs/WebhookAddress"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Reserved metadata is handled by the existing pinned MCP codec before method-level validation."
+        }
+      },
+      "required": [
+        "name",
+        "arguments",
+        "delivery"
+      ],
+      "additionalProperties": false
+    },
+    "SubscribeResult": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "refreshBefore": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursor": {
+          "type": "null"
+        },
+        "truncated": {
+          "const": false
+        }
+      },
+      "required": [
+        "id",
+        "refreshBefore",
+        "cursor",
+        "truncated"
+      ],
+      "additionalProperties": false
+    },
+    "TriggerData": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "jobId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "ruleId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "ruleRevision": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1
+        },
+        "targetId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "matchedCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "deliveryHandle": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        }
+      },
+      "required": [
+        "runId",
+        "jobId",
+        "ruleId",
+        "ruleRevision",
+        "targetId",
+        "matchedCount",
+        "deliveryHandle"
+      ],
+      "additionalProperties": false,
+      "description": "Reference-only routing facts. deliveryHandle correlates a job with its intended inbox; it grants no access without authenticated target authority."
+    },
+    "Occurrence": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "name": {
+          "const": "colp.automation.triggered"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "data": {
+          "$ref": "#/$defs/TriggerData"
+        },
+        "cursor": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "eventId",
+        "name",
+        "timestamp",
+        "data",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "Verification": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "verification"
+        },
+        "challenge": {
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 16
+        }
+      },
+      "required": [
+        "type",
+        "challenge"
+      ],
+      "additionalProperties": false
+    },
+    "VerificationResponse": {
+      "type": "object",
+      "properties": {
+        "challenge": {
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 16
+        }
+      },
+      "required": [
+        "challenge"
+      ],
+      "additionalProperties": false
+    },
+    "EventDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "colp.automation.triggered"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "delivery": {
+          "type": "array",
+          "items": {
+            "const": "webhook"
+          },
+          "maxItems": 1
+        },
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "payloadSchema": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "delivery",
+        "inputSchema",
+        "payloadSchema"
+      ],
+      "additionalProperties": false
+    },
+    "ListResult": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EventDefinition"
+          },
+          "maxItems": 100
+        },
+        "nextCursor": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "ListParams": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Reserved metadata is handled by the existing pinned MCP codec before method-level validation."
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "ListRequest": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "method": {
+          "const": "events/list"
+        },
+        "params": {
+          "$ref": "#/$defs/ListParams"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ],
+      "additionalProperties": false,
+      "description": "Method schema only. Modern protocol metadata MUST still pass the existing pinned MCP request adapter; examples below omit transport-specific fields."
+    },
+    "SubscribeRequest": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "method": {
+          "const": "events/subscribe"
+        },
+        "params": {
+          "$ref": "#/$defs/SubscribeParams"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ],
+      "additionalProperties": false,
+      "description": "Method schema only. Modern protocol metadata MUST still pass the existing pinned MCP request adapter; examples below omit transport-specific fields."
+    },
+    "UnsubscribeRequest": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "method": {
+          "const": "events/unsubscribe"
+        },
+        "params": {
+          "$ref": "#/$defs/UnsubscribeParams"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ],
+      "additionalProperties": false,
+      "description": "Method schema only. Modern protocol metadata MUST still pass the existing pinned MCP request adapter; examples below omit transport-specific fields."
+    },
+    "Request": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ListRequest"
+        },
+        {
+          "$ref": "#/$defs/SubscribeRequest"
+        },
+        {
+          "$ref": "#/$defs/UnsubscribeRequest"
+        }
+      ]
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "requestId": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._~-]+$"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "Response": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "const": "2.0"
+            },
+            "id": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            },
+            "result": {
+              "$ref": "#/$defs/ListResult"
+            }
+          },
+          "required": [
+            "jsonrpc",
+            "id",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "const": "2.0"
+            },
+            "id": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            },
+            "result": {
+              "$ref": "#/$defs/SubscribeResult"
+            }
+          },
+          "required": [
+            "jsonrpc",
+            "id",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "const": "2.0"
+            },
+            "id": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            },
+            "result": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "jsonrpc",
+            "id",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "const": "2.0"
+            },
+            "id": {
+              "type": [
+                "string",
+                "integer",
+                "null"
+              ]
+            },
+            "error": {
+              "$ref": "#/$defs/Error"
+            }
+          },
+          "required": [
+            "jsonrpc",
+            "id",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

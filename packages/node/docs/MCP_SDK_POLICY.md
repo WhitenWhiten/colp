@@ -194,3 +194,12 @@ COLP MCP entries remain `2026-07-28` only.
 
 `protocol/docs/05-mcp-profile.md` was reviewed on 2026-08-28 and again during its English
 translation. The Profile modern-only conclusion remains correct.
+
+### OpenAI Events profile (AW-27)
+
+The 2.3.1 SDK strips `capabilities.events`. COLP explicitly validates and preserves
+only the empty `events: {}` capability after SDK discovery validation; other unknown
+capabilities remain stripped. `events.ts` owns the bounded OpenAI webhook method
+extension, separate from draft poll/stream protocols and errors. Callback verification
+uses OpenAI `-32015`. Never advertise the extension without a mounted, authorized
+Events service and callback verifier. The opt-in flag is `KNOWN_FEATURE_MCP_EVENTS`.

@@ -1,0 +1,145 @@
+{
+  "kind": "contract-fixtures-not-execution-evidence",
+  "consumer": "AW-53",
+  "note": "Events reachability/active subscription evidence remains BE-4. Active fixtures here are polling only.",
+  "scenarios": [
+    {
+      "label": "unpaired",
+      "target": {
+        "id": "target.fixture",
+        "revision": "1",
+        "configuration": {
+          "name": "Synthetic worker",
+          "providerLabel": "Example adapter",
+          "broadcastOptIn": false,
+          "privacy": "standard",
+          "connectionProfileId": "profile.fixture",
+          "wakeMode": "poll",
+          "pollIntervalMinutes": 1
+        },
+        "status": "unpaired",
+        "subscriptionCount": 0,
+        "isolation": "sharedCredential",
+        "wakeMode": "poll",
+        "pollIntervalMinutes": 1,
+        "wakeReadiness": "waitingForPairing",
+        "wakeReason": "Owner pairing has not completed."
+      }
+    },
+    {
+      "label": "subscription-missing",
+      "target": {
+        "id": "target.fixture",
+        "revision": "1",
+        "configuration": {
+          "name": "Synthetic worker",
+          "providerLabel": "Example adapter",
+          "broadcastOptIn": false,
+          "privacy": "standard",
+          "connectionProfileId": "profile.fixture",
+          "wakeMode": "events",
+          "pollIntervalMinutes": 1
+        },
+        "status": "awaitingSubscription",
+        "subscriptionCount": 0,
+        "isolation": "sharedCredential",
+        "wakeMode": "events",
+        "pollIntervalMinutes": 1,
+        "wakeReadiness": "waitingForSubscription",
+        "wakeReason": "Production Events delivery is unavailable until BE-4."
+      }
+    },
+    {
+      "label": "unreachable",
+      "target": {
+        "id": "target.fixture",
+        "revision": "1",
+        "configuration": {
+          "name": "Synthetic worker",
+          "providerLabel": "Example adapter",
+          "broadcastOptIn": false,
+          "privacy": "standard",
+          "connectionProfileId": "profile.fixture",
+          "wakeMode": "events",
+          "pollIntervalMinutes": 1
+        },
+        "status": "error",
+        "subscriptionCount": 0,
+        "isolation": "sharedCredential",
+        "wakeMode": "events",
+        "pollIntervalMinutes": 1,
+        "wakeReadiness": "blocked",
+        "wakeReason": "Reachability verification is unavailable in BE-3; no reachable Events endpoint is asserted."
+      }
+    },
+    {
+      "label": "active",
+      "target": {
+        "id": "target.fixture",
+        "revision": "1",
+        "configuration": {
+          "name": "Synthetic worker",
+          "providerLabel": "Example adapter",
+          "broadcastOptIn": false,
+          "privacy": "standard",
+          "connectionProfileId": "profile.fixture",
+          "wakeMode": "poll",
+          "pollIntervalMinutes": 1
+        },
+        "status": "active",
+        "subscriptionCount": 0,
+        "isolation": "sharedCredential",
+        "wakeMode": "poll",
+        "pollIntervalMinutes": 1,
+        "wakeReadiness": "active",
+        "wakeReason": "A paired worker may poll the durable queue."
+      }
+    },
+    {
+      "label": "revoked",
+      "target": {
+        "id": "target.fixture",
+        "revision": "1",
+        "configuration": {
+          "name": "Synthetic worker",
+          "providerLabel": "Example adapter",
+          "broadcastOptIn": false,
+          "privacy": "standard",
+          "connectionProfileId": "profile.fixture",
+          "wakeMode": "poll",
+          "pollIntervalMinutes": 1
+        },
+        "status": "revoked",
+        "subscriptionCount": 0,
+        "isolation": "sharedCredential",
+        "wakeMode": "poll",
+        "pollIntervalMinutes": 1,
+        "wakeReadiness": "disabled",
+        "wakeReason": "Owner revoked this target."
+      }
+    },
+    {
+      "label": "polling",
+      "target": {
+        "id": "target.fixture",
+        "revision": "1",
+        "configuration": {
+          "name": "Synthetic worker",
+          "providerLabel": "Example adapter",
+          "broadcastOptIn": false,
+          "privacy": "standard",
+          "connectionProfileId": "profile.fixture",
+          "wakeMode": "poll",
+          "pollIntervalMinutes": 1
+        },
+        "status": "active",
+        "subscriptionCount": 0,
+        "isolation": "sharedCredential",
+        "wakeMode": "poll",
+        "pollIntervalMinutes": 1,
+        "wakeReadiness": "active",
+        "wakeReason": "Polling interval is informational; the server does not schedule the worker."
+      }
+    }
+  ]
+}

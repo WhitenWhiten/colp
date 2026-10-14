@@ -1,0 +1,212 @@
+{
+  "ChangeInput": {
+    "removeRequired": [
+      "executionPolicyId"
+    ]
+  },
+  "Run": {
+    "removeRequired": [],
+    "addProperties": {
+      "held": {
+        "type": "boolean",
+        "description": "Explicit per-run hold; global pause is reported separately by PauseState."
+      },
+      "explanation": {
+        "type": "string",
+        "maxLength": 1000,
+        "description": "Bounded explanation of the pinned admission decision or latest execution outcome."
+      },
+      "usage": {
+        "$ref": "#/$defs/RuleUsageView"
+      },
+      "childRunIds": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "maxItems": 1000,
+        "description": "Manual selection children, each with independent canonical effects and pinned task DAG."
+      }
+    }
+  },
+  "CompiledRule": {
+    "removeRequired": [],
+    "addProperties": {
+      "definition": {
+        "$ref": "#/$defs/RuleDefinition"
+      }
+    },
+    "addRequired": [
+      "definition"
+    ]
+  },
+  "EffectReceiptView": {
+    "removeRequired": [],
+    "addProperties": {
+      "versionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "description": "Verified pre-commit collection version linked to the same plan; does not imply every field is undoable."
+      }
+    }
+  },
+  "PairingGrant": {
+    "removeRequired": [],
+    "addProperties": {
+      "code": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 128
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Returned once. Idempotent command replay returns null, matching existing credential issuance; issue a fresh grant if the initial response was lost."
+      }
+    }
+  },
+  "Job": {
+    "removeRequired": [],
+    "addProperties": {
+      "resultId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "proposalDigest": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "planId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "explanation": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    }
+  },
+  "TaskInput": {
+    "removeRequired": [],
+    "addProperties": {
+      "acceptedPredecessors": {
+        "type": "array",
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "taskId": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "resultId": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "output": {
+              "$ref": "#/$defs/TaskOutput"
+            }
+          },
+          "required": [
+            "taskId",
+            "resultId",
+            "digest",
+            "output"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Accepted typed outputs from declared DAG predecessors, pinned once with their identity and digest."
+      }
+    }
+  },
+  "RuleUsageView": {
+    "removeRequired": [],
+    "addProperties": {
+      "pendingJobs": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "leasedJobs": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "committingJobs": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "policyBlockedJobs": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "budgetBlockedJobs": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "awaitingApprovalJobs": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "uncertainJobs": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "optionalCalls": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "unknownCostCalls": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "dailyRunLimit": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "reservedRuns": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "remainingRuns": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "reportedCostMicros": {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+        "maxLength": 40,
+        "description": "Sum of worker-reported observations in micros; not verified provider billing."
+      },
+      "budgetDay": {
+        "type": "string",
+        "format": "date"
+      },
+      "deliveryCapability": {
+        "type": "string",
+        "enum": [
+          "unavailable",
+          "available"
+        ]
+      },
+      "acceptedDeliveries": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "description": "Observed accepted callbacks only; never a count of completed jobs. Null when Events delivery is not enabled."
+      }
+    }
+  }
+}

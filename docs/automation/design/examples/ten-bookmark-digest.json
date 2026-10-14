@@ -1,0 +1,76 @@
+{
+  "apiVersion": "colp.automation/v1",
+  "name": "Every ten new academic bookmarks",
+  "description": "One reading digest for every ten bookmarks that enter the Academic subtree.",
+  "roles": [
+    {
+      "key": "academicRoot",
+      "kind": "folder",
+      "required": true,
+      "description": "Primary home for academic papers"
+    },
+    {
+      "key": "researchEnricher",
+      "kind": "executor",
+      "required": true,
+      "description": "Approved paper enrichment executor"
+    }
+  ],
+  "on": "intake.completed",
+  "scope": {
+    "collectionId": "c_personal",
+    "folderRole": "academicRoot",
+    "includeDescendants": true
+  },
+  "match": {
+    "kind": "field",
+    "field": "bookmark.kind",
+    "op": "eq",
+    "value": "bookmark"
+  },
+  "trigger": {
+    "mode": "countBatch",
+    "count": 10,
+    "distinctBy": "node",
+    "partition": "rule"
+  },
+  "tasks": [
+    {
+      "id": "digest",
+      "type": "digest.generate",
+      "after": [],
+      "executorRole": "researchEnricher",
+      "required": true,
+      "outputContract": "digest.sourced.v1",
+      "inputFields": [
+        "url",
+        "title",
+        "tags",
+        "description"
+      ],
+      "instruction": "Summarize this exact batch with priority reading suggestions and disclose unavailable members."
+    }
+  ],
+  "route": {
+    "mode": "targets",
+    "execution": "single",
+    "targetIds": [
+      "dot_research"
+    ]
+  },
+  "policy": {
+    "history": "fromActivation",
+    "imports": "exclude",
+    "restores": "exclude",
+    "userEdits": "preserve",
+    "sameStageReentry": "deny",
+    "maxHops": 8,
+    "conflictingPlacement": "review",
+    "privacy": "standard",
+    "broadcastAllowed": false,
+    "maxRunsPerDay": 100,
+    "pauseMode": "stopAdmissionHoldPending",
+    "missingInput": "defer"
+  },
+  "priority": 100
+}

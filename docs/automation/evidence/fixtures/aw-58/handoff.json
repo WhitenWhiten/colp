@@ -1,0 +1,11 @@
+{
+  "contractVersion":"0.2.1-design",
+  "rendering":"output.text is untrusted plain text. Use textContent or escaped text binding; never render as HTML. Persisted output and evidence are preserved unchanged.",
+  "firstPage":{"items":[{"id":"output_digest","jobId":"job_digest","targetId":"target_research","output":{"kind":"text","textType":"digest","text":"Read the two selected papers in order.","language":"en","evidence":[{"kind":"source","reference":"source_1","observedAt":"2026-10-13T09:00:00.000Z"}]},"createdAt":"2026-10-13T09:01:00.000Z"}],"nextCursor":"opaque-cursor-from-server"},
+  "laterPage":{"items":[{"id":"output_review","jobId":"job_review","targetId":"target_research","output":{"kind":"text","textType":"review","text":"The later review remains unread when only the digest is marked read.","language":"en","evidence":[{"kind":"source","reference":"source_1","observedAt":"2026-10-13T09:00:00.000Z"}]},"createdAt":"2026-10-13T09:02:00.000Z"}],"nextCursor":null},
+  "markReadRequest":{"throughOutputId":"output_digest"},
+  "markReadResponse":{"id":"receipt_read","status":"completed","resourceId":"run_batch","diagnostics":[]},
+  "runAfterRead":{"outputCount":2,"unread":true},
+  "sourceUnavailable":{"status":404,"code":"resource_not_found","textReturned":false},
+  "evidence":"Synthetic consumer fixture; cursor is illustrative, not a signed live cursor. Actual DTO/race assertions are in run-outputs.integration.test.ts."
+}

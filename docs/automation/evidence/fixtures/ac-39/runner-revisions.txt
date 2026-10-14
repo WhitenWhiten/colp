@@ -1,0 +1,14 @@
+Production baseline: f6beff6da08aa56d7980dd8ffc59ab9a46130021
+Initial measurement runner SHA-256: 9a32df6222a6683edfa2ac498b5dcca517c0267cc1cd98a783f384ce19a6af2b
+Follow-up runner SHA-256: a17bd2dd1277d3e9cb296a28573214384e2584894b90658f75ae4f0bdb9a7ff6 (commit e310f74)
+
+runner-followup.patch transforms the initial measurement runner into the follow-up
+runner in e310f74. Reverse it against that version to reconstruct the initial runner.
+Later workload-configuration changes do not alter these historical measurements. Changes add early
+stopping after save failures, settle writers on error, configurable burst size,
+canonical fixture seeding, environment validation, and null for an unsampled event
+loop histogram. They do not modify production code.
+
+environment.txt was first collected during smoke preparation. Its earlier
+d740ba8c... runner hash belongs to a smoke fixture, not the measured initial run.
+The appended 9a32df... line identifies the actual initial measurement source.

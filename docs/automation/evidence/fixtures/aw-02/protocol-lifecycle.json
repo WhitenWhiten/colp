@@ -1,0 +1,118 @@
+{
+  "recordedDateUtc": "2026-10-13",
+  "surface": "ChatGPT account plugin used by a dot",
+  "scope": "Synthetic standalone fixture; not production COLP",
+  "subscriptionAndDeliveryTranscript": [
+    {
+      "at": "2026-10-13T03:32:55.229Z",
+      "kind": "rpc",
+      "method": "events/subscribe"
+    },
+    {
+      "at": "2026-10-13T03:32:55.565Z",
+      "kind": "verification_response",
+      "id": "sub_1522fec17c774a6936865ad9551aeb8e",
+      "status": 200,
+      "bodyBytes": 59
+    },
+    {
+      "at": "2026-10-13T03:32:55.575Z",
+      "kind": "subscribed",
+      "id": "sub_1522fec17c774a6936865ad9551aeb8e",
+      "refreshBefore": "2026-10-13T04:32:55.566Z"
+    },
+    {
+      "at": "2026-10-13T03:32:55.583Z",
+      "kind": "rpc_response",
+      "method": "events/subscribe",
+      "status": 200,
+      "errorCode": null,
+      "resultType": "complete"
+    },
+    {
+      "at": "2026-10-13T03:33:50.777Z",
+      "kind": "delivery",
+      "eventId": "evt_64d78f6c-d1e2-4f14-94d2-378e0311bc4d",
+      "subscriptionId": "sub_1522fec17c774a6936865ad9551aeb8e",
+      "status": 200,
+      "attempt": 1
+    },
+    {
+      "at": "2026-10-13T03:34:09.206Z",
+      "kind": "rpc",
+      "method": "tools/call"
+    },
+    {
+      "at": "2026-10-13T03:34:09.250Z",
+      "kind": "ack",
+      "eventId": "evt_64d78f6c-d1e2-4f14-94d2-378e0311bc4d",
+      "jobId": "job_d1a9926a-eccf-4dc3-b526-d94a7486732b"
+    },
+    {
+      "at": "2026-10-13T03:34:09.255Z",
+      "kind": "rpc_response",
+      "method": "tools/call",
+      "status": 200
+    }
+  ],
+  "matchingEvent": {
+    "event": {
+      "eventId": "evt_64d78f6c-d1e2-4f14-94d2-378e0311bc4d",
+      "name": "colp.automation.triggered",
+      "timestamp": "2026-10-13T03:33:50.289Z",
+      "data": {
+        "runId": "run_c511a575-e736-49ed-b486-75d38b1111fb",
+        "jobId": "job_d1a9926a-eccf-4dc3-b526-d94a7486732b",
+        "ruleId": "aw02-rule",
+        "ruleRevision": "1",
+        "targetId": "aw02-test",
+        "matchedCount": 1,
+        "deliveryHandle": "aw02_ad8f0679-9ed4-4a64-a5d0-ab5edbbc7bc5"
+      },
+      "cursor": null
+    },
+    "deliveries": [
+      {
+        "eventId": "evt_64d78f6c-d1e2-4f14-94d2-378e0311bc4d",
+        "subscriptionId": "sub_1522fec17c774a6936865ad9551aeb8e",
+        "status": 200,
+        "attempt": 1
+      }
+    ]
+  },
+  "nonMatchingCandidate": {
+    "event": {
+      "eventId": "evt_25ebf9c5-8389-4480-8d9a-62eaf3155111",
+      "name": "colp.automation.triggered",
+      "timestamp": "2026-10-13T03:33:52.251Z",
+      "data": {
+        "runId": "run_247dcda3-6eb5-47d2-9a82-43f9d163edeb",
+        "jobId": "job_6479702c-077c-4274-8d76-d035777ced96",
+        "ruleId": "aw02-rule",
+        "ruleRevision": "1",
+        "targetId": "other-target",
+        "matchedCount": 1,
+        "deliveryHandle": "aw02_a03e58ec-3e11-4ecc-827b-cf962da6bf9e"
+      },
+      "cursor": null
+    },
+    "deliveries": []
+  },
+  "statusAfterAck": {
+    "subscriptions": [
+      {
+        "id": "sub_1522fec17c774a6936865ad9551aeb8e",
+        "targetId": "aw02-test",
+        "refreshBefore": "2026-10-13T04:32:55.566Z",
+        "active": true
+      }
+    ],
+    "receipts": [
+      {
+        "eventId": "evt_64d78f6c-d1e2-4f14-94d2-378e0311bc4d",
+        "jobId": "job_d1a9926a-eccf-4dc3-b526-d94a7486732b",
+        "at": "2026-10-13T03:34:09.247Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,69 @@
+--- a/packages/server/tests/support/ac39-capacity.ts
++++ b/packages/server/tests/support/ac39-capacity.ts
+@@ -19,7 +19,10 @@
+ process.env.COLP_MULTI_USER = 'true';
+ const output = process.env.AC39_OUTPUT;
+ const rounds = Number(process.env.AC39_ROUNDS ?? 3);
++const burstCount = Number(process.env.AC39_SAVE_COUNT ?? 20);
+ const stage = process.env.AC39_STAGE ?? 'manual';
++assert.ok(Number.isInteger(rounds) && rounds >= 1 && rounds <= 10, 'AC39_ROUNDS must be 1..10');
++assert.ok(Number.isInteger(burstCount) && burstCount >= 1 && burstCount <= 100, 'AC39_SAVE_COUNT must be 1..100');
+ const failures: string[] = [];
+ function record(value: Record<string, unknown>) {
+   const line = JSON.stringify({ at: new Date().toISOString(), stage, ...value });
+@@ -57,6 +60,10 @@
+     node: { kind: 'bookmark', title: 'Control save', url: 'https://example.org/control', description: null, tags: [], visibility: 'inherit' } }));
+ }
+ async function seedMembers(f: Fixture, count: number) {
++  if (process.env.AC39_CANONICAL_SEED === '1') {
++    for (let i = 1; i < count; i++) await f.createNode(`capacity-${i}`, 'root', `Capacity ${i}`, `https://arxiv.org/capacity/${i}`);
++    return;
++  }
+   // Same canonical-shaped bulk fixture as AW-41. No ingestion evidence is claimed for seed rows.
+   await sql`INSERT INTO resource_id_ledger(resource_id,resource_type) SELECT 'capacity-'||g::text,'node' FROM generate_series(1,${count - 1}) g`.execute(f.db);
+   const columns = (await sql<{ column_name: string }>`SELECT column_name FROM information_schema.columns
+@@ -114,10 +121,11 @@
+       }
+     })();
+     const writes = Promise.all([
+-      traffic(id => f.createNode(id, 'root', 'Concurrent save', 'https://example.org/save')),
+-      traffic(sameOwnerSave), traffic(foreignSave),
++      traffic(id => f.createNode(id, 'root', 'Concurrent save', 'https://example.org/save'), burstCount),
++      traffic(sameOwnerSave, burstCount), traffic(foreignSave, burstCount),
+     ]);
+-    const result = await run;
++    // Always settle writers before dropping their schema, including a failed run.
++    const result = await run.catch(async error => { await writes; await monitor; throw error; });
+     const runMs = performance.now() - start, runQueries = queries;
+     const [sameCollection, sameOwner, foreignOwner] = await writes;
+     await monitor;
+@@ -132,6 +140,8 @@
+       gateObservedMsLowerBound: firstGate !== undefined && lastGate !== undefined ? lastGate - firstGate : null,
+       maxGateWaiters: maxWaiters, sameCollection, sameOwner, foreignOwner, rssBytes: process.memoryUsage().rss });
+     if (runMs > 30000) throw new Error('Safety stop: run-once exceeds 30 seconds');
++    if ([sameCollection, sameOwner, foreignOwner].some(value => value.errors.length))
++      throw new Error('Safety stop: saving failed; do not increase load');
+   } finally { await observer.end(); await f.isolated.close(); }
+ }
+ async function rules() {
+@@ -230,9 +240,11 @@
+   }
+ }
+ const eventLoop = monitorEventLoopDelay({ resolution: 20 }); eventLoop.enable();
+-record({ kind: 'start', node: process.version, thresholds: { saveP95Ms: 1000, saveMaxMs: 2000, runOnceMs: 10000 }, rounds });
++record({ kind: 'start', node: process.version, thresholds: { saveP95Ms: 1000, saveMaxMs: 2000, runOnceMs: 10000 },
++  rounds, burstCount, canonicalSeed: process.env.AC39_CANONICAL_SEED === '1' });
+ try {
+   if (stage === 'manual') for (const count of (process.env.AC39_SIZES ?? '100,500,1000,1001').split(',').map(Number)) {
++    assert.ok(Number.isInteger(count) && count >= 1 && count <= 1001, 'AC39_SIZES must contain integers in 1..1001');
+     for (let round = 1; round <= (count > 1000 ? 1 : rounds); round++) await manual(count, round);
+   }
+   else if (stage === 'rules') await rules();
+@@ -242,6 +254,6 @@
+ } catch (error) { failures.push(String(error)); record({ kind: 'error', error: String(error), stack: error instanceof Error ? error.stack : undefined }); }
+ finally {
+   eventLoop.disable();
+-  record({ kind: 'result', failures, eventLoopP99Ms: eventLoop.percentile(99) / 1e6, maxRssKiB: process.resourceUsage().maxRSS });
++  record({ kind: 'result', failures, eventLoopP99Ms: eventLoop.count ? eventLoop.percentile(99) / 1e6 : null, maxRssKiB: process.resourceUsage().maxRSS });
+   process.exitCode = failures.length ? 1 : 0;
+ }

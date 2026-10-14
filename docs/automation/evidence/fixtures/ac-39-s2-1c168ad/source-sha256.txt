@@ -1,0 +1,3 @@
+83d78fc62f1ebe026d2aeb949995d42c4048a47d41b2d92a02fec05facfcf243  packages/server/src/infrastructure/collections/canonical-mutation-postgres-ports.ts
+914773a7c44bf142df3e338aa3512e92100206e2b9f4d4cc95d832f92f3bd35b  packages/server/src/infrastructure/collections/canonical-outbox-router.ts
+e8f9253549fd0e7a840a880123b9e1afc146aab5d9d946ddccdd3ea32704eb52  packages/server/src/infrastructure/collections/canonical-revisions.ts

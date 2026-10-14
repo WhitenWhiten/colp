@@ -80,6 +80,7 @@ export interface BookmarkCreateInput {
 export type NodeCreateInput = FolderCreateInput | BookmarkCreateInput;
 
 export interface CreateCollectionNodeInput {
+  readonly intakeDisposition?: 'userDefault' | 'userSelected';
   readonly actor: CreateCollectionNodeActor;
   readonly command: CreateCollectionNodeCommand;
   readonly collectionId: string;
@@ -178,6 +179,7 @@ export async function createCollectionNode(
   const nodeUrl = validated.node.kind === 'bookmark' ? validated.node.url : null;
   const mutation = await ports.canonical.execute({
     operationId,
+    intakeDisposition: input.intakeDisposition ?? 'unknown',
     collectionId: validated.collectionId,
     actor: {
       principalId: validated.actor.principalId,
@@ -333,6 +335,8 @@ function validateInput(input: CreateCollectionNodeInput): ValidatedCreateCollect
     throw new CollectionsError('invalid_node_anchor', 'beforeId cannot be empty');
   }
 
+  if (input.intakeDisposition !== undefined && !['userDefault','userSelected'].includes(input.intakeDisposition))
+    throw new CollectionsError('invalid_node_input', 'Invalid intake disposition.');
   const node = validateNodeCreate(input.node);
 
   return {

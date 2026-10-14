@@ -93,7 +93,11 @@ export function createMcp20260728DiscoverResult(
     throw new TypeError('MCP discover result failed SDK schema validation.');
   }
   const canonical = parsed.data as unknown as Mcp20260728DiscoverResult;
-  const capabilities = snapshotMcpData(canonical.capabilities) as Readonly<Record<string, unknown>>;
+  const events = readOwnValue(capabilitiesRaw, 'events');
+  if (events !== undefined && (!isPlainRecord(events) || Object.keys(events).length !== 0)) {
+    throw new TypeError('Invalid pinned Events capability.');
+  }
+  const capabilities = snapshotMcpData({ ...canonical.capabilities, ...(events === undefined ? {} : { events: {} }) }) as Readonly<Record<string, unknown>>;
   const meta = isPlainRecord(canonical._meta)
     ? Object.freeze({ [SERVER_INFO_META_KEY]: Object.freeze(snapshotImplementation(canonical._meta[SERVER_INFO_META_KEY])) })
     : undefined;

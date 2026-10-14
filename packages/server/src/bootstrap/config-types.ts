@@ -627,6 +627,19 @@ export interface CacheConfig {
 
 /** Default commit distinct-plan budget for development/test only; production must set env explicitly. */
 export interface AppConfig {
+  /** KNOWN_FEATURE_AUTOMATION_RULES: M1 configuration API (rules, bindings, preview). */
+  readonly automationRulesEnabled?: boolean;
+  /** KNOWN_FEATURE_AUTOMATION_CAPTURE: canonical facts capture (shadow first). */
+  readonly automationCaptureEnabled?: boolean;
+  /** KNOWN_FEATURE_AUTOMATION_ADMISSION: runs and deterministic intake; requires RULES and CAPTURE. */
+  readonly automationAdmissionEnabled?: boolean;
+  /** KNOWN_FEATURE_AUTOMATION_WORK: M2 worker surface; requires ADMISSION and MCP Write. */
+  readonly automationWorkEnabled?: boolean;
+  /** KNOWN_FEATURE_MCP_EVENTS: Events wake-up for worker targets; requires WORK. */
+  readonly mcpEventsEnabled?: boolean;
+  readonly automationWebhookMasterKey?: Buffer;
+  readonly automationWebhookPreviousMasterKey?: Buffer;
+  readonly automationServerDailyRunCap?: number;
   readonly bookmarkSubscriptions?: { readonly enabled: boolean; readonly protocolReady: boolean };
   readonly nodeEnv: string;
   readonly host: string;

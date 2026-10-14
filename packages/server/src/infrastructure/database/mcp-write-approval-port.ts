@@ -30,6 +30,8 @@ export function createPostgresMcpWriteApprovalPorts(
       work: (transaction: DatabaseTransaction) => Promise<Result>,
       execution: { readonly signal?: AbortSignal } = {},
     ) => {
+      // Owner Automation decisions join their short configuration transaction, never a Commit coordinator.
+      if (db.isTransaction && execution.signal === undefined) return work(db as DatabaseTransaction);
       if (execution.signal !== undefined) {
         return executeAbortable(db, work, execution.signal);
       }

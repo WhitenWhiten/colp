@@ -99,6 +99,7 @@ export function registerNodeRoutes(
           },
           collectionId,
           parentId: createRequest.parentId,
+          intakeDisposition: createRequest.intakeDisposition,
           afterId: createRequest.afterId,
           beforeId: createRequest.beforeId,
           node: createRequest.node,
@@ -462,6 +463,7 @@ function parseMoveNodeRequest(body: unknown): MoveNodeRequestBody {
 }
 
 interface CreateNodeRequestBody {
+  readonly intakeDisposition?: 'userDefault' | 'userSelected';
   readonly parentId: string;
   readonly afterId: string | null;
   readonly beforeId: string | null;
@@ -474,7 +476,7 @@ function parseCreateNodeRequest(body: unknown): CreateNodeRequestBody {
   }
 
   const record = body as Record<string, unknown>;
-  const allowed = new Set(['parentId', 'afterId', 'beforeId', 'node']);
+  const allowed = new Set(['parentId', 'afterId', 'beforeId', 'node', 'intakeDisposition']);
   for (const key of Object.keys(record)) {
     if (!allowed.has(key)) {
       throw invalidDocument('Request body contains unsupported properties.', [
@@ -515,6 +517,8 @@ function parseCreateNodeRequest(body: unknown): CreateNodeRequestBody {
     ]);
   }
 
+  if (record.intakeDisposition !== undefined && record.intakeDisposition !== 'userDefault' && record.intakeDisposition !== 'userSelected')
+    throw invalidDocument('intakeDisposition must be userDefault or userSelected.');
   let node: NodeCreateInput;
   try {
     node = parseNodeCreate(record.node);
@@ -524,6 +528,7 @@ function parseCreateNodeRequest(body: unknown): CreateNodeRequestBody {
   }
 
   return {
+    ...(record.intakeDisposition === undefined ? {} : { intakeDisposition: record.intakeDisposition }),
     parentId: record.parentId,
     afterId: record.afterId as string | null,
     beforeId: record.beforeId as string | null,

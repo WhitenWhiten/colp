@@ -24,6 +24,7 @@ export default {
     'src/mcp/2026-07-28/request-state-binding.ts',
     'src/mcp/2026-07-28/index.ts',
     'src/mcp/2026-07-28/discovery.ts',
+    'src/mcp/2026-07-28/events.ts',
     'src/mcp/2026-07-28/results.ts',
     'src/mcp/2026-07-28/resources.ts',
     'src/mcp/2026-07-28/tools.ts',

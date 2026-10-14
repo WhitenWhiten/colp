@@ -1,0 +1,95 @@
+{
+  "status": "recommended_execution_order_not_runtime_evidence",
+  "createdAt": "2026-10-13",
+  "scope": "No UI work. Shared core belongs to backend implementation for this delivery path; all Known-Extension integration deferred.",
+  "batches": [
+    {
+      "id": "BE-1",
+      "title": "Configuration and preview, no side effects",
+      "tasks": [
+        "AW-01",
+        "AW-03",
+        "AW-04",
+        "AW-05",
+        "AW-06",
+        "AW-07",
+        "AW-09",
+        "AW-08",
+        "AW-10",
+        "AW-11"
+      ],
+      "requiresBatches": []
+    },
+    {
+      "id": "BE-2",
+      "title": "Durable M1 backend intake and safe Undo",
+      "tasks": [
+        "AW-13",
+        "AW-14",
+        "AW-15",
+        "AW-16",
+        "AW-17",
+        "AW-18",
+        "AW-51",
+        "AW-33",
+        "AW-66"
+      ],
+      "requiresBatches": [
+        "BE-1"
+      ]
+    },
+    {
+      "id": "BE-3",
+      "title": "Local polling worker and typed result/plan lifecycle",
+      "tasks": [
+        "AW-22",
+        "AW-23",
+        "AW-24",
+        "AW-25",
+        "AW-26",
+        "AW-30",
+        "AW-31",
+        "AW-32",
+        "AW-55",
+        "AW-64"
+      ],
+      "requiresBatches": [
+        "BE-1",
+        "BE-2"
+      ]
+    },
+    {
+      "id": "BE-4",
+      "title": "Hosted Events adapter and delivery hardening",
+      "tasks": [
+        "AW-02",
+        "AW-27",
+        "AW-28",
+        "AW-29",
+        "AW-44",
+        "AW-46"
+      ],
+      "requiresBatches": [
+        "BE-1",
+        "BE-2",
+        "BE-3"
+      ]
+    },
+    {
+      "id": "BE-5",
+      "title": "Batches and run-once backend",
+      "tasks": [
+        "AW-41",
+        "AW-57",
+        "AW-58"
+      ],
+      "requiresBatches": [
+        "BE-1",
+        "BE-2",
+        "BE-3",
+        "BE-4"
+      ]
+    }
+  ],
+  "parallelSpike": "AW-02 may be prepared after AW-01. Real hosted evidence blocks Events claims only, never BE-1/BE-2/BE-3."
+}

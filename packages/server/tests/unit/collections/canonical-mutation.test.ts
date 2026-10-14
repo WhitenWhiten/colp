@@ -64,7 +64,7 @@ interface HarnessOverrides {
   readonly locked?: LockedCollectionState | null;
   readonly plan?: (admitted: CanonicalMutationInput) => CanonicalMutationPlan;
   readonly allocation?: AllocatedMutationState;
-  readonly failAt?: 'canonical-plan' | 'allocation' | 'resource' | 'operation' | 'audit' | 'outbox';
+  readonly failAt?: 'canonical-plan' | 'allocation' | 'resource' | 'operation' | 'audit' | 'facts' | 'outbox';
 }
 
 function harness(overrides: HarnessOverrides = {}) {
@@ -106,6 +106,7 @@ function harness(overrides: HarnessOverrides = {}) {
     audit: {
       async appendAuditEvent(tx, event) { record('audit', tx, event); },
     },
+    facts: { async capture(tx, event) { record('facts', tx, event); } },
     outbox: {
       async appendDomainEvents(tx, events) { record('outbox', tx, events); },
     },
@@ -123,7 +124,7 @@ function isInvariant(error: unknown): boolean {
   return error instanceof CanonicalMutationInvariantError && error.code === 'invalid_canonical_mutation';
 }
 
-const WRITE_PORTS = Object.freeze(['resource', 'operation', 'audit', 'outbox'] as const);
+const WRITE_PORTS = Object.freeze(['resource', 'operation', 'audit', 'facts', 'outbox'] as const);
 
 function assertNoWritePorts(calls: readonly string[]): void {
   for (const port of WRITE_PORTS) {
@@ -199,6 +200,7 @@ describe('canonical mutation capability', () => {
     ['resource', ['collection-lock', 'canonical-plan', 'allocation', 'resource']],
     ['operation', ['collection-lock', 'canonical-plan', 'allocation', 'resource', 'operation']],
     ['audit', ['collection-lock', 'canonical-plan', 'allocation', 'resource', 'operation', 'audit']],
+    ['facts', CANONICAL_MUTATION_WRITE_ORDER.slice(0, -1)],
     ['outbox', [...CANONICAL_MUTATION_WRITE_ORDER]],
   ] as const)('short-circuits after %s fails', async (failAt, expectedCalls) => {
     const h = harness({ failAt });

@@ -8,7 +8,7 @@ import type {
 } from './grant-types.js';
 
 export async function currentMachineBinding(
-  ports: CredentialGrantCommandPorts,
+  ports: Pick<CredentialGrantCommandPorts,'machine'>,
   snapshot: CredentialAuthoritySnapshot,
   resourceAudience: string,
 ): Promise<StoredPlanBinding> {

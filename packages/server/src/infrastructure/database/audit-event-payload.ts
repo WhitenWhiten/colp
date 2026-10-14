@@ -120,42 +120,38 @@ export async function appendAuditEvent(
   transaction: DatabaseTransaction,
   input: AppendAuditEventInput,
 ): Promise<bigint> {
-  if (!input.details || Array.isArray(input.details)) {
-    throw new TypeError('audit details must be a JSON object');
-  }
-  const encoded = JSON.stringify(input.details);
-  if (encoded === undefined) throw new TypeError('audit details must be JSON serializable');
-  const createdAt = input.createdAt ?? sql<Date>`current_timestamp`;
+  const ids = await appendAuditEvents(transaction, [input]);
+  return ids[0]!;
+}
+
+/** Batch counterpart of the same header/payload insert, with one identity per event. */
+export async function appendAuditEvents(transaction: DatabaseTransaction,
+  inputs: readonly AppendAuditEventInput[]): Promise<bigint[]> {
+  if (!inputs.length) return [];
+  const rows = inputs.map(input => {
+    if (!input.details || Array.isArray(input.details)) throw new TypeError('audit details must be a JSON object');
+    return { operation_id: input.operationId, collection_id: input.collectionId, principal_id: input.principalId,
+      event_type: input.eventType, details_json: input.details, created_at: input.createdAt?.toISOString() ?? null };
+  });
   const result = await sql<{ id: string | bigint }>`
     WITH materialized AS (
-      SELECT ${encoded}::jsonb AS details_json,
-             nextval(pg_get_serial_sequence('audit_events', 'id')) AS event_id
+      SELECT i.*, nextval(pg_get_serial_sequence('audit_events', 'id')) AS event_id
+      FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS i(operation_id text, collection_id text,
+        principal_id text, event_type text, details_json jsonb, created_at timestamptz)
     ), header AS (
-      INSERT INTO audit_events(
-        id, operation_id, collection_id, principal_id, event_type, created_at,
-        payload_digest, payload_bytes, payload_schema_version,
-        payload_bucket_locator, hot_payload_id
-      )
-      SELECT event_id, ${input.operationId}, ${input.collectionId}, ${input.principalId},
-             ${input.eventType}, ${createdAt},
-             'sha256:' || encode(public.digest(
-               convert_to(details_json::text, 'UTF8'), 'sha256'
-             ), 'hex'),
-             octet_length(convert_to(details_json::text, 'UTF8')),
-             ${AUDIT_PAYLOAD_SCHEMA_VERSION},
-             'hot://audit_event_payloads/' || event_id::text,
-             event_id
-        FROM materialized
+      INSERT INTO audit_events(id, operation_id, collection_id, principal_id, event_type, created_at,
+        payload_digest, payload_bytes, payload_schema_version, payload_bucket_locator, hot_payload_id)
+      SELECT event_id, operation_id, collection_id, principal_id, event_type, coalesce(created_at, current_timestamp),
+        'sha256:' || encode(public.digest(convert_to(details_json::text, 'UTF8'), 'sha256'), 'hex'),
+        octet_length(convert_to(details_json::text, 'UTF8')), ${AUDIT_PAYLOAD_SCHEMA_VERSION},
+        'hot://audit_event_payloads/' || event_id::text, event_id FROM materialized
       RETURNING id, created_at
-    )
-    INSERT INTO audit_event_payloads(event_id, details_json, created_at)
-    SELECT header.id, materialized.details_json, header.created_at
-      FROM header CROSS JOIN materialized
-    RETURNING event_id AS id
+    ) INSERT INTO audit_event_payloads(event_id, details_json, created_at)
+      SELECT header.id, materialized.details_json, header.created_at
+      FROM header JOIN materialized ON materialized.event_id=header.id RETURNING event_id AS id
   `.execute(transaction);
-  const id = result.rows[0]?.id;
-  if (id === undefined) throw new Error('audit event insert returned no identity');
-  return BigInt(id);
+  if (result.rows.length !== inputs.length) throw new Error('audit event insert lost an identity');
+  return result.rows.map(row => BigInt(row.id));
 }
 
 export function createPostgresAuditPayloadReader(

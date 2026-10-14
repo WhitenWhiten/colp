@@ -237,6 +237,7 @@ function createCanonicalApplication(
         if (overrides.failAt === 'audit') throw failure;
       },
     },
+    facts: { async capture(tx) { state.seenTransactions.push(tx); state.canonicalCalls.push('facts'); } },
     outbox: {
       async appendDomainEvents(tx) {
         state.seenTransactions.push(tx);
@@ -1018,7 +1019,8 @@ describe('executePublisherCanonicalMutationHarness: composition with Canonical M
           },
         },
         audit: { async appendAuditEvent() {} },
-        outbox: { async appendDomainEvents() {} },
+        facts: { async capture(tx) { state.seenTransactions.push(tx); state.canonicalCalls.push('facts'); } },
+    outbox: { async appendDomainEvents() {} },
       }),
     };
 

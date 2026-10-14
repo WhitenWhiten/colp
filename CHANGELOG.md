@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Added `negotiatePublicationVersion` and `normalizePublicationSupportedVersions` (`server`), and `PublicationHttpReadInput.protocolVersionHeader` / `accept` / `supportedVersions`. `publicationHttpReadFromRequest` now reads `Collection-Protocol-Version` and `Accept` so hosts composed through `publicationHttpRead` answer `406 unsupported_version` with `supportedVersions` (SPECIFICATION §12) for an unsupported exact header value or an unsupported `Accept` `version` parameter, while quoted parameters, `q=0` ranges, unrelated media types and supported or absent versions are not rejected (PUB-0041).
 - The static example `examples/publication-server.mjs` documents that it ignores `limit`/cursor and what a paging host must do.
 - Heavy tests carry explicit timeouts instead of relying on wall-clock defaults.
+- Added the `@know-n/colp/automation` subpath. Until it is released, the package is versioned `0.2.0-automation.0` and the server vendors that build instead of the published `0.1.3`.
 
 ### Conformance runner
 

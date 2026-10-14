@@ -145,7 +145,7 @@ test('P3-12 production Sync Push create evaluator never imports the generic Push
     'src/bootstrap/api-postgres-ports.ts',
     'src/bootstrap/api-mcp-surface-composition.ts',
     'src/bootstrap/api-account-services.ts',
-    'src/bootstrap/api-attachments-composition.ts',
+    // The self-hosted checkout removed api-attachments-composition.ts before BE-1.
     'src/bootstrap/api-email-composition.ts',
     'src/bootstrap/api-lifecycle.ts',
     'src/bootstrap/api-mcp-oauth-composition.ts',

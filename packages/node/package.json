@@ -1,6 +1,6 @@
 {
   "name": "@know-n/colp",
-  "version": "0.1.3",
+  "version": "0.2.0-automation.0",
   "license": "Apache-2.0",
   "description": "Node.js implementation of The Collection Protocol (COLP)",
   "keywords": [
@@ -41,7 +41,8 @@
     "docs/PUBLICATION_QUICKSTART.md",
     "docs/PUBLISHER_QUICKSTART.md",
     "docs/SECURITY_COMPOSITION.md",
-    "docs/SYNC_HOST_COMPOSITION.md"
+    "docs/SYNC_HOST_COMPOSITION.md",
+    "docs/AUTOMATION_BROWSER_PROFILE.md"
   ],
   "exports": {
     ".": {
@@ -196,6 +197,14 @@
       },
       "import": "./dist/mcp/2026-07-28/index.js",
       "require": "./dist/mcp/2026-07-28/index.cjs"
+    },
+    "./automation": {
+      "types": {
+        "import": "./dist/automation/index.d.ts",
+        "require": "./dist/automation/index.d.cts"
+      },
+      "import": "./dist/automation/index.js",
+      "require": "./dist/automation/index.cjs"
     }
   },
   "scripts": {
@@ -235,10 +244,12 @@
     "test:mutation:publisher": "stryker run stryker.publisher.config.mjs",
     "test:mutation:publication": "stryker run stryker.publication.config.mjs",
     "build": "tsup && tsup --config tsup.unsafe-dts.config.ts && node scripts/copy-build-assets.mjs && node scripts/check-build-entry-identity.mjs",
-    "check": "npm run check:protocol && npm run check:types && npm run check:traceability && npm run typecheck && npm run check:source-size && npm run test:coverage:publisher && npm run test:coverage:security && npm run test:coverage:sync-core && npm run build && node scripts/generate-conformance-evidence.mjs --check --coverage && npm run pack:check && npm run check:mcp-legacy-absence",
+    "check": "npm run check:automation && npm run check:protocol && npm run check:types && npm run check:traceability && npm run typecheck && npm run check:source-size && npm run test:coverage:publisher && npm run test:coverage:security && npm run test:coverage:sync-core && npm run build && node scripts/generate-conformance-evidence.mjs --check --coverage && npm run pack:check && npm run check:mcp-legacy-absence",
     "scan:dependencies": "npm audit --omit=dev --audit-level=high && npm audit --audit-level=high",
     "pack:consumer-smoke": "node scripts/packed-consumer-smoke.mjs",
-    "pack:check": "npm pack --dry-run && publint && attw --pack . --ignore-rules no-resolution && npm run pack:consumer-smoke"
+    "pack:check": "npm pack --dry-run && publint && attw --pack . --ignore-rules no-resolution && npm run pack:consumer-smoke",
+    "generate:automation": "node scripts/generate-automation.mjs",
+    "check:automation": "node scripts/generate-automation.mjs --check"
   },
   "dependencies": {
     "@modelcontextprotocol/core": "2.3.1",

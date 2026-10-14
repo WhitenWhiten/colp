@@ -1,3 +1,5 @@
+import { isAutomationPlanOperation, executeAutomationPlanOperation } from './automation-plan-operations.js';
+import type { AnnotationMutationPorts } from '../collections/index.js';
 /**
  * Canonical Change Plan commit executor for MCP-W05.
  * Plan policy and approval stay in change-plan-service.ts.
@@ -61,6 +63,7 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
   binding: McpAuthenticatedAuthorizationBinding,
   plansByTransaction: WeakMap<object, McpStoredPlan>,
   createProductPorts: (transaction: Transaction) => ProductCollectionCanonicalPorts,
+  createAnnotationPorts?: (transaction: Transaction) => AnnotationMutationPorts,
   recordDeleteSubtreeTombstones?: (
     transaction: Transaction,
     facts: McpDeleteSubtreeTombstoneFacts,
@@ -89,7 +92,10 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
   for (const operation of operations) {
     const ports = createProductPorts(transaction);
     let result: OperationResult;
-    if (isCreateNodeOperation(operation)) {
+    if (isAutomationPlanOperation(operation)) {
+      if (!createAnnotationPorts) throw commitFailure('Automation operation ports unavailable.');
+      result = await executeAutomationPlanOperation(operation,plan,ownedBinding,ports,createAnnotationPorts(transaction));
+    } else if (isCreateNodeOperation(operation)) {
       result = await executeNodeCreate(ports, plan, operation, ownedBinding);
     } else if (isMoveNodeOperation(operation)) {
       result = await executeNodeMove(ports, plan, operation, ownedBinding, revisions);

@@ -1,0 +1,14 @@
+{"at":"2026-10-14T05:17:01.954Z","stage":"rules","kind":"start","node":"v22.23.2","thresholds":{"saveP95Ms":1000,"saveMaxMs":2000,"runOnceMs":10000},"rounds":3,"burstCount":20,"ruleSizes":[1,50,200,500],"canonicalSeed":false}
+{"at":"2026-10-14T05:17:16.128Z","stage":"rules","count":1,"round":1,"previewMs":64.05569200000173,"previewQueries":45,"admissionMs":81.89606800000183,"rssBytes":214544384}
+{"at":"2026-10-14T05:17:16.323Z","stage":"rules","count":1,"round":2,"previewMs":53.39699499999915,"previewQueries":45,"admissionMs":55.014304000000266,"rssBytes":214675456}
+{"at":"2026-10-14T05:17:16.547Z","stage":"rules","count":1,"round":3,"previewMs":84.66685900000084,"previewQueries":45,"admissionMs":58.924488999997266,"rssBytes":214806528}
+{"at":"2026-10-14T05:17:24.356Z","stage":"rules","count":50,"round":1,"previewMs":139.2954979999995,"previewQueries":68,"admissionMs":1200.0272479999985,"rssBytes":215592960}
+{"at":"2026-10-14T05:17:25.389Z","stage":"rules","count":50,"round":2,"previewMs":136.00604100000055,"previewQueries":68,"admissionMs":818.2544070000004,"rssBytes":215986176}
+{"at":"2026-10-14T05:17:26.262Z","stage":"rules","count":50,"round":3,"previewMs":282.83786600000167,"previewQueries":68,"admissionMs":370.0617390000043,"rssBytes":216510464}
+{"at":"2026-10-14T05:17:45.199Z","stage":"rules","count":200,"round":1,"previewMs":285.7595550000042,"previewQueries":68,"admissionMs":1938.7883329999968,"rssBytes":224768000}
+{"at":"2026-10-14T05:17:47.743Z","stage":"rules","count":200,"round":2,"previewMs":218.5926130000007,"previewQueries":68,"admissionMs":2197.397570000001,"rssBytes":227127296}
+{"at":"2026-10-14T05:17:50.048Z","stage":"rules","count":200,"round":3,"previewMs":361.12968199999887,"previewQueries":68,"admissionMs":1724.5107389999976,"rssBytes":229486592}
+{"at":"2026-10-14T05:18:56.788Z","stage":"rules","count":500,"round":1,"previewMs":369.67302899999777,"previewQueries":68,"admissionMs":9077.405730999992,"rssBytes":236695552}
+{"at":"2026-10-14T05:19:02.604Z","stage":"rules","count":500,"round":2,"previewMs":405.0270900000032,"previewQueries":68,"admissionMs":5339.6497170000075,"rssBytes":236695552}
+{"at":"2026-10-14T05:19:13.363Z","stage":"rules","count":500,"round":3,"previewMs":1158.231832999998,"previewQueries":68,"admissionMs":9389.133935999998,"rssBytes":236695552}
+{"at":"2026-10-14T05:19:14.877Z","stage":"rules","kind":"result","failures":[],"eventLoopP99Ms":23.969791,"maxRssKiB":231148}

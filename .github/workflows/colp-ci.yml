@@ -94,7 +94,7 @@ jobs:
         run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
         working-directory: packages/node
       - name: Protocol assets, generated types, traceability and typecheck
-        run: npm run check:protocol && npm run check:types && npm run check:traceability && npm run typecheck && npm run check:source-size
+        run: npm run check:automation && npm run check:protocol && npm run check:types && npm run check:traceability && npm run typecheck && npm run check:source-size
         working-directory: packages/node
 
   test:
@@ -295,6 +295,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -310,7 +312,9 @@ jobs:
         run: npm run lint
         working-directory: packages/server
       - name: Import boundaries
-        run: npm run check:imports
+        run: npm run check:imports && npm run check:migrations
+        env:
+          MIGRATION_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD' }}
         working-directory: packages/server
       - name: Runtime manifest drift
         run: npm run runtime:manifest:check

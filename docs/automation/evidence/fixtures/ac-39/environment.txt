@@ -1,0 +1,32 @@
+Wed Oct 14 04:21:28 UTC 2026
+v22.23.2
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           46 bits physical, 48 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  3
+On-line CPU(s) list:                     0-2
+Vendor ID:                               GenuineIntel
+BIOS Vendor ID:                          Red Hat
+Model name:                              Intel(R) Xeon(R) CPU E5-2697 v2 @ 2.70GHz
+BIOS Model name:                         RHEL 7.6.0 PC (i440FX + PIIX, 1996)  CPU @ 2.0GHz
+BIOS CPU family:                         1
+CPU family:                              6
+Model:                                   62
+Thread(s) per core:                      1
+Core(s) per socket:                      1
+Socket(s):                               3
+Stepping:                                4
+BogoMIPS:                                5400.00
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 cx16 pdcm pcid sse4_1 sse4_2 x2apic popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid fsgsbase tsc_adjust smep erms xsaveopt arat vnmi umip md_clear flush_l1d arch_capabilities
+Virtualization:                          VT-x
+               total        used        free      shared  buff/cache   available
+Mem:            1967         571         450          13        1151        1396
+Swap:           1023         162         861
+Filesystem     Type 1K-blocks     Used Available Use% Mounted on
+/dev/vda1      ext4 247581556 91657480 143325384  40% /
+image=sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9
+postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg13+2)
+6469ae2cdeed9230ce8f42bf114ec3b2e52072280d03394842bdd05f6b3cccc7  packages/server/package-lock.json
+d740ba8c6bd87313ad2d4ed679db1e7cc3c0f8392cf0fe71f7615bf58267612e  packages/server/tests/support/ac39-capacity.ts
+9a32df6222a6683edfa2ac498b5dcca517c0267cc1cd98a783f384ce19a6af2b  /tmp/colp-ac39-f6beff6/packages/server/tests/support/ac39-capacity.ts

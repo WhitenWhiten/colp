@@ -57,10 +57,11 @@ export const PHASE4B_MCP_INSTRUCTIONS =
 /** Builds a fresh frozen discovery result; never accepts request-derived input. */
 export function createPhase4bMcpDiscoverResult(
   writeEnabled = false,
+  eventsEnabled = false,
 ): Mcp20260728DiscoverResult {
   return createMcp20260728DiscoverResult({
     serverInfo: resolvePhase4bMcpServerInfo(writeEnabled),
-    capabilities: PHASE4B_MCP_DISCOVERY_CAPABILITIES,
+    capabilities: { ...PHASE4B_MCP_DISCOVERY_CAPABILITIES, ...(eventsEnabled ? { events: {} } : {}) },
     instructions: PHASE4B_MCP_INSTRUCTIONS,
   });
 }

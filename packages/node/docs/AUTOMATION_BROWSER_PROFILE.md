@@ -1,0 +1,59 @@
+# Automation finite profile v1
+
+Profile `browser-bounded-v1`; rule apiVersion `colp.automation/v1`;
+stored factsVersion `1` (the facts JSON has no apiVersion field); contract `0.2.1-design`.
+This is an optional non-conformance subpath of @know-n/colp. Protocol MUST
+traceability is unchanged. The backend and future browser consumer use the same exports.
+
+Stored JSON is closed. Unknown keys are shape errors. CEL is recognized structurally
+but rejected as unsupported capability. JavaScript is not a language branch.
+M1 accepts tasks=[], route.targetIds=[], no executionPolicyId, no credentials.
+No worker, target, model, count/scheduled trigger or historical preview is available in BE-1.
+
+Finite predicates: all/any/not/field. Maximum depth 16, 128 nodes, reviewed per-field schema bounds, eight tasks. The finite DSL has no additional 4096-byte total-expression limit (the separate CEL schema limit does not apply to it).
+Field/operator types follow the reviewed schema. Host normalization uses WHATWG URL,
+IDNA, lower case and removes terminal dots; http/https only. Invalid URL is missingInput.
+startsWith is literal case-sensitive path prefix: /docs/ accepts /docs/a and
+rejects /other/docs/a and /docs. hostSuffix uses a dot boundary and never query text.
+Missing fields propagate explicitly; unsupported facts versions are missingInput.
+No network, Node builtins, Chrome, React, storage or worker dependencies.
+
+Call compilePredicate on untrusted predicates; its successful result provides evaluate and an isolated normalizedPredicate. The raw evaluator is internal. normalizeRuleDefinition and ruleSemanticDigest use the same normalization.
+
+Evaluate one bounded snapshot. Results: matched/notMatched/missingInput/error.
+Required unusable bindings produce blocked, never notMatched. Placement priority is
+integer [-1000,1000]; equal conflicting destinations go to review. Explicit selection
+and privacy override priority. Root satisfaction suppresses only folder classification.
+Task graph: unique IDs, known predecessors/contracts, acyclic, role-kind checks, ≤8 tasks.
+
+`arbitratePlacement(candidates, intent)` requires an explicit `PlacementIntent` from
+the event's intake disposition. Only `userDefault` and `rulePlacement` permit a
+placement decision; `userSelected` preserves the parent, and unknown, missing or
+unverified intent yields review. The decision describes placement only. The host
+uses the evaluated rule's `intake.satisfies` declaration after a successful placement;
+an empty declaration produces no satisfaction marker. This replaces the initial
+experimental optional-boolean argument and implicit root-satisfaction result.
+
+`analyzeRoleGraph` orders `mustBeWithinRole` dependencies before their consumers,
+independently of declaration order. Unknown/wrong-kind ancestors, duplicate role
+keys, self references and cycles are invalid. `intakeRoleKeys` includes scope,
+intake and transitive role constraints. Required roles are required by their consuming
+stage; unavailable unused roles are warnings and cannot block intake.
+
+Positive fixtures: tests/fixtures/automation/m1-placement.json and event-facts.json
+copied from the reviewed pack. Negative acceptance: unknown key/version; malformed URL;
+spoofed host; non-prefix path; wrong field/operator; depth 17; node count 129; ninth task;
+cycle; missing/wrong-kind role; CEL; count batch. These are executable core tests in AW-04–07.
+
+Browser storage/runtime integration and extension installation belong to AW-49.
+Store review and actual browser lifecycle remain release gates, not preapproved claims.
+
+BE-1 validates browser-target bundle execution with trusted fixtures. Actual MV3 CSP/store
+installation remains AW-49; no Chrome lifecycle or store approval is claimed.
+
+BE-2 bundle correction: each CompiledRule carries the complete normalized `definition`.
+`programId` and `parameters` are optimization hints only; consumers evaluate `definition`
+with this shared core, including priority, scope, policy and literal path prefixes.
+A consumer that does not support that definition must reject the complete bundle.
+It must never infer omitted semantics from host/tag hints. The adjustment is versioned
+in docs/automation/contract-adjustments.json and shared by schema/type/OpenAPI generators.

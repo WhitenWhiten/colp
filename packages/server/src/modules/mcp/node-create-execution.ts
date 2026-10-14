@@ -64,6 +64,7 @@ export async function executeMcpNodeCreate(
     },
     collectionId: command.collectionId,
     parentId: snapshot.parentId,
+    intakeDisposition: command.parentId === undefined ? 'userDefault' : 'userSelected',
     afterId: command.afterId,
     beforeId: command.beforeId,
     node: toNodeCreateInput(command.node, snapshot.appliedVisibility),

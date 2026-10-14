@@ -10,11 +10,13 @@ export function syncCanonicalMutationInput(
   operation: Operation,
   actorPrincipalId: string,
   mutation: CanonicalResourceMutation,
+  origin: 'sync' | 'import' = 'sync',
 ): CanonicalMutationInput {
   if (typeof operation.collectionId !== 'string') {
     throw new TypeError('Sync Operation collectionId is required for canonical persistence');
   }
   return Object.freeze({
+    automationContext: { origin },
     operationId: operation.opId,
     collectionId: operation.collectionId,
     actor: Object.freeze({ principalId: actorPrincipalId, principalType: 'account' }),

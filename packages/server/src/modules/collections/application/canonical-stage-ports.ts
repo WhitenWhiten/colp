@@ -123,6 +123,10 @@ export interface CanonicalMutationPorts<Transaction, PlanFacts = unknown> {
   readonly resources: CanonicalResourceWritePort<Transaction, PlanFacts>;
   readonly operations: OperationWritePort<Transaction, PlanFacts>;
   readonly audit: AuditWritePort<Transaction, PlanFacts>;
+  readonly facts: {
+    capture(transaction: Transaction, event: CanonicalDomainEvent<PlanFacts>,
+      input: CanonicalMutationInput, allocation: AllocatedMutationState): Promise<void>;
+  };
   readonly outbox: OutboxWritePort<Transaction, PlanFacts>;
 }
 

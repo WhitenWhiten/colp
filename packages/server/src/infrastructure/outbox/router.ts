@@ -33,7 +33,7 @@ export interface OutboxRoute {
    */
   readonly sideEffectDurability: SideEffectDurability;
   /** Static, low-cardinality route class used for readiness and metrics. */
-  readonly routeClass?: 'projection' | 'publication_cache_purge' | 'report_public_surface_purge';
+  readonly routeClass?: 'projection' | 'publication_cache_purge' | 'report_public_surface_purge' | 'automation_ingest';
   /** Invoked only after the claim transaction commits; external I/O never holds repository locks. */
   handle(context: OutboxHandlerContext): Promise<void>;
 }
@@ -99,6 +99,7 @@ export interface OutboxRouteDurabilityInspection {
   readonly allDurable: boolean;
   readonly publicationCachePurge: PublicationCachePurgeReadiness;
   readonly reportPublicSurfacePurge: PublicationCachePurgeReadiness;
+  readonly automationIngest: PublicationCachePurgeReadiness;
 }
 
 export class UnknownOutboxRouteError extends Error {
@@ -130,6 +131,7 @@ export class TransientSideEffectCompletionError extends Error {
 export function inspectOutboxRouteDurability(
   routes: Iterable<Pick<OutboxRoute, 'sideEffectDurability' | 'routeClass'>>,
 ): OutboxRouteDurabilityInspection {
+  let automationCount = 0, automationDurableCount = 0;
   let routeCount = 0;
   let durableCount = 0;
   let transientCount = 0;
@@ -139,6 +141,10 @@ export function inspectOutboxRouteDurability(
   let reportPublicSurfacePurgeDurableCount = 0;
   for (const route of routes) {
     routeCount += 1;
+    if (route.routeClass === 'automation_ingest') {
+      automationCount += 1;
+      if (route.sideEffectDurability === 'durable') automationDurableCount += 1;
+    }
     if (route.sideEffectDurability === 'durable') durableCount += 1;
     else transientCount += 1;
     if (route.routeClass === 'publication_cache_purge') {
@@ -155,6 +161,8 @@ export function inspectOutboxRouteDurability(
     durableCount,
     transientCount,
     allDurable: transientCount === 0,
+    automationIngest: Object.freeze({ configured: automationCount > 0, routeCount: automationCount, durableCount: automationDurableCount,
+      allDurable: automationCount > 0 && automationCount === automationDurableCount, state: automationCount === 0 ? 'missing' : 'durable' }),
     publicationCachePurge: Object.freeze({
       configured: publicationCachePurgeRouteCount > 0,
       routeCount: publicationCachePurgeRouteCount,

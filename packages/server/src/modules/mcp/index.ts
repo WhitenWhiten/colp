@@ -64,3 +64,11 @@ export type { StaticMcpToolLookup } from './static-tool-lookup.js';
 export { MCP_OWN_DATA_DEFAULT_BUDGET } from './own-data.js';
 // E3: infrastructure:search implements the nodes.search ports through this facade.
 export type { NodesSearchCardPort, NodesSearchLinkHealth, NodesSearchPorts } from './nodes-search.js';
+export * from './automation-plan-operations.js';
+export * from './automation-catalog.js';
+export { automationWorkPrincipal } from './automation-context.js';
+export { createAutomationToolPort } from './automation-tools.js';
+
+export * from './events-adapter.js';
+
+export { buildAutomationStoredPlan } from './automation-plan-builder.js';

@@ -42,8 +42,19 @@ export async function readCanonicalTreeCapacity(tx: DatabaseTransaction, collect
     .forUpdate().executeTakeFirstOrThrow();
   // Keep this read after lock acquisition: a combined query could retain the
   // snapshot taken before a concurrent admission released the collection lock.
-  const prior = (await sql<Totals>`select * from canonical_tree_capacity
-    where collection_id=${collectionId} for update`.execute(tx)).rows[0];
+  const loaded = (await sql<Omit<Totals, 'serializer_version'> & { serializer_version: number | null; dirty: {
+    node_id: string; node_bytes: number | null; parent_bytes: number | null; node: SnapshotNodeRow | null;
+  }[] }>`WITH prior AS MATERIALIZED (
+      SELECT * FROM canonical_tree_capacity WHERE collection_id=${collectionId} FOR UPDATE
+    ), dirty AS (
+      DELETE FROM canonical_tree_capacity_dirty WHERE collection_id=${collectionId}
+        AND EXISTS (SELECT 1 FROM prior WHERE serializer_version=${SERIALIZER_VERSION}) RETURNING node_id
+    ) SELECT prior.*, COALESCE((SELECT json_agg(changes) FROM (
+      SELECT dirty.node_id,e.node_bytes::integer,e.parent_bytes::integer,to_jsonb(n) AS node
+      FROM dirty LEFT JOIN canonical_tree_capacity_entries e ON e.collection_id=${collectionId} AND e.node_id=dirty.node_id
+      LEFT JOIN nodes n ON n.collection_id=${collectionId} AND n.id=dirty.node_id AND n.deleted_at IS NULL
+    ) changes),'[]'::json) AS dirty FROM (SELECT 1) anchor LEFT JOIN prior ON true`.execute(tx)).rows[0]!;
+  const prior = loaded.serializer_version === null ? undefined : { ...loaded, serializer_version: loaded.serializer_version };
   let total: Totals;
   if (!prior || prior.serializer_version !== SERIALIZER_VERSION) {
     const rows = await tx.selectFrom('nodes').selectAll().where('collection_id', '=', collectionId)
@@ -62,15 +73,7 @@ export async function readCanonicalTreeCapacity(tx: DatabaseTransaction, collect
         parent_count=excluded.parent_count, parent_bytes=excluded.parent_bytes
       returning *`.execute(tx)).rows[0]!;
   } else {
-    const dirty = (await sql<{
-      node_id: string; node_bytes: number | null; parent_bytes: number | null; node: SnapshotNodeRow | null;
-    }>`with dirty as (
-      delete from canonical_tree_capacity_dirty where collection_id=${collectionId} returning node_id
-    ) select dirty.node_id, e.node_bytes::integer, e.parent_bytes::integer, to_jsonb(n) as node
-      from dirty left join canonical_tree_capacity_entries e
-        on e.collection_id=${collectionId} and e.node_id=dirty.node_id
-      left join nodes n on n.collection_id=${collectionId} and n.id=dirty.node_id and n.deleted_at is null
-    `.execute(tx)).rows;
+    const dirty = loaded.dirty;
     total = prior;
     if (dirty.length) {
       const old: Contribution[] = dirty.flatMap(row => row.node_bytes === null ? [] : [{

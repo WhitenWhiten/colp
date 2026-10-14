@@ -245,3 +245,17 @@ test('approved Plan and direct nodes.create admit through the same payload parse
     );
   }
 });
+
+test('MCP default parent and explicitly selected root retain distinct intake intent', async () => {
+  for (const [parentId, expected] of [[undefined, 'userDefault'], ['root-1', 'userSelected']] as const) {
+    const base = createFakePorts(createdResult(), createUowProbe());
+    let disposition: string | undefined;
+    const ports: ProductCollectionCanonicalPorts = { ...base, canonical: { ...base.canonical,
+      async execute(input) { disposition = input.intakeDisposition; return base.canonical.execute(input); },
+    } };
+    await executeMcpNodeCreate(ports, { collectionId: 'collection-1', ...(parentId ? { parentId } : {}),
+      afterId: null, beforeId: null, node: parseMcpNodeCreatePayload({ kind: 'bookmark', title: 'Default intent', url: 'https://arxiv.org/default' }),
+      idempotencyKey: IDEMPOTENCY_KEY, expectedBaseRevisions: {} }, CONTEXT);
+    assert.equal(disposition, expected);
+  }
+});

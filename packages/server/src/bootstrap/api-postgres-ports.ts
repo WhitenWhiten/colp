@@ -1,3 +1,7 @@
+import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
+import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
+import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
+import { createAutomationDeviceUnitOfWork, createAutomationUnitOfWork, createAutomationHealthMonitor, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createPostgresBookmarkSubscriptionUnitOfWork } from '../infrastructure/bookmark-subscriptions/unit-of-work.js';
 import { loadConfig } from './config.js';
 import {
@@ -144,6 +148,7 @@ export function createApiPostgresPorts(input: {
   readonly metricsLogger: ReturnType<typeof createLogger>;
 }): ApiPostgresPorts {
   const { database, config, metrics, metricsLogger } = input;
+  setAutomationCaptureEnabled(config.automationCaptureEnabled === true);
   const reportSourceInvalidation = undefined;
   const identityUnitOfWork = createPostgresIdentityUnitOfWork(database.db, {
     // F2: Better Auth mode omits legacy transaction secrets; legacy mode keeps
@@ -300,6 +305,12 @@ export function createApiPostgresAppDependencies(input: {
         database.db, config.syncSession.conflictPayloadKeyring,
       ),
     } : {}),
+    ...(config.automationRulesEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid, { eventsEnabled:config.mcpEventsEnabled === true,runtimeEnabled: config.automationAdmissionEnabled === true,workerEnabled: config.automationWorkEnabled === true,verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))) }),
+      automationDeviceUnitOfWork: createAutomationDeviceUnitOfWork(database.db, config.publication.serverUuid),
+      automationHealthStartup: () => createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationAdmissionEnabled, {
+        eventsEnabled:config.mcpEventsEnabled === true,workerEnabled: config.automationWorkEnabled === true,
+        verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),
+      }).revalidateAll() } : {}),
     linkHealthEnqueue: createPostgresLinkHealthEnqueueUnitOfWork(database.db),
     collectionExportReads: createPostgresCollectionExportReadPort(database.db),
     collectionVersions: createPostgresCollectionVersionUnitOfWork(database.db, { ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }) }),

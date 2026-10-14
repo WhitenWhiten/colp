@@ -1,0 +1,29 @@
+
+> colp-aw02-spike@0.1.0 test
+> node --test test/*.test.mjs
+
+✔ Node autoSelectFamily receives an address array when lookup requests all (0.602914ms)
+✔ real engine validates generated-shape rule and ten safety/eligibility cases (73.798338ms)
+✔ real engine rejects unknown shape, unsupported CEL, and wrong semantic predicate (1.113958ms)
+✔ engine job emitted only for accepted candidate, real TextOutput parser and receipt survive restart (11.381037ms)
+✔ SDK wire preserves events; public core and SDK client discovery strip capability (58.256621ms)
+✔ signed challenge, deterministic refresh, filtered delivery and idempotent unsubscribe (1.186057ms)
+✔ secret boundaries and callback error code (0.655961ms)
+✔ signature tamper rejected and stale timestamp rejected (0.426118ms)
+✔ encrypted state survives restart, expiration stops delivery (2.002833ms)
+✔ retry preserves body/id and renews timestamp; 410 and 413 stop retries (1.001496ms)
+✔ private addresses and non-HTTPS callbacks blocked (1.594351ms)
+✔ auth and non-null cursor rejected before callback (1.827754ms)
+✔ rotation signs with both keys only during the bounded window (0.779719ms)
+✔ ack requires an issued event/job and deduplicates receipts (5.324349ms)
+✔ OAuth DCR/PKCE/login/token/refresh, MCP authorization and admin isolation (36.639285ms)
+✔ OAuth blocks unregistered redirects, wrong PKCE and resource mismatch (2.446228ms)
+✔ OAuth approval continues to reject null and foreign origins (0.665905ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 217.57379

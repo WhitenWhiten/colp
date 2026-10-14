@@ -1,3 +1,15 @@
+import { convergeOwnerWork, createAutomationMaintenanceLoop, resumeOwnerBudgets } from '../infrastructure/automation/index.js';
+import { retainAutomationHistory } from '../infrastructure/automation/index.js';
+import { createDeliveryWorker } from '../infrastructure/automation/index.js';
+import { createWebhookVerifier } from '../infrastructure/automation/index.js';
+import { createTargetWorkerService } from '../infrastructure/automation/index.js';
+import { createAutomationIngestRoute, createAutomationManualRoute, automationManualRegistration, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
+import { createAutomationSourceInspector, createManualRunConsumer, createAutomationRuntime, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
+import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
+import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
+import { createWorkerApprovalApplier } from './automation-approval-composition.js';
+import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
+import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
 import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
 import { loadSharedFaviconConfig } from './config-favicon-shared.js';
 import { SharedFaviconCache } from '../infrastructure/collections/favicon-shared-cache.js';
@@ -356,6 +368,7 @@ export function buildWorker(
   options: BuildWorkerOptions = {},
 ): WorkerRuntime {
   const logger: ReturnType<typeof createLogger> = options.logger ?? createLogger(config.logLevel);
+  setAutomationCaptureEnabled(config.automationCaptureEnabled === true);
   const capacity = sanitizedRuntimeCapacity(config);
   if (config.syncTombstonePurge.enabled && !database) {
     throw new Error('worker composition refused: Sync Tombstone purge requires PostgreSQL');
@@ -375,10 +388,42 @@ export function buildWorker(
   }
   // Task 12: production default is the durable PostgreSQL collection mutation projection.
   // Task 11 invariants still hold: never default to memory; refuse transient sinks.
-  const baseProjectionSink = resolveProductionProjectionSink({
+  const originalProjectionSink = resolveProductionProjectionSink({
     database,
     projectionSink: options.projectionSink,
   });
+  const automationHealth = config.automationRulesEnabled && database
+    ? createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationAdmissionEnabled, {
+      eventsEnabled:config.mcpEventsEnabled === true,workerEnabled: config.automationWorkEnabled === true,
+      verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),
+    }) : undefined;
+  const deliveryWorker = config.mcpEventsEnabled && database && config.automationWebhookMasterKey
+    ? createDeliveryWorker(database.db,createTargetWorkerService(database.db,
+      createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))),async () => {}).authorize,
+      createWebhookVerifier(config.automationWebhookMasterKey,{ ...(config.automationWebhookPreviousMasterKey ? { previousMasterKey: config.automationWebhookPreviousMasterKey } : {}) })) : undefined;
+  const automationApprovals = database ? createWorkerApprovalApplier(config, database.db, metrics) : undefined;
+  let retentionAfter = '';
+  // Capture alone (shadow mode) still needs the facts retention sweep.
+  const automationMaintenance = (config.automationRulesEnabled || config.automationCaptureEnabled) && database
+    ? createAutomationMaintenanceLoop({
+      delivery: deliveryWorker,
+      async maintain() {
+        const owner=await database.db.selectFrom('accounts').select('id').where('id','>',retentionAfter).orderBy('id').limit(1).executeTakeFirst();
+        if(!owner){retentionAfter='';return;}
+        // A failed Owner is retried on the next sweep, without starving others.
+        retentionAfter=owner.id;
+        await retainAutomationHistory(database.db,owner.id,config.mcpWriteEnabled === true);
+        if(config.automationWorkEnabled){
+          await resumeOwnerBudgets(database.db,owner.id);
+          // Owner and run reads only report; leases and committed plans converge here.
+          await convergeOwnerWork(database.db,owner.id,config.publication.serverUuid);
+        }
+        // Decided, expired or cancelled proposals converge without the worker that produced them.
+        await automationApprovals?.sweep(owner.id);
+      },
+      onError(kind) {metrics.increment(`automation.${kind}.error`);},
+    }) : undefined;
+  const baseProjectionSink = originalProjectionSink && automationHealth ? automationHealth.wrap(originalProjectionSink) : originalProjectionSink;
   if (config.mcp && options.mcpReadChangeSignalSource === undefined) {
     throw new Error(
       'worker composition refused: MCP Read enabled requires an MCP change signal source for subscriptions/listen hints',
@@ -474,6 +519,11 @@ export function buildWorker(
     : Object.freeze([]);
   const routes = Object.freeze([
     ...projectionRoutes, ...syncConflictRoutes,
+    ...(database ? [undefined, AUTOMATION_RESUME_EVENT].map(eventType => createAutomationIngestRoute(createAutomationSourceInspector(database.db,
+      // Shadow capture (admission off) only advances the source cursor: no account or Sync locks.
+      config.automationAdmissionEnabled ? createAutomationRuntime(config.publication.serverUuid,config.automationWorkEnabled === true) : null), eventType)) : []),
+    ...(database ? [createAutomationManualRoute(createManualRunConsumer(database.db, config.publication.serverUuid,
+      { runtimeEnabled: config.automationAdmissionEnabled === true, workerEnabled: config.automationWorkEnabled === true }))] : []),
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
   ]);
@@ -529,6 +579,9 @@ export function buildWorker(
     envelopes: new EventEnvelopeRegistry([
       ...createCollectionMutationEnvelopeRegistrations(),
       syncConflictEnvelopeRegistration,
+      automationIngestRegistration,
+      automationResumeRegistration,
+      automationManualRegistration,
       collectionInviteCreatedEnvelopeRegistration,
     ]),
     logger,
@@ -718,6 +771,7 @@ export function buildWorker(
     capacity,
     async start() {
       await database?.verifyReady();
+      await automationHealth?.revalidateAll();
       // Re-assert durability at start so miscomposed runtimes fail closed before polling.
       if (outbox) {
         const readiness = outbox.projectionReadiness();
@@ -750,6 +804,7 @@ export function buildWorker(
       // Validate the scheduler dependency before any worker loop is started;
       // otherwise an enabled-but-unwired connector would leave outbox/email
       // timers running after start() rejects.
+      automationMaintenance?.start();
       outbox?.start();
       linkHealthRuntime?.loop.start();
       linkPreviewRuntime?.loop.start();
@@ -828,6 +883,7 @@ export function buildWorker(
     },
     async stop() {
       const failures: WorkerStopFailure[] = [];
+      await attemptWorkerStop(failures, 'automationMaintenance', () => automationMaintenance?.stop());
       if (notificationOperationsTimer) clearInterval(notificationOperationsTimer);
       notificationOperationsTimer = undefined;
       if (syncOperationsTimer) clearInterval(syncOperationsTimer);

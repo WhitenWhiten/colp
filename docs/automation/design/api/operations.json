@@ -1,0 +1,471 @@
+[
+  {
+    "id": "getAutomationCapabilities",
+    "method": "GET",
+    "path": "/api/v1/me/automations/capabilities",
+    "milestone": "M0",
+    "tag": "Discovery"
+  },
+  {
+    "id": "validateAutomationRule",
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/validate",
+    "milestone": "M1",
+    "tag": "Rules"
+  },
+  {
+    "id": "previewAutomationRule",
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/preview",
+    "milestone": "M1",
+    "tag": "Rules"
+  },
+  {
+    "id": "listAutomationRules",
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules",
+    "milestone": "M1",
+    "tag": "Rules"
+  },
+  {
+    "id": "createAutomationRule",
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules",
+    "milestone": "M1",
+    "tag": "Rules"
+  },
+  {
+    "id": "getAutomationRule",
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}",
+    "milestone": "M1",
+    "tag": "Rules"
+  },
+  {
+    "id": "replaceAutomationRule",
+    "method": "PUT",
+    "path": "/api/v1/me/automations/rules/{ruleId}",
+    "milestone": "M1",
+    "tag": "Rules"
+  },
+  {
+    "id": "setAutomationRuleLifecycle",
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/lifecycle",
+    "milestone": "M1",
+    "tag": "Rules"
+  },
+  {
+    "id": "getAutomationRuleHealth",
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}/health",
+    "milestone": "M1",
+    "tag": "Health"
+  },
+  {
+    "id": "getAutomationRuleDependencies",
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}/dependencies",
+    "milestone": "M1",
+    "tag": "Health"
+  },
+  {
+    "id": "revalidateAutomationRule",
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/revalidate",
+    "milestone": "M1",
+    "tag": "Health"
+  },
+  {
+    "id": "replayAutomationRule",
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/replay",
+    "milestone": "Later",
+    "tag": "Runs"
+  },
+  {
+    "id": "listAutomationBindingSets",
+    "method": "GET",
+    "path": "/api/v1/me/automations/binding-sets",
+    "milestone": "M1",
+    "tag": "Bindings"
+  },
+  {
+    "id": "createAutomationBindingSet",
+    "method": "POST",
+    "path": "/api/v1/me/automations/binding-sets",
+    "milestone": "M1",
+    "tag": "Bindings"
+  },
+  {
+    "id": "getAutomationBindingSet",
+    "method": "GET",
+    "path": "/api/v1/me/automations/binding-sets/{bindingSetId}",
+    "milestone": "M1",
+    "tag": "Bindings"
+  },
+  {
+    "id": "replaceAutomationBindingSet",
+    "method": "PUT",
+    "path": "/api/v1/me/automations/binding-sets/{bindingSetId}",
+    "milestone": "M1",
+    "tag": "Bindings"
+  },
+  {
+    "id": "listAutomationExecutionPolicies",
+    "method": "GET",
+    "path": "/api/v1/me/automations/execution-policies",
+    "milestone": "M2",
+    "tag": "Execution"
+  },
+  {
+    "id": "createAutomationExecutionPolicy",
+    "method": "POST",
+    "path": "/api/v1/me/automations/execution-policies",
+    "milestone": "M2",
+    "tag": "Execution"
+  },
+  {
+    "id": "getAutomationExecutionPolicy",
+    "method": "GET",
+    "path": "/api/v1/me/automations/execution-policies/{policyId}",
+    "milestone": "M2",
+    "tag": "Execution"
+  },
+  {
+    "id": "replaceAutomationExecutionPolicy",
+    "method": "PUT",
+    "path": "/api/v1/me/automations/execution-policies/{policyId}",
+    "milestone": "M2",
+    "tag": "Execution"
+  },
+  {
+    "id": "listAutomationExecutors",
+    "method": "GET",
+    "path": "/api/v1/me/automations/executors",
+    "milestone": "M2",
+    "tag": "Execution"
+  },
+  {
+    "id": "createAutomationExecutor",
+    "method": "POST",
+    "path": "/api/v1/me/automations/executors",
+    "milestone": "Later",
+    "tag": "Execution"
+  },
+  {
+    "id": "getAutomationExecutor",
+    "method": "GET",
+    "path": "/api/v1/me/automations/executors/{executorId}",
+    "milestone": "M2",
+    "tag": "Execution"
+  },
+  {
+    "id": "replaceAutomationExecutor",
+    "method": "PUT",
+    "path": "/api/v1/me/automations/executors/{executorId}",
+    "milestone": "Later",
+    "tag": "Execution"
+  },
+  {
+    "id": "listAutomationTargets",
+    "method": "GET",
+    "path": "/api/v1/me/automations/targets",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "createAutomationTarget",
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "getAutomationTarget",
+    "method": "GET",
+    "path": "/api/v1/me/automations/targets/{targetId}",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "replaceAutomationTarget",
+    "method": "PUT",
+    "path": "/api/v1/me/automations/targets/{targetId}",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "listAutomationConnectionProfiles",
+    "method": "GET",
+    "path": "/api/v1/me/automations/connection-profiles",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "createAutomationConnectionProfile",
+    "method": "POST",
+    "path": "/api/v1/me/automations/connection-profiles",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "getAutomationConnectionProfile",
+    "method": "GET",
+    "path": "/api/v1/me/automations/connection-profiles/{profileId}",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "replaceAutomationConnectionProfile",
+    "method": "PUT",
+    "path": "/api/v1/me/automations/connection-profiles/{profileId}",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "createAutomationTargetPairing",
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets/{targetId}/pairings",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "revokeAutomationTarget",
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets/{targetId}/revoke",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "listAutomationSubscriptions",
+    "method": "GET",
+    "path": "/api/v1/me/automations/subscriptions",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "revokeAutomationSubscription",
+    "method": "POST",
+    "path": "/api/v1/me/automations/subscriptions/{subscriptionId}/revoke",
+    "milestone": "M2",
+    "tag": "Targets"
+  },
+  {
+    "id": "listAutomationIncidents",
+    "method": "GET",
+    "path": "/api/v1/me/automations/incidents",
+    "milestone": "M1",
+    "tag": "Health"
+  },
+  {
+    "id": "acknowledgeAutomationIncident",
+    "method": "POST",
+    "path": "/api/v1/me/automations/incidents/{incidentId}/acknowledge",
+    "milestone": "M1",
+    "tag": "Health"
+  },
+  {
+    "id": "listAutomationRuns",
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs",
+    "milestone": "M1",
+    "tag": "Runs"
+  },
+  {
+    "id": "getAutomationRun",
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs/{runId}",
+    "milestone": "M1",
+    "tag": "Runs"
+  },
+  {
+    "id": "cancelAutomationRun",
+    "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/cancel",
+    "milestone": "M1",
+    "tag": "Runs"
+  },
+  {
+    "id": "undoAutomationRun",
+    "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/undo",
+    "milestone": "M1",
+    "tag": "Runs"
+  },
+  {
+    "id": "getAutomationJobForOwner",
+    "method": "GET",
+    "path": "/api/v1/me/automations/jobs/{jobId}",
+    "milestone": "M2",
+    "tag": "Execution"
+  },
+  {
+    "id": "decideAutomationJob",
+    "method": "POST",
+    "path": "/api/v1/me/automations/jobs/{jobId}/decision",
+    "milestone": "M2",
+    "tag": "Execution"
+  },
+  {
+    "id": "listAutomationDeliveries",
+    "method": "GET",
+    "path": "/api/v1/me/automations/deliveries",
+    "milestone": "M2",
+    "tag": "Delivery"
+  },
+  {
+    "id": "retryAutomationDelivery",
+    "method": "POST",
+    "path": "/api/v1/me/automations/deliveries/{deliveryId}/retry",
+    "milestone": "M2",
+    "tag": "Delivery"
+  },
+  {
+    "id": "listAutomationTemplates",
+    "method": "GET",
+    "path": "/api/v1/me/automations/templates",
+    "milestone": "M4",
+    "tag": "Templates"
+  },
+  {
+    "id": "importAutomationTemplate",
+    "method": "POST",
+    "path": "/api/v1/me/automations/templates/import",
+    "milestone": "M4",
+    "tag": "Templates"
+  },
+  {
+    "id": "installAutomationTemplate",
+    "method": "POST",
+    "path": "/api/v1/me/automations/templates/install",
+    "milestone": "M4",
+    "tag": "Templates"
+  },
+  {
+    "id": "exportAutomationTemplate",
+    "method": "POST",
+    "path": "/api/v1/me/automations/templates/export",
+    "milestone": "M4",
+    "tag": "Templates"
+  },
+  {
+    "id": "getAutomationDeviceBundle",
+    "method": "GET",
+    "path": "/api/v1/automation-device/bundle",
+    "milestone": "M1",
+    "tag": "Device"
+  },
+  {
+    "id": "acknowledgeAutomationDeviceBundle",
+    "method": "POST",
+    "path": "/api/v1/automation-device/bundle-acks",
+    "milestone": "M1",
+    "tag": "Device"
+  },
+  {
+    "id": "ingestAutomationIntakeReceipt",
+    "method": "POST",
+    "path": "/api/v1/automation-device/intake-receipts",
+    "milestone": "M1",
+    "tag": "Device"
+  },
+  {
+    "id": "listAutomationWork",
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs",
+    "milestone": "M2",
+    "tag": "Work"
+  },
+  {
+    "id": "getAutomationWork",
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs/{jobId}",
+    "milestone": "M2",
+    "tag": "Work"
+  },
+  {
+    "id": "getAutomationWorkInputs",
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs/{jobId}/inputs",
+    "milestone": "M2",
+    "tag": "Work"
+  },
+  {
+    "id": "claimAutomationWork",
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/claim",
+    "milestone": "M2",
+    "tag": "Work"
+  },
+  {
+    "id": "heartbeatAutomationWork",
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/heartbeat",
+    "milestone": "M2",
+    "tag": "Work"
+  },
+  {
+    "id": "submitAutomationWorkResult",
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/results",
+    "milestone": "M2",
+    "tag": "Work"
+  },
+  {
+    "id": "reportAutomationWorkFailure",
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/failures",
+    "milestone": "M2",
+    "tag": "Work"
+  },
+  {
+    "id": "setAutomationPause",
+    "method": "POST",
+    "path": "/api/v1/me/automations/pause",
+    "milestone": "M1",
+    "tag": "Settings"
+  },
+  {
+    "id": "exportAutomations",
+    "method": "GET",
+    "path": "/api/v1/me/automations/export",
+    "milestone": "M1",
+    "tag": "Settings"
+  },
+  {
+    "id": "previewAutomationRunOnce",
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/run-once/preview",
+    "milestone": "M3",
+    "tag": "Runs"
+  },
+  {
+    "id": "startAutomationRunOnce",
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/run-once",
+    "milestone": "M3",
+    "tag": "Runs"
+  },
+  {
+    "id": "listAutomationRunOutputs",
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs/{runId}/outputs",
+    "milestone": "M3",
+    "tag": "Runs"
+  },
+  {
+    "id": "markAutomationRunRead",
+    "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/read",
+    "milestone": "M3",
+    "tag": "Runs"
+  },
+  {
+    "id": "claimAutomationTargetPairing",
+    "method": "POST",
+    "path": "/api/v1/automation-work/pairings/claim",
+    "milestone": "M2",
+    "tag": "Work"
+  }
+]

@@ -1,0 +1,546 @@
+[
+  {
+    "id": "AC-01",
+    "milestone": "M1",
+    "scenario": "Pre-save deterministic match",
+    "action": "Save an arXiv page through the popup, the shortcut, the context menu and Save tabs with the rule enabled.",
+    "assertion": "The native bookmark is created directly under Academic (no create-then-move); the local provider receives no folder request; the result panel names the rule.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-02",
+    "milestone": "M1",
+    "scenario": "Matched but unusable destination",
+    "action": "Delete or unsync the bound folder, then save a matching page.",
+    "assertion": "The save succeeds at the chosen or default location; the rule stage is blocked with a reason; no alternate classifier is called.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-03",
+    "milestone": "M2",
+    "scenario": "Refinement boundary",
+    "action": "Have a worker propose a destination outside the bound subtree, and separately move a valid destination out after the worker read it.",
+    "assertion": "Both proposals are rejected at commit with a boundary diagnostic recorded on the job.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-04",
+    "milestone": "M1",
+    "scenario": "Tags-only local request",
+    "action": "Enable the local provider with tag mode Suggest, then Add, then Off; save a matching page each time.",
+    "assertion": "Requests carry folder:false,tags:true for Suggest and Add and no request is sent for Off; a local tag result marks the tags task satisfied on the receipt.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-05",
+    "milestone": "M2",
+    "scenario": "Contract-aware reuse and idempotent results",
+    "action": "Submit the same result twice from two devices or attempts; then change the summary contract without changing the bookmark.",
+    "assertion": "One note and one tag set exist; the old summary is not reused for a different contract.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-06",
+    "milestone": "M2",
+    "scenario": "Taxonomy ambiguity",
+    "action": "Provide overlapping sibling folders and a worker result with keepParent and two subject tags.",
+    "assertion": "The bookmark stays at the parent, both tags apply, and no provider score is compared across models.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-07",
+    "milestone": "M1",
+    "scenario": "Manual choice fencing",
+    "action": "Pick a folder explicitly in the popup while a rule matches; later let a late worker placement arrive.",
+    "assertion": "The manual folder is kept in both cases and the panel explains the skipped rule.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-08",
+    "milestone": "M1",
+    "scenario": "Rule conflict",
+    "action": "Enable two equal-priority rules with different destinations and save a matching page.",
+    "assertion": "The bookmark is not moved; it appears under Needs a decision with both rules named; tag additions still apply.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-09",
+    "milestone": "M1",
+    "scenario": "Star-button creation",
+    "action": "Create a matching bookmark with the browser's star button into a bookmark root.",
+    "assertion": "After the settle window one move is applied, one toast is shown, and the server records one intake covering create and move.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-10",
+    "milestone": "M1",
+    "scenario": "Offline persistence and join",
+    "action": "Save offline, kill the service worker, restart the browser, reconnect.",
+    "assertion": "The receipt and native identity survive; the server joins the receipt to the sync operation; no second run exists.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-11",
+    "milestone": "M1",
+    "scenario": "Invalid or expired bundle",
+    "action": "Install partial, corrupt, unsupported and expired bundles.",
+    "assertion": "Automatic effects fail closed with a notice; the previous valid bundle stays in force; saving still works.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-12",
+    "milestone": "M1",
+    "scenario": "Projection echo",
+    "action": "Project one server move to two browsers.",
+    "assertion": "Neither browser starts an intake; the intended next stage remains allowed.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-13",
+    "milestone": "M1",
+    "scenario": "Rename",
+    "action": "Rename a bound folder during a partial batch (M3) or with pending jobs (M1).",
+    "assertion": "The rule sentence refreshes; identity, counters and pending work are unchanged; one informational notice.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-14",
+    "milestone": "M1",
+    "scenario": "Move and ancestry",
+    "action": "Move a bound folder inside its allowed scope, then outside, then move an ancestor.",
+    "assertion": "Inside: notice only. Outside: dependent stages block with the fix named. Ancestor: all dependent rules listed in one notice.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-15",
+    "milestone": "M1",
+    "scenario": "Delete and same-name recreation",
+    "action": "Delete a bound folder, create another with the same name, then restore the original.",
+    "assertion": "No auto-rebind; Restore and Choose another are offered; restore revalidates without replay.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-16",
+    "milestone": "M2",
+    "scenario": "Partial health",
+    "action": "Make the worker target unavailable while saving matching pages.",
+    "assertion": "Placement continues; the rule shows waiting jobs with last-seen time; the rule is degraded, not blocked.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-17",
+    "milestone": "M2",
+    "scenario": "Standard tool catalog",
+    "action": "List and call tools with an agent that has no automation switch.",
+    "assertion": "The tool list equals the pre-feature list; direct calls to automation tools are refused.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-18",
+    "milestone": "M2",
+    "scenario": "Bootstrap before first job",
+    "action": "Enable a worker and list tools before any job or subscription exists.",
+    "assertion": "Worker tools are listed; nothing requires an active subscription.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-19",
+    "milestone": "M2",
+    "scenario": "Target isolation",
+    "action": "Create two targets on one OAuth client and two on separate clients; route jobs to one.",
+    "assertion": "Only the intended target lists the job; the shared-client case is labeled as not a security boundary.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-20",
+    "milestone": "M3",
+    "scenario": "9 + 2 race",
+    "action": "Admit two bookmarks concurrently with nine waiting in a count-10 rule.",
+    "assertion": "Exactly one run of ten and one waiting member commit.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-21",
+    "milestone": "M3",
+    "scenario": "Fixed members and replayed source",
+    "action": "Retry a source event, run-once 25 bookmarks, then delete a batch member.",
+    "assertion": "No double count; two runs of ten and five waiting; the deleted member is reported, not replaced.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-22",
+    "milestone": "M4",
+    "scenario": "Broadcast fan-out",
+    "action": "Broadcast per-target analysis; fail one receiver; add a target later.",
+    "assertion": "Independent results; successful targets are not re-notified; the new target gets no old private work.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-23",
+    "milestone": "M2",
+    "scenario": "No implicit fallback",
+    "action": "Remove the local key; make the configured target unavailable; no fallback approved.",
+    "assertion": "No alternate destination or paid request is attempted; work waits with a visible reason.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-24",
+    "milestone": "M2",
+    "scenario": "Stale input",
+    "action": "Edit the note or move the bookmark while a job is leased, then let the result arrive.",
+    "assertion": "The late result is not applied to the edited field; the job ends stale with the proposal kept where it still makes sense.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-25",
+    "milestone": "M2",
+    "scenario": "Stale lease",
+    "action": "Expire and reassign a job, then submit from the old generation.",
+    "assertion": "Old completion and heartbeat fail; one accepted effect set exists.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-26",
+    "milestone": "M1",
+    "scenario": "Preview-bound activation",
+    "action": "Preview, edit a binding, then try to enable with the old preview; also enable a never-previewed rule from the API.",
+    "assertion": "Both are refused; a fresh preview of the exact configuration is required.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-27",
+    "milestone": "M4",
+    "scenario": "Portable install",
+    "action": "Install one template for two owners with unrelated folder names.",
+    "assertion": "Both resolve their own roles; no folder is created on install.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-28",
+    "milestone": "M4",
+    "scenario": "Upgrade disclosure",
+    "action": "Upgrade a template to add broadcast or external retrieval.",
+    "assertion": "A semantic diff and new consent are required; old runs stay pinned; rollback works without replay.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-29",
+    "milestone": "Later",
+    "scenario": "Scheduled batch",
+    "action": "Test downtime, the spring gap and the autumn repeat in an IANA zone.",
+    "assertion": "The stored misfire and DST policy produce deterministic non-empty releases.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-30",
+    "milestone": "M4",
+    "scenario": "Catalog mapping",
+    "action": "Submit confirmed, unknown and multi-entity text metadata to a restricted rule.",
+    "assertion": "Confirmed uses the map and vocabulary; others go to review; no image-based identity; no broadcast.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-31",
+    "milestone": "M2",
+    "scenario": "Independent attention channel",
+    "action": "Break the worker and create a structural dependency issue.",
+    "assertion": "Needs attention lists both with repair actions without the worker; metrics carry no content.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-32",
+    "milestone": "M3",
+    "scenario": "Pause, resume",
+    "action": "Pause a rule with a partial batch, save matching pages, resume.",
+    "assertion": "Admission stops and resumes with a new fence; the partial batch is kept; nothing from the paused interval is backfilled.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-33",
+    "milestone": "M3",
+    "scenario": "Conflict-safe run undo",
+    "action": "Apply a run, edit one affected field by hand, undo the run.",
+    "assertion": "Only untouched effects revert; the edited field is kept and listed.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-34",
+    "milestone": "M2",
+    "scenario": "Callback SSRF",
+    "action": "Register callbacks on private, mixed-DNS, rebinding, metadata and redirecting hosts.",
+    "assertion": "Verification and every delivery refuse unsafe egress; no COLP credential is forwarded.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-35",
+    "milestone": "M2",
+    "scenario": "Signature and rotation",
+    "action": "Sign fixed body bytes; tamper; rotate the secret under concurrent sends.",
+    "assertion": "Authentic signatures verify; tampering fails; rotation stays bounded.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-36",
+    "milestone": "M2",
+    "scenario": "Network crash window",
+    "action": "Kill the delivery worker after a remote 2xx and before local acknowledgment.",
+    "assertion": "The same event may be delivered twice; claims and effect receipts prevent a second effect.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-37",
+    "milestone": "M2",
+    "scenario": "Authority revocation",
+    "action": "Revoke the agent or the source access while work is queued, leased and about to commit.",
+    "assertion": "Future delivery, read and write stop under fresh checks; already-read data cannot be recalled and is documented as such.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-38",
+    "milestone": "M2",
+    "scenario": "Retention and restore",
+    "action": "Expire history and restore a backup with pending attempts.",
+    "assertion": "No silent state loss; the server starts with automation paused; attempts are marked uncertain.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-39",
+    "milestone": "M2",
+    "scenario": "Load and evaluator budgets",
+    "action": "Stress many rules, deep predicates, large run-once sets and a slow worker.",
+    "assertion": "Saving stays available; evaluation and queues are bounded; measured capacity is recorded.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-40",
+    "milestone": "M1",
+    "scenario": "Contract and migration drift",
+    "action": "Change a schema, example, tool descriptor or generated client; add a migration with a prefix below the current head.",
+    "assertion": "CI catches closed-schema, example, route-catalog, generated-client drift and the out-of-order migration.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-41",
+    "milestone": "M1",
+    "scenario": "Two-minute first rule",
+    "action": "From a folder's Automate action, add one condition, preview, enable, as a new user following the shipped docs.",
+    "assertion": "Completed under two minutes without seeing JSON; the rule sentence appears in the list.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-42",
+    "milestone": "M1",
+    "scenario": "Server-side intake",
+    "action": "Create a matching bookmark in the web library under a root folder, then one through MCP, then one directly in a specific folder.",
+    "assertion": "The first two are placed by rule with an automation version; the third is untouched; browsers receive projections without new intake.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-43",
+    "milestone": "M1",
+    "scenario": "Why is it here, single undo",
+    "action": "Open an automated bookmark; undo one effect; edit a field and undo its effect.",
+    "assertion": "The Automation section lists rule, agent and time; the first undo reverts one effect; the second refuses with an explanation.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-44",
+    "milestone": "M1",
+    "scenario": "Pause all",
+    "action": "Turn on Pause all; save matching pages on two browsers; list jobs as a worker; resume.",
+    "assertion": "No admission or local placement after one bundle refresh; workers get paused; resume does not process paused saves; they are listed for run-once.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-45",
+    "milestone": "M2",
+    "scenario": "Polling mode end-to-end",
+    "action": "Set a target to poll; run a Claude Code routine and a cron script on the HTTP work API against ready jobs.",
+    "assertion": "Each lists, claims, reads with nodes.get and submits; the note and tags appear with attribution; no write tool was needed; the rule page states the polling interval.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-46",
+    "milestone": "M2",
+    "scenario": "Approvals reuse",
+    "action": "Submit results for a Manual agent and a Trusted agent.",
+    "assertion": "Manual waits on Approvals with rule and job named; Trusted commits with a version and Undo; no irreversible plan can be built.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-47",
+    "milestone": "M2",
+    "scenario": "Budget caps hold, never drop",
+    "action": "Exceed a rule's daily cap and the server-wide job cap.",
+    "assertion": "Bookmarks are still placed by rule; tasks are held with a visible reason; counts show on the rule page.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-48",
+    "milestone": "M3",
+    "scenario": "Digest landing",
+    "action": "Complete a ten-member batch with a digest result.",
+    "assertion": "The digest is readable on the run page with members linked; the Automations page shows an unread count; the extension badge shows it once.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-49",
+    "milestone": "M1",
+    "scenario": "Star dialog folder choice",
+    "action": "Star a matching page into Other bookmarks; star another and pick a non-root folder in the dialog.",
+    "assertion": "The first is moved by rule; the second is kept as the Owner's choice.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-50",
+    "milestone": "M3",
+    "scenario": "Run once preview and apply",
+    "action": "Run a rule once over an imported folder of 25 matching bookmarks with and without the move-foldered option.",
+    "assertion": "Preview counts match; one manual run with pinned members; effects are undoable; the run never repeats.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-51",
+    "milestone": "M2",
+    "scenario": "Wake mode follows reachability",
+    "action": "Open a target on a loopback server, a tls-internal LAN server and a public HTTPS server.",
+    "assertion": "The first two default to poll and state why; the third defaults to events and offers pairing; the Owner can override in both directions and the rule page reflects the mode.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-52",
+    "milestone": "M1",
+    "scenario": "Backup, restore, export include rules",
+    "action": "Create rules; run backup.sh, restore.sh on a fresh stack, colp-server export and the web Export menu.",
+    "assertion": "Rules and bindings return; the restored server is paused until resumed; automations.json is present without secrets.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-53",
+    "milestone": "M2",
+    "scenario": "Events wake-up end-to-end",
+    "action": "With a target in events mode and a real hosted bot subscribed, save a matching page.",
+    "assertion": "One signed wake-up is delivered within seconds of the job becoming ready; the bot claims, reads with nodes.get and submits; the note and tags appear; a duplicate delivery produces no second effect.",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-54",
+    "milestone": "M1",
+    "scenario": "M1-only rule contract",
+    "action": "Create m1-rule-create without policy/target",
+    "assertion": "Rule validates, saves and places without querying M2 tables",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-55",
+    "milestone": "M1",
+    "scenario": "Canonical-only receipt",
+    "action": "Serialize pre-save and corrective-move receipts; inject nativeObservation",
+    "assertion": "Valid receipts join canonical operations; nativeObservation is rejected and summary satisfaction cannot be asserted",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-56",
+    "milestone": "M1",
+    "scenario": "Pause cache rollback and offline bound",
+    "action": "Install paused settings N, then active N-1; test offline expiry",
+    "assertion": "Older snapshot cannot revive a known pause; disconnected latency is exposed and no model is invoked",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-57",
+    "milestone": "M1",
+    "scenario": "Prefix semantics",
+    "action": "Compare /docs/a and /other/docs/a with /docs/",
+    "assertion": "Only the literal prefix matches; contains is not used for startsWith",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-58",
+    "milestone": "M1",
+    "scenario": "Manual-intent/receipt race",
+    "action": "Delay receipt, make explicit move, then resume ingest",
+    "assertion": "No delayed intake effect overwrites the manual placement",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-59",
+    "milestone": "M1",
+    "scenario": "M1 single placement Undo",
+    "action": "Select effect ID; repeat after content revision advances",
+    "assertion": "Safe compensation only; stale/unknown prior destination is refused; saved bookmark is never deleted",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-60",
+    "milestone": "M2",
+    "scenario": "Worker-only bootstrap and queue enumeration",
+    "action": "Pair a worker without manager; list queued jobs via both transports",
+    "assertion": "Only bootstrap pair before binding; authorized list returns deliveryHandle; no manager privilege escalation",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-61",
+    "milestone": "M2",
+    "scenario": "Webhook retries versus target health",
+    "action": "Retry exact body with later timestamp; return 413 for one item",
+    "assertion": "Fresh timestamp/signature; identical event/body; oversized occurrence terminal without disabling healthy target",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-62",
+    "milestone": "M2",
+    "scenario": "No-replay reconnect reconciliation",
+    "action": "Lose nonreplayable wake, reconnect, call jobs.list",
+    "assertion": "Durable ready job remains claimable without historical event replay",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-63",
+    "milestone": "M2",
+    "scenario": "Plan-commit crash recovery",
+    "action": "Crash after canonical commit but before job terminal update",
+    "assertion": "Stable plan/operation identity reconciles receipt; accepted effect not executed twice",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-64",
+    "milestone": "M3",
+    "scenario": "Run-once pinned start",
+    "action": "Start without preview, change members/options, exceed cap",
+    "assertion": "Shape rejection or stale/over-limit error; no silent re-query/truncation",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-65",
+    "milestone": "M3",
+    "scenario": "Count-batch task ownership and concurrency",
+    "action": "Replay duplicate 10th event while admitting an 11th",
+    "assertion": "One 10-member batch, one remainder member, no duplicate accepted job",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-66",
+    "milestone": "M3",
+    "scenario": "Output pagination/read race",
+    "action": "Read through output A while B arrives",
+    "assertion": "A marked read; B remains unread and visible on subsequent page",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-67",
+    "milestone": "M4",
+    "scenario": "Portable export authority stripping",
+    "action": "Export and reinstall enabled source rule",
+    "assertion": "No live target/collection IDs or secrets; reinstall is draft until rebinding and preview",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-68",
+    "milestone": "M4",
+    "scenario": "Research catalog predecessor inputs",
+    "action": "Resolve accession then classify with metadata/folderDefinitions",
+    "assertion": "Accepted predecessor evidence available; group destination confined to catalogRoot; ambiguity goes to review",
+    "status": "planned_not_executed"
+  }
+]

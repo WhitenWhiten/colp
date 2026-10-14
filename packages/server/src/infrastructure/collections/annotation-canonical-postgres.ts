@@ -7,7 +7,7 @@ import {
 import { createPostgresAccessPolicyFactsPort } from '../access-policy/index.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import type { DatabaseSchema } from '../database/runtime.js';
-import { createUnitOfWork, type TransactionIsolationLevel } from '../database/unit-of-work.js';
+import { createUnitOfWork, type TransactionIsolationLevel, type DatabaseTransaction } from '../database/unit-of-work.js';
 import {
   createPostgresCanonicalMutationPorts,
   loadAuthoritativeAnnotationForUpdate,
@@ -63,12 +63,9 @@ export function createPostgresAnnotationMutationUnitOfWork(
   return {
     execute(work) {
       return unitOfWork.execute(async ({ transaction }) => {
-        const rawReceipts = createPostgresProductCommandReceiptPort(transaction);
-        const rawCanonical = createCanonicalMutationApplication(createPostgresCanonicalMutationPorts(transaction, {
-          outboxIdGenerator: options.outboxIdGenerator,
-          faultInjector: mapAnnotationFault(options.faultInjector),
-          reportSourceInvalidation: options.reportSourceInvalidation,
-        }));
+        const base = createPostgresAnnotationMutationPorts(transaction, options);
+        const rawReceipts = base.receipts;
+        const rawCanonical = base.canonical;
         const collectionWriter = createPostgresCollectionWritePort(transaction);
         let claimCalled = false;
         let claimed: string | undefined;
@@ -105,6 +102,38 @@ export function createPostgresAnnotationMutationUnitOfWork(
           clock: createPostgresCollectionsClock(transaction),
           collections: { lockForUpdate: (collectionId) => collectionWriter.lockForUpdate(collectionId) },
           accessPolicy: createPostgresAccessPolicyFactsPort(transaction),
+          subjects: base.subjects,
+          annotations: base.annotations,
+          canonical: { async execute(input) {
+            if (canonicalCalled) invariant('Annotation UoW may execute one mutation');
+            if (!claimed || input.actor.principalId !== principal) invariant('Annotation canonical mutation requires owned receipt claim');
+            canonicalCalled = true;
+            const result = await rawCanonical.execute(input);
+            canonicalSucceeded = true;
+            canonicalTarget = result.resourceId;
+            return result;
+          } },
+        };
+        const result = await work(ports);
+        if (!claimCalled) invariant('Annotation UoW must claim one command');
+        if (claimed && (!canonicalSucceeded || !completed)) invariant('Annotation command left an incomplete receipt');
+        return result;
+      });
+    },
+  };
+}
+
+/** Transaction-bound ports shared with the existing change-plan coordinator. */
+export function createPostgresAnnotationMutationPorts(transaction: DatabaseTransaction,
+  options: PostgresAnnotationMutationUnitOfWorkOptions = {}): AnnotationMutationPorts {
+  const collectionWriter = createPostgresCollectionWritePort(transaction);
+  const canonical = createCanonicalMutationApplication(createPostgresCanonicalMutationPorts(transaction, {
+    reportSourceInvalidation: options.reportSourceInvalidation, faultInjector: mapAnnotationFault(options.faultInjector),
+    outboxIdGenerator: options.outboxIdGenerator,
+  }));
+  return {
+    receipts: createPostgresProductCommandReceiptPort(transaction), clock: createPostgresCollectionsClock(transaction),
+    collections: { lockForUpdate: id => collectionWriter.lockForUpdate(id) }, accessPolicy: createPostgresAccessPolicyFactsPort(transaction),
           subjects: {
             async resolveLiveSubject(collectionId, type, subjectId) {
               if (type === 'collection') {
@@ -147,21 +176,6 @@ export function createPostgresAnnotationMutationUnitOfWork(
               );
             },
           },
-          canonical: { async execute(input) {
-            if (canonicalCalled) invariant('Annotation UoW may execute one mutation');
-            if (!claimed || input.actor.principalId !== principal) invariant('Annotation canonical mutation requires owned receipt claim');
-            canonicalCalled = true;
-            const result = await rawCanonical.execute({ transaction }, input);
-            canonicalSucceeded = true;
-            canonicalTarget = result.resourceId;
-            return result;
-          } },
-        };
-        const result = await work(ports);
-        if (!claimCalled) invariant('Annotation UoW must claim one command');
-        if (claimed && (!canonicalSucceeded || !completed)) invariant('Annotation command left an incomplete receipt');
-        return result;
-      });
-    },
+    canonical: { execute: input => canonical.execute({ transaction },input) },
   };
 }

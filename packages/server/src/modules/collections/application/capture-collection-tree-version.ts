@@ -11,7 +11,8 @@ export type CollectionVersionCause =
   | 'agent-plan'
   | 'restore'
   | 'undo'
-  | `agent-plan:${string}`;
+  | `agent-plan:${string}`
+  | `automation:${string}`;
 
 export class CollectionVersionNotFoundError extends Error {
   readonly code = 'resource_not_found' as const;

@@ -27,12 +27,12 @@ export async function captureMcpPlanPreCommitVersions(
       .where('collection_id', '=', collectionId)
       .where('cause', '=', cause)
       .executeTakeFirst();
-    if (prior !== undefined) continue;
+
     const collection = await versions.lockOwnedLive(collectionId, facts.subjectId);
     if (collection === null) continue;
     // History is a prerequisite: rejecting here rolls back the approval
     // claim and the entire commit before any canonical operation executes.
-    const captured = await captureCollectionTreeVersion(
+    const captured = prior ? undefined : await captureCollectionTreeVersion(
       { versions, clock: { now: () => new Date() } },
       {
         accountId: facts.principalId,
@@ -42,7 +42,7 @@ export async function captureMcpPlanPreCommitVersions(
         label: 'Before agent plan',
       },
     ).catch(rethrowAgentPlanHistoryError);
-    const versionId = captured.record.versionId;
+    const versionId = prior?.version_id ?? captured!.record.versionId;
     if (!facts.undoable) continue;
     await sql`
       INSERT INTO mcp_plan_policy_receipts (

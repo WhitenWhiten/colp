@@ -17,6 +17,9 @@ export function requiredScopesForMcpReadOperation(input: {
     if (input.toolName === 'nodes.search') return Object.freeze(['nodes:read']);
   }
   switch (input.method) {
+    case 'events/list':
+    case 'events/subscribe':
+    case 'events/unsubscribe': return Object.freeze(['automation:work']);
     case 'resources/templates/list': return Object.freeze([MCP_OAUTH_SCOPE_READ_PUBLIC]);
     case 'resources/list':
     case 'resources/read':

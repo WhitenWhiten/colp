@@ -77,6 +77,61 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "GET",
+    "path": "/api/v1/automation-device/bundle",
+    "operationId": "getAutomationDeviceBundle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-device/bundle-acks",
+    "operationId": "acknowledgeAutomationDeviceBundle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-device/intake-receipts",
+    "operationId": "ingestAutomationIntakeReceipt"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs",
+    "operationId": "listAutomationWork"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs/{jobId}",
+    "operationId": "getAutomationWork"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/claim",
+    "operationId": "claimAutomationWork"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/failures",
+    "operationId": "reportAutomationWorkFailure"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/heartbeat",
+    "operationId": "heartbeatAutomationWork"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/automation-work/jobs/{jobId}/inputs",
+    "operationId": "getAutomationWorkInputs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/jobs/{jobId}/results",
+    "operationId": "submitAutomationWorkResult"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/automation-work/pairings/claim",
+    "operationId": "claimAutomationTargetPairing"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/avatar/{avatarId}",
     "operationId": "getAvatar"
   },
@@ -524,6 +579,281 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "method": "POST",
     "path": "/api/v1/me/agents/{id}/revoke",
     "operationId": "revokeAgent"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/binding-sets",
+    "operationId": "listAutomationBindingSets"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/binding-sets",
+    "operationId": "createAutomationBindingSet"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/me/automations/binding-sets/{bindingSetId}",
+    "operationId": "deleteAutomationBindingSet"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/binding-sets/{bindingSetId}",
+    "operationId": "getAutomationBindingSet"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/binding-sets/{bindingSetId}",
+    "operationId": "replaceAutomationBindingSet"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/capabilities",
+    "operationId": "getAutomationCapabilities"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/connection-profiles",
+    "operationId": "listAutomationConnectionProfiles"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/connection-profiles",
+    "operationId": "createAutomationConnectionProfile"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/connection-profiles/{profileId}",
+    "operationId": "getAutomationConnectionProfile"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/connection-profiles/{profileId}",
+    "operationId": "replaceAutomationConnectionProfile"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/deliveries",
+    "operationId": "listAutomationDeliveries"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/deliveries/{deliveryId}/retry",
+    "operationId": "retryAutomationDelivery"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/execution-policies",
+    "operationId": "listAutomationExecutionPolicies"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/execution-policies",
+    "operationId": "createAutomationExecutionPolicy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/execution-policies/{policyId}",
+    "operationId": "getAutomationExecutionPolicy"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/execution-policies/{policyId}",
+    "operationId": "replaceAutomationExecutionPolicy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/executors",
+    "operationId": "listAutomationExecutors"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/executors",
+    "operationId": "createAutomationExecutor"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/executors/{executorId}",
+    "operationId": "getAutomationExecutor"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/executors/{executorId}",
+    "operationId": "replaceAutomationExecutor"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/export",
+    "operationId": "exportAutomations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/incidents",
+    "operationId": "listAutomationIncidents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/incidents/{incidentId}/acknowledge",
+    "operationId": "acknowledgeAutomationIncident"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/jobs/{jobId}",
+    "operationId": "getAutomationJobForOwner"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/jobs/{jobId}/decision",
+    "operationId": "decideAutomationJob"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/jobs/{jobId}/retry",
+    "operationId": "retryAutomationJob"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/pause",
+    "operationId": "getAutomationPause"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/pause",
+    "operationId": "setAutomationPause"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules",
+    "operationId": "listAutomationRules"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules",
+    "operationId": "createAutomationRule"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/preview",
+    "operationId": "previewAutomationRule"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/validate",
+    "operationId": "validateAutomationRule"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/me/automations/rules/{ruleId}",
+    "operationId": "deleteAutomationRule"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}",
+    "operationId": "getAutomationRule"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/rules/{ruleId}",
+    "operationId": "replaceAutomationRule"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}/dependencies",
+    "operationId": "getAutomationRuleDependencies"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/rules/{ruleId}/health",
+    "operationId": "getAutomationRuleHealth"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/lifecycle",
+    "operationId": "setAutomationRuleLifecycle"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/me/automations/rules/{ruleId}/rejected-tags/{tagKey}",
+    "operationId": "allowAutomationTag"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/rejected-tags/{tagKey}",
+    "operationId": "rejectAutomationTag"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/revalidate",
+    "operationId": "revalidateAutomationRule"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/run-once",
+    "operationId": "startAutomationRunOnce"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/rules/{ruleId}/run-once/preview",
+    "operationId": "previewAutomationRunOnce"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs",
+    "operationId": "listAutomationRuns"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs/{runId}",
+    "operationId": "getAutomationRun"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/cancel",
+    "operationId": "cancelAutomationRun"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/runs/{runId}/outputs",
+    "operationId": "listAutomationRunOutputs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/read",
+    "operationId": "markAutomationRunRead"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/runs/{runId}/undo",
+    "operationId": "undoAutomationRun"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/targets",
+    "operationId": "listAutomationTargets"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets",
+    "operationId": "createAutomationTarget"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/automations/targets/{targetId}",
+    "operationId": "getAutomationTarget"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/me/automations/targets/{targetId}",
+    "operationId": "replaceAutomationTarget"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets/{targetId}/pairings",
+    "operationId": "createAutomationTargetPairing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/me/automations/targets/{targetId}/revoke",
+    "operationId": "revokeAutomationTarget"
   },
   {
     "method": "POST",

@@ -147,6 +147,7 @@ function layerOf(path) {
 }
 
 const moduleEdges = {
+  automation: new Set(['commands', 'identity']),
   // Known-Command-Id idempotency: the identity avatar upload path consumes the
   // commands facade receipt port (same pattern as notifications/reading-progress).
   identity: new Set(['commands']),
@@ -189,7 +190,7 @@ const moduleEdges = {
   // Report read tools content-load the public/owned report surfaces the reports
   // facade exports; MCP reads reports through that facade only.
   // nodes.search reads through the search facade.
-  mcp: new Set(['identity', 'publication', 'access-policy', 'commands', 'collections', 'attachments', 'community', 'reports', 'search', 'exposure']),
+  mcp: new Set(['identity', 'publication', 'access-policy', 'commands', 'collections', 'attachments', 'community', 'reports', 'search', 'exposure', 'automation']),
   notifications: new Set(['commands']),
   // ND-02 reports application reuses the shared command cursor codec and
   // publication-owned canonical slug predicate through the public facade.
@@ -197,6 +198,7 @@ const moduleEdges = {
   governance: new Set(['commands', 'collections', 'reports', 'publication', 'access-policy']),
 };
 const infrastructureEdges = {
+  automation: new Set(['database', 'collections', 'access-policy', 'telemetry', 'outbox', 'egress']),
   // Transaction composition for browser projections and atomic follow exit.
   'bookmark-subscriptions': new Set(['database','collections','reports','identity','telemetry']),
   'access-policy': new Set(['database']),
@@ -300,6 +302,7 @@ const infrastructureEdges = {
 // facades only; allowing a layer category here would let a new deep import
 // bypass the public contract without a graph review.
 const infrastructureModuleEdges = {
+  automation: new Set(['module:mcp:facade', 'module:collections:facade', 'module:identity:facade', 'module:automation:facade', 'module:commands:facade', 'module:access-policy:facade']),
   'bookmark-subscriptions': new Set(['module:bookmark-subscriptions:facade','module:commands:facade','module:collections:facade','module:reports:facade']),
   'access-policy': new Set(['module:access-policy:facade']),
   // F1 (legacy quarantine): the legacy OIDC boundary may re-export only the
@@ -385,7 +388,7 @@ const infrastructureModuleEdges = {
   'object-storage': new Set(['module:attachments:facade']),
   telemetry: new Set(),
 };
-const colpPublicEntrypoints = new Set(['schema', 'types', 'semantic', 'client', 'server', 'publisher', 'sync', 'security', 'conformance', 'mcp']);
+const colpPublicEntrypoints = new Set(['automation', 'schema', 'types', 'semantic', 'client', 'server', 'publisher', 'sync', 'security', 'conformance', 'mcp']);
 
 // These are public process entrypoint exports, not a root-to-layer wildcard.
 // Keep this list aligned with the direct local imports in src/index.ts.
@@ -402,6 +405,10 @@ const rootEntryTargets = new Set([
 // Bootstrap composes the process from these concrete public surfaces. This
 // deliberately includes the module aggregate only at its actual entrypoint.
 const bootstrapTargets = new Set([
+  'bootstrap/automation-approval-composition.ts',
+  'bootstrap/automation-binding-verifier.ts',
+  'modules/automation/index.ts',
+  'infrastructure/automation/index.ts',
   'infrastructure/bookmark-subscriptions/unit-of-work.ts',
   'bootstrap/config-ledger-archive.ts',
   'bootstrap/config-ledger-archive-reader.ts',
@@ -598,6 +605,18 @@ const bootstrapTargets = new Set([
 // layer graph remains explicit without granting every transport file access to
 // every bootstrap, infrastructure, or COLP path.
 const transportTargets = new Set([
+  'modules/automation/index.ts',
+  'transport/product/automation-rule-routes.ts',
+  'transport/product/automation-pagination.ts',
+  'transport/product/automation-health-routes.ts',
+  'transport/product/automation-policy-routes.ts',
+  'transport/product/automation-job-routes.ts',
+  'transport/product/automation-target-routes.ts',
+  'transport/product/automation-run-routes.ts',
+  'transport/product/automation-delivery-routes.ts',
+  'transport/product/automation-output-routes.ts',
+  'transport/automation-device-routes.ts',
+  'transport/automation-work-routes.ts',
   'modules/bookmark-subscriptions/index.ts',
   'transport/product/bookmark-subscription-routes.ts',
   'transport/product/subscription-exit-header.ts',
@@ -863,6 +882,7 @@ const transportTargets = new Set([
 // It is a process entrypoint like bootstrap, so it reaches composition and
 // a few public facades, never deep module paths.
 const cliTargets = new Set([
+  'infrastructure/automation/index.ts',
   'bootstrap/self-hosted-preset.ts',
   'bootstrap/self-hosted.ts',
   'bootstrap/config.ts',
@@ -959,6 +979,15 @@ function allowed(source, target) {
       && source.relativePath === 'infrastructure/reports/report-edition-public-read.ts'
       && target.relativePath === 'infrastructure/community/community-target-shared-postgres.ts'
     ) return true;
+    // AW-13: canonical planning/capture consumes this transaction-local leaf only.
+    // The leaf imports canonical types through the public facade, never collection adapters.
+    if (source.kind === 'infrastructure' && (
+      (['infrastructure/collections/canonical-execution-plan.ts',
+        'infrastructure/collections/canonical-mutation-postgres-ports.ts'].includes(source.relativePath)
+        && target.relativePath === 'infrastructure/automation/fact-capture.ts')
+      || (source.relativePath === 'infrastructure/automation/fact-capture.ts'
+        && target.relativePath === 'modules/collections/index.ts')
+    )) return true;
     // CANON-P0-b: facts/header adapters read locator columns through the
     // collections-owned leaf. Do not grant the collections barrel (cycle).
     if (

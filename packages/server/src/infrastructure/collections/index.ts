@@ -78,7 +78,7 @@ export {
 } from './unit-of-work.js';
 export {
 } from './unit-of-work.js';
-export { createPostgresAnnotationMutationUnitOfWork } from './annotation-canonical-postgres.js';
+export { createPostgresAnnotationMutationUnitOfWork, createPostgresAnnotationMutationPorts } from './annotation-canonical-postgres.js';
 export {
   createPostgresAnnotationReadPort,
   createPostgresAnnotationReadUnitOfWork,
@@ -219,3 +219,6 @@ export {
   linkPreviewEgressFromEnv,
   type LinkPreviewEgressInjection,
 } from './link-preview-egress-fixture.js';
+export { withCanonicalTreeCapacityBatch, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
+
+export { canonicalBookmarkMoveBatch } from './canonical-bookmark-move-batch.js';

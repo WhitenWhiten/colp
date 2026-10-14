@@ -1,0 +1,11 @@
+{
+  "revision": "bundle_2",
+  "profile": "browser-bounded-v1",
+  "rules": [],
+  "issuedAt": "2026-10-13T00:00:00Z",
+  "expiresAt": "2026-10-13T00:15:00Z",
+  "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "removedRuleIds": [],
+  "paused": true,
+  "settingsRevision": 2
+}

@@ -1,0 +1,22 @@
+{
+  "deviceId": "device_demo",
+  "replicaGeneration": 1,
+  "localReceiptId": "lr_demo",
+  "operationId": "op_demo_001",
+  "ruleId": "rule_academic",
+  "ruleRevision": "r4",
+  "bindingRevision": "b7",
+  "bundleRevision": "bundle9",
+  "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "satisfiedTaskTypes": [
+    "classify.root"
+  ],
+  "resultDigests": [
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "committedNode": {
+    "collectionId": "c_personal",
+    "nodeId": "n_saved_paper",
+    "serverUuid": "srv_demo"
+  }
+}

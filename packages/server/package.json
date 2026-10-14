@@ -40,7 +40,7 @@
     "openapi:generate": "node scripts/generate-openapi.mjs",
     "openapi:drift": "node scripts/generate-openapi.mjs --check",
     "openapi:breaking": "node scripts/check-openapi-breaking.mjs",
-    "openapi:ci": "npm run openapi:lint && npm run openapi:catalog && npm run openapi:examples && npm run openapi:drift && npm run openapi:breaking",
+    "openapi:ci": "npm run openapi:automation && npm run openapi:lint && npm run openapi:catalog && npm run openapi:examples && npm run openapi:drift && npm run openapi:breaking",
     "verify:phase5:contracts": "vitest run tests/unit/phase5/phase5-free-social-contract.test.ts",
     "verify:phase5:social-events": "vitest run tests/unit/phase5/phase5-social-event-contract.test.ts",
     "ci:focused-coverage": "npm run test:focused-coverage",
@@ -61,7 +61,11 @@
     "test:mcp:write-operations:postgres:inner": "vitest run --fileParallelism=false --project postgres tests/integration/postgres/postgres-phase4b-mcp-write-operations.integration.test.ts",
     "test:mcp:write-operations:postgres": "node scripts/with-postgres.mjs -- npm run test:mcp:write-operations:postgres:inner",
     "test:redis-rate-limit": "vitest run --project redis tests/integration/redis/effect-page-admission-security.integration.test.ts",
-    "test:acceptance:profiles": "node scripts/with-postgres.mjs --isolated-owner -- node node_modules/vitest/vitest.mjs run --project postgres --fileParallelism=false tests/integration/phase2/phase2-profile-conformance.integration.test.ts"
+    "test:acceptance:profiles": "node scripts/with-postgres.mjs --isolated-owner -- node node_modules/vitest/vitest.mjs run --project postgres --fileParallelism=false tests/integration/phase2/phase2-profile-conformance.integration.test.ts",
+    "check:migrations": "node scripts/check-migration-order.mjs",
+    "openapi:automation": "node scripts/sync-automation-openapi.mjs --check && npm run check:automation-tools",
+    "check:automation-tools": "node scripts/generate-automation-tools.mjs --check",
+    "test:automation:polling": "xvfb-run -a npm run test:integration:file -- tests/integration/automation/end-to-end.integration.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1095.0",
@@ -70,7 +74,7 @@
     "@better-auth/kysely-adapter": "1.7.7",
     "@better-auth/mcp": "1.7.7",
     "@better-auth/oauth-provider": "1.7.7",
-    "@know-n/colp": "0.1.3",
+    "@know-n/colp": "file:vendor/know-n-colp-0.2.0-automation.0.tgz",
     "@modelcontextprotocol/node": "2.0.0",
     "@modelcontextprotocol/server": "2.3.1",
     "@mozilla/readability": "0.6.0",

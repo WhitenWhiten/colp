@@ -1,0 +1,111 @@
+[
+  {
+    "id": "F01",
+    "case": "academic definition",
+    "file": "academic-intake.json",
+    "schema": "RuleDefinition",
+    "valid": true
+  },
+  {
+    "id": "F02",
+    "case": "unknown root property",
+    "file": "academic-intake.json",
+    "schema": "RuleDefinition",
+    "mutation": {
+      "unknown": true
+    },
+    "valid": false
+  },
+  {
+    "id": "F03",
+    "case": "JS unsupported",
+    "file": "academic-intake.json",
+    "schema": "RuleDefinition",
+    "mutation": {
+      "match": {
+        "kind": "javascript",
+        "code": "return true"
+      }
+    },
+    "valid": false
+  },
+  {
+    "id": "F04",
+    "case": "non-positive batch",
+    "file": "ten-bookmark-digest.json",
+    "schema": "RuleDefinition",
+    "mutation": {
+      "trigger": {
+        "mode": "countBatch",
+        "count": 0,
+        "distinctBy": "node",
+        "partition": "rule"
+      }
+    },
+    "valid": false
+  },
+  {
+    "id": "F05",
+    "case": "invalid count type",
+    "file": "ten-bookmark-digest.json",
+    "schema": "RuleDefinition",
+    "mutation": {
+      "trigger": {
+        "mode": "countBatch",
+        "count": "10",
+        "distinctBy": "node",
+        "partition": "rule"
+      }
+    },
+    "valid": false
+  },
+  {
+    "id": "F06",
+    "case": "private rule valid",
+    "file": "research-catalog.json",
+    "schema": "RuleDefinition",
+    "valid": true
+  },
+  {
+    "id": "F07",
+    "case": "create request",
+    "file": "rule-create.json",
+    "schema": "RuleInput",
+    "valid": true
+  },
+  {
+    "id": "F08",
+    "case": "local receipt",
+    "file": "local-receipt.json",
+    "schema": "LocalReceiptInput",
+    "valid": true
+  },
+  {
+    "id": "F09",
+    "case": "preview request",
+    "file": "preview-request.json",
+    "schema": "PreviewInput",
+    "valid": true
+  },
+  {
+    "id": "F10",
+    "case": "template",
+    "file": "paper-template.json",
+    "schema": "TemplateInput",
+    "valid": true
+  },
+  {
+    "id": "F11",
+    "case": "finite host predicate",
+    "file": "github-review.json",
+    "schema": "RuleDefinition",
+    "valid": true
+  },
+  {
+    "id": "F12",
+    "case": "schedule shape only",
+    "file": "weekly-digest.json",
+    "schema": "RuleDefinition",
+    "valid": true
+  }
+]

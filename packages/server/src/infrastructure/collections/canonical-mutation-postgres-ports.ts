@@ -1,3 +1,6 @@
+import { appendRevisions } from './canonical-revisions.js';
+import { appendAutomationIngest } from '../outbox/automation-ingest.js';
+import { planAutomationFacts, captureAutomationFacts, automationCaptureEnabled } from '../automation/fact-capture.js';
 import { resourceKind, type ResourceKind, postgresPlanFacts, type PostgresCanonicalPlanFacts, type CascadedAnnotationRow, type CascadedRelationRow, type CascadedAnnotationPlan, type CascadedRelationPlan } from './canonical-execution-plan.js';
 import { withCanonicalTreeCapacity, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
 import { appendCanonicalSecondaryOutbox } from './canonical-secondary-outbox.js';
@@ -167,7 +170,7 @@ function generateOutboxId(): string {
   return randomBytes(16).toString('base64url');
 }
 
-interface CollectionRow {
+export interface CollectionRow {
   id: string;
   owner_subject_id: string;
   title: string;
@@ -190,7 +193,7 @@ interface CollectionRow {
   payload_authority_status: 'pending' | 'backfilled' | 'malformed' | null;
 }
 
-interface NodeRow {
+export interface NodeRow {
   id: string;
   collection_id: string;
   parent_id: string | null;
@@ -252,6 +255,7 @@ export type CanonicalMutationWritePhase =
   | 'revision'
   | 'operation'
   | 'audit'
+  | 'facts'
   | 'outbox';
 
 export interface PostgresCanonicalMutationFaultContext {
@@ -295,7 +299,11 @@ export interface PostgresCanonicalMutationPortOptions {
   readonly resourceIdClaimOwner?: PostgresCanonicalResourceIdClaimOwner;
   /** Non-Sync writers have no COLP Replica/Sequence identity, so force Snapshot recovery. */
   readonly invalidateSyncReplicasOnNodeMutation?: boolean;
+  /** Product admission already holds this transaction's replica gate and row locks. */
+  readonly replicaLocksAlreadyHeld?: (collectionId: string) => boolean;
   readonly socialRouteFaultInjector?: SocialCollectionChangeRouteFaultInjector;
+  /** Overrides the host KNOWN_FEATURE_AUTOMATION_CAPTURE switch (tests and explicit compositions). */
+  readonly automationCapture?: boolean;
   /** Sync pre-validates placement once and passes the bounded read through to allocation. */
   readonly preresolvedPlacement?: PreresolvedSiblingPlacement; readonly reportSourceInvalidation?: ReportSourceInvalidationOutboxPort;
 }
@@ -311,7 +319,7 @@ function assertExactlyOneUpdated(result: { readonly numUpdatedRows: bigint }, de
   if (result.numUpdatedRows !== 1n) invariant(`${description} updated ${result.numUpdatedRows} rows instead of one`);
 }
 
-function collectionProjection(row: CollectionRow) {
+export function collectionProjection(row: CollectionRow) {
   return {
     id: row.id,
     ownerSubjectId: row.owner_subject_id,
@@ -331,7 +339,7 @@ function collectionProjection(row: CollectionRow) {
   };
 }
 
-function nodeProjection(row: NodeRow) {
+export function nodeProjection(row: NodeRow) {
   return {
     id: row.id,
     collectionId: row.collection_id,
@@ -353,7 +361,7 @@ function nodeProjection(row: NodeRow) {
   };
 }
 
-function assertExistingNodeAuthority(row: NodeRow): JsonObject {
+export function assertExistingNodeAuthority(row: NodeRow): JsonObject {
   const validated = validateResourcePayload('node', row.payload_json);
   if (!validated.ok) {
     invariant(`node payload is invalid at ${validated.fieldPath || '$'}: ${validated.reason}`, true);
@@ -384,7 +392,7 @@ function assertExistingNodeAuthority(row: NodeRow): JsonObject {
   return extensions;
 }
 
-function assertExistingCollectionAuthority(row: CollectionRow): JsonObject {
+export function assertExistingCollectionAuthority(row: CollectionRow): JsonObject {
   const validated = validateResourcePayload('collection', row.payload_json);
   if (!validated.ok) {
     invariant(`collection payload is invalid at ${validated.fieldPath || '$'}: ${validated.reason}`, true);
@@ -414,7 +422,7 @@ function assertExistingCollectionAuthority(row: CollectionRow): JsonObject {
   return extensions;
 }
 
-function assertMaterialized(
+export function assertMaterialized(
   resourceType: CollectionNodeKind,
   resourceId: string,
   materialized: ReturnType<typeof materializeCollectionPayload>,
@@ -690,6 +698,7 @@ export function createPostgresCanonicalMutationPorts(
   options: PostgresCanonicalMutationPortOptions = {},
 ): CanonicalMutationPorts<DatabaseTransaction, PostgresCanonicalPlanFacts> {
   const deleteSubtreeLimits = resolveDeleteSubtreeLimits();
+  const captureAutomation = options.automationCapture ?? automationCaptureEnabled();
   const positionRebalanceWindow = resolvePositionRebalanceWindow(
     options.positionRebalanceWindow === undefined
       ? process.env.KNOW_N_POSITION_REBALANCE_WINDOW
@@ -700,6 +709,7 @@ export function createPostgresCanonicalMutationPorts(
     outboxIdGenerator: options.outboxIdGenerator,
     reportSourceInvalidation: options.reportSourceInvalidation,
   };
+  let lockedRead: (CollectionRow & { transaction_now: Date }) | undefined;
   type PreparedWrite = CanonicalResourceWrite<PostgresCanonicalPlanFacts>;
   type PreparedEvent = CanonicalDomainEvent<PostgresCanonicalPlanFacts>;
   async function writeCollection(tx: DatabaseTransaction, write: PreparedWrite): Promise<void> {
@@ -739,11 +749,10 @@ export function createPostgresCanonicalMutationPorts(
           return;
   }
   async function writeNode(tx: DatabaseTransaction, write: PreparedWrite): Promise<void> {
-        const nowResult = await sql<{ now: Date }>`select current_timestamp as now`.execute(tx);
-        const now = nowResult.rows[0]!.now;
+        const facts = postgresPlanFacts(write.plan);
+        if (facts.resourceKind !== 'node') invariant('node writer requires its node plan');
+        const { now, node: current } = facts.reads;
         const { mutation, allocation } = write;
-
-        const current = await loadNode(tx, mutation.target.collectionId, mutation.target.resourceId);
         if (mutation.action !== 'delete' && (allocation.rebalancedSiblings?.length ?? 0) > 0) {
           await stageRebalancedPositions(
             tx,
@@ -1014,32 +1023,36 @@ export function createPostgresCanonicalMutationPorts(
             payload_authority_status: 'backfilled',
           });
         }
-        for (const [parentId, revision] of Object.entries(allocation.childrenRevisions)) {
-          const parent = await loadNode(tx, mutation.target.collectionId, parentId);
+        const parentIds = Object.keys(allocation.childrenRevisions);
+        // The allocator only reads. Rebalance/delete writes can change parents
+        // before this point; all other mutations reuse the locked planner read.
+        const parents = mutation.action !== 'delete' && !allocation.rebalancedSiblings?.length ? facts.reads.parents
+          : parentIds.length ? await tx.selectFrom('nodes').selectAll()
+            .where('collection_id', '=', mutation.target.collectionId).where('id', 'in', parentIds).execute() : [];
+        const parentWrites = parentIds.map(parentId => {
+          const parent = parents.find(row => row.id === parentId);
           if (!parent || parent.deleted_at !== null) invariant('parent disappeared while collection was locked');
-          const intendedParent: NodeRow = {
-            ...parent,
-            children_revision: revision,
-            updated_at: now,
-            payload_schema_version: RESOURCE_PAYLOAD_SCHEMA_VERSION,
-            payload_authority_status: 'backfilled',
+          const intended: NodeRow = {
+            ...parent, children_revision: allocation.childrenRevisions[parentId]!, updated_at: now,
+            payload_schema_version: RESOURCE_PAYLOAD_SCHEMA_VERSION, payload_authority_status: 'backfilled',
           };
-          const parentPayload = assertMaterialized('node', parent.id,
-            materializeNodePayload(nodeProjection(intendedParent)), existingExtensions(parent.payload_json),
+          const payload = assertMaterialized('node', parent.id,
+            materializeNodePayload(nodeProjection(intended)), existingExtensions(parent.payload_json),
             existingNodePayloadFields(parent.payload_json));
-          const result = await tx.updateTable('nodes').set({
-            children_revision: revision,
-            updated_at: now,
-            payload_json: parentPayload as Record<string, unknown>,
-            payload_schema_version: RESOURCE_PAYLOAD_SCHEMA_VERSION,
-            payload_authority_status: 'backfilled',
-          })
-            .where('collection_id', '=', mutation.target.collectionId).where('id', '=', parent.id)
-            .where('deleted_at', 'is', null).executeTakeFirst();
-          assertExactlyOneUpdated(result, `canonical parent revision write for ${parent.id}`);
-          await assertNodeReadBack(tx, parent.id, parentPayload, intendedParent);
+          return { intended, payload };
+        });
+        if (parentWrites.length) {
+          const result = await sql<{ id: string }>`UPDATE nodes n SET
+            children_revision=p.children_revision, updated_at=${now}, payload_json=p.payload_json,
+            payload_schema_version=${RESOURCE_PAYLOAD_SCHEMA_VERSION}, payload_authority_status='backfilled'
+            FROM jsonb_to_recordset(${JSON.stringify(parentWrites.map(({ intended, payload }) => ({
+              id: intended.id, children_revision: intended.children_revision, payload_json: payload,
+            })))}::jsonb) AS p(id text, children_revision text, payload_json jsonb)
+            WHERE n.collection_id=${mutation.target.collectionId} AND n.id=p.id AND n.deleted_at IS NULL
+            RETURNING n.id`.execute(tx);
+          if (result.rows.length !== parentWrites.length) invariant('canonical parent revision write lost a row', true);
         }
-        const collection = await loadCollection(tx, mutation.target.collectionId);
+        const collection = mutation.action === 'delete' ? await loadCollection(tx, mutation.target.collectionId) : facts.reads.collection;
         if (!collection) invariant('collection disappeared while locked');
         const intendedCollection: CollectionRow = {
           ...collection,
@@ -1070,7 +1083,15 @@ export function createPostgresCanonicalMutationPorts(
             ? nodePayloadFields(mutation.fields!.kindFields)
             : nodePayloadFields(effectiveKindFields ?? mutation.fields?.kindFields, current?.payload_json),
         );
-        await assertNodeReadBack(tx, updated.id, expected, updated);
+        // Read after all writes, including AFTER triggers; RETURNING alone is not
+        // sufficient authority evidence. Validate every parent and the target.
+        const readBack = await tx.selectFrom('nodes').selectAll()
+          .where('collection_id', '=', mutation.target.collectionId).where('id', 'in', [updated.id, ...parentIds]).execute();
+        for (const { intended, payload } of [...parentWrites, { intended: updated, payload: expected }]) {
+          const row = readBack.find(row => row.id === intended.id);
+          if (!row) invariant('node read-back failed', true);
+          assertNodeWriteResult(row, payload, intended);
+        }
         if (!mutation.deletePlan) {
           await options.faultInjector?.afterPhase?.({ phase: 'resource', resourceId: updated.id });
         }
@@ -1309,10 +1330,12 @@ export function createPostgresCanonicalMutationPorts(
         // Take those replica row locks first so this transaction never holds
         // collections while waiting on sync_replicas, which is the exact
         // inverse of the Sync Push/Pull/Ack authority prefix.
-        if (options.invalidateSyncReplicasOnNodeMutation) {
+        if (options.invalidateSyncReplicasOnNodeMutation && !options.replicaLocksAlreadyHeld?.(collectionId)) {
           await lockActiveSyncReplicasForCollection(tx, collectionId);
         }
-        const row = await loadCollection(tx, collectionId, true);
+        const row = await tx.selectFrom('collections').selectAll()
+          .select(sql<Date>`current_timestamp`.as('transaction_now')).where('id', '=', collectionId).forUpdate().executeTakeFirst();
+        lockedRead = row;
         if (!row || row.deleted_at !== null) return null;
         assertExistingCollectionAuthority(row);
         return {
@@ -1450,8 +1473,10 @@ export function createPostgresCanonicalMutationPorts(
           relations = Object.freeze(relationSidecars.map(row => Object.freeze({ ...row, revision: generateRevisionToken(), deletedAt: (row as CascadedRelationRow & { planned_deleted_at: Date }).planned_deleted_at })));
           if (current?.parent_id) children.add(current.parent_id);
         }
+        const parentRows = children.size ? await tx.selectFrom('nodes').selectAll()
+          .where('collection_id', '=', input.collectionId).where('id', 'in', [...children]).execute() : [];
         for (const parentId of children) {
-          const parent = await loadNode(tx, input.collectionId, parentId);
+          const parent = parentRows.find(row => row.id === parentId);
           if (!parent || parent.deleted_at !== null || parent.kind !== 'folder') {
             invariant(`affected parent ${parentId} is missing or invalid`);
           }
@@ -1489,8 +1514,12 @@ export function createPostgresCanonicalMutationPorts(
           : input.mutation.action === 'delete'
             ? { fields: undefined }
           : {};
+        const afterFields = input.mutation.action === 'delete' ? null
+          : readNodeFields((authoritativeFields.fields ?? input.mutation.fields)!.kindFields, current);
+        const automation = captureAutomation ? await planAutomationFacts(tx, input, current ?? null, afterFields,
+          input.mutation.action === 'update' || input.mutation.action === 'delete' ? current!.parent_id : targetParent) : null;
         return {
-          facts: Object.freeze({ resourceKind: 'node', action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId }),
+          facts: Object.freeze({ resourceKind: 'node', reads: { node: current ?? null, parents: parentRows, collection: lockedRead!, now: lockedRead!.transaction_now }, action: input.mutation.action, annotations, relations, restoredPositionToken, consumedDeleteOperationId, automation }),
           operationId: input.operationId,
           collectionId: input.collectionId,
           mutation: {
@@ -1677,9 +1706,19 @@ export function createPostgresCanonicalMutationPorts(
         await options.faultInjector?.afterPhase?.({ phase: 'audit' });
       },
     },
+    facts: {
+      async capture(tx, event, input, allocation) {
+        const facts = postgresPlanFacts(event.plan);
+        if (facts.resourceKind === 'node' && facts.automation) await captureAutomationFacts(tx, event, input, allocation, facts.automation);
+        await options.faultInjector?.afterPhase?.({ phase: 'facts', transaction: tx });
+      },
+    },
     outbox: {
       async appendDomainEvents(tx, events) {
-        for (const event of events) await eventWriters[postgresPlanFacts(event.plan).resourceKind](tx, event);
+        for (const event of events) {
+          await eventWriters[postgresPlanFacts(event.plan).resourceKind](tx, event);
+          if (captureAutomation) await appendAutomationIngest(tx, event);
+        }
         await options.faultInjector?.afterPhase?.({ phase: 'outbox' });
       },
     },
@@ -1692,37 +1731,7 @@ export function createPostgresCanonicalMutationPorts(
 
 }
 
-async function appendRevisions(
-  tx: DatabaseTransaction,
-  collectionId: string,
-  resourceId: string,
-  allocation: { resourceRevision?: string; createdNodeChildrenRevision?: string; contentRevision?: string; policyRevision?: string; childrenRevisions: Readonly<Record<string, string>>; commitOrdinal: bigint },
-  now: Date,
-  recordCreatedNodeChildrenRevision = false,
-  skipResourceRevision = false,
-): Promise<void> {
-  if (allocation.resourceRevision && !skipResourceRevision) await tx.insertInto('resource_revisions').values({
-    collection_id: collectionId, resource_id: resourceId, revision: allocation.resourceRevision,
-    ordinal: allocation.commitOrdinal, created_at: now,
-  }).execute();
-  if (allocation.contentRevision) await tx.insertInto('content_revisions').values({
-    collection_id: collectionId, revision: allocation.contentRevision, ordinal: allocation.commitOrdinal, created_at: now,
-  }).execute();
-  if (allocation.policyRevision) await tx.insertInto('policy_revisions').values({
-    collection_id: collectionId, revision: allocation.policyRevision, ordinal: allocation.commitOrdinal, created_at: now,
-  }).execute();
-  if (recordCreatedNodeChildrenRevision && allocation.createdNodeChildrenRevision) await tx.insertInto('children_revisions').values({
-    collection_id: collectionId, parent_id: resourceId,
-    revision: allocation.createdNodeChildrenRevision, ordinal: allocation.commitOrdinal,
-  }).execute();
-  for (const [parentId, revision] of Object.entries(allocation.childrenRevisions)) {
-    await tx.insertInto('children_revisions').values({
-      collection_id: collectionId, parent_id: parentId, revision, ordinal: allocation.commitOrdinal,
-    }).execute();
-  }
-}
-
-async function assertCollectionReadBack(
+export async function assertCollectionReadBack(
   tx: DatabaseTransaction,
   id: string,
   expected: JsonObject,
@@ -1746,7 +1755,7 @@ async function assertNodeReadBack(
   assertNodeWriteResult(row as NodeRow, expected, intended);
 }
 
-function assertNodeWriteResult(row: NodeRow, expected: JsonObject, intended: NodeRow): void {
+export function assertNodeWriteResult(row: NodeRow, expected: JsonObject, intended: NodeRow): void {
   assertAuthoritativeFields('node', row, intended, NODE_AUTHORITY_FIELDS);
   const comparison = compareResourcePayload({
     resourceType: 'node',

@@ -8,7 +8,8 @@ import { PostgresControlClient } from './postgres-control-client.js';
 import type { OutboxDatabaseSchema } from './outbox-tables.js'; import type { ReportsDatabaseSchema } from './reports-tables.js'; import type { GovernanceDatabaseSchema } from './governance-tables.js';
 import { TransactionPhaseDialect, type TransactionPhaseFaultInjector } from './transaction-phase-driver.js';
 export type { OutboxEventTable } from './outbox-tables.js';
-export interface DatabaseSchema extends BookmarkSubscriptionsDatabaseSchema, OutboxDatabaseSchema, ReportsDatabaseSchema, GovernanceDatabaseSchema {
+import type { AutomationDatabaseSchema } from './automation-tables.js';
+export interface DatabaseSchema extends AutomationDatabaseSchema, BookmarkSubscriptionsDatabaseSchema, OutboxDatabaseSchema, ReportsDatabaseSchema, GovernanceDatabaseSchema {
   account_credentials: import('./account-credentials-tables.js').AccountCredentialTable; account_credential_grants: import('./account-credential-grant-tables.js').AccountCredentialGrantTable; account_credential_plan_authorizations: import('./account-credential-grant-tables.js').AccountCredentialPlanAuthorizationTable; mcp_report_plans: import('./account-credential-grant-tables.js').McpReportPlanTable; ledger_archive_segments: import('./ledger-archive-tables.js').LedgerArchiveSegmentTable;
   ledger_archive_export_jobs: import('./ledger-archive-export-job-tables.js').LedgerArchiveExportJobTable;
   ledger_payload_purge_jobs: import('./ledger-payload-purge-tables.js').LedgerPayloadPurgeJobTable;
@@ -473,7 +474,7 @@ export interface CollectionTreeVersionTable {
   collection_id: string;
   content_revision: string;
   kind: 'manual' | 'pre_restore' | 'pre_mutation';
-  cause: 'web' | 'sync' | 'agent-plan' | 'restore' | 'undo' | `agent-plan:${string}`;
+  cause: 'web' | 'sync' | 'agent-plan' | 'restore' | 'undo' | `agent-plan:${string}` | `automation:${string}`;
   label: string;
   etag: string;
   node_count: number;

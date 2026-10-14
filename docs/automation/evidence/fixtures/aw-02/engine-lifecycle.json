@@ -1,0 +1,366 @@
+{
+  "recordedDateUtc": "2026-10-13",
+  "scope": "Real pinned COLP source functions with synthetic facts and bindings",
+  "event": {
+    "event": {
+      "eventId": "evt_7430dd44-c9cf-4b32-87e2-aa623eedde6a",
+      "name": "colp.automation.triggered",
+      "timestamp": "2026-10-13T03:46:41.300Z",
+      "data": {
+        "runId": "run_01531352-cfbb-4cf4-9b82-a90b005631f4",
+        "jobId": "job_4e7d5f6d-a901-4932-ae71-8b2bee4b32fc",
+        "ruleId": "aw02-engine-rule",
+        "ruleRevision": "6e10380",
+        "targetId": "aw02-test",
+        "matchedCount": 1,
+        "deliveryHandle": "aw02_bbd1a5f6-c724-4b21-a59f-7daeae537152"
+      },
+      "cursor": null
+    },
+    "deliveries": [
+      {
+        "eventId": "evt_7430dd44-c9cf-4b32-87e2-aa623eedde6a",
+        "subscriptionId": "sub_1522fec17c774a6936865ad9551aeb8e",
+        "status": 200,
+        "attempt": 1
+      }
+    ]
+  },
+  "statusAfterAck": {
+    "subscriptions": [
+      {
+        "id": "sub_1522fec17c774a6936865ad9551aeb8e",
+        "targetId": "aw02-test",
+        "refreshBefore": "2026-10-13T04:32:55.566Z",
+        "active": true
+      }
+    ],
+    "receipts": [
+      {
+        "eventId": "evt_64d78f6c-d1e2-4f14-94d2-378e0311bc4d",
+        "jobId": "job_d1a9926a-eccf-4dc3-b526-d94a7486732b",
+        "at": "2026-10-13T03:34:09.247Z"
+      },
+      {
+        "eventId": "evt_7430dd44-c9cf-4b32-87e2-aa623eedde6a",
+        "jobId": "job_4e7d5f6d-a901-4932-ae71-8b2bee4b32fc",
+        "at": "2026-10-13T03:47:34.668Z"
+      }
+    ],
+    "engine": {
+      "engineCommit": "6e10380",
+      "candidates": [
+        "candidate_3f76f81e973fe2e76fa04379"
+      ],
+      "jobs": [
+        "job_4e7d5f6d-a901-4932-ae71-8b2bee4b32fc"
+      ],
+      "results": [
+        {
+          "jobId": "job_4e7d5f6d-a901-4932-ae71-8b2bee4b32fc",
+          "outputDigest": "63391e4a7584e98cab0fdf495e14a26704a21a8759c943b460bc544a07b88e96",
+          "acceptedAt": "2026-10-13T03:47:28.151Z",
+          "engineCommit": "6e10380",
+          "productionEffectCommitted": false
+        }
+      ]
+    }
+  },
+  "transcript": [
+    {
+      "at": "2026-10-13T03:45:35.203Z",
+      "kind": "rpc",
+      "method": "tools/call"
+    },
+    {
+      "at": "2026-10-13T03:45:36.555Z",
+      "kind": "engine_evaluation",
+      "candidateId": "candidate_3f76f81e973fe2e76fa04379",
+      "valid": true,
+      "allPassed": true,
+      "engineCommit": "6e10380"
+    },
+    {
+      "at": "2026-10-13T03:45:36.558Z",
+      "kind": "rpc_response",
+      "method": "tools/call",
+      "status": 200
+    },
+    {
+      "at": "2026-10-13T03:46:41.771Z",
+      "kind": "delivery",
+      "eventId": "evt_7430dd44-c9cf-4b32-87e2-aa623eedde6a",
+      "subscriptionId": "sub_1522fec17c774a6936865ad9551aeb8e",
+      "status": 200,
+      "attempt": 1
+    },
+    {
+      "at": "2026-10-13T03:47:10.699Z",
+      "kind": "rpc",
+      "method": "tools/call"
+    },
+    {
+      "at": "2026-10-13T03:47:10.721Z",
+      "kind": "rpc_response",
+      "method": "tools/call",
+      "status": 200
+    },
+    {
+      "at": "2026-10-13T03:47:28.040Z",
+      "kind": "rpc",
+      "method": "tools/call"
+    },
+    {
+      "at": "2026-10-13T03:47:28.155Z",
+      "kind": "engine_result",
+      "jobId": "job_4e7d5f6d-a901-4932-ae71-8b2bee4b32fc",
+      "outputDigest": "63391e4a7584e98cab0fdf495e14a26704a21a8759c943b460bc544a07b88e96",
+      "replayed": false
+    },
+    {
+      "at": "2026-10-13T03:47:28.158Z",
+      "kind": "rpc_response",
+      "method": "tools/call",
+      "status": 200
+    },
+    {
+      "at": "2026-10-13T03:47:34.640Z",
+      "kind": "rpc",
+      "method": "tools/call"
+    },
+    {
+      "at": "2026-10-13T03:47:34.675Z",
+      "kind": "ack",
+      "eventId": "evt_7430dd44-c9cf-4b32-87e2-aa623eedde6a",
+      "jobId": "job_4e7d5f6d-a901-4932-ae71-8b2bee4b32fc"
+    },
+    {
+      "at": "2026-10-13T03:47:34.679Z",
+      "kind": "rpc_response",
+      "method": "tools/call",
+      "status": 200
+    }
+  ],
+  "candidate": {
+    "rule": {
+      "apiVersion": "colp.automation/v1",
+      "name": "Place research papers in Academic",
+      "description": "M1 deterministic placement only; no agent, execution policy or model request.",
+      "roles": [
+        {
+          "key": "academicRoot",
+          "kind": "folder",
+          "required": true,
+          "description": "Primary home for academic papers"
+        }
+      ],
+      "on": "bookmark.intake",
+      "scope": {
+        "collectionId": "c_personal"
+      },
+      "intake": {
+        "folderRole": "academicRoot",
+        "constraint": "withinSubtree",
+        "satisfies": [
+          "classify.root"
+        ],
+        "onUnusableBinding": "keepOriginalAndBlock",
+        "respectExplicitSelection": true
+      },
+      "trigger": {
+        "mode": "each"
+      },
+      "tasks": [],
+      "route": {
+        "mode": "targets",
+        "targetIds": [],
+        "execution": "single"
+      },
+      "policy": {
+        "history": "fromActivation",
+        "imports": "exclude",
+        "restores": "exclude",
+        "userEdits": "preserve",
+        "sameStageReentry": "deny",
+        "maxHops": 8,
+        "conflictingPlacement": "review",
+        "privacy": "standard",
+        "broadcastAllowed": false,
+        "maxRunsPerDay": 100,
+        "pauseMode": "stopAdmissionHoldPending",
+        "missingInput": "defer"
+      },
+      "priority": 100,
+      "match": {
+        "kind": "all",
+        "items": [
+          {
+            "kind": "field",
+            "field": "bookmark.url.host",
+            "op": "hostSuffix",
+            "value": "arxiv.org"
+          },
+          {
+            "kind": "field",
+            "field": "bookmark.url.path",
+            "op": "startsWith",
+            "value": "/abs/"
+          }
+        ]
+      }
+    },
+    "evaluation": {
+      "valid": true,
+      "engineCommit": "6e10380",
+      "dependencies": [
+        "bookmark.url.host",
+        "bookmark.url.path"
+      ],
+      "normalizedPredicate": {
+        "kind": "all",
+        "items": [
+          {
+            "kind": "field",
+            "field": "bookmark.url.host",
+            "op": "hostSuffix",
+            "value": "arxiv.org"
+          },
+          {
+            "kind": "field",
+            "field": "bookmark.url.path",
+            "op": "startsWith",
+            "value": "/abs/"
+          }
+        ]
+      },
+      "cases": [
+        {
+          "caseId": "paper",
+          "expected": "placed",
+          "plan": {
+            "kind": "placed",
+            "folder": {
+              "serverUuid": "server_demo",
+              "collectionId": "c_personal",
+              "nodeId": "n_academic"
+            },
+            "satisfiedTasks": [
+              "classify.root"
+            ]
+          },
+          "passed": true
+        },
+        {
+          "caseId": "subdomain",
+          "expected": "placed",
+          "plan": {
+            "kind": "placed",
+            "folder": {
+              "serverUuid": "server_demo",
+              "collectionId": "c_personal",
+              "nodeId": "n_academic"
+            },
+            "satisfiedTasks": [
+              "classify.root"
+            ]
+          },
+          "passed": true
+        },
+        {
+          "caseId": "spoof",
+          "expected": "notMatched",
+          "plan": {
+            "kind": "notMatched",
+            "reason": "notMatched"
+          },
+          "passed": true
+        },
+        {
+          "caseId": "wrong_path",
+          "expected": "notMatched",
+          "plan": {
+            "kind": "notMatched",
+            "reason": "notMatched"
+          },
+          "passed": true
+        },
+        {
+          "caseId": "missing_path",
+          "expected": "missingInput",
+          "plan": {
+            "kind": "missingInput",
+            "reason": "missingInput"
+          },
+          "passed": true
+        },
+        {
+          "caseId": "explicit_choice",
+          "expected": "preserved",
+          "plan": {
+            "kind": "preserved",
+            "reason": "explicitChoice"
+          },
+          "passed": true
+        },
+        {
+          "caseId": "unknown_intent",
+          "expected": "preserved",
+          "plan": {
+            "kind": "preserved",
+            "reason": "unknownIntent"
+          },
+          "passed": true
+        },
+        {
+          "caseId": "binding_revoked",
+          "expected": "blocked",
+          "plan": {
+            "kind": "blocked",
+            "reason": "Required binding unavailable; keep original parent."
+          },
+          "passed": true
+        },
+        {
+          "caseId": "import_excluded",
+          "expected": "notMatched",
+          "plan": {
+            "kind": "notMatched",
+            "reason": "Outside rule scope, source policy, trigger or hop bound."
+          },
+          "passed": true
+        },
+        {
+          "caseId": "restore_excluded",
+          "expected": "notMatched",
+          "plan": {
+            "kind": "notMatched",
+            "reason": "Outside rule scope, source policy, trigger or hop bound."
+          },
+          "passed": true
+        }
+      ],
+      "allPassed": true
+    },
+    "createdAt": "2026-10-13T03:45:36.546Z"
+  },
+  "result": {
+    "jobId": "job_4e7d5f6d-a901-4932-ae71-8b2bee4b32fc",
+    "outputDigest": "63391e4a7584e98cab0fdf495e14a26704a21a8759c943b460bc544a07b88e96",
+    "output": {
+      "kind": "text",
+      "textType": "summary",
+      "language": "zh-CN",
+      "text": "COLP M1 引擎 6e10380 对候选规则的校验有效，10 个固定场景全部通过。规则同时要求主机匹配 arxiv.org 或其真实子域，且规范化路径以 /abs/ 开头。主域论文与真实子域场景生成归入 Academic 的计划；伪造域名、错误路径、导入及恢复场景不匹配；缺失路径返回 missingInput，按策略延后；用户明确选择目录及意图未知时保留原位置；必需目录绑定撤销时阻止放置并保留原目录。原始输入是用户新建的合成书签 n_paper_001，主机 arxiv.org、路径 /abs/example-placeholder，标题明确标示非真实论文。规则 tasks 和目标列表均为空，仅执行 M1 确定性评估。本报告来自实验输入和真实引擎计划，不表示生产书签已被修改。",
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "fixture://colp-aw02/n_paper_001",
+          "observedAt": "2026-10-13T03:00:00Z"
+        }
+      ]
+    },
+    "acceptedAt": "2026-10-13T03:47:28.151Z",
+    "engineCommit": "6e10380",
+    "productionEffectCommitted": false
+  }
+}

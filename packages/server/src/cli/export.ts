@@ -1,3 +1,4 @@
+import { exportAutomations } from '../infrastructure/automation/index.js';
 import { chmod, mkdir, stat, writeFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type { Kysely } from 'kysely';
@@ -53,7 +54,7 @@ export async function exportOwnedCollections(input: {
     const ids = await reads.listOwnedIds(owner.subjectId);
     // The directory catalog is written last as `index.json`; reserve its stem so
     // no collection snapshot can be allocated the same file and overwritten.
-    const used = new Set<string>([CATALOG_SLUG]);
+    const used = new Set<string>([CATALOG_SLUG, 'automations']);
     const collections: Array<{ id: string; slug: string; title: string; version: string }> = [];
     for (const id of ids) {
       const source = await reads.loadForPrincipal({ collectionId: id, subjectId: owner.subjectId });
@@ -75,6 +76,7 @@ export async function exportOwnedCollections(input: {
       await writeInside(directory, `${slug}.html`, serializeNetscapeBookmarkHtml(built.snapshot));
       collections.push({ id: source.id, slug, title: source.title, version: built.entry.version });
     }
+    await writeInside(directory, 'automations.json', `${JSON.stringify(await exportAutomations(database.db, owner.principalId), null, 2)}\n`);
     await writeInside(directory, `${CATALOG_SLUG}.json`, `${JSON.stringify({
       exportedAt: new Date().toISOString(),
       server: version.server,

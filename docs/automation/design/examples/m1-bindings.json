@@ -1,0 +1,22 @@
+{
+  "name": "Academic resources",
+  "values": {
+    "academicRoot": {
+      "kind": "folder",
+      "folder": {
+        "serverUuid": "server_demo",
+        "collectionId": "c_personal",
+        "nodeId": "n_academic"
+      },
+      "followIdentity": true,
+      "onUnavailable": "block",
+      "notifyOn": [
+        "rename",
+        "move",
+        "delete",
+        "permission",
+        "syncScope"
+      ]
+    }
+  }
+}

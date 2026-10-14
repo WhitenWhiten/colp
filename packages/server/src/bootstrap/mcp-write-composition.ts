@@ -41,6 +41,7 @@ import {
 } from '../infrastructure/access-policy/index.js';
 import {
   createPostgresAnnotationMutationUnitOfWork,
+  createPostgresAnnotationMutationPorts,
   createPostgresCanonicalMutationUnitOfWork,
   createPostgresCollectionWritePort,
   createPostgresNodeWritePort,
@@ -183,6 +184,7 @@ export function createPhase4bMcpWriteComposition(
     },
   );
   const canonicalUnitOfWork = createPostgresCanonicalMutationUnitOfWork(options.db, {
+    automationOrigin: 'mcp',
     ...(options.metrics ? { metrics: options.metrics } : {}),
     ...(options.productOrigin === undefined ? {} : { productOrigin: options.productOrigin }),
     ...(options.reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation: options.reportSourceInvalidation }),
@@ -244,6 +246,7 @@ export function createPhase4bMcpWriteComposition(
     commitPlanStore: store.commitPlanStore,
     commitApprovalStore,
     createProductPorts,
+    createAnnotationPorts: tx => createPostgresAnnotationMutationPorts(tx),
     recordDeleteSubtreeTombstones: recordMcpDeleteSubtreeTombstones,
     recordCommittedContentRevisions: recordMcpPlanCommitRevisions,
     capturePreCommitVersions: captureMcpPlanPreCommitVersions,
@@ -620,7 +623,7 @@ function createImpactPort() {
   return Object.freeze({
     async assessImpact(operations: readonly unknown[]): Promise<ChangePlanImpact> {
       const collections = new Set<string>();
-      let nodes = 0;
+      let nodes = 0, annotations = 0;
       for (const operation of operations) {
         const type = (operation as { type?: unknown }).type;
         const collectionId = typeof (operation as { collectionId?: unknown }).collectionId === 'string'
@@ -631,6 +634,8 @@ function createImpactPort() {
           nodes += type === 'delete_subtree'
             ? (operation as { subtreeCount: number }).subtreeCount : 1;
         }
+        if (type === 'update_node') { if (collectionId) collections.add(collectionId); nodes += 1; }
+        if ((type === 'create_annotation' || type === 'update_annotation')) { if (collectionId) collections.add(collectionId); annotations += 1; }
         if (type === 'create_node') {
           if (collectionId) collections.add(collectionId);
           nodes += 1;
@@ -646,7 +651,7 @@ function createImpactPort() {
       return Object.freeze({
         collections: collections.size,
         nodes,
-        annotations: 0,
+        annotations,
         attachments: 0,
         relations: 0,
         privateFieldsExcluded: [] as string[],
