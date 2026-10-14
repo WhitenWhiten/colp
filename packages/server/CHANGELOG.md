@@ -27,6 +27,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Changed
 
+- The server depends on the published `@know-n/colp` 0.2.0 instead of a vendored prerelease build; the image no longer copies `vendor/`.
 - Upgrade `@know-n/colp` to 0.1.3 and remove the server's temporary approval interaction and output-schema compatibility layer. The SDK now supplies URL elicitation and the `awaiting_approval` fallback directly.
 - Web: sign-in, registration, Agents, Approvals, Get started, Sync, Import, the shared collection page, Search, About and the 404 page are redesigned on Know-N's palette with the pegboard and ribbon motif. Collaborators is hidden until multi-user, and the account menu no longer shows the generated profile handle.
 - The in-memory MCP rate-limit stores reclaim expired buckets in a bounded step (at most 64 entries) when at capacity, instead of scanning every bucket; restarted buckets are re-inserted at the tail so the map stays ordered by window start.

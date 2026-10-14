@@ -88,11 +88,13 @@ Product 1.95.0 adds dependency/incident read and revalidation operations, preser
 immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
 independently of the usable configuration API and the server's general readiness.
 
-The vendored local package is refreshed with
-`node packages/server/scripts/refresh-automation-package.mjs`; this builds/packs the actual
-shared source, updates both locks and keeps Docker's dependency stages reproducible.
-Public npm publication, real Chrome/MV3 CSP/store acceptance, real deployed restore and
-BE-2 effect/admission/Undo evidence are separate future gates.
+The server depends on the published `@know-n/colp` 0.2.0, which carries the `automation`
+subpath. To try unreleased shared-source changes, `node packages/server/scripts/refresh-automation-package.mjs`
+packs them as a prerelease into `packages/server/vendor/` and updates both locks; the
+Dockerfile's dependency stages then need `COPY packages/server/vendor ./vendor` again until
+the next release replaces the vendored build.
+Real Chrome/MV3 CSP/store acceptance, real deployed restore and BE-2 effect/admission/Undo
+evidence are separate future gates.
 
 ## Self-review correction
 
