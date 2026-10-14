@@ -218,76 +218,78 @@ export function RunOnce() {
 
       <div className="automation-editor">
         <div className="automation-editor-main">
-          <ol className="automation-steps">
-            <li className="automation-step" aria-labelledby="run-once-where">
-              <div className="automation-step-head">
-                <span className="automation-step-index" aria-hidden>1</span>
-                <h2 id="run-once-where">Which bookmarks</h2>
-              </div>
-              <div className="field">
-                <label htmlFor="run-once-folder">Folder in {collectionTitle ?? 'this collection'}</label>
-                <select
-                  id="run-once-folder"
-                  value={options.folderId}
-                  disabled={!loaded || busy !== null}
-                  onChange={(event) => change({ folderId: event.target.value })}
-                >
-                  {!loaded && <option value="">{tree.state.status === 'error' ? 'Folders unavailable' : 'Loading folders…'}</option>}
-                  {loaded && <option value={loaded.rootId}>Top level</option>}
-                  {loaded?.folders.map((entry) => <option key={entry.id} value={entry.id}>{entry.path}</option>)}
-                </select>
-              </div>
-              {tree.state.status === 'error' && (
-                <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of this collection.')}</p>
-              )}
-              <fieldset className="option-group" disabled={busy !== null}>
-                <legend className="visually-hidden">Which bookmarks</legend>
-                <label className="option-row">
-                  <input type="checkbox" checked={options.includeDescendants} onChange={(event) => change({ includeDescendants: event.target.checked })} />
-                  <span>
-                    <strong>Include its subfolders</strong>
-                    <span className="automation-meta">Off takes only the bookmarks directly in this folder.</span>
-                  </span>
-                </label>
-                <label className="option-row">
-                  <input type="checkbox" checked={options.moveFolderedBookmarks} onChange={(event) => change({ moveFolderedBookmarks: event.target.checked })} />
-                  <span>
-                    <strong>Also move bookmarks already in a folder</strong>
-                    <span className="automation-meta">Off by default: a folder you chose counts as your choice, and those bookmarks stay.</span>
-                  </span>
-                </label>
-              </fieldset>
-            </li>
-
-            {hasTasks && (
-              <li className="automation-step" aria-labelledby="run-once-tasks">
+          <div className="automation-form">
+            <ol className="automation-steps">
+              <li className="automation-step" aria-labelledby="run-once-where">
                 <div className="automation-step-head">
-                  <span className="automation-step-index" aria-hidden>2</span>
-                  <h2 id="run-once-tasks">Agent tasks</h2>
+                  <span className="automation-step-index" aria-hidden>1</span>
+                  <h2 id="run-once-where">Which bookmarks</h2>
                 </div>
+                <div className="field">
+                  <label htmlFor="run-once-folder">Folder in {collectionTitle ?? 'this collection'}</label>
+                  <select
+                    id="run-once-folder"
+                    value={options.folderId}
+                    disabled={!loaded || busy !== null}
+                    onChange={(event) => change({ folderId: event.target.value })}
+                  >
+                    {!loaded && <option value="">{tree.state.status === 'error' ? 'Folders unavailable' : 'Loading folders…'}</option>}
+                    {loaded && <option value={loaded.rootId}>Top level</option>}
+                    {loaded?.folders.map((entry) => <option key={entry.id} value={entry.id}>{entry.path}</option>)}
+                  </select>
+                </div>
+                {tree.state.status === 'error' && (
+                  <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of this collection.')}</p>
+                )}
                 <fieldset className="option-group" disabled={busy !== null}>
-                  <legend className="visually-hidden">Agent tasks</legend>
+                  <legend className="visually-hidden">Which bookmarks</legend>
                   <label className="option-row">
-                    <input type="radio" name="run-once-tasks" checked={options.tasks === 'none'} onChange={() => change({ tasks: 'none' })} />
+                    <input type="checkbox" checked={options.includeDescendants} onChange={(event) => change({ includeDescendants: event.target.checked })} />
                     <span>
-                      <strong>File only</strong>
-                      <span className="automation-meta">No agent work and no cost.</span>
+                      <strong>Include its subfolders</strong>
+                      <span className="automation-meta">Off takes only the bookmarks directly in this folder.</span>
                     </span>
                   </label>
                   <label className="option-row">
-                    <input type="radio" name="run-once-tasks" checked={options.tasks === 'all'} onChange={() => change({ tasks: 'all' })} />
+                    <input type="checkbox" checked={options.moveFolderedBookmarks} onChange={(event) => change({ moveFolderedBookmarks: event.target.checked })} />
                     <span>
-                      <strong>File and run its agent tasks</strong>
-                      <span className="automation-meta">Each bookmark counts as a run against the rule’s daily allowance.</span>
+                      <strong>Also move bookmarks already in a folder</strong>
+                      <span className="automation-meta">Off by default: a folder you chose counts as your choice, and those bookmarks stay.</span>
                     </span>
                   </label>
                 </fieldset>
               </li>
-            )}
-          </ol>
+
+              {hasTasks && (
+                <li className="automation-step" aria-labelledby="run-once-tasks">
+                  <div className="automation-step-head">
+                    <span className="automation-step-index" aria-hidden>2</span>
+                    <h2 id="run-once-tasks">Agent tasks</h2>
+                  </div>
+                  <fieldset className="option-group" disabled={busy !== null}>
+                    <legend className="visually-hidden">Agent tasks</legend>
+                    <label className="option-row">
+                      <input type="radio" name="run-once-tasks" checked={options.tasks === 'none'} onChange={() => change({ tasks: 'none' })} />
+                      <span>
+                        <strong>File only</strong>
+                        <span className="automation-meta">No agent work and no cost.</span>
+                      </span>
+                    </label>
+                    <label className="option-row">
+                      <input type="radio" name="run-once-tasks" checked={options.tasks === 'all'} onChange={() => change({ tasks: 'all' })} />
+                      <span>
+                        <strong>File and run its agent tasks</strong>
+                        <span className="automation-meta">Each bookmark counts as a run against the rule’s daily allowance.</span>
+                      </span>
+                    </label>
+                  </fieldset>
+                </li>
+              )}
+            </ol>
+          </div>
         </div>
 
-        <div className="automation-editor-side">
+        <aside className="automation-editor-side automation-review" aria-label="Preview and start">
           <section className="automation-summary" aria-labelledby="run-once-rule-heading">
             <h2 id="run-once-rule-heading" className="automation-panel-title">This rule</h2>
             <RuleSentence
@@ -401,7 +403,7 @@ export function RunOnce() {
                 : 'Preview the selection as it is now to start.'}
             </p>
           </div>
-        </div>
+        </aside>
       </div>
     </PageShell>
   )

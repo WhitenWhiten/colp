@@ -98,7 +98,7 @@ export function RuleEditor() {
   const [preview, setPreview] = useState<{ key: string; result: AutomationPreviewResult } | null>(null)
   const [busy, setBusy] = useState<'preview' | 'save' | 'enable' | 'archive' | null>(null)
   const [showProblems, setShowProblems] = useState(false)
-  const previewRef = useRef<HTMLDivElement>(null)
+  const previewRef = useRef<HTMLElement>(null)
 
   const loaded = existing.state.status === 'ready' ? existing.state.data : null
   const current = saved ?? loaded?.rule ?? null
@@ -397,7 +397,7 @@ export function RuleEditor() {
           : editing?.desiredState === 'enabled'
             ? 'Saving a change pauses this rule until you preview it and turn it on again.'
             : 'Change the rule, preview it, then turn it on.'}
-        actions={editing ? <RuleStateBadge state={editing.effectiveState} /> : undefined}
+        afterTitle={editing ? <RuleStateBadge state={editing.effectiveState} /> : undefined}
       />
 
       <form
@@ -415,244 +415,262 @@ export function RuleEditor() {
               <span>This rule uses options the form can’t show. Edit it as JSON below; the folder in step 1 still applies.</span>
             </p>
           ) : null}
-          <ol className="automation-steps">
-            {!jsonDefinition && (
-              <li className="automation-step" aria-labelledby="automation-step-when">
-                <div className="automation-step-head">
-                  <span className="automation-step-index" aria-hidden>1</span>
-                  <h2 id="automation-step-when">When you save a bookmark that…</h2>
-                </div>
-                {draft.conditions.length > 1 && (
-                  <div className="automation-combinator">
-                    <span id="automation-combinator-label">Match</span>
-                    <FilterRail<RuleDraft['combinator']>
-                      variant="segments"
-                      className="view-switch"
-                      labelledBy="automation-combinator-label"
-                      label="Match"
-                      value={draft.combinator}
-                      options={[{ value: 'all', label: 'All of these' }, { value: 'any', label: 'Any of these' }]}
-                      onChange={(combinator) => update({ combinator })}
-                    />
+          <div className="automation-form">
+            <ol className="automation-steps">
+              {!jsonDefinition && (
+                <li className="automation-step" aria-labelledby="automation-step-when">
+                  <div className="automation-step-head">
+                    <span className="automation-step-index" aria-hidden>1</span>
+                    <h2 id="automation-step-when">When you save a bookmark that…</h2>
                   </div>
-                )}
-                <ul className="automation-conditions">
-                  {draft.conditions.map((condition, index) => {
-                    const option = conditionOption(condition.kind)
-                    const inputId = `automation-condition-${condition.key}`
-                    return (
-                      <li key={condition.key} className="automation-condition">
-                        <div className="automation-condition-row">
-                          <div className="field automation-condition-kind">
-                            <label className="visually-hidden" htmlFor={`${inputId}-kind`}>Condition {index + 1}</label>
-                            <select
-                              id={`${inputId}-kind`}
-                              value={condition.kind}
-                              onChange={(event) => updateCondition(condition.key, { kind: event.target.value as ConditionKind })}
-                            >
-                              {CONDITION_OPTIONS.map((item) => <option key={item.kind} value={item.kind}>{item.label}</option>)}
-                            </select>
+                  {draft.conditions.length > 1 && (
+                    <div className="automation-combinator">
+                      <span id="automation-combinator-label">Match</span>
+                      <FilterRail<RuleDraft['combinator']>
+                        variant="segments"
+                        className="view-switch"
+                        labelledBy="automation-combinator-label"
+                        label="Match"
+                        value={draft.combinator}
+                        options={[{ value: 'all', label: 'All of these' }, { value: 'any', label: 'Any of these' }]}
+                        onChange={(combinator) => update({ combinator })}
+                      />
+                    </div>
+                  )}
+                  <ul className="automation-conditions">
+                    {draft.conditions.map((condition, index) => {
+                      const option = conditionOption(condition.kind)
+                      const inputId = `automation-condition-${condition.key}`
+                      return (
+                        <li key={condition.key} className="automation-condition">
+                          <div className="automation-condition-row">
+                            <div className="field automation-condition-kind">
+                              <label className="visually-hidden" htmlFor={`${inputId}-kind`}>Condition {index + 1}</label>
+                              <select
+                                id={`${inputId}-kind`}
+                                value={condition.kind}
+                                onChange={(event) => updateCondition(condition.key, { kind: event.target.value as ConditionKind })}
+                              >
+                                {CONDITION_OPTIONS.map((item) => <option key={item.kind} value={item.kind}>{item.label}</option>)}
+                              </select>
+                            </div>
+                            <div className="field">
+                              <label className="visually-hidden" htmlFor={inputId}>{option.label}</label>
+                              <input
+                                id={inputId}
+                                value={condition.value}
+                                placeholder={option.placeholder}
+                                autoComplete="off"
+                                spellCheck={false}
+                                maxLength={condition.kind === 'pathStartsWith' ? 1024 : 200}
+                                aria-describedby={`${inputId}-hint`}
+                                aria-invalid={conditionsInvalid && !condition.value.trim() ? true : undefined}
+                                onChange={(event) => updateCondition(condition.key, { value: event.target.value })}
+                              />
+                            </div>
+                            {draft.conditions.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm automation-condition-remove"
+                                aria-label={`Remove condition ${index + 1}`}
+                                onClick={() => update({ conditions: draft.conditions.filter((item) => item.key !== condition.key) })}
+                              >
+                                <Icon name="cross" />
+                              </button>
+                            )}
                           </div>
-                          <div className="field">
-                            <label className="visually-hidden" htmlFor={inputId}>{option.label}</label>
-                            <input
-                              id={inputId}
-                              value={condition.value}
-                              placeholder={option.placeholder}
-                              autoComplete="off"
-                              spellCheck={false}
-                              maxLength={condition.kind === 'pathStartsWith' ? 1024 : 200}
-                              aria-describedby={`${inputId}-hint`}
-                              aria-invalid={conditionsInvalid && !condition.value.trim() ? true : undefined}
-                              onChange={(event) => updateCondition(condition.key, { value: event.target.value })}
-                            />
-                          </div>
-                          {draft.conditions.length > 1 && (
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-sm automation-condition-remove"
-                              aria-label={`Remove condition ${index + 1}`}
-                              onClick={() => update({ conditions: draft.conditions.filter((item) => item.key !== condition.key) })}
-                            >
-                              <Icon name="cross" />
-                            </button>
-                          )}
-                        </div>
-                        <p className="field-hint" id={`${inputId}-hint`}>{option.hint}</p>
-                      </li>
-                    )
-                  })}
-                </ul>
-                {conditionsInvalid && <p className="field-error" role="alert">Add at least one condition.</p>}
-                {draft.conditions.length < 8 && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm automation-add"
-                    onClick={() => update({ conditions: [...draft.conditions, { key: newConditionKey(), kind: 'siteIs', value: '' }] })}
-                  >
-                    <Icon name="plus" />
-                    Add condition
-                  </button>
-                )}
-              </li>
-            )}
-
-            <li className="automation-step" aria-labelledby="automation-step-where">
-              <div className="automation-step-head">
-                <span className="automation-step-index" aria-hidden>{jsonDefinition ? 1 : 2}</span>
-                <h2 id="automation-step-where">…move it to</h2>
-              </div>
-              <div className="automation-where">
-                <div className="field">
-                  <label htmlFor="automation-collection">Collection</label>
-                  <select
-                    id="automation-collection"
-                    value={draft.collectionId}
-                    disabled={collections.state.status !== 'ready'}
-                    aria-invalid={folderInvalid && !draft.collectionId ? true : undefined}
-                    onChange={(event) => update({ collectionId: event.target.value, folderId: '' })}
-                  >
-                    <option value="">{collections.state.status === 'loading' ? 'Loading…' : 'Choose a collection'}</option>
-                    {collections.state.status === 'ready' && collections.state.data.map((item) => (
-                      <option key={item.id} value={item.id}>{item.title}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor="automation-folder">Folder</label>
-                  <select
-                    id="automation-folder"
-                    value={draft.folderId}
-                    disabled={!draft.collectionId || tree.state.status !== 'ready'}
-                    aria-invalid={folderInvalid && !draft.folderId ? true : undefined}
-                    onChange={(event) => update({ folderId: event.target.value })}
-                  >
-                    <option value="">{draft.collectionId && tree.state.status === 'loading' ? 'Loading folders…' : 'Choose a folder'}</option>
-                    {folderList.map((entry) => <option key={entry.id} value={entry.id}>{entry.path}</option>)}
-                  </select>
-                </div>
-              </div>
-              {folderInvalid && <p className="field-error" role="alert">Choose the folder bookmarks go to.</p>}
-              {tree.state.status === 'error' && (
-                <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of this collection.')}</p>
-              )}
-              {draft.folderId && tree.state.status === 'ready' && !chosenFolder && (
-                <p className="field-error" role="alert">This folder is gone. Choose another one.</p>
-              )}
-              {tree.state.status === 'ready' && folderList.length === 0 && (
-                <p className="field-hint">This collection has no folders yet. Create one in your library first.</p>
-              )}
-              <p className="field-hint">
-                The rule follows the folder itself, so renaming or moving it later keeps the rule working.
-                It applies to bookmarks saved to this collection.
-              </p>
-            </li>
-
-            {taskTypes.length > 0 && (
-              <li className="automation-step" aria-labelledby="automation-step-then">
-                <div className="automation-step-head">
-                  <span className="automation-step-index" aria-hidden>{jsonDefinition ? 2 : 3}</span>
-                  <h2 id="automation-step-then">Then <span className="automation-optional">optional</span></h2>
-                </div>
-                {definition.tasks.length > 0 ? (
-                  <ul className="automation-task-list">
-                    {definition.tasks.map((task) => (
-                      <li key={task.id}><Icon name="terminal" /> Ask an agent to {taskPhrase(task.type)}</li>
-                    ))}
+                          <p className="field-hint" id={`${inputId}-hint`}>{option.hint}</p>
+                        </li>
+                      )
+                    })}
                   </ul>
-                ) : (
-                  <p className="field-hint">No agent tasks. A connected agent can also summarize or tag what this rule files.</p>
-                )}
-                <p className="field-hint">Agent tasks are added under Advanced for now, with an execution policy.</p>
-              </li>
-            )}
-          </ol>
+                  {conditionsInvalid && <p className="field-error" role="alert">Add at least one condition.</p>}
+                  {draft.conditions.length < 8 && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm automation-add"
+                      onClick={() => update({ conditions: [...draft.conditions, { key: newConditionKey(), kind: 'siteIs', value: '' }] })}
+                    >
+                      <Icon name="plus" />
+                      Add condition
+                    </button>
+                  )}
+                </li>
+              )}
 
-          {/* A JSON-only rule keeps its name, priority and cap in the JSON. */}
-          {!jsonDefinition && (
-            <details className="automation-disclosure">
-              <summary>More options</summary>
-              <div className="automation-options">
-                <div className="field">
-                  <label htmlFor="automation-name">Name</label>
-                  <input
-                    id="automation-name"
-                    value={draft.name}
-                    placeholder={fallbackName}
-                    maxLength={200}
-                    autoComplete="off"
-                    onChange={(event) => update({ name: event.target.value })}
-                  />
-                  <p className="field-hint">Shown in your rule list. Left empty, the rule is named “{fallbackName}”.</p>
+              <li className="automation-step" aria-labelledby="automation-step-where">
+                <div className="automation-step-head">
+                  <span className="automation-step-index" aria-hidden>{jsonDefinition ? 1 : 2}</span>
+                  <h2 id="automation-step-where">…move it to</h2>
                 </div>
-                <div className="field">
-                  <label htmlFor="automation-priority">Priority</label>
-                  <input
-                    id="automation-priority"
-                    type="number"
-                    inputMode="numeric"
-                    min={-1000}
-                    max={1000}
-                    value={draft.priority}
-                    onChange={(event) => update({ priority: Number.isFinite(event.target.valueAsNumber) ? Math.trunc(event.target.valueAsNumber) : DEFAULT_PRIORITY })}
-                  />
-                  <p className="field-hint">When two rules want different folders for one bookmark, the higher priority wins. Equal priorities leave it where you saved it.</p>
+                <div className="automation-where">
+                  <div className="field">
+                    <label htmlFor="automation-collection">Collection</label>
+                    <select
+                      id="automation-collection"
+                      value={draft.collectionId}
+                      disabled={collections.state.status !== 'ready'}
+                      aria-invalid={folderInvalid && !draft.collectionId ? true : undefined}
+                      onChange={(event) => update({ collectionId: event.target.value, folderId: '' })}
+                    >
+                      <option value="">{collections.state.status === 'loading' ? 'Loading…' : 'Choose a collection'}</option>
+                      {collections.state.status === 'ready' && collections.state.data.map((item) => (
+                        <option key={item.id} value={item.id}>{item.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="automation-folder">Folder</label>
+                    <select
+                      id="automation-folder"
+                      value={draft.folderId}
+                      disabled={!draft.collectionId || tree.state.status !== 'ready'}
+                      aria-invalid={folderInvalid && !draft.folderId ? true : undefined}
+                      onChange={(event) => update({ folderId: event.target.value })}
+                    >
+                      <option value="">{draft.collectionId && tree.state.status === 'loading' ? 'Loading folders…' : 'Choose a folder'}</option>
+                      {folderList.map((entry) => <option key={entry.id} value={entry.id}>{entry.path}</option>)}
+                    </select>
+                  </div>
                 </div>
+                {folderInvalid && <p className="field-error" role="alert">Choose the folder bookmarks go to.</p>}
+                {tree.state.status === 'error' && (
+                  <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of this collection.')}</p>
+                )}
+                {draft.folderId && tree.state.status === 'ready' && !chosenFolder && (
+                  <p className="field-error" role="alert">This folder is gone. Choose another one.</p>
+                )}
+                {tree.state.status === 'ready' && folderList.length === 0 && (
+                  <p className="field-hint">This collection has no folders yet. Create one in your library first.</p>
+                )}
+                <p className="field-hint">
+                  The rule follows the folder itself, so renaming or moving it later keeps the rule working.
+                  It applies to bookmarks saved to this collection.
+                </p>
+              </li>
+
+              {taskTypes.length > 0 && (
+                <li className="automation-step" aria-labelledby="automation-step-then">
+                  <div className="automation-step-head">
+                    <span className="automation-step-index" aria-hidden>{jsonDefinition ? 2 : 3}</span>
+                    <h2 id="automation-step-then">Then <span className="automation-optional">optional</span></h2>
+                  </div>
+                  {definition.tasks.length > 0 && (
+                    <ul className="automation-task-list">
+                      {definition.tasks.map((task) => (
+                        <li key={task.id}><Icon name="terminal" /> Ask an agent to {taskPhrase(task.type)}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="field-hint">
+                    {definition.tasks.length > 0 ? null : 'No agent tasks. A connected agent can also summarize or tag what this rule files. '}
+                    Agent tasks are added under Advanced for now, with an execution policy.
+                  </p>
+                </li>
+              )}
+            </ol>
+
+            {/* A JSON-only rule keeps its name, priority and cap in the JSON. */}
+            {!jsonDefinition && (
+              <details className="automation-disclosure">
+                <summary>
+                  <Icon name="chevron-right" className="automation-disclosure-chevron" />
+                  More options
+                  <span className="automation-summary-note">Name, priority, daily limit</span>
+                </summary>
+                <div className="automation-options">
+                  <div className="field">
+                    <label htmlFor="automation-name">Name</label>
+                    <input
+                      id="automation-name"
+                      value={draft.name}
+                      placeholder={fallbackName}
+                      maxLength={200}
+                      autoComplete="off"
+                      onChange={(event) => update({ name: event.target.value })}
+                    />
+                    <p className="field-hint">Shown in your rule list. Left empty, the rule is named “{fallbackName}”.</p>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="automation-priority">Priority</label>
+                    <input
+                      id="automation-priority"
+                      type="number"
+                      inputMode="numeric"
+                      min={-1000}
+                      max={1000}
+                      value={draft.priority}
+                      onChange={(event) => update({ priority: Number.isFinite(event.target.valueAsNumber) ? Math.trunc(event.target.valueAsNumber) : DEFAULT_PRIORITY })}
+                    />
+                    <p className="field-hint">When two rules want different folders for one bookmark, the higher priority wins. Equal priorities leave it where you saved it.</p>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="automation-daily">Most runs a day</label>
+                    <input
+                      id="automation-daily"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={10000}
+                      value={draft.maxRunsPerDay}
+                      onChange={(event) => update({ maxRunsPerDay: Number.isFinite(event.target.valueAsNumber) ? Math.max(1, Math.trunc(event.target.valueAsNumber)) : 100 })}
+                    />
+                    <p className="field-hint">A safety cap. Bookmarks past it are still saved, just not filed.</p>
+                  </div>
+                </div>
+              </details>
+            )}
+
+            <details
+              className="automation-disclosure"
+              open={advancedOpen}
+              onToggle={(event) => {
+                const open = (event.currentTarget as HTMLDetailsElement).open
+                setAdvancedOpen(open)
+                if (open && !jsonDefinition) setJsonText(JSON.stringify(definition, null, 2))
+              }}
+            >
+              <summary>
+                <Icon name="chevron-right" className="automation-disclosure-chevron" />
+                Advanced: edit as JSON
+              </summary>
+              <div className="automation-json">
+                <p className="field-hint">
+                  The rule definition as the server stores it, for copying, pasting, or agents. The destination folder is set in the form.
+                </p>
                 <div className="field">
-                  <label htmlFor="automation-daily">Most runs a day</label>
-                  <input
-                    id="automation-daily"
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={10000}
-                    value={draft.maxRunsPerDay}
-                    onChange={(event) => update({ maxRunsPerDay: Number.isFinite(event.target.valueAsNumber) ? Math.max(1, Math.trunc(event.target.valueAsNumber)) : 100 })}
+                  <label className="visually-hidden" htmlFor="automation-json">Rule definition JSON</label>
+                  <textarea
+                    id="automation-json"
+                    className="automation-json-text"
+                    spellCheck={false}
+                    rows={14}
+                    value={jsonText}
+                    aria-invalid={jsonError ? true : undefined}
+                    onChange={(event) => setJsonText(event.target.value)}
                   />
-                  <p className="field-hint">A safety cap. Bookmarks past it are still saved, just not filed.</p>
+                </div>
+                {jsonError && <p className="field-error" role="alert">{jsonError}</p>}
+                <div className="automation-json-actions">
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={applyJson}>Apply JSON</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setJsonText(JSON.stringify(definition, null, 2))}>
+                    Reset to current rule
+                  </button>
                 </div>
               </div>
             </details>
-          )}
-
-          <details
-            className="automation-disclosure"
-            open={advancedOpen}
-            onToggle={(event) => {
-              const open = (event.currentTarget as HTMLDetailsElement).open
-              setAdvancedOpen(open)
-              if (open && !jsonDefinition) setJsonText(JSON.stringify(definition, null, 2))
-            }}
-          >
-            <summary>Advanced: edit as JSON</summary>
-            <div className="automation-json">
-              <p className="field-hint">
-                The rule definition as the server stores it, for copying, pasting, or agents. The destination folder is set in the form.
-              </p>
-              <div className="field">
-                <label className="visually-hidden" htmlFor="automation-json">Rule definition JSON</label>
-                <textarea
-                  id="automation-json"
-                  className="automation-json-text"
-                  spellCheck={false}
-                  rows={14}
-                  value={jsonText}
-                  aria-invalid={jsonError ? true : undefined}
-                  onChange={(event) => setJsonText(event.target.value)}
-                />
-              </div>
-              {jsonError && <p className="field-error" role="alert">{jsonError}</p>}
-              <div className="automation-json-actions">
-                <button type="button" className="btn btn-secondary btn-sm" onClick={applyJson}>Apply JSON</button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setJsonText(JSON.stringify(definition, null, 2))}>
-                  Reset to current rule
-                </button>
-              </div>
+          </div>
+          {editing && editing.desiredState !== 'archived' && (
+            <div className="automation-danger-zone">
+              <p className="automation-meta">Archiving stops this rule for good. What it already did stays, with its history.</p>
+              <button type="button" className="btn btn-danger-ghost btn-sm" disabled={busy !== null} onClick={() => void archive()}>
+                Archive rule
+              </button>
             </div>
-          </details>
+          )}
         </div>
 
-        <div className="automation-editor-side" id="preview" ref={previewRef}>
+        <aside className="automation-editor-side automation-review" id="preview" ref={previewRef} aria-label="Review and turn on">
           <section className="automation-summary" aria-labelledby="automation-summary-heading">
             <h2 id="automation-summary-heading" className="automation-panel-title">This rule</h2>
             <Sentence parts={sentence} />
@@ -684,12 +702,7 @@ export function RuleEditor() {
               {previewCurrent ? 'Turns the rule on exactly as previewed.' : 'Preview the rule as it is now to turn it on.'}
             </p>
           </div>
-          {editing && editing.desiredState !== 'archived' && (
-            <button type="button" className="btn btn-danger-ghost btn-sm automation-archive" disabled={busy !== null} onClick={() => void archive()}>
-              Archive rule
-            </button>
-          )}
-        </div>
+        </aside>
       </form>
     </PageShell>
   )

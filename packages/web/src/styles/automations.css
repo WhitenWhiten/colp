@@ -588,9 +588,10 @@
   line-height: var(--leading-copy);
 }
 
-/* ——— Rule editor ———
-   The questions on the left, what the rule says and does on the right; the
-   right column follows the reader from 900 px. */
+/* ——— Rule editor and Run once ———
+   The questions on the left as one form surface, its steps divided by
+   hairlines; on the right one review panel: what the rule says, what it
+   would do, and the decision. The panel follows the reader from 900 px. */
 .automation-editor {
   display: grid;
   gap: var(--space-6);
@@ -599,31 +600,27 @@
 
 @media (min-width: 900px) {
   .automation-editor {
-    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-columns: minmax(0, 1fr) 21rem;
     gap: var(--space-8);
   }
 
-  /* The preview can outgrow the window; like .resource-aside, the column
-     then scrolls inside itself so Turn on / Start stays reachable. The
-     padding keeps focus rings of its full-width buttons inside the scroller. */
+  /* The preview can outgrow the window; like .resource-aside, the panel
+     then scrolls inside itself so Turn on / Start stays reachable. */
   .automation-editor-side {
     position: sticky;
     top: calc(var(--header-h) + var(--space-5));
     max-height: calc(100dvh - var(--header-h) - var(--space-8));
-    margin: calc(-1 * var(--hair-40));
-    padding: var(--hair-40);
     overflow-y: auto;
   }
 }
 
 @media (min-width: 1100px) {
   .automation-editor {
-    grid-template-columns: minmax(0, 1fr) 23rem;
+    grid-template-columns: minmax(0, 1fr) 24rem;
   }
 }
 
-.automation-editor-main,
-.automation-editor-side {
+.automation-editor-main {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
@@ -647,9 +644,17 @@
   color: var(--muted);
 }
 
+/* One surface for the whole form. */
+.automation-form {
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
 .automation-steps {
   display: grid;
-  gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -657,24 +662,30 @@
 
 .automation-step {
   display: grid;
-  gap: var(--space-3);
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  column-gap: var(--space-4);
+  row-gap: var(--space-3);
   min-width: 0;
-  padding: var(--space-5);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-xs);
+  padding: var(--space-5) var(--space-6);
 }
 
-.automation-step-head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+.automation-step + .automation-step {
+  border-top: 1px solid var(--line);
 }
 
-/* Base marker; the edition paints it as the bookmark ribbon (edition.css). */
+/* The ribbon sits in its own column; everything else lines up after it. */
+.automation-step > * {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.automation-step > .automation-step-head {
+  display: contents;
+}
+
 .automation-step-index {
-  flex-shrink: 0;
+  grid-column: 1;
+  grid-row: 1;
   color: var(--faint);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
@@ -682,8 +693,10 @@
 }
 
 .automation-step-head h2 {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
   margin: 0;
-  padding-top: var(--hair-20);
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
@@ -805,29 +818,56 @@
   color: var(--muted);
 }
 
+/* Secondary settings close the form as quiet rows on the same surface. */
 .automation-disclosure {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  border-top: 1px solid var(--line);
 }
 
 .automation-disclosure > summary {
-  padding: var(--space-3) var(--space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
   color: var(--ink-2);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+  list-style: none;
   cursor: pointer;
 }
 
-.automation-disclosure[open] > summary {
-  border-bottom: 1px solid var(--line);
+.automation-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.automation-disclosure > summary:hover {
+  color: var(--ink);
+}
+
+.automation-disclosure[open] > summary .automation-disclosure-chevron {
+  transform: rotate(90deg);
+}
+
+.automation-summary-note {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: var(--weight-regular);
 }
 
 .automation-options,
 .automation-json {
   display: grid;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-5) var(--space-5);
+  padding: 0 var(--space-6) var(--space-5);
+}
+
+@media (min-width: 640px) {
+  .automation-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .automation-options > .field:first-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .automation-options .field-hint,
@@ -836,7 +876,8 @@
 }
 
 .automation-options .field input {
-  max-width: 22rem;
+  width: 100%;
+  max-width: none;
 }
 
 .automation-json-text {
@@ -855,7 +896,33 @@
   gap: var(--space-2);
 }
 
-/* ——— Side: the sentence, the preview, the decision ——— */
+@media (max-width: 639px) {
+  .automation-step {
+    column-gap: var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .automation-disclosure > summary {
+    padding-inline: var(--space-4);
+  }
+
+  .automation-options,
+  .automation-json {
+    padding-inline: var(--space-4);
+  }
+}
+
+/* Leaving for good sits apart from the form, under it. */
+.automation-danger-zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-1) var(--space-1) 0;
+}
+
+/* ——— Panels: the sentence, the preview, counts ——— */
 .automation-summary,
 .automation-preview,
 .automation-panel {
@@ -873,6 +940,35 @@
   color: var(--muted);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+}
+
+/* The review panel: one surface, its parts divided by hairlines. */
+.automation-review {
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.automation-review > .automation-summary,
+.automation-review > .automation-preview {
+  padding: var(--space-5);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.automation-review > * + * {
+  border-top: 1px solid var(--line);
+}
+
+.automation-review .automation-summary .automation-sentence {
+  color: var(--ink-2);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
 }
 
 .automation-preview-head {
@@ -914,18 +1010,26 @@
   opacity: 0.55;
 }
 
+/* The totals as a row of figures over hairline-divided cells. */
 .automation-preview-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
   margin: 0;
   padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   list-style: none;
 }
 
 .automation-preview-stats li {
   display: grid;
-  gap: var(--hair-15);
+  align-content: start;
+  gap: var(--hair-30);
+  padding: var(--space-3);
+}
+
+.automation-preview-stats li + li {
+  border-left: 1px solid var(--line);
 }
 
 .automation-preview-stat {
@@ -948,6 +1052,7 @@
 .automation-preview-stat-label {
   color: var(--muted);
   font-size: var(--text-xs);
+  line-height: var(--leading-snug);
 }
 
 .automation-preview-group {
@@ -981,6 +1086,7 @@
 }
 
 .automation-preview-count {
+  margin-left: auto;
   color: var(--muted);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
@@ -990,7 +1096,7 @@
   display: grid;
   gap: var(--space-2);
   margin: var(--space-3) 0 0;
-  padding: 0;
+  padding: 0 0 0 var(--space-5);
   list-style: none;
 }
 
@@ -1035,23 +1141,33 @@
   line-height: var(--leading-snug);
 }
 
-.automation-editor-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+.automation-preview .automation-meta {
+  font-size: var(--text-xs);
 }
 
-.automation-editor-actions > .btn-primary {
-  flex: 1 1 100%;
+/* The decision: the one primary action full width, the others under it. */
+.automation-editor-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-5);
+}
+
+.automation-editor-actions > .btn-primary,
+.automation-editor-hint {
+  grid-column: 1 / -1;
+}
+
+.automation-editor-actions > .btn-primary + .btn-ghost {
+  grid-column: 1 / -1;
 }
 
 .automation-editor-hint {
-  flex-basis: 100%;
+  text-align: center;
 }
 
-.automation-archive {
-  justify-self: start;
+.automation-review .automation-editor-hint {
+  font-size: var(--text-xs);
 }
 
 /* ——— Bookmark page: what automation did (ResourceDetail.tsx) ———
