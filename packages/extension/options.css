@@ -1485,6 +1485,8 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-runs a.list-row { color: inherit; text-decoration: none; }
 .automation-runs a.list-row:focus-visible { outline-offset: -2px; }
 .automation-runs .list-row-tail > svg { width: 0.85rem; height: 0.85rem; color: var(--faint); }
+/* A result the server reports unread (AW-60): the kit's badge in the accent tokens. */
+.automation-runs .badge[data-tone="accent"] { background: var(--accent-soft); color: var(--accent-ink); }
 .automation-rules .list-row-main > .list-row-meta + .list-row-meta { color: var(--muted); }
 .automation-freshness { display: flex; align-items: center; gap: var(--hair-40); margin: var(--space-2) var(--hair-15) 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-freshness svg { flex: none; width: 0.8rem; height: 0.8rem; }

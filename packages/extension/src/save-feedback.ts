@@ -1,3 +1,4 @@
+import { showAutomationBadge } from './action-badge.js';
 import { BADGE_DANGER } from './badge-colors.js';
 import { SAVE_SAVED_TO_BROWSER } from './save-status.js';
 import { localized, t } from './i18n.js';
@@ -86,7 +87,8 @@ export function saveFeedbackIsError(code: SaveFeedbackCode): boolean {
 }
 
 /** Badge + persisted copy. The badge invites the user to open the popup, which
- *  carries the grant control; options is never force-opened over their work. */
+ *  carries the grant control; options is never force-opened over their work.
+ *  Without a problem the badge goes back to the automation count (action-badge.ts). */
 export async function presentSaveFeedback(input: Omit<SaveFeedback, 'updatedAt' | 'message'> & {
   readonly message?: string; readonly now?: number;
 }): Promise<SaveFeedback> {
@@ -97,7 +99,7 @@ export async function presentSaveFeedback(input: Omit<SaveFeedback, 'updatedAt' 
       await chrome.action.setBadgeBackgroundColor({ color: BADGE_DANGER });
       await chrome.action.setTitle({ title: feedback.message });
     } else {
-      await chrome.action.setBadgeText({ text: '' });
+      await showAutomationBadge({ title: false });
       await chrome.action.setTitle({ title: feedback.message });
     }
   } catch { /* Badge is sugar; the persisted copy still reaches popup/options. */ }

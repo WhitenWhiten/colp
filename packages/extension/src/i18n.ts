@@ -133,6 +133,13 @@ export function formatMoment(value: number | string | Date, part: 'both' | 'date
   try { return at.toLocaleString(uiLanguage(), options); } catch { return at.toLocaleString(); }
 }
 
+/** "2 minutes ago", in the copy's language. */
+export function relativeText(value: number | string | Date): string {
+  const delta = new Date(value).getTime() - Date.now(), abs = Math.abs(delta);
+  const [unit, size] = abs < 60_000 ? ['second', 1000] as const : abs < 3_600_000 ? ['minute', 60_000] as const : abs < 86_400_000 ? ['hour', 3_600_000] as const : ['day', 86_400_000] as const;
+  return new Intl.RelativeTimeFormat(uiLanguage(), { numeric: 'auto' }).format(Math.round(delta / size), unit);
+}
+
 let rules: Intl.PluralRules | undefined;
 /** Count copy: `key_one` / `key_other`; $1 is the count. Languages without a singular form only use `_other`. */
 export function tn(key: string, count: number, one: string, other: string, ...values: Value[]): string {

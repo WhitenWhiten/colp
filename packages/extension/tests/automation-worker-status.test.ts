@@ -6,7 +6,7 @@ import { MemoryStorageArea } from '../src/credential-store.js';
 import { NOW, compiledRule, ruleBundle, serverRule, serverRun } from './automation-fixture.js';
 
 /** AW-54 in the worker: the server's status is read on the existing refresh, with the web sign-in, and shown with its age. */
-const f = vi.hoisted(() => ({ fetch: undefined as unknown as ReturnType<typeof vi.fn> }));
+const f = vi.hoisted(() => ({ fetch: undefined as unknown as ReturnType<typeof vi.fn>, badge: { text: '', color: '', title: '' } }));
 vi.mock('../src/sw/runtime.js', () => ({
   hasBookmarkPermission: async () => false, extensionOrigin: () => 'chrome-extension://extension',
   store: { loadCredential: async () => ({ subject: 'owner', serverOrigin: 'https://colp.example' }), loadBinding: async () => null },
@@ -18,7 +18,9 @@ vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => null, loadC
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => null }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 
-import { automationArea, automationStateView, refreshAutomation } from '../src/sw/automation.js';
+import { automationArea, automationStateView, handleAutomationRequest, refreshAutomation } from '../src/sw/automation.js';
+import { BADGE_ACCENT, BADGE_MUTED } from '../src/badge-colors.js';
+import { presentSaveFeedback } from '../src/save-feedback.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -27,7 +29,11 @@ let answers: Record<string, () => Response>;
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW);
   vi.stubGlobal('indexedDB', new IDBFactory());
-  vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() } });
+  f.badge = { text: '', color: '', title: 'Know-N — save this page' };
+  vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() }, i18n: { getMessage: (key: string) => (key === 'actionTitle' ? 'Know-N — save this page' : '') },
+    action: { setBadgeText: async ({ text }: { text: string }) => { f.badge.text = text; },
+      setBadgeBackgroundColor: async ({ color }: { color: string }) => { f.badge.color = color; },
+      setTitle: async ({ title }: { title: string }) => { f.badge.title = title; } } });
   answers = {
     '/api/v1/me/automations/rules': () => json({ items: [serverRule({ name: 'arXiv papers', state: 'degraded' }),
       serverRule({ id: 'rule-digest', name: 'Weekly digest' })], nextCursor: null }),
@@ -79,5 +85,46 @@ describe('the server’s status in the worker', () => {
     answers['/api/v1/me/automations/rules'] = () => json({ error: { code: 'not_found' } }, 404);
     await refreshAutomation({ manual: true });
     expect((await automationStateView()).server).toBeNull();
+  });
+});
+
+describe('the toolbar badge (AW-60)', () => {
+  const digestOnly = (unread: boolean) => () => json({ items: [serverRun({ id: 'digest-1', ruleId: 'rule-digest', kind: 'batch', unread, outputCount: 1 }),
+    serverRun({ id: 'intake-1', unread: false, outputCount: 0 })], nextCursor: null });
+
+  it('shows the server’s unread results, and clears once the server says they were read on the web', async () => {
+    answers['/api/v1/me/automations/runs'] = digestOnly(true);
+    await refreshAutomation({ manual: true });
+    expect(f.badge).toEqual({ text: '1', color: BADGE_ACCENT, title: '1 new digest.' });
+    expect(await handleAutomationRequest({ kind: 'known.automation.digest' })).toEqual({ ok: true, digest: {
+      count: 1, digests: true, url: 'https://colp.example/automations/runs/digest-1', ruleName: 'Weekly digest', fetchedAt: NOW, stale: false } });
+    // Read on the web: the next read model has it read, and the badge goes with it. "Check now" runs
+    // after the background pass the popup's request started, not folded into it.
+    vi.setSystemTime(NOW + 60_000);
+    answers['/api/v1/me/automations/runs'] = digestOnly(false);
+    await refreshAutomation({ manual: true });
+    expect(f.badge).toEqual({ text: '', color: BADGE_ACCENT, title: 'Know-N — save this page' });
+    // Only the two status reads ever went out: nothing was marked read from here.
+    expect(new Set(f.fetch.mock.calls.map(([url]) => new URL(String(url)).pathname)))
+      .toEqual(new Set(['/api/v1/me/automations/rules', '/api/v1/me/automations/runs']));
+  });
+
+  it('turns muted with the time of the last answer while the server can’t be read', async () => {
+    answers['/api/v1/me/automations/runs'] = digestOnly(true);
+    await refreshAutomation({ manual: true });
+    vi.setSystemTime(NOW + 60_000);
+    delete answers['/api/v1/me/automations/rules'];
+    await refreshAutomation({ manual: true });
+    expect([f.badge.text, f.badge.color]).toEqual(['1', BADGE_MUTED]);
+    expect(f.badge.title).toMatch(/^1 new digest as of .+\. Your server couldn’t be reached since\.$/u);
+  });
+
+  it('leaves a save problem on the badge, and takes it back when that clears', async () => {
+    await presentSaveFeedback({ code: 'permission_required', entry: 'page', now: NOW });
+    answers['/api/v1/me/automations/runs'] = digestOnly(true);
+    await refreshAutomation({ manual: true });
+    expect(f.badge.text).toBe('!');
+    await presentSaveFeedback({ code: 'saved', entry: 'page', now: NOW });
+    expect(f.badge).toMatchObject({ text: '1', color: BADGE_ACCENT });
   });
 });

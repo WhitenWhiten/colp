@@ -14,7 +14,7 @@ import type { AutomationPlacementView, AutomationRunView, AutomationServerRuleVi
  * the server or the receipt reports; nothing here decides what happens next,
  * and nothing claims that spending, delivery or an approval happened here.
  */
-type Tone = 'warning' | 'danger' | undefined;
+type Tone = 'warning' | 'danger' | 'accent' | undefined;
 
 function badge(label: string, tone: Tone): HTMLElement {
   const node = el('span', label, 'badge');
@@ -44,8 +44,12 @@ const RUN_STATUS: Record<AutomationRunView['status'], () => [string, Tone]> = {
   failed: () => [t('automation_runFailed', 'Failed'), 'danger'],
 };
 
-/** The run's own state; an explicit hold says so instead, since nothing moves until the Owner decides. */
-export function runBadge(run: Pick<AutomationRunView, 'status' | 'held'>): HTMLElement {
+/**
+ * The run's own state. A result the server reports unread says New (AW-60); an
+ * explicit hold says so instead, since nothing moves until the Owner decides.
+ */
+export function runBadge(run: Pick<AutomationRunView, 'status' | 'held'> & Partial<Pick<AutomationRunView, 'unread' | 'outputCount'>>): HTMLElement {
+  if (run.unread && run.outputCount) return badge(t('automation_runNew', 'New'), 'accent');
   if (run.held && run.status !== 'completed' && run.status !== 'cancelled' && run.status !== 'failed') {
     return badge(t('automation_runHeld', 'On hold'), 'warning');
   }

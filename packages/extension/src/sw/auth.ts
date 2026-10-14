@@ -1,3 +1,4 @@
+import { showAutomationBadge } from '../action-badge.js';
 import { releaseMetadataBindings } from '../metadata-transfer.js';
 import { browserMetadataSyncPolicy } from '../metadata-sync-policy.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
@@ -20,8 +21,9 @@ import { createRuntimeAuth, currentSyncScope, enforceManagedPolicy, ensureSyncSc
 export async function onExtensionInstalled(details: chrome.runtime.InstalledDetails): Promise<void> {
   // Earlier builds pinned a "Set up" badge on install that only cleared on
   // collection select, so it lingered on the toolbar icon indefinitely. The
-  // badge is gone; wipe any leftover text so upgraded profiles lose it too.
-  await chrome.action.setBadgeText({ text: '' }).catch(() => undefined);
+  // badge is gone; replace any leftover text so upgraded profiles lose it too
+  // (with the automation count, when there is one).
+  await showAutomationBadge({ title: false });
   if (details.reason !== 'install') return;
   await Promise.allSettled([
     chrome.storage.local.set({ [WELCOME_FLAG]: 'installed' }),

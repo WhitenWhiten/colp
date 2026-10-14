@@ -1,13 +1,16 @@
+import type { DigestIndicator } from './digest-indicator.js';
+
 /**
  * Page ↔ worker messages for automations: the Options page's state and refresh,
- * and the popup's "what would a rule do with this page". All read-only except
- * an explicit refresh.
+ * the popup's "what would a rule do with this page" and its new-results line.
+ * All read-only except an explicit refresh.
  */
 
 /** Key of the installed bundle record (bundle-store.ts). */
 export const AUTOMATION_BUNDLE_KEY = 'known.automation.bundle.v1';
 /** Key of this browser's placement receipts (receipt-sync.ts). */
 export const AUTOMATION_RECEIPTS_KEY = 'known.automation.receipts.v1';
+
 /**
  * The bundle and receipts live in IndexedDB (indexeddb-store.ts) under the two keys above. The worker bumps
  * this chrome.storage.local marker after each write so open pages repaint.
@@ -17,12 +20,13 @@ export const AUTOMATION_CHANGED_KEY = 'known.automation.changed.v1';
 export type AutomationRequest =
   | { readonly kind: 'known.automation.state' }
   | { readonly kind: 'known.automation.refresh'; readonly userGesture: true }
-  | { readonly kind: 'known.automation.match'; readonly url: string; readonly title: string; readonly parentNativeId: string };
+  | { readonly kind: 'known.automation.match'; readonly url: string; readonly title: string; readonly parentNativeId: string }
+  | { readonly kind: 'known.automation.digest' };
 
 export function validAutomationRequest(value: unknown): value is AutomationRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>;
-  if (raw.kind === 'known.automation.state') return Object.keys(raw).length === 1;
+  if (raw.kind === 'known.automation.state' || raw.kind === 'known.automation.digest') return Object.keys(raw).length === 1;
   if (raw.kind === 'known.automation.match') return Object.keys(raw).length === 4 && typeof raw.url === 'string'
     && raw.url.length <= 8192 && typeof raw.title === 'string' && raw.title.length <= 4096
     && typeof raw.parentNativeId === 'string' && /^[\w.-]{1,128}$/u.test(raw.parentNativeId);
@@ -121,4 +125,5 @@ export interface AutomationStateView {
 }
 
 export type AutomationResponse = { readonly ok: true; readonly state: AutomationStateView }
+  | { readonly ok: true; readonly digest: DigestIndicator | null }
   | { readonly ok: true; readonly match: AutomationMatchView | null } | { readonly ok: false; readonly error: string };

@@ -6,6 +6,7 @@ import {
   saveFeedbackMessage,
 } from '../src/save-feedback.js';
 import { SAVE_SAVED_TO_BROWSER } from '../src/save-status.js';
+import { AUTOMATION_BADGE_KEY } from '../src/action-badge.js';
 
 afterEach(() => { delete (globalThis as { chrome?: unknown }).chrome; });
 
@@ -47,6 +48,20 @@ describe('native save user-visible feedback', () => {
     await presentSaveFeedback({ code: 'create_failed', entry: 'window', now: 2 });
     assert.deepEqual(opened, []);
     assert.deepEqual(badges, [SAVE_FEEDBACK_BADGE]);
+  });
+});
+
+describe('the toolbar badge’s two owners', () => {
+  test('a save without a problem gives the badge back to new automation results, never blanks it', async () => {
+    const badges: string[] = [];
+    installChrome([], badges);
+    await presentSaveFeedback({ code: 'permission_required', entry: 'page', now: 1 });
+    await chrome.storage.local.set({ [AUTOMATION_BADGE_KEY]: { text: '1', color: '#386695', title: '1 new digest.' } });
+    await presentSaveFeedback({ code: 'saved', entry: 'page', now: 2 });
+    assert.deepEqual(badges, [SAVE_FEEDBACK_BADGE, '1']);
+    await chrome.storage.local.remove(AUTOMATION_BADGE_KEY);
+    await presentSaveFeedback({ code: 'saved', entry: 'page', now: 3 });
+    assert.deepEqual(badges, [SAVE_FEEDBACK_BADGE, '1', '']);
   });
 });
 

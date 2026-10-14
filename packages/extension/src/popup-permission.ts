@@ -1,3 +1,4 @@
+import { showAutomationBadge } from './action-badge.js';
 import { element, paintPermissionGate } from './popup-dom.js';
 import { clearSaveFeedback } from './save-feedback.js';
 
@@ -28,7 +29,8 @@ export function bindBookmarkPermission(onGranted: () => void) {
     paintPermissionGate();
     if (!granted) return;
     void clearSaveFeedback();
-    try { void chrome.action.setBadgeText({ text: '' }); } catch { /* no action context */ }
+    // The save problem is gone; the badge goes back to any new automation results.
+    void showAutomationBadge({ title: false });
     void chrome.runtime.sendMessage({ kind: 'known.roots.permissionChanged', userGesture: true, granted: true })
       .catch(() => undefined);
     onGranted();

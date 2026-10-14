@@ -30,7 +30,8 @@
 //     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules),
 //     auto-server-offline (last runs read 3 h ago), auto-server-signin (no web sign-in), auto-server-empty (no runs yet)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
-//   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card).
+//   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
+//   digest (one new digest), digests-stale (two, last read 3 h ago).
 export function installStub(messages) {
   const now = Date.now();
   const params = new URL(location.href).searchParams;
@@ -402,6 +403,9 @@ export function installStub(messages) {
       case 'known.automation.match':
         return { ok: true, match: has('rule') ? { outcome: 'placed', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: 'f-academic', folderTitle: 'Academic' }
           : has('ruleblocked') ? { outcome: 'blocked', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: null, folderTitle: null } : null };
+      case 'known.automation.digest':
+        return { ok: true, digest: has('digest') ? { count: 1, digests: true, url: 'https://known.example/automations/runs/run-3', ruleName: 'Weekly reading digest', fetchedAt: now - 60e3, stale: false }
+          : has('digests-stale') ? { count: 2, digests: true, url: 'https://known.example/automations/digests', ruleName: null, fetchedAt: now - 3 * 3600e3, stale: true } : null };
       case 'known.automation.state': case 'known.automation.refresh': {
         const state = has('auto-paused') ? 'paused' : has('auto-expired') ? 'expired' : has('auto-none', 'auto-off') ? 'none' : 'active';
         const rules = state !== 'active' || has('auto-empty') ? [] : [

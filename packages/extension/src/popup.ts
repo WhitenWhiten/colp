@@ -11,6 +11,7 @@ import { AUTH_SNAPSHOT, parseAuthSnapshot } from './auth-snapshot.js';
 import { COLLECTIONS_CACHE } from './collections-cache.js';
 import { COLLECTION_BINDING, createBoundCollection } from './popup-bound-collection.js';
 import { paintDestSync } from './popup-dest-sync.js';
+import { paintDigestNote } from './popup-digest.js';
 import { bindEditExisting } from './popup-edit-existing.js';
 import { SAVE_CONTEXT_CACHE, parseSaveContextCache } from './save-context-cache.js';
 import { readSaveFeedback, SAVE_FEEDBACK_PERMISSION, saveFeedbackIsError } from './save-feedback.js';
@@ -158,6 +159,8 @@ window.addEventListener('pagehide', () => { closeAnnotationStore(); }, { once: t
 void initializeCapturePopup({ folders, fields, note, pin, onPick: (handler) => { pickHandler = handler; },
   getManagedPrice: async () => { await initializeResultHeader(); return credits.readPrice(); },
 }).then(automatic => { if (!automatic) return initialize(); return initializeResultHeader(); });
+// What the toolbar's count means, in both modes; anything about this page outranks it.
+void paintDigestNote(note);
 document.addEventListener('known:existence-cleared', () => {
   if (document.body.dataset.state === 'saving' || document.body.dataset.state === 'saved') return;
   save.textContent = saveButtonLabel(currentAuthState); void permission.reflect();

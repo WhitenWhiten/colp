@@ -139,6 +139,14 @@
     "message": "已登录，接下来请选择此浏览器同步的内容。",
     "description": "You're signed in — now choose where this browser syncs."
   },
+  "automation_badgeFresh": {
+    "message": "$1。",
+    "description": "$1."
+  },
+  "automation_badgeStale": {
+    "message": "截至$2：$1。此后无法连接到你的服务器。",
+    "description": "$1 as of $2. Your server couldn’t be reached since."
+  },
   "automation_checkNow": {
     "message": "立即检查",
     "description": "Check now"
@@ -146,6 +154,22 @@
   "automation_checking": {
     "message": "正在检查…",
     "description": "Checking…"
+  },
+  "automation_digestAsOf": {
+    "message": "截至$1",
+    "description": "as of $1"
+  },
+  "automation_digestFrom": {
+    "message": "来自“$2”的$1",
+    "description": "$1 from “$2”"
+  },
+  "automation_digestOpenAll": {
+    "message": "打开摘要",
+    "description": "Open Digests"
+  },
+  "automation_digestRead": {
+    "message": "阅读",
+    "description": "Read"
   },
   "automation_explainAlreadyThere": {
     "message": "已在规则的文件夹中，未移动。",
@@ -246,6 +270,22 @@
   "automation_movedByRule": {
     "message": "已按规则“$3”将“$1”移到 $2。",
     "description": "Moved “$1” to $2 by rule “$3”."
+  },
+  "automation_newDigests_one": {
+    "message": "$1 份新摘要",
+    "description": "$1 new digest"
+  },
+  "automation_newDigests_other": {
+    "message": "$1 份新摘要",
+    "description": "$1 new digests"
+  },
+  "automation_newResults_one": {
+    "message": "$1 项新的自动化结果",
+    "description": "$1 new result from your automations"
+  },
+  "automation_newResults_other": {
+    "message": "$1 项新的自动化结果",
+    "description": "$1 new results from your automations"
   },
   "automation_noRulesHint": {
     "message": "在网页上打开一个文件夹并选择“自动化…”，即可把某个网站的页面自动放到那里。",
@@ -458,6 +498,10 @@
   "automation_runKindManual": {
     "message": "运行一次",
     "description": "Run once"
+  },
+  "automation_runNew": {
+    "message": "新",
+    "description": "New"
   },
   "automation_runPartial": {
     "message": "部分完成",

@@ -110,11 +110,29 @@
   "auth_youreSignedNowChoose": {
     "message": "You're signed in — now choose where this browser syncs."
   },
+  "automation_badgeFresh": {
+    "message": "$1."
+  },
+  "automation_badgeStale": {
+    "message": "$1 as of $2. Your server couldn’t be reached since."
+  },
   "automation_checkNow": {
     "message": "Check now"
   },
   "automation_checking": {
     "message": "Checking…"
+  },
+  "automation_digestAsOf": {
+    "message": "as of $1"
+  },
+  "automation_digestFrom": {
+    "message": "$1 from “$2”"
+  },
+  "automation_digestOpenAll": {
+    "message": "Open Digests"
+  },
+  "automation_digestRead": {
+    "message": "Read"
   },
   "automation_explainAlreadyThere": {
     "message": "Already in the rule’s folder, so nothing moved."
@@ -190,6 +208,18 @@
   },
   "automation_movedByRule": {
     "message": "Moved “$1” to $2 by rule “$3”."
+  },
+  "automation_newDigests_one": {
+    "message": "$1 new digest"
+  },
+  "automation_newDigests_other": {
+    "message": "$1 new digests"
+  },
+  "automation_newResults_one": {
+    "message": "$1 new result from your automations"
+  },
+  "automation_newResults_other": {
+    "message": "$1 new results from your automations"
   },
   "automation_noRulesHint": {
     "message": "On the web, open a folder and choose Automate… to file pages from a site there."
@@ -349,6 +379,9 @@
   },
   "automation_runKindManual": {
     "message": "Run once"
+  },
+  "automation_runNew": {
+    "message": "New"
   },
   "automation_runPartial": {
     "message": "Partly done"

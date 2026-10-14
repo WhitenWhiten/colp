@@ -95,6 +95,19 @@ footer   quiet ghost actions left · one primary right
 - **Star-button notice:** a page starred in the browser and filed by a rule gets one notice: the
   toolbar tooltip and the popup's note line the next time it opens. An open Know-N page also shows
   the web-style toast. The text is: Moved “…” to Academic by rule “…”.
+- **New automation results (AW-60).**
+  - **What it projects.** The server's own unread state: runs it reports unread with an output,
+    such as a digest or a review. Nothing is counted from content, and nothing is ever marked read
+    here; reading the run on the web clears it at the next status read.
+  - **Toolbar badge.** The count in the accent colour, with the tooltip "1 new digest.". A save
+    problem ("!") always wins the badge, and the count comes back when it clears. While the server
+    can't be read, the badge keeps the last answer in the muted colour, and the tooltip says when it
+    was read.
+  - **Popup line.** The popup's quietest note line, last in its order, so anything about the page in
+    front wins. It reads "1 new digest from “Weekly reading digest” · Read" (Read opens the run on
+    the web), or "2 new digests · Open Digests". A stale answer adds "as of 3 hours ago".
+  - **Options run list.** A run with an unread result shows a "New" badge (accent tokens) in place
+    of its status.
 - **Footer by state:**
 
   | State | Left | Right |

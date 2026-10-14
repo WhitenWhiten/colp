@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { describe, test } from 'vitest';
-import { BADGE_ACCENT, BADGE_DANGER } from '../src/badge-colors.js';
+import { BADGE_ACCENT, BADGE_DANGER, BADGE_MUTED } from '../src/badge-colors.js';
 import { tokensSourcePath } from '../scripts/sync-tokens.mjs';
 
 function tokenHex(css: string, name: string): string {
@@ -16,5 +16,6 @@ describe('action badge colors', () => {
     const tokens = await readFile(tokensSourcePath, 'utf8');
     assert.strictEqual(BADGE_ACCENT, tokenHex(tokens, '--accent'));
     assert.strictEqual(BADGE_DANGER, tokenHex(tokens, '--danger'));
+    assert.strictEqual(BADGE_MUTED, tokenHex(tokens, '--muted'));
   });
 });

@@ -9,6 +9,9 @@ import { createReceiptStore, newPlacementReceipt, settled, syncReceipts, type Pl
 import { syncReceiptEvidence } from '../automation/receipt-evidence.js';
 import { decidePreSave, type PreSaveDecision, type PreSaveInput } from '../automation/pre-save.js';
 import { createServerStatusStore, readServerStatus, serverStatusDue } from '../automation/server-status.js';
+import { digestIndicator, toolbarBadge, type DigestIndicator } from '../automation/digest-indicator.js';
+import { showAutomationBadge, writeAutomationBadge } from '../action-badge.js';
+import { readSaveFeedback, saveFeedbackIsError } from '../save-feedback.js';
 import type { AutomationMatchView, AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView, AutomationServerView,
   AutomationStateView } from '../automation/messages.js';
 import type { CaptureScope, CaptureTask } from '../capture/contracts.js';
@@ -36,7 +39,7 @@ export const AUTOMATION_REFRESH_MINUTES = 5;
 const DEVICE_KEY = 'known.automation.device.v1';
 const PAUSE_KEY = 'known.automation.pause.v1';
 
-let inFlight: Promise<void> | undefined;
+let inFlight: { readonly promise: Promise<void>; readonly manual: boolean } | undefined;
 
 async function currentOwner(): Promise<AutomationOwner | null> {
   const credential = await store.loadCredential().catch(() => null);
@@ -45,18 +48,25 @@ async function currentOwner(): Promise<AutomationOwner | null> {
 
 export function installAutomationRuntime(): void {
   void ensurePeriodicAlarm(chrome, AUTOMATION_ALARM, AUTOMATION_REFRESH_MINUTES);
+  // The toolbar forgets its badge with the browser; the last answer is put back before the next read.
+  void currentOwner().then((owner) => paintDigestBadge(owner, true)).catch(() => undefined);
   void refreshAutomation().catch(() => undefined);
 }
 
+/** One pass at a time. "Check now" during a background pass runs right after it, instead of being folded into it. */
 export function refreshAutomation(options: { readonly manual?: boolean } = {}): Promise<void> {
-  inFlight ??= run(options.manual === true).finally(() => { inFlight = undefined; });
-  return inFlight;
+  const manual = options.manual === true;
+  if (inFlight && (inFlight.manual || !manual)) return inFlight.promise;
+  const before = inFlight?.promise.catch(() => undefined) ?? Promise.resolve();
+  const current = { manual, promise: before.then(() => run(manual)).finally(() => { if (inFlight === current) inFlight = undefined; }) };
+  inFlight = current;
+  return current.promise;
 }
 
 /** One worker pass: the server's status and the bundle when due, then any receipt whose retry is due. */
 async function run(manual: boolean): Promise<void> {
   const owner = await currentOwner();
-  if (!owner) return;
+  if (!owner) { await paintDigestBadge(null); return; }
   const bundles = createBundleStore(automationArea(), owner), receipts = createReceiptStore(automationArea()), now = Date.now();
   const record = await bundles.read(), ownerKey = automationOwnerKey(owner);
   const status = createServerStatusStore(automationArea(), ownerKey);
@@ -65,7 +75,7 @@ async function run(manual: boolean): Promise<void> {
   const receiptsDue = (await receipts.list()).some((receipt) => receipt.ownerKey === ownerKey && !settled(receipt.state) && receipt.nextAttemptAt <= now);
   if (!bundleDue && !receiptsDue && !statusDue) return;
   // Read with the browser's web sign-in, apart from Sync's authority below.
-  if (statusDue) await status.apply(await readServerStatus(owner.serverOrigin), now);
+  if (statusDue) { await status.apply(await readServerStatus(owner.serverOrigin), now); await paintDigestBadge(owner); }
   if (!bundleDue && !receiptsDue) return;
   let authority: Awaited<ReturnType<typeof pushSessionAuthority>>;
   try { authority = await pushSessionAuthority(); }
@@ -253,11 +263,32 @@ async function serverView(owner: AutomationOwner, record: BundleRecord, origin: 
   };
 }
 
+const webUrlFor = (origin: string) => `${origin.replace(/\/$/u, '')}/automations`;
+
+/** New results the server reports for this account, from its last-read status. */
+async function currentDigest(owner: AutomationOwner): Promise<DigestIndicator | null> {
+  const record = await createBundleStore(automationArea(), owner).read();
+  return digestIndicator(await serverView(owner, record, owner.serverOrigin), webUrlFor(owner.serverOrigin));
+}
+
+/**
+ * Keeps the toolbar's count in step with the server's unread state. A save
+ * problem keeps the badge, and fresh save feedback keeps the tooltip; the
+ * count comes back when they clear (action-badge.ts).
+ */
+async function paintDigestBadge(owner: AutomationOwner | null, restore = false): Promise<void> {
+  const indicator = owner ? await currentDigest(owner) : null;
+  const changed = await writeAutomationBadge(indicator ? toolbarBadge(indicator) : null);
+  const feedback = await readSaveFeedback();
+  if (feedback && saveFeedbackIsError(feedback.code)) return;
+  await showAutomationBadge({ title: (changed || restore) && !feedback });
+}
+
 export async function automationStateView(): Promise<AutomationStateView> {
   const owner = await currentOwner();
   const config = await loadConfig().catch(() => null);
   const origin = owner?.serverOrigin ?? config?.serverOrigin ?? null;
-  const webUrl = origin ? `${origin.replace(/\/$/u, '')}/automations` : null;
+  const webUrl = origin ? webUrlFor(origin) : null;
   const blank = { rules: [], placements: [], pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl, server: null };
   if (!owner) return { account: 'signedOut', state: 'none', ...blank };
   const record = await createBundleStore(automationArea(), owner).read();
@@ -275,6 +306,12 @@ export async function automationStateView(): Promise<AutomationStateView> {
 
 export async function handleAutomationRequest(request: AutomationRequest): Promise<AutomationResponse> {
   if (request.kind === 'known.automation.match') return { ok: true, match: await matchView(request) };
+  if (request.kind === 'known.automation.digest') {
+    // The popup shows the last answer at once; a due read follows and repaints the badge.
+    const owner = await currentOwner();
+    void refreshAutomation().catch(() => undefined);
+    return { ok: true, digest: owner ? await currentDigest(owner) : null };
+  }
   if (request.kind === 'known.automation.refresh') await refreshAutomation({ manual: true });
   // Opening the page also nudges a due refresh; its result re-renders through storage.onChanged.
   else void refreshAutomation().catch(() => undefined);

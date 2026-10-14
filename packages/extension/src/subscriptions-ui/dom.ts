@@ -1,4 +1,4 @@
-import { formatMoment, t, uiLanguage } from '../i18n.js';
+import { formatMoment, relativeText, t } from '../i18n.js';
 import { createDialog, dialogButton } from '../dialog.js';
 import { createIcon } from '../icons.js';
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, value?: string, className?: string): HTMLElementTagNameMap[K] {
@@ -29,9 +29,8 @@ export function date(value: number | string | undefined | null): string { return
 /** Relative time for scanning ("5 minutes ago"); the exact time stays in the tooltip. */
 export function when(value: number | string | undefined | null): HTMLTimeElement {
   const node = el('time'); if (!value) { node.textContent = t('subscription_notChecked', 'Not yet'); return node; }
-  const at = new Date(value), delta = at.getTime() - Date.now(), abs = Math.abs(delta);
-  const [unit, size] = abs < 60_000 ? ['second', 1000] as const : abs < 3_600_000 ? ['minute', 60_000] as const : abs < 86_400_000 ? ['hour', 3_600_000] as const : ['day', 86_400_000] as const;
-  node.textContent = new Intl.RelativeTimeFormat(uiLanguage(), { numeric: 'auto' }).format(Math.round(delta / size), unit);
+  const at = new Date(value);
+  node.textContent = relativeText(at);
   node.dateTime = at.toISOString(); node.title = formatMoment(at); return node;
 }
 /** Count copy with its number in <strong>, wherever the translation places it. */

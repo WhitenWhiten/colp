@@ -306,6 +306,10 @@ for (const width of widths) {
   await popup('auto-rule', 'autorule');
   await popup('auto-rule-blocked', 'autoruleblocked');
   await popup('rule-observed', 'manual,observed');
+  // New automation results (AW-60): what the toolbar's count means
+  await popup('digest', 'manual,digest');
+  await popup('digests-stale', 'manual,digests-stale');
+  await popup('auto-digest', 'auto,digest');
   await popup('stuck', 'manual,stuck');
   // Automatic capture result card
   await popup('auto', 'auto');

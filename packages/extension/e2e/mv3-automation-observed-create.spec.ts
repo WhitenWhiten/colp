@@ -66,9 +66,9 @@ test('a page starred into a browser root is filed by rule once; the Owner’s fo
     expect(await parentOf(page, redirected.id)).toBe(reading.id);
     expect(await parentOf(page, projected.id)).toBe(bar);
     expect(await parentOf(page, starred.id)).toBe(academic.id);
-    // One move for the starred page, staged for Sync like any other.
+    // One move for the starred page, staged for Sync like any other (the export is not in staging order).
     const exported = await evidence<{ bookmarkEvents: { nativeId: string; kind: string }[] }>(page, 'exportScope', scope);
-    expect(exported.bookmarkEvents.filter((event) => event.nativeId === starred.id).map((event) => event.kind)).toEqual(['create', 'move']);
+    expect(exported.bookmarkEvents.filter((event) => event.nativeId === starred.id).map((event) => event.kind).sort()).toEqual(['create', 'move']);
     // One notice, and one receipt naming the placement.
     const notice = 'Moved “Attention Is All You Need” to Academic by rule “Place research papers in Academic”.';
     expect(await page.evaluate(() => (chrome.action as unknown as { getTitle(details: object): Promise<string> }).getTitle({}))).toBe(notice);
