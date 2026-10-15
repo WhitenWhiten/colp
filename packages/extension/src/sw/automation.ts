@@ -15,12 +15,13 @@ import { showAutomationBadge, writeAutomationBadge } from '../action-badge.js';
 import { readSaveFeedback, saveFeedbackIsError } from '../save-feedback.js';
 import type { AutomationMatchView, AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView, AutomationServerView,
   AutomationStateView } from '../automation/messages.js';
-import type { CaptureScope, CaptureTask } from '../capture/contracts.js';
+import { isAccountAutomation, type CaptureScope, type CaptureTask } from '../capture/contracts.js';
 import { currentCaptureScope } from './capture-native.js';
 import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
+import { browserPreSaveDecision, recordBrowserPlacement } from './automation-browser.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState } from './runtime.js';
 import { currentSyncScope, loadConfig, pushSessionAuthority } from './scope.js';
 
@@ -132,10 +133,14 @@ export async function preSaveDecision(scope: CaptureScope, input: PreSaveInput):
   return decidePreSave({ record, now: Date.now(), scope: sync, deps: projectionDeps(sync) }, input);
 }
 
-/** A save the rules placed. The capture id is the receipt id, so acknowledging the save again adds nothing. */
+/**
+ * A save the rules placed. The capture id is the receipt id, so acknowledging the save again adds nothing.
+ * A browser rule's placement is only logged here: it has no receipt and nothing is sent.
+ */
 export async function recordPreSaveReceipt(task: CaptureTask): Promise<void> {
   const automation = task.automation;
-  if (automation?.outcome !== 'placed' || !automation.destination || !task.nativeId || !task.scope.accountId
+  if (automation?.source === 'browser') { await recordBrowserPlacement(task); return; }
+  if (!isAccountAutomation(automation) || automation.outcome !== 'placed' || !automation.destination || !task.nativeId || !task.scope.accountId
     || task.save !== 'local-saved' || task.disposition !== 'new') return;
   const { rule } = automation;
   await recordPlacementReceipt(newPlacementReceipt({
@@ -163,7 +168,8 @@ export async function recoverPreSaveReceipts(tasks: readonly CaptureTask[]): Pro
 async function matchView(request: Extract<AutomationRequest, { kind: 'known.automation.match' }>): Promise<AutomationMatchView | null> {
   const scope = await currentCaptureScope().catch(() => null);
   if (!scope) return null;
-  const decision = await preSaveDecision(scope, { url: request.url, title: request.title, parentNativeId: request.parentNativeId, explicit: false });
+  const page = { url: request.url, title: request.title, parentNativeId: request.parentNativeId, explicit: false };
+  const decision = await preSaveDecision(scope, page) ?? await browserPreSaveDecision(page);
   if (!decision) return null;
   const { automation } = decision;
   return { outcome: automation.outcome, ruleName: automation.rule.name, ruleCount: automation.ruleIds.length,

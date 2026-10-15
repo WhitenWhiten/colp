@@ -1,5 +1,5 @@
 import type { FolderRef } from '@know-n/colp/automation';
-import type { CaptureAutomation } from '../capture/contracts.js';
+import type { AccountAutomation, CaptureAutomation } from '../capture/contracts.js';
 import { createCause, type CreateCause, type CreateEvidence } from './causation.js';
 import type { PreSaveDecision, PreSaveInput } from './pre-save.js';
 
@@ -38,7 +38,7 @@ export interface NativeBookmark { readonly id: string; readonly parentId?: strin
 export interface ObservedPlacement {
   /** Names the write-ahead intent and, once the move happened, the receipt. */
   readonly id: string;
-  readonly automation: CaptureAutomation;
+  readonly automation: AccountAutomation;
   readonly beforeFolder?: FolderRef;
   readonly page: { readonly title: string; readonly url: string };
   readonly native: { readonly nativeId: string; readonly destinationNativeId: string; readonly movedAt: number };

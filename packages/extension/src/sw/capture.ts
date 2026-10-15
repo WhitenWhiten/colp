@@ -15,7 +15,7 @@ import { readCaptureControl } from '../capture/control.js';
 import { classifySavedCapture, undoSavedCapture } from './capture-classification.js';
 import { reconcileCaptureSync } from './capture-sync.js';
 import { captureDeviceId } from './capture-history.js';
-import { sameCaptureScope } from '../capture/contracts.js';
+import { isAccountAutomation, sameCaptureScope } from '../capture/contracts.js';
 import { assertCaptureOwner } from './capture-native.js';
 import { transitionCapture } from '../capture/state.js';
 import { localClassificationEnabled } from '../classification-local-session.js';
@@ -26,6 +26,7 @@ import { pinNode } from './bookmark-pins.js';
 import { annotationForCaptureStart, type BookmarkAnnotationInput } from '../bookmark-annotation-store.js';
 import { blockedPlacement } from '../automation/pre-save.js';
 import { preSaveDecision, recordPreSaveReceipt, recoverPreSaveReceipts } from './automation.js';
+import { browserPreSaveDecision } from './automation-browser.js';
 import { RECEIPT_MAX_AGE_MS } from '../automation/receipt-sync.js';
 import { captureTagMode } from './capture-local.js';
 
@@ -59,9 +60,10 @@ export async function startCapture(input: {
   const control = await readCaptureControl(scope);
   const automatic = input.source !== 'batch' && input.source !== 'manual-popup' && preferences.captureMode === 'automatic';
   const requested = await captureTarget(scope, input.parentNativeId);
-  // The account's rules decide before the native create, so a rule places the bookmark directly.
-  const decision = await preSaveDecision(scope, { url: input.url, title: input.title, parentNativeId: requested.nativeId,
-    explicit: input.folderChoice === 'explicit' }).catch(() => null);
+  // Rules decide before the native create, so a rule places the bookmark directly. The account's rules
+  // come first; this browser's own rules decide only a page none of them matched (design 01 §7.5).
+  const page = { url: input.url, title: input.title, parentNativeId: requested.nativeId, explicit: input.folderChoice === 'explicit' };
+  const decision = await preSaveDecision(scope, page).catch(() => null) ?? await browserPreSaveDecision(page).catch(() => null);
   const ruled = decision?.targetNativeId ? await captureTarget(scope, decision.targetNativeId).catch(() => null) : null;
   const automation = decision && decision.targetNativeId && !ruled ? blockedPlacement(decision.automation) : decision?.automation;
   const { nativeId: targetNativeId, inRange } = ruled ?? requested;
@@ -104,8 +106,9 @@ export async function wakeCaptures(): Promise<void> {
   let before: readonly [number, string] | undefined;
   for (;;) {
     const page = await captureStore.list(scope, before);
-    for (const task of page) if (task.automation?.outcome === 'placed' && task.save === 'local-saved' && task.disposition === 'new'
-      && now - (task.savedAt ?? task.createdAt) < RECEIPT_MAX_AGE_MS) placed.push(task);
+    // Only an account rule's placement has a receipt to recover; a browser rule's is logged when it is acknowledged.
+    for (const task of page) if (isAccountAutomation(task.automation) && task.automation.outcome === 'placed' && task.save === 'local-saved'
+      && task.disposition === 'new' && now - (task.savedAt ?? task.createdAt) < RECEIPT_MAX_AGE_MS) placed.push(task);
     for (const task of page) if (task.disposition === 'new' && (['unsubmitted', 'unknown'].includes(task.save)
       || task.save === 'local-saved' && task.annotation && !task.annotationPersisted
       || (task.automaticIntent && ['waiting', 'running'].includes(task.classification)))) {

@@ -1,3 +1,4 @@
+import type { BrowserRule, BrowserRuleDraft, DraftProblem } from './browser-rules.js';
 import type { DigestIndicator } from './digest-indicator.js';
 import type { RuleMatchView } from './rule-match.js';
 
@@ -32,6 +33,42 @@ export function validAutomationRequest(value: unknown): value is AutomationReque
     && raw.url.length <= 8192 && typeof raw.title === 'string' && raw.title.length <= 4096
     && typeof raw.parentNativeId === 'string' && /^[\w.-]{1,128}$/u.test(raw.parentNativeId);
   return raw.kind === 'known.automation.refresh' && raw.userGesture === true && Object.keys(raw).length === 2;
+}
+
+/** Options writes this browser's own rules (browser-rules.ts); only the Options page may send these. */
+export type BrowserRuleCommand =
+  | { readonly kind: 'known.automation.browser.save'; readonly id?: string; readonly draft: BrowserRuleDraft; readonly enabled?: boolean }
+  | { readonly kind: 'known.automation.browser.enable'; readonly id: string; readonly enabled: boolean }
+  | { readonly kind: 'known.automation.browser.remove'; readonly id: string };
+
+export type BrowserRuleResponse = { readonly ok: true; readonly rule: BrowserRule | null }
+  | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
+
+const RULE_ID = /^[\w-]{1,128}$/u;
+const KINDS = new Set(['siteIs', 'siteEndsWith', 'titleContains', 'pathStartsWith']);
+
+function validDraft(value: unknown): value is BrowserRuleDraft {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const raw = value as Record<string, unknown>;
+  return Object.keys(raw).length === 4 && typeof raw.name === 'string' && raw.name.length <= 1024
+    && (raw.combinator === 'all' || raw.combinator === 'any') && typeof raw.folderNativeId === 'string' && /^[\w.-]{0,128}$/u.test(raw.folderNativeId)
+    && Array.isArray(raw.conditions) && raw.conditions.length <= 16 && raw.conditions.every((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      const condition = item as Record<string, unknown>;
+      return Object.keys(condition).length === 2 && typeof condition.kind === 'string' && KINDS.has(condition.kind)
+        && typeof condition.value === 'string' && condition.value.length <= 2048;
+    });
+}
+
+export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCommand {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const raw = value as Record<string, unknown>, keys = Object.keys(raw).length;
+  if (raw.kind === 'known.automation.browser.save') {
+    return validDraft(raw.draft) && (raw.id === undefined || typeof raw.id === 'string' && RULE_ID.test(raw.id))
+      && (raw.enabled === undefined || typeof raw.enabled === 'boolean') && keys === 2 + Number(raw.id !== undefined) + Number(raw.enabled !== undefined);
+  }
+  if (raw.kind === 'known.automation.browser.enable') return keys === 3 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.enabled === 'boolean';
+  return raw.kind === 'known.automation.browser.remove' && keys === 2 && typeof raw.id === 'string' && RULE_ID.test(raw.id);
 }
 
 /** What the rules would do with a page saved to the popup's default folder. */

@@ -74,8 +74,10 @@ export function checkBundle(value: unknown, now: number): BundleCheck {
 /** A rule's folder roles resolved on this device. Unresolved roles never fall back to a path or a title. */
 export type LocalFolder = { readonly status: 'resolved'; readonly folder: FolderRef; readonly nativeId: string; readonly title: string }
   | { readonly status: 'unresolved'; readonly folder: FolderRef; readonly reason: 'otherCollection' | 'unmapped' | 'deleted' | 'notFolder' };
-export interface LocalRule {
-  readonly rule: CompiledRule;
+/** What evaluation reads from a rule: the bundle's compiled rules and browser rules (browser-rules.ts) both have it. */
+export type EvaluableRule = Pick<CompiledRule, 'ruleId' | 'definition'>;
+export interface LocalRule<R extends EvaluableRule = CompiledRule> {
+  readonly rule: R;
   readonly folders: Readonly<Record<string, LocalFolder>>;
 }
 
@@ -107,7 +109,7 @@ function eligible(definition: RuleDefinition, folders: LocalRule['folders'], fac
  * (server `evaluateRuleEvents`). The intent is the caller's evidence of an
  * explicit choice; this never decides it.
  */
-export function evaluateLocalRules(rules: readonly LocalRule[], facts: EventFacts, intent: PlacementIntent): LocalPlacement {
+export function evaluateLocalRules(rules: readonly LocalRule<EvaluableRule>[], facts: EventFacts, intent: PlacementIntent): LocalPlacement {
   if (!rules.length) return { kind: 'none' };
   const input = preparePredicateInput(facts);
   const candidates: PlacementCandidate[] = [], blocked: string[] = [], evaluation: string[] = [];

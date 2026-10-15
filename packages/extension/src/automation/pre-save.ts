@@ -1,5 +1,5 @@
 import { normalizeUrl, type EventFacts, type FolderRef, type PlacementIntent } from '@know-n/colp/automation';
-import type { CaptureAutomation } from '../capture/contracts.js';
+import type { AccountAutomation, BrowserAutomation, CaptureAutomation } from '../capture/contracts.js';
 import { canonicalLocation, projectRule, type CanonicalLocation, type ProjectionDeps } from './binding-projector.js';
 import { bundleState, type BundleRecord } from './bundle-store.js';
 import { evaluateLocalRules, ruleCollectionId } from './runtime-profile.js';
@@ -26,7 +26,7 @@ export interface PreSaveInput {
   readonly explicit: boolean;
 }
 export interface PreSaveDecision {
-  readonly automation: CaptureAutomation;
+  readonly automation: AccountAutomation;
   /** The rule's folder in this browser; only a placement has one. */
   readonly targetNativeId: string | null;
   /** The canonical folder the save would otherwise be in, when it belongs to the collection. */
@@ -63,9 +63,9 @@ export async function decidePreSave(context: { readonly record: BundleRecord; re
   const ruleId = placement.kind === 'place' ? placement.ruleId : placement.ruleIds[0]!;
   const rule = rules.find((item) => item.ruleId === ruleId)!;
   const expired = state === 'expired' && placement.kind !== 'keep';
-  const outcome: CaptureAutomation['outcome'] = expired ? 'expired' : placement.kind === 'place' ? 'placed'
+  const outcome: AccountAutomation['outcome'] = expired ? 'expired' : placement.kind === 'place' ? 'placed'
     : placement.kind === 'keep' ? 'kept' : placement.kind;
-  const automation: CaptureAutomation = {
+  const automation: AccountAutomation = {
     outcome, ...(placement.kind === 'blocked' && !expired ? { reason: placement.reason } : {}),
     rule: { id: rule.ruleId, name: rule.definition.name, revision: rule.ruleRevision, bindingRevision: rule.bindingRevision,
       semanticDigest: rule.semanticDigest },
@@ -80,6 +80,10 @@ export async function decidePreSave(context: { readonly record: BundleRecord; re
 
 /** A placement that could not use the rule's folder after all (it turned out unavailable for saving) is blocked. */
 export function blockedPlacement(automation: CaptureAutomation): CaptureAutomation {
+  if (automation.source === 'browser') {
+    const { folderTitle: _title, ...rest } = automation;
+    return { ...rest, outcome: 'blocked', reason: 'bindingUnavailable' } satisfies BrowserAutomation;
+  }
   const { destination: _destination, folderTitle: _title, ...rest } = automation;
   return { ...rest, outcome: 'blocked', reason: 'bindingUnavailable', satisfies: [] };
 }

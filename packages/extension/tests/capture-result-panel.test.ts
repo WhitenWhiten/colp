@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createCaptureResultPanel, resultStatus, type ResultPanelOptions } from '../src/capture/result-panel.js';
-import type { CaptureAutomation, CaptureTask } from '../src/capture/contracts.js';
+import type { AccountAutomation, CaptureTask } from '../src/capture/contracts.js';
 import { createPopupNote } from '../src/popup-note.js';
 import { byId, mountPopupShell } from './fixtures/popup-shell.js';
 import { location, task } from './fixtures/capture.js';
@@ -254,11 +254,11 @@ test('a failed Remove keeps the existing result available', async () => {
 });
 
 describe('what the rules did (AW-19)', () => {
-  const automation: CaptureAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1,
+  const automation: AccountAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1,
     satisfies: ['classify.root'], rule: { id: 'rule-arxiv', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'd' },
     destination: { serverUuid: 's', collectionId: 'c', nodeId: 'academic' }, folderTitle: 'Academic', fromNativeId: 'inbox',
     collectionId: 'c', replicaId: 'r', generation: 1 };
-  const ruled = (over: Partial<CaptureAutomation> = {}, task: Partial<CaptureTask> = {}): CaptureTask =>
+  const ruled = (over: Partial<AccountAutomation> = {}, task: Partial<CaptureTask> = {}): CaptureTask =>
     ({ ...local, classification: 'none', local: undefined, automation: { ...automation, ...over }, ...task });
 
   test('a placement names the folder and the rule in one calm line', () => {

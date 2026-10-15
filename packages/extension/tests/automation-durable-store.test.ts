@@ -6,7 +6,7 @@ import { AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY } from '../src/automatio
 import type { NativeBookmark } from '../src/automation/observed-create.js';
 import { RECEIPT_MAX_AGE_MS } from '../src/automation/receipt-sync.js';
 import { recoverPlacementIntents } from '../src/automation/recovery.js';
-import type { CaptureAutomation } from '../src/capture/contracts.js';
+import type { AccountAutomation } from '../src/capture/contracts.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { COLLECTION_ID, NOW, folderRef } from './automation-fixture.js';
 
@@ -72,7 +72,7 @@ describe('the automation database', () => {
 });
 
 const OWNER = '["https://colp.example","owner"]';
-const automation: CaptureAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1, satisfies: ['classify.root'],
+const automation: AccountAutomation = { outcome: 'placed', ruleIds: ['rule-arxiv'], bundleRevision: 'b-1', settingsRevision: 1, satisfies: ['classify.root'],
   rule: { id: 'rule-arxiv', name: 'arXiv papers', revision: '1', bindingRevision: '1', semanticDigest: 'd' }, destination: folderRef('academic'),
   folderTitle: 'Academic', fromNativeId: '2', collectionId: COLLECTION_ID, replicaId: 'replica-1', generation: 2 };
 function intent(intentId: string, over: Partial<PlacementIntent> = {}): PlacementIntent {

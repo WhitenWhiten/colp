@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CaptureAutomation, CaptureSource } from '../src/capture/contracts.js';
+import type { BrowserAutomation, CaptureAutomation, CaptureSource } from '../src/capture/contracts.js';
 
 /**
  * Every extension-owned save asks the rules before the native create (AC-01):
@@ -14,6 +14,7 @@ const f = vi.hoisted(() => ({
   tagMode: 'suggest' as 'off' | 'suggest' | 'add',
   consent: null as null | { readonly expiresAt: number },
   decide: vi.fn(),
+  browser: vi.fn(),
   recover: vi.fn(async (_tasks: readonly unknown[]) => 0),
   unavailable: new Set<string>(),
 }));
@@ -34,6 +35,7 @@ vi.mock('../src/classification-local-session.js', () => ({ localClassificationEn
 vi.mock('../src/sw/capture-history.js', () => ({ captureDeviceId: async () => 'device' }));
 vi.mock('../src/sw/capture-local.js', () => ({ captureTagMode: async () => f.tagMode }));
 vi.mock('../src/sw/automation.js', () => ({ preSaveDecision: f.decide, recordPreSaveReceipt: vi.fn(), recoverPreSaveReceipts: f.recover }));
+vi.mock('../src/sw/automation-browser.js', () => ({ browserPreSaveDecision: f.browser }));
 vi.mock('../src/sw/capture-classification.js', () => ({ classifySavedCapture: vi.fn(), undoSavedCapture: vi.fn() }));
 vi.mock('../src/sw/capture-annotation.js', () => ({ persistCaptureAnnotation: vi.fn() }));
 vi.mock('../src/sw/bookmark-pins.js', () => ({ pinNode: vi.fn() }));
@@ -55,8 +57,9 @@ const start = (source: CaptureSource, extra: { readonly folderChoice?: 'explicit
     url: `https://arxiv.org/abs/2410.${String(command).padStart(5, '0')}`, title: 'A paper', ...extra });
 
 beforeEach(() => {
-  f.scope = { ...f.scope, accountId: 'owner' }; f.mode = 'manual'; f.local = false; f.tagMode = 'suggest'; f.consent = null; f.unavailable.clear();
+  f.scope = { ...f.scope, accountId: 'owner', collectionId: 'c_personal' }; f.mode = 'manual'; f.local = false; f.tagMode = 'suggest'; f.consent = null; f.unavailable.clear();
   f.decide.mockReset().mockResolvedValue({ automation: placed, targetNativeId: '10' });
+  f.browser.mockReset().mockResolvedValue(null);
   vi.stubGlobal('chrome', { tabs: { get: async () => null, query: async () => [] }, runtime: { sendMessage: async () => undefined } });
 });
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -89,6 +92,39 @@ describe('pre-save rules on every extension save path', () => {
     expect(await start('manual-popup')).not.toHaveProperty('automation');
     f.decide.mockRejectedValue(new Error('storage'));
     expect(await start('manual-popup')).toMatchObject({ targetNativeId: '21' });
+  });
+});
+
+describe('browser rules, below the account’s (design 01 §7.5)', () => {
+  const byBrowser: BrowserAutomation = { source: 'browser', outcome: 'placed', rule: { id: 'b-1', name: 'Papers from arXiv' }, ruleIds: ['b-1'],
+    folderTitle: 'Papers', fromNativeId: '21' };
+  beforeEach(() => { f.browser.mockResolvedValue({ automation: byBrowser, targetNativeId: '30' }); });
+
+  it('are not asked when an account rule decided, whatever it decided', async () => {
+    await start('manual-popup');
+    f.decide.mockResolvedValue({ automation: { ...placed, outcome: 'expired', satisfies: [] }, targetNativeId: null });
+    expect(await start('manual-popup')).toMatchObject({ targetNativeId: '21', automation: { outcome: 'expired' } });
+    expect(f.browser).not.toHaveBeenCalled();
+  });
+
+  it('file a page no account rule matched, signed out too, with the same facts', async () => {
+    f.decide.mockResolvedValue(null);
+    const task = await start('context-page');
+    expect(f.browser).toHaveBeenCalledWith({ url: task.url, title: 'A paper', parentNativeId: '21', explicit: false });
+    expect(task).toMatchObject({ targetNativeId: '30', sync: 'local-only', automation: byBrowser });
+    f.scope = { ...f.scope, accountId: null as unknown as string, collectionId: null as unknown as string };
+    expect(await start('context-page')).toMatchObject({ targetNativeId: '30', automation: { source: 'browser', outcome: 'placed' } });
+  });
+
+  it('keep the save where it was going when their folder cannot take it', async () => {
+    f.decide.mockResolvedValue(null); f.unavailable.add('30');
+    expect(await start('manual-popup')).toMatchObject({ targetNativeId: '21',
+      automation: { source: 'browser', outcome: 'blocked', reason: 'bindingUnavailable', rule: { name: 'Papers from arXiv' } } });
+  });
+
+  it('ask the user’s own AI for tags only after they placed a page', async () => {
+    f.decide.mockResolvedValue(null); f.mode = 'automatic'; f.local = true;
+    expect(await start('action-popup')).toMatchObject({ classification: 'waiting', automation: { source: 'browser' } });
   });
 });
 
@@ -130,6 +166,8 @@ describe('a placed save’s receipt after a worker stop', () => {
     const fresh = await saved(placed);
     await saved({ ...placed, outcome: 'kept', satisfies: [] });
     await saved(placed, Date.now() - 8 * 86_400_000);
+    // A browser rule's placement has no receipt to recover.
+    await saved({ source: 'browser', outcome: 'placed', rule: { id: 'b-1', name: 'Papers' }, ruleIds: ['b-1'], folderTitle: 'Papers', fromNativeId: '21' });
     f.recover.mockClear();
     await wakeCaptures();
     expect(f.recover).toHaveBeenCalledOnce();

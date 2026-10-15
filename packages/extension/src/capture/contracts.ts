@@ -118,8 +118,15 @@ export interface LocalAutomatic {
  * `blocked`/`conflict`/`review`: a rule matched but could not decide, and the
  * save kept its own folder. `expired`: a rule matched an out-of-date copy, which
  * never places. Only a placement is reported to the server.
+ *
+ * An account rule's decision (the bundle) comes first; a browser rule
+ * (browser-rules.ts) decides only a page no account rule matched, and nothing
+ * about it leaves the browser.
  */
-export interface CaptureAutomation {
+export type CaptureAutomation = AccountAutomation | BrowserAutomation;
+export interface AccountAutomation {
+  /** Absent on tasks saved before browser rules existed. */
+  readonly source?: 'account';
   readonly outcome: 'placed' | 'kept' | 'blocked' | 'conflict' | 'review' | 'expired';
   readonly reason?: 'bindingUnavailable' | 'evaluation';
   /** The placing rule, or the first matching one. */
@@ -137,6 +144,17 @@ export interface CaptureAutomation {
   readonly replicaId: string;
   readonly generation: number;
 }
+export interface BrowserAutomation {
+  readonly source: 'browser';
+  readonly outcome: 'placed' | 'kept' | 'blocked' | 'conflict';
+  readonly reason?: 'bindingUnavailable' | 'evaluation';
+  readonly rule: { readonly id: string; readonly name: string };
+  readonly ruleIds: readonly string[];
+  readonly folderTitle?: string;
+  readonly fromNativeId: string;
+}
+export const isAccountAutomation = (automation: CaptureAutomation | undefined): automation is AccountAutomation =>
+  automation !== undefined && automation.source !== 'browser';
 export type FeedbackKind = 'explicit_positive' | 'explicit_negative' | 'correction_applied'
   | 'implicit_positive' | 'dismissed_unrated' | 'not_presented' | 'withdrawn';
 export interface CaptureFeedback {

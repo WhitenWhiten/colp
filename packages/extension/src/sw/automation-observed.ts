@@ -6,7 +6,6 @@ import { automationDatabase } from '../automation/indexeddb-store.js';
 import { recoverPlacementIntents } from '../automation/recovery.js';
 import { newPlacementReceipt } from '../automation/receipt-sync.js';
 import { personalBookmarks } from '../bookmark-subscriptions/guards.js';
-import type { CaptureAutomation } from '../capture/contracts.js';
 import { createLocalImportStore } from '../local-import/store.js';
 import { presentSaveFeedback } from '../save-feedback.js';
 import { observedSaveLine } from '../save-status.js';
@@ -176,7 +175,7 @@ async function createEvidence(observation: Observation): Promise<CreateEvidence>
 
 /** The receipt carries the placement's id, so writing it again after a crash adds nothing. */
 async function recordObservedPlacement(placement: ObservedPlacement, ownerKey: string): Promise<void> {
-  const automation: CaptureAutomation = placement.automation;
+  const { automation } = placement;
   if (!automation.destination) return;
   const { rule } = automation;
   await recordPlacementReceipt(newPlacementReceipt({
