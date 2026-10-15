@@ -368,6 +368,69 @@
   "automation_explainWaitingToPlace": {
     "message": "Waiting to move it into the rule’s folder."
   },
+  "automation_flowAccount": {
+    "message": "Your account’s rules"
+  },
+  "automation_flowAi": {
+    "message": "AI"
+  },
+  "automation_flowAiKnowN": {
+    "message": "Know-N picks one"
+  },
+  "automation_flowAiManual": {
+    "message": "You choose in the form"
+  },
+  "automation_flowAiOff": {
+    "message": "Off"
+  },
+  "automation_flowAiOwn": {
+    "message": "Your AI service picks one"
+  },
+  "automation_flowAiSuggests": {
+    "message": "Suggests in the form"
+  },
+  "automation_flowAllOff": {
+    "message": "All off"
+  },
+  "automation_flowAlwaysWins": {
+    "message": "Always wins"
+  },
+  "automation_flowChosen": {
+    "message": "A folder you pick"
+  },
+  "automation_flowManual": {
+    "message": "Manual mode"
+  },
+  "automation_flowNone": {
+    "message": "None yet"
+  },
+  "automation_flowOn_one": {
+    "message": "$1 on"
+  },
+  "automation_flowOn_other": {
+    "message": "$1 on"
+  },
+  "automation_flowOtherwise": {
+    "message": "Otherwise"
+  },
+  "automation_flowOutOfDate": {
+    "message": "Out of date"
+  },
+  "automation_flowPaused": {
+    "message": "Paused"
+  },
+  "automation_flowSetUp": {
+    "message": "Set up"
+  },
+  "automation_flowSignIn": {
+    "message": "Sign in to use them"
+  },
+  "automation_flowStays": {
+    "message": "Stays where you saved it"
+  },
+  "automation_flowTitle": {
+    "message": "How a page you save finds its folder"
+  },
   "automation_folderNotSynced": {
     "message": "This folder isn’t synced, so your other devices don’t have it. Choose a synced folder, or use the rule in this browser."
   },

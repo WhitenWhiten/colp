@@ -95,7 +95,7 @@ describe('Options › Automations with the server’s status', () => {
     server: server({ rules: [{ id: 'rule-arxiv', name: 'arXiv papers', state: 'degraded', inBrowser: true, waiting: 3, held: null, approvals: null, cost: null },
       { id: 'rule-digest', name: 'Weekly digest', state: 'active', inBrowser: false, waiting: 0, held: 0, approvals: 0, cost: 'Billed by your agent' },
       { id: 'rule-old', name: 'Old rule', state: 'archived', inBrowser: false, waiting: null, held: null, approvals: null, cost: null }],
-    runs: [run({ status: 'failed', explanation: 'Destination unavailable.' }), run({ id: 'run-2', status: 'waiting' })] }), ...over });
+    runs: [run({ status: 'failed', explanation: 'Destination unavailable.' }), run({ id: 'run-2', status: 'waiting' })] }), saving: { mode: 'manual', ai: null, suggestInForm: false }, ...over });
 
   async function render(state: AutomationStateView): Promise<HTMLElement> {
     document.body.innerHTML = '<section><a data-automations-web hidden></a><div data-automations-body></div></section>';

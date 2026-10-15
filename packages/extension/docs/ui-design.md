@@ -143,7 +143,7 @@ bar whose items wrap onto a second line, so every destination stays visible.
 | `#history` | Saved-page history grouped by day; one badge per row, problems only |
 | `#subscriptions` | Subscriptions; defaults as the last group |
 | `#sync/...` | Collection, folders, status, import (connect card when signed out) |
-| `#automations` | Signed in: the account's rule bundle on this browser (status, freshness and offline expiry, each rule's folder here; edited on the web), then **Rules in this browser** (see below). Signed out: Rules in this browser lead, with one card for what an account adds. Below, kept apart: recent placements (this browser's receipts and its own rules' placements), then **On your server**, the server's runs in the web's words with their age (see below) |
+| `#automations` | First, **How a page you save finds its folder**: five numbered steps (a folder you pick, the account's rules, this browser's rules, AI, otherwise) with what each does here now, linking to Saving or AI where it is set up (browser rules follow-up U3). Signed in: the account's rule bundle on this browser (status, freshness and offline expiry, each rule's folder here; edited on the web), then **Rules in this browser** (see below). Signed out: Rules in this browser lead, with one card for what an account adds. Below, kept apart: recent placements (this browser's receipts and its own rules' placements), then **On your server**, the server's runs in the web's words with their age (see below) |
 | `#saving` | Toolbar mode, result panel, default folder, placement, shortcuts |
 | `#ai` | Provider choice, Know-N authorization, own AI service, correction memory |
 | `#general` | Language, permissions, export / backup / restore |

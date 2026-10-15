@@ -2,6 +2,8 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
+import { captureControlKey } from '../src/capture/control.js';
+import { MANUAL_CLASSIFICATION_AUTO } from '../src/manual-classification.js';
 import { createBundleStore } from '../src/automation/bundle-store.js';
 import { createReceiptStore } from '../src/automation/receipt-sync.js';
 import { validBrowserRuleCommand } from '../src/automation/messages.js';
@@ -20,6 +22,8 @@ const f = vi.hoisted(() => ({
   recent: [] as { id: string; title: string; url?: string }[],
   authority: async (): Promise<unknown> => { throw new Error('offline'); },
   bundle: null as unknown,
+  mode: 'manual' as 'manual' | 'automatic',
+  ownAi: false,
 }));
 vi.mock('../src/sw/runtime.js', () => ({
   hasBookmarkPermission: async () => true, extensionOrigin: () => 'chrome-extension://extension',
@@ -38,6 +42,8 @@ vi.mock('../src/automation/device-client.js', () => ({ fetchRuleBundle: async ()
   acknowledgeRuleBundle: async () => undefined, postIntakeReceipt: async () => ({ ok: false, problem: 'offline' }) }));
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => f.scope }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
+vi.mock('../src/sw/bookmark-preferences.js', () => ({ readEffectiveBookmarkPreferences: async () => ({ captureMode: f.mode }) }));
+vi.mock('../src/classification-local-session.js', () => ({ localClassificationEnabled: async () => f.ownAi }));
 
 import { accountLink, automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation, rulesDecision } from '../src/sw/automation.js';
 import { browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
@@ -57,7 +63,7 @@ beforeEach(async () => {
     getRecent: async (count: number) => f.recent.slice(0, count) }, runtime: { sendMessage: vi.fn(async () => undefined) },
     action: { setBadgeText: async () => undefined, setBadgeBackgroundColor: async () => undefined, setTitle: async () => undefined } });
   vi.stubGlobal('fetch', async () => { throw new TypeError('offline'); });
-  f.credential = null; f.recent = []; f.bundle = null;
+  f.credential = null; f.recent = []; f.bundle = null; f.mode = 'manual'; f.ownAi = false;
   f.authority = async () => { throw new Error('offline'); };
   f.scope = { serverOrigin: 'https://colp.example', accountId: 'owner', authorityGeneration: 1, collectionId: COLLECTION_ID };
   expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft() })).toMatchObject({ ok: true });
@@ -111,6 +117,26 @@ describe('a placed save', () => {
     expect(await createReceiptStore(automationArea()).list()).toEqual([]);
     await recordPreSaveReceipt({ ...saved, captureId: '0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f02', automation: { ...saved.automation!, outcome: 'kept' } as CaptureTask['automation'] });
     expect(await browserRuleStore().placements()).toHaveLength(1);
+  });
+});
+
+describe('how a page finds its folder past the rules (U3)', () => {
+  it('reports the save mode and the AI in use here', async () => {
+    expect((await automationStateView()).saving).toEqual({ mode: 'manual', ai: null, suggestInForm: false });
+    await chrome.storage.local.set({ [MANUAL_CLASSIFICATION_AUTO]: true });
+    f.mode = 'automatic'; f.ownAi = true;
+    expect((await automationStateView()).saving).toEqual({ mode: 'automatic', ai: 'own', suggestInForm: true });
+  });
+
+  it('counts Know-N only with a live authorization for the collection saved into', async () => {
+    f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' }; f.mode = 'automatic';
+    const consent = { collectionId: COLLECTION_ID, priceVersion: 'p1', maxPoints: 5, periodPoints: 100, expiresAt: NOW + 3_600_000 };
+    await chrome.storage.local.set({ [captureControlKey(f.scope)]: { paused: false, generation: 1, consent } });
+    expect((await automationStateView()).saving.ai).toBe('knowN');
+    await chrome.storage.local.set({ [captureControlKey(f.scope)]: { paused: false, generation: 1, consent: { ...consent, expiresAt: NOW - 1 } } });
+    expect((await automationStateView()).saving.ai).toBeNull();
+    await chrome.storage.local.set({ [captureControlKey(f.scope)]: { paused: false, generation: 1, consent: { ...consent, collectionId: 'c_other' } } });
+    expect((await automationStateView()).saving.ai).toBeNull();
   });
 });
 

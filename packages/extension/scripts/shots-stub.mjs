@@ -32,6 +32,7 @@
 //     browser-empty (no rules in this browser), browser-none (signed out, nothing filed yet),
 //     browser-overlap (signed in: one browser rule conflicts with an account rule, one duplicates one),
 //     browser-move (signed in: one browser rule is moving to the account, one has an unsynced folder)
+//     flow-manual (Manual mode, suggestions in the form), flow-noai (Automatic mode with no AI set up)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -462,10 +463,14 @@ export function installStub(messages) {
           pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,
           // Without a bundle the worker has neither an expiry nor a good refresh to report.
           expiresAt: state === 'expired' ? now - 3600e3 : state === 'none' ? null : now + 6 * 86400e3, lastRefreshAt: state === 'none' ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),
-          problem: has('auto-rejected') ? 'rejected' : has('auto-off') ? 'unavailable' : state === 'expired' ? 'offline' : null, webUrl: 'https://known.example/automations' } };
+          problem: has('auto-rejected') ? 'rejected' : has('auto-off') ? 'unavailable' : state === 'expired' ? 'offline' : null, webUrl: 'https://known.example/automations',
+          // How a page finds its folder (U3): Automatic with the Owner's own AI unless flow-manual or flow-noai says otherwise.
+          saving: { mode: has('flow-manual') ? 'manual' : 'automatic', ai: has('flow-noai') ? null : 'own', suggestInForm: has('flow-manual') } } };
       }
       case 'known.automation.browser.save': case 'known.automation.browser.enable': case 'known.automation.browser.remove':
         return { ok: true, rule: null };
+      case 'known.automation.browser.forAccount':
+        return { ok: true, url: 'https://known.example/automations/new?from=browser' };
       case 'known.capture.check': case 'known.capture.resume': case 'known.capture.edit.cancel': case 'known.capture.feedback': case 'known.capture.presented': case 'known.connectivity.online': case 'known.favicon.drain': return { ok: true };
       default: return { ok: false, error: 'unavailable' };
     }

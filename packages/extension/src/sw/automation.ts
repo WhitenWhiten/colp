@@ -14,9 +14,13 @@ import { digestIndicator, toolbarBadge, type DigestIndicator } from '../automati
 import { showAutomationBadge, writeAutomationBadge } from '../action-badge.js';
 import { readSaveFeedback, saveFeedbackIsError } from '../save-feedback.js';
 import type { AutomationMatchView, AutomationPlacementView, AutomationRequest, AutomationResponse, AutomationRuleView, AutomationServerView,
-  AutomationStateView } from '../automation/messages.js';
+  AutomationStateView, SavingFlowView } from '../automation/messages.js';
 import { isAccountAutomation, type CaptureScope, type CaptureTask } from '../capture/contracts.js';
 import { currentCaptureScope } from './capture-native.js';
+import { readEffectiveBookmarkPreferences } from './bookmark-preferences.js';
+import { readCaptureControl } from '../capture/control.js';
+import { localClassificationEnabled } from '../classification-local-session.js';
+import { manualClassificationRequested } from '../manual-classification.js';
 import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
@@ -375,6 +379,16 @@ export async function accountLink(): Promise<AccountLink | null> {
   return owner ? linkFor(owner, webUrlFor(owner.serverOrigin)) : null;
 }
 
+/** Past the rules (follow-up U3): Automatic mode asks the AI in use here; Manual mode leaves the folder to the form. */
+async function savingFlow(): Promise<SavingFlowView> {
+  const [preferences, own, suggestInForm, scope] = await Promise.all([readEffectiveBookmarkPreferences().catch(() => null),
+    localClassificationEnabled().catch(() => false), manualClassificationRequested().catch(() => false), currentCaptureScope().catch(() => null)]);
+  // Know-N's suggestions count only with a live authorization for the collection saved into, as the capture path checks.
+  const consent = !own && scope?.accountId ? (await readCaptureControl(scope).catch(() => null))?.consent : null;
+  const knowN = Boolean(consent && consent.expiresAt > Date.now() && consent.collectionId === scope?.collectionId);
+  return { mode: preferences?.captureMode === 'automatic' ? 'automatic' : 'manual', ai: own ? 'own' : knowN ? 'knowN' : null, suggestInForm };
+}
+
 export async function automationStateView(): Promise<AutomationStateView> {
   const owner = await currentOwner();
   const config = await loadConfig().catch(() => null);
@@ -384,7 +398,7 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const filed = await browserPlacementViews();
   if (!owner) {
     return { account: 'signedOut', state: 'none', rules: [], placements: filed.slice(0, 10), browserRules: await browserRuleViews(), pausedAt: null,
-      pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl, server: null };
+      pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl, server: null, saving: await savingFlow() };
   }
   const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
@@ -398,7 +412,8 @@ export async function automationStateView(): Promise<AutomationStateView> {
     placements: [...await placementViews(automationOwnerKey(owner)), ...filed].sort((a, b) => b.at - a.at).slice(0, 10), browserRules,
     pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: pauseKnown ? pause?.pausedBy ?? null : null,
     expiresAt: current.state === 'active' || current.state === 'paused' ? current.expiresAt : current.state === 'expired' ? current.expiredAt : null,
-    lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null, server: await serverView(owner, record, owner.serverOrigin) };
+    lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null, server: await serverView(owner, record, owner.serverOrigin),
+    saving: await savingFlow() };
 }
 
 export async function handleAutomationRequest(request: AutomationRequest): Promise<AutomationResponse> {

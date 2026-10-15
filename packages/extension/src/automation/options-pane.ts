@@ -6,6 +6,7 @@ import { when } from '../subscriptions-ui/dom.js';
 import { AUTOMATION_CHANGED_KEY, type AutomationResponse, type AutomationServerRuleView, type AutomationServerView,
   type AutomationStateView } from './messages.js';
 import { browserRulesGroup, offersAccountRules, openBrowserRuleEditor } from './browser-rules-pane.js';
+import { flowStrip } from './flow-strip.js';
 import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
 
 /**
@@ -361,11 +362,12 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     const parts: HTMLElement[] = [];
     if (view.account === 'signedOut') {
       // This browser's rules need no account, so they lead; the account's rules are one sign-in away.
-      parts.push(browserRulesGroup(view), accountCard());
+      parts.push(flowStrip(view), browserRulesGroup(view), accountCard());
     } else {
       const alert = notice(view);
       if (alert) parts.push(alert);
-      parts.push(statusCard(view, refresh, busy));
+      // The order every save follows comes first, so each section below reads as one of its steps.
+      parts.push(flowStrip(view), statusCard(view, refresh, busy));
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
       parts.push(browserRulesGroup(view));
     }

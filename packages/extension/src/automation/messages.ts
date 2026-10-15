@@ -218,6 +218,16 @@ export interface AutomationStateView {
   readonly webUrl: string | null;
   /** What the server says it is doing; null when signed out or the server has no automations. */
   readonly server: AutomationServerView | null;
+  /** What decides a saved page's folder after the rules: the save mode and the AI in use here (follow-up U3). */
+  readonly saving: SavingFlowView;
+}
+
+export interface SavingFlowView {
+  readonly mode: 'manual' | 'automatic';
+  /** The AI that picks a folder in Automatic mode: the Owner's own service, Know-N (an account that consented), or none. */
+  readonly ai: 'own' | 'knowN' | null;
+  /** Manual mode: a folder is suggested as the form opens. */
+  readonly suggestInForm: boolean;
 }
 
 export type AutomationResponse = { readonly ok: true; readonly state: AutomationStateView }

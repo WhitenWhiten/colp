@@ -19,8 +19,8 @@ previous item's hash.
 | Item | Commit | Problem | Change |
 | --- | --- | --- | --- |
 | U1 | `cce0089d` | *Pause all automations* left browser rules running; they even took over while the account was paused. The card said "All automations are paused… Bookmarks keep the folder you save them to". | The account's pause pauses browser rules too, and the page says so. |
-| U2 | — | Two "New rule" buttons on one page made different kinds of rule. | One *New rule*; signed in, it asks *This browser* or *All my devices* first. |
-| U3 | planned | The order that decides a saved page's folder was not shown anywhere. | planned |
+| U2 | `566f6430` | Two "New rule" buttons on one page made different kinds of rule. | One *New rule*; signed in, it asks *This browser* or *All my devices* first. |
+| U3 | — | The order that decides a saved page's folder was not shown anywhere. | Automations opens with the five steps and what each does here now. |
 | U4 | planned | "AI suggestions" hid that, in Automatic mode, the AI files the page. | planned |
 | U5 | planned | A rule waiting to move to the account could say *Moving* forever. | planned |
 | U6 | planned | A browser rule that kept a page where it was saved left no trace after the save panel closed. | planned |
@@ -261,3 +261,42 @@ New tests:
   section starts at *All my devices*;
 - the worker (+1, and shape checks): signed out, a synced folder (the address's parameters), an unsynced
   folder, an invalid draft; the browser's rules are unchanged afterwards.
+
+## U3 — how a page you save finds its folder
+
+**Before.** The order (your folder, the account's rules, this browser's rules, AI, otherwise where you
+saved it) was spread over hints on three pages. That the AI files only in Automatic mode followed only from
+the Saving and AI settings.
+
+**Now.** *Automations* opens with **How a page you save finds its folder**: five numbered steps in the
+order the worker takes them. Each step says what it does here right now:
+
+| Step | What it can say |
+| --- | --- |
+| 1 A folder you pick | Always wins |
+| 2 Your account's rules | *n on*, *None yet*, *Paused*, *Out of date*, *Sign in to use them* |
+| 3 Rules in this browser | *n on* (switched on, with a folder), *All off*, *None yet*, *Paused* (with the account) |
+| 4 AI | *Your AI service picks one* / *Know-N picks one* (Automatic); *Off · Set up* (→ AI); *Suggests in the form* or *You choose in the form* · *Manual mode* (→ Saving) |
+| 5 Otherwise | Stays where you saved it |
+
+The worker adds `saving` to the Automations state (`savingFlow` in `src/sw/automation.ts`):
+
+- `mode`: the capture mode;
+- `ai`: *own* when the Owner's AI service is on; else *knowN* with a live, unexpired authorization for the
+  collection saved into, the same check the capture path makes; else none;
+- `suggestInForm`: Manual mode's "Suggest when the form opens".
+
+The strip is `src/automation/flow-strip.ts`. It shows five cards in a row, and a single list below 760 px.
+
+| Command (`packages/extension`) | Result |
+| --- | --- |
+| `npx tsc --noEmit -p .`, `npx eslint` on the changed files, `npm run check:source-size` | pass |
+| `npx vitest run tests/automation-*.test.ts tests/capture-pre-save.test.ts tests/i18n.test.ts tests/service-worker-entry-behavior.test.ts` | 24 files, 227 tests passed |
+| `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | current |
+| `npm run build:development`, then the `automations-flow-manual`, `automations-flow-noai-out`, `automations-paused` and `automations-browser-out` shots in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320; a first version had no gap below the strip and text sinking to the bottom of each card, both fixed |
+
+New tests:
+
+- the pane (+2): the five steps and their states; off, paused and Manual mode with their links;
+- the worker (+2): mode, own AI and *suggest in the form* from storage; Know-N only with a live
+  authorization for the bound collection (an expired one, or one for another collection, counts as none).

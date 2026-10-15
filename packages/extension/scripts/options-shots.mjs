@@ -82,6 +82,9 @@ const STATES = [
     await p.click('.automation-rule-editor button[type="submit"]'); await p.waitForTimeout(300); }, false],
   ['automations-browser-edit', 'options.html?shot=signedout#automations', async (p) => { await p.click('.automation-browser-rule >> nth=1'); await p.waitForTimeout(500);
     await p.click('.automation-rule-editor .folder-pill'); await p.waitForTimeout(300); }, false],
+  // How a page you save finds its folder (U3): Manual mode, and Automatic with no AI, signed in and out.
+  ['automations-flow-manual', 'options.html?shot=flow-manual#automations'],
+  ['automations-flow-noai-out', 'options.html?shot=signedout,flow-noai#automations'],
   // One New rule, signed in (follow-up U2): where the rule is used comes first.
   ['automations-new-signedin', 'options.html#automations', async (p) => { await p.click('[data-automations-new]'); await p.waitForTimeout(500); }, false],
   ['automations-new-account', 'options.html#automations', async (p) => { await p.click('[data-automations-new]'); await p.waitForTimeout(400);

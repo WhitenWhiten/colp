@@ -23,7 +23,7 @@ const view = (over: Partial<AutomationStateView> = {}): AutomationStateView => (
     draft: { name: 'SEO reading', combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }],
       folderNativeId: 'f-papers' } }),
   rule({ id: 'b-3', name: 'Recipes', folder: null, folderMissing: true })],
-  pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl: null, server: null, ...over });
+  pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl: null, server: null, saving: { mode: 'manual', ai: null, suggestInForm: false }, ...over });
 const tree = [{ id: '0', title: '', children: [{ id: '1', title: 'Bookmarks bar', children: [{ id: 'f-papers', title: 'Papers', children: [] },
   { id: 'f-sub', title: 'A subscription', children: [] }] }] }];
 
@@ -60,7 +60,9 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.repla
 describe('Rules in this browser on the page', () => {
   it('lead the page when signed out, in the web’s words, and say what an account adds', async () => {
     const body = await render(view());
-    const groups = Array.from(body.children);
+    // The order every save follows comes first (U3); then this browser's rules lead.
+    const groups = Array.from(body.children).slice(1);
+    expect(body.children[0]!.getAttribute('aria-labelledby')).toBe('automation-flow-heading');
     expect(groups[0]!.getAttribute('aria-labelledby')).toBe('automation-browser-heading');
     expect(text(groups[0]!.querySelector('h2'))).toBe('Rules in this browser3');
     const rows = Array.from(body.querySelectorAll('.automation-browser-rule'));
@@ -87,7 +89,7 @@ describe('Rules in this browser on the page', () => {
   it('come after the account’s status and rules when signed in', async () => {
     const body = await render(view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations',
       rules: [{ id: 'rule-arxiv', name: 'arXiv papers', folder: 'Academic', resolved: true, match: null }] }));
-    expect(Array.from(body.children).map((node) => node.getAttribute('aria-labelledby'))).toEqual(['automation-status-title',
+    expect(Array.from(body.children).map((node) => node.getAttribute('aria-labelledby'))).toEqual(['automation-flow-heading', 'automation-status-title',
       'automation-rules-heading', 'automation-browser-heading']);
     expect(text(body.querySelector('#automation-rules-heading'))).toBe('Your account’s rules');
     // One New rule for the page (U2): the account's section has no second one.
@@ -325,5 +327,32 @@ describe('one New rule for both kinds (U2)', () => {
     body.querySelector<HTMLButtonElement>('[aria-labelledby="automation-rules-heading"] .empty button')!.click();
     expect(useOn().map((input) => input.checked)).toEqual([false, true]);
     expect(text(editor().querySelector('button[type="submit"]'))).toBe('Continue on the web');
+  });
+});
+
+describe('how a page you save finds its folder (U3)', () => {
+  const steps = (body: HTMLElement) => Array.from(body.querySelectorAll('.automation-flow-step')).map((step) =>
+    [text(step.querySelector('.automation-flow-name')), text(step.querySelector('.automation-flow-state'))]);
+
+  it('shows the five steps in order, with what each does here now', async () => {
+    const body = await render(view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations',
+      rules: [{ id: 'rule-arxiv', name: 'arXiv papers', folder: 'Academic', resolved: true, match: null }],
+      saving: { mode: 'automatic', ai: 'own', suggestInForm: false } }));
+    expect(text(body.querySelector('#automation-flow-heading'))).toBe('How a page you save finds its folder');
+    expect(steps(body)).toEqual([['A folder you pick', 'Always wins'], ['Your account’s rules', '1 on'],
+      ['Rules in this browser', '1 on'], ['AI', 'Your AI service picks one'], ['Otherwise', 'Stays where you saved it']]);
+  });
+
+  it('says what is off, paused or left to the form, and links to where it is set up', async () => {
+    let body = await render(view({ saving: { mode: 'automatic', ai: null, suggestInForm: false }, browserRules: [] }));
+    expect(steps(body).slice(1, 4)).toEqual([['Your account’s rules', 'Sign in to use them'], ['Rules in this browser', 'None yet'], ['AI', 'Off · Set up']]);
+    expect(body.querySelector<HTMLAnchorElement>('.automation-flow-state a')!.getAttribute('href')).toBe('#ai');
+    body = await render(view({ account: 'signedIn', state: 'paused', webUrl: 'https://colp.example/automations',
+      saving: { mode: 'manual', ai: 'own', suggestInForm: true } }));
+    expect(steps(body).slice(1, 4)).toEqual([['Your account’s rules', 'Paused'], ['Rules in this browser', 'Paused'],
+      ['AI', 'Suggests in the form · Manual mode']]);
+    body = await render(view({ saving: { mode: 'manual', ai: null, suggestInForm: true },
+      browserRules: [rule({ enabled: false })] }));
+    expect(steps(body).slice(2, 4)).toEqual([['Rules in this browser', 'All off'], ['AI', 'You choose in the form · Manual mode']]);
   });
 });
