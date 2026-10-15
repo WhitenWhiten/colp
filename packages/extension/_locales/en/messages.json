@@ -389,6 +389,9 @@
   "automation_loadFailed": {
     "message": "Couldn’t read automations in this browser. Reload the page to try again."
   },
+  "automation_localOnlyLine": {
+    "message": "Only in this browser: its folder isn’t synced."
+  },
   "automation_matchAll": {
     "message": "all of these"
   },
@@ -398,8 +401,23 @@
   "automation_matchLabel": {
     "message": "Match"
   },
+  "automation_moveStarted": {
+    "message": "Finish on the web: preview the rule and turn it on. This browser keeps using its copy until then."
+  },
+  "automation_moveToAccount": {
+    "message": "Add to your account"
+  },
   "automation_movedByRule": {
     "message": "Moved “$1” to $2 by rule “$3”."
+  },
+  "automation_movedToAccount": {
+    "message": "“$1” now runs from your account, on every device."
+  },
+  "automation_movingBadge": {
+    "message": "Moving"
+  },
+  "automation_movingLine": {
+    "message": "Waiting for your account’s copy. Until it arrives, this browser keeps using this one."
   },
   "automation_needBookmarks": {
     "message": "Know-N needs access to your bookmarks to file pages into a folder."
@@ -469,6 +487,12 @@
   },
   "automation_overlapLineElsewhere": {
     "message": "Your account’s rule “$1” takes these first."
+  },
+  "automation_overlapMove": {
+    "message": "Add mine to the account"
+  },
+  "automation_overlapMoving": {
+    "message": "Opened on the web. Preview it there and turn it on; this browser then stops using its copy."
   },
   "automation_overlapNotice_one": {
     "message": "$1 of your browser rules overlaps your account’s rules."

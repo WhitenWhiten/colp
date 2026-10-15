@@ -122,12 +122,11 @@ export function relateBrowserRule(rule: OverlapRule, account: readonly OverlapRu
   let best: Relation | null = null;
   for (const other of account) {
     const pages = counts?.get(other.id) ?? 0;
-    if (!pages && !witnessOverlap(rule.definition, other.definition, now)) continue;
     const sameFolder = other.folderNativeId !== null && other.folderNativeId === rule.folderNativeId;
-    const kind = sameFolder && sameMatch(rule.definition.match, other.definition.match) ? 'duplicate' : sameFolder ? null : 'conflict';
-    if (!kind) continue;
-    if (kind === 'duplicate') return { kind, accountRuleId: other.id, pages };
-    if (!best || pages > best.pages) best = { kind, accountRuleId: other.id, pages };
+    // The same rule is a duplicate even when no page could satisfy it.
+    if (sameFolder && sameMatch(rule.definition.match, other.definition.match)) return { kind: 'duplicate', accountRuleId: other.id, pages };
+    if (sameFolder || (!pages && !witnessOverlap(rule.definition, other.definition, now))) continue;
+    if (!best || pages > best.pages) best = { kind: 'conflict', accountRuleId: other.id, pages };
   }
   return best;
 }

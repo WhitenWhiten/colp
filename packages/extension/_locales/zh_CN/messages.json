@@ -511,6 +511,10 @@
     "message": "无法读取此浏览器中的自动化。请重新加载页面后再试。",
     "description": "Couldn’t read automations in this browser. Reload the page to try again."
   },
+  "automation_localOnlyLine": {
+    "message": "仅在此浏览器中：它的文件夹未同步。",
+    "description": "Only in this browser: its folder isn’t synced."
+  },
   "automation_matchAll": {
     "message": "全部满足",
     "description": "all of these"
@@ -523,9 +527,29 @@
     "message": "匹配",
     "description": "Match"
   },
+  "automation_moveStarted": {
+    "message": "请在网页上完成：预览规则并开启。在此之前，此浏览器会继续使用自己的副本。",
+    "description": "Finish on the web: preview the rule and turn it on. This browser keeps using its copy until then."
+  },
+  "automation_moveToAccount": {
+    "message": "添加到你的账户",
+    "description": "Add to your account"
+  },
   "automation_movedByRule": {
     "message": "已按规则“$3”将“$1”移到 $2。",
     "description": "Moved “$1” to $2 by rule “$3”."
+  },
+  "automation_movedToAccount": {
+    "message": "“$1”现在由你的账户运行，在每台设备上生效。",
+    "description": "“$1” now runs from your account, on every device."
+  },
+  "automation_movingBadge": {
+    "message": "迁移中",
+    "description": "Moving"
+  },
+  "automation_movingLine": {
+    "message": "正在等待你账户中的副本。在它到达之前，此浏览器会继续使用这条规则。",
+    "description": "Waiting for your account’s copy. Until it arrives, this browser keeps using this one."
   },
   "automation_needBookmarks": {
     "message": "Know-N 需要访问你的书签，才能把网页放进文件夹。",
@@ -618,6 +642,14 @@
   "automation_overlapLineElsewhere": {
     "message": "你账户的规则“$1”会先处理这些网页。",
     "description": "Your account’s rule “$1” takes these first."
+  },
+  "automation_overlapMove": {
+    "message": "把我的添加到账户",
+    "description": "Add mine to the account"
+  },
+  "automation_overlapMoving": {
+    "message": "已在网页上打开。在那里预览并开启后，此浏览器就不再使用自己的副本。",
+    "description": "Opened on the web. Preview it there and turn it on; this browser then stops using its copy."
   },
   "automation_overlapNotice_other": {
     "message": "你有 $1 条浏览器规则与账户的规则重叠。",

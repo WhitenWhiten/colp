@@ -41,7 +41,9 @@ export type BrowserRuleCommand =
   | { readonly kind: 'known.automation.browser.enable'; readonly id: string; readonly enabled: boolean }
   | { readonly kind: 'known.automation.browser.remove'; readonly id: string }
   /** Keep this rule next to the account rule it overlaps, at that rule's current revision (`reviewKey`). */
-  | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string };
+  | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string }
+  /** Add mine to the account was opened on the web: retire this rule once the account's enabled copy arrives. */
+  | { readonly kind: 'known.automation.browser.moving'; readonly id: string };
 
 export type BrowserRuleResponse = { readonly ok: true; readonly rule: BrowserRule | null }
   | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
@@ -74,7 +76,8 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
     return keys === 4 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.accountRuleId === 'string'
       && raw.accountRuleId.length > 0 && raw.accountRuleId.length <= 256 && typeof raw.key === 'string' && raw.key.length > 0 && raw.key.length <= 512;
   }
-  return raw.kind === 'known.automation.browser.remove' && keys === 2 && typeof raw.id === 'string' && RULE_ID.test(raw.id);
+  return (raw.kind === 'known.automation.browser.remove' || raw.kind === 'known.automation.browser.moving') && keys === 2
+    && typeof raw.id === 'string' && RULE_ID.test(raw.id);
 }
 
 /** What the rules would do with a page saved to the popup's default folder. */
@@ -113,6 +116,12 @@ export interface BrowserRuleView {
    * or one that takes some of its pages to another folder first (`conflict`). Null otherwise.
    */
   readonly account: BrowserRuleOverlapView | null;
+  /** Signed in: the web editor filled in with this rule (AW-71); null without an account or a synced folder. */
+  readonly move: { readonly url: string } | null;
+  /** Signed in, and its folder is outside the synced collection: it can only stay in this browser. */
+  readonly localOnly: boolean;
+  /** Add mine to the account was chosen; it keeps filing until the account's copy arrives. */
+  readonly moving: boolean;
 }
 
 export interface BrowserRuleOverlapView {

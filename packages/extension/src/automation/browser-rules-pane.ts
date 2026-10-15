@@ -84,12 +84,18 @@ function ruleRow(rule: BrowserRuleView): HTMLLIElement {
       : t('automation_browserFolderHere', 'a folder in this browser'), rule.folderMissing ? 'automation-recipe-missing' : undefined));
   }
   main.append(el('p', rule.name, 'list-row-title'), meta);
-  if (rule.account) main.append(overlapLine(rule.account));
+  if (rule.moving) main.append(noteLine('sync', t('automation_movingLine', 'Waiting for your account’s copy. Until it arrives, this browser keeps using this one.')));
+  else if (rule.account) main.append(overlapLine(rule.account));
+  if (rule.localOnly) main.append(noteLine('lock', t('automation_localOnlyLine', 'Only in this browser: its folder isn’t synced.')));
   // Actions show on hover; the state badge stays next to the switch, which keeps its own column.
   const tail = el('div', undefined, 'list-row-tail');
   const actions = el('span', undefined, 'row-actions-hover');
   const edit = iconButton('pencil', t('automation_browserEdit', 'Edit rule'), () => openBrowserRuleEditor(rule, edit));
   const remove = iconButton('trash', t('automation_browserDelete', 'Delete rule'), () => confirmDelete(rule, remove));
+  if (rule.move && !rule.moving) {
+    const move = rule.move;
+    actions.append(iconButton('upload', t('automation_moveToAccount', 'Add to your account'), () => moveToAccount(rule.id, move.url)));
+  }
   actions.append(edit, remove);
   tail.append(actions);
   if (rule.folderMissing) {
@@ -97,6 +103,7 @@ function ruleRow(rule: BrowserRuleView): HTMLLIElement {
     missing.title = t('automation_browserFolderMissingHint', 'Its folder was deleted. Edit the rule to choose another one.');
     tail.append(missing);
   } else if (!rule.enabled) tail.append(badge(t('automation_browserOff', 'Off')));
+  else if (rule.moving) tail.append(badge(t('automation_movingBadge', 'Moving')));
   else if (rule.account && !rule.account.reviewed) {
     tail.append(rule.account.kind === 'conflict' ? badge(t('automation_overlapBadge', 'Overlaps'), 'warning')
       : badge(t('automation_duplicateBadge', 'Same as account')));
@@ -120,6 +127,24 @@ function overlapSentence(overlap: BrowserRuleOverlapView): string {
 function pagesSentence(overlap: BrowserRuleOverlapView): string {
   return overlap.pages ? tn('automation_overlapPages', overlap.pages, '$1 of your bookmarks matches both.', '$1 of your bookmarks match both.')
     : t('automation_overlapPossible', 'They can match the same pages.');
+}
+
+function noteLine(icon: 'sync' | 'lock', copy: string): HTMLElement {
+  const line = el('p', undefined, 'list-row-meta automation-overlap');
+  line.append(createIcon(icon, 12), el('span', copy, 'grow'));
+  return line;
+}
+
+/**
+ * Add mine to the account (AW-71): the web editor opens filled in with this rule, where the Owner previews
+ * and turns it on. This rule keeps filing until the account's enabled copy reaches this browser.
+ */
+function moveToAccount(id: string, url: string): void {
+  window.open(url, '_blank', 'noopener');
+  void send({ kind: 'known.automation.browser.moving', id }).then((reply) => {
+    showToast(reply.ok ? t('automation_moveStarted', 'Finish on the web: preview the rule and turn it on. This browser keeps using its copy until then.')
+      : t('automation_browserSaveFailed', 'Couldn’t save this rule. Try again.'), reply.ok ? 'info' : 'error', { announce: true });
+  });
 }
 
 function overlapLine(overlap: BrowserRuleOverlapView): HTMLElement {
@@ -169,6 +194,15 @@ function openOverlapReview(rules: readonly BrowserRuleView[], trigger: HTMLEleme
           t('automation_overlapKeptBoth', 'Kept both. This rule files what the account’s doesn’t match.'))),
         button(t('automation_overlapUseAccount', 'Use the account’s'), 'btn btn-ghost btn-sm', () => settle(
           { kind: 'known.automation.browser.enable', id: rule.id, enabled: false }, t('automation_overlapUsedAccount', 'Turned this rule off.'))));
+      // Moving needs the folder in the synced collection; the row says when it isn't.
+      const move = rule.move;
+      if (move && !rule.moving) {
+        choices.append(button(t('automation_overlapMove', 'Add mine to the account'), 'btn btn-ghost btn-sm', () => {
+          window.open(move.url, '_blank', 'noopener');
+          settle({ kind: 'known.automation.browser.moving', id: rule.id },
+            t('automation_overlapMoving', 'Opened on the web. Preview it there and turn it on; this browser then stops using its copy.'));
+        }));
+      }
     } else {
       choices.append(
         button(t('automation_duplicateRemove', 'Remove mine'), 'btn btn-secondary btn-sm', () => settle(

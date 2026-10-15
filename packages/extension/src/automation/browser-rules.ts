@@ -44,6 +44,11 @@ export interface BrowserRule {
    * revision: a changed account rule is shown again.
    */
   readonly reviewed?: readonly { readonly accountRuleId: string; readonly key: string }[];
+  /**
+   * When the Owner chose Add mine to the account (AW-71). The rule keeps filing until the account's
+   * enabled copy reaches this browser, then retires.
+   */
+  readonly movingSince?: number;
 }
 
 export type DraftProblem =
@@ -130,6 +135,23 @@ export function draftFromRule(rule: BrowserRule): BrowserRuleDraft | null {
   if (!match || match.conditions.some((condition) => condition.kind === 'hasTag')) return null;
   return { name: rule.definition.name, combinator: match.combinator, folderNativeId: rule.folderNativeId,
     conditions: match.conditions.map((condition) => ({ kind: condition.kind as BrowserConditionKind, value: condition.value })) };
+}
+
+/**
+ * The web editor filled in with this rule (AW-70): the same name and conditions, and its folder by the
+ * canonical identity Sync gave it. Null for a rule the editor cannot show.
+ */
+export function accountEditorUrl(webUrl: string, rule: BrowserRule, folder: { readonly collectionId: string; readonly nodeId: string }): string | null {
+  const draft = draftFromRule(rule);
+  if (!draft) return null;
+  const url = new URL(`${webUrl.replace(/\/$/u, '')}/new`);
+  url.searchParams.set('collectionId', folder.collectionId);
+  url.searchParams.set('folderId', folder.nodeId);
+  url.searchParams.set('name', rule.definition.name);
+  url.searchParams.set('combinator', draft.combinator);
+  for (const condition of draft.conditions) url.searchParams.append('condition', `${condition.kind}:${condition.value}`);
+  url.searchParams.set('from', 'browser');
+  return url.toString();
 }
 
 export function browserRuleMatch(rule: BrowserRule): RuleMatchView | null {

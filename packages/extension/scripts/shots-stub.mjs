@@ -30,7 +30,8 @@
 //     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules),
 //     auto-server-offline (last runs read 3 h ago), auto-server-signin (no web sign-in), auto-server-empty (no runs yet),
 //     browser-empty (no rules in this browser), browser-none (signed out, nothing filed yet),
-//     browser-overlap (signed in: one browser rule conflicts with an account rule, one duplicates one)
+//     browser-overlap (signed in: one browser rule conflicts with an account rule, one duplicates one),
+//     browser-move (signed in: one browser rule is moving to the account, one has an unsynced folder)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -443,7 +444,9 @@ export function installStub(messages) {
             folder: kind === 'conflict' ? 'Academic' : 'Programming', match: kind === 'conflict' ? { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] }
               : { combinator: 'all', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }] } } } : null;
         const browserRule = (id, name, enabled, combinator, conditions, folder, folderMissing = false, account = null) => ({ id, name, enabled, match: { combinator, conditions },
-          draft: { name, combinator, conditions, folderNativeId: folder?.nativeId ?? 'gone' }, folder, folderMissing, account });
+          draft: { name, combinator, conditions, folderNativeId: folder?.nativeId ?? 'gone' }, folder, folderMissing, account,
+          move: !signedOut && folder && id !== 'b2' ? { url: 'https://known.example/automations/new?from=browser' } : null,
+          localOnly: !signedOut && has('browser-move') && id === 'b2', moving: has('browser-move') && id === 'b1' });
         const browserRules = has('browser-empty', 'browser-none') ? [] : [
           browserRule('b1', 'Papers from arXiv', true, 'all', [{ kind: 'siteIs', value: 'arxiv.org' }], { nativeId: 'f-research', title: 'Research', path: ['Bookmarks bar', 'Research'] },
             false, overlap('b1', 'conflict', 37)),

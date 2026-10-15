@@ -18,6 +18,8 @@ const f = vi.hoisted(() => ({
   mappings: { academic: '10', inbox: '21' } as Record<string, string>,
   credential: null as null | { serverOrigin: string; subject: string },
   recent: [] as { id: string; title: string; url?: string }[],
+  authority: async (): Promise<unknown> => { throw new Error('offline'); },
+  bundle: null as unknown,
 }));
 vi.mock('../src/sw/runtime.js', () => ({
   hasBookmarkPermission: async () => true, extensionOrigin: () => 'chrome-extension://extension',
@@ -26,16 +28,18 @@ vi.mock('../src/sw/runtime.js', () => ({
     getMappingByColpId: async (_scope: unknown, colpId: string) => f.mappings[colpId] ? { nativeId: f.mappings[colpId], nodeKind: 'folder' } : null,
     getMappingByNativeId: async (_scope: unknown, nativeId: string) => {
       const colpId = Object.keys(f.mappings).find((key) => f.mappings[key] === nativeId);
-      return colpId ? { colpId, nodeKind: 'folder' } : null;
+      return colpId ? { colpId, nodeKind: 'folder', projection: { revision: '1' } } : null;
     },
   },
 }));
 vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => f.sync, loadConfig: async () => ({ serverOrigin: 'https://colp.example' }),
-  pushSessionAuthority: async () => { throw new Error('offline'); } }));
+  pushSessionAuthority: () => f.authority() }));
+vi.mock('../src/automation/device-client.js', () => ({ fetchRuleBundle: async () => ({ ok: true, body: f.bundle }),
+  acknowledgeRuleBundle: async () => undefined, postIntakeReceipt: async () => ({ ok: false, problem: 'offline' }) }));
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => f.scope }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 
-import { automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt } from '../src/sw/automation.js';
+import { automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation } from '../src/sw/automation.js';
 import { browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
@@ -50,8 +54,11 @@ beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW);
   vi.stubGlobal('indexedDB', new IDBFactory());
   vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() }, bookmarks: { get: async (id: string) => nodes[id] ? [nodes[id]] : [],
-    getRecent: async (count: number) => f.recent.slice(0, count) } });
-  f.credential = null; f.recent = [];
+    getRecent: async (count: number) => f.recent.slice(0, count) }, runtime: { sendMessage: vi.fn(async () => undefined) },
+    action: { setBadgeText: async () => undefined, setBadgeBackgroundColor: async () => undefined, setTitle: async () => undefined } });
+  vi.stubGlobal('fetch', async () => { throw new TypeError('offline'); });
+  f.credential = null; f.recent = []; f.bundle = null;
+  f.authority = async () => { throw new Error('offline'); };
   f.scope = { serverOrigin: 'https://colp.example', accountId: 'owner', authorityGeneration: 1, collectionId: COLLECTION_ID };
   expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft() })).toMatchObject({ ok: true });
 });
@@ -155,5 +162,57 @@ describe('next to the account’s rules (AW-69)', () => {
   it('has nothing to compare while the account’s rules are paused', async () => {
     await createBundleStore(automationArea(), owner).install(ruleBundle([], { paused: true, settingsRevision: 9 }), NOW);
     expect(await overlap()).toBeNull();
+  });
+});
+
+describe('moving a rule to the account (AW-71)', () => {
+  beforeEach(async () => {
+    f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' };
+    f.authority = async () => ({ credential: { accessToken: 'token' }, session: { sessionId: 'session', replicaLease: { generation: '2' } } });
+    await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule({ host: 'example.com' })], { revision: 'b-3', settingsRevision: 3 }), NOW);
+  });
+  const first = async () => (await automationStateView()).browserRules[0]!;
+
+  it('offers the filled-in web editor only for a rule whose folder is synced', async () => {
+    expect(await first()).toMatchObject({ move: null, localOnly: true, moving: false });
+    const [rule] = await browserRuleStore().list();
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
+    const view = await first();
+    expect(view.localOnly).toBe(false);
+    expect(new URL(view.move!.url).searchParams.toString())
+      .toBe('collectionId=c_personal&folderId=academic&name=Papers+from+arXiv&combinator=all&condition=siteIs%3Aarxiv.org&from=browser');
+    f.credential = null;
+    expect(await first()).toMatchObject({ move: null, localOnly: false });
+  });
+
+  it('retires once the account’s enabled copy is installed, and says so', async () => {
+    const [rule] = await browserRuleStore().list();
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.moving', id: rule!.id })).toMatchObject({ ok: true, rule: { movingSince: NOW } });
+    expect(await first()).toMatchObject({ moving: true });
+    f.bundle = ruleBundle([compiledRule()], { revision: 'b-4', settingsRevision: 4 });
+    await refreshAutomation({ manual: true });
+    expect(await browserRuleStore().list()).toEqual([]);
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ kind: 'known.automation.notice', attention: false,
+      text: '“Papers from arXiv” now runs from your account, on every device.' });
+  });
+
+  it('keeps filing while the account has only something else, or nothing in force', async () => {
+    const [rule] = await browserRuleStore().list();
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.moving', id: rule!.id });
+    // The account changed the conditions before turning it on.
+    f.bundle = ruleBundle([compiledRule({ definition: { match: { kind: 'all', items: [{ kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'arxiv.org' },
+      { kind: 'field', field: 'bookmark.title', op: 'contains', value: 'Paper' }] } } })], { revision: 'b-4', settingsRevision: 4 });
+    await refreshAutomation({ manual: true });
+    expect(await browserRuleStore().list()).toHaveLength(1);
+    f.bundle = ruleBundle([], { paused: true, revision: 'b-5', settingsRevision: 5 });
+    await refreshAutomation({ manual: true });
+    expect(await browserRuleStore().list()).toHaveLength(1);
+    // A rule that was never moved is not retired by a duplicate.
+    f.bundle = ruleBundle([compiledRule()], { revision: 'b-6', settingsRevision: 6 });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10', name: 'Edited' }) });
+    await refreshAutomation({ manual: true });
+    expect(await browserRuleStore().list()).toHaveLength(1);
   });
 });

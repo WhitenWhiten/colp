@@ -167,6 +167,10 @@ they need no account and run after the account's rules:
   both." or "… does the same.") with Overlaps or Same as account until reviewed. One warning notice counts
   what is unreviewed and opens Review: both rules side by side, then Keep both / Use the account's, or
   Remove mine / Keep mine for a duplicate. A changed account rule is shown again.
+- **Moving to the account (AW-71).** A rule whose folder is synced offers Add to your account (and Add mine
+  to the account in Review). It opens the web editor filled in; the row reads Moving until the account's
+  enabled copy arrives, then the rule retires with a notice. A rule whose folder isn't synced says "Only in
+  this browser: its folder isn't synced." and has no move.
 
 **Automations › On your server.** What the server did after a bookmark synced, never mixed with
 what this browser did:

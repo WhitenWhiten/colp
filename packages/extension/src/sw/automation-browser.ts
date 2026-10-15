@@ -1,5 +1,5 @@
 import { createBrowserRuleStore, type BrowserRuleStore } from '../automation/browser-rule-store.js';
-import { decideBrowserRules, draftFromRule, type BrowserDecision, type FolderLookup } from '../automation/browser-rules.js';
+import { accountEditorUrl, decideBrowserRules, draftFromRule, type BrowserDecision, type FolderLookup } from '../automation/browser-rules.js';
 import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
 import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '../automation/browser-overlap.js';
 import type { AutomationPlacementView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse, BrowserRuleView } from '../automation/messages.js';
@@ -84,13 +84,24 @@ async function recentPages(): Promise<Page[]> {
   return nodes.filter((node) => typeof node.url === 'string').map((node) => ({ url: node.url!, title: node.title }));
 }
 
+/** What a signed-in page adds to the view: the account's rules here and how a folder here is named in Sync. */
+export interface AccountContext {
+  readonly account: readonly AccountRuleForOverlap[];
+  /** The web Automations page of the connected server. */
+  readonly webUrl: string | null;
+  /** The synced collection's identity of a folder here; null when it is not (yet) synced. */
+  canonical(nativeId: string): Promise<{ readonly collectionId: string; readonly nodeId: string } | null>;
+}
+
 /**
  * This browser's rules for Options, oldest first. Without bookmark access their folders cannot be named.
- * With the account's rules in force, each switched-on rule also says which account rule it overlaps.
+ * Signed in, each switched-on rule also says which account rule it overlaps (AW-69), and a rule whose
+ * folder is synced can be moved to the account (AW-71).
  */
-export async function browserRuleViews(account: readonly AccountRuleForOverlap[] = []): Promise<BrowserRuleView[]> {
+export async function browserRuleViews(context: AccountContext | null = null): Promise<BrowserRuleView[]> {
   const rules = await browserRuleStore().list();
   if (!rules.length) return [];
+  const account = context?.account ?? [];
   const access = await hasBookmarkPermission(), now = Date.now();
   const enabled = rules.filter((rule) => rule.enabled).map((rule) => ({ id: rule.id, definition: rule.definition, folderNativeId: rule.folderNativeId }));
   const compare = access && account.length > 0 && enabled.length > 0;
@@ -103,9 +114,28 @@ export async function browserRuleViews(account: readonly AccountRuleForOverlap[]
     const overlap: BrowserRuleOverlapView | null = relation && other ? { kind: relation.kind, pages: relation.pages, reviewKey: other.key,
       rule: { id: other.id, name: other.name, match: ruleMatchView(other.definition.match), folder: other.folderTitle },
       reviewed: (rule.reviewed ?? []).some((item) => item.accountRuleId === other.id && item.key === other.key) } : null;
+    const canonical = context && folder ? await context.canonical(rule.folderNativeId).catch(() => null) : null;
+    const url = canonical && context?.webUrl ? accountEditorUrl(context.webUrl, rule, canonical) : null;
     return { id: rule.id, name: rule.definition.name, enabled: rule.enabled, match: ruleMatchView(rule.definition.match),
-      draft: draftFromRule(rule), folder, folderMissing: access && !folder, account: overlap };
+      draft: draftFromRule(rule), folder, folderMissing: access && !folder, account: overlap, move: url ? { url } : null,
+      localOnly: Boolean(context && folder && !canonical), moving: rule.movingSince !== undefined };
   }));
+}
+
+/**
+ * After the account's rules are installed: a rule the Owner moved to the account retires once an enabled
+ * account rule does exactly the same here (same conditions, same folder). A draft, an edited copy or a
+ * rule into another folder leaves it filing. Returns the names of the rules retired.
+ */
+export async function retireMovedBrowserRules(account: readonly AccountRuleForOverlap[]): Promise<string[]> {
+  if (!account.length) return [];
+  const store = browserRuleStore(), now = Date.now(), retired: string[] = [];
+  for (const rule of await store.list()) {
+    if (rule.movingSince === undefined) continue;
+    const relation = relateBrowserRule({ id: rule.id, definition: rule.definition, folderNativeId: rule.folderNativeId }, account, undefined, now);
+    if (relation?.kind === 'duplicate' && await store.remove(rule.id)) retired.push(rule.definition.name);
+  }
+  return retired;
 }
 
 /** Pages this browser's rules filed, in the shape of the account's placements; there is nothing to confirm. */
@@ -125,6 +155,10 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand): Pro
   }
   if (command.kind === 'known.automation.browser.review') {
     const rule = await store.review(command.id, command.accountRuleId, command.key);
+    return rule ? { ok: true, rule } : { ok: false, error: 'notFound' };
+  }
+  if (command.kind === 'known.automation.browser.moving') {
+    const rule = await store.markMoving(command.id, now);
     return rule ? { ok: true, rule } : { ok: false, error: 'notFound' };
   }
   if (command.kind === 'known.automation.browser.enable') {

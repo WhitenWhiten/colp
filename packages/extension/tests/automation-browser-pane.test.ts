@@ -15,7 +15,8 @@ const NOW = Date.parse('2026-10-14T08:00:00.000Z');
 const rule = (over: Partial<BrowserRuleView> = {}): BrowserRuleView => ({ id: 'b-1', name: 'Papers from arXiv', enabled: true,
   match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] },
   draft: { name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: 'f-papers' },
-  folder: { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] }, folderMissing: false, account: null, ...over });
+  folder: { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] }, folderMissing: false, account: null, move: null, localOnly: false,
+  moving: false, ...over });
 const view = (over: Partial<AutomationStateView> = {}): AutomationStateView => ({ account: 'signedOut', state: 'none', rules: [], placements: [],
   browserRules: [rule(), rule({ id: 'b-2', name: 'SEO reading', enabled: false,
     match: { combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }] },
@@ -210,5 +211,44 @@ describe('next to the account’s rules (AW-69)', () => {
     expect(sent).toEqual([{ kind: 'known.automation.browser.enable', id: 'b-1', enabled: false }]);
     await vi.waitFor(() => expect(use.disabled).toBe(false));
     expect(item.querySelector('.automation-review-done')).toBeNull();
+  });
+});
+
+describe('moving a rule to the account (AW-71)', () => {
+  const url = 'https://colp.example/automations/new?collectionId=c&folderId=n&from=browser';
+  const signedIn = (rules: BrowserRuleView[]) => view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations', browserRules: rules });
+
+  it('opens the filled-in web editor from the row and marks the rule as moving', async () => {
+    const open = vi.fn();
+    vi.stubGlobal('open', open);
+    const body = await render(signedIn([rule({ move: { url } })]));
+    body.querySelector<HTMLButtonElement>('.automation-browser-rule button[aria-label="Add to your account"]')!.click();
+    expect(open).toHaveBeenCalledWith(url, '_blank', 'noopener');
+    expect(sent).toEqual([{ kind: 'known.automation.browser.moving', id: 'b-1' }]);
+  });
+
+  it('says a moving rule still files until the account’s copy arrives, and a rule with an unsynced folder stays here', async () => {
+    const body = await render(signedIn([rule({ moving: true, move: { url } }), rule({ id: 'b-2', name: 'Local', localOnly: true })]));
+    const rows = Array.from(body.querySelectorAll('.automation-browser-rule'));
+    expect(text(rows[0]!.querySelector('.badge'))).toBe('Moving');
+    expect(text(rows[0]!.querySelector('.automation-overlap'))).toBe('Waiting for your account’s copy. Until it arrives, this browser keeps using this one.');
+    expect(rows[0]!.querySelector('button[aria-label="Add to your account"]')).toBeNull();
+    expect(text(rows[1]!.querySelector('.automation-overlap'))).toBe('Only in this browser: its folder isn’t synced.');
+    expect(rows[1]!.querySelector('button[aria-label="Add to your account"]')).toBeNull();
+  });
+
+  it('offers Add mine to the account in the review for a conflict whose folder is synced', async () => {
+    const open = vi.fn();
+    vi.stubGlobal('open', open);
+    const conflict = { kind: 'conflict' as const, pages: 3, reviewed: false, reviewKey: '4:1',
+      rule: { id: 'rule-arxiv', name: 'arXiv papers', folder: 'Academic', match: null } };
+    const body = await render(signedIn([rule({ account: conflict, move: { url } })]));
+    body.querySelector<HTMLButtonElement>('.automation-browser .inline-alert button')!.click();
+    const item = document.querySelector('dialog.automation-review .automation-review-item')!;
+    Array.from(item.querySelectorAll('button')).find((node) => node.textContent === 'Add mine to the account')!.click();
+    expect(open).toHaveBeenCalledWith(url, '_blank', 'noopener');
+    expect(sent).toEqual([{ kind: 'known.automation.browser.moving', id: 'b-1' }]);
+    await vi.waitFor(() => expect(text(item.querySelector('.automation-review-done')))
+      .toBe('Opened on the web. Preview it there and turn it on; this browser then stops using its copy.'));
   });
 });

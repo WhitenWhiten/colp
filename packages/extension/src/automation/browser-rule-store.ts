@@ -38,8 +38,8 @@ function parseRule(value: unknown): BrowserRule | null {
     || typeof value.createdAt !== 'number' || typeof value.updatedAt !== 'number' || validateM1Rule(value.definition).length) return null;
   const reviewed = Array.isArray(value.reviewed) ? value.reviewed.filter((item): item is { accountRuleId: string; key: string } =>
     record(item) && typeof item.accountRuleId === 'string' && typeof item.key === 'string') : [];
-  const { reviewed: _reviewed, ...rest } = value as unknown as BrowserRule;
-  return reviewed.length ? { ...rest, reviewed } : rest;
+  const { reviewed: _reviewed, movingSince, ...rest } = value as unknown as BrowserRule;
+  return { ...rest, ...(reviewed.length ? { reviewed } : {}), ...(typeof movingSince === 'number' ? { movingSince } : {}) };
 }
 const REVIEW_LIMIT = 20;
 
@@ -75,8 +75,10 @@ export function createBrowserRuleStore(area: AutomationStateArea, options: { rea
         if (input.id !== undefined && at < 0) return { ok: false, error: 'notFound' };
         if (at < 0 && rules.length >= BROWSER_RULE_LIMIT) return { ok: false, error: 'limit' };
         const previous = at < 0 ? null : rules[at]!;
+        // An edited rule is no longer the one sent to the account, so it stops waiting to retire; reviews stay.
         const rule: BrowserRule = { id: previous?.id ?? newId(), definition: checked.definition, folderNativeId: input.draft.folderNativeId,
-          enabled: input.enabled ?? previous?.enabled ?? true, createdAt: previous?.createdAt ?? now, updatedAt: now };
+          enabled: input.enabled ?? previous?.enabled ?? true, createdAt: previous?.createdAt ?? now, updatedAt: now,
+          ...(previous?.reviewed ? { reviewed: previous.reviewed } : {}) };
         await write(at < 0 ? [...rules, rule] : rules.map((item, index) => index === at ? rule : item));
         return { ok: true, rule };
       });
@@ -98,6 +100,16 @@ export function createBrowserRuleStore(area: AutomationStateArea, options: { rea
         if (!current) return null;
         const reviewed = [{ accountRuleId, key }, ...(current.reviewed ?? []).filter((item) => item.accountRuleId !== accountRuleId)].slice(0, REVIEW_LIMIT);
         const next = { ...current, reviewed };
+        await write(rules.map((rule) => rule.id === id ? next : rule));
+        return next;
+      });
+    },
+    /** Add mine to the account was chosen: the rule retires once the account's enabled copy arrives. */
+    markMoving(id: string, now: number): Promise<BrowserRule | null> {
+      return exclusive(async () => {
+        const rules = await read(), current = rules.find((rule) => rule.id === id);
+        if (!current) return null;
+        const next = { ...current, movingSince: current.movingSince ?? now };
         await write(rules.map((rule) => rule.id === id ? next : rule));
         return next;
       });

@@ -21,7 +21,10 @@ import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
-import { browserPlacementViews, browserPreSaveDecision, browserRuleViews, recordBrowserPlacement, type AccountRuleForOverlap } from './automation-browser.js';
+import { browserPlacementViews, browserPreSaveDecision, browserRuleViews, recordBrowserPlacement, retireMovedBrowserRules,
+  type AccountRuleForOverlap } from './automation-browser.js';
+import { mappingLooksAuthoritative } from '../save-status.js';
+import { t } from '../i18n.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState } from './runtime.js';
 import { currentSyncScope, loadConfig, pushSessionAuthority } from './scope.js';
 
@@ -92,6 +95,12 @@ async function refreshBundle(owner: AutomationOwner, bundles: ReturnType<typeof 
   const response = await fetchRuleBundle(device);
   if (!response.ok) { await bundles.recordProblem(refreshProblem(response.problem), Date.now()); return; }
   const outcome = await bundles.install(response.body, Date.now());
+  // A rule the Owner moved to the account retires once the account's enabled copy is here (AW-71).
+  const retired = await retireMovedBrowserRules(await accountRulesForOverlap(outcome.record, Date.now())).catch(() => []);
+  for (const name of retired) {
+    void chrome.runtime.sendMessage({ kind: 'known.automation.notice', attention: false,
+      text: t('automation_movedToAccount', '“$1” now runs from your account, on every device.', name) }).catch(() => undefined);
+  }
   const revision = response.body && typeof response.body === 'object' ? (response.body as { revision?: unknown }).revision : undefined;
   if (outcome.record.bundle?.paused) await readPause(owner);
   const binding = await store.loadBinding().catch(() => null);
@@ -322,8 +331,15 @@ export async function automationStateView(): Promise<AutomationStateView> {
   }
   const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
-  // Signed in, each browser rule is compared with the account's rules in force here.
-  const browserRules = await browserRuleViews(await accountRulesForOverlap(record, now));
+  // Signed in, each browser rule is compared with the account's rules in force here, and may move to the account.
+  const scope = await currentSyncScope().catch(() => null);
+  const browserRules = await browserRuleViews({ account: await accountRulesForOverlap(record, now), webUrl,
+    async canonical(nativeId) {
+      if (!scope || scope.accountId !== owner.accountId) return null;
+      const mapping = await syncState.getMappingByNativeId(scope, nativeId);
+      return mapping && mappingLooksAuthoritative(mapping) && (mapping.nodeKind === undefined || mapping.nodeKind === 'folder')
+        ? { collectionId: scope.collectionId, nodeId: mapping.colpId } : null;
+    } });
   const pause = (await chrome.storage.local.get(PAUSE_KEY))[PAUSE_KEY] as { ownerKey?: string; pausedAt?: string | null; pausedBy?: AutomationStateView['pausedBy'] } | undefined;
   const pauseKnown = current.state === 'paused' && pause?.ownerKey === automationOwnerKey(owner);
   const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;
