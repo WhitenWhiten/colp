@@ -61,6 +61,13 @@ type AuthCtx = {
   /** True when product /session reported unverified occupancy. */
   verificationRequired: boolean
   /**
+   * While `sessionState` is 'offline' because the server rate-limited the
+   * session check (HTTP 429), the seconds it asked to wait; null for any
+   * other failure. The server answered, so the UI says it is busy, not
+   * unreachable, and the next check waits that long.
+   */
+  serverBusySeconds: number | null
+  /**
    * Re-run GET /session + GET /me (e.g. after refresh or CSRF failure).
    * Bootstrap always starts from the product /api/v1/session contract and
    * never reads the Better Auth session cookie value (the browser manages
@@ -108,6 +115,7 @@ const Ctx = createContext<AuthCtx>({
   csrfToken: null,
   sessionState: 'loading',
   verificationRequired: false,
+  serverBusySeconds: null,
   refreshSession: async () => {},
   runAuthMutation: async (action) => action(),
   logout: async () => 'signed-out',
@@ -129,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshController = useRef<AbortController | null>(null)
   /* R15-23: consecutive failed bootstraps; drives the offline retry backoff. */
   const [offlineAttempt, setOfflineAttempt] = useState(0)
+  const [serverBusySeconds, setServerBusySeconds] = useState<number | null>(null)
 
   const applySnapshot = useCallback((snap: SessionSnapshot) => {
     setCsrfToken(snap.csrfToken)
@@ -161,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { session, me } = await productClient.bootstrapSession({ signal: controller.signal })
       if (controller.signal.aborted || operation !== sessionOperation.current) return
       setOfflineAttempt(0)
+      setServerBusySeconds(null)
       if (me) {
         setUser(meToUser(me))
         setSessionState('ready')
@@ -176,6 +186,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       if (controller.signal.aborted || operation !== sessionOperation.current) return
       if (err instanceof DOMException && err.name === 'AbortError') return
+      setServerBusySeconds(isProductApiError(err) && (err.status === 429 || err.code === 'rate_limited')
+        ? Math.max(1, err.retryAfterSeconds ?? OFFLINE_RETRY_BASE_MS / 1_000)
+        : null)
       // Unified error mapping (Task D1): both authentication_required and
       // csrf_failed are terminal — the session cannot be established, so the
       // UI must behave as signed out (recoveryForCode maps both to
@@ -245,10 +258,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshSession])
 
   /* R15-23: while the session cannot be read (API down, not the network),
-     retry with backoff and on reconnect so the outage banner clears itself. */
+     retry with backoff and on reconnect so the outage banner clears itself.
+     A rate-limited check waits as long as the server asked instead. */
   useEffect(() => {
     if (sessionState !== 'offline') return
-    const delay = Math.min(OFFLINE_RETRY_MAX_MS, OFFLINE_RETRY_BASE_MS * 2 ** Math.max(0, offlineAttempt - 1))
+    const delay = Math.min(OFFLINE_RETRY_MAX_MS, serverBusySeconds !== null
+      ? serverBusySeconds * 1_000
+      : OFFLINE_RETRY_BASE_MS * 2 ** Math.max(0, offlineAttempt - 1))
     const retry = () => { void refreshSession().catch(() => {}) }
     const timer = setTimeout(retry, delay)
     window.addEventListener('online', retry)
@@ -256,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer)
       window.removeEventListener('online', retry)
     }
-  }, [sessionState, offlineAttempt, refreshSession])
+  }, [sessionState, offlineAttempt, serverBusySeconds, refreshSession])
 
   useEffect(() => productClient.subscribeSession(applySnapshot), [applySnapshot])
 
@@ -284,11 +300,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       csrfToken,
       sessionState,
       verificationRequired: sessionState === 'verification-required',
+      serverBusySeconds: sessionState === 'offline' ? serverBusySeconds : null,
       refreshSession,
       runAuthMutation,
       logout,
     }),
-    [user, bootstrapping, csrfToken, sessionState, refreshSession, runAuthMutation, logout],
+    [user, bootstrapping, csrfToken, sessionState, serverBusySeconds, refreshSession, runAuthMutation, logout],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

@@ -4,12 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RouteState } from './RouteState'
 import { cleanup, mountTree } from '../test/render'
 
-const auth = vi.hoisted(() => ({ sessionState: 'signed-out', refreshSession: vi.fn(async () => {}) }))
+const auth = vi.hoisted(() => ({ sessionState: 'signed-out', serverBusySeconds: null as number | null, refreshSession: vi.fn(async () => {}) }))
 vi.mock('../auth/AuthContext', () => ({ useAuth: () => auth }))
 
 describe('RouteState', () => {
   beforeEach(() => {
     auth.sessionState = 'signed-out'
+    auth.serverBusySeconds = null
     auth.refreshSession.mockClear()
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -43,6 +44,20 @@ describe('RouteState', () => {
     expect(document.querySelector('a[href^="/login"]')).toBeNull()
     ;[...document.querySelectorAll('button')].find((b) => b.textContent === 'Try again')!.click()
     expect(auth.refreshSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('says the server is busy, not unavailable, when it rate-limits the session check', () => {
+    auth.sessionState = 'offline'
+    auth.serverBusySeconds = 42
+    mountTree(
+      <MemoryRouter>
+        <RouteState kind="auth" />
+      </MemoryRouter>,
+    )
+    expect(document.body.textContent).toContain('COLP Server is busy right now')
+    expect(document.body.textContent).toContain('Trying in under a minute; your library is safe.')
+    expect(document.body.textContent).not.toContain('unavailable')
+    expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 
   it('forwards an optional returnTo on the Sign in link', () => {

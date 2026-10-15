@@ -5,6 +5,7 @@ import { libraryFeatureUnavailable } from '../lib/libraryCopy'
 import type { RouteFailureKind } from '../lib/classifyRouteError'
 import { EmptyState, LoadingState } from './EmptyState'
 import { productName } from '../lib/edition'
+import { busyRetryWhen } from '../lib/sessionCopy'
 
 type RouteStateIcon = 'alert' | 'book' | 'search' | 'collection' | 'link' | 'folder' | 'bell' | 'compass'
 
@@ -34,7 +35,7 @@ export function RouteState({
   returnTo,
 }: RouteStateProps) {
   const location = useLocation()
-  const { sessionState, refreshSession } = useAuth()
+  const { sessionState, serverBusySeconds, refreshSession } = useAuth()
   if (kind === 'loading') {
     return <LoadingState label={loadingLabel ?? title ?? 'Loading…'} />
   }
@@ -48,8 +49,10 @@ export function RouteState({
         role="alert"
         icon="alert"
         titleAs={titleAs}
-        title={`${productName()} is unavailable right now`}
-        description="We can't confirm your session. Retrying automatically; your library is safe."
+        title={serverBusySeconds !== null ? `${productName()} is busy right now` : `${productName()} is unavailable right now`}
+        description={serverBusySeconds !== null
+          ? `It asked this browser to wait before checking your session again. Trying ${busyRetryWhen(serverBusySeconds)}; your library is safe.`
+          : "We can't confirm your session. Retrying automatically; your library is safe."}
         action={
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void refreshSession()}>
             Try again

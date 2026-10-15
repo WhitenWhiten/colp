@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { productName } from '../lib/edition'
+import { serverBusyLine } from '../lib/sessionCopy'
 import { useToast } from './AppToast'
 
-type Connection = 'ok' | 'offline' | 'unreachable'
+type Connection = 'ok' | 'offline' | 'unreachable' | 'busy'
 
-const MESSAGES: Readonly<Record<Exclude<Connection, 'ok'>, { lost: () => string; back: () => string }>> = {
+const MESSAGES: Readonly<Record<Exclude<Connection, 'ok'>, { lost: (busySeconds: number) => string; back: () => string }>> = {
   offline: {
     lost: () => 'You’re offline. Saving is paused until you reconnect.',
     back: () => 'You’re back online.',
@@ -13,6 +14,11 @@ const MESSAGES: Readonly<Record<Exclude<Connection, 'ok'>, { lost: () => string;
   unreachable: {
     lost: () => `Can't reach ${productName()}. Retrying…`,
     back: () => `${productName()} is reachable again.`,
+  },
+  /* The server answered with 429: it is up and asked this browser to wait. */
+  busy: {
+    lost: serverBusyLine,
+    back: () => `${productName()} is answering again.`,
   },
 }
 
@@ -24,16 +30,18 @@ const MESSAGES: Readonly<Record<Exclude<Connection, 'ok'>, { lost: () => string;
  * shows nothing.
  */
 export function ConnectionToasts({ online }: { readonly online: boolean }) {
-  const { sessionState } = useAuth()
+  const { sessionState, serverBusySeconds } = useAuth()
   const { warning, success } = useToast()
-  const connection: Connection = !online ? 'offline' : sessionState === 'offline' ? 'unreachable' : 'ok'
+  const connection: Connection = !online ? 'offline'
+    : sessionState !== 'offline' ? 'ok'
+    : serverBusySeconds !== null ? 'busy' : 'unreachable'
   const previous = useRef<Connection>('ok')
   useEffect(() => {
     const before = previous.current
     if (before === connection) return
     previous.current = connection
-    if (connection !== 'ok') warning(MESSAGES[connection].lost())
+    if (connection !== 'ok') warning(MESSAGES[connection].lost(serverBusySeconds ?? 0))
     else if (before !== 'ok') success(MESSAGES[before].back())
-  }, [connection, success, warning])
+  }, [connection, serverBusySeconds, success, warning])
   return null
 }

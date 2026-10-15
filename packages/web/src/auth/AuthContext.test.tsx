@@ -44,7 +44,7 @@ let logoutResult: Promise<unknown> | null = null
 function Harness() {
   const auth = useAuth()
   return (
-    <div data-testid="auth" data-logged-in={auth.isLoggedIn} data-session-state={auth.sessionState} data-initials={auth.user?.initials}>
+    <div data-testid="auth" data-logged-in={auth.isLoggedIn} data-session-state={auth.sessionState} data-initials={auth.user?.initials} data-busy={auth.serverBusySeconds ?? ''}>
       {auth.user?.name ?? 'signed out'}
       <button onClick={() => void auth.refreshSession()}>Refresh</button>
       <button onClick={() => { logoutResult = auth.logout() }}>Logout</button>
@@ -302,6 +302,45 @@ describe('AuthProvider session ordering', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('waits as long as the server asked when it rate-limits the session check', async () => {
+    render()
+    await waitForDom(() => document.querySelector('[data-testid="auth"]')?.getAttribute('data-session-state') !== 'loading')
+    const busy = () => document.querySelector('[data-testid="auth"]')?.getAttribute('data-busy')
+    vi.useFakeTimers()
+    try {
+      mocks.bootstrap.mockRejectedValueOnce(new ProductApiError({
+        status: 429, code: 'rate_limited', message: 'Too many requests.', recovery: 'same_request',
+        sameRequestRetrySafe: true, retryAfterSeconds: 42,
+      }))
+      await act(async () => { buttons()[0]!.click() })
+      expect(sessionState()).toBe('offline')
+      expect(authText()).toContain('Account A')
+      expect(busy()).toBe('42')
+      const before = mocks.bootstrap.mock.calls.length
+
+      // Not the 5 s outage backoff: the server said 42 s.
+      await act(async () => { await vi.advanceTimersByTimeAsync(41_900) })
+      expect(mocks.bootstrap.mock.calls.length).toBe(before)
+      await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+      expect(mocks.bootstrap.mock.calls.length).toBe(before + 1)
+      expect(sessionState()).toBe('ready')
+      expect(busy()).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not call an unreachable server busy', async () => {
+    render()
+    await waitForDom(() => document.querySelector('[data-testid="auth"]')?.getAttribute('data-session-state') !== 'loading')
+    mocks.bootstrap.mockRejectedValueOnce(
+      new ProductApiError({ status: 503, code: 'internal_error', message: 'down', recovery: 'same_request', sameRequestRetrySafe: true }),
+    )
+    await act(async () => { buttons()[0]!.click() })
+    expect(sessionState()).toBe('offline')
+    expect(document.querySelector('[data-testid="auth"]')?.getAttribute('data-busy')).toBe('')
   })
 
   // False-negative guard (D3 §10): after any successful auth mutation the

@@ -23,7 +23,7 @@ previous item's hash.
 | U3 | `d6a59aa3` | The order that decides a saved page's folder was not shown anywhere. | Automations opens with the five steps and what each does here now. |
 | U4 | `7dcf8e56` | "AI suggestions" hid that, in Automatic mode, the AI files the page. | The AI page and the Automatic choice say what files the page, and when. |
 | U5 | `b4b1bb5a` | A rule waiting to move to the account could say *Moving* forever. | After a day it says it is not on yet, with *Open on the web* and *Keep in this browser*. |
-| U6 | — | A browser rule that kept a page where it was saved left no trace after the save panel closed. | Recent activity keeps it, badged *Kept where saved*, with the reason. |
+| U6 | `66f96e0f` | A browser rule that kept a page where it was saved left no trace after the save panel closed. | Recent activity keeps it, badged *Kept where saved*, with the reason. |
 | U7 | `c2f8bc9b` | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | The time goes where the translation puts it, in Chrome too. |
 
 ## Left unchanged
@@ -128,7 +128,8 @@ of AW-72), then `deploy/compose.yaml` with the `http` profile on `127.0.0.1:1808
 Runs back to back, about 17 s apart, sometimes failed at the web's `GET /api/v1/session` with HTTP 429. The
 server allows 60 auth requests a minute per client (`AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW_MS`). The
 web then rendered a blank page, or the editor signed out with empty Collection and Folder. Spaced 75 s
-apart, the runs pass. The web's blank page on a 429 is outside this work and is noted here only.
+apart, the runs pass. The web's handling of a 429 was fixed afterwards: see "The web on a rate-limited session
+check" at the end.
 
 ## L4 — what browser rules file
 
@@ -398,3 +399,38 @@ New tests:
   `keptHere`;
 - the pane (+1): badges, reasons and the intro;
 - the store (+1): `kept` is kept, and an unknown value drops the entry.
+
+## The web on a rate-limited session check
+
+Found in L3. Every page load of the web reads `GET /api/v1/session`, which is in the server's auth rate limit
+(60 a minute per client IP by default). A mocked reproduction (`/api/v1/session` answering 429 with
+`Retry-After: 42`) showed what a signed-in person saw:
+
+- the toast "Can't reach COLP Server. Retrying…" and the page "COLP Server is unavailable right now", while
+  the server was up and had said how long to wait;
+- the next check after 5 s, not after the 42 s the server asked for;
+- *Sign in* in the header and footer, and `/` sending them to the sign-in form.
+
+| Item | Commit | Change |
+| --- | --- | --- |
+| W1 | — | A rate-limited check says the server is busy and when it checks again, and retries after `Retry-After`. |
+| W2 | planned | While the session can't be confirmed, the web doesn't send a signed-in person to sign in. |
+
+### W1 — busy, not unreachable
+
+- `AuthContext` keeps `serverBusySeconds`: the server's `Retry-After` while `sessionState` is `offline`
+  because of a 429, and `null` for any other failure. The next check waits that long (at most 60 s), not the
+  5 s outage backoff.
+- The toast reads "COLP Server is busy. Checking your session again in under a minute." and, when the check
+  succeeds, "COLP Server is answering again."
+- The page reads "COLP Server is busy right now. It asked this browser to wait before checking your session
+  again. Trying in under a minute; your library is safe."
+- The Settings status line uses the toast's sentence, not "You're offline".
+- The wait is rounded ("in a few seconds", "in under a minute", "in about N minutes") because the text does
+  not tick.
+
+| Command (`packages/web`) | Result |
+| --- | --- |
+| `npx tsc --noEmit -p tsconfig.json`, `npx eslint` on the changed files | pass |
+| `npx vitest run src/auth/AuthContext.test.tsx src/components/ConnectionToasts.test.tsx src/components/RouteState.test.tsx src/components/auth/AuthStatusRegion.test.tsx src/lib/sessionCopy.test.ts` | 5 files, 44 tests passed |
+| A throwaway Playwright probe (xvfb, mocked 429 on `/library`), not committed | the busy page and toast as above |

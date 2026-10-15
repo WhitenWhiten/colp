@@ -4,14 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthStatusRegion } from './AuthStatusRegion'
 import { cleanup, mountTree } from '../../test/render'
 
-const mocks = vi.hoisted(() => ({ sessionState: 'ready' as string }))
-vi.mock('../../auth/AuthContext', () => ({ useAuth: () => ({ sessionState: mocks.sessionState }) }))
+const mocks = vi.hoisted(() => ({ sessionState: 'ready' as string, serverBusySeconds: null as number | null }))
+vi.mock('../../auth/AuthContext', () => ({ useAuth: () => ({ sessionState: mocks.sessionState, serverBusySeconds: mocks.serverBusySeconds }) }))
 
 describe('AuthStatusRegion accessible feedback', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     mocks.sessionState = 'ready'
+    mocks.serverBusySeconds = null
   })
 
   afterEach(() => cleanup())
@@ -31,6 +32,13 @@ describe('AuthStatusRegion accessible feedback', () => {
     mocks.sessionState = 'offline'
     render()
     expect(document.querySelector('[role="status"]')?.textContent).toContain("You're offline")
+  })
+
+  it('says the server is busy, not that the browser is offline, when it rate-limits the check', () => {
+    mocks.sessionState = 'offline'
+    mocks.serverBusySeconds = 90
+    render()
+    expect(document.querySelector('[role="status"]')?.textContent).toBe('COLP Server is busy. Checking your session again in about 2 minutes.')
   })
 
   it('announces an expired session as an alert with an auth-restart action', () => {
