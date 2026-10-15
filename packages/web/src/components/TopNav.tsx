@@ -48,7 +48,7 @@ export function TopNav() {
   const { open: openSettings } = useSettingsDialog()
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, isLoggedIn, logout } = useAuth()
+  const { user, isLoggedIn, logout, sessionState } = useAuth()
   const { toast, error: toastError } = useToast()
   const [scrolled, setScrolled] = useState(false)
   useBodyScrollLock(menuOpen)
@@ -76,7 +76,9 @@ export function TopNav() {
   const primaryNav = isLoggedIn ? appNav(automation.state === 'available') : []
   const automationsPaused = automation.state === 'available' && automation.paused
   // Sign-in and sign-up pages link to each other in their cards already.
-  const showLogin = !isLoggedIn && !authRoute
+  // While the session check fails the visitor may well be signed in, so the
+  // bar offers nothing until it answers (R15-23).
+  const showLogin = !isLoggedIn && !authRoute && sessionState !== 'offline'
   // The drawer holds the owner's tools and account; a visitor has none, and
   // Sign in already sits in the bar.
   const showMenu = showChrome && isLoggedIn

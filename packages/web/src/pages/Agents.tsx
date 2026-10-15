@@ -15,6 +15,7 @@ import { useToast } from '../components/AppToast'
 import { CommandBlock } from '../components/CommandBlock'
 import { useConfirm } from '../components/ConfirmModal'
 import { EmptyState, LoadingState } from '../components/EmptyState'
+import { RouteState } from '../components/RouteState'
 import { Icon } from '../components/Icon'
 import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
@@ -60,7 +61,7 @@ export function Agents({
 } = {}) {
   const pageOrigin = origin ?? (typeof window === 'undefined' ? '' : window.location.origin)
   const connect = agentConnectCopy(pageOrigin)
-  const { isLoggedIn, bootstrapping, user } = useAuth()
+  const { isLoggedIn, bootstrapping, user, sessionState } = useAuth()
   const accountId = isLoggedIn ? user?.accountId ?? null : null
   const confirm = useConfirm()
   const { success, error: toastError } = useToast()
@@ -310,7 +311,7 @@ export function Agents({
         </div>
       )}
     </div>
-  ) : (
+  ) : sessionState === 'offline' ? null : (
     <p className="agents-note">
       <Link to={loginPath('/agents')}>Sign in</Link> to issue a key.
     </p>
@@ -332,7 +333,10 @@ export function Agents({
         <div className="agents-main">
           {bootstrapping && <LoadingState label="Checking your session…" />}
 
-          {!bootstrapping && !isLoggedIn && (
+          {/* R15-23: a failed session check is not a sign-out. */}
+          {!bootstrapping && !isLoggedIn && sessionState === 'offline' && <RouteState kind="auth" />}
+
+          {!bootstrapping && !isLoggedIn && sessionState !== 'offline' && (
             <EmptyState
               icon="alert"
               className="agents-signed-out"

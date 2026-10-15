@@ -5,7 +5,7 @@ import { Landing } from './Landing'
 import { cleanup, mountTree } from '../test/render'
 
 const mocks = vi.hoisted(() => ({
-  auth: { isLoggedIn: false, bootstrapping: false },
+  auth: { isLoggedIn: false, bootstrapping: false, sessionState: 'signed-out', serverBusySeconds: null as number | null, refreshSession: vi.fn(async () => {}) },
 }))
 
 vi.mock('../auth/AuthContext', () => ({
@@ -28,6 +28,8 @@ describe('Landing', () => {
   beforeEach(() => {
     mocks.auth.isLoggedIn = false
     mocks.auth.bootstrapping = false
+    mocks.auth.sessionState = 'signed-out'
+    mocks.auth.serverBusySeconds = null
     document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })
@@ -51,5 +53,14 @@ describe('Landing', () => {
   it('sends a guest to sign in', () => {
     render()
     expect(document.body.textContent).toBe('Login page')
+  })
+
+  it('stays on the outage state, not the sign-in form, while the session check fails (R15-23)', () => {
+    mocks.auth.sessionState = 'offline'
+    mocks.auth.serverBusySeconds = 42
+    render()
+    expect(document.body.textContent).not.toContain('Login page')
+    expect(document.querySelector('h1')?.textContent).toBe('COLP Server is busy right now')
+    expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 })

@@ -27,9 +27,13 @@ const api = {
 }
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+const auth = vi.hoisted(() => ({
+  isLoggedIn: true, bootstrapping: false, csrfToken: 'csrf', sessionState: 'ready',
+  serverBusySeconds: null as number | null, refreshSession: vi.fn(async () => {}),
+}))
 
 vi.mock('../auth/AuthContext', () => ({
-  useAuth: () => ({ isLoggedIn: true, bootstrapping: false, csrfToken: 'csrf' }),
+  useAuth: () => auth,
 }))
 vi.mock('../components/AppToast', () => ({
   useToast: () => ({ toast: vi.fn(), success: toast.success, error: toast.error }),
@@ -49,6 +53,18 @@ describe('Agents page', () => {
     cleanup()
     document.body.innerHTML = ''
     vi.clearAllMocks()
+    auth.isLoggedIn = true
+    auth.sessionState = 'ready'
+  })
+
+  it('shows the outage state, not Sign in, while the session check fails (R15-23)', () => {
+    auth.isLoggedIn = false
+    auth.sessionState = 'offline'
+    mountTree(<Agents origin="https://colp.example.net" />, { initialEntries: ['/agents'] })
+    expect(document.body.textContent).toContain('COLP Server is unavailable right now')
+    expect(document.body.textContent).not.toContain('Sign in to manage agents')
+    expect(document.body.textContent).not.toContain('to issue a key')
+    expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 
   it('shows connect instructions and does not fetch with the default loader', async () => {

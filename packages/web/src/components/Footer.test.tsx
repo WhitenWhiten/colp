@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
       profileId: 'profile-1',
     } as { name: string; handle: string; email: string; initials: string; accountId: string; profileId: string } | null,
     isLoggedIn: false,
+    sessionState: 'signed-out',
   },
 }))
 
@@ -42,12 +43,20 @@ describe('Footer session chrome', () => {
   beforeEach(() => {
     mocks.auth.isLoggedIn = false
     mocks.auth.user = null
+    mocks.auth.sessionState = 'signed-out'
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })
 
   afterEach(() => {
     cleanup()
     document.body.innerHTML = ''
+  })
+
+  it('offers no Sign in while the session check fails: the visitor may be signed in (R15-23)', () => {
+    mocks.auth.sessionState = 'offline'
+    render('/library')
+    const links = [...document.querySelectorAll('nav[aria-label="Footer"] a')].map((anchor) => anchor.textContent)
+    expect(links).toEqual(['About'])
   })
 
   it('offers guests Sign in back to the current page and About only', () => {

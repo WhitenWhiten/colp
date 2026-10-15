@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
       profileId: string
     },
     isLoggedIn: false,
+    sessionState: 'signed-out',
     logout: vi.fn().mockResolvedValue('signed-out'),
   },
   toast: vi.fn(),
@@ -67,6 +68,7 @@ describe('TopNav session chrome', () => {
     vi.clearAllMocks()
     mocks.auth.isLoggedIn = false
     mocks.auth.user = null
+    mocks.auth.sessionState = 'signed-out'
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })
 
@@ -81,6 +83,12 @@ describe('TopNav session chrome', () => {
     expect(document.querySelector('[data-testid="tools-trigger"]')).toBeNull()
     expect(document.querySelector('[aria-controls="mobile-navigation"]')).toBeNull()
     expect(document.querySelector('a[href="/login?returnTo=%2Fc%2Fbrowser-research"]')?.textContent).toBe('Sign in')
+  })
+
+  it('offers no Sign in while the session check fails: the visitor may be signed in (R15-23)', () => {
+    mocks.auth.sessionState = 'offline'
+    render('/library')
+    expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 
   it('offers guests no library search: the palette would only answer with a sign-in wall', () => {

@@ -413,8 +413,8 @@ Found in L3. Every page load of the web reads `GET /api/v1/session`, which is in
 
 | Item | Commit | Change |
 | --- | --- | --- |
-| W1 | — | A rate-limited check says the server is busy and when it checks again, and retries after `Retry-After`. |
-| W2 | planned | While the session can't be confirmed, the web doesn't send a signed-in person to sign in. |
+| W1 | `6a3e1c59` | A rate-limited check says the server is busy and when it checks again, and retries after `Retry-After`. |
+| W2 | — | While the session can't be confirmed, the web doesn't send a signed-in person to sign in. |
 
 ### W1 — busy, not unreachable
 
@@ -434,3 +434,24 @@ Found in L3. Every page load of the web reads `GET /api/v1/session`, which is in
 | `npx tsc --noEmit -p tsconfig.json`, `npx eslint` on the changed files | pass |
 | `npx vitest run src/auth/AuthContext.test.tsx src/components/ConnectionToasts.test.tsx src/components/RouteState.test.tsx src/components/auth/AuthStatusRegion.test.tsx src/lib/sessionCopy.test.ts` | 5 files, 44 tests passed |
 | A throwaway Playwright probe (xvfb, mocked 429 on `/library`), not committed | the busy page and toast as above |
+
+### W2 — no sign-in prompt while the session can't be confirmed
+
+`RouteState` already showed the outage state instead of *Sign in* when the session check failed (R15-23).
+The rest of the chrome did not:
+
+- `/` (`Landing`) redirected anyone not signed in to `/login`. It now stays on the outage or busy state
+  and goes on once the check answers: to the library, or to sign-in for a real guest.
+- The header's *Sign in* button and the footer's *Sign in* link are hidden while `sessionState` is
+  `offline`.
+- Agents shows the outage state instead of "Sign in to manage agents", and drops "Sign in to issue a key".
+
+Sign-in links shown after the server itself answered 401 (a bookmark's notes, an approval card) are left
+alone; there the server said the visitor is signed out.
+
+| Command (`packages/web`) | Result |
+| --- | --- |
+| `npx tsc --noEmit -p tsconfig.json`, `npx eslint` on the changed files | pass |
+| `npx vitest run src/pages/Landing.test.tsx src/components/Footer.test.tsx src/components/TopNav.chrome.test.tsx src/pages/Agents.test.tsx` | 4 files, 29 tests passed |
+| `npx vitest run src/components/TopNav.automations.test.tsx src/components/TopNav.avatar.test.tsx src/components/TopNav.writeApprovals.test.tsx` | 3 files, 9 tests passed |
+| The throwaway probe again on `/` and `/library` (xvfb), deleted afterwards | busy state, no *Sign in* in header or footer |
