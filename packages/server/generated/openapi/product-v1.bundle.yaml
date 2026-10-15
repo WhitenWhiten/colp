@@ -20644,6 +20644,9 @@ components:
         to:
           type: string
           format: date-time
+        ruleId:
+          $ref: '#/components/schemas/AutomationOpaqueId'
+          description: Existing owned rule being edited; excluded by identity from competition and bound to activation.
       required:
         - rule
         - mode
@@ -20822,6 +20825,11 @@ components:
         - collectionId
         - nodeId
       additionalProperties: false
+    AutomationOpaqueId:
+      type: string
+      maxLength: 128
+      minLength: 1
+      pattern: ^[A-Za-z0-9._~-]+$
     AutomationRulePage:
       type: object
       properties:
@@ -21008,10 +21016,10 @@ components:
           minLength: 1
           pattern: ^[A-Za-z0-9._~-]+$
         executionPolicyId:
-          type: string
-          maxLength: 128
-          minLength: 1
-          pattern: ^[A-Za-z0-9._~-]+$
+          anyOf:
+            - $ref: '#/components/schemas/AutomationOpaqueId'
+            - type: 'null'
+          description: Omit to preserve the existing execution policy; null explicitly removes it.
         pendingRuns:
           type: string
           enum:
@@ -22138,11 +22146,6 @@ components:
         - undoAvailable
         - undoReason
       additionalProperties: false
-    AutomationOpaqueId:
-      type: string
-      maxLength: 128
-      minLength: 1
-      pattern: ^[A-Za-z0-9._~-]+$
     AutomationOperationReceipt:
       type: object
       properties:

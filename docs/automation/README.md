@@ -88,11 +88,20 @@ Product 1.95.0 adds dependency/incident read and revalidation operations, preser
 immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
 independently of the usable configuration API and the server's general readiness.
 
-The server depends on the published `@know-n/colp` 0.2.0, which carries the `automation`
-subpath. To try unreleased shared-source changes, `node packages/server/scripts/refresh-automation-package.mjs`
-packs them as a prerelease into `packages/server/vendor/` and updates both locks; the
-Dockerfile's dependency stages then need `COPY packages/server/vendor ./vendor` again until
-the next release replaces the vendored build.
+The server currently vendors `@know-n/colp` 0.2.1-automation.1 with the updated editing
+contract. `node packages/server/scripts/refresh-automation-package.mjs` packs unreleased
+shared-source changes into `packages/server/vendor/` and updates both locks. Docker
+dependency stages copy this artifact for reproducible installs.
+
+Editing previews carry the owned `ruleId` so competition excludes that rule by identity;
+other enabled rules still invalidate previews when they change. Replacement preserves
+`executionPolicyId` when omitted; pass `null` to remove it explicitly. The editor keeps
+`templateRef` and the complete Advanced JSON definition across preview and save.
+
+Worker input reads and claims commit invalid ready jobs as stale before returning errors.
+Owner maintenance uses the same input checks in bounded, oldest-checked-first sweeps;
+Events clients do not need to poll the queue to settle stale tasks and their successors.
+
 Real Chrome/MV3 CSP/store acceptance, real deployed restore and BE-2 effect/admission/Undo
 evidence are separate future gates.
 

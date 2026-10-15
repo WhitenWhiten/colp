@@ -38,6 +38,7 @@ export function createAutomationWorkerService(db: Kysely<DatabaseSchema>,serverU
           if (result.kind === 'budget') await advanceRunTasks(tx,actor,serverUuid,job.run_id);
           // Persist a secret-free completed claim even when uncertainty/budget was durably changed.
           await complete(tx,{ oneTimeLease: true });
+          if (result.kind === 'invalid') return { error: result.error };
           return result.kind === 'claimed' ? { value: result.lease } : { error: new AutomationError(result.kind === 'budget' ? 'automation_budget_exceeded' : 'automation_claim_conflict',
             result.kind === 'uncertain' ? 'External outcome is uncertain; explicit reconciliation is required.' : 'Job is not ready or optional budget is exhausted.') };
         }

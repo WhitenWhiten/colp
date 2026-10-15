@@ -46,6 +46,6 @@ export async function automationJobFixture(prefix: string,kind: 'summary' | 'tag
     beforeBeginCommit: async ({ transaction,planId }) => { await results.guard(transaction,planId); await options.beforeCanonicalCommit?.(); } });
   const gateway = createProposalPlanGateway(f.db,composition.changePlanOptions);
   results = createResultSubmissionPort(f.db,'server',authorize,gateway,options);
-  const leases = createJobLeaseStore(f.db,authorize,100);
+  const leases = createJobLeaseStore(f.db,authorize,100,'server');
   return { ...f,actor,jobId,runId: run.id,task,inputs,results,leases,composition };
 }

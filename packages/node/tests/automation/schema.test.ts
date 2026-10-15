@@ -14,8 +14,16 @@ describe('reviewed closed Automation schema', () => {
   test('preview modes have closed, conditional inputs', () => {
     const input = { rule: { definition: rule, bindingSetId: 'b' }, mode: 'currentState' };
     expect(validateAutomation('PreviewInput', input).valid).toBe(true);
+    expect(validateAutomation('PreviewInput', { ...input, ruleId: 'owned-rule' }).valid).toBe(true);
+    expect(validateAutomation('PreviewInput', { ...input, ruleId: '' }).valid).toBe(false);
     expect(validateAutomation('PreviewInput', { ...input, events: [] }).valid).toBe(false);
     expect(validateAutomation('PreviewInput', { ...input, mode: 'supplied' }).valid).toBe(false);
+  });
+  test('replacement distinguishes preserving a policy from explicit removal', () => {
+    const input = { definition: rule, bindingSetId: 'b', pendingRuns: 'hold', counterPolicy: 'resetOnSemanticChange' };
+    for (const patch of [{}, { executionPolicyId: 'policy' }, { executionPolicyId: null }])
+      expect(validateAutomation('ChangeInput', { ...input, ...patch }).valid).toBe(true);
+    expect(validateAutomation('ChangeInput', { ...input, executionPolicyId: '' }).valid).toBe(false);
   });
   test('bounds recursive input and rejects cycles before schema evaluation', () => {
     const cycle: Record<string, unknown> = {}; cycle.self = cycle;

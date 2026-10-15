@@ -162,7 +162,7 @@ describe('Rule editor', () => {
     mount('/automations/rules/rule-arxiv/edit', api)
     await waitForDom(() => select('automation-folder')?.value === 'f-academic' && conditionInput()?.value === 'arxiv.org')
     await preview(api)
-    expect(api.previewRule).toHaveBeenCalledWith({ rule: { definition: expect.objectContaining({ name: 'Papers to Academic' }), bindingSetId: 'bind-rule-arxiv' }, mode: 'currentState' })
+    expect(api.previewRule).toHaveBeenCalledWith({ rule: { definition: expect.objectContaining({ name: 'Papers to Academic' }), bindingSetId: 'bind-rule-arxiv' }, ruleId: 'rule-arxiv', mode: 'currentState' })
     click(turnOn())
     await waitForDom(() => api.setRuleLifecycle.mock.calls.length === 1)
     expect(api.createBindingSet).not.toHaveBeenCalled()
@@ -183,6 +183,82 @@ describe('Rule editor', () => {
     expect(conditionInput()).toBeNull()
     // Name, priority and the daily cap live in the JSON; an empty "More options" is not offered.
     expect([...document.querySelectorAll('summary')].map((item) => item.textContent)).not.toContain('More options')
+  })
+
+
+  it('preserves worker policy and template metadata through edit, preview, save and enable', async () => {
+    const api = fakeApi()
+    let stored = rule('worker', 'Worker', { executionPolicyId: 'policy-1', templateRef: 'template-1' })
+    stored.definition.tasks = [{ id: 'summary', type: 'summary.generate', after: [], executorRole: 'worker', required: true,
+      outputContract: 'summary.sourced.v1', inputFields: ['url'], instruction: 'Summarize.' }]
+    stored.definition.roles.push({ key: 'worker', kind: 'executor', required: true, description: 'Worker' })
+    const original = structuredClone(stored)
+    let previewed: unknown
+    api.getRule.mockImplementation(async () => stored)
+    api.getBindingSet.mockResolvedValue(binding(stored.bindingSetId, 'f-academic'))
+    api.previewRule.mockImplementation(async (input) => {
+      expect(input.ruleId).toBe(stored.id)
+      previewed = structuredClone(input.rule)
+      return { previewId: 'worker-preview', sideEffects: false, decisions: [], diagnostics: [], plannedRunCount: 0,
+        remainderCount: 0, completeHistory: false, truncated: false }
+    })
+    api.replaceRule.mockImplementation(async (_id, input) => {
+      stored = { ...stored, definition: input.definition, bindingSetId: input.bindingSetId,
+        executionPolicyId: input.executionPolicyId ?? undefined, revision: '4', desiredState: 'paused', effectiveState: 'paused' }
+      return stored
+    })
+    api.setRuleLifecycle.mockImplementation(async (_id, input, revision) => {
+      expect(revision).toBe(stored.revision)
+      expect(input.activationPreviewId).toBe('worker-preview')
+      expect(previewed).toEqual({ definition: stored.definition, bindingSetId: stored.bindingSetId,
+        executionPolicyId: stored.executionPolicyId, templateRef: stored.templateRef })
+      stored = { ...stored, desiredState: 'enabled', effectiveState: 'active' }
+      return stored
+    })
+    mount('/automations/rules/worker/edit', api)
+    await waitForDom(() => Boolean(document.querySelector('[data-testid="automation-json-note"]')))
+    const next = structuredClone(original.definition)
+    next.name = 'Edited worker'
+    next.tasks[0]!.instruction = 'Summarize with sources.'
+    typeInto(document.getElementById('automation-json') as HTMLTextAreaElement, JSON.stringify(next))
+    click(buttonNamed('Apply JSON'))
+    await preview(api)
+    click(turnOn())
+    await waitForDom(() => toast.success.mock.calls.length === 1)
+    expect(stored).toMatchObject({ executionPolicyId: 'policy-1', templateRef: 'template-1', definition: next, desiredState: 'enabled' })
+    expect(api.replaceRule).toHaveBeenCalledOnce()
+    expect(api.setRuleLifecycle).toHaveBeenCalledOnce()
+  })
+
+  it.each(['new', 'existing'])('keeps the entire applied Advanced JSON for a %s rule and subsequent form edits', async (kind) => {
+    const api = fakeApi()
+    const original = rule('json', 'JSON rule')
+    if (kind === 'new') await readyNew(api)
+    else {
+      api.getRule.mockResolvedValue(original)
+      api.getBindingSet.mockResolvedValue(binding(original.bindingSetId, 'f-academic'))
+      mount('/automations/rules/json/edit', api)
+      await waitForDom(() => conditionInput()?.value === 'arxiv.org')
+    }
+    const next = structuredClone(original.definition)
+    next.description = 'Description edited in Advanced JSON'
+    next.policy.imports = 'include'
+    next.policy.maxHops = 4
+    next.roles[0]!.description = 'Custom destination description'
+    next.intake!.satisfies = []
+    next.priority = 12
+    next.match = { kind: 'field', field: 'bookmark.title', op: 'contains', value: 'Paper' }
+    typeInto(document.getElementById('automation-json') as HTMLTextAreaElement, JSON.stringify(next))
+    click(buttonNamed('Apply JSON'))
+    await waitForDom(() => conditionInput()?.value === 'Paper')
+    expect(document.querySelector('[data-testid="automation-json-note"]')).toBeNull()
+    typeInto(document.getElementById('automation-name') as HTMLInputElement, 'Edited in form')
+    await preview(api)
+    expect(api.previewRule.mock.calls[0]![0].rule.definition).toEqual({ ...next, name: 'Edited in form' })
+    click(buttonNamed(kind === 'new' ? 'Save as draft' : 'Save changes'))
+    await waitForDom(() => toast.success.mock.calls.length === 1)
+    const submitted = kind === 'new' ? api.createRule.mock.calls[0]![0] : api.replaceRule.mock.calls[0]![1]
+    expect(submitted.definition).toEqual({ ...next, name: 'Edited in form' })
   })
 
   it('refuses pasted JSON that is not a whole rule definition, and keeps the page', async () => {

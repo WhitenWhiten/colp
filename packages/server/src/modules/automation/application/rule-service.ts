@@ -79,8 +79,9 @@ export async function replaceRule(ports: AutomationPorts, actor: AutomationActor
   requireEtag(previous.view.revision, ifMatch);
   if (previous.view.desiredState === 'archived') throw new AutomationError('automation_rule_conflict', 'Archived rules are immutable.');
   const input = parseContract('ChangeInput', body);
+  const executionPolicyId = input.executionPolicyId === undefined ? previous.view.executionPolicyId : input.executionPolicyId;
   const ruleInput: RuleInput = normalizeRuleInput({ definition: input.definition, bindingSetId: input.bindingSetId,
-    ...(input.executionPolicyId ? { executionPolicyId: input.executionPolicyId } : {}), ...(previous.view.templateRef ? { templateRef: previous.view.templateRef } : {}) });
+    ...(executionPolicyId ? { executionPolicyId } : {}), ...(previous.view.templateRef ? { templateRef: previous.view.templateRef } : {}) });
   assertSupportedRule(ruleInput,ports.workerEnabled); const inspected = await inspectInput(ports, actor, ruleInput);
   // Editing an enabled revision requires fresh preview/activation. It never silently activates new logic.
   const desiredState = previous.view.desiredState === 'enabled' ? 'paused' : previous.view.desiredState;

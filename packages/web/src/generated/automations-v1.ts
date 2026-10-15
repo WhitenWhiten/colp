@@ -1313,6 +1313,8 @@ export interface components {
             from?: string;
             /** Format: date-time */
             to?: string;
+            /** @description Existing owned rule being edited; excluded by identity from competition and bound to activation. */
+            ruleId?: components["schemas"]["AutomationOpaqueId"];
         } & unknown;
         AutomationEventFacts: {
             eventId: string;
@@ -1355,6 +1357,7 @@ export interface components {
             collectionId: string;
             nodeId: string;
         };
+        AutomationOpaqueId: string;
         AutomationRulePage: {
             items: components["schemas"]["AutomationRule"][];
             nextCursor: string | null;
@@ -1414,7 +1417,8 @@ export interface components {
         AutomationChangeInput: {
             definition: components["schemas"]["AutomationRuleDefinition"];
             bindingSetId: string;
-            executionPolicyId?: string;
+            /** @description Omit to preserve the existing execution policy; null explicitly removes it. */
+            executionPolicyId?: components["schemas"]["AutomationOpaqueId"] | null;
             /** @enum {string} */
             pendingRuns: "hold" | "cancel" | "continuePinned";
             /** @constant */
@@ -1714,7 +1718,6 @@ export interface components {
             /** @description Verified pre-commit collection version linked to the same plan; does not imply every field is undoable. */
             versionId?: string;
         };
-        AutomationOpaqueId: string;
         AutomationOperationReceipt: {
             id: string;
             /** @enum {string} */

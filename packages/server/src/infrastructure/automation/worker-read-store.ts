@@ -4,7 +4,7 @@ import { AutomationError, createAutomationPagination, type WorkPrincipal, type A
 import type { DatabaseSchema } from '../database/runtime.js';
 import { databaseNow } from '../database/time.js';
 import { lockWorkJob, requireWorkRunning } from './work-authority.js';
-import { currentWorkInputs, expireOwnerLeases } from './worker-inputs.js';
+import { checkWorkInputs, expireOwnerLeases } from './worker-inputs.js';
 import { reconcileRunPlanEffects } from './reconcile-plan-effect.js';
 import { advanceRunTasks } from './task-scheduler.js';
 import { resumeDailyBudgetJobs } from './budget-holds.js';
@@ -67,14 +67,12 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>, serverUuid: st
       const visible = [];
       for (const job of rows.slice(0, limit)) {
         try {
-          await currentWorkInputs(tx, actor, job.id, serverUuid, worker.authorize);
-          visible.push(workerJobView(job));
+          const locked = await lockWorkJob(tx, actor, job.id, worker.authorize);
+          const checked = await checkWorkInputs(tx, actor, locked, serverUuid);
+          if (!checked.error) visible.push(workerJobView(job));
         } catch (error) {
           if (!(error instanceof AutomationError)) throw error;
-          if (error.code === 'automation_stale_input' || error.code === 'automation_binding_unavailable') {
-            await sql`UPDATE automation_jobs SET state='stale',revision=revision+1,explanation=${error.message} WHERE id=${job.id}`.execute(tx);
-            await advanceRunTasks(tx, actor, serverUuid, job.run_id);
-          } else if (error.code !== 'resource_not_found') throw error;
+          if (error.code !== 'resource_not_found') throw error;
         }
       }
       const last = rows[limit - 1];
@@ -87,18 +85,25 @@ export function createWorkerReadStore(db: Kysely<DatabaseSchema>, serverUuid: st
       if (job.delivery_handle !== handle) throw new AutomationError('resource_not_found', 'Job handle is unavailable.');
       return workerJobView(await row(tx, id));
     }),
-    inputs: (actor, id, query) => db.transaction().execute(async (tx) => {
-      const { job, pin } = await currentWorkInputs(tx, actor, id, serverUuid, worker.authorize);
-      if (query.deliveryHandle !== job.delivery_handle) throw new AutomationError('resource_not_found', 'Job handle is unavailable.');
-      const now = await databaseNow(tx);
-      const scope = JSON.stringify(['inputs', id, job.input_digest]);
-      const { limit, after } = pages.read(query, identity(actor), scope, now);
-      const start = after ? Number(after.id) + 1 : 0;
-      if (!Number.isSafeInteger(start) || start < 0 || start > pin.input_json.length) throw new AutomationError('invalid_cursor', 'Input page cursor is invalid.');
-      const items = pin.input_json.slice(start, start + limit);
-      return { items,
-        nextCursor: start + limit < pin.input_json.length
-          ? pages.next(identity(actor), scope, limit, { createdAt: now.toISOString(), id: String(start + limit - 1) }, now) : null };
-    }),
+    inputs: async (actor, id, query) => {
+      const result = await db.transaction().execute(async (tx) => {
+        const job = await lockWorkJob(tx, actor, id, worker.authorize);
+        if (query.deliveryHandle !== job.delivery_handle) throw new AutomationError('resource_not_found', 'Job handle is unavailable.');
+        const checked = await checkWorkInputs(tx, actor, job, serverUuid);
+        if (checked.error) return { error: checked.error };
+        const { pin } = checked.value;
+        const now = await databaseNow(tx);
+        const scope = JSON.stringify(['inputs', id, job.input_digest]);
+        const { limit, after } = pages.read(query, identity(actor), scope, now);
+        const start = after ? Number(after.id) + 1 : 0;
+        if (!Number.isSafeInteger(start) || start < 0 || start > pin.input_json.length) throw new AutomationError('invalid_cursor', 'Input page cursor is invalid.');
+        const items = pin.input_json.slice(start, start + limit);
+        return { value: { items,
+          nextCursor: start + limit < pin.input_json.length
+            ? pages.next(identity(actor), scope, limit, { createdAt: now.toISOString(), id: String(start + limit - 1) }, now) : null } };
+      });
+      if (result.error) throw result.error;
+      return result.value;
+    },
   };
 }

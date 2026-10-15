@@ -6,6 +6,7 @@ import type {
   AutomationPredicate,
   AutomationRule,
   AutomationRuleDefinition,
+  AutomationRuleInput,
 } from '../../api/automationTypes'
 
 /* The form the editor shows, and its exact translation to and from the
@@ -145,13 +146,13 @@ export function draftDefinition(draft: RuleDraft, fallbackName: string, base?: A
   }
   return {
     apiVersion: 'colp.automation/v1',
+    ...base,
     name,
-    ...(base?.description ? { description: base.description } : {}),
     roles: base?.roles ?? [
       { key: DESTINATION_ROLE, kind: 'folder', required: true, description: 'Folder matching bookmarks are moved to' },
     ],
     on: base?.on ?? 'bookmark.intake',
-    scope: { collectionId: draft.collectionId },
+    scope: { ...base?.scope, collectionId: draft.collectionId },
     match: draftMatch(draft),
     intake: base?.intake ?? {
       folderRole: DESTINATION_ROLE,
@@ -209,7 +210,7 @@ export function draftFromDefinition(
     conditions.push({ key: newConditionKey(), kind, value: part.value })
   }
   if (conditions.length === 0) return null
-  return {
+  const draft: RuleDraft = {
     name: definition.name,
     conditions,
     combinator: match.kind === 'any' ? 'any' : 'all',
@@ -218,6 +219,15 @@ export function draftFromDefinition(
     priority: definition.priority,
     maxRunsPerDay: definition.policy.maxRunsPerDay,
   }
+  // Only use the form when it can round-trip the complete definition exactly.
+  return definitionKey(draftDefinition(draft, definition.name, definition)) === definitionKey(definition) ? draft : null
+}
+
+function definitionKey(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return item
+    return Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
+  })
 }
 
 /** The form for a stored rule, or null when its definition goes beyond what the form shows. */
@@ -228,4 +238,12 @@ export function draftFromRule(rule: AutomationRule, binding: AutomationBindingSe
 /** Stable identity of what a preview evaluated; any edit changes it. */
 export function configurationKey(definition: AutomationRuleDefinition, bindingKey: string): string {
   return JSON.stringify([definition, bindingKey])
+}
+
+/** Preserve metadata the definition form does not own in every editor request. */
+export function ruleInput(definition: AutomationRuleDefinition, bindingSetId: string, base: AutomationRule | null): AutomationRuleInput {
+  return { definition, bindingSetId,
+    ...(base?.executionPolicyId ? { executionPolicyId: base.executionPolicyId } : {}),
+    ...(base?.templateRef ? { templateRef: base.templateRef } : {}),
+  }
 }

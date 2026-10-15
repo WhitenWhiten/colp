@@ -30,6 +30,10 @@ export type PreviewInput = {
   mode: "supplied" | "currentState" | "retainedHistory";
   from?: string;
   to?: string;
+  /**
+   * Existing owned rule being edited; excluded by identity from competition and bound to activation.
+   */
+  ruleId?: string;
 };
 export type TaskOutput = PlacementOutput | TagsOutput | TextOutput | MetadataOutput;
 
@@ -535,7 +539,10 @@ export interface LifecycleInput {
 export interface ChangeInput {
   definition: RuleDefinition;
   bindingSetId: string;
-  executionPolicyId?: string;
+  /**
+   * Omit to preserve the existing execution policy; null explicitly removes it.
+   */
+  executionPolicyId?: OpaqueId | null;
   pendingRuns: "hold" | "cancel" | "continuePinned";
   counterPolicy: "resetOnSemanticChange";
 }

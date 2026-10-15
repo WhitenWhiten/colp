@@ -1,8 +1,9 @@
 import { sql } from 'kysely';
 import type { ExecutionPolicyInput,TaskSpec,TaskInput,FolderRef,RuleDefinition,RoleBindings } from '@know-n/colp/automation';
-import { AutomationError,resolveBindings,assessIntakeBindings,hasUnsupportedCostLimit,type WorkPrincipal } from '../../modules/automation/index.js';
+import { AutomationError,resolveBindings,assessIntakeBindings,hasUnsupportedCostLimit,type WorkPrincipal,type AutomationActor } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
-import { lockWorkJob,type TargetAuthority } from './work-authority.js';
+import { lockWorkJob,type TargetAuthority,type WorkJob } from './work-authority.js';
+import { advanceRunTasks } from './task-scheduler.js';
 import { readWorkerNotes } from './worker-notes.js';
 import { createBindingReadPort } from './bindings.js';
 
@@ -11,6 +12,13 @@ export interface InputPins { task_json: TaskSpec; input_json: TaskInput[]; allow
 /** Read, claim, submit and the canonical commit guard share the same current input authority. */
 export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrincipal,jobId: string,serverUuid: string,authorize: TargetAuthority,allowPaused = false) {
   const job = await lockWorkJob(tx,actor,jobId,authorize,allowPaused);
+  return readPinnedWorkInputs(tx,actor,job,serverUuid);
+}
+
+export type InputJob = Pick<WorkJob,'id' | 'run_id' | 'collection_id' | 'node_id' | 'input_revision' | 'state'>;
+/** Owner maintenance uses the same pin validation without impersonating a worker. */
+async function readPinnedWorkInputs<T extends InputJob>(tx: DatabaseTransaction,actor: AutomationActor,job: T,serverUuid: string) {
+  const jobId = job.id;
   const pin = (await sql<InputPins>`SELECT j.*,v.definition_json,b.values_json FROM automation_jobs j JOIN automation_runs r ON r.id=j.run_id
     JOIN automation_rule_revisions v ON v.id=r.rule_revision_id JOIN automation_binding_revisions b ON b.binding_set_id=r.binding_set_id AND b.revision=r.binding_revision
     WHERE j.id=${jobId}`.execute(tx)).rows[0]!;
@@ -40,6 +48,20 @@ export async function currentWorkInputs(tx: DatabaseTransaction,actor: WorkPrinc
       throw new AutomationError('automation_binding_unavailable','Pinned folder authority or constraints are no longer available.');
   }
   return { job,pin,node };
+}
+
+/** Return validation errors as data so the caller can commit convergence before reporting failure. */
+export async function checkWorkInputs<T extends InputJob>(tx: DatabaseTransaction,actor: AutomationActor,job: T,serverUuid: string) {
+  try {
+    return { value: await readPinnedWorkInputs(tx,actor,job,serverUuid) };
+  } catch (error) {
+    if (!(error instanceof AutomationError) || !['automation_stale_input','automation_binding_unavailable'].includes(error.code)) throw error;
+    if (job.state === 'ready') {
+      await sql`UPDATE automation_jobs SET state='stale',revision=revision+1,explanation=${error.message} WHERE id=${job.id} AND state='ready'`.execute(tx);
+      await advanceRunTasks(tx,actor,serverUuid,job.run_id);
+    }
+    return { error };
+  }
 }
 
 export async function expireOwnerLeases(tx: DatabaseTransaction,ownerId: string): Promise<void> {

@@ -32,14 +32,17 @@ const assertions = `
   assert.equal(core.validateAutomation('Predicate', nested).valid, true);
   assert.equal(core.compilePredicate(nested).valid, false);
   assert.equal(core.validateAutomation('Predicate', { ...predicate, unexpected: true }).valid, false);
+  const rule = JSON.parse(readFileSync('../node/tests/fixtures/automation/m1-placement.json', 'utf8'));
+  assert.equal(core.validateAutomation('PreviewInput', { rule: { definition: rule, bindingSetId: 'b' }, ruleId: 'owned-rule', mode: 'currentState' }).valid, true);
+  assert.equal(core.validateAutomation('ChangeInput', { definition: rule, bindingSetId: 'b', executionPolicyId: null, pendingRuns: 'hold', counterPolicy: 'resetOnSemanticChange' }).valid, true);
   process.stdout.write('packaged-automation-ok');
 `;
 
 for (const format of ['module', 'commonjs'] as const) {
   test(`installed Automation ${format} exports and hardened behavior agree`, () => {
     const imports = format === 'module'
-      ? "import assert from 'node:assert/strict'; import * as core from '@know-n/colp/automation';"
-      : "const assert = require('node:assert/strict'); const core = require('@know-n/colp/automation');";
+      ? "import assert from 'node:assert/strict'; import { readFileSync } from 'node:fs'; import * as core from '@know-n/colp/automation';"
+      : "const assert = require('node:assert/strict'); const { readFileSync } = require('node:fs'); const core = require('@know-n/colp/automation');";
     const result = execFileSync(process.execPath, [`--input-type=${format}`, '-e', imports + assertions], {
       cwd: serverDirectory,
       timeout: 10_000,

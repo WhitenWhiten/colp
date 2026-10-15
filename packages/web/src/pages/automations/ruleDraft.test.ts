@@ -6,6 +6,7 @@ import {
   bindingInput,
   draftDefinition,
   draftFromRule,
+  draftFromDefinition,
   draftFromSearch,
   draftProblems,
   emptyDraft,
@@ -64,6 +65,23 @@ describe('rule draft', () => {
     expect(built.roles).toEqual(reviewed.definition.roles)
     expect(built.policy).toEqual({ ...base.policy, maxRunsPerDay: 5 })
     expect(built.priority).toBe(7)
+  })
+
+  it.each(['description', 'policy', 'role', 'intake'] as const)('round-trips JSON %s changes with the pasted definition as base', (field) => {
+    const definition = structuredClone(reviewed.definition)
+    if (field === 'description') definition.description = ''
+    if (field === 'policy') definition.policy.imports = 'include'
+    if (field === 'role') { definition.roles[0]!.key = 'renamed'; definition.intake!.folderRole = 'renamed' }
+    if (field === 'intake') definition.intake!.satisfies = []
+    const seeded = draftFromDefinition(definition, { collectionId: 'c_personal', nodeId: 'n_academic' })
+    expect(seeded).not.toBeNull()
+    expect(draftDefinition(seeded!, 'unused', definition)).toEqual(definition)
+  })
+
+  it('keeps JSON mode for predicates the form would rewrite', () => {
+    const definition = structuredClone(reviewed.definition)
+    definition.match = { kind: 'any', items: [definition.match] }
+    expect(draftFromDefinition(definition, { collectionId: 'c_personal', nodeId: 'n_academic' })).toBeNull()
   })
 
   it('asks for a condition and a folder before anything is sent', () => {

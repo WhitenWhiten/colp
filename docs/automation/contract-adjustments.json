@@ -2,7 +2,20 @@
   "ChangeInput": {
     "removeRequired": [
       "executionPolicyId"
-    ]
+    ],
+    "addProperties": {
+      "executionPolicyId": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/OpaqueId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Omit to preserve the existing execution policy; null explicitly removes it."
+      }
+    }
   },
   "Run": {
     "removeRequired": [],
@@ -206,6 +219,15 @@
         ],
         "minimum": 0,
         "description": "Observed accepted callbacks only; never a count of completed jobs. Null when Events delivery is not enabled."
+      }
+    }
+  },
+  "PreviewInput": {
+    "removeRequired": [],
+    "addProperties": {
+      "ruleId": {
+        "$ref": "#/$defs/OpaqueId",
+        "description": "Existing owned rule being edited; excluded by identity from competition and bound to activation."
       }
     }
   }

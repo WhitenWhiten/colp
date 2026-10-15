@@ -13,7 +13,7 @@ export async function setLifecycle(ports: AutomationPorts, actor: AutomationActo
   if (stored.view.desiredState === 'archived') throw new AutomationError('automation_rule_conflict', 'Archived rules cannot be reactivated.');
   if (input.state === 'enabled') {
     const preview = input.activationPreviewId ? await ports.previews.load(actor.accountId, input.activationPreviewId) : null;
-    if (!preview || preview.expiresAt.getTime() <= (await ports.now()).getTime()
+    if (!preview || (preview.input.ruleId && preview.input.ruleId !== id) || preview.expiresAt.getTime() <= (await ports.now()).getTime()
       || automationDigest(normalizeRuleInput(preview.input.rule)) !== automationDigest(normalizeRuleInput(ruleInput(stored.view))))
       throw new AutomationError('automation_stale_input', 'Enable requires the exact unexpired preview of this configuration.');
     const current = await previewSnapshot(ports, actor, preview.input);
@@ -55,5 +55,5 @@ export async function setPause(ports: AutomationPorts, actor: AutomationActor, b
   }
   await ports.settings.save(actor.accountId, settings);
   if (!input.paused) await ports.wakePendingRuns();
-  return settings;
+  return ports.settings.get(actor.accountId);
 }

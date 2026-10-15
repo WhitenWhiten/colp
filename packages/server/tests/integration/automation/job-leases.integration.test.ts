@@ -13,7 +13,7 @@ describeWithPostgres('AW-23 lease generation and uncertainty', () => {
   beforeEach(async () => {
     f = await automationPollingFixture('aw23', { maxCalls: 3 });
     job = (await f.work!.list(f.actor,{ targetId: f.target.id })).items[0]!;
-    store = createJobLeaseStore(f.db,f.worker.authorize,100);
+    store = createJobLeaseStore(f.db,f.worker.authorize,100,'server');
   });
   afterEach(async () => { await f?.close(); });
   const claim = () => claimJob(store,f.actor,job.id,{ deliveryHandle: job.deliveryHandle! });
@@ -56,6 +56,9 @@ describeWithPostgres('AW-23 lease generation and uncertainty', () => {
       // Held jobs overlay the pause: none while running, the leased job once paused.
       expect(current.json().heldJobs).toBe(paused ? 0 : 1);
       const changed = await f.ownerPost('/pause',{ paused },String(current.headers.etag));expect(changed.statusCode,changed.body).toBe(200);
+      const after = await f.app.inject({ url: '/api/v1/me/automations/pause',headers: { cookie: f.owner.cookie } });
+      expect(changed.json()).toEqual(after.json());
+      expect(changed.json().heldJobs).toBe(paused ? 1 : 0);
     };
     await pause(true);
     await expect(claim()).rejects.toMatchObject({ code: 'automation_paused' });
@@ -70,5 +73,13 @@ describeWithPostgres('AW-23 lease generation and uncertainty', () => {
     await f.db.updateTable('collections').set({ owner_subject_id: f.actor.subjectId }).where('id','=','collection').execute();
     await sql`UPDATE automation_runs SET held=true WHERE id=${job.runId}`.execute(f.db);
     await expect(store.verify(f.actor,job.id,lease)).rejects.toMatchObject({ code: 'resource_not_found' });
+    for (const paused of [true,false]) {
+      const current = await f.app.inject({ url: '/api/v1/me/automations/pause',headers: { cookie: f.owner.cookie } });
+      const changed = await f.ownerPost('/pause',{ paused },String(current.headers.etag));
+      const after = await f.app.inject({ url: '/api/v1/me/automations/pause',headers: { cookie: f.owner.cookie } });
+      expect(changed.statusCode,changed.body).toBe(200);
+      expect(changed.json()).toEqual(after.json());
+      expect(changed.json().heldJobs).toBe(1); // Run hold survives global resume; no double counting.
+    }
   });
 });

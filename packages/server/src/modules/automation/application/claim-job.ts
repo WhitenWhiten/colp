@@ -4,7 +4,7 @@ import { AutomationError } from '../domain/errors.js';
 import { parseContract } from './rule-service.js';
 
 export interface WorkPrincipal extends AutomationActor { clientId: string; credentialBindingId: string; scopes: readonly string[]; resourceAudience?: string; securityEpoch?: string; credentialDigest?: string; expiresAt?: string; issuedAtSeconds?: number; accountSecurityEpoch?: string }
-export type ClaimOutcome = { kind: 'claimed'; lease: Lease } | { kind: 'conflict' | 'uncertain' | 'budget' };
+export type ClaimOutcome = { kind: 'claimed'; lease: Lease } | { kind: 'conflict' | 'uncertain' | 'budget' } | { kind: 'invalid'; error: AutomationError };
 export interface JobLeaseStore {
   claim(actor: WorkPrincipal, jobId: string, input: ClaimInput): Promise<ClaimOutcome>;
   heartbeat(actor: WorkPrincipal, jobId: string, input: HeartbeatInput): Promise<Lease>;
@@ -14,6 +14,7 @@ export interface JobLeaseStore {
 export async function claimJob(store: JobLeaseStore, actor: WorkPrincipal, jobId: string, body: unknown): Promise<Lease> {
   const result = await store.claim(actor, jobId, parseContract('ClaimInput', body));
   if (result.kind === 'claimed') return result.lease;
+  if (result.kind === 'invalid') throw result.error;
   throw new AutomationError(result.kind === 'budget' ? 'automation_budget_exceeded' : 'automation_claim_conflict',
     result.kind === 'uncertain' ? 'Expired work has an unknown outcome and requires reconciliation.'
       : result.kind === 'budget' ? 'Optional work is held by the execution budget.' : 'Job already has a claimant or is not ready.');

@@ -374,11 +374,11 @@ describeWithPostgres('AW-31 authenticated polling and typed canonical orchestrat
     expect((await sql<{ count: number }>`SELECT count(*)::int AS count FROM automation_jobs WHERE id LIKE '--held-job-%' AND state='pending'`.execute(f.db)).rows[0]!.count).toBe(202);
   });
 
-  test('replacing a worker rule without an execution policy clears the previous grant',async () => {
+  test('explicitly removing a worker execution policy clears the previous grant',async () => {
     const { rule,ruleInput } = await setup('be3_clear_policy');
     const current = await f.app.inject({ url: `/api/v1/me/automations/rules/${rule.id}`,headers: { cookie: f.owner.cookie } });
     const updated = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/rules/${rule.id}`,headers: f.ownerHeaders(randomUUID(),String(current.headers.etag)),
-      payload: { definition: ruleInput.definition,bindingSetId: ruleInput.bindingSetId,pendingRuns: 'hold',counterPolicy: 'resetOnSemanticChange' } });
+      payload: { definition: ruleInput.definition,bindingSetId: ruleInput.bindingSetId,executionPolicyId: null,pendingRuns: 'hold',counterPolicy: 'resetOnSemanticChange' } });
     expect(updated.statusCode,updated.body).toBe(200);expect(updated.json().executionPolicyId).toBeUndefined();
     const stored = await f.app.inject({ url: `/api/v1/me/automations/rules/${rule.id}`,headers: { cookie: f.owner.cookie } });
     expect(stored.json().executionPolicyId).toBeUndefined();

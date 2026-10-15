@@ -5,7 +5,7 @@ import type { Lease, LeaseProof } from '@know-n/colp/automation';
 import { AutomationError, type WorkPrincipal, type JobLeaseStore } from '../../modules/automation/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
-import { currentWorkInputs } from './worker-inputs.js';
+import { checkWorkInputs } from './worker-inputs.js';
 import { lockWorkJob, type TargetAuthority, type WorkJob } from './work-authority.js';
 import { recordOptionalCall, reserveOptionalWork } from './usage-store.js';
 
@@ -23,7 +23,7 @@ export async function requireJobLease(tx: DatabaseTransaction, actor: WorkPrinci
   return attempt;
 }
 /** Each public method owns a short transaction; no network or plan coordinator is invoked here. */
-export function createJobLeaseStore(db: Kysely<DatabaseSchema>, authorize: TargetAuthority, serverDailyCap: number,serverUuid?: string): JobLeaseStore {
+export function createJobLeaseStore(db: Kysely<DatabaseSchema>, authorize: TargetAuthority, serverDailyCap: number,serverUuid: string): JobLeaseStore {
   const execute = <T>(work: (tx: DatabaseTransaction) => Promise<T>) => db.isTransaction ? work(db as DatabaseTransaction) : db.transaction().execute(work);
   const lease = (job: WorkJob, token: string, generation: number, expires: Date): Lease =>
     ({ jobId: job.id,claimToken: token,generation,expiresAt: expires.toISOString(),inputDigest: job.input_digest });
@@ -40,9 +40,8 @@ export function createJobLeaseStore(db: Kysely<DatabaseSchema>, authorize: Targe
         return { kind: 'uncertain' as const };
       }
       if (job.state !== 'ready') return { kind: job.state === 'uncertain' ? 'uncertain' as const : 'conflict' as const };
-      if (serverUuid) await currentWorkInputs(tx,actor,id,serverUuid,authorize);
-      const current = await tx.selectFrom('nodes').select('resource_revision').where('id','=',job.node_id).where('collection_id','=',job.collection_id).where('deleted_at','is',null).executeTakeFirst();
-      if (!current || current.resource_revision !== job.input_revision) throw new AutomationError('automation_stale_input','Canonical input changed before claim.');
+      const checked = await checkWorkInputs(tx,actor,job,serverUuid);
+      if (checked.error) return { kind: 'invalid' as const,error: checked.error };
       const usage = { ownerId: actor.accountId,ruleId: job.rule_id,runId: job.run_id,jobId: id,targetId: job.target_id };
       const attempts = (await sql<{ count: number }>`SELECT count(*)::int AS count FROM automation_job_attempts WHERE job_id=${id}`.execute(tx)).rows[0]!.count;
       const callsExhausted = attempts >= job.max_calls;

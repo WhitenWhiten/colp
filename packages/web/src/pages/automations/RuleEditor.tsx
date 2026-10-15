@@ -31,6 +31,7 @@ import {
   emptyDraft,
   filledConditions,
   newConditionKey,
+  ruleInput,
   type ConditionKind,
   type RuleDraft,
 } from './ruleDraft'
@@ -91,6 +92,7 @@ export function RuleEditor() {
   const [initialKey, setInitialKey] = useState<string | null>(null)
   /** A definition from Advanced that the form cannot show; it replaces the form's own. */
   const [jsonDefinition, setJsonDefinition] = useState<AutomationRuleDefinition | null>(null)
+  const [definitionBase, setDefinitionBase] = useState<AutomationRuleDefinition | null>(null)
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -135,8 +137,8 @@ export function RuleEditor() {
   const built = useMemo<AutomationRuleDefinition | null>(() => {
     if (!draft) return null
     if (jsonDefinition) return jsonDefinition
-    return draftDefinition(draft, fallbackName, loaded?.rule.definition)
-  }, [draft, fallbackName, jsonDefinition, loaded])
+    return draftDefinition(draft, fallbackName, definitionBase ?? loaded?.rule.definition)
+  }, [draft, fallbackName, jsonDefinition, definitionBase, loaded])
 
   // A stored binding is kept while the form still points at its folder (or cannot show it).
   const storedFolder = loaded ? destinationFolder(loaded.rule.definition, loaded.binding) : null
@@ -235,7 +237,7 @@ export function RuleEditor() {
     setBusy('preview')
     try {
       const key = configKey
-      const result = await api.previewRule({ rule: { definition: ruleDefinition, bindingSetId: await bindingSetId() }, mode: 'currentState' })
+      const result = await api.previewRule({ rule: ruleInput(ruleDefinition, await bindingSetId(), current), ...(current ? { ruleId: current.id } : {}), mode: 'currentState' })
       setPreview({ key, result })
     } catch (error) {
       toastError(errorMessage(error, 'Could not preview this rule.'))
@@ -249,14 +251,14 @@ export function RuleEditor() {
     const setId = await bindingSetId()
     const base = saved ?? editing
     if (!base) {
-      const created = await api.createRule({ definition: ruleDefinition, bindingSetId: setId })
+      const created = await api.createRule(ruleInput(ruleDefinition, setId, null))
       setSaved(created)
       return created
     }
     if (!dirty) return base
+    const { templateRef: _templateRef, ...input } = ruleInput(ruleDefinition, setId, base)
     const next = await api.replaceRule(base.id, {
-      definition: ruleDefinition,
-      bindingSetId: setId,
+      ...input,
       pendingRuns: 'hold',
       counterPolicy: 'resetOnSemanticChange',
     }, base.revision)
@@ -368,6 +370,7 @@ export function RuleEditor() {
     }
     const next = parsed
     setJsonError(null)
+    setDefinitionBase(next)
     // A definition the form can show goes back into the form; anything else is kept as written.
     const seeded = form.folderId
       ? draftFromDefinition(next, { collectionId: form.collectionId, nodeId: form.folderId })

@@ -8,6 +8,7 @@
 **/__pycache__/
 *.py[cod]
 *.tgz
+!packages/server/vendor/know-n-colp-*.tgz
 *.tsbuildinfo
 .env
 .env.*
