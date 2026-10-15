@@ -126,4 +126,5 @@ Each packet is committed separately; the commit column is filled in by the next 
 | AW-68 | Done locally (happy-dom pane tests; real Chromium under xvfb for AC-69 with no server; screenshots in en and zh_CN) | `c1168c59`, [write and manage browser rules in Options](evidence/aw-68.md) |
 | AW-69 | Done locally (unit, worker and pane tests against the server's bundle shape; screenshots; no real server run) | `e0ad3583`, [review browser rules against the account's](evidence/aw-69.md) |
 | AW-70 | Done locally (mocked API; no hosted run) | `f4057029`, [fill the web rule editor from a browser rule](evidence/aw-70.md) |
-| AW-71 | Done locally (unit, worker and pane tests; bundle install retires a moved rule in the worker test; no real server round trip) | [move a browser rule to the account](evidence/aw-71.md) |
+| AW-71 | Done locally (unit, worker and pane tests; bundle install retires a moved rule in the worker test; no real server round trip) | `d0d7a229`, [move a browser rule to the account](evidence/aw-71.md) |
+| AW-72 | Done locally (the real logout handler over fake-indexeddb; no real browser sign-out run) | [disconnect keeps browser rules](evidence/aw-72.md) |

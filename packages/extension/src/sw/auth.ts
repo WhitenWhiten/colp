@@ -14,6 +14,7 @@ import { clearSaveContextCache } from '../save-context-cache.js';
 import { sessionMatchesCredentialAuthority, syncSessionNeedsRenewal } from '../session-client.js';
 import type { AuthExtensionRequest, ExtensionResponse, StoredCredential } from '../types.js';
 import { scheduleSyncEngineWake } from './engine.js';
+import { clearAccountAutomation } from './automation.js';
 import { COLLECTION_BINDING, WELCOME_FLAG, store, sw, syncState, workCoordinator } from './runtime.js';
 import { createRuntimeAuth, currentSyncScope, enforceManagedPolicy, ensureSyncScope, hasBoundCollection,
   loadConfig, pushSessionAuthority, retire, scheduleSessionFreshen } from './scope.js';
@@ -137,6 +138,8 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
         await subscriptionMaintenance.cleanup();
         if (binding) await syncState.cleanupAccount({ environment: config.environment,
           serverId: config.serverOrigin, accountId: credential.subject, browserProfileId: binding.browserProfileId });
+        // The account's automation data goes with it; this browser's own rules stay (AW-72).
+        await clearAccountAutomation({ serverOrigin: credential.serverOrigin, accountId: credential.subject }).catch(() => undefined);
       }
     }
   }

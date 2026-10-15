@@ -126,6 +126,32 @@ async function flushReceipts(owner: AutomationOwner, device: DeviceAuthority, re
   });
 }
 
+/**
+ * Signing out (AW-72, AU-33): the account's rule bundle, server status,
+ * receipts, placement intents, pause, device id and toolbar count leave this
+ * browser. Browser rules and the pages they filed belong to the browser, not
+ * the account, and stay (design 01 §7.5).
+ */
+export async function clearAccountAutomation(owner: AutomationOwner): Promise<void> {
+  const ownerKey = automationOwnerKey(owner);
+  const clear = async () => {
+    await automationDatabase().clearAccount(ownerKey);
+    const local = await chrome.storage.local.get([PAUSE_KEY, DEVICE_KEY]);
+    const pause = local[PAUSE_KEY] as { ownerKey?: unknown } | undefined, device = local[DEVICE_KEY] as { key?: unknown } | undefined;
+    const owned = [...pause?.ownerKey === ownerKey ? [PAUSE_KEY] : [], ...deviceOwner(device?.key) === ownerKey ? [DEVICE_KEY] : []];
+    if (owned.length) await chrome.storage.local.remove(owned);
+    await paintDigestBadge(null);
+  };
+  await clear();
+  // A pass that began before sign-out may still write; clear again once it ends, without waiting on it here.
+  const pending = inFlight?.promise;
+  if (pending) void pending.catch(() => undefined).then(clear).catch(() => undefined);
+}
+/** The account a cached device id was read for (replicaDeviceId's key). */
+function deviceOwner(key: unknown): unknown {
+  try { return typeof key === 'string' ? (JSON.parse(key) as unknown[])[0] : null; } catch { return null; }
+}
+
 /** Persist a placement this browser just made; it is sent once its Sync operations exist. */
 export async function recordPlacementReceipt(receipt: PlacementReceipt): Promise<void> {
   if (await createReceiptStore(automationArea()).add(receipt, Date.now())) void refreshAutomation().catch(() => undefined);

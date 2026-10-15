@@ -2,6 +2,7 @@ import { requestValue, transactionDone } from '../sync-state/idb.js';
 import type { AutomationStateArea } from './bundle-store.js';
 import type { ObservedPlacement } from './observed-create.js';
 import { AUTOMATION_BUNDLE_KEY, AUTOMATION_CHANGED_KEY, AUTOMATION_RECEIPTS_KEY } from './messages.js';
+import { SERVER_STATUS_KEY } from './server-status.js';
 
 /**
  * The automation store: this browser's installed rule bundle, its placement
@@ -19,6 +20,10 @@ export const AUTOMATION_DB = 'known-automation';
 const VERSION = 1;
 const STATE = 'state', INTENTS = 'intents';
 const MIGRATED_KEYS = [AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY] as const;
+/** One account's records, each naming its owner, and the receipt list, whose entries each name theirs. */
+const ACCOUNT_RECORDS = [AUTOMATION_BUNDLE_KEY, SERVER_STATUS_KEY] as const;
+const owns = (value: unknown, ownerKey: string) =>
+  Boolean(value) && typeof value === 'object' && (value as { ownerKey?: unknown }).ownerKey === ownerKey;
 
 /** An observed move about to happen: written before the move, removed once its receipt exists. */
 export interface PlacementIntent extends ObservedPlacement {
@@ -82,6 +87,25 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
         get: (key) => run([STATE], 'readonly', (tx) => requestValue(tx.objectStore(STATE).get(key))),
         async set(key, value) { await run([STATE], 'readwrite', async (tx) => { tx.objectStore(STATE).put(value, key); }); await changed(); },
       };
+    },
+    /**
+     * Sign-out (AW-72): that account's bundle, server status, receipts and
+     * placement intents go, in one transaction. Another account's entries and
+     * this browser's own rules and their log (browser-rule-store.ts) stay.
+     */
+    async clearAccount(ownerKey: string): Promise<void> {
+      await run([STATE, INTENTS], 'readwrite', async (tx) => {
+        const state = tx.objectStore(STATE), intents = tx.objectStore(INTENTS);
+        for (const key of ACCOUNT_RECORDS) if (owns(await requestValue(state.get(key)), ownerKey)) state.delete(key);
+        const receipts = await requestValue(state.get(AUTOMATION_RECEIPTS_KEY));
+        if (Array.isArray(receipts) && receipts.some((receipt) => owns(receipt, ownerKey))) {
+          state.put(receipts.filter((receipt) => !owns(receipt, ownerKey)), AUTOMATION_RECEIPTS_KEY);
+        }
+        for (const intent of await requestValue(intents.getAll()) as PlacementIntent[]) {
+          if (intent.ownerKey === ownerKey) intents.delete(intent.intentId);
+        }
+      });
+      await changed();
     },
     intents: {
       put: (intent: PlacementIntent) => run([INTENTS], 'readwrite', async (tx) => { tx.objectStore(INTENTS).put(intent); }),
