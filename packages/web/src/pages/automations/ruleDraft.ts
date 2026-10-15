@@ -61,6 +61,36 @@ export function emptyDraft(collectionId = '', folderId = ''): RuleDraft {
   }
 }
 
+const CONDITION_KINDS = Object.keys(FIELD_BY_KIND) as ConditionKind[]
+const ADDRESS_CONDITIONS = 8
+const ADDRESS_VALUE = 512
+
+/** One `condition=kind:value` from the address; anything the form cannot show is dropped. */
+function conditionFromAddress(raw: string): DraftCondition | null {
+  const at = raw.indexOf(':')
+  const kind = raw.slice(0, at) as ConditionKind
+  const value = raw.slice(at + 1).trim()
+  if (at < 1 || !CONDITION_KINDS.includes(kind) || !value || value.length > ADDRESS_VALUE) return null
+  return { key: newConditionKey(), kind, value }
+}
+
+/**
+ * A new rule filled in from the address: `collectionId` and `folderId` (Automate… on a folder), and, from a
+ * rule the extension keeps in one browser (AW-70), `name`, `combinator` and repeated `condition=kind:value`.
+ * It is only a form: nothing is created until the Owner saves, and turning it on still needs a preview.
+ */
+export function draftFromSearch(search: URLSearchParams): RuleDraft {
+  const draft = emptyDraft(search.get('collectionId') ?? '', search.get('folderId') ?? '')
+  const conditions = search.getAll('condition').map(conditionFromAddress).filter((item): item is DraftCondition => item !== null)
+    .slice(0, ADDRESS_CONDITIONS)
+  return {
+    ...draft,
+    name: (search.get('name') ?? '').trim().slice(0, 200),
+    combinator: search.get('combinator') === 'any' ? 'any' : 'all',
+    ...(conditions.length ? { conditions } : {}),
+  }
+}
+
 export function conditionKindOf(predicate: AutomationPredicate): ConditionKind | null {
   if (predicate.kind !== 'field' || typeof predicate.value !== 'string') return null
   for (const [kind, shape] of Object.entries(FIELD_BY_KIND) as [ConditionKind, typeof FIELD_BY_KIND[ConditionKind]][]) {

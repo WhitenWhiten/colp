@@ -27,6 +27,7 @@ import {
   draftFromDefinition,
   draftFromRule,
   draftProblems,
+  draftFromSearch,
   emptyDraft,
   filledConditions,
   newConditionKey,
@@ -84,9 +85,9 @@ export function RuleEditor() {
     return { rule, binding }
   })
 
-  const [draft, setDraft] = useState<RuleDraft | null>(() => creating
-    ? emptyDraft(search.get('collectionId') ?? '', search.get('folderId') ?? '')
-    : null)
+  const [draft, setDraft] = useState<RuleDraft | null>(() => creating ? draftFromSearch(search) : null)
+  /** Opened from a rule the extension keeps in one browser ("Add mine to the account"). */
+  const fromBrowser = creating && search.get('from') === 'browser'
   const [initialKey, setInitialKey] = useState<string | null>(null)
   /** A definition from Advanced that the form cannot show; it replaces the form's own. */
   const [jsonDefinition, setJsonDefinition] = useState<AutomationRuleDefinition | null>(null)
@@ -409,6 +410,12 @@ export function RuleEditor() {
         }}
       >
         <div className="automation-editor-main">
+          {fromBrowser ? (
+            <p className="automation-json-note" role="status" data-testid="automation-from-browser">
+              <Icon name="browser" />
+              <span>Filled in from a rule in your browser. Preview it, then turn it on to use it on every device.</span>
+            </p>
+          ) : null}
           {jsonDefinition ? (
             <p className="automation-json-note" role="status" data-testid="automation-json-note">
               <Icon name="code" />

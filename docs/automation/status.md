@@ -124,4 +124,5 @@ Each packet is committed separately; the commit column is filled in by the next 
 | --- | --- | --- |
 | AW-67 | Done locally (unit and worker tests; production bundle checked; no Options UI or real browser yet) | `5998368e`, [browser rules at save, below the account's](evidence/aw-67.md) |
 | AW-68 | Done locally (happy-dom pane tests; real Chromium under xvfb for AC-69 with no server; screenshots in en and zh_CN) | `c1168c59`, [write and manage browser rules in Options](evidence/aw-68.md) |
-| AW-69 | Done locally (unit, worker and pane tests against the server's bundle shape; screenshots; no real server run) | [review browser rules against the account's](evidence/aw-69.md) |
+| AW-69 | Done locally (unit, worker and pane tests against the server's bundle shape; screenshots; no real server run) | `e0ad3583`, [review browser rules against the account's](evidence/aw-69.md) |
+| AW-70 | Done locally (mocked API; no hosted run) | [fill the web rule editor from a browser rule](evidence/aw-70.md) |

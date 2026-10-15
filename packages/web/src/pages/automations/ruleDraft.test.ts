@@ -6,6 +6,7 @@ import {
   bindingInput,
   draftDefinition,
   draftFromRule,
+  draftFromSearch,
   draftProblems,
   emptyDraft,
   newConditionKey,
@@ -101,5 +102,24 @@ describe('rule draft', () => {
     expect(draftFromRule(withTask, binding)).toBeNull()
     const negated = { ...rule, definition: { ...rule.definition, match: { kind: 'not' as const, item: rule.definition.match } } }
     expect(draftFromRule(negated, binding)).toBeNull()
+  })
+})
+
+describe('a new rule from the address (AW-70)', () => {
+  it('takes the folder, name, combinator and conditions a browser rule sends', () => {
+    const search = new URLSearchParams([['collectionId', 'c_personal'], ['folderId', 'n_papers'], ['name', ' arxiv.org → Papers '],
+      ['combinator', 'any'], ['condition', 'siteIs:arxiv.org'], ['condition', 'titleContains:Paper: notes'], ['from', 'browser']])
+    expect(draftFromSearch(search)).toMatchObject({ collectionId: 'c_personal', folderId: 'n_papers', name: 'arxiv.org → Papers', combinator: 'any',
+      conditions: [{ kind: 'siteIs', value: 'arxiv.org' }, { kind: 'titleContains', value: 'Paper: notes' }] })
+  })
+
+  it('drops what the form cannot show and keeps one empty row when nothing is left', () => {
+    const search = new URLSearchParams([['condition', 'cel:true'], ['condition', 'siteIs:'], ['condition', 'nokind'],
+      ['condition', `titleContains:${'x'.repeat(513)}`], ['combinator', 'some']])
+    const draft = draftFromSearch(search)
+    expect(draft).toMatchObject({ collectionId: '', folderId: '', name: '', combinator: 'all' })
+    expect(draft.conditions.map((condition) => [condition.kind, condition.value])).toEqual([['siteIs', '']])
+    const many = new URLSearchParams(Array.from({ length: 10 }, (_, index) => ['condition', `titleContains:w${index}`]))
+    expect(draftFromSearch(many).conditions).toHaveLength(8)
   })
 })

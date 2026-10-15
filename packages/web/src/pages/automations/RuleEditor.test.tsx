@@ -55,6 +55,29 @@ describe('Rule editor', () => {
       .toBe('When a bookmark saved to Personal matches its conditions, move it to Academic.')
   })
 
+  it('opens filled in from a browser rule, and creates nothing until the owner saves (AC-72)', async () => {
+    const api = fakeApi()
+    mount('/automations/new?collectionId=col-personal&folderId=f-academic&name=arxiv.org%20%E2%86%92%20Academic&combinator=any'
+      + '&condition=siteIs%3Aarxiv.org&condition=titleContains%3APaper&from=browser', api)
+    await waitForDom(() => select('automation-folder')?.value === 'f-academic')
+    expect(document.querySelector('[data-testid="automation-from-browser"]')?.textContent)
+      .toBe('Filled in from a rule in your browser. Preview it, then turn it on to use it on every device.')
+    expect([...document.querySelectorAll<HTMLInputElement>('input[id^="automation-condition-"]')].map((input) => input.value)).toEqual(['arxiv.org', 'Paper'])
+    expect(document.querySelector('[data-testid="automation-sentence"]')?.textContent).toContain('Academic')
+    expect(api.createRule).not.toHaveBeenCalled()
+    expect(api.createBindingSet).not.toHaveBeenCalled()
+    await preview(api)
+    expect(api.previewRule).toHaveBeenCalledWith({ rule: { definition: expect.objectContaining({ name: 'arxiv.org → Academic',
+      match: { kind: 'any', items: [{ kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'arxiv.org' },
+        { kind: 'field', field: 'bookmark.title', op: 'contains', value: 'Paper' }] } }), bindingSetId: 'bind-new' }, mode: 'currentState' })
+    expect(api.createRule).not.toHaveBeenCalled()
+  })
+
+  it('shows no browser note for an ordinary new rule', async () => {
+    await readyNew()
+    expect(document.querySelector('[data-testid="automation-from-browser"]')).toBeNull()
+  })
+
   it('keeps Turn on off until the exact rule is previewed, and again after any change (AC-26)', async () => {
     const api = await readyNew()
     expect(turnOn()?.disabled).toBe(true)
