@@ -54,6 +54,14 @@ describe('the same conditions', () => {
     expect(sameMatch({ kind: 'all', items: [site('arxiv.org'), title('Paper')] }, { kind: 'any', items: [site('arxiv.org'), title('Paper')] })).toBe(false);
     expect(sameMatch(site('arxiv.org'), site('github.com'))).toBe(false);
   });
+
+  it('ignore the order of keys, as the server writes them', () => {
+    const server = JSON.parse('{"op":"eq","kind":"field","field":"bookmark.url.host","value":"arxiv.org"}') as Predicate;
+    expect(sameMatch(server, site('arxiv.org'))).toBe(true);
+    expect(sameMatch({ kind: 'any', items: [server, title('Paper')] }, { items: [title('Paper'), site('arxiv.org')], kind: 'any' } as Predicate)).toBe(true);
+    expect(relateBrowserRule(browser('b', [{ kind: 'siteIs', value: 'arxiv.org' }], '10'),
+      [account('a', server, '10')], undefined, NOW)).toEqual({ kind: 'duplicate', accountRuleId: 'a', pages: 0 });
+  });
 });
 
 describe('replay over this browser’s bookmarks', () => {

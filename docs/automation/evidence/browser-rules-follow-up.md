@@ -10,8 +10,8 @@ previous item's hash.
 | Item | Commit | Change |
 | --- | --- | --- |
 | L1 | `3aee64ae` | Signing in as another account (or on another server) without signing out first removes the earlier account's automation data. Browser rules stay. |
-| L2 | — | The *Sign out* hint, the sign-out dialog and the *Disconnect server* hint say that rules made in this browser stay, and that the account's rules stop. |
-| L3 | planned | Moving a browser rule to the account, run against a real colp-server. |
+| L2 | `1ee62307` | The *Sign out* hint, the sign-out dialog and the *Disconnect server* hint say that rules made in this browser stay, and that the account's rules stop. |
+| L3 | — | Moving a browser rule to the account, run against a real colp-server. The run found that the server's rules never compared equal to browser rules; fixed here. |
 | L4 | planned | Browser rules also file bookmarks made with the browser's star button. |
 
 ## What may mislead users
@@ -69,3 +69,59 @@ updated with them.
 | --- | --- |
 | `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | catalog and translations current |
 | `npm run build:development`, then `SHOT_ONLY=account,dialog-logout npm run shots` in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320 |
+
+## L3 — moving a rule, against a real colp-server
+
+`e2e/mv3-browser-rules-server.spec.ts` runs AC-73 with nothing mocked or seeded. It is skipped unless
+`COLP_AW_ORIGIN`, `COLP_AW_USER` and `COLP_AW_PASSWORD` name a disposable server and its owner.
+
+1. The production extension signs in, gets bookmark access, and syncs the bookmarks bar into a new
+   collection made on the web.
+2. It makes a folder *Papers* and a browser rule "Site is arxiv.org → Papers".
+3. *Add to your account* appears once the folder is on the server. It opens
+   `/automations/new?…&from=browser` in the browser's own web session, with the note, the name and the folder
+   filled in. The row reads *Moving*.
+4. On the web the owner previews the rule and turns it on.
+5. The next check in the browser installs the account's copy. The browser rule is gone, the account's rule is
+   listed, and the notice "“…” now runs from your account, on every device." shows.
+6. The popup preview for an arXiv page now names the account's rule and *Papers*.
+
+### What the first run found
+
+Step 5 failed. The account's copy arrived, but the browser rule stayed. The bundle from the server had the
+same condition as the browser rule, with its keys in another order:
+
+```text
+server   {"op":"eq","kind":"field","field":"bookmark.url.host","value":"arxiv.org"}
+browser  {"kind":"field","field":"bookmark.url.host","op":"eq","value":"arxiv.org"}
+```
+
+`sameMatch` (`src/automation/browser-overlap.ts`) compared JSON text without sorting keys. Any rule from a
+real server therefore never matched a browser rule:
+
+- a moved rule never retired (AW-71);
+- *Same as account* was never shown (AW-69); such a pair was reported as nothing at all.
+
+The unit tests built both sides with the same key order, so they passed. `canonical` now sorts keys at
+every level. `tests/automation-browser-overlap.test.ts` (+1) uses the server's key order; it fails without
+the change.
+
+### The stack
+
+`docker build -f packages/server/Dockerfile -t colp-server:13c6b650 .` from `13c6b650` (server and web as
+of AW-72), then `deploy/compose.yaml` with the `http` profile on `127.0.0.1:18080`
+(`COLP_INSECURE_HTTP=true`). The owner was made with `colp-server create-user`. The stack was removed with
+`docker compose down -v` afterwards.
+
+### Runs
+
+| Command (`packages/extension`, Node 24.14.0) | Result |
+| --- | --- |
+| `npx tsc --noEmit -p .`, `npx eslint` on the changed files | pass |
+| `npx vitest run tests/automation-browser-overlap.test.ts tests/automation-browser-move.test.ts tests/automation-worker-browser-rules.test.ts` | 3 files, 26 tests passed |
+| `npm run build`, then `node scripts/with-xvfb.mjs npx playwright test e2e/mv3-browser-rules-server.spec.ts` with the three variables | 1 passed (17.1 s); then 3 of 3 passed, spaced 75 s apart (18.4 s, 19.5 s, 18.1 s) |
+
+Runs back to back, about 17 s apart, sometimes failed at the web's `GET /api/v1/session` with HTTP 429. The
+server allows 60 auth requests a minute per client (`AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW_MS`). The
+web then rendered a blank page, or the editor signed out with empty Collection and Folder. Spaced 75 s
+apart, the runs pass. The web's blank page on a 429 is outside this work and is noted here only.

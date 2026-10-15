@@ -82,14 +82,21 @@ export function witnessOverlap(a: RuleDefinition, b: RuleDefinition, now: number
   return null;
 }
 
+/** Key order is not meaning either: the server writes `{ op, kind, … }` where this browser writes `{ kind, …, op }`. */
+function sortedKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortedKeys);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortedKeys((value as Record<string, unknown>)[key])]));
+}
+
 /** Group order is not meaning: "a and b" is "b and a". */
 function canonical(predicate: Predicate): unknown {
   if (predicate.kind === 'all' || predicate.kind === 'any') {
     const items = predicate.items.map(canonical).map((item) => JSON.stringify(item)).sort();
-    return items.length === 1 ? JSON.parse(items[0]!) : { kind: predicate.kind, items };
+    return items.length === 1 ? JSON.parse(items[0]!) : { items, kind: predicate.kind };
   }
-  if (predicate.kind === 'not') return { kind: 'not', item: canonical(predicate.item) };
-  return predicate;
+  if (predicate.kind === 'not') return { item: canonical(predicate.item), kind: 'not' };
+  return sortedKeys(predicate);
 }
 export const sameMatch = (a: Predicate, b: Predicate) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
