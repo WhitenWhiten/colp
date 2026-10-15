@@ -142,3 +142,16 @@ test('auto leaves the resolved catalog alone and never fetches', async () => {
 test('the English catalog matches the code and every translation is complete and current', () => {
   assert.deepEqual(check(), []);
 });
+
+test('an element slot survives Chrome’s substitution, which drops control and private-use characters', async () => {
+  // Measured in Chromium (browser rules follow-up U7): getMessage('automation_updatedAt', ['\u0000']) is "Updated .".
+  vi.stubGlobal('chrome', { i18n: { getMessage: (key: string, values: string[] = []) => key === 'automation_updatedAt'
+    ? 'Updated $1.'.replace('$1', (values[0] ?? '').replace(/[\u0000-\u001f-]/gu, '')) : '' } });
+  let { t, SLOT, withSlot } = await freshI18n();
+  assert.deepEqual(withSlot(t('automation_updatedAt', 'Updated $1.', SLOT), 'TIME'), ['Updated ', 'TIME', '.']);
+  // A translation without the slot still shows the element, at its end.
+  assert.deepEqual(withSlot('Updated.', 'TIME'), ['Updated.', 'TIME']);
+  useCatalog(zh);
+  ({ t, SLOT, withSlot } = await freshI18n());
+  assert.equal(withSlot(t('automation_updatedAt', 'Updated $1.', SLOT), 'TIME').join(''), zh.automation_updatedAt!.message.replace('$1', 'TIME'));
+});

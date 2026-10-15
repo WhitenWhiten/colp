@@ -1,6 +1,6 @@
 import { createIcon, type IconName } from '../icons.js';
 import { el } from '../library-dom.js';
-import { t, tn } from '../i18n.js';
+import { SLOT, t, tn, withSlot } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
 import type { AutomationPlacementView, AutomationRunView, AutomationServerRuleView, AutomationServerView } from './messages.js';
 import type { ConditionKind, RuleMatchView } from './rule-match.js';
@@ -181,21 +181,21 @@ export function ruleServerMeta(rule: AutomationServerRuleView): HTMLElement | nu
 /** How fresh the server's status is, said plainly; a failed read keeps showing what was last seen, with its age. */
 export function serverFreshness(server: AutomationServerView): HTMLElement {
   const line = el('p', undefined, 'automation-freshness'), words = el('span');
-  const at = (copy: string) => { const [before = '', after = ''] = copy.split('\u0000'); words.append(before, when(server.fetchedAt), after); };
+  const at = (copy: string) => { words.append(...withSlot(copy, when(server.fetchedAt))); };
   if (!server.problem) {
-    if (server.fetchedAt) at(t('automation_serverUpdatedAt', 'Updated $1.', '\u0000'));
+    if (server.fetchedAt) at(t('automation_serverUpdatedAt', 'Updated $1.', SLOT));
     else words.append(t('automation_serverChecking', 'Checking your server…'));
     line.append(words);
     return line;
   }
   line.dataset.tone = 'warning';
   if (server.problem === 'signedOut') {
-    if (server.fetchedAt) at(t('automation_serverSignedOutAt', 'Sign in on the web in this browser to update this. Showing what your server said $1.', '\u0000'));
+    if (server.fetchedAt) at(t('automation_serverSignedOutAt', 'Sign in on the web in this browser to update this. Showing what your server said $1.', SLOT));
     else words.append(t('automation_serverSignedOut', 'Sign in on the web in this browser to see what your server is doing.'));
   } else if (server.problem === 'invalid') {
-    if (server.fetchedAt) at(t('automation_serverInvalidAt', 'Your server sent something this browser couldn’t read. Showing what it said $1.', '\u0000'));
+    if (server.fetchedAt) at(t('automation_serverInvalidAt', 'Your server sent something this browser couldn’t read. Showing what it said $1.', SLOT));
     else words.append(t('automation_serverInvalid', 'Your server sent something this browser couldn’t read.'));
-  } else if (server.fetchedAt) at(t('automation_serverUnreachableAt', 'Couldn’t reach your server. Showing what it said $1.', '\u0000'));
+  } else if (server.fetchedAt) at(t('automation_serverUnreachableAt', 'Couldn’t reach your server. Showing what it said $1.', SLOT));
   else words.append(t('automation_serverUnreachable', 'Couldn’t reach your server. Saving and filing here don’t need it.'));
   line.append(createIcon('alert', 12), words);
   return line;

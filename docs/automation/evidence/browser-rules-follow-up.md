@@ -18,13 +18,13 @@ previous item's hash.
 
 | Item | Commit | Problem | Change |
 | --- | --- | --- | --- |
-| U1 | — | *Pause all automations* left browser rules running; they even took over while the account was paused. The card said "All automations are paused… Bookmarks keep the folder you save them to". | The account's pause pauses browser rules too, and the page says so. |
+| U1 | `cce0089d` | *Pause all automations* left browser rules running; they even took over while the account was paused. The card said "All automations are paused… Bookmarks keep the folder you save them to". | The account's pause pauses browser rules too, and the page says so. |
 | U2 | planned | Two "New rule" buttons on one page made different kinds of rule. | planned |
 | U3 | planned | The order that decides a saved page's folder was not shown anywhere. | planned |
 | U4 | planned | "AI suggestions" hid that, in Automatic mode, the AI files the page. | planned |
 | U5 | planned | A rule waiting to move to the account could say *Moving* forever. | planned |
 | U6 | planned | A browser rule that kept a page where it was saved left no trace after the save panel closed. | planned |
-| U7 | planned | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | planned |
+| U7 | — | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | The time goes where the translation puts it, in Chrome too. |
 
 ## Left unchanged
 
@@ -198,3 +198,30 @@ The worker tests:
 - *stand still while the account's automations are paused, and file again once they resume*: replaces the
   test that asserted the old fallback.
 - *decide when the account has no rules here, and give way to the account's rule once it has one*.
+
+## U7 — "Updated .now"
+
+The L3 run's screenshots showed the status card as "Updated .now This browser checks…". The card builds
+"Updated $1." with a time element in the middle. It passed a marker as `$1` and split the result on it.
+The marker was U+0000, and Chrome's `i18n.getMessage` drops it. Probed in Chromium with the production
+build:
+
+| Value passed as `$1` | `getMessage('automation_updatedAt', [value])` |
+| --- | --- |
+| `\u0000` | `"Updated ."` |
+| `\uE000` (private use) | `"Updated ."` |
+| `\uFFFC` (object replacement) | `"Updated ￼."` |
+
+With no marker left to split on, the time was appended after the full stop. Five strings used the trick: the
+card's "Updated $1." and four server-status lines (updated, signed out, unreadable, unreachable). The
+screenshot stubs never call `chrome.i18n`, so the shots looked right.
+
+`src/i18n.ts` now has `SLOT` (U+FFFC) and `withSlot(copy, node)`; all five use them.
+`tests/i18n.test.ts` (+1) stubs `getMessage` the way Chromium behaved: in English and in `zh_CN`, the
+element sits where `$1` was. With the marker set back to U+0000 the test fails.
+
+| Command (`packages/extension`) | Result |
+| --- | --- |
+| A one-off Playwright probe of `chrome.i18n.getMessage` in the production build (xvfb) | the table above |
+| `npx tsc --noEmit -p .`, `npx eslint` on the changed files | pass |
+| `npx vitest run tests/i18n.test.ts tests/automation-status-ui.test.ts tests/automation-browser-pane.test.ts tests/automation-worker-status.test.ts` | 4 files, 45 tests passed |

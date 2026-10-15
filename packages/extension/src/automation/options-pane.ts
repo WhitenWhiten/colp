@@ -1,7 +1,7 @@
 import { faviconTile } from '../bookmark-manager-dom.js';
 import { createIcon } from '../icons.js';
 import { button, el, emptyBlock, inlineAlert } from '../library-dom.js';
-import { formatMoment, t, tn } from '../i18n.js';
+import { formatMoment, SLOT, t, tn, withSlot } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
 import { AUTOMATION_CHANGED_KEY, type AutomationResponse, type AutomationServerRuleView, type AutomationServerView,
   type AutomationStateView } from './messages.js';
@@ -87,8 +87,7 @@ function freshness(view: AutomationStateView): HTMLElement {
   const line = el('p', undefined, 'automation-status-fresh');
   if (view.lastRefreshAt) {
     // The relative time keeps its exact-time tooltip wherever the translation puts it.
-    const [before = '', after = ''] = t('automation_updatedAt', 'Updated $1.', '\u0000').split('\u0000');
-    line.append(before, when(view.lastRefreshAt), after, ' ');
+    line.append(...withSlot(t('automation_updatedAt', 'Updated $1.', SLOT), when(view.lastRefreshAt)), ' ');
   }
   // Without rules here yet there is no copy to keep offline and no pause to pass on.
   line.append(view.state === 'none' ? t('automation_freshnessHintNone', 'This browser checks for rules every 5 minutes.')

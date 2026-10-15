@@ -110,6 +110,19 @@ export function localized(assign: () => void): void {
   copyAssigners.push(assign);
 }
 
+/**
+ * Where an element goes inside translated copy: `withSlot(t(key, 'Updated $1.', SLOT), timeElement)`.
+ * Chrome's getMessage drops U+0000 and private-use characters from substitutions, so a marker made of
+ * them vanishes and the element lands after the full stop. U+FFFC, the object replacement character,
+ * comes through.
+ */
+export const SLOT = '\uFFFC';
+/** The copy around its slot, with `node` in it; a translation without the slot gets the node at its end. */
+export function withSlot<T>(copy: string, node: T): (string | T)[] {
+  const at = copy.indexOf(SLOT);
+  return at < 0 ? [copy, node] : [copy.slice(0, at), node, copy.slice(at + SLOT.length)];
+}
+
 export function t(key: string, english: string, ...values: Value[]): string {
   const strings = values.map(String);
   const manual = override?.[key];
