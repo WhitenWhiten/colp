@@ -20,8 +20,8 @@ previous item's hash.
 | --- | --- | --- | --- |
 | U1 | `cce0089d` | *Pause all automations* left browser rules running; they even took over while the account was paused. The card said "All automations are paused… Bookmarks keep the folder you save them to". | The account's pause pauses browser rules too, and the page says so. |
 | U2 | `566f6430` | Two "New rule" buttons on one page made different kinds of rule. | One *New rule*; signed in, it asks *This browser* or *All my devices* first. |
-| U3 | — | The order that decides a saved page's folder was not shown anywhere. | Automations opens with the five steps and what each does here now. |
-| U4 | planned | "AI suggestions" hid that, in Automatic mode, the AI files the page. | planned |
+| U3 | `d6a59aa3` | The order that decides a saved page's folder was not shown anywhere. | Automations opens with the five steps and what each does here now. |
+| U4 | — | "AI suggestions" hid that, in Automatic mode, the AI files the page. | The AI page and the Automatic choice say what files the page, and when. |
 | U5 | planned | A rule waiting to move to the account could say *Moving* forever. | planned |
 | U6 | planned | A browser rule that kept a page where it was saved left no trace after the save panel closed. | planned |
 | U7 | `c2f8bc9b` | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | The time goes where the translation puts it, in Chrome too. |
@@ -300,3 +300,28 @@ New tests:
 - the pane (+2): the five steps and their states; off, paused and Manual mode with their links;
 - the worker (+2): mode, own AI and *suggest in the form* from storage; Know-N only with a live
   authorization for the bound collection (an expired one, or one for another collection, counts as none).
+
+## U4 — what the AI does
+
+**Before.**
+
+- The AI page: "Optional. Know-N can suggest a folder and tags when you save."
+- Saving's *Automatic* choice: "One click saves the page. A short panel lets you change the folder."
+
+Neither said that in Automatic mode the AI moves the page, or that it comes after the rules.
+
+**Now.**
+
+- The AI page: "Optional. AI picks a folder for a page no rule matched, and can suggest or add tags. In
+  Automatic mode it files the page there; in Manual mode it only suggests, in the form."
+- *Automatic*: "One click saves the page. Your rules, then AI, pick the folder; a short panel lets you
+  change it."
+
+Tags are not tied to "no rule matched": with the Owner's own AI service, a page a rule placed can still get
+tags (`folder: false, tags: true`). The page keeps its name, *AI suggestions*. Its opening line now says what
+it does, and U3's strip calls the step *AI*.
+
+| Command (`packages/extension`) | Result |
+| --- | --- |
+| `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | current |
+| `npm run build:development`, then the Saving and AI shots (`in-`, `out-`, `own-ai`, `manual-`) in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320 |

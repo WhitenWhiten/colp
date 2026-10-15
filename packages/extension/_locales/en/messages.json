@@ -4710,13 +4710,13 @@
     "message": "Saving, organizing and backups work without an account. Sign in to sync with Know-N on every device."
   },
   "shell_aiLede": {
-    "message": "Optional. Know-N can suggest a folder and tags when you save."
+    "message": "Optional. AI picks a folder for a page no rule matched, and can suggest or add tags. In Automatic mode it files the page there; in Manual mode it only suggests, in the form."
   },
   "shell_allow": {
     "message": "Allow"
   },
   "shell_automaticHint": {
-    "message": "One click saves the page. A short panel lets you change the folder."
+    "message": "One click saves the page. Your rules, then AI, pick the folder; a short panel lets you change it."
   },
   "shell_automaticOnly": {
     "message": "Automatic mode only."
