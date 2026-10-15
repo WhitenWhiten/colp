@@ -114,6 +114,17 @@ export function createBrowserRuleStore(area: AutomationStateArea, options: { rea
         return next;
       });
     },
+    /** Keep in this browser: it no longer waits to retire (follow-up U5). */
+    stopMoving(id: string): Promise<BrowserRule | null> {
+      return exclusive(async () => {
+        const rules = await read(), current = rules.find((rule) => rule.id === id);
+        if (!current) return null;
+        if (current.movingSince === undefined) return current;
+        const { movingSince: _since, ...next } = current;
+        await write(rules.map((rule) => rule.id === id ? next : rule));
+        return next;
+      });
+    },
     remove(id: string): Promise<boolean> {
       return exclusive(async () => {
         const rules = await read();

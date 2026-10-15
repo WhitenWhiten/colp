@@ -174,7 +174,10 @@ they need no account and run after the account's rules:
 - **Moving to the account (AW-71).** A rule whose folder is synced offers Add to your account (and Add mine
   to the account in Review). It opens the web editor filled in; the row reads Moving until the account's
   enabled copy arrives, then the rule retires with a notice. A rule whose folder isn't synced says "Only in
-  this browser: its folder isn't synced." and has no move.
+  this browser: its folder isn't synced." and has no move. After a day still waiting, Moving becomes the
+  warning badge Not on yet, with "Your account doesn't have it yet. Turn it on on the web, or keep it in
+  this browser." and two buttons under it: Open on the web and Keep in this browser (browser rules
+  follow-up U5). Signed out, nothing shows as moving.
 
 **Automations › On your server.** What the server did after a bookmark synced, never mixed with
 what this browser did:

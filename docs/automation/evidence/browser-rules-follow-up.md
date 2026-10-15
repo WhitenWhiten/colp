@@ -21,8 +21,8 @@ previous item's hash.
 | U1 | `cce0089d` | *Pause all automations* left browser rules running; they even took over while the account was paused. The card said "All automations are paused… Bookmarks keep the folder you save them to". | The account's pause pauses browser rules too, and the page says so. |
 | U2 | `566f6430` | Two "New rule" buttons on one page made different kinds of rule. | One *New rule*; signed in, it asks *This browser* or *All my devices* first. |
 | U3 | `d6a59aa3` | The order that decides a saved page's folder was not shown anywhere. | Automations opens with the five steps and what each does here now. |
-| U4 | — | "AI suggestions" hid that, in Automatic mode, the AI files the page. | The AI page and the Automatic choice say what files the page, and when. |
-| U5 | planned | A rule waiting to move to the account could say *Moving* forever. | planned |
+| U4 | `7dcf8e56` | "AI suggestions" hid that, in Automatic mode, the AI files the page. | The AI page and the Automatic choice say what files the page, and when. |
+| U5 | — | A rule waiting to move to the account could say *Moving* forever. | After a day it says it is not on yet, with *Open on the web* and *Keep in this browser*. |
 | U6 | planned | A browser rule that kept a page where it was saved left no trace after the save panel closed. | planned |
 | U7 | `c2f8bc9b` | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | The time goes where the translation puts it, in Chrome too. |
 
@@ -325,3 +325,35 @@ it does, and U3's strip calls the step *AI*.
 | --- | --- |
 | `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | current |
 | `npm run build:development`, then the Saving and AI shots (`in-`, `out-`, `own-ai`, `manual-`) in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320 |
+
+## U5 — a move that never finishes
+
+**Before.** *Add to your account* marked the rule *Moving* until an enabled account rule doing exactly the
+same arrived. That may never happen: the Owner may not turn it on, or may change the rule on the web first.
+The row then said "Waiting for your account's copy" for good. Signed out it also kept saying *Moving*,
+though no copy could arrive.
+
+**Now.**
+
+- After a day (`MOVING_STALE_MS`, `src/sw/automation-browser.ts`) the view sets `movingStale`. The row's
+  badge becomes the warning *Not on yet*, with "Your account doesn't have it yet. Turn it on on the web, or
+  keep it in this browser." Two buttons sit under it:
+  - *Open on the web* reopens the filled-in editor, when the folder is still synced;
+  - *Keep in this browser* sends the new `known.automation.browser.stay`. `stopMoving` clears the mark,
+    and the rule keeps filing as before.
+- Within the first day the row still says *Moving*.
+- Signed out, nothing is shown as moving. The mark stays, so signing back in picks it up again.
+
+| Command (`packages/extension`) | Result |
+| --- | --- |
+| `npx tsc --noEmit -p .`, `npx eslint` on the changed files, `npm run check:source-size` | pass |
+| `npx vitest run tests/automation-*.test.ts tests/capture-pre-save.test.ts tests/i18n.test.ts tests/service-worker-entry-behavior.test.ts` | 24 files, 231 tests passed |
+| `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | current |
+| `npm run build:development`, then `SHOT_ONLY=automations-browser-stale npm run shots` in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320 |
+
+New tests:
+
+- the store (+1): `stopMoving` clears the mark only, and is idempotent;
+- the worker (+1): not stale at exactly a day, stale after it; signed out shows nothing; `stay`; its shape;
+- the pane (+2): the stale row, its link and its button (which never opens the editor); *Moving* within
+  the day.

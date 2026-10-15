@@ -1548,6 +1548,9 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-rules .automation-overlap > .grow { overflow: visible; text-overflow: clip; }
 .automation-rules .automation-overlap > svg { margin-top: 0.15rem; }
 .automation-rules .automation-overlap[data-tone="warning"] > svg { color: var(--warning); }
+/* A move the account has not finished (follow-up U5): its two ways out, under the line. */
+.automation-stale-actions { display: flex; flex-wrap: wrap; gap: var(--hair-55); margin-top: var(--hair-30); }
+.automation-stale-actions .btn svg { width: 0.75rem; height: 0.75rem; }
 .automation-review { width: min(36rem, calc(100vw - 2rem)); max-width: min(36rem, calc(100vw - 2rem)); }
 .automation-review-list { margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-lg); list-style: none; }
 .automation-review-item { display: grid; gap: var(--hair-40); padding: var(--space-3) var(--space-4); }

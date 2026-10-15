@@ -46,4 +46,16 @@ describe('a rule waiting to move', () => {
     expect((await store.list())[0]).not.toHaveProperty('movingSince');
     expect(await store.markMoving('missing', NOW)).toBeNull();
   });
+
+  it('stops waiting when kept in this browser, and keeps everything else (U5)', async () => {
+    const store = createBrowserRuleStore(memoryArea(), { id: () => 'b-1' });
+    await store.save({ draft: draft() }, NOW);
+    await store.markMoving('b-1', NOW + 1);
+    const kept = await store.stopMoving('b-1');
+    expect(kept).not.toHaveProperty('movingSince');
+    expect(kept).toMatchObject({ id: 'b-1', enabled: true, folderNativeId: '30' });
+    expect((await store.list())[0]).not.toHaveProperty('movingSince');
+    expect(await store.stopMoving('b-1')).toMatchObject({ id: 'b-1' });
+    expect(await store.stopMoving('missing')).toBeNull();
+  });
 });

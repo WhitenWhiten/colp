@@ -491,8 +491,23 @@
   "automation_movingBadge": {
     "message": "Moving"
   },
+  "automation_movingKeep": {
+    "message": "Keep in this browser"
+  },
+  "automation_movingKept": {
+    "message": "“$1” stays in this browser."
+  },
   "automation_movingLine": {
     "message": "Waiting for your account’s copy. Until it arrives, this browser keeps using this one."
+  },
+  "automation_movingOpenWeb": {
+    "message": "Open on the web"
+  },
+  "automation_movingStaleBadge": {
+    "message": "Not on yet"
+  },
+  "automation_movingStaleLine": {
+    "message": "Your account doesn’t have it yet. Turn it on on the web, or keep it in this browser."
   },
   "automation_needBookmarks": {
     "message": "Know-N needs access to your bookmarks to file pages into a folder."

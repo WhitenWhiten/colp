@@ -102,6 +102,9 @@ export interface AccountContext extends AccountLink {
  * Signed in, each switched-on rule also says which account rule it overlaps (AW-69), and a rule whose
  * folder is synced can be moved to the account (AW-71).
  */
+/** A move the account has not finished after a day is said to be stuck (follow-up U5). */
+export const MOVING_STALE_MS = 24 * 60 * 60 * 1000;
+
 export async function browserRuleViews(context: AccountContext | null = null): Promise<BrowserRuleView[]> {
   const rules = await browserRuleStore().list();
   if (!rules.length) return [];
@@ -122,7 +125,9 @@ export async function browserRuleViews(context: AccountContext | null = null): P
     const url = canonical && context?.webUrl ? accountEditorUrl(context.webUrl, rule, canonical) : null;
     return { id: rule.id, name: rule.definition.name, enabled: rule.enabled, match: ruleMatchView(rule.definition.match),
       draft: draftFromRule(rule), folder, folderMissing: access && !folder, account: overlap, move: url ? { url } : null,
-      localOnly: Boolean(context && folder && !canonical), moving: rule.movingSince !== undefined };
+      // Signed out no account copy can arrive, so nothing is shown as waiting for one.
+      localOnly: Boolean(context && folder && !canonical), moving: Boolean(context) && rule.movingSince !== undefined,
+      movingStale: Boolean(context) && rule.movingSince !== undefined && now - rule.movingSince > MOVING_STALE_MS };
   }));
 }
 
@@ -161,6 +166,10 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand,
   }
   if (command.kind === 'known.automation.browser.review') {
     const rule = await store.review(command.id, command.accountRuleId, command.key);
+    return rule ? { ok: true, rule } : { ok: false, error: 'notFound' };
+  }
+  if (command.kind === 'known.automation.browser.stay') {
+    const rule = await store.stopMoving(command.id);
     return rule ? { ok: true, rule } : { ok: false, error: 'notFound' };
   }
   if (command.kind === 'known.automation.browser.moving') {

@@ -95,6 +95,8 @@ const STATES = [
     await p.waitForTimeout(500); }, false],
   // Moving to the account (AW-71): a rule waiting for the account's copy, one that can only stay here.
   ['automations-browser-move', 'options.html?shot=browser-move#automations'],
+  // A move the account has not finished after a day (follow-up U5).
+  ['automations-browser-stale', 'options.html?shot=browser-stale#automations'],
   ['automations-browser-delete', 'options.html?shot=signedout#automations', async (p) => { await p.hover('.automation-browser-rule >> nth=0');
     await p.click('.automation-browser-rule >> nth=0 >> button:has(svg[data-icon="trash"])'); await p.waitForTimeout(400); }, false],
   // A rule filed a page starred in the browser while Know-N was in front (AW-20).

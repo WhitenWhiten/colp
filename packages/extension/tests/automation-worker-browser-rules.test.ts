@@ -46,7 +46,7 @@ vi.mock('../src/sw/bookmark-preferences.js', () => ({ readEffectiveBookmarkPrefe
 vi.mock('../src/classification-local-session.js', () => ({ localClassificationEnabled: async () => f.ownAi }));
 
 import { accountLink, automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation, rulesDecision } from '../src/sw/automation.js';
-import { browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
+import { browserRuleStore, handleBrowserRuleCommand, MOVING_STALE_MS } from '../src/sw/automation-browser.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
 const paper = { url: 'https://arxiv.org/abs/2410.00001', title: 'A paper', parentNativeId: '21' };
@@ -256,6 +256,26 @@ describe('moving a rule to the account (AW-71)', () => {
     expect(await browserRuleStore().list()).toEqual([]);
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ kind: 'known.automation.notice', attention: false,
       text: '“Papers from arXiv” now runs from your account, on every device.' });
+  });
+
+  it('says a move is stuck after a day, and can keep the rule here instead (U5)', async () => {
+    const [rule] = await browserRuleStore().list();
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.moving', id: rule!.id });
+    vi.setSystemTime(NOW + MOVING_STALE_MS);
+    expect(await first()).toMatchObject({ moving: true, movingStale: false });
+    vi.setSystemTime(NOW + MOVING_STALE_MS + 1);
+    expect(await first()).toMatchObject({ moving: true, movingStale: true, move: { url: expect.stringContaining('from=browser') } });
+    // Signed out, no account copy can arrive: nothing is shown as waiting.
+    f.credential = null;
+    expect(await first()).toMatchObject({ moving: false, movingStale: false });
+    f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' };
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.stay', id: rule!.id })).toMatchObject({ ok: true, rule: { id: rule!.id } });
+    expect((await browserRuleStore().list())[0]).not.toHaveProperty('movingSince');
+    expect(await first()).toMatchObject({ moving: false, movingStale: false, enabled: true });
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.stay', id: 'missing' })).toEqual({ ok: false, error: 'notFound' });
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.stay', id: 'b-1' })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.stay', id: 'b-1', moving: false })).toBe(false);
   });
 
   it('keeps filing while the account has only something else, or nothing in force', async () => {

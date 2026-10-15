@@ -16,7 +16,7 @@ const rule = (over: Partial<BrowserRuleView> = {}): BrowserRuleView => ({ id: 'b
   match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] },
   draft: { name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: 'f-papers' },
   folder: { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] }, folderMissing: false, account: null, move: null, localOnly: false,
-  moving: false, ...over });
+  moving: false, movingStale: false, ...over });
 const view = (over: Partial<AutomationStateView> = {}): AutomationStateView => ({ account: 'signedOut', state: 'none', rules: [], placements: [],
   browserRules: [rule(), rule({ id: 'b-2', name: 'SEO reading', enabled: false,
     match: { combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }] },
@@ -354,5 +354,28 @@ describe('how a page you save finds its folder (U3)', () => {
     body = await render(view({ saving: { mode: 'manual', ai: null, suggestInForm: true },
       browserRules: [rule({ enabled: false })] }));
     expect(steps(body).slice(2, 4)).toEqual([['Rules in this browser', 'All off'], ['AI', 'You choose in the form · Manual mode']]);
+  });
+});
+
+describe('a move the account has not finished (U5)', () => {
+  it('says so after a day, with the web editor and Keep in this browser', async () => {
+    const body = await render(view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations',
+      browserRules: [rule({ moving: true, movingStale: true, move: { url: 'https://colp.example/automations/new?from=browser' } })] }));
+    const row = body.querySelector('.automation-browser-rule')!;
+    expect(text(row.querySelector('.badge'))).toBe('Not on yet');
+    expect(text(row.querySelector('.automation-overlap[data-tone="warning"]'))).toBe('Your account doesn’t have it yet. Turn it on on the web, or keep it in this browser.');
+    expect(row.querySelector<HTMLAnchorElement>('.automation-stale-actions a')!.href).toBe('https://colp.example/automations/new?from=browser');
+    row.querySelector<HTMLButtonElement>('.automation-stale-actions button')!.click();
+    await vi.waitFor(() => expect(sent).toEqual([{ kind: 'known.automation.browser.stay', id: 'b-1' }]));
+    await vi.waitFor(() => expect(text(document.querySelector('.toast'))).toContain('“Papers from arXiv” stays in this browser.'));
+    // The row's own controls never open the editor.
+    expect(document.querySelector('dialog.automation-rule-editor')).toBeNull();
+  });
+
+  it('still says Moving within the first day', async () => {
+    const body = await render(view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations',
+      browserRules: [rule({ moving: true })] }));
+    expect(text(body.querySelector('.automation-browser-rule .badge'))).toBe('Moving');
+    expect(body.querySelector('.automation-stale-actions')).toBeNull();
   });
 });

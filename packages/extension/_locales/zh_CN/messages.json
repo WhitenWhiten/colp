@@ -643,9 +643,29 @@
     "message": "迁移中",
     "description": "Moving"
   },
+  "automation_movingKeep": {
+    "message": "保留在此浏览器",
+    "description": "Keep in this browser"
+  },
+  "automation_movingKept": {
+    "message": "“$1”保留在此浏览器中。",
+    "description": "“$1” stays in this browser."
+  },
   "automation_movingLine": {
     "message": "正在等待你账户中的副本。在它到达之前，此浏览器会继续使用这条规则。",
     "description": "Waiting for your account’s copy. Until it arrives, this browser keeps using this one."
+  },
+  "automation_movingOpenWeb": {
+    "message": "在网页上打开",
+    "description": "Open on the web"
+  },
+  "automation_movingStaleBadge": {
+    "message": "尚未开启",
+    "description": "Not on yet"
+  },
+  "automation_movingStaleLine": {
+    "message": "你的账户里还没有它。请在网页上开启它，或把它保留在此浏览器中。",
+    "description": "Your account doesn’t have it yet. Turn it on on the web, or keep it in this browser."
   },
   "automation_needBookmarks": {
     "message": "Know-N 需要访问你的书签，才能把网页放进文件夹。",

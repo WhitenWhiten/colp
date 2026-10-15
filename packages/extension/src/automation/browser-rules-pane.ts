@@ -91,7 +91,8 @@ function ruleRow(rule: BrowserRuleView, paused: boolean): HTMLLIElement {
       : t('automation_browserFolderHere', 'a folder in this browser'), rule.folderMissing ? 'automation-recipe-missing' : undefined));
   }
   main.append(el('p', rule.name, 'list-row-title'), meta);
-  if (rule.moving) main.append(noteLine('sync', t('automation_movingLine', 'Waiting for your account’s copy. Until it arrives, this browser keeps using this one.')));
+  if (rule.movingStale) main.append(...staleMove(rule));
+  else if (rule.moving) main.append(noteLine('sync', t('automation_movingLine', 'Waiting for your account’s copy. Until it arrives, this browser keeps using this one.')));
   else if (rule.account) main.append(overlapLine(rule.account));
   if (rule.localOnly) main.append(noteLine('lock', t('automation_localOnlyLine', 'Only in this browser: its folder isn’t synced.')));
   // Actions show on hover; the state badge stays next to the switch, which keeps its own column.
@@ -111,6 +112,7 @@ function ruleRow(rule: BrowserRuleView, paused: boolean): HTMLLIElement {
     tail.append(missing);
   } else if (!rule.enabled) tail.append(badge(t('automation_browserOff', 'Off')));
   else if (paused) tail.append(badge(t('automation_rulePaused', 'Paused')));
+  else if (rule.movingStale) tail.append(badge(t('automation_movingStaleBadge', 'Not on yet'), 'warning'));
   else if (rule.moving) tail.append(badge(t('automation_movingBadge', 'Moving')));
   else if (rule.account && !rule.account.reviewed) {
     tail.append(rule.account.kind === 'conflict' ? badge(t('automation_overlapBadge', 'Overlaps'), 'warning')
@@ -137,10 +139,36 @@ function pagesSentence(overlap: BrowserRuleOverlapView): string {
     : t('automation_overlapPossible', 'They can match the same pages.');
 }
 
-function noteLine(icon: 'sync' | 'lock', copy: string): HTMLElement {
+function noteLine(icon: 'sync' | 'lock' | 'alert', copy: string): HTMLElement {
   const line = el('p', undefined, 'list-row-meta automation-overlap');
   line.append(createIcon(icon, 12), el('span', copy, 'grow'));
   return line;
+}
+
+/**
+ * A move the account has not finished after a day (follow-up U5): the rule was never turned on there, or
+ * was changed so it no longer does the same. Say so, and offer both ways out.
+ */
+function staleMove(rule: BrowserRuleView): HTMLElement[] {
+  const line = noteLine('alert', t('automation_movingStaleLine', 'Your account doesn’t have it yet. Turn it on on the web, or keep it in this browser.'));
+  line.dataset.tone = 'warning';
+  const actions = el('div', undefined, 'automation-stale-actions');
+  if (rule.move) {
+    const open = el('a', t('automation_movingOpenWeb', 'Open on the web'), 'btn btn-secondary btn-sm');
+    open.href = rule.move.url; open.target = '_blank'; open.rel = 'noopener';
+    open.append(createIcon('arrow-up-right', 12));
+    actions.append(open);
+  }
+  const keep = button(t('automation_movingKeep', 'Keep in this browser'), 'btn btn-ghost btn-sm', () => {
+    keep.disabled = true;
+    void send({ kind: 'known.automation.browser.stay', id: rule.id }).then((reply) => {
+      keep.disabled = false;
+      showToast(reply.ok ? t('automation_movingKept', '“$1” stays in this browser.', rule.name) : t('automation_browserSaveFailed', 'Couldn’t save this rule. Try again.'),
+        reply.ok ? 'ok' : 'error', { announce: true });
+    });
+  });
+  actions.append(keep);
+  return [line, actions];
 }
 
 /**

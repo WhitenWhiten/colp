@@ -33,6 +33,7 @@
 //     browser-overlap (signed in: one browser rule conflicts with an account rule, one duplicates one),
 //     browser-move (signed in: one browser rule is moving to the account, one has an unsynced folder)
 //     flow-manual (Manual mode, suggestions in the form), flow-noai (Automatic mode with no AI set up)
+//     browser-stale (signed in: a browser rule has waited over a day for the account's copy)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -447,7 +448,8 @@ export function installStub(messages) {
         const browserRule = (id, name, enabled, combinator, conditions, folder, folderMissing = false, account = null) => ({ id, name, enabled, match: { combinator, conditions },
           draft: { name, combinator, conditions, folderNativeId: folder?.nativeId ?? 'gone' }, folder, folderMissing, account,
           move: !signedOut && folder && id !== 'b2' ? { url: 'https://known.example/automations/new?from=browser' } : null,
-          localOnly: !signedOut && has('browser-move') && id === 'b2', moving: has('browser-move') && id === 'b1' });
+          localOnly: !signedOut && has('browser-move') && id === 'b2', moving: has('browser-move', 'browser-stale') && id === 'b1',
+          movingStale: has('browser-stale') && id === 'b1' });
         const browserRules = has('browser-empty', 'browser-none') ? [] : [
           browserRule('b1', 'Papers from arXiv', true, 'all', [{ kind: 'siteIs', value: 'arxiv.org' }], { nativeId: 'f-research', title: 'Research', path: ['Bookmarks bar', 'Research'] },
             false, overlap('b1', 'conflict', 37)),
@@ -468,6 +470,8 @@ export function installStub(messages) {
           saving: { mode: has('flow-manual') ? 'manual' : 'automatic', ai: has('flow-noai') ? null : 'own', suggestInForm: has('flow-manual') } } };
       }
       case 'known.automation.browser.save': case 'known.automation.browser.enable': case 'known.automation.browser.remove':
+        return { ok: true, rule: null };
+      case 'known.automation.browser.stay':
         return { ok: true, rule: null };
       case 'known.automation.browser.forAccount':
         return { ok: true, url: 'https://known.example/automations/new?from=browser' };

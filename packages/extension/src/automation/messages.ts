@@ -44,6 +44,8 @@ export type BrowserRuleCommand =
   | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string }
   /** Add mine to the account was opened on the web: retire this rule once the account's enabled copy arrives. */
   | { readonly kind: 'known.automation.browser.moving'; readonly id: string }
+  /** Keep in this browser: stop waiting for the account's copy (follow-up U5). The rule keeps filing as before. */
+  | { readonly kind: 'known.automation.browser.stay'; readonly id: string }
   /** A new rule for all the account's devices: the web editor, filled in with this draft. Nothing is stored here. */
   | { readonly kind: 'known.automation.browser.forAccount'; readonly draft: BrowserRuleDraft };
 
@@ -81,7 +83,8 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
     return keys === 4 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.accountRuleId === 'string'
       && raw.accountRuleId.length > 0 && raw.accountRuleId.length <= 256 && typeof raw.key === 'string' && raw.key.length > 0 && raw.key.length <= 512;
   }
-  return (raw.kind === 'known.automation.browser.remove' || raw.kind === 'known.automation.browser.moving') && keys === 2
+  return (raw.kind === 'known.automation.browser.remove' || raw.kind === 'known.automation.browser.moving' || raw.kind === 'known.automation.browser.stay')
+    && keys === 2
     && typeof raw.id === 'string' && RULE_ID.test(raw.id);
 }
 
@@ -127,6 +130,8 @@ export interface BrowserRuleView {
   readonly localOnly: boolean;
   /** Add mine to the account was chosen; it keeps filing until the account's copy arrives. */
   readonly moving: boolean;
+  /** Moving for over a day and the account's copy is still not here: it was never turned on, or changed on the web. */
+  readonly movingStale: boolean;
 }
 
 export interface BrowserRuleOverlapView {
