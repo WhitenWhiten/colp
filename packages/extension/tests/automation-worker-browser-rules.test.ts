@@ -39,7 +39,7 @@ vi.mock('../src/automation/device-client.js', () => ({ fetchRuleBundle: async ()
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => f.scope }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 
-import { automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation } from '../src/sw/automation.js';
+import { automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation, rulesDecision } from '../src/sw/automation.js';
 import { browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
@@ -77,9 +77,24 @@ describe('the popup’s preview', () => {
     expect(await match({ ...paper, url: 'https://github.com/know-n/colp' })).toMatchObject({ match: { ruleName: 'GitHub', folderNativeId: '30' } });
   });
 
-  it('falls back to this browser’s rules while the account’s are paused', async () => {
-    await createBundleStore(automationArea(), owner).install(ruleBundle([], { paused: true, settingsRevision: 4 }), NOW);
+  it('stand still while the account’s automations are paused, and file again once they resume', async () => {
+    f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' };
+    const bundles = createBundleStore(automationArea(), owner);
+    await bundles.install(ruleBundle([], { paused: true, settingsRevision: 4 }), NOW);
+    expect(await match()).toEqual({ ok: true, match: null });
+    expect(await rulesDecision(f.scope, { ...paper, explicit: false })).toBeNull();
+    await bundles.install(ruleBundle([], { revision: 'b-5', settingsRevision: 5 }), NOW);
     expect(await match()).toMatchObject({ match: { ruleName: 'Papers from arXiv', folderNativeId: '30' } });
+    expect(await rulesDecision(f.scope, { ...paper, explicit: false })).toMatchObject({ targetNativeId: '30', automation: { source: 'browser' } });
+  });
+
+  it('decide when the account has no rules here, and give way to the account’s rule once it has one', async () => {
+    f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' };
+    expect(await rulesDecision(f.scope, { ...paper, explicit: false })).toMatchObject({ targetNativeId: '30', automation: { source: 'browser', outcome: 'placed' } });
+    await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule()], { revision: 'b-3', settingsRevision: 3 }), NOW);
+    const decision = await rulesDecision(f.scope, { ...paper, explicit: false });
+    expect(decision).toMatchObject({ targetNativeId: '10', automation: { outcome: 'placed', rule: { name: 'Place research papers in Academic' } } });
+    expect(decision!.automation).not.toHaveProperty('source', 'browser');
   });
 });
 

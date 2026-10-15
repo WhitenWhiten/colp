@@ -25,8 +25,7 @@ import { persistCaptureAnnotation } from './capture-annotation.js';
 import { pinNode } from './bookmark-pins.js';
 import { annotationForCaptureStart, type BookmarkAnnotationInput } from '../bookmark-annotation-store.js';
 import { blockedPlacement } from '../automation/pre-save.js';
-import { preSaveDecision, recordPreSaveReceipt, recoverPreSaveReceipts } from './automation.js';
-import { browserPreSaveDecision } from './automation-browser.js';
+import { recordPreSaveReceipt, recoverPreSaveReceipts, rulesDecision } from './automation.js';
 import { RECEIPT_MAX_AGE_MS } from '../automation/receipt-sync.js';
 import { captureTagMode } from './capture-local.js';
 
@@ -61,9 +60,9 @@ export async function startCapture(input: {
   const automatic = input.source !== 'batch' && input.source !== 'manual-popup' && preferences.captureMode === 'automatic';
   const requested = await captureTarget(scope, input.parentNativeId);
   // Rules decide before the native create, so a rule places the bookmark directly. The account's rules
-  // come first; this browser's own rules decide only a page none of them matched (design 01 §7.5).
+  // come first; this browser's own rules decide only a page none of them matched, and pause with them (design 01 §7.5).
   const page = { url: input.url, title: input.title, parentNativeId: requested.nativeId, explicit: input.folderChoice === 'explicit' };
-  const decision = await preSaveDecision(scope, page).catch(() => null) ?? await browserPreSaveDecision(page).catch(() => null);
+  const decision = await rulesDecision(scope, page);
   const ruled = decision?.targetNativeId ? await captureTarget(scope, decision.targetNativeId).catch(() => null) : null;
   const automation = decision && decision.targetNativeId && !ruled ? blockedPlacement(decision.automation) : decision?.automation;
   const { nativeId: targetNativeId, inRange } = ruled ?? requested;

@@ -42,7 +42,11 @@ export function browserRulesGroup(view: AutomationStateView): HTMLElement {
   const head = el('div', undefined, 'set-group-head');
   const title = el('h2', t('automation_browserRules', 'Rules in this browser')); title.id = 'automation-browser-heading';
   if (view.browserRules.length) title.append(el('span', String(view.browserRules.length), 'automation-count'));
-  head.append(title, el('p', view.account === 'signedIn'
+  // The account's pause is for every automation here, these rules too (design 01 §7.5).
+  const paused = view.account === 'signedIn' && view.state === 'paused';
+  head.append(title, el('p', paused
+    ? t('automation_browserLedePaused', 'Paused with your account’s automations. They file pages again when you resume on the web.')
+    : view.account === 'signedIn'
     ? t('automation_browserLedeSignedIn', 'Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins.')
     : t('automation_browserLede', 'They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins.'), 'detail'));
   section.append(head);
@@ -63,12 +67,12 @@ export function browserRulesGroup(view: AutomationStateView): HTMLElement {
     return section;
   }
   const list = el('ul', undefined, 'list-card automation-rules');
-  for (const rule of view.browserRules) list.append(ruleRow(rule));
+  for (const rule of view.browserRules) list.append(ruleRow(rule, paused));
   section.append(list);
   return section;
 }
 
-function ruleRow(rule: BrowserRuleView): HTMLLIElement {
+function ruleRow(rule: BrowserRuleView, paused: boolean): HTMLLIElement {
   const item = el('li');
   const row = el('div', undefined, 'list-row automation-rule automation-browser-rule');
   if (!rule.enabled) row.dataset.off = '';
@@ -103,6 +107,7 @@ function ruleRow(rule: BrowserRuleView): HTMLLIElement {
     missing.title = t('automation_browserFolderMissingHint', 'Its folder was deleted. Edit the rule to choose another one.');
     tail.append(missing);
   } else if (!rule.enabled) tail.append(badge(t('automation_browserOff', 'Off')));
+  else if (paused) tail.append(badge(t('automation_rulePaused', 'Paused')));
   else if (rule.moving) tail.append(badge(t('automation_movingBadge', 'Moving')));
   else if (rule.account && !rule.account.reviewed) {
     tail.append(rule.account.kind === 'conflict' ? badge(t('automation_overlapBadge', 'Overlaps'), 'warning')

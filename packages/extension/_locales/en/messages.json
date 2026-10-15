@@ -191,6 +191,9 @@
   "automation_browserLede": {
     "message": "They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
   },
+  "automation_browserLedePaused": {
+    "message": "Paused with your account’s automations. They file pages again when you resume on the web."
+  },
   "automation_browserLedeSignedIn": {
     "message": "Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
   },
@@ -534,7 +537,7 @@
     "message": "Pause all automations"
   },
   "automation_pauseHint": {
-    "message": "You pause and resume on the web. This browser follows at its next check, within 5 minutes."
+    "message": "You pause and resume on the web; rules in this browser pause with them. This browser follows at its next check, within 5 minutes."
   },
   "automation_pauseOnWeb": {
     "message": "Pause on the web"
@@ -756,13 +759,13 @@
     "message": "Automations are off on this server"
   },
   "automation_statusOnNoRulesHint": {
-    "message": "None of your rules file bookmarks in this browser yet."
+    "message": "None of your account’s rules file bookmarks in this browser yet."
   },
   "automation_statusOnRulesHint_one": {
-    "message": "$1 rule files bookmarks you save in this browser, even offline."
+    "message": "$1 account rule files bookmarks you save in this browser, even offline."
   },
   "automation_statusOnRulesHint_other": {
-    "message": "$1 rules file bookmarks you save in this browser, even offline."
+    "message": "$1 account rules file bookmarks you save in this browser, even offline."
   },
   "automation_statusOnTitle": {
     "message": "Automations are on"

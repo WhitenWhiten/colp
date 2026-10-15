@@ -247,6 +247,10 @@
     "message": "它们会把你用 Know-N 按钮或菜单保存的网页归档（不含浏览器星标收藏的书签），离线和未登录时也一样。你亲自选择的文件夹总是优先。",
     "description": "They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
   },
+  "automation_browserLedePaused": {
+    "message": "已随你账户的自动化一起暂停。在网页上恢复后，它们会继续为网页归档。",
+    "description": "Paused with your account’s automations. They file pages again when you resume on the web."
+  },
   "automation_browserLedeSignedIn": {
     "message": "只有此浏览器使用它们，排在你账户的规则之后，处理你用 Know-N 按钮或菜单保存的网页（不含浏览器星标收藏的书签）。你亲自选择的文件夹总是优先。",
     "description": "Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
@@ -696,8 +700,8 @@
     "description": "Pause all automations"
   },
   "automation_pauseHint": {
-    "message": "暂停和恢复都在网页上进行。此浏览器会在下次检查时跟上，最多 5 分钟。",
-    "description": "You pause and resume on the web. This browser follows at its next check, within 5 minutes."
+    "message": "暂停和恢复都在网页上进行；此浏览器的规则也会一起暂停。此浏览器会在下次检查时跟上，最多 5 分钟。",
+    "description": "You pause and resume on the web; rules in this browser pause with them. This browser follows at its next check, within 5 minutes."
   },
   "automation_pauseOnWeb": {
     "message": "在网页上暂停",
@@ -992,12 +996,12 @@
     "description": "Automations are off on this server"
   },
   "automation_statusOnNoRulesHint": {
-    "message": "你的规则目前都不会在此浏览器中归档书签。",
-    "description": "None of your rules file bookmarks in this browser yet."
+    "message": "你账户的规则目前都不会在此浏览器中归档书签。",
+    "description": "None of your account’s rules file bookmarks in this browser yet."
   },
   "automation_statusOnRulesHint_other": {
-    "message": "$1 条规则会为你在此浏览器保存的书签归档，离线时也一样。",
-    "description": "$1 rules file bookmarks you save in this browser, even offline."
+    "message": "$1 条账户规则会为你在此浏览器保存的书签归档，离线时也一样。",
+    "description": "$1 account rules file bookmarks you save in this browser, even offline."
   },
   "automation_statusOnTitle": {
     "message": "自动化已开启",

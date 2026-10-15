@@ -12,25 +12,26 @@ previous item's hash.
 | L1 | `3aee64ae` | Signing in as another account (or on another server) without signing out first removes the earlier account's automation data. Browser rules stay. |
 | L2 | `1ee62307` | The *Sign out* hint, the sign-out dialog and the *Disconnect server* hint say that rules made in this browser stay, and that the account's rules stop. |
 | L3 | `d1725e7a` | Moving a browser rule to the account, run against a real colp-server. The run found that the server's rules never compared equal to browser rules; fixed here. |
-| L4 | — | *Rules in this browser* and their editor say they file pages saved with the Know-N button or menu, not the browser's star. The star path is unchanged; see below. |
+| L4 | `cfa1ee68` | *Rules in this browser* and their editor say they file pages saved with the Know-N button or menu, not the browser's star. The star path is unchanged; see below. |
 
 ## What may mislead users
 
 | Item | Commit | Problem | Change |
 | --- | --- | --- | --- |
-| U1 | planned | *Pause all automations* left browser rules running; they even took over while the account was paused. | planned |
+| U1 | — | *Pause all automations* left browser rules running; they even took over while the account was paused. The card said "All automations are paused… Bookmarks keep the folder you save them to". | The account's pause pauses browser rules too, and the page says so. |
 | U2 | planned | Two "New rule" buttons on one page made different kinds of rule. | planned |
 | U3 | planned | The order that decides a saved page's folder was not shown anywhere. | planned |
 | U4 | planned | "AI suggestions" hid that, in Automatic mode, the AI files the page. | planned |
 | U5 | planned | A rule waiting to move to the account could say *Moving* forever. | planned |
 | U6 | planned | A browser rule that kept a page where it was saved left no trace after the save panel closed. | planned |
+| U7 | planned | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | planned |
 
 ## Left unchanged
 
 - **Acceptance status in the design pack.** All 74 scenarios in `design/acceptance-tests.json` are
   `planned_not_executed`, including ones executed weeks ago. The pack is the plan; what ran, and how, is
   recorded in `status.md` and the evidence files. AC-69..AC-74 follow the same rule.
-- **The status card's length.** It is long but accurate. It is not changed here.
+- **The status card's length.** It is long but accurate. It is not changed here, apart from U1 and U7.
 
 ## L1 — signing in as another account
 
@@ -157,3 +158,43 @@ The copy now says where browser rules apply:
 | `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | catalog and translations current |
 | `npx vitest run tests/automation-browser-pane.test.ts tests/automation-status-ui.test.ts` | 2 files, 29 tests passed |
 | `npm run build:development`, then the Automations shots in `en` and `zh_CN` (xvfb) | reviewed signed in and out, and the editor, at 1280, 820 and 320 |
+
+## U1 — one pause for all automations
+
+**Before.** Paused on the web, the account's rules stopped. `preSaveDecision` then returned nothing, so
+browser rules filed the page instead. Meanwhile the card said "All automations are paused… Bookmarks keep
+the folder you save them to."
+
+**Now.** `rulesDecision` (`src/sw/automation.ts`) is the one place that orders the layers:
+
+1. the account's rules;
+2. this browser's rules, only where none of the account's speaks;
+3. none at all while the signed-in account's bundle is paused.
+
+The capture path (`src/sw/capture.ts`) and the popup preview both use it. Signed out there is no account
+pause; each browser rule keeps its own switch.
+
+The Options page says the same thing:
+
+- *Rules in this browser* while paused: "Paused with your account's automations. They file pages again when
+  you resume on the web." Each enabled rule shows *Paused*. *Off* and *Folder missing* still say more, and
+  take its place.
+- The pause row: "You pause and resume on the web; rules in this browser pause with them. …"
+- The status card counted only the account's rules as "3 rules file bookmarks…" on a page that also lists
+  browser rules. It now says "3 account rules…" and "None of your account's rules…".
+
+Design: 01 §7.5, ADR-A24 and AC-70 are amended to match.
+
+| Command | Result |
+| --- | --- |
+| `npx tsc --noEmit -p .`, `npx eslint` on the changed files (`packages/extension`) | pass |
+| `npx vitest run tests/automation-browser-pane.test.ts tests/automation-status-ui.test.ts tests/automation-worker-browser-rules.test.ts tests/capture-pre-save.test.ts` | 4 files, 59 tests passed |
+| `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | current |
+| `python3 validation/build-docs.py`, `python3 validation/validate.py` (`docs/automation/design`) | 63 checks passed |
+| `npm run build:development`, then `SHOT_ONLY=automations-paused npm run shots` in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320 |
+
+The worker tests:
+
+- *stand still while the account's automations are paused, and file again once they resume*: replaces the
+  test that asserted the old fallback.
+- *decide when the account has no rules here, and give way to the account's rule once it has one*.

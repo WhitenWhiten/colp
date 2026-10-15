@@ -34,8 +34,9 @@ vi.mock('../src/capture/control.js', () => ({ readCaptureControl: async () => ({
 vi.mock('../src/classification-local-session.js', () => ({ localClassificationEnabled: async () => f.local }));
 vi.mock('../src/sw/capture-history.js', () => ({ captureDeviceId: async () => 'device' }));
 vi.mock('../src/sw/capture-local.js', () => ({ captureTagMode: async () => f.tagMode }));
-vi.mock('../src/sw/automation.js', () => ({ preSaveDecision: f.decide, recordPreSaveReceipt: vi.fn(), recoverPreSaveReceipts: f.recover }));
-vi.mock('../src/sw/automation-browser.js', () => ({ browserPreSaveDecision: f.browser }));
+// The account's rules, then this browser's (sw/automation.ts rulesDecision; its pause is tested with the worker).
+vi.mock('../src/sw/automation.js', () => ({ recordPreSaveReceipt: vi.fn(), recoverPreSaveReceipts: f.recover,
+  rulesDecision: async (scope: unknown, page: unknown) => await f.decide(scope, page).catch(() => null) ?? await f.browser(page).catch(() => null) }));
 vi.mock('../src/sw/capture-classification.js', () => ({ classifySavedCapture: vi.fn(), undoSavedCapture: vi.fn() }));
 vi.mock('../src/sw/capture-annotation.js', () => ({ persistCaptureAnnotation: vi.fn() }));
 vi.mock('../src/sw/bookmark-pins.js', () => ({ pinNode: vi.fn() }));

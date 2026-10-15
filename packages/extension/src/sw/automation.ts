@@ -22,7 +22,7 @@ import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
 import { browserPlacementViews, browserPreSaveDecision, browserRuleViews, recordBrowserPlacement, retireMovedBrowserRules,
-  type AccountRuleForOverlap } from './automation-browser.js';
+  type AccountRuleForOverlap, type BrowserPreSaveDecision } from './automation-browser.js';
 import { mappingLooksAuthoritative } from '../save-status.js';
 import { t } from '../i18n.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState } from './runtime.js';
@@ -168,6 +168,20 @@ export async function preSaveDecision(scope: CaptureScope, input: PreSaveInput):
   return decidePreSave({ record, now: Date.now(), scope: sync, deps: projectionDeps(sync) }, input);
 }
 
+/** The account's pause is for every automation here: while it holds, this browser's own rules stand still too (design 01 §7.5). */
+async function accountPaused(): Promise<boolean> {
+  const owner = await currentOwner();
+  return owner ? bundleState(await createBundleStore(automationArea(), owner).read(), Date.now()).state === 'paused' : false;
+}
+
+/** What rules decide before a save: the account's first; this browser's only where none of them speaks and nothing is paused. */
+export async function rulesDecision(scope: CaptureScope, input: PreSaveInput): Promise<PreSaveDecision | BrowserPreSaveDecision | null> {
+  const account = await preSaveDecision(scope, input).catch(() => null);
+  if (account) return account;
+  if (await accountPaused().catch(() => false)) return null;
+  return browserPreSaveDecision(input).catch(() => null);
+}
+
 /**
  * A save the rules placed. The capture id is the receipt id, so acknowledging the save again adds nothing.
  * A browser rule's placement is only logged here: it has no receipt and nothing is sent.
@@ -204,7 +218,7 @@ async function matchView(request: Extract<AutomationRequest, { kind: 'known.auto
   const scope = await currentCaptureScope().catch(() => null);
   if (!scope) return null;
   const page = { url: request.url, title: request.title, parentNativeId: request.parentNativeId, explicit: false };
-  const decision = await preSaveDecision(scope, page) ?? await browserPreSaveDecision(page);
+  const decision = await rulesDecision(scope, page);
   if (!decision) return null;
   const { automation } = decision;
   return { outcome: automation.outcome, ruleName: automation.rule.name, ruleCount: automation.ruleIds.length,

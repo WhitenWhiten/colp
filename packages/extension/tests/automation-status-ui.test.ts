@@ -183,7 +183,7 @@ describe('Options › Automations with the server’s status', () => {
   it('says plainly when no rule files bookmarks here, and has no offline copy to promise before the first bundle', async () => {
     const on = await render(view({ rules: [] }));
     expect(text(on.querySelector('.automation-status-title'))).toBe('Automations are on');
-    expect(text(on.querySelector('.automation-status-hint'))).toBe('None of your rules file bookmarks in this browser yet.');
+    expect(text(on.querySelector('.automation-status-hint'))).toBe('None of your account’s rules file bookmarks in this browser yet.');
     const none = await render(view({ state: 'none', rules: [], expiresAt: null, lastRefreshAt: null }));
     expect(text(none.querySelector('.automation-status-fresh'))).toBe('This browser checks for rules every 5 minutes.');
     expect(text(none.querySelector('.automation-status-main > .btn'))).toBe('Check now');

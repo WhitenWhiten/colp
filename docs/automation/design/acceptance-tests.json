@@ -556,7 +556,7 @@
     "milestone": "M1",
     "scenario": "Account rules before browser rules",
     "action": "Signed in, save a page an account rule and a browser rule both match, then a page only the browser rule matches",
-    "assertion": "First save follows the account rule's outcome and is receipted; second is filed by the browser rule with no receipt; paused or absent account rules leave browser rules working",
+    "assertion": "First save follows the account rule's outcome and is receipted; second is filed by the browser rule with no receipt; absent account rules leave browser rules working, and paused account automations pause browser rules too",
     "status": "planned_not_executed"
   },
   {

@@ -34,9 +34,9 @@ function statusLine(view: AutomationStateView): { tone: Tone; title: string; hin
   switch (view.state) {
     case 'active': return { tone: 'success', title: t('automation_statusOnTitle', 'Automations are on'),
       hint: view.rules.length
-        ? tn('automation_statusOnRulesHint', view.rules.length, '$1 rule files bookmarks you save in this browser, even offline.',
-          '$1 rules file bookmarks you save in this browser, even offline.')
-        : t('automation_statusOnNoRulesHint', 'None of your rules file bookmarks in this browser yet.') };
+        ? tn('automation_statusOnRulesHint', view.rules.length, '$1 account rule files bookmarks you save in this browser, even offline.',
+          '$1 account rules file bookmarks you save in this browser, even offline.')
+        : t('automation_statusOnNoRulesHint', 'None of your account’s rules file bookmarks in this browser yet.') };
     case 'paused': return { tone: 'warning', title: t('automation_statusPausedTitle', 'All automations are paused'), hint: pausedHint(view) };
     case 'expired': return { tone: 'warning', title: t('automation_statusOutOfDateTitle', 'Rules are out of date'),
       hint: t('automation_statusOutOfDateHint', 'Rules are out of date; connect to refresh. Saving still works, at the folder you choose.') };
@@ -118,7 +118,7 @@ function statusCard(view: AutomationStateView, refresh: () => void, busy: boolea
   if (view.webUrl && !(view.state === 'none' && view.problem === 'unavailable')) {
     const paused = view.state === 'paused';
     card.append(row(paused ? t('automation_resumeAll', 'Resume automations') : t('automation_pauseAll', 'Pause all automations'),
-      t('automation_pauseHint', 'You pause and resume on the web. This browser follows at its next check, within 5 minutes.'),
+      t('automation_pauseHint', 'You pause and resume on the web; rules in this browser pause with them. This browser follows at its next check, within 5 minutes.'),
       webLink(paused ? t('automation_resumeOnWeb', 'Resume on the web') : t('automation_pauseOnWeb', 'Pause on the web'), view.webUrl)));
   }
   return card;
