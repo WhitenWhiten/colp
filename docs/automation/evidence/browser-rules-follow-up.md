@@ -9,8 +9,8 @@ previous item's hash.
 
 | Item | Commit | Change |
 | --- | --- | --- |
-| L1 | — | Signing in as another account (or on another server) without signing out first removes the earlier account's automation data. Browser rules stay. |
-| L2 | planned | The *Disconnect server* hint says that rules made in this browser are kept. |
+| L1 | `3aee64ae` | Signing in as another account (or on another server) without signing out first removes the earlier account's automation data. Browser rules stay. |
+| L2 | — | The *Sign out* hint, the sign-out dialog and the *Disconnect server* hint say that rules made in this browser stay, and that the account's rules stop. |
 | L3 | planned | Moving a browser rule to the account, run against a real colp-server. |
 | L4 | planned | Browser rules also file bookmarks made with the browser's star button. |
 
@@ -51,3 +51,21 @@ With the change reverted, the first two fail.
 | `npx tsc --noEmit -p .` | pass |
 | `npx eslint src/sw/auth.ts tests/automation-disconnect.test.ts` | pass |
 | `npx vitest run` over the disconnect test and the five suites that import `sw/auth` | 6 files, 31 tests passed |
+
+## L2 — what signing out and disconnecting keep
+
+The Account pane said only "Bookmarks on this browser are kept" (Disconnect server) and "Bookmarks, tags
+and notes stay in this browser. Personal sync stops when you sign out" (Sign out row and its dialog).
+Neither mentioned rules. Both now name what stays and what stops:
+
+- Sign out: "Bookmarks, tags, notes and rules made in this browser stay. Personal sync and your account's
+  rules stop when you sign out."
+- Disconnect server: "Bookmarks and rules made in this browser are kept."
+
+The keys are unchanged (`options_bookmarksStayBrowserSync`, `options_disconnectKeepsBookmarks`); `zh_CN` is
+updated with them.
+
+| Command (`packages/extension`) | Result |
+| --- | --- |
+| `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | catalog and translations current |
+| `npm run build:development`, then `SHOT_ONLY=account,dialog-logout npm run shots` in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320 |

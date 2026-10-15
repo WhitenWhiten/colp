@@ -3795,7 +3795,7 @@
     "message": "Bookmarks"
   },
   "options_bookmarksStayBrowserSync": {
-    "message": "Bookmarks, tags and notes stay in this browser. Personal sync stops when you sign out."
+    "message": "Bookmarks, tags, notes and rules made in this browser stay. Personal sync and your account’s rules stop when you sign out."
   },
   "options_checkFolderAccess": {
     "message": "Check folder access"
@@ -3843,7 +3843,7 @@
     "message": "Subscription folders are read-only and never get folder suggestions."
   },
   "options_disconnectKeepsBookmarks": {
-    "message": "Bookmarks on this browser are kept."
+    "message": "Bookmarks and rules made in this browser are kept."
   },
   "options_disconnectServer": {
     "message": "Disconnect server"

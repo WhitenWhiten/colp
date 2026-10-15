@@ -23,7 +23,7 @@ export function openLogoutConfirm(): void {
   dialog.id = 'logout-dialog';
   const stay = dialogButton(t('options_staySignedIn', 'Stay signed in')), confirm = dialogButton(t('common_signOut', 'Sign out'), 'danger');
   stay.id = 'logout-cancel'; confirm.id = 'logout-confirm';
-  const paragraph = document.createElement('p'); paragraph.textContent = t('options_bookmarksStayBrowserSync', 'Bookmarks, tags and notes stay in this browser. Personal sync stops when you sign out.');
+  const paragraph = document.createElement('p'); paragraph.textContent = t('options_bookmarksStayBrowserSync', 'Bookmarks, tags, notes and rules made in this browser stay. Personal sync and your account’s rules stop when you sign out.');
   const disclosure = document.createElement('p');
   disclosure.textContent = t('options_logoutLifecycle', 'Queued personal sync changes will be archived. Reconnecting after sign-in requires your review. Managed subscription copies will be removed; personal copies you made are kept. Device save history stays on this browser.');
   // The extension and the website share one session in this browser (src/auth-controller.ts).

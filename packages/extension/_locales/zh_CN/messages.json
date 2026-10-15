@@ -4964,8 +4964,8 @@
     "description": "Bookmarks"
   },
   "options_bookmarksStayBrowserSync": {
-    "message": "书签、标签和备注保留在此浏览器中。退出登录后，个人同步会停止。",
-    "description": "Bookmarks, tags and notes stay in this browser. Personal sync stops when you sign out."
+    "message": "书签、标签、备注和在此浏览器中创建的规则都会保留。退出登录后，个人同步和你账户的规则会停止。",
+    "description": "Bookmarks, tags, notes and rules made in this browser stay. Personal sync and your account’s rules stop when you sign out."
   },
   "options_checkFolderAccess": {
     "message": "检查文件夹访问权限",
@@ -5028,8 +5028,8 @@
     "description": "Subscription folders are read-only and never get folder suggestions."
   },
   "options_disconnectKeepsBookmarks": {
-    "message": "此浏览器上的书签会保留。",
-    "description": "Bookmarks on this browser are kept."
+    "message": "此浏览器上的书签和在此浏览器中创建的规则会保留。",
+    "description": "Bookmarks and rules made in this browser are kept."
   },
   "options_disconnectServer": {
     "message": "断开服务器",
