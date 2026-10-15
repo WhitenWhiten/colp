@@ -132,7 +132,8 @@ EXAMPLES={
  'm1-placement.json':'RuleDefinition','m1-bindings.json':'BindingSetInput',
  'm1-rule-create.json':'RuleInput','m1-bundle-paused.json':'RuleBundle',
  'academic-summary-only.json':'RuleDefinition','worker-bootstrap-profile.json':'ConnectionProfileInput',
- 'run-once-start.json':'RunOnceStartInput','m1-preview-current-state.json':'PreviewInput'}
+ 'run-once-start.json':'RunOnceStartInput','m1-preview-current-state.json':'PreviewInput',
+ 'browser-rule.json':'RuleDefinition'}
 for f,n in EXAMPLES.items():check('Example: '+f,lambda f=f,n=n:v_schema(DOC,n,load(ROOT/'examples'/f)))
 check('MCP subscription fixture',lambda:v_schema(MCP,'SubscribeRequest',load(ROOT/'examples/mcp-subscribe.json')))
 check('MCP occurrence fixture',lambda:v_schema(MCP,'Occurrence',load(ROOT/'examples/mcp-occurrence.json')))
@@ -335,7 +336,7 @@ def lane_ownership():
                 stack+=by[d]['dependencies']
         for f in t['files']:
             if f.startswith('packages/web/'):assert t['lane']=='web',(t['id'],f)
-            if f.startswith('Known-Extension/'):assert t['lane']=='extension',(t['id'],f)
+            if f.startswith(('Known-Extension/','packages/extension/')):assert t['lane']=='extension',(t['id'],f)
             owner=owners.setdefault(f,{'lane':t['lane'],'tasks':set()})
             assert owner['lane']==t['lane'],(f,owner['lane'],t['lane'])
             owner['tasks'].add(t['id'])

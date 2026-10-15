@@ -1,0 +1,53 @@
+{
+  "apiVersion": "colp.automation/v1",
+  "name": "Papers from arXiv",
+  "roles": [
+    {
+      "key": "destination",
+      "kind": "folder",
+      "required": true,
+      "description": "Folder in this browser that matching pages are saved to"
+    }
+  ],
+  "on": "bookmark.intake",
+  "scope": {},
+  "match": {
+    "kind": "field",
+    "field": "bookmark.url.host",
+    "op": "eq",
+    "value": "arxiv.org"
+  },
+  "intake": {
+    "folderRole": "destination",
+    "constraint": "withinSubtree",
+    "satisfies": [
+      "classify.root"
+    ],
+    "onUnusableBinding": "keepOriginalAndBlock",
+    "respectExplicitSelection": true
+  },
+  "trigger": {
+    "mode": "each"
+  },
+  "tasks": [],
+  "route": {
+    "mode": "targets",
+    "targetIds": [],
+    "execution": "single"
+  },
+  "policy": {
+    "history": "fromActivation",
+    "imports": "exclude",
+    "restores": "exclude",
+    "userEdits": "preserve",
+    "sameStageReentry": "deny",
+    "maxHops": 8,
+    "conflictingPlacement": "review",
+    "privacy": "standard",
+    "broadcastAllowed": false,
+    "maxRunsPerDay": 100,
+    "pauseMode": "stopAdmissionHoldPending",
+    "missingInput": "defer"
+  },
+  "priority": 100
+}

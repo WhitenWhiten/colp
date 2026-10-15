@@ -74,6 +74,7 @@
 | ADR-A21 (new) | Global pause above rule state; restore starts paused; daily caps hold tasks and never drop placement | Per-rule pause only; caps that drop |
 | ADR-A22 (new) | Server intake requires verified command/receipt disposition after any receipt grace period; timeout alone grants no placement authority; imports/restores/unknown intent are not automatically moved | Browser-only rules |
 | ADR-A23 (new, owner decision 2026-10-12) | The shared automation core is the `automation` subpath of the existing `@know-n/colp` package, marked optional and outside conformance | A new `@know-n/colp-automation` package |
+| ADR-A24 (new, owner decision 2026-10-14) | Browser rules are a local-first layer kept in one browser: explicit choice, then account rules, then browser rules, then the local classifier; an account-rule outcome settles the save; overlaps are reviewed on connect; a browser rule reaches the account only through the web editor, filled in, and retires when the enabled duplicate arrives; disconnect keeps browser rules (01 §7.5) | Server-only rules; uploading browser rules on connect; one merged arbitration over both sets; browser rules ahead of account rules |
 
 ## Release gates
 
@@ -100,7 +101,7 @@
 | Q4 | Does the web have an i18n layer the new pages must use, or English only like the current pages? | Follow the existing pages | AW-12 |
 | Q5 | Should run-once be offered in M1 (placement only, no tasks) since imports are an M1 pain point? | Keep in M3; M1 preview covers "what would happen" | AW-12 review |
 | Q6 | Can the Go `known` CLI act as a polling worker, or is it a script-only path until the CLI ships for COLP Server? | A hosted bot proves events mode; a script and a Claude Code routine prove poll mode; CLI optional | AW-32 |
-| Q7 | Local-only rules without a server (extension users who never connect)? | Out of scope; bundle format must allow local authoring later | after M2 |
+| Q7 | Decided 2026-10-14 by the owner: rules made in the browser work without a server, as a layer below the account's rules (ADR-A24, AU-34) | — | AW-67 |
 | Q8 | Attribution format for summaries in the note ("Summary by Research, 12 Oct") and whether the note's existing text is preserved above or below | Append below a separator; never replace | AW-24 |
 | Q9 | Are automation plans counted in the agent's audit log (`/api/v1/me/agents/:id/audit`) as the agent's actions? | Yes, with the rule named | AW-24 |
 

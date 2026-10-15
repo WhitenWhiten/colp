@@ -512,5 +512,25 @@
       "AW-66"
     ],
     "example": "academic-bindings.json"
+  },
+  {
+    "storyId": "AU-34",
+    "tests": [
+      "AC-69",
+      "AC-70",
+      "AC-71",
+      "AC-72",
+      "AC-73",
+      "AC-74"
+    ],
+    "tasks": [
+      "AW-67",
+      "AW-68",
+      "AW-69",
+      "AW-70",
+      "AW-71",
+      "AW-72"
+    ],
+    "example": "browser-rule.json"
   }
 ]

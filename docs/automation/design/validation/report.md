@@ -1,6 +1,6 @@
 # Artifact Validation Report
 
-**Result:** PASSED. **Checks:** 61. **Failures:** 0.
+**Result:** PASSED. **Checks:** 63. **Failures:** 0.
 
 Offline artifact structure, JSON Schema, example, selected semantic and planning checks only. No production execution or external OpenAPI linter.
 
@@ -34,6 +34,7 @@ Offline artifact structure, JSON Schema, example, selected semantic and planning
 | Example: worker-bootstrap-profile.json | passed |
 | Example: run-once-start.json | passed |
 | Example: m1-preview-current-state.json | passed |
+| Example: browser-rule.json | passed |
 | MCP subscription fixture | passed |
 | MCP occurrence fixture | passed |
 | Contract F01: academic definition | passed |
@@ -57,6 +58,7 @@ Offline artifact structure, JSON Schema, example, selected semantic and planning
 | Offline graph/role/policy checks: broadcast-digest.json | passed |
 | Offline graph/role/policy checks: m1-placement.json | passed |
 | Offline graph/role/policy checks: academic-summary-only.json | passed |
+| Offline graph/role/policy checks: browser-rule.json | passed |
 | Negative graph/role/privacy fixtures | passed |
 | OpenAPI / standalone schema drift | passed |
 | Plan IDs / DAG / traceability / operation inventory | passed |

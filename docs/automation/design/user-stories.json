@@ -363,5 +363,20 @@
       "AC-67"
     ],
     "example": "academic-bindings.json"
+  },
+  {
+    "id": "AU-34",
+    "title": "File pages by my own rules in this browser, with or without a server",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-69",
+      "AC-70",
+      "AC-71",
+      "AC-72",
+      "AC-73",
+      "AC-74"
+    ],
+    "example": "browser-rule.json"
   }
 ]

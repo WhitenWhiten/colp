@@ -112,4 +112,13 @@ Each extension task is committed separately. The commit column is filled in by t
 | AW-20 | Done locally (unit tests, real Chromium under xvfb for AC-09/AC-49 and projection echo; server-side intake join not run) | `06c3ba9`, [observed creates and echo suppression](evidence/aw-20.md) |
 | AW-21 | Done locally (unit tests, local-first lifecycle suite, real Chromium under xvfb for AC-10 across worker kill and browser restart; server-side join not run) | `81abe4c`, [durable rule and receipt lifecycle](evidence/aw-21.md) |
 | AW-54 | Done locally (unit tests against contract-valid DTOs, happy-dom pane tests, xvfb screenshots in en and zh_CN; no live server read) | `2b42346`, [server run status, apart from placement](evidence/aw-54.md) |
-| AW-60 | Done locally (unit tests for the projection, badge ownership and popup line; xvfb screenshots; AW-20/21 e2e re-run; badge not run against a live server) | [digest unread indicator and navigation](evidence/aw-60.md) |
+| AW-60 | Done locally (unit tests for the projection, badge ownership and popup line; xvfb screenshots; AW-20/21 e2e re-run; badge not run against a live server) | `39e557f`, [digest unread indicator and navigation](evidence/aw-60.md) |
+
+## Browser rules on `main` (2026-10-14)
+
+Q7 was decided by the owner: rules made in the extension work with no server, below the account's rules
+(design [01 §7.5](design/01-architecture.md#75-browser-rules-adr-a24-au-34), ADR-A24, AU-34).
+Each packet is committed separately; the commit column is filled in by the next packet's commit.
+
+| Task | Status | Commit / evidence |
+| --- | --- | --- |

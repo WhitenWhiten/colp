@@ -3420,5 +3420,307 @@
       "Do not mark planned acceptance as executed without the actual command, build and evidence.",
       "No React or Chrome UI changes. Publish contracts and fixtures first so clients can develop against mocks."
     ]
+  },
+  {
+    "id": "AW-67",
+    "milestone": "M1",
+    "size": "M",
+    "title": "Keep browser rules and apply them at save, below the account's rules",
+    "dependencies": [
+      "AW-19",
+      "AW-21"
+    ],
+    "stories": [
+      "AU-34"
+    ],
+    "readFirst": [
+      "01-architecture.md",
+      "packages/extension/src/automation/pre-save.ts",
+      "packages/extension/src/sw/capture.ts"
+    ],
+    "files": [
+      "packages/extension/src/automation/browser-rules.ts",
+      "packages/extension/src/automation/browser-rule-store.ts",
+      "packages/extension/src/sw/automation-browser.ts",
+      "packages/extension/src/automation/runtime-profile.ts",
+      "packages/extension/src/automation/pre-save.ts",
+      "packages/extension/src/automation/messages.ts",
+      "packages/extension/src/capture/contracts.ts",
+      "packages/extension/src/sw/capture.ts",
+      "packages/extension/src/sw/automation.ts",
+      "packages/extension/tests/automation-browser-rules.test.ts",
+      "packages/extension/tests/automation-worker-browser-rules.test.ts"
+    ],
+    "implementation": [
+      "Store browser rules (an M1 RuleDefinition with no collection scope, plus a native folder id, on/off and revision) in the automation IndexedDB store; validate with validateM1Rule and keep the evaluator's normalized values.",
+      "Evaluate them with the shared core (evaluateLocalRules over native folders, priority 100) after the account bundle: any account outcome settles the save; otherwise a browser placement, keep, block or conflict is pinned on the capture task as a browser decision.",
+      "The popup's match preview, the save line and tags-only local classification read the browser decision the same way; no receipt is written and nothing is sent. Keep a short local log of browser placements for Options."
+    ],
+    "acceptance": [
+      "A signed-out save, an offline save and a save into an unsynced folder are placed by a matching browser rule; an explicit folder wins.",
+      "With a matching account rule (placed, blocked or expired), browser rules are not consulted and the receipt path is unchanged."
+    ],
+    "status": "planned",
+    "lane": "extension",
+    "contractInputs": [
+      "01-architecture.md",
+      "02-rule-contract.md",
+      "11-execution-contract.md"
+    ],
+    "startAfter": [
+      "AW-01"
+    ],
+    "handoffArtifacts": [
+      "docs/automation/evidence/aw-67.md: commands, build, result, limitations"
+    ],
+    "nonGoals": [
+      "Do not change another lane's runtime files; open a contract issue and return the defect to its owner.",
+      "Do not mark planned acceptance as executed without the actual command, build and evidence.",
+      "No star-button (observed-create) placement by browser rules in this packet; no server API."
+    ]
+  },
+  {
+    "id": "AW-68",
+    "milestone": "M1",
+    "size": "M",
+    "title": "Write and manage browser rules in Options › Automations",
+    "dependencies": [
+      "AW-67",
+      "AW-54"
+    ],
+    "stories": [
+      "AU-34"
+    ],
+    "readFirst": [
+      "packages/extension/src/automation/options-pane.ts",
+      "packages/extension/src/library-folder-picker.ts",
+      "packages/extension/src/dialog.ts"
+    ],
+    "files": [
+      "packages/extension/src/automation/browser-rules-pane.ts",
+      "packages/extension/src/automation/options-pane.ts",
+      "packages/extension/options.html",
+      "packages/extension/options.css",
+      "packages/extension/_locales/en/messages.json",
+      "packages/extension/_locales/zh_CN/messages.json",
+      "packages/extension/scripts/shots-stub.mjs",
+      "packages/extension/tests/automation-browser-pane.test.ts",
+      "packages/extension/e2e/mv3-browser-rules.spec.ts"
+    ],
+    "implementation": [
+      "Signed out, the pane leads with This browser's rules and a quiet line about the account's rules; signed in, the account's status card and rules come first and This browser's rules follow.",
+      "One dialog creates and edits a rule: name, when (site is, site ends with, title contains, URL path starts with; all or any) and where (the folder picker over this browser's folders). Rows read like the web's rule sentences, with an on/off switch, Edit and Delete.",
+      "Browser placements join This browser's activity tab."
+    ],
+    "acceptance": [
+      "Happy-dom pane tests cover the signed-out, signed-in and empty states and the editor's validation; screenshots in en and zh_CN.",
+      "A real Chromium run under xvfb creates a rule in Options with no account and files an offline popup save into its folder."
+    ],
+    "status": "planned",
+    "lane": "extension",
+    "contractInputs": [
+      "01-architecture.md",
+      "02-rule-contract.md",
+      "11-execution-contract.md"
+    ],
+    "startAfter": [
+      "AW-01"
+    ],
+    "handoffArtifacts": [
+      "docs/automation/evidence/aw-68.md: commands, build, result, limitations"
+    ],
+    "nonGoals": [
+      "Do not change another lane's runtime files; open a contract issue and return the defect to its owner.",
+      "Do not mark planned acceptance as executed without the actual command, build and evidence."
+    ]
+  },
+  {
+    "id": "AW-69",
+    "milestone": "M1",
+    "size": "M",
+    "title": "Review browser rules against the account's rules",
+    "dependencies": [
+      "AW-68",
+      "AW-49"
+    ],
+    "stories": [
+      "AU-34"
+    ],
+    "readFirst": [
+      "01-architecture.md",
+      "packages/extension/src/automation/binding-projector.ts",
+      "packages/extension/src/automation/runtime-profile.ts"
+    ],
+    "files": [
+      "packages/extension/src/automation/browser-overlap.ts",
+      "packages/extension/src/sw/automation-browser.ts",
+      "packages/extension/src/automation/browser-rules-pane.ts",
+      "packages/extension/tests/automation-browser-overlap.test.ts"
+    ],
+    "implementation": [
+      "Label each browser rule against the bundle: duplicate, conflict, independent, local only, broken. Prove overlap with a witness page built from both rules' conditions; count it by replaying both sets over the most recent 2,000 bookmarks in this browser.",
+      "Show one notice when a duplicate or an unreviewed conflict exists, and a review dialog with Keep both, Use the account's and Remove; remember the choice against the account rule's id, revision and binding revision."
+    ],
+    "acceptance": [
+      "Static and replay overlap agree on the fixture set; a changed account rule brings its conflict back.",
+      "No account rule or browser rule is changed by opening the review; only the Owner's choice changes a browser rule."
+    ],
+    "status": "planned",
+    "lane": "extension",
+    "contractInputs": [
+      "01-architecture.md",
+      "02-rule-contract.md",
+      "11-execution-contract.md"
+    ],
+    "startAfter": [
+      "AW-01"
+    ],
+    "handoffArtifacts": [
+      "docs/automation/evidence/aw-69.md: commands, build, result, limitations"
+    ],
+    "nonGoals": [
+      "Do not change another lane's runtime files; open a contract issue and return the defect to its owner.",
+      "Do not mark planned acceptance as executed without the actual command, build and evidence."
+    ]
+  },
+  {
+    "id": "AW-70",
+    "milestone": "M1",
+    "size": "S",
+    "title": "Fill the web rule editor from a browser rule",
+    "dependencies": [
+      "AW-12"
+    ],
+    "stories": [
+      "AU-34"
+    ],
+    "readFirst": [
+      "packages/web/src/pages/automations/ruleDraft.ts",
+      "packages/web/src/pages/automations/RuleEditor.tsx"
+    ],
+    "files": [
+      "packages/web/src/pages/automations/ruleDraft.ts",
+      "packages/web/src/pages/automations/RuleEditor.tsx",
+      "packages/web/src/pages/automations/ruleDraft.test.ts",
+      "packages/web/src/pages/automations/RuleEditor.test.tsx"
+    ],
+    "implementation": [
+      "/automations/new accepts name, combinator and repeated condition=kind:value parameters next to collectionId and folderId, and seeds the form from them. Unknown kinds and empty values are dropped; nothing is created until Save."
+    ],
+    "acceptance": [
+      "The editor opened from a browser rule shows its name, conditions and folder; Preview and Turn on behave as for any new rule."
+    ],
+    "status": "planned",
+    "lane": "web",
+    "contractInputs": [
+      "01-architecture.md",
+      "02-rule-contract.md",
+      "11-execution-contract.md"
+    ],
+    "startAfter": [
+      "AW-01"
+    ],
+    "handoffArtifacts": [
+      "docs/automation/evidence/aw-70.md: commands, build, result, limitations"
+    ],
+    "nonGoals": [
+      "Do not change another lane's runtime files; open a contract issue and return the defect to its owner.",
+      "Do not mark planned acceptance as executed without the actual command, build and evidence.",
+      "No new API operation; the extension only links to the page."
+    ]
+  },
+  {
+    "id": "AW-71",
+    "milestone": "M1",
+    "size": "S",
+    "title": "Move a browser rule to the account",
+    "dependencies": [
+      "AW-69",
+      "AW-70"
+    ],
+    "stories": [
+      "AU-34"
+    ],
+    "readFirst": [
+      "01-architecture.md",
+      "packages/extension/src/sw/automation.ts"
+    ],
+    "files": [
+      "packages/extension/src/automation/browser-rules.ts",
+      "packages/extension/src/sw/automation-browser.ts",
+      "packages/extension/src/automation/browser-rules-pane.ts",
+      "packages/extension/src/sw/automation.ts",
+      "packages/extension/tests/automation-browser-move.test.ts"
+    ],
+    "implementation": [
+      "Add mine to the account is offered only for a rule whose folder has an authoritative Sync mapping; it opens the filled-in web editor and marks the rule as moving.",
+      "After each bundle install, a moving rule that an enabled account rule duplicates retires itself; anything else leaves it in place."
+    ],
+    "acceptance": [
+      "Retirement happens only after the enabled duplicate is installed; a draft, a different rule or an unsynced folder leaves the browser rule working."
+    ],
+    "status": "planned",
+    "lane": "extension",
+    "contractInputs": [
+      "01-architecture.md",
+      "02-rule-contract.md",
+      "11-execution-contract.md"
+    ],
+    "startAfter": [
+      "AW-01"
+    ],
+    "handoffArtifacts": [
+      "docs/automation/evidence/aw-71.md: commands, build, result, limitations"
+    ],
+    "nonGoals": [
+      "Do not change another lane's runtime files; open a contract issue and return the defect to its owner.",
+      "Do not mark planned acceptance as executed without the actual command, build and evidence."
+    ]
+  },
+  {
+    "id": "AW-72",
+    "milestone": "M1",
+    "size": "S",
+    "title": "Disconnect removes the account's automation data and keeps browser rules",
+    "dependencies": [
+      "AW-21",
+      "AW-67"
+    ],
+    "stories": [
+      "AU-34"
+    ],
+    "readFirst": [
+      "03-user-stories.md",
+      "packages/extension/src/sw/auth.ts"
+    ],
+    "files": [
+      "packages/extension/src/sw/auth.ts",
+      "packages/extension/src/sw/automation.ts",
+      "packages/extension/src/automation/indexeddb-store.ts",
+      "packages/extension/tests/automation-disconnect.test.ts"
+    ],
+    "implementation": [
+      "On sign-out, delete that account's bundle record, receipts, placement intents, server status, pause, device and badge state; leave browser rules and their log untouched."
+    ],
+    "acceptance": [
+      "AC-74: after disconnect the account's keys are gone and a browser rule still places a save."
+    ],
+    "status": "planned",
+    "lane": "extension",
+    "contractInputs": [
+      "01-architecture.md",
+      "02-rule-contract.md",
+      "11-execution-contract.md"
+    ],
+    "startAfter": [
+      "AW-01"
+    ],
+    "handoffArtifacts": [
+      "docs/automation/evidence/aw-72.md: commands, build, result, limitations"
+    ],
+    "nonGoals": [
+      "Do not change another lane's runtime files; open a contract issue and return the defect to its owner.",
+      "Do not mark planned acceptance as executed without the actual command, build and evidence."
+    ]
   }
 ]

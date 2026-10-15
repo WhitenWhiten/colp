@@ -150,11 +150,27 @@ Imports, restores, bootstrap snapshots and inbound projections never start intak
 
 A valid bundle evaluates offline. Expired bundles fail closed for automatic effects; saving still works. A missing or unsynced destination blocks the stage, not the save. Receipts and pending work live in IndexedDB. A pause flag in the bundle stops local rules within one refresh.
 
-Local-only use without a server is a Later question (Q7); the bundle format must not preclude local authoring.
+Rules made in the browser itself work with no server at all; they are a separate layer below the account's rules (§7.5, ADR-A24).
 
 ### 7.4 Model and provider boundary
 
 Execution location and data destination are separate facts shown separately. A rule hit sends the local provider `folder:false, tags:true` or nothing (R09). Missing local key never selects cloud (R10). Autonomous background inference in the browser is Later work with its own consent (G7).
+
+### 7.5 Browser rules (ADR-A24, AU-34)
+
+A browser rule is the Owner's own deterministic placement rule kept in one browser: an M1 `RuleDefinition` (`bookmark.intake`, `each`, no tasks, one folder role, no collection scope) plus that browser's native folder id. It is written in the extension's Options page, stored in the extension's automation store and evaluated by the same shared core as the bundle. It needs no account, works offline and may name any folder, synced or not. It never leaves the browser unless the Owner moves it.
+
+**Order at save.** An explicit folder choice, then the account's rules (the installed bundle), then browser rules, then the Owner's local classifier (tags only once a rule placed the page), then the default folder. Any outcome of an account rule (placed, kept, blocked, conflict, review, expired) settles the save; browser rules run only where no account rule matches here, which includes an account that has no bundle or whose automations are paused. Browser rules use the shared arbitration among themselves (priority 100; disagreeing destinations keep the page where it was saved and say so).
+
+**Why the account goes first.** An account rule carries receipts, Undo, runs and, from M2, agent tasks. A bookmark a browser rule filed outside the collection root reads to the server as the Owner's own folder choice: server intake admits only a create still at the root with default intent (§8.2, ADR-A22), so nothing is admitted for it. Letting a browser rule go first would silently switch the account's automations off on that device and make the web preview wrong for it.
+
+**Where they act.** Saves the extension makes: popup, shortcut, context menu, Save tabs. Star-button creations (§7.2) remain account-only in this revision: without Sync evidence the extension cannot yet tell its own echo from new local intent.
+
+**Overlap with the account's rules.** Whenever the bundle or the browser rules change, each browser rule is compared with the account's rules and labelled: *duplicate* (the same conditions after the evaluator's normalization and the same folder in this browser), *conflict* (some page matches both and the folders differ), *independent*, *local only* (its folder is outside the synced collection) or *broken* (its folder no longer exists). Overlap is proven by a witness page built from both rules' conditions and counted by replaying both sets over this browser's most recent 2,000 bookmarks with the shared evaluator. A conflict offers *Keep both* (the default: the browser rule still files what the account's rule does not match), *Use the account's* (turns the browser rule off) and *Add mine to the account*; a duplicate offers *Remove*. The choice is remembered against the account rule's revision, so a changed account rule is shown again.
+
+**Moving a rule to the account.** Only a browser rule whose folder is mapped into the synced collection can move. *Add mine to the account* opens the web editor (`/automations/new`) filled in with the rule's name, conditions and canonical folder; nothing is created until the Owner saves there, and enabling still requires a preview (AU-02). When an enabled account rule that duplicates it reaches the browser, the browser rule retires itself. Browser rules are never uploaded on connect: an account rule acts on every device and on the server, browser rules can name private hosts and unsynced folders, server rules go through validate → preview → enable, several browsers would each push their own copies, and a server may have automations turned off.
+
+**Disconnect.** Disconnecting removes that account's bundle, receipts, placement intents and server status from the browser (AU-33); browser rules stay and keep working.
 
 ## 8. Server admission and ordering
 

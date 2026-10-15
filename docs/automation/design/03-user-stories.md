@@ -11,7 +11,7 @@ Story IDs are `AU-xx` so they never collide with the product's `US-xx` stories i
 | Actor | Who |
 |---|---|
 | **Owner** | The one person who runs the server and owns every collection on it. Configures rules in the web UI; reads results there and in the extension. |
-| **Browser** | A browser profile with the Known extension, signed in to the Owner's server. Several, on several machines. Saves through the popup, the shortcut, the context menu, "Save tabs", and the browser's own star button. |
+| **Browser** | A browser profile with the Known extension, usually signed in to the Owner's server (rules made in the browser itself also work without one, AU-34). Several, on several machines. Saves through the popup, the shortcut, the context menu, "Save tabs", and the browser's own star button. |
 | **Agent** | An AI assistant the Owner connected over MCP (OAuth client or API key). Three roles in this pack: an **ordinary agent** (reads and organizes on request, unchanged), a **worker** (takes automation jobs: lists, claims, reads, submits), and a **hosted bot** (a worker on a hosted platform, for example a ChatGPT dot, that subscribes to MCP Events so the server can wake it). Each worker target has a wake mode: *events* (woken by the server, the default where possible) or *poll* (the agent checks on its own schedule, for example Claude Code on a routine or a script). |
 | **Rule** | Not a person, but it acts: "when a bookmark like this arrives, put it here, then ask this agent to do that". |
 
@@ -58,6 +58,7 @@ Real-world constraints that shape every story below:
 | AU-31 | Catalog enrichment with my own entity map and vocabulary | M4 | AC-30, AC-68 |
 | AU-32 | A weekly digest at a time I choose | Later | AC-29 |
 | AU-33 | Rules are in my backup and my export, and leave with me | M1 | AC-52, AC-67 |
+| AU-34 | File pages by my own rules in this browser, with or without a server | M1 | AC-69, AC-70, AC-71, AC-72, AC-73, AC-74 |
 
 ---
 
@@ -472,6 +473,23 @@ Acceptance:
 4. The CHANGELOG "Upgrade notes" line names the automation migrations and that they are forward-only.
 
 Tasks: AW-01, AW-09, AW-44, AW-63, AW-66. Tests: AC-52, AC-67. Example: [academic-bindings.json](examples/academic-bindings.json).
+
+---
+
+## H. Rules in this browser (M1)
+
+### AU-34 File pages by my own rules in this browser, with or without a server — M1
+**As the Owner**, I want to say "pages from arxiv.org go to Papers" right in the extension, without an account or a server, so that the simplest filing works the day I install it; and when I later connect a server that already has rules, I want to see where mine and the account's disagree and decide, instead of either side silently winning or being uploaded.
+
+Acceptance:
+1. Signed out, Options › Automations offers *New rule*. The editor asks *when* (site is / site ends with / title contains / URL path starts with, all or any) and *where* (any folder in this browser, synced or not). Rules can be turned off, changed and deleted there (AC-69).
+2. A page saved from the popup, the shortcut, the context menu or Save tabs that matches a rule is created in the rule's folder, offline too, with no account. Before Save the popup shows that folder marked "By rule"; a folder I pick myself wins. The saved line names the rule (AC-69).
+3. Signed in, an account rule that matches the page settles the save first; my browser rules file only pages no account rule matches. A browser rule's placement sends nothing to the server (AC-70).
+4. After I connect, Options › Automations shows, for each browser rule, whether the account already does the same, disagrees with it (with how many of this browser's bookmarks the two would file differently), or is unrelated. For a disagreement I choose *Keep both*, *Use the account's* or *Add mine to the account*; for a duplicate, *Remove*. The choice sticks until the account rule changes (AC-71).
+5. *Add mine to the account* opens the web editor filled in with the same name, conditions and folder; nothing is created until I save there, and turning it on still needs a preview. Once it is on and reaches this browser, the browser copy retires itself. A rule whose folder is not synced says so and stays in this browser (AC-72, AC-73).
+6. Disconnecting the server removes the account's rules, receipts and server status from this browser; my browser rules keep filing (AC-74).
+
+Tasks: AW-67, AW-68, AW-69, AW-70, AW-71, AW-72. Tests: AC-69, AC-70, AC-71, AC-72, AC-73, AC-74. Example: [browser-rule.json](examples/browser-rule.json).
 
 ---
 

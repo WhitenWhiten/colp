@@ -76,6 +76,12 @@ Do not merge a behavior producer before its schema consumer and migrations. Keep
 | AW-51 | M1 | M | Backend: M1 placement receipts, explanation and conservative single-effect Undo | AW-10, AW-16, AW-17 | AU-13 |
 | AW-63 | M1 | M | Integration: independent M1 release gate, no M2 services | AW-12, AW-19, AW-20, AW-21, AW-33, AW-51, AW-66 | AU-01, AU-06, AU-07, AU-08, AU-09, AU-10, AU-11, AU-13, AU-14, AU-33 |
 | AW-66 | M1 | M | Backend M1 gate: configuration, canonical intake and restart proof without UI | AW-11, AW-17, AW-18, AW-33, AW-51 | AU-01, AU-09, AU-13, AU-14, AU-33 |
+| AW-67 | M1 | M | Keep browser rules and apply them at save, below the account's rules | AW-19, AW-21 | AU-34 |
+| AW-68 | M1 | M | Write and manage browser rules in Options › Automations | AW-54, AW-67 | AU-34 |
+| AW-69 | M1 | M | Review browser rules against the account's rules | AW-49, AW-68 | AU-34 |
+| AW-70 | M1 | S | Fill the web rule editor from a browser rule | AW-12 | AU-34 |
+| AW-71 | M1 | S | Move a browser rule to the account | AW-69, AW-70 | AU-34 |
+| AW-72 | M1 | S | Disconnect removes the account's automation data and keeps browser rules | AW-21, AW-67 | AU-34 |
 | AW-22 | M2 | M | Implement execution policy, budgets and output reuse | AW-10, AW-16 | AU-12, AU-15, AU-17, AU-20, AU-23 |
 | AW-23 | M2 | M | Implement job claims, heartbeat and uncertainty | AW-16, AW-22 | AU-15, AU-18, AU-20 |
 | AW-24 | M2 | L | Implement typed results and the effect gateway through change plans | AW-07, AW-23 | AU-15, AU-16, AU-17, AU-18, AU-19 |
@@ -880,6 +886,175 @@ Do not merge a behavior producer before its schema consumer and migrations. Keep
 **Done when:**
 - All selected backend assertions pass without importing Web or Chrome runtimes and without querying M2 execution-policy, target or Events tables.
 - No duplicate canonical move or destructive Undo occurs in the recorded restart and concurrency cases.
+
+#### AW-67 — Keep browser rules and apply them at save, below the account's rules — M
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-19, AW-21. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-67.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.; No star-button (observed-create) placement by browser rules in this packet; no server API.
+
+**Read first:**
+- `01-architecture.md`
+- `packages/extension/src/automation/pre-save.ts`
+- `packages/extension/src/sw/capture.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/browser-rules.ts`
+- `packages/extension/src/automation/browser-rule-store.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+- `packages/extension/src/automation/runtime-profile.ts`
+- `packages/extension/src/automation/pre-save.ts`
+- `packages/extension/src/automation/messages.ts`
+- `packages/extension/src/capture/contracts.ts`
+- `packages/extension/src/sw/capture.ts`
+- `packages/extension/src/sw/automation.ts`
+- `packages/extension/tests/automation-browser-rules.test.ts`
+- `packages/extension/tests/automation-worker-browser-rules.test.ts`
+
+**Steps:**
+1. Store browser rules (an M1 RuleDefinition with no collection scope, plus a native folder id, on/off and revision) in the automation IndexedDB store; validate with validateM1Rule and keep the evaluator's normalized values.
+2. Evaluate them with the shared core (evaluateLocalRules over native folders, priority 100) after the account bundle: any account outcome settles the save; otherwise a browser placement, keep, block or conflict is pinned on the capture task as a browser decision.
+3. The popup's match preview, the save line and tags-only local classification read the browser decision the same way; no receipt is written and nothing is sent. Keep a short local log of browser placements for Options.
+
+**Done when:**
+- A signed-out save, an offline save and a save into an unsynced folder are placed by a matching browser rule; an explicit folder wins.
+- With a matching account rule (placed, blocked or expired), browser rules are not consulted and the receipt path is unchanged.
+
+#### AW-68 — Write and manage browser rules in Options › Automations — M
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-54, AW-67. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-68.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.
+
+**Read first:**
+- `packages/extension/src/automation/options-pane.ts`
+- `packages/extension/src/library-folder-picker.ts`
+- `packages/extension/src/dialog.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/browser-rules-pane.ts`
+- `packages/extension/src/automation/options-pane.ts`
+- `packages/extension/options.html`
+- `packages/extension/options.css`
+- `packages/extension/_locales/en/messages.json`
+- `packages/extension/_locales/zh_CN/messages.json`
+- `packages/extension/scripts/shots-stub.mjs`
+- `packages/extension/tests/automation-browser-pane.test.ts`
+- `packages/extension/e2e/mv3-browser-rules.spec.ts`
+
+**Steps:**
+1. Signed out, the pane leads with This browser's rules and a quiet line about the account's rules; signed in, the account's status card and rules come first and This browser's rules follow.
+2. One dialog creates and edits a rule: name, when (site is, site ends with, title contains, URL path starts with; all or any) and where (the folder picker over this browser's folders). Rows read like the web's rule sentences, with an on/off switch, Edit and Delete.
+3. Browser placements join This browser's activity tab.
+
+**Done when:**
+- Happy-dom pane tests cover the signed-out, signed-in and empty states and the editor's validation; screenshots in en and zh_CN.
+- A real Chromium run under xvfb creates a rule in Options with no account and files an offline popup save into its folder.
+
+#### AW-69 — Review browser rules against the account's rules — M
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-49, AW-68. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-69.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.
+
+**Read first:**
+- `01-architecture.md`
+- `packages/extension/src/automation/binding-projector.ts`
+- `packages/extension/src/automation/runtime-profile.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/browser-overlap.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+- `packages/extension/src/automation/browser-rules-pane.ts`
+- `packages/extension/tests/automation-browser-overlap.test.ts`
+
+**Steps:**
+1. Label each browser rule against the bundle: duplicate, conflict, independent, local only, broken. Prove overlap with a witness page built from both rules' conditions; count it by replaying both sets over the most recent 2,000 bookmarks in this browser.
+2. Show one notice when a duplicate or an unreviewed conflict exists, and a review dialog with Keep both, Use the account's and Remove; remember the choice against the account rule's id, revision and binding revision.
+
+**Done when:**
+- Static and replay overlap agree on the fixture set; a changed account rule brings its conflict back.
+- No account rule or browser rule is changed by opening the review; only the Owner's choice changes a browser rule.
+
+#### AW-70 — Fill the web rule editor from a browser rule — S
+
+**Milestone:** M1. **Lane:** web. **Depends on:** AW-12. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-70.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.; No new API operation; the extension only links to the page.
+
+**Read first:**
+- `packages/web/src/pages/automations/ruleDraft.ts`
+- `packages/web/src/pages/automations/RuleEditor.tsx`
+
+**Files (new or modified):**
+- `packages/web/src/pages/automations/ruleDraft.ts`
+- `packages/web/src/pages/automations/RuleEditor.tsx`
+- `packages/web/src/pages/automations/ruleDraft.test.ts`
+- `packages/web/src/pages/automations/RuleEditor.test.tsx`
+
+**Steps:**
+1. /automations/new accepts name, combinator and repeated condition=kind:value parameters next to collectionId and folderId, and seeds the form from them. Unknown kinds and empty values are dropped; nothing is created until Save.
+
+**Done when:**
+- The editor opened from a browser rule shows its name, conditions and folder; Preview and Turn on behave as for any new rule.
+
+#### AW-71 — Move a browser rule to the account — S
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-69, AW-70. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-71.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.
+
+**Read first:**
+- `01-architecture.md`
+- `packages/extension/src/sw/automation.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/browser-rules.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+- `packages/extension/src/automation/browser-rules-pane.ts`
+- `packages/extension/src/sw/automation.ts`
+- `packages/extension/tests/automation-browser-move.test.ts`
+
+**Steps:**
+1. Add mine to the account is offered only for a rule whose folder has an authoritative Sync mapping; it opens the filled-in web editor and marks the rule as moving.
+2. After each bundle install, a moving rule that an enabled account rule duplicates retires itself; anything else leaves it in place.
+
+**Done when:**
+- Retirement happens only after the enabled duplicate is installed; a draft, a different rule or an unsynced folder leaves the browser rule working.
+
+#### AW-72 — Disconnect removes the account's automation data and keeps browser rules — S
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-21, AW-67. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-72.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.
+
+**Read first:**
+- `03-user-stories.md`
+- `packages/extension/src/sw/auth.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/sw/auth.ts`
+- `packages/extension/src/sw/automation.ts`
+- `packages/extension/src/automation/indexeddb-store.ts`
+- `packages/extension/tests/automation-disconnect.test.ts`
+
+**Steps:**
+1. On sign-out, delete that account's bundle record, receipts, placement intents, server status, pause, device and badge state; leave browser rules and their log untouched.
+
+**Done when:**
+- AC-74: after disconnect the account's keys are gone and a browser rule still places a save.
 
 ### M2 — An agent finishes the job
 

@@ -176,11 +176,27 @@ Imports, restores, bootstrap snapshots and inbound projections never start intak
 
 A valid bundle evaluates offline. Expired bundles fail closed for automatic effects; saving still works. A missing or unsynced destination blocks the stage, not the save. Receipts and pending work live in IndexedDB. A pause flag in the bundle stops local rules within one refresh.
 
-Local-only use without a server is a Later question (Q7); the bundle format must not preclude local authoring.
+Rules made in the browser itself work with no server at all; they are a separate layer below the account's rules (§7.5, ADR-A24).
 
 ### 7.4 Model and provider boundary
 
 Execution location and data destination are separate facts shown separately. A rule hit sends the local provider `folder:false, tags:true` or nothing (R09). Missing local key never selects cloud (R10). Autonomous background inference in the browser is Later work with its own consent (G7).
+
+### 7.5 Browser rules (ADR-A24, AU-34)
+
+A browser rule is the Owner's own deterministic placement rule kept in one browser: an M1 `RuleDefinition` (`bookmark.intake`, `each`, no tasks, one folder role, no collection scope) plus that browser's native folder id. It is written in the extension's Options page, stored in the extension's automation store and evaluated by the same shared core as the bundle. It needs no account, works offline and may name any folder, synced or not. It never leaves the browser unless the Owner moves it.
+
+**Order at save.** An explicit folder choice, then the account's rules (the installed bundle), then browser rules, then the Owner's local classifier (tags only once a rule placed the page), then the default folder. Any outcome of an account rule (placed, kept, blocked, conflict, review, expired) settles the save; browser rules run only where no account rule matches here, which includes an account that has no bundle or whose automations are paused. Browser rules use the shared arbitration among themselves (priority 100; disagreeing destinations keep the page where it was saved and say so).
+
+**Why the account goes first.** An account rule carries receipts, Undo, runs and, from M2, agent tasks. A bookmark a browser rule filed outside the collection root reads to the server as the Owner's own folder choice: server intake admits only a create still at the root with default intent (§8.2, ADR-A22), so nothing is admitted for it. Letting a browser rule go first would silently switch the account's automations off on that device and make the web preview wrong for it.
+
+**Where they act.** Saves the extension makes: popup, shortcut, context menu, Save tabs. Star-button creations (§7.2) remain account-only in this revision: without Sync evidence the extension cannot yet tell its own echo from new local intent.
+
+**Overlap with the account's rules.** Whenever the bundle or the browser rules change, each browser rule is compared with the account's rules and labelled: *duplicate* (the same conditions after the evaluator's normalization and the same folder in this browser), *conflict* (some page matches both and the folders differ), *independent*, *local only* (its folder is outside the synced collection) or *broken* (its folder no longer exists). Overlap is proven by a witness page built from both rules' conditions and counted by replaying both sets over this browser's most recent 2,000 bookmarks with the shared evaluator. A conflict offers *Keep both* (the default: the browser rule still files what the account's rule does not match), *Use the account's* (turns the browser rule off) and *Add mine to the account*; a duplicate offers *Remove*. The choice is remembered against the account rule's revision, so a changed account rule is shown again.
+
+**Moving a rule to the account.** Only a browser rule whose folder is mapped into the synced collection can move. *Add mine to the account* opens the web editor (`/automations/new`) filled in with the rule's name, conditions and canonical folder; nothing is created until the Owner saves there, and enabling still requires a preview (AU-02). When an enabled account rule that duplicates it reaches the browser, the browser rule retires itself. Browser rules are never uploaded on connect: an account rule acts on every device and on the server, browser rules can name private hosts and unsynced folders, server rules go through validate → preview → enable, several browsers would each push their own copies, and a server may have automations turned off.
+
+**Disconnect.** Disconnecting removes that account's bundle, receipts, placement intents and server status from the browser (AU-33); browser rules stay and keep working.
 
 ## 8. Server admission and ordering
 
@@ -418,7 +434,7 @@ Story IDs are `AU-xx` so they never collide with the product's `US-xx` stories i
 | Actor | Who |
 |---|---|
 | **Owner** | The one person who runs the server and owns every collection on it. Configures rules in the web UI; reads results there and in the extension. |
-| **Browser** | A browser profile with the Known extension, signed in to the Owner's server. Several, on several machines. Saves through the popup, the shortcut, the context menu, "Save tabs", and the browser's own star button. |
+| **Browser** | A browser profile with the Known extension, usually signed in to the Owner's server (rules made in the browser itself also work without one, AU-34). Several, on several machines. Saves through the popup, the shortcut, the context menu, "Save tabs", and the browser's own star button. |
 | **Agent** | An AI assistant the Owner connected over MCP (OAuth client or API key). Three roles in this pack: an **ordinary agent** (reads and organizes on request, unchanged), a **worker** (takes automation jobs: lists, claims, reads, submits), and a **hosted bot** (a worker on a hosted platform, for example a ChatGPT dot, that subscribes to MCP Events so the server can wake it). Each worker target has a wake mode: *events* (woken by the server, the default where possible) or *poll* (the agent checks on its own schedule, for example Claude Code on a routine or a script). |
 | **Rule** | Not a person, but it acts: "when a bookmark like this arrives, put it here, then ask this agent to do that". |
 
@@ -465,6 +481,7 @@ Real-world constraints that shape every story below:
 | AU-31 | Catalog enrichment with my own entity map and vocabulary | M4 | AC-30, AC-68 |
 | AU-32 | A weekly digest at a time I choose | Later | AC-29 |
 | AU-33 | Rules are in my backup and my export, and leave with me | M1 | AC-52, AC-67 |
+| AU-34 | File pages by my own rules in this browser, with or without a server | M1 | AC-69, AC-70, AC-71, AC-72, AC-73, AC-74 |
 
 ---
 
@@ -882,6 +899,23 @@ Tasks: AW-01, AW-09, AW-44, AW-63, AW-66. Tests: AC-52, AC-67. Example: [academi
 
 ---
 
+## H. Rules in this browser (M1)
+
+### AU-34 File pages by my own rules in this browser, with or without a server — M1
+**As the Owner**, I want to say "pages from arxiv.org go to Papers" right in the extension, without an account or a server, so that the simplest filing works the day I install it; and when I later connect a server that already has rules, I want to see where mine and the account's disagree and decide, instead of either side silently winning or being uploaded.
+
+Acceptance:
+1. Signed out, Options › Automations offers *New rule*. The editor asks *when* (site is / site ends with / title contains / URL path starts with, all or any) and *where* (any folder in this browser, synced or not). Rules can be turned off, changed and deleted there (AC-69).
+2. A page saved from the popup, the shortcut, the context menu or Save tabs that matches a rule is created in the rule's folder, offline too, with no account. Before Save the popup shows that folder marked "By rule"; a folder I pick myself wins. The saved line names the rule (AC-69).
+3. Signed in, an account rule that matches the page settles the save first; my browser rules file only pages no account rule matches. A browser rule's placement sends nothing to the server (AC-70).
+4. After I connect, Options › Automations shows, for each browser rule, whether the account already does the same, disagrees with it (with how many of this browser's bookmarks the two would file differently), or is unrelated. For a disagreement I choose *Keep both*, *Use the account's* or *Add mine to the account*; for a duplicate, *Remove*. The choice sticks until the account rule changes (AC-71).
+5. *Add mine to the account* opens the web editor filled in with the same name, conditions and folder; nothing is created until I save there, and turning it on still needs a preview. Once it is on and reaches this browser, the browser copy retires itself. A rule whose folder is not synced says so and stays in this browser (AC-72, AC-73).
+6. Disconnecting the server removes the account's rules, receipts and server status from this browser; my browser rules keep filing (AC-74).
+
+Tasks: AW-67, AW-68, AW-69, AW-70, AW-71, AW-72. Tests: AC-69, AC-70, AC-71, AC-72, AC-73, AC-74. Example: [browser-rule.json](examples/browser-rule.json).
+
+---
+
 ## Worked end-to-end narrative (M2 release proof)
 
 The Owner opens Academic in the web library, chooses "Automate…", adds the condition "site is arxiv.org", previews it against the last 200 bookmarks (three would have matched), and enables it. On the Agents page they turn on "Can run automation jobs" for the ChatGPT dot they connected last week; a target named Research appears with wake mode "Events" proposed, because the server runs on a public HTTPS origin. They copy the pairing code to the dot; it pairs and subscribes, and the target shows "Woken by events, subscription valid until tomorrow". Back in the rule, they add "write a summary into the note" and "add up to three tags" for Research and enable the new revision after a fresh preview.
@@ -1206,6 +1240,12 @@ Do not merge a behavior producer before its schema consumer and migrations. Keep
 | AW-51 | M1 | M | Backend: M1 placement receipts, explanation and conservative single-effect Undo | AW-10, AW-16, AW-17 | AU-13 |
 | AW-63 | M1 | M | Integration: independent M1 release gate, no M2 services | AW-12, AW-19, AW-20, AW-21, AW-33, AW-51, AW-66 | AU-01, AU-06, AU-07, AU-08, AU-09, AU-10, AU-11, AU-13, AU-14, AU-33 |
 | AW-66 | M1 | M | Backend M1 gate: configuration, canonical intake and restart proof without UI | AW-11, AW-17, AW-18, AW-33, AW-51 | AU-01, AU-09, AU-13, AU-14, AU-33 |
+| AW-67 | M1 | M | Keep browser rules and apply them at save, below the account's rules | AW-19, AW-21 | AU-34 |
+| AW-68 | M1 | M | Write and manage browser rules in Options › Automations | AW-54, AW-67 | AU-34 |
+| AW-69 | M1 | M | Review browser rules against the account's rules | AW-49, AW-68 | AU-34 |
+| AW-70 | M1 | S | Fill the web rule editor from a browser rule | AW-12 | AU-34 |
+| AW-71 | M1 | S | Move a browser rule to the account | AW-69, AW-70 | AU-34 |
+| AW-72 | M1 | S | Disconnect removes the account's automation data and keeps browser rules | AW-21, AW-67 | AU-34 |
 | AW-22 | M2 | M | Implement execution policy, budgets and output reuse | AW-10, AW-16 | AU-12, AU-15, AU-17, AU-20, AU-23 |
 | AW-23 | M2 | M | Implement job claims, heartbeat and uncertainty | AW-16, AW-22 | AU-15, AU-18, AU-20 |
 | AW-24 | M2 | L | Implement typed results and the effect gateway through change plans | AW-07, AW-23 | AU-15, AU-16, AU-17, AU-18, AU-19 |
@@ -2010,6 +2050,175 @@ Do not merge a behavior producer before its schema consumer and migrations. Keep
 **Done when:**
 - All selected backend assertions pass without importing Web or Chrome runtimes and without querying M2 execution-policy, target or Events tables.
 - No duplicate canonical move or destructive Undo occurs in the recorded restart and concurrency cases.
+
+#### AW-67 — Keep browser rules and apply them at save, below the account's rules — M
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-19, AW-21. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-67.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.; No star-button (observed-create) placement by browser rules in this packet; no server API.
+
+**Read first:**
+- `01-architecture.md`
+- `packages/extension/src/automation/pre-save.ts`
+- `packages/extension/src/sw/capture.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/browser-rules.ts`
+- `packages/extension/src/automation/browser-rule-store.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+- `packages/extension/src/automation/runtime-profile.ts`
+- `packages/extension/src/automation/pre-save.ts`
+- `packages/extension/src/automation/messages.ts`
+- `packages/extension/src/capture/contracts.ts`
+- `packages/extension/src/sw/capture.ts`
+- `packages/extension/src/sw/automation.ts`
+- `packages/extension/tests/automation-browser-rules.test.ts`
+- `packages/extension/tests/automation-worker-browser-rules.test.ts`
+
+**Steps:**
+1. Store browser rules (an M1 RuleDefinition with no collection scope, plus a native folder id, on/off and revision) in the automation IndexedDB store; validate with validateM1Rule and keep the evaluator's normalized values.
+2. Evaluate them with the shared core (evaluateLocalRules over native folders, priority 100) after the account bundle: any account outcome settles the save; otherwise a browser placement, keep, block or conflict is pinned on the capture task as a browser decision.
+3. The popup's match preview, the save line and tags-only local classification read the browser decision the same way; no receipt is written and nothing is sent. Keep a short local log of browser placements for Options.
+
+**Done when:**
+- A signed-out save, an offline save and a save into an unsynced folder are placed by a matching browser rule; an explicit folder wins.
+- With a matching account rule (placed, blocked or expired), browser rules are not consulted and the receipt path is unchanged.
+
+#### AW-68 — Write and manage browser rules in Options › Automations — M
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-54, AW-67. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-68.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.
+
+**Read first:**
+- `packages/extension/src/automation/options-pane.ts`
+- `packages/extension/src/library-folder-picker.ts`
+- `packages/extension/src/dialog.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/browser-rules-pane.ts`
+- `packages/extension/src/automation/options-pane.ts`
+- `packages/extension/options.html`
+- `packages/extension/options.css`
+- `packages/extension/_locales/en/messages.json`
+- `packages/extension/_locales/zh_CN/messages.json`
+- `packages/extension/scripts/shots-stub.mjs`
+- `packages/extension/tests/automation-browser-pane.test.ts`
+- `packages/extension/e2e/mv3-browser-rules.spec.ts`
+
+**Steps:**
+1. Signed out, the pane leads with This browser's rules and a quiet line about the account's rules; signed in, the account's status card and rules come first and This browser's rules follow.
+2. One dialog creates and edits a rule: name, when (site is, site ends with, title contains, URL path starts with; all or any) and where (the folder picker over this browser's folders). Rows read like the web's rule sentences, with an on/off switch, Edit and Delete.
+3. Browser placements join This browser's activity tab.
+
+**Done when:**
+- Happy-dom pane tests cover the signed-out, signed-in and empty states and the editor's validation; screenshots in en and zh_CN.
+- A real Chromium run under xvfb creates a rule in Options with no account and files an offline popup save into its folder.
+
+#### AW-69 — Review browser rules against the account's rules — M
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-49, AW-68. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-69.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.
+
+**Read first:**
+- `01-architecture.md`
+- `packages/extension/src/automation/binding-projector.ts`
+- `packages/extension/src/automation/runtime-profile.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/browser-overlap.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+- `packages/extension/src/automation/browser-rules-pane.ts`
+- `packages/extension/tests/automation-browser-overlap.test.ts`
+
+**Steps:**
+1. Label each browser rule against the bundle: duplicate, conflict, independent, local only, broken. Prove overlap with a witness page built from both rules' conditions; count it by replaying both sets over the most recent 2,000 bookmarks in this browser.
+2. Show one notice when a duplicate or an unreviewed conflict exists, and a review dialog with Keep both, Use the account's and Remove; remember the choice against the account rule's id, revision and binding revision.
+
+**Done when:**
+- Static and replay overlap agree on the fixture set; a changed account rule brings its conflict back.
+- No account rule or browser rule is changed by opening the review; only the Owner's choice changes a browser rule.
+
+#### AW-70 — Fill the web rule editor from a browser rule — S
+
+**Milestone:** M1. **Lane:** web. **Depends on:** AW-12. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-70.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.; No new API operation; the extension only links to the page.
+
+**Read first:**
+- `packages/web/src/pages/automations/ruleDraft.ts`
+- `packages/web/src/pages/automations/RuleEditor.tsx`
+
+**Files (new or modified):**
+- `packages/web/src/pages/automations/ruleDraft.ts`
+- `packages/web/src/pages/automations/RuleEditor.tsx`
+- `packages/web/src/pages/automations/ruleDraft.test.ts`
+- `packages/web/src/pages/automations/RuleEditor.test.tsx`
+
+**Steps:**
+1. /automations/new accepts name, combinator and repeated condition=kind:value parameters next to collectionId and folderId, and seeds the form from them. Unknown kinds and empty values are dropped; nothing is created until Save.
+
+**Done when:**
+- The editor opened from a browser rule shows its name, conditions and folder; Preview and Turn on behave as for any new rule.
+
+#### AW-71 — Move a browser rule to the account — S
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-69, AW-70. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-71.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.
+
+**Read first:**
+- `01-architecture.md`
+- `packages/extension/src/sw/automation.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/browser-rules.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+- `packages/extension/src/automation/browser-rules-pane.ts`
+- `packages/extension/src/sw/automation.ts`
+- `packages/extension/tests/automation-browser-move.test.ts`
+
+**Steps:**
+1. Add mine to the account is offered only for a rule whose folder has an authoritative Sync mapping; it opens the filled-in web editor and marks the rule as moving.
+2. After each bundle install, a moving rule that an enabled account rule duplicates retires itself; anything else leaves it in place.
+
+**Done when:**
+- Retirement happens only after the enabled duplicate is installed; a draft, a different rule or an unsynced folder leaves the browser rule working.
+
+#### AW-72 — Disconnect removes the account's automation data and keeps browser rules — S
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-21, AW-67. **Stories:** AU-34.
+
+**Handoff:** docs/automation/evidence/aw-72.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.
+
+**Read first:**
+- `03-user-stories.md`
+- `packages/extension/src/sw/auth.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/sw/auth.ts`
+- `packages/extension/src/sw/automation.ts`
+- `packages/extension/src/automation/indexeddb-store.ts`
+- `packages/extension/tests/automation-disconnect.test.ts`
+
+**Steps:**
+1. On sign-out, delete that account's bundle record, receipts, placement intents, server status, pause, device and badge state; leave browser rules and their log untouched.
+
+**Done when:**
+- AC-74: after disconnect the account's keys are gone and a browser rule still places a save.
 
 ### M2 — An agent finishes the job
 
@@ -3111,6 +3320,12 @@ New UI strings follow the existing localization practice of each surface (the ex
 | AC-66 | M3 | Output pagination/read race | Read through output A while B arrives | A marked read; B remains unread and visible on subsequent page |
 | AC-67 | M4 | Portable export authority stripping | Export and reinstall enabled source rule | No live target/collection IDs or secrets; reinstall is draft until rebinding and preview |
 | AC-68 | M4 | Research catalog predecessor inputs | Resolve accession then classify with metadata/folderDefinitions | Accepted predecessor evidence available; group destination confined to catalogRoot; ambiguity goes to review |
+| AC-69 | M1 | Browser rule with no account | Signed out, create a site rule in Options; save a matching page from the popup, also offline | Bookmark created directly in the rule's folder; popup showed it as By rule before Save; an explicit folder wins; no request reaches a server |
+| AC-70 | M1 | Account rules before browser rules | Signed in, save a page an account rule and a browser rule both match, then a page only the browser rule matches | First save follows the account rule's outcome and is receipted; second is filed by the browser rule with no receipt; paused or absent account rules leave browser rules working |
+| AC-71 | M1 | Overlap review on connect | Connect with browser rules that duplicate, conflict with, ignore, sit outside or lost their folder against the bundle | Each rule labelled duplicate/conflict/independent/local only/broken; conflict shows the replay count; Keep both, Use the account's and Remove persist and reappear when the account rule changes |
+| AC-72 | M1 | Web editor filled from a browser rule | Open /automations/new with collectionId, folderId, name, combinator and condition parameters | Form shows the name, conditions and folder; nothing is created before Save; unknown kinds and empty values are dropped |
+| AC-73 | M1 | Browser rule moves to the account | Choose Add mine to the account, enable the rule on the web, refresh the bundle | Browser copy retires only after the enabled duplicate arrives; a draft or a rule with other conditions leaves it in place; an unsynced folder cannot move |
+| AC-74 | M1 | Disconnect keeps browser rules | Disconnect with a bundle, receipts, intents, server status and browser rules present | The account's automation data is gone from the browser; browser rules remain and still place saves |
 
 ## 2. Test layers
 
@@ -3298,6 +3513,7 @@ Do not call a release complete because schemas parse, a webhook returned 200 or 
 | ADR-A21 (new) | Global pause above rule state; restore starts paused; daily caps hold tasks and never drop placement | Per-rule pause only; caps that drop |
 | ADR-A22 (new) | Server intake requires verified command/receipt disposition after any receipt grace period; timeout alone grants no placement authority; imports/restores/unknown intent are not automatically moved | Browser-only rules |
 | ADR-A23 (new, owner decision 2026-10-12) | The shared automation core is the `automation` subpath of the existing `@know-n/colp` package, marked optional and outside conformance | A new `@know-n/colp-automation` package |
+| ADR-A24 (new, owner decision 2026-10-14) | Browser rules are a local-first layer kept in one browser: explicit choice, then account rules, then browser rules, then the local classifier; an account-rule outcome settles the save; overlaps are reviewed on connect; a browser rule reaches the account only through the web editor, filled in, and retires when the enabled duplicate arrives; disconnect keeps browser rules (01 §7.5) | Server-only rules; uploading browser rules on connect; one merged arbitration over both sets; browser rules ahead of account rules |
 
 ## Release gates
 
@@ -3324,7 +3540,7 @@ Do not call a release complete because schemas parse, a webhook returned 200 or 
 | Q4 | Does the web have an i18n layer the new pages must use, or English only like the current pages? | Follow the existing pages | AW-12 |
 | Q5 | Should run-once be offered in M1 (placement only, no tasks) since imports are an M1 pain point? | Keep in M3; M1 preview covers "what would happen" | AW-12 review |
 | Q6 | Can the Go `known` CLI act as a polling worker, or is it a script-only path until the CLI ships for COLP Server? | A hosted bot proves events mode; a script and a Claude Code routine prove poll mode; CLI optional | AW-32 |
-| Q7 | Local-only rules without a server (extension users who never connect)? | Out of scope; bundle format must allow local authoring later | after M2 |
+| Q7 | Decided 2026-10-14 by the owner: rules made in the browser work without a server, as a layer below the account's rules (ADR-A24, AU-34) | — | AW-67 |
 | Q8 | Attribution format for summaries in the note ("Summary by Research, 12 Oct") and whether the note's existing text is preserved above or below | Append below a separator; never replace | AW-24 |
 | Q9 | Are automation plans counted in the agent's audit log (`/api/v1/me/agents/:id/audit`) as the agent's actions? | Yes, with the rule named | AW-24 |
 
@@ -3549,6 +3765,32 @@ Normalize nullable target partitions to an explicit sentinel for uniqueness; Pos
 | `docs/automation/m1-release-evidence.md` | AW-63 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `docs/automation/release-evidence.md` | AW-35 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `examples/worker-script/claim-and-summarize.mjs` | AW-32 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/_locales/en/messages.json` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/_locales/zh_CN/messages.json` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/e2e/mv3-browser-rules.spec.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/options.css` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/options.html` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/scripts/shots-stub.mjs` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-overlap.ts` | AW-69 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-rule-store.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-rules-pane.ts` | AW-68, AW-69, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-rules.ts` | AW-67, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/indexeddb-store.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/messages.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/options-pane.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/pre-save.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/runtime-profile.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/capture/contracts.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/auth.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/automation-browser.ts` | AW-67, AW-69, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/automation.ts` | AW-67, AW-71, AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/capture.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-browser-move.test.ts` | AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-browser-overlap.test.ts` | AW-69 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-browser-pane.test.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-browser-rules.test.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-disconnect.test.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-worker-browser-rules.test.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/node/docs/API.md` | AW-04 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/node/docs/AUTOMATION_BROWSER_PROFILE.md` | AW-03 | M0 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/node/docs/MCP_SDK_POLICY.md` | AW-27 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
@@ -3667,12 +3909,15 @@ Normalize nullable target partitions to an explicit sentinel for uniqueness; Pos
 | `packages/web/src/pages/automations/NeedsAttention.tsx` | AW-12 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/PreviewPanel.tsx` | AW-12 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/RuleDetail.tsx` | AW-34 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
-| `packages/web/src/pages/automations/RuleEditor.tsx` | AW-12 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/web/src/pages/automations/RuleEditor.test.tsx` | AW-70 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/web/src/pages/automations/RuleEditor.tsx` | AW-12, AW-70 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/RuleSentence.tsx` | AW-12 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/RunDetail.tsx` | AW-34, AW-45 | M2, M3 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/RunOnce.tsx` | AW-59 | M3 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/TemplateInstall.tsx` | AW-37 | M4 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/TemplateUpgrade.tsx` | AW-65 | M4 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/web/src/pages/automations/ruleDraft.test.ts` | AW-70 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/web/src/pages/automations/ruleDraft.ts` | AW-70 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 
 
 ## Import rules

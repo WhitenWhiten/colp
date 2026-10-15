@@ -153,6 +153,11 @@
       "detail": null
     },
     {
+      "name": "Example: browser-rule.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
       "name": "MCP subscription fixture",
       "status": "passed",
       "detail": null
@@ -292,6 +297,11 @@
       "detail": null
     },
     {
+      "name": "Offline graph/role/policy checks: browser-rule.json",
+      "status": "passed",
+      "detail": null
+    },
+    {
       "name": "Negative graph/role/privacy fixtures",
       "status": "passed",
       "detail": {
@@ -309,9 +319,9 @@
       "name": "Plan IDs / DAG / traceability / operation inventory",
       "status": "passed",
       "detail": {
-        "stories": 33,
-        "tasks": 66,
-        "acceptance_tests_planned": 68,
+        "stories": 34,
+        "tasks": 72,
+        "acceptance_tests_planned": 74,
         "http_operations": 67
       }
     },
@@ -319,7 +329,7 @@
       "name": "Markdown local links / code fences",
       "status": "passed",
       "detail": {
-        "local_markdown_links": 178
+        "local_markdown_links": 181
       }
     },
     {
@@ -350,8 +360,8 @@
       "name": "Single-lane files and no backend-to-frontend dependency",
       "status": "passed",
       "detail": {
-        "tasks": 66,
-        "single_lane_files": 154,
+        "tasks": 72,
+        "single_lane_files": 183,
         "backend_transitive_frontend_dependencies": 0
       }
     },

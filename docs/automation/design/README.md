@@ -15,13 +15,13 @@ A [single-file complete design book](COLP-Automations-Complete.md) is generated 
 
 | Document | What it contains |
 |---|---|
-| [03 User stories](03-user-stories.md) | 33 Owner, Browser and Agent stories with numbered acceptance, grouped by milestone; the worked M2 narrative |
+| [03 User stories](03-user-stories.md) | 34 Owner, Browser and Agent stories with numbered acceptance, grouped by milestone; the worked M2 narrative |
 | [01 Architecture](01-architecture.md) | Glossary, decisions, verified boundaries, deployment reality, scope by milestone, execution path, invariants |
 | [02 Rule contract](02-rule-contract.md) | Rule language, bindings, task contracts, validation, example inventory |
 | [04 API guide](04-api-guide.md) | Surfaces, verified session and CSRF scheme, errors, lifecycle sequences, operation inventory by milestone, repository integration |
 | [05 MCP Events](05-mcp-events.md) | Conditional tool catalog and the MCP Events wake-up path (M2), polling as the per-target alternative, re-verified platform facts |
-| [06 Implementation handbook](06-implementation-handbook.md) | Milestones M0–M4, how to work a packet, 66 work packets with Read first / Steps / Done when, generated from `tasks.json` |
-| [07 Acceptance and operations](07-acceptance-operations.md) | 68 planned acceptance tests, test layers, security matrix, matters needing attention, runbooks, flags, release checklist |
+| [06 Implementation handbook](06-implementation-handbook.md) | Milestones M0–M4, how to work a packet, 72 work packets with Read first / Steps / Done when, generated from `tasks.json` |
+| [07 Acceptance and operations](07-acceptance-operations.md) | 74 planned acceptance tests, test layers, security matrix, matters needing attention, runbooks, flags, release checklist |
 | [08 Evidence and decisions](08-evidence-and-decisions.md) | Verified repository facts R01–R27, external references, ADRs including the ten new ones, gates G1–G10, open questions Q1–Q9 |
 | [09 Data model](09-data-model.md) | Tables by milestone, transactions, state machines, retention, migration naming rule |
 | [10 Module and file map](10-module-file-map.md) | Every file each packet creates or modifies, generated from `tasks.json` |
@@ -41,6 +41,10 @@ python validation/validate.py        # schemas, examples, fixtures, links, plan 
 ```
 
 The validator checks shapes, references, supplied examples, a small semantic fixture suite, links and planning consistency. It is not the production evaluator and not an end-to-end test. No repository was modified by producing this pack.
+
+## Decided on 2026-10-14: rules in the browser (Q7)
+
+Rules made in the extension now work with no server, as a layer below the account's rules: explicit folder, then account rules, then browser rules, then the local classifier. Overlaps are reviewed when a server is connected, and a browser rule reaches the account only through the web editor. See [01 §7.5](01-architecture.md#75-browser-rules-adr-a24-au-34), ADR-A24, AU-34 and packets AW-67–AW-72.
 
 ## Review changes in 0.2.1-design
 

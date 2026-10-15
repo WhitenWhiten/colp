@@ -542,5 +542,53 @@
     "action": "Resolve accession then classify with metadata/folderDefinitions",
     "assertion": "Accepted predecessor evidence available; group destination confined to catalogRoot; ambiguity goes to review",
     "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-69",
+    "milestone": "M1",
+    "scenario": "Browser rule with no account",
+    "action": "Signed out, create a site rule in Options; save a matching page from the popup, also offline",
+    "assertion": "Bookmark created directly in the rule's folder; popup showed it as By rule before Save; an explicit folder wins; no request reaches a server",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-70",
+    "milestone": "M1",
+    "scenario": "Account rules before browser rules",
+    "action": "Signed in, save a page an account rule and a browser rule both match, then a page only the browser rule matches",
+    "assertion": "First save follows the account rule's outcome and is receipted; second is filed by the browser rule with no receipt; paused or absent account rules leave browser rules working",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-71",
+    "milestone": "M1",
+    "scenario": "Overlap review on connect",
+    "action": "Connect with browser rules that duplicate, conflict with, ignore, sit outside or lost their folder against the bundle",
+    "assertion": "Each rule labelled duplicate/conflict/independent/local only/broken; conflict shows the replay count; Keep both, Use the account's and Remove persist and reappear when the account rule changes",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-72",
+    "milestone": "M1",
+    "scenario": "Web editor filled from a browser rule",
+    "action": "Open /automations/new with collectionId, folderId, name, combinator and condition parameters",
+    "assertion": "Form shows the name, conditions and folder; nothing is created before Save; unknown kinds and empty values are dropped",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-73",
+    "milestone": "M1",
+    "scenario": "Browser rule moves to the account",
+    "action": "Choose Add mine to the account, enable the rule on the web, refresh the bundle",
+    "assertion": "Browser copy retires only after the enabled duplicate arrives; a draft or a rule with other conditions leaves it in place; an unsynced folder cannot move",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-74",
+    "milestone": "M1",
+    "scenario": "Disconnect keeps browser rules",
+    "action": "Disconnect with a bundle, receipts, intents, server status and browser rules present",
+    "assertion": "The account's automation data is gone from the browser; browser rules remain and still place saves",
+    "status": "planned_not_executed"
   }
 ]

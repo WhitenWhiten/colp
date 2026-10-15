@@ -276,7 +276,8 @@
     "path": "packages/web/src/pages/automations/RuleEditor.tsx",
     "lane": "web",
     "tasks": [
-      "AW-12"
+      "AW-12",
+      "AW-70"
     ],
     "repositoryState": "verifyAtAW01"
   },
@@ -1238,5 +1239,244 @@
       "AW-66"
     ],
     "repositoryState": "verifyAtAW01"
+  },
+  {
+    "path": "packages/extension/src/automation/browser-rules.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67",
+      "AW-71"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/browser-rule-store.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/sw/automation-browser.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67",
+      "AW-69",
+      "AW-71"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/runtime-profile.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/pre-save.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/messages.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/capture/contracts.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/sw/capture.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/sw/automation.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67",
+      "AW-71",
+      "AW-72"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-browser-rules.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-worker-browser-rules.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-67"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/browser-rules-pane.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-68",
+      "AW-69",
+      "AW-71"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/options-pane.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-68"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/options.html",
+    "lane": "extension",
+    "tasks": [
+      "AW-68"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/options.css",
+    "lane": "extension",
+    "tasks": [
+      "AW-68"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/_locales/en/messages.json",
+    "lane": "extension",
+    "tasks": [
+      "AW-68"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/_locales/zh_CN/messages.json",
+    "lane": "extension",
+    "tasks": [
+      "AW-68"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/scripts/shots-stub.mjs",
+    "lane": "extension",
+    "tasks": [
+      "AW-68"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-browser-pane.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-68"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/e2e/mv3-browser-rules.spec.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-68"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/browser-overlap.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-69"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-browser-overlap.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-69"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/web/src/pages/automations/ruleDraft.ts",
+    "lane": "web",
+    "tasks": [
+      "AW-70"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/web/src/pages/automations/ruleDraft.test.ts",
+    "lane": "web",
+    "tasks": [
+      "AW-70"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/web/src/pages/automations/RuleEditor.test.tsx",
+    "lane": "web",
+    "tasks": [
+      "AW-70"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-browser-move.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-71"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/sw/auth.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-72"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/indexeddb-store.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-72"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-disconnect.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-72"
+    ],
+    "repositoryState": "browserRulesOnMain"
   }
 ]

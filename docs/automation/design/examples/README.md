@@ -7,3 +7,5 @@ M1 uses m1-placement.json, m1-bindings.json and m1-rule-create.json with no targ
 research-catalog.json models an internal institutional research dataset archive. Its stable entity keys denote research groups, not people. In the fixture hierarchy, n_catalog_root contains n_materials_group and n_climate_group. The executor exec_archive is bound to target_archive with a dedicated restricted credential, no broadcast, and grants only the declared fields. Dataset accession, source evidence and accepted predecessor metadata drive mapping; missing or ambiguous identities require review. Every identifier is invented for testing.
 
 Portable templates use symbolic collectionSlot and targetSlots. Folder paths in a private export may still be confidential and must be scrubbed before publication. Imported templates never authorize themselves or activate automatically.
+
+browser-rule.json is a browser rule as the extension stores its definition (AU-34): the M1 placement shape with no collection scope. The extension keeps the destination as a native folder id next to it; nothing in it names a server.

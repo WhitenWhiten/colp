@@ -74,6 +74,12 @@
 | AC-66 | M3 | Output pagination/read race | Read through output A while B arrives | A marked read; B remains unread and visible on subsequent page |
 | AC-67 | M4 | Portable export authority stripping | Export and reinstall enabled source rule | No live target/collection IDs or secrets; reinstall is draft until rebinding and preview |
 | AC-68 | M4 | Research catalog predecessor inputs | Resolve accession then classify with metadata/folderDefinitions | Accepted predecessor evidence available; group destination confined to catalogRoot; ambiguity goes to review |
+| AC-69 | M1 | Browser rule with no account | Signed out, create a site rule in Options; save a matching page from the popup, also offline | Bookmark created directly in the rule's folder; popup showed it as By rule before Save; an explicit folder wins; no request reaches a server |
+| AC-70 | M1 | Account rules before browser rules | Signed in, save a page an account rule and a browser rule both match, then a page only the browser rule matches | First save follows the account rule's outcome and is receipted; second is filed by the browser rule with no receipt; paused or absent account rules leave browser rules working |
+| AC-71 | M1 | Overlap review on connect | Connect with browser rules that duplicate, conflict with, ignore, sit outside or lost their folder against the bundle | Each rule labelled duplicate/conflict/independent/local only/broken; conflict shows the replay count; Keep both, Use the account's and Remove persist and reappear when the account rule changes |
+| AC-72 | M1 | Web editor filled from a browser rule | Open /automations/new with collectionId, folderId, name, combinator and condition parameters | Form shows the name, conditions and folder; nothing is created before Save; unknown kinds and empty values are dropped |
+| AC-73 | M1 | Browser rule moves to the account | Choose Add mine to the account, enable the rule on the web, refresh the bundle | Browser copy retires only after the enabled duplicate arrives; a draft or a rule with other conditions leaves it in place; an unsynced folder cannot move |
+| AC-74 | M1 | Disconnect keeps browser rules | Disconnect with a bundle, receipts, intents, server status and browser rules present | The account's automation data is gone from the browser; browser rules remain and still place saves |
 
 ## 2. Test layers
 

@@ -43,6 +43,32 @@
 | `docs/automation/m1-release-evidence.md` | AW-63 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `docs/automation/release-evidence.md` | AW-35 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `examples/worker-script/claim-and-summarize.mjs` | AW-32 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/_locales/en/messages.json` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/_locales/zh_CN/messages.json` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/e2e/mv3-browser-rules.spec.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/options.css` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/options.html` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/scripts/shots-stub.mjs` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-overlap.ts` | AW-69 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-rule-store.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-rules-pane.ts` | AW-68, AW-69, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-rules.ts` | AW-67, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/indexeddb-store.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/messages.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/options-pane.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/pre-save.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/runtime-profile.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/capture/contracts.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/auth.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/automation-browser.ts` | AW-67, AW-69, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/automation.ts` | AW-67, AW-71, AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/capture.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-browser-move.test.ts` | AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-browser-overlap.test.ts` | AW-69 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-browser-pane.test.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-browser-rules.test.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-disconnect.test.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-worker-browser-rules.test.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/node/docs/API.md` | AW-04 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/node/docs/AUTOMATION_BROWSER_PROFILE.md` | AW-03 | M0 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/node/docs/MCP_SDK_POLICY.md` | AW-27 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
@@ -161,12 +187,15 @@
 | `packages/web/src/pages/automations/NeedsAttention.tsx` | AW-12 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/PreviewPanel.tsx` | AW-12 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/RuleDetail.tsx` | AW-34 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
-| `packages/web/src/pages/automations/RuleEditor.tsx` | AW-12 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/web/src/pages/automations/RuleEditor.test.tsx` | AW-70 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/web/src/pages/automations/RuleEditor.tsx` | AW-12, AW-70 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/RuleSentence.tsx` | AW-12 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/RunDetail.tsx` | AW-34, AW-45 | M2, M3 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/RunOnce.tsx` | AW-59 | M3 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/TemplateInstall.tsx` | AW-37 | M4 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/web/src/pages/automations/TemplateUpgrade.tsx` | AW-65 | M4 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/web/src/pages/automations/ruleDraft.test.ts` | AW-70 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/web/src/pages/automations/ruleDraft.ts` | AW-70 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 
 
 ## Import rules
