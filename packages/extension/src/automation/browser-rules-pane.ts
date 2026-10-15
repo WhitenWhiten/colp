@@ -35,6 +35,9 @@ function badge(label: string, tone?: 'warning'): HTMLElement {
   return node;
 }
 
+/** Signed in to a server with a web editor: a new rule may be for all the account's devices (follow-up U2). */
+export const offersAccountRules = (view: AutomationStateView): boolean => view.account === 'signedIn' && Boolean(view.webUrl);
+
 /** The section: a list of this browser's rules, or the first-visit empty state. */
 export function browserRulesGroup(view: AutomationStateView): HTMLElement {
   const section = el('section', undefined, 'set-group automation-browser');
@@ -60,7 +63,7 @@ export function browserRulesGroup(view: AutomationStateView): HTMLElement {
   if (!view.browserRules.length) {
     const card = el('div', undefined, 'set-card');
     const make = button(t('automation_newRule', 'New rule'), view.account === 'signedIn' ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm');
-    make.addEventListener('click', () => openBrowserRuleEditor(null, make));
+    make.addEventListener('click', () => openBrowserRuleEditor(null, make, { account: offersAccountRules(view) }));
     card.append(emptyBlock({ icon: 'bolt', title: t('automation_browserEmptyTitle', 'No rules in this browser yet'),
       hint: t('automation_browserEmptyHint', 'Tell Know-N once that pages from arxiv.org go to Papers, and each one you save lands there.'), action: make }));
     section.append(card);
@@ -281,10 +284,20 @@ function problemCopy(problem: DraftProblem): string {
  * optional name. The worker checks the draft; its problems land on the field
  * they are about.
  */
-export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLElement | null): void {
+export interface EditorOptions {
+  /** A new rule may be for all the account's devices; it is then made on the web, filled in from here. */
+  readonly account?: boolean;
+  /** What a new rule starts as when both are offered. */
+  readonly use?: 'browser' | 'account';
+}
+
+export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLElement | null, options: EditorOptions = {}): void {
   const draft = rule?.draft ?? null;
+  // One New rule for both kinds: where it is used is the first thing asked, and only when there is a choice.
+  const offerAccount = !rule && options.account === true;
+  let use: 'browser' | 'account' = offerAccount && options.use === 'account' ? 'account' : 'browser';
   const { dialog, body, actions } = createDialog(rule ? t('automation_browserEditTitle', 'Edit rule')
-    : t('automation_browserNewTitle', 'New rule in this browser'), 'automation-rule-editor');
+    : offerAccount ? t('automation_newRule', 'New rule') : t('automation_browserNewTitle', 'New rule in this browser'), 'automation-rule-editor');
   const form = el('form'); form.className = 'automation-rule-form'; form.noValidate = true;
   const failure = el('p', undefined, 'form-error'); failure.setAttribute('role', 'alert'); failure.hidden = true;
   const cancel = dialogButton(t('common_cancel', 'Cancel'));
@@ -360,8 +373,30 @@ export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HT
   list.addEventListener('input', suggest); suggest();
   nameField.append(nameLabel, name, nameError);
 
-  body.append(when, where, nameField,
-    el('p', t('automation_browserEditorHint', 'Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. A folder you pick when saving always wins.'), 'mgr-hint'));
+  const hint = el('p', undefined, 'mgr-hint');
+  const useOn = el('fieldset', undefined, 'form-field automation-use-on'); useOn.hidden = !offerAccount;
+  const choices = el('div', undefined, 'choice-pair');
+  const group = `automation-use-${crypto.randomUUID()}`;
+  const choice = (value: 'browser' | 'account', title: string, detail: string) => {
+    const label = el('label', undefined, 'choice');
+    const input = el('input'); input.type = 'radio'; input.name = group; input.value = value; input.checked = use === value;
+    input.addEventListener('change', () => { if (input.checked) { use = value; paintUse(); } });
+    label.append(input, el('span', title, 'choice-title'), el('span', detail, 'choice-hint'));
+    return label;
+  };
+  choices.append(
+    choice('browser', t('automation_useBrowser', 'This browser'), t('automation_useBrowserHint', 'Works right away, even offline. Your other devices don’t get it.')),
+    choice('account', t('automation_useAccount', 'All my devices'), t('automation_useAccountHint', 'Your account’s rule. You preview it and turn it on on the web. Its folder must be synced.')));
+  useOn.append(el('legend', t('automation_useOn', 'Use it on'), 'form-label'), choices);
+  function paintUse(): void {
+    save.textContent = rule ? t('common_save', 'Save') : use === 'account' ? t('automation_continueOnWeb', 'Continue on the web') : t('automation_browserCreate', 'Save rule');
+    hint.textContent = use === 'account'
+      ? t('automation_accountEditorHint', 'The web editor opens filled in with this rule. Nothing changes until you turn it on there.')
+      : t('automation_browserEditorHint', 'Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. A folder you pick when saving always wins.');
+    folderError.hidden = true; failure.hidden = true;
+  }
+  paintUse();
+  body.append(useOn, when, where, nameField, hint);
 
   async function loadFolders(): Promise<void> {
     let granted = false;
@@ -413,11 +448,32 @@ export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HT
     if (!next.folderNativeId) local.push({ field: 'folder', code: 'required' });
     if (local.length) { show(local); return; }
     save.disabled = true;
+    if (use === 'account') {
+      // Nothing is stored here: the web editor opens with this draft, and the account's rule is made there.
+      void send({ kind: 'known.automation.browser.forAccount', draft: next }).then((reply) => {
+        save.disabled = false;
+        if (reply.ok && 'url' in reply) {
+          window.open(reply.url, '_blank', 'noopener');
+          dialog.close();
+          showToast(t('automation_newOnWeb', 'Finish on the web: preview the rule and turn it on.'), 'info', { announce: true });
+          return;
+        }
+        if (!reply.ok && reply.error === 'notSynced') {
+          folderError.textContent = t('automation_folderNotSynced', 'This folder isn’t synced, so your other devices don’t have it. Choose a synced folder, or use the rule in this browser.');
+          folderError.hidden = false; picker.pill.focus(); return;
+        }
+        if (!reply.ok && reply.problems?.length) { show(reply.problems); return; }
+        failure.textContent = !reply.ok && reply.error === 'signedOut' ? t('automation_signInForAccount', 'Sign in to make a rule for all your devices.')
+          : t('automation_browserSaveFailed', 'Couldn’t save this rule. Try again.');
+        failure.hidden = false;
+      });
+      return;
+    }
     void send({ kind: 'known.automation.browser.save', ...(rule ? { id: rule.id } : {}), draft: next }).then((reply) => {
       save.disabled = false;
       if (reply.ok) {
         dialog.close();
-        showToast(t('automation_browserSaved', 'Saved “$1”.', reply.rule?.definition.name ?? next.name), 'ok', { announce: true });
+        showToast(t('automation_browserSaved', 'Saved “$1”.', 'rule' in reply ? reply.rule?.definition.name ?? next.name : next.name), 'ok', { announce: true });
         return;
       }
       if (reply.problems?.length) { show(reply.problems); return; }

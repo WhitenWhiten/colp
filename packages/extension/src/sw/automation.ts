@@ -22,7 +22,7 @@ import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
 import { browserPlacementViews, browserPreSaveDecision, browserRuleViews, recordBrowserPlacement, retireMovedBrowserRules,
-  type AccountRuleForOverlap, type BrowserPreSaveDecision } from './automation-browser.js';
+  type AccountLink, type AccountRuleForOverlap, type BrowserPreSaveDecision } from './automation-browser.js';
 import { mappingLooksAuthoritative } from '../save-status.js';
 import { t } from '../i18n.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState } from './runtime.js';
@@ -358,6 +358,23 @@ async function paintDigestBadge(owner: AutomationOwner | null, restore = false):
   await showAutomationBadge({ title: (changed || restore) && !feedback });
 }
 
+/** A folder here by its identity in the account's synced collection, once Sync has confirmed it. */
+async function linkFor(owner: AutomationOwner, webUrl: string | null): Promise<AccountLink> {
+  const scope = await currentSyncScope().catch(() => null);
+  return { webUrl, async canonical(nativeId) {
+    if (!scope || scope.accountId !== owner.accountId) return null;
+    const mapping = await syncState.getMappingByNativeId(scope, nativeId);
+    return mapping && mappingLooksAuthoritative(mapping) && (mapping.nodeKind === undefined || mapping.nodeKind === 'folder')
+      ? { collectionId: scope.collectionId, nodeId: mapping.colpId } : null;
+  } };
+}
+
+/** The signed-in account's link for a browser rule command (a new rule for all devices); null when signed out. */
+export async function accountLink(): Promise<AccountLink | null> {
+  const owner = await currentOwner();
+  return owner ? linkFor(owner, webUrlFor(owner.serverOrigin)) : null;
+}
+
 export async function automationStateView(): Promise<AutomationStateView> {
   const owner = await currentOwner();
   const config = await loadConfig().catch(() => null);
@@ -372,14 +389,7 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
   // Signed in, each browser rule is compared with the account's rules in force here, and may move to the account.
-  const scope = await currentSyncScope().catch(() => null);
-  const browserRules = await browserRuleViews({ account: await accountRulesForOverlap(record, now), webUrl,
-    async canonical(nativeId) {
-      if (!scope || scope.accountId !== owner.accountId) return null;
-      const mapping = await syncState.getMappingByNativeId(scope, nativeId);
-      return mapping && mappingLooksAuthoritative(mapping) && (mapping.nodeKind === undefined || mapping.nodeKind === 'folder')
-        ? { collectionId: scope.collectionId, nodeId: mapping.colpId } : null;
-    } });
+  const browserRules = await browserRuleViews({ account: await accountRulesForOverlap(record, now), ...await linkFor(owner, webUrl) });
   const pause = (await chrome.storage.local.get(PAUSE_KEY))[PAUSE_KEY] as { ownerKey?: string; pausedAt?: string | null; pausedBy?: AutomationStateView['pausedBy'] } | undefined;
   const pauseKnown = current.state === 'paused' && pause?.ownerKey === automationOwnerKey(owner);
   const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;

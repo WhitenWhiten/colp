@@ -90,8 +90,8 @@ describe('Rules in this browser on the page', () => {
     expect(Array.from(body.children).map((node) => node.getAttribute('aria-labelledby'))).toEqual(['automation-status-title',
       'automation-rules-heading', 'automation-browser-heading']);
     expect(text(body.querySelector('#automation-rules-heading'))).toBe('Your account’s rules');
-    expect(body.querySelector<HTMLAnchorElement>('[aria-labelledby="automation-rules-heading"] .automation-group-head a')!.href)
-      .toBe('https://colp.example/automations/new');
+    // One New rule for the page (U2): the account's section has no second one.
+    expect(body.querySelector('[aria-labelledby="automation-rules-heading"] .automation-group-head a, [aria-labelledby="automation-rules-heading"] .automation-group-head button')).toBeNull();
   });
 
   it('offer the first rule when there is none', async () => {
@@ -259,5 +259,71 @@ describe('moving a rule to the account (AW-71)', () => {
     expect(sent).toEqual([{ kind: 'known.automation.browser.moving', id: 'b-1' }]);
     await vi.waitFor(() => expect(text(item.querySelector('.automation-review-done')))
       .toBe('Opened on the web. Preview it there and turn it on; this browser then stops using its copy.'));
+  });
+});
+
+describe('one New rule for both kinds (U2)', () => {
+  const signedIn = (over: Partial<AutomationStateView> = {}) => view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations', ...over });
+  const useOn = () => Array.from(editor().querySelectorAll<HTMLInputElement>('.automation-use-on input[type="radio"]'));
+  const fill = async () => {
+    editor().querySelector<HTMLInputElement>('.automation-condition input')!.value = 'arxiv.org';
+    editor().querySelector<HTMLButtonElement>('.folder-pill')!.click();
+    await vi.waitFor(() => expect(editor().querySelector('.folder-opt[data-folder-id="f-papers"]')).not.toBeNull());
+    editor().querySelector<HTMLElement>('.folder-opt[data-folder-id="f-papers"]')!.click();
+  };
+
+  it('asks where the rule is used when signed in, starting with this browser', async () => {
+    await render(signedIn());
+    document.querySelector<HTMLButtonElement>('[data-automations-new]')!.click();
+    expect(text(editor().querySelector('h3'))).toBe('New rule');
+    expect(useOn().map((input) => [input.value, input.checked])).toEqual([['browser', true], ['account', false]]);
+    expect(text(editor().querySelector('button[type="submit"]'))).toBe('Save rule');
+    useOn()[1]!.click();
+    expect(text(editor().querySelector('button[type="submit"]'))).toBe('Continue on the web');
+    expect(text(editor().querySelector('.mgr-hint'))).toBe('The web editor opens filled in with this rule. Nothing changes until you turn it on there.');
+  });
+
+  it('does not ask when signed out, or when editing this browser’s rule', async () => {
+    await render(view());
+    document.querySelector<HTMLButtonElement>('[data-automations-new]')!.click();
+    expect(editor().querySelector<HTMLElement>('.automation-use-on')!.hidden).toBe(true);
+    expect(text(editor().querySelector('h3'))).toBe('New rule in this browser');
+    editor().close();
+    await render(signedIn());
+    document.querySelector<HTMLElement>('.automation-browser-rule .list-row-title')!.click();
+    expect(editor().querySelector<HTMLElement>('.automation-use-on')!.hidden).toBe(true);
+  });
+
+  it('opens the web editor filled in for all devices, and stores nothing here', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    reply = (message) => message.kind === 'known.automation.browser.forAccount' ? { ok: true, url: 'https://colp.example/automations/new?from=browser' } : { ok: true, rule: null };
+    await render(signedIn());
+    document.querySelector<HTMLButtonElement>('[data-automations-new]')!.click();
+    useOn()[1]!.click();
+    await fill();
+    submit();
+    await vi.waitFor(() => expect(open).toHaveBeenCalledWith('https://colp.example/automations/new?from=browser', '_blank', 'noopener'));
+    expect(sent).toEqual([{ kind: 'known.automation.browser.forAccount',
+      draft: { name: 'arxiv.org → Papers', combinator: 'all', folderNativeId: 'f-papers', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] } }]);
+    expect(document.querySelector('dialog.automation-rule-editor')).toBeNull();
+    expect(text(document.querySelector('.toast'))).toContain('Finish on the web: preview the rule and turn it on.');
+  });
+
+  it('says so on the folder when it is not synced', async () => {
+    reply = () => ({ ok: false, error: 'notSynced' });
+    await render(signedIn());
+    document.querySelector<HTMLButtonElement>('[data-automations-new]')!.click();
+    useOn()[1]!.click();
+    await fill();
+    submit();
+    await vi.waitFor(() => expect(text(editor().querySelector('.form-field .form-error:not([hidden])'))).toBe(
+      'This folder isn’t synced, so your other devices don’t have it. Choose a synced folder, or use the rule in this browser.'));
+  });
+
+  it('starts at all devices from the account’s empty section', async () => {
+    const body = await render(signedIn({ state: 'none' }));
+    body.querySelector<HTMLButtonElement>('[aria-labelledby="automation-rules-heading"] .empty button')!.click();
+    expect(useOn().map((input) => input.checked)).toEqual([false, true]);
+    expect(text(editor().querySelector('button[type="submit"]'))).toBe('Continue on the web');
   });
 });

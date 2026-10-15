@@ -110,6 +110,9 @@
   "auth_youreSignedNowChoose": {
     "message": "You're signed in — now choose where this browser syncs."
   },
+  "automation_accountEditorHint": {
+    "message": "The web editor opens filled in with this rule. Nothing changes until you turn it on there."
+  },
   "automation_accountRules": {
     "message": "Your account’s rules"
   },
@@ -275,6 +278,9 @@
   "automation_conditionValue": {
     "message": "Value"
   },
+  "automation_continueOnWeb": {
+    "message": "Continue on the web"
+  },
   "automation_digestAsOf": {
     "message": "as of $1"
   },
@@ -362,6 +368,9 @@
   "automation_explainWaitingToPlace": {
     "message": "Waiting to move it into the rule’s folder."
   },
+  "automation_folderNotSynced": {
+    "message": "This folder isn’t synced, so your other devices don’t have it. Choose a synced folder, or use the rule in this browser."
+  },
   "automation_freshnessHint": {
     "message": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
   },
@@ -431,6 +440,9 @@
   "automation_newDigests_other": {
     "message": "$1 new digests"
   },
+  "automation_newOnWeb": {
+    "message": "Finish on the web: preview the rule and turn it on."
+  },
   "automation_newResults_one": {
     "message": "$1 new result from your automations"
   },
@@ -440,11 +452,8 @@
   "automation_newRule": {
     "message": "New rule"
   },
-  "automation_newRuleWeb": {
-    "message": "New rule on the web"
-  },
   "automation_noAccountRulesHint": {
-    "message": "On the web, open a folder and choose Automate… to file pages from a site there, on every device."
+    "message": "An account rule files pages on every device signed in to your account."
   },
   "automation_noAccountRulesTitle": {
     "message": "No account rules here yet"
@@ -749,6 +758,9 @@
   "automation_serverUpdatedAt": {
     "message": "Updated $1."
   },
+  "automation_signInForAccount": {
+    "message": "Sign in to make a rule for all your devices."
+  },
   "automation_statusNoneHint": {
     "message": "No rules have reached this browser yet."
   },
@@ -790,6 +802,21 @@
   },
   "automation_updatedAt": {
     "message": "Updated $1."
+  },
+  "automation_useAccount": {
+    "message": "All my devices"
+  },
+  "automation_useAccountHint": {
+    "message": "Your account’s rule. You preview it and turn it on on the web. Its folder must be synced."
+  },
+  "automation_useBrowser": {
+    "message": "This browser"
+  },
+  "automation_useBrowserHint": {
+    "message": "Works right away, even offline. Your other devices don’t get it."
+  },
+  "automation_useOn": {
+    "message": "Use it on"
   },
   "automation_whenPage": {
     "message": "When a page"

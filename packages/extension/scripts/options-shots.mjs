@@ -82,6 +82,10 @@ const STATES = [
     await p.click('.automation-rule-editor button[type="submit"]'); await p.waitForTimeout(300); }, false],
   ['automations-browser-edit', 'options.html?shot=signedout#automations', async (p) => { await p.click('.automation-browser-rule >> nth=1'); await p.waitForTimeout(500);
     await p.click('.automation-rule-editor .folder-pill'); await p.waitForTimeout(300); }, false],
+  // One New rule, signed in (follow-up U2): where the rule is used comes first.
+  ['automations-new-signedin', 'options.html#automations', async (p) => { await p.click('[data-automations-new]'); await p.waitForTimeout(500); }, false],
+  ['automations-new-account', 'options.html#automations', async (p) => { await p.click('[data-automations-new]'); await p.waitForTimeout(400);
+    await p.click('.automation-use-on .choice >> nth=1'); await p.waitForTimeout(300); }, false],
   // Next to the account's rules (AW-69): the notice and badges, then the review.
   ['automations-browser-overlap', 'options.html?shot=browser-overlap#automations'],
   ['automations-browser-review', 'options.html?shot=browser-overlap#automations', async (p) => { await p.click('.automation-browser .inline-alert button');

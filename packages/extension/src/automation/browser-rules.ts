@@ -130,7 +130,7 @@ export function checkBrowserDraft(draft: BrowserRuleDraft): { readonly ok: true;
 }
 
 /** The editor's form for a stored rule; null when its conditions have no short form (never written by this editor). */
-export function draftFromRule(rule: BrowserRule): BrowserRuleDraft | null {
+export function draftFromRule(rule: Pick<BrowserRule, 'definition' | 'folderNativeId'>): BrowserRuleDraft | null {
   const match = ruleMatchView(rule.definition.match);
   if (!match || match.conditions.some((condition) => condition.kind === 'hasTag')) return null;
   return { name: rule.definition.name, combinator: match.combinator, folderNativeId: rule.folderNativeId,
@@ -141,7 +141,8 @@ export function draftFromRule(rule: BrowserRule): BrowserRuleDraft | null {
  * The web editor filled in with this rule (AW-70): the same name and conditions, and its folder by the
  * canonical identity Sync gave it. Null for a rule the editor cannot show.
  */
-export function accountEditorUrl(webUrl: string, rule: BrowserRule, folder: { readonly collectionId: string; readonly nodeId: string }): string | null {
+export function accountEditorUrl(webUrl: string, rule: Pick<BrowserRule, 'definition' | 'folderNativeId'>,
+  folder: { readonly collectionId: string; readonly nodeId: string }): string | null {
   const draft = draftFromRule(rule);
   if (!draft) return null;
   const url = new URL(`${webUrl.replace(/\/$/u, '')}/new`);

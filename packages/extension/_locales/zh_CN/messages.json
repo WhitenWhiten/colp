@@ -139,6 +139,10 @@
     "message": "已登录，接下来请选择此浏览器同步的内容。",
     "description": "You're signed in — now choose where this browser syncs."
   },
+  "automation_accountEditorHint": {
+    "message": "网页编辑器会打开并填好这条规则。在那里开启之前，什么都不会改变。",
+    "description": "The web editor opens filled in with this rule. Nothing changes until you turn it on there."
+  },
   "automation_accountRules": {
     "message": "你账户的规则",
     "description": "Your account’s rules"
@@ -359,6 +363,10 @@
     "message": "值",
     "description": "Value"
   },
+  "automation_continueOnWeb": {
+    "message": "在网页上继续",
+    "description": "Continue on the web"
+  },
   "automation_digestAsOf": {
     "message": "截至$1",
     "description": "as of $1"
@@ -475,6 +483,10 @@
     "message": "等待移入规则的文件夹。",
     "description": "Waiting to move it into the rule’s folder."
   },
+  "automation_folderNotSynced": {
+    "message": "这个文件夹没有同步，你的其他设备上没有它。请选择已同步的文件夹，或只在此浏览器中使用这条规则。",
+    "description": "This folder isn’t synced, so your other devices don’t have it. Choose a synced folder, or use the rule in this browser."
+  },
   "automation_freshnessHint": {
     "message": "此浏览器每 5 分钟检查一次。离线时会一直使用本地副本，直到 $1；你在网页上暂停后，下次检查时这里就会生效。",
     "description": "This browser checks every 5 minutes. Offline, it keeps using its copy until $1, and a pause you make on the web reaches it at the next check."
@@ -567,6 +579,10 @@
     "message": "$1 份新摘要",
     "description": "$1 new digests"
   },
+  "automation_newOnWeb": {
+    "message": "请在网页上完成：预览这条规则并开启它。",
+    "description": "Finish on the web: preview the rule and turn it on."
+  },
   "automation_newResults_one": {
     "message": "$1 项新的自动化结果",
     "description": "$1 new result from your automations"
@@ -579,13 +595,9 @@
     "message": "新建规则",
     "description": "New rule"
   },
-  "automation_newRuleWeb": {
-    "message": "在网页上新建规则",
-    "description": "New rule on the web"
-  },
   "automation_noAccountRulesHint": {
-    "message": "在网页上打开一个文件夹并选择“自动化…”，即可在每台设备上把某个网站的网页归档到那里。",
-    "description": "On the web, open a folder and choose Automate… to file pages from a site there, on every device."
+    "message": "账户规则会在每台登录了你账户的设备上为网页归档。",
+    "description": "An account rule files pages on every device signed in to your account."
   },
   "automation_noAccountRulesTitle": {
     "message": "这里还没有账户规则",
@@ -983,6 +995,10 @@
     "message": "$1更新。",
     "description": "Updated $1."
   },
+  "automation_signInForAccount": {
+    "message": "登录后才能创建适用于所有设备的规则。",
+    "description": "Sign in to make a rule for all your devices."
+  },
   "automation_statusNoneHint": {
     "message": "此浏览器还没有收到任何规则。",
     "description": "No rules have reached this browser yet."
@@ -1034,6 +1050,26 @@
   "automation_updatedAt": {
     "message": "$1更新。",
     "description": "Updated $1."
+  },
+  "automation_useAccount": {
+    "message": "我的所有设备",
+    "description": "All my devices"
+  },
+  "automation_useAccountHint": {
+    "message": "这是你账户的规则。你会在网页上预览并开启它。它的文件夹必须已同步。",
+    "description": "Your account’s rule. You preview it and turn it on on the web. Its folder must be synced."
+  },
+  "automation_useBrowser": {
+    "message": "此浏览器",
+    "description": "This browser"
+  },
+  "automation_useBrowserHint": {
+    "message": "立即生效，离线也可用。你的其他设备不会有它。",
+    "description": "Works right away, even offline. Your other devices don’t get it."
+  },
+  "automation_useOn": {
+    "message": "用于",
+    "description": "Use it on"
   },
   "automation_whenPage": {
     "message": "当网页",

@@ -39,7 +39,7 @@ vi.mock('../src/automation/device-client.js', () => ({ fetchRuleBundle: async ()
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => f.scope }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 
-import { automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation, rulesDecision } from '../src/sw/automation.js';
+import { accountLink, automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation, rulesDecision } from '../src/sw/automation.js';
 import { browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
@@ -126,6 +126,23 @@ describe('Options’ commands', () => {
     expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.remove', id: rule!.id })).toEqual({ ok: false, error: 'notFound' });
   });
 
+  it('fill in the web editor for a rule on all devices, from a synced folder only, and store nothing here', async () => {
+    const forAccount = (folderNativeId: string) => handleBrowserRuleCommand({ kind: 'known.automation.browser.forAccount',
+      draft: draft({ name: 'arxiv.org → Academic', folderNativeId }) }, accountLink);
+    const before = await browserRuleStore().list();
+    expect(await forAccount('10')).toEqual({ ok: false, error: 'signedOut' });
+    f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' };
+    const reply = await forAccount('10');
+    expect(reply.ok && 'url' in reply ? Object.fromEntries(new URL(reply.url).searchParams) : reply).toEqual({ collectionId: 'c_personal',
+      folderId: 'academic', name: 'arxiv.org → Academic', combinator: 'all', condition: 'siteIs:arxiv.org', from: 'browser' });
+    // Papers is a folder here that Sync has not mapped.
+    expect(await forAccount('30')).toEqual({ ok: false, error: 'notSynced' });
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.forAccount',
+      draft: draft({ conditions: [{ kind: 'siteIs', value: 'not a host' }], folderNativeId: '10' }) }, accountLink))
+      .toEqual({ ok: false, error: 'invalid', problems: [{ field: 'condition', index: 0, code: 'invalidHost' }] });
+    expect(await browserRuleStore().list()).toEqual(before);
+  });
+
   it('are accepted only in their exact shape', () => {
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft() })).toBe(true);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', id: 'b-1', draft: draft(), enabled: false })).toBe(true);
@@ -136,6 +153,9 @@ describe('Options’ commands', () => {
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.remove', id: 'b 1' })).toBe(false);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.review', id: 'b-1', accountRuleId: 'rule-arxiv', key: '4:1' })).toBe(true);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.review', id: 'b-1', accountRuleId: '', key: '4:1' })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.forAccount', draft: draft() })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.forAccount', draft: draft(), id: 'b-1' })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.forAccount', draft: { ...draft(), extra: 1 } })).toBe(false);
   });
 });
 

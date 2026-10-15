@@ -1,5 +1,6 @@
 import { createBrowserRuleStore, type BrowserRuleStore } from '../automation/browser-rule-store.js';
-import { accountEditorUrl, decideBrowserRules, draftFromRule, type BrowserDecision, type FolderLookup } from '../automation/browser-rules.js';
+import { accountEditorUrl, checkBrowserDraft, decideBrowserRules, draftFromRule, type BrowserDecision, type BrowserRuleDraft,
+  type FolderLookup } from '../automation/browser-rules.js';
 import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
 import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '../automation/browser-overlap.js';
 import type { AutomationPlacementView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse, BrowserRuleView } from '../automation/messages.js';
@@ -84,13 +85,16 @@ async function recentPages(): Promise<Page[]> {
   return nodes.filter((node) => typeof node.url === 'string').map((node) => ({ url: node.url!, title: node.title }));
 }
 
-/** What a signed-in page adds to the view: the account's rules here and how a folder here is named in Sync. */
-export interface AccountContext {
-  readonly account: readonly AccountRuleForOverlap[];
+/** How a folder here is named in the signed-in account's synced collection, and where its web editor is. */
+export interface AccountLink {
   /** The web Automations page of the connected server. */
   readonly webUrl: string | null;
   /** The synced collection's identity of a folder here; null when it is not (yet) synced. */
   canonical(nativeId: string): Promise<{ readonly collectionId: string; readonly nodeId: string } | null>;
+}
+/** What a signed-in page adds to the view: the account's rules here, and the link to the account. */
+export interface AccountContext extends AccountLink {
+  readonly account: readonly AccountRuleForOverlap[];
 }
 
 /**
@@ -148,7 +152,9 @@ export async function browserPlacementViews(): Promise<AutomationPlacementView[]
   });
 }
 
-export async function handleBrowserRuleCommand(command: BrowserRuleCommand): Promise<BrowserRuleResponse> {
+export async function handleBrowserRuleCommand(command: BrowserRuleCommand,
+  link: () => Promise<AccountLink | null> = async () => null): Promise<BrowserRuleResponse> {
+  if (command.kind === 'known.automation.browser.forAccount') return forAccount(command.draft, await link().catch(() => null));
   const store = browserRuleStore(), now = Date.now();
   if (command.kind === 'known.automation.browser.remove') {
     return await store.remove(command.id) ? { ok: true, rule: null } : { ok: false, error: 'notFound' };
@@ -169,4 +175,19 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand): Pro
     ...(command.enabled === undefined ? {} : { enabled: command.enabled }) }, now);
   if (result.ok) return { ok: true, rule: result.rule };
   return result.error === 'invalid' ? { ok: false, error: 'invalid', problems: result.problems } : { ok: false, error: result.error };
+}
+
+/**
+ * One New rule for both kinds (follow-up U2): a rule for all the account's devices is made on the web, so
+ * this only checks the draft here and fills in the web editor with it. Its folder must be synced, because
+ * the account names folders by their identity in the collection.
+ */
+async function forAccount(draft: BrowserRuleDraft, link: AccountLink | null): Promise<BrowserRuleResponse> {
+  const checked = checkBrowserDraft(draft);
+  if (!checked.ok) return { ok: false, error: 'invalid', problems: checked.problems };
+  if (!link?.webUrl) return { ok: false, error: 'signedOut' };
+  const folder = await link.canonical(draft.folderNativeId).catch(() => null);
+  if (!folder) return { ok: false, error: 'notSynced' };
+  const url = accountEditorUrl(link.webUrl, { definition: checked.definition, folderNativeId: draft.folderNativeId }, folder);
+  return url ? { ok: true, url } : { ok: false, error: 'invalid', problems: [] };
 }

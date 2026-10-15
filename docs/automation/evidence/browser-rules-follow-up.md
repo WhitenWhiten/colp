@@ -19,12 +19,12 @@ previous item's hash.
 | Item | Commit | Problem | Change |
 | --- | --- | --- | --- |
 | U1 | `cce0089d` | *Pause all automations* left browser rules running; they even took over while the account was paused. The card said "All automations are paused… Bookmarks keep the folder you save them to". | The account's pause pauses browser rules too, and the page says so. |
-| U2 | planned | Two "New rule" buttons on one page made different kinds of rule. | planned |
+| U2 | — | Two "New rule" buttons on one page made different kinds of rule. | One *New rule*; signed in, it asks *This browser* or *All my devices* first. |
 | U3 | planned | The order that decides a saved page's folder was not shown anywhere. | planned |
 | U4 | planned | "AI suggestions" hid that, in Automatic mode, the AI files the page. | planned |
 | U5 | planned | A rule waiting to move to the account could say *Moving* forever. | planned |
 | U6 | planned | A browser rule that kept a page where it was saved left no trace after the save panel closed. | planned |
-| U7 | — | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | The time goes where the translation puts it, in Chrome too. |
+| U7 | `c2f8bc9b` | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | The time goes where the translation puts it, in Chrome too. |
 
 ## Left unchanged
 
@@ -225,3 +225,39 @@ element sits where `$1` was. With the marker set back to U+0000 the test fails.
 | A one-off Playwright probe of `chrome.i18n.getMessage` in the production build (xvfb) | the table above |
 | `npx tsc --noEmit -p .`, `npx eslint` on the changed files | pass |
 | `npx vitest run tests/i18n.test.ts tests/automation-status-ui.test.ts tests/automation-browser-pane.test.ts tests/automation-worker-status.test.ts` | 4 files, 45 tests passed |
+
+## U2 — one New rule
+
+**Before.** The page head's *New rule* made a browser rule. The account section had *New rule on the web*,
+which opened an empty web editor. To make the right kind of rule, the Owner had to know the difference
+first.
+
+**Now.** *New rule* is the page's only one.
+
+- Signed out, it opens the browser rule editor as before.
+- Signed in, the editor first asks *Use it on*, as two choice cards. *This browser* (the default) "works
+  right away, even offline. Your other devices don't get it." *All my devices* is "your account's rule. You
+  preview it and turn it on on the web. Its folder must be synced."
+- *All my devices* turns *Save rule* into *Continue on the web*. The new command
+  `known.automation.browser.forAccount` checks the draft in the worker. It then returns the web editor
+  address filled in with it: the same address AW-71 builds, and L3 ran against a real server. Nothing is
+  stored in the browser. A folder Sync has not confirmed gets "This folder isn't synced…" on the folder
+  field; signed out gets "Sign in to make a rule for all your devices."
+- The account's empty section now has a *New rule* button. It opens the same editor, set to *All my
+  devices*. Its hint now reads "An account rule files pages on every device signed in to your account."
+- Editing a browser rule does not ask: it stays this browser's, and moving it is *Add to your account*.
+
+| Command (`packages/extension`) | Result |
+| --- | --- |
+| `npx tsc --noEmit -p .`, `npx eslint` on the changed files | pass |
+| `npx vitest run tests/automation-*.test.ts tests/capture-pre-save.test.ts tests/i18n.test.ts tests/service-worker-entry-behavior.test.ts` | 223 tests passed |
+| `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n`; `npm run check:source-size` | pass |
+| `npm run build:development`, then `SHOT_ONLY=automations-new-signedin,automations-new-account,automations-browser-new npm run shots` in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320 |
+
+New tests:
+
+- the pane (+5): the choice and its default; no choice signed out or when editing; *All my devices* sends
+  `forAccount`, opens the address and stores nothing; *not synced* lands on the folder; the account's empty
+  section starts at *All my devices*;
+- the worker (+1, and shape checks): signed out, a synced folder (the address's parameters), an unsynced
+  folder, an invalid draft; the browser's rules are unchanged afterwards.

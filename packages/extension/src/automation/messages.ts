@@ -43,9 +43,13 @@ export type BrowserRuleCommand =
   /** Keep this rule next to the account rule it overlaps, at that rule's current revision (`reviewKey`). */
   | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string }
   /** Add mine to the account was opened on the web: retire this rule once the account's enabled copy arrives. */
-  | { readonly kind: 'known.automation.browser.moving'; readonly id: string };
+  | { readonly kind: 'known.automation.browser.moving'; readonly id: string }
+  /** A new rule for all the account's devices: the web editor, filled in with this draft. Nothing is stored here. */
+  | { readonly kind: 'known.automation.browser.forAccount'; readonly draft: BrowserRuleDraft };
 
 export type BrowserRuleResponse = { readonly ok: true; readonly rule: BrowserRule | null }
+  | { readonly ok: true; readonly url: string }
+  /** `notSynced`: the folder is not in the synced collection; `signedOut`: there is no account to make it in. */
   | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
 
 const RULE_ID = /^[\w-]{1,128}$/u;
@@ -71,6 +75,7 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
     return validDraft(raw.draft) && (raw.id === undefined || typeof raw.id === 'string' && RULE_ID.test(raw.id))
       && (raw.enabled === undefined || typeof raw.enabled === 'boolean') && keys === 2 + Number(raw.id !== undefined) + Number(raw.enabled !== undefined);
   }
+  if (raw.kind === 'known.automation.browser.forAccount') return keys === 2 && validDraft(raw.draft);
   if (raw.kind === 'known.automation.browser.enable') return keys === 3 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.enabled === 'boolean';
   if (raw.kind === 'known.automation.browser.review') {
     return keys === 4 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.accountRuleId === 'string'

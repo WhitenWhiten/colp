@@ -160,8 +160,12 @@ they need no account and run after the account's rules:
   once there are two), Save it in (the folder pill, starting empty; subscription folders left out), then
   Name (optional), which defaults to the web's "arxiv.org → Papers". Problems sit under the field they
   are about. Results are toasts; Delete asks first and says filed pages stay put.
-- **New rule** in the page head always opens this editor; account rules are made on the web, from their
-  own group's "New rule on the web".
+- **New rule** in the page head is the page's only one. Signed out it opens this editor. Signed in, the
+  editor first asks *Use it on*: *This browser* (the default) or *All my devices*, as two choice cards.
+  *All my devices* turns Save into *Continue on the web*: the worker checks the draft and opens the web
+  editor filled in with it (the AW-71 address); nothing is stored in the browser. A folder that isn't
+  synced is refused on the folder field. The account's empty group opens the same editor set to *All my
+  devices* (browser rules follow-up U2).
 - **Next to the account's rules (AW-69).** Signed in, a row that meets an account rule says so in a second
   line ("Your account's rule “arXiv papers” files these in Academic first. 37 of your bookmarks match
   both." or "… does the same.") with Overlaps or Same as account until reviewed. One warning notice counts

@@ -5,7 +5,7 @@ import { formatMoment, SLOT, t, tn, withSlot } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
 import { AUTOMATION_CHANGED_KEY, type AutomationResponse, type AutomationServerRuleView, type AutomationServerView,
   type AutomationStateView } from './messages.js';
-import { browserRulesGroup, openBrowserRuleEditor } from './browser-rules-pane.js';
+import { browserRulesGroup, offersAccountRules, openBrowserRuleEditor } from './browser-rules-pane.js';
 import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
 
 /**
@@ -156,10 +156,12 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
   const heading = t('automation_accountRules', 'Your account’s rules');
   if (!view.rules.length && !serverOnly.length) {
     const card = el('div', undefined, 'set-card');
-    const make = view.webUrl ? webLink(t('automation_newRuleWeb', 'New rule on the web'), `${view.webUrl.replace(/\/$/u, '')}/new`) : undefined;
+    // The same editor as this browser's rules, set to all devices; the rule itself is made on the web.
+    const make = offersAccountRules(view) ? button(t('automation_newRule', 'New rule'), 'btn btn-secondary btn-sm') : undefined;
+    make?.addEventListener('click', () => openBrowserRuleEditor(null, make, { account: true, use: 'account' }));
     card.append(emptyBlock({ icon: 'bolt', title: t('automation_noAccountRulesTitle', 'No account rules here yet'),
       hint: view.state === 'paused' ? t('automation_noRulesPausedHint', 'Rules come back here when you resume automations on the web.')
-        : t('automation_noAccountRulesHint', 'On the web, open a folder and choose Automate… to file pages from a site there, on every device.'),
+        : t('automation_noAccountRulesHint', 'An account rule files pages on every device signed in to your account.'),
       ...(make && view.state !== 'paused' ? { action: make } : {}) }));
     return group('automation-rules-heading', heading, card);
   }
@@ -196,12 +198,11 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     item.append(link);
     list.append(item);
   }
-  const make = view.webUrl && view.state !== 'paused'
-    ? webLink(t('automation_newRuleWeb', 'New rule on the web'), `${view.webUrl.replace(/\/$/u, '')}/new`, 'btn btn-ghost btn-sm') : undefined;
-  // A paused bundle carries no rules: say where the filing rules went instead of listing them.
+  // A paused bundle carries no rules: say where the filing rules went instead of listing them. New rules start
+  // from the page's one New rule button.
   return group('automation-rules-heading', heading, list, view.state === 'paused'
     ? t('automation_rulesPausedLede', 'Rules that file bookmarks come back here when you resume automations on the web.')
-    : t('automation_accountRulesLede', 'They work on every device, before this browser’s own rules. Open one to change it on the web.'), make);
+    : t('automation_accountRulesLede', 'They work on every device, before this browser’s own rules. Open one to change it on the web.'));
 }
 
 function placementList(view: AutomationStateView): HTMLElement {
@@ -372,8 +373,8 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     if (activity) parts.push(activity);
     body.replaceChildren(...parts);
   }
-  // New rule is always this browser's: the account's rules are made on the web.
-  newRule?.addEventListener('click', () => openBrowserRuleEditor(null, newRule));
+  // One New rule: signed in, it asks whether the rule is this browser's or the account's (made on the web).
+  newRule?.addEventListener('click', () => openBrowserRuleEditor(null, newRule, { account: Boolean(last && offersAccountRules(last)) }));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (active && area === 'local' && AUTOMATION_CHANGED_KEY in changes) void load('known.automation.state');
   });

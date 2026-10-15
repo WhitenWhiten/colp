@@ -1567,6 +1567,9 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-rule-form .capture-dialog-body { gap: var(--space-4); }
 .automation-when { display: grid; gap: var(--hair-55); min-width: 0; margin: 0; padding: 0; border: 0; }
 .automation-when > legend { margin-bottom: var(--hair-30); padding: 0; }
+/* Where a new rule is used, asked first when signed in (follow-up U2). */
+.automation-use-on { min-width: 0; margin: 0; padding: 0; border: 0; }
+.automation-use-on > legend { margin-bottom: var(--hair-30); padding: 0; }
 .automation-conditions { display: grid; gap: var(--hair-55); }
 .automation-condition { display: grid; grid-template-columns: 11rem minmax(0, 1fr) 2rem; gap: var(--hair-30) var(--hair-55); align-items: center; }
 .automation-condition > .field-select { min-height: 2.125rem; }
