@@ -43,8 +43,8 @@ export function browserRulesGroup(view: AutomationStateView): HTMLElement {
   const title = el('h2', t('automation_browserRules', 'Rules in this browser')); title.id = 'automation-browser-heading';
   if (view.browserRules.length) title.append(el('span', String(view.browserRules.length), 'automation-count'));
   head.append(title, el('p', view.account === 'signedIn'
-    ? t('automation_browserLedeSignedIn', 'Only this browser uses them, for pages your account’s rules don’t match. A folder you pick yourself always wins.')
-    : t('automation_browserLede', 'They file the pages you save here, even offline and with no account. A folder you pick yourself always wins.'), 'detail'));
+    ? t('automation_browserLedeSignedIn', 'Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins.')
+    : t('automation_browserLede', 'They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins.'), 'detail'));
   section.append(head);
   // One notice for what the Owner has not looked at yet; the rows say the rest.
   const open = view.browserRules.filter((rule) => rule.account && !rule.account.reviewed);
@@ -356,7 +356,7 @@ export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HT
   nameField.append(nameLabel, name, nameError);
 
   body.append(when, where, nameField,
-    el('p', t('automation_browserEditorHint', 'Only this browser uses this rule, after your account’s rules. A folder you pick when saving always wins.'), 'mgr-hint'));
+    el('p', t('automation_browserEditorHint', 'Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. A folder you pick when saving always wins.'), 'mgr-hint'));
 
   async function loadFolders(): Promise<void> {
     let granted = false;

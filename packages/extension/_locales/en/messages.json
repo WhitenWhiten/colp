@@ -165,7 +165,7 @@
     "message": "Edit rule"
   },
   "automation_browserEditorHint": {
-    "message": "Only this browser uses this rule, after your account’s rules. A folder you pick when saving always wins."
+    "message": "Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. A folder you pick when saving always wins."
   },
   "automation_browserEmptyHint": {
     "message": "Tell Know-N once that pages from arxiv.org go to Papers, and each one you save lands there."
@@ -189,10 +189,10 @@
     "message": "This rule was deleted meanwhile."
   },
   "automation_browserLede": {
-    "message": "They file the pages you save here, even offline and with no account. A folder you pick yourself always wins."
+    "message": "They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
   },
   "automation_browserLedeSignedIn": {
-    "message": "Only this browser uses them, for pages your account’s rules don’t match. A folder you pick yourself always wins."
+    "message": "Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
   },
   "automation_browserLimit": {
     "message": "This browser keeps up to 100 rules. Delete one to add another."

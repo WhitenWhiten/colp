@@ -212,8 +212,8 @@
     "description": "Edit rule"
   },
   "automation_browserEditorHint": {
-    "message": "只有此浏览器使用这条规则，且排在你账户的规则之后。保存时你亲自选择的文件夹总是优先。",
-    "description": "Only this browser uses this rule, after your account’s rules. A folder you pick when saving always wins."
+    "message": "只有此浏览器使用这条规则，排在你账户的规则之后，处理你用 Know-N 按钮或菜单保存的网页。保存时你亲自选择的文件夹总是优先。",
+    "description": "Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. A folder you pick when saving always wins."
   },
   "automation_browserEmptyHint": {
     "message": "告诉 Know-N 一次：来自 arxiv.org 的网页放进“论文”，之后你保存的每一篇都会放到那里。",
@@ -244,12 +244,12 @@
     "description": "This rule was deleted meanwhile."
   },
   "automation_browserLede": {
-    "message": "它们会把你在这里保存的网页归档，离线和未登录时也一样。你亲自选择的文件夹总是优先。",
-    "description": "They file the pages you save here, even offline and with no account. A folder you pick yourself always wins."
+    "message": "它们会把你用 Know-N 按钮或菜单保存的网页归档（不含浏览器星标收藏的书签），离线和未登录时也一样。你亲自选择的文件夹总是优先。",
+    "description": "They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
   },
   "automation_browserLedeSignedIn": {
-    "message": "只有此浏览器使用它们，处理你账户规则未匹配的网页。你亲自选择的文件夹总是优先。",
-    "description": "Only this browser uses them, for pages your account’s rules don’t match. A folder you pick yourself always wins."
+    "message": "只有此浏览器使用它们，排在你账户的规则之后，处理你用 Know-N 按钮或菜单保存的网页（不含浏览器星标收藏的书签）。你亲自选择的文件夹总是优先。",
+    "description": "Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
   },
   "automation_browserLimit": {
     "message": "此浏览器最多保存 100 条规则。删除一条后才能再添加。",

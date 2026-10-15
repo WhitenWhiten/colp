@@ -11,8 +11,8 @@ previous item's hash.
 | --- | --- | --- |
 | L1 | `3aee64ae` | Signing in as another account (or on another server) without signing out first removes the earlier account's automation data. Browser rules stay. |
 | L2 | `1ee62307` | The *Sign out* hint, the sign-out dialog and the *Disconnect server* hint say that rules made in this browser stay, and that the account's rules stop. |
-| L3 | — | Moving a browser rule to the account, run against a real colp-server. The run found that the server's rules never compared equal to browser rules; fixed here. |
-| L4 | planned | Browser rules also file bookmarks made with the browser's star button. |
+| L3 | `d1725e7a` | Moving a browser rule to the account, run against a real colp-server. The run found that the server's rules never compared equal to browser rules; fixed here. |
+| L4 | — | *Rules in this browser* and their editor say they file pages saved with the Know-N button or menu, not the browser's star. The star path is unchanged; see below. |
 
 ## What may mislead users
 
@@ -125,3 +125,35 @@ Runs back to back, about 17 s apart, sometimes failed at the web's `GET /api/v1/
 server allows 60 auth requests a minute per client (`AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW_MS`). The
 web then rendered a blank page, or the editor signed out with empty Collection and Folder. Spaced 75 s
 apart, the runs pass. The web's blank page on a 429 is outside this work and is noted here only.
+
+## L4 — what browser rules file
+
+The AW-72 report listed "the star button only runs the account's rules" as a leftover. Two fixes were
+possible: run browser rules on the star path too, or say plainly that they don't. This item does the second.
+
+The star path (`src/automation/observed-create.ts`) moves a bookmark only when the create is *new local
+intent*. It decides that from Sync's own record of the create. With that record it can tell a star from:
+
+- the extension's own saves, including a folder the user picked in the popup;
+- an inbound Sync projection;
+- an import, an undo or a restore.
+
+Browser rules work signed out, where that record does not exist. Without it, a browser rule could move a
+bookmark the user deliberately put in the Bookmarks bar, which breaks "a folder you pick yourself always
+wins". ADR-A24 kept the star path account-only for the same reason. Changing that needs its own design
+(own-save evidence that works without Sync). It is not attempted here.
+
+The copy now says where browser rules apply:
+
+- signed out: "They file pages you save with the Know-N button or menu, not the browser's star, even
+  offline and with no account. A folder you pick yourself always wins."
+- signed in: "Only this browser uses them, after your account's rules, for pages you save with the Know-N
+  button or menu, not the browser's star. A folder you pick yourself always wins."
+- the editor's note: "Only this browser uses this rule, after your account's rules, for pages you save with
+  the Know-N button or menu. A folder you pick when saving always wins."
+
+| Command (`packages/extension`) | Result |
+| --- | --- |
+| `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | catalog and translations current |
+| `npx vitest run tests/automation-browser-pane.test.ts tests/automation-status-ui.test.ts` | 2 files, 29 tests passed |
+| `npm run build:development`, then the Automations shots in `en` and `zh_CN` (xvfb) | reviewed signed in and out, and the editor, at 1280, 820 and 320 |
