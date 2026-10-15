@@ -127,4 +127,10 @@ Each packet is committed separately; the commit column is filled in by the next 
 | AW-69 | Done locally (unit, worker and pane tests against the server's bundle shape; screenshots; no real server run) | `e0ad3583`, [review browser rules against the account's](evidence/aw-69.md) |
 | AW-70 | Done locally (mocked API; no hosted run) | `f4057029`, [fill the web rule editor from a browser rule](evidence/aw-70.md) |
 | AW-71 | Done locally (unit, worker and pane tests; bundle install retires a moved rule in the worker test; no real server round trip) | `d0d7a229`, [move a browser rule to the account](evidence/aw-71.md) |
-| AW-72 | Done locally (the real logout handler over fake-indexeddb; no real browser sign-out run) | [disconnect keeps browser rules](evidence/aw-72.md) |
+| AW-72 | Done locally (the real logout handler over fake-indexeddb; no real browser sign-out run) | `13c6b650`, [disconnect keeps browser rules](evidence/aw-72.md) |
+
+## Browser rules follow-up (2026-10-14)
+
+The AW-72 report's leftovers, and what a UX review found may mislead users, each fixed in its own commit.
+The [follow-up record](evidence/browser-rules-follow-up.md) maps every item to its commit and lists what
+was left unchanged, and why.

@@ -165,6 +165,10 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
     if (typeof globalThis.chrome?.storage?.local?.remove === 'function') await chrome.storage.local.remove(COLLECTION_BINDING);
     if (configuredPersonalSyncPolicy()) { await store.clearBinding(); sw.bindingPromise = undefined; }
   }
+  // Signing in as someone else is a sign-out for the earlier account's automation data too (AW-72).
+  if (previous?.subject && (previous.subject !== credential.subject || previous.serverOrigin !== credential.serverOrigin)) {
+    await clearAccountAutomation({ serverOrigin: previous.serverOrigin, accountId: previous.subject }).catch(() => undefined);
+  }
   if (!await hasBoundCollection()) return { ok: true, state: await auth.status() };
   try {
     // A login changes the credential authority, so the Session lane mints: it

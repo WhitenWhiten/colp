@@ -10,12 +10,13 @@ import { AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY } from '../src/automatio
 import { SERVER_STATUS_KEY } from '../src/automation/server-status.js';
 import { NOW, compiledRule, ruleBundle } from './automation-fixture.js';
 
-/** AW-72 (AC-74): signing out takes the account's automation data and leaves this browser's own rules working. */
+/** AW-72 (AC-74): signing out, or in as someone else, takes the account's automation data and leaves this browser's own rules working. */
 const f = vi.hoisted(() => ({
   credential: null as null | { serverOrigin: string; subject: string },
   scope: { serverOrigin: 'https://colp.example', accountId: 'owner', authorityGeneration: 1, collectionId: 'c_personal' },
   bundle: null as null | Promise<{ ok: true; body: unknown }>,
   fetched: 0,
+  next: null as null | { serverOrigin: string; subject: string },
 }));
 vi.mock('../src/sw/runtime.js', () => ({
   hasBookmarkPermission: async () => true, extensionOrigin: () => 'chrome-extension://extension',
@@ -27,7 +28,9 @@ vi.mock('../src/sw/runtime.js', () => ({
 }));
 vi.mock('../src/sw/scope.js', () => ({
   loadConfig: async () => ({ environment: 'test', serverOrigin: 'https://colp.example' }), enforceManagedPolicy: async () => undefined,
-  createRuntimeAuth: () => ({ logout: async () => { f.credential = null; return { status: 'signed_out' }; } }),
+  createRuntimeAuth: () => ({ logout: async () => { f.credential = null; return { status: 'signed_out' }; },
+    login: async () => { f.credential = f.next; return { status: 'connected' }; }, ensureFreshCredential: async () => f.credential,
+    status: async () => ({ status: 'connected' }) }),
   currentSyncScope: async () => ({ ...f.scope, environment: 'test', serverId: 'https://colp.example', browserProfileId: 'profile', replicaId: 'replica-1', generation: 2 }),
   pushSessionAuthority: async () => ({ credential: { accessToken: 'token' }, session: { sessionId: 'session', replicaLease: { generation: '1' } } }),
   ensureSyncScope: vi.fn(), hasBoundCollection: vi.fn(), retire: vi.fn(), scheduleSessionFreshen: vi.fn(),
@@ -116,6 +119,35 @@ describe('signing out', () => {
     await refresh;
     await vi.waitFor(async () => expect(await automationArea().get(AUTOMATION_BUNDLE_KEY)).toBeUndefined());
     expect(await automationArea().get(SERVER_STATUS_KEY)).toBeUndefined();
+  });
+});
+
+describe('signing in', () => {
+  const login = (subject: string, serverOrigin = owner.serverOrigin) => {
+    f.next = { serverOrigin, subject };
+    return handle({ kind: 'known.auth.login', userGesture: true, method: 'password', email: 'owner@example.test', password: 'secret' },
+      { generation: 1, signal: new AbortController().signal });
+  };
+
+  it('as another account takes the earlier account’s data and keeps this browser’s rules', async () => {
+    const rules = await automationArea().get(BROWSER_RULES_KEY);
+    expect(await login('someone-else')).toMatchObject({ ok: true });
+    expect(await automationArea().get(AUTOMATION_BUNDLE_KEY)).toBeUndefined();
+    expect(await automationArea().get(SERVER_STATUS_KEY)).toBeUndefined();
+    expect((await automationDatabase().intents.list()).map((item) => item.intentId)).toEqual(['i-other']);
+    expect(await chrome.storage.local.get('known.automation.pause.v1')).toEqual({});
+    expect(await automationArea().get(BROWSER_RULES_KEY)).toEqual(rules);
+  });
+
+  it('on another server counts as another account', async () => {
+    await login('owner', 'https://other.example');
+    expect(await automationArea().get(AUTOMATION_BUNDLE_KEY)).toBeUndefined();
+  });
+
+  it('again as the same account keeps its data', async () => {
+    await login('owner');
+    expect(await automationArea().get(AUTOMATION_BUNDLE_KEY)).toMatchObject({ ownerKey });
+    expect(await automationArea().get(SERVER_STATUS_KEY)).toMatchObject({ ownerKey });
   });
 });
 
