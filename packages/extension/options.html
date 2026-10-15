@@ -516,16 +516,16 @@
         </section>
       </section>
 
-      <!-- Automations: options-pane.ts renders the body from the worker's installed rule bundle. -->
+      <!-- Automations: options-pane.ts renders the body from the worker's state: the account's rule bundle and this browser's own rules. -->
       <section id="automations-card" class="main-inner" hidden aria-labelledby="automations-heading">
         <header class="page-head">
           <div class="page-head-copy">
             <h1 id="automations-heading" data-i18n="automation_pane">Automations</h1>
-            <p data-i18n="automation_lede">Rules on your server file the bookmarks you save into the right folder. You create and change them on the web.</p>
+            <p data-i18n="automation_ledeBrowser">Rules file the pages you save into the right folder. Rules in this browser need no account; your account’s rules work on every device.</p>
           </div>
           <div class="page-head-actions">
             <a class="btn btn-ghost btn-sm" data-automations-web hidden target="_blank" rel="noreferrer"><span data-i18n="automation_openWeb">Open Automations</span><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg></a>
-            <a class="btn btn-secondary btn-sm" data-automations-new hidden target="_blank" rel="noreferrer"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="plus"></svg><span data-i18n="automation_newRule">New rule</span></a>
+            <button class="btn btn-secondary btn-sm" data-automations-new type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="plus"></svg><span data-i18n="automation_newRule">New rule</span></button>
           </div>
         </header>
         <div class="automation-body" data-automations-body></div>

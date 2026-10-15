@@ -73,6 +73,17 @@ const STATES = [
   ...['paused', 'expired', 'none', 'off', 'rejected', 'missing', 'empty', 'server-offline', 'server-signin', 'server-empty']
     .map((name) => [`automations-${name}`, `options.html?shot=auto-${name}#automations`]),
   ['manual-ai', 'options.html?shot=manual#ai'],
+  // Rules in this browser (AW-68): signed out with rules and with none, the editor (new and edit) and the delete question.
+  ['automations-browser-out', 'options.html?shot=signedout#automations'],
+  ['automations-browser-out-empty', 'options.html?shot=signedout,browser-none#automations'],
+  ['automations-browser-in-empty', 'options.html?shot=browser-empty#automations'],
+  ['automations-browser-new', 'options.html?shot=signedout#automations', async (p) => { await p.click('[data-automations-new]'); await p.waitForTimeout(500); }, false],
+  ['automations-browser-new-problems', 'options.html?shot=signedout#automations', async (p) => { await p.click('[data-automations-new]'); await p.waitForTimeout(400);
+    await p.click('.automation-rule-editor button[type="submit"]'); await p.waitForTimeout(300); }, false],
+  ['automations-browser-edit', 'options.html?shot=signedout#automations', async (p) => { await p.click('.automation-browser-rule >> nth=1'); await p.waitForTimeout(500);
+    await p.click('.automation-rule-editor .folder-pill'); await p.waitForTimeout(300); }, false],
+  ['automations-browser-delete', 'options.html?shot=signedout#automations', async (p) => { await p.hover('.automation-browser-rule >> nth=0');
+    await p.click('.automation-browser-rule >> nth=0 >> button:has(svg[data-icon="trash"])'); await p.waitForTimeout(400); }, false],
   // A rule filed a page starred in the browser while Know-N was in front (AW-20).
   ['automations-notice', 'options.html#automations', (p) => p.evaluate(() => window.__workerMessage({ kind: 'known.automation.notice',
     text: 'Moved “Attention Is All You Need” to Academic by rule “arXiv papers”.', attention: false }))],

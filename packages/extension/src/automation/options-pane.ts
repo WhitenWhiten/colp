@@ -5,20 +5,22 @@ import { formatMoment, t, tn } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
 import { AUTOMATION_CHANGED_KEY, type AutomationResponse, type AutomationServerRuleView, type AutomationServerView,
   type AutomationStateView } from './messages.js';
-import type { ConditionKind, RuleMatchView } from './rule-match.js';
-import { placementBadge, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
+import { browserRulesGroup, openBrowserRuleEditor } from './browser-rules-pane.js';
+import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
 
 /**
- * Options › Automations: what the server's rules do in this browser, laid out
+ * Options › Automations: the account's rules and this browser's own, laid out
  * like the web's Automations page.
  *
- * One status card says whether this browser has a usable copy of the rules and
- * how fresh it is, with the account-wide pause (made on the web). The rules
- * follow, each in the web's words ("From arxiv.org → Academic") and each
- * opening its page on the web, where rules are made and changed. Recent
+ * Signed in, one status card says whether this browser has a usable copy of the
+ * account's rules and how fresh it is, with the account-wide pause (made on the
+ * web). The account's rules follow, each in the web's words ("From arxiv.org →
+ * Academic") and each opening its page on the web, where they are made and
+ * changed. This browser's own rules come next (browser-rules-pane.ts); they are
+ * made here and need no account, so signed out they lead the page. Recent
  * activity keeps this browser's placements and the server's runs apart, in two
- * tabs. Everything shown comes from the worker's installed bundle or the
- * server's own status (status-ui.ts); nothing here decides whether a rule runs.
+ * tabs. Everything shown comes from the worker (status-ui.ts); nothing here
+ * decides whether a rule runs.
  */
 export interface AutomationsPane {
   activate(): void;
@@ -68,14 +70,14 @@ function webLink(label: string, href: string, className = 'btn btn-secondary btn
   return link;
 }
 
-function group(id: string, heading: string, body: HTMLElement, lede?: string, count?: number): HTMLElement {
+function group(id: string, heading: string, body: HTMLElement, lede?: string, action?: HTMLElement): HTMLElement {
   const section = el('section', undefined, 'set-group');
   section.setAttribute('aria-labelledby', id);
   const head = el('div', undefined, 'set-group-head');
   const title = el('h2', heading); title.id = id;
-  if (count) title.append(el('span', String(count), 'automation-count'));
   head.append(title);
   if (lede) head.append(el('p', lede, 'detail'));
+  if (action) { head.classList.add('automation-group-head'); head.append(action); }
   section.append(head, body);
   return section;
 }
@@ -131,24 +133,6 @@ function row(title: string, hint: string, control: Node): HTMLElement {
   return node;
 }
 
-const CONDITION: Record<ConditionKind, (value: string) => string> = {
-  siteIs: (value) => t('automation_condSiteIs', 'From $1', value),
-  siteEndsWith: (value) => t('automation_condSiteEndsWith', 'From $1 or a subdomain', value),
-  titleContains: (value) => t('automation_condTitleContains', 'Title has “$1”', value),
-  hasTag: (value) => t('automation_condHasTag', 'Tagged $1', value),
-  pathStartsWith: (value) => t('automation_condPathStartsWith', 'Path starts with $1', value),
-};
-
-/** "From arxiv.org" — the rule's own words for what it takes, as the web says them. */
-function conditions(match: RuleMatchView | null): string {
-  if (!match) return t('automation_condAny', 'Matches its conditions');
-  const joiner = match.combinator === 'any' ? t('automation_condOr', ' or ') : t('automation_condAnd', ' and ');
-  return match.conditions.map((item, index) => {
-    const phrase = CONDITION[item.kind](item.value);
-    return index === 0 ? phrase : phrase.charAt(0).toLowerCase() + phrase.slice(1);
-  }).join(joiner);
-}
-
 /** Server-side state of a rule: its badge when it isn't simply on, and the server's counts of waiting work. */
 function withServer(main: HTMLElement, tail: HTMLElement, server: AutomationServerRuleView | undefined, own: HTMLElement | null): void {
   const meta = server ? ruleServerMeta(server) : null;
@@ -170,14 +154,15 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
   const server = new Map((view.server?.rules ?? []).map((rule) => [rule.id, rule]));
   // Rules with no browser part (a digest, say) still belong here: their waiting work is the Owner's to see.
   const serverOnly = (view.server?.rules ?? []).filter((rule) => !rule.inBrowser && rule.state !== 'archived' && rule.state !== 'draft');
+  const heading = t('automation_accountRules', 'Your account’s rules');
   if (!view.rules.length && !serverOnly.length) {
     const card = el('div', undefined, 'set-card');
-    const make = view.webUrl ? webLink(t('automation_newRule', 'New rule'), `${view.webUrl.replace(/\/$/u, '')}/new`) : undefined;
-    card.append(emptyBlock({ icon: 'bolt', title: t('automation_noRulesTitle', 'No rules here yet'),
+    const make = view.webUrl ? webLink(t('automation_newRuleWeb', 'New rule on the web'), `${view.webUrl.replace(/\/$/u, '')}/new`) : undefined;
+    card.append(emptyBlock({ icon: 'bolt', title: t('automation_noAccountRulesTitle', 'No account rules here yet'),
       hint: view.state === 'paused' ? t('automation_noRulesPausedHint', 'Rules come back here when you resume automations on the web.')
-        : t('automation_noRulesHint', 'On the web, open a folder and choose Automate… to file pages from a site there.'),
+        : t('automation_noAccountRulesHint', 'On the web, open a folder and choose Automate… to file pages from a site there, on every device.'),
       ...(make && view.state !== 'paused' ? { action: make } : {}) }));
-    return group('automation-rules-heading', t('automation_rules', 'Rules'), card);
+    return group('automation-rules-heading', heading, card);
   }
   const list = el('ul', undefined, 'list-card automation-rules');
   for (const rule of view.rules) {
@@ -185,7 +170,7 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('bolt', 16));
     const main = el('div', undefined, 'list-row-main');
     const meta = el('p', undefined, 'list-row-meta automation-recipe');
-    meta.append(el('span', conditions(rule.match), 'grow'), createIcon('arrow-right', 12));
+    meta.append(el('span', ruleConditions(rule.match), 'grow'), createIcon('arrow-right', 12));
     if (rule.resolved && rule.folder) meta.append(createIcon('folder', 12), el('span', rule.folder, 'automation-recipe-folder'));
     else meta.append(el('span', t('automation_ruleFolderNotHere', 'a folder not synced here'), 'automation-recipe-missing'));
     main.append(el('p', rule.name, 'list-row-title'), meta);
@@ -212,10 +197,12 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     item.append(link);
     list.append(item);
   }
+  const make = view.webUrl && view.state !== 'paused'
+    ? webLink(t('automation_newRuleWeb', 'New rule on the web'), `${view.webUrl.replace(/\/$/u, '')}/new`, 'btn btn-ghost btn-sm') : undefined;
   // A paused bundle carries no rules: say where the filing rules went instead of listing them.
-  return group('automation-rules-heading', t('automation_rules', 'Rules'), list, view.state === 'paused'
+  return group('automation-rules-heading', heading, list, view.state === 'paused'
     ? t('automation_rulesPausedLede', 'Rules that file bookmarks come back here when you resume automations on the web.')
-    : t('automation_rulesLedeOpen', 'A folder you pick yourself always wins over a rule. Open a rule to change it on the web.'));
+    : t('automation_accountRulesLede', 'They work on every device, before this browser’s own rules. Open one to change it on the web.'), make);
 }
 
 function placementList(view: AutomationStateView): HTMLElement {
@@ -296,8 +283,10 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
   const panels: Record<ActivityTab, () => HTMLElement> = {
     browser: () => {
       const panel = el('div', undefined, 'automation-panel');
-      panel.append(el('p', t('automation_recentPlacementsLede', 'Filed in this browser. The server confirms each one after it syncs.'), 'automation-panel-lede'),
-        placementList(view));
+      // Only an account rule's placement has a server to confirm it.
+      const confirmed = view.placements.some((placement) => placement.state !== 'filed');
+      panel.append(el('p', confirmed ? t('automation_recentPlacementsLede', 'Filed in this browser. The server confirms each one after it syncs.')
+        : t('automation_recentPlacementsLedeLocal', 'Filed in this browser by your rules.'), 'automation-panel-lede'), placementList(view));
       return panel;
     },
     server: () => {
@@ -337,10 +326,20 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
   return section;
 }
 
+/** Signed out: what an account adds, in one quiet row. */
+function accountCard(): HTMLElement {
+  const card = el('section', undefined, 'set-card automation-account');
+  card.setAttribute('aria-label', t('automation_accountRules', 'Your account’s rules'));
+  const signIn = el('a', t('common_signIn', 'Sign in'), 'btn btn-secondary btn-sm'); signIn.href = '#account';
+  card.append(row(t('automation_accountRules', 'Your account’s rules'),
+    t('automation_accountRulesSignIn', 'Sign in to a COLP server to also use the rules you keep there. They work on every device, and run before this browser’s.'), signIn));
+  return card;
+}
+
 export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
   const body = pane.querySelector<HTMLElement>('[data-automations-body]')!;
   const openWeb = pane.querySelector<HTMLAnchorElement>('[data-automations-web]')!;
-  const newRule = pane.querySelector<HTMLAnchorElement>('[data-automations-new]');
+  const newRule = pane.querySelector<HTMLButtonElement>('[data-automations-new]');
   let active = false, busy = false, turn = 0, last: AutomationStateView | undefined, tab: ActivityTab | null = null;
 
   async function load(kind: 'known.automation.state' | 'known.automation.refresh'): Promise<void> {
@@ -357,29 +356,25 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     void load('known.automation.refresh').finally(() => { busy = false; if (last && active) render(last); });
   }
   function render(view: AutomationStateView): void {
-    openWeb.hidden = !view.webUrl;
+    openWeb.hidden = !view.webUrl || view.account === 'signedOut';
     if (view.webUrl) openWeb.href = view.webUrl;
-    if (newRule) {
-      newRule.hidden = !view.webUrl || view.account === 'signedOut';
-      if (view.webUrl) newRule.href = `${view.webUrl.replace(/\/$/u, '')}/new`;
-    }
-    if (view.account === 'signedOut') {
-      const card = el('div', undefined, 'set-card connect-card');
-      const signIn = el('a', t('common_signIn', 'Sign in'), 'btn btn-primary btn-sm'); signIn.href = '#account';
-      card.append(emptyBlock({ icon: 'bolt', title: t('automation_signInTitle', 'Sign in to use automations'),
-        hint: t('automation_signInHint', 'Rules live on your server and file bookmarks as you save them. Saving and organizing work without them.'), action: signIn }));
-      body.replaceChildren(card);
-      return;
-    }
     const parts: HTMLElement[] = [];
-    const alert = notice(view);
-    if (alert) parts.push(alert);
-    parts.push(statusCard(view, refresh, busy));
-    if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
+    if (view.account === 'signedOut') {
+      // This browser's rules need no account, so they lead; the account's rules are one sign-in away.
+      parts.push(browserRulesGroup(view), accountCard());
+    } else {
+      const alert = notice(view);
+      if (alert) parts.push(alert);
+      parts.push(statusCard(view, refresh, busy));
+      if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
+      parts.push(browserRulesGroup(view));
+    }
     const activity = activityGroup(view, tab, (next) => { tab = next; if (last) render(last); });
     if (activity) parts.push(activity);
     body.replaceChildren(...parts);
   }
+  // New rule is always this browser's: the account's rules are made on the web.
+  newRule?.addEventListener('click', () => openBrowserRuleEditor(null, newRule));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (active && area === 'local' && AUTOMATION_CHANGED_KEY in changes) void load('known.automation.state');
   });

@@ -133,6 +133,8 @@ export function createFolderPicker(input: {
   readonly value?: string;
   readonly label: string;
   readonly onChange?: (choice: FolderChoice) => void;
+  /** Start with no folder ("Choose destination") instead of the first one, so the choice is the user's. */
+  readonly startEmpty?: boolean;
 }): FolderPicker {
   let choices = [...input.choices], selected = input.value ?? '';
   const id = `folder-picker-${crypto.randomUUID()}`;
@@ -164,13 +166,15 @@ export function createFolderPicker(input: {
     setValue(value) { selected = value; listbox.setSelected(value); paintPill(); },
     setChoices(next) {
       choices = [...next];
-      if (!find(selected)) selected = choices.find((choice) => !choice.disabled)?.id ?? '';
+      // An empty start stays empty, and a folder that is not (or no longer) offered is no choice at all.
+      if (!find(selected)) selected = input.startEmpty ? '' : choices.find((choice) => !choice.disabled)?.id ?? '';
       listbox.setChoices(choices); listbox.setSelected(selected); paintPill();
     },
     open() { panel.hidden = false; pill.setAttribute('aria-expanded', 'true'); listbox.reset(); listbox.setSelected(selected); listbox.focus(); },
     close() { panel.hidden = true; pill.setAttribute('aria-expanded', 'false'); },
   };
-  if (!find(selected)) selected = choices.find((choice) => !choice.disabled)?.id ?? '';
+  // An empty start keeps its value until setChoices brings the folders it can be checked against.
+  if (!find(selected) && !input.startEmpty) selected = choices.find((choice) => !choice.disabled)?.id ?? '';
   listbox.setSelected(selected); paintPill();
   return api;
 }

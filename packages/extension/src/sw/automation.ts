@@ -21,7 +21,7 @@ import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
-import { browserPreSaveDecision, recordBrowserPlacement } from './automation-browser.js';
+import { browserPlacementViews, browserPreSaveDecision, browserRuleViews, recordBrowserPlacement } from './automation-browser.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState } from './runtime.js';
 import { currentSyncScope, loadConfig, pushSessionAuthority } from './scope.js';
 
@@ -297,7 +297,10 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const config = await loadConfig().catch(() => null);
   const origin = owner?.serverOrigin ?? config?.serverOrigin ?? null;
   const webUrl = origin ? webUrlFor(origin) : null;
-  const blank = { rules: [], placements: [], pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl, server: null };
+  // This browser's own rules and what they filed show whether or not an account is signed in.
+  const [browserRules, filed] = await Promise.all([browserRuleViews(), browserPlacementViews()]);
+  const blank = { rules: [], placements: filed.slice(0, 10), browserRules, pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null,
+    problem: null, webUrl, server: null };
   if (!owner) return { account: 'signedOut', state: 'none', ...blank };
   const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
@@ -306,7 +309,7 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;
   return { account: 'signedIn', state: current.state, webUrl,
     rules: current.state === 'active' ? await ruleViews(record) : [],
-    placements: await placementViews(automationOwnerKey(owner)),
+    placements: [...await placementViews(automationOwnerKey(owner)), ...filed].sort((a, b) => b.at - a.at).slice(0, 10), browserRules,
     pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: pauseKnown ? pause?.pausedBy ?? null : null,
     expiresAt: current.state === 'active' || current.state === 'paused' ? current.expiresAt : current.state === 'expired' ? current.expiredAt : null,
     lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null, server: await serverView(owner, record, owner.serverOrigin) };

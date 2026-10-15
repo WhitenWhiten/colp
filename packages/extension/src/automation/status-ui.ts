@@ -3,6 +3,7 @@ import { el } from '../library-dom.js';
 import { t, tn } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
 import type { AutomationPlacementView, AutomationRunView, AutomationServerRuleView, AutomationServerView } from './messages.js';
+import type { ConditionKind, RuleMatchView } from './rule-match.js';
 
 /**
  * Words for automation state on extension pages, in the web's vocabulary.
@@ -15,6 +16,24 @@ import type { AutomationPlacementView, AutomationRunView, AutomationServerRuleVi
  * and nothing claims that spending, delivery or an approval happened here.
  */
 type Tone = 'warning' | 'danger' | 'accent' | undefined;
+
+const CONDITION: Record<ConditionKind, (value: string) => string> = {
+  siteIs: (value) => t('automation_condSiteIs', 'From $1', value),
+  siteEndsWith: (value) => t('automation_condSiteEndsWith', 'From $1 or a subdomain', value),
+  titleContains: (value) => t('automation_condTitleContains', 'Title has “$1”', value),
+  hasTag: (value) => t('automation_condHasTag', 'Tagged $1', value),
+  pathStartsWith: (value) => t('automation_condPathStartsWith', 'Path starts with $1', value),
+};
+
+/** "From arxiv.org" — a rule's own words for what it takes, as the web says them. Account and browser rules alike. */
+export function ruleConditions(match: RuleMatchView | null): string {
+  if (!match) return t('automation_condAny', 'Matches its conditions');
+  const joiner = match.combinator === 'any' ? t('automation_condOr', ' or ') : t('automation_condAnd', ' and ');
+  return match.conditions.map((item, index) => {
+    const phrase = CONDITION[item.kind](item.value);
+    return index === 0 ? phrase : phrase.charAt(0).toLowerCase() + phrase.slice(1);
+  }).join(joiner);
+}
 
 function badge(label: string, tone: Tone): HTMLElement {
   const node = el('span', label, 'badge');
@@ -29,7 +48,7 @@ export function placementBadge(state: AutomationPlacementView['state']): HTMLEle
     case 'review': return badge(t('automation_placementReview', 'Needs review'), 'warning');
     case 'rejected': return badge(t('automation_placementRejected', 'Not accepted'), 'danger');
     case 'attention': return badge(t('automation_placementAttention', 'Couldn’t confirm'), 'warning');
-    case 'confirmed': return null;
+    case 'confirmed': case 'filed': return null;
   }
 }
 

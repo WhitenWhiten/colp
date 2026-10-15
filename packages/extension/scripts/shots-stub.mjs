@@ -28,7 +28,8 @@
 //     tabs-notabs, tabs-dupe, tabs-confirmed, tabs-long, tabs-many      Save tabs states (see the TABS block below)
 //   Automations page: auto-paused, auto-expired, auto-none, auto-off (server has no automations), auto-rejected,
 //     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules),
-//     auto-server-offline (last runs read 3 h ago), auto-server-signin (no web sign-in), auto-server-empty (no runs yet)
+//     auto-server-offline (last runs read 3 h ago), auto-server-signin (no web sign-in), auto-server-empty (no runs yet),
+//     browser-empty (no rules in this browser), browser-none (signed out, nothing filed yet)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -435,12 +436,25 @@ export function installStub(messages) {
             run('run-3', 'Weekly reading digest', 'completed', 2 * 3600e3, { kind: 'batch', unread: true, outputCount: 1 }),
             run('run-4', 'arXiv papers', 'waiting', 5 * 3600e3, { held: true, explanation: 'Explicit hold: awaiting an Owner decision to continue the original pinned work.' }),
             run('run-5', 'Recipes from my favourite food sites', 'failed', 27 * 3600e3, { explanation: 'Destination unavailable.' })] };
-        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements, server,
+        // This browser's own rules (AW-68): one on, one switched off, one whose folder was deleted.
+        const browserRule = (id, name, enabled, combinator, conditions, folder, folderMissing = false) => ({ id, name, enabled, match: { combinator, conditions },
+          draft: { name, combinator, conditions, folderNativeId: folder?.nativeId ?? 'gone' }, folder, folderMissing });
+        const browserRules = has('browser-empty', 'browser-none') ? [] : [
+          browserRule('b1', 'Papers from arXiv', true, 'all', [{ kind: 'siteIs', value: 'arxiv.org' }], { nativeId: 'f-research', title: 'Research', path: ['Bookmarks bar', 'Research'] }),
+          browserRule('b2', 'SEO reading', false, 'any', [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }],
+            { nativeId: 'f-seo', title: 'SEO', path: ['Bookmarks bar', 'Marketing', 'SEO'] }),
+          browserRule('b3', 'Recipes', true, 'all', [{ kind: 'pathStartsWith', value: '/recipes/' }], null, true)];
+        const filed = has('browser-none', 'browser-empty') || !signedOut ? [] : [
+          placement('f1', 'Attention Is All You Need', 'https://arxiv.org/abs/1706.03762', 'Papers from arXiv', 'Research', 90e3, 'filed'),
+          placement('f2', 'Scaling Laws for Neural Language Models', 'https://arxiv.org/abs/2001.08361', 'Papers from arXiv', 'Research', 5 * 3600e3, 'filed')];
+        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements: signedOut ? filed : placements, browserRules, server,
           pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,
           // Without a bundle the worker has neither an expiry nor a good refresh to report.
           expiresAt: state === 'expired' ? now - 3600e3 : state === 'none' ? null : now + 6 * 86400e3, lastRefreshAt: state === 'none' ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),
           problem: has('auto-rejected') ? 'rejected' : has('auto-off') ? 'unavailable' : state === 'expired' ? 'offline' : null, webUrl: 'https://known.example/automations' } };
       }
+      case 'known.automation.browser.save': case 'known.automation.browser.enable': case 'known.automation.browser.remove':
+        return { ok: true, rule: null };
       case 'known.capture.check': case 'known.capture.resume': case 'known.capture.edit.cancel': case 'known.capture.feedback': case 'known.capture.presented': case 'known.connectivity.online': case 'known.favicon.drain': return { ok: true };
       default: return { ok: false, error: 'unavailable' };
     }

@@ -1,7 +1,8 @@
 import { createBrowserRuleStore, type BrowserRuleStore } from '../automation/browser-rule-store.js';
-import { decideBrowserRules, type BrowserDecision, type FolderLookup } from '../automation/browser-rules.js';
+import { decideBrowserRules, draftFromRule, type BrowserDecision, type FolderLookup } from '../automation/browser-rules.js';
 import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
-import type { BrowserRuleCommand, BrowserRuleResponse } from '../automation/messages.js';
+import type { AutomationPlacementView, BrowserRuleCommand, BrowserRuleResponse, BrowserRuleView } from '../automation/messages.js';
+import { ruleMatchView } from '../automation/rule-match.js';
 import type { PreSaveInput } from '../automation/pre-save.js';
 import type { BrowserAutomation, CaptureTask } from '../capture/contracts.js';
 import { hasBookmarkPermission } from './runtime.js';
@@ -47,6 +48,45 @@ export async function recordBrowserPlacement(task: CaptureTask): Promise<void> {
     || task.disposition !== 'new') return;
   await browserRuleStore().logPlacement({ id: task.captureId, ruleId: automation.rule.id, ruleName: automation.rule.name,
     folder: automation.folderTitle ?? '', title: task.title, url: task.url, at: task.savedAt ?? Date.now() });
+}
+
+/** A folder as Options names it: its title under its parents' ("Bookmarks bar › Reading › Papers"). Null once it is gone. */
+async function folderView(nativeId: string): Promise<BrowserRuleView['folder']> {
+  const node = await nativeFolderLookup(nativeId);
+  if (!node || node.url !== undefined) return null;
+  const path = [node.title];
+  const seen = new Set([node.id]);
+  let parentId = node.parentId;
+  while (parentId && parentId !== '0' && !seen.has(parentId) && path.length < 32) {
+    seen.add(parentId);
+    const parent = await nativeFolderLookup(parentId);
+    if (!parent) break;
+    if (parent.title) path.unshift(parent.title);
+    parentId = parent.parentId;
+  }
+  return { nativeId: node.id, title: node.title, path };
+}
+
+/** This browser's rules for Options, oldest first. Without bookmark access their folders cannot be named. */
+export async function browserRuleViews(): Promise<BrowserRuleView[]> {
+  const rules = await browserRuleStore().list();
+  if (!rules.length) return [];
+  const access = await hasBookmarkPermission();
+  return Promise.all(rules.map(async (rule) => {
+    const folder = access ? await folderView(rule.folderNativeId) : null;
+    return { id: rule.id, name: rule.definition.name, enabled: rule.enabled, match: ruleMatchView(rule.definition.match),
+      draft: draftFromRule(rule), folder, folderMissing: access && !folder };
+  }));
+}
+
+/** Pages this browser's rules filed, in the shape of the account's placements; there is nothing to confirm. */
+export async function browserPlacementViews(): Promise<AutomationPlacementView[]> {
+  return (await browserRuleStore().placements()).map((placement) => {
+    let host = '';
+    try { host = new URL(placement.url).hostname; } catch { /* the title stands alone */ }
+    return { id: placement.id, title: placement.title, host, url: placement.url, ruleName: placement.ruleName, folder: placement.folder,
+      at: placement.at, path: 'preSave', state: 'filed' };
+  });
 }
 
 export async function handleBrowserRuleCommand(command: BrowserRuleCommand): Promise<BrowserRuleResponse> {

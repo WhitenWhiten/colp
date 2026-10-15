@@ -91,7 +91,7 @@ describe('Options › Automations with the server’s status', () => {
       match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] } }],
     placements: [{ id: 'p1', title: 'A paper', host: 'arxiv.org', url: 'https://arxiv.org/abs/1', ruleName: 'arXiv papers', folder: 'Academic',
       at: NOW - 60_000, path: 'preSave', state: 'confirmed' }],
-    pausedAt: null, pausedBy: null, expiresAt: NOW + 86_400_000, lastRefreshAt: NOW - 60_000, problem: null,
+    browserRules: [], pausedAt: null, pausedBy: null, expiresAt: NOW + 86_400_000, lastRefreshAt: NOW - 60_000, problem: null,
     server: server({ rules: [{ id: 'rule-arxiv', name: 'arXiv papers', state: 'degraded', inBrowser: true, waiting: 3, held: null, approvals: null, cost: null },
       { id: 'rule-digest', name: 'Weekly digest', state: 'active', inBrowser: false, waiting: 0, held: 0, approvals: 0, cost: 'Billed by your agent' },
       { id: 'rule-old', name: 'Old rule', state: 'archived', inBrowser: false, waiting: null, held: null, approvals: null, cost: null }],
@@ -176,7 +176,7 @@ describe('Options › Automations with the server’s status', () => {
 
   it('says where the filing rules went while paused, and lists only the rules that work on the server', async () => {
     const rules = (await render(view({ state: 'paused', rules: [] }))).querySelector('[aria-labelledby="automation-rules-heading"]')!;
-    expect(text(rules)).toBe('Rules Rules that file bookmarks come back here when you resume automations on the web. '
+    expect(text(rules)).toBe('Your account’s rules Rules that file bookmarks come back here when you resume automations on the web. '
       + 'Weekly digest Works on your server; nothing to file here. Billed by your agent');
   });
 

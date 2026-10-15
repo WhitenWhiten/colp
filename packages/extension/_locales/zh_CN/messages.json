@@ -139,6 +139,26 @@
     "message": "已登录，接下来请选择此浏览器同步的内容。",
     "description": "You're signed in — now choose where this browser syncs."
   },
+  "automation_accountRules": {
+    "message": "你账户的规则",
+    "description": "Your account’s rules"
+  },
+  "automation_accountRulesLede": {
+    "message": "它们在每台设备上生效，并先于此浏览器自己的规则。打开一条即可在网页上修改。",
+    "description": "They work on every device, before this browser’s own rules. Open one to change it on the web."
+  },
+  "automation_accountRulesSignIn": {
+    "message": "登录 COLP 服务器后，也能使用你保存在那里的规则。它们在每台设备上生效，并先于此浏览器的规则运行。",
+    "description": "Sign in to a COLP server to also use the rules you keep there. They work on every device, and run before this browser’s."
+  },
+  "automation_addCondition": {
+    "message": "添加条件",
+    "description": "Add condition"
+  },
+  "automation_allowBookmarks": {
+    "message": "允许访问书签",
+    "description": "Allow bookmark access"
+  },
   "automation_badgeFresh": {
     "message": "$1。",
     "description": "$1."
@@ -146,6 +166,146 @@
   "automation_badgeStale": {
     "message": "截至$2：$1。此后无法连接到你的服务器。",
     "description": "$1 as of $2. Your server couldn’t be reached since."
+  },
+  "automation_browserBadKind": {
+    "message": "此类条件不能在这里使用。",
+    "description": "This kind of condition can’t be used here."
+  },
+  "automation_browserBadSite": {
+    "message": "请填写网站名称，例如 arxiv.org。",
+    "description": "Use a site name, such as arxiv.org."
+  },
+  "automation_browserCreate": {
+    "message": "保存规则",
+    "description": "Save rule"
+  },
+  "automation_browserDelete": {
+    "message": "删除规则",
+    "description": "Delete rule"
+  },
+  "automation_browserDeleteBody": {
+    "message": "已归档的网页会留在原处。今后保存的网页会存到你保存时所在的文件夹。",
+    "description": "Pages it already filed stay where they are. Pages you save from now on go to the folder you save them to."
+  },
+  "automation_browserDeleteConfirm": {
+    "message": "删除规则",
+    "description": "Delete rule"
+  },
+  "automation_browserDeleteFailed": {
+    "message": "无法删除这条规则，请重试。",
+    "description": "Couldn’t delete this rule. Try again."
+  },
+  "automation_browserDeleteTitle": {
+    "message": "删除“$1”？",
+    "description": "Delete “$1”?"
+  },
+  "automation_browserDeleted": {
+    "message": "已删除“$1”。",
+    "description": "Deleted “$1”."
+  },
+  "automation_browserEdit": {
+    "message": "编辑规则",
+    "description": "Edit rule"
+  },
+  "automation_browserEditTitle": {
+    "message": "编辑规则",
+    "description": "Edit rule"
+  },
+  "automation_browserEditorHint": {
+    "message": "只有此浏览器使用这条规则，且排在你账户的规则之后。保存时你亲自选择的文件夹总是优先。",
+    "description": "Only this browser uses this rule, after your account’s rules. A folder you pick when saving always wins."
+  },
+  "automation_browserEmptyHint": {
+    "message": "告诉 Know-N 一次：来自 arxiv.org 的网页放进“论文”，之后你保存的每一篇都会放到那里。",
+    "description": "Tell Know-N once that pages from arxiv.org go to Papers, and each one you save lands there."
+  },
+  "automation_browserEmptyTitle": {
+    "message": "此浏览器还没有规则",
+    "description": "No rules in this browser yet"
+  },
+  "automation_browserFolderGone": {
+    "message": "一个已不存在的文件夹",
+    "description": "a folder that no longer exists"
+  },
+  "automation_browserFolderHere": {
+    "message": "此浏览器中的一个文件夹",
+    "description": "a folder in this browser"
+  },
+  "automation_browserFolderMissing": {
+    "message": "文件夹缺失",
+    "description": "Folder missing"
+  },
+  "automation_browserFolderMissingHint": {
+    "message": "它的文件夹已被删除。编辑规则以选择另一个文件夹。",
+    "description": "Its folder was deleted. Edit the rule to choose another one."
+  },
+  "automation_browserGone": {
+    "message": "这条规则已在此期间被删除。",
+    "description": "This rule was deleted meanwhile."
+  },
+  "automation_browserLede": {
+    "message": "它们会把你在这里保存的网页归档，离线和未登录时也一样。你亲自选择的文件夹总是优先。",
+    "description": "They file the pages you save here, even offline and with no account. A folder you pick yourself always wins."
+  },
+  "automation_browserLedeSignedIn": {
+    "message": "只有此浏览器使用它们，处理你账户规则未匹配的网页。你亲自选择的文件夹总是优先。",
+    "description": "Only this browser uses them, for pages your account’s rules don’t match. A folder you pick yourself always wins."
+  },
+  "automation_browserLimit": {
+    "message": "此浏览器最多保存 100 条规则。删除一条后才能再添加。",
+    "description": "This browser keeps up to 100 rules. Delete one to add another."
+  },
+  "automation_browserNameTooLong": {
+    "message": "请不要超过 200 个字符。",
+    "description": "Use 200 characters or fewer."
+  },
+  "automation_browserNeedCondition": {
+    "message": "请至少添加一个条件。",
+    "description": "Add at least one condition."
+  },
+  "automation_browserNeedFolder": {
+    "message": "请选择网页要放入的文件夹。",
+    "description": "Choose the folder pages go to."
+  },
+  "automation_browserNewTitle": {
+    "message": "在此浏览器中新建规则",
+    "description": "New rule in this browser"
+  },
+  "automation_browserOff": {
+    "message": "已关闭",
+    "description": "Off"
+  },
+  "automation_browserRules": {
+    "message": "此浏览器的规则",
+    "description": "Rules in this browser"
+  },
+  "automation_browserSaveFailed": {
+    "message": "无法保存这条规则，请重试。",
+    "description": "Couldn’t save this rule. Try again."
+  },
+  "automation_browserSaved": {
+    "message": "已保存“$1”。",
+    "description": "Saved “$1”."
+  },
+  "automation_browserTooMany": {
+    "message": "条件请不要超过 8 个。",
+    "description": "Use 8 conditions or fewer."
+  },
+  "automation_browserTurnOff": {
+    "message": "关闭",
+    "description": "Turn off"
+  },
+  "automation_browserTurnOn": {
+    "message": "开启",
+    "description": "Turn on"
+  },
+  "automation_browserUse": {
+    "message": "使用“$1”",
+    "description": "Use “$1”"
+  },
+  "automation_browserValueTooLong": {
+    "message": "请不要超过 512 个字符。",
+    "description": "Use 512 characters or fewer."
   },
   "automation_checkNow": {
     "message": "立即检查",
@@ -186,6 +346,14 @@
   "automation_condTitleContains": {
     "message": "标题包含“$1”",
     "description": "Title has “$1”"
+  },
+  "automation_conditionKind": {
+    "message": "条件",
+    "description": "Condition"
+  },
+  "automation_conditionValue": {
+    "message": "值",
+    "description": "Value"
   },
   "automation_digestAsOf": {
     "message": "截至$1",
@@ -295,17 +463,49 @@
     "message": "已保留你选择的文件夹；规则“$1”没有移动它。",
     "description": "Kept the folder you chose; rule “$1” didn’t move it."
   },
-  "automation_lede": {
-    "message": "服务器上的规则会把你保存的书签放进合适的文件夹。规则在网页上创建和修改。",
-    "description": "Rules on your server file the bookmarks you save into the right folder. You create and change them on the web."
+  "automation_kindPathStartsWith": {
+    "message": "链接路径开头是",
+    "description": "Link path starts with"
+  },
+  "automation_kindSiteEndsWith": {
+    "message": "网站结尾是",
+    "description": "Site ends with"
+  },
+  "automation_kindSiteIs": {
+    "message": "网站是",
+    "description": "Site is"
+  },
+  "automation_kindTitleContains": {
+    "message": "标题包含",
+    "description": "Title contains"
+  },
+  "automation_ledeBrowser": {
+    "message": "规则会把你保存的网页放进合适的文件夹。此浏览器的规则无需账户；你账户的规则在每台设备上生效。",
+    "description": "Rules file the pages you save into the right folder. Rules in this browser need no account; your account’s rules work on every device."
   },
   "automation_loadFailed": {
     "message": "无法读取此浏览器中的自动化。请重新加载页面后再试。",
     "description": "Couldn’t read automations in this browser. Reload the page to try again."
   },
+  "automation_matchAll": {
+    "message": "全部满足",
+    "description": "all of these"
+  },
+  "automation_matchAny": {
+    "message": "任一满足",
+    "description": "any of these"
+  },
+  "automation_matchLabel": {
+    "message": "匹配",
+    "description": "Match"
+  },
   "automation_movedByRule": {
     "message": "已按规则“$3”将“$1”移到 $2。",
     "description": "Moved “$1” to $2 by rule “$3”."
+  },
+  "automation_needBookmarks": {
+    "message": "Know-N 需要访问你的书签，才能把网页放进文件夹。",
+    "description": "Know-N needs access to your bookmarks to file pages into a folder."
   },
   "automation_newDigests_one": {
     "message": "$1 份新摘要",
@@ -327,6 +527,18 @@
     "message": "新建规则",
     "description": "New rule"
   },
+  "automation_newRuleWeb": {
+    "message": "在网页上新建规则",
+    "description": "New rule on the web"
+  },
+  "automation_noAccountRulesHint": {
+    "message": "在网页上打开一个文件夹并选择“自动化…”，即可在每台设备上把某个网站的网页归档到那里。",
+    "description": "On the web, open a folder and choose Automate… to file pages from a site there, on every device."
+  },
+  "automation_noAccountRulesTitle": {
+    "message": "这里还没有账户规则",
+    "description": "No account rules here yet"
+  },
   "automation_noPlacementsHint": {
     "message": "规则为你在此浏览器保存的书签归档后，会显示在这里。",
     "description": "When a rule files a bookmark you save in this browser, it shows up here."
@@ -335,17 +547,9 @@
     "message": "这里还没有归档",
     "description": "Nothing filed here yet"
   },
-  "automation_noRulesHint": {
-    "message": "在网页上打开一个文件夹并选择“自动化…”，即可把某个网站的页面自动放到那里。",
-    "description": "On the web, open a folder and choose Automate… to file pages from a site there."
-  },
   "automation_noRulesPausedHint": {
     "message": "在网页上恢复自动化后，规则会重新出现在这里。",
     "description": "Rules come back here when you resume automations on the web."
-  },
-  "automation_noRulesTitle": {
-    "message": "这里还没有规则",
-    "description": "No rules here yet"
   },
   "automation_noRunsHint": {
     "message": "规则处理已同步的书签后，运行记录会显示在这里。",
@@ -427,6 +631,14 @@
     "message": "在此浏览器中归档。同步后由服务器逐条确认。",
     "description": "Filed in this browser. The server confirms each one after it syncs."
   },
+  "automation_recentPlacementsLedeLocal": {
+    "message": "由你的规则在此浏览器中归档。",
+    "description": "Filed in this browser by your rules."
+  },
+  "automation_removeCondition": {
+    "message": "移除条件",
+    "description": "Remove condition"
+  },
   "automation_resumeAll": {
     "message": "恢复自动化",
     "description": "Resume automations"
@@ -487,6 +699,18 @@
     "message": "$1 项任务等待代理处理",
     "description": "$1 jobs waiting for an agent"
   },
+  "automation_ruleNameInto": {
+    "message": "放入 $1",
+    "description": "Into $1"
+  },
+  "automation_ruleNameOptional": {
+    "message": "名称（可选）",
+    "description": "Name (optional)"
+  },
+  "automation_ruleNamePlaceholder": {
+    "message": "来自 arXiv 的论文",
+    "description": "Papers from arXiv"
+  },
   "automation_ruleNeedsReview": {
     "message": "规则“$1”需要在网页上审核，书签留在你保存的位置。",
     "description": "Rule “$1” needs a review on the web, so the page stayed where you saved it."
@@ -511,17 +735,9 @@
     "message": "等待中",
     "description": "Waiting"
   },
-  "automation_rules": {
-    "message": "规则",
-    "description": "Rules"
-  },
   "automation_rulesDisagree": {
     "message": "多条规则为此页面选择了不同的文件夹，书签留在你保存的位置。",
     "description": "Rules chose different folders for this page, so it stayed where you saved it."
-  },
-  "automation_rulesLedeOpen": {
-    "message": "你自己选择的文件夹总是优先于规则。打开一条规则即可在网页上修改它。",
-    "description": "A folder you pick yourself always wins over a rule. Open a rule to change it on the web."
   },
   "automation_rulesOutOfDateSaved": {
     "message": "规则已过期，请连接以刷新。书签留在你保存的位置。",
@@ -587,6 +803,10 @@
     "message": "等待中",
     "description": "Waiting"
   },
+  "automation_saveIn": {
+    "message": "保存到",
+    "description": "Save it in"
+  },
   "automation_savedByRule": {
     "message": "已按规则“$2”保存到 $1。",
     "description": "Saved to $1 by rule “$2”."
@@ -643,14 +863,6 @@
     "message": "$1更新。",
     "description": "Updated $1."
   },
-  "automation_signInHint": {
-    "message": "规则保存在你的服务器上，会在你保存书签时自动归档。不使用规则也可以保存和整理书签。",
-    "description": "Rules live on your server and file bookmarks as you save them. Saving and organizing work without them."
-  },
-  "automation_signInTitle": {
-    "message": "登录以使用自动化",
-    "description": "Sign in to use automations"
-  },
   "automation_statusNoneHint": {
     "message": "此浏览器还没有收到任何规则。",
     "description": "No rules have reached this browser yet."
@@ -702,6 +914,10 @@
   "automation_updatedAt": {
     "message": "$1更新。",
     "description": "Updated $1."
+  },
+  "automation_whenPage": {
+    "message": "当网页",
+    "description": "When a page"
   },
   "backup_completed": {
     "message": "已将 $1 个项目和 $2 条历史记录恢复到此浏览器。",

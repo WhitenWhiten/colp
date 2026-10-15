@@ -1530,15 +1530,54 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-freshness { display: flex; align-items: center; gap: var(--hair-40); margin: 0; padding: var(--hair-55) var(--space-4); border-top: 1px solid var(--line); color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-freshness svg { flex: none; width: 0.8rem; height: 0.8rem; }
 .automation-freshness[data-tone="warning"] svg { color: var(--warning); }
+/* A group head with its own action (the account's "New rule on the web"): the action sits at the end of the head. */
+.automation-group-head { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-4); align-items: end; }
+.automation-group-head > :is(h2, .detail) { grid-column: 1; }
+.automation-group-head > .btn { grid-column: 2; grid-row: 1 / span 2; align-self: end; }
+.automation-group-head > .btn svg { width: 0.85rem; height: 0.85rem; }
+
+/* Rules in this browser (browser-rules-pane.ts): the account's row anatomy, opened in place instead of on the web. */
+.automation-browser-rule { grid-template-columns: auto minmax(0, 1fr) auto auto; cursor: pointer; }
+.automation-browser-rule:hover { background: var(--paper); }
+.automation-browser-rule[data-off] :is(.list-row-title, .list-row-meta, .automation-recipe-folder) { color: var(--muted); }
+.automation-browser-rule[data-off] .favicon-tile { color: var(--faint); }
+.automation-account { margin: 0 0 var(--space-6); }
+.automation-account > .set-row { border: 0; }
+
+/* The rule editor: when (condition rows), where (the folder pill), then an optional name. */
+.automation-rule-editor { width: min(36rem, calc(100vw - 2rem)); max-width: min(36rem, calc(100vw - 2rem)); }
+.automation-rule-form { display: grid; gap: 0; }
+.automation-rule-form .capture-dialog-body { gap: var(--space-4); }
+.automation-when { display: grid; gap: var(--hair-55); min-width: 0; margin: 0; padding: 0; border: 0; }
+.automation-when > legend { margin-bottom: var(--hair-30); padding: 0; }
+.automation-conditions { display: grid; gap: var(--hair-55); }
+.automation-condition { display: grid; grid-template-columns: 11rem minmax(0, 1fr) 2rem; gap: var(--hair-30) var(--hair-55); align-items: center; }
+.automation-condition > .field-select { min-height: 2.125rem; }
+.automation-condition > .field-quiet { width: 100%; min-width: 0; }
+.automation-condition > .form-error { grid-column: 1 / -1; }
+.automation-when-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.automation-add-condition { display: inline-flex; align-items: center; gap: var(--hair-40); padding-inline: var(--hair-55); }
+.automation-add-condition svg { width: 0.85rem; height: 0.85rem; }
+.automation-access > .inline-alert { margin: 0; }
+
 /* Narrow: as on the other library lists, a row's badge drops under its text and a meta line wraps,
    so a rule's name is never cut to one letter between the folder and the time. */
 @media (max-width: 540px) {
+  .automation-condition { grid-template-columns: minmax(0, 1fr) 2rem; }
+  .automation-condition > .field-select { grid-column: 1 / -1; }
+  .automation-group-head { grid-template-columns: minmax(0, 1fr); }
+  .automation-group-head > .btn { grid-column: 1; grid-row: auto; justify-self: start; }
   .automation-status-main { grid-template-columns: auto minmax(0, 1fr); }
   .automation-status-main > .btn { grid-column: 2; justify-self: start; }
   .automation-rules .list-row { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--hair-30); }
   .automation-rules .list-row > .list-row-tail { grid-column: 2; justify-self: start; flex-wrap: wrap; }
   .automation-rules .list-row-tail > svg { display: none; }
   .automation-rules .list-row-tail:not(:has(.badge)) { display: none; }
+  /* A browser rule keeps its switch at the end of the first line; its badge and actions go under its text. */
+  .automation-rules .automation-browser-rule { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .automation-rules .automation-browser-rule > .automation-rule-switch { grid-column: 3; grid-row: 1; align-self: start; }
+  .automation-rules .automation-browser-rule > .list-row-tail { display: flex; grid-row: 2; }
+  .automation-rules .list-row-meta > .automation-recipe-missing { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
   .automation-rules .list-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; white-space: normal; }
   .automation-rules .list-row-meta { flex-wrap: wrap; row-gap: 0; white-space: normal; }
 }

@@ -91,6 +91,19 @@ export interface AutomationRuleView {
   readonly match: RuleMatchView | null;
 }
 
+/** One of this browser's own rules, as Options lists and edits it. */
+export interface BrowserRuleView {
+  readonly id: string;
+  readonly name: string;
+  readonly enabled: boolean;
+  readonly match: RuleMatchView | null;
+  /** What the editor opens with; null for a rule it cannot show (never written by this build's editor). */
+  readonly draft: BrowserRuleDraft | null;
+  /** Its folder here; null while bookmark access is off or once the folder is gone (`folderMissing`). */
+  readonly folder: { readonly nativeId: string; readonly title: string; readonly path: readonly string[] } | null;
+  readonly folderMissing: boolean;
+}
+
 /** A receipt as the page shows it: placement happened here; the server's answer is the rest. */
 export interface AutomationPlacementView {
   readonly id: string;
@@ -102,8 +115,11 @@ export interface AutomationPlacementView {
   readonly folder: string;
   readonly at: number;
   readonly path: 'preSave' | 'observed';
-  /** waitingForSync: not yet joined to its Sync operations; confirmed: the server accepted the placement. */
-  readonly state: 'waitingForSync' | 'confirmed' | 'review' | 'rejected' | 'attention';
+  /**
+   * waitingForSync: not yet joined to its Sync operations; confirmed: the server accepted the placement.
+   * filed: one of this browser's own rules filed it, and there is nothing for a server to confirm.
+   */
+  readonly state: 'waitingForSync' | 'confirmed' | 'review' | 'rejected' | 'attention' | 'filed';
 }
 
 export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';
@@ -153,8 +169,10 @@ export interface AutomationStateView {
   /** `none`: no bundle yet. `active`/`paused`: what the installed bundle says. `expired`: placement is off until a refresh. */
   readonly state: 'none' | 'active' | 'paused' | 'expired';
   readonly rules: readonly AutomationRuleView[];
-  /** This account's recent placements in this browser, newest first. */
+  /** Recent placements in this browser, by this account's rules and this browser's own, newest first. */
   readonly placements: readonly AutomationPlacementView[];
+  /** This browser's own rules, signed in or not, in the order they were made. */
+  readonly browserRules: readonly BrowserRuleView[];
   readonly pausedAt: number | null;
   readonly pausedBy: 'owner' | 'restore' | 'capacity' | null;
   readonly expiresAt: number | null;

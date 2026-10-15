@@ -143,12 +143,25 @@ bar whose items wrap onto a second line, so every destination stays visible.
 | `#history` | Saved-page history grouped by day; one badge per row, problems only |
 | `#subscriptions` | Subscriptions; defaults as the last group |
 | `#sync/...` | Collection, folders, status, import (connect card when signed out) |
-| `#automations` | The server's rule bundle on this browser: status, freshness and offline expiry, each rule's folder here; rules are edited on the web. Below, kept apart: recent placements (this browser's receipts), then **On your server**, the server's runs in the web's words with their age (see below) |
+| `#automations` | Signed in: the account's rule bundle on this browser (status, freshness and offline expiry, each rule's folder here; edited on the web), then **Rules in this browser** (see below). Signed out: Rules in this browser lead, with one card for what an account adds. Below, kept apart: recent placements (this browser's receipts and its own rules' placements), then **On your server**, the server's runs in the web's words with their age (see below) |
 | `#saving` | Toolbar mode, result panel, default folder, placement, shortcuts |
 | `#ai` | Provider choice, Know-N authorization, own AI service, correction memory |
 | `#general` | Language, permissions, export / backup / restore |
 | `#account`, `#account/credits` | Identity, credits summary, sign out; credit activity table |
 | `#help` | Diagnostics (the only place for internals) |
+
+**Automations › Rules in this browser (AW-68).** The Owner's own rules, made here and kept only here;
+they need no account and run after the account's rules:
+
+- **Rows.** The account rows' anatomy: the rule's sentence ("From arxiv.org → Papers"), a switch at the
+  end, Edit and Delete on hover, and a badge only for Off or Folder missing. The row opens the editor.
+  Below 540px the switch keeps the end of the first line and the badge and actions go under the text.
+- **Editor.** One dialog in the web's order: When a page (condition rows, Add condition, Match all/any
+  once there are two), Save it in (the folder pill, starting empty; subscription folders left out), then
+  Name (optional), which defaults to the web's "arxiv.org → Papers". Problems sit under the field they
+  are about. Results are toasts; Delete asks first and says filed pages stay put.
+- **New rule** in the page head always opens this editor; account rules are made on the web, from their
+  own group's "New rule on the web".
 
 **Automations › On your server.** What the server did after a bookmark synced, never mixed with
 what this browser did:

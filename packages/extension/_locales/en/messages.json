@@ -110,11 +110,131 @@
   "auth_youreSignedNowChoose": {
     "message": "You're signed in — now choose where this browser syncs."
   },
+  "automation_accountRules": {
+    "message": "Your account’s rules"
+  },
+  "automation_accountRulesLede": {
+    "message": "They work on every device, before this browser’s own rules. Open one to change it on the web."
+  },
+  "automation_accountRulesSignIn": {
+    "message": "Sign in to a COLP server to also use the rules you keep there. They work on every device, and run before this browser’s."
+  },
+  "automation_addCondition": {
+    "message": "Add condition"
+  },
+  "automation_allowBookmarks": {
+    "message": "Allow bookmark access"
+  },
   "automation_badgeFresh": {
     "message": "$1."
   },
   "automation_badgeStale": {
     "message": "$1 as of $2. Your server couldn’t be reached since."
+  },
+  "automation_browserBadKind": {
+    "message": "This kind of condition can’t be used here."
+  },
+  "automation_browserBadSite": {
+    "message": "Use a site name, such as arxiv.org."
+  },
+  "automation_browserCreate": {
+    "message": "Save rule"
+  },
+  "automation_browserDelete": {
+    "message": "Delete rule"
+  },
+  "automation_browserDeleteBody": {
+    "message": "Pages it already filed stay where they are. Pages you save from now on go to the folder you save them to."
+  },
+  "automation_browserDeleteConfirm": {
+    "message": "Delete rule"
+  },
+  "automation_browserDeleteFailed": {
+    "message": "Couldn’t delete this rule. Try again."
+  },
+  "automation_browserDeleteTitle": {
+    "message": "Delete “$1”?"
+  },
+  "automation_browserDeleted": {
+    "message": "Deleted “$1”."
+  },
+  "automation_browserEdit": {
+    "message": "Edit rule"
+  },
+  "automation_browserEditTitle": {
+    "message": "Edit rule"
+  },
+  "automation_browserEditorHint": {
+    "message": "Only this browser uses this rule, after your account’s rules. A folder you pick when saving always wins."
+  },
+  "automation_browserEmptyHint": {
+    "message": "Tell Know-N once that pages from arxiv.org go to Papers, and each one you save lands there."
+  },
+  "automation_browserEmptyTitle": {
+    "message": "No rules in this browser yet"
+  },
+  "automation_browserFolderGone": {
+    "message": "a folder that no longer exists"
+  },
+  "automation_browserFolderHere": {
+    "message": "a folder in this browser"
+  },
+  "automation_browserFolderMissing": {
+    "message": "Folder missing"
+  },
+  "automation_browserFolderMissingHint": {
+    "message": "Its folder was deleted. Edit the rule to choose another one."
+  },
+  "automation_browserGone": {
+    "message": "This rule was deleted meanwhile."
+  },
+  "automation_browserLede": {
+    "message": "They file the pages you save here, even offline and with no account. A folder you pick yourself always wins."
+  },
+  "automation_browserLedeSignedIn": {
+    "message": "Only this browser uses them, for pages your account’s rules don’t match. A folder you pick yourself always wins."
+  },
+  "automation_browserLimit": {
+    "message": "This browser keeps up to 100 rules. Delete one to add another."
+  },
+  "automation_browserNameTooLong": {
+    "message": "Use 200 characters or fewer."
+  },
+  "automation_browserNeedCondition": {
+    "message": "Add at least one condition."
+  },
+  "automation_browserNeedFolder": {
+    "message": "Choose the folder pages go to."
+  },
+  "automation_browserNewTitle": {
+    "message": "New rule in this browser"
+  },
+  "automation_browserOff": {
+    "message": "Off"
+  },
+  "automation_browserRules": {
+    "message": "Rules in this browser"
+  },
+  "automation_browserSaveFailed": {
+    "message": "Couldn’t save this rule. Try again."
+  },
+  "automation_browserSaved": {
+    "message": "Saved “$1”."
+  },
+  "automation_browserTooMany": {
+    "message": "Use 8 conditions or fewer."
+  },
+  "automation_browserTurnOff": {
+    "message": "Turn off"
+  },
+  "automation_browserTurnOn": {
+    "message": "Turn on"
+  },
+  "automation_browserUse": {
+    "message": "Use “$1”"
+  },
+  "automation_browserValueTooLong": {
+    "message": "Use 512 characters or fewer."
   },
   "automation_checkNow": {
     "message": "Check now"
@@ -145,6 +265,12 @@
   },
   "automation_condTitleContains": {
     "message": "Title has “$1”"
+  },
+  "automation_conditionKind": {
+    "message": "Condition"
+  },
+  "automation_conditionValue": {
+    "message": "Value"
   },
   "automation_digestAsOf": {
     "message": "as of $1"
@@ -227,14 +353,38 @@
   "automation_keptYourFolder": {
     "message": "Kept the folder you chose; rule “$1” didn’t move it."
   },
-  "automation_lede": {
-    "message": "Rules on your server file the bookmarks you save into the right folder. You create and change them on the web."
+  "automation_kindPathStartsWith": {
+    "message": "Link path starts with"
+  },
+  "automation_kindSiteEndsWith": {
+    "message": "Site ends with"
+  },
+  "automation_kindSiteIs": {
+    "message": "Site is"
+  },
+  "automation_kindTitleContains": {
+    "message": "Title contains"
+  },
+  "automation_ledeBrowser": {
+    "message": "Rules file the pages you save into the right folder. Rules in this browser need no account; your account’s rules work on every device."
   },
   "automation_loadFailed": {
     "message": "Couldn’t read automations in this browser. Reload the page to try again."
   },
+  "automation_matchAll": {
+    "message": "all of these"
+  },
+  "automation_matchAny": {
+    "message": "any of these"
+  },
+  "automation_matchLabel": {
+    "message": "Match"
+  },
   "automation_movedByRule": {
     "message": "Moved “$1” to $2 by rule “$3”."
+  },
+  "automation_needBookmarks": {
+    "message": "Know-N needs access to your bookmarks to file pages into a folder."
   },
   "automation_newDigests_one": {
     "message": "$1 new digest"
@@ -251,20 +401,23 @@
   "automation_newRule": {
     "message": "New rule"
   },
+  "automation_newRuleWeb": {
+    "message": "New rule on the web"
+  },
+  "automation_noAccountRulesHint": {
+    "message": "On the web, open a folder and choose Automate… to file pages from a site there, on every device."
+  },
+  "automation_noAccountRulesTitle": {
+    "message": "No account rules here yet"
+  },
   "automation_noPlacementsHint": {
     "message": "When a rule files a bookmark you save in this browser, it shows up here."
   },
   "automation_noPlacementsTitle": {
     "message": "Nothing filed here yet"
   },
-  "automation_noRulesHint": {
-    "message": "On the web, open a folder and choose Automate… to file pages from a site there."
-  },
   "automation_noRulesPausedHint": {
     "message": "Rules come back here when you resume automations on the web."
-  },
-  "automation_noRulesTitle": {
-    "message": "No rules here yet"
   },
   "automation_noRunsHint": {
     "message": "Runs show up here after a rule acts on a synced bookmark."
@@ -326,6 +479,12 @@
   "automation_recentPlacementsLede": {
     "message": "Filed in this browser. The server confirms each one after it syncs."
   },
+  "automation_recentPlacementsLedeLocal": {
+    "message": "Filed in this browser by your rules."
+  },
+  "automation_removeCondition": {
+    "message": "Remove condition"
+  },
   "automation_resumeAll": {
     "message": "Resume automations"
   },
@@ -371,6 +530,15 @@
   "automation_ruleJobsWaiting_other": {
     "message": "$1 jobs waiting for an agent"
   },
+  "automation_ruleNameInto": {
+    "message": "Into $1"
+  },
+  "automation_ruleNameOptional": {
+    "message": "Name (optional)"
+  },
+  "automation_ruleNamePlaceholder": {
+    "message": "Papers from arXiv"
+  },
   "automation_ruleNeedsReview": {
     "message": "Rule “$1” needs a review on the web, so the page stayed where you saved it."
   },
@@ -389,14 +557,8 @@
   "automation_ruleWaiting": {
     "message": "Waiting"
   },
-  "automation_rules": {
-    "message": "Rules"
-  },
   "automation_rulesDisagree": {
     "message": "Rules chose different folders for this page, so it stayed where you saved it."
-  },
-  "automation_rulesLedeOpen": {
-    "message": "A folder you pick yourself always wins over a rule. Open a rule to change it on the web."
   },
   "automation_rulesOutOfDateSaved": {
     "message": "Rules are out of date; connect to refresh. The page stayed where you saved it."
@@ -446,6 +608,9 @@
   "automation_runWaiting": {
     "message": "Waiting"
   },
+  "automation_saveIn": {
+    "message": "Save it in"
+  },
   "automation_savedByRule": {
     "message": "Saved to $1 by rule “$2”."
   },
@@ -488,12 +653,6 @@
   "automation_serverUpdatedAt": {
     "message": "Updated $1."
   },
-  "automation_signInHint": {
-    "message": "Rules live on your server and file bookmarks as you save them. Saving and organizing work without them."
-  },
-  "automation_signInTitle": {
-    "message": "Sign in to use automations"
-  },
   "automation_statusNoneHint": {
     "message": "No rules have reached this browser yet."
   },
@@ -535,6 +694,9 @@
   },
   "automation_updatedAt": {
     "message": "Updated $1."
+  },
+  "automation_whenPage": {
+    "message": "When a page"
   },
   "backup_completed": {
     "message": "Restored $1 items and $2 history records to this browser."

@@ -137,7 +137,8 @@ export const browserFolderRef = (nativeId: string): FolderRef => ({ serverUuid: 
 
 /** A browser rule's folder, looked up in this browser now. */
 export interface FolderLookup {
-  (nativeId: string): Promise<{ readonly id: string; readonly title: string; readonly url?: string; readonly unmodifiable?: string } | null>;
+  (nativeId: string): Promise<{ readonly id: string; readonly title: string; readonly parentId?: string; readonly url?: string;
+    readonly unmodifiable?: string } | null>;
 }
 
 export async function resolveBrowserFolder(nativeId: string, lookup: FolderLookup): Promise<LocalFolder> {

@@ -122,4 +122,5 @@ Each packet is committed separately; the commit column is filled in by the next 
 
 | Task | Status | Commit / evidence |
 | --- | --- | --- |
-| AW-67 | Done locally (unit and worker tests; production bundle checked; no Options UI or real browser yet) | [browser rules at save, below the account's](evidence/aw-67.md) |
+| AW-67 | Done locally (unit and worker tests; production bundle checked; no Options UI or real browser yet) | `5998368e`, [browser rules at save, below the account's](evidence/aw-67.md) |
+| AW-68 | Done locally (happy-dom pane tests; real Chromium under xvfb for AC-69 with no server; screenshots in en and zh_CN) | [write and manage browser rules in Options](evidence/aw-68.md) |
