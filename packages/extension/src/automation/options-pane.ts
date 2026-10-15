@@ -220,6 +220,12 @@ function placementList(view: AutomationStateView): HTMLElement {
       el('span', t('automation_placementRule', 'Rule “$1”', placement.ruleName), 'grow'), el('span', undefined, 'sep'), when(placement.at));
     const title = el('p', placement.title || placement.host, 'list-row-title'); title.title = placement.host;
     main.append(title, meta);
+    // Why a matching rule left the page where it was saved, after the save panel is gone (U6).
+    if (placement.kept) {
+      main.append(el('p', placement.kept === 'conflict'
+        ? t('automation_keptConflict', 'Two of this browser’s rules wanted different folders, so it stayed where you saved it.')
+        : t('automation_keptBlocked', 'The rule’s folder isn’t available here, so it stayed where you saved it.'), 'list-row-meta automation-kept-why'));
+    }
     item.append(faviconTile(placement.url), main);
     const badge = placementBadge(placement.state);
     if (badge) { const tail = el('div', undefined, 'list-row-tail'); tail.append(badge); item.append(tail); }
@@ -284,10 +290,12 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
   const panels: Record<ActivityTab, () => HTMLElement> = {
     browser: () => {
       const panel = el('div', undefined, 'automation-panel');
-      // Only an account rule's placement has a server to confirm it.
-      const confirmed = view.placements.some((placement) => placement.state !== 'filed');
+      // Only an account rule's placement has a server to confirm it; this browser's own rows never wait for one.
+      const confirmed = view.placements.some((placement) => placement.state !== 'filed' && placement.state !== 'keptHere');
+      const kept = view.placements.some((placement) => placement.state === 'keptHere');
       panel.append(el('p', confirmed ? t('automation_recentPlacementsLede', 'Filed in this browser. The server confirms each one after it syncs.')
-        : t('automation_recentPlacementsLedeLocal', 'Filed in this browser by your rules.'), 'automation-panel-lede'), placementList(view));
+        : kept ? t('automation_recentPlacementsLedeKept', 'What your rules did in this browser, including pages they had to leave where you saved them.')
+          : t('automation_recentPlacementsLedeLocal', 'Filed in this browser by your rules.'), 'automation-panel-lede'), placementList(view));
       return panel;
     },
     server: () => {

@@ -118,6 +118,22 @@ describe('a placed save', () => {
     await recordPreSaveReceipt({ ...saved, captureId: '0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f02', automation: { ...saved.automation!, outcome: 'kept' } as CaptureTask['automation'] });
     expect(await browserRuleStore().placements()).toHaveLength(1);
   });
+
+  it('is logged with why when a rule matched but the page stayed where it was saved (U6)', async () => {
+    const [rule] = await browserRuleStore().list();
+    const kept = (captureId: string, outcome: 'conflict' | 'blocked', at: number): CaptureTask => ({ ...base, captureId,
+      scope: { ...f.scope, accountId: null, collectionId: null }, save: 'local-saved', disposition: 'new', nativeId: '56', targetNativeId: '21',
+      title: 'A paper', url: paper.url, savedAt: at,
+      localLocation: { collectionId: null, collectionTitle: null, nodeId: null, nativeId: '21', path: ['Bookmarks bar', 'Inbox'], writable: true, url: paper.url },
+      automation: { source: 'browser', outcome, ...(outcome === 'blocked' ? { reason: 'bindingUnavailable' } : {}),
+        rule: { id: rule!.id, name: 'Papers from arXiv' }, ruleIds: [rule!.id], fromNativeId: '21' } });
+    await recordPreSaveReceipt(kept('0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f03', 'conflict', NOW));
+    await recordPreSaveReceipt(kept('0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f04', 'blocked', NOW + 1));
+    expect((await browserRuleStore().placements()).map(({ id, folder, kept: why }) => ({ id: id.slice(-2), folder, why })))
+      .toEqual([{ id: '04', folder: 'Inbox', why: 'blocked' }, { id: '03', folder: 'Inbox', why: 'conflict' }]);
+    expect((await automationStateView()).placements.map(({ state, kept: why }) => ({ state, why })))
+      .toEqual([{ state: 'keptHere', why: 'blocked' }, { state: 'keptHere', why: 'conflict' }]);
+  });
 });
 
 describe('how a page finds its folder past the rules (U3)', () => {

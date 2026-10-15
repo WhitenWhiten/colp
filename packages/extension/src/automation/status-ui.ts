@@ -48,6 +48,7 @@ export function placementBadge(state: AutomationPlacementView['state']): HTMLEle
     case 'review': return badge(t('automation_placementReview', 'Needs review'), 'warning');
     case 'rejected': return badge(t('automation_placementRejected', 'Not accepted'), 'danger');
     case 'attention': return badge(t('automation_placementAttention', 'Couldn’t confirm'), 'warning');
+    case 'keptHere': return badge(t('automation_placementKept', 'Kept where saved'), 'warning');
     case 'confirmed': case 'filed': return null;
   }
 }

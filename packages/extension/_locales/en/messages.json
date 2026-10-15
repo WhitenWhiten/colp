@@ -443,6 +443,12 @@
   "automation_freshnessHintShort": {
     "message": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
+  "automation_keptBlocked": {
+    "message": "The rule’s folder isn’t available here, so it stayed where you saved it."
+  },
+  "automation_keptConflict": {
+    "message": "Two of this browser’s rules wanted different folders, so it stayed where you saved it."
+  },
   "automation_keptYourFolder": {
     "message": "Kept the folder you chose; rule “$1” didn’t move it."
   },
@@ -644,6 +650,9 @@
   "automation_placementAttention": {
     "message": "Couldn’t confirm"
   },
+  "automation_placementKept": {
+    "message": "Kept where saved"
+  },
   "automation_placementRejected": {
     "message": "Not accepted"
   },
@@ -661,6 +670,9 @@
   },
   "automation_recentPlacementsLede": {
     "message": "Filed in this browser. The server confirms each one after it syncs."
+  },
+  "automation_recentPlacementsLedeKept": {
+    "message": "What your rules did in this browser, including pages they had to leave where you saved them."
   },
   "automation_recentPlacementsLedeLocal": {
     "message": "Filed in this browser by your rules."

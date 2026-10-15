@@ -379,3 +379,19 @@ describe('a move the account has not finished (U5)', () => {
     expect(body.querySelector('.automation-stale-actions')).toBeNull();
   });
 });
+
+describe('a save a rule matched but left where it was saved (U6)', () => {
+  it('stays in recent activity with why, after the save panel is gone', async () => {
+    const at = NOW - 60_000;
+    const body = await render(view({ placements: [
+      { id: 'k1', title: 'Ahrefs blog', host: 'ahrefs.com', url: 'https://ahrefs.com/blog/', ruleName: 'SEO reading', folder: 'Inbox', at, path: 'preSave', state: 'keptHere', kept: 'conflict' },
+      { id: 'k2', title: 'Sourdough', host: 'example.org', url: 'https://example.org/r', ruleName: 'Recipes', folder: 'Inbox', at, path: 'preSave', state: 'keptHere', kept: 'blocked' },
+      { id: 'f1', title: 'A paper', host: 'arxiv.org', url: 'https://arxiv.org/abs/1', ruleName: 'Papers from arXiv', folder: 'Papers', at, path: 'preSave', state: 'filed' }] }));
+    const rows = Array.from(body.querySelectorAll('.automation-placements > li'));
+    expect(rows.map((row) => text(row.querySelector('.badge')))).toEqual(['Kept where saved', 'Kept where saved', '']);
+    expect(rows.map((row) => text(row.querySelector('.automation-kept-why')))).toEqual([
+      'Two of this browser’s rules wanted different folders, so it stayed where you saved it.',
+      'The rule’s folder isn’t available here, so it stayed where you saved it.', '']);
+    expect(text(body.querySelector('.automation-panel-lede'))).toBe('What your rules did in this browser, including pages they had to leave where you saved them.');
+  });
+});

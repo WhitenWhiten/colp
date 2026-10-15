@@ -95,6 +95,8 @@ const STATES = [
     await p.waitForTimeout(500); }, false],
   // Moving to the account (AW-71): a rule waiting for the account's copy, one that can only stay here.
   ['automations-browser-move', 'options.html?shot=browser-move#automations'],
+  // Saves a browser rule matched but left where they were saved, with why (follow-up U6).
+  ['automations-browser-kept', 'options.html?shot=signedout,browser-kept#automations'],
   // A move the account has not finished after a day (follow-up U5).
   ['automations-browser-stale', 'options.html?shot=browser-stale#automations'],
   ['automations-browser-delete', 'options.html?shot=signedout#automations', async (p) => { await p.hover('.automation-browser-rule >> nth=0');

@@ -579,6 +579,14 @@
     "message": "此浏览器每 5 分钟检查一次。你在网页上暂停后，下次检查时这里就会生效。",
     "description": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
+  "automation_keptBlocked": {
+    "message": "这条规则的文件夹在此不可用，所以网页留在你保存的位置。",
+    "description": "The rule’s folder isn’t available here, so it stayed where you saved it."
+  },
+  "automation_keptConflict": {
+    "message": "此浏览器的两条规则想放进不同的文件夹，所以网页留在你保存的位置。",
+    "description": "Two of this browser’s rules wanted different folders, so it stayed where you saved it."
+  },
   "automation_keptYourFolder": {
     "message": "已保留你选择的文件夹；规则“$1”没有移动它。",
     "description": "Kept the folder you chose; rule “$1” didn’t move it."
@@ -839,6 +847,10 @@
     "message": "无法确认",
     "description": "Couldn’t confirm"
   },
+  "automation_placementKept": {
+    "message": "留在原处",
+    "description": "Kept where saved"
+  },
   "automation_placementRejected": {
     "message": "未被接受",
     "description": "Not accepted"
@@ -862,6 +874,10 @@
   "automation_recentPlacementsLede": {
     "message": "在此浏览器中归档。同步后由服务器逐条确认。",
     "description": "Filed in this browser. The server confirms each one after it syncs."
+  },
+  "automation_recentPlacementsLedeKept": {
+    "message": "你的规则在此浏览器中做了什么，包括它们不得不留在你保存位置的网页。",
+    "description": "What your rules did in this browser, including pages they had to leave where you saved them."
   },
   "automation_recentPlacementsLedeLocal": {
     "message": "由你的规则在此浏览器中归档。",

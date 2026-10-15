@@ -22,8 +22,8 @@ previous item's hash.
 | U2 | `566f6430` | Two "New rule" buttons on one page made different kinds of rule. | One *New rule*; signed in, it asks *This browser* or *All my devices* first. |
 | U3 | `d6a59aa3` | The order that decides a saved page's folder was not shown anywhere. | Automations opens with the five steps and what each does here now. |
 | U4 | `7dcf8e56` | "AI suggestions" hid that, in Automatic mode, the AI files the page. | The AI page and the Automatic choice say what files the page, and when. |
-| U5 | — | A rule waiting to move to the account could say *Moving* forever. | After a day it says it is not on yet, with *Open on the web* and *Keep in this browser*. |
-| U6 | planned | A browser rule that kept a page where it was saved left no trace after the save panel closed. | planned |
+| U5 | `b4b1bb5a` | A rule waiting to move to the account could say *Moving* forever. | After a day it says it is not on yet, with *Open on the web* and *Keep in this browser*. |
+| U6 | — | A browser rule that kept a page where it was saved left no trace after the save panel closed. | Recent activity keeps it, badged *Kept where saved*, with the reason. |
 | U7 | `c2f8bc9b` | In Chrome the status card read "Updated .2 minutes ago" and the server line "Updated .now": the time landed after the full stop. | The time goes where the translation puts it, in Chrome too. |
 
 ## Left unchanged
@@ -32,6 +32,9 @@ previous item's hash.
   `planned_not_executed`, including ones executed weeks ago. The pack is the plan; what ran, and how, is
   recorded in `status.md` and the evidence files. AC-69..AC-74 follow the same rule.
 - **The status card's length.** It is long but accurate. It is not changed here, apart from U1 and U7.
+- **The account's rules that keep a page.** An account rule that matched but was blocked, or met a
+  conflict, is also shown only in the save panel. Its trace belongs with the server's receipts and runs,
+  and is not changed here (U6 covers this browser's rules).
 
 ## L1 — signing in as another account
 
@@ -357,3 +360,41 @@ New tests:
 - the worker (+1): not stale at exactly a day, stale after it; signed out shows nothing; `stay`; its shape;
 - the pane (+2): the stale row, its link and its button (which never opens the editor); *Moving* within
   the day.
+
+## U6 — a rule that kept the page leaves a trace
+
+**Before.** Recent activity listed only pages a browser rule *filed*. Sometimes a rule matched but left the
+page where it was saved:
+
+- two rules here wanted different folders;
+- the rule's folder was missing or unavailable.
+
+The reason was shown in the save panel, and nowhere once the panel closed. The page simply sat in the
+default folder.
+
+**Now.**
+
+- `recordBrowserPlacement` also logs *conflict* and *blocked* saves, with `kept` and the folder the page is
+  in.
+- A *kept* outcome (the Owner picked the folder) is their own choice and is still not logged.
+- Recent activity shows those rows with the warning badge *Kept where saved* and the reason under the title:
+  - "Two of this browser's rules wanted different folders, so it stayed where you saved it."
+  - "The rule's folder isn't available here, so it stayed where you saved it."
+- The panel's intro no longer says "The server confirms each one…" because of these rows. With only this
+  browser's rows it reads "What your rules did in this browser, including pages they had to leave where you
+  saved them."
+- The log rejects a `kept` value it does not know.
+
+| Command (`packages/extension`) | Result |
+| --- | --- |
+| `npx tsc --noEmit -p .`, `npx eslint` on the changed files, `npm run check:source-size` | pass |
+| `npx vitest run tests/automation-*.test.ts tests/capture-pre-save.test.ts tests/i18n.test.ts tests/service-worker-entry-behavior.test.ts` | 24 files, 234 tests passed |
+| `node scripts/i18n-catalog.mjs --write`, `--apply zh_CN`, `npm run check:i18n` | current |
+| `npm run build:development`, then `SHOT_ONLY=automations-browser-kept npm run shots` in `en` and `zh_CN` (xvfb) | reviewed at 1280, 820 and 320 |
+
+New tests:
+
+- the worker (+1): conflict and blocked saves are logged once each, with the saved folder, and come back as
+  `keptHere`;
+- the pane (+1): badges, reasons and the intro;
+- the store (+1): `kept` is kept, and an unknown value drops the entry.

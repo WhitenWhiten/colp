@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBrowserRuleStore } from '../src/automation/browser-rule-store.js';
+import { BROWSER_PLACEMENTS_KEY, createBrowserRuleStore } from '../src/automation/browser-rule-store.js';
 import { accountEditorUrl, checkBrowserDraft, type BrowserRule, type BrowserRuleDraft } from '../src/automation/browser-rules.js';
 import type { AutomationStateArea } from '../src/automation/bundle-store.js';
 import { NOW } from './automation-fixture.js';
@@ -57,5 +57,18 @@ describe('a rule waiting to move', () => {
     expect((await store.list())[0]).not.toHaveProperty('movingSince');
     expect(await store.stopMoving('b-1')).toMatchObject({ id: 'b-1' });
     expect(await store.stopMoving('missing')).toBeNull();
+  });
+});
+
+describe('the placement log', () => {
+  it('keeps why a page stayed where it was saved, and drops a reason it does not know (U6)', async () => {
+    const area = memoryArea();
+    const store = createBrowserRuleStore(area);
+    const base = { ruleId: 'b-1', ruleName: 'Papers', folder: 'Inbox', title: 'A paper', url: 'https://arxiv.org/abs/1', at: NOW };
+    await store.logPlacement({ ...base, id: 'c-1', kept: 'conflict' });
+    await store.logPlacement({ ...base, id: 'c-2', at: NOW + 1 });
+    expect((await store.placements()).map((item) => [item.id, item.kept])).toEqual([['c-2', undefined], ['c-1', 'conflict']]);
+    await area.set(BROWSER_PLACEMENTS_KEY, [{ ...base, id: 'c-3', kept: 'elsewhere' }]);
+    expect(await store.placements()).toEqual([]);
   });
 });

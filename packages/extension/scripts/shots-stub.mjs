@@ -34,6 +34,7 @@
 //     browser-move (signed in: one browser rule is moving to the account, one has an unsynced folder)
 //     flow-manual (Manual mode, suggestions in the form), flow-noai (Automatic mode with no AI set up)
 //     browser-stale (signed in: a browser rule has waited over a day for the account's copy)
+//     browser-kept (signed out: two saves a browser rule matched but had to leave where they were saved)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -460,6 +461,8 @@ export function installStub(messages) {
           browserRule('b3', 'Recipes', true, 'all', [{ kind: 'pathStartsWith', value: '/recipes/' }], null, true)];
         const filed = has('browser-none', 'browser-empty') || !signedOut ? [] : [
           placement('f1', 'Attention Is All You Need', 'https://arxiv.org/abs/1706.03762', 'Papers from arXiv', 'Research', 90e3, 'filed'),
+          ...(has('browser-kept') ? [{ ...placement('k1', 'Ahrefs: SEO tools & resources', 'https://ahrefs.com/blog/', 'SEO reading', 'Reading list', 30e3, 'keptHere'), kept: 'conflict' },
+            { ...placement('k2', 'Sourdough starter guide', 'https://example.org/recipes/sourdough', 'Recipes', 'Inbox', 50e3, 'keptHere'), kept: 'blocked' }] : []),
           placement('f2', 'Scaling Laws for Neural Language Models', 'https://arxiv.org/abs/2001.08361', 'Papers from arXiv', 'Research', 5 * 3600e3, 'filed')];
         return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements: signedOut ? filed : placements, browserRules, server,
           pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,

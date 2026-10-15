@@ -1548,6 +1548,8 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-rules .automation-overlap > .grow { overflow: visible; text-overflow: clip; }
 .automation-rules .automation-overlap > svg { margin-top: 0.15rem; }
 .automation-rules .automation-overlap[data-tone="warning"] > svg { color: var(--warning); }
+/* Why a matching rule left a page where it was saved (follow-up U6): a full sentence, wrapped. */
+.automation-placements .automation-kept-why { white-space: normal; }
 /* A move the account has not finished (follow-up U5): its two ways out, under the line. */
 .automation-stale-actions { display: flex; flex-wrap: wrap; gap: var(--hair-55); margin-top: var(--hair-30); }
 .automation-stale-actions .btn svg { width: 0.75rem; height: 0.75rem; }

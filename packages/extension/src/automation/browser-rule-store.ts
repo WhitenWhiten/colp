@@ -24,6 +24,11 @@ export interface BrowserPlacement {
   readonly title: string;
   readonly url: string;
   readonly at: number;
+  /**
+   * The rule matched but the page stayed where it was saved (follow-up U6): `conflict`, two rules here wanted
+   * different folders; `blocked`, the rule's folder was not available. `folder` is then where the page is.
+   */
+  readonly kept?: 'conflict' | 'blocked';
 }
 
 export type SaveResult = { readonly ok: true; readonly rule: BrowserRule }
@@ -46,7 +51,8 @@ const REVIEW_LIMIT = 20;
 function parsePlacement(value: unknown): BrowserPlacement | null {
   if (!record(value)) return null;
   const strings = ['id', 'ruleId', 'ruleName', 'folder', 'title', 'url'] as const;
-  return strings.every((key) => typeof value[key] === 'string') && typeof value.at === 'number' ? value as unknown as BrowserPlacement : null;
+  return strings.every((key) => typeof value[key] === 'string') && typeof value.at === 'number'
+    && (value.kept === undefined || value.kept === 'conflict' || value.kept === 'blocked') ? value as unknown as BrowserPlacement : null;
 }
 
 export function createBrowserRuleStore(area: AutomationStateArea, options: { readonly id?: () => string } = {}) {

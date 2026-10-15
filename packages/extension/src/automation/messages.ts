@@ -159,8 +159,10 @@ export interface AutomationPlacementView {
   /**
    * waitingForSync: not yet joined to its Sync operations; confirmed: the server accepted the placement.
    * filed: one of this browser's own rules filed it, and there is nothing for a server to confirm.
+   * keptHere: one of this browser's rules matched, but the page stayed where it was saved (`kept` says why).
    */
-  readonly state: 'waitingForSync' | 'confirmed' | 'review' | 'rejected' | 'attention' | 'filed';
+  readonly state: 'waitingForSync' | 'confirmed' | 'review' | 'rejected' | 'attention' | 'filed' | 'keptHere';
+  readonly kept?: 'conflict' | 'blocked';
 }
 
 export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';

@@ -43,13 +43,19 @@ export async function browserPreSaveDecision(input: PreSaveInput): Promise<Brows
   return decision ? { automation: browserAutomation(decision, input.parentNativeId), targetNativeId: decision.folder?.nativeId ?? null } : null;
 }
 
-/** A save a browser rule placed, for Options. The capture id keeps a repeated acknowledgement from logging it twice. */
+/**
+ * A save a browser rule decided, for Options' recent activity. The capture id keeps a repeated acknowledgement
+ * from logging it twice. A rule that matched but could not file the page is logged too (follow-up U6), so its
+ * reason outlives the save panel; a folder the Owner picked (`kept`) is their choice, not news.
+ */
 export async function recordBrowserPlacement(task: CaptureTask): Promise<void> {
   const automation = task.automation;
-  if (automation?.source !== 'browser' || automation.outcome !== 'placed' || !task.nativeId || task.save !== 'local-saved'
+  if (automation?.source !== 'browser' || automation.outcome === 'kept' || !task.nativeId || task.save !== 'local-saved'
     || task.disposition !== 'new') return;
+  const kept = automation.outcome === 'placed' ? undefined : automation.outcome;
   await browserRuleStore().logPlacement({ id: task.captureId, ruleId: automation.rule.id, ruleName: automation.rule.name,
-    folder: automation.folderTitle ?? '', title: task.title, url: task.url, at: task.savedAt ?? Date.now() });
+    folder: kept ? task.localLocation?.path.at(-1) ?? '' : automation.folderTitle ?? '', title: task.title, url: task.url,
+    at: task.savedAt ?? Date.now(), ...(kept ? { kept } : {}) });
 }
 
 /** A folder as Options names it: its title under its parents' ("Bookmarks bar › Reading › Papers"). Null once it is gone. */
@@ -153,7 +159,7 @@ export async function browserPlacementViews(): Promise<AutomationPlacementView[]
     let host = '';
     try { host = new URL(placement.url).hostname; } catch { /* the title stands alone */ }
     return { id: placement.id, title: placement.title, host, url: placement.url, ruleName: placement.ruleName, folder: placement.folder,
-      at: placement.at, path: 'preSave', state: 'filed' };
+      at: placement.at, path: 'preSave', ...(placement.kept ? { state: 'keptHere', kept: placement.kept } : { state: 'filed' }) } satisfies AutomationPlacementView;
   });
 }
 
