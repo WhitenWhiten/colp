@@ -1,7 +1,8 @@
 import { createBrowserRuleStore, type BrowserRuleStore } from '../automation/browser-rule-store.js';
 import { decideBrowserRules, draftFromRule, type BrowserDecision, type FolderLookup } from '../automation/browser-rules.js';
 import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
-import type { AutomationPlacementView, BrowserRuleCommand, BrowserRuleResponse, BrowserRuleView } from '../automation/messages.js';
+import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '../automation/browser-overlap.js';
+import type { AutomationPlacementView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse, BrowserRuleView } from '../automation/messages.js';
 import { ruleMatchView } from '../automation/rule-match.js';
 import type { PreSaveInput } from '../automation/pre-save.js';
 import type { BrowserAutomation, CaptureTask } from '../capture/contracts.js';
@@ -67,15 +68,43 @@ async function folderView(nativeId: string): Promise<BrowserRuleView['folder']> 
   return { nativeId: node.id, title: node.title, path };
 }
 
-/** This browser's rules for Options, oldest first. Without bookmark access their folders cannot be named. */
-export async function browserRuleViews(): Promise<BrowserRuleView[]> {
+/** An account rule in force here, as the overlap check reads it (sw/automation.ts builds these from the bundle). */
+export interface AccountRuleForOverlap extends OverlapRule {
+  readonly name: string;
+  readonly folderTitle: string | null;
+  /** Its revision and binding revision: a review is kept against exactly these. */
+  readonly key: string;
+}
+
+/** How many of the most recently added bookmarks the overlap check replays (design 01 §7.5). */
+export const OVERLAP_SAMPLE = 2_000;
+
+async function recentPages(): Promise<Page[]> {
+  const nodes = await chrome.bookmarks.getRecent(OVERLAP_SAMPLE).catch(() => []);
+  return nodes.filter((node) => typeof node.url === 'string').map((node) => ({ url: node.url!, title: node.title }));
+}
+
+/**
+ * This browser's rules for Options, oldest first. Without bookmark access their folders cannot be named.
+ * With the account's rules in force, each switched-on rule also says which account rule it overlaps.
+ */
+export async function browserRuleViews(account: readonly AccountRuleForOverlap[] = []): Promise<BrowserRuleView[]> {
   const rules = await browserRuleStore().list();
   if (!rules.length) return [];
-  const access = await hasBookmarkPermission();
+  const access = await hasBookmarkPermission(), now = Date.now();
+  const enabled = rules.filter((rule) => rule.enabled).map((rule) => ({ id: rule.id, definition: rule.definition, folderNativeId: rule.folderNativeId }));
+  const compare = access && account.length > 0 && enabled.length > 0;
+  const counts = compare ? replayOverlap(enabled, account, await recentPages(), now) : new Map<string, Map<string, number>>();
   return Promise.all(rules.map(async (rule) => {
     const folder = access ? await folderView(rule.folderNativeId) : null;
+    const relation = compare && rule.enabled ? relateBrowserRule({ id: rule.id, definition: rule.definition, folderNativeId: rule.folderNativeId },
+      account, counts.get(rule.id), now) : null;
+    const other = relation ? account.find((item) => item.id === relation.accountRuleId)! : null;
+    const overlap: BrowserRuleOverlapView | null = relation && other ? { kind: relation.kind, pages: relation.pages, reviewKey: other.key,
+      rule: { id: other.id, name: other.name, match: ruleMatchView(other.definition.match), folder: other.folderTitle },
+      reviewed: (rule.reviewed ?? []).some((item) => item.accountRuleId === other.id && item.key === other.key) } : null;
     return { id: rule.id, name: rule.definition.name, enabled: rule.enabled, match: ruleMatchView(rule.definition.match),
-      draft: draftFromRule(rule), folder, folderMissing: access && !folder };
+      draft: draftFromRule(rule), folder, folderMissing: access && !folder, account: overlap };
   }));
 }
 
@@ -93,6 +122,10 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand): Pro
   const store = browserRuleStore(), now = Date.now();
   if (command.kind === 'known.automation.browser.remove') {
     return await store.remove(command.id) ? { ok: true, rule: null } : { ok: false, error: 'notFound' };
+  }
+  if (command.kind === 'known.automation.browser.review') {
+    const rule = await store.review(command.id, command.accountRuleId, command.key);
+    return rule ? { ok: true, rule } : { ok: false, error: 'notFound' };
   }
   if (command.kind === 'known.automation.browser.enable') {
     const rule = await store.setEnabled(command.id, command.enabled, now);

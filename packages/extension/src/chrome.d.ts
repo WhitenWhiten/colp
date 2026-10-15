@@ -61,6 +61,8 @@ declare namespace chrome {
     function getTree(): Promise<BookmarkTreeNode[]>;
     function get(id: string | string[]): Promise<BookmarkTreeNode[]>;
     function search(query: { query?: string; url?: string; title?: string }): Promise<BookmarkTreeNode[]>;
+    /** The most recently added bookmarks, newest first. */
+    function getRecent(numberOfItems: number): Promise<BookmarkTreeNode[]>;
     function getChildren(id: string): Promise<BookmarkTreeNode[]>;
     function getSubTree(id: string): Promise<BookmarkTreeNode[]>;
     function create(bookmark: { parentId?: string; index?: number; title?: string; url?: string;

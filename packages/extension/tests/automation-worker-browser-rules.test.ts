@@ -16,10 +16,12 @@ const f = vi.hoisted(() => ({
   sync: { environment: 'production', serverId: 'https://colp.example', serverOrigin: 'https://colp.example', accountId: 'owner',
     browserProfileId: 'profile', collectionId: 'c_personal', replicaId: 'replica-1', generation: 2 },
   mappings: { academic: '10', inbox: '21' } as Record<string, string>,
+  credential: null as null | { serverOrigin: string; subject: string },
+  recent: [] as { id: string; title: string; url?: string }[],
 }));
 vi.mock('../src/sw/runtime.js', () => ({
   hasBookmarkPermission: async () => true, extensionOrigin: () => 'chrome-extension://extension',
-  store: { loadCredential: async () => null, loadBinding: async () => null },
+  store: { loadCredential: async () => f.credential, loadBinding: async () => null },
   syncState: {
     getMappingByColpId: async (_scope: unknown, colpId: string) => f.mappings[colpId] ? { nativeId: f.mappings[colpId], nodeKind: 'folder' } : null,
     getMappingByNativeId: async (_scope: unknown, nativeId: string) => {
@@ -33,7 +35,7 @@ vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => f.sync, loa
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => f.scope }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));
 
-import { automationArea, handleAutomationRequest, recordPreSaveReceipt } from '../src/sw/automation.js';
+import { automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt } from '../src/sw/automation.js';
 import { browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
@@ -47,7 +49,9 @@ const match = (request = paper) => handleAutomationRequest({ kind: 'known.automa
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW);
   vi.stubGlobal('indexedDB', new IDBFactory());
-  vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() }, bookmarks: { get: async (id: string) => nodes[id] ? [nodes[id]] : [] } });
+  vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() }, bookmarks: { get: async (id: string) => nodes[id] ? [nodes[id]] : [],
+    getRecent: async (count: number) => f.recent.slice(0, count) } });
+  f.credential = null; f.recent = [];
   f.scope = { serverOrigin: 'https://colp.example', accountId: 'owner', authorityGeneration: 1, collectionId: COLLECTION_ID };
   expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft() })).toMatchObject({ ok: true });
 });
@@ -108,5 +112,48 @@ describe('Options’ commands', () => {
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft({ folderNativeId: '../1' }) })).toBe(false);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: 'b-1', enabled: 'yes' })).toBe(false);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.remove', id: 'b 1' })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.review', id: 'b-1', accountRuleId: 'rule-arxiv', key: '4:1' })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.review', id: 'b-1', accountRuleId: '', key: '4:1' })).toBe(false);
+  });
+});
+
+describe('next to the account’s rules (AW-69)', () => {
+  const papers = (url: string) => ({ id: url, title: 'A paper', url });
+  beforeEach(async () => {
+    f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' };
+    f.recent = [papers('https://arxiv.org/abs/1'), papers('https://arxiv.org/abs/2'), { id: 'folder', title: 'A folder' }, papers('https://example.org/')];
+    await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule({ ruleRevision: '4' })], { revision: 'b-3', settingsRevision: 3 }), NOW);
+  });
+  const overlap = async () => (await automationStateView()).browserRules[0]!.account;
+
+  it('names the account rule that files the same pages elsewhere, with how many bookmarks both match', async () => {
+    expect(await overlap()).toEqual({ kind: 'conflict', pages: 2, reviewed: false, reviewKey: '4:1',
+      rule: { id: 'rule-arxiv', name: 'Place research papers in Academic', folder: 'Academic',
+        match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] } } });
+  });
+
+  it('remembers Keep both until the account rule changes', async () => {
+    const [rule] = await browserRuleStore().list();
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.review', id: rule!.id, accountRuleId: 'rule-arxiv', key: '4:1' }))
+      .toMatchObject({ ok: true, rule: { reviewed: [{ accountRuleId: 'rule-arxiv', key: '4:1' }] } });
+    expect(await overlap()).toMatchObject({ reviewed: true });
+    await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule({ ruleRevision: '5' })], { revision: 'b-4', settingsRevision: 4 }), NOW);
+    expect(await overlap()).toMatchObject({ reviewed: false, reviewKey: '5:1' });
+  });
+
+  it('is a duplicate when it files the same pages into the same folder, and nothing once switched off or signed out', async () => {
+    const [rule] = await browserRuleStore().list();
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
+    expect(await overlap()).toMatchObject({ kind: 'duplicate', pages: 2 });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: rule!.id, enabled: false });
+    expect(await overlap()).toBeNull();
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: rule!.id, enabled: true });
+    f.credential = null;
+    expect(await overlap()).toBeNull();
+  });
+
+  it('has nothing to compare while the account’s rules are paused', async () => {
+    await createBundleStore(automationArea(), owner).install(ruleBundle([], { paused: true, settingsRevision: 9 }), NOW);
+    expect(await overlap()).toBeNull();
   });
 });

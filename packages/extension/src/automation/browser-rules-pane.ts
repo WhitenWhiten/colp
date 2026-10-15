@@ -1,12 +1,12 @@
 import { exclusionIds } from '../bookmark-subscriptions/guards.js';
 import { createDialog, dialogButton } from '../dialog.js';
 import { createIcon } from '../icons.js';
-import { t } from '../i18n.js';
+import { t, tn } from '../i18n.js';
 import { button, el, emptyBlock, iconButton, inlineAlert, selectOf, selectPill } from '../library-dom.js';
 import { createFolderPicker, folderChoices, type FolderSourceNode } from '../library-folder-picker.js';
 import { showToast } from '../toast.js';
 import type { BrowserConditionKind, BrowserRuleDraft, DraftProblem } from './browser-rules.js';
-import type { AutomationStateView, BrowserRuleResponse, BrowserRuleView } from './messages.js';
+import type { AutomationStateView, BrowserRuleOverlapView, BrowserRuleResponse, BrowserRuleView } from './messages.js';
 import { ruleConditions } from './status-ui.js';
 
 /**
@@ -46,6 +46,13 @@ export function browserRulesGroup(view: AutomationStateView): HTMLElement {
     ? t('automation_browserLedeSignedIn', 'Only this browser uses them, for pages your account’s rules don’t match. A folder you pick yourself always wins.')
     : t('automation_browserLede', 'They file the pages you save here, even offline and with no account. A folder you pick yourself always wins.'), 'detail'));
   section.append(head);
+  // One notice for what the Owner has not looked at yet; the rows say the rest.
+  const open = view.browserRules.filter((rule) => rule.account && !rule.account.reviewed);
+  if (open.length) {
+    const review = button(t('automation_overlapReview', 'Review'), 'btn btn-secondary btn-sm', () => openOverlapReview(open, review));
+    section.append(inlineAlert('warning', tn('automation_overlapNotice', open.length, '$1 of your browser rules overlaps your account’s rules.',
+      '$1 of your browser rules overlap your account’s rules.'), review));
+  }
   if (!view.browserRules.length) {
     const card = el('div', undefined, 'set-card');
     const make = button(t('automation_newRule', 'New rule'), view.account === 'signedIn' ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm');
@@ -77,6 +84,7 @@ function ruleRow(rule: BrowserRuleView): HTMLLIElement {
       : t('automation_browserFolderHere', 'a folder in this browser'), rule.folderMissing ? 'automation-recipe-missing' : undefined));
   }
   main.append(el('p', rule.name, 'list-row-title'), meta);
+  if (rule.account) main.append(overlapLine(rule.account));
   // Actions show on hover; the state badge stays next to the switch, which keeps its own column.
   const tail = el('div', undefined, 'list-row-tail');
   const actions = el('span', undefined, 'row-actions-hover');
@@ -89,6 +97,10 @@ function ruleRow(rule: BrowserRuleView): HTMLLIElement {
     missing.title = t('automation_browserFolderMissingHint', 'Its folder was deleted. Edit the rule to choose another one.');
     tail.append(missing);
   } else if (!rule.enabled) tail.append(badge(t('automation_browserOff', 'Off')));
+  else if (rule.account && !rule.account.reviewed) {
+    tail.append(rule.account.kind === 'conflict' ? badge(t('automation_overlapBadge', 'Overlaps'), 'warning')
+      : badge(t('automation_duplicateBadge', 'Same as account')));
+  }
   row.append(tile, main, tail, ruleSwitch(rule));
   // The whole row opens the rule, like a row on the web; its own controls keep their clicks.
   row.addEventListener('click', (event) => {
@@ -97,6 +109,80 @@ function ruleRow(rule: BrowserRuleView): HTMLLIElement {
   });
   item.append(row);
   return item;
+}
+
+/** "Your account's rule “arXiv papers” files these in Academic first · 37 of your bookmarks match both." */
+function overlapSentence(overlap: BrowserRuleOverlapView): string {
+  if (overlap.kind === 'duplicate') return t('automation_duplicateLine', 'Your account’s rule “$1” does the same.', overlap.rule.name);
+  return overlap.rule.folder ? t('automation_overlapLine', 'Your account’s rule “$1” files these in $2 first.', overlap.rule.name, overlap.rule.folder)
+    : t('automation_overlapLineElsewhere', 'Your account’s rule “$1” takes these first.', overlap.rule.name);
+}
+function pagesSentence(overlap: BrowserRuleOverlapView): string {
+  return overlap.pages ? tn('automation_overlapPages', overlap.pages, '$1 of your bookmarks matches both.', '$1 of your bookmarks match both.')
+    : t('automation_overlapPossible', 'They can match the same pages.');
+}
+
+function overlapLine(overlap: BrowserRuleOverlapView): HTMLElement {
+  const line = el('p', undefined, 'list-row-meta automation-overlap');
+  if (!overlap.reviewed && overlap.kind === 'conflict') line.dataset.tone = 'warning';
+  line.append(createIcon(overlap.kind === 'duplicate' ? 'check-circle' : 'alert', 12), el('span', overlap.kind === 'conflict' && overlap.pages
+    ? `${overlapSentence(overlap)} ${pagesSentence(overlap)}` : overlapSentence(overlap), 'grow'));
+  return line;
+}
+
+/**
+ * Where this browser's rules and the account's meet (AW-69): for each, keep both, use the account's
+ * (switch this one off) or, for a duplicate, remove this one. Nothing changes until the Owner chooses.
+ */
+function openOverlapReview(rules: readonly BrowserRuleView[], trigger: HTMLElement): void {
+  const { dialog, body, actions } = createDialog(t('automation_overlapTitle', 'Your rules and your account’s'), 'automation-review');
+  body.append(el('p', t('automation_overlapIntro', 'Your account’s rules run first. Where they also match a page, a rule in this browser doesn’t file it.')));
+  const list = el('ul', undefined, 'automation-review-list');
+  let left = rules.length;
+  const done = dialogButton(t('common_done', 'Done'), 'primary');
+  done.addEventListener('click', () => dialog.close());
+  for (const rule of rules) {
+    const overlap = rule.account!;
+    const item = el('li', undefined, 'automation-review-item');
+    const pair = el('dl', undefined, 'automation-review-pair');
+    const recipe = (conditions: string, folder: string | null) => folder ? `${conditions} → ${folder}` : conditions;
+    pair.append(el('dt', t('automation_overlapThisBrowser', 'This browser')), el('dd', `${rule.name}: ${recipe(ruleConditions(rule.match), rule.folder?.title ?? null)}`),
+      el('dt', t('automation_overlapYourAccount', 'Your account')), el('dd', `${overlap.rule.name}: ${recipe(ruleConditions(overlap.rule.match), overlap.rule.folder)}`));
+    const fact = el('p', overlap.kind === 'duplicate' ? overlapSentence(overlap) : pagesSentence(overlap), 'mgr-hint');
+    const choices = el('div', undefined, 'automation-review-actions');
+    const settle = (message: object, copy: string) => {
+      for (const node of Array.from(choices.querySelectorAll('button'))) node.disabled = true;
+      void send(message).then((reply) => {
+        if (!reply.ok) {
+          for (const node of Array.from(choices.querySelectorAll('button'))) node.disabled = false;
+          showToast(t('automation_browserSaveFailed', 'Couldn’t save this rule. Try again.'), 'error', { announce: true });
+          return;
+        }
+        choices.replaceChildren(el('p', copy, 'automation-review-done'));
+        if (--left === 0) done.focus();
+      });
+    };
+    const keep = { kind: 'known.automation.browser.review', id: rule.id, accountRuleId: overlap.rule.id, key: overlap.reviewKey };
+    if (overlap.kind === 'conflict') {
+      choices.append(
+        button(t('automation_overlapKeepBoth', 'Keep both'), 'btn btn-secondary btn-sm', () => settle(keep,
+          t('automation_overlapKeptBoth', 'Kept both. This rule files what the account’s doesn’t match.'))),
+        button(t('automation_overlapUseAccount', 'Use the account’s'), 'btn btn-ghost btn-sm', () => settle(
+          { kind: 'known.automation.browser.enable', id: rule.id, enabled: false }, t('automation_overlapUsedAccount', 'Turned this rule off.'))));
+    } else {
+      choices.append(
+        button(t('automation_duplicateRemove', 'Remove mine'), 'btn btn-secondary btn-sm', () => settle(
+          { kind: 'known.automation.browser.remove', id: rule.id }, t('automation_duplicateRemoved', 'Removed this rule.'))),
+        button(t('automation_duplicateKeep', 'Keep mine'), 'btn btn-ghost btn-sm', () => settle(keep, t('automation_duplicateKept', 'Kept this rule.'))));
+    }
+    item.append(el('p', rule.name, 'automation-review-name'), pair, fact, choices);
+    list.append(item);
+  }
+  body.append(list);
+  actions.append(done);
+  dialog.addEventListener('close', () => { dialog.remove(); if (trigger.isConnected) trigger.focus(); });
+  document.body.append(dialog); dialog.showModal();
+  list.querySelector<HTMLButtonElement>('button')?.focus();
 }
 
 function ruleSwitch(rule: BrowserRuleView): HTMLButtonElement {

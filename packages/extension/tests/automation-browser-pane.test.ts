@@ -15,7 +15,7 @@ const NOW = Date.parse('2026-10-14T08:00:00.000Z');
 const rule = (over: Partial<BrowserRuleView> = {}): BrowserRuleView => ({ id: 'b-1', name: 'Papers from arXiv', enabled: true,
   match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] },
   draft: { name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: 'f-papers' },
-  folder: { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] }, folderMissing: false, ...over });
+  folder: { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] }, folderMissing: false, account: null, ...over });
 const view = (over: Partial<AutomationStateView> = {}): AutomationStateView => ({ account: 'signedOut', state: 'none', rules: [], placements: [],
   browserRules: [rule(), rule({ id: 'b-2', name: 'SEO reading', enabled: false,
     match: { combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }] },
@@ -163,5 +163,52 @@ describe('the rule dialog', () => {
     expect(text(confirm)).toContain('Pages it already filed stay where they are.');
     confirm.querySelector<HTMLButtonElement>('.btn-danger')!.click();
     expect(sent).toEqual([{ kind: 'known.automation.browser.remove', id: 'b-1' }]);
+  });
+});
+
+describe('next to the account’s rules (AW-69)', () => {
+  const account = (kind: 'duplicate' | 'conflict', reviewed = false, pages = 37) => ({ kind, pages, reviewed, reviewKey: '4:1',
+    rule: { id: 'rule-arxiv', name: 'arXiv papers', folder: 'Academic', match: { combinator: 'all' as const, conditions: [{ kind: 'siteIs' as const, value: 'arxiv.org' }] } } });
+  const signedIn = () => view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations', browserRules: [
+    rule({ account: account('conflict') }), rule({ id: 'b-2', name: 'Same papers', account: account('duplicate', false, 0) }),
+    rule({ id: 'b-3', name: 'Kept papers', account: account('conflict', true, 0) })] });
+
+  it('says once what has not been looked at, and on each row which account rule it meets', async () => {
+    const group = (await render(signedIn())).querySelector('[aria-labelledby="automation-browser-heading"]')!;
+    expect(text(group.querySelector('.inline-alert'))).toBe('2 of your browser rules overlap your account’s rules.Review');
+    const rows = Array.from(group.querySelectorAll('.automation-browser-rule'));
+    expect(rows.map((row) => text(row.querySelector('.badge')))).toEqual(['Overlaps', 'Same as account', '']);
+    expect(rows.map((row) => text(row.querySelector('.automation-overlap')))).toEqual([
+      'Your account’s rule “arXiv papers” files these in Academic first. 37 of your bookmarks match both.',
+      'Your account’s rule “arXiv papers” does the same.', 'Your account’s rule “arXiv papers” files these in Academic first.']);
+    expect(rows.map((row) => row.querySelector<HTMLElement>('.automation-overlap')!.dataset.tone)).toEqual(['warning', undefined, undefined]);
+  });
+
+  it('settles each overlap in the review: keep both, use the account’s, or remove a duplicate', async () => {
+    const body = await render(signedIn());
+    body.querySelector<HTMLButtonElement>('.automation-browser .inline-alert button')!.click();
+    const dialog = document.querySelector<HTMLDialogElement>('dialog.automation-review')!;
+    const items = Array.from(dialog.querySelectorAll('.automation-review-item'));
+    expect(items.map((item) => text(item.querySelector('.automation-review-name')))).toEqual(['Papers from arXiv', 'Same papers']);
+    expect(text(items[0]!.querySelector('dl'))).toBe('This browserPapers from arXiv: From arxiv.org → PapersYour accountarXiv papers: From arxiv.org → Academic');
+    expect(text(items[0]!.querySelector('.mgr-hint'))).toBe('37 of your bookmarks match both.');
+    Array.from(items[0]!.querySelectorAll('button')).find((node) => node.textContent === 'Keep both')!.click();
+    expect(sent).toEqual([{ kind: 'known.automation.browser.review', id: 'b-1', accountRuleId: 'rule-arxiv', key: '4:1' }]);
+    await vi.waitFor(() => expect(text(items[0]!.querySelector('.automation-review-done'))).toBe('Kept both. This rule files what the account’s doesn’t match.'));
+    Array.from(items[1]!.querySelectorAll('button')).find((node) => node.textContent === 'Remove mine')!.click();
+    expect(sent[1]).toEqual({ kind: 'known.automation.browser.remove', id: 'b-2' });
+    await vi.waitFor(() => expect(text(items[1]!.querySelector('.automation-review-done'))).toBe('Removed this rule.'));
+  });
+
+  it('switches the browser rule off for “Use the account’s”, and keeps the choice open if that fails', async () => {
+    reply = () => ({ ok: false, error: 'unavailable' });
+    const body = await render(signedIn());
+    body.querySelector<HTMLButtonElement>('.automation-browser .inline-alert button')!.click();
+    const item = document.querySelector('dialog.automation-review .automation-review-item')!;
+    const use = Array.from(item.querySelectorAll('button')).find((node) => node.textContent === 'Use the account’s')!;
+    use.click();
+    expect(sent).toEqual([{ kind: 'known.automation.browser.enable', id: 'b-1', enabled: false }]);
+    await vi.waitFor(() => expect(use.disabled).toBe(false));
+    expect(item.querySelector('.automation-review-done')).toBeNull();
   });
 });

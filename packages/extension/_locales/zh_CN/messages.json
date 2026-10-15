@@ -371,6 +371,30 @@
     "message": "阅读",
     "description": "Read"
   },
+  "automation_duplicateBadge": {
+    "message": "与账户相同",
+    "description": "Same as account"
+  },
+  "automation_duplicateKeep": {
+    "message": "保留我的",
+    "description": "Keep mine"
+  },
+  "automation_duplicateKept": {
+    "message": "已保留这条规则。",
+    "description": "Kept this rule."
+  },
+  "automation_duplicateLine": {
+    "message": "你账户的规则“$1”做的是同样的事。",
+    "description": "Your account’s rule “$1” does the same."
+  },
+  "automation_duplicateRemove": {
+    "message": "移除我的",
+    "description": "Remove mine"
+  },
+  "automation_duplicateRemoved": {
+    "message": "已移除这条规则。",
+    "description": "Removed this rule."
+  },
   "automation_explainAlreadyThere": {
     "message": "已在规则的文件夹中，未移动。",
     "description": "Already in the rule’s folder, so nothing moved."
@@ -570,6 +594,66 @@
   "automation_openWeb": {
     "message": "打开自动化",
     "description": "Open Automations"
+  },
+  "automation_overlapBadge": {
+    "message": "有重叠",
+    "description": "Overlaps"
+  },
+  "automation_overlapIntro": {
+    "message": "你账户的规则先运行。它们也匹配的网页，此浏览器的规则不会再归档。",
+    "description": "Your account’s rules run first. Where they also match a page, a rule in this browser doesn’t file it."
+  },
+  "automation_overlapKeepBoth": {
+    "message": "两者都保留",
+    "description": "Keep both"
+  },
+  "automation_overlapKeptBoth": {
+    "message": "已两者都保留。这条规则会归档账户规则未匹配的网页。",
+    "description": "Kept both. This rule files what the account’s doesn’t match."
+  },
+  "automation_overlapLine": {
+    "message": "你账户的规则“$1”会先把这些放进 $2。",
+    "description": "Your account’s rule “$1” files these in $2 first."
+  },
+  "automation_overlapLineElsewhere": {
+    "message": "你账户的规则“$1”会先处理这些网页。",
+    "description": "Your account’s rule “$1” takes these first."
+  },
+  "automation_overlapNotice_other": {
+    "message": "你有 $1 条浏览器规则与账户的规则重叠。",
+    "description": "$1 of your browser rules overlap your account’s rules."
+  },
+  "automation_overlapPages_other": {
+    "message": "你的书签中有 $1 个同时匹配两者。",
+    "description": "$1 of your bookmarks match both."
+  },
+  "automation_overlapPossible": {
+    "message": "它们可能匹配相同的网页。",
+    "description": "They can match the same pages."
+  },
+  "automation_overlapReview": {
+    "message": "查看",
+    "description": "Review"
+  },
+  "automation_overlapThisBrowser": {
+    "message": "此浏览器",
+    "description": "This browser"
+  },
+  "automation_overlapTitle": {
+    "message": "你的规则与账户的规则",
+    "description": "Your rules and your account’s"
+  },
+  "automation_overlapUseAccount": {
+    "message": "使用账户的规则",
+    "description": "Use the account’s"
+  },
+  "automation_overlapUsedAccount": {
+    "message": "已关闭这条规则。",
+    "description": "Turned this rule off."
+  },
+  "automation_overlapYourAccount": {
+    "message": "你的账户",
+    "description": "Your account"
   },
   "automation_pane": {
     "message": "自动化",

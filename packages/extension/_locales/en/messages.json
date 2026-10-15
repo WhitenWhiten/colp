@@ -284,6 +284,24 @@
   "automation_digestRead": {
     "message": "Read"
   },
+  "automation_duplicateBadge": {
+    "message": "Same as account"
+  },
+  "automation_duplicateKeep": {
+    "message": "Keep mine"
+  },
+  "automation_duplicateKept": {
+    "message": "Kept this rule."
+  },
+  "automation_duplicateLine": {
+    "message": "Your account’s rule “$1” does the same."
+  },
+  "automation_duplicateRemove": {
+    "message": "Remove mine"
+  },
+  "automation_duplicateRemoved": {
+    "message": "Removed this rule."
+  },
   "automation_explainAlreadyThere": {
     "message": "Already in the rule’s folder, so nothing moved."
   },
@@ -433,6 +451,57 @@
   },
   "automation_openWeb": {
     "message": "Open Automations"
+  },
+  "automation_overlapBadge": {
+    "message": "Overlaps"
+  },
+  "automation_overlapIntro": {
+    "message": "Your account’s rules run first. Where they also match a page, a rule in this browser doesn’t file it."
+  },
+  "automation_overlapKeepBoth": {
+    "message": "Keep both"
+  },
+  "automation_overlapKeptBoth": {
+    "message": "Kept both. This rule files what the account’s doesn’t match."
+  },
+  "automation_overlapLine": {
+    "message": "Your account’s rule “$1” files these in $2 first."
+  },
+  "automation_overlapLineElsewhere": {
+    "message": "Your account’s rule “$1” takes these first."
+  },
+  "automation_overlapNotice_one": {
+    "message": "$1 of your browser rules overlaps your account’s rules."
+  },
+  "automation_overlapNotice_other": {
+    "message": "$1 of your browser rules overlap your account’s rules."
+  },
+  "automation_overlapPages_one": {
+    "message": "$1 of your bookmarks matches both."
+  },
+  "automation_overlapPages_other": {
+    "message": "$1 of your bookmarks match both."
+  },
+  "automation_overlapPossible": {
+    "message": "They can match the same pages."
+  },
+  "automation_overlapReview": {
+    "message": "Review"
+  },
+  "automation_overlapThisBrowser": {
+    "message": "This browser"
+  },
+  "automation_overlapTitle": {
+    "message": "Your rules and your account’s"
+  },
+  "automation_overlapUseAccount": {
+    "message": "Use the account’s"
+  },
+  "automation_overlapUsedAccount": {
+    "message": "Turned this rule off."
+  },
+  "automation_overlapYourAccount": {
+    "message": "Your account"
   },
   "automation_pane": {
     "message": "Automations"

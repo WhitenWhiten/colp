@@ -39,6 +39,11 @@ export interface BrowserRule {
   readonly enabled: boolean;
   readonly createdAt: number;
   readonly updatedAt: number;
+  /**
+   * Overlaps with the account's rules the Owner looked at and kept (AW-69), by the account rule's
+   * revision: a changed account rule is shown again.
+   */
+  readonly reviewed?: readonly { readonly accountRuleId: string; readonly key: string }[];
 }
 
 export type DraftProblem =

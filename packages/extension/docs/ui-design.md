@@ -162,6 +162,11 @@ they need no account and run after the account's rules:
   are about. Results are toasts; Delete asks first and says filed pages stay put.
 - **New rule** in the page head always opens this editor; account rules are made on the web, from their
   own group's "New rule on the web".
+- **Next to the account's rules (AW-69).** Signed in, a row that meets an account rule says so in a second
+  line ("Your account's rule “arXiv papers” files these in Academic first. 37 of your bookmarks match
+  both." or "… does the same.") with Overlaps or Same as account until reviewed. One warning notice counts
+  what is unreviewed and opens Review: both rules side by side, then Keep both / Use the account's, or
+  Remove mine / Keep mine for a duplicate. A changed account rule is shown again.
 
 **Automations › On your server.** What the server did after a bookmark synced, never mixed with
 what this browser did:

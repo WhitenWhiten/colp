@@ -1542,6 +1542,23 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-browser-rule[data-off] :is(.list-row-title, .list-row-meta, .automation-recipe-folder) { color: var(--muted); }
 .automation-browser-rule[data-off] .favicon-tile { color: var(--faint); }
 .automation-account { margin: 0 0 var(--space-6); }
+.automation-browser > .inline-alert { margin: 0; }
+/* Where a browser rule meets an account rule (AW-69): one quiet line, toned while it is not reviewed. */
+.automation-rules .automation-overlap { align-items: flex-start; white-space: normal; }
+.automation-rules .automation-overlap > .grow { overflow: visible; text-overflow: clip; }
+.automation-rules .automation-overlap > svg { margin-top: 0.15rem; }
+.automation-rules .automation-overlap[data-tone="warning"] > svg { color: var(--warning); }
+.automation-review { width: min(36rem, calc(100vw - 2rem)); max-width: min(36rem, calc(100vw - 2rem)); }
+.automation-review-list { margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-lg); list-style: none; }
+.automation-review-item { display: grid; gap: var(--hair-40); padding: var(--space-3) var(--space-4); }
+.automation-review-item + .automation-review-item { border-top: 1px solid var(--line); }
+.automation-review-name { margin: 0; color: var(--ink); font-weight: var(--weight-medium); }
+.automation-review-pair { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--hair-15) var(--space-3); margin: 0; font-size: var(--text-xs); line-height: var(--leading-body); }
+.automation-review-pair dt { color: var(--muted); }
+.automation-review-pair dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.automation-review-item > .mgr-hint { margin: 0; }
+.automation-review-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--hair-30); }
+.automation-review-done { margin: 0; color: var(--ink-2); font-size: var(--text-xs); }
 .automation-account > .set-row { border: 0; }
 
 /* The rule editor: when (condition rows), where (the folder pill), then an optional name. */

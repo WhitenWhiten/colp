@@ -29,7 +29,8 @@
 //   Automations page: auto-paused, auto-expired, auto-none, auto-off (server has no automations), auto-rejected,
 //     auto-missing (a rule's folder is not mapped here), auto-empty (signed in, active, no rules),
 //     auto-server-offline (last runs read 3 h ago), auto-server-signin (no web sign-in), auto-server-empty (no runs yet),
-//     browser-empty (no rules in this browser), browser-none (signed out, nothing filed yet)
+//     browser-empty (no rules in this browser), browser-none (signed out, nothing filed yet),
+//     browser-overlap (signed in: one browser rule conflicts with an account rule, one duplicates one)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -437,10 +438,17 @@ export function installStub(messages) {
             run('run-4', 'arXiv papers', 'waiting', 5 * 3600e3, { held: true, explanation: 'Explicit hold: awaiting an Owner decision to continue the original pinned work.' }),
             run('run-5', 'Recipes from my favourite food sites', 'failed', 27 * 3600e3, { explanation: 'Destination unavailable.' })] };
         // This browser's own rules (AW-68): one on, one switched off, one whose folder was deleted.
-        const browserRule = (id, name, enabled, combinator, conditions, folder, folderMissing = false) => ({ id, name, enabled, match: { combinator, conditions },
-          draft: { name, combinator, conditions, folderNativeId: folder?.nativeId ?? 'gone' }, folder, folderMissing });
+        const overlap = (id, kind, pages) => !signedOut && has('browser-overlap') ? { kind, pages, reviewed: false, reviewKey: '1:1',
+          rule: { id: kind === 'conflict' ? 'r1' : 'r2', name: kind === 'conflict' ? 'arXiv papers' : 'GitHub repositories to Programming',
+            folder: kind === 'conflict' ? 'Academic' : 'Programming', match: kind === 'conflict' ? { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] }
+              : { combinator: 'all', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }] } } } : null;
+        const browserRule = (id, name, enabled, combinator, conditions, folder, folderMissing = false, account = null) => ({ id, name, enabled, match: { combinator, conditions },
+          draft: { name, combinator, conditions, folderNativeId: folder?.nativeId ?? 'gone' }, folder, folderMissing, account });
         const browserRules = has('browser-empty', 'browser-none') ? [] : [
-          browserRule('b1', 'Papers from arXiv', true, 'all', [{ kind: 'siteIs', value: 'arxiv.org' }], { nativeId: 'f-research', title: 'Research', path: ['Bookmarks bar', 'Research'] }),
+          browserRule('b1', 'Papers from arXiv', true, 'all', [{ kind: 'siteIs', value: 'arxiv.org' }], { nativeId: 'f-research', title: 'Research', path: ['Bookmarks bar', 'Research'] },
+            false, overlap('b1', 'conflict', 37)),
+          ...(has('browser-overlap') ? [browserRule('b4', 'GitHub', true, 'all', [{ kind: 'siteEndsWith', value: 'github.com' }],
+            { nativeId: 'f-prog', title: 'Programming', path: ['Bookmarks bar', 'Programming'] }, false, overlap('b4', 'duplicate', 12))] : []),
           browserRule('b2', 'SEO reading', false, 'any', [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }],
             { nativeId: 'f-seo', title: 'SEO', path: ['Bookmarks bar', 'Marketing', 'SEO'] }),
           browserRule('b3', 'Recipes', true, 'all', [{ kind: 'pathStartsWith', value: '/recipes/' }], null, true)];

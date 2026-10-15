@@ -21,7 +21,7 @@ import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
-import { browserPlacementViews, browserPreSaveDecision, browserRuleViews, recordBrowserPlacement } from './automation-browser.js';
+import { browserPlacementViews, browserPreSaveDecision, browserRuleViews, recordBrowserPlacement, type AccountRuleForOverlap } from './automation-browser.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState } from './runtime.js';
 import { currentSyncScope, loadConfig, pushSessionAuthority } from './scope.js';
 
@@ -239,6 +239,23 @@ async function ruleViews(record: BundleRecord): Promise<AutomationRuleView[]> {
   return views;
 }
 
+/** The account's rules in force here, with the folder each files into in this browser, for the overlap check (AW-69). */
+async function accountRulesForOverlap(record: BundleRecord, now: number): Promise<AccountRuleForOverlap[]> {
+  if (bundleState(record, now).state !== 'active') return [];
+  const scope = await currentSyncScope().catch(() => null);
+  if (!scope || !await hasBookmarkPermission()) return [];
+  const deps = projectionDeps(scope);
+  const rules: AccountRuleForOverlap[] = [];
+  for (const rule of record.bundle?.rules ?? []) {
+    if (ruleCollectionId(rule) !== scope.collectionId) continue;
+    const destination = (await projectRule(rule, scope.collectionId, deps)).folders[rule.definition.intake!.folderRole];
+    const resolved = destination?.status === 'resolved' ? destination : null;
+    rules.push({ id: rule.ruleId, definition: rule.definition, name: rule.definition.name, folderNativeId: resolved?.nativeId ?? null,
+      folderTitle: resolved?.title ?? null, key: `${rule.ruleRevision}:${rule.bindingRevision}` });
+  }
+  return rules;
+}
+
 const PLACEMENT_STATE: Record<PlacementReceipt['state'], AutomationPlacementView['state']> = {
   local: 'waitingForSync', waitingForSync: 'waitingForSync', accepted: 'confirmed', review: 'review', rejected: 'rejected', attention: 'attention' };
 
@@ -298,12 +315,15 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const origin = owner?.serverOrigin ?? config?.serverOrigin ?? null;
   const webUrl = origin ? webUrlFor(origin) : null;
   // This browser's own rules and what they filed show whether or not an account is signed in.
-  const [browserRules, filed] = await Promise.all([browserRuleViews(), browserPlacementViews()]);
-  const blank = { rules: [], placements: filed.slice(0, 10), browserRules, pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null,
-    problem: null, webUrl, server: null };
-  if (!owner) return { account: 'signedOut', state: 'none', ...blank };
+  const filed = await browserPlacementViews();
+  if (!owner) {
+    return { account: 'signedOut', state: 'none', rules: [], placements: filed.slice(0, 10), browserRules: await browserRuleViews(), pausedAt: null,
+      pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl, server: null };
+  }
   const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
+  // Signed in, each browser rule is compared with the account's rules in force here.
+  const browserRules = await browserRuleViews(await accountRulesForOverlap(record, now));
   const pause = (await chrome.storage.local.get(PAUSE_KEY))[PAUSE_KEY] as { ownerKey?: string; pausedAt?: string | null; pausedBy?: AutomationStateView['pausedBy'] } | undefined;
   const pauseKnown = current.state === 'paused' && pause?.ownerKey === automationOwnerKey(owner);
   const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;

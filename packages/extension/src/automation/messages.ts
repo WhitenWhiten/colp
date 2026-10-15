@@ -39,7 +39,9 @@ export function validAutomationRequest(value: unknown): value is AutomationReque
 export type BrowserRuleCommand =
   | { readonly kind: 'known.automation.browser.save'; readonly id?: string; readonly draft: BrowserRuleDraft; readonly enabled?: boolean }
   | { readonly kind: 'known.automation.browser.enable'; readonly id: string; readonly enabled: boolean }
-  | { readonly kind: 'known.automation.browser.remove'; readonly id: string };
+  | { readonly kind: 'known.automation.browser.remove'; readonly id: string }
+  /** Keep this rule next to the account rule it overlaps, at that rule's current revision (`reviewKey`). */
+  | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string };
 
 export type BrowserRuleResponse = { readonly ok: true; readonly rule: BrowserRule | null }
   | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
@@ -68,6 +70,10 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
       && (raw.enabled === undefined || typeof raw.enabled === 'boolean') && keys === 2 + Number(raw.id !== undefined) + Number(raw.enabled !== undefined);
   }
   if (raw.kind === 'known.automation.browser.enable') return keys === 3 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.enabled === 'boolean';
+  if (raw.kind === 'known.automation.browser.review') {
+    return keys === 4 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.accountRuleId === 'string'
+      && raw.accountRuleId.length > 0 && raw.accountRuleId.length <= 256 && typeof raw.key === 'string' && raw.key.length > 0 && raw.key.length <= 512;
+  }
   return raw.kind === 'known.automation.browser.remove' && keys === 2 && typeof raw.id === 'string' && RULE_ID.test(raw.id);
 }
 
@@ -102,6 +108,22 @@ export interface BrowserRuleView {
   /** Its folder here; null while bookmark access is off or once the folder is gone (`folderMissing`). */
   readonly folder: { readonly nativeId: string; readonly title: string; readonly path: readonly string[] } | null;
   readonly folderMissing: boolean;
+  /**
+   * The account rule it overlaps (AW-69), when signed in with rules in force: the same rule (`duplicate`),
+   * or one that takes some of its pages to another folder first (`conflict`). Null otherwise.
+   */
+  readonly account: BrowserRuleOverlapView | null;
+}
+
+export interface BrowserRuleOverlapView {
+  readonly kind: 'duplicate' | 'conflict';
+  readonly rule: { readonly id: string; readonly name: string; readonly match: RuleMatchView | null; readonly folder: string | null };
+  /** This browser's recent bookmarks both match. */
+  readonly pages: number;
+  /** The Owner kept both at the account rule's current revision. */
+  readonly reviewed: boolean;
+  /** What `known.automation.browser.review` sends back. */
+  readonly reviewKey: string;
 }
 
 /** A receipt as the page shows it: placement happened here; the server's answer is the rest. */

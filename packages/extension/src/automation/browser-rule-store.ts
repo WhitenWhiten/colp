@@ -36,8 +36,12 @@ const record = (value: unknown): value is Record<string, unknown> => Boolean(val
 function parseRule(value: unknown): BrowserRule | null {
   if (!record(value) || typeof value.id !== 'string' || typeof value.folderNativeId !== 'string' || typeof value.enabled !== 'boolean'
     || typeof value.createdAt !== 'number' || typeof value.updatedAt !== 'number' || validateM1Rule(value.definition).length) return null;
-  return value as unknown as BrowserRule;
+  const reviewed = Array.isArray(value.reviewed) ? value.reviewed.filter((item): item is { accountRuleId: string; key: string } =>
+    record(item) && typeof item.accountRuleId === 'string' && typeof item.key === 'string') : [];
+  const { reviewed: _reviewed, ...rest } = value as unknown as BrowserRule;
+  return reviewed.length ? { ...rest, reviewed } : rest;
 }
+const REVIEW_LIMIT = 20;
 
 function parsePlacement(value: unknown): BrowserPlacement | null {
   if (!record(value)) return null;
@@ -83,6 +87,17 @@ export function createBrowserRuleStore(area: AutomationStateArea, options: { rea
         if (!current) return null;
         if (current.enabled === enabled) return current;
         const next = { ...current, enabled, updatedAt: now };
+        await write(rules.map((rule) => rule.id === id ? next : rule));
+        return next;
+      });
+    },
+    /** The Owner kept this rule next to an account rule's current revision; the newest few are remembered. */
+    review(id: string, accountRuleId: string, key: string): Promise<BrowserRule | null> {
+      return exclusive(async () => {
+        const rules = await read(), current = rules.find((rule) => rule.id === id);
+        if (!current) return null;
+        const reviewed = [{ accountRuleId, key }, ...(current.reviewed ?? []).filter((item) => item.accountRuleId !== accountRuleId)].slice(0, REVIEW_LIMIT);
+        const next = { ...current, reviewed };
         await write(rules.map((rule) => rule.id === id ? next : rule));
         return next;
       });
