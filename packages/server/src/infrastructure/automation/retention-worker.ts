@@ -3,6 +3,7 @@ import { sql,type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 /** Captured facts are private bookmark copies; inspected, unreferenced ones expire after this window. */
 export const AUTOMATION_FACTS_RETENTION_DAYS = 30;
+export const AUTOMATION_BUNDLE_RETENTION_DAYS = 30;
 
 /**
  * Bounded housekeeping. Run members, job inputs, result/effect, batch members and matched dedup
@@ -31,6 +32,17 @@ export async function retainAutomationHistory(db: Kysely<DatabaseSchema>,ownerId
       ORDER BY f.collection_id,f.commit_ordinal LIMIT 500)`.execute(tx);
     await sql`DELETE FROM automation_preview_records WHERE id IN (SELECT id FROM automation_preview_records
       WHERE owner_id=${ownerId} AND expires_at<clock_timestamp() ORDER BY expires_at LIMIT 100)`.execute(tx);
+    // Receipt evidence outlives the polling cache. Keep every referenced snapshot and the latest
+    // revision per device (including dormant devices) so later issuance never reuses a revision.
+    await sql`DELETE FROM automation_device_bundles b USING (SELECT old.owner_id,old.device_id,old.revision
+      FROM automation_device_bundles old WHERE old.owner_id=${ownerId}
+        AND old.expires_at<clock_timestamp()-make_interval(days => ${AUTOMATION_BUNDLE_RETENTION_DAYS})
+        AND EXISTS (SELECT 1 FROM automation_device_bundles newer WHERE newer.owner_id=old.owner_id
+          AND newer.device_id=old.device_id AND newer.revision>old.revision)
+        AND NOT EXISTS (SELECT 1 FROM automation_intake_receipts i WHERE i.owner_id=old.owner_id
+          AND i.device_id=old.device_id AND i.receipt_json#>>'{input,bundleRevision}'=old.revision::text)
+      ORDER BY old.expires_at,old.device_id,old.revision LIMIT 500) expired
+      WHERE b.owner_id=expired.owner_id AND b.device_id=expired.device_id AND b.revision=expired.revision`.execute(tx);
     if (!workerHistory) return 0;
     await sql`DELETE FROM automation_pairings WHERE id IN (SELECT id FROM automation_pairings
       WHERE owner_id=${ownerId} AND expires_at<clock_timestamp() ORDER BY expires_at LIMIT 100)`.execute(tx);

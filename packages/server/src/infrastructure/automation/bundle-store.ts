@@ -1,15 +1,17 @@
 import { automationConfigurationEpoch } from './configuration-epoch.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { validateM1Rule, type RuleBundle, type BundleAckInput, type OperationReceipt } from '@know-n/colp/automation';
+import { automationDigest, validateM1Rule, type RuleBundle, type BundleAckInput, type OperationReceipt } from '@know-n/colp/automation';
 import { AutomationError, compileBundle, resolveBindings, assessIntakeBindings, scopeCollectionId,
   type AutomationDeviceActor, type BundleRule } from '../../modules/automation/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { createRuleStore } from './rule-store.js';
 import { createBindingReadPort, createBindingStore } from './bindings.js';
 
+const BUNDLE_REUSE_WINDOW_MS = 24 * 60 * 60_000;
+
 export async function issueDeviceBundle(tx: DatabaseTransaction, actor: AutomationDeviceActor, serverUuid: string, profile: string): Promise<RuleBundle> {
-  const previous = (await sql<{ revision: string; snapshot_json: RuleBundle | null }>`SELECT revision::text,snapshot_json FROM automation_device_bundles
+  const previous = (await sql<{ revision: string; snapshot_json: RuleBundle | null; expires_at: Date; status: string; digest: string }>`SELECT revision::text,snapshot_json,expires_at,status,digest FROM automation_device_bundles
     WHERE owner_id=${actor.accountId} AND device_id=${actor.deviceId} ORDER BY revision DESC LIMIT 1`.execute(tx)).rows[0];
   const settings = await tx.selectFrom('automation_settings').select(['paused','revision']).where('owner_id', '=', actor.accountId).executeTakeFirst();
   const reads = createBindingReadPort(tx, serverUuid), bindings = createBindingStore(tx), rules: BundleRule[] = [];
@@ -43,6 +45,17 @@ export async function issueDeviceBundle(tx: DatabaseTransaction, actor: Automati
   const now = (await sql<{ now: Date }>`SELECT clock_timestamp() AS now`.execute(tx)).rows[0]!.now;
   const bundle = compileBundle({ revision: String(BigInt(previous?.revision ?? '0') + 1n), settingsRevision: Number(await automationConfigurationEpoch(tx, actor.accountId)),
     paused: settings?.paused ?? false, now, rules, previousRuleIds: previous?.snapshot_json?.rules.map(rule => rule.ruleId) ?? [], profile });
+  // Recompute current authority and bindings above, even for an unchanged configuration epoch.
+  // Keep the original immutable content/expiry for up to one day rather than storing every poll.
+  const prior = previous?.snapshot_json;
+  if (prior && prior.revision === previous.revision && prior.digest === previous.digest
+    && previous.status !== 'rejected' && previous.expires_at.getTime() > now.getTime() + BUNDLE_REUSE_WINDOW_MS
+    && Date.parse(prior.issuedAt) > now.getTime() - BUNDLE_REUSE_WINDOW_MS
+    && prior.profile === bundle.profile && prior.paused === bundle.paused && prior.settingsRevision === bundle.settingsRevision
+    && automationDigest(prior.rules) === automationDigest(bundle.rules)) {
+    const { digest, ...content } = prior;
+    if (digest === automationDigest(content)) return prior;
+  }
   await sql`INSERT INTO automation_device_bundles(owner_id,device_id,revision,profile,digest,issued_at,expires_at,paused,settings_revision,status,snapshot_json)
     VALUES (${actor.accountId},${actor.deviceId},${bundle.revision}::bigint,${bundle.profile},${bundle.digest},${now},${new Date(bundle.expiresAt)},
       ${bundle.paused},${bundle.settingsRevision},'issued',${JSON.stringify(bundle)}::jsonb)`.execute(tx);

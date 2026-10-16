@@ -18,6 +18,7 @@ describeWithPostgres('authenticated full M1 bundles', () => {
   const request = () => ({ credential: f.http.credential, sessionId: f.sessionId, origin: AUTOMATION_DEVICE_ORIGIN });
   const uow = () => createAutomationDeviceUnitOfWork(f.db, 'server');
   test('full snapshot preserves the finite rule and digest, with bounded expiry and unsupported profiles rejected atomically', async () => {
+    await sql`UPDATE automation_device_bundles SET expires_at=clock_timestamp()+interval '1 hour'`.execute(f.db);
     const bundle = await uow().execute(request(), p => p.bundle('browser-bounded-v1'));
     expect(validateAutomation('RuleBundle', bundle).valid).toBe(true);
     expect(bundle.rules[0]!.definition).toEqual(f.rule.definition);
