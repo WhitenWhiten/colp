@@ -74,7 +74,10 @@ describe('TopNav avatar', () => {
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Opening the account menu prefetches Settings; finish that import while
+    // this test's module mocks and environment are still available.
+    await vi.dynamicImportSettled()
     cleanup()
     document.body.innerHTML = ''
     vi.restoreAllMocks()
