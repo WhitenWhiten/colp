@@ -143,6 +143,14 @@ describe('Run detail', () => {
     expect(document.querySelector('[data-testid="automation-usage"]')).toBeNull()
   })
 
+  it('says a finished run is finished once, with nothing left to refresh', async () => {
+    mount(withRun({ status: 'completed' }))
+    await waitForDom(() => text('h1') === 'Run finished')
+    expect(text('[data-testid="automation-run-status"]')).toBe('Done')
+    expect(document.body.textContent).not.toContain('Finished.')
+    expect(buttonNamed('Refresh')).toBeUndefined()
+  })
+
   it('reports a refused retry as the server worded it', async () => {
     const api = withRun({ status: 'running', jobIds: ['job-b'] })
     api.getJob.mockResolvedValue(job('job-b', 'uncertain'))

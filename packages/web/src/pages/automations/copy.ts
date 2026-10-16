@@ -149,16 +149,16 @@ export const RUN_STATUS: Record<AutomationRun['status'], { label: string; tone: 
   failed: { label: 'Failed', tone: 'danger' },
 }
 
-/** What each run state means for the owner, under its badge. */
+/** What each run state means for the owner, beside its badge and under a title that already names the state. */
 export const RUN_STATUS_DETAIL: Record<AutomationRun['status'], string> = {
-  waiting: 'Waiting to start. It goes on by itself once its work can run.',
-  running: 'Running now.',
-  review: 'Stopped for your decision. Nothing more happens until you change the rule or cancel this run.',
-  completed: 'Finished.',
-  partial: 'Partly finished. What was done is kept; the rest did not happen.',
-  blocked: 'Blocked. It won’t go on until the problem is fixed.',
-  cancelled: 'Cancelled. Anything already done stays.',
-  failed: 'Failed. Nothing more will happen for this run.',
+  waiting: 'It goes on by itself once its work can run.',
+  running: '',
+  review: 'Nothing more happens until you change the rule or cancel this run.',
+  completed: '',
+  partial: 'What was done is kept; the rest did not happen.',
+  blocked: 'It won’t go on until the problem is fixed.',
+  cancelled: 'Anything already done stays.',
+  failed: 'Nothing more will happen for this run.',
 }
 
 /** A run page's title: short, so the server's explanation can say the rest. */
@@ -178,13 +178,14 @@ export function runHasRemainingWork(status: AutomationRun['status']): boolean {
   return status === 'waiting' || status === 'running' || status === 'blocked' || status === 'review'
 }
 
+/** What each rule state means, beside the badge that already names it. */
 export const RULE_STATE_DETAIL: Record<AutomationRule['effectiveState'], string> = {
   draft: 'Not on yet. Preview it and turn it on to start filing bookmarks.',
-  active: 'On. It files matching bookmarks as you save them.',
-  degraded: 'On, with an issue to review. Check the notices below.',
+  active: 'It files matching bookmarks as you save them.',
+  degraded: 'It still files bookmarks; check the notices below.',
   blocked: 'Stopped until the problem is fixed. Bookmarks are still saved where you put them.',
-  paused: 'Paused. Bookmarks are saved as usual and this rule doesn’t file them. Preview it again to turn it back on.',
-  archived: 'Archived. Its history stays; it can’t be turned on again.',
+  paused: 'Bookmarks are saved as usual and this rule doesn’t file them. Preview it again to turn it back on.',
+  archived: 'Its history stays; it can’t be turned on again.',
 }
 
 export const JOB_STATUS: Record<AutomationJob['status'], { label: string; tone: StatusTone; detail: string }> = {

@@ -52,7 +52,9 @@ describe('Rule detail', () => {
     mount(api)
     await waitForDom(() => text('[data-testid="automation-sentence"]').includes('Academic'))
     expect(text('h1')).toBe('Papers to Academic')
-    expect(document.body.textContent).toContain('On. It files matching bookmarks as you save them.')
+    // The badge says On; the words beside it say what that means, without saying On again.
+    expect(document.body.textContent).toContain('It files matching bookmarks as you save them.')
+    expect(document.body.textContent).not.toContain('On. It files')
     const folderCheck = document.querySelector('[data-kind="folder"]')
     expect(folderCheck?.textContent).toContain('Academic')
     expect(folderCheck?.getAttribute('data-status')).toBe('valid')

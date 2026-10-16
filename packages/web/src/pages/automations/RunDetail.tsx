@@ -176,6 +176,10 @@ export function RunDetail() {
   const status = RUN_STATUS[shown.status]
   const explanation = runExplanation(shown.explanation)
   const finished = !runHasRemainingWork(shown.status)
+  /** Done or cancelled: nothing about the run itself changes any more (an Undo updates in place). */
+  const settled = shown.status === 'completed' || shown.status === 'cancelled'
+  const stateDetail = [RUN_STATUS_DETAIL[shown.status], shown.held ? 'It is on hold and does not go on by itself.' : '']
+    .filter(Boolean).join(' ')
   const underway = shown.status === 'waiting' || shown.status === 'running'
 
   async function cancel() {
@@ -237,7 +241,7 @@ export function RunDetail() {
           <span className="automation-head-state">
             <StatusBadge tone={status.tone} data-testid="automation-run-status">{status.label}</StatusBadge>
             {shown.held && <StatusBadge tone="warning">On hold</StatusBadge>}
-            <span>{`${RUN_STATUS_DETAIL[shown.status]}${shown.held ? ' It is on hold and does not go on by itself.' : ''}`}</span>
+            {stateDetail && <span>{stateDetail}</span>}
             {shown.held && <Link to={`${ruleEditPath(shown.ruleId)}#preview`}>Review earlier work and choose whether to continue</Link>}
           </span>
         )}
@@ -248,7 +252,7 @@ export function RunDetail() {
               Cancel remaining work
             </button>
           </>
-        ) : <button type="button" className="btn btn-secondary" onClick={refresh}>Refresh</button>}
+        ) : settled ? undefined : <button type="button" className="btn btn-secondary" onClick={refresh}>Refresh</button>}
       />
 
       <div className="automations-layout">
