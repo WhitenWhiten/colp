@@ -243,7 +243,7 @@ async function initSaveTarget(collectionId: string | undefined): Promise<void> {
   const status = await requestSaveStatus();
   lastMountNativeIds = status?.ok ? status.mountNativeIds : [];
   reflectNativeWaitLink(status?.ok === true && status.status.kind === 'action-required');
-  await folders.init(collectionId ?? DEVICE_FOLDER_SCOPE, lastMountNativeIds);
+  await folders.init(collectionId ?? DEVICE_FOLDER_SCOPE, lastMountNativeIds, status?.ok ? status.privateNativeIds : []);
   await editExisting.reapply();
   // The rule's folder first, so an automatic suggestion knows whether to ask for tags only.
   await rule.refresh();

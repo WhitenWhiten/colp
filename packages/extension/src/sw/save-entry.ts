@@ -69,10 +69,13 @@ export async function saveThroughNativeEntry(
   }
   let collectionId: string | undefined;
   let mountNativeIds: readonly string[] = [];
+  let privateNativeIds: readonly string[] = [];
   try {
     const scope = await currentSyncScope();
     collectionId = collectionId ?? scope.collectionId;
-    mountNativeIds = [...(await resolveIngressBoundary(syncState, scope)).selectedNative];
+    const boundary = await resolveIngressBoundary(syncState, scope);
+    mountNativeIds = [...boundary.selectedNative];
+    privateNativeIds = [...boundary.privateNative];
   } catch { /* Offline: remembered folder + save-context cache still place the native row. */ }
   if (!collectionId) {
     const stored = (await chrome.storage.local.get(COLLECTION_BINDING))[COLLECTION_BINDING];
@@ -80,7 +83,7 @@ export async function saveThroughNativeEntry(
   }
   const preferences = await readEffectiveBookmarkPreferences().catch(() => ({ bookmarkInsertPosition: 'bottom' as const }));
   return runNativeSave({
-    kind, hasPermission: true, mountNativeIds,
+    kind, hasPermission: true, mountNativeIds, privateNativeIds,
     insertPosition: preferences.bookmarkInsertPosition,
     ...('foldersFirst' in preferences && preferences.foldersFirst ? { foldersFirst: true } : {}),
     ...(collectionId ? { collectionId } : {}),

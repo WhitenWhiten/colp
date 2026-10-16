@@ -480,6 +480,7 @@ export type IngressDiagnosticsResponse =
 export type SaveStatusRequest = { readonly kind: 'known.save.status'; readonly nativeId?: string };
 export type SaveStatusResponse = {
   readonly ok: true; readonly status: import('./sync-status.js').SyncStatus; readonly localOnly: boolean;
+  readonly privateNativeIds?: readonly string[];
   readonly mountNativeIds: readonly string[]; readonly nativeId?: string; readonly defaultFolderId?: string;
 } | { readonly ok: false; readonly error: string };
 export type NativeSaveRequest = {

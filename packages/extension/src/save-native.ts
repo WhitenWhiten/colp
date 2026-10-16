@@ -2,7 +2,7 @@ import { assertPersonalNativeAllowed } from './bookmark-subscriptions/guards.js'
 import { createFaviconSidecarStore, FAVICON_SIDECAR_ALARM } from './favicon-sidecar-store.js';
 import { httpTabs, savePagesThroughNativeIngress, type NativeSavePage } from './save-entry.js';
 import { presentSaveFeedback } from './save-feedback.js';
-import { commitSaveFolder, folderIsInMount, walkAncestorIds } from './save-folder.js';
+import { commitSaveFolder, folderIsInSyncRange, walkAncestorIds } from './save-folder.js';
 import { resolveInRangeSaveParent } from './save-target.js';
 import { writeLastSave } from './save-status.js';
 import type { BookmarkInsertPosition } from './bookmark-preferences.js';
@@ -46,6 +46,7 @@ export interface NativeSaveInput {
   readonly hasPermission: boolean;
   readonly collectionId?: string;
   readonly mountNativeIds: readonly string[];
+  readonly privateNativeIds?: readonly string[];
   readonly now?: () => number;
   readonly queryTabs?: () => Promise<readonly { readonly title?: string; readonly url?: string;
     readonly favIconUrl?: string }[]>;
@@ -147,7 +148,7 @@ export async function runNativeSave(input: NativeSaveInput): Promise<NativeSaveR
     const prior = priorAtStart;
     const target = resuming ? undefined : await resolveInRangeSaveParent({
       collectionId: input.collectionId,
-      mountNativeIds: input.mountNativeIds, getParent: chromeParent, folderExists,
+      mountNativeIds: input.mountNativeIds, privateNativeIds: input.privateNativeIds, getParent: chromeParent, folderExists,
     });
     let parentNativeId = resuming ? priorAtStart.parentNativeId : target?.parentNativeId;
     if (resuming && parentNativeId && !await folderExists(parentNativeId)) return { ok: false, error: 'busy' };
@@ -157,7 +158,7 @@ export async function runNativeSave(input: NativeSaveInput): Promise<NativeSaveR
     }
     const mounts = new Set(input.mountNativeIds);
     const currentlyInRange = parentNativeId
-      ? (mounts.size === 0 || folderIsInMount(parentNativeId, await walkAncestorIds(parentNativeId, chromeParent), mounts))
+      ? folderIsInSyncRange(parentNativeId, await walkAncestorIds(parentNativeId, chromeParent), mounts, new Set(input.privateNativeIds))
       : false;
     if (resuming && priorAtStart.localOnly === false && !currentlyInRange) return { ok: false, error: 'busy' };
     const inRange = currentlyInRange && !(resuming && priorAtStart.localOnly);

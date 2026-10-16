@@ -508,3 +508,13 @@ test('a pick reports to the host once, and a result that must not change the sav
   await vi.waitFor(() => expect(panel.hidden).toBe(true));
   expect(onPick).toHaveBeenCalledOnce();
 });
+
+test('an excluded root keeps its descendants local and rejects a server suggestion', async () => {
+  stubChrome();
+  const { picker } = mountPicker();
+  await picker.init('library', ['1'], ['1']);
+  expect(await picker.syncTarget()).toEqual({ kind: 'local' });
+  expect(await picker.isOutOfRange()).toBe(true);
+  expect(await picker.chooseSuggestedFolder('a')).toBe(false);
+  expect(await picker.chooseSuggestedFolder('a', true)).toBe(true);
+});

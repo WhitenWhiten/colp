@@ -38,6 +38,13 @@ export function folderIsInMount(nativeId: string, ancestorIds: readonly string[]
   return ancestorIds.some((id) => mountNativeIds.has(id));
 }
 
+/** A private boundary excludes itself and every descendant, including mounted roots. */
+export function folderIsInSyncRange(nativeId: string, ancestorIds: readonly string[],
+  selectedNative: ReadonlySet<string>, privateNative: ReadonlySet<string>): boolean {
+  return ![nativeId, ...ancestorIds].some(id => privateNative.has(id))
+    && folderIsInMount(nativeId, ancestorIds, selectedNative);
+}
+
 export async function walkAncestorIds(
   nativeId: string,
   getParent: (id: string) => Promise<string | undefined>,

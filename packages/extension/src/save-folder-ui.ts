@@ -1,5 +1,5 @@
 import { exclusionIds, personalBookmarks } from './bookmark-subscriptions/guards.js';
-import { commitSaveFolder, DEVICE_FOLDER_SCOPE, folderIsInMount, readDefaultFolder,
+import { commitSaveFolder, DEVICE_FOLDER_SCOPE, folderIsInSyncRange, readDefaultFolder,
   readOnceFolder, rememberSaveFolder, walkAncestorIds, type FolderTreeNode } from './save-folder.js';
 import { resolveFolderSyncTarget, type FolderSyncTarget } from './folder-sync-target.js';
 import { buildFolderRows, type FolderRow } from './folder-tree-model.js';
@@ -36,7 +36,7 @@ export interface SaveFolderUiHost {
 
 export function bindSaveFolderPicker(host: SaveFolderUiHost): {
   /* `scopeKey` keys the remembered folders: the bound library, else the device scope. */
-  init(scopeKey: string, mountNativeIds: readonly string[]): Promise<void>;
+  init(scopeKey: string, mountNativeIds: readonly string[], privateNativeIds?: readonly string[]): Promise<void>;
   chosenFolderId(): string;
   /** `anyFolder` (local suggestions) accepts any personal folder; server suggestions must stay in the synced range. */
   chooseSuggestedFolder(nativeId: string, anyFolder?: boolean): Promise<boolean>;
@@ -62,6 +62,7 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
   let folderRootHint = '';
   let chosenId = '';
   let mounts = new Set<string>();
+  let privateNative = new Set<string>();
   let collectionId: string | undefined;
   let picked = false;
   /** The unsaved pick from an earlier opening of the popup, restored as the current folder. */
@@ -114,11 +115,12 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
   });
 
   return {
-    async init(scopeKey, mountNativeIds) {
+    async init(scopeKey, mountNativeIds, privateNativeIds = []) {
       const at = ++selectionVersion;
       const keepSelection = collectionId === scopeKey && (picked || suggested);
       collectionId = scopeKey;
       mounts = new Set(mountNativeIds);
+      privateNative = new Set(privateNativeIds);
       if (keepSelection) { host.onChosen?.(); return; }
       const wasOpen = !host.destPanel.hidden;
       if (!wasOpen) {
@@ -166,13 +168,13 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
       const node = (await chrome.bookmarks.get(nativeId).catch(() => []))[0];
       if (!node || node.url !== undefined || node.unmodifiable || await isUnsupportedBookmarkFolder(nativeId) || collection !== collectionId) return false;
       if (anyFolder ? (await (host.excludedFolderIds ?? (() => exclusionIds(true)))()).has(nativeId)
-        : !folderIsInMount(nativeId, await walkAncestorIds(nativeId, chromeParent), mounts)) return false;
+        : !folderIsInSyncRange(nativeId, await walkAncestorIds(nativeId, chromeParent), mounts, privateNative)) return false;
       await pickFolder(nativeId, true, false); return true;
     },
     async isOutOfRange() {
       if (!chosenId || mounts.size === 0) return mounts.size === 0;
       const ancestors = await walkAncestorIds(chosenId, chromeParent);
-      return !folderIsInMount(chosenId, ancestors, mounts);
+      return !folderIsInSyncRange(chosenId, ancestors, mounts, privateNative);
     },
     async adopt(nativeId) {
       selectionVersion++;
@@ -186,7 +188,7 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
     open: openPicker,
     close: closePicker,
     isOpen: () => !host.destPanel.hidden,
-    syncTarget: () => resolveFolderSyncTarget({ folderId: chosenId, mounts, getParent: chromeParent,
+    syncTarget: () => resolveFolderSyncTarget({ folderId: chosenId, mounts, privateNative, getParent: chromeParent,
       ...(collectionId && collectionId !== DEVICE_FOLDER_SCOPE ? { boundCollectionId: collectionId } : {}) }),
     async commit(id) {
       if (!id || !chosenId) return;

@@ -1,4 +1,4 @@
-import { folderIsInMount, walkAncestorIds } from './save-folder.js';
+import { folderIsInSyncRange, walkAncestorIds } from './save-folder.js';
 
 export type FolderSyncTarget =
   | { readonly kind: 'synced'; readonly collectionId: string }
@@ -14,13 +14,14 @@ export type FolderSyncTarget =
  */
 export async function resolveFolderSyncTarget(input: {
   readonly folderId: string;
+  readonly privateNative: ReadonlySet<string>;
   readonly mounts: ReadonlySet<string>;
   readonly boundCollectionId?: string;
   readonly getParent: (id: string) => Promise<string | undefined>;
 }): Promise<FolderSyncTarget> {
   if (!input.folderId || !input.boundCollectionId || input.mounts.size === 0) return { kind: 'unknown' };
   const ancestors = await walkAncestorIds(input.folderId, input.getParent);
-  return folderIsInMount(input.folderId, ancestors, input.mounts)
+  return folderIsInSyncRange(input.folderId, ancestors, input.mounts, input.privateNative)
     ? { kind: 'synced', collectionId: input.boundCollectionId }
     : { kind: 'local' };
 }
