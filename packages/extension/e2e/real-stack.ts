@@ -885,7 +885,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
       const receipts = await isolated.runtime.pool.query('select count(*)::int as count from sync_session_idempotency_receipts');
       const replica = await isolated.runtime.pool.query('select status from sync_replicas where replica_id=$1', [REPLICA_ID]);
       const mutations = await isolated.runtime.pool.query(
-        'select count(*)::int as count from nodes where collection_id=$1 and not is_root', [activeLibraryId]);
+        'select count(*)::int as count from nodes where collection_id=$1 and not is_root and folder_role is null', [activeLibraryId]);
       const pushReceipt = await isolated.runtime.pool.query(`select result_digest,result_json from sync_sequence_receipts
         where replica_id=$1 order by sequence_number limit 1`, [REPLICA_ID]);
       const sequenceReceipts = await isolated.runtime.pool.query(`select sequence_number,operation_id as op_id,result_digest,result_json

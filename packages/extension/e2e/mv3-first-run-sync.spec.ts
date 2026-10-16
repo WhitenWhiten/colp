@@ -53,7 +53,7 @@ test('first-run sync uploads selected ordinary folders as custom mounts', async 
       kind: 'known.firstRun.confirm', previewId, confirmationId: crypto.randomUUID(), libraryId: 'different-library',
     }), preview.previewId);
     expect(stale).toEqual({ ok: false, error: 'bootstrap_confirmation_stale' });
-    expect(await liveCanonical(stack)).toEqual([]);
+    expect((await liveCanonical(stack)).map(node => node.folder_role).sort()).toEqual(['bookmarks-bar', 'other-bookmarks']);
     await confirmPreview(page, preview.previewId);
     await waitFirstRunProductQuiet(page, stack, bindingA);
     const live = await liveCanonical(stack);
@@ -90,14 +90,14 @@ test('KNS-08-AC-01/02/03/08 first-run preview is local then dual-mount bootstrap
     const start = await treeProjection(page);
     const before = await stack.observations() as { pushRequestDigests?: unknown[]; canonicalNodes?: unknown[] };
     expect(before.pushRequestDigests ?? []).toEqual([]);
-    expect(await liveCanonical(stack)).toEqual([]);
+    expect((await liveCanonical(stack)).map(node => node.folder_role).sort()).toEqual(['bookmarks-bar', 'other-bookmarks']);
     const preview = await previewFirstRun(page, [roots.barTitle, roots.otherTitle], [localOnlyTitle]);
     expect(preview.bookmarkCount).toBeGreaterThanOrEqual(2);
     expect(preview.skippedCount).toBeGreaterThan(0);
     expect(preview.treeDigest).toMatch(/^sha256:/u);
     const afterPreview = await stack.observations() as { pushRequestDigests?: unknown[] };
     expect(afterPreview.pushRequestDigests ?? []).toEqual([]);
-    expect(await liveCanonical(stack)).toEqual([]);
+    expect((await liveCanonical(stack)).map(node => node.folder_role).sort()).toEqual(['bookmarks-bar', 'other-bookmarks']);
     const confirmationId = crypto.randomUUID();
     await confirmPreview(page, preview.previewId, confirmationId);
     await waitFirstRunProductQuiet(page, stack, bindingA);

@@ -45,7 +45,7 @@ test('manual saving creates a native bookmark while cloud session renewal is sti
       await chrome.storage.local.set({
         'known.auth.binding.v1': { replicaId: 'replica-fixture', browserProfileId: 'profile-fixture', generation: '1' },
         'known.sync.collection.v1': 'local-save-collection',
-        'known.sync.save-context.v1': { collectionId: 'local-save-collection', parentNativeId: parentId },
+        'known.sync.folder.v1': { collectionId: 'device', folderNativeId: parentId },
         'known.auth.snapshot.v1': { status: 'connected', environment: config.environment, serverOrigin: config.serverOrigin, accountLabel: 'a'.repeat(32) },
       });
       return parentId;

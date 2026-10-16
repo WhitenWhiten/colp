@@ -46,6 +46,7 @@ test('popup saves locally before first-run confirmation then syncs the same book
     await popup.locator('#tab-url-display').click();
     await popup.fill('#tab-url', SAVED_URL);
     await grantOptionalBookmarks(popup, 'Allow bookmark access', 'popup save activation');
+    if (await popup.locator('#dest-panel').isVisible()) await popup.locator('[data-folder-id]').first().click();
     await popup.getByRole('button', { name: 'Save', exact: true }).click();
 
     // The initial save feedback describes the local commit, before sync consent.
@@ -240,7 +241,7 @@ test('an out-of-range popup folder saves without a prompt and stays local-only',
     // The pick applies at once; whether it syncs is passive status, never a question.
     await expect(popup.locator('#dest-panel')).toBeHidden();
     await expect(popup.locator('#dest-folder')).toHaveText(other.title);
-    await expect(popup.locator('#pp-note')).toHaveText("This folder isn't synced to Know-N · Sync this folder…");
+    await expect(popup.locator('#pp-note')).toHaveText("This folder stays on this browser · Sync it…");
     await expect(popup.locator('#local-only-prompt')).toHaveCount(0);
     await popup.screenshot({ path: testInfo.outputPath('popup-dest-local.png') });
     const localUrl = 'https://example.com/known-p2-01-local-only';

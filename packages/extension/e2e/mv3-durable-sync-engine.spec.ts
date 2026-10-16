@@ -5,28 +5,34 @@ import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
+import { confirmFirstRun, waitQueueQuiet } from './kns-08-harness.js';
 import { fixtureCollectionId } from './external-backend.js';
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
 
 test('two isolated production MV3 profiles retain independent durable lifecycle state across worker restart', async () => {
-  test.setTimeout(120_000); const stack = await startRealStack();
+  test.setTimeout(240_000); const stack = await startRealStack();
+  const bindings = stack.extensionBindings.map((binding, index) => ({ ...binding,
+    replicaId: `replica-durable-library-${index}`, browserProfileId: `profile-durable-library-${index}` }));
   const profileA = await mkdtemp(resolve(tmpdir(), 'known-p3-33-profileA-'));
   const profileB = await mkdtemp(resolve(tmpdir(), 'known-p3-33-profileB-'));
   let contextA = await launch(profileA, stack.browserHostResolverRules); let contextB: BrowserContext | undefined;
   try {
-    let pageA = await extensionPage(contextA); await login(pageA, stack.extensionBindings[0]);
+    let pageA = await extensionPage(contextA); await login(pageA, bindings[0]!);
     await grantBookmarks(pageA, 'A'); contextB = await launch(profileB, stack.browserHostResolverRules);
-    let pageB = await extensionPage(contextB); await login(pageB, stack.extensionBindings[1]);
+    let pageB = await extensionPage(contextB); await login(pageB, bindings[1]!);
     await grantBookmarks(pageB, 'B');
     const barA = (await pageA.evaluate(() => chrome.bookmarks.getTree()))[0]!.children![0]!.id;
     const barB = (await pageB.evaluate(() => chrome.bookmarks.getTree()))[0]!.children![0]!.id;
-    let rootA = barA;
-    let rootB = barB;
+    const rootA = barA;
+    const rootB = barB;
     expect(rootA).toBeTruthy(); expect(rootB).toBeTruthy();
-    rootA = await evidence<string>(pageA, 'configureDurableEngineEvidence', rootA);
-    rootB = await evidence<string>(pageB, 'configureDurableEngineEvidence', rootB);
+    for (const [index, page] of [pageA, pageB].entries()) {
+      const titles = await page.evaluate(() => chrome.bookmarks.getTree().then(tree => tree[0]!.children!.map(node => node.title)));
+      const confirmation = await confirmFirstRun(page, titles);
+      await waitQueueQuiet(page, stack, bindings[index]!, 90_000, confirmation);
+    }
     await wakeUntilSleeping(pageA); await wakeUntilSleeping(pageB);
     const beforeA = await evidence<any>(pageA, 'syncEngineState'); const beforeB = await evidence<any>(pageB, 'syncEngineState');
     expect(beforeA.scopeKey).not.toBe(beforeB.scopeKey); expect(beforeA.phase).toBe('sleeping'); expect(beforeB.phase).toBe('sleeping');

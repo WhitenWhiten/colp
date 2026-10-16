@@ -21,6 +21,10 @@ test('a guest enables auto-save without AI, then saves a page and a tab batch wh
     await expect(options.locator('body')).toHaveAttribute('data-pane', 'bookmarks');
     await grantOptionalBookmarks(options, 'Allow bookmark access', 'Known local saving');
     await grantTabAccess(context);
+    await options.evaluate(async () => {
+      const folder = (await chrome.bookmarks.getTree())[0]!.children![0]!;
+      await chrome.storage.local.set({ 'known.sync.folder.v1': { collectionId: 'device', folderNativeId: folder.id } });
+    });
     await options.bringToFront();
     await options.locator('#nav-saving').click();
     await expect(options.locator('#classification-local-settings')).toBeHidden();
