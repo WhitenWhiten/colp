@@ -1,3 +1,4 @@
+import { createPhase4bMcpLowRiskNodeCreateService } from '../../../src/modules/mcp/low-risk-node-create.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
@@ -165,6 +166,24 @@ describeWithPostgres('one private bookmark library per account', () => {
         baseSourceParentRevision: parent.children_revision, baseTargetParentRevision: root.children_revision } });
     assert.equal(moved.statusCode, 422, moved.body);
     assert.equal(moved.json().error.code, 'invalid_document');
+  });
+
+  test('MCP create applies the same role-folder destination rules in preview and apply', async () => {
+    const targetLibrary = await ensureLibraryCollection(createPostgresLibraryCollectionUnitOfWork(isolated.runtime.db), { principalId: owner.accountId, subjectId: owner.subjectId });
+    const service = createPhase4bMcpLowRiskNodeCreateService({
+      unitOfWork: createPostgresCanonicalMutationUnitOfWork(isolated.runtime.db),
+      inspect: createPhase4bMcpLowRiskNodeCreateInspect(isolated.runtime.db),
+    });
+    const context = { accountSubjectId: owner.subjectId, scope: ['nodes:write'], binding: {
+      kind: 'authenticated' as const, principalId: owner.accountId, clientId: 'library-agent',
+      credentialBindingId: 'library-agent-key', resourceAudience: 'colp://known/collections', securityEpoch: '0',
+    } };
+    for (const dryRun of [false, true]) for (const parentId of [undefined, targetLibrary.rootNodeId]) {
+      await assert.rejects(service.execute({ idempotencyKey: randomUUID(), expectedBaseRevisions: {}, input: { tool: 'nodes.create', collectionId: targetLibrary.id, ...(parentId ? { parentId } : {}),
+        node: { kind: 'bookmark', title: 'Library bookmark', url: 'https://example.test/mcp', visibility: 'inherit', description: null, tags: [] },
+        ...(dryRun ? { dryRun: true } : { confirmApply: true }),
+      } }, context), (error: unknown) => error instanceof Error && 'code' in error && error.code === 'parent_invalid');
+    }
   });
 
   test('MCP node update refuses role-folder renaming in apply and preview', async () => {

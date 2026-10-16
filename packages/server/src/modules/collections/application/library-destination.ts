@@ -4,7 +4,7 @@ import type { LockedNodeRow, ProductCollectionCanonicalPorts } from './ports.js'
 
 /** Product writes belong under a browser role folder; sync retains its own admission rules. */
 export async function assertLibraryDestination(
-  ports: Pick<ProductCollectionCanonicalPorts, 'nodes'>,
+  ports: { nodes: Pick<ProductCollectionCanonicalPorts['nodes'], 'getNode'> },
   collection: { readonly id: string; readonly isLibrary?: boolean },
   parent: LockedNodeRow,
 ): Promise<void> {

@@ -1,3 +1,5 @@
+import { assertLibraryDestination } from '../collections/application/library-destination.js';
+import { CollectionsError } from '../collections/domain/index.js';
 import { createHash } from 'node:crypto';
 import { snapshotMcpAuthorizationBinding, type McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import { authorizeCapability } from '../access-policy/index.js';
@@ -156,6 +158,12 @@ export async function loadAndAssertCreateState(
       nodeCreateHint('parentId'),
     );
   }
+  try {
+    await assertLibraryDestination({ nodes: ports }, locked, parent);
+  } catch (error) {
+    if (!(error instanceof CollectionsError)) throw error;
+    throw new Phase4bMcpLowRiskNodeCreateError('parent_invalid', error.message, nodeCreateHint('parentId'));
+  }
   if (options.fence !== true) {
     return Object.freeze({ collection: locked, parent, parentId, appliedVisibility });
   }
@@ -182,9 +190,6 @@ export async function loadAndAssertCreateState(
       decision.reasonCategory === 'policy_revision_mismatch' ? 'stale_revision' : 'policy_denied',
       'Current policy denied nodes.create inside the canonical transaction.',
     );
-  }
-  if (locked.isLibrary && parsed.parentId === undefined) {
-    throw new Phase4bMcpLowRiskNodeCreateError('parent_invalid', 'Choose a parent folder explicitly in the bookmark library.', nodeCreateHint('parentId'));
   }
   return Object.freeze({ collection: locked, parent, parentId, appliedVisibility });
 }
