@@ -79,7 +79,8 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
     && mappings.some(row => row.nativeId === id && !row.projection.revision.startsWith('local-')));
   const reincluded = [...previousPrivate].filter(id => discovered.has(id) && (scan.selectedNativeIds.includes(id) || (discovered.get(id) ?? []).some(ancestor => scan.selectedNativeIds.includes(ancestor))) && !nextPrivate.has(id)
     && !(discovered.get(id) ?? []).some(ancestor => nextPrivate.has(ancestor)));
-  const reincludedColp = new Set(mappings.filter(row => reincluded.includes(row.nativeId)).map(row => row.colpId));
+  const reincludedColp = new Set(mappings.filter(row => reincluded.includes(row.nativeId)
+    || (discovered.get(row.nativeId) ?? []).some(ancestor => reincluded.includes(ancestor))).map(row => row.colpId));
   for (let after = 0;;) {
     const queued = await store.listQueue(scope, undefined, after, 1000);
     if (queued.some(row => row.opId.startsWith('range.private.') && reincludedColp.has(String(row.payload.targetId))

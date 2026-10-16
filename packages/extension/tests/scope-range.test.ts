@@ -127,6 +127,24 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     assert.equal(queued.length, 1);
     assert.equal(queued[0]?.payload.targetId, 'colp-bm-1');
     assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'active');
+    const { discoveredFromRoots } = await import('../src/scope-range.js');
+    await store.configureBrowserRoots(scope, { discovered: [...discoveredFromRoots(tree())].map(([nativeId, ancestorNativeIds]) => ({ nativeId, ancestorNativeIds })),
+      selectedNativeIds: ['bar'], privateNativeIds: ['bar'], status: 'ready' });
+    await assert.rejects(previewRangeChange(store, scope, { roots: tree(), selectedNativeIds: ['bar'], privateNativeIds: [] }), /sync_busy/);
+    store.close();
+  });
+
+  test('excluding an empty browser root has a zero-content trash plan', async () => {
+    const store = await activeStore();
+    await seedBar(store);
+    await store.deleteMapping(scope, 'bm-1');
+    const { preview, diff } = await previewRangeChange(store, scope, { roots: tree(), selectedNativeIds: ['bar'], privateNativeIds: ['bar'] });
+    assert.deepEqual(diff.removedNativeIds, ['bar']);
+    assert.equal(preview.remoteDeleteEvidence?.[0]?.affectedCount, 0);
+    const { frozenRemoteDeleteCommand } = await import('../src/scope-commands.js');
+    assert.equal((await executeRemoteDelete(store, scope, frozenRemoteDeleteCommand(preview, 'bar')!)).ok, true);
+    assert.deepEqual(await store.listQueue(scope), []);
+    assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'active');
     store.close();
   });
 

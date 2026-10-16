@@ -57,7 +57,8 @@ function deviceFactDescendantCount(
   }
   let count = 0;
   for (const id of members) if (id !== remoteMountNodeId) count += 1;
-  if (count === 0) throw new Error('remote_subtree_unknown');
+  if (count === 0 && !mappings.some(row => row.colpId === remoteMountNodeId && !isLocalOnlyIdentity(row))
+    && !live.some(row => row.colpId === remoteMountNodeId)) throw new Error('remote_subtree_unknown');
   return count;
 }
 
