@@ -71,7 +71,7 @@ function folderOptions(
   const visit = (parentId: string, depth: number, lineage: ReadonlySet<string>) => {
     for (const node of childrenOf(parentId, nodes)) {
       if (node.kind !== 'folder' || lineage.has(node.id) || exclude?.has(node.id)) continue
-      if (library && parentId === rootId && node.folderRole !== 'bookmarks-bar' && node.folderRole !== 'other-bookmarks') continue
+      if (library && parentId === rootId && node.folderRole !== 'bookmarks-bar' && node.folderRole !== 'other-bookmarks' && node.folderRole !== 'mobile-bookmarks') continue
       options.push({ id: node.id, title: node.title, depth })
       const next = new Set(lineage)
       next.add(node.id)

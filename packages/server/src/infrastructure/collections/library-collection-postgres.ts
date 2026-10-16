@@ -1,3 +1,4 @@
+import { LIBRARY_REQUIRED_FOLDER_ROLES } from '../../modules/collections/domain/library-folder-policy.js';
 import { sql, type Kysely } from 'kysely';
 import { createCanonicalMutationApplication } from '../../modules/collections/index.js';
 import type { LibraryCollectionUnitOfWork } from '../../modules/collections/index.js';
@@ -40,7 +41,7 @@ export function createPostgresLibraryCollectionUnitOfWork(db: Kysely<DatabaseSch
             if (!row) return null;
             const folders = await transaction.selectFrom('nodes').select(['id', 'folder_role'])
               .where('collection_id', '=', row.id).where('deleted_at', 'is', null)
-              .where('folder_role', 'in', ['bookmarks-bar', 'other-bookmarks']).execute();
+              .where('folder_role', 'in', [...LIBRARY_REQUIRED_FOLDER_ROLES]).execute();
             const bookmarksBarId = folders.find(folder => folder.folder_role === 'bookmarks-bar')?.id;
             const otherBookmarksId = folders.find(folder => folder.folder_role === 'other-bookmarks')?.id;
             if (!bookmarksBarId || !otherBookmarksId) throw new Error('Library browser folders are missing.');

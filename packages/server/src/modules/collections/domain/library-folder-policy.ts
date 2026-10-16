@@ -1,4 +1,5 @@
-export const LIBRARY_BROWSER_FOLDER_ROLES = ['bookmarks-bar', 'other-bookmarks'] as const;
+export const LIBRARY_REQUIRED_FOLDER_ROLES = ['bookmarks-bar', 'other-bookmarks'] as const;
+export const LIBRARY_BROWSER_FOLDER_ROLES = [...LIBRARY_REQUIRED_FOLDER_ROLES, 'mobile-bookmarks'] as const;
 export type LibraryFolderOperation = 'create_child' | 'update_content' | 'rename' | 'move' | 'delete';
 
 export function isLibraryBrowserFolder(role: string | null | undefined): boolean {

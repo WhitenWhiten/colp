@@ -7,8 +7,8 @@ test('a fresh account opens its two role folders and chooses every creation dest
     revision: 'r1', etag: '"r1"', contentRevision: 'c1', contentEtag: '"c1"', policyRevision: 'p1', policyEtag: '"p1"',
     createdAt: '2026-10-16T00:00:00Z', updatedAt: '2026-10-16T00:00:00Z' }
   const capabilities = { updateCollection: true, managePublication: false, createNode: true, updateNode: true, moveNode: true, deleteNode: true }
-  const nodes = ['Bookmarks bar', 'Other bookmarks'].map((title, index) => ({ id: index ? 'other' : 'bar', collectionId: 'library',
-    kind: 'folder', folderRole: null, parentId: 'root', title, description: null, tags: [], visibility: 'inherit', position: String(index),
+  const nodes = ['Bookmarks bar', 'Other bookmarks', 'Mobile bookmarks'].map((title, index) => ({ id: ['bar', 'other', 'mobile'][index]!, collectionId: 'library',
+    kind: 'folder', folderRole: ['bookmarks-bar', 'other-bookmarks', 'mobile-bookmarks'][index]!, parentId: 'root', title, description: null, tags: [], visibility: 'inherit', position: String(index),
     revision: 'r1', etag: '"r1"', childrenRevision: 'c1', childrenEtag: '"c1"', readOnly: false, readOnlyReason: null,
     createdAt: collection.createdAt, updatedAt: collection.updatedAt }))
   const writes: Record<string, unknown>[] = []
@@ -50,9 +50,16 @@ test('a fresh account opens its two role folders and chooses every creation dest
   await page.getByTestId('library-compose').getByRole('button', { name: 'Add', exact: true }).click()
   await expect.poll(() => writes.length).toBe(2)
   expect(writes[1]?.parentId).toBe('bar')
+  await nav.getByRole('link', { name: /Mobile bookmarks/ }).click()
+  await nav.getByRole('button', { name: 'New folder', exact: true }).click()
+  await page.locator('#lc-title').fill('On the go')
+  await page.getByTestId('library-compose').getByRole('button', { name: 'Add', exact: true }).click()
+  await expect.poll(() => writes.length).toBe(3)
+  expect(writes[2]?.parentId).toBe('mobile')
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByTestId('library-mobile-switcher-trigger').click()
   await expect(page.getByTestId('library-mobile-switcher').getByRole('button', { name: /Other bookmarks/ })).toBeVisible()
+  await expect(page.getByTestId('library-mobile-switcher').getByRole('button', { name: /^Mobile bookmarks/ })).toBeVisible()
   await page.screenshot({ path: '/tmp/colp-w1-library-mobile.png', fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

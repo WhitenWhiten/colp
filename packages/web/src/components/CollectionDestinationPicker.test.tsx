@@ -179,7 +179,9 @@ describe('CollectionDestinationPicker', () => {
 
   it.each(['move', 'copy'] as const)('only offers role folders and their descendants for library %s', async (mode) => {
     const role = { ...folderNode('bar', 'Bookmarks bar', 'root-x', 'a'), folderRole: 'bookmarks-bar' }
-    const nodes = [role, folderNode('nested', 'Nested', 'bar', 'a'), folderNode('loose', 'Outside roles', 'root-x', 'b')]
+    const nodes = [role, folderNode('nested', 'Nested', 'bar', 'a'), folderNode('loose', 'Outside roles', 'root-x', 'b'),
+      { ...folderNode('mobile', 'Mobile bookmarks', 'root-x', 'c'), folderRole: 'mobile-bookmarks' },
+      folderNode('mobile-child', 'Mobile child', 'mobile', 'a')] 
     mocks.loadEditorSnapshot.mockResolvedValue({ collection: { library: true }, root: { id: 'root-x' }, nodes })
     const onPick = vi.fn()
     mountTree(<MemoryRouter><CollectionDestinationPicker mode={mode}
@@ -191,6 +193,10 @@ describe('CollectionDestinationPicker', () => {
     }
     expect(destinationLabels()).not.toContain('Top level')
     expect(destinationLabels()).not.toContain('Outside roles')
+    expect(destinationLabels()).toContain('Mobile bookmarks')
+    expect(destinationLabels()).toContain('Mobile child')
+    clickDestination('Mobile child')
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ parentId: 'mobile-child' }))
     clickDestination('Nested')
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ parentId: 'nested' }))
   })

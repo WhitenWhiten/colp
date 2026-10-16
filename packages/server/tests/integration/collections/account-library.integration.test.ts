@@ -186,6 +186,43 @@ describeWithPostgres('one private bookmark library per account', () => {
     }
   });
 
+  test('a synced Mobile root accepts Product and MCP children and remains protected', async () => {
+    const mobileId = randomUUID();
+    await createPostgresLibraryCollectionUnitOfWork(isolated.runtime.db).execute({ principalId: owner.accountId, subjectId: owner.subjectId }, async ports => {
+      await ports.mutate({ operationId: randomUUID(), collectionId: library.id,
+        actor: { principalId: owner.accountId, subjectId: owner.subjectId, principalType: 'account' },
+        automationContext: { origin: 'system' }, mutation: { action: 'create',
+          target: { collectionId: library.id, resourceId: mobileId, resourceKind: 'node' }, parentId: library.rootNodeId,
+          fields: { kindFields: { kind: 'folder', title: 'Mobile bookmarks', folderRole: 'mobile-bookmarks',
+            visibility: 'inherit', description: null, tags: [] }, extensions: {} } } });
+    });
+    const headers = { cookie: owner.cookie, origin: ORIGIN, 'x-csrf-token': owner.csrfToken, 'known-command-id': randomUUID() };
+    const created = await app.inject({ method: 'POST', url: `/api/v1/collections/${library.id}/nodes`, headers,
+      payload: { parentId: mobileId, afterId: null, beforeId: null,
+        node: { kind: 'folder', title: 'Mobile child', visibility: 'inherit', description: null, tags: [] } } });
+    assert.equal(created.statusCode, 201, created.body);
+    const service = createPhase4bMcpLowRiskNodeCreateService({
+      unitOfWork: createPostgresCanonicalMutationUnitOfWork(isolated.runtime.db),
+      inspect: createPhase4bMcpLowRiskNodeCreateInspect(isolated.runtime.db),
+    });
+    const context = { accountSubjectId: owner.subjectId, scope: ['nodes:write'], binding: {
+      kind: 'authenticated' as const, principalId: owner.accountId, clientId: 'library-agent',
+      credentialBindingId: 'library-agent-key', resourceAudience: 'colp://known/collections', securityEpoch: '0',
+    } };
+    for (const dryRun of [true, false]) for (const parentId of [mobileId, created.json().node.id]) {
+      await service.execute({ idempotencyKey: randomUUID(), expectedBaseRevisions: {}, input: {
+        tool: 'nodes.create', collectionId: library.id, parentId,
+        node: { kind: 'bookmark', title: 'Mobile link', url: 'https://example.test/mobile', visibility: 'inherit', description: null, tags: [] },
+        ...(dryRun ? { dryRun: true } : { confirmApply: true }),
+      } }, context);
+    }
+    const mobile = await isolated.runtime.db.selectFrom('nodes').select('resource_revision').where('id', '=', mobileId).executeTakeFirstOrThrow();
+    const deleted = await app.inject({ method: 'DELETE', url: `/api/v1/collections/${library.id}/nodes/${mobileId}`,
+      headers: { ...headers, 'known-command-id': randomUUID(), 'if-match': JSON.stringify(mobile.resource_revision) } });
+    assert.equal(deleted.statusCode, 409, deleted.body);
+    assert.equal(deleted.json().error.code, 'library_protected');
+  });
+
   test('MCP node update refuses role-folder renaming in apply and preview', async () => {
     const service = createPhase4bMcpLowRiskNodeUpdateService({
       unitOfWork: createPostgresCanonicalMutationUnitOfWork(isolated.runtime.db),
