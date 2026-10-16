@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import type { CompiledQuery } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, test } from 'vitest';
 import { loadConfig } from '../../../src/bootstrap/config.js';
@@ -31,6 +32,7 @@ describeWithPostgres('live unlisted library folder shares', () => {
   let library: LibraryCollection;
   let nextSlug: string | undefined;
   const readSizes: number[] = [];
+  const pageQueries: CompiledQuery[] = [];
   const cursors = createPublicationCursorKeyring({ active: { id: 'shares', secret: Buffer.alloc(32, 17).toString('base64') }, retained: [] });
   const editorCursor = createProductEditorCursorSigner({ current: { id: 'shares', key: 'folder-share-editor-key-32-bytes-secret' } });
   const headers = (client = owner, command = randomUUID()) => ({ cookie: client.cookie, origin,
@@ -64,7 +66,11 @@ describeWithPostgres('live unlisted library folder shares', () => {
       folderShares: createPostgresFolderShareUnitOfWork(isolated.runtime.db, { newSlug: () => nextSlug ?? `folder-${randomUUID()}` }),
       exploreDirectoryRateLimiter: memoryExploreDirectoryLimiter(),
       productPublicCollectionQuery: { folderShares: createPostgresPublicFolderShareReadPort(isolated.runtime.db.withPlugin({
-        transformQuery: args => args.node,
+        transformQuery: args => {
+          const query = isolated.runtime.db.getExecutor().compileQuery(args.node, args.queryId);
+          if (/SELECT\s+[nr]\.id,/i.test(query.sql)) pageQueries.push(query);
+          return args.node;
+        },
         async transformResult(args) { readSizes.push(args.result.rows.length); return args.result; },
       })),
         locators: createPostgresProductPublicCollectionLocatorReadPort(isolated.runtime),
@@ -297,4 +303,52 @@ describeWithPostgres('live unlisted library folder shares', () => {
       const claims = await isolated.runtime.pool.query('select * from publication_slug_claims where slug=$1', ['race-address']); assert.equal(claims.rowCount, 1);
     } finally { nextSlug = undefined; }
   });
+  test('small shares scan only their subtree with 5,000 unrelated bookmarks and relations', async () => {
+    const folder = await node(library.bookmarksBarId, 'Small share');
+    await node(folder.id, 'Shared bookmark', 'bookmark');
+    const template = await node(library.otherBookmarksId, 'Unrelated template', 'bookmark');
+    const prefix = randomUUID();
+    try {
+      await isolated.runtime.pool.query(`INSERT INTO resource_id_ledger(resource_id,resource_type)
+        SELECT $1 || '-node-' || i, 'node' FROM generate_series(1,5000) i
+        UNION ALL SELECT $1 || '-relation-' || i, 'relation' FROM generate_series(1,5000) i`, [prefix]);
+      await isolated.runtime.pool.query(`INSERT INTO nodes(id,collection_id,parent_id,kind,title,url,description,tags,
+        position_token,resource_revision,children_revision,visibility,created_at,updated_at,payload_json,payload_schema_version,payload_authority_status)
+        SELECT $1 || '-node-' || i, collection_id,parent_id,kind,'Unrelated ' || i,url,description,tags,
+          'zz' || lpad(i::text,5,'0'),resource_revision,children_revision,visibility,created_at,updated_at,
+          payload_json || jsonb_build_object('id',$1 || '-node-' || i,'title','Unrelated ' || i,'position','zz' || lpad(i::text,5,'0')),
+          payload_schema_version,payload_authority_status FROM nodes CROSS JOIN generate_series(1,5000) i WHERE id=$2`, [prefix, template.id]);
+      await isolated.runtime.pool.query(`INSERT INTO relations(id,collection_id,from_node_id,to_node_id,type,visibility,
+        resource_revision,created_at,updated_at,payload_json)
+        SELECT $1 || '-relation-' || i, $2, $1 || '-node-' || i, $3, 'related','public','r1',now(),now(),
+          jsonb_build_object('id',$1 || '-relation-' || i,'collectionId',$2::text,'fromNodeId',$1 || '-node-' || i,
+            'toNodeId',$3::text,'type','related','visibility','public','revision','r1','createdAt',now(),'updatedAt',now())
+        FROM generate_series(1,5000) i`, [prefix, library.id, template.id]);
+      await isolated.runtime.pool.query('ANALYZE nodes');
+      await isolated.runtime.pool.query('ANALYZE relations');
+      const slug = (await put(folder.id)).json().share.slug;
+      pageQueries.length = 0;
+      const response = await getPage(slug, '?limit=37&include=relations');
+      assert.equal(response.statusCode, 200, response.body);
+      assert.equal(response.json().nodes.length, 2);
+      assert.equal(response.json().relations.length, 0);
+      assert.equal(pageQueries.length, 2);
+      for (const query of pageQueries) {
+        const explained = await isolated.runtime.pool.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query.sql}`, [...query.parameters]);
+        type Plan = { Plans?: Plan[]; 'Relation Name'?: string; 'Actual Rows': number; 'Actual Loops': number; 'Rows Removed by Filter'?: number };
+        const root: Plan = explained.rows[0]['QUERY PLAN'][0].Plan;
+        const scans: Plan[] = [];
+        const visit = (plan: Plan) => { if (['nodes', 'relations'].includes(plan['Relation Name'] ?? '')) scans.push(plan); plan.Plans?.forEach(visit); };
+        visit(root);
+        assert.ok(scans.length > 0);
+        const examined = scans.reduce((sum, plan) => sum + (plan['Actual Rows'] + (plan['Rows Removed by Filter'] ?? 0)) * plan['Actual Loops'], 0);
+        assert.ok(examined <= 16, `small share scanned ${examined} rows: ${JSON.stringify(root)}`);
+      }
+    } finally {
+      await isolated.runtime.pool.query("DELETE FROM relations WHERE id LIKE $1", [prefix + '-relation-%']);
+      await isolated.runtime.pool.query("DELETE FROM nodes WHERE id LIKE $1", [prefix + '-node-%']);
+
+    }
+  });
+
 });

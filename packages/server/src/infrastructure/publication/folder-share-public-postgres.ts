@@ -21,27 +21,26 @@ export function createPostgresPublicFolderShareReadPort(db: Kysely<DatabaseSchem
         AND NOT ${sql.raw(buildPublicationTargetAncestorRestrictionSql('folder'))}`.execute(tx);
     const share = target.rows[0]; if (!share) return null;
     // Root is first; all remaining entities use immutable ids in C order.
-    // LIMIT includes one lookahead row. Never load a whole subtree or its marks.
+    // LIMIT includes one lookahead row; only returned nodes have their marks loaded.
     const rows: NodeRow[] = input.position ? [] : [share];
     if (input.position?.phase !== 'relations') {
-      const descendants = await sql<NodeRow>`SELECT n.id, n.parent_id, n.kind, n.title, n.url,
-          n.description, n.position_token, n.updated_at FROM nodes n
+      const descendants = await sql<NodeRow>`WITH RECURSIVE ${visibleSubtree(share.id, share.collection_id)} SELECT n.id, n.parent_id, n.kind, n.title, n.url,
+          n.description, n.position_token, n.updated_at FROM visible_subtree n
         WHERE n.collection_id = ${share.collection_id} AND n.id <> ${share.id}
           AND n.id COLLATE "C" > ${input.position?.after ?? ''}
-          AND n.deleted_at IS NULL AND n.kind IN ('folder', 'bookmark')
-          AND ${visibleMember('n', share.id)}
           AND NOT ${sql.raw(bookmarkHidePublicExistsSql('n.id', 'n.collection_id'))}
         ORDER BY n.id COLLATE "C" LIMIT ${input.limit + 1 - rows.length}`.execute(tx);
       rows.push(...descendants.rows);
     }
     const relationRows = input.includeRelations && rows.length <= input.limit
-      ? (await sql<RelationRow>`SELECT r.id, r.from_node_id, r.to_node_id, r.type, r.label FROM relations r
-          JOIN nodes source ON source.id = r.from_node_id AND source.collection_id = r.collection_id
-          JOIN nodes destination ON destination.id = r.to_node_id AND destination.collection_id = r.collection_id
-          WHERE r.collection_id = ${share.collection_id} AND r.deleted_at IS NULL AND r.visibility = 'public'
-            AND r.id COLLATE "C" > ${input.position?.phase === 'relations' ? input.position.after : ''}
-            AND ${visibleMember('source', share.id)} AND ${visibleMember('destination', share.id)}
-            AND NOT ${sql.raw(bookmarkHidePublicExistsSql('source.id', 'source.collection_id'))}
+      ? (await sql<RelationRow>`WITH RECURSIVE ${visibleSubtree(share.id, share.collection_id)} SELECT r.id, r.from_node_id, r.to_node_id, r.type, r.label FROM visible_subtree source
+          JOIN LATERAL (SELECT relation.* FROM relations relation
+            WHERE relation.collection_id = ${share.collection_id} AND relation.from_node_id = source.id
+              AND relation.deleted_at IS NULL AND relation.visibility = 'public'
+              AND relation.id COLLATE "C" > ${input.position?.phase === 'relations' ? input.position.after : ''}
+            OFFSET 0) r ON true
+          JOIN visible_subtree destination ON destination.id = r.to_node_id
+          WHERE NOT ${sql.raw(bookmarkHidePublicExistsSql('source.id', 'source.collection_id'))}
             AND NOT ${sql.raw(bookmarkHidePublicExistsSql('destination.id', 'destination.collection_id'))}
           ORDER BY r.id COLLATE "C" LIMIT ${input.limit + 1 - rows.length}`.execute(tx)).rows : [];
     const hasMore = rows.length + relationRows.length > input.limit;
@@ -71,17 +70,24 @@ export function createPostgresPublicFolderShareReadPort(db: Kysely<DatabaseSchem
   }); } };
 }
 
-/** Walk only a candidate's ancestors. The page scan never recursively enumerates the subtree. */
-function visibleMember(alias: string, rootId: string) {
-  return sql`EXISTS (WITH RECURSIVE lineage AS (
-    SELECT member.id, member.parent_id, member.collection_id, ARRAY[member.id] AS path FROM nodes member
-      WHERE member.id = ${sql.ref(`${alias}.id`)} AND member.collection_id = ${sql.ref(`${alias}.collection_id`)}
+/** Start at the share and use parent indexes, so unrelated library nodes are never candidates. */
+function visibleSubtree(rootId: string, collectionId: string) {
+  return sql`visible_subtree AS (
+    SELECT member.id, member.parent_id, member.collection_id, member.kind, member.title, member.url,
+      member.description, member.position_token, member.updated_at, ARRAY[member.id] AS path
+      FROM nodes member WHERE member.id = ${rootId} AND member.collection_id = ${collectionId}
         AND member.deleted_at IS NULL AND member.visibility = 'inherit'
-    UNION ALL SELECT parent.id, parent.parent_id, parent.collection_id, child.path || parent.id
-      FROM nodes parent JOIN lineage child ON parent.id = child.parent_id AND parent.collection_id = child.collection_id
-      WHERE child.id <> ${rootId} AND parent.deleted_at IS NULL AND parent.visibility = 'inherit'
-        AND NOT parent.id = ANY(child.path) AND cardinality(child.path) < 256
-  ) SELECT 1 FROM lineage WHERE id = ${rootId})`;
+    UNION ALL
+    SELECT child.id, child.parent_id, child.collection_id, child.kind, child.title, child.url,
+      child.description, child.position_token, child.updated_at, parent.path || child.id
+      FROM visible_subtree parent
+      JOIN LATERAL (SELECT n.* FROM nodes n
+        WHERE n.collection_id = ${collectionId} AND n.parent_id = parent.id
+          AND n.deleted_at IS NULL AND n.visibility = 'inherit' AND n.kind IN ('folder', 'bookmark')
+          AND NOT n.id = ANY(parent.path)
+        OFFSET 0) child ON true
+      WHERE parent.kind = 'folder' AND cardinality(parent.path) < 256
+  )`;
 }
 interface NodeRow { id: string; parent_id: string | null; kind: 'folder' | 'bookmark'; title: string;
   url: string | null; description: string | null; position_token: string | null; updated_at: Date }
