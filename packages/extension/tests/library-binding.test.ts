@@ -97,3 +97,34 @@ test.each([false, true])('discovery preserves a paused policy on login=%s when t
   assert.equal((await storage.get(COLLECTION_BINDING))[COLLECTION_BINDING], library.id);
   assert.equal((await policy.read(owner)).mode, 'paused');
 });
+
+
+test.each([false, true])('404 then 200 recovers the same account library on login=%s', async login => {
+  vi.stubGlobal('fetch', async () => new Response(null, { status: 404 }));
+  await ensureLibraryBinding();
+  assert.equal((await policy.read(owner)).mode, 'target-unavailable');
+  f.target = null;
+  vi.stubGlobal('fetch', async () => Response.json(library));
+  await ensureLibraryBinding({ login });
+  assert.equal((await policy.read(owner)).mode, 'enabled');
+  assert.equal((await storage.get(COLLECTION_BINDING))[COLLECTION_BINDING], library.id);
+});
+test.each([false, true])('404 and recovery preserve a user pause on login=%s', async login => {
+  await policy.write(owner, 'paused');
+  vi.stubGlobal('fetch', async () => new Response(null, { status: 404 }));
+  await ensureLibraryBinding();
+  assert.equal((await policy.read(owner)).mode, 'paused');
+  f.target = null;
+  vi.stubGlobal('fetch', async () => Response.json(library));
+  await ensureLibraryBinding({ login });
+  assert.equal((await policy.read(owner)).mode, 'paused');
+});
+test('a pause made after a 404 survives successful rediscovery', async () => {
+  vi.stubGlobal('fetch', async () => new Response(null, { status: 404 }));
+  await ensureLibraryBinding();
+  await policy.write(owner, 'paused');
+  f.target = null;
+  vi.stubGlobal('fetch', async () => Response.json(library));
+  await ensureLibraryBinding({ login: true });
+  assert.equal((await policy.read(owner)).mode, 'paused');
+});

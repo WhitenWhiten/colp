@@ -50,7 +50,7 @@ export async function ensureLibraryBinding(options: { readonly login?: boolean; 
     const state: LibraryState = { accountId: credential.subject!, serverOrigin: credential.serverOrigin,
       status: unsupported ? 'unsupported' : 'ready', ...(library ? { library } : {}) };
     if (!library) {
-      if (policy && identity && before?.mode !== 'disconnected') await policy.write(identity, 'target-unavailable', 'target-unavailable', before?.revision);
+      if (policy && identity && before?.mode !== 'disconnected' && before?.mode !== 'paused') await policy.write(identity, 'target-unavailable', 'target-unavailable', before?.revision);
       await store.clearSession();
       await chrome.storage.local.remove(COLLECTION_BINDING);
       await chrome.storage.local.set({ [LIBRARY_STATE]: state });
@@ -63,7 +63,12 @@ export async function ensureLibraryBinding(options: { readonly login?: boolean; 
     if (!options.login && nextPolicy?.mode === 'disconnected') return;
     if (!target) {
       await browserMetadataSyncPolicy().write(nextIdentity, false);
-      if (policy && (nextPolicy?.mode === 'enabled' || (options.login && nextPolicy?.mode === 'disconnected'))) await policy.write(nextIdentity, 'enabled', 'user', before?.revision);
+    }
+    const recoveredTarget = nextPolicy?.mode === 'target-unavailable'
+      && (nextPolicy.collectionId === null || nextPolicy.collectionId === library.id);
+    if (policy && (recoveredTarget || (!target && (nextPolicy?.mode === 'enabled'
+      || (options.login && nextPolicy?.mode === 'disconnected'))))) {
+      await policy.write(nextIdentity, 'enabled', 'user', before?.revision);
     }
     await store.assertWritable(authority.generation);
     await chrome.storage.local.set({ [LIBRARY_STATE]: state, [COLLECTION_BINDING]: library.id });
