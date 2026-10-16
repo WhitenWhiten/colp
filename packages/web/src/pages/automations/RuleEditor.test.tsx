@@ -186,6 +186,33 @@ describe('Rule editor', () => {
     expect(api.setRuleLifecycle).toHaveBeenCalledWith('rule-arxiv', expect.objectContaining({ activationPreviewId: 'preview-1' }), '5')
   })
 
+  it('applies a change to a rule that is on, instead of offering to turn it on', async () => {
+    const api = fakeApi()
+    api.getRule.mockResolvedValue(rule('rule-arxiv', 'Papers to Academic', { revision: '5', usage: usage({ heldRuns: 0 }) }))
+    api.getBindingSet.mockResolvedValue(binding('bind-rule-arxiv', 'f-academic'))
+    mount('/automations/rules/rule-arxiv/edit', api)
+    await waitForDom(() => select('automation-folder')?.value === 'f-academic' && conditionInput()?.value === 'arxiv.org')
+    expect(turnOn()?.textContent).toBe('Apply changes')
+    expect(turnOn()?.disabled).toBe(true)
+    expect(document.getElementById('automation-turn-on-hint')?.textContent).toBe('It’s on. Change it, then preview the change to apply it.')
+
+    // Unchanged, with nothing held, a preview leaves nothing to apply.
+    click(buttonNamed('Preview'))
+    await waitForDom(() => api.previewRule.mock.calls.length === 1 && Boolean(buttonNamed(/Preview again/)))
+    expect(turnOn()?.disabled).toBe(true)
+
+    const input = conditionInput()
+    if (!input) throw new Error('no condition input')
+    typeInto(input, 'export.arxiv.org')
+    expect(buttonNamed('Save and pause')).toBeTruthy()
+    await preview(api, 2)
+    click(turnOn())
+    await waitForDom(() => api.setRuleLifecycle.mock.calls.length === 1)
+    expect(api.replaceRule).toHaveBeenCalledTimes(1)
+    await waitForDom(() => toast.success.mock.calls.length === 1)
+    expect(toast.success).toHaveBeenCalledWith('Applied your changes to “Rule”. It stays on.')
+  })
+
   it('does not treat a failed binding read as an empty binding', async () => {
     const api = fakeApi()
     api.getRule.mockResolvedValue(rule('rule-arxiv', 'Papers'))
@@ -327,7 +354,8 @@ describe('Rule editor', () => {
     typeInto(document.getElementById('automation-name') as HTMLInputElement, 'Edited in form')
     await preview(api)
     expect(api.previewRule.mock.calls[0]![0].rule.definition).toEqual({ ...next, name: 'Edited in form' })
-    click(buttonNamed(kind === 'new' ? 'Save as draft' : 'Save changes'))
+    // The stored rule is on, so saving the edit without turning it on pauses it, and the button says so.
+    click(buttonNamed(kind === 'new' ? 'Save as draft' : 'Save and pause'))
     await waitForDom(() => toast.success.mock.calls.length === 1)
     const submitted = kind === 'new' ? api.createRule.mock.calls[0]![0] : api.replaceRule.mock.calls[0]![1]
     expect(submitted.definition).toEqual({ ...next, name: 'Edited in form' })

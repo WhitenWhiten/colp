@@ -209,6 +209,12 @@ export function RuleEditor() {
   })
   const canPreview = workerRule ? workerConfigured : problems.length === 0 && Boolean(draft.collectionId && draft.folderId)
   const previewCurrent = previewView !== null && !previewView.stale
+  /** The stored rule is on: a change is applied, not turned on. */
+  const ruleOn = current?.desiredState === 'enabled'
+  const heldRuns = current?.usage?.heldRuns
+  /** Held (or uncounted) earlier work: confirming an unchanged rule that is on still decides what happens to it. */
+  const earlierWork = heldRuns === undefined || heldRuns > 0
+  const canApply = previewCurrent && (!ruleOn || dirty || earlierWork)
 
   function update(patch: Partial<RuleDraft>) {
     setDraft((value) => (value ? { ...value, ...patch } : value))
@@ -317,7 +323,8 @@ export function RuleEditor() {
   }
 
   async function turnOn() {
-    if (!preview || !previewCurrent) return
+    if (!preview || !canApply) return
+    const wasOn = ruleOn
     setBusy('enable')
     try {
       const rule = await store()
@@ -330,13 +337,15 @@ export function RuleEditor() {
       }, rule.revision)
       setSaved(enabled)
       await tidyBindings(enabled.bindingSetId)
-      success(`“${enabled.definition.name}” is on. It files bookmarks you save from now on.`)
+      success(wasOn
+        ? `Applied your changes to “${enabled.definition.name}”. It stays on.`
+        : `“${enabled.definition.name}” is on. It files bookmarks you save from now on.`)
       navigate('/automations')
     } catch (error) {
       if (isStale(error)) setPreview(null)
       toastError(isStale(error)
-        ? 'Something changed since the preview. Preview again, then turn it on.'
-        : errorMessage(error, 'Could not turn this rule on.'))
+        ? `Something changed since the preview. Preview again, then ${wasOn ? 'apply your changes' : 'turn it on'}.`
+        : errorMessage(error, wasOn ? 'Could not apply your changes.' : 'Could not turn this rule on.'))
     } finally {
       setBusy(null)
     }
@@ -411,7 +420,7 @@ export function RuleEditor() {
         lede={creating
           ? 'Say which bookmarks this is for and where they go. You preview it on your own bookmarks before it does anything.'
           : editing?.desiredState === 'enabled'
-            ? 'Saving a change pauses this rule until you preview it and turn it on again.'
+            ? 'Preview a change, then apply it. Saving without a preview pauses the rule until you turn it on again.'
             : 'Change the rule, preview it, then turn it on.'}
         afterTitle={editing ? <RuleStateBadge state={editing.effectiveState} /> : undefined}
       />
@@ -741,18 +750,22 @@ export function RuleEditor() {
               type="button"
               className="btn btn-primary"
               data-testid="automation-turn-on"
-              disabled={!previewCurrent || busy !== null}
+              disabled={!canApply || busy !== null}
               aria-describedby="automation-turn-on-hint"
               onClick={() => void turnOn()}
             >
-              {busy === 'enable' ? 'Turning on…' : 'Turn on'}
+              {busy === 'enable' ? (ruleOn ? 'Applying…' : 'Turning on…') : ruleOn ? 'Apply changes' : 'Turn on'}
             </button>
             <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void save()}>
-              {busy === 'save' ? 'Saving…' : creating && !saved ? 'Save as draft' : 'Save changes'}
+              {busy === 'save' ? 'Saving…' : creating && !saved ? 'Save as draft' : ruleOn && dirty ? 'Save and pause' : 'Save changes'}
             </button>
             <Link className="btn btn-ghost" to="/automations">Cancel</Link>
             <p className="automation-meta automation-editor-hint" id="automation-turn-on-hint">
-              {previewCurrent ? 'Turns the rule on exactly as previewed.' : 'Preview the rule as it is now to turn it on.'}
+              {ruleOn
+                ? previewCurrent
+                  ? canApply ? 'Applies exactly what you previewed. The rule stays on.' : 'Nothing to apply: the rule is on as it is.'
+                  : dirty ? 'Preview your change to apply it. Until then the rule keeps working as it is.' : 'It’s on. Change it, then preview the change to apply it.'
+                : previewCurrent ? 'Turns the rule on exactly as previewed.' : 'Preview the rule as it is now to turn it on.'}
             </p>
           </div>
         </aside>

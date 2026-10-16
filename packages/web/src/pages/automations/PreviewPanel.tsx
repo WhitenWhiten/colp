@@ -81,7 +81,7 @@ export function PreviewPanel({
       </div>
       {stale && (
         <p className="automation-preview-stale" role="status">
-          You changed the rule after this preview. Preview again before turning it on.
+          You changed the rule after this preview. Preview again to see what it does now.
         </p>
       )}
       <p className="automation-preview-lede">
