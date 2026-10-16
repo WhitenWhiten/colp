@@ -164,8 +164,8 @@ export function bindNativeWaitSettings(): void {
     busy = true;
     try {
       const response = await send(nativeWaitConfirmRequest(wait, action, nativeId));
-      if (response.ok === false) { showFeedback(feedback, nativeWaitFeedbackCopy(response.code)); }
-      else if (!('result' in response)) { showFeedback(feedback, nativeWaitFeedbackCopy('request_invalid')); }
+      if (response.ok === false) { showFeedback(feedback, nativeWaitFeedbackCopy(response.code)); return; }
+      else if (!('result' in response)) { showFeedback(feedback, nativeWaitFeedbackCopy('request_invalid')); return; }
       else {
         showFeedback(feedback, nativeWaitResultCopy(response.result), 'info');
       }
