@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { personalBookmarks } from '../src/bookmark-subscriptions/guards.js';
-import { resolveDefaultBookmarkParent } from '../src/bookmark-placement.js';
 import type { FolderTreeNode } from '../src/save-folder.js';
 import { workspaceFolderTree } from './fixtures/workspace-folders.js';
 import { captureTarget } from '../src/sw/capture-target.js';
@@ -51,13 +50,6 @@ test('a user-created same-name folder remains a valid native destination', async
   expect(chrome.bookmarks.create).toHaveBeenCalledOnce();
   expect(chrome.bookmarks.move).toHaveBeenCalledExactlyOnceWith('a', { parentId: 'user-workspace' });
   expect(await captureTarget(task.scope, 'user-workspace')).toMatchObject({ nativeId: 'user-workspace' });
-});
-
-test('the browser default never falls back to the workspace container', async () => {
-  const tree = workspaceFolderTree();
-  expect(await resolveDefaultBookmarkParent({ getTree: async () => tree })).toBe('2');
-  const children = tree[0]!.children!.map(node => node.id === '2' ? { ...node, id: 'other' } : node);
-  expect(await resolveDefaultBookmarkParent({ getTree: async () => [{ ...tree[0]!, children }] })).toBe('other');
 });
 
 test('older Chromium bookmark roots are retained by identity regardless of their names', () => {

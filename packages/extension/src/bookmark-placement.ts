@@ -1,28 +1,10 @@
 import type { BookmarkInsertPosition } from './bookmark-preferences.js';
-import { isSupportedBookmarkRoot } from './bookmark-folder-policy.js';
 import { unpinnedTopIndex } from './bookmark-pin-order.js';
 
 export type { BookmarkInsertPosition } from './bookmark-preferences.js';
 
 export interface BookmarkPlacementApi {
   getChildren(parentId: string): Promise<readonly { readonly id: string; readonly url?: string }[]>;
-}
-
-export interface BookmarkRootApi {
-  getTree(): Promise<readonly {
-    readonly id: string;
-    readonly children?: readonly { readonly id: string; readonly url?: string;
-      readonly folderType?: string; readonly unmodifiable?: string }[];
-  }[]>;
-}
-
-/** Chromium omits parentId by placing bookmarks in the second native root. */
-export async function resolveDefaultBookmarkParent(api: BookmarkRootApi): Promise<string> {
-  const roots = await api.getTree();
-  const children = roots[0]?.children?.filter((node) => !node.unmodifiable && isSupportedBookmarkRoot(node)) ?? [];
-  const parent = children.find((node) => node.id === '2') ?? children.find((node) => node.folderType === 'other') ?? children[1];
-  if (!parent) throw new Error('bookmark_default_parent_unavailable');
-  return parent.id;
 }
 
 /**
