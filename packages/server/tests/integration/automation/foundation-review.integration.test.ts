@@ -71,4 +71,28 @@ describeWithPostgres('BE-1/BE-2 foundation review', () => {
     const completed = await f.uow.execute(f.owner, p => getAutomationRun(p.runs, row.id));
     expect(completed).toMatchObject({ held: false, explanation: expect.stringContaining('Matched the pinned rule') });
   });
+  test('pause, preview and explicit continue release the same pinned run', async () => {
+    await f.createNode('resume-paper', 'root', 'Pending', 'https://arxiv.org/resume');
+    await f.inspect();
+    const original = await f.db.selectFrom('automation_runs').select(['id', 'rule_revision_id', 'binding_revision', 'member_ids'])
+      .executeTakeFirstOrThrow();
+    const paused = await f.uow.execute(f.owner, async p => {
+      const current = (await p.rules.load(f.owner.accountId, f.rule.id))!.view;
+      return setLifecycle(p, f.owner, current.id, { state: 'paused', pendingRuns: 'hold', reason: 'Owner paused.' }, `"${current.revision}"`);
+    });
+    expect(await f.uow.execute(f.owner, p => getAutomationRun(p.runs, original.id))).toMatchObject({ held: true });
+    expect((await f.uow.execute(f.owner, p => p.usage!.rule(paused.id))).heldRuns).toBe(1);
+    const checked = await f.uow.execute(f.owner, p => previewRule(p, f.owner, {
+      rule: { definition: paused.definition, bindingSetId: paused.bindingSetId }, ruleId: paused.id, mode: 'currentState',
+    }));
+    await f.uow.execute(f.owner, p => setLifecycle(p, f.owner, paused.id, {
+      state: 'enabled', pendingRuns: 'continuePinned', activationPreviewId: checked.previewId, reason: 'Owner continued earlier work.',
+    }, `"${paused.revision}"`));
+    expect(await f.uow.execute(f.owner, p => getAutomationRun(p.runs, original.id))).toMatchObject({ held: false });
+    expect((await f.uow.execute(f.owner, p => p.usage!.rule(paused.id))).heldRuns).toBe(0);
+    expect(await f.db.selectFrom('automation_runs').select(['rule_revision_id', 'binding_revision', 'member_ids'])
+      .where('id', '=', original.id).executeTakeFirstOrThrow()).toEqual({
+      rule_revision_id: original.rule_revision_id, binding_revision: original.binding_revision, member_ids: original.member_ids,
+    });
+  });
 });

@@ -414,6 +414,10 @@ export interface RuleUsageView {
   readyJobs: number;
   succeededJobs: number;
   heldJobs: number;
+  /**
+   * Runs with remaining work explicitly held by the Owner.
+   */
+  heldRuns?: number;
   externalCosts: "notApplicable" | "unknownDisclosed" | "known";
   costDisplay: string;
   pendingJobs?: number;
@@ -839,6 +843,10 @@ export interface RuleUsageView1 {
   readyJobs: number;
   succeededJobs: number;
   heldJobs: number;
+  /**
+   * Runs with remaining work explicitly held by the Owner.
+   */
+  heldRuns?: number;
   externalCosts: "notApplicable" | "unknownDisclosed" | "known";
   costDisplay: string;
   pendingJobs?: number;

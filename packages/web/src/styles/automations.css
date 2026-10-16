@@ -1158,6 +1158,21 @@
   grid-column: 1 / -1;
 }
 
+.automation-pending-runs {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+
+.automation-pending-runs label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
 .automation-editor-actions > .btn-primary + .btn-ghost {
   grid-column: 1 / -1;
 }

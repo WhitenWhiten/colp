@@ -1390,6 +1390,8 @@ export interface components {
             readyJobs: number;
             succeededJobs: number;
             heldJobs: number;
+            /** @description Runs with remaining work explicitly held by the Owner. */
+            heldRuns?: number;
             /** @enum {string} */
             externalCosts: "notApplicable" | "unknownDisclosed" | "known";
             costDisplay: string;

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../../api/errors'
 import { cleanup, renderWithRouter, waitForDom } from '../../test/render'
 import { Automations } from '../Automations'
-import { binding, buttonNamed, choose, click, deps, fakeApi, rule, typeInto } from './automations.test-helper'
+import { binding, buttonNamed, choose, click, deps, fakeApi, rule, typeInto, usage } from './automations.test-helper'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), toast: vi.fn(), warning: vi.fn() }))
 vi.mock('../../components/AppToast', () => ({ useToast: () => toast }))
@@ -168,6 +168,24 @@ describe('Rule editor', () => {
     expect(api.createBindingSet).not.toHaveBeenCalled()
     expect(api.replaceRule).not.toHaveBeenCalled()
     expect(api.setRuleLifecycle).toHaveBeenCalledWith('rule-arxiv', expect.objectContaining({ activationPreviewId: 'preview-1' }), '5')
+  })
+
+  it.each([
+    ['hold', 'Keep on hold'],
+    ['continuePinned', 'Continue with its original rule, bindings and input'],
+    ['cancel', 'Cancel remaining work'],
+  ] as const)('lets the owner choose %s for earlier work after preview', async (policy, label) => {
+    const api = fakeApi()
+    api.getRule.mockResolvedValue(rule('rule-arxiv', 'Papers', { desiredState: 'paused', effectiveState: 'paused', revision: '5', usage: usage({ heldRuns: 2 }) }))
+    mount('/automations/rules/rule-arxiv/edit', api)
+    await waitForDom(() => conditionInput()?.value === 'arxiv.org')
+    await preview(api)
+    expect(document.querySelector('[data-testid="automation-pending-runs"]')?.textContent).toContain('2 held runs')
+    if (policy !== 'hold') click(document.querySelector<HTMLInputElement>(`input[value="${policy}"]`))
+    expect(document.querySelector<HTMLInputElement>(`input[value="${policy}"]`)?.closest('label')?.textContent).toContain(label)
+    click(turnOn())
+    await waitForDom(() => api.setRuleLifecycle.mock.calls.length === 1)
+    expect(api.setRuleLifecycle.mock.calls[0]?.[1].pendingRuns).toBe(policy)
   })
 
   it('opens a rule the form cannot show in Advanced, as JSON', async () => {

@@ -23,7 +23,7 @@ import {
   runHasRemainingWork,
   taskPhrase,
 } from './copy'
-import { rulePath, runPath } from './paths'
+import { ruleEditPath, rulePath, runPath } from './paths'
 import { RunEffects } from './RunEffects'
 import { RunOutputs } from './RunOutputs'
 import { errorMessage, isStale, useAutomationDeps, useLoad } from './shared'
@@ -203,6 +203,7 @@ export function RunDetail() {
             <StatusBadge tone={status.tone} data-testid="automation-run-status">{status.label}</StatusBadge>
             {shown.held && <StatusBadge tone="warning">On hold</StatusBadge>}
             <span>{`${RUN_STATUS_DETAIL[shown.status]}${shown.held ? ' It is on hold and does not go on by itself.' : ''}`}</span>
+            {shown.held && <Link to={`${ruleEditPath(shown.ruleId)}#preview`}>Review earlier work and choose whether to continue</Link>}
           </span>
         )}
         actions={!finished ? (

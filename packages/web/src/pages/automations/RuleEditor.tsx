@@ -100,6 +100,7 @@ export function RuleEditor() {
   const [sessionBindings, setSessionBindings] = useState<Map<string, AutomationBindingSet>>(new Map())
   const [preview, setPreview] = useState<{ key: string; result: AutomationPreviewResult } | null>(null)
   const [busy, setBusy] = useState<'preview' | 'save' | 'enable' | 'archive' | null>(null)
+  const [pendingRuns, setPendingRuns] = useState<'hold' | 'continuePinned' | 'cancel'>('hold')
   const [showProblems, setShowProblems] = useState(false)
   const previewRef = useRef<HTMLElement>(null)
 
@@ -312,7 +313,7 @@ export function RuleEditor() {
       setInitialKey(builtKey)
       const enabled = await api.setRuleLifecycle(rule.id, {
         state: 'enabled',
-        pendingRuns: 'hold',
+        pendingRuns: current ? pendingRuns : 'hold',
         activationPreviewId: preview.result.previewId,
         reason: 'Owner turned the rule on after previewing it.',
       }, rule.revision)
@@ -694,6 +695,15 @@ export function RuleEditor() {
             onPreview={() => void runPreview()}
           />
           <div className="automation-editor-actions">
+            {current && previewCurrent && (
+              <fieldset className="automation-pending-runs" data-testid="automation-pending-runs">
+                <legend>Earlier work {current.usage?.heldRuns !== undefined ? `(${current.usage.heldRuns} held runs)` : ''}</legend>
+                <p className="automation-meta">Choose what happens to work this rule started before it was paused or edited.</p>
+                <label><input type="radio" name="pendingRuns" value="hold" checked={pendingRuns === 'hold'} onChange={() => setPendingRuns('hold')} /> Keep on hold</label>
+                <label><input type="radio" name="pendingRuns" value="continuePinned" checked={pendingRuns === 'continuePinned'} onChange={() => setPendingRuns('continuePinned')} /> Continue with its original rule, bindings and input</label>
+                <label><input type="radio" name="pendingRuns" value="cancel" checked={pendingRuns === 'cancel'} onChange={() => setPendingRuns('cancel')} /> Cancel remaining work</label>
+              </fieldset>
+            )}
             <button
               type="button"
               className="btn btn-primary"

@@ -22,6 +22,7 @@ export async function readAutomationUsage(db: Kysely<DatabaseSchema>, actor: Aut
     ${eventsEnabled ? sql`(SELECT count(*)::int FROM automation_event_deliveries d JOIN visible_runs r ON r.id=d.run_id WHERE d.state='accepted')` : sql`NULL`} AS accepted_deliveries,
     CURRENT_TIMESTAMP AS period_end,to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC','YYYY-MM-DD') AS budget_day,
     (SELECT count(*)::int FROM visible_runs) AS admitted,
+    (SELECT count(*)::int FROM visible_runs WHERE held AND state IN ('waiting','running')) AS held_runs,
     count(*) FILTER(WHERE effective_state='ready')::int AS ready,count(*) FILTER(WHERE effective_state='succeeded')::int AS succeeded,
     count(*) FILTER(WHERE is_held AND effective_state IN ('pending','ready','leased','committing','awaitingApproval','uncertain'))::int AS held,
     count(*) FILTER(WHERE effective_state='pending')::int AS pending,count(*) FILTER(WHERE effective_state='leased')::int AS leased,

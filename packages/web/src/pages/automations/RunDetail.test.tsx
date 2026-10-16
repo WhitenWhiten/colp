@@ -67,6 +67,7 @@ describe('Run detail', () => {
     await waitForDom(() => text('h1') === 'Run waiting to start')
     expect(document.body.textContent).toContain('It is on hold and does not go on by itself.')
     expect(document.body.textContent).toContain('On hold')
+    expect(document.querySelector('a[href="/automations/rules/rule-arxiv/edit#preview"]')?.textContent).toContain('choose whether to continue')
   })
 
   it('shows each agent step with only the action its state allows', async () => {

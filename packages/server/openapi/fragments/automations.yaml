@@ -5653,6 +5653,10 @@ components:
         heldJobs:
           type: integer
           minimum: 0
+        heldRuns:
+          type: integer
+          minimum: 0
+          description: Runs with remaining work explicitly held by the Owner.
         externalCosts:
           type: string
           enum:
