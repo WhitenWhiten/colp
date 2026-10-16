@@ -131,7 +131,8 @@ export function PreviewPanel({
         </ul>
       )}
       <p className="automation-meta">
-        Uses your bookmarks as they are now. A turned-on rule only acts on bookmarks you save from then on.
+        Uses your bookmarks as they are now. A turned-on rule files the bookmarks you save from then on;
+        to file the ones you already have, use Run once on the rule’s page.
       </p>
     </section>
   )

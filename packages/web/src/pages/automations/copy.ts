@@ -284,7 +284,7 @@ const PREVIEW_EXPLANATIONS: Record<string, string> = {
   'Imports are excluded by this rule policy.': 'Imported bookmarks are left alone by this rule.',
   'Imports may match this policy; imported placement is always preserved.': 'Imported: may match, but stays where it was imported.',
   'explicitChoice; original location preserved.': 'Matches, but stays in the folder you chose for it.',
-  'unknownIntent; original location preserved.': 'Matches, but stays where it is: it isn’t known whether you picked its folder.',
+  'unknownIntent; original location preserved.': 'Matches, but stays put: a rule files bookmarks as you save them, not ones you already have.',
   authorityOrPrivacy: 'The rule may not move it there (permissions or privacy).',
 }
 

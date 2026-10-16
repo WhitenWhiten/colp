@@ -58,6 +58,9 @@ describe('automation copy', () => {
     expect(previewExplanation(decision('conflict: equalPriorityDestinations; rules rule-2; original location preserved.', 'conflict'), names))
       .toBe('Same priority as “Papers to Work”, which wants another folder, so it would stay put.')
     expect(previewExplanation(decision('notMatched', 'notMatched'), names)).toBe('Doesn’t match the conditions.')
+    // A current-state preview reads bookmarks the owner already has; the reason they stay is that, not a guess about intent.
+    expect(previewExplanation(decision('unknownIntent; original location preserved.'), names))
+      .toBe('Matches, but stays put: a rule files bookmarks as you save them, not ones you already have.')
     expect(previewExplanation(decision('Something new from the server.'), names)).toBe('Something new from the server.')
   })
 
