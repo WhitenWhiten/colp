@@ -38,7 +38,7 @@ const HOW_IT_WORKS: ReadonlyArray<{ icon: IconName; title: string; body: string 
     body: 'Each bookmark shows what a rule did to it, with Undo when that is safe.',
   },
   {
-    icon: 'lock',
+    icon: 'pause',
     title: 'One switch stops everything',
     body: 'Pause all stops every rule at once. Browsers follow within about five minutes.',
   },
@@ -161,7 +161,7 @@ function StatusBar({
       data-state={pause ? (paused ? 'paused' : 'running') : 'loading'}
       aria-labelledby="automations-status-title"
     >
-      <span className="automations-status-mark" aria-hidden><Icon name={paused ? 'lock' : 'bolt'} /></span>
+      <span className="automations-status-mark" aria-hidden><Icon name={paused ? 'pause' : 'bolt'} /></span>
       <div className="automations-status-copy">
         <h2 className="automations-status-title" id="automations-status-title">
           {!pause ? 'Checking automations…' : paused ? 'All automations are paused' : 'Automations are on'}

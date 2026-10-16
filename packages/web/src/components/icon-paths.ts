@@ -50,6 +50,8 @@ export const SHARED_ICON_PATHS = {
   pin: 'M9 4h6m-5 0v5.5L7 13h10l-3-3.5V4m-2 9v7',
   person: 'M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20v-1a7 5 0 0 1 14 0v1',
   play: 'M8 5.5 19 12 8 18.5Z',
+  // Paused automations; the extension's Automations page uses the same glyph.
+  pause: 'M8.5 5v14m7-14v14',
   terminal: `${frame} m4 5 3.5 2.5L10 14.5M13 16h4`,
   plus: 'M12 5v14M5 12h14',
   minus: 'M5 12h14',
