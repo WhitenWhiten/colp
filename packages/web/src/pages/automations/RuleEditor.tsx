@@ -171,6 +171,19 @@ export function RuleEditor() {
     if (initialKey === null && builtKey && (creating || loaded)) setInitialKey(builtKey)
   }, [builtKey, creating, initialKey, loaded])
 
+  // With one collection there is nothing to choose: a new rule starts in it,
+  // and a form the owner has not touched yet still counts as untouched.
+  const onlyCollection = collections.state.status === 'ready' && collections.state.data.length === 1
+    ? collections.state.data[0]?.id ?? null
+    : null
+  const preselected = useRef(false)
+  useEffect(() => {
+    if (!creating || !onlyCollection || preselected.current) return
+    preselected.current = true
+    setDraft((value) => (value && !value.collectionId ? { ...value, collectionId: onlyCollection } : value))
+    if (!dirty) setInitialKey(null)
+  }, [creating, onlyCollection, dirty])
+
   useConfirmLeaveGuard(dirty && busy === null, {
     title: 'Leave without saving?',
     body: 'Your changes to this rule are not saved.',

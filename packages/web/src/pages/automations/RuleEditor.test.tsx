@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../../api/errors'
 import { cleanup, renderWithRouter, waitForDom } from '../../test/render'
 import { Automations } from '../Automations'
-import { binding, buttonNamed, choose, click, deps, fakeApi, previewResult, rule, typeInto, usage } from './automations.test-helper'
+import { binding, buttonNamed, choose, click, deps, fakeApi, fakeFolders, previewResult, rule, typeInto, usage } from './automations.test-helper'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), toast: vi.fn(), warning: vi.fn() }))
 vi.mock('../../components/AppToast', () => ({ useToast: () => toast }))
@@ -169,6 +169,24 @@ describe('Rule editor', () => {
       .toEqual(['Add at least one condition.', 'Choose the folder bookmarks go to.'])
     expect(api.createRule).not.toHaveBeenCalled()
     expect(api.createBindingSet).not.toHaveBeenCalled()
+  })
+
+  it('starts a new rule in the only collection, without counting that as a change', async () => {
+    const folders = fakeFolders()
+    vi.mocked(folders.listCollections).mockResolvedValue([{ id: 'col-personal', title: 'Personal' }])
+    renderWithRouter(
+      <Routes>
+        <Route path="/automations/*" element={<Automations deps={deps(fakeApi(), folders)} />} />
+      </Routes>,
+      { route: '/automations/new' },
+    )
+    await waitForDom(() => select('automation-collection')?.value === 'col-personal' && select('automation-folder')?.disabled === false)
+    expect([...select('automation-folder').options].map((option) => option.textContent))
+      .toEqual(['Choose a folder', 'Academic', 'Reading', 'Reading › Design'])
+    // Nothing typed yet: Cancel leaves without asking about unsaved changes.
+    click([...document.querySelectorAll('a')].find((link) => link.textContent === 'Cancel'))
+    await waitForDom(() => document.querySelector('[data-testid="automation-editor"]') === null)
+    expect(document.body.textContent).not.toContain('Leave without saving?')
   })
 
   it('lets Preview say what is missing, with the cursor on the first gap', async () => {
