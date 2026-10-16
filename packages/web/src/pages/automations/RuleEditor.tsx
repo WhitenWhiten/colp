@@ -15,6 +15,7 @@ import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
 import { RouteState } from '../../components/RouteState'
 import { classifyRouteError } from '../../lib/classifyRouteError'
+import { plural } from '../../lib/plural'
 import { CONDITION_OPTIONS, conditionOption, ruleSentence, suggestedRuleName, taskPhrase } from './copy'
 import type { FolderEntry } from './folders'
 import { PreviewPanel, type PreviewView } from './PreviewPanel'
@@ -737,9 +738,9 @@ export function RuleEditor() {
             onPreview={() => void runPreview()}
           />
           <div className="automation-editor-actions">
-            {current && previewCurrent && (
+            {current && previewCurrent && earlierWork && (
               <fieldset className="automation-pending-runs" data-testid="automation-pending-runs">
-                <legend>Earlier work {current.usage?.heldRuns !== undefined ? `(${current.usage.heldRuns} held runs)` : ''}</legend>
+                <legend>{heldRuns === undefined ? 'Earlier work' : `Earlier work: ${plural(heldRuns, 'run')} on hold`}</legend>
                 <p className="automation-meta">Choose what happens to work this rule started before it was paused or edited.</p>
                 <label><input type="radio" name="pendingRuns" value="hold" checked={pendingRuns === 'hold'} onChange={() => setPendingRuns('hold')} /> Keep on hold</label>
                 <label><input type="radio" name="pendingRuns" value="continuePinned" checked={pendingRuns === 'continuePinned'} onChange={() => setPendingRuns('continuePinned')} /> Continue with its original rule, bindings and input</label>

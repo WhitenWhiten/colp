@@ -233,12 +233,24 @@ describe('Rule editor', () => {
     mount('/automations/rules/rule-arxiv/edit', api)
     await waitForDom(() => conditionInput()?.value === 'arxiv.org')
     await preview(api)
-    expect(document.querySelector('[data-testid="automation-pending-runs"]')?.textContent).toContain('2 held runs')
+    expect(document.querySelector('[data-testid="automation-pending-runs"] legend')?.textContent).toBe('Earlier work: 2 runs on hold')
     if (policy !== 'hold') click(document.querySelector<HTMLInputElement>(`input[value="${policy}"]`))
     expect(document.querySelector<HTMLInputElement>(`input[value="${policy}"]`)?.closest('label')?.textContent).toContain(label)
     click(turnOn())
     await waitForDom(() => api.setRuleLifecycle.mock.calls.length === 1)
     expect(api.setRuleLifecycle.mock.calls[0]?.[1].pendingRuns).toBe(policy)
+  })
+
+  it('asks nothing about earlier work when none is on hold', async () => {
+    const api = fakeApi()
+    api.getRule.mockResolvedValue(rule('rule-arxiv', 'Papers', { desiredState: 'paused', effectiveState: 'paused', revision: '5', usage: usage({ heldRuns: 0 }) }))
+    mount('/automations/rules/rule-arxiv/edit', api)
+    await waitForDom(() => conditionInput()?.value === 'arxiv.org')
+    await preview(api)
+    expect(document.querySelector('[data-testid="automation-pending-runs"]')).toBeNull()
+    click(turnOn())
+    await waitForDom(() => api.setRuleLifecycle.mock.calls.length === 1)
+    expect(api.setRuleLifecycle.mock.calls[0]?.[1].pendingRuns).toBe('hold')
   })
 
   it('opens a rule the form cannot show in Advanced, as JSON', async () => {
