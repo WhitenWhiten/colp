@@ -10,6 +10,7 @@ import { createSubscriptionStore } from '../../../src/infrastructure/automation/
 import { createWebhookCipher } from '../../../src/infrastructure/automation/webhook-signer.js';
 import { createDeliveryWorker } from '../../../src/infrastructure/automation/delivery-worker.js';
 import { createOwnerDeliveryStore } from '../../../src/infrastructure/automation/delivery-store.js';
+import { acknowledgeIncident, assessRuleHealth } from '../../../src/modules/automation/index.js';
 const secret='whsec_'+Buffer.alloc(32,9).toString('base64'),cipher=createWebhookCipher(Buffer.alloc(32,8));
 describeWithPostgres('AW-29 durable ready wake delivery',() => {
   let f:Awaited<ReturnType<typeof automationPollingFixture>>;
@@ -40,6 +41,14 @@ describeWithPostgres('AW-29 durable ready wake delivery',() => {
   test('413 terminates only one occurrence while 410 revokes the subscription path',async()=>{
     await setup();const worker=createDeliveryWorker(f.db,f.worker.authorize,{...cipher,send:async()=>({status:413,retryAfter:null})});
     await worker.tick();expect((await rows())[0]?.state).toBe('deadLetter');
+    const health = await f.uow.execute(f.owner, p => assessRuleHealth(p, f.owner, f.rule.id));
+    expect(health.effectiveState).toBe('degraded');
+    const failure = health.incidents.find(item => item.code === 'deliveryFailure');
+    expect(failure).toMatchObject({ state: 'open', severity: 'error' });
+    const detail = await f.app.inject({ url: `/api/v1/me/automations/rules/${f.rule.id}`, headers: { cookie: f.owner.cookie } });
+    expect(detail.json().effectiveState).toBe('degraded');
+    await f.uow.execute(f.owner, p => acknowledgeIncident(p, f.owner, failure!.id));
+    expect((await f.uow.execute(f.owner, p => assessRuleHealth(p, f.owner, f.rule.id))).effectiveState).toBe('active');
     expect((await sql<{state:string}>`SELECT state FROM automation_event_subscriptions`.execute(f.db)).rows[0]?.state).toBe('active');
     await f.createNode('another','root','Another','https://arxiv.org/abs/another');await f.inspect();expect(await rows()).toHaveLength(2);
     await createDeliveryWorker(f.db,f.worker.authorize,{...cipher,send:async()=>({status:410,retryAfter:null})}).tick();

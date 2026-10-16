@@ -82,7 +82,7 @@ export function RuleEditor() {
   const existing = useLoad<Loaded>(creating ? 'new' : `rule:${ruleId}`, async (signal) => {
     if (creating) return null
     const rule = await api.getRule(ruleId, signal)
-    const binding = await api.getBindingSet(rule.bindingSetId, signal).catch(() => undefined)
+    const binding = await api.getBindingSet(rule.bindingSetId, signal)
     return { rule, binding }
   })
 

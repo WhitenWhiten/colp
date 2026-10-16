@@ -63,7 +63,10 @@ async function inspectRuleHealth(ports: AutomationPorts, actor: AutomationActor,
   if (rule.desiredState !== 'enabled') effectiveState = rule.desiredState;
   else if (paused) effectiveState = 'paused';
   else if (intakeBlocked || (workerBlocked && !rule.definition.intake)) effectiveState = 'blocked';
-  else effectiveState = expected.length ? 'degraded' : 'active';
+  // Delivery failures remain open until acknowledged even when the current dependency check is clean.
+  // They need attention, but do not block intake or invalidate already pinned work.
+  else effectiveState = expected.some(item => item.severity !== 'info')
+    || incidents.some(item => item.state === 'open' && item.severity !== 'info') ? 'degraded' : 'active';
   const report: HealthReport = { ruleId, checkedAt: now, effectiveState, incidents: incidents.slice(0, 100) };
   return { report, stored, resolutions };
 }

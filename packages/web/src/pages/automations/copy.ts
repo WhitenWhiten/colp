@@ -177,7 +177,7 @@ export function runHasRemainingWork(status: AutomationRun['status']): boolean {
 export const RULE_STATE_DETAIL: Record<AutomationRule['effectiveState'], string> = {
   draft: 'Not on yet. Preview it and turn it on to start filing bookmarks.',
   active: 'On. It files matching bookmarks as you save them.',
-  degraded: 'On, but something it depends on needs a look.',
+  degraded: 'On, with an issue to review. Check the notices below.',
   blocked: 'Stopped until the problem is fixed. Bookmarks are still saved where you put them.',
   paused: 'Paused. Bookmarks are saved as usual and this rule doesn’t file them. Preview it again to turn it back on.',
   archived: 'Archived. Its history stays; it can’t be turned on again.',

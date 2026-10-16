@@ -6,6 +6,7 @@ import { retainAutomationHistory } from '../../../src/infrastructure/automation/
 import { createSubscriptionStore } from '../../../src/infrastructure/automation/subscription-store.js';
 import { createWebhookCipher } from '../../../src/infrastructure/automation/webhook-signer.js';
 import { createDeliveryWorker } from '../../../src/infrastructure/automation/delivery-worker.js';
+import { acknowledgeIncident, assessRuleHealth } from '../../../src/modules/automation/index.js';
 import { readRepositoryFile } from '../../support/repository-files.js';
 const cipher=createWebhookCipher(Buffer.alloc(32,1));
 describeWithPostgres('AW-44 retention and restore',()=>{
@@ -25,6 +26,14 @@ describeWithPostgres('AW-44 retention and restore',()=>{
     expect((await sql`SELECT * FROM automation_jobs`.execute(f.db)).rows).toEqual(before);
     expect((await sql<{state:string;last_error_code:string}>`SELECT state,last_error_code FROM automation_event_deliveries`.execute(f.db)).rows).toEqual([{state:'deadLetter',last_error_code:'retention_expired'}]);
     expect((await sql`SELECT id FROM automation_incidents WHERE code='deliveryFailure'`.execute(f.db)).rows).toHaveLength(1);
+    const health = await f.uow.execute(f.owner, p => assessRuleHealth(p, f.owner, f.rule.id));
+    expect(health.effectiveState).toBe('degraded');
+    expect(health.incidents).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'deliveryFailure', state: 'open', severity: 'warning' })]));
+    const rule = await f.app.inject({ url: `/api/v1/me/automations/rules/${f.rule.id}`, headers: { cookie: f.owner.cookie } });
+    expect(rule.json().effectiveState).toBe('degraded');
+    await f.uow.execute(f.owner, p => acknowledgeIncident(p, f.owner, health.incidents.find(item => item.code === 'deliveryFailure')!.id));
+    const after = await f.uow.execute(f.owner, p => assessRuleHealth(p, f.owner, f.rule.id));
+    expect(after.effectiveState).toBe('active');
   });
   test('bounded intake under a slow worker retains queued work and permits configuration reads',async()=>{
     await setup();const started=performance.now();

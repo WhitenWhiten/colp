@@ -170,6 +170,16 @@ describe('Rule editor', () => {
     expect(api.setRuleLifecycle).toHaveBeenCalledWith('rule-arxiv', expect.objectContaining({ activationPreviewId: 'preview-1' }), '5')
   })
 
+  it('does not treat a failed binding read as an empty binding', async () => {
+    const api = fakeApi()
+    api.getRule.mockResolvedValue(rule('rule-arxiv', 'Papers'))
+    api.getBindingSet.mockRejectedValue(new ProductApiError({ status: 503, code: 'service_unavailable', message: 'Binding unavailable.' }))
+    mount('/automations/rules/rule-arxiv/edit', api)
+    await waitForDom(() => document.body.textContent?.includes("Couldn't load this page") === true)
+    expect(turnOn()).toBeNull()
+    expect(api.previewRule).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['hold', 'Keep on hold'],
     ['continuePinned', 'Continue with its original rule, bindings and input'],

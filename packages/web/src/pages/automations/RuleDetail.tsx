@@ -152,6 +152,7 @@ export function RuleDetail() {
     try {
       await api.acknowledgeIncident(incident.id)
       health.reload()
+      rule.reload()
     } catch (error) {
       toastError(errorMessage(error, 'Could not dismiss the notice.'))
     } finally {
@@ -218,6 +219,12 @@ export function RuleDetail() {
 
       <div className="automations-layout">
         <div className="automations-main">
+          {health.state.status === 'error' && (
+            <div className="automation-inline-error" role="alert">
+              <p>{errorMessage(health.state.error, 'Could not check this rule’s health.')}</p>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={health.reload}>Try again</button>
+            </div>
+          )}
           <NeedsAttention
             incidents={openIncidents}
             decisions={[]}

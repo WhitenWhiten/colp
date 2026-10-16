@@ -110,6 +110,33 @@ describe('Rule detail', () => {
     expect(api.revalidateRule).toHaveBeenCalledWith('rule-arxiv', '6')
   })
 
+  it('shows a health read failure and offers a retry instead of an empty notice list', async () => {
+    const api = withRule()
+    api.getRuleHealth.mockRejectedValue(new ProductApiError({ status: 503, code: 'service_unavailable', message: 'Health is unavailable.' }))
+    mount(api)
+    await waitForDom(() => document.querySelector('[role="alert"]')?.textContent?.includes('Health is unavailable.') === true)
+    expect(buttonNamed('Try again')).toBeDefined()
+    api.getRuleHealth.mockResolvedValue({ ruleId: 'rule-arxiv', checkedAt: '2026-10-12T09:30:00.000Z', effectiveState: 'active', incidents: [] })
+    click(buttonNamed('Try again'))
+    await waitForDom(() => api.getRuleHealth.mock.calls.length >= 2)
+  })
+
+  it('refreshes the state badge after dismissing a delivery notice', async () => {
+    const api = withRule()
+    api.getRule.mockImplementation(async () => rule('rule-arxiv', 'Papers', {
+      effectiveState: api.acknowledgeIncident.mock.calls.length ? 'active' : 'degraded',
+    }))
+    api.getRuleHealth.mockImplementation(async () => ({ ruleId: 'rule-arxiv', checkedAt: '2026-10-12T09:30:00.000Z',
+      effectiveState: api.acknowledgeIncident.mock.calls.length ? 'active' as const : 'degraded' as const,
+      incidents: api.acknowledgeIncident.mock.calls.length ? [] : [incident({ code: 'deliveryFailure', role: 'delivery', severity: 'error', ruleId: 'rule-arxiv' })],
+    }))
+    mount(api)
+    await waitForDom(() => document.querySelector('[data-state="degraded"]') !== null && Boolean(buttonNamed('Dismiss')))
+    click(buttonNamed('Dismiss'))
+    await waitForDom(() => document.querySelector('[data-state="active"]') !== null)
+    expect(api.getRule.mock.calls.length).toBeGreaterThan(1)
+  })
+
   it('pauses with the rule revision and shows the state the server returned', async () => {
     const api = withRule({ revision: '6' })
     api.setRuleLifecycle.mockResolvedValue(rule('rule-arxiv', 'Papers to Academic', { revision: '7', desiredState: 'paused', effectiveState: 'paused' }))
