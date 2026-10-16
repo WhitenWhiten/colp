@@ -2,6 +2,7 @@ import type { IconName } from '../../components/Icon'
 import type { StatusTone } from '../../components/StatusBadge'
 import type {
   AutomationDependency,
+  AutomationDiagnostic,
   AutomationHealthIncident,
   AutomationJob,
   AutomationPredicate,
@@ -312,6 +313,35 @@ export function previewExplanation(decision: AutomationPreviewDecision, names: P
   const preserved = /^(.*); original location preserved\.$/u.exec(text)
   if (preserved) return 'Matches, but stays where it is.'
   return text
+}
+
+/* Preview notes the server flags as warnings, in the owner's words.
+   `immutableInputDeferred` only restates the form's own default (a bookmark
+   missing details waits instead of being guessed), and the "Can’t tell" group
+   already lists those bookmarks, so it adds nothing. A code this table does
+   not know is shown as the server wrote it. */
+const PREVIEW_NOTES: Record<string, string | null> = {
+  immutableInputDeferred: null,
+  ownerRequired: 'Only the collection’s owner can run rules on it. This preview doesn’t change that.',
+}
+
+const WORKER_UNAVAILABLE: Record<string, string> = {
+  'No explicit execution assignment permits this task.': 'No agent is assigned to one of its tasks yet, so that task would wait.',
+  'Task input fields exceed the execution policy allowlist.': 'Its agent may not read everything one of its tasks needs, so that task would wait.',
+  'Pinned monetary limits cannot be enforced by this host.': 'This server can’t enforce a money limit, so a task with one would wait.',
+}
+
+export function previewNotes(diagnostics: readonly AutomationDiagnostic[]): string[] {
+  const notes = new Set<string>()
+  for (const item of diagnostics) {
+    if (item.severity === 'info') continue
+    const known = Object.hasOwn(PREVIEW_NOTES, item.code) ? PREVIEW_NOTES[item.code] : undefined
+    const text = known !== undefined
+      ? known
+      : item.code === 'workerUnavailable' ? WORKER_UNAVAILABLE[item.message] ?? item.message : item.message
+    if (text) notes.add(text)
+  }
+  return [...notes]
 }
 
 export const PREVIEW_GROUPS: ReadonlyArray<{

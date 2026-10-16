@@ -2,7 +2,7 @@ import type { AutomationPreviewDecision, AutomationPreviewResult } from '../../a
 import { Icon } from '../../components/Icon'
 import { StatusBadge } from '../../components/StatusBadge'
 import { plural } from '../../lib/plural'
-import { PREVIEW_GROUPS, previewExplanation, type PreviewNames } from './copy'
+import { PREVIEW_GROUPS, previewExplanation, previewNotes, type PreviewNames } from './copy'
 
 /* AU-02: what the rule would have done to the owner's recent bookmarks.
    The server evaluates; this panel counts its decisions per outcome and
@@ -63,7 +63,7 @@ export function PreviewPanel({
     .map((group) => ({ ...group, decisions: result.decisions.filter((decision) => decision.outcome === group.outcome) }))
     .filter((group) => group.decisions.length > 0)
   const matched = result.decisions.filter((decision) => decision.outcome === 'matched').length
-  const warnings = result.diagnostics.filter((item) => item.severity !== 'info')
+  const notes = previewNotes(result.diagnostics)
 
   return (
     <section
@@ -125,9 +125,9 @@ export function PreviewPanel({
           </ul>
         </details>
       ))}
-      {warnings.length > 0 && (
+      {notes.length > 0 && (
         <ul className="automation-preview-warnings">
-          {warnings.map((item) => <li key={`${item.code}:${item.location}`}>{item.message}</li>)}
+          {notes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       )}
       <p className="automation-meta">

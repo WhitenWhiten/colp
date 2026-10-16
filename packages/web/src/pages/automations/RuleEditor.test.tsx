@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../../api/errors'
 import { cleanup, renderWithRouter, waitForDom } from '../../test/render'
 import { Automations } from '../Automations'
-import { binding, buttonNamed, choose, click, deps, fakeApi, rule, typeInto, usage } from './automations.test-helper'
+import { binding, buttonNamed, choose, click, deps, fakeApi, previewResult, rule, typeInto, usage } from './automations.test-helper'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), toast: vi.fn(), warning: vi.fn() }))
 vi.mock('../../components/AppToast', () => ({ useToast: () => toast }))
@@ -104,6 +104,22 @@ describe('Rule editor', () => {
 
     typeInto(input, 'arxiv.org')
     expect(turnOn()?.disabled).toBe(false)
+  })
+
+  it('shows preview warnings in plain words, without the default every form rule has', async () => {
+    const api = await readyNew()
+    api.previewRule.mockResolvedValueOnce({ ...previewResult(), diagnostics: [
+      { code: 'immutableInputDeferred', severity: 'warning', location: '/rule/definition/policy/missingInput',
+        message: 'Missing immutable input is retained as an inspectable, cancellable waiting run.' },
+      { code: 'somethingNew', severity: 'warning', location: '/rule', message: 'A new server warning.' },
+    ] })
+    const input = conditionInput()
+    if (!input) throw new Error('no condition input')
+    typeInto(input, 'arxiv.org')
+    await preview(api)
+    const panel = document.querySelector('section[aria-labelledby="automation-preview-heading"]')?.textContent
+    expect(panel).toContain('A new server warning.')
+    expect(panel).not.toContain('immutable')
   })
 
   it('a new folder is a new configuration: the old preview no longer counts', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AutomationPreviewDecision, AutomationRuleDefinition } from '../../api/automationTypes'
-import { previewExplanation, ruleSentence, runExplanation, sentenceText, undoReason } from './copy'
+import { previewExplanation, previewNotes, ruleSentence, runExplanation, sentenceText, undoReason } from './copy'
 
 const definition: AutomationRuleDefinition = {
   apiVersion: 'colp.automation/v1',
@@ -59,6 +59,22 @@ describe('automation copy', () => {
       .toBe('Same priority as “Papers to Work”, which wants another folder, so it would stay put.')
     expect(previewExplanation(decision('notMatched', 'notMatched'), names)).toBe('Doesn’t match the conditions.')
     expect(previewExplanation(decision('Something new from the server.'), names)).toBe('Something new from the server.')
+  })
+
+  it('says preview warnings in the owner’s words and drops the one that restates the default', () => {
+    const note = (code: string, message: string, severity: 'info' | 'warning' | 'error' = 'warning') => ({ code, severity, location: '/x', message })
+    expect(previewNotes([
+      note('immutableInputDeferred', 'Missing immutable input is retained as an inspectable, cancellable waiting run.'),
+      note('dailyAdmissionLimit', 'At most 100 runnable server admissions per logical rule and UTC day.', 'info'),
+      note('workerUnavailable', 'No explicit execution assignment permits this task.'),
+      note('workerUnavailable', 'No explicit execution assignment permits this task.'),
+      note('ownerRequired', 'M1 execution requires the current collection Owner; this preview does not grant runtime authority.'),
+      note('somethingNew', 'A new server warning.', 'error'),
+    ])).toEqual([
+      'No agent is assigned to one of its tasks yet, so that task would wait.',
+      'Only the collection’s owner can run rules on it. This preview doesn’t change that.',
+      'A new server warning.',
+    ])
   })
 
   it('keeps unknown server explanations verbatim', () => {
