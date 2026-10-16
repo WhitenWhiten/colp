@@ -1,3 +1,4 @@
+import { folderSyncCoverage } from './bookmark-sync-range.js';
 import { classifyDeletionScope, type DeletionScopeClass } from './bookmark-node-identity.js';
 import type { BookmarkEventNode } from './bookmark-event-codec.js';
 import type { JsonObject, MappingInput } from './sync-state-store.js';
@@ -26,9 +27,9 @@ export async function classifyRemovalScope(input: {
   }
   const walked = await walkFromParent(input.api, input.parentId, input.nativeId);
   const ancestors = walked.ancestors;
+  const coverage = folderSyncCoverage(input.nativeId, ancestors, input.selectedNative, input.privateNative);
   return classifyDeletionScope({
-    managed: input.managed, ancestorWalkFailed: walked.failed, selectedAncestor: ancestors.some((id) =>
-      input.selectedNative.has(id)), privateAncestor: ancestors.some((id) => input.privateNative.has(id)),
+    managed: input.managed, ancestorWalkFailed: walked.failed, selectedAncestor: coverage.selected, privateAncestor: coverage.privateLocal,
     detachedMount: ancestors.some((id) => input.detachedNative.has(id)), hasInScopeMapping,
   });
 }

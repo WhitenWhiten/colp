@@ -1,3 +1,4 @@
+import { folderSyncCoverage } from './bookmark-sync-range.js';
 import { placementDomainKeys } from './bookmark-event-placement-domain.js';
 import { createBookmarkContentCapture } from './bookmark-content-capture.js';
 import { kns09Paused, recordKns09PausedDrop } from './kns-09-release.js';
@@ -448,8 +449,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
       return { allowOperationCandidate: false, reason: 'not_selected' };
     }
     const decided = decideIngressPrivacy({ rootStatus: boundary.rootStatus, mapped,
-      selected: ancestors.some((id) => boundary.selectedNative.has(id)),
-      privateLocal: ancestors.some((id) => boundary.privateNative.has(id)), managed, allowUnmappedSelected });
+      ...folderSyncCoverage(start, ancestors, boundary.selectedNative, boundary.privateNative), managed, allowUnmappedSelected });
     if (decided.diagnostic) await recordIngressDiagnostic(options.store, options.scope, decided.diagnostic);
     return decided.privacy;
   }

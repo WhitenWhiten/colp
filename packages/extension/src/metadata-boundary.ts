@@ -1,5 +1,5 @@
 import type { IngressBoundary } from './bookmark-event-ingress.js';
-import { folderIsInMount, type FolderTreeNode } from './save-folder.js';
+import { folderIsInSyncRange, type FolderTreeNode } from './save-folder.js';
 
 /** All fields use the same complete native ancestry; missing/cyclic ancestry fails closed. */
 export function createMetadataBoundary(tree: readonly FolderTreeNode[], boundary: IngressBoundary) {
@@ -16,13 +16,13 @@ export function createMetadataBoundary(tree: readonly FolderTreeNode[], boundary
     if (!node) return false;
     const parents: string[] = [], seen = new Set<string>();
     while (node) {
-      if (seen.has(node.id) || seen.size >= 256 || boundary.privateNative.has(node.id) || node.unmodifiable) return false;
+      if (seen.has(node.id) || seen.size >= 256 || node.unmodifiable) return false;
       seen.add(node.id);
       if (!node.parentId) break;
       parents.push(node.parentId); node = nodes.get(node.parentId);
       if (!node) return false;
     }
-    return folderIsInMount(mapping.nativeId, parents, boundary.selectedNative);
+    return folderIsInSyncRange(mapping.nativeId, parents, boundary.selectedNative, boundary.privateNative);
   };
   return { nodes, allowed };
 }
@@ -43,7 +43,7 @@ export async function assertMetadataTarget(mapping: { readonly nativeId: string;
   const parents: string[] = [], seen = new Set<string>();
   let id: string | undefined = mapping.nativeId;
   while (id) {
-    if (seen.has(id) || seen.size >= 256 || boundary.privateNative.has(id)) throw new Error('metadata_boundary_changed');
+    if (seen.has(id) || seen.size >= 256) throw new Error('metadata_boundary_changed');
     seen.add(id);
     const node = await deps.node(id);
     if (!node || node.unmodifiable || (id === mapping.nativeId
@@ -51,6 +51,6 @@ export async function assertMetadataTarget(mapping: { readonly nativeId: string;
     id = node.parentId;
     if (id) parents.push(id);
   }
-  if (!folderIsInMount(mapping.nativeId, parents, boundary.selectedNative)) throw new Error('metadata_boundary_changed');
+  if (!folderIsInSyncRange(mapping.nativeId, parents, boundary.selectedNative, boundary.privateNative)) throw new Error('metadata_boundary_changed');
   await deps.assertCurrent();
 }

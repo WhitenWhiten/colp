@@ -1,3 +1,4 @@
+import { folderIsInMount, folderSyncCoverage } from './bookmark-sync-range.js';
 import { bookmarkRepresentability } from './bookmark-event-codec.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
@@ -52,7 +53,7 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
   const selectedNativeIds = selectedInput.length ? normalizeBoundaries(selectedInput, discovered) : [];
   const selected = new Set(selectedNativeIds);
   const unsupported = new Map(indexed.flatMap(({ node, isSpecialRoot, ancestorNativeIds }) => {
-    const included = selected.has(node.nativeId) || ancestorNativeIds.some(id => selected.has(id));
+    const included = folderIsInMount(node.nativeId, ancestorNativeIds, selected);
     const reason = isSpecialRoot || !included ? 'supported' : bookmarkRepresentability({ type: node.kind, title: node.title, url: node.url });
     return reason === 'supported' ? [] : [[node.nativeId, reason] as const];
   }));
@@ -64,9 +65,8 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
   for (const item of indexed) {
     const nativeId = item.node.nativeId;
     const managed = item.node.managed;
-    const excludedHere = excluded.has(nativeId) || item.ancestorNativeIds.some((id) => excluded.has(id));
-    const privateHere = privateLocal.has(nativeId) || item.ancestorNativeIds.some((id) => privateLocal.has(id));
-    const inSelected = selected.has(nativeId) || item.ancestorNativeIds.some((id) => selected.has(id));
+    const excludedHere = folderIsInMount(nativeId, item.ancestorNativeIds, excluded);
+    const { selected: inSelected, privateLocal: privateHere } = folderSyncCoverage(nativeId, item.ancestorNativeIds, selected, privateLocal);
     let classification: BoundaryNodeClass;
     if (managed) classification = 'managed';
     else if (privateHere) classification = 'private-local';

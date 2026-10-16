@@ -1,3 +1,5 @@
+import { folderIsInMount } from './bookmark-sync-range.js';
+export { folderIsInMount, folderIsInSyncRange } from './bookmark-sync-range.js';
 import { pushFolderRecent } from './folder-recents.js';
 
 /** Explicit browser default; ordinary saves must never change this setting. */
@@ -29,20 +31,6 @@ export function parseFolderBinding(value: unknown, collectionId?: string): Folde
   if (typeof record.folderNativeId !== 'string' || record.folderNativeId.length === 0) return undefined;
   if (collectionId !== undefined && record.collectionId !== collectionId) return undefined;
   return { collectionId: record.collectionId, folderNativeId: record.folderNativeId };
-}
-
-export function folderIsInMount(nativeId: string, ancestorIds: readonly string[],
-  mountNativeIds: ReadonlySet<string>): boolean {
-  if (mountNativeIds.size === 0) return false;
-  if (mountNativeIds.has(nativeId)) return true;
-  return ancestorIds.some((id) => mountNativeIds.has(id));
-}
-
-/** A private boundary excludes itself and every descendant, including mounted roots. */
-export function folderIsInSyncRange(nativeId: string, ancestorIds: readonly string[],
-  selectedNative: ReadonlySet<string>, privateNative: ReadonlySet<string>): boolean {
-  return ![nativeId, ...ancestorIds].some(id => privateNative.has(id))
-    && folderIsInMount(nativeId, ancestorIds, selectedNative);
 }
 
 export async function walkAncestorIds(
