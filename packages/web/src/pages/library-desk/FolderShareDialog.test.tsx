@@ -5,11 +5,11 @@ import { FolderShareDialog } from './FolderShareDialog'
 import { cleanup, mountTree, waitForDom } from '../../test/render'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), stop: vi.fn(), success: vi.fn(), error: vi.fn() }))
-vi.mock('../../api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../api')>(),
-  privateSessionIdentity: () => 'owner', subscribeSession: () => () => {},
-  productClient: { ...((await importOriginal<typeof import('../../api')>()).productClient), getFolderShare: mocks.get, putFolderShare: mocks.put, deleteFolderShare: mocks.stop },
-}))
+vi.mock('../../api', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../api')>()
+  return { ...actual, privateSessionIdentity: () => 'owner', subscribeSession: () => () => {},
+    productClient: { ...actual.productClient, getFolderShare: mocks.get, putFolderShare: mocks.put, deleteFolderShare: mocks.stop } }
+})
 vi.mock('../../components/AppToast', () => ({ useToast: () => ({ success: mocks.success, error: mocks.error }) }))
 const share = { id: 'share', collectionId: 'library', nodeId: 'folder', slug: 'folder-share', createdAt: '2026-10-01T00:00:00Z' }
 const close = vi.fn(), changed = vi.fn(async () => {})
