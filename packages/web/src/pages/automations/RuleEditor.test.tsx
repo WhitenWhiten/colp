@@ -214,6 +214,34 @@ describe('Rule editor', () => {
   })
 
 
+  it('requires prepared agent resources and sends both IDs through preview, create and activation', async () => {
+    const api = await readyNew()
+    const definition = rule('worker', 'New worker').definition
+    definition.tasks = [{ id: 'summary', type: 'summary.generate', after: [], executorRole: 'worker', required: true,
+      outputContract: 'summary.sourced.v1', inputFields: ['url'], instruction: 'Summarize.' }]
+    definition.roles.push({ key: 'worker', kind: 'executor', required: true, description: 'Worker' })
+    typeInto(document.getElementById('automation-json') as HTMLTextAreaElement, JSON.stringify(definition))
+    click(buttonNamed('Apply JSON'))
+    await waitForDom(() => Boolean(document.getElementById('automation-worker-bindings')))
+    expect(document.body.textContent).toContain('pasting task JSON alone does not prepare them')
+    expect(buttonNamed(/^Preview( again)?$/)?.disabled).toBe(true)
+    typeInto(document.getElementById('automation-worker-bindings') as HTMLInputElement, 'prepared-bindings')
+    typeInto(document.getElementById('automation-execution-policy') as HTMLInputElement, 'policy-1')
+    await preview(api)
+    expect(api.previewRule.mock.calls[0]?.[0].rule).toEqual({ definition, bindingSetId: 'prepared-bindings', executionPolicyId: 'policy-1' })
+    typeInto(document.getElementById('automation-execution-policy') as HTMLInputElement, 'policy-2')
+    expect(turnOn()?.disabled).toBe(true)
+    await preview(api, 2)
+    typeInto(document.getElementById('automation-worker-bindings') as HTMLInputElement, 'other-bindings')
+    expect(turnOn()?.disabled).toBe(true)
+    await preview(api, 3)
+    click(turnOn())
+    await waitForDom(() => api.setRuleLifecycle.mock.calls.length === 1)
+    expect(api.createRule).toHaveBeenCalledWith({ definition, bindingSetId: 'other-bindings', executionPolicyId: 'policy-2' })
+    expect(api.createBindingSet).not.toHaveBeenCalled()
+    expect(api.setRuleLifecycle.mock.calls[0]?.[1].activationPreviewId).toBe('preview-1')
+  })
+
   it('preserves worker policy and template metadata through edit, preview, save and enable', async () => {
     const api = fakeApi()
     let stored = rule('worker', 'Worker', { executionPolicyId: 'policy-1', templateRef: 'template-1' })

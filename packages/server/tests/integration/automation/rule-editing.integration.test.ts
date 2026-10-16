@@ -31,7 +31,9 @@ describeWithPostgres('editor configuration and activation contract', () => {
   test('worker metadata survives replacement and exact preview activation; new work remains assignable', async () => {
     worker = await automationPollingFixture('edit_worker');
     const f = worker;
-    const created = await f.uow.execute(f.owner,p => createRule(p,f.owner,{ ...f.ruleInput,templateRef:'template-source' }));
+    const created = await f.uow.execute(f.owner,p => createRule(p,f.owner,{
+      ...editorInput(f.ruleInput.definition,f.ruleInput.bindingSetId,null,f.ruleInput.executionPolicyId),templateRef:'template-source',
+    }));
     const activation = await f.uow.execute(f.owner,p => previewRule(p,f.owner,{ rule:editorInput(created.definition,created.bindingSetId,created),ruleId:created.id,mode:'currentState' }));
     const stored = await f.uow.execute(f.owner,p => setLifecycle(p,f.owner,created.id,{ state:'enabled',pendingRuns:'hold',reason:'Original worker',activationPreviewId:activation.previewId },`"${created.revision}"`));
     const definition = { ...stored.definition,name:'Edited worker',tasks:stored.definition.tasks.map(task => ({ ...task,instruction:'Summarize with sources.' })) };

@@ -241,9 +241,9 @@ export function configurationKey(definition: AutomationRuleDefinition, bindingKe
 }
 
 /** Preserve metadata the definition form does not own in every editor request. */
-export function ruleInput(definition: AutomationRuleDefinition, bindingSetId: string, base: AutomationRule | null): AutomationRuleInput {
+export function ruleInput(definition: AutomationRuleDefinition, bindingSetId: string, base: AutomationRule | null, executionPolicyId: string | null | undefined = base?.executionPolicyId): AutomationRuleInput {
   return { definition, bindingSetId,
-    ...(base?.executionPolicyId ? { executionPolicyId: base.executionPolicyId } : {}),
+    ...(executionPolicyId ? { executionPolicyId } : {}),
     ...(base?.templateRef ? { templateRef: base.templateRef } : {}),
   }
 }

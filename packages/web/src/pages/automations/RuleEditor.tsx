@@ -93,6 +93,8 @@ export function RuleEditor() {
   /** A definition from Advanced that the form cannot show; it replaces the form's own. */
   const [jsonDefinition, setJsonDefinition] = useState<AutomationRuleDefinition | null>(null)
   const [definitionBase, setDefinitionBase] = useState<AutomationRuleDefinition | null>(null)
+  const [preparedBindingId, setPreparedBindingId] = useState<string | null>(null)
+  const [policyId, setPolicyId] = useState<string | null>(null)
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -145,7 +147,11 @@ export function RuleEditor() {
   const storedFolder = loaded ? destinationFolder(loaded.rule.definition, loaded.binding) : null
   const keepsStoredBinding = Boolean(loaded && draft && (!storedFolder
     || (storedFolder.collectionId === draft.collectionId && storedFolder.nodeId === draft.folderId)))
-  const bindingKey = !draft ? '' : keepsStoredBinding && loaded
+  const workerRule = Boolean(built?.tasks.length)
+  const workerBindingId = (preparedBindingId ?? loaded?.rule.bindingSetId ?? '').trim()
+  const executionPolicyId = workerRule ? (policyId ?? current?.executionPolicyId ?? '').trim() : ''
+  const workerConfigured = !workerRule || Boolean(workerBindingId && executionPolicyId)
+  const bindingKey = workerRule ? `prepared:${workerBindingId}:policy:${executionPolicyId}` : !draft ? '' : keepsStoredBinding && loaded
     ? `stored:${loaded.rule.bindingSetId}`
     : `folder:${folderKey(draft.collectionId, draft.folderId)}`
   const builtKey = built ? configurationKey(built, bindingKey) : ''
@@ -199,9 +205,9 @@ export function RuleEditor() {
   const taskTypes = capabilities.state.status === 'ready' ? capabilities.state.data.taskTypes : []
   const sentence = ruleSentence(definition, {
     collection: collectionTitle,
-    folder: chosenFolder?.title ?? null,
+    folder: workerRule ? null : chosenFolder?.title ?? null,
   })
-  const canPreview = problems.length === 0 && Boolean(draft.collectionId && draft.folderId)
+  const canPreview = workerRule ? workerConfigured : problems.length === 0 && Boolean(draft.collectionId && draft.folderId)
   const previewCurrent = previewView !== null && !previewView.stale
 
   function update(patch: Partial<RuleDraft>) {
@@ -216,6 +222,10 @@ export function RuleEditor() {
   }
 
   async function bindingSetId(): Promise<string> {
+    if (workerRule) {
+      if (!workerBindingId) throw new Error('Prepare a binding set with the required folder and executor roles, then enter its ID under Advanced.')
+      return workerBindingId
+    }
     if (keepsStoredBinding && loaded) return loaded.rule.bindingSetId
     const key = folderKey(form.collectionId, form.folderId)
     const known = sessionBindings.get(key)
@@ -231,14 +241,14 @@ export function RuleEditor() {
   }
 
   async function runPreview() {
-    if (!canPreview && !jsonDefinition) {
+    if (!workerConfigured || (!canPreview && !jsonDefinition)) {
       setShowProblems(true)
       return
     }
     setBusy('preview')
     try {
       const key = configKey
-      const result = await api.previewRule({ rule: ruleInput(ruleDefinition, await bindingSetId(), current), ...(current ? { ruleId: current.id } : {}), mode: 'currentState' })
+      const result = await api.previewRule({ rule: ruleInput(ruleDefinition, await bindingSetId(), current, executionPolicyId || null), ...(current ? { ruleId: current.id } : {}), mode: 'currentState' })
       setPreview({ key, result })
     } catch (error) {
       toastError(errorMessage(error, 'Could not preview this rule.'))
@@ -252,14 +262,15 @@ export function RuleEditor() {
     const setId = await bindingSetId()
     const base = saved ?? editing
     if (!base) {
-      const created = await api.createRule(ruleInput(ruleDefinition, setId, null))
+      const created = await api.createRule(ruleInput(ruleDefinition, setId, null, executionPolicyId || null))
       setSaved(created)
       return created
     }
     if (!dirty) return base
-    const { templateRef: _templateRef, ...input } = ruleInput(ruleDefinition, setId, base)
+    const { templateRef: _templateRef, ...input } = ruleInput(ruleDefinition, setId, base, executionPolicyId || null)
     const next = await api.replaceRule(base.id, {
       ...input,
+      executionPolicyId: executionPolicyId || null,
       pendingRuns: 'hold',
       counterPolicy: 'resetOnSemanticChange',
     }, base.revision)
@@ -509,7 +520,7 @@ export function RuleEditor() {
                 </li>
               )}
 
-              <li className="automation-step" aria-labelledby="automation-step-where">
+              {!workerRule && <li className="automation-step" aria-labelledby="automation-step-where">
                 <div className="automation-step-head">
                   <span className="automation-step-index" aria-hidden>{jsonDefinition ? 1 : 2}</span>
                   <h2 id="automation-step-where">…move it to</h2>
@@ -558,7 +569,7 @@ export function RuleEditor() {
                   The rule follows the folder itself, so renaming or moving it later keeps the rule working.
                   It applies to bookmarks saved to this collection.
                 </p>
-              </li>
+              </li>}
 
               {taskTypes.length > 0 && (
                 <li className="automation-step" aria-labelledby="automation-step-then">
@@ -575,7 +586,7 @@ export function RuleEditor() {
                   )}
                   <p className="field-hint">
                     {definition.tasks.length > 0 ? null : 'No agent tasks. A connected agent can also summarize or tag what this rule files. '}
-                    Agent tasks are added under Advanced for now, with an execution policy.
+                    Agent tasks require a prepared worker, binding set and execution policy. Enter the definition and configuration IDs under Advanced.
                   </p>
                 </li>
               )}
@@ -647,8 +658,30 @@ export function RuleEditor() {
               </summary>
               <div className="automation-json">
                 <p className="field-hint">
-                  The rule definition as the server stores it, for copying, pasting, or agents. The destination folder is set in the form.
+                  The rule definition as the server stores it, for copying, pasting, or agents. For filing rules, choose the destination folder in the form.
                 </p>
+                {workerRule && <fieldset className="automation-options">
+                  <legend>Agent configuration</legend>
+                  <p className="field-hint">
+                    First connect and pair a worker in <Link to="/agents">Agents</Link>.
+                    Use the automation API or a management tool to create an executor for that target,
+                    a binding set containing every folder and executor role in this definition, and an execution policy
+                    assigning each task type to its executor role with allowed input data and call limits.
+                    This editor uses those existing resources; pasting task JSON alone does not prepare them.
+                  </p>
+                  <div className="field">
+                    <label htmlFor="automation-worker-bindings">Prepared binding set ID</label>
+                    <input id="automation-worker-bindings" value={workerBindingId} maxLength={128}
+                      onChange={event => setPreparedBindingId(event.target.value)} />
+                    <p className="field-hint">Includes the destination folders and explicit executor IDs. These bindings determine the task destinations.</p>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="automation-execution-policy">Execution policy ID</label>
+                    <input id="automation-execution-policy" value={executionPolicyId} maxLength={128}
+                      onChange={event => setPolicyId(event.target.value)} />
+                  </div>
+                  {!workerConfigured && <p className="field-hint" role="status">Enter both configuration IDs before previewing and turning on agent tasks.</p>}
+                </fieldset>}
                 <div className="field">
                   <label className="visually-hidden" htmlFor="automation-json">Rule definition JSON</label>
                   <textarea
@@ -691,7 +724,7 @@ export function RuleEditor() {
             busy={busy === 'preview'}
             collectionTitle={collectionTitle}
             names={{ rules: ruleNames, folders: new Map(chosenFolder ? [[chosenFolder.id, chosenFolder.title]] : []) }}
-            disabled={!canPreview && !jsonDefinition}
+            disabled={!workerConfigured || (!canPreview && !jsonDefinition)}
             onPreview={() => void runPreview()}
           />
           <div className="automation-editor-actions">
