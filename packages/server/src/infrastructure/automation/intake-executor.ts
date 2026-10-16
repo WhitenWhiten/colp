@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import type { RuleDefinition, RoleBindings } from '@know-n/colp/automation';
 import { serverIntakeBlock, isIntakeRootSnapshot, resolveBindings, assessIntakeBindings, type AutomationActor } from '../../modules/automation/index.js';
-import { captureCollectionTreeVersion, CollectionVersionNodeLimitError, COLLECTION_TREE_VERSION_MAX_NODES } from '../../modules/collections/index.js';
+import { captureCollectionTreeVersion, CollectionVersionCapacityError } from '../../modules/collections/index.js';
 import { createPostgresCollectionVersionStore } from '../collections/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import { createBindingReadPort } from './bindings.js';
@@ -69,17 +69,11 @@ export async function executePendingIntake(tx: DatabaseTransaction, actor: Autom
     const versions = createPostgresCollectionVersionStore(tx);
     const before = await versions.getOwnedLive(collectionId, actor.subjectId);
     if (!before) { await finish(run.id, 'review', 'Current Owner authority is unavailable.'); continue; }
-    const boundedMembers = await tx.selectFrom('nodes').select('id').where('collection_id', '=', collectionId)
-      .where('is_root', '=', false).where('kind', 'in', ['folder','bookmark']).where('deleted_at', 'is', null)
-      .limit(COLLECTION_TREE_VERSION_MAX_NODES + 1).execute();
-    if (boundedMembers.length > COLLECTION_TREE_VERSION_MAX_NODES) {
-      await finish(run.id, 'blocked', 'Collection exceeds the existing version-history capacity; no placement was committed.'); continue;
-    }
     try {
       await captureCollectionTreeVersion({ versions, clock: { now: () => new Date() } }, { accountId: actor.accountId,
         collection: before, kind: 'pre_mutation', cause: `automation:${run.rule_id}`, label: 'Before deterministic automation placement' });
     } catch (error) {
-      if (!(error instanceof CollectionVersionNodeLimitError)) throw error;
+      if (!(error instanceof CollectionVersionCapacityError)) throw error;
       await finish(run.id, 'blocked', 'Collection exceeds the existing version-history capacity; no placement was committed.'); continue;
     }
     const moved = await canonicalPlacementMove(tx, actor, { collectionId, nodeId: run.node_id, parentId: destination.snapshot.folder.nodeId,

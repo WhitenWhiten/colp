@@ -12,7 +12,6 @@ import {
 } from '../domain/index.js';
 import { ifMatchSatisfied } from './update-collection-metadata.js';
 import {
-  buildCollectionTreeJson,
   captureCollectionTreeVersion,
   CollectionVersionInputError,
   CollectionVersionNotFoundError,
@@ -175,9 +174,6 @@ export async function createCollectionVersion(
   if (already) {
     return finishCreate(ports, binding, fingerprint, already, collection, 200);
   }
-
-  const members = await ports.versions.loadLiveMembers(input.collectionId);
-  buildCollectionTreeJson(members);
 
   const now = await Promise.resolve(ports.clock.now());
   const cause = input.cause ?? 'web';

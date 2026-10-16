@@ -91,8 +91,8 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     return tree;
   }
 
-  test.each(['manual', 'trusted'] as const)('%s move at 2000 nodes saves history and supports Undo', async (policy) => {
-    const tree = await capacityFixture(2000);
+  test.each(['manual', 'trusted'] as const)('%s move at 2001 nodes saves history and supports Undo', async (policy) => {
+    const tree = await capacityFixture(2001);
     if (policy === 'trusted') {
       await isolated.runtime.pool.query(
         "insert into agent_policies(principal_id, client_id, policy) values ($1, $2, 'trusted')",
@@ -115,7 +115,7 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     const version = await isolated.runtime.pool.query(
       'select node_count from collection_tree_versions where version_id = $1', [history.versionIds[0]],
     );
-    assert.equal(version.rows[0].node_count, 2000);
+    assert.equal(version.rows[0].node_count, 2001);
     assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.folderId);
     await createPhase4bMcpAgentApprovalApi(isolated.runtime.db).undo({
       accountId: OWNER, subjectId: OWNER, planId: plan.planId, force: false, commandId: randomUUID(),
@@ -125,15 +125,15 @@ describeWithPostgres('self-hosted production MCP composition', () => {
       name: 'nodes.create', arguments: { collectionId: tree.collectionId, parentId: tree.folderId,
         node: { kind: 'bookmark', title: 'After Undo', url: 'https://example.test/after-undo', visibility: 'private' }, confirmApply: true },
     });
-    // The collection now exceeds history capacity and has a different
-    // revision. Replay must return the durable result without a new snapshot
+    // The collection now has a different revision. Replay must return the durable result without a new snapshot
     // or reapplying the original move.
     assert.deepEqual(await commit(plan.planId, idempotencyKey), committed);
     assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
   });
 
-  test.each(['manual', 'trusted'] as const)('%s move at 2001 nodes rejects without consuming the plan or changing the tree', async (policy) => {
+  test.each(['manual', 'trusted'] as const)('%s move above the snapshot byte capacity rejects without consuming the plan or changing the tree', async (policy) => {
     const tree = await capacityFixture(2001);
+    await isolated.runtime.pool.query("update nodes set title = repeat('界', 512), url = 'https://example.test/' || repeat('界', 7000) where collection_id = $1 and kind = 'bookmark'", [tree.collectionId]);
     if (policy === 'trusted') {
       await isolated.runtime.pool.query(
         "insert into agent_policies(principal_id, client_id, policy) values ($1, $2, 'trusted')",
@@ -148,7 +148,7 @@ describeWithPostgres('self-hosted production MCP composition', () => {
       assert.ok(error instanceof Mcp20260728RequestError);
       assert.equal(error.kind, 'invalid_params');
       assert.deepEqual(error.data, { code: 'impact_exceeded' });
-      assert.match(error.message, /2000 live folders and bookmarks/u);
+      assert.match(error.message, /32 MiB of serialized tree data/u);
       assert.match(error.message, /Nothing was changed/u);
       return true;
     };

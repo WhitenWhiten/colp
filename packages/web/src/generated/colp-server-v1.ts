@@ -877,7 +877,7 @@ export interface paths {
         put?: never;
         /**
          * Snapshot the current live collection tree
-         * @description Session + Origin + CSRF + Known-Command-Id + If-Match. If-Match is the collection contentEtag (strong entity-tag of contentRevision). Missing If-Match is 428 precondition_required; mismatch is 412 precondition_failed. A new snapshot is 201. The same contentRevision already captured is 200 with the existing version. More than 2000 live folder+bookmark nodes is 400 invalid_request. Flag-off, non-owner, and unknown collections share 404 resource_not_found.
+         * @description Session + Origin + CSRF + Known-Command-Id + If-Match. If-Match is the collection contentEtag (strong entity-tag of contentRevision). Missing If-Match is 428 precondition_required; mismatch is 412 precondition_failed. A new snapshot is 201. The same contentRevision already captured is 200 with the existing version. A serialized tree snapshot larger than 32 MiB is 400 invalid_request. Flag-off, non-owner, and unknown collections share 404 resource_not_found.
          */
         post: operations["createCollectionVersion"];
         delete?: never;

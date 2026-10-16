@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'vitest';
 import {
   CollectionPreconditionError,
-  CollectionVersionNodeLimitError,
   CollectionVersionRateLimitError,
   createCollectionVersion,
   strongEntityTag,
@@ -171,20 +170,14 @@ test('wrong contentEtag is 412 and non-owner is not found', async () => {
   );
 });
 
-test('more than 2000 live members is invalid_request before insert', async () => {
-  const members = Array.from({ length: 2001 }, (_, index) =>
-    member(`bm-${index}`, { positionToken: `p${index}` }));
+test('manual history preserves all nodes beyond the old 2000-node threshold', async () => {
+  const members = Array.from({ length: 2001 }, (_, index) => member(`bm-${index}`, { positionToken: `p${index}` }));
   const created = ports({ members });
-  await assert.rejects(
-    () => createCollectionVersion(created, {
-      actor: { principalId: ACCOUNT, subjectId: OWNER },
-      commandId: randomUUID(),
-      collectionId: COL,
-      ifMatch: MATCH,
-    }),
-    CollectionVersionNodeLimitError,
-  );
-  assert.equal(created.store.rows.length, 0);
+  const result = await createCollectionVersion(created, {
+    actor: { principalId: ACCOUNT, subjectId: OWNER }, commandId: randomUUID(), collectionId: COL, ifMatch: MATCH,
+  });
+  assert.equal(result.kind, 'succeeded');
+  assert.equal(created.store.rows[0]?.nodeCount, 2001);
 });
 
 test('manual create cooldown is 10 seconds', async () => {

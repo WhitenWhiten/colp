@@ -12,7 +12,7 @@ import { validateManualMembers, insertManualRuns } from './manual-run-members.js
 import { initializeRunTasks, advanceRunTasks } from './task-scheduler.js';
 import { reserveManualCapacity } from './intake-capacity.js';
 import { createPostgresCollectionVersionStore, withCanonicalTreeCapacityBatch } from '../collections/index.js';
-import { captureCollectionTreeVersion, CollectionVersionNodeLimitError } from '../../modules/collections/index.js';
+import { captureCollectionTreeVersion, CollectionVersionCapacityError } from '../../modules/collections/index.js';
 interface PreviewRow {
   id: string;
   digest: string;
@@ -75,7 +75,7 @@ export function createManualRunStore(tx: DatabaseTransaction, ports: AutomationP
           await captureCollectionTreeVersion({ versions, clock: { now: () => new Date() } }, { accountId: actor.accountId, collection: before, kind: 'pre_mutation', cause: `automation:${ruleId}`, label: 'Before explicit run-once placement' });
         }
         catch (error) {
-          if (error instanceof CollectionVersionNodeLimitError)
+          if (error instanceof CollectionVersionCapacityError)
             throw new AutomationError('payload_too_large', 'Collection history capacity prevents this manual placement.');
           throw error;
         }

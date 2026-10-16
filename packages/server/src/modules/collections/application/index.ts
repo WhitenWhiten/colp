@@ -540,10 +540,10 @@ export type {
 } from './enqueue-my-link-health-checks.js';
 export {
   COLLECTION_TREE_VERSION_FIFO_LIMIT,
-  COLLECTION_TREE_VERSION_MAX_NODES,
+  COLLECTION_TREE_VERSION_MAX_BYTES,
   COLLECTION_VERSION_CHANGES_LIMIT,
   CollectionVersionInputError,
-  CollectionVersionNodeLimitError,
+  CollectionVersionCapacityError,
   CollectionVersionNotFoundError,
   buildCollectionTreeJson,
   captureCollectionTreeVersion,

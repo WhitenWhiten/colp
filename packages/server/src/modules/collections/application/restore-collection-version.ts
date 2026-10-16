@@ -10,7 +10,7 @@ import type { ProductCollectionCanonicalPorts } from './ports.js';
 import {
   captureCollectionTreeVersion,
   CollectionVersionInputError,
-  CollectionVersionNodeLimitError,
+  CollectionVersionCapacityError,
   CollectionVersionNotFoundError,
   diffCollectionTree,
   type CollectionTreeLiveMember,
@@ -321,7 +321,7 @@ async function capturePreRestore(
     });
     return captured.record.versionId;
   } catch (error: unknown) {
-    if (!(error instanceof CollectionVersionNodeLimitError)) throw error;
+    if (!(error instanceof CollectionVersionCapacityError)) throw error;
     return null;
   }
 }

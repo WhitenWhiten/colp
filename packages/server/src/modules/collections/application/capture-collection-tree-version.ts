@@ -1,6 +1,6 @@
 import { formatUtcDateTime, generateOpaqueId, strongEntityTag } from '../domain/index.js';
 
-export const COLLECTION_TREE_VERSION_MAX_NODES = 2000;
+export const COLLECTION_TREE_VERSION_MAX_BYTES = 32 * 1024 * 1024;
 export const COLLECTION_TREE_VERSION_FIFO_LIMIT = 50;
 export const COLLECTION_VERSION_CHANGES_LIMIT = 50;
 
@@ -30,13 +30,13 @@ export class CollectionVersionInputError extends Error {
   }
 }
 
-export class CollectionVersionNodeLimitError extends Error {
+export class CollectionVersionCapacityError extends Error {
   readonly code = 'invalid_request' as const;
   constructor(
-    message = `A collection version cannot include more than ${COLLECTION_TREE_VERSION_MAX_NODES} live folder and bookmark nodes.`,
+    message = `A collection version cannot include more than ${COLLECTION_TREE_VERSION_MAX_BYTES} bytes of serialized tree data.`,
   ) {
     super(message);
-    this.name = 'CollectionVersionNodeLimitError';
+    this.name = 'CollectionVersionCapacityError';
   }
 }
 
@@ -238,17 +238,17 @@ export function indexLiveCollectionTree(
   };
 }
 
-export function assertCollectionTreeVersionNodeLimit(memberCount: number): void {
-  if (memberCount > COLLECTION_TREE_VERSION_MAX_NODES) {
-    throw new CollectionVersionNodeLimitError();
-  }
-}
-
 export function buildCollectionTreeJson(
   members: readonly CollectionTreeLiveMember[],
 ): CollectionTreeSnapshotNode[] {
-  assertCollectionTreeVersionNodeLimit(members.length);
-  return collectionTreeJsonFromLiveMembers(members);
+  const tree = collectionTreeJsonFromLiveMembers(members);
+  // Count UTF-8 bytes without allocating a second full serialized snapshot.
+  let bytes = 2;
+  for (const node of tree) {
+    bytes += Buffer.byteLength(JSON.stringify(node), 'utf8') + (bytes > 2 ? 1 : 0);
+    if (bytes > COLLECTION_TREE_VERSION_MAX_BYTES) throw new CollectionVersionCapacityError();
+  }
+  return tree;
 }
 
 export function defaultCollectionVersionLabel(createdAt: Date): string {

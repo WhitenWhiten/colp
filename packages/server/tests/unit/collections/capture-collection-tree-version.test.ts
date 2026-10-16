@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
   COLLECTION_TREE_VERSION_FIFO_LIMIT,
-  COLLECTION_TREE_VERSION_MAX_NODES,
+  COLLECTION_TREE_VERSION_MAX_BYTES,
   buildCollectionTreeJson,
   captureCollectionTreeVersion,
-  CollectionVersionNodeLimitError,
+  CollectionVersionCapacityError,
   compareEditorSiblingOrder,
   countCollectionTreeChangesWithIndex,
   defaultCollectionVersionLabel,
@@ -167,25 +167,23 @@ test('empty tree is a legal snapshot with nodeCount 0', async () => {
   assert.equal(result.record.label, 'Snapshot 2026-08-24T08:00:00Z');
 });
 
-test('more than 2000 live members rejects create capture', async () => {
-  const members = Array.from({ length: COLLECTION_TREE_VERSION_MAX_NODES + 1 }, (_, index) =>
-    member(`bm-${String(index).padStart(4, '0')}`, { positionToken: `p${index}` }));
-  assert.throws(() => buildCollectionTreeJson(members), CollectionVersionNodeLimitError);
+test('complete history capture supports a library with 20,000 nodes', async () => {
+  const members = Array.from({ length: 20_000 }, (_, index) => member(`bm-${index}`, { positionToken: `p${index}` }));
   const versions = memoryStore({ members });
-  await assert.rejects(
-    () => captureCollectionTreeVersion({
-      versions,
-      clock: { now: () => NOW },
-      ids: { nextVersionId: () => 'ver-overflow' },
-    }, {
-      accountId: ACCOUNT,
-      collection: {
-        collectionId: COL, ownerSubjectId: OWNER, contentRevision: 'rev-1', rootNodeId: ROOT,
-      },
-      kind: 'manual',
-    }),
-    CollectionVersionNodeLimitError,
-  );
+  const result = await captureCollectionTreeVersion({ versions, clock: { now: () => NOW } }, {
+    accountId: ACCOUNT, collection: { collectionId: COL, ownerSubjectId: OWNER, contentRevision: 'rev-1', rootNodeId: ROOT },
+    kind: 'pre_mutation', cause: 'agent-plan',
+  });
+  assert.equal(result.record.nodeCount, 20_000);
+  assert.equal(result.record.treeJson.length, 20_000);
+  assert.equal(versions.rows.length, 1);
+});
+
+test('snapshot byte capacity is checked before insertion', async () => {
+  const versions = memoryStore({ members: [member('large', { title: '界'.repeat(Math.ceil(COLLECTION_TREE_VERSION_MAX_BYTES / 3)) })] });
+  await assert.rejects(captureCollectionTreeVersion({ versions, clock: { now: () => NOW } }, {
+    accountId: ACCOUNT, collection: { collectionId: COL, ownerSubjectId: OWNER, contentRevision: 'rev-1', rootNodeId: ROOT }, kind: 'manual',
+  }), CollectionVersionCapacityError);
   assert.equal(versions.rows.length, 0);
 });
 
@@ -194,12 +192,12 @@ test('diffCollectionTree does not throw when live members exceed 2000', () => {
     member('bm-0000', { positionToken: 'p0000' }),
     member('bm-0001', { positionToken: 'p0001' }),
   ]);
-  const live = Array.from({ length: COLLECTION_TREE_VERSION_MAX_NODES + 1 }, (_, index) =>
+  const live = Array.from({ length: 2001 }, (_, index) =>
     member(`bm-${String(index).padStart(4, '0')}`, {
       positionToken: `p${String(index).padStart(4, '0')}`,
     }));
   const { changeCounts } = diffCollectionTree(snapshot, live);
-  assert.equal(changeCounts.added, COLLECTION_TREE_VERSION_MAX_NODES - 1);
+  assert.equal(changeCounts.added, 1999);
   assert.equal(changeCounts.removed, 0);
   assert.equal(changeCounts.moved, 0);
 });
@@ -408,7 +406,7 @@ test('diffCollectionTreeWithIndex matches diffCollectionTree for mixed edits, ro
     member('bm-0000', { positionToken: 'p0000' }),
     member('bm-0001', { positionToken: 'p0001' }),
   ]);
-  const overflowLive = Array.from({ length: COLLECTION_TREE_VERSION_MAX_NODES + 1 }, (_, index) =>
+  const overflowLive = Array.from({ length: 2001 }, (_, index) =>
     member(`bm-${String(index).padStart(4, '0')}`, {
       positionToken: `p${String(index).padStart(4, '0')}`,
     }));
@@ -416,7 +414,7 @@ test('diffCollectionTreeWithIndex matches diffCollectionTree for mixed edits, ro
 });
 
 test('max-size root diff visits snapshot rows linearly', () => {
-  const live = Array.from({ length: COLLECTION_TREE_VERSION_MAX_NODES }, (_, index) =>
+  const live = Array.from({ length: 2000 }, (_, index) =>
     member(`bm-${String(index).padStart(4, '0')}`, {
       positionToken: `p${String(index).padStart(4, '0')}`,
     }));

@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, describe, test, vi } from 'vitest';
 import {
   COLLECTION_TREE_VERSION_FIFO_LIMIT,
-  COLLECTION_TREE_VERSION_MAX_NODES,
   CollectionVersionRestoreReceiptConflictError,
   NodeConflictError,
   RestoreCollectionVersionInnerCommandError,
@@ -141,10 +140,10 @@ describe('restoreCollectionVersion', () => {
     assert.equal(needsPre.store.rows.some((row) => row.kind === 'pre_restore'), true);
   });
 
-  test('more than 2000 live members skips pre_restore and still restores an equivalent snapshot', async () => {
+  test('more than 2000 live members retains pre_restore history', async () => {
     const state = createState();
     seedCollection(state, { collectionId: COL, rootId: ROOT, contentRevision: REV });
-    for (let index = 0; index < COLLECTION_TREE_VERSION_MAX_NODES + 1; index += 1) {
+    for (let index = 0; index < 2001; index += 1) {
       const id = `bm-${String(index).padStart(4, '0')}`;
       seedNode(state, {
         id,
@@ -164,10 +163,9 @@ describe('restoreCollectionVersion', () => {
     assert.equal(result.kind, 'succeeded');
     if (result.kind !== 'succeeded') return;
     assert.equal(result.receipt.noop, true);
-    assert.equal(result.receipt.preRestoreVersionId, null);
-    assert.equal(ports.store.rows.length, 1);
-    assert.equal(ports.store.rows[0]?.kind, 'manual');
-    assert.equal(ports.store.rows.some((row) => row.kind === 'pre_restore'), false);
+    assert.ok(result.receipt.preRestoreVersionId);
+    assert.equal(ports.store.rows.length, 2);
+    assert.equal(ports.store.rows.some((row) => row.kind === 'pre_restore' && row.nodeCount === 2001), true);
   });
 
   test('separator is retained and omitted from deletedNodeIds', async () => {

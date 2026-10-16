@@ -84,7 +84,7 @@ T8's missing tests ship with their fixes: `fact-capture` (H1), `bundles` (H4),
 
 ## Deliberately unchanged
 
-- **M10:** Placement keeps the collection-version prerequisite, and run-once stays atomic. AC-50 and AC-64 require this, so the 2,000-node placement bound and the 1,000-item run-once bound are documented limits, not defects.
+- **M10:** Placement keeps the collection-version prerequisite, and run-once stays atomic. AC-50 and AC-64 require this, so placement retains the 32 MiB serialized history snapshot bound and the 1,000-item run-once bound. The former 2,000-node history bound has been removed for account libraries.
 - **M12 (worker list):** The worker's job list still advances its own target's queue, so a polling worker sees new work without waiting for the sweep. It is no longer the only scheduler for pending runs: the maintenance sweep also advances them (`ed78e7e`). Every other read is now write-free.
 - **M13:** The per-Owner account lock orders every automation transaction for that Owner, and authorization and stale-marking upgrade to write locks. Switching reads to `FOR SHARE` would require lock upgrades that can deadlock, so the lock stays. The global claim lock and the server daily cap are how the design enforces cross-Owner caps. Per-Owner fairness is left to the per-rule and per-Owner caps.
 - **M13 (preview and admission):** Preview still loads bindings and resolves folders for each competing rule, and admission still resolves bindings while it holds the run locks. Both are bounded by the 500-rule limit per Owner (C6). Batching them is left until AC-39 shows they matter.

@@ -4,7 +4,7 @@ import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
 import {
   CollectionVersionCursorError,
   CollectionVersionInputError,
-  CollectionVersionNodeLimitError,
+  CollectionVersionCapacityError,
   CollectionVersionNotFoundError,
   CollectionVersionRateLimitError,
   CollectionVersionRestoreReceiptConflictError,
@@ -321,7 +321,7 @@ function mapVersionError(error: unknown): ProductHttpError {
       sameRequestRetrySafe: true,
     });
   }
-  if (error instanceof CollectionVersionNodeLimitError || error instanceof CollectionVersionInputError) {
+  if (error instanceof CollectionVersionCapacityError || error instanceof CollectionVersionInputError) {
     return new ProductHttpError({
       statusCode: 400, code: 'invalid_request', message: error.message,
     });
