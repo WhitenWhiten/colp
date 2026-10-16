@@ -118,7 +118,8 @@ function RuleRow({
           className="automation-rule-sentence"
         />
         <p className="automation-meta">
-          {rule.usage
+          {/* No runs in the server's period (which starts at a UTC day, before a rule made today) says nothing about runs. */}
+          {rule.usage && rule.usage.admittedRuns > 0
             ? <>{plural(rule.usage.admittedRuns, 'run')} since {formatDate(rule.usage.periodStart)}</>
             : <>Updated <time dateTime={rule.updatedAt} title={formatDateTime(rule.updatedAt)}>{formatDate(rule.updatedAt)}</time></>}
           {rule.definition.priority !== 100 ? <> · Priority {rule.definition.priority}</> : null}

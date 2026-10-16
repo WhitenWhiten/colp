@@ -5,7 +5,7 @@ import { ProductApiError } from '../../api/errors'
 import { cleanup, renderWithRouter, waitForDom } from '../../test/render'
 import { resetAutomationStatus } from '../../lib/automationStatus'
 import { Automations } from '../Automations'
-import { binding, buttonNamed, click, deps, fakeApi, incident, pause, rule, run } from './automations.test-helper'
+import { binding, buttonNamed, click, deps, fakeApi, incident, pause, rule, run, usage } from './automations.test-helper'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), toast: vi.fn(), warning: vi.fn() }))
 vi.mock('../../components/AppToast', () => ({ useToast: () => toast }))
@@ -44,6 +44,19 @@ describe('Automations home', () => {
       .toBe('When a bookmark saved to Personal is from arxiv.org, move it to Academic.')
     expect(text('[data-rule-id="rule-arxiv"] [data-state]')).toBe('On')
     expect(buttonNamed('Pause', document.querySelector('[data-rule-id="rule-arxiv"]') ?? document)).toBeDefined()
+  })
+
+  it('counts a rule’s runs only when it has some, and otherwise says when it was last changed', async () => {
+    const api = fakeApi()
+    api.listRules.mockResolvedValue({ items: [
+      rule('rule-busy', 'Busy rule', { usage: usage({ admittedRuns: 2, periodStart: '2026-10-12T00:00:00.000Z' }) }),
+      rule('rule-new', 'New rule', { usage: usage({ admittedRuns: 0, periodStart: '2026-10-11T00:00:00.000Z' }) }),
+    ], nextCursor: null })
+    mount(api)
+    await waitForDom(() => Boolean(document.querySelector('[data-rule-id="rule-new"]')))
+    expect(text('[data-rule-id="rule-busy"]')).toContain('2 runs since Oct 12, 2026')
+    expect(text('[data-rule-id="rule-new"]')).toContain('Updated Oct 12, 2026')
+    expect(text('[data-rule-id="rule-new"]')).not.toContain('runs since')
   })
 
   it('offers preview, not a bare switch, for a rule that is off', async () => {
