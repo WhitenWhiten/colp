@@ -926,6 +926,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/collections/{collectionId}/nodes/{nodeId}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read the owner-only share link for a library folder
+         * @description Shares grant read-only access to the live subtree, excluding restricted nodes. The library root cannot be shared. Links never enter discovery surfaces.
+         */
+        get: operations["getFolderShare"];
+        /**
+         * Create or return the live unlisted share for a library folder
+         * @description Shares grant read-only access to the live subtree, excluding restricted nodes. The library root cannot be shared. Links never enter discovery surfaces.
+         */
+        put: operations["putFolderShare"];
+        post?: never;
+        /**
+         * Revoke the live folder share immediately
+         * @description Shares grant read-only access to the live subtree, excluding restricted nodes. The library root cannot be shared. Links never enter discovery surfaces.
+         */
+        delete: operations["deleteFolderShare"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/library": {
         parameters: {
             query?: never;
@@ -3482,6 +3515,16 @@ export interface components {
             /** @description Public self-introduction. Empty string when unset. Null clears to empty. */
             about?: string | null;
         };
+        FolderShareView: {
+            id: components["schemas"]["OpaqueId"];
+            collectionId: components["schemas"]["OpaqueId"];
+            nodeId: components["schemas"]["OpaqueId"];
+            slug: components["schemas"]["PublicationLocatorSlug"];
+            createdAt: components["schemas"]["UtcDateTime"];
+        };
+        FolderShareState: {
+            share: components["schemas"]["FolderShareView"] | null;
+        };
         LibraryCollection: {
             id: components["schemas"]["OpaqueId"];
             title: string;
@@ -3539,6 +3582,11 @@ export interface components {
             updatedAt: components["schemas"]["UtcDateTime"];
         };
         FolderNodeView: {
+            /**
+             * @description This folder has a live unlisted share link.
+             * @constant
+             */
+            shared?: true;
             id: components["schemas"]["OpaqueId"];
             collectionId: components["schemas"]["OpaqueId"];
             /**
@@ -4031,6 +4079,11 @@ export interface components {
             page: components["schemas"]["EditorPageState"];
         };
         PublicCollectionSummary: {
+            /**
+             * @description A read-only unlisted folder subtree. Always served without caching.
+             * @constant
+             */
+            folderShare?: true;
             id: components["schemas"]["OpaqueId"];
             slug: components["schemas"]["PublicationLocatorSlug"];
             title: string;
@@ -7514,6 +7567,177 @@ export interface operations {
             428: components["responses"]["PreconditionRequired"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getFolderShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current live share, or null after revocation or before sharing. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderShareState"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description A command is in progress, was reused, or the link address is already reserved. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            /** @description The stored command result expired. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            422: components["responses"]["InvalidDocument"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    putFolderShare: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Current live share, or null after revocation or before sharing. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderShareState"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description A command is in progress, was reused, or the link address is already reserved. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            /** @description The stored command result expired. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            422: components["responses"]["InvalidDocument"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    deleteFolderShare: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+                /** @description Case-sensitive opaque Node ID. */
+                nodeId: components["parameters"]["NodeId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current live share, or null after revocation or before sharing. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderShareState"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description A command is in progress, was reused, or the link address is already reserved. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            /** @description The stored command result expired. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductErrorEnvelope"];
+                };
+            };
+            422: components["responses"]["InvalidDocument"];
+            429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };

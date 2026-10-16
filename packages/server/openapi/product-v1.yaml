@@ -6926,6 +6926,120 @@ paths:
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/collections/{collectionId}/nodes/{nodeId}/share:
+    parameters:
+      - $ref: '#/components/parameters/CollectionId'
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      tags: [ Nodes ]
+      operationId: getFolderShare
+      summary: Read the owner-only share link for a library folder
+      description: Shares grant read-only access to the live subtree, excluding restricted nodes. The library root cannot be shared. Links never enter discovery surfaces.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Current live share, or null after revocation or before sharing.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FolderShareState' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: A command is in progress, was reused, or the link address is already reserved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '410':
+          description: The stored command result expired.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '422': { $ref: '#/components/responses/InvalidDocument' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    put:
+      tags: [ Nodes ]
+      operationId: putFolderShare
+      summary: Create or return the live unlisted share for a library folder
+      description: Shares grant read-only access to the live subtree, excluding restricted nodes. The library root cannot be shared. Links never enter discovery surfaces.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false, maxProperties: 0 }
+      responses:
+        '200':
+          description: Current live share, or null after revocation or before sharing.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FolderShareState' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: A command is in progress, was reused, or the link address is already reserved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '410':
+          description: The stored command result expired.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '422': { $ref: '#/components/responses/InvalidDocument' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      tags: [ Nodes ]
+      operationId: deleteFolderShare
+      summary: Revoke the live folder share immediately
+      description: Shares grant read-only access to the live subtree, excluding restricted nodes. The library root cannot be shared. Links never enter discovery surfaces.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      responses:
+        '200':
+          description: Current live share, or null after revocation or before sharing.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FolderShareState' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: A command is in progress, was reused, or the link address is already reserved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '410':
+          description: The stored command result expired.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductErrorEnvelope' }
+        '422': { $ref: '#/components/responses/InvalidDocument' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
   /api/v1/me/library:
     get:
       tags: [ Collections ]
@@ -28075,6 +28189,26 @@ components:
             empty.
       required: [ handle, displayName ]
 
+    FolderShareView:
+      type: object
+      additionalProperties: false
+      required: [ id, collectionId, nodeId, slug, createdAt ]
+      properties:
+        id: { $ref: '#/components/schemas/OpaqueId' }
+        collectionId: { $ref: '#/components/schemas/OpaqueId' }
+        nodeId: { $ref: '#/components/schemas/OpaqueId' }
+        slug: { $ref: '#/components/schemas/PublicationLocatorSlug' }
+        createdAt: { $ref: '#/components/schemas/UtcDateTime' }
+    FolderShareState:
+      type: object
+      additionalProperties: false
+      required: [ share ]
+      properties:
+        share:
+          oneOf:
+            - $ref: '#/components/schemas/FolderShareView'
+            - { type: 'null' }
+
     LibraryCollection:
       type: object
       additionalProperties: false
@@ -28203,6 +28337,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        shared: { type: boolean, const: true, description: This folder has a live unlisted share link. }
         id: { $ref: '#/components/schemas/OpaqueId' }
         collectionId: { $ref: '#/components/schemas/OpaqueId' }
         kind: { type: string, const: folder }
@@ -29775,12 +29910,13 @@ components:
       type: object
       additionalProperties: false
       properties:
+        folderShare: { type: boolean, const: true, description: A read-only unlisted folder subtree. Always served without caching. }
         id: { $ref: '#/components/schemas/OpaqueId' }
         slug: { $ref: '#/components/schemas/PublicationLocatorSlug' }
-        title: { type: string, minLength: 1, maxLength: 200 }
+        title: { type: string, minLength: 1, maxLength: 512 }
         summary:
           oneOf:
-            - { type: string, maxLength: 2000 }
+            - { type: string, maxLength: 20000 }
             - { type: 'null' }
         kind:
           {

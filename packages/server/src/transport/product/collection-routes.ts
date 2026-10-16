@@ -1,3 +1,4 @@
+import { registerFolderShareRoutes } from './folder-share-routes.js';
 import type { FastifyInstance } from 'fastify';
 import { registerCollectionResourceRoutes } from './collection-resource-routes.js';
 import { registerEditorRoutes } from './editor-routes.js';
@@ -23,6 +24,7 @@ export function registerCollectionRoutes(
   registerCollectionResourceRoutes(app, deps);
   registerOwnedCollectionRoutes(app, deps);
   registerNodeRoutes(app, deps);
+  registerFolderShareRoutes(app, deps);
   registerEditorRoutes(app, deps);
   registerAnnotationRoutes(app, deps);
   registerRelationRoutes(app, deps);

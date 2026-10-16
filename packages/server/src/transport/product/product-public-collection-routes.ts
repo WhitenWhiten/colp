@@ -1,3 +1,4 @@
+import { FolderSharePublicReadError } from '../../modules/publication/application/folder-share-public-query.js';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   getProductPublicCollectionPage,
@@ -62,15 +63,16 @@ export function registerProductPublicCollectionRoutes(
       });
       reply.header(
         'Cache-Control',
-        session || paging.includeRelations
+        session || paging.includeRelations || page.collection.folderShare
           ? 'private, no-store'
           : dependencies.contentGovernanceEnabled
             ? 'public, max-age=0, must-revalidate'
             : 'public, max-age=60, stale-while-revalidate=300',
       );
+      if (page.collection.folderShare) reply.header('X-Robots-Tag', 'noindex, nofollow');
       return reply.code(200).type('application/json; charset=utf-8').send(page);
     } catch (error) {
-      if (error instanceof ProductPublicCollectionCursorError) {
+      if (error instanceof ProductPublicCollectionCursorError || (error instanceof FolderSharePublicReadError && error.code === 'invalid_cursor')) {
         throw new ProductHttpError({
           statusCode: 400,
           code: 'invalid_cursor',
@@ -78,7 +80,7 @@ export function registerProductPublicCollectionRoutes(
           recovery: 'restart_from_first_page',
         });
       }
-      if (error instanceof PublicationSnapshotExpiredError) {
+      if (error instanceof PublicationSnapshotExpiredError || (error instanceof FolderSharePublicReadError && error.code === 'snapshot_expired')) {
         throw new ProductHttpError({
           statusCode: 409,
           code: 'snapshot_expired',
@@ -86,7 +88,7 @@ export function registerProductPublicCollectionRoutes(
           recovery: 'restart_from_first_page',
         });
       }
-      if (error instanceof ProductPublicCollectionNotFoundError || error instanceof PublicationNotFoundError) {
+      if (error instanceof ProductPublicCollectionNotFoundError || error instanceof PublicationNotFoundError || (error instanceof FolderSharePublicReadError && error.code === 'resource_not_found')) {
         throw notFound();
       }
       throw error;

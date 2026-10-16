@@ -20,6 +20,7 @@ const STRONG_ENTITY_TAG = /^"[^"\r\n]+"$/;
 export interface CollectionRoutesDeps {
   readonly config: AppConfig;
   readonly identityUnitOfWork: IdentityUnitOfWork;
+  readonly folderShares?: import('../../modules/publication/application/folder-shares.js').FolderShareUnitOfWork;
   readonly libraryCollectionUnitOfWork?: import('../../modules/collections/index.js').LibraryCollectionUnitOfWork;
   readonly collectionsUnitOfWork: CollectionsUnitOfWork;
   readonly productCollectionMutationUnitOfWork?: ProductCollectionMutationUnitOfWork;

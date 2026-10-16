@@ -1,3 +1,5 @@
+import { createPostgresFolderShareUnitOfWork } from '../infrastructure/publication/folder-shares-postgres.js';
+import { createPostgresPublicFolderShareReadPort } from '../infrastructure/publication/folder-share-public-postgres.js';
 import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/library-collection-postgres.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
@@ -333,7 +335,9 @@ export function createApiPostgresAppDependencies(input: {
       origin: config.publication.origin,
       collectionControl: ports.publicationCollectionControl,
     },
+    folderShares: createPostgresFolderShareUnitOfWork(database.db),
     productPublicCollectionQuery: {
+      folderShares: createPostgresPublicFolderShareReadPort(database.db),
       locators: createPostgresProductPublicCollectionLocatorReadPort(database),
       viewCounts: createPostgresProductPublicCollectionViewCountReadPort(database),
       snapshot: publicationSnapshotQuery,

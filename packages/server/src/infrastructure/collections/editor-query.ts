@@ -186,6 +186,7 @@ async function loadLiveNodesPage(
       'deleted_commit_ordinal',
       'payload_json',
     ])
+    .select(sql<boolean>`EXISTS (SELECT 1 FROM folder_shares s WHERE s.collection_id = nodes.collection_id AND s.node_id = nodes.id AND s.revoked_at IS NULL)`.as('shared'))
     .where('collection_id', '=', input.collectionId)
     .where(sql<boolean>`NOT is_root`)
     .where('kind', 'in', ['folder', 'bookmark'])
@@ -220,6 +221,7 @@ async function loadLiveNodesPage(
       throw new Error(`editor node ${row.id} has an unsupported canonical shape`);
     }
     return {
+      shared: row.shared,
       id: row.id,
       collectionId: row.collection_id,
       parentId: row.parent_id,

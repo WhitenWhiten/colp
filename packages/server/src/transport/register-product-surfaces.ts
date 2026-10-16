@@ -374,6 +374,7 @@ export function registerProductSurfaces(
   if (identityUnitOfWork && collectionsUnitOfWork) {
     registerCollectionRoutes(app, {
       libraryCollectionUnitOfWork,
+      folderShares: deps.folderShares,
       config,
       identityUnitOfWork,
       collectionsUnitOfWork,

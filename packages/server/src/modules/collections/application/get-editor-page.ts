@@ -84,6 +84,7 @@ export interface RootNodeView {
 }
 
 export interface FolderNodeView {
+  readonly shared?: true;
   readonly id: string;
   readonly collectionId: string;
   readonly kind: 'folder';
@@ -196,6 +197,7 @@ export interface EditorRootNodeRow {
 }
 
 export interface EditorLiveNodeRow {
+  readonly shared?: boolean;
   readonly id: string;
   readonly collectionId: string;
   readonly parentId: string;
@@ -635,6 +637,7 @@ function mapEditableNodeView(
       ...common,
       kind: 'folder',
       folderRole: null,
+      ...(row.shared ? { shared: true as const } : {}),
       childrenRevision: row.childrenRevision,
       childrenEtag: strongEntityTag(row.childrenRevision),
     };

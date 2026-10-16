@@ -1,3 +1,4 @@
+import { getProductPublicFolderSharePage, type PublicFolderShareReadPort } from './folder-share-public-query.js';
 import type { Relation, SnapshotNode } from '@know-n/colp/types';
 import {
   attachBookmarkPreviewImages,
@@ -24,6 +25,7 @@ export const PRODUCT_PUBLIC_COLLECTION_DEFAULT_LIMIT = 24;
 export const PRODUCT_PUBLIC_COLLECTION_MAX_LIMIT = 100;
 
 export interface ProductPublicCollectionQueryPorts {
+  readonly folderShares?: PublicFolderShareReadPort;
   readonly locators: ProductPublicCollectionLocatorReadPort;
   readonly viewCounts: ProductPublicCollectionViewCountReadPort;
   readonly snapshot: PublicationSnapshotQueryPorts;
@@ -78,6 +80,7 @@ export interface ProductPublicCollectionPage {
     readonly rootNodeId: string;
     readonly updatedAt: string;
     readonly access: 'public' | 'member';
+    readonly folderShare?: true;
     readonly viewCount: number;
     /** Latest public collection tldr (curator recommendation), or null. */
     readonly curatorNote: string | null;
@@ -162,6 +165,10 @@ export async function getProductPublicCollectionPage(
       `Public Collection page limit must be between 2 and ${PRODUCT_PUBLIC_COLLECTION_MAX_LIMIT}`,
     );
   }
+  const sharePage = await getProductPublicFolderSharePage(ports, { ...input, slug, limit });
+  if (sharePage) return sharePage;
+  const collectionId = await ports.locators.findCollectionIdBySlug(slug);
+  if (collectionId === null) throw new ProductPublicCollectionNotFoundError();
   const context = Object.freeze({
     slug,
     principal: input.principal.kind === 'anonymous' ? 'anonymous' : `account:${input.principal.principalId}`,
@@ -174,8 +181,7 @@ export async function getProductPublicCollectionPage(
     if (!verification.valid) throw new ProductPublicCollectionCursorError();
     snapshotCursor = verification.nextPosition;
   }
-  const collectionId = await ports.locators.findCollectionIdBySlug(slug);
-  if (collectionId === null) throw new ProductPublicCollectionNotFoundError();
+
   const result = await getPublicationSnapshotPage(ports.snapshot, {
     collectionId,
     principal: input.principal,

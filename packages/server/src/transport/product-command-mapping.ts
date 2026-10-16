@@ -125,7 +125,7 @@ export function rethrowCollectionMutationError(
 function isPublicationSlugConflict(error: unknown): boolean {
   return error instanceof DatabaseOperationError
     && error.kind === 'unique_violation'
-    && error.constraint === 'collections_publication_slug_unique';
+    && ['collections_publication_slug_unique', 'publication_slug_namespace_unique'].includes(error.constraint ?? '');
 }
 
 function errorAllowedByProfile(

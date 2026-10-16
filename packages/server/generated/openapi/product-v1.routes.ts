@@ -396,6 +396,21 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "enqueueNodeReadableExtract"
   },
   {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/share",
+    "operationId": "deleteFolderShare"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/share",
+    "operationId": "getFolderShare"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/collections/{collectionId}/nodes/{nodeId}/share",
+    "operationId": "putFolderShare"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/collections/{collectionId}/organize-plans",
     "operationId": "createCollectionOrganizePlan"
