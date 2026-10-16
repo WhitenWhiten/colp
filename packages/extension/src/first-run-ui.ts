@@ -41,6 +41,7 @@ interface FirstRunUiHost {
   readonly folderHeading: HTMLElement;
   readonly folderIntro: HTMLElement;
   readonly showPane: (pane: 'account' | 'collection' | 'folders') => void;
+  readonly onSyncStatusChanged?: () => void;
 }
 
 export function bindFirstRunOnboarding(host: FirstRunUiHost): {
@@ -267,7 +268,11 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
         return;
       }
     }
+    const previous = observation;
     observation = observeFirstRunResponse(response, observation);
+    if (observation.firstRun !== previous.firstRun || observation.phase !== previous.phase) {
+      host.onSyncStatusChanged?.();
+    }
     const surface = projectFirstRunSurface(observation);
     if (surface === 'attention') {
       clearStatusPoll();

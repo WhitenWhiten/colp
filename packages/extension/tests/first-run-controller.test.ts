@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { afterEach, expect, test, vi } from 'vitest';
 import { bindFirstRunOnboarding } from '../src/first-run-ui.js';
+import { bindOptionsSyncProgress } from '../src/sync-progress-dom.js';
 import type { FirstRunPreviewOk, FirstRunRequest, PublicRootView } from '../src/types.js';
 afterEach(() => { window.dispatchEvent(new Event('pagehide')); vi.useRealTimers(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 const preview = (id: string): FirstRunPreviewOk => ({ ok: true, previewId: id, treeDigest: id, boundaryVersion: '1',
@@ -10,7 +11,8 @@ const view = (id: string): PublicRootView => ({ viewId: id, status: 'ready', roo
   { ref: 'bar', kind: 'bookmarks_bar', title: 'Bookmarks bar', depth: 0, selected: true, privateLocal: false,
     managed: false, bookmarkCount: 2, folderCount: 1 },
 ] });
-async function mount(sendMessage: (message: FirstRunRequest) => Promise<unknown>, initialValues: Record<string, unknown> = {}) {
+async function mount(sendMessage: (message: FirstRunRequest) => Promise<unknown>, initialValues: Record<string, unknown> = {},
+  onSyncStatusChanged?: () => void) {
   const markup = await readFile('options.html', 'utf8');
   // Mount only the real page body; this controller test does not load its entry script or stylesheets.
   document.body.innerHTML = markup.match(/<body[^>]*>([\s\S]*)<\/body>/u)![1]!.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, '');
@@ -21,10 +23,45 @@ async function mount(sendMessage: (message: FirstRunRequest) => Promise<unknown>
   rootTree.innerHTML = '<label class="root-select"><input type="checkbox" data-ref="bar" checked></label>';
   const ui = bindFirstRunOnboarding({ rootTree, saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
     requestPermission: document.getElementById('request-bookmark-permission') as HTMLButtonElement,
-    folderHeading: document.getElementById('folder-heading')!, folderIntro: document.getElementById('folder-intro')!, showPane: () => {} });
+    folderHeading: document.getElementById('folder-heading')!, folderIntro: document.getElementById('folder-intro')!, showPane: () => {},
+    onSyncStatusChanged });
   await vi.waitFor(() => expect(ui.isRangeActive()).toBe(true));
   return { ui, values, start: document.getElementById('first-run-start') as HTMLButtonElement };
 }
+
+test('starting first sync reveals the progress card without a reload or the idle polling delay', async () => {
+  let firstRun = 'none';
+  let refreshProgress = () => {};
+  const f = await mount(async message => {
+    const kind = (message as { kind: string }).kind;
+    if (kind === 'known.sync.progress.get') return { ok: true, progress: firstRun === 'none' ? null : {
+      stage: firstRun === 'completed' ? 'done' : 'syncing', firstSync: true, liveWork: firstRun !== 'completed',
+      bookmarks: { synced: firstRun === 'completed' ? 2 : 0, total: 2 }, folders: { synced: 1, total: 1 },
+    } };
+    if (kind === 'known.personalSync.status') return { ok: true, policy: { mode: 'enabled' } };
+    if (kind === 'known.sync.engine.status') return { ok: true, engine: { phase: 'idle', hasPendingWork: firstRun === 'running' } };
+    if (message.kind === 'known.firstRun.status') return { ok: true, firstRun, phase: firstRun === 'none' ? 'draft' : firstRun === 'running' ? 'syncing' : 'completed' };
+    if (message.kind === 'known.firstRun.preview') return preview('reviewed');
+    firstRun = 'running';
+    return { ok: true, firstRun, phase: 'syncing' };
+  }, {}, () => refreshProgress());
+  f.ui.onRootsRendered(view('ready'), true, true);
+  await vi.waitFor(() => expect(f.start.disabled).toBe(false));
+  vi.useFakeTimers();
+  const progress = bindOptionsSyncProgress({ connected: () => true });
+  refreshProgress = () => { void progress.refresh(); };
+  try {
+    await progress.refresh();
+    expect(document.getElementById('sync-progress')!.hidden).toBe(true);
+    f.start.click();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(document.getElementById('sync-progress')!.hidden).toBe(false);
+    expect(document.getElementById('sync-progress-detail')!.textContent).toContain('0 of 2 bookmarks synced');
+    firstRun = 'completed';
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(document.getElementById('sync-progress-title')!.textContent).toBe('Sync complete');
+  } finally { progress.stop(); }
+});
 
 test('a stale draft cannot override the currently bound library on reload', async () => {
   const confirmations: FirstRunRequest[] = [];

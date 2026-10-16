@@ -57,7 +57,9 @@ test('a local user connects a collection from the Sync page and the first sync f
     await expect(start).toBeVisible({ timeout: 15_000 });
     if (!await start.isEnabled()) await page.locator('.root-row .root-select').first().click();
     await expect(start).toBeEnabled({ timeout: 15_000 });
+    await expect(page.locator('#sync-progress')).toBeHidden();
     await start.click();
+    await expect(page.locator('#sync-progress')).toBeVisible({ timeout: 5_000 });
     await expect.poll(() => page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }) as { firstRun?: string }).firstRun),
       { timeout: 90_000 }).toBe('completed');
     await expect.poll(async () => ((await stack.observations()) as { canonicalNodes?: { title?: string }[] }).canonicalNodes?.map(node => node.title),

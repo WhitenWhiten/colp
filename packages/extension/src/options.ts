@@ -163,7 +163,8 @@ self.addEventListener('online', (event) => {
   if (event.isTrusted && navigator.onLine === true) void chrome.runtime.sendMessage({ kind: 'known.connectivity.online' } satisfies ConnectivityRequest).catch(() => undefined);
 });
 const firstRun = bindFirstRunOnboarding({ rootTree, saveRoots, requestPermission: requestBookmarkPermission,
-  folderHeading: element('folder-heading'), folderIntro: element('folder-intro'), showPane });
+  folderHeading: element('folder-heading'), folderIntro: element('folder-intro'), showPane,
+  onSyncStatusChanged: () => { void syncProgress.refresh(); void refreshEngineStatus(); void personalSync.refresh(); } });
 bindSecondarySettings();
 const serverAccount = bindServerAccount({
   busy,
