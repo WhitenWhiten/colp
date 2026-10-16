@@ -120,7 +120,7 @@ export async function saveBinding(ports: AutomationPorts, actor: AutomationActor
   const view = { ...input, id: id ?? ports.id(), revision: previous ? nextRevision(previous.revision) : '1', updatedAt: (await ports.now()).toISOString() };
   const semanticChange = previous !== null && bindingSemanticDigest(previous.values) !== bindingSemanticDigest(view.values);
   await ports.bindings.save(actor.accountId, view);
-  for (const rule of await ports.rules.list(actor.accountId, null, 500)) {
+  for (const rule of await ports.rules.listCurrent(actor.accountId)) {
     if (rule.view.bindingSetId !== view.id) continue;
     if (semanticChange) await ports.activation(rule, { kind: 'disable', resetAggregation: true });
     if (rule.view.desiredState === 'enabled' && semanticChange) {

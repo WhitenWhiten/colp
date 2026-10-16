@@ -47,7 +47,7 @@ export async function setPause(ports: AutomationPorts, actor: AutomationActor, b
   const now = (await ports.now()).toISOString();
   const settings = { ...previous, revision: nextRevision(previous.revision), paused: input.paused, pausedAt: input.paused ? now : null,
     pausedBy: input.paused ? 'owner' as const : null };
-  for (const rule of await ports.rules.list(actor.accountId, null, 500)) {
+  for (const rule of await ports.rules.listCurrent(actor.accountId)) {
     if (rule.view.desiredState !== 'enabled') continue;
     await ports.activation(rule, { kind: 'disable' });
     // This captures only the pinned source's ordinal, never grants read/effect authority.

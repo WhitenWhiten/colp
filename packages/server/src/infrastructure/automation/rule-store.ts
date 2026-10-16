@@ -23,6 +23,10 @@ export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = fal
       if (after) query = query.where(sql<boolean>`(r.created_at,r.id) > (${after.createdAt}::timestamptz,${after.id})`);
       return (await query.orderBy('r.created_at').orderBy('r.id').limit(limit).execute()).map(map);
     },
+    async listCurrent(ownerId) {
+      return (await select().where('r.owner_id', '=', ownerId).where('r.desired_state', '!=', 'archived')
+        .orderBy('r.created_at').orderBy('r.id').execute()).map(map);
+    },
     async count(ownerId) {
       return Number((await db.selectFrom('automation_rules').select(eb => eb.fn.countAll<string>().as('n'))
         .where('owner_id', '=', ownerId).where('desired_state', '!=', 'archived').executeTakeFirstOrThrow()).n);

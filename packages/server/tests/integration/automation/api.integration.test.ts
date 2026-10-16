@@ -438,7 +438,7 @@ describeWithPostgres('BE-1 authenticated configuration and preview loop', () => 
         id: `competitor_${index}`, desiredState: 'enabled' as const,
         definition: { ...original.view.definition, name: `Competitor ${index}` },
       } }));
-      const prepared = { ...ports, rules: { ...ports.rules, list: async () => competitors },
+      const prepared = { ...ports, rules: { ...ports.rules, listCurrent: async () => competitors },
         bindings: { ...ports.bindings, load: async () => binding },
         reads: { readCollection: async () => collection, readFolder: async () => resolution } };
       const input = { mode: 'supplied' as const, rule: d.input, events: [facts()] };

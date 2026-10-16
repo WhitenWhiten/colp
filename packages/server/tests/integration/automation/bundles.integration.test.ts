@@ -8,6 +8,8 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { RuleDefinition } from '@know-n/colp/automation';
 import { setPause, createRule, saveBinding, previewRule, setLifecycle } from '../../../src/modules/automation/index.js';
+import { competingRules } from '../../../src/modules/automation/application/preview-service.js';
+import { createRuleStore } from '../../../src/infrastructure/automation/rule-store.js';
 import { createOwnedCollectionCanonical, createCollectionNode } from '../../../src/modules/collections/index.js';
 describeWithPostgres('authenticated full M1 bundles', () => {
   let f: Awaited<ReturnType<typeof automationDeviceFixture>>;
@@ -37,6 +39,41 @@ describeWithPostgres('authenticated full M1 bundles', () => {
     const active = await uow().execute(request(), p => p.bundle('browser-bounded-v1'));
     expect(paused.settingsRevision).toBeGreaterThan(previous.settingsRevision);
     expect(active.settingsRevision).toBeGreaterThan(paused.settingsRevision); expect(active.rules).toHaveLength(1); expect(BigInt(active.revision)).toBeGreaterThan(BigInt(paused.revision));
+  });
+  test('archived history cannot hide current rules from competition, pause, binding invalidation or bundles', async () => {
+    await f.db.transaction().execute(async tx => {
+      await sql`INSERT INTO automation_rules(id,owner_id,desired_state,created_at)
+        SELECT 'archived-' || n,${f.owner.accountId},'archived',clock_timestamp()-interval '1 day'
+        FROM generate_series(1,500) n`.execute(tx);
+      await sql`INSERT INTO automation_rule_revisions(id,rule_id,owner_id,revision,definition_json,binding_set_id,semantic_digest)
+        SELECT 'history-' || n,'archived-' || n,${f.owner.accountId},1,v.definition_json,v.binding_set_id,v.semantic_digest
+        FROM generate_series(1,500) n CROSS JOIN automation_rule_revisions v WHERE v.rule_id=${f.rule.id}`.execute(tx);
+      await sql`UPDATE automation_rules SET current_revision_id='history-' || substring(id from 10) WHERE desired_state='archived'`.execute(tx);
+    });
+    const store = createRuleStore(f.db);
+    expect(await store.count(f.owner.accountId)).toBe(1);
+    const history = await store.list(f.owner.accountId, null, 500);
+    expect(history.every(rule => rule.view.desiredState === 'archived')).toBe(true);
+    expect((await store.list(f.owner.accountId, { createdAt: history[499]!.sortCreatedAt, id: history[499]!.view.id }, 500))
+      .map(rule => rule.view.id)).toEqual([f.rule.id]);
+    const competition = await f.uow.execute(f.owner, p => competingRules(p, f.owner, 'collection', {}));
+    expect(competition.alternatives.map(rule => rule.ruleId)).toEqual([f.rule.id]);
+    expect((await uow().execute(request(), p => p.bundle('browser-bounded-v1'))).rules.map(rule => rule.ruleId)).toEqual([f.rule.id]);
+    const openActivations = async () => (await sql<{ n: number }>`SELECT count(*)::int AS n FROM automation_activations
+      WHERE disabled_after_ordinal IS NULL`.execute(f.db)).rows[0]!.n;
+    expect(await openActivations()).toBe(1);
+    await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: true, reason: 'History regression' }, '"0"'));
+    expect(await openActivations()).toBe(0);
+    expect(await uow().execute(request(), p => p.bundle('browser-bounded-v1'))).toMatchObject({ paused: true, rules: [], removedRuleIds: [f.rule.id] });
+    await f.uow.execute(f.owner, p => setPause(p, f.owner, { paused: false, reason: 'Resume' }, '"1"'));
+    expect(await openActivations()).toBe(1);
+    await f.uow.execute(f.owner, p => saveBinding(p, f.owner, { name: 'Changed destination', values: {
+      academicRoot: { ...f.values.academicRoot, folder: { ...f.folder, nodeId: 'parent' } },
+    } }, f.binding.id, '"1"'));
+    expect((await store.load(f.owner.accountId, f.rule.id))!.view.desiredState).toBe('paused');
+    expect(await openActivations()).toBe(0);
+    expect((await store.load(f.owner.accountId, 'archived-1'))!.view.desiredState).toBe('archived');
+    expect((await uow().execute(request(), p => p.bundle('browser-bounded-v1'))).rules).toEqual([]);
   });
   test('an unsynced collection never blocks the bundle, and a worker intake rule delegates only its own collection', async () => {
     await f.canonical.execute(ports => createOwnedCollectionCanonical(ports, { actor: f.actor, command: f.command(), title: 'Other', summary: null,

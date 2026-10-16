@@ -7,6 +7,8 @@ export interface PageAfter { createdAt: string; id: string }
 export interface RuleStore {
   load(ownerId: string, id: string): Promise<StoredRule | null>;
   list(ownerId: string, after: PageAfter | null, limit: number): Promise<StoredRule[]>;
+  /** Complete current configuration; archived history belongs to the paginated list. */
+  listCurrent(ownerId: string): Promise<StoredRule[]>;
   count(ownerId: string): Promise<number>;
   save(ownerId: string, rule: StoredRule): Promise<void>;
   setState(ownerId: string, rule: StoredRule): Promise<void>;

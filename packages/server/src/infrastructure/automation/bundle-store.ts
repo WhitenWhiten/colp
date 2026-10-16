@@ -13,7 +13,7 @@ export async function issueDeviceBundle(tx: DatabaseTransaction, actor: Automati
     WHERE owner_id=${actor.accountId} AND device_id=${actor.deviceId} ORDER BY revision DESC LIMIT 1`.execute(tx)).rows[0];
   const settings = await tx.selectFrom('automation_settings').select(['paused','revision']).where('owner_id', '=', actor.accountId).executeTakeFirst();
   const reads = createBindingReadPort(tx, serverUuid), bindings = createBindingStore(tx), rules: BundleRule[] = [];
-  const all = await createRuleStore(tx).list(actor.accountId, null, 501);
+  const all = await createRuleStore(tx).listCurrent(actor.accountId);
   if (all.length > 500) throw new AutomationError('payload_too_large', 'Rule count exceeds the complete snapshot bound.');
   // Profile selection per collection, never a silently partial collection: a rule without intake has no
   // browser contribution; a collection this device does not sync is irrelevant to it; and a collection

@@ -72,7 +72,7 @@ export async function competingRules(ports: AutomationPorts, actor: AutomationAc
   exclude: { ruleId?: string }): Promise<{ competition: string[]; alternatives: PreparedRule[] }> {
   ports = inspectionReads(ports);
   const competition: string[] = [], alternatives: PreparedRule[] = [];
-  for (const candidate of await ports.rules.list(actor.accountId, null, 500)) {
+  for (const candidate of await ports.rules.listCurrent(actor.accountId)) {
     if (candidate.view.desiredState !== 'enabled' || candidate.view.id === exclude.ruleId) continue;
     const candidateInput = normalizeRuleInput(ruleInput(candidate.view));
     const binding = await ports.bindings.load(actor.accountId, candidate.view.bindingSetId);
