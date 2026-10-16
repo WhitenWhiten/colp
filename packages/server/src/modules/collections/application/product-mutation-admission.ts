@@ -127,6 +127,7 @@ export async function authorizeCollectionCapability(
 }
 
 export function projectEditableNodeView(input: {
+  readonly folderRole?: string | null;
   readonly id: string;
   readonly collectionId: string;
   readonly parentId: string;
@@ -164,7 +165,7 @@ export function projectEditableNodeView(input: {
     const folder: FolderNodeView = {
       ...common,
       kind: 'folder',
-      folderRole: null,
+      folderRole: input.folderRole ?? null,
       childrenRevision: input.childrenRevision,
       childrenEtag: strongEntityTag(input.childrenRevision),
     };

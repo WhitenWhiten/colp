@@ -78,6 +78,9 @@ describeWithPostgres('live unlisted library folder shares', () => {
   afterAll(async () => { await app?.close(); cursors.destroy(); editorCursor.destroy(); await isolated?.close(); });
 
   test('owner-only reads and CSRF/command guarded writes; root and bookmark shares refused', async () => {
+    const roles = (await editor()).nodes;
+    assert.equal(roles.find((n: { id: string }) => n.id === library.bookmarksBarId).folderRole, 'bookmarks-bar');
+    assert.equal(roles.find((n: { id: string }) => n.id === library.otherBookmarksId).folderRole, 'other-bookmarks');
     const folder = await node(library.bookmarksBarId, 'Owner folder');
     assert.equal((await app.inject({ method: 'GET', url: shareUrl(folder.id) })).statusCode, 401);
     assert.equal((await app.inject({ method: 'GET', url: shareUrl(folder.id), headers: { cookie: outsider.cookie } })).statusCode, 404);

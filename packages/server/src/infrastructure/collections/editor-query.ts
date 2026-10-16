@@ -117,6 +117,7 @@ async function loadRoot(
       'collection_id',
       'parent_id',
       'kind',
+      'folder_role',
       'is_root',
       'title',
       'url',
@@ -171,6 +172,7 @@ async function loadLiveNodesPage(
       'collection_id',
       'parent_id',
       'kind',
+      'folder_role',
       'is_root',
       'title',
       'url',
@@ -222,6 +224,7 @@ async function loadLiveNodesPage(
     }
     return {
       shared: row.shared,
+      folderRole: row.folder_role,
       id: row.id,
       collectionId: row.collection_id,
       parentId: row.parent_id,

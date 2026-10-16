@@ -3599,7 +3599,7 @@ export interface components {
              * @enum {string}
              */
             kind: "folder";
-            folderRole: null;
+            folderRole: string | null;
             parentId: components["schemas"]["OpaqueId"];
             position: components["schemas"]["Position"];
             title: string;

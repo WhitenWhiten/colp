@@ -32471,7 +32471,9 @@ components:
           type: string
           const: folder
         folderRole:
-          type: 'null'
+          type:
+            - string
+            - 'null'
         parentId:
           $ref: '#/components/schemas/OpaqueId'
         position:

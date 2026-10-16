@@ -28345,7 +28345,7 @@ components:
         id: { $ref: '#/components/schemas/OpaqueId' }
         collectionId: { $ref: '#/components/schemas/OpaqueId' }
         kind: { type: string, const: folder }
-        folderRole: { type: 'null' }
+        folderRole: { type: [string, 'null'] }
         parentId: { $ref: '#/components/schemas/OpaqueId' }
         position: { $ref: '#/components/schemas/Position' }
         title: { type: string, minLength: 1, maxLength: 512 }

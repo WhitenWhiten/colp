@@ -216,6 +216,7 @@ export async function updateCollectionNode(
     ? await projectBookmarkIconUrl(ports.bookmarkIcons, validated.nodeId, ports.productOrigin)
     : null;
   const nodeView = projectEditableNodeView({
+    folderRole: node.folderRole,
     id: node.id,
     collectionId: node.collectionId,
     parentId: node.parentId as string,
