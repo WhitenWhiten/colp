@@ -220,6 +220,7 @@ export function RuleEditor() {
   const sentence = ruleSentence(definition, {
     collection: collectionTitle,
     folder: workerRule ? null : chosenFolder?.title ?? null,
+    draft: true,
   })
   const canPreview = workerRule ? workerConfigured : problems.length === 0 && Boolean(draft.collectionId && draft.folderId)
   const previewCurrent = previewView !== null && !previewView.stale

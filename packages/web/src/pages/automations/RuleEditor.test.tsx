@@ -52,7 +52,7 @@ describe('Rule editor', () => {
     const advanced = [...document.querySelectorAll('details')].find((item) => item.querySelector('summary')?.textContent === 'Advanced: edit as JSON')
     expect(advanced?.open).toBe(false)
     expect(document.querySelector('[data-testid="automation-sentence"]')?.textContent)
-      .toBe('When a bookmark saved to Personal matches its conditions, move it to Academic.')
+      .toBe('When a bookmark saved to Personal matches the conditions you add, move it to Academic.')
   })
 
   it('opens filled in from a browser rule, and creates nothing until the owner saves (AC-72)', async () => {
@@ -422,7 +422,7 @@ describe('Rule editor', () => {
       .toBe('A rule definition needs name, roles, scope, match, trigger, tasks and policy.')
     expect(document.querySelector('[data-testid="automation-json-note"]')).toBeNull()
     expect(document.querySelector('[data-testid="automation-sentence"]')?.textContent)
-      .toBe('When a bookmark saved to Personal matches its conditions, move it to Academic.')
+      .toBe('When a bookmark saved to Personal matches the conditions you add, move it to Academic.')
   })
 
   it('does not claim an unchanged rule was saved or paused', async () => {

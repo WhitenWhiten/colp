@@ -52,9 +52,10 @@ function conditionParts(predicate: AutomationPredicate, many: boolean): Sentence
   }
 }
 
-function matchParts(match: AutomationPredicate, many: boolean): SentencePart[] {
+function matchParts(match: AutomationPredicate, many: boolean, draft: boolean): SentencePart[] {
   const fallback = [{ text: many ? 'match its conditions' : 'matches its conditions' }]
   const items = match.kind === 'all' || match.kind === 'any' ? match.items : [match]
+  if (draft && items.length === 0) return [{ text: many ? 'match the conditions you add' : 'matches the conditions you add' }]
   const joiner = match.kind === 'any' ? ' or ' : ' and '
   const parts: SentencePart[] = []
   for (const [index, item] of items.entries()) {
@@ -88,23 +89,25 @@ function listPhrase(items: readonly string[]): string {
 /**
  * "When a bookmark saved to Personal is from arxiv.org, move it to Academic."
  * Names are the current ones the page could read; a missing one says so,
- * and only the owner's own values are set as terms.
+ * and only the owner's own values are set as terms. `draft`: the editor's
+ * rule, where a missing part is one the owner has not filled in yet.
  */
 export function ruleSentence(
   definition: AutomationRuleDefinition,
-  names: { collection: string | null; folder: string | null; folderGone?: boolean },
+  names: { collection: string | null; folder: string | null; folderGone?: boolean; draft?: boolean },
 ): SentencePart[] {
   const parts: SentencePart[] = []
   const trigger = definition.trigger
   const many = trigger.mode === 'countBatch'
+  const draft = names.draft === true
   parts.push({ text: many ? `Every ${trigger.count} bookmarks saved to ` : 'When a bookmark saved to ' })
-  parts.push({ text: names.collection ?? 'its collection', term: names.collection !== null })
+  parts.push({ text: names.collection ?? (draft ? 'the collection you choose' : 'its collection'), term: names.collection !== null })
   parts.push({ text: many ? ' that ' : ' ' })
-  parts.push(...matchParts(definition.match, many))
+  parts.push(...matchParts(definition.match, many, draft))
   if (definition.intake) {
     parts.push({ text: many ? ', move them to ' : ', move it to ' })
     if (names.folderGone) parts.push({ text: 'a folder that is gone' })
-    else parts.push({ text: names.folder ?? 'its folder', term: names.folder !== null })
+    else parts.push({ text: names.folder ?? (draft ? 'the folder you choose' : 'its folder'), term: names.folder !== null })
   }
   if (definition.tasks.length > 0) {
     parts.push({ text: definition.intake ? ', then ask an agent to ' : ', ask an agent to ' })
