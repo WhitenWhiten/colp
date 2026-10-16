@@ -3,7 +3,7 @@ import type { AutomationHealthIncident, AutomationRun } from '../../api/automati
 import { Icon } from '../../components/Icon'
 import { formatDate, formatDateTime } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
-import { capitalize, incidentCopy, incidentNeedsAgent, incidentNeedsFolder, runExplanation } from './copy'
+import { capitalize, incidentCopy, incidentMessage, incidentNeedsAgent, incidentNeedsFolder, runExplanation } from './copy'
 import { ruleEditPath } from './paths'
 
 /* What the owner should look at first (AU-03/04/05/22): open notices from
@@ -68,7 +68,7 @@ export function NeedsAttention({
                 <p className="automation-notice-title" data-testid="automation-notice-title">
                   {name ? <><span className="automation-term">{name}</span>: {copy.title}</> : capitalize(copy.title)}
                 </p>
-                <p className="automation-notice-text">{incident.message}</p>
+                <p className="automation-notice-text">{incidentMessage(incident)}</p>
                 <p className="automation-meta">
                   Since <time dateTime={incident.firstSeenAt} title={formatDateTime(incident.firstSeenAt)}>{formatDate(incident.firstSeenAt)}</time>
                   {incident.blockingStages.length > 0 ? ' · The rule is stopped until this is fixed' : null}

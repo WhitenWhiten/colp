@@ -382,6 +382,33 @@ export function incidentCopy(incident: AutomationHealthIncident): IncidentCopy {
   return INCIDENTS[incident.code]
 }
 
+/* The server's incident sentences, in the owner's words; anything else is shown as written. */
+const INCIDENT_MESSAGES: Record<string, string> = {
+  'Restore this folder or choose another; same-name replacements are not rebound.':
+    'Restore the folder from the trash in Sync, or choose another one. A new folder with the same name doesn’t count.',
+  'Restore the missing ancestor or choose another folder.': 'A folder above it was deleted. Restore it from the trash in Sync, or choose another folder.',
+  'Choose a live authorized folder for this role.': 'Choose a folder that still exists and that you can change.',
+  'Folder binding must have the declared kind and belong to the scoped collection.': 'Its folder is no longer in the rule’s collection. Choose a folder there.',
+  'Folder is outside the required role subtree.': 'Its folder is no longer where the rule needs it. Choose another folder.',
+  'Folder belongs to another server.': 'Its folder belongs to another server. Choose a folder on this one.',
+  'Current write authority is unavailable.': 'You can no longer change its folder. Choose a folder you can change.',
+  'Live canonical ancestry is unavailable.': 'The folders above it can’t be read right now. Check again in a moment.',
+  'Folder label refreshed; canonical identity and binding revision are unchanged.': 'The rule follows the folder under its new name. Nothing else changed.',
+  'Folder ancestry changed; current subtree authority has been revalidated.': 'The rule follows the folder to its new place, and checked it there.',
+  'Current scope/write authority is unavailable; choose an authorized scope.': 'Its collection is gone, or you can no longer change it. Choose a collection you own.',
+  'M1 execution requires the current collection Owner; an editor grant is not runtime authority.':
+    'Only the collection’s owner can run rules on it; being able to edit it isn’t enough.',
+  'Configuration is saved. Durable M1 execution is not installed; no bookmark effects or model tasks can run.':
+    'The rule is saved, but this server can’t run rules, so nothing is filed.',
+  'No explicit execution assignment permits this task.': 'No agent is assigned to one of its tasks, so that task waits.',
+  'Task input fields exceed the execution policy allowlist.': 'Its agent may not read everything one of its tasks needs, so that task waits.',
+  'Pinned monetary limits cannot be enforced by this host.': 'This server can’t enforce a money limit, so a task with one waits.',
+}
+
+export function incidentMessage(incident: Pick<AutomationHealthIncident, 'message'>): string {
+  return INCIDENT_MESSAGES[incident.message] ?? incident.message
+}
+
 export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }

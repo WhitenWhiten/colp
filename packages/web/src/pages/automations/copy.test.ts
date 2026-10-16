@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AutomationPreviewDecision, AutomationRuleDefinition } from '../../api/automationTypes'
-import { previewExplanation, previewNotes, ruleSentence, runExplanation, sentenceText, undoReason } from './copy'
+import { incidentMessage, previewExplanation, previewNotes, ruleSentence, runExplanation, sentenceText, undoReason } from './copy'
 
 const definition: AutomationRuleDefinition = {
   apiVersion: 'colp.automation/v1',
@@ -87,6 +87,14 @@ describe('automation copy', () => {
       'Only the collection’s owner can run rules on it. This preview doesn’t change that.',
       'A new server warning.',
     ])
+  })
+
+  it('says why a rule needs attention in the owner’s words, and keeps unknown notices as written', () => {
+    expect(incidentMessage({ message: 'Restore this folder or choose another; same-name replacements are not rebound.' }))
+      .toBe('Restore the folder from the trash in Sync, or choose another one. A new folder with the same name doesn’t count.')
+    expect(incidentMessage({ message: 'No explicit execution assignment permits this task.' }))
+      .toBe('No agent is assigned to one of its tasks, so that task waits.')
+    expect(incidentMessage({ message: 'A notice from a newer server.' })).toBe('A notice from a newer server.')
   })
 
   it('keeps unknown server explanations verbatim', () => {
