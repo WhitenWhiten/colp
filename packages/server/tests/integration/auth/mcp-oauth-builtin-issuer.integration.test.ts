@@ -230,12 +230,14 @@ describeWithPostgres('T-09 MCP OAuth built-in issuer CIMD e2e (real PostgreSQL)'
     assert.equal(inserted.statusCode, 200);
     const body = inserted.json() as {
       issuer?: string;
+      authorization_response_iss_parameter_supported?: boolean;
       client_id_metadata_document_supported?: unknown;
       grant_types_supported?: unknown;
       registration_endpoint?: unknown;
       scopes_supported?: unknown;
     };
     assert.equal(body.issuer, BUILTIN_ISSUER_TEST_ISSUER);
+    assert.equal(body.authorization_response_iss_parameter_supported, true);
     assert.equal(body.client_id_metadata_document_supported, true);
     assert.equal(
       body.registration_endpoint,
@@ -323,6 +325,11 @@ describeWithPostgres('T-09 MCP OAuth built-in issuer CIMD e2e (real PostgreSQL)'
       const client = publicClient.json() as { client_name?: string };
       assert.equal(client.client_name, T09_CIMD_CLIENT_NAME);
     }
+  });
+
+  test('CIMD prior consent still returns the discovery issuer when the consent page is skipped', async () => {
+    const grant = await t09CimdCodeGrant(app, sessionCookie);
+    assert.equal(grant.usedConsent, false);
   });
 
   test('CIMD grant for the mcp-compat resource mints aud equal to that resource', async () => {

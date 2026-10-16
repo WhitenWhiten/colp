@@ -290,7 +290,11 @@ export async function t09CimdCodeGrant(
       scope,
     });
   }
-  const code = new URL(callback, redirectUri).searchParams.get('code');
+  const callbackUrl = new URL(callback, redirectUri);
+  if (callbackUrl.searchParams.get('iss') !== BUILTIN_ISSUER_TEST_ISSUER) {
+    throw new Error(`CIMD authorization response issuer mismatch: ${callbackUrl.searchParams.get('iss')}`);
+  }
+  const code = callbackUrl.searchParams.get('code');
   if (code === null || code.length === 0) {
     throw new Error(`consent did not return an authorization code: ${callback}`);
   }
@@ -350,7 +354,11 @@ export async function t09DcrCodeGrant(
       oauthQuery: redirected.search.startsWith('?') ? redirected.search.slice(1) : redirected.search,
     });
   }
-  const code = new URL(callback, registered.redirectUri).searchParams.get('code');
+  const callbackUrl = new URL(callback, registered.redirectUri);
+  if (callbackUrl.searchParams.get('iss') !== BUILTIN_ISSUER_TEST_ISSUER) {
+    throw new Error(`DCR authorization response issuer mismatch: ${callbackUrl.searchParams.get('iss')}`);
+  }
+  const code = callbackUrl.searchParams.get('code');
   if (code === null || code.length === 0) {
     throw new Error(`DCR consent did not return an authorization code: ${callback}`);
   }
