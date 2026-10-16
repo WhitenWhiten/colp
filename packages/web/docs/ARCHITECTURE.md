@@ -271,7 +271,7 @@ redirect is `lazy()`.
 
 Solid fills use one language:
 
-- **Primary** (`.btn-primary`): ink fill. Create, Save, Sign in, New collection.
+- **Primary** (`.btn-primary`): ink fill. Create, Save, Sign in, New folder.
 - **Danger** (`.btn-danger`): `--danger` fill for irreversible confirms.
   Sign out is a text action, not a primary fill.
 - **Selected chips** (`.filter-btn[aria-pressed='true']`): ink fill, matching

@@ -7,7 +7,8 @@ sign in to Know-N to sync bookmarks you own across browsers, follow collections,
 ## What works without an account
 
 - **Saving.** The toolbar button (Alt+S), the page and link menus, and Save tabs for a whole window. Saves go
-  into the browser's bookmarks, so they stay usable even if you remove the extension.
+  into a folder you choose in the browser's bookmarks, so they stay usable even if you remove the extension.
+  An explicitly configured default folder can also be used; Other bookmarks is never an implicit destination.
 - **Organizing.** A bookmark manager over the browser's tree, with tags, notes and folder descriptions,
   search, batch moves and deletes, and pins.
 - **History.** A record of what you saved on this browser and how each save went.
@@ -20,7 +21,10 @@ sign in to Know-N to sync bookmarks you own across browsers, follow collections,
 
 Signing in automatically connects your account’s private bookmark library. Open **Sync → Folders** to review
 this browser’s whole bookmark tree and start the first sync. Every folder syncs by default; untick a folder
-to keep it on this browser only. You can pause or disconnect sync at any time; local bookmarks are kept.
+to keep it on this browser only. After first sync, **Folders kept on this browser** uses the same tree.
+Review range changes before applying them. For a previously synced folder, you can keep the cloud copy or
+send it to the cloud trash; the folder and its bookmarks stay in this browser. Tick it again to sync it.
+You can pause or disconnect sync at any time; local bookmarks are kept.
 
 - **Sync.** Bookmarks bar, Other bookmarks, and Mobile bookmarks when available merge with the same folders
   in your library. New folders inside synced roots sync automatically. Tags, notes and folder descriptions
@@ -35,9 +39,13 @@ the other.
 
 Create the owner account on your COLP Server first. Then open the extension's **Account** page, enter the
 server origin in **Server**, and allow access when Chrome asks. The extension checks the server's COLP
-Manifest before saving the address. Sign in with your username and password. Your library connects automatically; review the browser tree
-under **Sync → Folders**, untick any folders to keep on this browser, then start sync. A server that does not
-yet provide the library endpoint is shown as unsupported, and no bookmark sync runs. Leave Server empty to use Know-N.
+Manifest before saving the address. Sign in with your username and password. Your library connects
+automatically; review the browser tree under **Sync → Folders**, untick any folders to keep on this browser,
+then start sync. The first-run card merges Bookmarks bar, Other bookmarks and Mobile bookmarks when present.
+You can find the same tree on the server's web **Library** page and share individual folders there through
+**Share…**. Anyone with the link can view that folder's live contents until you **Stop sharing**.
+A server that does not yet provide the library endpoint is shown as unsupported, and no bookmark sync runs.
+Leave Server empty to use Know-N.
 
 Use HTTPS for remote and home-network servers. For private HTTPS, trust the server's local CA in Chrome
 first. Plain HTTP is supported only on `localhost`, `127.0.0.1`, or `[::1]`, after you acknowledge the
@@ -70,7 +78,7 @@ docker compose exec server colp-server reset-password --username alice
 | Other host access (optional) | Requested only for the AI provider address you configure. |
 
 Tags, notes, folder descriptions, history and settings live in the extension's storage. Removing the extension
-deletes them, except what syncs with a collection; export a Know-N backup to keep a copy. Privacy policy:
+deletes them, except what you have chosen to sync with your library; export a Know-N backup to keep a copy. Privacy policy:
 <https://know-n.com/privacy>.
 
 ## Building from source

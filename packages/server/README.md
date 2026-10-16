@@ -1,5 +1,19 @@
 COLP Server (`@know-n/colp-server`) is the self-hosted bookmark server in this package. Install and run it by following [deploy/INSTALL.md](../../deploy/INSTALL.md).
 
+Each account has one private bookmark library, with **Bookmarks bar** and
+**Other bookmarks** ready on first use. `/library` opens that folder tree.
+The extension connects it automatically and merges the whole browser tree;
+users untick folders to keep them on one browser. New folders, imports and
+saves use a folder the user chooses.
+
+The library cannot be deleted, published or made public, and its browser role
+folders cannot be renamed, moved or deleted through the web or agents.
+Share an individual folder through **Share…** for an unlisted, read-only link
+to its live subtree. **Stop sharing** revokes the link immediately; deleting
+the folder also ends its share. The library root cannot be shared. Folder
+links do not appear in directories, feeds or search indexes, and never expose
+private or protected nodes or references outside the shared folder.
+
 MCP clients can use the strict `2026-07-28` endpoint at `/collections/-/mcp`,
 or the compatibility endpoint at `/collections/-/mcp-compat`. Ordinary calls
 do not require optional client capabilities. Advertise `elicitation.url` only
@@ -7,8 +21,12 @@ when the client implements URL prompts; otherwise pending writes return an
 `awaiting_approval` result with the approval link and plan ID. Answers to a
 prompt never grant approval: only the owner's browser decision does.
 
-Use `collections.list` to find owned libraries and `collections.get_snapshot`
-to read their bounded pages. `resources/list` is the published directory;
+Use `collections.list` to find the account's library, marked `library: true`,
+and `collections.get_snapshot` to read its bounded pages. Add a folder with
+`nodes.create` and an explicit `parentId` in that library. `collections.create`
+refuses and returns the library and role-folder IDs with this instruction;
+`collections.update` and `collections.set_visibility` cannot publish it.
+`resources/list` is the published directory;
 resource reads use the publication projection and are not a substitute for
 all unpublished owner reads. For writes, get the current resource revision
 from `collections.get` or `nodes.get`, not a publication content/policy revision.
@@ -46,8 +64,8 @@ from serialized schema bytes and HTTP payload sizes.
 
 
 Public collection and bookmark pages use stored site icons or a local
-fallback. They do not contact a third-party favicon service, even if a cached
-response carries an older CDN opt-in flag. The legacy `faviconCdnAllowed`
+fallback. Shared folders use local icon fallbacks. Public pages do not contact
+a third-party favicon service, even if a cached response carries an older CDN opt-in flag. The legacy `faviconCdnAllowed`
 response fields remain available and are always false on public pages.
 
 Initial browser synchronization supports non-atomic Push batches of up to 50 operations.
@@ -108,5 +126,6 @@ Gallery cards show the bookmark page's own sharing image (`og:image`, `twitter:i
 blocking as favicons, decodes the image and keeps a validated copy in PostgreSQL; browsers load
 it from this server, never from the third-party site. Public and unlisted collections are filled
 in the background. A private collection's pages are fetched only after its owner or an editor
-opens it in Gallery. `KNOWN_FEATURE_LINK_PREVIEW=false` turns previews off; `LINK_PREVIEW_CONCURRENCY`
+opens it in Gallery. Shared-folder links do not expose private preview images.
+`KNOWN_FEATURE_LINK_PREVIEW=false` turns previews off; `LINK_PREVIEW_CONCURRENCY`
 (default 2) sets the worker's parallel fetches.

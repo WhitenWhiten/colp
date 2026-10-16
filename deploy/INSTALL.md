@@ -1,8 +1,8 @@
 # COLP Server — install and operate
 
 COLP Server keeps your bookmarks in sync across browsers, lets AI agents
-work on your collections under your approval, and lets you share a
-collection with a link. It runs on your machine as three containers: the
+work on your bookmark library under your approval, and lets you share a
+folder with an unlisted link. It runs on your machine as three containers: the
 server, PostgreSQL, and Caddy.
 
 ## 1. Prerequisites
@@ -87,8 +87,19 @@ Authorities → Import).
 2. Extension → Options → Account → **Server**: enter your origin. Grant the
    permission for that origin when asked. The server's name appears.
 3. Sign in with your username and password.
-4. Pick a collection (or create one) and the bookmark folders to sync. Repeat
-   on each browser; they converge within a minute.
+4. The account's private library connects automatically. Open **Sync → Folders**,
+   review the whole browser tree, untick folders to keep on this browser only,
+   then start sync. Repeat on each browser; they converge within a minute.
+
+The web **Library** opens the same tree, with **Bookmarks bar** and **Other
+bookmarks** already present. New folders inside synced roots sync automatically.
+Choose a destination folder when creating a folder, importing bookmarks or saving
+pages. Nothing goes into Other bookmarks automatically.
+
+After first sync, use **Folders kept on this browser** to change exclusions.
+The review lets you keep an existing cloud copy or move it to the cloud trash;
+the local folder stays in the browser. Tick the folder again to include it.
+Pause or disconnect from **Sync → Status** without deleting local bookmarks.
 
 The web Sync center (`/sync`) lists connected browsers, conflicts, and the
 trash.
@@ -155,23 +166,36 @@ expired key gets `401 invalid_grant` from `/api/v1/auth/key-token`.
 bookmarks becomes a plan that waits on the Approvals page, and the agent
 commits it after you approve. Adding bookmarks and editing titles apply at
 once. Switch an agent to *trusted* to let moves commit without asking.
-Either way, every committed plan saves the collection's previous version
-first, so you can Undo moves from the Approvals page or restore any version
-from the collection's History. Making a collection public, deleting, emptying
-the trash, and purging always wait for you.
+Either way, every committed plan saves the library's previous version
+first, so you can Undo moves from the Approvals page or restore a version
+from the library's **Version history**. Deleting, emptying the trash and purging
+always wait for you. The library always stays private.
 
-Collection history supports up to **2,000 live folders and bookmarks** per
-collection (the root folder does not count). A plan affecting a larger
-collection is rejected before any change, in both manual and trusted mode;
+Agents use `collections.list` to find the library and `nodes.create` with an
+explicit `parentId` to add a folder or bookmark there. `collections.create`
+refuses and returns the library and role-folder IDs with instructions to create
+a folder instead. Neither the web nor agents can delete or publish the library,
+or rename, move or delete its browser role folders.
+
+Library history supports up to **2,000 live folders and bookmarks**
+(the root folder does not count). A plan affecting a larger
+library is rejected before any change, in both manual and trusted mode;
 it cannot commit without its saved history. The plan stays on the Approvals
-page so you can cancel it. Reduce the collection size and create a new plan
+page so you can cancel it. Reduce the library size and create a new plan
 before trying again.
 
-## 7. Share a collection
+## 7. Share a folder
 
-Open the collection → Visibility → **Unlisted** (link only) or **Public**
-(listed on your server's directory). Copy the link and send it. Set it back
-to **Private** to stop access.
+In the web **Library**, open a folder's menu → **Share…** → **Create link**.
+Copy the link and send it. Anyone with the link can read the folder's live
+contents, including its subfolders. Moving a bookmark in or out updates the
+shared view. Private and protected items stay hidden.
+
+Choose **Stop sharing** in the same dialog to disable the link immediately.
+Deleting the folder also ends the share; restoring it does not reopen the old
+link. Shared folders show a link badge in the tree. Links are unlisted: they
+never appear in the server directory, search indexes or feeds. The library root
+cannot be shared, and the library itself always stays private.
 
 ## 8. Check health and version
 
@@ -252,7 +276,7 @@ docker compose cp server:/export ./export
 ```
 `export/` holds, per collection, `<name>.html` (bookmark file every browser
 imports) and `<name>.json` (the full COLP snapshot with notes and tags),
-plus `index.json`. The collection page has the same under **Export**.
+plus `index.json`. Your account's library is stored as one collection in these files.
 
 ## 15. Uninstall
 
@@ -282,10 +306,10 @@ call; nothing keeps working elsewhere.
 | Extension sign-in fails on HTTP | cookie rejected | Confirm `COLP_INSECURE_HTTP=true` on the server and the `http://` origin in the extension |
 | Agent OAuth fails with `invalid_client: Failed to fetch metadata document` | `docker compose exec server getent hosts claude.ai` (or `chatgpt.com` for Codex) | The server downloads the client's metadata document and refuses private and special-purpose addresses. A VPN or proxy with "fake-IP" DNS answers with `198.18.x.x`, which is refused. Give the server real DNS, or register the client instead: Codex `codex mcp login colp --oauth-client-registration dcr`; Claude Code: `curl -X POST "$COLP_SERVER_ORIGIN/api/v1/auth/oauth2/register" -H 'content-type: application/json' -d '{"client_name":"Claude Code","application_type":"native","redirect_uris":["http://localhost:33418/callback"],"token_endpoint_auth_method":"none","grant_types":["authorization_code","refresh_token"],"response_types":["code"]}'`, then `claude mcp add --transport http --client-id <client_id> --callback-port 33418 colp …` |
 | Every link shows as broken | Same DNS check as above | Link checks also refuse fake-IP answers; fix the server's DNS |
-| Agent says "The collection changed after this plan was made" | | Something edited the collection after the plan; ask the agent to plan again. To move several bookmarks, ask for one `nodes.move` with `nodeIds` so they share one approval |
+| Agent says "The collection changed after this plan was made" | | Something edited the library after the plan; ask the agent to plan again. To move several bookmarks, ask for one `nodes.move` with `nodeIds` so they share one approval |
 | Sync shows a conflict | Sync center | Pick a side; nothing is lost |
 | Deleted bookmarks by mistake | Sync center → Trash | Restore |
-| Agent did something wrong | Approvals → the plan → Undo; or collection → History → Restore | |
+| Agent did something wrong | Approvals → the plan → Undo; or Library → More → Version history → Restore | |
 
 ## 17. Configuration reference
 

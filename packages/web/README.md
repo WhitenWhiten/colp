@@ -1,7 +1,8 @@
 # COLP Server web UI
 
 The browser UI that ships inside COLP Server: sign-in, the owner's library,
-public collection pages, agents and write approvals, sync, and link health.
+shared folder links, public collection pages, agents and write approvals, sync,
+and link health.
 It is a single-page app served by `packages/server` from `dist/`. It was
 copied from Know-N's frontend (see [`UPSTREAM.md`](./UPSTREAM.md)) and keeps
 Know-N's palette; the self-hosted layout and type live in
@@ -34,20 +35,19 @@ Session and CSRF state never go to `localStorage`. Command-intent IDs use
 |-------|------|
 | `/` | Redirects to `/library` when signed in, `/login` otherwise |
 | `/login` · `/register` · `/auth/recovery` · `/consent` | Sign-in, owner or invite sign-up, session recovery, OAuth consent for agents |
-| `/library` · `/library/:id` | Library desk: owned and shared collections, pending invites; `?folder=` opens a folder, `?settings=` opens Settings |
-| `/library/new` | Create a collection |
-| `/library/:id/edit` | Collection editor (details and tree) |
-| `/library/:id/history` | Collection versions and restore |
-| `/library/:id/collaborators` | Members and invites |
+| `/library` · `/library/:id` | The account’s library tree and Shared with me; `?folder=` opens a folder. New folder uses the current folder or an explicit destination picker |
+| `/library/:id/edit` | Opens library settings for the library, or collection settings for a shared collection |
+| `/library/:id/history` | Whole-library versions and restore |
+| `/library/:id/collaborators` | Members and invites for shared collections |
 | `/library/health` | Broken, redirected, duplicate, and stale links |
-| `/c/:slug` | Published collection (Board, Gallery, List, Compact) |
+| `/c/:slug` | Live shared folder or published collection (Board, Gallery, List, Compact). Folder links are unlisted, read-only and revocable |
 | `/r/:id` | Bookmark detail with annotations and relations |
 | `/graph/:slug` | Relation graph |
 | `/search` | Search collections, bookmarks, and annotations |
 | `/agents` | Connected agents, keys, and approval policy |
 | `/approvals` · `/approvals/:planId` | MCP write approvals |
 | `/sync` | Sync center: browsers, conflicts, and trash |
-| `/import` | Import a bookmarks file |
+| `/import` | Import a bookmarks file into a folder the user picks in their library |
 | `/extension` | Connect the browser extension to this server |
 | `/about` | Server and protocol versions |
 | `/dashboard` · `/mcp` · `/settings` | Redirects kept for old links |

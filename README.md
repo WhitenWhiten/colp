@@ -39,6 +39,7 @@ Bookmarks are some of the most personal knowledge people keep, yet every browser
 - [How it works](#how-it-works)
 - [Install from npm](#install-from-npm)
 - [A quick look](#a-quick-look)
+- [Run your bookmark library](#run-your-bookmark-library)
 - [Try it](#try-it)
 - [Find your way](#find-your-way)
 - [Repository layout](#repository-layout)
@@ -174,6 +175,25 @@ console.log(manifest.title, snapshot.nodes.length);
 
 The full example is [`protocol/examples/public-manifest.json`](protocol/examples/public-manifest.json); all 28 examples are validated in CI.
 
+## Run your bookmark library
+
+[COLP Server](packages/server/README.md) ships a web app and works with the
+[Know-N browser extension](packages/extension/README.md). Follow the
+[install guide](deploy/INSTALL.md) to run it on your own machine.
+
+Each account has one private **Bookmarks** library. The web opens its folder tree,
+starting with **Bookmarks bar** and **Other bookmarks**. Signing in to the extension
+connects that library automatically. First sync merges the whole browser tree;
+untick folders to keep them on that browser only. Folders created later sync too.
+Choose where a new folder, import or saved page goes; nothing is placed in
+Other bookmarks automatically.
+
+Share a folder from its **Share…** menu. Anyone with the unlisted link can read
+that folder's live contents; **Stop sharing** disables the link immediately.
+The library root cannot be shared, and the library itself stays private.
+Agents use `collections.list` to find the library and `nodes.create` with an
+explicit parent folder to add folders or bookmarks.
+
 ## Try it
 
 You need Node.js 22 or later. From a fresh clone, build the reference package and run the example server's self-test. It starts a small `core + publication` server, reads everything back through the Manifest with `ColpClient`, and exits:
@@ -222,6 +242,9 @@ The package is protocol logic without a server: it validates wire documents, dec
 | [`packages/node/`](packages/node/README.md) | `@know-n/colp`, the reference implementation in TypeScript, with its tests and [guides](packages/node/docs/README.md) |
 | [`packages/node/examples/`](packages/node/examples/publication-server.mjs) | A minimal read-only server you can run locally |
 | [`packages/conformance/`](packages/conformance/README.md) | `colp-conformance`, a black-box test runner for any COLP server |
+| [`packages/server/`](packages/server/README.md) | COLP Server, with PostgreSQL storage, account libraries, sync, folder links and MCP |
+| [`packages/web/`](packages/web/README.md) | The web app served by COLP Server |
+| [`deploy/`](deploy/INSTALL.md) | Install and operate the self-hosted stack |
 | [`packages/extension/`](packages/extension/README.md) | Know-N for Chrome, a Manifest V3 bookmark manager that syncs with COLP Server or Know-N |
 | [`docs/assets/`](docs/assets) | Banner and diagrams used by the READMEs |
 | [`.github/workflows/colp-ci.yml`](.github/workflows/colp-ci.yml) | CI: protocol checks, example validation, type checks, tests, and the evidence check |
