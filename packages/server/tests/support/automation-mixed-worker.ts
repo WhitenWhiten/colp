@@ -1,9 +1,10 @@
+import { createManualRunConsumer } from '../../src/infrastructure/automation/manual-run-consumer.js';
 import type { Pool } from 'pg';
 import type { Kysely } from 'kysely';
 import type { DatabaseSchema } from '../../src/infrastructure/database/runtime.js';
 import { createAutomationRuntime, createAutomationSourceInspector, createAutomationHealthMonitor, setAutomationCaptureEnabled } from '../../src/infrastructure/automation/index.js';
 import { PostgresOutboxRepository, VersionedOutboxWorker, OutboxRouter, EventEnvelopeRegistry,
-  createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT,
+  createAutomationManualRoute, automationManualRegistration, createAutomationIngestRoute, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT,
   PostgresCollectionMutationProjectionSink, createCollectionMutationOutboxRoutes, createCollectionMutationEnvelopeRegistrations,
   type OutboxRepository } from '../../src/infrastructure/outbox/index.js';
 
@@ -25,10 +26,11 @@ export function automationMixedWorker(db: Kysely<DatabaseSchema>, pool: Pool, op
     repository: options.repository ?? new PostgresOutboxRepository(pool),
     router: new OutboxRouter([
       ...createCollectionMutationOutboxRoutes({ sink: health.wrap(projection) }),
+      createAutomationManualRoute(createManualRunConsumer(db, 'server', { runtimeEnabled: true })),
       createAutomationIngestRoute(measured), createAutomationIngestRoute(measured, AUTOMATION_RESUME_EVENT),
     ]),
     envelopes: new EventEnvelopeRegistry([
-      ...createCollectionMutationEnvelopeRegistrations(), automationIngestRegistration, automationResumeRegistration,
+      ...createCollectionMutationEnvelopeRegistrations(), automationManualRegistration, automationIngestRegistration, automationResumeRegistration,
     ]),
     logger: { info() {}, warn() {}, error() {} },
     leaseDurationMs: 30000, heartbeatIntervalMs: 5000, handlerTimeoutMs: 20000,

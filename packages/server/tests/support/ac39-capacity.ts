@@ -1,4 +1,5 @@
-import { drainManualRuns } from './manual-run-delivery.js';
+import { automationMixedWorker } from './automation-mixed-worker.js';
+import { automationDeviceFixture, AUTOMATION_DEVICE_ORIGIN } from './automation-device-fixture.js';
 /** Opt-in capacity evidence, never part of the routine integration suite.
  * Uses production transactions with isolated fixture identities; not an HTTP SLA test.
  */
@@ -16,6 +17,8 @@ import { automationPollingFixture } from './automation-polling-fixture.js';
 import { createAutomationUnitOfWork, setAutomationCaptureEnabled } from '../../src/infrastructure/automation/index.js';
 import { createOwnedCollectionCanonical, createCollectionNode } from '../../src/modules/collections/index.js';
 import { createRule, previewRule } from '../../src/modules/automation/index.js';
+import { createPostgresReplicaStore, createPostgresSyncPushApplication } from '../../src/infrastructure/sync/index.js';
+import { syncNodeCreatePushRequest } from '../fixtures/phase3/sync-push-admission.js';
 
 process.env.COLP_MULTI_USER = 'true';
 const output = process.env.AC39_OUTPUT;
@@ -38,10 +41,10 @@ function summary(values: number[]) {
   return { n: values.length, p50: percentile(.5), p95: percentile(.95), p99: percentile(.99), max: percentile(1) };
 }
 function gate(name: string, pass: boolean) { if (!pass) failures.push(name); }
-async function traffic(save: (id: string) => Promise<unknown>, count = 20) {
+async function traffic(save: (id: string) => Promise<unknown>, count = 20, keepGoing?: () => boolean) {
   const pending: Promise<void>[] = [], times: number[] = [], errors: string[] = [];
   const started = performance.now();
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < count || keepGoing?.(); i++) {
     const due = started + i * 200;
     await delay(Math.max(0, due - performance.now()));
     pending.push(save(randomUUID()).then(() => { times.push(performance.now() - due); }, error => {
@@ -62,6 +65,36 @@ async function secondary(f: Fixture, foreign: boolean) {
     parentId: rootNodeId, nodeId: id, afterId: null, beforeId: null, intakeDisposition: 'userDefault',
     node: { kind: 'bookmark', title: 'Control save', url: 'https://example.org/control', description: null, tags: [], visibility: 'inherit' } }));
 }
+async function syncSecondary(f: Awaited<ReturnType<typeof automationDeviceFixture>>) {
+  const collectionId = randomUUID(), rootNodeId = randomUUID();
+  await f.canonical.execute(p => createOwnedCollectionCanonical(p, { actor: f.actor, command: f.command(),
+    title: 'Sync control', summary: null, kind: 'bookmarks', collectionId, rootNodeId, operationId: randomUUID() }));
+  const replica = await createPostgresReplicaStore(f.db).create({ accountId: f.owner.accountId, collectionId,
+    deviceName: 'Concurrent Sync', replicaName: 'Concurrent Sync', kind: 'browser_extension',
+    adapter: { profile: 'chromium-bookmarks-v1', version: '1.0.0' },
+    capabilities: { read: true, write: true, events: true, separator: false, alias: false, annotations: 'sidecar', maxBatchOperations: 1 },
+    binding: { browserProfileId: collectionId, mountMode: 'whole-profile', browserGeneration: 'fixture' }, leaseDurationSeconds: 3600,
+  }, { actorAccountId: f.owner.accountId });
+  const issued = await f.issuer.issue({ credential: f.http.credential, idempotencyKey: randomUUID(), requestFingerprint: randomUUID(),
+    collectionId, replicaId: replica.replicaId, expectedLeaseGeneration: replica.leaseGeneration,
+    expectedLifecycleRevision: replica.lifecycleRevision, binding: replica.binding, requestedScopes: ['sync:push', 'sync:pull'],
+    protocolVersion: '0.1', origin: AUTOMATION_DEVICE_ORIGIN });
+  let sequence = 0, queue = Promise.resolve<unknown>(undefined);
+  return (id: string) => {
+    const saved = queue.then(async () => {
+      const result = await createPostgresSyncPushApplication(f.db, f.issuer, { nodeId: () => id }).admit({
+        credential: f.http.credential, origin: AUTOMATION_DEVICE_ORIGIN, idempotencyKey: id, requestFingerprint: id,
+        mediaType: 'application/json', endpointIdentity: '/colp/v0.1/sync/push',
+        request: syncNodeCreatePushRequest({ sessionId: issued.session.sessionId, replicaId: replica.replicaId, collectionId,
+          sequence: ++sequence, opId: randomUUID(), parentId: rootNodeId, node: { kind: 'bookmark', title: 'Sync save',
+            url: 'https://example.org/sync', tags: [], visibility: 'inherit', extensions: {} } }),
+      });
+      assert.ok(['applied', 'rebased'].includes(result.results[0]!.status), JSON.stringify(result));
+    });
+    queue = saved.catch(() => undefined);
+    return saved;
+  };
+}
 async function seedMembers(f: Fixture, count: number) {
   if (process.env.AC39_CANONICAL_SEED === '1') {
     for (let i = 1; i < count; i++) await f.createNode(`capacity-${i}`, 'root', `Capacity ${i}`, `https://arxiv.org/capacity/${i}`);
@@ -78,11 +111,13 @@ async function seedMembers(f: Fixture, count: number) {
     FROM nodes n CROSS JOIN generate_series(1,${count - 1}) g WHERE n.id='paper'`.execute(f.db);
 }
 async function manual(count: number, round: number) {
-  const f = await automationRuntimeFixture('ac39_manual', true);
+  const f = await automationDeviceFixture('ac39_manual');
+  let dispatcher: ReturnType<typeof automationMixedWorker> | undefined;
   const observer = new Pool({ connectionString: f.isolated.databaseUrl, max: 1 });
   try {
     await seedMembers(f, count);
     const sameOwnerSave = await secondary(f, false), foreignSave = await secondary(f, true);
+    const syncSave = await syncSecondary(f);
     setAutomationCaptureEnabled(false);
     const disabledBaseline = await traffic(sameOwnerSave);
     setAutomationCaptureEnabled(true);
@@ -104,6 +139,11 @@ async function manual(count: number, round: number) {
         return result;
       },
     };
+    dispatcher = automationMixedWorker(f.db.withPlugin(plugin), f.isolated.runtime.pool);
+    // Settle seeded work through the production dispatcher, then leave its real polling clock running.
+    for (let pass = 0; pass < 1000; pass++) { if (!await dispatcher.worker.runOnce()) break; }
+    dispatcher.worker.start();
+    queries = 0; timings.length = 0;
     const uow = createAutomationUnitOfWork(f.db.withPlugin(plugin), 'server', { runtimeEnabled: true });
     const begin = performance.now();
     const preview = await uow.execute(f.owner, ports => ports.runOnce!.preview(f.rule.id, {
@@ -121,13 +161,17 @@ async function manual(count: number, round: number) {
     assert.equal(preview.canStart, true);
     queries = 0; timings.length = 0;
     const start = performance.now();
-    let startMs = 0, startQueries = 0, slices = 0;
+    let startMs = 0, startQueries = 0;
     let finished = false, firstGate: number | undefined, lastGate: number | undefined, maxWaiters = 0;
     const run = uow.execute(f.owner, ports => ports.runOnce!.start(f.rule.id, { previewId: preview.id, previewDigest: preview.previewDigest }))
       .then(async result => {
         startMs = performance.now() - start; startQueries = queries;
-        slices = await drainManualRuns(f.db.withPlugin(plugin), true);
-        return result;
+        while (performance.now() - start < 120000) {
+          const parent = await f.db.selectFrom('automation_runs').select('state').where('id', '=', result.id).executeTakeFirstOrThrow();
+          if (['completed', 'partial', 'cancelled'].includes(parent.state)) return result;
+          await delay(25);
+        }
+        throw new Error('Production dispatcher manual completion exceeded 120 seconds');
       }).finally(() => { finished = true; });
     // Observe the real gate before starting writers, avoiding a stale-preview race.
     while (!finished && firstGate === undefined) {
@@ -144,8 +188,8 @@ async function manual(count: number, round: number) {
       }
     })();
     const writes = Promise.all([
-      traffic(id => f.createNode(id, 'root', 'Concurrent save', 'https://example.org/save'), burstCount),
-      traffic(sameOwnerSave, burstCount), traffic(foreignSave, burstCount),
+      traffic(id => f.createNode(id, 'root', 'Concurrent save', 'https://example.org/save'), burstCount, () => !finished),
+      traffic(sameOwnerSave, burstCount, () => !finished), traffic(foreignSave, burstCount, () => !finished), traffic(syncSave, burstCount, () => !finished),
     ]);
     // Always settle writers before dropping their schema, including a failed run.
     const result = await run.catch(async error => { await writes; await monitor; throw error; });
@@ -153,23 +197,23 @@ async function manual(count: number, round: number) {
     if (profileSql) record({ kind: 'sqlProfile', count, round, runMs, monotonicUs: Number(process.hrtime.bigint() / 1000n),
       sqlMs: timings.reduce((sum, row) => sum + row.ms, 0),
       slowest: timings.toSorted((a, b) => b.ms - a.ms).slice(0, 20).map(row => ({ ...row, sql: row.sql.slice(0, 800) })) });
-    const [sameCollection, sameOwner, foreignOwner] = await writes;
+    const [sameCollection, sameOwner, foreignOwner, sync] = await writes;
     await monitor;
     assert.equal(result.childRunIds?.length, count);
     const placed = (await sql<{ n: number }>`SELECT count(*)::int n FROM nodes WHERE parent_id='academic' AND kind='bookmark'`.execute(f.db)).rows[0]!.n;
     assert.equal(placed, count);
-    for (const [name, value] of Object.entries({ sameCollection, sameOwner, foreignOwner })) {
+    for (const [name, value] of Object.entries({ sameCollection, sameOwner, foreignOwner, sync })) {
       gate(`manual/${count}/${round}/${name}`, !value.errors.length && value.latencyMs.p95 <= 1000 && value.latencyMs.max <= 2000);
     }
     gate(`manual/${count}/${round}/start`, startMs <= 10000);
     gate(`manual/${count}/${round}/completion`, runMs <= 120000);
-    record({ count, round, disabledBaseline, baseline, previewMs, previewQueries, startMs, startQueries, slices, runMs, runQueries, placed,
+    record({ count, round, disabledBaseline, baseline, previewMs, previewQueries, startMs, startQueries, dispatcher: 'VersionedOutboxWorker', trafficThroughCompletion: true, syncScope: 'same owner, separate collection', runMs, runQueries, placed,
       gateObservationSpanMs: firstGate !== undefined && lastGate !== undefined ? lastGate - firstGate : null,
-      maxGateWaiters: maxWaiters, sameCollection, sameOwner, foreignOwner, rssBytes: process.memoryUsage().rss });
+      maxGateWaiters: maxWaiters, sameCollection, sameOwner, foreignOwner, sync, rssBytes: process.memoryUsage().rss });
     if (runMs > 120000) throw new Error('Safety stop: manual completion exceeds 120 seconds');
-    if ([sameCollection, sameOwner, foreignOwner].some(value => value.errors.length))
+    if ([sameCollection, sameOwner, foreignOwner, sync].some(value => value.errors.length))
       throw new Error('Safety stop: saving failed; do not increase load');
-  } finally { await observer.end(); await f.isolated.close(); }
+  } finally { await dispatcher?.worker.stop(); await observer.end(); await f.isolated.close(); }
 }
 async function rules() {
   const f = await automationRuntimeFixture('ac39_rules', true);

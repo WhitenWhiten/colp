@@ -1,0 +1,26 @@
+{
+  "node": "v24.14.0",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": "AMD Ryzen 5 9600X 6-Core Processor",
+  "availableParallelism": 6,
+  "totalMemoryBytes": 12543827968,
+  "postgresImage": "postgres:16.4-alpine",
+  "applicationPoolMax": 6,
+  "workerConcurrency": 1,
+  "workerBatchSize": 1,
+  "workerPollIntervalMs": 250,
+  "manualMembersPerSlice": 10,
+  "arrivalRatePerGroupPerSecond": 5,
+  "trafficThroughCompletion": true,
+  "groups": [
+    "same collection canonical save",
+    "same owner other collection canonical save",
+    "foreign owner canonical save",
+    "same owner separate collection Sync Push"
+  ],
+  "baselineRounds": 1,
+  "boundedRounds": 3,
+  "baselineConsumerCommit": "8f191d73",
+  "endToEndTransport": "application/database; no external HTTP latency claim"
+}

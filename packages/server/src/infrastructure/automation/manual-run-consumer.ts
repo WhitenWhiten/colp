@@ -10,37 +10,50 @@ import { executeManualChunk, stopManualPending, type ManualPendingRun } from './
  */
 export function createManualRunConsumer(db: Kysely<DatabaseSchema>, serverUuid: string,
   options: { runtimeEnabled?: boolean; workerEnabled?: boolean } = {}) {
-  return async (context: OutboxHandlerContext): Promise<boolean> => db.transaction().execute(async tx => {
-    const { ownerId, collectionId, runId } = context.envelope.payload;
-    if (!context.attempt || context.signal.aborted || typeof ownerId !== 'string'
-      || typeof collectionId !== 'string' || typeof runId !== 'string') throw new Error('Manual continuation lease required');
-    if (options.runtimeEnabled === false) { await fence(tx, context, 5000); return true; }
-    const owner = await tx.selectFrom('accounts').select(['id','subject_id','status','deleted_at'])
-      .where('id', '=', ownerId).forUpdate().executeTakeFirst();
-    const parent = (await sql<ManualPendingRun>`SELECT r.id,r.state,r.held,r.explanation_json->>'collectionId' AS collection_id,
-      coalesce((r.explanation_json->>'manualTasks')::boolean,false) AS run_tasks,v.definition_json,b.values_json
-      FROM automation_runs r JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
-      JOIN automation_binding_revisions b ON b.binding_set_id=r.binding_set_id AND b.revision=r.binding_revision
-      WHERE r.id=${runId} AND r.owner_id=${ownerId} AND r.kind='manual'
-        AND r.explanation_json->>'manualSelection'='true' AND r.explanation_json->>'manualPending'='true'
-      FOR UPDATE OF r`.execute(tx)).rows[0];
-    let more = false, pauseMs = 250;
-    if (parent && parent.state !== 'cancelled') {
-      if (parent.collection_id !== collectionId) throw new Error('Manual continuation collection mismatch');
-      if (!owner || owner.status !== 'active' || owner.deleted_at) {
-        await stopManualPending(tx, parent.id, 'Owner is unavailable; completed effects were retained.');
-      } else {
-        const settings = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', ownerId).executeTakeFirst();
-        if (parent.held || settings?.paused || (parent.run_tasks && options.workerEnabled === false)) {
-          more = true; pauseMs = 5000;
-        } else {
-          more = await executeManualChunk(tx, { accountId: owner.id, subjectId: owner.subject_id }, serverUuid, parent);
+  return async (context: OutboxHandlerContext): Promise<boolean> => {
+    try {
+      return await db.transaction().execute(async tx => {
+        const { ownerId, collectionId, runId } = context.envelope.payload;
+        if (!context.attempt || context.signal.aborted || typeof ownerId !== 'string'
+          || typeof collectionId !== 'string' || typeof runId !== 'string') throw new Error('Manual continuation lease required');
+        if (options.runtimeEnabled === false) { await fence(tx, context, 5000); return true; }
+        // Background work yields to foreground writers instead of queueing behind a
+        // collection lock while holding the account lock and blocking unrelated saves.
+        await sql`SET LOCAL lock_timeout = '50ms'`.execute(tx);
+        const owner = await tx.selectFrom('accounts').select(['id','subject_id','status','deleted_at'])
+          .where('id', '=', ownerId).forUpdate().executeTakeFirst();
+        const parent = (await sql<ManualPendingRun>`SELECT r.id,r.state,r.held,r.explanation_json->>'collectionId' AS collection_id,
+          coalesce((r.explanation_json->>'manualTasks')::boolean,false) AS run_tasks,v.definition_json,b.values_json
+          FROM automation_runs r JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
+          JOIN automation_binding_revisions b ON b.binding_set_id=r.binding_set_id AND b.revision=r.binding_revision
+          WHERE r.id=${runId} AND r.owner_id=${ownerId} AND r.kind='manual'
+            AND r.explanation_json->>'manualSelection'='true' AND r.explanation_json->>'manualPending'='true'
+          FOR UPDATE OF r`.execute(tx)).rows[0];
+        let more = false, pauseMs = 250;
+        if (parent && parent.state !== 'cancelled') {
+          if (parent.collection_id !== collectionId) throw new Error('Manual continuation collection mismatch');
+          if (!owner || owner.status !== 'active' || owner.deleted_at) {
+            await stopManualPending(tx, parent.id, 'Owner is unavailable; completed effects were retained.');
+          } else {
+            const settings = await tx.selectFrom('automation_settings').select('paused').where('owner_id', '=', ownerId).executeTakeFirst();
+            if (parent.held || settings?.paused || (parent.run_tasks && options.workerEnabled === false)) {
+              more = true; pauseMs = 5000;
+            } else {
+              more = await executeManualChunk(tx, { accountId: owner.id, subjectId: owner.subject_id }, serverUuid, parent);
+            }
+          }
         }
-      }
+        await fence(tx, context, more ? pauseMs : undefined);
+        return more;
+      });
+    } catch (error) {
+      if (!(error instanceof Error) || !('code' in error) || error.code !== '55P03') throw error;
+      // The failed slice has rolled back all effects and released its locks.
+      // Deferral still requires the same live delivery lease; no failed attempt is consumed.
+      await db.transaction().execute(tx => fence(tx, context, 250));
+      return true;
     }
-    await fence(tx, context, more ? pauseMs : undefined);
-    return more;
-  });
+  };
 }
 
 async function fence(tx: DatabaseTransaction, context: OutboxHandlerContext, delayMs?: number) {

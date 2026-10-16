@@ -87,6 +87,15 @@ the latency gate. **AC-39 remains open.** Start returns before completion for la
 runs, and completed effects are retained on interruption. Larger final capacity
 and complete dispatcher acceptance remain unverified.
 
+The [2026-10-16 dispatcher and contention follow-up](evidence/ac-39-manual-continuation.md#dispatcher-and-contention-follow-up-2026-10-16-utc)
+adds a 50 ms background lock-wait bound with lease-fenced rollback and deferral.
+Three local 100-member runs using the real Outbox dispatcher, projections and
+continuous canonical saves plus independent Sync Push passed all unchanged save
+latency gates without errors. Same-collection save p95 was 62–81 ms; Sync p95 was
+150–170 ms. The local baseline also passed. The prior s2 latency failure, larger
+capacity and full production HTTP/provider acceptance are not closed by these
+local results; **AC-39 remains open for release acceptance.**
+
 ## Web delivery on `main` (2026-10-14)
 
 Each web task is committed separately. The commit column is filled in by the next task's commit.

@@ -1,0 +1,8 @@
+{
+  "packages/server/src/infrastructure/automation/manual-run-consumer.ts": "70337b6afc53be1d661e99f039214c3a566c5f8748acffbdef12dda394f6bf25",
+  "packages/server/tests/support/ac39-capacity.ts": "a9196d47f13cc0bd159f25a71622bd691805c3ecefa8ed9c634383a48f067628",
+  "packages/server/tests/support/automation-mixed-worker.ts": "ddc6db8d2a57b1827eacc469e41284c054d913592610771d36937879719d5094",
+  "packages/server/tests/support/automation-device-fixture.ts": "b21f590262631c775d2b0ebb2baa1e27f6e4a551d72f34feb85c9275cebaed29",
+  "packages/server/vendor/know-n-colp-0.2.1-automation.1.tgz": "4934cd690e2d159765ce53d1b4c490494b139394d392d874838aafd5a7393313",
+  "baseline manual-run-consumer.ts at 8f191d73": "98bb183019a66e186fd3843fe8d016555aee5b580449b9e1dda2c0a8b5d9ba2e"
+}
