@@ -179,7 +179,10 @@ self.addEventListener('online', (event) => {
 const firstRun = bindFirstRunOnboarding({ rootTree, saveRoots, requestPermission: requestBookmarkPermission,
   folderHeading: element('folder-heading'), folderIntro: element('folder-intro'),
   serverLabel: () => { try { return new URL(serverOrigin()).host; } catch { return serverOrigin(); } }, showPane,
-  onSyncStatusChanged: () => { void syncProgress.refresh(); void refreshEngineStatus(); void personalSync.refresh(); } });
+  onSyncStatusChanged: () => {
+    void syncProgress.refresh(); void refreshEngineStatus(); void personalSync.refresh();
+    queueMicrotask(() => { if (!firstRun.isRangeActive()) void folders.load(); });
+  } });
 bindSecondarySettings();
 const serverAccount = bindServerAccount({
   busy,

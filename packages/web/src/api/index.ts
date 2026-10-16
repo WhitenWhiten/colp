@@ -17,6 +17,7 @@ export type {
   AnnotationView,
   AnnotationVisibility,
   CollectionKind,
+  FolderShareView, FolderShareState,
   LibraryCollection,
   OwnedCollectionListItem,
   OwnedCollectionPage,

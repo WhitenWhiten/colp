@@ -143,6 +143,20 @@ describe('public Collection page', () => {
     expect(robotsContents()).toEqual([])
   })
 
+  it('renders a shared folder without discovery controls or an indexed canonical', async () => {
+    installPageMetaBaseline()
+    const shared = snapshot()
+    shared.collection = { ...shared.collection, folderShare: true, title: 'Shared reading' }
+    mocks.loadPublicCollectionSnapshot.mockResolvedValue(shared)
+    renderCollection(); await waitForDom(domFinishedLoading)
+    expect(document.body.textContent).toContain('Shared folder')
+    expect(document.body.textContent).toContain('First source')
+    expect(document.querySelector('a[href="/graph/research-notes"]')).toBeNull()
+    expect(document.body.textContent).not.toContain('Subscribe in browser')
+    expect(robotsContents()).toEqual(['noindex'])
+    expect(canonicalHref()).toBeNull()
+  })
+
   it('renders an explicit empty state when only the published root is visible', async () => {
     mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot([rootNode()]))
     renderCollection()

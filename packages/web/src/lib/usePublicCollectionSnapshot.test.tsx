@@ -84,6 +84,17 @@ describe('usePublicCollectionSnapshot', () => {
     await waitForDom(domFinishedLoading)
   })
 
+  it('never paints a cached folder share when revisiting a withdrawn link', async () => {
+    const shared = snapshot('Shared reading')
+    mocks.load.mockResolvedValue({ ...shared, collection: { ...shared.collection, folderShare: true } })
+    mount(); await waitForDom(domFinishedLoading)
+    mocks.load.mockRejectedValue(new ProductApiError({ status: 404, code: 'resource_not_found', message: 'Revoked' }))
+    remount()
+    expect(seen).toContain('loading')
+    expect(document.querySelector('[data-testid="snap"]')?.getAttribute('data-title')).toBe('')
+    await waitForDom(() => document.querySelector('[data-testid="snap"]')?.getAttribute('data-status') === 'unavailable')
+  })
+
   it('replaces the cached snapshot with the revalidated one', async () => {
     mount()
     await waitForDom(domFinishedLoading)

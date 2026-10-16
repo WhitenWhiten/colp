@@ -191,7 +191,7 @@ export interface RealStack {
 
 const MAX_SYNC_BATCH_OPERATIONS = knowNBackendRoot ? 1 : 50;
 
-export async function startRealStack(options: {readonly classification?:boolean; readonly syntheticCapture?: boolean; readonly subscriptions?: boolean} = {}): Promise<RealStack> {
+export async function startRealStack(options: {readonly classification?:boolean; readonly syntheticCapture?: boolean; readonly subscriptions?: boolean; readonly web?: boolean} = {}): Promise<RealStack> {
   const externalOrigin = externalBackendOrigin();
   if (externalOrigin) return startExternalRealStack(externalOrigin);
   await clearExternalBuildPointing();
@@ -333,6 +333,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
       const config = { ...base, betterAuth: { ...base.betterAuth, enabled: true,
         trustedOrigins: [EXTENSION_ORIGIN, SERVER_ORIGIN] } };
       registerSessionMeRoutes(product, { config, identityUnitOfWork, browserSessionAuthority });
+      if (options.web) await (await import('./library-web-stack.js')).mountLibraryWebFixture(product, isolated.runtime, config, identityUnitOfWork);
     }
     product.setErrorHandler((error, request, reply) => sendProductError(request, reply,
       error instanceof ProductHttpError ? error : new ProductHttpError({ statusCode: 500,

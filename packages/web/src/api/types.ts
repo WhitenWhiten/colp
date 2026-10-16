@@ -13,6 +13,8 @@ export type AuthenticatedSessionView = Schemas['AuthenticatedSessionView']
 export type MeView = Schemas['MeView']
 export type UpdateMeRequest = Schemas['UpdateMeRequest']
 
+export type FolderShareView = Schemas['FolderShareView']
+export type FolderShareState = Schemas['FolderShareState']
 export type LibraryCollection = Schemas['LibraryCollection']
 export type CollectionKind = Schemas['CollectionKind']
 export type CollectionView = Schemas['CollectionView']

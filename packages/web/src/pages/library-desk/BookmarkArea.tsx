@@ -59,6 +59,7 @@ export function BookmarkArea({
   bulkBar,
   onEditNode,
   onEditCollection,
+  onShareFolder,
 }: {
   /** The Get started card offers an explicit new-folder action. */
   checklistShown?: boolean
@@ -85,6 +86,7 @@ export function BookmarkArea({
   /** Opens the FE-04 node edit drawer for this row. */
   onEditNode: (nodeId: string) => void
   onEditCollection: () => void
+  onShareFolder: (node: import('../../lib/libraryTree').FolderNode) => void
 }) {
   const titleRef = useRef<HTMLInputElement>(null)
   const urlRef = useRef<HTMLInputElement>(null)
@@ -578,6 +580,7 @@ export function BookmarkArea({
               countNoun="bookmark"
               items={folderCards.map(({ node, inside, folderCount, covers }) => ({
                 id: node.id,
+                shared: node.shared,
                 title: node.title,
                 directCount: inside.length,
                 to: folderPath(node.id),
@@ -591,6 +594,7 @@ export function BookmarkArea({
                 return (
                   <LibraryFolderMenu
                     title={node.title}
+                    onShare={snap?.collection.library ? () => onShareFolder(node) : undefined}
                     canMove={Boolean(caps?.moveNode) && !data.protectedFolderIds.has(node.id)}
                     canDelete={Boolean(caps?.deleteNode) && !data.protectedFolderIds.has(node.id)}
                     automateTo={automationsOn && snap

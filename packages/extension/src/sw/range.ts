@@ -7,7 +7,7 @@ import { scanBoundary, countFolderContents } from '../bookmark-boundary.js';
 import { createChromeBookmarkTreeAdapter } from '../chrome-bookmark-tree.js';
 import { kns09Paused } from '../kns-09-release.js';
 import {
-  applyConfirmedRange, consumeRangePreview, discoveredFromRoots, previewRangeChange, previewRejection,
+  applyConfirmedRange, consumeRangePreview, discoveredFromRoots, previewRangeChange, previewRejection, releaseReincludedPrivateMappings,
 } from '../scope-range.js';
 import type { ScopePreviewRecord, SyncScope } from '../sync-state-store.js';
 import type {
@@ -43,6 +43,7 @@ export async function handleRangePreview(message: PreviewRequest): Promise<RootR
     });
   } catch (error) {
     const code = error instanceof Error ? error.message : '';
+    if (code === 'sync_busy') return { ok: false, error: 'sync_busy' };
     if (code === 'remote_subtree_unknown' || code === 'mount_not_bound' || code === 'mount_not_found') {
       return { ok: false, error: 'request_invalid' };
     }
@@ -108,6 +109,17 @@ export async function handleRangeConfirm(message: ConfirmRequest): Promise<Range
       return { ok: false, error: 'request_invalid' };
     }
   }
+  await releaseReincludedPrivateMappings(syncState, scope, {
+    previousPrivateRoots: recorded.privateRoots ?? [], privateNativeIds: preview.privateNativeIds ?? [],
+    discovered: discoveredFromRoots(tree.roots),
+  });
+  const selectedNativeIds = unique([
+    ...scan.selectedNativeIds, ...keepNativeIds,
+  ]);
+  const { discovered } = await readRootFolders();
+  await syncState.configureBrowserRoots(scope, {
+    discovered, selectedNativeIds, privateNativeIds: preview.privateNativeIds ?? [], status: 'ready',
+  });
   for (const nativeId of remoteDeleteNativeIds) {
     const deleted = await remoteDeleteMount(scope, preview, nativeId);
     if (!deleted.ok) {
@@ -117,13 +129,6 @@ export async function handleRangeConfirm(message: ConfirmRequest): Promise<Range
       return { ok: false, error: 'request_invalid' };
     }
   }
-  const selectedNativeIds = unique([
-    ...scan.selectedNativeIds, ...keepNativeIds,
-  ]);
-  const { discovered } = await readRootFolders();
-  await syncState.configureBrowserRoots(scope, {
-    discovered, selectedNativeIds, privateNativeIds: preview.privateNativeIds ?? [], status: 'ready',
-  });
   await syncState.bumpBoundaryVersion(scope);
   await consumeRangePreview(syncState, scope, preview);
   await recoverBookmarkEvents();

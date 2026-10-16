@@ -110,6 +110,7 @@ export function bindFolders(host: FoldersHost) {
   }
 
   function renderFailure(code: string): void {
+    if (code === 'sync_busy') { feedback.textContent = t('sync_finishingChange', 'Sync is finishing the previous folder change. Try again shortly.'); save.disabled = false; return; }
     alert.hidden = true; retry.hidden = true; tree.replaceChildren();
     if (code === 'not_connected') {
       showEmpty(document.body.dataset.library === 'unsupported'

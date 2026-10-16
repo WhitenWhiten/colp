@@ -1,3 +1,4 @@
+import { SUBTREE_OBSERVATION_EXTENSION } from '@know-n/colp/sync/canonical';
 import { detachScopeMount } from './scope-detach.js';
 import { digestJson } from './bookmark-event-codec.js';
 import { scanBoundary, type BoundaryScan } from './bookmark-boundary.js';
@@ -69,9 +70,28 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   const liveMounts = await store.listMountBindings(scope);
   const mappings = await store.listMappings(scope);
   const discovered = input.discovered ?? discoveredFromRoots(input.roots);
-  const diff = diffLiveRange({
+  const mountDiff = diffLiveRange({
     liveMounts, mappings, selectedNativeIds: scan.selectedNativeIds, discovered,
   });
+  const previousPrivate = new Set((recorded?.privateRoots ?? []).map(id => mappings.find(row => row.colpId === id)?.nativeId).filter((id): id is string => Boolean(id)));
+  const nextPrivate = new Set(input.privateNativeIds ?? []);
+  const newlyPrivate = [...nextPrivate].filter(id => !previousPrivate.has(id)
+    && !liveMounts.some(mount => mount.nativeRootId === id)
+    && mappings.some(row => row.nativeId === id && !row.projection.revision.startsWith('local-')));
+  const reincluded = [...previousPrivate].filter(id => discovered.has(id) && (scan.selectedNativeIds.includes(id) || (discovered.get(id) ?? []).some(ancestor => scan.selectedNativeIds.includes(ancestor))) && !nextPrivate.has(id)
+    && !(discovered.get(id) ?? []).some(ancestor => nextPrivate.has(ancestor)));
+  const reincludedColp = new Set(mappings.filter(row => reincluded.includes(row.nativeId)).map(row => row.colpId));
+  for (let after = 0;;) {
+    const queued = await store.listQueue(scope, undefined, after, 1000);
+    if (queued.some(row => row.opId.startsWith('range.private.') && reincludedColp.has(String(row.payload.targetId))
+      && row.status !== 'rejected' && (row.status !== 'terminal' || !row.echoApplied))) throw new Error('sync_busy');
+    if (queued.length < 1000) break;
+    after = queued[queued.length - 1]!.sequence;
+  }
+  const diff: RangeDiff = { ...mountDiff,
+    addedNativeIds: [...new Set([...mountDiff.addedNativeIds, ...reincluded])],
+    removedNativeIds: [...new Set([...mountDiff.removedNativeIds, ...newlyPrivate])],
+  };
   const now = input.now ?? Date.now;
   const previewId = crypto.randomUUID();
   const remoteDeleteEvidence = await remoteDeleteEvidenceFor(store, scope,
@@ -150,6 +170,23 @@ export async function applyConfirmedRange(store: Store, scope: SyncScope, input:
   return { kept, unmounted };
 }
 
+/** User-confirmed inclusion retires old tombstones and never-synced local identities. */
+export async function releaseReincludedPrivateMappings(store: Store, scope: SyncScope, input: {
+  readonly previousPrivateRoots: readonly string[]; readonly privateNativeIds: readonly string[];
+  readonly discovered: ReadonlyMap<string, readonly string[]>;
+}): Promise<void> {
+  const mappings = await store.listMappings(scope);
+  const oldRoots = mappings.filter(row => input.previousPrivateRoots.includes(row.colpId)).map(row => row.nativeId);
+  for (const mapping of mappings) {
+    const ancestors = input.discovered.get(mapping.nativeId) ?? [];
+    const wasPrivate = oldRoots.includes(mapping.nativeId) || ancestors.some(id => oldRoots.includes(id));
+    const staysPrivate = input.privateNativeIds.some(id => id === mapping.nativeId || ancestors.includes(id));
+    if (!wasPrivate || staysPrivate) continue;
+    if ((await store.getRemoteObservation(scope, mapping.colpId))?.kind === 'tombstone') await store.commitTombstoneMappingRepair(scope, mapping);
+    else if (mapping.projection.revision === 'local-root') await store.deleteMapping(scope, mapping.nativeId);
+  }
+}
+
 export async function mountIdForNative(store: Store, scope: SyncScope, nativeId: string): Promise<string | undefined> {
   const mount = (await store.listMountBindings(scope)).find((row) => row.nativeRootId === nativeId);
   return mount?.mountId;
@@ -169,7 +206,16 @@ async function remoteDeleteEvidenceFor(store: Store, scope: SyncScope, nativeIds
   const evidence: RemoteDeleteFreezeEntry[] = [];
   for (const nativeId of nativeIds) {
     const mount = mounts.find((row) => row.nativeRootId === nativeId);
-    if (!mount) continue;
+    if (!mount) {
+      const mapping = await store.getMappingByNativeId(scope, nativeId);
+      if (!mapping || mapping.projection.revision.startsWith('local-') || (await store.getRemoteObservation(scope, mapping.colpId))?.kind === 'tombstone') continue;
+      const subtreeSource = await scopeSubtreeDeleteSource(store, scope, mapping.colpId);
+      const extensions = subtreeSource.extensions as Record<string, { count: number }>;
+      evidence.push({ nativeRootId: nativeId, mountId: `excluded:${nativeId}`, remoteMountNodeId: mapping.colpId,
+        boundaryVersion: (await store.getScope(scope))?.boundaryVersion ?? '0',
+        affectedCount: extensions[SUBTREE_OBSERVATION_EXTENSION]!.count - 1, subtreeSource });
+      continue;
+    }
     if (!mount.remoteMountNodeId) throw new Error('mount_not_bound');
     evidence.push({
       nativeRootId: nativeId, mountId: mount.mountId, remoteMountNodeId: mount.remoteMountNodeId,

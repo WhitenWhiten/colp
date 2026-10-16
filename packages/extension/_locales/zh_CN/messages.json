@@ -7747,6 +7747,10 @@
     "message": "扩展程序后台暂时不可用。请稍后重新打开此页面。",
     "description": "The extension background is temporarily unavailable. Reopen this page in a moment."
   },
+  "sync_finishingChange": {
+    "message": "同步正在完成上一次文件夹更改，请稍后再试。",
+    "description": "Sync is finishing the previous folder change. Try again shortly."
+  },
   "sync_firstLatest": {
     "message": "$1 · 首次：$2 · 最近：$3",
     "description": "$1 · First: $2 · Latest: $3"

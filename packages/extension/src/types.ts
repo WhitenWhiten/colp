@@ -387,7 +387,7 @@ export type RootResponse = { readonly ok: true; readonly view: PublicRootView }
   | { readonly ok: true; readonly preview: PublicRangePreview }
   | { readonly ok: true; readonly boundaries: PublicRootBoundaries }
   | { readonly ok: false; readonly error: PublicRootStatus | 'not_connected' | 'request_invalid' | 'root_update_failed'
-    | 'permission_required' | 'preview_stale' | 'duplicate_confirm' | 'sync_paused' };
+    | 'permission_required' | 'preview_stale' | 'duplicate_confirm' | 'sync_paused' | 'sync_busy' };
 
 export type ExtensionResponse = { readonly ok: true; readonly state: PublicAuthState }
   | { readonly ok: false; readonly state: PublicAuthState; readonly error: string };

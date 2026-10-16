@@ -168,6 +168,7 @@ export function LibraryFolderMenu({
   onEdit,
   onMove,
   onDelete,
+  onShare,
 }: {
   title: string
   canMove: boolean
@@ -177,6 +178,7 @@ export function LibraryFolderMenu({
   onEdit: () => void
   onMove: () => void
   onDelete: () => void
+  onShare?: () => void
 }) {
   return (
     <RowActionMenu title={title}>
@@ -185,6 +187,7 @@ export function LibraryFolderMenu({
           <button type="button" role="menuitem" tabIndex={-1} onClick={() => run(onEdit)}>
             Edit details
           </button>
+          {onShare && <button type="button" role="menuitem" tabIndex={-1} onClick={() => run(onShare)}>Share…</button>}
           {automateTo && (
             <Link
               to={automateTo}
@@ -225,6 +228,7 @@ export function LibraryMoreMenu({
   onCompose,
   onEditCollection,
   library = false,
+  onShareFolder,
 }: {
   className?: string
   caps: EditorSnapshot['capabilities'] | undefined
@@ -235,6 +239,7 @@ export function LibraryMoreMenu({
   onCompose: (kind: ComposeKind) => void
   onEditCollection?: () => void
   library?: boolean
+  onShareFolder?: () => void
 }) {
   const { success, error } = useToast()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -290,6 +295,9 @@ export function LibraryMoreMenu({
               New folder
             </button>
           )}
+          {onShareFolder && <button type="button" role="menuitem" tabIndex={-1} onClick={() => {
+            menu.close(); triggerRef.current?.focus(); onShareFolder()
+          }}>Share…</button>}
           {caps?.updateCollection && onEditCollection && (
             <button
               type="button"

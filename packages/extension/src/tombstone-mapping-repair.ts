@@ -12,7 +12,7 @@ import type {
 } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
-  'listMappings' | 'listRemoteObservations' | 'getLocalSyncExclusion' | 'putLocalSyncExclusion'
+  'getScope' | 'listMappings' | 'listRemoteObservations' | 'getLocalSyncExclusion' | 'putLocalSyncExclusion'
   | 'commitTombstoneMappingRepair' | 'getMappingByNativeId'>
   // The queued-create sweep and its "kept, not rewritten" diagnostic read the
   // queue store, which the native-repair entry point's narrow Store Pick does
@@ -33,9 +33,20 @@ export async function repairTombstonedNativeMappings(store: Store, scope: SyncSc
     store.listMappings(scope), store.listRemoteObservations(scope),
   ]);
   const tombstones = new Set(observations.filter((row) => row.kind === 'tombstone').map((row) => row.colpId));
+  const privateIds = new Set((await store.getScope(scope))?.privateRoots ?? []);
+  const byId = new Map(mappings.map(row => [row.colpId, row]));
+  const byNative = new Map(mappings.map(row => [row.nativeId, row]));
+  const isPrivate = (mapping: MappingInput) => {
+    const seen = new Set<string>(); let row: MappingInput | undefined = mapping;
+    while (row && !seen.has(row.colpId)) {
+      if (privateIds.has(row.colpId)) return true;
+      seen.add(row.colpId); row = row.parentColpId ? byId.get(row.parentColpId) : row.parentNativeId ? byNative.get(row.parentNativeId) : undefined;
+    }
+    return false;
+  };
   let excluded = 0; let waiting = 0;
   for (const mapping of mappings) {
-    if (isNonChromeNativeId(mapping.nativeId) || !tombstones.has(mapping.colpId)) continue;
+    if (isNonChromeNativeId(mapping.nativeId) || !tombstones.has(mapping.colpId) || isPrivate(mapping)) continue;
     if (await store.getLocalSyncExclusion(scope, mapping.nativeId)) {
       // Complete a keep-local transition interrupted by an older writer after
       // it persisted the exclusion but before releasing the live identity.

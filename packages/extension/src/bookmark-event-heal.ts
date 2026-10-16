@@ -11,6 +11,7 @@ import type { BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord,
  * revive the event on real convergence evidence.
  */
 export interface HealStore {
+  getRemoteObservation: ReturnType<typeof import('./sync-state-store.js').createSyncStateStore>['getRemoteObservation'];
   getMappingByNativeId(scope: SyncScope, nativeId: string): Promise<MappingInput | null>;
   getMappingByColpId(scope: SyncScope, colpId: string): Promise<MappingInput | null>;
   listMountBindings(scope: SyncScope): Promise<readonly MountBindingRecord[]>;
@@ -219,7 +220,7 @@ export function createBookmarkEventHealer(input: {
 
   async function seedIdentity(nativeId: string): Promise<LocalIdentity | null> {
     const durable = await input.store.getMappingByNativeId(input.scope, nativeId);
-    if (durable) {
+    if (durable && (await input.store.getRemoteObservation(input.scope, durable.colpId))?.kind !== 'tombstone') {
       return { nativeId: durable.nativeId, colpId: durable.colpId, rootNativeId: durable.rootNativeId,
         revision: durable.projection.revision,
         ...(durable.projection.childrenRevision ? { childrenRevision: durable.projection.childrenRevision } : {}),

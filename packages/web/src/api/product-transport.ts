@@ -1,3 +1,4 @@
+import { createFolderShareTransport } from './product-transport-folder-share'
 import { createFaviconTransport } from './product-transport-favicon'
 /**
  * Internal Product HTTP transport.
@@ -56,6 +57,7 @@ export function createProductTransport(
   return {
     ...createSessionTransport(http),
     ...createEditorTransport(http),
+    ...createFolderShareTransport(http),
     ...createFaviconTransport(http),
     ...createLinkPreviewTransport(http),
     ...createSearchPublicTransport(http),

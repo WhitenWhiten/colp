@@ -19,11 +19,12 @@ export async function identityFromCreateReceipt(store: Store, scope: SyncScope, 
   if (!queued || queued.payload.type !== 'create_node' || queued.status !== 'terminal') return null;
   const durable = await store.getMappingByNativeId(scope, nativeId);
   if (durable && authoritativeColpId(durable.colpId) && !durable.projection.revision.startsWith('local-')) {
+    if ((await store.getRemoteObservation(scope, durable.colpId))?.kind === 'tombstone') return null;
     return { ...identityFromMapping(durable), createOpId: queued.opId };
   }
   const receipt = await store.getQueueReceipt(scope, queued.sequence);
   const applied = receiptAppliedTarget(receipt?.result);
-  if (!applied) return null;
+  if (!applied || (await store.getRemoteObservation(scope, applied.targetId))?.kind === 'tombstone') return null;
   const parent = await createReceiptParentIdentity(store, scope, queued.payload);
   const nodeKind = createPayloadKind(queued.payload);
   const content = createPayloadContent(queued.payload);
@@ -38,6 +39,11 @@ export async function plannedCreateOpIdForNative(store: Store, scope: SyncScope,
   Promise<string | null> {
   if (!liveCreateNativeId(nativeId)) return null;
   const queued = await findCreateQueueForNative(store, scope, nativeId);
+  if (queued?.status === 'terminal') {
+    const receipt = await store.getQueueReceipt(scope, queued.sequence);
+    const applied = receiptAppliedTarget(receipt?.result);
+    if (applied && (await store.getRemoteObservation(scope, applied.targetId))?.kind === 'tombstone') return null;
+  }
   return queued?.payload.type === 'create_node' ? queued.opId : null;
 }
 

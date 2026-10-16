@@ -38,6 +38,7 @@ export function LibraryHeader({
   deskTrail,
   openCompose,
   onEditCollection,
+  onShareFolder,
   onAcceptInvite,
   onDeclineInvite,
 }: {
@@ -51,6 +52,7 @@ export function LibraryHeader({
   deskTrail: FolderNode[]
   openCompose: LibraryDeskMutations['openCompose']
   onEditCollection: () => void
+  onShareFolder?: (folder: FolderNode) => void
   onAcceptInvite: (inviteId: string, collectionId: string) => Promise<void>
   onDeclineInvite: (inviteId: string) => Promise<void>
 }) {
@@ -128,7 +130,7 @@ export function LibraryHeader({
         eyebrow={heading === 'Library' ? undefined : 'Library'}
         breadcrumb={folderTrail}
         title={heading}
-        afterTitle={visibilityBadge ? (
+        afterTitle={selectedFolder?.shared ? <StatusBadge tone="accent">Shared by link</StatusBadge> : visibilityBadge ? (
           <StatusBadge tone={visibilityBadge.tone} data-testid="library-visibility">{visibilityBadge.label}</StatusBadge>
         ) : undefined}
         documentTitle={heading}
@@ -144,6 +146,7 @@ export function LibraryHeader({
                 onCompose={openCompose}
                 onEditCollection={onEditCollection}
                 library={collection?.library}
+                onShareFolder={collection?.library && selectedFolder && onShareFolder ? () => onShareFolder(selectedFolder) : undefined}
               />
             )}
           </>

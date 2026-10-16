@@ -5894,6 +5894,9 @@
   "sync_extensionBackgroundTemporarilyUnavailable": {
     "message": "The extension background is temporarily unavailable. Reopen this page in a moment."
   },
+  "sync_finishingChange": {
+    "message": "Sync is finishing the previous folder change. Try again shortly."
+  },
   "sync_firstLatest": {
     "message": "$1 · First: $2 · Latest: $3"
   },

@@ -253,6 +253,9 @@ export type ProductTransport = {
     body: CollectionVersionRestoreRequest,
     opts: MutationCallOptions & { ifMatch: string },
   ) => Promise<CollectionVersionRestoreReceipt>
+  getFolderShare: (collectionId: string, nodeId: string, signal?: AbortSignal) => Promise<import('./types').FolderShareState>
+  putFolderShare: (collectionId: string, nodeId: string, options: MutationCallOptions) => Promise<import('./types').FolderShareState>
+  deleteFolderShare: (collectionId: string, nodeId: string, options: MutationCallOptions) => Promise<import('./types').FolderShareState>
   getLibrary: (signal?: AbortSignal) => Promise<import('./types').LibraryCollection>
   listOwnedCollections: (params?: OwnedCollectionPageParams) => Promise<OwnedCollectionPage>
   createCollection: (

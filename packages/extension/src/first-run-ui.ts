@@ -87,6 +87,8 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   advancedModeSelect.value = readAdvancedMode(advancedModeSelect.value);
   advancedHint.textContent = advancedModeHint(readAdvancedMode(advancedModeSelect.value));
 
+  const rangeHeading = host.folderHeading.textContent;
+  const rangeIntro = host.folderIntro.textContent;
   let rangeActive = false;
   let observation: FirstRunObservation = { firstRun: 'none' };
   let view: PublicRootView | undefined;
@@ -321,6 +323,9 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   function hideOnboardingChrome(): void {
     rangeActive = false; confirm.hidden = true; advancedPanel.hidden = true; attentionHost.hidden = true;
     document.body.dataset.firstRun = '';
+    host.folderHeading.textContent = rangeHeading;
+    host.folderIntro.textContent = rangeIntro;
+    host.saveRoots.hidden = view?.status === 'permission_required';
   }
 
   function clearStatusPoll(): void {

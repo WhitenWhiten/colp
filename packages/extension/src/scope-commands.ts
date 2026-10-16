@@ -84,6 +84,23 @@ export async function executeRemoteDelete(store: Store, scope: SyncScope, comman
   readonly previewId?: string;
 }): Promise<FirstRunOrScopeResponse> {
   if (await kns09Paused('ui')) return { ok: false, error: 'sync_paused' };
+  if (command.previewId && command.mountId.startsWith('excluded:')) {
+    const frozen = await loadRemoteDeleteFreeze(store, scope, command);
+    if (!frozen?.subtreeSource || command.affectedCount !== frozen.affectedCount || command.confirmationToken !== mintRemoteDeleteConfirmation({
+      mountId: command.mountId, affectedCount: frozen.affectedCount, boundaryVersion: frozen.boundaryVersion,
+    })) return { ok: false, error: 'preview_stale' };
+    const mapping = await store.getMappingByNativeId(scope, frozen.nativeRootId);
+    if (!mapping || mapping.colpId !== frozen.remoteMountNodeId
+      || !(await store.getScope(scope))?.privateRoots?.includes(mapping.colpId)) return { ok: false, error: 'preview_stale' };
+    const opId = `range.private.${digestJson([command.previewId, frozen.nativeRootId]).slice(7)}`;
+    if (!await store.getQueueByOpId(scope, opId)) {
+      const source = await scopeSubtreeDeleteSource(store, scope, mapping.colpId);
+      if (digestJson(source) !== digestJson(frozen.subtreeSource)) return { ok: false, error: 'preview_stale' };
+      await enqueueColpDelete(store, scope, { opId, targetId: mapping.colpId, kind: mapping.nodeKind,
+        baseRevision: mapping.projection.revision, source });
+    }
+    return { ok: true, phase: 'syncing', firstRun: 'completed' };
+  }
   const mount = await store.getMountBinding(scope, command.mountId);
   if (!mount) return { ok: false, error: command.previewId ? 'preview_stale' : 'mount_not_found' };
   if (!mount.remoteMountNodeId) return { ok: false, error: command.previewId ? 'preview_stale' : 'mount_not_bound' };

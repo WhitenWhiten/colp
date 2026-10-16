@@ -1,3 +1,4 @@
+import { SharedFolderMark } from '../../components/SharedFolderMark'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { EditorSnapshot } from '../../api'
@@ -274,10 +275,11 @@ function FolderBranch({
   )
 }
 
-function NavRowMarks({ title, count, container }: {
+function NavRowMarks({ title, count, container, shared }: {
   title: string
   count: number | null
   container: 'collection' | 'folder'
+  shared?: boolean
 }) {
   return (
     <>
@@ -285,6 +287,7 @@ function NavRowMarks({ title, count, container }: {
         <Icon name="folder" />
       </span>
       <span className="library-nav-label" title={title}>{title}</span>
+      {shared && <SharedFolderMark />}
       {count != null && (
         <span className="library-nav-count" title={`${plural(count, 'bookmark')} in this ${container}`}>
           {count}
@@ -320,7 +323,7 @@ function FolderLink({
         aria-current={current ? 'page' : undefined}
         onClick={onPick}
       >
-        <NavRowMarks title={folder.title} count={count} container="folder" />
+        <NavRowMarks title={folder.title} count={count} container="folder" shared={folder.shared} />
       </button>
     )
   }
@@ -331,7 +334,7 @@ function FolderLink({
       data-folder-id={folder.id}
       aria-current={current ? 'page' : undefined}
     >
-      <NavRowMarks title={folder.title} count={count} container="folder" />
+      <NavRowMarks title={folder.title} count={count} container="folder" shared={folder.shared} />
     </Link>
   )
 }

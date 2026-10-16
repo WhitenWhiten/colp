@@ -1,3 +1,4 @@
+import { FolderShareDialog } from './FolderShareDialog'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -66,6 +67,8 @@ export function LibraryDeskView({
 }: LibraryDeskViewProps) {
   const [density] = useUiDensity()
   const compact = density === 'compact'
+  const [sharingFolder, setSharingFolder] = useState<import('../../lib/libraryTree').FolderNode | null>(null)
+  const closeShare = useCallback(() => setSharingFolder(null), [])
   const [query, setQuery] = useState('')
   const split = useLibraryDeskSplit()
   // Read once: dismissing or finishing the checklist hides it for good.
@@ -89,6 +92,7 @@ export function LibraryDeskView({
 
   useEffect(() => {
     setQuery('')
+    setSharingFolder(null)
   }, [selectedId, folderId])
 
   /* Tags cut across folders: choosing one leaves the folder for a flat view
@@ -241,6 +245,7 @@ export function LibraryDeskView({
               deskTrail={deskTrail}
               openCompose={mutations.openCompose}
               onEditCollection={onEditCollection}
+              onShareFolder={setSharingFolder}
               order={order}
               onAcceptInvite={onAcceptInvite}
               onDeclineInvite={onDeclineInvite}
@@ -269,6 +274,7 @@ export function LibraryDeskView({
               dragEnabled={dragEnabled}
               rowPointerDown={drag.rowPointerDown}
               onEditNode={onEditNode}
+              onShareFolder={setSharingFolder}
               onEditCollection={onEditCollection}
               bulkBar={(
                 <BulkActionBar
@@ -319,6 +325,9 @@ export function LibraryDeskView({
       />
       <LibraryTagPicker open={tagPickerOpen} onClose={() => setTagPickerOpen(false)} filter={tagFilter} />
 
+      {sharingFolder && snap && <FolderShareDialog key={`${snap.collection.id}:${sharingFolder.id}`}
+        collectionId={snap.collection.id} nodeId={sharingFolder.id} title={sharingFolder.title}
+        onClose={closeShare} onChanged={() => data.loadTree(snap.collection.id, { silent: true })} />}
       <LibraryOverlays
         collections={collections}
         shared={shared}

@@ -1,3 +1,4 @@
+import { SharedFolderMark } from './SharedFolderMark'
 import { Fragment, useState, type ReactNode } from 'react'
 import { Link, type To } from 'react-router-dom'
 import { Icon } from './Icon'
@@ -8,6 +9,7 @@ import { useGalleryMasonry } from '../lib/useGalleryMasonry'
 export type FolderEntryItem = {
   id: string
   title: string
+  shared?: boolean
   /** Direct children (subfolders + bookmarks). Null when the count is unknown. */
   directCount: number | null
   to: To
@@ -78,6 +80,7 @@ export function FolderEntries({ items, view, className, countNoun = 'item', rend
           >
             <span className="collection-folder-icon" aria-hidden><Icon name="folder" /></span>
             <span className="collection-folder-name">{item.title}</span>
+            {item.shared && <SharedFolderMark />}
             {item.directCount != null && (
               <span className="collection-folder-count">{plural(item.directCount, countNoun)}</span>
             )}
@@ -131,6 +134,7 @@ function FolderGalleryCard({ item, countNoun, actions }: {
       <div className="collection-card-body">
         <div className="collection-card-kicker">
           <span className="collection-card-mark" aria-hidden><Icon name="folder" /></span>
+          {item.shared && <SharedFolderMark />}
           {actions ? (
             // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- event boundary only: keeps action-button clicks off the card link; the children are native buttons
             <div className="folder-gallery-actions" onClick={(event) => event.stopPropagation()}>

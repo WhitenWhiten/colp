@@ -63,6 +63,15 @@ describe('create receipt identity', () => {
     assert.equal(await plannedCreateOpIdForNative(store, scope, 'bm-1'), 'b3.confirm.create.bm-1');
   });
 
+  test('a terminal create receipt cannot resurrect an identity with a later tombstone', async () => {
+    const store = await ready();
+    await enqueueCreate(store, 'bm-1', 'b3.confirm.create.bm-1', 'terminal', 'node-remote-1');
+    await store.putRemoteObservation(scope, { colpId: 'node-remote-1', kind: 'tombstone', remoteRevision: 'deleted',
+      cursor: 'deleted-cursor', payload: { deleted: true }, sourceDigest: 'd', observedAt: 1 });
+    assert.equal(await identityFromCreateReceipt(store, scope, 'bm-1'), null);
+    assert.equal(await plannedCreateOpIdForNative(store, scope, 'bm-1'), null);
+  });
+
   test('deleteMapping leaves a terminal receipt unbound for later rebind', async () => {
     const store = await ready();
     await enqueueCreate(store, 'bm-drop', 'b3.confirm.create.bm-drop', 'terminal', 'node-drop');

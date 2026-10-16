@@ -8,6 +8,8 @@ type Props = {
   /** Multi-line value (a command block) renders as a <pre>. */
   multiline?: boolean
   className?: string
+  onCopied?: () => void
+  onCopyFailed?: () => void
 }
 
 /**
@@ -16,7 +18,7 @@ type Props = {
  * Copying goes through lib/clipboard so it also works on the plain-HTTP
  * origins this edition supports (navigator.clipboard is absent there).
  */
-export function CopyField({ label, value, multiline = false, className }: Props) {
+export function CopyField({ label, value, multiline = false, className, onCopied, onCopyFailed }: Props) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
   useEffect(() => {
@@ -28,9 +30,9 @@ export function CopyField({ label, value, multiline = false, className }: Props)
   async function copy() {
     try {
       await copyTextToClipboard(value)
-      setState('copied')
+      setState('copied'); onCopied?.()
     } catch {
-      setState('failed')
+      setState('failed'); onCopyFailed?.()
     }
   }
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { readFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 
 const html = '<!DOCTYPE NETSCAPE-Bookmark-file-1><DL><DT><H3>Imported research</H3><DL><DT><A HREF="https://example.org/first">First imported link</A><DT><H3>Nested research</H3><DL><DT><A HREF="https://example.org/second">Second imported link</A></DL></DL></DL>'
 
@@ -8,32 +8,29 @@ test('owner lifecycle on the production self-hosted image', async ({ page, brows
   const password = process.env.COLP_ACCEPTANCE_PASSWORD
   if (!username || !password) throw new Error('Set acceptance owner credentials for this disposable stack.')
   const title = `Lifecycle ${Date.now()}`
-  const slug = `lifecycle-${Date.now()}`
+  let shareUrl = ''
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
 
-  await test.step('sign in and create a collection through the UI', async () => {
+  await test.step('sign in and open the account library', async () => {
     await page.goto('/login')
     await page.getByLabel('Username or email').fill(username)
     await page.getByLabel('Password', { exact: true }).fill(password)
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await expect(page).toHaveURL(/\/library/)
-    await page.goto('/library/new')
-    await page.getByLabel('Title', { exact: true }).fill(title)
-    await page.getByRole('button', { name: 'Create', exact: true }).click()
-    await expect(page).toHaveURL(/\/library\/[^/?]+$/)
-    await expect(page.getByRole('heading', { name: title })).toBeVisible()
+    const nav = page.getByTestId('library-nav')
+    await expect(nav.getByRole('link', { name: /Bookmarks bar/ })).toBeVisible()
+    await expect(nav.getByRole('link', { name: /Other bookmarks/ })).toBeVisible()
+    await nav.getByRole('link', { name: /Bookmarks bar/ }).click()
   })
-  const collectionId = new URL(page.url()).pathname.split('/').at(-1)!
   let folderId = ''
 
   await test.step('create a folder, bookmark, and private note', async () => {
-    await page.getByRole('button', { name: 'More collection actions' }).click()
-    await page.getByRole('menuitem', { name: 'Add folder', exact: true }).click()
-    await page.locator('#lc-title').fill('Acceptance folder')
+    await page.getByTestId('library-nav').getByRole('button', { name: 'New folder', exact: true }).click()
+    await page.locator('#lc-title').fill(title)
     await page.getByTestId('library-compose').getByRole('button', { name: 'Add', exact: true }).click()
-    await expect(page.locator('.library-folder-row', { hasText: 'Acceptance folder' })).toBeVisible()
-    await page.locator('.library-folder-row', { hasText: 'Acceptance folder' }).getByRole('link').first().click()
+    await expect(page.locator('.library-folder-row', { hasText: title })).toBeVisible()
+    await page.locator('.library-folder-row', { hasText: title }).getByRole('link').first().click()
     folderId = new URL(page.url()).searchParams.get('folder')!
     expect(folderId).toBeTruthy()
     await page.getByRole('button', { name: 'Add bookmark', exact: true }).first().click()
@@ -50,7 +47,6 @@ test('owner lifecycle on the production self-hosted image', async ({ page, brows
 
   await test.step('preview HTML, import into the chosen folder, and skip a repeated import', async () => {
     await page.goto('/import')
-    await page.getByLabel('Collection', { exact: true }).selectOption(collectionId)
     await page.getByLabel('Destination folder').selectOption(folderId)
     await page.getByLabel('Bookmarks HTML file').setInputFiles({ name: 'bookmarks.html', mimeType: 'text/html', buffer: Buffer.from(html) })
     await expect(page.getByText('Preview: 2 folders, 2 bookmarks.')).toBeVisible()
@@ -63,46 +59,27 @@ test('owner lifecycle on the production self-hosted image', async ({ page, brows
     await page.screenshot({ path: testInfo.outputPath('import.png') })
   })
 
-  await test.step('share an unlisted collection and read it in an anonymous browser', async () => {
-    await page.goto(`/library/${collectionId}?collection=edit`)
-    const settings = page.getByRole('dialog', { name: 'Edit collection' })
-    await settings.getByRole('radio', { name: 'Unlisted', exact: true }).check()
-    await settings.getByLabel('Public address').fill(slug)
-    await settings.getByRole('button', { name: 'Save collection' }).click()
-    await expect(settings.getByText('Published at', { exact: true })).toBeVisible()
+  await test.step('share a live folder and revoke its anonymous link', async () => {
+    await page.goto(`/library?folder=${encodeURIComponent(folderId)}`)
+    await page.getByRole('button', { name: 'More collection actions' }).click()
+    await page.getByRole('menuitem', { name: 'Share…', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: `Share ${title}` })
+    await dialog.getByRole('button', { name: 'Create link', exact: true }).click()
+    shareUrl = (await dialog.getByRole('link', { name: 'Open link', exact: true }).getAttribute('href'))!
     const anonymous = await browser.newContext()
     try {
       const publicPage = await anonymous.newPage()
-      await publicPage.goto(`${process.env.COLP_ACCEPTANCE_ORIGIN}/c/${slug}`)
-      await expect(publicPage.getByRole('heading', { name: title })).toBeVisible()
+      await publicPage.goto(shareUrl)
+      await expect(publicPage.getByRole('heading', { name: title, exact: true })).toBeVisible()
+      await expect(publicPage.getByText('Owner bookmark', { exact: true })).toBeVisible()
       await expect(publicPage.getByText('Private acceptance note')).toHaveCount(0)
+      await expect(publicPage.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0)
       await publicPage.screenshot({ path: testInfo.outputPath('anonymous.png') })
+      await dialog.getByRole('button', { name: 'Stop sharing', exact: true }).click()
+      await expect(dialog.getByRole('button', { name: 'Create link', exact: true })).toBeVisible()
+      await publicPage.reload()
+      await expect(publicPage.getByRole('heading', { name: 'Collection unavailable', exact: true })).toBeVisible()
     } finally { await anonymous.close() }
-    await page.goto(`/c/${slug}`)
-    await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeVisible()
-  })
-
-  let snapshot: { nodes: Array<{ id: string; kind: string; parentId: string; title: string; position: string }>; annotations: Array<{ value: unknown }> } | undefined
-  await test.step('download HTML and JSON through the Export menu', async () => {
-    await page.getByRole('button', { name: 'Export', exact: true }).click()
-    for (const format of ['HTML', 'JSON']) {
-      const pending = page.waitForEvent('download')
-      await page.getByRole('menuitem', { name: format, exact: true }).click()
-      const download = await pending
-      const path = testInfo.outputPath(`collection.${format.toLowerCase()}`)
-      await download.saveAs(path)
-      const text = await readFile(path, 'utf8')
-      if (format === 'HTML') expect(text).toContain('NETSCAPE-Bookmark-file-1')
-      else {
-        snapshot = JSON.parse(text)
-        expect(snapshot!.nodes.filter(node => node.kind === 'bookmark')).toHaveLength(3)
-        expect(snapshot!.annotations.some(annotation => annotation.value === 'Private acceptance note')).toBe(true)
-        const first = snapshot!.nodes.find(node => node.title === 'First imported link')!
-        const nested = snapshot!.nodes.find(node => node.title === 'Nested research')!
-        expect(first.parentId).toBe(nested.parentId)
-        expect(first.position < nested.position).toBe(true)
-      }
-    }
   })
 
   await test.step('show the empty Sync center and installed versions', async () => {
@@ -120,5 +97,5 @@ test('owner lifecycle on the production self-hosted image', async ({ page, brows
     await page.screenshot({ path: testInfo.outputPath('about.png') })
   })
   expect(errors).toEqual([])
-  await writeFile(testInfo.outputPath('lifecycle.json'), JSON.stringify({ origin: process.env.COLP_ACCEPTANCE_ORIGIN, collectionId, folderId, title, slug, bookmarks: 3, importedFolders: 2, privateNote: true }, null, 2))
+  await writeFile(testInfo.outputPath('lifecycle.json'), JSON.stringify({ origin: process.env.COLP_ACCEPTANCE_ORIGIN, folderId, title, shareUrl, bookmarks: 3, importedFolders: 2, privateNote: true }, null, 2))
 })

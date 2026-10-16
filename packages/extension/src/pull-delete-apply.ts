@@ -1,3 +1,5 @@
+import { withinPrivateNativeBoundary } from './native-private-boundary.js';
+import { lookupBookmark } from './bookmark-api-error.js';
 import { recordKns09Stop } from './kns-09-release.js';
 import { remoteDeleteDecisionId, remoteDeleteMemberIds } from './remote-delete-policy.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
@@ -41,6 +43,15 @@ export async function applyRemoteDeletion(input: {
   const rootId = effect.kind === 'node_deleted' ? effect.tombstone.targetId : effect.rootTombstone.targetId;
   const root = mappings.find((row) => row.colpId === rootId);
   if (!root) throw new Error('mapping_missing:subtree_root');
+  if (!isNonChromeNativeId(root.nativeId) && await withinPrivateNativeBoundary({ store, scope, mapping: root,
+    privateRoots: (await store.getScope(scope))?.privateRoots ?? [], lookup: id => lookupBookmark(native => api.get(native), id) })) {
+    const revision = effect.kind === 'node_deleted' ? effect.tombstone.deleteRevision : effect.rootTombstone.deleteRevision;
+    return { deleteNativeIds: [],
+      observations: mappings.map(row => ({ colpId: row.colpId, remoteRevision: revision, cursor: event.cursor,
+        kind: 'tombstone' as const, payload: { deleted: true }, sourceDigest: effect.effectDigest, observedAt: input.now })),
+      mappings: [await input.parentRevisionMapping(effect.parentRevision)],
+    };
+  }
   const writable = mayMutateNative(root, mounts);
   if (writable && event.operation.replicaId !== scope.replicaId
       && (await store.getRemoteDeletePolicy(scope)).policy !== 'sync') {

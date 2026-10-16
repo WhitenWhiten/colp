@@ -33,7 +33,7 @@ function sessionIdentity(): string {
 
 function restored(slug: string): PublicSnapshotLoad {
   const snapshot = readRouteCache<PublicCollectionSnapshot>(cacheKey(slug))
-  return snapshot === undefined ? { status: 'loading', restartCount: 0 } : { status: 'ready', snapshot }
+  return snapshot === undefined || snapshot.collection.folderShare ? { status: 'loading', restartCount: 0 } : { status: 'ready', snapshot }
 }
 
 export function usePublicCollectionSnapshot(slug: string | null) {
@@ -71,7 +71,7 @@ export function usePublicCollectionSnapshot(slug: string | null) {
       },
     }).then((snapshot) => {
       if (controller.signal.aborted || requestIdentity !== privateSessionIdentity()) return
-      writeRouteCache(cacheKey(slug), snapshot, requestIdentity)
+      if (!snapshot.collection.folderShare) writeRouteCache(cacheKey(slug), snapshot, requestIdentity)
       setLoad({ status: 'ready', snapshot })
     }).catch((error: unknown) => {
       if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) return

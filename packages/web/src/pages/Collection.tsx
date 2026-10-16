@@ -104,8 +104,9 @@ export function Collection() {
       : readyCollection && content
         ? {
             description: publicCollectionDescription(readyCollection),
-            canonicalPath: `/c/${encodeURIComponent(readyCollection.slug)}`,
-            ogImagePath: collectionOgImagePath(readyCollection.slug, readyCollection.updatedAt),
+            canonicalPath: readyCollection.folderShare ? null : `/c/${encodeURIComponent(readyCollection.slug)}`,
+            ...(readyCollection.folderShare ? { robots: 'noindex' as const }
+              : { ogImagePath: collectionOgImagePath(readyCollection.slug, readyCollection.updatedAt) }),
           }
         : { canonicalPath: null, robots: 'noindex' },
     brandedTitle(documentTitle),
@@ -236,7 +237,7 @@ export function Collection() {
 
   const { collection } = load.snapshot
   const onSaveResource = isLoggedIn && !bootstrapping ? setSaveTarget : undefined
-  const socialActions = (
+  const socialActions = collection.folderShare ? undefined : (
     <SocialActions
       links={
         <>
@@ -328,7 +329,7 @@ export function Collection() {
         ) : undefined}
         eyebrow={
           <span className="collection-kicker">
-            <span>{kindLabel(collection.kind)}</span>
+            <span>{collection.folderShare ? 'Shared folder' : kindLabel(collection.kind)}</span>
             {/* The member projection is also what the owner reads. */}
             {collection.access === 'member' && !(user && collection.owner?.handle === user.handle)
               ? <span className="chip chip--kind">Shared with you</span>
