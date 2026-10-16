@@ -1,3 +1,4 @@
+import { libraryFolderAllows } from '../../modules/collections/domain/library-folder-policy.js';
 import { CollectionsError } from '../../modules/collections/index.js';
 import { sql, type Kysely } from 'kysely';
 import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
@@ -20,12 +21,12 @@ export function createMcpNodePlanState(
         const collection = await trx.selectFrom('collections')
           .select(['content_revision', 'visibility', 'is_library']).where('id', '=', node.collection_id)
           .where('deleted_at', 'is', null).executeTakeFirst();
-        if (collection?.is_library && ['bookmarks-bar', 'other-bookmarks'].includes(node.folder_role ?? '')) {
+        if (!libraryFolderAllows(collection?.is_library, node.folder_role, 'move')) {
           throw new CollectionsError('library_protected', 'The library’s browser folders cannot be moved.');
         }
         const source = await liveNode(trx, node.parent_id, node.collection_id);
         const target = await liveNode(trx, input.parentId, node.collection_id);
-        if (!collection || !source || !target || target.kind !== 'folder') return unavailable();
+        if (!collection || !source || !target || target.kind !== 'folder' || (collection.is_library && target.is_root)) return unavailable();
         const cycle = await sql<{ invalid: boolean }>`WITH RECURSIVE subtree AS (
           SELECT id FROM nodes WHERE id = ${node.id} AND collection_id = ${node.collection_id} AND deleted_at IS NULL
           UNION SELECT child.id FROM nodes child JOIN subtree ON child.parent_id = subtree.id
@@ -52,7 +53,7 @@ export function createMcpNodePlanState(
         const collection = await trx.selectFrom('collections').select(['content_revision', 'is_library'])
           .where('id', '=', node.collection_id).where('deleted_at', 'is', null).executeTakeFirst();
         if (!parent || !collection) return unavailable();
-        if (collection.is_library && ['bookmarks-bar', 'other-bookmarks'].includes(node.folder_role ?? '')) {
+        if (!libraryFolderAllows(collection.is_library, node.folder_role, 'delete')) {
           throw new CollectionsError('library_protected', 'The library’s browser folders cannot be deleted.');
         }
         const count = await sql<{ count: number }>`WITH RECURSIVE subtree AS (

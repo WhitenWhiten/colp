@@ -1,3 +1,4 @@
+import { libraryFolderAllows } from '../domain/library-folder-policy.js';
 import { assertLibraryDestination } from './library-destination.js';
 import {
   assertCanonicalCommandId,
@@ -155,7 +156,7 @@ export async function moveCollectionNode(
     });
   }
 
-  if (locked.isLibrary && ['bookmarks-bar', 'other-bookmarks'].includes(node.folderRole ?? '')) {
+  if (!libraryFolderAllows(locked.isLibrary, node.folderRole, 'move')) {
     throw new CollectionsError('library_protected', 'The library’s browser folders cannot be deleted, moved or renamed.');
   }
 

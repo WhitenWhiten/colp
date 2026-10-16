@@ -1,3 +1,4 @@
+import { libraryFolderAllows } from '../domain/library-folder-policy.js';
 import {
   type AccessPolicyFactsPort,
 } from '../../access-policy/index.js';
@@ -174,7 +175,7 @@ export async function deleteCollectionNode(
     });
   }
 
-  if (locked.isLibrary && ['bookmarks-bar', 'other-bookmarks'].includes(node.folderRole ?? '')) {
+  if (!libraryFolderAllows(locked.isLibrary, node.folderRole, 'delete')) {
     throw new CollectionsError('library_protected', 'The library’s browser folders cannot be deleted, moved or renamed.');
   }
 

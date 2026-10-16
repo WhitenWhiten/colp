@@ -1,3 +1,4 @@
+import { libraryFolderAllows } from '../collections/domain/library-folder-policy.js';
 /**
  * Low-risk MCP `nodes.update`. Applies a closed node merge patch with
  * `nodes:write` only. Preview (`dryRun: true`) inspects authorization and the
@@ -210,7 +211,7 @@ async function executePreview(
     if (!node || node.deletedAt !== null) {
       throwRejected(PHASE4B_MCP_NODES_UPDATE_TOOL_NAME);
     }
-    if (collection.isLibrary && ['bookmarks-bar', 'other-bookmarks'].includes(node.folderRole ?? '')
+    if (!libraryFolderAllows(collection.isLibrary, node.folderRole, 'rename')
       && parsed.patch.title !== undefined) {
       throw new Phase4bMcpLowRiskNodeCreateError('library_protected', 'The library’s browser folders cannot be renamed.');
     }

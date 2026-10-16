@@ -1,3 +1,4 @@
+import { isLibraryBrowserFolder } from '../domain/library-folder-policy.js';
 import { CollectionsError } from '../domain/index.js';
 import type { LockedNodeRow, ProductCollectionCanonicalPorts } from './ports.js';
 
@@ -11,7 +12,7 @@ export async function assertLibraryDestination(
   const seen = new Set<string>();
   let current: LockedNodeRow | null = parent;
   while (current && current.collectionId === collection.id && current.deletedAt === null && !seen.has(current.id)) {
-    if (current.folderRole === 'bookmarks-bar' || current.folderRole === 'other-bookmarks') return;
+    if (isLibraryBrowserFolder(current.folderRole)) return;
     if (current.isRoot || !current.parentId) break;
     seen.add(current.id);
     current = await ports.nodes.getNode(collection.id, current.parentId);
