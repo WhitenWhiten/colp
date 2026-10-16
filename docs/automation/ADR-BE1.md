@@ -53,6 +53,17 @@ including bootstrap pairing). The catalog and chapter 11 §6 are authoritative; 
 all 15 closed descriptors. AW-02 remains experimental evidence and grants no
 production Events readiness or dedicated-credential isolation.
 
+## Rule editing contract reconciliation
+
+Product 1.97.0 records the corrected `AutomationChangeInput.executionPolicyId`
+contract: omission preserves the existing policy, an opaque ID assigns a policy,
+and explicit `null` removes it. Existing clients sending an ID or omitting the
+optional field remain valid. The conservative breaking checker reports the new
+nullable union as a shape change, so `product-v1.1.97.0.yaml` freezes the accepted
+contract while `product-v1.1.96.0.yaml` remains immutable historical evidence.
+Preview also accepts an optional owned `ruleId` to exclude the edited rule from
+competition and bind activation to that rule's identity.
+
 ## AW-55 waiting work and cost observations
 
 Rule GET/list and Run GET/list expose `usage`, through the additive

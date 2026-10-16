@@ -128,3 +128,9 @@ baseline is baselines/product-v1.1.94.0.yaml; compare the prior 1.93.0 baseline 
 Product 1.95.0 adds the BE-1 dependency/incident health operations. Its immutable
 baseline is baselines/product-v1.1.95.0.yaml; both prior Automation and pre-Automation
 baselines remain compatible. Runtime readiness is separate from configuration readiness.
+
+Product 1.97.0 records the corrected rule editing contract: omitted
+`executionPolicyId` preserves the policy, an ID assigns it, and explicit `null`
+removes it. Preview accepts an optional owned `ruleId` for editing. See the rule
+editing reconciliation in ../../../docs/automation/ADR-BE1.md. The accepted
+snapshot is baselines/product-v1.1.97.0.yaml; 1.96.0 remains immutable.
