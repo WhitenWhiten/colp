@@ -39,7 +39,8 @@ describeWithPostgres('M1 conservative single placement Undo', () => {
       payload: { reason: 'Undo fixture', effectReceiptId: run.effects[0]!.id, expectedEffectDigest: run.effects[0]!.effectDigest } };
   }
   test('pre-save placement explains why original destination cannot be invented for Undo', async () => {
-    const run = await placement(false); expect(validateAutomation('Run', run).valid).toBe(true);
+    const run = await placement(false); expect(validateAutomation('Run', run)).toEqual({ valid: true, issues: [] });
+    expect(run.usage?.heldRuns).toBe(0);
     expect(run.effects[0]!.undoAvailable).toBe(false); expect(run.effects[0]!.undoReason).toContain('not observed');
     expect((await app.inject(undoRequest(run))).statusCode).toBe(409);
   });

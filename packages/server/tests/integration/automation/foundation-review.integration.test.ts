@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'vitest';
+import { validateAutomation } from '@know-n/colp/automation';
 import { automationRuntimeFixture } from '../../support/automation-runtime-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { createAutomationRuntime, createAutomationUnitOfWork } from '../../../src/infrastructure/automation/index.js';
@@ -62,14 +63,19 @@ describeWithPostgres('BE-1/BE-2 foundation review', () => {
       await p.pendingRuns(rule!.definitionRevisionId, 'hold');
     });
     const held = await f.uow.execute(f.owner, p => getAutomationRun(p.runs, row.id));
-    expect(held).toMatchObject({ held: true, explanation: expect.stringMatching(/hold/i) });
+    expect(held).toMatchObject({ held: true, explanation: expect.stringMatching(/hold/i), usage: { heldRuns: 1 } });
+    expect(validateAutomation('Run', held)).toEqual({ valid: true, issues: [] });
+    const page = await f.uow.execute(f.owner, p => p.runs.list(null, 10));
+    expect(page.map(run => run.view.usage?.heldRuns)).toEqual([1]);
+    expect(validateAutomation('Run', page[0]!.view)).toEqual({ valid: true, issues: [] });
     await f.uow.execute(f.owner, async p => {
       const rule = await p.rules.load(f.owner.accountId, f.rule.id);
       await p.pendingRuns(rule!.definitionRevisionId, 'continuePinned');
     });
     await execute();
     const completed = await f.uow.execute(f.owner, p => getAutomationRun(p.runs, row.id));
-    expect(completed).toMatchObject({ held: false, explanation: expect.stringContaining('Matched the pinned rule') });
+    expect(completed).toMatchObject({ held: false, explanation: expect.stringContaining('Matched the pinned rule'), usage: { heldRuns: 0 } });
+    expect(validateAutomation('Run', completed)).toEqual({ valid: true, issues: [] });
   });
   test('pause, preview and explicit continue release the same pinned run', async () => {
     await f.createNode('resume-paper', 'root', 'Pending', 'https://arxiv.org/resume');

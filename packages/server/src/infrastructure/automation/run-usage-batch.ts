@@ -40,6 +40,7 @@ export async function readRunUsageBatch(tx: DatabaseTransaction, actor: Automati
       : sql`SELECT NULL::text AS run_id,0::int AS accepted WHERE false`}
   ) SELECT r.id,r.created_at AS period_start,CURRENT_TIMESTAMP AS period_end,
     to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC','YYYY-MM-DD') AS budget_day,1::int AS admitted,
+    CASE WHEN r.held AND r.state IN ('waiting','running') THEN 1 ELSE 0 END AS held_runs,
     coalesce(c.ready,0) AS ready,coalesce(c.succeeded,0) AS succeeded,coalesce(c.held,0) AS held,
     coalesce(c.pending,0) AS pending,coalesce(c.leased,0) AS leased,coalesce(c.committing,0) AS committing,
     coalesce(c.blocked,0) AS blocked,coalesce(c.budget_blocked,0) AS budget_blocked,
