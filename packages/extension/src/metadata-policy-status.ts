@@ -14,3 +14,15 @@ export async function readMetadataPolicyStatus(storage: MetadataPolicyStorage, i
   return { ok: true, collectionId: identity.collectionId, mode: policy.mode,
     consentRequired: policy.revision === 'unconfigured' || policy.revision === 'invalid' };
 }
+
+export interface MetadataPolicyConfigureRequest {
+  readonly kind: 'known.metadataSync.configure';
+  readonly enabled: boolean;
+  readonly userGesture: true;
+}
+export function validMetadataPolicyConfigureRequest(value: unknown): value is MetadataPolicyConfigureRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return Object.keys(row).length === 3 && row.kind === 'known.metadataSync.configure'
+    && typeof row.enabled === 'boolean' && row.userGesture === true;
+}

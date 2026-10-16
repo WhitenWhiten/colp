@@ -162,7 +162,7 @@ describe('extension popup capture UI', () => {
     assert.match(source, /paintFavicon/);
     assert.match(source, /urlInput\.value/);
     assert.match(source, /metaKey|ctrlKey/);
-    assert.match(source, /COLLECTIONS_CACHE|known\.collections\.cache\.v1/);
+    assert.match(source, /LIBRARY_STATE|known\.sync\.library\.v1/);
     assert.match(source, /AUTH_SNAPSHOT|known\.auth\.snapshot\.v1/); // offline-first paint from cache
     assert.match(source, /SAVE_CONTEXT_CACHE|known\.sync\.save-context\.v1/); // offline save stays in the boundary
     assert.match(source, /known\.sync\.folder\.v1/); // remembered save folder (Edge-like target)
@@ -170,9 +170,9 @@ describe('extension popup capture UI', () => {
     assert.match(source, /readPopupDraft/);
     assert.match(source, /writePopupDraft/);
     assert.match(source, /clearPopupDraft/);
-    // The popup reads the bound library; choosing one lives in Options › Sync.
+    // The popup reads the bound library; the worker binds it after sign-in.
     assert.doesNotMatch(source, /rememberCollection|renderCollectionList|collectionSelect/);
-    assert.match(source, /createBoundCollection/);
+    assert.match(source, /boundLibrary/);
     // First paint comes from chrome.storage; the worker round trip only reconciles afterwards.
     assert.match(source, /renderAuth\(snapshot\)[\s\S]*request\(\{ kind: 'known\.auth\.status' \}\)/);
     assert.doesNotMatch(source, /Loading collections|only syncs collections you own/);

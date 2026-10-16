@@ -22,9 +22,9 @@ export function bindOptionsSyncProgress(input: { readonly connected: () => boole
   const guidance = required<HTMLUListElement>('sync-progress-guidance');
   const hubBar = required<HTMLElement>('hub-progress');
   const resume = required<HTMLButtonElement>('sync-progress-resume');
-  // Resuming is the Collection tab's control and its review dialog; the card only takes the user there.
+  // Resuming is the Status tab's control and its review dialog; the card only takes the user there.
   resume.addEventListener('click', () => {
-    location.hash = '#sync';
+    location.hash = '#sync/center';
     document.getElementById('personal-sync-toggle')?.click();
   });
   let paintedGuidance = '';

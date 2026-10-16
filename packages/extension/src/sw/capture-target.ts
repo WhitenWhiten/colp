@@ -7,7 +7,7 @@ import { parseSaveContextCache, SAVE_CONTEXT_CACHE } from '../save-context-cache
 import { currentSyncScope } from './scope.js';
 import { resolveIngressBoundary } from '../bookmark-event-ingress.js';
 import { syncState } from './runtime.js';
-import { COLLECTIONS_CACHE, parseCollectionsCache } from '../collections-cache.js';
+import { LIBRARY_STATE, parseLibraryState } from '../library.js';
 import { isUnsupportedBookmarkFolder } from '../bookmark-folder-policy.js';
 export async function captureTarget(scope: CaptureScope, requestedId?: string) {
   const remembered = parseFolderBinding((await chrome.storage.local.get(FOLDER_DEFAULT_BINDING))[FOLDER_DEFAULT_BINDING]);
@@ -25,7 +25,7 @@ export async function captureTarget(scope: CaptureScope, requestedId?: string) {
   const boundary = syncScope ? await resolveIngressBoundary(syncState, syncScope).catch(() => null) : null;
   const inRange = Boolean(boundary && folderIsInMount(nativeId,
     await walkAncestorIds(nativeId, async id => (await chrome.bookmarks.get(id).catch(() => []))[0]?.parentId), boundary.selectedNative));
-  const collections = scope.accountId ? parseCollectionsCache((await chrome.storage.local.get(COLLECTIONS_CACHE))[COLLECTIONS_CACHE], { accountId: scope.accountId }) : undefined;
+  const library = parseLibraryState((await chrome.storage.local.get(LIBRARY_STATE))[LIBRARY_STATE]);
   await assertCaptureScope(scope);
-  return { nativeId, path, inRange, collectionId: scope.collectionId, collectionTitle: collections?.find(value => value.id === scope.collectionId)?.title ?? null };
+  return { nativeId, path, inRange, collectionId: scope.collectionId, collectionTitle: library?.accountId === scope.accountId && library.library?.id === scope.collectionId ? library.library.title : null };
 }

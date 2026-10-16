@@ -146,7 +146,7 @@ export function createCaptureControlView(host: HTMLElement) {
     const reason = !view.permission ? t('capture_bookmarkPermissionRequired', 'Bookmark permission required')
       : view.local ? t('shell_localNoCredits', 'Your own AI service is in use. No credits are spent.')
         : !view.signedIn ? t('capture_signBeforeAuthorizingClassification', 'Sign in to use Know-N suggestions.')
-          : !view.target?.collectionId || !view.target.inRange ? t('capture_selectCollectionDefaultFolder', 'Choose a collection under Sync and a default folder inside it first.')
+          : !view.target?.collectionId || !view.target.inRange ? t('capture_chooseLibraryFolder', 'Choose a folder in your bookmark library first.')
             : '';
     const hint = reason || (!consent ? t('shell_noSpendingLimit', 'Not set. Know-N won’t spend credits on suggestions until you set a limit.')
       : expired ? t('shell_spendingLimitEnded', 'Your spending limit has ended. Suggestions pause until you set a new one.')

@@ -23,7 +23,7 @@ vi.mock('../src/sw/runtime.js', () => ({ COLLECTION_BINDING: 'target', sw: {}, h
 }));
 vi.mock('../src/sw/scope.js', () => ({ boundCollectionId: async () => f.target,
   currentSyncScope: async () => null, pushSessionAuthority: vi.fn() }));
-vi.mock('../src/sw/collections.js', () => ({ verifyCollectionAvailability: async () => 'available' }));
+vi.mock('../src/sw/library.js', () => ({ verifyLibraryAvailability: async () => 'available' }));
 vi.mock('../src/sw/engine.js', () => ({ scheduleSyncEngineWake: vi.fn() }));
 vi.mock('../src/sw/capture.js', () => ({ captureStore: {} }));
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: vi.fn() }));

@@ -12,9 +12,9 @@ it('maps the retired panes onto the tab that replaced them', () => {
   expect(parseHubRoute('#account/session')).toMatchObject({ pane: 'account', view: 'session', hash: '#account' });
   expect(parseHubRoute('#saving/overview')).toMatchObject({ pane: 'history', hash: '#history' });
   expect(parseHubRoute('#saving')).toMatchObject({ pane: 'saving', hash: '#saving' });
-  expect(parseHubRoute('#sync')).toMatchObject({ pane: 'sync', view: 'collections', hash: '#sync/collections' });
+  expect(parseHubRoute('#sync')).toMatchObject({ pane: 'sync', view: 'folders', hash: '#sync/folders' });
   expect(parseHubRoute('#bookmarks')).toMatchObject({ pane: 'bookmarks', hash: '#bookmarks' });
-  for (const [legacy, view] of [['collection', 'collections'], ['folders', 'folders'], ['import', 'import']] as const) {
+  for (const [legacy, view] of [['folders', 'folders'], ['import', 'import']] as const) {
     expect(parseHubRoute(`#${legacy}`)).toMatchObject({ pane: 'sync', view, hash: `#sync/${view}` });
     expect(parseHubRoute(`#${legacy}`).anchor).toBeUndefined();
   }
@@ -25,7 +25,7 @@ it('maps the retired panes onto the tab that replaced them', () => {
   // location.hash to tell a linked open from an ordinary one.
   expect(parseHubRoute('#native-wait-settings')).toMatchObject({ pane: 'sync', view: 'center', hash: '#native-wait-settings', anchor: 'native-wait-settings' });
   // An unknown view inside a known pane falls back to that pane's default.
-  expect(parseHubRoute('#sync/nonsense')).toMatchObject({ pane: 'sync', view: 'collections' });
+  expect(parseHubRoute('#sync/nonsense')).toMatchObject({ pane: 'sync', view: 'folders' });
 });
 it('keeps only supported task/filter parameters and normalizes unknown routes without URL data', () => {
   const task = '12345678-1234-4123-8123-123456789abc';

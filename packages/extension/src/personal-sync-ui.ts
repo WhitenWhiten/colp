@@ -1,3 +1,4 @@
+import { bindLibraryMetadata } from './library-metadata-ui.js';
 import { PERSONAL_SYNC_PREFIX, type PersonalSyncPolicy } from './personal-sync-policy.js';
 import type { PersonalSyncCommand, PersonalSyncAction } from './personal-sync-commands.js';
 import { createDialog, dialogButton } from './dialog.js';
@@ -11,14 +12,14 @@ export function bindPersonalSyncControls(host: HTMLElement) {
   const status = el('p', undefined, 'set-row-title'); status.id = 'personal-sync-status';
   const boundary = t('sync_personalBoundary', 'Personal sync is separate from sign-in, subscriptions, browser sync and your AI provider. Local bookmarks remain available.');
   const hint = el('p', boundary, 'set-row-hint');
-  const actions = el('div', undefined, 'row-actions');
+  const actions = el('div', undefined, 'set-row-control personal-sync-actions');
   const toggle = button('', 'btn btn-secondary btn-sm'), disconnect = button(t('sync_personalDisconnect', 'Disconnect personal sync'), 'btn btn-ghost btn-sm');
   toggle.id = 'personal-sync-toggle'; disconnect.id = 'personal-sync-disconnect';
   const feedback = el('p', undefined, 'feedback'); feedback.id = 'personal-sync-feedback'; feedback.setAttribute('role', 'status');
   text.append(status, hint); actions.append(toggle, disconnect); row.append(text, actions); card.append(row, feedback);
-  // The connection's state heads the Collection tab; with no account or collection there is nothing to control.
-  const head = host.querySelector('.set-group-head');
-  if (head) head.after(card); else host.prepend(card);
+  // Status keeps urgent sync notices first, followed by this connection card.
+  host.append(card);
+  const metadata = bindLibraryMetadata(card);
   card.hidden = true;
   let policy: PersonalSyncPolicy | undefined, started = true, busy = false, version = 0;
   async function send(command: PersonalSyncCommand): Promise<Reply> {
@@ -28,21 +29,20 @@ export function bindPersonalSyncControls(host: HTMLElement) {
   }
   function paint() {
     const mode = policy?.mode;
-    // A chosen collection is enabled at once, but nothing syncs until the first sync starts from Folders
-    // (choosing a collection continues there, and the page links to it).
+    // The library binds automatically; first sync still starts from Folders.
     const ready = mode === 'enabled' && !started;
-    status.textContent = ready ? t('sync_personalReady', 'Ready to sync. Choose folders to start the first sync.')
+    status.textContent = ready ? t('sync_libraryReady', 'Ready to sync. Review your browser’s bookmarks to start the first sync.')
       : mode === 'enabled' ? t('sync_personalEnabled', 'Personal sync is enabled')
       : mode === 'paused' ? t('sync_personalPaused', 'Personal sync is paused')
       : mode === 'disconnected' ? t('sync_personalDisconnected', 'Personal sync is disconnected')
-      : mode === 'target-unavailable' ? t('sync_personalUnavailable', 'The selected collection is unavailable. Disconnect, then choose another collection. Your local bookmarks are kept.')
-      : t('sync_personalChoose', 'Choose a collection to connect personal sync');
+      : mode === 'target-unavailable' ? t('sync_libraryUnavailable', 'Your bookmark library is unavailable. Check the server connection. Your local bookmarks are kept.')
+      : t('sync_personalConnecting', 'Connecting to your bookmark library…');
     toggle.textContent = mode === 'enabled' ? t('sync_personalPause', 'Pause personal sync')
       : mode === 'disconnected' ? t('sync_personalReconnect', 'Reconnect personal sync') : t('sync_personalResume', 'Resume personal sync');
-    card.hidden = !policy;
-    // Two ways back after a disconnect: reconnect the same collection here, or choose one in the list below.
+    card.hidden = !policy; host.hidden = !policy;
+    // Reconnection keeps the same account library.
     hint.textContent = mode === 'disconnected'
-      ? t('sync_personalDisconnectedHint', 'Reconnect to continue with the same collection, or choose a collection below. Your local bookmarks are kept.')
+      ? t('sync_personalLibraryDisconnected', 'Reconnect to your bookmark library. Your local bookmarks are kept.')
       : boundary;
     toggle.disabled = busy || !policy || mode === 'target-unavailable';
     disconnect.hidden = mode === 'disconnected';
@@ -56,7 +56,7 @@ export function bindPersonalSyncControls(host: HTMLElement) {
       const firstRun = await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }).catch(() => undefined) as { ok?: boolean; firstRun?: string } | undefined;
       nextStarted = !firstRun?.ok || (firstRun.firstRun !== 'none' && firstRun.firstRun !== 'deferred');
     } catch { next = undefined; }
-    if (current === version) { policy = next; started = nextStarted; paint(); }
+    if (current === version) { policy = next; started = nextStarted; paint(); void metadata.refresh(); }
   }
   async function confirm(action: 'resume' | 'disconnect', queued: number) {
     const { dialog, body, actions } = createDialog(action === 'resume'
@@ -83,7 +83,7 @@ export function bindPersonalSyncControls(host: HTMLElement) {
         await send({ kind: 'known.personalSync.change', action, revision: preview.revision!, token: preview.token!, userGesture: true });
       }
     } catch {
-      feedback.textContent = t('sync_personalChangeFailed', 'The change could not be completed. Refresh the collection list and review again. Sync remains stopped if reconnect could not be verified.');
+      feedback.textContent = t('sync_personalLibraryChangeFailed', 'The change could not be completed. Check the connection and review again. Sync stays stopped until reconnect is verified.');
     } finally { busy = false; await refresh(); }
   }
   toggle.onclick = () => { void change(policy?.mode === 'enabled' ? 'pause' : 'resume'); };

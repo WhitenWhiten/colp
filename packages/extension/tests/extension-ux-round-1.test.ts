@@ -11,16 +11,6 @@ const rule = (css: string, selector: string): string => {
 };
 
 describe('extension UX round 1', () => {
-  test('R16-06: the chosen collection row says Syncing here in ink and every other row offers a button', async () => {
-    const source = await read('src/sync-collections.ts');
-    assert.match(source, /Syncing here/);
-    assert.match(source, /Use this collection/);
-    const css = await read('options.css');
-    const chosen = rule(css, '.collection-row .set-row-value');
-    assert.match(chosen, /color: var\(--ink\)/);
-    assert.doesNotMatch(chosen, /--accent/);
-  });
-
   test('R16-07: folder rows show the kind line only for the managed-by-policy reason', async () => {
     const source = await read('src/sync-folders.ts');
     assert.match(source, /meta\.textContent = folderMetaCopy\(root\); meta\.hidden = !root\.managed && root\.exclusionReason !== 'managed';/);

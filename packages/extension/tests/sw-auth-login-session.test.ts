@@ -118,3 +118,34 @@ test('a login keeps the Session the lane minted for it', async () => {
   assert.ok(after.generation > before.generation, 'the login activated a new authority generation');
   assert.equal(await f.store.loadCredential().then((value) => value?.subject), 'login-account');
 });
+
+const library = { id: 'login-collection', title: 'Bookmarks', library: true,
+  rootNodeId: 'login-root', bookmarksBarId: 'login-bar', otherBookmarksId: 'login-other' };
+
+test('sign-in automatically binds the library and stores the root from its response', async () => {
+  const f = await loginFixture();
+  await f.local.remove(f.COLLECTION_BINDING);
+  const fetcher = vi.fn(async () => Response.json(library)); vi.stubGlobal('fetch', fetcher);
+  const authority = await f.store.fence.capture();
+  const response = await f.api.handle({ kind: 'known.auth.login', method: 'password', userGesture: true,
+    email: 'login@example.test', password: 'secret' }, authority);
+  assert.equal(response.ok, true);
+  assert.equal((await f.local.get(f.COLLECTION_BINDING))[f.COLLECTION_BINDING], library.id);
+  const saved = (await f.local.get('known.sync.library.v1'))['known.sync.library.v1'] as { library: typeof library };
+  assert.equal(saved.library.rootNodeId, library.rootNodeId);
+  assert.ok(fetcher.mock.calls.length >= 1);
+  assert.equal(mocks.session.mock.calls.length, 1);
+});
+
+test('an unsupported server keeps sign-in usable and does not mint a sync session', async () => {
+  const f = await loginFixture();
+  await f.local.remove(f.COLLECTION_BINDING);
+  vi.stubGlobal('fetch', async () => new Response(null, { status: 404 }));
+  const response = await f.api.handle({ kind: 'known.auth.login', method: 'password', userGesture: true,
+    email: 'login@example.test', password: 'secret' }, await f.store.fence.capture());
+  assert.equal(response.ok, true);
+  assert.equal(response.state.status, 'connected');
+  assert.equal(response.state.errorCode, 'sync_unsupported');
+  assert.equal((await f.local.get(f.COLLECTION_BINDING))[f.COLLECTION_BINDING], undefined);
+  assert.equal(mocks.session.mock.calls.length, 0);
+});

@@ -41,8 +41,7 @@ vi.mock('../src/bookmark-subscriptions/runtime.js', () => ({ prepareSubscription
   maintenance: { cleanup: async () => undefined }, wakeSubscriptions: vi.fn() }));
 vi.mock('../src/sw/engine.js', () => ({ scheduleSyncEngineWake: vi.fn() }));
 vi.mock('../src/sw/personal-sync.js', () => ({ suspendPersonalSyncForLogout: vi.fn() }));
-vi.mock('../src/sw/collections.js', () => ({ verifyCollectionAvailability: vi.fn() }));
-vi.mock('../src/collections-cache.js', () => ({ clearCollectionsCache: async () => undefined }));
+vi.mock('../src/sw/library.js', () => ({ verifyLibraryAvailability: vi.fn(), ensureLibraryBinding: async () => undefined, libraryUnsupported: async () => false, bindLibraryOnStartup: async () => undefined }));
 vi.mock('../src/save-context-cache.js', () => ({ clearSaveContextCache: async () => undefined }));
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => f.scope }));
 vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () => undefined }));

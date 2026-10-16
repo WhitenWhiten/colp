@@ -40,13 +40,14 @@ import { validDeviceHistoryClear } from './device-history-clear.js';
 import { browserHistoryStore } from './capture/browser-history-store.js';
 import { validMetadataReassociationCommand } from './metadata-reassociation-commands.js';
 import { handleMetadataReassociation } from './sw/metadata-reassociation.js';
-import { validMetadataPolicyStatusRequest, readMetadataPolicyStatus } from './metadata-policy-status.js';
+import { configureLibraryMetadata } from './sw/library-metadata.js';
+import { validMetadataPolicyConfigureRequest, validMetadataPolicyStatusRequest, readMetadataPolicyStatus } from './metadata-policy-status.js';
 import { browserMetadataSyncPolicy } from './metadata-sync-policy.js';
 import { bookmarkListenerLifecycle, recoverBookmarkEventsAfterEngineSettles } from './sw/bookmarks.js';
 import { FOLDERS_FIRST_ALARM, installNativeFoldersFirst, installNativeFoldersFirstStorageListener,
   scheduleNativeFoldersFirst } from './sw/bookmark-folders-first.js';
 import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
-import { handleCollectionCreate, handleCollectionList } from './sw/collections.js';
+import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
 import { clearFaviconForCurrentScope, drainFaviconSidecarsForCurrentScope, readFaviconPolicyForCurrentScope, resolveFaviconSaveContext, resolveLocalSaveContext } from './sw/favicon.js';
@@ -86,11 +87,12 @@ import { installObservedCreates, resumeObservedCreates } from './sw/automation-o
 import { currentSyncScope, stateAfterFailure } from './sw/scope.js';
 import { createSyncEffectAuthority } from './sync-effect-authority.js';
 import { createChromePullBookmarkApi } from './pull-bookmark-api.js';
-import type { BatchResponse, CollectionCreateResponse, CollectionsResponse, ExtensionResponse, ImportResponse,
+import type { BatchResponse, ExtensionResponse, ImportResponse,
   IngressDiagnosticsResponse, NativeSaveResponse, NativeWaitResponse, RemoteDeleteResponse, RootResponse,
   SaveStatusResponse, SyncAttentionResponse, SyncProgressResponse, FirstRunOrScopeResponse, FirstRunRequest } from './types.js';
 
 configurePersonalSyncTransport(browserPersonalSyncPolicy());
+void bindLibraryOnStartup().catch(() => undefined);
 void wakeSubscriptions('startup');
 bookmarkListenerLifecycle.install();
 installNativeFoldersFirst();
@@ -199,6 +201,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (validPersonalSyncCommand(message)) {
     if (!trustedLifecyclePage(sender, chrome.runtime.id, message.kind === 'known.personalSync.status')) return false;
     void personalSyncLifecycle().handle(message).then(respond, error => respond({ ok: false, error: safeError(error) }));
+    return true;
+  }
+  if (validMetadataPolicyConfigureRequest(message)) {
+    if (!trustedLifecyclePage(sender, chrome.runtime.id)) return false;
+    void workCoordinator.run('auth', () => configureLibraryMetadata(message.enabled))
+      .then(respond, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }
   if (validMetadataPolicyStatusRequest(message)) {
@@ -347,20 +355,6 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       return true;
     }
     void saveThroughNativeEntry(message.entry).then(respond, () => respond({ ok: false, error: 'create_failed' } satisfies NativeSaveResponse));
-    return true;
-  }
-  if (message && typeof message === 'object'
-      && ((message as Record<string, unknown>).kind === 'known.collections.list'
-        || (message as Record<string, unknown>).kind === 'known.collections.create')) {
-    if (!validRequest(message)) return false;
-    // List/create stay off the auth queue so a slow COLP round trip cannot stall popup status.
-    if (message.kind === 'known.collections.create') {
-      const create = workCoordinator.run('session', () => handleCollectionCreate(message.title));
-      void create.then(respond, () => respond({ ok: false, error: 'operation_failed' } satisfies CollectionCreateResponse));
-      return true;
-    }
-    const operation = workCoordinator.run('session', () => handleCollectionList());
-    void operation.then(respond, () => respond({ ok: false, error: 'operation_failed' } satisfies CollectionsResponse));
     return true;
   }
   if (validImportRequest(message)) {

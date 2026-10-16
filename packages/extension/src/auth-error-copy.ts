@@ -37,8 +37,10 @@ export function authErrorCopy(code: string | undefined, context: 'attempt' | 'st
   }
   if (code === 'managed_configuration_conflict') return t('auth_managedSettingsConflictBuild', 'Managed settings conflict with this build.');
   if (code === 'manifest_invalid' || code.startsWith('manifest_')) return t('auth_serverConfigurationCouldNot', 'The server configuration could not be verified.');
+  if (code === 'sync_unsupported') return t('auth_syncUnsupported', 'This server does not support bookmark sync yet.');
+  if (code === 'library_unavailable') return t('auth_libraryUnavailable', 'Your bookmark library could not be loaded. Check your connection and try again.');
   if (code === 'collection_required' || code === 'collection_invalid') {
-    return t('auth_youreSignedNowChoose', "You're signed in — now choose where this browser syncs.");
+    return t('auth_libraryConnecting', 'You are signed in. Your bookmark library is connecting.');
   }
   // The page could not reach the extension's service worker, so the request
   // never got to the server. Blaming the credentials here sends people round

@@ -20,11 +20,11 @@ async function mount(respond: (message: ImportRequest) => unknown) {
   handlers = { calls: [] };
   vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn(async (message: ImportRequest) => { handlers.calls.push(message); return respond(message); }) },
     alarms: { create: vi.fn() }, permissions: { request: vi.fn(async () => true) }, bookmarks: { getTree: vi.fn(async () => []) } });
-  const chooseCollection = vi.fn();
-  const view = bindImport({ isConnected: () => true, chooseCollection, showStatus: vi.fn(), showFolders: vi.fn() });
+  const showFolders = vi.fn();
+  const view = bindImport({ isConnected: () => true, showFolders, showStatus: vi.fn() });
   view.onConnection(true);
   await new Promise((resolve) => setTimeout(resolve, 10));
-  return { view, chooseCollection };
+  return { view, showFolders };
 }
 async function choose() {
   const file = new File(['<DL></DL>'], 'bookmarks.html', { type: 'text/html' });
@@ -115,15 +115,15 @@ test('a refusal is one danger alert in plain words and never shows the code', as
   await vi.waitFor(() => expect(byId('import-feedback').textContent).toMatch(/The import could not continue/));
   expect(byId('import-alert').dataset.tone).toBe('danger');
   expect(document.body.textContent).not.toMatch(/push_problem|undefined/u);
-  expect(f.chooseCollection).not.toHaveBeenCalled();
+  expect(f.showFolders).not.toHaveBeenCalled();
 });
 
-test('with no collection chosen the person is sent to choose one', async () => {
+test('an unavailable library opens the sync setup', async () => {
   const f = await mount((message) => message.kind === 'known.import.previewFile' ? { ok: false, error: 'collection_required' } : { ok: false, error: 'no_import' });
   Object.defineProperty(byId('import-file'), 'files', { value: [new File(['x'], 'b.html')], configurable: true });
   byId('import-file').dispatchEvent(new Event('change'));
-  await vi.waitFor(() => expect(f.chooseCollection).toHaveBeenCalled());
-  expect(byId('import-feedback').textContent).toBe('Choose a collection on the Collection tab, then import again.');
+  await vi.waitFor(() => expect(f.showFolders).toHaveBeenCalled());
+  expect(byId('import-feedback').textContent).toBe('Your bookmark library is connecting. Try importing again in a moment.');
 });
 
 test('the heading names the collection once one is chosen', async () => {

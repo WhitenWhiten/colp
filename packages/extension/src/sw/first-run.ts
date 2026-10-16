@@ -15,7 +15,7 @@ import type { BootstrapRunRecord, MountBindingRecord, ScopePreviewRecord, SyncSc
 import type { FirstRunOrScopeResponse, FirstRunRequest, ScopeCommandRequest } from '../types.js';
 import { handleAttentionDecide, handleAttentionGet, latestBootstrapRun, withAttention } from './first-run-attention.js';
 import { persistFirstRunBrowserRoots } from './first-run-browser-roots.js';
-import { resolveOwnedCollectionRootId } from './collections.js';
+import { resolveLibraryRootId } from './library.js';
 import { hasBookmarkPermission, rootScopeKey, sw, syncState } from './runtime.js';
 import { currentSyncScope, retireLegacyScopeForRemount } from './scope.js';
 import { readRootFolders, sameDiscovered } from './roots.js';
@@ -165,7 +165,7 @@ async function resumeConfirmInput(scope: SyncScope, run: BootstrapRunRecord): Pr
       localFacts = localFactsFromRoots(tree.roots, selected, excluded, await privateNativeIdsFor(scope));
     } catch { /* Resume with store mounts even when the native tree is unavailable. */ }
   }
-  const rootNodeId = await resolveOwnedCollectionRootId(scope.collectionId);
+  const rootNodeId = await resolveLibraryRootId(scope.collectionId);
   return {
     confirmationId: run.confirmationId,
     treeDigest: run.treeDigest ?? preview?.treeDigest ?? 'sha256:resume',
@@ -217,7 +217,7 @@ async function handleFirstRunConfirm(message: Extract<FirstRunRequest, { readonl
   }
   await recordBoundaryDiagnostics(syncState, scope, scan, tree.roots, message.previewId);
   recordKns09FirstRun('started', scope, message.confirmationId);
-  const rootNodeId = libraryId ? await resolveOwnedCollectionRootId(libraryId) : undefined;
+  const rootNodeId = libraryId ? await resolveLibraryRootId(libraryId) : undefined;
   const coordinator = createBootstrapCoordinator({
     store: syncState, scope,
     retireLegacy: async () => { await retireLegacyScopeForRemount(); },

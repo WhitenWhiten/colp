@@ -105,15 +105,16 @@ export function bindFolders(host: FoldersHost) {
       }
     }
     paintCollapsed(); paint();
-    host.firstRun().onRootsRendered(next, host.isConnected(), document.body.dataset.collection === 'ready');
+    host.firstRun().onRootsRendered(next, host.isConnected(), document.body.dataset.library === 'ready');
   }
 
   function renderFailure(code: string): void {
     alert.hidden = true; retry.hidden = true; tree.replaceChildren();
     if (code === 'not_connected') {
-      showEmpty(host.isConnected()
-        ? t('sync_chooseCollectionFirst', 'Choose a collection first. The Collection tab lists the collections you own. Then pick folders here.')
-        : t('options_signChooseCollectionThen', 'Sign in and choose a collection, then pick which folders sync.'), 'empty');
+      showEmpty(document.body.dataset.library === 'unsupported'
+        ? t('auth_syncUnsupported', 'This server does not support bookmark sync yet.') : host.isConnected()
+        ? t('sync_libraryConnecting', 'Your bookmark library is connecting. Refresh to try again.')
+        : t('sync_signInLibrary', 'Sign in to sync this browser with your bookmark library.'), 'empty');
     } else {
       card.dataset.roots = 'blocked'; alert.hidden = false; alert.dataset.tone = 'danger'; retry.hidden = false; grant.hidden = true;
       alertCopy.textContent = t('options_folderSettingsCouldNot', 'Folder settings could not be loaded. Try again.');
@@ -201,7 +202,7 @@ export function bindFolders(host: FoldersHost) {
       if (connected && !view) void load();
       if (connected) return;
       view = undefined; tree.replaceChildren(); alert.hidden = true; count.textContent = '';
-      showEmpty(t('options_signChooseCollectionPick', 'Sign in and choose a collection to pick folders.'), 'empty');
+      showEmpty(t('sync_signInLibrary', 'Sign in to sync this browser with your bookmark library.'), 'empty');
       setPermissionControls('disconnected'); selectAll.disabled = true; invert.disabled = true;
     },
   };

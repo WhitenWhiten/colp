@@ -46,11 +46,11 @@ export async function confirmMetadataTransfer(): Promise<boolean | undefined> {
   const empty = counts.tags + counts.notes + counts.descriptions === 0;
   const { dialog, body, actions } = createDialog(t('metadata_transferTitle', 'Connect browser metadata'));
   body.append(...empty
-    ? [el('p', t('metadata_transferEmptyHint', 'Tags, notes and folder descriptions you add in this browser can sync with the selected collection, or stay on this browser only. You can change this later in Sync.'))]
-    : [el('p', metadataCountsCopy(counts)), el('p', t('metadata_transferHint', 'Copy these values into the selected collection when their folders are synced. Tags will merge; differing notes and descriptions will need review. Keeping them local preserves their current account and collection bindings.'))]);
+    ? [el('p', t('metadata_libraryEmptyHint', 'Tags, notes and folder descriptions you add in this browser can sync with your bookmark library, or stay on this browser only. You can change this later in Sync.'))]
+    : [el('p', metadataCountsCopy(counts)), el('p', t('metadata_libraryCopyHint', 'Copy these values into your bookmark library when their folders are synced. Tags will merge; differing notes and descriptions will need review. Keeping them local preserves their current bindings.'))]);
   const cancel = dialogButton(t('common_cancel', 'Cancel'));
   const keep = dialogButton(t('metadata_keepLocal', 'Keep metadata local'), 'secondary');
-  const copy = dialogButton(empty ? t('metadata_syncWithCollection', 'Sync with collection') : t('metadata_copyToCollection', 'Copy metadata to collection'), 'primary');
+  const copy = dialogButton(empty ? t('metadata_syncWithLibrary', 'Sync with library') : t('metadata_copyToLibrary', 'Copy metadata to library'), 'primary');
   actions.append(cancel, keep, copy); document.body.append(dialog); dialog.showModal();
   return new Promise(resolve => {
     let choice: boolean | undefined;

@@ -1,9 +1,9 @@
 import { paintPreviewTotals } from './first-run-preview-copy.js';
 import {
-  FIRST_RUN_CREATE_ACTION, FIRST_RUN_CREATE_HINT, FIRST_RUN_CREATE_TITLE_LABEL, FIRST_RUN_ENGINE_NOT_READY,
+  FIRST_RUN_ENGINE_NOT_READY,
   FIRST_RUN_INTRO, FIRST_RUN_KEEP_COPY, FIRST_RUN_LATER, FIRST_RUN_LIBRARY_REQUIRED, FIRST_RUN_MERGE_COPY,
   FIRST_RUN_NEEDS_ATTENTION, FIRST_RUN_PERMISSION_ACTION, FIRST_RUN_PERMISSION_HINT, FIRST_RUN_RANGE_HEADING,
-  FIRST_RUN_START, FIRST_RUN_SYNCING, FIRST_RUN_UNSYNCED, FIRST_RUN_VIEW_ATTENTION, FIRST_RUN_WEBSITE_CREATE,
+  FIRST_RUN_START, FIRST_RUN_SYNCING, FIRST_RUN_UNSYNCED, FIRST_RUN_VIEW_ATTENTION,
   applyPreviewToDraft, attentionStatusCopy, buildFirstRunConfirm, canStartFirstSync, collectPreviewSelection,
   confirmFailureCopy, draftPicksFromView, firstRunOnboardingActive, folderCountCopy,
   folderMetaCopy, onlyManagedRoots, popupFirstRunStatus, projectFirstRunSurface, readFirstRunDraft,
@@ -16,16 +16,15 @@ import {
   PREVIEW_ONLY_GUIDANCE, PREVIEW_ONLY_SWITCH_LABEL,
 } from './advanced-first-run-ui.js';
 import { checkedRootRefs, ROOTS_REPAINT } from './folder-coverage.js';
-import { LIBRARY_CREATE_IDEMPOTENCY } from './library-create.js';
 import { createFirstRunPreviewSession } from './first-run-preview-session.js';
 import { observeFirstRunResponse, type FirstRunObservation } from './first-run-observation.js';
 import { rejectedWorkCopy, syncAttentionTerminalCode, terminalFreezeReasonCopy } from './sync-attention-ui.js';
 import type {
-  CollectionCreateResponse, FirstRunOrScopeResponse, FirstRunRequest, PublicRootView,
+  FirstRunOrScopeResponse, FirstRunRequest, PublicRootView,
 } from './types.js'; import { t } from './i18n.js';
 
 export {
-  FIRST_RUN_INTRO, FIRST_RUN_PERMISSION_ACTION, FIRST_RUN_WEBSITE_CREATE, folderCountCopy, folderMetaCopy,
+  FIRST_RUN_INTRO, FIRST_RUN_PERMISSION_ACTION, folderCountCopy, folderMetaCopy,
   popupFirstRunStatus,
 };
 
@@ -40,7 +39,7 @@ interface FirstRunUiHost {
   readonly requestPermission: HTMLButtonElement;
   readonly folderHeading: HTMLElement;
   readonly folderIntro: HTMLElement;
-  readonly showPane: (pane: 'account' | 'collection' | 'folders') => void;
+  readonly showPane: (pane: 'account' | 'folders') => void;
   readonly onSyncStatusChanged?: () => void;
 }
 
@@ -50,7 +49,6 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   setLibraryId(id: string | undefined): void;
   onSignedIn(connected: boolean, hasLibrary: boolean): void;
   onPermissionResult(granted: boolean): void;
-  emptyLibraryCopy(signedIn: boolean): string;
 } {
   const confirm = required('first-run-confirm');
   const totals = required('first-run-totals');
@@ -65,11 +63,6 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   const start = required('first-run-start') as HTMLButtonElement;
   const permissionHint = required('first-run-permission-hint');
   const empty = required('first-run-empty');
-  const libraryCreate = required('library-create') as HTMLFormElement;
-  const libraryCreateTitle = required('library-create-title') as HTMLInputElement;
-  const libraryCreateSubmit = required('library-create-submit') as HTMLButtonElement;
-  const libraryCreateLabel = required('library-create-title-label');
-  const collectionFeedback = required('collection-feedback');
   const advancedPanel = required('first-run-advanced') as HTMLDetailsElement;
   const advancedModeSelect = required('first-run-advanced-mode') as HTMLSelectElement;
   const advancedHint = required('first-run-advanced-hint');
@@ -88,8 +81,6 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   start.textContent = FIRST_RUN_START;
   viewAttention.textContent = FIRST_RUN_VIEW_ATTENTION;
   permissionHint.textContent = FIRST_RUN_PERMISSION_HINT;
-  libraryCreateLabel.textContent = FIRST_RUN_CREATE_TITLE_LABEL;
-  libraryCreateSubmit.textContent = FIRST_RUN_CREATE_ACTION;
   host.requestPermission.textContent = FIRST_RUN_PERMISSION_ACTION;
   host.requestPermission.setAttribute('aria-label', t('common_allowBookmarkAccess', 'Allow bookmark access'));
   advancedModeSelect.value = readAdvancedMode(advancedModeSelect.value);
@@ -119,10 +110,6 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   });
   advancedPreviewButton.addEventListener('click', () => { void refreshPreview(true); });
   advancedConfirm.addEventListener('click', () => { void confirmAdvancedMode(); });
-  libraryCreate.addEventListener('submit', (event) => {
-    event.preventDefault();
-    void createLibrary();
-  });
   host.rootTree.addEventListener('change', () => {
     if (!rangeActive || !view) return;
     invalidateAdvancedPreview();
@@ -160,10 +147,10 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     },
     setLibraryId(id) { if (libraryId !== id) { libraryId = id; invalidateAdvancedPreview(); } },
     onSignedIn(connected, hasLibrary) {
-      if (!connected) { confirm.hidden = true; libraryCreate.hidden = true; return; }
+      if (!connected) { confirm.hidden = true; return; }
       void hydrate().then(() => {
         if (!firstRunOnboardingActive(observation.firstRun)) return;
-        host.showPane(hasLibrary ? 'folders' : 'collection');
+        host.showPane('folders');
       });
     },
     onPermissionResult(granted) {
@@ -175,27 +162,16 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       say();
       void refreshPreview();
     },
-    emptyLibraryCopy(signedIn) {
-      libraryCreate.hidden = !signedIn;
-      if (signedIn) libraryCreateSubmit.disabled = false;
-      return signedIn ? FIRST_RUN_CREATE_HINT : t('firstRun_signSeeCollectionsOwn', 'Sign in to see collections you own.');
-    },
+
   };
 
   async function hydrate(): Promise<void> {
     const draft = await readFirstRunDraft();
-    libraryId = await boundLibraryId() ?? draft?.libraryId;
+    libraryId = await boundLibraryId();
     const status = await firstRunMessage({ kind: 'known.firstRun.status' });
     if (!status.ok && draft?.deferred) observation = { firstRun: 'deferred' };
     applyStatusResponse(status, { pollIfSyncing: true, fallbackOnboarding: true });
-    try {
-      const stored = (await chrome.storage.local.get(LIBRARY_CREATE_IDEMPOTENCY))[LIBRARY_CREATE_IDEMPOTENCY];
-      if (stored && typeof stored === 'object' && !Array.isArray(stored)
-          && typeof (stored as { title?: unknown }).title === 'string'
-          && (stored as { title: string }).title && !libraryCreateTitle.value) {
-        libraryCreateTitle.value = (stored as { title: string }).title;
-      }
-    } catch { /* Draft title restore is best-effort. */ }
+
   }
 
   function applyRangeChrome(next: PublicRootView): void {
@@ -533,54 +509,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     start.disabled = false;
   }
 
-  async function createLibrary(): Promise<void> {
-    const title = libraryCreateTitle.value.trim();
-    if (!title) return;
-    libraryCreateSubmit.disabled = true;
-    collectionFeedback.dataset.tone = '';
-    collectionFeedback.textContent = '';
-    const response = await chrome.runtime.sendMessage({
-      kind: 'known.collections.create', title, userGesture: true,
-    }) as CollectionCreateResponse | undefined;
-    if (!response?.ok) {
-      const code = response && 'error' in response ? response.error : 'offline';
-      collectionFeedback.dataset.tone = 'error';
-      if (code === 'offline') {
-        collectionFeedback.textContent = t('firstRun_offlineCheckConnectionTry', 'You are offline. Check your connection and try again.');
-      } else if (code === 'collections_unauthorized' || code === 'authentication_required') {
-        collectionFeedback.textContent = FIRST_RUN_WEBSITE_CREATE;
-      } else {
-        collectionFeedback.textContent = t('firstRun_couldNotCreateCollection', 'Could not create the collection. Try again in a moment.');
-      }
-      libraryCreateSubmit.disabled = false;
-      return;
-    }
-    const selected = await chrome.runtime.sendMessage({
-      kind: 'known.collection.select', collectionId: response.collection.id, userGesture: true,
-    }).catch(() => undefined) as { ok?: boolean } | undefined;
-    if (selected?.ok !== true) {
-      collectionFeedback.dataset.tone = 'error';
-      collectionFeedback.textContent = t('options_couldntSelectCollectionRefresh', "Couldn't select this collection. Refresh the list and try again.");
-      libraryCreateSubmit.disabled = false;
-      (document.getElementById('refresh-collections') as HTMLButtonElement | null)?.click();
-      return;
-    }
-    libraryId = response.collection.id;
-    const prior = await readFirstRunDraft();
-    await writeFirstRunDraft({
-      selected: prior?.selected ?? [], deferred: prior?.deferred === true, libraryId,
-      ...(prior?.previewId ? { previewId: prior.previewId } : {}),
-      ...(prior?.treeDigest ? { treeDigest: prior.treeDigest } : {}),
-      ...(prior?.bookmarkCount !== undefined ? { bookmarkCount: prior.bookmarkCount } : {}),
-      ...(prior?.folderCount !== undefined ? { folderCount: prior.folderCount } : {}),
-      ...(prior?.skippedCount !== undefined ? { skippedCount: prior.skippedCount } : {}),
-    });
-    libraryCreate.hidden = true;
-    libraryCreateSubmit.disabled = false;
-    collectionFeedback.dataset.tone = 'ok';
-    collectionFeedback.textContent = t('firstRun_createdCollection', 'Created collection "$1".', response.collection.title);
-    (document.getElementById('refresh-collections') as HTMLButtonElement | null)?.click();
-  }
+
 }
 
 async function firstRunMessage(message: FirstRunRequest): Promise<FirstRunOrScopeResponse> {

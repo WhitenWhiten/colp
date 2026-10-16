@@ -7,8 +7,6 @@ import type { ImportRequest, ImportResponse, PublicImportPreview, PublicImportSt
 
 export interface ImportHost {
   readonly isConnected: () => boolean;
-  /** Sends the person to the Collection tab, where a collection is chosen. */
-  readonly chooseCollection: () => void;
   readonly showStatus: () => void;
   readonly showFolders: () => void;
 }
@@ -88,7 +86,7 @@ export function bindImport(host: ImportHost) {
     setBusyState(true); const response = await send(message); setBusyState(false);
     if (!response.ok || !('preview' in response)) {
       showError(response.ok ? 'preview_invalid' : response.error);
-      if (!response.ok && response.error === 'collection_required') host.chooseCollection();
+      if (!response.ok && response.error === 'collection_required') host.showFolders();
       return;
     }
     current = response.preview; renderPreview(response.preview);

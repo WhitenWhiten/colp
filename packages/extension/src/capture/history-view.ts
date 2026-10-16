@@ -38,7 +38,7 @@ export function createCaptureHistoryViews(host: HTMLElement) {
   // A page action beside Save tabs, not a stray line under the filters; nothing to clear hides it.
   const clearDevice = deviceHistoryClearButton(() => { void load(); }); clearDevice.hidden = true;
   card?.querySelector('.page-head-actions')?.prepend(clearDevice);
-  const { query, days, filter, scope, source, collection, zone } = bar;
+  const { query, days, filter, scope, source, zone } = bar;
 
   const status = el('p', undefined, 'field-hint hist-status'); status.setAttribute('role', 'status'); status.hidden = true;
   const updates = button(t('capture_showUpdatedRecords', 'Show updated records'), 'btn btn-ghost btn-sm'); updates.hidden = true;
@@ -73,8 +73,8 @@ export function createCaptureHistoryViews(host: HTMLElement) {
     const params = new URLSearchParams(Object.entries(values).filter(([, value]) => value !== '')), hash = `#history?${params}`;
     if (location.hash === hash) void load(); else location.hash = hash;
   }
-  const filters = () => ({ days: days.value, status: filter.value, source: source.value, collection: collection.value, q: query.value, timezone: zone.value, devices: scope.value });
-  for (const control of [days, filter, scope, source, collection, zone]) control.addEventListener('change', () => { navigate(filters()); });
+  const filters = () => ({ days: days.value, status: filter.value, source: source.value, q: query.value, timezone: zone.value, devices: scope.value });
+  for (const control of [days, filter, scope, source, zone]) control.addEventListener('change', () => { navigate(filters()); });
   let typing: ReturnType<typeof setTimeout> | undefined;
   query.addEventListener('input', () => { clearTimeout(typing); typing = setTimeout(() => { navigate(filters()); }, 300); });
   query.addEventListener('keydown', (event) => { if (event.key === 'Enter') { clearTimeout(typing); navigate(filters()); } });
@@ -182,7 +182,7 @@ export function createCaptureHistoryViews(host: HTMLElement) {
       return filter.value === 'all' || filter.value === state;
     });
     if (!rows.length && !visibleRemote.length) {
-      const filtered = filter.value !== 'all' || query.value !== '' || source.value !== '' || collection.value !== '' || days.value !== '7';
+      const filtered = filter.value !== 'all' || query.value !== '' || source.value !== '' || days.value !== '7';
       const clear = button(t('common_clearFilters', 'Clear filters'), 'btn btn-secondary btn-sm'); clear.addEventListener('click', () => { location.hash = 'history'; });
       const empty = next ? emptyBlock({ icon: 'clock', title: t('capture_noMatchingTasksPage', 'No matching tasks on this page. Load more to continue.') })
         : emptyBlock({ icon: 'clock', title: filtered ? t('history_nothingMatches', 'Nothing matches these filters') : t('history_nothingYet', 'Nothing saved yet'),
@@ -211,7 +211,7 @@ export function createCaptureHistoryViews(host: HTMLElement) {
     const current = ++version; more.disabled = true;
     const message: CaptureHistoryRequest = { kind: 'known.capture.history', days: Number(days.value) as 7 | 30 | 90,
       timezone: zone.value, status: filter.value as CaptureHistoryRequest['status'], q: query.value, source: source.value,
-      collectionId: route.params.get('collection') ?? '', ...(route.params.get('day') ? { day: route.params.get('day')! } : {}), deviceScope: scope.value as 'local' | 'cloud', ...(append && next ? { before: next } : {}) };
+      collectionId: '', ...(route.params.get('day') ? { day: route.params.get('day')! } : {}), deviceScope: scope.value as 'local' | 'cloud', ...(append && next ? { before: next } : {}) };
     try {
       const response = await chrome.runtime.sendMessage(message) as HistoryResponse;
       if (current !== version) return;
@@ -246,15 +246,6 @@ export function createCaptureHistoryViews(host: HTMLElement) {
       void chrome.runtime.sendMessage({ kind: 'known.capture.cloudAvailable' }).then(value => {
         if (generation === cloudGeneration) bar.devicesPill.hidden = !(value as { available?: boolean }).available;
       }).catch(() => undefined);
-      void chrome.runtime.sendMessage({ kind: 'known.collections.list' }).then(value => {
-        const response = value as { ok: boolean; collections?: { id: string; title: string }[] };
-        if (generation !== cloudGeneration || !response.ok || !response.collections) return;
-        const current = route.params.get('collection') ?? ''; collection.replaceChildren(); const all = el('option', t('common_allCollections', 'All collections')); all.value = ''; collection.append(all);
-        for (const item of response.collections) { const option = el('option', item.title); option.value = item.id; collection.append(option); }
-        if (current && !response.collections.some(item => item.id === current)) { const option = el('option', t('common_collectionUnavailable', 'Collection unavailable')); option.value = current; option.disabled = true; collection.append(option); }
-        setPill(collection, current);
-      }).catch(() => undefined);
-      setPill(collection, route.params.get('collection') ?? '');
       setPill(days, ['7', '30', '90'].includes(route.params.get('days') ?? '') ? route.params.get('days')! : '7');
       setPill(filter, bar.isStatus(route.params.get('status') ?? '') ? route.params.get('status')! : 'all'); setPill(source, route.params.get('source') ?? '');
       if (document.activeElement !== query) query.value = route.params.get('q') ?? '';
@@ -263,11 +254,11 @@ export function createCaptureHistoryViews(host: HTMLElement) {
         try { new Intl.DateTimeFormat('en', { timeZone: requestedZone }); const option = el('option', requestedZone); option.value = requestedZone; zone.append(option); } catch { /* retain system timezone */ }
       }
       setPill(zone, Array.from(zone.options).some(option => option.value === requestedZone) ? requestedZone : zoneValue); setPill(scope, route.params.get('devices') === 'cloud' ? 'cloud' : 'local');
-      if (source.value || route.params.get('collection') || scope.value === 'cloud' || zone.value !== zoneValue) bar.setMore(true);
+      if (source.value || scope.value === 'cloud' || zone.value !== zoneValue) bar.setMore(true);
       const taskId = route.params.get('task');
       setMode(Boolean(taskId) && route.pane === 'history');
       if (!taskId) leaveDetail();
-      const key = JSON.stringify([days.value, filter.value, source.value, query.value, zone.value, scope.value, route.params.get('collection'), route.params.get('day'), route.view]);
+      const key = JSON.stringify([days.value, filter.value, source.value, query.value, zone.value, scope.value, route.params.get('day'), route.view]);
       if (key !== lastQuery || !rows.length && !remote.length) { lastQuery = key; hasSnapshot = false; void load(); }
       else {
         invalidation.invalidate();

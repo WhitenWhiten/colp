@@ -33,7 +33,7 @@ function knownImportError(code: string): string | null {
   if (code === 'folder_choice_required') return t('import_mapSkipEveryImported', 'Map or skip every imported folder before importing.');
   if (code === 'permission_required') return t('import_allowBookmarkAccessBefore', "Allow bookmark access before reading this browser's bookmarks.");
   if (code === 'not_connected') return t('import_signBeforeImporting', 'Sign in before importing.');
-  if (code === 'collection_required') return t('import_chooseCollectionTab', 'Choose a collection on the Collection tab, then import again.');
+  if (code === 'collection_required') return t('import_libraryConnecting', 'Your bookmark library is connecting. Try importing again in a moment.');
   if (code === 'chrome_tree_invalid' || code === 'preview_invalid' || code === 'operation_failed'
       || code === 'operation_typeerror') {
     return t('import_browsersBookmarkTreeCould', "This browser's bookmark tree could not be read. Try again, or import an HTML bookmark file.");

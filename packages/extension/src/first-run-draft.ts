@@ -6,7 +6,7 @@ import { localized, listCopy, t, tn } from './i18n.js';
 
 export const FIRST_RUN_DRAFT = 'known.firstRun.draft.v1';
 
-export let FIRST_RUN_INTRO: string, BOOKMARK_PERMISSION_ACTION: string, FIRST_RUN_PERMISSION_ACTION: string, FIRST_RUN_PERMISSION_HINT: string, FIRST_RUN_START: string, FIRST_RUN_LATER: string, FIRST_RUN_MERGE_COPY: string, FIRST_RUN_KEEP_COPY: string, FIRST_RUN_RANGE_HEADING: string, FIRST_RUN_ENGINE_NOT_READY: string, FIRST_RUN_SYNC_PAUSED: string, FIRST_RUN_WEBSITE_CREATE: string, FIRST_RUN_CREATE_HINT: string, FIRST_RUN_CREATE_ACTION: string, FIRST_RUN_CREATE_TITLE_LABEL: string, FIRST_RUN_LIBRARY_REQUIRED: string, FIRST_RUN_UNSYNCED: string, FIRST_RUN_LOCAL_ONLY: string, FIRST_RUN_SYNCING: string, FIRST_RUN_SYNCED: string, FIRST_RUN_ACTION_REQUIRED: string, FIRST_RUN_REVIEW_CONFLICTS: string, FIRST_RUN_IMPORT_ISSUES: string, FIRST_RUN_NEEDS_ATTENTION: string, FIRST_RUN_VIEW_ATTENTION: string, FIRST_RUN_KEEP_BOTH: string, FIRST_RUN_CONFLICT_CENTER: string, FIRST_RUN_WAIT_NETWORK: string, FIRST_RUN_SYNC_RETRYING: string, FIRST_RUN_MANAGED_REASON: string;
+export let FIRST_RUN_INTRO: string, BOOKMARK_PERMISSION_ACTION: string, FIRST_RUN_PERMISSION_ACTION: string, FIRST_RUN_PERMISSION_HINT: string, FIRST_RUN_START: string, FIRST_RUN_LATER: string, FIRST_RUN_MERGE_COPY: string, FIRST_RUN_KEEP_COPY: string, FIRST_RUN_RANGE_HEADING: string, FIRST_RUN_ENGINE_NOT_READY: string, FIRST_RUN_SYNC_PAUSED: string, FIRST_RUN_LIBRARY_REQUIRED: string, FIRST_RUN_UNSYNCED: string, FIRST_RUN_LOCAL_ONLY: string, FIRST_RUN_SYNCING: string, FIRST_RUN_SYNCED: string, FIRST_RUN_ACTION_REQUIRED: string, FIRST_RUN_REVIEW_CONFLICTS: string, FIRST_RUN_IMPORT_ISSUES: string, FIRST_RUN_NEEDS_ATTENTION: string, FIRST_RUN_VIEW_ATTENTION: string, FIRST_RUN_KEEP_BOTH: string, FIRST_RUN_CONFLICT_CENTER: string, FIRST_RUN_WAIT_NETWORK: string, FIRST_RUN_SYNC_RETRYING: string, FIRST_RUN_MANAGED_REASON: string;
 localized(() => {
   FIRST_RUN_INTRO = t('firstRun_keepUsingBrowsersBookmarks', "Keep using this browser's bookmarks. Search, organize, and open them in Know-N on every device.");
   BOOKMARK_PERMISSION_ACTION = t('common_allowBookmarkAccess', 'Allow bookmark access');
@@ -19,11 +19,7 @@ localized(() => {
   FIRST_RUN_RANGE_HEADING = t('firstRun_syncDevicesBrowserBookmarks', "Sync this device's browser bookmarks");
   FIRST_RUN_ENGINE_NOT_READY = t('firstRun_syncNotReadyYet', 'Sync is not ready yet');
   FIRST_RUN_SYNC_PAUSED = t('firstRun_syncPausedChangesAlready', 'Sync is paused. Changes already sent will still finish uploading.');
-  FIRST_RUN_WEBSITE_CREATE = t('firstRun_createCollectionKnowN', 'Create a collection on the Know-N website first, then return and refresh the list.');
-  FIRST_RUN_CREATE_HINT = t('firstRun_nameCollectionDeviceWill', 'Name the collection this device will sync.');
-  FIRST_RUN_CREATE_ACTION = t('firstRun_createCollection', 'Create collection');
-  FIRST_RUN_CREATE_TITLE_LABEL = t('firstRun_collectionName', 'Collection name');
-  FIRST_RUN_LIBRARY_REQUIRED = t('firstRun_createChooseCollectionFirst', 'Create or choose a collection first.');
+  FIRST_RUN_LIBRARY_REQUIRED = t('firstRun_connectingLibrary', 'Connecting to your bookmark library…');
   FIRST_RUN_UNSYNCED = t('sync_notSynced', 'Sync is off');
   FIRST_RUN_LOCAL_ONLY = t('sync_stayLocal', 'No Know-N sync');
   FIRST_RUN_SYNCING = t('common_syncing', 'Syncing');
@@ -212,7 +208,7 @@ export function confirmFailureCopy(response: FirstRunOrScopeResponse): string {
   if (response.error === 'not_implemented') return FIRST_RUN_ENGINE_NOT_READY;
   if (response.error === 'preview_stale') return t('firstRun_bookmarkFoldersChangedReview', 'Bookmark folders changed. Review the change list again before confirming.');
   if (response.error === 'permission_required') return t('firstRun_permissionNotGrantedCan', 'Permission was not granted. You can try again later.');
-  if (response.error === 'not_connected') return t('firstRun_chooseCollectionFirstThen', 'Choose a collection first, then start sync.');
+  if (response.error === 'not_connected') return t('firstRun_connectLibraryFirst', 'Connect to your bookmark library before starting sync.');
   if (response.error === 'sync_paused') return FIRST_RUN_SYNC_PAUSED;
   if (response.error === 'bootstrap_confirmation_required') return t('firstRun_reviewConfirmChangeList', 'Review and confirm the change list first.');
   if (response.error === 'bootstrap_confirmation_stale') {

@@ -5,7 +5,7 @@ import { nativeTreeProof, localProofDigest } from '../native-tree-proof.js';
 import { isProtocolOpaqueId } from '../protocol-id.js';
 import { store, sw, syncState, hasBookmarkPermission, workCoordinator, COLLECTION_BINDING } from './runtime.js';
 import { boundCollectionId, currentSyncScope, pushSessionAuthority } from './scope.js';
-import { verifyCollectionAvailability } from './collections.js';
+import { verifyLibraryAvailability } from './library.js';
 import { scheduleSyncEngineWake } from './engine.js';
 import { captureStore } from './capture.js';
 import { browserHistoryStore, BROWSER_HISTORY_RETENTION_MS } from '../capture/browser-history-store.js';
@@ -68,7 +68,7 @@ export function personalSyncLifecycle() {
       return { digest: await localProofDigest([tree, proof, metadata]),
         queued: queue.filter(row => !['terminal', 'rejected'].includes(row.status)).length, attached: exported !== null || Boolean(await boundCollectionId() && await store.loadBinding()) };
     },
-    available: verifyCollectionAvailability,
+    available: verifyLibraryAvailability,
     async disconnect(identity, generation) {
       await store.assertWritable(generation);
       await rememberPersonalConnection(identity);

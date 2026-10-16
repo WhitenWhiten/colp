@@ -26,7 +26,6 @@ beforeEach(() => {
       if (message.kind === 'known.capture.history') return history(message);
       if (message.kind === 'known.capture.get') return { ok: true, task: (items as Array<{ captureId: string }>).find((it) => it.captureId === (message as unknown as { captureId: string }).captureId) };
       if (message.kind === 'known.capture.cloudAvailable') return { available: false };
-      if (message.kind === 'known.collections.list') return { ok: true, collections: [] };
       return { ok: true };
     }) } });
 });

@@ -1,17 +1,12 @@
 import { showAutomationBadge } from '../action-badge.js';
-import { releaseMetadataBindings } from '../metadata-transfer.js';
-import { browserMetadataSyncPolicy } from '../metadata-sync-policy.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import { suspendPersonalSyncForLogout } from './personal-sync.js';
-import { boundCollectionId } from './scope.js';
-import { verifyCollectionAvailability } from './collections.js';
+import { ensureLibraryBinding, libraryUnsupported, bindLibraryOnStartup } from './library.js';
+import { LIBRARY_STATE } from '../library.js';
 import { prepareSubscriptionLogout, maintenance as subscriptionMaintenance, wakeSubscriptions } from '../bookmark-subscriptions/runtime.js';
 import type { AuthorityContext } from '../authority-fence.js';
-import { clearCollectionsCache } from '../collections-cache.js';
 import { fetchSyncEndpoints } from '../manifest-client.js';
-import { isProtocolOpaqueId } from '../protocol-id.js';
 import { clearSaveContextCache } from '../save-context-cache.js';
-import { sessionMatchesCredentialAuthority, syncSessionNeedsRenewal } from '../session-client.js';
 import type { AuthExtensionRequest, ExtensionResponse, StoredCredential } from '../types.js';
 import { scheduleSyncEngineWake } from './engine.js';
 import { clearAccountAutomation } from './automation.js';
@@ -20,10 +15,6 @@ import { createRuntimeAuth, currentSyncScope, enforceManagedPolicy, ensureSyncSc
   loadConfig, pushSessionAuthority, retire, scheduleSessionFreshen } from './scope.js';
 
 export async function onExtensionInstalled(details: chrome.runtime.InstalledDetails): Promise<void> {
-  // Earlier builds pinned a "Set up" badge on install that only cleared on
-  // collection select, so it lingered on the toolbar icon indefinitely. The
-  // badge is gone; replace any leftover text so upgraded profiles lose it too
-  // (with the automation count, when there is one).
   await showAutomationBadge({ title: false });
   if (details.reason !== 'install') return;
   await Promise.allSettled([
@@ -37,76 +28,22 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
   await enforceManagedPolicy(config, message.kind);
   const endpoints = async () => fetchSyncEndpoints(config);
   const auth = createRuntimeAuth(config, async (credential, session, signal) => retire(await endpoints(), credential, session, signal));
-  if (message.kind === 'known.collection.select') {
-    if (!message.userGesture || !isProtocolOpaqueId(message.collectionId)) throw new Error('collection_invalid');
-    const selectedCredential = await store.loadCredential();
-    if (!selectedCredential?.subject) throw new Error('authentication_required');
-    const metadataScope = { serverOrigin: selectedCredential.serverOrigin,
-      accountId: selectedCredential.subject, collectionId: message.collectionId };
-    const personal = configuredPersonalSyncPolicy();
-    const prior = await boundCollectionId();
-    if (personal) {
-      if (prior && prior !== message.collectionId) throw new Error('personal_sync_disconnect_required');
-    }
-    // Refusing metadata for the existing target is an entirely local action.
-    // Persist it before any network work, including session refresh or discovery.
-    if (prior === message.collectionId && !message.migrateMetadata) {
-      await browserMetadataSyncPolicy().write(metadataScope, false);
-      return { ok: true, state: await auth.status() };
-    }
-    if (personal) {
-      if (await verifyCollectionAvailability(metadataScope) !== 'available') throw new Error('personal_sync_target_unverified');
-      if (!prior) await personal.write(metadataScope, 'enabled');
-    }
-    // A negative choice must exist before the new binding becomes observable.
-    // Keep the gate closed during a positive transfer as well; failure stays local.
-    await browserMetadataSyncPolicy().write(metadataScope, false);
-    await chrome.storage.local.set({ [COLLECTION_BINDING]: message.collectionId });
-    if (message.migrateMetadata) {
-      // Changing the selection fences the old engine's target checks. Do not drain
-      // a lane that may be waiting for this auth lane to refresh its session.
-      await workCoordinator.run('local-bookmark', () => releaseMetadataBindings());
-      await browserMetadataSyncPolicy().write(metadataScope, true);
-    }
-    // The mint below goes through the serialized Session lane, and the stored
-    // Session is deliberately NOT cleared first. Clearing it was a second,
-    // unserialized decision point: any concurrent flow that read the stored
-    // Session in that window saw "no Session" and minted too, and the second
-    // mint advanced the Replica's lifecycle revision, denying the first flow's
-    // in-flight Ack as `stale_replica` (measured in
-    // e2e/mv3-first-run-remediation.spec.ts). The lane decides on the Session it
-    // finds — including one bound to a different Collection — and `saveSession`
-    // replaces it.
-    const credential = await store.loadCredential();
-    if (credential) {
-      // Selecting the already-bound collection must not tear down a healthy
-      // session. The save popup does not select a collection.
-      const existing = await store.loadSession();
-      const reusable = existing !== null && existing.collection.collectionId === message.collectionId
-        && !syncSessionNeedsRenewal(existing) && await sessionMatchesCredentialAuthority(existing, credential);
-      if (!reusable) {
-        try {
-          const authority = await pushSessionAuthority();
-          await ensureSyncScope(config, authority.credential, authority.session, context.generation);
-        } catch {
-          // Selection is a local binding. If the session mint fails here
-          // (network, cookie, rate limit), keep the binding — requireSyncScope
-          // and auth.status mint the session lazily on the next request.
-        }
-      }
-      await scheduleSyncEngineWakeIfRootConfigured();
-    }
-    return { ok: true, state: await auth.status() };
-  }
   if (message.kind === 'known.auth.status') {
     // Status answers from local storage only: the popup's first frame must
     // never wait on a token refresh or a COLP session mint. Freshening runs
     // after this response, serialized behind the same authority queue.
     const initial = await auth.status();
-    if (initial.status === 'connected' && await hasBoundCollection()) scheduleSessionFreshen();
-    return { ok: true, state: initial };
+    if (initial.status === 'connected') {
+      if (await hasBoundCollection()) scheduleSessionFreshen();
+      else void bindLibraryOnStartup().catch(() => undefined);
+    }
+    return { ok: true, state: await libraryUnsupported() ? { ...initial, errorCode: 'sync_unsupported' } : initial };
   }
   if (message.kind === 'known.auth.refresh') {
+    if (!await hasBoundCollection()) {
+      await ensureLibraryBinding({ authLane: true });
+      if (!await hasBoundCollection()) return { ok: true, state: { ...await auth.status(), ...(await libraryUnsupported() ? { errorCode: 'sync_unsupported' } : {}) } };
+    }
     await pushSessionAuthority(true);
     await scheduleSyncEngineWakeIfRootConfigured();
     return { ok: true, state: await auth.status() };
@@ -128,8 +65,7 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
       return { ok: true, state };
     } finally {
       sw.bindingPromise = undefined; sw.rootViewTokens = undefined;
-      await clearCollectionsCache();
-      if (typeof globalThis.chrome?.storage?.local?.remove === 'function') await chrome.storage.local.remove(COLLECTION_BINDING);
+      if (typeof globalThis.chrome?.storage?.local?.remove === 'function') await chrome.storage.local.remove([COLLECTION_BINDING, LIBRARY_STATE]);
       await clearSaveContextCache().catch(() => undefined);
       if (credential?.subject && signedOut) {
         // Re-clear in case a concurrent engine write restored the credential
@@ -161,15 +97,16 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
   void wakeSubscriptions('startup');
   if (login.status !== 'connected') return { ok: false, state: login, error: login.errorCode ?? 'authentication_failed' };
   const credential: StoredCredential = await auth.ensureFreshCredential();
-  if (previous?.subject && previous.subject !== credential.subject) {
-    if (typeof globalThis.chrome?.storage?.local?.remove === 'function') await chrome.storage.local.remove(COLLECTION_BINDING);
+  if (previous?.subject && (previous.subject !== credential.subject || previous.serverOrigin !== credential.serverOrigin)) {
+    if (typeof globalThis.chrome?.storage?.local?.remove === 'function') await chrome.storage.local.remove([COLLECTION_BINDING, LIBRARY_STATE]);
     if (configuredPersonalSyncPolicy()) { await store.clearBinding(); sw.bindingPromise = undefined; }
   }
   // Signing in as someone else is a sign-out for the earlier account's automation data too (AW-72).
   if (previous?.subject && (previous.subject !== credential.subject || previous.serverOrigin !== credential.serverOrigin)) {
     await clearAccountAutomation({ serverOrigin: previous.serverOrigin, accountId: previous.subject }).catch(() => undefined);
   }
-  if (!await hasBoundCollection()) return { ok: true, state: await auth.status() };
+  try { await ensureLibraryBinding({ login: true }); } catch { /* Sign-in stays usable when library discovery is temporarily offline. */ }
+  if (!await hasBoundCollection()) return { ok: true, state: { ...await auth.status(), ...(await libraryUnsupported() ? { errorCode: 'sync_unsupported' } : {}) } };
   try {
     // A login changes the credential authority, so the Session lane mints: it
     // compares the stored Session's credential authority digest with the one

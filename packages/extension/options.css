@@ -376,18 +376,8 @@ a.mgr-name:hover, button.mgr-name:hover { text-decoration: underline; text-decor
 .inline-alert-body > p { margin: 0; }
 .inline-alert-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
-/* Collection: one row per collection, a new-collection row, a create form. */
-.collection-row .avatar { width: 2.25rem; height: 2.25rem; border-radius: var(--radius); font-size: var(--text-sm); }
-.collection-row .set-row-value { color: var(--ink); }
-#collection-grid > .collection-row { min-height: 4rem; }
-.library-create { align-items: stretch; }
-.library-create-field { display: grid; gap: var(--hair-30); }
-.library-create-field label { color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-medium); }
-.library-create input { width: 100%; min-width: 0; min-height: 2.25rem; padding: 0 var(--hair-85); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink); font-size: var(--text-sm); }
-.library-create input:focus { border-color: var(--ink); box-shadow: var(--shadow-ring); }
-.set-card:has(#library-create:not([hidden])) #library-new { display: none; }
-#collection-feedback:empty { display: none; }
-#collection-feedback { min-height: 0; }
+
+.personal-sync-actions { flex-wrap: wrap; }
 
 .row-actions { display: flex; gap: var(--space-4); align-items: center; justify-content: space-between; margin-top: var(--space-4); }
 
@@ -604,7 +594,7 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
   .section-commands { align-self: flex-end; }
   /* The "No Know-N sync" choice drops under the folder name on a narrow row. */
   .check-row { flex-wrap: wrap; row-gap: 0; padding-left: calc(var(--hair-55) + min(var(--depth, 0) * var(--space-4), 6rem)); }
-  .library-create .set-row-control, .progress-foot { justify-content: flex-start; }
+  .progress-foot { justify-content: flex-start; }
   .import-map-row { flex-wrap: wrap; row-gap: var(--space-2); }
   .import-map-row .select-quiet { width: 100%; max-width: 100%; }
   .card-foot { flex-wrap: wrap; }

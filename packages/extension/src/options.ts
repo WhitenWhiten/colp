@@ -14,7 +14,7 @@ import { parseBuildConfig, resolveRuntimeConfig } from './config.js';
 import { fetchSyncEndpoints } from './manifest-client.js';
 import { bindServerOriginField } from './server-origin-field.js';
 import { announceAuthReason, bindLoginForm, setLoginProductLinks } from './login-form.js';
-import { bindCollections, COLLECTION_BINDING } from './sync-collections.js';
+import { COLLECTION_BINDING, LIBRARY_STATE, boundLibrary, parseLibraryState } from './library.js';
 import { bindPersonalSyncControls } from './personal-sync-ui.js';
 import { PERSONAL_SYNC_PREFIX } from './personal-sync-policy.js';
 import { bindFolders } from './sync-folders.js';
@@ -55,7 +55,7 @@ const accountCopy = element('account-copy'); const sessionStage = element('sessi
 const syncConnect = element('sync-connect');
 const hubChrome = bindHubChrome({ name: element('side-name'), line: element('hub-status'), dot: element('hub-dot'), signIn: element('hub-signin') });
 const accountView = createAccountView();
-const SYNC_VIEWS = ['collections', 'folders', 'center', 'import'] as const;
+const SYNC_VIEWS = ['folders', 'center', 'import'] as const;
 const WELCOME_FLAG = 'known.onboarding.installed.v1';
 const panes: Record<HubPane, HTMLElement> = {
   bookmarks: element('bookmarks-card'),
@@ -111,20 +111,34 @@ const bookmarkPreferences = bindBookmarkPreferences(foldersFirst => { void bookm
 let connected = false;
 let serverField: Awaited<ReturnType<typeof bindServerOriginField>> | undefined;
 let renderTurn = 0;
-const personalSync = bindPersonalSyncControls(element('collection-card'));
+const personalSync = bindPersonalSyncControls(element('personal-sync-settings'));
 const refreshEngineStatus = bindSyncChipRefresh(hubChrome, { connected: () => connected,
   read: async () => { const status = await signedInSyncStatus(); accountView.setSyncStatus(status.label); return status; },
   keys: [FIRST_RUN_DRAFT, COLLECTION_BINDING], keyPrefixes: [PERSONAL_SYNC_PREFIX] });
 const syncProgress = bindOptionsSyncProgress({ connected: () => connected });
 const NOTICE_PANES = new Set<HubPane>(['saving', 'ai', 'subscriptions']);
 const folders = bindFolders({ isConnected: () => connected, firstRun: () => firstRun });
-const importPane = bindImport({ isConnected: () => connected, chooseCollection: () => showPane('collection'),
+const importPane = bindImport({ isConnected: () => connected,
   showStatus: () => showPane('sync-center'), showFolders: () => showPane('folders') });
-const collections = bindCollections({ isConnected: () => connected, accountLabel: () => account.textContent ?? '', request, serverOrigin,
-  emptyCopy: signedIn => firstRun.emptyLibraryCopy(signedIn), onSelected: id => firstRun.setLibraryId(id),
-  onTitle: title => { accountView.setCollection(title); importPane.setCollection(title); },
-  showAccount: () => { showPane('account'); loginPanel.hidden = false; element('login-email').focus(); },
-  openFolders: () => showPane('folders') });
+let libraryNotice = '';
+async function refreshLibrary(): Promise<void> {
+  const stored = await chrome.storage.local.get([COLLECTION_BINDING, LIBRARY_STATE]);
+  const library = connected ? boundLibrary(stored, serverOrigin()) : undefined;
+  document.body.dataset.library = library ? 'ready' : parseLibraryState(stored[LIBRARY_STATE])?.status === 'unsupported' ? 'unsupported' : 'unavailable';
+  if (connected && document.body.dataset.library === 'unsupported') {
+    const notice = serverOrigin() + ':unsupported';
+    if (libraryNotice !== notice) showToast(t('auth_syncUnsupported', 'This server does not support bookmark sync yet.'), 'info');
+    libraryNotice = notice;
+  } else libraryNotice = '';
+  firstRun.setLibraryId(library?.id);
+  accountView.setCollection(library?.title ?? '');
+  importPane.setCollection(library?.title ?? '');
+}
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && (COLLECTION_BINDING in changes || LIBRARY_STATE in changes)) {
+    void refreshLibrary().then(() => { if (connected) void folders.load(); });
+  }
+});
 
 action.addEventListener('click', (event) => { void act(event.isTrusted && navigator.userActivation.isActive); });
 bindLogoutConfirm({
@@ -244,12 +258,12 @@ function render(response: ExtensionResponse): void {
   syncConnect.hidden = connected; navigation.setPaneViews('sync', connected ? SYNC_VIEWS : []);
   if (signedInView) welcome.hidden = true;
   setLoginProductLinks(state.serverOrigin);
-  hubChrome.setAccount(state.status, state.accountLabel && shortLabel(state.accountLabel)); void collections.renderSelected();
+  hubChrome.setAccount(state.status, state.accountLabel && shortLabel(state.accountLabel)); void refreshLibrary();
   if (connected && navigation.currentView('account') === 'credits') void creditsLedger.activate();
   refreshCreditsSummary();
-  if (connected) { void collections.load(); void refreshEngineStatus(); } else collections.reset(signedInView);
+  if (connected) void refreshEngineStatus();
   void syncProgress.refresh();
-  collections.setConnected(connected, serverOrigin()); folders.onConnection(connected); importPane.onConnection(connected);
+  folders.onConnection(connected); importPane.onConnection(connected);
   void personalSync.refresh();
   void bookmarkPreferences.refresh(); void navigation.refreshIdentity();
 }
@@ -312,7 +326,7 @@ function activatePane(route: HubRoute): void {
   /* R13 D-21: the popup deep-links #folders?native=<folderId>; hand it to
      the next roots.get so the worker can mark that row preselected. */
   if (route.pane === 'sync' && route.view === 'folders') folders.setPreselect(route.params.get('native') ?? undefined);
-  if (route.pane === 'sync' && connected) { void collections.load(!collections.hasRows()).then(() => collections.renderSelected()); void folders.load(); void personalSync.refresh(); }
+  if (route.pane === 'sync' && connected) { void refreshLibrary(); void folders.load(); void personalSync.refresh(); }
   if (route.pane === 'bookmarks') void bookmarkManager.activate(); else bookmarkManager.deactivate();
   if (route.pane === 'automations') automations.activate(); else automations.deactivate();
 }

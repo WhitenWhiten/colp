@@ -8,20 +8,19 @@ import {
 export type { AccountView, HubPane, HubView, SyncView } from './options-tabs.js';
 export { paneViews } from './options-tabs.js';
 /** Pre-merge pane names that now live inside the current panes. */
-export type LegacyHubPane = 'collection' | 'folders' | 'import' | 'credits' | 'sync-center';
+export type LegacyHubPane = 'folders' | 'import' | 'credits' | 'sync-center';
 export interface HubRoute { readonly pane: HubPane; readonly view: HubView; readonly params: URLSearchParams; readonly hash: string; readonly anchor?: string }
 const panes = new Set<HubPane>(['bookmarks', 'history', 'subscriptions', 'sync', 'automations', 'saving', 'ai', 'general', 'account', 'help']);
 /* Where each retired pane landed. They are page selections now, not scroll
    targets, so a stale deep link opens the right page instead of dropping
    the reader halfway down a merged one. */
 const legacyPanes: Readonly<Record<LegacyHubPane, { pane: HubPane; view: HubView }>> = {
-  collection: { pane: 'sync', view: 'collections' },
   folders: { pane: 'sync', view: 'folders' },
   import: { pane: 'sync', view: 'import' },
   credits: { pane: 'account', view: 'credits' },
   'sync-center': { pane: 'sync', view: 'center' },
 };
-const RETURN_TARGET = /^(?:(?:saving|capture)\/(?:overview|history|settings|diagnostics)|subscriptions\/(?:list|new|detail|history)|account\/(?:session|credits)|sync\/(?:collections|folders|center|import)|history|automations|saving|ai|general|help|bookmarks|account|preferences|diagnostics)(?:\?[A-Za-z0-9._~%=&+-]*)?$/u;
+const RETURN_TARGET = /^(?:(?:saving|capture)\/(?:overview|history|settings|diagnostics)|subscriptions\/(?:list|new|detail|history)|account\/(?:session|credits)|sync\/(?:folders|center|import)|history|automations|saving|ai|general|help|bookmarks|account|preferences|diagnostics)(?:\?[A-Za-z0-9._~%=&+-]*)?$/u;
 function readParams(search: string, pane?: string): URLSearchParams {
   const params = new URLSearchParams();
   for (const [key, value] of new URLSearchParams(search)) {

@@ -2,13 +2,12 @@ import type { PopupNote } from './popup-note.js';
 import { t } from './i18n.js';
 
 /**
- * What the popup says about syncing, only when it matters. `no-library` and
- * `choose-library`: connected with nothing bound to sync into. `local`: the
+ * What the popup says about syncing, only when it matters. `sync-off`: connected before the first sync. `local`: the
  * chosen folder sits outside the synced range. `synced` and `none` say nothing:
  * a save that syncs needs no sentence.
  */
 export type DestSyncNote =
-  | { readonly kind: 'none' | 'no-library' | 'choose-library' | 'synced' }
+  | { readonly kind: 'none' | 'sync-off' | 'synced' }
   | {
     readonly kind: 'local'; readonly folderId: string;
     /** Lands the save first: opening a tab closes the popup, which would drop an unsaved bookmark. */
@@ -34,15 +33,13 @@ export function paintDestSync(note: PopupNote, state: DestSyncNote): void {
       })();
     });
   } else {
-    link.textContent = state.kind === 'no-library'
-      ? t('popup_setUpSync', 'Set up sync')
-      : t('popup_chooseWhatSyncs', 'Choose what syncs');
+    link.textContent = t('popup_turnOnSync', 'Turn on sync');
     link.addEventListener('click', () => {
-      void chrome.tabs.create({ url: chrome.runtime.getURL('options.html#sync/collections') });
+      void chrome.tabs.create({ url: chrome.runtime.getURL('options.html#sync/folders') });
     });
   }
   const line = document.createElement('span');
-  const lead = state.kind === 'local' ? t('popup_folderNotSynced', "This folder isn't synced to Know-N") : t('popup_onlyOnDevice', 'No Know-N sync');
+  const lead = state.kind === 'local' ? t('popup_folderNotSynced', "This folder isn't synced to Know-N") : t('popup_syncOff', 'Sync is off');
   line.append(`${lead} · `, link);
   note.set('dest', line);
 }

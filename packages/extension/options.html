@@ -187,12 +187,11 @@
         <header class="page-head">
           <div class="page-head-copy">
             <h1 id="sync-heading" data-i18n="common_sync">Sync</h1>
-            <p data-i18n="sync_pageLede">Keep this browser’s bookmarks in sync with your Know-N collection.</p>
+            <p data-i18n="sync_libraryLede">Keep this browser’s bookmarks in sync with your bookmark library.</p>
           </div>
         </header>
         <div class="view-switch page-tabs" role="tablist" aria-label="Sync sections" data-tabs="sync" data-i18n-aria-label="common_syncSections">
-          <button type="button" role="tab" data-view="collections" id="tab-sync-collections" aria-controls="collection-card" aria-selected="true" data-i18n="sync_tabCollection">Collection</button>
-          <button type="button" role="tab" data-view="folders" id="tab-sync-folders" aria-controls="folder-card" aria-selected="false" tabindex="-1" data-i18n="common_folders">Folders</button>
+          <button type="button" role="tab" data-view="folders" id="tab-sync-folders" aria-controls="folder-card" aria-selected="true" data-i18n="common_folders">Folders</button>
           <button type="button" role="tab" data-view="center" id="tab-sync-center" aria-controls="sync-center" aria-selected="false" tabindex="-1" data-i18n="subscription_status">Status</button>
           <button type="button" role="tab" data-view="import" id="tab-sync-import" aria-controls="import-card" aria-selected="false" tabindex="-1" data-i18n="sync_tabImport">Import</button>
         </div>
@@ -227,45 +226,6 @@
             <a class="btn btn-primary btn-sm" href="#account" data-i18n="common_signIn">Sign in</a>
           </div>
         </div>
-
-        <section role="tabpanel" data-view-panel="collections" id="collection-card" class="set-group collection-card" aria-labelledby="tab-sync-collections">
-          <div class="set-group-head">
-            <h2 data-i18n="sync_collectionHeading">Collection</h2>
-            <p data-i18n="sync_collectionLede">This browser syncs into one collection you own. Collections shared with you cannot be chosen.</p>
-          </div>
-          <div class="set-card">
-            <div id="collection-empty" class="empty">
-              <p id="collection-empty-copy" class="empty-title" data-i18n="options_loadingYourCollections">Loading your collections…</p>
-              <a id="collection-signin-link" href="#account" class="btn btn-secondary btn-sm" hidden data-i18n="options_goAccountSign">Go to Account to sign in</a>
-            </div>
-            <div id="collection-grid" class="collection-grid" hidden role="group" aria-label="Your collections" data-i18n-aria-label="common_yourCollections"></div>
-            <div id="library-new" class="set-row">
-              <div class="set-row-text">
-                <p class="set-row-title" data-i18n="sync_newCollection">New collection</p>
-                <p class="set-row-hint" data-i18n="sync_newCollectionHint">Start an empty collection for this browser.</p>
-              </div>
-              <div class="set-row-control">
-                <button id="library-create-open" class="btn btn-ghost btn-sm" type="button"><svg width="14" height="14" aria-hidden="true" focusable="false" data-icon="plus"></svg><span data-i18n="sync_createCollection">Create</span></button>
-              </div>
-            </div>
-            <form id="library-create" class="library-create set-row set-row--stack" hidden>
-              <div class="library-create-field">
-                <label id="library-create-title-label" for="library-create-title" data-i18n="firstRun_collectionName">Collection name</label>
-                <input id="library-create-title" name="title" type="text" maxlength="512" autocomplete="off" required>
-              </div>
-              <div class="set-row-control">
-                <button id="library-create-submit" class="btn btn-primary btn-sm" type="submit" data-i18n="firstRun_createCollection">Create collection</button>
-                <button id="library-create-cancel" class="btn btn-ghost btn-sm" type="button" data-i18n="common_cancel">Cancel</button>
-              </div>
-            </form>
-            <p id="collection-feedback" class="feedback set-row" role="status" aria-live="polite"></p>
-          </div>
-          <div class="page-foot-links">
-            <a id="open-collections" href="https://know-n.com/library" target="_blank" rel="noreferrer"><span data-i18n="sync_openCollectionsWeb">Open collections on the web</span><svg aria-hidden="true" focusable="false" data-icon="arrow-up-right"></svg></a>
-            <button id="goto-folders" type="button" hidden data-i18n="sync_chooseFolders">Choose folders to sync</button>
-            <button id="refresh-collections" type="button" disabled data-i18n="common_refreshList">Refresh list</button>
-          </div>
-        </section>
 
         <section role="tabpanel" data-view-panel="folders" id="folder-card" class="set-group folder-access" aria-labelledby="tab-sync-folders" hidden>
           <div class="set-group-head">
@@ -405,6 +365,7 @@
             </div>
           </section>
           <p id="sync-attention-settings-feedback" class="feedback" hidden role="status" aria-live="polite"></p>
+          <div id="personal-sync-settings" class="set-group" hidden></div>
           <section id="native-wait-settings" class="set-group native-wait-settings" aria-labelledby="native-wait-heading">
             <div class="set-group-head">
               <h2 id="native-wait-heading" data-i18n="sync_waitingForYou">Waiting for you</h2>

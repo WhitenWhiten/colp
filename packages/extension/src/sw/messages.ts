@@ -24,14 +24,7 @@ export function validSender(sender: chrome.runtime.MessageSender): boolean {
 export function validRequest(value: unknown): value is AuthExtensionRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const request = value as Record<string, unknown>; const keys = Object.keys(request);
-  if (request.kind === 'known.auth.status' || request.kind === 'known.auth.refresh'
-      || request.kind === 'known.collections.list') return keys.length === 1;
-  if (request.kind === 'known.collection.select') return keys.every(key => ['kind', 'collectionId', 'userGesture', 'migrateMetadata'].includes(key))
-    && (request.migrateMetadata === undefined || typeof request.migrateMetadata === 'boolean') && request.userGesture === true
-    && typeof request.collectionId === 'string';
-  if (request.kind === 'known.collections.create') {
-    return keys.length === 3 && request.userGesture === true && boundedLibraryTitle(request.title);
-  }
+  if (request.kind === 'known.auth.status' || request.kind === 'known.auth.refresh') return keys.length === 1;
   if (request.kind === 'known.auth.send-otp') {
     return request.userGesture === true && keys.length === 3 && validEmail(request.email);
   }

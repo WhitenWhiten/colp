@@ -65,6 +65,12 @@
   "auth_knowNDidNot": {
     "message": "Know-N did not accept sign-in from this copy of the extension. Reinstall it, or sign in on the Know-N website."
   },
+  "auth_libraryConnecting": {
+    "message": "You are signed in. Your bookmark library is connecting."
+  },
+  "auth_libraryUnavailable": {
+    "message": "Your bookmark library could not be loaded. Check your connection and try again."
+  },
   "auth_managedSettingsConflictBuild": {
     "message": "Managed settings conflict with this build."
   },
@@ -92,6 +98,9 @@
   "auth_signingOut": {
     "message": "Signing out…"
   },
+  "auth_syncUnsupported": {
+    "message": "This server does not support bookmark sync yet."
+  },
   "auth_tooManyRequestsTry": {
     "message": "Too many requests. Try again shortly."
   },
@@ -106,9 +115,6 @@
   },
   "auth_verifyEmailFirstCheck": {
     "message": "Verify your email first — check your inbox, then sign in again."
-  },
-  "auth_youreSignedNowChoose": {
-    "message": "You're signed in — now choose where this browser syncs."
   },
   "automation_accountEditorHint": {
     "message": "The web editor opens filled in with this rule. Nothing changes until you turn it on there."
@@ -1151,6 +1157,9 @@
   "capture_chooseBrowserFolder": {
     "message": "Choose a browser folder"
   },
+  "capture_chooseLibraryFolder": {
+    "message": "Choose a folder in your bookmark library first."
+  },
   "capture_chooseLocalFolderSettings": {
     "message": "Choose a local folder in settings"
   },
@@ -1628,9 +1637,6 @@
   "capture_select": {
     "message": "Select $1"
   },
-  "capture_selectCollectionDefaultFolder": {
-    "message": "Choose a collection under Sync and a default folder inside it first."
-  },
   "capture_selectPage": {
     "message": "Select this page"
   },
@@ -1856,9 +1862,6 @@
   "common_allActivity": {
     "message": "All activity"
   },
-  "common_allCollections": {
-    "message": "All collections"
-  },
   "common_allSources": {
     "message": "All sources"
   },
@@ -2020,12 +2023,6 @@
   },
   "common_collectionChanged": {
     "message": "Collection changed"
-  },
-  "common_collectionSelected": {
-    "message": "Collection selected."
-  },
-  "common_collectionUnavailable": {
-    "message": "Collection unavailable"
   },
   "common_completed": {
     "message": "Completed"
@@ -2537,9 +2534,6 @@
   "common_refreshFolders": {
     "message": "Refresh folders"
   },
-  "common_refreshList": {
-    "message": "Refresh list"
-  },
   "common_refreshing": {
     "message": "Refreshing…"
   },
@@ -2846,9 +2840,6 @@
   "common_yourCollection": {
     "message": "Your collection"
   },
-  "common_yourCollections": {
-    "message": "Your collections"
-  },
   "credits_availableCount": {
     "message": "$1 available"
   },
@@ -2927,12 +2918,6 @@
   "firstRun_checkStatus": {
     "message": "Check status"
   },
-  "firstRun_chooseCollectionFirstThen": {
-    "message": "Choose a collection first, then start sync."
-  },
-  "firstRun_collectionName": {
-    "message": "Collection name"
-  },
   "firstRun_confirmListRun": {
     "message": "Confirm the list and run"
   },
@@ -2948,29 +2933,20 @@
   "firstRun_conflicts_other": {
     "message": "$1 conflicts"
   },
+  "firstRun_connectLibraryFirst": {
+    "message": "Connect to your bookmark library before starting sync."
+  },
+  "firstRun_connectingLibrary": {
+    "message": "Connecting to your bookmark library…"
+  },
   "firstRun_contentConflict": {
     "message": "Content conflict"
-  },
-  "firstRun_couldNotCreateCollection": {
-    "message": "Could not create the collection. Try again in a moment."
   },
   "firstRun_couldNotReadFolder": {
     "message": "Could not read folder counts. Refresh and try again."
   },
   "firstRun_couldNotStartSync": {
     "message": "Could not start sync. Try again in a moment."
-  },
-  "firstRun_createChooseCollectionFirst": {
-    "message": "Create or choose a collection first."
-  },
-  "firstRun_createCollection": {
-    "message": "Create collection"
-  },
-  "firstRun_createCollectionKnowN": {
-    "message": "Create a collection on the Know-N website first, then return and refresh the list."
-  },
-  "firstRun_createdCollection": {
-    "message": "Created collection \"$1\"."
   },
   "firstRun_deviceWins": {
     "message": "This device wins"
@@ -3044,14 +3020,8 @@
   "firstRun_modeNeedsReviewConfirm": {
     "message": "This mode needs you to review and confirm the change list first."
   },
-  "firstRun_nameCollectionDeviceWill": {
-    "message": "Name the collection this device will sync."
-  },
   "firstRun_noBookmarkFoldersAvailable": {
     "message": "No bookmark folders are available to sync."
-  },
-  "firstRun_offlineCheckConnectionTry": {
-    "message": "You are offline. Check your connection and try again."
   },
   "firstRun_permissionNotGrantedCan": {
     "message": "Permission was not granted. You can try again later."
@@ -3091,9 +3061,6 @@
   },
   "firstRun_sideBrowser": {
     "message": "Browser"
-  },
-  "firstRun_signSeeCollectionsOwn": {
-    "message": "Sign in to see collections you own."
   },
   "firstRun_startFirstSync": {
     "message": "Start first sync"
@@ -3275,9 +3242,6 @@
   "import_chooseBookmarkFileIsnt": {
     "message": "Choose a bookmark file that isn't empty."
   },
-  "import_chooseCollectionTab": {
-    "message": "Choose a collection on the Collection tab, then import again."
-  },
   "import_destinationOutsideSelectedSync": {
     "message": "That destination is outside the selected sync folders."
   },
@@ -3307,6 +3271,9 @@
   },
   "import_knowNServerCould": {
     "message": "The Know-N server could not be reached. Check your connection, then try again."
+  },
+  "import_libraryConnecting": {
+    "message": "Your bookmark library is connecting. Try importing again in a moment."
   },
   "import_mapSkipEveryImported": {
     "message": "Map or skip every imported folder before importing."
@@ -3737,17 +3704,35 @@
   "manager_waitingDeletionDecision": {
     "message": "waiting on a deletion decision"
   },
-  "metadata_consentRequired": {
-    "message": "Browser metadata stays local until you explicitly choose to connect it. Existing connections need this choice after upgrading."
-  },
-  "metadata_copyToCollection": {
-    "message": "Copy metadata to collection"
+  "metadata_copyToLibrary": {
+    "message": "Copy metadata to library"
   },
   "metadata_descriptionConflict": {
     "message": "This browser and Know-N have different descriptions. Your draft is kept. Review it before saving."
   },
   "metadata_keepLocal": {
     "message": "Keep metadata local"
+  },
+  "metadata_libraryChangeFailed": {
+    "message": "Metadata settings could not be changed. Please try again."
+  },
+  "metadata_libraryCopyHint": {
+    "message": "Copy these values into your bookmark library when their folders are synced. Tags will merge; differing notes and descriptions will need review. Keeping them local preserves their current bindings."
+  },
+  "metadata_libraryEmptyHint": {
+    "message": "Tags, notes and folder descriptions you add in this browser can sync with your bookmark library, or stay on this browser only. You can change this later in Sync."
+  },
+  "metadata_libraryHeading": {
+    "message": "Tags, notes and folder descriptions"
+  },
+  "metadata_libraryKeptLocal": {
+    "message": "Browser metadata stays on this browser."
+  },
+  "metadata_libraryLocal": {
+    "message": "Browser metadata stays on this browser until you choose to connect it."
+  },
+  "metadata_librarySynced": {
+    "message": "Browser metadata syncs with your bookmark library."
   },
   "metadata_noteConflict": {
     "message": "Your draft is saved in this browser. Save to review both versions and choose which note to keep."
@@ -3761,29 +3746,14 @@
   "metadata_savedVersion": {
     "message": "Saved version"
   },
-  "metadata_statusLocal": {
-    "message": "Browser metadata stays local. Use Connect browser metadata to change this choice."
-  },
-  "metadata_statusSync": {
-    "message": "Browser metadata sync is enabled. Use Connect browser metadata to change this choice."
-  },
-  "metadata_statusUnavailable": {
-    "message": "Browser metadata sync status could not be read. Refresh to try again."
-  },
-  "metadata_syncWithCollection": {
-    "message": "Sync with collection"
+  "metadata_syncWithLibrary": {
+    "message": "Sync with library"
   },
   "metadata_tagsIncompatible": {
     "message": "All tags are saved in this browser. Tag sync supports up to 64 tags of 64 characters each; review the tags to resume syncing."
   },
   "metadata_transferCounts": {
     "message": "This browser: $1 tag assignments, $2 notes, $3 folder descriptions."
-  },
-  "metadata_transferEmptyHint": {
-    "message": "Tags, notes and folder descriptions you add in this browser can sync with the selected collection, or stay on this browser only. You can change this later in Sync."
-  },
-  "metadata_transferHint": {
-    "message": "Copy these values into the selected collection when their folders are synced. Tags will merge; differing notes and descriptions will need review. Keeping them local preserves their current account and collection bindings."
   },
   "metadata_transferTitle": {
     "message": "Connect browser metadata"
@@ -3929,9 +3899,6 @@
   "options_collapse": {
     "message": "Collapse $1"
   },
-  "options_collectionsCouldNotLoaded": {
-    "message": "Collections could not be loaded. Refresh the list to try again."
-  },
   "options_collectionsDigestsFollowKept": {
     "message": "Collections and digests you follow, kept up to date as read-only folders in this browser."
   },
@@ -3949,12 +3916,6 @@
   },
   "options_connectionUnavailableReconnectRefresh": {
     "message": "Connection is unavailable. Reconnect and refresh."
-  },
-  "options_couldntSelectCollectionRefresh": {
-    "message": "Couldn't select this collection. Refresh the list and try again."
-  },
-  "options_createOpenCollectionOwn": {
-    "message": "Create or open a collection you own on the web, then refresh this list."
   },
   "options_creditsCouldNotLoaded": {
     "message": "Credits could not be loaded. Refresh to try again."
@@ -3998,9 +3959,6 @@
   "options_forOptionalSync": {
     "message": "for optional sync"
   },
-  "options_goAccountSign": {
-    "message": "Go to Account to sign in"
-  },
   "options_httpOriginRefused": {
     "message": "Plain HTTP works only for a server on this computer (localhost, 127.0.0.1, [::1]). On a home network, use https:// with the server's tls-internal profile."
   },
@@ -4030,9 +3988,6 @@
   },
   "options_loadingBookmarkFolders": {
     "message": "Loading bookmark folders…"
-  },
-  "options_loadingYourCollections": {
-    "message": "Loading your collections…"
   },
   "options_logoutLifecycle": {
     "message": "Queued personal sync changes will be archived. Reconnecting after sign-in requires your review. Managed subscription copies will be removed; personal copies you made are kept. Device save history stays on this browser."
@@ -4120,12 +4075,6 @@
   },
   "options_showFoldersBeforeBookmarks": {
     "message": "Show folders before bookmarks"
-  },
-  "options_signChooseCollectionPick": {
-    "message": "Sign in and choose a collection to pick folders."
-  },
-  "options_signChooseCollectionThen": {
-    "message": "Sign in and choose a collection, then pick which folders sync."
   },
   "options_signInAgain": {
     "message": "Sign in again"
@@ -4346,9 +4295,6 @@
   "popup_chooseSyncedFolderBefore": {
     "message": "Choose a synced folder before requesting suggestions."
   },
-  "popup_chooseWhatSyncs": {
-    "message": "Choose what syncs"
-  },
   "popup_classificationNeedsPriceConfirmation": {
     "message": "The suggestion needs a price confirmation. Update the extension and try again."
   },
@@ -4481,9 +4427,6 @@
   "popup_notEnoughCreditsClassification": {
     "message": "Not enough credits for a suggestion. You can still save."
   },
-  "popup_onlyOnDevice": {
-    "message": "No Know-N sync"
-  },
   "popup_openAiServiceSettings": {
     "message": "Open AI service settings"
   },
@@ -4516,9 +4459,6 @@
   },
   "popup_searchFolders": {
     "message": "Search folders"
-  },
-  "popup_setUpSync": {
-    "message": "Set up sync"
   },
   "popup_signAgainExtensionSettings": {
     "message": "Sign in again in the extension settings to get suggestions. You can still save."
@@ -4556,11 +4496,17 @@
   "popup_suggestionsUnavailableCanStill": {
     "message": "Suggestions are unavailable. You can still choose a folder and save."
   },
+  "popup_syncOff": {
+    "message": "Sync is off"
+  },
   "popup_syncThisFolder": {
     "message": "Sync this folder…"
   },
   "popup_tickSaveAnotherCopy": {
     "message": "Tick \"Save another copy\" to save this page again."
+  },
+  "popup_turnOnSync": {
+    "message": "Turn on sync"
   },
   "popup_usesCredits_one": {
     "message": "Uses $1 credit"
@@ -5894,18 +5840,6 @@
   "sync_changesPreviewed": {
     "message": "Changes are previewed before anything syncs."
   },
-  "sync_chooseCollectionFirst": {
-    "message": "Choose a collection first. The Collection tab lists the collections you own. Then pick folders here."
-  },
-  "sync_chooseFolders": {
-    "message": "Choose folders to sync"
-  },
-  "sync_collectionHeading": {
-    "message": "Collection"
-  },
-  "sync_collectionLede": {
-    "message": "This browser syncs into one collection you own. Collections shared with you cannot be chosen."
-  },
   "sync_copyDetails": {
     "message": "Copy details"
   },
@@ -5920,9 +5854,6 @@
   },
   "sync_count": {
     "message": "Count: $1"
-  },
-  "sync_createCollection": {
-    "message": "Create"
   },
   "sync_deleteHere": {
     "message": "Delete here"
@@ -6116,17 +6047,23 @@
   "sync_latest": {
     "message": "$1 · Latest: $2"
   },
+  "sync_libraryConnecting": {
+    "message": "Your bookmark library is connecting. Refresh to try again."
+  },
+  "sync_libraryLede": {
+    "message": "Keep this browser’s bookmarks in sync with your bookmark library."
+  },
+  "sync_libraryReady": {
+    "message": "Ready to sync. Review your browser’s bookmarks to start the first sync."
+  },
+  "sync_libraryUnavailable": {
+    "message": "Your bookmark library is unavailable. Check the server connection. Your local bookmarks are kept."
+  },
   "sync_metadataConsentStopped": {
     "message": "A queued change contains browser metadata that you have not allowed to sync. Reset sync on this device to set aside queued changes and review the merge again. Your bookmarks and local metadata are preserved."
   },
   "sync_mobileBookmarks": {
     "message": "Mobile bookmarks"
-  },
-  "sync_newCollection": {
-    "message": "New collection"
-  },
-  "sync_newCollectionHint": {
-    "message": "Start an empty collection for this browser."
   },
   "sync_noLocalBookmarksCurrently": {
     "message": "No local bookmarks are currently excluded from sync."
@@ -6143,9 +6080,6 @@
   "sync_onlyWebAddressesHttp": {
     "message": "Only web addresses (http or https) can sync"
   },
-  "sync_openCollectionsWeb": {
-    "message": "Open collections on the web"
-  },
   "sync_openSyncCenterWeb": {
     "message": "Open Sync center on the web"
   },
@@ -6158,20 +6092,11 @@
   "sync_otherBookmarks": {
     "message": "Other bookmarks"
   },
-  "sync_pageLede": {
-    "message": "Keep this browser’s bookmarks in sync with your Know-N collection."
-  },
-  "sync_pausedHere": {
-    "message": "Paused here"
-  },
   "sync_personalBoundary": {
     "message": "Personal sync is separate from sign-in, subscriptions, browser sync and your AI provider. Local bookmarks remain available."
   },
-  "sync_personalChangeFailed": {
-    "message": "The change could not be completed. Refresh the collection list and review again. Sync remains stopped if reconnect could not be verified."
-  },
-  "sync_personalChoose": {
-    "message": "Choose a collection to connect personal sync"
+  "sync_personalConnecting": {
+    "message": "Connecting to your bookmark library…"
   },
   "sync_personalDisconnect": {
     "message": "Disconnect personal sync"
@@ -6182,20 +6107,20 @@
   "sync_personalDisconnected": {
     "message": "Personal sync is disconnected"
   },
-  "sync_personalDisconnectedHint": {
-    "message": "Reconnect to continue with the same collection, or choose a collection below. Your local bookmarks are kept."
-  },
   "sync_personalEnabled": {
     "message": "Personal sync is enabled"
+  },
+  "sync_personalLibraryChangeFailed": {
+    "message": "The change could not be completed. Check the connection and review again. Sync stays stopped until reconnect is verified."
+  },
+  "sync_personalLibraryDisconnected": {
+    "message": "Reconnect to your bookmark library. Your local bookmarks are kept."
   },
   "sync_personalPause": {
     "message": "Pause personal sync"
   },
   "sync_personalPaused": {
     "message": "Personal sync is paused"
-  },
-  "sync_personalReady": {
-    "message": "Ready to sync. Choose folders to start the first sync."
   },
   "sync_personalReconnect": {
     "message": "Reconnect personal sync"
@@ -6208,9 +6133,6 @@
   },
   "sync_personalResumeReview": {
     "message": "Review personal sync"
-  },
-  "sync_personalUnavailable": {
-    "message": "The selected collection is unavailable. Disconnect, then choose another collection. Your local bookmarks are kept."
   },
   "sync_previewAlreadyConfirmed": {
     "message": "This preview was already confirmed."
@@ -6290,8 +6212,8 @@
   "sync_selectAll": {
     "message": "Select all"
   },
-  "sync_selectedHere": {
-    "message": "Selected"
+  "sync_signInLibrary": {
+    "message": "Sign in to sync this browser with your bookmark library."
   },
   "sync_someSelectedFoldersWere": {
     "message": "Some folders you picked are inside other picked folders. Only the outer folders are listed."
@@ -6335,12 +6257,6 @@
   "sync_syncResetIsntFinished": {
     "message": "The sync reset isn't finished. Your bookmarks are safe. Try again to finish it."
   },
-  "sync_syncingHere": {
-    "message": "Syncing here"
-  },
-  "sync_tabCollection": {
-    "message": "Collection"
-  },
   "sync_tabImport": {
     "message": "Import"
   },
@@ -6362,14 +6278,8 @@
   "sync_urlCannotRepresentedMissing": {
     "message": "URL cannot be synced (invalid format, disallowed scheme, or too long)"
   },
-  "sync_useCollection": {
-    "message": "Use this collection"
-  },
   "sync_useExisting": {
     "message": "Use existing"
-  },
-  "sync_useNamed": {
-    "message": "Use $1 as the collection"
   },
   "sync_waitSummary_one": {
     "message": "$1 bookmark from Know-N needs your decision before it’s added here."

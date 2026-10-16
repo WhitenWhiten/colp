@@ -10,7 +10,7 @@
  * mirrored from design/shared-chrome.css).
  */
 export type HubPane = 'bookmarks' | 'history' | 'subscriptions' | 'sync' | 'automations' | 'saving' | 'ai' | 'general' | 'account' | 'help';
-export type SyncView = 'collections' | 'folders' | 'center' | 'import';
+export type SyncView = 'folders' | 'center' | 'import';
 export type AccountView = 'session' | 'credits';
 export type SubscriptionView = 'list' | 'new' | 'detail' | 'history';
 /** `page` is the single surface of a pane with no sub-pages. */
@@ -21,7 +21,7 @@ export const paneViews: Readonly<Record<HubPane, readonly HubView[]>> = {
   bookmarks: [],
   history: [],
   subscriptions: ['list', 'new', 'detail', 'history'],
-  sync: ['collections', 'folders', 'center', 'import'],
+  sync: ['folders', 'center', 'import'],
   automations: [],
   saving: [],
   ai: [],

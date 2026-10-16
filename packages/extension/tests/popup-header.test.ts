@@ -117,11 +117,11 @@ test('header icon buttons are 32px targets', async () => {
   expect(css).toMatch(/\.icon-btn \{[^}]*width: 2rem;[^}]*height: 2rem;/);
 });
 
-test('with no library to sync into, the popup offers a way to sync settings instead of a dead end', async () => {
+test('before first sync, the popup opens sync setup', async () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const popup = await readEnglishSource(resolve(here, '../src/popup.ts'));
   const note = await readEnglishSource(resolve(here, '../src/popup-dest-sync.ts'));
-  expect(popup).toContain("boundLibrary.libraryCount() === 0 ? 'no-library' : 'choose-library'");
-  expect(note).toContain("chrome.runtime.getURL('options.html#sync/collections')");
+  expect(popup).toContain("currentAuthState?.status !== 'connected' ? 'none' : 'sync-off'");
+  expect(note).toContain("chrome.runtime.getURL('options.html#sync/folders')");
   expect(popup).not.toContain('showCollectionHint');
 });

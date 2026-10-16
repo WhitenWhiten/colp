@@ -78,29 +78,6 @@ test('a stale draft cannot override the currently bound library on reload', asyn
   expect(confirmations[0]).toMatchObject({ kind: 'known.firstRun.confirm', libraryId: 'library' });
 });
 
-test('creating a library keeps the current sync target when selection fails', async () => {
-  const confirmations: FirstRunRequest[] = [];
-  const f = await mount(async message => {
-    const kind = (message as { kind: string }).kind;
-    if (kind === 'known.collections.create') return { ok: true, collection: { id: 'new-library', title: 'New library' } };
-    if (kind === 'known.collection.select') return { ok: false, error: 'personal_sync_disconnect_required' };
-    if (message.kind === 'known.firstRun.status') return { ok: true, firstRun: 'none', phase: 'draft' };
-    if (message.kind === 'known.firstRun.preview') return preview('current');
-    confirmations.push(message);
-    return { ok: true, firstRun: 'running', phase: 'syncing' };
-  });
-  f.ui.onRootsRendered(view('ready'), true, true);
-  await vi.waitFor(() => expect(f.start.disabled).toBe(false));
-  (document.getElementById('library-create-title') as HTMLInputElement).value = 'New library';
-  document.getElementById('library-create')!.dispatchEvent(new Event('submit', { cancelable: true }));
-  await vi.waitFor(() => expect((document.getElementById('library-create-submit') as HTMLButtonElement).disabled).toBe(false));
-  expect(document.getElementById('collection-feedback')?.dataset.tone).toBe('error');
-  expect(f.values['known.firstRun.draft.v1']).not.toMatchObject({ libraryId: 'new-library' });
-  f.start.click();
-  await vi.waitFor(() => expect(confirmations).toHaveLength(1));
-  expect(confirmations[0]).toMatchObject({ libraryId: 'library' });
-});
-
 test('a terminal first-sync failure replaces the syncing timer with the actual stopped state', async () => {
   let stopped = false;
   const f = await mount(async message => {

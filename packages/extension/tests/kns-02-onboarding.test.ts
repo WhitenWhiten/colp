@@ -12,14 +12,13 @@ import { IDBFactory } from 'fake-indexeddb';
 import { describe, test } from 'vitest';
 import { countFolderContents } from '../src/bookmark-boundary.js';
 import {
-  FIRST_RUN_CREATE_ACTION, FIRST_RUN_CREATE_HINT, FIRST_RUN_ENGINE_NOT_READY, FIRST_RUN_INTRO, FIRST_RUN_KEEP_COPY,
+  FIRST_RUN_ENGINE_NOT_READY, FIRST_RUN_INTRO, FIRST_RUN_KEEP_COPY,
   FIRST_RUN_LATER, FIRST_RUN_LIBRARY_REQUIRED, FIRST_RUN_MERGE_COPY, FIRST_RUN_PERMISSION_ACTION,
   FIRST_RUN_PERMISSION_HINT, FIRST_RUN_START, FIRST_RUN_SYNCED, FIRST_RUN_SYNCING, FIRST_RUN_UNSYNCED,
-  FIRST_RUN_WEBSITE_CREATE, buildFirstRunConfirm, canStartFirstSync, collectPreviewSelection, confirmFailureCopy,
+  buildFirstRunConfirm, canStartFirstSync, collectPreviewSelection, confirmFailureCopy,
   firstRunIncomplete, firstRunOnboardingActive, folderCountCopy, parseFirstRunDraft, popupFirstRunStatus,
   restoreDraftSelection, shouldDefaultPreselect,
 } from '../src/first-run-draft.js';
-import { selectPrivateBookmarkLibraries } from '../src/collections-cache.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 import type { PublicRootView } from '../src/types.js';
 
@@ -51,10 +50,7 @@ describe('KNS-02 first-run copy and preview model', () => {
     assert.match(FIRST_RUN_KEEP_COPY, /are not deleted/);
     assert.equal(FIRST_RUN_UNSYNCED, 'Sync is off');
     assert.equal(FIRST_RUN_ENGINE_NOT_READY, 'Sync is not ready yet');
-    assert.match(FIRST_RUN_WEBSITE_CREATE, /Know-N website/);
-    assert.equal(FIRST_RUN_CREATE_HINT, 'Name the collection this device will sync.');
-    assert.equal(FIRST_RUN_CREATE_ACTION, 'Create collection');
-    assert.equal(FIRST_RUN_LIBRARY_REQUIRED, 'Create or choose a collection first.');
+    assert.equal(FIRST_RUN_LIBRARY_REQUIRED, 'Connecting to your bookmark library…');
     const copy = await readFromPackage('src/first-run-draft.ts');
     for (const word of ['Replica', 'Sequence', 'Tombstone', 'bootstrapMode', 'folderRole', 'native mapping']) {
       assert.doesNotMatch(copy, new RegExp(word));
@@ -164,16 +160,6 @@ describe('KNS-02 first-run copy and preview model', () => {
 });
 
 describe('KNS-02 collection filter and later persistence', () => {
-  test('keeps visibility and only lists private bookmarks libraries', () => {
-    const items = [
-      { id: 'a', title: 'Private bookmarks', kind: 'bookmarks', visibility: 'private' },
-      { id: 'b', title: 'Shared', kind: 'bookmarks', visibility: 'shared' },
-      { id: 'c', title: 'Reading', kind: 'reading_path', visibility: 'private' },
-      { id: 'd', title: 'Draft-looking', kind: 'bookmarks' },
-    ];
-    assert.deepEqual(selectPrivateBookmarkLibraries(items).map((item) => item.id), ['a']);
-  });
-
   test('later writes sync_scopes.firstRun deferred without activating mounts', async () => {
     const indexedDB = new IDBFactory();
     const store = createSyncStateStore({ indexedDB });
@@ -199,7 +185,7 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
     const options = await readFromPackage('options.html');
     for (const marker of ['welcome-copy', 'first-run-confirm', 'first-run-start', 'first-run-later',
       'first-run-merge-copy', 'first-run-permission-hint', 'request-bookmark-permission',
-      'library-create', 'library-create-title', 'library-create-submit', 'first-run-view-attention',
+      'first-run-view-attention',
       'first-run-attention-list']) {
       assert.match(options, new RegExp(`id="${marker}"`));
     }
@@ -230,10 +216,6 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
     assert.match(source, /known\.firstRun\.confirm/);
     assert.doesNotMatch(source, /known\.roots\.update/);
     assert.doesNotMatch(source, /syncPush|create_node|\/api\/v1\/collections/);
-    const collections = await readFromPackage('src/sw/collections.ts');
-    assert.match(collections, /method: 'POST'|postPrivateBookmarkLibrary/);
-    assert.match(collections, /colp\/v0\.1\/sync\/collections/);
-    assert.doesNotMatch(collections, /\/api\/v1\/collections|syncPush|create_node/);
     assert.match(await readFromPackage('src/sw/first-run.ts'), /setFirstRun\(scope, 'deferred'\)/);
     assert.match(await readFromPackage('src/service-worker.ts'), /known\.firstRun\.confirm/);
     assert.match(await readFromPackage('src/sw/first-run-stubs.ts'), /error: 'not_implemented'/);
@@ -255,14 +237,4 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
     assert.match(start, /buildFirstRunConfirm/);
   });
 
-  test('collections list keeps visibility and filters private bookmarks libraries', async () => {
-    const source = `${await readFromPackage('src/sw/collections.ts')}\n${await readFromPackage('src/library-create.ts')}`;
-    const cache = await readFromPackage('src/collections-cache.ts');
-    assert.match(source, /visibility: record\.visibility/);
-    assert.match(source, /selectPrivateBookmarkLibraries/);
-    assert.match(cache, /kind === 'bookmarks' && item\.visibility === 'private'/);
-    assert.doesNotMatch(source, /kind === 'library'/);
-    assert.match(await readFromPackage('src/sync-collections.ts'), /selectPrivateBookmarkLibraries/);
-    assert.match(await readFromPackage('src/popup-bound-collection.ts'), /selectPrivateBookmarkLibraries/);
-  });
 });

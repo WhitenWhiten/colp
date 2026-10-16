@@ -8,7 +8,7 @@ import { MAX_IMPORT_FILE_BYTES, importErrorMessage, nativeImportMessage } from '
 
 /** The Sync page's behaviour lives in the pane modules; the page script only wires them. */
 async function syncSource(): Promise<string> {
-  const files = ['options.ts', 'sync-collections.ts', 'sync-folders.ts', 'sync-import.ts'];
+  const files = ['options.ts', 'sync-folders.ts', 'sync-import.ts'];
   return (await Promise.all(files.map((file) => readEnglishSource(new URL(`../src/${file}`, import.meta.url))))).join('\n');
 }
 
@@ -41,7 +41,7 @@ describe('P3-35 native import request behavior', () => {
 
   test('maps known import error codes to sentences and gives unknown codes a general one', () => {
     assert.equal(importErrorMessage('permission_required'), 'Allow bookmark access before reading this browser\'s bookmarks.');
-    assert.equal(importErrorMessage('collection_required'), 'Choose a collection on the Collection tab, then import again.');
+    assert.equal(importErrorMessage('collection_required'), 'Your bookmark library is connecting. Try importing again in a moment.');
     assert.match(importErrorMessage('offline'), /could not be reached/);
     assert.match(importErrorMessage('session_invalid'), /no longer valid/);
     assert.match(importErrorMessage('credential_revoked'), /no longer valid/);
@@ -68,7 +68,7 @@ describe('P3-35 extension options import UI', () => {
     assert.doesNotMatch(html, /Chromium JSON\/tree/);
     assert.doesNotMatch(html, /accept="[^"]*\.json/);
     assert.match(html, /aria-live="polite"/); assert.doesNotMatch(html, /demo|timer|atomic batch/i);
-    for (const pane of ['nav-account', 'nav-saving', 'nav-sync', 'nav-bookmarks', 'collection-grid']) {
+    for (const pane of ['nav-account', 'nav-saving', 'nav-sync', 'nav-bookmarks']) {
       assert.match(html, new RegExp(`id="${pane}"`));
     }
     // The sidebar lists the five library pages (Automations included), the four settings pages and Help & diagnostics.
@@ -78,12 +78,12 @@ describe('P3-35 extension options import UI', () => {
     assert.match(html, /id="sync-card"/);
     // Former cards keep their ids as merged sub-sections so deep links and
     // script bindings keep resolving.
-    for (const merged of ['collection-card', 'folder-card', 'import-card', 'credits-card']) {
+    for (const merged of ['folder-card', 'import-card', 'credits-card']) {
       assert.match(html, new RegExp(`id="${merged}"`));
     }
     assert.doesNotMatch(html, /class="welcome-actions"[^>]*role="list"|role="list"[^>]*class="welcome-actions"/);
     assert.doesNotMatch(html, /id="collection-id"|id="select-collection"|Paste a collection link/i);
-    assert.match(html, /This browser syncs into one collection you own. Collections shared with you cannot be chosen./); // copy-only (C-11)
+    assert.match(html, /Keep this browser’s bookmarks in sync with your bookmark library/);
     assert.doesNotMatch(html, /hub-nav-kicker/);
     assert.match(html, /class="set-group account-login" id="login-panel"/);
     assert.match(html, /id="session-stage"/);
@@ -125,10 +125,6 @@ describe('P3-35 extension options import UI', () => {
     assert.equal(parseHubRoute('#account').pane, 'account');
     assert.match(source, /if \(signedInView\) welcome\.hidden = true/);
     assert.match(source, /collection_required/);
-    assert.match(source, /chooseCollection: \(\) => showPane\('collection'\)/);
-    assert.match(source, /Sign in to see collections you own/);
-    assert.match(source, /signedInCollectionHint|dataset\.state !== 'connected'/);
-    assert.match(source, /Collections could not be loaded/);
     assert.doesNotMatch(source, /extractCollectionId|Paste a collection link/);
   });
 
@@ -152,15 +148,6 @@ describe('P3-35 extension options import UI', () => {
     assert.doesNotMatch(source, /case 'offline': return \{ [^}]*action: 'Sign out'/);
   });
 
-  test('collection empty state provides actionable entry to sign in (UX-22)', async () => {
-    const html = await readEnglishSource(new URL('../options.html', import.meta.url));
-    const source = await syncSource();
-    assert.match(html, /id="collection-signin-link"/);
-    assert.match(html, /href="#account"/);
-    assert.match(source, /signIn\?\.addEventListener/);
-    assert.match(source, /showPane\('account'\)/);
-  });
-
   test('import attention state provides actionable guidance and navigation links (UX-23)', async () => {
     const html = await readEnglishSource(new URL('../options.html', import.meta.url));
     const source = await syncSource();
@@ -178,14 +165,11 @@ describe('P3-35 extension options import UI', () => {
     assert.doesNotMatch(html, /id="welcome-signin"|id="welcome-open-collections"/);
     assert.match(html, /id="dismiss-welcome"/);
     // Collection rows are a group; the chosen one is marked current, the others carry a button.
-    assert.match(html, /id="collection-grid"[^>]*role="group"/);
     assert.doesNotMatch(source, /setAttribute\('role', 'option'\)/);
-    assert.match(source, /row\.setAttribute\('aria-current', 'true'\)/);
     // Offline is its own neutral state, not "Not signed in" in red.
     const pill = await readEnglishSource(new URL('../src/options-hub-chrome.ts', import.meta.url));
     assert.match(pill, /status === 'offline' \? 'Offline'/);
     assert.match(pill, /status === 'error' \|\| status === 'policy_blocked' \? 'Sign-in problem'/);
-    assert.match(source, /Couldn't select this collection\. Refresh the list and try again\./);
     assert.doesNotMatch(source, /Could not select this library/);
   });
 

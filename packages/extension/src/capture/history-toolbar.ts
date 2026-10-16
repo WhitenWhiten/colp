@@ -15,7 +15,6 @@ export function createHistoryToolbar(zoneValue: string) {
   const scope = selectOf([['local', t('common_thisBrowser', 'This browser')], ['cloud', t('capture_allCloudDevices', 'All cloud devices')]], 'local');
   const source = selectOf([['', t('common_allSources', 'All sources')], ['action-popup', t('common_toolbar', 'Toolbar')], ['manual-popup', t('common_manualPopup', 'Manual popup')], ['context-page', t('common_pageMenu', 'Page menu')],
     ['context-link', t('common_linkMenu', 'Link menu')], ['batch', t('common_tabBatch', 'Tab batch')]], '');
-  const collection = selectOf([['', t('common_allCollections', 'All collections')]], '');
   const zone = selectOf([...new Set([zoneValue, 'UTC', 'Asia/Tokyo', 'America/New_York', 'Europe/London'])].map((value) => [value, value] as const), zoneValue);
 
   const search = searchCompact(t('capture_titleDomain', 'Title or domain'), t('capture_searchTitlesDomains', 'Search titles and domains'));
@@ -30,11 +29,11 @@ export function createHistoryToolbar(zoneValue: string) {
 
   const clear = button(t('common_clearFilters', 'Clear filters'), 'btn btn-ghost btn-sm');
   const more = el('div', undefined, 'toolbar hist-more'); more.hidden = true;
-  more.append(devicesPill, selectPill(t('common_source', 'Source'), source), selectPill(t('common_collection', 'Collection'), collection), selectPill(t('common_timezone', 'Timezone'), zone), clear);
+  more.append(devicesPill, selectPill(t('common_source', 'Source'), source), selectPill(t('common_timezone', 'Timezone'), zone), clear);
   moreToggle.addEventListener('click', () => setMore(more.hidden));
   function setMore(open: boolean): void { more.hidden = !open; moreToggle.setAttribute('aria-expanded', String(open)); moreToggle.dataset.open = String(open); }
 
   const element = el('div', undefined, 'hist-filters'); element.append(bar, more);
-  return { element, query: search.input, days, filter, scope, source, collection, zone, select, clear, devicesPill, setMore, isStatus: (value: string) => STATUS.includes(value) };
+  return { element, query: search.input, days, filter, scope, source, zone, select, clear, devicesPill, setMore, isStatus: (value: string) => STATUS.includes(value) };
 }
 export type HistoryToolbar = ReturnType<typeof createHistoryToolbar>;

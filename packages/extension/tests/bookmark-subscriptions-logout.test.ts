@@ -7,8 +7,7 @@ vi.mock('../src/sw/runtime.js',()=>({store:{loadCredential:async()=>({subject:'a
 vi.mock('../src/sw/scope.js',()=>({loadConfig:async()=>({environment:'test',serverOrigin:'https://known.test'}),enforceManagedPolicy:async()=>{},createRuntimeAuth:()=>({logout:()=>state.logout()}),currentSyncScope:vi.fn(),ensureSyncScope:vi.fn(),hasBoundCollection:vi.fn(),pushSessionAuthority:vi.fn(),retire:vi.fn(),scheduleSessionFreshen:vi.fn()}));
 vi.mock('../src/sw/engine.js',()=>({scheduleSyncEngineWake:vi.fn()}));
 vi.mock('../src/sw/personal-sync.js',()=>({suspendPersonalSyncForLogout:vi.fn()}));
-vi.mock('../src/sw/collections.js',()=>({verifyCollectionAvailability:vi.fn()}));
-vi.mock('../src/collections-cache.js',()=>({clearCollectionsCache:async()=>{}}));
+vi.mock('../src/sw/library.js',()=>({verifyLibraryAvailability:vi.fn()}));
 vi.mock('../src/save-context-cache.js',()=>({clearSaveContextCache:async()=>{}}));
 import { handle } from '../src/sw/auth.js';
 import { createMaintenance as buildMaintenance } from '../src/bookmark-subscriptions/maintenance.js';

@@ -132,9 +132,6 @@ export interface PublicRootView {
 }
 
 export type ExtensionRequest = { readonly kind: 'known.auth.status' }
-  | { readonly kind: 'known.collection.select'; readonly collectionId: string; readonly userGesture: true; readonly migrateMetadata?: boolean }
-  | { readonly kind: 'known.collections.list' }
-  | { readonly kind: 'known.collections.create'; readonly title: string; readonly userGesture: true }
   | { readonly kind: 'known.auth.send-otp'; readonly userGesture: true; readonly email: string }
   | { readonly kind: 'known.auth.login'; readonly userGesture: true; readonly method: 'password';
     readonly email: string; readonly password: string }
@@ -394,17 +391,6 @@ export type RootResponse = { readonly ok: true; readonly view: PublicRootView }
   | { readonly ok: false; readonly error: PublicRootStatus | 'not_connected' | 'request_invalid' | 'root_update_failed'
     | 'permission_required' | 'preview_stale' | 'duplicate_confirm' | 'sync_paused' };
 
-export interface PublicCollectionChoice {
-  readonly id: string;
-  readonly title: string;
-  readonly kind: string;
-  readonly visibility?: string;
-  readonly rootNodeId?: string;
-}
-export type CollectionsResponse = { readonly ok: true; readonly collections: readonly PublicCollectionChoice[] }
-  | { readonly ok: false; readonly error: string };
-export type CollectionCreateResponse = { readonly ok: true; readonly collection: PublicCollectionChoice }
-  | { readonly ok: false; readonly error: string };
 export type ExtensionResponse = { readonly ok: true; readonly state: PublicAuthState }
   | { readonly ok: false; readonly state: PublicAuthState; readonly error: string };
 export type SyncEngineRequest = { readonly kind: 'known.sync.engine.status' };

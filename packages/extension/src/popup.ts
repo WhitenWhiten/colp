@@ -8,8 +8,7 @@ import type { BookmarkPreferencesResponse, ExtensionRequest, ExtensionResponse, 
   SaveStatusResponse } from './types.js';
 import { effectiveAiTagMode } from './bookmark-preferences.js';
 import { AUTH_SNAPSHOT, parseAuthSnapshot } from './auth-snapshot.js';
-import { COLLECTIONS_CACHE } from './collections-cache.js';
-import { COLLECTION_BINDING, createBoundCollection } from './popup-bound-collection.js';
+import { COLLECTION_BINDING, LIBRARY_STATE, boundLibrary, type Library } from './library.js';
 import { paintDestSync } from './popup-dest-sync.js';
 import { paintDigestNote } from './popup-digest.js';
 import { bindEditExisting } from './popup-edit-existing.js';
@@ -97,7 +96,7 @@ urlInput.addEventListener('change', () => { void rule.refresh(); });
 bindDestUi({ destToggle: element('dest-toggle') as HTMLButtonElement, destPanel: element('dest-panel'), destSearch: element('dest-search') as HTMLInputElement });
 const editExisting = bindEditExisting({ titleInput, tabTitle: () => tabTitle, save, remove: element('remove-bookmark') as HTMLButtonElement,
   folders, commitFolder: () => folders.commit(selectedCollection()?.id ?? DEVICE_FOLDER_SCOPE), setFeedback, annotation: fields.annotation, pin });
-const boundLibrary = createBoundCollection();
+let library: Library | undefined;
 const deviceSave = bindDeviceSave({ enableControls: enableSaveControls, initTarget: initSaveTarget,
   showExistence: showManualCaptureExistence, showPersistedFeedback: showPersistedSaveFeedback, currentUrl: () => tabUrl });
 
@@ -167,13 +166,13 @@ document.addEventListener('known:existence-cleared', () => {
 });
 /**
  * First paint never waits on the service worker: the last known auth state
- * and the owned-collection list are rendered straight from chrome.storage,
+ * and the library binding are rendered straight from chrome.storage,
  * so the panel is usable instantly and fully offline. The worker round trip
  * only reconciles afterwards (stale-while-revalidate).
  */
 async function initialize(): Promise<void> {
   const [cached] = await Promise.all([
-    chrome.storage.local.get([COLLECTIONS_CACHE, COLLECTION_BINDING, AUTH_SNAPSHOT]),
+    chrome.storage.local.get([LIBRARY_STATE, COLLECTION_BINDING, AUTH_SNAPSHOT]),
     readActiveTab(),
   ]);
   if (tabUrl && isSavableUrl(tabUrl)) void showManualCaptureExistence(tabUrl);
@@ -184,7 +183,7 @@ async function initialize(): Promise<void> {
   if (snapshot) {
     renderAuth(snapshot);
     if (snapshot.status === 'connected') {
-      boundLibrary.fromCache(cached, snapshot.accountLabel);
+      library = boundLibrary(cached, snapshot.serverOrigin);
       enableSaveControls();
       void initSaveTarget(selectedCollection()?.id);
       void primeSaveContext(selectedCollection()?.id);
@@ -200,7 +199,7 @@ async function initialize(): Promise<void> {
   if (settled.status !== 'connected') { deviceSave.init(settled); return; }
   void savePosition.refresh();
   if (!snapshot || snapshot.status !== 'connected') {
-    boundLibrary.fromCache(cached, settled.accountLabel);
+    library = boundLibrary(cached, settled.serverOrigin);
     enableSaveControls();
     void initSaveTarget(selectedCollection()?.id);
     void primeSaveContext(selectedCollection()?.id);
@@ -335,8 +334,8 @@ bindAuthSnapshot(() => currentAuthState, (state) => {
  * save target follows it.
  */
 async function refreshBoundCollection(): Promise<void> {
-  const before = boundLibrary.current()?.id;
-  await boundLibrary.refresh();
+  const before = library?.id;
+  library = boundLibrary(await chrome.storage.local.get([COLLECTION_BINDING, LIBRARY_STATE]), currentAuthState?.serverOrigin);
   const after = selectedCollection()?.id;
   void paintDestNote();
   if (after === before) return;
@@ -346,7 +345,7 @@ async function refreshBoundCollection(): Promise<void> {
 }
 
 function selectedCollection(): { id: string; title: string } | undefined {
-  return boundLibrary.current();
+  return library;
 }
 
 /* The passive sync fact under the fields: said only when a save here would not sync, derived from the folder. */
@@ -354,8 +353,7 @@ let destNotePass = 0;
 async function paintDestNote(): Promise<void> {
   const pass = ++destNotePass;
   if (currentAuthState?.status !== 'connected' || !selectedCollection()) {
-    paintDestSync(note, { kind: currentAuthState?.status !== 'connected' || !boundLibrary.known() ? 'none'
-      : boundLibrary.libraryCount() === 0 ? 'no-library' : 'choose-library' });
+    paintDestSync(note, { kind: currentAuthState?.status !== 'connected' ? 'none' : 'sync-off' });
     return;
   }
   const target = await folders.syncTarget();

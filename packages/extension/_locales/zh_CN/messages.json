@@ -79,6 +79,14 @@
     "message": "Know-N 不接受来自此扩展程序副本的登录。请重新安装，或在 Know-N 网站上登录。",
     "description": "Know-N did not accept sign-in from this copy of the extension. Reinstall it, or sign in on the Know-N website."
   },
+  "auth_libraryConnecting": {
+    "message": "已登录，正在连接你的书签库。",
+    "description": "You are signed in. Your bookmark library is connecting."
+  },
+  "auth_libraryUnavailable": {
+    "message": "无法加载你的书签库。请检查网络连接后重试。",
+    "description": "Your bookmark library could not be loaded. Check your connection and try again."
+  },
   "auth_managedSettingsConflictBuild": {
     "message": "托管设置与此版本冲突。",
     "description": "Managed settings conflict with this build."
@@ -115,6 +123,10 @@
     "message": "正在退出登录…",
     "description": "Signing out…"
   },
+  "auth_syncUnsupported": {
+    "message": "此服务器暂不支持书签同步。",
+    "description": "This server does not support bookmark sync yet."
+  },
   "auth_tooManyRequestsTry": {
     "message": "请求过于频繁，请稍后再试。",
     "description": "Too many requests. Try again shortly."
@@ -134,10 +146,6 @@
   "auth_verifyEmailFirstCheck": {
     "message": "请先验证邮箱：查看收件箱后再重新登录。",
     "description": "Verify your email first — check your inbox, then sign in again."
-  },
-  "auth_youreSignedNowChoose": {
-    "message": "已登录，接下来请选择此浏览器同步的内容。",
-    "description": "You're signed in — now choose where this browser syncs."
   },
   "automation_accountEditorHint": {
     "message": "网页编辑器会打开并填好这条规则。在那里开启之前，什么都不会改变。",
@@ -1511,6 +1519,10 @@
     "message": "选择浏览器文件夹",
     "description": "Choose a browser folder"
   },
+  "capture_chooseLibraryFolder": {
+    "message": "请先在书签库中选择一个文件夹。",
+    "description": "Choose a folder in your bookmark library first."
+  },
   "capture_chooseLocalFolderSettings": {
     "message": "在设置中选择本地文件夹",
     "description": "Choose a local folder in settings"
@@ -2143,10 +2155,6 @@
     "message": "选择 $1",
     "description": "Select $1"
   },
-  "capture_selectCollectionDefaultFolder": {
-    "message": "请先在“同步”中选择一个合集，并在其中选定默认文件夹。",
-    "description": "Choose a collection under Sync and a default folder inside it first."
-  },
   "capture_selectPage": {
     "message": "选择此页",
     "description": "Select this page"
@@ -2443,10 +2451,6 @@
     "message": "全部动态",
     "description": "All activity"
   },
-  "common_allCollections": {
-    "message": "全部合集",
-    "description": "All collections"
-  },
   "common_allSources": {
     "message": "全部来源",
     "description": "All sources"
@@ -2658,14 +2662,6 @@
   "common_collectionChanged": {
     "message": "合集已更改",
     "description": "Collection changed"
-  },
-  "common_collectionSelected": {
-    "message": "已选择合集。",
-    "description": "Collection selected."
-  },
-  "common_collectionUnavailable": {
-    "message": "合集不可用",
-    "description": "Collection unavailable"
   },
   "common_completed": {
     "message": "已完成",
@@ -3339,10 +3335,6 @@
     "message": "刷新文件夹",
     "description": "Refresh folders"
   },
-  "common_refreshList": {
-    "message": "刷新列表",
-    "description": "Refresh list"
-  },
   "common_refreshing": {
     "message": "正在刷新…",
     "description": "Refreshing…"
@@ -3751,10 +3743,6 @@
     "message": "你的合集",
     "description": "Your collection"
   },
-  "common_yourCollections": {
-    "message": "你的合集",
-    "description": "Your collections"
-  },
   "credits_availableCount": {
     "message": "可用 $1",
     "description": "$1 available"
@@ -3855,14 +3843,6 @@
     "message": "检查状态",
     "description": "Check status"
   },
-  "firstRun_chooseCollectionFirstThen": {
-    "message": "请先选择合集，然后开始同步。",
-    "description": "Choose a collection first, then start sync."
-  },
-  "firstRun_collectionName": {
-    "message": "合集名称",
-    "description": "Collection name"
-  },
   "firstRun_confirmListRun": {
     "message": "确认列表并运行",
     "description": "Confirm the list and run"
@@ -3879,13 +3859,17 @@
     "message": "$1 个冲突",
     "description": "$1 conflicts"
   },
+  "firstRun_connectLibraryFirst": {
+    "message": "请先连接书签库，再开始同步。",
+    "description": "Connect to your bookmark library before starting sync."
+  },
+  "firstRun_connectingLibrary": {
+    "message": "正在连接你的书签库…",
+    "description": "Connecting to your bookmark library…"
+  },
   "firstRun_contentConflict": {
     "message": "内容冲突",
     "description": "Content conflict"
-  },
-  "firstRun_couldNotCreateCollection": {
-    "message": "无法创建合集，请稍后重试。",
-    "description": "Could not create the collection. Try again in a moment."
   },
   "firstRun_couldNotReadFolder": {
     "message": "无法读取文件夹数量，请刷新后重试。",
@@ -3894,22 +3878,6 @@
   "firstRun_couldNotStartSync": {
     "message": "无法开始同步，请稍后重试。",
     "description": "Could not start sync. Try again in a moment."
-  },
-  "firstRun_createChooseCollectionFirst": {
-    "message": "请先创建或选择合集。",
-    "description": "Create or choose a collection first."
-  },
-  "firstRun_createCollection": {
-    "message": "创建合集",
-    "description": "Create collection"
-  },
-  "firstRun_createCollectionKnowN": {
-    "message": "请先在 Know-N 网站创建合集，然后返回并刷新列表。",
-    "description": "Create a collection on the Know-N website first, then return and refresh the list."
-  },
-  "firstRun_createdCollection": {
-    "message": "已创建合集“$1”。",
-    "description": "Created collection \"$1\"."
   },
   "firstRun_deviceWins": {
     "message": "以此设备为准",
@@ -3987,17 +3955,9 @@
     "message": "此模式需要你先查看并确认更改列表。",
     "description": "This mode needs you to review and confirm the change list first."
   },
-  "firstRun_nameCollectionDeviceWill": {
-    "message": "为此设备要同步的合集命名。",
-    "description": "Name the collection this device will sync."
-  },
   "firstRun_noBookmarkFoldersAvailable": {
     "message": "没有可同步的书签文件夹。",
     "description": "No bookmark folders are available to sync."
-  },
-  "firstRun_offlineCheckConnectionTry": {
-    "message": "你已离线。请检查网络连接后重试。",
-    "description": "You are offline. Check your connection and try again."
   },
   "firstRun_permissionNotGrantedCan": {
     "message": "未授予权限，你可以稍后再试。",
@@ -4042,10 +4002,6 @@
   "firstRun_sideBrowser": {
     "message": "浏览器",
     "description": "Browser"
-  },
-  "firstRun_signSeeCollectionsOwn": {
-    "message": "登录后可查看你拥有的合集。",
-    "description": "Sign in to see collections you own."
   },
   "firstRun_startFirstSync": {
     "message": "开始首次同步",
@@ -4287,10 +4243,6 @@
     "message": "请选择一个非空的书签文件。",
     "description": "Choose a bookmark file that isn't empty."
   },
-  "import_chooseCollectionTab": {
-    "message": "请在“合集”标签页选择一个合集，然后重新导入。",
-    "description": "Choose a collection on the Collection tab, then import again."
-  },
   "import_destinationOutsideSelectedSync": {
     "message": "该目标位置不在所选的同步文件夹内。",
     "description": "That destination is outside the selected sync folders."
@@ -4330,6 +4282,10 @@
   "import_knowNServerCould": {
     "message": "无法连接 Know-N 服务器。请检查网络连接后重试。",
     "description": "The Know-N server could not be reached. Check your connection, then try again."
+  },
+  "import_libraryConnecting": {
+    "message": "正在连接你的书签库，请稍后重试导入。",
+    "description": "Your bookmark library is connecting. Try importing again in a moment."
   },
   "import_mapSkipEveryImported": {
     "message": "导入前请为每个导入的文件夹指定映射或选择跳过。",
@@ -4883,13 +4839,9 @@
     "message": "正在等待删除决定",
     "description": "waiting on a deletion decision"
   },
-  "metadata_consentRequired": {
-    "message": "明确选择连接元数据前，浏览器元数据仅保留在本机。升级后，已有连接也需要重新作出此选择。",
-    "description": "Browser metadata stays local until you explicitly choose to connect it. Existing connections need this choice after upgrading."
-  },
-  "metadata_copyToCollection": {
-    "message": "将元数据复制到集合",
-    "description": "Copy metadata to collection"
+  "metadata_copyToLibrary": {
+    "message": "将元数据复制到书签库",
+    "description": "Copy metadata to library"
   },
   "metadata_descriptionConflict": {
     "message": "此浏览器与 Know-N 的描述不同。草稿已保留，请核对后再保存。",
@@ -4898,6 +4850,34 @@
   "metadata_keepLocal": {
     "message": "将元数据保留在本地",
     "description": "Keep metadata local"
+  },
+  "metadata_libraryChangeFailed": {
+    "message": "无法更改元数据设置，请重试。",
+    "description": "Metadata settings could not be changed. Please try again."
+  },
+  "metadata_libraryCopyHint": {
+    "message": "文件夹同步时，将这些内容复制到你的书签库。标签会合并；不同的笔记和文件夹说明需要你确认。选择仅留在本机则会保留当前关联。",
+    "description": "Copy these values into your bookmark library when their folders are synced. Tags will merge; differing notes and descriptions will need review. Keeping them local preserves their current bindings."
+  },
+  "metadata_libraryEmptyHint": {
+    "message": "你在此浏览器中添加的标签、笔记和文件夹说明可以与你的书签库同步，也可以仅留在本机。之后可在“同步”中更改。",
+    "description": "Tags, notes and folder descriptions you add in this browser can sync with your bookmark library, or stay on this browser only. You can change this later in Sync."
+  },
+  "metadata_libraryHeading": {
+    "message": "标签、笔记和文件夹说明",
+    "description": "Tags, notes and folder descriptions"
+  },
+  "metadata_libraryKeptLocal": {
+    "message": "浏览器元数据仅留在本机。",
+    "description": "Browser metadata stays on this browser."
+  },
+  "metadata_libraryLocal": {
+    "message": "浏览器元数据会仅留在本机，直到你选择将其连接到书签库。",
+    "description": "Browser metadata stays on this browser until you choose to connect it."
+  },
+  "metadata_librarySynced": {
+    "message": "浏览器元数据与你的书签库同步。",
+    "description": "Browser metadata syncs with your bookmark library."
   },
   "metadata_noteConflict": {
     "message": "草稿已保存在此浏览器中。保存时可核对两个版本，并选择要保留的备注。",
@@ -4915,21 +4895,9 @@
     "message": "已保存的版本",
     "description": "Saved version"
   },
-  "metadata_statusLocal": {
-    "message": "浏览器元数据仅保留在本机。可通过“连接浏览器元数据”更改选择。",
-    "description": "Browser metadata stays local. Use Connect browser metadata to change this choice."
-  },
-  "metadata_statusSync": {
-    "message": "浏览器元数据同步已启用。可通过“连接浏览器元数据”更改选择。",
-    "description": "Browser metadata sync is enabled. Use Connect browser metadata to change this choice."
-  },
-  "metadata_statusUnavailable": {
-    "message": "无法读取浏览器元数据同步状态，请刷新重试。",
-    "description": "Browser metadata sync status could not be read. Refresh to try again."
-  },
-  "metadata_syncWithCollection": {
-    "message": "与合集同步",
-    "description": "Sync with collection"
+  "metadata_syncWithLibrary": {
+    "message": "与书签库同步",
+    "description": "Sync with library"
   },
   "metadata_tagsIncompatible": {
     "message": "所有标签均已保存在此浏览器。同步最多支持 64 个标签，每个标签最多 64 个字符；请核对标签后继续同步。",
@@ -4938,14 +4906,6 @@
   "metadata_transferCounts": {
     "message": "此浏览器：$1 个标签关联、$2 条备注、$3 个文件夹描述。",
     "description": "This browser: $1 tag assignments, $2 notes, $3 folder descriptions."
-  },
-  "metadata_transferEmptyHint": {
-    "message": "你在此浏览器中添加的标签、备注和文件夹说明可以与所选合集同步，也可以只保留在此浏览器中。之后可以在“同步”中更改。",
-    "description": "Tags, notes and folder descriptions you add in this browser can sync with the selected collection, or stay on this browser only. You can change this later in Sync."
-  },
-  "metadata_transferHint": {
-    "message": "在对应文件夹开始同步时，将这些内容复制到所选集合。标签会合并；不同的备注和描述需要核对。选择保留在本地会保持它们当前的账号和集合绑定。",
-    "description": "Copy these values into the selected collection when their folders are synced. Tags will merge; differing notes and descriptions will need review. Keeping them local preserves their current account and collection bindings."
   },
   "metadata_transferTitle": {
     "message": "连接浏览器元数据",
@@ -5139,10 +5099,6 @@
     "message": "收起 $1",
     "description": "Collapse $1"
   },
-  "options_collectionsCouldNotLoaded": {
-    "message": "无法加载合集。请刷新列表后重试。",
-    "description": "Collections could not be loaded. Refresh the list to try again."
-  },
   "options_collectionsDigestsFollowKept": {
     "message": "你关注的合集和摘要，会以只读文件夹的形式在此浏览器中保持更新。",
     "description": "Collections and digests you follow, kept up to date as read-only folders in this browser."
@@ -5166,14 +5122,6 @@
   "options_connectionUnavailableReconnectRefresh": {
     "message": "连接不可用。请重新连接并刷新。",
     "description": "Connection is unavailable. Reconnect and refresh."
-  },
-  "options_couldntSelectCollectionRefresh": {
-    "message": "无法选择此合集。请刷新列表后重试。",
-    "description": "Couldn't select this collection. Refresh the list and try again."
-  },
-  "options_createOpenCollectionOwn": {
-    "message": "请在网页上创建或打开你拥有的合集，然后刷新此列表。",
-    "description": "Create or open a collection you own on the web, then refresh this list."
   },
   "options_creditsCouldNotLoaded": {
     "message": "无法加载积分。请刷新后重试。",
@@ -5231,10 +5179,6 @@
     "message": "以启用可选的同步",
     "description": "for optional sync"
   },
-  "options_goAccountSign": {
-    "message": "前往“账号”登录",
-    "description": "Go to Account to sign in"
-  },
   "options_httpOriginRefused": {
     "message": "明文 HTTP 只能用于本机上的服务器（localhost、127.0.0.1、[::1]）。在家庭网络中，请使用 https:// 并启用服务器的 tls-internal 配置。",
     "description": "Plain HTTP works only for a server on this computer (localhost, 127.0.0.1, [::1]). On a home network, use https:// with the server's tls-internal profile."
@@ -5274,10 +5218,6 @@
   "options_loadingBookmarkFolders": {
     "message": "正在加载书签文件夹…",
     "description": "Loading bookmark folders…"
-  },
-  "options_loadingYourCollections": {
-    "message": "正在加载你的合集…",
-    "description": "Loading your collections…"
   },
   "options_logoutLifecycle": {
     "message": "待处理的个人同步更改将被归档。登录后重新连接需要你确认。受管理的订阅副本将被移除；你创建的个人副本会保留。设备保存历史会保留在此浏览器中。",
@@ -5394,14 +5334,6 @@
   "options_showFoldersBeforeBookmarks": {
     "message": "将文件夹显示在书签之前",
     "description": "Show folders before bookmarks"
-  },
-  "options_signChooseCollectionPick": {
-    "message": "登录并选择合集后，才能选择文件夹。",
-    "description": "Sign in and choose a collection to pick folders."
-  },
-  "options_signChooseCollectionThen": {
-    "message": "登录并选择合集，然后选择要同步的文件夹。",
-    "description": "Sign in and choose a collection, then pick which folders sync."
   },
   "options_signInAgain": {
     "message": "重新登录",
@@ -5695,10 +5627,6 @@
     "message": "请先选择同步文件夹，再获取建议。",
     "description": "Choose a synced folder before requesting suggestions."
   },
-  "popup_chooseWhatSyncs": {
-    "message": "选择要同步的内容",
-    "description": "Choose what syncs"
-  },
   "popup_classificationNeedsPriceConfirmation": {
     "message": "建议需要确认价格。请更新扩展程序后重试。",
     "description": "The suggestion needs a price confirmation. Update the extension and try again."
@@ -5875,10 +5803,6 @@
     "message": "积分不足，无法提供建议。你仍可以保存。",
     "description": "Not enough credits for a suggestion. You can still save."
   },
-  "popup_onlyOnDevice": {
-    "message": "不与 Know-N 同步",
-    "description": "No Know-N sync"
-  },
   "popup_openAiServiceSettings": {
     "message": "打开 AI 服务设置",
     "description": "Open AI service settings"
@@ -5922,10 +5846,6 @@
   "popup_searchFolders": {
     "message": "搜索文件夹",
     "description": "Search folders"
-  },
-  "popup_setUpSync": {
-    "message": "设置同步",
-    "description": "Set up sync"
   },
   "popup_signAgainExtensionSettings": {
     "message": "请在扩展程序设置中重新登录以获取建议，你仍可以保存。",
@@ -5975,6 +5895,10 @@
     "message": "暂无建议。你仍可以选择文件夹并保存。",
     "description": "Suggestions are unavailable. You can still choose a folder and save."
   },
+  "popup_syncOff": {
+    "message": "同步已关闭",
+    "description": "Sync is off"
+  },
   "popup_syncThisFolder": {
     "message": "同步此文件夹…",
     "description": "Sync this folder…"
@@ -5982,6 +5906,10 @@
   "popup_tickSaveAnotherCopy": {
     "message": "勾选“再保存一份”即可再次保存此页面。",
     "description": "Tick \"Save another copy\" to save this page again."
+  },
+  "popup_turnOnSync": {
+    "message": "开启同步",
+    "description": "Turn on sync"
   },
   "popup_usesCredits_one": {
     "message": "将使用 $1 积分",
@@ -7747,22 +7675,6 @@
     "message": "任何内容同步前，都会先预览更改。",
     "description": "Changes are previewed before anything syncs."
   },
-  "sync_chooseCollectionFirst": {
-    "message": "请先选择一个合集。“合集”标签页会列出你拥有的合集，然后在这里选择文件夹。",
-    "description": "Choose a collection first. The Collection tab lists the collections you own. Then pick folders here."
-  },
-  "sync_chooseFolders": {
-    "message": "选择要同步的文件夹",
-    "description": "Choose folders to sync"
-  },
-  "sync_collectionHeading": {
-    "message": "合集",
-    "description": "Collection"
-  },
-  "sync_collectionLede": {
-    "message": "此浏览器只同步到你拥有的一个合集。他人分享给你的合集无法选择。",
-    "description": "This browser syncs into one collection you own. Collections shared with you cannot be chosen."
-  },
   "sync_copyDetails": {
     "message": "复制详情",
     "description": "Copy details"
@@ -7782,10 +7694,6 @@
   "sync_count": {
     "message": "数量：$1",
     "description": "Count: $1"
-  },
-  "sync_createCollection": {
-    "message": "新建",
-    "description": "Create"
   },
   "sync_deleteHere": {
     "message": "在此删除",
@@ -8007,6 +7915,22 @@
     "message": "$1 · 最近：$2",
     "description": "$1 · Latest: $2"
   },
+  "sync_libraryConnecting": {
+    "message": "正在连接你的书签库。可刷新重试。",
+    "description": "Your bookmark library is connecting. Refresh to try again."
+  },
+  "sync_libraryLede": {
+    "message": "将此浏览器的书签与你的书签库保持同步。",
+    "description": "Keep this browser’s bookmarks in sync with your bookmark library."
+  },
+  "sync_libraryReady": {
+    "message": "已准备好同步。查看此浏览器的书签后即可开始首次同步。",
+    "description": "Ready to sync. Review your browser’s bookmarks to start the first sync."
+  },
+  "sync_libraryUnavailable": {
+    "message": "你的书签库暂不可用。请检查服务器连接。本地书签会保留。",
+    "description": "Your bookmark library is unavailable. Check the server connection. Your local bookmarks are kept."
+  },
   "sync_metadataConsentStopped": {
     "message": "队列中的更改包含你未允许同步的浏览器元数据。请重置此设备的同步，将队列更改归档并重新检查合并。书签和本机元数据会保留。",
     "description": "A queued change contains browser metadata that you have not allowed to sync. Reset sync on this device to set aside queued changes and review the merge again. Your bookmarks and local metadata are preserved."
@@ -8014,14 +7938,6 @@
   "sync_mobileBookmarks": {
     "message": "移动设备书签",
     "description": "Mobile bookmarks"
-  },
-  "sync_newCollection": {
-    "message": "新建合集",
-    "description": "New collection"
-  },
-  "sync_newCollectionHint": {
-    "message": "为此浏览器创建一个空合集。",
-    "description": "Start an empty collection for this browser."
   },
   "sync_noLocalBookmarksCurrently": {
     "message": "目前没有本地书签被排除在同步之外。",
@@ -8043,10 +7959,6 @@
     "message": "只有网页地址（http 或 https）可以同步",
     "description": "Only web addresses (http or https) can sync"
   },
-  "sync_openCollectionsWeb": {
-    "message": "在网页上打开合集",
-    "description": "Open collections on the web"
-  },
   "sync_openSyncCenterWeb": {
     "message": "在网页上打开同步中心",
     "description": "Open Sync center on the web"
@@ -8063,25 +7975,13 @@
     "message": "其他书签",
     "description": "Other bookmarks"
   },
-  "sync_pageLede": {
-    "message": "让此浏览器的书签与你的 Know-N 合集保持同步。",
-    "description": "Keep this browser’s bookmarks in sync with your Know-N collection."
-  },
-  "sync_pausedHere": {
-    "message": "已在此处暂停",
-    "description": "Paused here"
-  },
   "sync_personalBoundary": {
     "message": "个人同步与登录、订阅、浏览器自身同步和 AI 服务分别控制。本机书签仍可使用。",
     "description": "Personal sync is separate from sign-in, subscriptions, browser sync and your AI provider. Local bookmarks remain available."
   },
-  "sync_personalChangeFailed": {
-    "message": "未能完成更改。请刷新合集列表并重新确认。若无法验证重新连接，同步会保持停止。",
-    "description": "The change could not be completed. Refresh the collection list and review again. Sync remains stopped if reconnect could not be verified."
-  },
-  "sync_personalChoose": {
-    "message": "选择合集以连接个人同步",
-    "description": "Choose a collection to connect personal sync"
+  "sync_personalConnecting": {
+    "message": "正在连接你的书签库…",
+    "description": "Connecting to your bookmark library…"
   },
   "sync_personalDisconnect": {
     "message": "断开个人同步",
@@ -8095,13 +7995,17 @@
     "message": "个人同步已断开",
     "description": "Personal sync is disconnected"
   },
-  "sync_personalDisconnectedHint": {
-    "message": "重新连接以继续使用同一合集，或在下方选择一个合集。你的本地书签会保留。",
-    "description": "Reconnect to continue with the same collection, or choose a collection below. Your local bookmarks are kept."
-  },
   "sync_personalEnabled": {
     "message": "个人同步已启用",
     "description": "Personal sync is enabled"
+  },
+  "sync_personalLibraryChangeFailed": {
+    "message": "无法完成此更改。请检查连接后重新确认。在确认重新连接成功前，同步会保持停止。",
+    "description": "The change could not be completed. Check the connection and review again. Sync stays stopped until reconnect is verified."
+  },
+  "sync_personalLibraryDisconnected": {
+    "message": "重新连接你的书签库。本地书签会保留。",
+    "description": "Reconnect to your bookmark library. Your local bookmarks are kept."
   },
   "sync_personalPause": {
     "message": "暂停个人同步",
@@ -8110,10 +8014,6 @@
   "sync_personalPaused": {
     "message": "个人同步已暂停",
     "description": "Personal sync is paused"
-  },
-  "sync_personalReady": {
-    "message": "可以开始同步了。选择文件夹以开始首次同步。",
-    "description": "Ready to sync. Choose folders to start the first sync."
   },
   "sync_personalReconnect": {
     "message": "重新连接个人同步",
@@ -8130,10 +8030,6 @@
   "sync_personalResumeReview": {
     "message": "确认个人同步",
     "description": "Review personal sync"
-  },
-  "sync_personalUnavailable": {
-    "message": "所选合集不可用。请先断开，再选择其他合集。本机书签会保留。",
-    "description": "The selected collection is unavailable. Disconnect, then choose another collection. Your local bookmarks are kept."
   },
   "sync_previewAlreadyConfirmed": {
     "message": "此预览已确认过。",
@@ -8235,9 +8131,9 @@
     "message": "全选",
     "description": "Select all"
   },
-  "sync_selectedHere": {
-    "message": "已选择",
-    "description": "Selected"
+  "sync_signInLibrary": {
+    "message": "登录后即可将此浏览器与你的书签库同步。",
+    "description": "Sign in to sync this browser with your bookmark library."
   },
   "sync_someSelectedFoldersWere": {
     "message": "你选的部分文件夹位于其他已选文件夹之内，只列出最外层的文件夹。",
@@ -8295,14 +8191,6 @@
     "message": "同步重置尚未完成。你的书签是安全的，请重试以完成重置。",
     "description": "The sync reset isn't finished. Your bookmarks are safe. Try again to finish it."
   },
-  "sync_syncingHere": {
-    "message": "正在此处同步",
-    "description": "Syncing here"
-  },
-  "sync_tabCollection": {
-    "message": "合集",
-    "description": "Collection"
-  },
   "sync_tabImport": {
     "message": "导入",
     "description": "Import"
@@ -8331,17 +8219,9 @@
     "message": "此网址无法同步（格式无效、不允许的协议或过长）",
     "description": "URL cannot be synced (invalid format, disallowed scheme, or too long)"
   },
-  "sync_useCollection": {
-    "message": "使用此合集",
-    "description": "Use this collection"
-  },
   "sync_useExisting": {
     "message": "使用现有",
     "description": "Use existing"
-  },
-  "sync_useNamed": {
-    "message": "使用“$1”作为合集",
-    "description": "Use $1 as the collection"
   },
   "sync_waitSummary_other": {
     "message": "来自 Know-N 的 $1 个书签需要你决定后才会添加到这里。",

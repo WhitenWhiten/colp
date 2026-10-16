@@ -7,7 +7,7 @@ import type { ImportConversionResult } from '../import-preview.js';
 import { createSyncStateStore, type SyncScope } from '../sync-state-store.js';
 import type { BuildConfig, StoredAuthBinding } from '../types.js';
 
-export const COLLECTION_BINDING = 'known.sync.collection.v1';
+export { COLLECTION_BINDING } from '../library.js';
 export const WELCOME_FLAG = 'known.onboarding.installed.v1';
 
 export const BOOKMARK_RECOVERY_ALARM = 'known-bookmark-capture-recovery';
