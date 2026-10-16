@@ -15,7 +15,7 @@ export function safeAvatarUrl(value: string | null): string | null {
 }
 
 export interface PublicPageNode {
-  readonly id: string; readonly parentId: string | null; readonly kind: string; readonly title: string;
+  readonly id: string; readonly parentId: string | null; readonly kind: string; readonly title?: string;
   readonly description?: string | null; readonly url?: string | null; readonly position: string | null;
   readonly extensions?: SnapshotNode['extensions'];
 }
