@@ -132,7 +132,7 @@ export function LibraryOverlays({
           }
           movingIds={picker.mode === 'move' ? picker.nodes.map((node) => node.id) : undefined}
           current={{
-            collection: { id: snap.collection.id, title: snap.collection.title },
+            collection: { id: snap.collection.id, title: snap.collection.title, library: snap.collection.library },
             rootId: snap.root.id,
             nodes: snap.nodes,
           }}
