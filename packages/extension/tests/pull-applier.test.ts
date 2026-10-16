@@ -160,6 +160,63 @@ describe('P3-32 durable Pull authority', () => {
     assert.equal((await fixture.store.exportScope(scope)).scope?.lifecycle, 'active');
   });
 
+  test.each(['absent', 'changed'] as const)('an %s original native cannot be silently adopted by an own-create echo', async mode => {
+    const fixture = await setup();
+    const event: any = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 63,
+      collectionId: scope.collectionId, parentId: 'root-colp', replicaId: scope.replicaId });
+    await fixture.store.putMapping(scope, { nativeId: 'native-unproven', colpId: `pending-${event.operation.opId}`,
+      rootNativeId: 'native-root', parentNativeId: 'native-root', nodeKind: 'bookmark',
+      projection: { revision: 'local-unproven', digest: 'sha256:unproven', content: {
+        title: event.effect.node.title, url: event.effect.node.url } } });
+    if (mode === 'changed') fixture.api.seed({ id: 'native-unproven', parentId: 'native-root',
+      index: 0, title: 'A newer local edit', url: event.effect.node.url });
+    await assert.rejects(async () => {
+      await fixture.applier.stage(fixture.page([event]));
+      await fixture.applier.resume();
+    }, /recovery_required/);
+    assert.equal(fixture.api.calls.filter(call => call.kind === 'create').length, 0);
+    assert.equal((await fixture.store.getMappingByNativeId(scope, 'native-unproven'))?.colpId,
+      `pending-${event.operation.opId}`);
+    assert.equal((await fixture.store.getEngineState(scope))?.lastError, 'create_ambiguous');
+    fixture.store.close();
+  });
+
+  test.each(['normal', 'stale-anchor', 'occupied'] as const)('first-sync create echo preserves native identity after response loss: %s', async mode => {
+    const fixture = await setup();
+    const event: any = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 1,
+      collectionId: scope.collectionId, parentId: 'root-colp', replicaId: scope.replicaId,
+      opId: 'b3.first-sync.create.native-bootstrap', afterId: mode === 'stale-anchor' ? 'stale-placement-anchor' : undefined });
+    const expected = event.effect.node;
+    fixture.api.seed({ id: 'native-bootstrap', parentId: 'native-root', index: 0,
+      title: expected.title, url: expected.url });
+    await fixture.store.allocateSequenceAndEnqueue(scope, {
+      opId: event.operation.opId, batchId: event.operation.opId, idempotencyKey: event.operation.opId,
+      digest: event.effect.operationDigest, endpointIdentity: 'syncPush', mediaType: 'application/json',
+      baseRevision: null, operationRevision: `local-${event.operation.opId}`, status: 'pending',
+      retry: { attempt: 1, notBefore: 0 }, payload: event.operation,
+    }, { allowUnstamped: true });
+    const lease = await fixture.store.acquireLease(scope, 'lost-batch', 1, 30_000);
+    await fixture.store.claimNextQueue(scope, 'lost-batch', lease.fence, 1);
+    await fixture.store.settleClaimedPush(scope, 1, 'lost-batch', lease.fence,
+      { outcome: 'unknown', retry: { attempt: 1, notBefore: 0 }, recovery: { code: 'push_batch_response_unknown' } });
+    if (mode === 'occupied') {
+      await fixture.store.putMapping(scope, fixture.mapping('native-duplicate', expected.id, 'native-root'));
+      fixture.api.seed({ id: 'native-duplicate', parentId: 'native-root', index: 1,
+        title: expected.title, url: expected.url });
+      await assert.rejects(() => fixture.applier.stage(fixture.page([event])), /mapping_identity_collision/);
+      assert.equal((await fixture.store.getEngineState(scope))?.lastError, 'mapping_identity_collision');
+      assert.equal(fixture.api.calls.length, 0);
+      assert.equal((await fixture.store.getMappingByNativeId(scope, 'native-duplicate'))?.colpId, expected.id);
+      fixture.store.close();
+      return;
+    }
+    await fixture.applier.stage(fixture.page([event]));
+    await fixture.applier.resume();
+    assert.equal(fixture.api.calls.filter(call => call.kind === 'create').length, 0);
+    assert.equal((await fixture.store.getMappingByNativeId(scope, 'native-bootstrap'))?.colpId, expected.id);
+    fixture.store.close();
+  });
+
   test('rebinds an unsettled own-create echo during browser-call recovery without duplicating', async () => {
     // Same race, but the worker died mid-apply: resume() re-enters through the
     // uncertain-create recovery path instead of the ordinary commit path.

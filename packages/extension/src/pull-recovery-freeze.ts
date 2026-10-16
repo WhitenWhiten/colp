@@ -10,6 +10,7 @@ const FREEZE = new Set([
   'effect_page_transport_unavailable', 'effect_page_failed', 'snapshot_page_missing',
   'deletion_identity_unproven', 'recovery_identity_unproven', 'remote_delete_confirmation_required',
   'need_authority', 'unmounted_restore_repair',
+  'mapping_identity_collision', 'create_ambiguous', 'create_evidence_missing',
   // F005: a blocked page or a page identity collision is an authority conflict,
   // not a retryable transport failure. Freezing hands the scope to recovery
   // instead of re-pulling the same page with the same cursor forever.

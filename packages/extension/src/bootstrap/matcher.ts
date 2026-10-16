@@ -241,6 +241,10 @@ export function bootstrapOpId(confirmationId: string, kind: string, key: string)
   return opId(confirmationId, kind, key);
 }
 
+export function bootstrapRunOpPrefix(confirmationId: string): string {
+  return `b3.${opaqueSegment(confirmationId)}.`;
+}
+
 export function mountResolveOpIdMatches(opId: string, key: string): boolean {
   return opId.includes('.mount.') && opId.endsWith(`.${opaqueSegment(key)}`);
 }
@@ -248,7 +252,7 @@ export function mountResolveOpIdMatches(opId: string, key: string): boolean {
 const OPAQUE_SEGMENT = /[A-Za-z0-9_-]/;
 
 function opId(confirmationId: string, kind: string, key: string): string {
-  const encoded = `b3.${opaqueSegment(confirmationId)}.${kind}.${opaqueSegment(key)}`;
+  const encoded = `${bootstrapRunOpPrefix(confirmationId)}${kind}.${opaqueSegment(key)}`;
   if (encoded.length <= 128) return encoded;
   return `b3.${bytesToHex(sha256(new TextEncoder().encode(canonicalJson([confirmationId, kind, key]))))}`;
 }

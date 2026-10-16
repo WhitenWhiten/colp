@@ -12,7 +12,7 @@ import type {
 import { applyInboxToFacts } from './local-facts.js';
 import { scopeKey } from '../sync-state/scope-key.js';
 import {
-  bootstrapOpId, matchLocalRemote, type LocalMatchReport, type LocalNodeFact, type MappingFact, type MountFact,
+  bootstrapOpId, bootstrapRunOpPrefix, matchLocalRemote, type LocalMatchReport, type LocalNodeFact, type MappingFact, type MountFact,
   type PlannedOperation, type RemoteNodeFact, type SidecarFact,
 } from './matcher.js';
 
@@ -117,12 +117,14 @@ export function createBootstrapCoordinator(options: {
     const waitingParent = report.planned.some((op) =>
       (op.reason === 'local-only' || op.reason === 'mount-resolve') && !canEnqueue(op, rootId));
     const inboxPending = (await pendingEvents()).length > 0;
+    const upload = await bootstrapUploadStatus(run.confirmationId, input);
     const attention = report.candidates.length > 0 || report.conflicts.length > 0;
-    const done = queued.caughtUp && !pendingMount && !waitingParent && !inboxPending;
+    const done = queued.caughtUp && !pendingMount && !waitingParent && !inboxPending
+      && !upload.pending && !upload.rejected;
     const phase = done ? (attention ? 'needs_attention' : 'completed') : 'syncing';
     run = await persist({
       ...run, phase, resumeCursor: queued.resumeCursor, reportDigest: report.reportDigest, updatedAt: now(),
-      retryReason: queued.retryReason,
+      retryReason: upload.rejected ? 'bootstrap_upload_rejected' : queued.retryReason,
       attention: attention ? buildAttentionReport(run, report, now()) : undefined,
     });
     if (done) {
@@ -437,6 +439,28 @@ export function createBootstrapCoordinator(options: {
       rows.push(...page); if (page.length < 1_000) return rows;
       after = page[page.length - 1]!.sequence;
     }
+  }
+
+  async function bootstrapUploadStatus(confirmationId: string, input: ConfirmInput) {
+    const expected = new Set(input.localFacts.map(fact => bootstrapOpId(confirmationId, 'create', fact.nativeId)));
+    for (const mount of input.mounts) {
+      const key = mount.rootRole ?? mount.customSourceKey;
+      if (key) expected.add(bootstrapOpId(confirmationId, 'mount', key));
+    }
+    const prefix = bootstrapRunOpPrefix(confirmationId);
+    const rows = (await allQueue()).filter(row => row.opId.startsWith(prefix) || expected.has(row.opId));
+    const pending = rows.some(row => row.status !== 'terminal' && row.status !== 'rejected');
+    let rejected = rows.some(row => row.status === 'rejected');
+    if (!pending && !rejected) {
+      for (const row of rows) {
+        const receipt = await store.getQueueReceipt(scope, row.sequence);
+        const results = receipt?.result?.results;
+        const status = Array.isArray(results) && results[0] && typeof results[0] === 'object'
+          && !Array.isArray(results[0]) ? (results[0] as JsonObject).status : undefined;
+        if (status !== 'applied' && status !== 'rebased' && status !== 'noop') { rejected = true; break; }
+      }
+    }
+    return { pending, rejected };
   }
 
   /**

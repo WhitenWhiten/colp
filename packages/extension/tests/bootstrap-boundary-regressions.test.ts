@@ -70,7 +70,7 @@ describe('bootstrap privacy and representability match its preview', () => {
         title: 'Supported', url: 'https://example.com/good' }];
       const coordinator = createBootstrapCoordinator({ store, scope });
       const view = await coordinator.confirm({ ...base, localFacts });
-      assert.equal(view.run.phase, 'completed');
+      assert.equal(view.run.phase, 'syncing');
       assert.deepEqual((await store.listQueue(scope)).map(row => row.opId), ['b3.confirm.create.good']);
       await coordinator.advance(view.run.runId, { ...base, localFacts });
       assert.equal((await store.listIngressDiagnostics(scope)).find(row => row.code === 'invalid_url')?.count, 1);

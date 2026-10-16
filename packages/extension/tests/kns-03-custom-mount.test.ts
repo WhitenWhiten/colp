@@ -209,7 +209,9 @@ describe('FR-F4-CUSTOM-ONLY coordinator', () => {
     assert.equal(createPayload(child).parentId, 'mount-custom');
     assert.equal(createPayload(child).node?.url, 'https://example.test/research');
     assert.equal((await store.listMountBindings(scope))[0]?.nativeRootId, 'custom-folder');
-    assert.equal(resumed.run.phase, 'completed');
+    assert.equal(resumed.run.phase, 'syncing');
+    await completeQueuedCreate(store, child, 'research-child-remote');
+    assert.equal((await coordinator.resume(input))?.run.phase, 'completed');
   });
 
   test('deep custom children wait for the parent mapping', async () => {
@@ -236,7 +238,7 @@ describe('FR-F4-CUSTOM-ONLY coordinator', () => {
     assert.ok(resumed);
     const child = (await store.listQueue(scope)).find((row) => row.opId.includes('.create.paper-1'))!;
     assert.equal(createPayload(child).parentId, 'papers-colp');
-    assert.equal(resumed.run.phase, 'completed');
+    assert.equal(resumed.run.phase, 'syncing');
   });
 
   test('two custom receipts bind one-to-one without a wrapper native root', async () => {

@@ -111,7 +111,7 @@ const P3_29_BINDINGS = [
 
 export type IssuerMode = 'normal' | 'offline';
 
-export type PushFault = 'none' | 'authentication_required_once' | 'timeout_once'
+export type PushFault = 'none' | 'authentication_required_once' | 'timeout_once' | 'lost_batch_response_once'
   | 'service_unavailable_once' | 'rate_limited_once' | 'sequence_gap_once' | 'sequence_gap'
   | 'sequence_blocked_once' | 'deferred_once';
 
@@ -365,6 +365,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' },
     (_request, body, done) => done(null, body));
   let disconnectPushResponses = false;
+  const lostBatchResponses = new Set<string>();
   let pushFault: PushFault = 'none';
   const pushRequests: PushRequestObservation[] = [];
   const pushRequestIndexes = new Map<string, number>();
@@ -393,7 +394,11 @@ export async function startRealStack(options: {readonly classification?:boolean;
     const replay = Readable.from([Buffer.from(body)]);
     const push = JSON.parse(body) as { readonly batchId: string;
       readonly operations: readonly [{ readonly opId: string; readonly sequence: number }] };
-    const activeFault = pushFault; if (pushFault !== 'sequence_gap') pushFault = 'none';
+    const activeFault = pushFault;
+    if (activeFault === 'lost_batch_response_once' && push.operations.length > 1) {
+      lostBatchResponses.add(request.id);
+      pushFault = 'none';
+    } else if (pushFault !== 'sequence_gap' && pushFault !== 'lost_batch_response_once') pushFault = 'none';
     if (activeFault === 'authentication_required_once') {
       await reply.code(401).type('application/problem+json').send({ type: 'about:blank', title: 'Authentication required',
         status: 401, code: 'authentication_required', retryable: true });
@@ -440,7 +445,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
           ...(responseCode ? { responseCode } : {}) };
       }
     }
-    if (disconnectPushResponses && request.url === '/v1/push') request.raw.socket.destroy();
+    if ((disconnectPushResponses && request.url === '/v1/push') || lostBatchResponses.delete(request.id)) request.raw.socket.destroy();
     return payload;
   });
 

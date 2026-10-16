@@ -3,10 +3,29 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import { queueStatusProjection } from '../src/engine-public-stability.js';
+import { freezeScopeRecovery } from '../src/pull-recovery-freeze.js';
 import {
   abortFailure, ack, json, networkFailure, nonemptyMountSnapshot, problem, emptyPullPage, recoverySnapshot,
   scope, seedLegacySpc2Bootstrap, setup, snapshot,
 } from './durable-sync-engine-harness.js';
+
+test.each(['mapping_identity_collision', 'create_ambiguous', 'create_evidence_missing'])(
+  '%s stops all retries even if a previous recovery overwrote the engine error', async code => {
+    const fixture = await setup();
+    await freezeScopeRecovery(fixture.store, scope, code, () => fixture.clock.now);
+    await fixture.store.transitionEngine(scope, { phase: 'recovery', recoveryFrozen: true,
+      authorityRefreshRequired: true, lastError: 'recovery_authority_invalid', notBefore: 0,
+      updatedAt: fixture.clock.now });
+    for (const reason of ['alarm', 'manual', 'startup', 'online'] as const) {
+      await fixture.engine.wake(reason, { connectivityRestored: reason === 'online' });
+    }
+    assert.deepEqual(fixture.sessionForces, []);
+    assert.deepEqual(fixture.pullRequests, []);
+    assert.deepEqual(fixture.snapshotRequests, []);
+    assert.equal(fixture.push.calls, 0);
+    assert.equal((await fixture.store.getScope(scope))?.metadata?.recoveryCode, code);
+    fixture.store.close();
+  });
 
 test('ordinary Pull and Ack transitions retain the last Push receipt facts', async () => {
   const f = await setup();

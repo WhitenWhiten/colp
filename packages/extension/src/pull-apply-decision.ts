@@ -6,6 +6,7 @@ import { boundNativeId, isNonChromeNativeId, isRecoveryPlaceholder, planCreated,
 import { planRemoteMove } from './pull-range-move.js';
 import { queueHasPendingTarget } from './pull-queue-facts.js';
 import { remoteDeleteMemberIds } from './remote-delete-policy.js';
+import { provisionalSelfCreateMapping } from './pull-self-create.js';
 
 type OpEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
 type MappingRole = 'anchor' | 'deletion' | 'parent' | 'parent_revision' | 'target';
@@ -72,6 +73,10 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
       // This receipt's native already exists. Validate its identity/post-state;
       // a later local move of its old anchor cannot require a new Chrome create.
       await selfCreateProjection(event, existing, parent); return;
+    }
+    if (parent && !existing) {
+      const provisional = await provisionalSelfCreateMapping(options, event, parent);
+      if (provisional) { await selfCreateProjection(event, provisional, parent); return; }
     }
     if (parent) { await requirePullAnchor(options, effect.placement.afterId, parent.nativeId, stagedCreates);
       await requirePullAnchor(options, effect.placement.beforeId, parent.nativeId, stagedCreates); } return; }

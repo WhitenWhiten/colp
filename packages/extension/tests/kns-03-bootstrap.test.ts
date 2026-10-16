@@ -15,12 +15,28 @@ import { createSyncStateStore } from '../src/sync-state-store.js';
 import {
   active, assertOpaqueOpId, assertOpaquePlanned, assertOpaqueQueued, assertStampedColp, barMount,
   baseConfirm, bindRemoteMount, bookmark, indexedDB, installKns03IndexedDb, otherMount, root, scope,
-  setup,
+  setup, completeQueuedCreate,
 } from './kns-03-bootstrap-harness.js';
 
 installKns03IndexedDb();
 
 describe('KNS-03 empty Collection bootstrap', () => {
+  test.each(['conf-1', 'conf.with.dots', 'long'.repeat(40)])('first sync %s remains running until its last queued bookmark has a successful receipt', async confirmationId => {
+    const { store, coordinator } = await setup();
+    try {
+      const input = baseConfirm({ confirmationId, localFacts: [bookmark('last-bookmark', 'https://example.test/last')],
+        remoteFacts: [root], mounts: [barMount()], rootNodeId: 'folder-root' });
+      await coordinator.confirm(input);
+      const mount = (await store.listQueue(scope))[0]!;
+      await completeQueuedCreate(store, mount, 'mount-bar');
+      const pending = await coordinator.resume(input);
+      assert.equal(pending?.run.phase, 'syncing');
+      assert.equal((await store.getScope(scope))?.firstRun, 'running');
+      const child = (await store.listQueue(scope)).find(row => row.sequence !== mount.sequence)!;
+      await completeQueuedCreate(store, child, 'last-remote-bookmark');
+      assert.equal((await coordinator.resume(input))?.run.phase, 'completed');
+    } finally { store.close(); }
+  });
   test('resuming without an in-flight run does not create work', async () => {
     const { store, coordinator } = await setup();
     try {

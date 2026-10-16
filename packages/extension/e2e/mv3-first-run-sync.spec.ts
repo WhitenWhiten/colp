@@ -33,6 +33,39 @@ const bindingB = KNS08_BINDINGS[1];
 
 test.describe.configure({ timeout: 600_000 });
 
+test('first-run sync uploads selected ordinary folders as custom mounts', async () => {
+  const stack = await startRealStack();
+  const dirs = await twinDirs();
+  let context: BrowserContext | undefined;
+  try {
+    context = await launchPersistent(dirs.a, stack.browserHostResolverRules);
+    const page = await ready(context, bindingA);
+    const roots = await specialRoots(page);
+    await page.evaluate(async (parentId) => {
+      for (const title of ['Selected ordinary folder A', 'Selected ordinary folder B']) {
+        const folder = await chrome.bookmarks.create({ parentId, title });
+        await chrome.bookmarks.create({ parentId: folder.id, title: `${title} bookmark`, url: 'https://example.test/custom-mount' });
+      }
+    }, roots.barId);
+    const preview = await previewFirstRun(page, ['Selected ordinary folder A', 'Selected ordinary folder B']);
+    expect(preview.bookmarkCount).toBe(2);
+    const stale = await page.evaluate(async (previewId) => chrome.runtime.sendMessage({
+      kind: 'known.firstRun.confirm', previewId, confirmationId: crypto.randomUUID(), libraryId: 'different-library',
+    }), preview.previewId);
+    expect(stale).toEqual({ ok: false, error: 'bootstrap_confirmation_stale' });
+    expect(await liveCanonical(stack)).toEqual([]);
+    await confirmPreview(page, preview.previewId);
+    await waitFirstRunProductQuiet(page, stack, bindingA);
+    const live = await liveCanonical(stack);
+    expect(live.filter(node => String(node.title ?? '').endsWith(' bookmark'))).toHaveLength(2);
+    expect((await scopeFacts(page, stack, bindingA)).receiptCount).toBeGreaterThan(0);
+  } finally {
+    await closeAll(context);
+    await stack.close();
+    await rmDirs(dirs);
+  }
+});
+
 test('KNS-08-AC-01/02/03/08 first-run preview is local then dual-mount bootstrap skips unselected', async ({}, testInfo) => {
   const id = 'KNS-08-AC-01-preview-zero-mutation';
   const stack = await startRealStack();

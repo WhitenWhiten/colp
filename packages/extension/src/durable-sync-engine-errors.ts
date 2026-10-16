@@ -12,7 +12,8 @@ export function holdsUnprovenIdentity(lastError: string | undefined) {
 export function needsReplicaRebuild(code: string | undefined): boolean {
   return code === 'pull_apply_target_missing' || code === 'pull_apply_evidence_missing'
     || code === 'anchor_mapping_missing' || code === 'legacy_resolution_sequence_collision'
-    || code === 'metadata_sync_disabled';
+    || code === 'metadata_sync_disabled' || code === 'mapping_identity_collision'
+    || code === 'create_ambiguous' || code === 'create_evidence_missing';
 }
 
 export function persistentLocalSyncFailure(code: string | undefined): boolean {

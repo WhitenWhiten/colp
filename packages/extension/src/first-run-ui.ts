@@ -19,6 +19,7 @@ import { checkedRootRefs, ROOTS_REPAINT } from './folder-coverage.js';
 import { LIBRARY_CREATE_IDEMPOTENCY } from './library-create.js';
 import { createFirstRunPreviewSession } from './first-run-preview-session.js';
 import { observeFirstRunResponse, type FirstRunObservation } from './first-run-observation.js';
+import { rejectedWorkCopy, syncAttentionTerminalCode, terminalFreezeReasonCopy } from './sync-attention-ui.js';
 import type {
   CollectionCreateResponse, FirstRunOrScopeResponse, FirstRunRequest, PublicRootView,
 } from './types.js'; import { t } from './i18n.js';
@@ -182,7 +183,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
 
   async function hydrate(): Promise<void> {
     const draft = await readFirstRunDraft();
-    libraryId = draft?.libraryId ?? await boundLibraryId();
+    libraryId = await boundLibraryId() ?? draft?.libraryId;
     const status = await firstRunMessage({ kind: 'known.firstRun.status' });
     if (!status.ok && draft?.deferred) observation = { firstRun: 'deferred' };
     applyStatusResponse(status, { pollIfSyncing: true, fallbackOnboarding: true });
@@ -258,6 +259,14 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   function applyStatusResponse(response: FirstRunOrScopeResponse, options: {
     readonly pollIfSyncing: boolean; readonly fallbackOnboarding?: boolean;
   }): void {
+    if (!response.ok) {
+      const terminal = syncAttentionTerminalCode(response.error, undefined);
+      if (terminal || response.error === 'bootstrap_upload_rejected') {
+        clearStatusPoll();
+        showHandshakeCopy(terminal ? terminalFreezeReasonCopy(terminal) : rejectedWorkCopy(), 'warning');
+        return;
+      }
+    }
     observation = observeFirstRunResponse(response, observation);
     const surface = projectFirstRunSurface(observation);
     if (surface === 'attention') {
@@ -362,7 +371,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       return;
     }
     const response = await firstRunMessage({ kind: 'known.firstRun.status' });
-    if (response.ok) applyStatusResponse(response, { pollIfSyncing: false });
+    applyStatusResponse(response, { pollIfSyncing: false });
   }
 
   async function deferFirstRun(): Promise<void> {
@@ -541,10 +550,17 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       libraryCreateSubmit.disabled = false;
       return;
     }
+    const selected = await chrome.runtime.sendMessage({
+      kind: 'known.collection.select', collectionId: response.collection.id, userGesture: true,
+    }).catch(() => undefined) as { ok?: boolean } | undefined;
+    if (selected?.ok !== true) {
+      collectionFeedback.dataset.tone = 'error';
+      collectionFeedback.textContent = t('options_couldntSelectCollectionRefresh', "Couldn't select this collection. Refresh the list and try again.");
+      libraryCreateSubmit.disabled = false;
+      (document.getElementById('refresh-collections') as HTMLButtonElement | null)?.click();
+      return;
+    }
     libraryId = response.collection.id;
-    await chrome.runtime.sendMessage({
-      kind: 'known.collection.select', collectionId: libraryId, userGesture: true,
-    }).catch(() => undefined);
     const prior = await readFirstRunDraft();
     await writeFirstRunDraft({
       selected: prior?.selected ?? [], deferred: prior?.deferred === true, libraryId,

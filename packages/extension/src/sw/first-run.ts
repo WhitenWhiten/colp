@@ -21,6 +21,7 @@ import { currentSyncScope, retireLegacyScopeForRemount } from './scope.js';
 import { readRootFolders, sameDiscovered } from './roots.js';
 import { nativeChromeFacts } from './native-chrome.js';
 import { advancedFirstRunStatus, handleAdvancedFirstRunConfirm, handleAdvancedFirstRunPreview } from './advanced-first-run.js';
+import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
 
@@ -112,6 +113,11 @@ async function handleFirstRunLater(): Promise<FirstRunOrScopeResponse> {
 async function handleFirstRunStatus(): Promise<FirstRunOrScopeResponse> {
   let scope: SyncScope;
   try { scope = await currentSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
+  const engine = await syncState.getEngineState(scope);
+  const recorded = await syncState.getScope(scope);
+  const recoveryCode = typeof recorded?.metadata?.recoveryCode === 'string' ? recorded.metadata.recoveryCode : undefined;
+  const terminal = syncAttentionTerminalCode(engine?.lastError, recoveryCode);
+  if (recorded?.firstRun === 'running' && engine?.recoveryFrozen && terminal) return { ok: false, error: terminal };
   const advanced = await advancedFirstRunStatus(scope);
   if (advanced) return advanced;
   const coordinator = createBootstrapCoordinator({ store: syncState, scope });
@@ -121,6 +127,7 @@ async function handleFirstRunStatus(): Promise<FirstRunOrScopeResponse> {
     try { await resumeRunningBootstrap(scope); } catch { /* Status stays a projection if resume cannot run. */ }
   }
   const next = await coordinator.status();
+  if (next.retryReason === 'bootstrap_upload_rejected') return { ok: false, error: next.retryReason };
   return withAttention(next.phase, next.firstRun as 'none' | 'deferred' | 'running' | 'completed',
     next.attention ? { attention: next.attention } as { attention: NonNullable<typeof next.attention> } : undefined);
 }
@@ -158,7 +165,7 @@ async function resumeConfirmInput(scope: SyncScope, run: BootstrapRunRecord): Pr
       localFacts = localFactsFromRoots(tree.roots, selected, excluded, await privateNativeIdsFor(scope));
     } catch { /* Resume with store mounts even when the native tree is unavailable. */ }
   }
-  const rootNodeId = run.libraryId ? await resolveOwnedCollectionRootId(run.libraryId) : undefined;
+  const rootNodeId = await resolveOwnedCollectionRootId(scope.collectionId);
   return {
     confirmationId: run.confirmationId,
     treeDigest: run.treeDigest ?? preview?.treeDigest ?? 'sha256:resume',
@@ -185,6 +192,10 @@ async function handleFirstRunConfirm(message: Extract<FirstRunRequest, { readonl
   if (message.bootstrapMode !== undefined) return { ok: false, error: 'request_invalid' };
   let scope: SyncScope;
   try { scope = await currentSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
+  const libraryId = 'libraryId' in message ? message.libraryId : undefined;
+  if (libraryId !== undefined && libraryId !== scope.collectionId) {
+    return { ok: false, error: 'bootstrap_confirmation_stale' };
+  }
   if (!await hasBookmarkPermission()) return { ok: false, error: 'permission_required' };
   if (await kns09Paused('coordinator')) {
     recordKns09FirstRun('paused', scope, message.confirmationId);
@@ -206,7 +217,6 @@ async function handleFirstRunConfirm(message: Extract<FirstRunRequest, { readonl
   }
   await recordBoundaryDiagnostics(syncState, scope, scan, tree.roots, message.previewId);
   recordKns09FirstRun('started', scope, message.confirmationId);
-  const libraryId = 'libraryId' in message ? message.libraryId : undefined;
   const rootNodeId = libraryId ? await resolveOwnedCollectionRootId(libraryId) : undefined;
   const coordinator = createBootstrapCoordinator({
     store: syncState, scope,

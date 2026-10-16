@@ -32,6 +32,7 @@ import {
 import { applyRemoteNodeContentUpdate } from './pull-native-content-barrier.js';
 import { kns09Paused, recordKns09Stop } from './kns-09-release.js';
 import { pauseBindingForMapping } from './sync-state/remote-observation.js';
+import { provisionalSelfCreateMapping } from './pull-self-create.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -225,6 +226,11 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         const proven = await selfCreateProjection(event, existing, parent);
         return sidecarExpectation(effect.effectDigest, proven, parent.nativeId);
       }
+      const provisional = existing ? null : await provisionalSelfCreateMapping(options, event, parent);
+      if (provisional) {
+        const proven = await selfCreateProjection(event, provisional, parent);
+        return sidecarExpectation(effect.effectDigest, proven, parent.nativeId);
+      }
     }
     const index = await nativeIndex(effect.placement.afterId, effect.placement.beforeId);
     if (effect.node.kind === 'separator' && options.session.conversionPolicy?.separator === 'preserve_remote') {
@@ -280,11 +286,11 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
           effect.nodeChildrenRevision, plan.mount.nativeRootId));
       } else {
       const existing = await options.store.getMappingByColpId(options.scope, effect.node.id);
-      const provisional = existing ? null : await provisionalSelfCreateMapping(event);
+      const provisional = existing ? null : await provisionalSelfCreateMapping(options, event,
+        await requireMapping(effect.placement.parentId, 'parent'));
       if (provisional) {
         const parent = await requireMapping(effect.placement.parentId, 'parent');
-        mappings.push(mappingFor(effect.node, provisional.nativeId, parent.nativeId, parent.colpId,
-          effect.nodeChildrenRevision, parent.rootNativeId));
+        mappings.push(await selfCreateProjection(event, provisional, parent));
       } else if (existing && !isRecoveryPlaceholder(existing.nativeId)
           && event.operation.replicaId === options.scope.replicaId) {
         mappings.push(await selfCreateProjection(event, existing, await requireMapping(effect.placement.parentId, 'parent')));
@@ -382,12 +388,6 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     options.crash?.('after_event');
   }
 
-  /** Own create echo: rebind `pending-<opId>` rather than duplicating Chrome. */
-  async function provisionalSelfCreateMapping(event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
-    if (event.operation.replicaId !== options.scope.replicaId) return null;
-    return options.store.getMappingByColpId(options.scope, `pending-${event.operation.opId}`);
-  }
-
   async function selfCreateProjection(event: Extract<SyncPullEventV02, { kind: 'operation' }>,
     existing: MappingInput, parent: MappingInput): Promise<MappingInput> {
     const effect = event.effect;
@@ -412,15 +412,15 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const effect = event.effect;
     if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') return;
     const existing = await options.store.getMappingByColpId(options.scope, effect.node.id);
-    const provisional = existing ? null : await provisionalSelfCreateMapping(event);
+    const provisional = existing ? null : await provisionalSelfCreateMapping(options, event,
+      await requireMapping(effect.placement.parentId, 'parent'));
     if (provisional) {
       const eventKey = `${event.cursor}:${event.operation.opId}`;
       const parent = await requireMapping(effect.placement.parentId, 'parent');
       await options.store.recordPullApiEvidence(options.scope, eventKey, { operationId: event.operation.opId,
         nativeId: provisional.nativeId, recovery: 'self_echo' });
       await options.store.commitPullEvent(options.scope, eventKey, { mappings: [
-        mappingFor(effect.node, provisional.nativeId, parent.nativeId, parent.colpId,
-          effect.kind === 'node_created' ? effect.nodeChildrenRevision : null, parent.rootNativeId),
+        await selfCreateProjection(event, provisional, parent),
         await parentRevisionMapping(effect.parentRevision)],
       apiResultEvidence: { operationId: event.operation.opId, recovery: 'self_echo' } });
       return;

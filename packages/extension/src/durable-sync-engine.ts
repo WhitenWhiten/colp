@@ -63,8 +63,10 @@ export function createDurableSyncEngine(options: EngineOptions) {
     if (scope.lifecycle === 'retired') return transition('retired', { recoveryFrozen: true });
     if (current.phase === 'error' && reason !== 'manual' && reason !== 'startup') return current;
     // A server-capped payload_too_large is terminal: refreshing authority reproduces the same 413.
+    const recoveryCode = typeof scope.metadata?.recoveryCode === 'string' ? scope.metadata.recoveryCode : undefined;
     if (current.recoveryFrozen && (holdsUnprovenIdentity(current.lastError)
-        || current.lastError === 'payload_too_large' || needsReplicaRebuild(current.lastError))) {
+        || current.lastError === 'payload_too_large' || needsReplicaRebuild(current.lastError)
+        || recoveryCode === 'payload_too_large' || holdsUnprovenIdentity(recoveryCode) || needsReplicaRebuild(recoveryCode))) {
       if (holdsUnprovenIdentity(current.lastError)) options.schedule?.(30_000);
       return current;
     }
