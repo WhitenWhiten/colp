@@ -14,7 +14,7 @@ export function createPostgresOwnedCollectionsReadPort(transaction: DatabaseTran
   return {
     async listOwnedCollections(input: OwnedCollectionsReadInput) {
       let query = transaction.selectFrom('collections').select([
-        'id', 'kind', 'title', 'summary', 'visibility', 'publication_slug', 'allow_search_indexing',
+        'is_library', 'id', 'kind', 'title', 'summary', 'visibility', 'publication_slug', 'allow_search_indexing',
         'published_at', 'root_node_id', 'resource_revision',
         'content_revision', 'policy_revision', 'created_at', 'updated_at',
       ]).where('owner_subject_id', '=', input.ownerSubjectId).where('deleted_at', 'is', null);
@@ -29,7 +29,7 @@ export function createPostgresOwnedCollectionsReadPort(transaction: DatabaseTran
       const rows = await query.orderBy('updated_at', 'desc').orderBy(ownedCollectionIdKey, 'asc')
         .limit(input.limit + 1).execute();
       return rows.map((row): OwnedCollectionFact => ({
-        id: row.id, kind: row.kind, title: row.title, summary: row.summary, visibility: row.visibility,
+        isLibrary: row.is_library, id: row.id, kind: row.kind, title: row.title, summary: row.summary, visibility: row.visibility,
         publicationSlug: row.publication_slug, allowSearchIndexing: row.allow_search_indexing,
         publishedAt: row.published_at,
         rootNodeId: row.root_node_id, resourceRevision: row.resource_revision,

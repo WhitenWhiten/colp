@@ -190,6 +190,9 @@ export function mapProductDatabaseError(error: DatabaseOperationError): ProductH
 }
 
 export function mapCollectionsError(error: CollectionsError): ProductHttpError {
+  if (error.code === 'library_protected') return new ProductHttpError({
+    statusCode: 409, code: 'library_protected', message: error.message, recovery: 'user_action',
+  });
   if (
     error.code === 'invalid_node_input'
     && /If-Content-Match is not allowed/i.test(error.message)

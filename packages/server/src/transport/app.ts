@@ -125,7 +125,7 @@ import { registerSyncPullRoutes, type SyncPullRouteDependencies } from './colp-s
 import { registerSyncEffectPageRoutes, type SyncEffectPageRouteDependencies } from './colp-sync/sync-effect-page-routes.js';
 import { registerSyncAckRoutes, type SyncAckRouteDependencies } from './colp-sync/sync-ack-routes.js';
 import { registerSyncRetireRoutes, type SyncRetireRouteDependencies } from './colp-sync/sync-retire-routes.js';
-import { EXTENSION_COLLECTIONS_PATH, registerExtensionCollectionRoutes, type ExtensionCollectionRouteDependencies } from './colp-sync/extension-collection-routes.js';
+import { EXTENSION_LIBRARY_PATH, EXTENSION_COLLECTIONS_PATH, registerExtensionCollectionRoutes, type ExtensionCollectionRouteDependencies } from './colp-sync/extension-collection-routes.js';
 import { registerSearchRoutes, type SearchProductQuery } from './product/search-routes.js';
 import { registerMcpProtectedResourceRoutes } from './mcp/mcp-protected-resource-routes.js';
 import { registerMcpReadRoutes, type McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
@@ -457,7 +457,7 @@ export function buildApiApp(input: AppDependencies) {
       && config.betterAuth.enabled
       && requestPath.startsWith(config.betterAuth.basePath)
       && config.betterAuth.trustedOrigins.includes(origin);
-    const collectionsOrigin = requestPath === EXTENSION_COLLECTIONS_PATH
+    const collectionsOrigin = (requestPath === EXTENSION_COLLECTIONS_PATH || requestPath === EXTENSION_LIBRARY_PATH)
       && typeof origin === 'string'
       && extensionCollectionRoutes?.allowedOrigins.includes(origin.replace(/\/$/u, '')) === true;
     const syncOrigin = (requestPath === syncSessionRoutes?.path || requestPath === syncSnapshotRoutes?.path

@@ -61,6 +61,7 @@ async function loadCollection(
     .select([
       'id',
       'owner_subject_id',
+      'is_library',
       'kind',
       'title',
       'summary',
@@ -84,6 +85,7 @@ async function loadCollection(
   if (!row) return null;
   dualReadCollectionPayload(row, metrics);
   return {
+    isLibrary: row.is_library,
     id: row.id,
     kind: row.kind,
     title: row.title,

@@ -50,6 +50,7 @@ export function registerProductSurfaces(
     identityUnitOfWork,
     avatarStore,
     faviconStore,
+    libraryCollectionUnitOfWork,
     collectionsUnitOfWork,
     productCollectionMutationUnitOfWork,
     collectionMetadataMutationRoutes = 'enabled',
@@ -372,6 +373,7 @@ export function registerProductSurfaces(
   if (identityUnitOfWork && accountCredentialUnitOfWork && config.accountCredentials.enabled) registerAccountCredentialSurfaces(app, { enabled: config.accountCredentials.enabled, identityUnitOfWork, unitOfWork: accountCredentialUnitOfWork, cursors: accountCredentialCursors ?? null, grantCursors: accountCredentialGrantCursors ?? null, rateLimiter: credentialsRateLimiter ?? createFixedWindowRateLimiter({ maxRequests: 120, windowMs: 60_000 }), timeoutMs: config.accountCredentials.timeoutMs, config, credentialTokenRateLimiter: automationTokenCredentialRateLimiter ?? null, clientTokenRateLimiter: automationTokenClientRateLimiter ?? null });
   if (identityUnitOfWork && collectionsUnitOfWork) {
     registerCollectionRoutes(app, {
+      libraryCollectionUnitOfWork,
       config,
       identityUnitOfWork,
       collectionsUnitOfWork,

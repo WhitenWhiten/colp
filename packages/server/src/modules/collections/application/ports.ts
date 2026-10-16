@@ -39,6 +39,7 @@ export interface IdLedgerPort {
 }
 
 export interface CollectionBootstrapRow {
+  readonly isLibrary?: boolean;
   readonly id: string;
   readonly ownerSubjectId: string;
   readonly title: string;
@@ -56,6 +57,7 @@ export interface CollectionBootstrapRow {
 
 /** Locked Collection row for metadata mutation (SELECT … FOR UPDATE). */
 export interface LockedCollectionRow {
+  readonly isLibrary?: boolean;
   readonly id: string;
   readonly ownerSubjectId: string;
   readonly title: string;
@@ -110,6 +112,7 @@ export interface RootNodeBootstrapRow {
 
 /** Live node row for parent/anchor validation and content update. */
 export interface LockedNodeRow {
+  readonly folderRole?: string | null;
   readonly id: string;
   readonly collectionId: string;
   readonly parentId: string | null;
@@ -370,6 +373,7 @@ export interface CollectionsClock {
 }
 
 export interface CanonicalOwnedCollectionBootstrapInput {
+  readonly isLibrary?: boolean;
   readonly actor: { readonly principalId: string; readonly principalType: 'account'; readonly subjectId: string };
   readonly collectionId: string;
   readonly rootNodeId: string;

@@ -151,6 +151,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "createCollection"
   },
   {
+    "method": "DELETE",
+    "path": "/api/v1/collections/{collectionId}",
+    "operationId": "refuseLibraryDeletion"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/collections/{collectionId}",
     "operationId": "getPublicCollectionPage"
@@ -1194,6 +1199,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "method": "GET",
     "path": "/api/v1/me/followed-reports/issues",
     "operationId": "listFollowedReportIssues"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/library",
+    "operationId": "getMyLibrary"
   },
   {
     "method": "GET",

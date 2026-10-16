@@ -926,6 +926,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ensure and return the current account's bookmark library */
+        get: operations["getMyLibrary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collections": {
         parameters: {
             query?: never;
@@ -1237,7 +1254,11 @@ export interface paths {
         get: operations["getPublicCollectionPage"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Refuse deletion of the account library
+         * @description The library cannot be deleted. Other collection deletion is unsupported.
+         */
+        delete: operations["refuseLibraryDeletion"];
         options?: never;
         head?: never;
         /** Update Phase 1 Collection metadata */
@@ -3461,7 +3482,18 @@ export interface components {
             /** @description Public self-introduction. Empty string when unset. Null clears to empty. */
             about?: string | null;
         };
+        LibraryCollection: {
+            id: components["schemas"]["OpaqueId"];
+            title: string;
+            rootNodeId: components["schemas"]["OpaqueId"];
+            /** @constant */
+            library: true;
+            bookmarksBarId: components["schemas"]["OpaqueId"];
+            otherBookmarksId: components["schemas"]["OpaqueId"];
+        };
         CollectionView: {
+            /** @description True for the account’s private bookmark library. */
+            library?: boolean;
             id: components["schemas"]["OpaqueId"];
             kind: components["schemas"]["CollectionKind"];
             title: string;
@@ -7485,6 +7517,32 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    getMyLibrary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The private library and its browser role folders. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCollection"];
+                };
+            };
+            401: components["responses"]["AuthenticationRequired"];
+            406: components["responses"]["NotAcceptable"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     listOwnedCollections: {
         parameters: {
             query?: {
@@ -8354,6 +8412,38 @@ export interface operations {
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    refuseLibraryDeletion: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                /** @description Case-sensitive opaque Collection ID. */
+                collectionId: components["parameters"]["CollectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Collection deletion is unsupported. */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["MutationConflict"];
         };
     };
     updateCollection: {

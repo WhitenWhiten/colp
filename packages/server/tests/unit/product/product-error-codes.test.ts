@@ -29,6 +29,7 @@ import { ProductHttpError } from '../../../src/transport/product-error.js';
  * A code added to the union that is not mirrored here makes this test fail.
  */
 const EXPECTED_CODES = [
+  'library_protected',
   'automation_binding_unavailable', 'automation_rule_conflict', 'automation_unsupported_capability',
   'automation_invalid_graph', 'automation_stale_input', 'automation_command_conflict',
   'automation_budget_exceeded', 'automation_claim_conflict', 'automation_lease_lost', 'automation_paused',
@@ -92,6 +93,7 @@ describe('R19 central ProductErrorCode table', () => {
     // Each value is the exact HTTP status emitted by the owning route. These
     // pin the wire contract; asserting only `message` would be a false positive.
     const expected: Readonly<Record<ProductErrorCode, number>> = {
+      library_protected: 409,
       automation_binding_unavailable: 409, automation_rule_conflict: 409, automation_unsupported_capability: 422,
       automation_invalid_graph: 422, automation_stale_input: 409, automation_command_conflict: 409,
       automation_budget_exceeded: 409, automation_claim_conflict: 409, automation_lease_lost: 409, automation_paused: 503,

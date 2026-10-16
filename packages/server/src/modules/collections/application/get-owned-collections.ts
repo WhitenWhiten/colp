@@ -21,6 +21,7 @@ export class OwnedCollectionsInputError extends Error {
   constructor(message: string) { super(message); this.name = 'OwnedCollectionsInputError'; }
 }
 export interface OwnedCollectionFact {
+  readonly isLibrary?: boolean;
   readonly id: string; readonly kind: CollectionKind; readonly title: string; readonly summary: string | null;
   readonly visibility: 'private' | 'protected' | 'unlisted' | 'public'; readonly rootNodeId: string;
   readonly publicationSlug: string | null; readonly allowSearchIndexing: boolean; readonly publishedAt: Date | null;
@@ -51,6 +52,7 @@ export function toOwnedCollectionListItem(
   const capabilities = capabilitiesForRole(role);
   return {
     collection: {
+      ...(row.isLibrary ? { library: true } : {}),
       id: row.id, kind: row.kind, title: row.title, summary: row.summary, visibility: row.visibility,
       publicationSlug: row.publicationSlug, allowSearchIndexing: row.allowSearchIndexing,
       publishedAt: row.publishedAt ? formatUtcDateTime(row.publishedAt) : null,
@@ -61,7 +63,7 @@ export function toOwnedCollectionListItem(
     },
     capabilities: {
       updateCollection: capabilities.has('update_collection_metadata'),
-      managePublication: capabilities.has('manage_publication'), createNode: capabilities.has('create_node'),
+      managePublication: !row.isLibrary && capabilities.has('manage_publication'), createNode: capabilities.has('create_node'),
       updateNode: capabilities.has('update_node'), moveNode: capabilities.has('move_node'),
       deleteNode: capabilities.has('delete_node'),
     },

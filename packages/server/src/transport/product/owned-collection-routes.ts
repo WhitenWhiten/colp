@@ -1,3 +1,4 @@
+import { ensureLibraryCollection } from '../../modules/collections/index.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   OwnedCollectionsCursorError,
@@ -20,6 +21,17 @@ const KINDS = new Set(['bookmarks', 'reading_path', 'knowledge_collection', 'mix
 const VISIBILITIES = new Set(['private', 'protected', 'unlisted', 'public']);
 
 export function registerOwnedCollectionRoutes(app: FastifyInstance, deps: CollectionRoutesDeps): void {
+  if (deps.libraryCollectionUnitOfWork) app.get('/api/v1/me/library', { config: {
+    ...productRouteMetadata('GET', '/api/v1/me/library'),
+    productTransport: { allowedQuery: [], cacheControl: 'private-no-store' },
+  } }, async (request, reply) => {
+    const { account } = await requireOwnedCollectionActor(request, deps);
+    negotiateAccept(request.headers.accept);
+    const library = await ensureLibraryCollection(deps.libraryCollectionUnitOfWork!, {
+      principalId: account.id, subjectId: account.subjectId,
+    });
+    return reply.type('application/json; charset=utf-8').send(library);
+  });
   if (!deps.ownedCollectionsQuery) return;
   if (!deps.bookmarkCounts) {
     throw new Error('owned Collection list requires CollectionBookmarkCountReadPort');

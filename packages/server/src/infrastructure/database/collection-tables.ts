@@ -3,6 +3,7 @@ import type { Generated } from 'kysely';
 export interface CollectionTable {
   id: string;
   owner_subject_id: string;
+  is_library: Generated<boolean>;
   title: string;
   summary: string | null;
   kind: 'bookmarks' | 'reading_path' | 'knowledge_collection' | 'mixed';
@@ -43,6 +44,7 @@ export interface NodeTable {
   parent_id: string | null;
   kind: 'folder' | 'bookmark' | 'separator';
   is_root: boolean;
+  folder_role: Generated<string | null>;
   title: string | null;
   url: string | null;
   search_url_host: Generated<string | null>;

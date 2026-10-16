@@ -1,3 +1,4 @@
+import { ensureLibraryCollection, type LibraryCollectionUnitOfWork } from '../../modules/collections/index.js';
 import { createMemorySyncAdmissionPolicy, syncAdmissionSubjectKey, type SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -16,6 +17,7 @@ import { httpCommandScopeV1 } from '../http-command-scope.js';
 import { colpAuthorizationFromRawHeaders } from './sync-colp-authorization.js';
 import type { SyncTransportSecurity } from './sync-transport-security.js';
 
+export const EXTENSION_LIBRARY_PATH = '/colp/v0.1/sync/library';
 export const EXTENSION_COLLECTIONS_PATH = '/colp/v0.1/sync/collections';
 const MAX_ITEMS = 100;
 const IDEMPOTENCY = /^[A-Za-z0-9._~-]{1,512}$/u;
@@ -35,6 +37,7 @@ export interface ExtensionOwnerAccountPort {
 }
 
 export interface ExtensionCollectionRouteDependencies {
+  readonly libraryCollectionUnitOfWork?: LibraryCollectionUnitOfWork;
   readonly credentialVerifier: ExtensionCredentialEvidencePort;
   readonly ownedCollectionsQuery: GetOwnedCollectionsPagePorts;
   readonly ownerSubject: ExtensionOwnerSubjectPort;
@@ -47,6 +50,7 @@ export interface ExtensionCollectionRouteDependencies {
 }
 
 interface ExtensionCollectionView {
+  readonly library?: boolean;
   readonly id: string;
   readonly title: string;
   readonly kind: OwnedCollectionFact['kind'];
@@ -79,7 +83,7 @@ export function registerExtensionCollectionRoutes(
   const preAuth = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     await consume(request, reply);
   };
-  app.get(EXTENSION_COLLECTIONS_PATH, {
+  for (const path of [EXTENSION_COLLECTIONS_PATH, EXTENSION_LIBRARY_PATH]) app.get(path, {
     onRequest: preAuth,
     config: { productTransport: { allowedQuery: [], cacheControl: 'private-no-store' } },
   }, async (request, reply) => {
@@ -100,12 +104,22 @@ export function registerExtensionCollectionRoutes(
       if (ownerSubjectId === null) {
         return deny(reply, 'invalid_token', 'The credential is not bound to an active account.');
       }
+      if (path === EXTENSION_LIBRARY_PATH) {
+        if (!dependencies.libraryCollectionUnitOfWork || !dependencies.ownerAccount) {
+          return reply.code(503).send({ error: { code: 'service_unavailable', message: 'The library is unavailable.' } });
+        }
+        const owner = await dependencies.ownerAccount.resolveActiveAccount({ issuer: credential.issuer, subject: credential.subject });
+        if (!owner || owner.subjectId !== ownerSubjectId) return deny(reply, 'invalid_token', 'The account is unavailable.');
+        return reply.type('application/json; charset=utf-8').send(await ensureLibraryCollection(
+          dependencies.libraryCollectionUnitOfWork, { principalId: owner.accountId, subjectId: owner.subjectId },
+        ));
+      }
       const page = await getOwnedCollectionsPage(dependencies.ownedCollectionsQuery, {
         actor: { subjectId: ownerSubjectId }, limit: MAX_ITEMS,
       });
       const items: readonly ExtensionCollectionView[] = page.items.map((collection) => ({
         id: collection.id, title: collection.title, kind: collection.kind, visibility: collection.visibility,
-        rootNodeId: collection.rootNodeId,
+        rootNodeId: collection.rootNodeId, library: collection.isLibrary === true,
       }));
       return reply.code(200).type('application/json; charset=utf-8').send({ items });
     } catch (error: unknown) {

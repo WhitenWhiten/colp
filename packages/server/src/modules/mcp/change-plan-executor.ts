@@ -19,6 +19,7 @@ import type {
 } from '@know-n/colp/types';
 import { canonicalJson } from '../commands/index.js';
 import {
+  CollectionsError,
   CollectionPreconditionError,
   updateCollectionMetadataCanonical,
   updateCollectionMetadataCommandScope,
@@ -303,6 +304,7 @@ async function executeCollectionSetVisibility(
     }
     throw commitFailure('collections.set_visibility returned an unknown or in-progress commit outcome.');
   } catch (error) {
+    if (error instanceof CollectionsError && error.code === 'library_protected') throw error;
     if (error instanceof McpChangePlanError) throw error;
     if (error instanceof CollectionPreconditionError) {
       throw revisionDrift('Collection resource revision changed.');

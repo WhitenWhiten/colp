@@ -210,6 +210,10 @@ async function executePreview(
     if (!node || node.deletedAt !== null) {
       throwRejected(PHASE4B_MCP_NODES_UPDATE_TOOL_NAME);
     }
+    if (collection.isLibrary && ['bookmarks-bar', 'other-bookmarks'].includes(node.folderRole ?? '')
+      && parsed.patch.title !== undefined) {
+      throw new Phase4bMcpLowRiskNodeCreateError('library_protected', 'The library’s browser folders cannot be renamed.');
+    }
     if (node.isRoot) {
       throw new Phase4bMcpLowRiskNodeCreateError(
         'invalid_catalog_input',
@@ -444,6 +448,9 @@ export function mapCanonicalWriteError(error: unknown, operation: string): never
       'Root nodes cannot be updated.',
       nodeUpdateHint('nodeId'),
     );
+  }
+  if (error instanceof CollectionsError && error.code === 'library_protected') {
+    throw new Phase4bMcpLowRiskNodeCreateError('library_protected', error.message);
   }
   if (error instanceof CollectionsError) {
     throw new Phase4bMcpLowRiskNodeCreateError(

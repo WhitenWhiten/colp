@@ -42,6 +42,7 @@ export interface GetCollectionEditorPageInput {
 }
 
 export interface CollectionView {
+  readonly library?: boolean;
   readonly id: string;
   readonly kind: CollectionKind;
   readonly title: string;
@@ -164,6 +165,7 @@ export interface EditorPage {
 export const EDITOR_COMPARATOR_ROOT_SENTINEL = '';
 
 export interface EditorCollectionRow {
+  readonly isLibrary?: boolean;
   readonly id: string;
   readonly kind: CollectionKind;
   readonly title: string;
@@ -364,7 +366,7 @@ export async function getCollectionEditorPage(
 
   const collection = mapCollectionView(snapshot.collection);
   const root = mapRootNodeView(snapshot.root);
-  const capabilities = mapCapabilities(decision.effectiveRole);
+  const capabilities = mapCapabilities(decision.effectiveRole, snapshot.collection.isLibrary === true);
 
   const iconObjectIds = await loadBookmarkIconObjectIds(
     ports.bookmarkIcons,
@@ -546,11 +548,11 @@ function assertNonEmpty(value: string, field: string): string {
   return value;
 }
 
-function mapCapabilities(role: MembershipRole | null): CollectionCapabilities {
+function mapCapabilities(role: MembershipRole | null, isLibrary: boolean): CollectionCapabilities {
   const caps = capabilitiesForRole(role);
   return {
     updateCollection: caps.has('update_collection_metadata'),
-    managePublication: caps.has('manage_publication'),
+    managePublication: !isLibrary && caps.has('manage_publication'),
     createNode: caps.has('create_node'),
     updateNode: caps.has('update_node'),
     moveNode: caps.has('move_node'),
@@ -560,6 +562,7 @@ function mapCapabilities(role: MembershipRole | null): CollectionCapabilities {
 
 function mapCollectionView(row: EditorCollectionRow): CollectionView {
   return {
+    ...(row.isLibrary ? { library: true } : {}),
     id: row.id,
     kind: row.kind,
     title: row.title,

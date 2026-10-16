@@ -6926,6 +6926,27 @@ paths:
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/me/library:
+    get:
+      tags: [ Collections ]
+      operationId: getMyLibrary
+      summary: Ensure and return the current account's bookmark library
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: The private library and its browser role folders.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LibraryCollection' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
   /api/v1/collections:
     get:
       tags: [ Collections ]
@@ -8037,6 +8058,24 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/collections/{collectionId}:
+    delete:
+      tags: [ Collections ]
+      operationId: refuseLibraryDeletion
+      summary: Refuse deletion of the account library
+      description: The library cannot be deleted. Other collection deletion is unsupported.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CollectionId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/CommandId'
+      responses:
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '405': { description: Collection deletion is unsupported. }
+        '409': { $ref: '#/components/responses/MutationConflict' }
     get:
       tags: [ Collections ]
       operationId: getPublicCollectionPage
@@ -28036,10 +28075,22 @@ components:
             empty.
       required: [ handle, displayName ]
 
+    LibraryCollection:
+      type: object
+      additionalProperties: false
+      required: [ id, title, rootNodeId, library, bookmarksBarId, otherBookmarksId ]
+      properties:
+        id: { $ref: '#/components/schemas/OpaqueId' }
+        title: { type: string }
+        rootNodeId: { $ref: '#/components/schemas/OpaqueId' }
+        library: { type: boolean, const: true }
+        bookmarksBarId: { $ref: '#/components/schemas/OpaqueId' }
+        otherBookmarksId: { $ref: '#/components/schemas/OpaqueId' }
     CollectionView:
       type: object
       additionalProperties: false
       properties:
+        library: { type: boolean, description: True for the account’s private bookmark library. }
         id:
           $ref: '#/components/schemas/OpaqueId'
         kind:
@@ -30372,7 +30423,7 @@ components:
         src/transport/product-codes.ts. Current drifted codes: handle_taken,
         invalid_handle, invalid_display_name, invalid_about, mutation_conflict,
         not_acceptable, invalid_credentials, verification_required,
-        account_link_required, email_delivery_unavailable, resource_purged.
+        account_link_required, email_delivery_unavailable, resource_purged, library_protected.
         Clients must not treat the generated enum as exhaustive. Adding these
         codes to the published enum requires a new major version and a
         superseding ADR.

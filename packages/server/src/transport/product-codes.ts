@@ -22,6 +22,7 @@ type GeneratedProductErrorCode = components['schemas']['ProductErrorCode'];
 
 /** Wire codes frozen out of the OpenAPI enum by ADR-0015 (see above). */
 type DriftedProductErrorCode =
+  | 'library_protected'
   | 'handle_taken'
   | 'invalid_handle'
   | 'invalid_display_name'
@@ -66,6 +67,7 @@ export function hasCode<TCode extends string>(
  * missing, and excess-property checking rejects a code that is not in the union.
  */
 export const PRODUCT_ERROR_STATUS = {
+  library_protected: 409,
   automation_binding_unavailable: 409, automation_rule_conflict: 409, automation_unsupported_capability: 422,
   automation_invalid_graph: 422, automation_stale_input: 409, automation_command_conflict: 409,
   automation_budget_exceeded: 409, automation_claim_conflict: 409, automation_lease_lost: 409, automation_paused: 503,

@@ -10,6 +10,7 @@ export const PHASE4B_MCP_NODE_CREATE_OUTPUT_CONTRACT =
 export const PHASE4B_MCP_LOW_RISK_NODE_CREATE_SCOPE = 'nodes:write' as const;
 
 export type Phase4bMcpLowRiskNodeCreateErrorCode =
+  | 'library_protected'
   | 'invalid_catalog_input'
   | 'unknown_operation'
   | 'open_payload_rejected'

@@ -17,7 +17,7 @@ import {
   McpChangePlanError,
   type Mcp20260728WireErrorKind,
 } from '@know-n/colp/mcp';
-import { COLLECTION_KINDS } from '../collections/index.js';
+import { CollectionsError, COLLECTION_KINDS } from '../collections/index.js';
 import { MCP_PLAN_IMPACT_EXCEEDED_MESSAGE } from './agent-plan-history-error.js';
 import type { McpApplicationRejectedResult } from './application-results.js';
 import {
@@ -39,6 +39,7 @@ export const PHASE4B_MCP_AUTHORITATIVE_STATE_UNAVAILABLE_ERROR_NAME =
   'AuthoritativeStateUnavailableError' as const;
 
 export type Phase4bMcpWriteErrorClass =
+  | 'library_protected'
   | 'invalid_params'
   | 'parent_invalid'
   | 'requires_plan_approval'
@@ -67,6 +68,13 @@ export type Phase4bMcpWriteErrorClassification = Readonly<{
   readonly retryable: boolean;
   readonly outcome: Phase4bMcpWriteErrorOutcome;
 }>;
+
+const LIBRARY_PROTECTED = Object.freeze({
+  stableClass: 'library_protected', colpKind: 'invalid_params',
+  jsonRpcCode: MCP_WIRE_INVALID_PARAMS_ERROR_CODE,
+  safeMessage: 'The private bookmark library and its browser folders are protected.',
+  retryable: false, outcome: 'rejected',
+}) satisfies Phase4bMcpWriteErrorClassification;
 
 const INVALID_PARAMS = Object.freeze({
   stableClass: 'invalid_params',
@@ -173,6 +181,7 @@ const INTERNAL_ERROR = Object.freeze({
  * discriminator in `data.code` / result `stableCode`.
  */
 const NODE_CREATE_CODE_MAPPING = Object.freeze({
+  library_protected: LIBRARY_PROTECTED,
   invalid_catalog_input: INVALID_PARAMS,
   unknown_operation: INVALID_PARAMS,
   parent_invalid: PARENT_INVALID,
@@ -210,6 +219,7 @@ export const PHASE4B_MCP_CHANGE_PLAN_PLANNER_ERROR_CODES = Object.freeze(
 );
 
 export const PHASE4B_MCP_WRITE_ERROR_CLASSES = Object.freeze([
+  'library_protected',
   'invalid_params',
   'parent_invalid',
   'requires_plan_approval',
@@ -228,6 +238,7 @@ const STABLE_CLASS_SET: ReadonlySet<string> = new Set(PHASE4B_MCP_WRITE_ERROR_CL
 const CLASSIFICATION_BY_STABLE_CLASS = Object.freeze({
   invalid_params: INVALID_PARAMS,
   parent_invalid: PARENT_INVALID,
+  library_protected: LIBRARY_PROTECTED,
   requires_plan_approval: REQUIRES_PLAN_APPROVAL,
   policy_rejected: POLICY_REJECTED,
   stale_revision: STALE_REVISION,
@@ -240,6 +251,7 @@ const CLASSIFICATION_BY_STABLE_CLASS = Object.freeze({
 }) satisfies Record<Phase4bMcpWriteErrorClass, Phase4bMcpWriteErrorClassification>;
 
 export function classifyPhase4bMcpWriteError(error: unknown): Phase4bMcpWriteErrorClassification {
+  if (error instanceof CollectionsError && error.code === 'library_protected') return LIBRARY_PROTECTED;
   if (error instanceof Phase4bMcpLowRiskNodeCreateError) {
     return classifyPhase4bMcpLowRiskNodeCreateError(error);
   }

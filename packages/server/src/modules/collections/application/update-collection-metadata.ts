@@ -154,6 +154,10 @@ export async function updateCollectionMetadataCanonical(
     throw new CollectionAuthorizationError({ outcome: 'conceal', reasonCategory: 'resource_missing' });
   }
   await authorizeUpdate(ports.accessPolicy, validated, locked);
+  if (locked.isLibrary && (validated.patch.visibility !== undefined
+    || validated.patch.publicationSlug !== undefined || validated.patch.allowSearchIndexing !== undefined)) {
+    throw new CollectionsError('library_protected', 'The bookmark library is private and cannot be published.');
+  }
   const visibility = validated.patch.visibility ?? locked.visibility;
   if ((visibility === 'public' || visibility === 'unlisted') && ports.accountControl) {
     const decision = await ports.accountControl.accountControl(validated.actor.principalId);

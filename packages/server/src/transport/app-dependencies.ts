@@ -103,6 +103,7 @@ export interface AppDependencies {
     readonly publicAccess: import('./product/link-preview-routes.js').LinkPreviewPublicAccess;
     readonly commands: import('../modules/collections/index.js').LinkPreviewCommandUnitOfWork;
   };
+  readonly libraryCollectionUnitOfWork?: import('../modules/collections/index.js').LibraryCollectionUnitOfWork;
   readonly collectionsUnitOfWork?: CollectionsUnitOfWork;
   readonly productCollectionMutationUnitOfWork?: ProductCollectionMutationUnitOfWork;
   /** Explicitly disable collection create/metadata-update routes in narrow test compositions. */

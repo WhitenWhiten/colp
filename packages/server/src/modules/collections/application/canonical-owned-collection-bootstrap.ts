@@ -64,6 +64,7 @@ export async function bootstrapCanonicalOwnedCollection(
   await ports.collections.insertBootstrap({
     id: validated.collectionId,
     ownerSubjectId: validated.actor.subjectId,
+    isLibrary: validated.isLibrary,
     title: validated.title,
     summary: validated.summary,
     kind: validated.kind,

@@ -1,4 +1,5 @@
 export type CollectionsErrorCode =
+  | 'library_protected'
   | 'invalid_collection_input'
   | 'invalid_collection_title'
   | 'invalid_collection_summary'

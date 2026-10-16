@@ -96,6 +96,7 @@ export function createPostgresIdLedgerPort(
 const COLLECTION_LOCK_COLUMNS = [
   'id',
   'owner_subject_id',
+  'is_library',
   'title',
   'summary',
   'kind',
@@ -130,6 +131,7 @@ async function lockCollectionRow(
   return {
     id: row.id,
     ownerSubjectId: row.owner_subject_id,
+    isLibrary: row.is_library,
     title: row.title,
     summary: row.summary,
     kind: row.kind,
@@ -177,6 +179,7 @@ export function createPostgresCollectionWritePort(
         .values({
           id: row.id,
           owner_subject_id: row.ownerSubjectId,
+          is_library: row.isLibrary ?? false,
           title: row.title,
           summary: row.summary,
           kind: row.kind,
@@ -249,6 +252,7 @@ export function createPostgresCollectionWritePort(
 }
 
 const LOCKED_NODE_SELECT = [
+  'folder_role',
   'id',
   'collection_id',
   'parent_id',
@@ -285,6 +289,7 @@ function mapLockedNodeRow(row: {
   parent_id: string | null;
   kind: 'folder' | 'bookmark' | 'separator';
   is_root: boolean;
+  folder_role?: string | null;
   title: string | null;
   url: string | null;
   description: string | null;
@@ -306,6 +311,7 @@ function mapLockedNodeRow(row: {
     parentId: row.parent_id,
     kind: row.kind,
     isRoot: row.is_root,
+    folderRole: row.folder_role,
     title: row.title,
     url: row.url,
     description: row.description,

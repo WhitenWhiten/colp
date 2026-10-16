@@ -167,6 +167,7 @@ test('parent_invalid data always names parentId and retries nodes.create', () =>
 
 test('mapping table covers every Phase4bMcpLowRiskNodeCreateError code', () => {
   const expected: Record<Phase4bMcpLowRiskNodeCreateErrorCode, true> = {
+    library_protected: true,
     invalid_catalog_input: true,
     unknown_operation: true,
     open_payload_rejected: true,

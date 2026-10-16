@@ -154,6 +154,10 @@ export async function moveCollectionNode(
     });
   }
 
+  if (locked.isLibrary && ['bookmarks-bar', 'other-bookmarks'].includes(node.folderRole ?? '')) {
+    throw new CollectionsError('library_protected', 'The library’s browser folders cannot be deleted, moved or renamed.');
+  }
+
   if (node.isRoot) {
     throw new NodeConflictError('root_immutable');
   }

@@ -1,3 +1,5 @@
+export { ensureLibraryCollection } from './ensure-library-collection.js';
+export type { LibraryCollection, LibraryOwner, LibraryCollectionUnitOfWork, LibraryCollectionPorts } from './ensure-library-collection.js';
 export {
   CANONICAL_MUTATION_WRITE_ORDER,
   createCanonicalMutationApplication,

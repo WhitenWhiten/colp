@@ -26,6 +26,7 @@ import {
   sendProductCommandReceiptOutcome,
 } from '../product-command-mapping.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
+import { ProductHttpError } from '../product-error.js';
 import { requireMutationActor } from '../mutation-actor.js';
 
 const CREATE_COLLECTIONS_ROUTE = '/api/v1/collections';
@@ -102,6 +103,27 @@ export function registerCollectionResourceRoutes(
     }
 
     return sendCreateOwnedCollectionResult(reply, outcome);
+  });
+
+  app.delete(COLLECTION_RESOURCE_ROUTE, { config: {
+    ...productRouteMetadata('DELETE', COLLECTION_RESOURCE_ROUTE),
+    productTransport: { allowedQuery: [], cacheControl: 'private-no-store' },
+  } }, async (request) => {
+    const { account } = await requireMutationActor(request, {
+      identityUnitOfWork: deps.identityUnitOfWork, allowedOrigins: deps.config.allowedOrigins,
+    });
+    readKnownCommandId(request);
+    const collectionId = readCollectionIdParam(request);
+    await deps.collectionsUnitOfWork.execute(async ports => {
+      const collection = await ports.collections.lockForUpdate(collectionId);
+      if (!collection || collection.deletedAt || collection.ownerSubjectId !== account.subjectId) {
+        throw new ProductHttpError({ statusCode: 404, code: 'resource_not_found', message: 'The library is unavailable.' });
+      }
+      if (collection.isLibrary) throw new ProductHttpError({
+        statusCode: 409, code: 'library_protected', message: 'The bookmark library cannot be deleted.',
+      });
+      throw new ProductHttpError({ statusCode: 405, code: 'method_not_allowed', message: 'Collection deletion is unsupported.' });
+    });
   });
 
   app.patch(COLLECTION_RESOURCE_ROUTE, {

@@ -1,3 +1,4 @@
+import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/library-collection-postgres.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
 import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
@@ -87,6 +88,7 @@ export interface ApiPostgresPorts {
   readonly reportSourceInvalidation?: import('../infrastructure/outbox/index.js').ReportSourceInvalidationOutboxPort;
   readonly identityUnitOfWork: IdentityUnitOfWork;
   readonly collectionsUnitOfWork: ReturnType<typeof createPostgresCollectionsUnitOfWork>;
+  readonly libraryCollectionUnitOfWork: ReturnType<typeof createPostgresLibraryCollectionUnitOfWork>;
   readonly productCollectionMutationUnitOfWork: ReturnType<typeof createPostgresCanonicalMutationUnitOfWork>;
   readonly collectionsEditorReadUnitOfWork: ReturnType<typeof createPostgresCollectionsEditorReadUnitOfWork>;
   readonly ownedCollectionsCursorSigner: ReturnType<typeof createProductOwnedCollectionsCursorSigner>;
@@ -156,6 +158,7 @@ export function createApiPostgresPorts(input: {
     ...(config.betterAuth.enabled ? {} : { oidcTransactionSecrets: config.oidcTransactionSecrets }),
     ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }),
   });
+  const libraryCollectionUnitOfWork = createPostgresLibraryCollectionUnitOfWork(database.db);
   const collectionsUnitOfWork = createPostgresCollectionsUnitOfWork(database.db, {
     metrics, cancelBackend: database.cancelBackend,
   });
@@ -253,6 +256,7 @@ export function createApiPostgresPorts(input: {
     ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }),
     identityUnitOfWork,
     collectionsUnitOfWork,
+    libraryCollectionUnitOfWork,
     productCollectionMutationUnitOfWork,
     collectionsEditorReadUnitOfWork,
     ownedCollectionsCursorSigner,

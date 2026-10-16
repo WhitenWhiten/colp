@@ -432,6 +432,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     } : {}),
     authRateLimiter,
     mcpRateLimiter,
+    libraryCollectionUnitOfWork: ports.libraryCollectionUnitOfWork,
     collectionsUnitOfWork: ports.collectionsUnitOfWork,
     productCollectionMutationUnitOfWork: ports.productCollectionMutationUnitOfWork,
     collectionsEditorReadUnitOfWork: ports.collectionsEditorReadUnitOfWork,
@@ -510,6 +511,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
       syncAckRoutes: syncRuntime.ack,
       syncRetireRoutes: syncRuntime.retire,
       extensionCollectionRoutes: {
+        libraryCollectionUnitOfWork: ports.libraryCollectionUnitOfWork,
         credentialVerifier: syncRuntime.session.credentialVerifier,
         ownedCollectionsQuery: ports.ownedCollectionsQueryPorts,
         ownerSubject: createPostgresExtensionOwnerSubjectPort(database.db),
