@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AutomationRun } from '../../api/automationTypes'
@@ -35,7 +36,46 @@ describe('Run detail', () => {
 
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     document.body.innerHTML = ''
+  })
+
+  it('refreshes a running run and the same job ids, then stops polling after leaving', async () => {
+    const api = withRun({ status: 'running', jobIds: ['job-a'] })
+    let completed = false
+    api.getRun.mockImplementation(async () => run('run-1', 'rule-arxiv', {
+      status: completed ? 'completed' : 'running', revision: completed ? '2' : '1', jobIds: ['job-a'],
+    }))
+    api.getJob.mockImplementation(async () => job('job-a', completed ? 'succeeded' : 'ready'))
+    vi.useFakeTimers()
+    mount(api)
+    await waitForDom(() => document.querySelector('[data-job-id="job-a"]')?.getAttribute('data-status') === 'ready')
+    completed = true
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+    await waitForDom(() => document.querySelector('[data-job-id="job-a"]')?.getAttribute('data-status') === 'succeeded')
+    expect(text('h1')).toBe('Run finished')
+    const calls = api.getRun.mock.calls.length
+    cleanup()
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(api.getRun.mock.calls.length).toBe(calls)
+  })
+
+  it('keeps a newer cancel result when an older refresh finishes late', async () => {
+    const api = withRun({ status: 'running' })
+    let resolveOld: ((value: AutomationRun) => void) | undefined
+    api.getRun.mockImplementation(async () => run('run-1', 'rule-arxiv', { status: 'running', revision: '1' }))
+    api.cancelRun.mockResolvedValue(run('run-1', 'rule-arxiv', { status: 'cancelled', revision: '2' }))
+    mount(api)
+    await waitForDom(() => text('h1') === 'Run in progress')
+    api.getRun.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve }))
+    click(buttonNamed('Refresh'))
+    await waitForDom(() => Boolean(resolveOld))
+    click(buttonNamed('Cancel remaining work'))
+    await waitForDom(() => Boolean(dialog()))
+    click(buttonNamed('Cancel remaining work', dialog() ?? document))
+    await waitForDom(() => text('h1') === 'Run cancelled')
+    await act(async () => { resolveOld?.(run('run-1', 'rule-arxiv', { status: 'running', revision: '1' })) })
+    expect(text('h1')).toBe('Run cancelled')
   })
 
   it.each([

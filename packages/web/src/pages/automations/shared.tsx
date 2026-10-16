@@ -33,26 +33,41 @@ export function useLoad<T>(key: string | null, loader: (signal: AbortSignal) => 
   const [version, setVersion] = useState(0)
   const loaderRef = useRef(loader)
   loaderRef.current = loader
+  const active = useRef<AbortController | null>(null)
+  const generation = useRef(0)
 
   useEffect(() => {
     if (key === null) return
     const controller = new AbortController()
+    const request = ++generation.current
+    active.current = controller
     void loaderRef.current(controller.signal)
       .then((data) => {
-        if (!controller.signal.aborted) setState({ status: 'ready', data })
+        if (!controller.signal.aborted && request === generation.current) setState({ status: 'ready', data })
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) setState({ status: 'error', error })
+        if (!controller.signal.aborted && request === generation.current) setState({ status: 'error', error })
       })
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      if (active.current === controller) active.current = null
+    }
   }, [key, version])
 
   useEffect(() => {
     setState({ status: 'loading' })
   }, [key])
 
-  const reload = useCallback(() => setVersion((value) => value + 1), [])
-  const replace = useCallback((data: T) => setState({ status: 'ready', data }), [])
+  const reload = useCallback(() => {
+    generation.current += 1
+    active.current?.abort()
+    setVersion((value) => value + 1)
+  }, [])
+  const replace = useCallback((data: T) => {
+    generation.current += 1
+    active.current?.abort()
+    setState({ status: 'ready', data })
+  }, [])
   return { state, reload, replace }
 }
 

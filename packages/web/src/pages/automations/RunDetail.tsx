@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { AutomationJob, AutomationRun } from '../../api/automationTypes'
 import { useToast } from '../../components/AppToast'
@@ -36,6 +36,8 @@ import { UsagePanel } from './UsagePanel'
 
 /** A run's steps are read one by one; past this, the page says how many it left out. */
 const MAX_JOBS = 25
+const POLL_FIRST_MS = 3_000
+const POLL_MAX_MS = 30_000
 
 const STATE_ICON: Record<StatusTone, IconName> = {
   neutral: 'info',
@@ -48,11 +50,13 @@ const STATE_ICON: Record<StatusTone, IconName> = {
 
 type JobSlot = { id: string; job: AutomationJob | null; error: unknown }
 
-function useRunJobs(run: AutomationRun | null) {
+function useRunJobs(run: AutomationRun | null, refreshKey: number) {
   const { api } = useAutomationDeps()
   const ids = run ? run.jobIds.slice(0, MAX_JOBS) : []
   const key = ids.join(',')
   const [slots, setSlots] = useState<JobSlot[] | null>(null)
+  const request = useRef(0)
+  const active = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!key) {
@@ -60,7 +64,8 @@ function useRunJobs(run: AutomationRun | null) {
       return
     }
     const controller = new AbortController()
-    setSlots(null)
+    const generation = ++request.current
+    active.current = controller
     void Promise.all(key.split(',').map(async (id): Promise<JobSlot> => {
       try {
         return { id, job: await api.getJob(id, controller.signal), error: null }
@@ -68,12 +73,19 @@ function useRunJobs(run: AutomationRun | null) {
         return { id, job: null, error }
       }
     })).then((loaded) => {
-      if (!controller.signal.aborted) setSlots(loaded)
+      if (!controller.signal.aborted && generation === request.current) setSlots(loaded)
     })
-    return () => controller.abort()
-  }, [api, key])
+    return () => {
+      controller.abort()
+      if (active.current === controller) active.current = null
+    }
+  }, [api, key, refreshKey])
 
-  const replace = (job: AutomationJob) => setSlots((current) => current?.map((slot) => (slot.id === job.id ? { ...slot, job } : slot)) ?? current)
+  const replace = (job: AutomationJob) => {
+    request.current += 1
+    active.current?.abort()
+    setSlots((current) => current?.map((slot) => (slot.id === job.id ? { ...slot, job } : slot)) ?? current)
+  }
   return { slots, replace }
 }
 
@@ -114,8 +126,27 @@ export function RunDetail() {
   const run = useLoad(`run:${runId}`, (signal) => api.getRun(runId, signal))
   const current = run.state.status === 'ready' ? run.state.data : null
   const rule = useLoad(current ? `rule:${current.ruleId}` : null, (signal) => api.getRule(current?.ruleId ?? '', signal))
-  const jobs = useRunJobs(current)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const jobs = useRunJobs(current, refreshKey)
   const [busy, setBusy] = useState<string | null>(null)
+  const poll = useRef({ revision: '', attempt: 0 })
+
+  useEffect(() => {
+    if (!current || !runHasRemainingWork(current.status)) return
+    if (poll.current.revision !== current.revision) poll.current = { revision: current.revision, attempt: 0 }
+    const delay = Math.min(POLL_FIRST_MS * 2 ** poll.current.attempt, POLL_MAX_MS)
+    const timer = window.setTimeout(() => {
+      poll.current.attempt += 1
+      run.reload()
+      setRefreshKey((value) => value + 1)
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [current?.status, current?.revision, refreshKey, run.reload])
+
+  function refresh() {
+    run.reload()
+    setRefreshKey((value) => value + 1)
+  }
 
   if (run.state.status === 'error') {
     const kind = classifyRouteError(run.state.error)
@@ -155,6 +186,7 @@ export function RunDetail() {
     setBusy('cancel')
     try {
       run.replace(await api.cancelRun(shown.id, shown.revision))
+      setRefreshKey((value) => value + 1)
       success('Cancelled. Anything already done stays.')
     } catch (error) {
       if (isStale(error)) run.reload()
@@ -207,10 +239,13 @@ export function RunDetail() {
           </span>
         )}
         actions={!finished ? (
-          <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void cancel()}>
-            Cancel remaining work
-          </button>
-        ) : undefined}
+          <>
+            <button type="button" className="btn btn-secondary" onClick={refresh}>Refresh</button>
+            <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void cancel()}>
+              Cancel remaining work
+            </button>
+          </>
+        ) : <button type="button" className="btn btn-secondary" onClick={refresh}>Refresh</button>}
       />
 
       <div className="automations-layout">
@@ -232,7 +267,10 @@ export function RunDetail() {
               <h2 id="automation-run-effects">What it changed</h2>
             </div>
             {shown.effects.length > 0 ? (
-              <RunEffects run={shown} from="run" onSettled={(next) => (next ? run.replace(next) : run.reload())} />
+              <RunEffects run={shown} from="run" onSettled={(next) => {
+                if (next) { run.replace(next); setRefreshKey((value) => value + 1) }
+                else refresh()
+              }} />
             ) : (
               <p className="automation-panel-text automation-empty-line">
                 {underway ? 'Nothing yet.' : 'Nothing was changed.'}
