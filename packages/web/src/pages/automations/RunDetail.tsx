@@ -130,18 +130,21 @@ export function RunDetail() {
   const jobs = useRunJobs(current, refreshKey)
   const [busy, setBusy] = useState<string | null>(null)
   const poll = useRef({ revision: '', attempt: 0 })
+  const runStatus = current?.status
+  const runRevision = current?.revision
+  const reloadRun = run.reload
 
   useEffect(() => {
-    if (!current || !runHasRemainingWork(current.status)) return
-    if (poll.current.revision !== current.revision) poll.current = { revision: current.revision, attempt: 0 }
+    if (!runStatus || runRevision === undefined || !runHasRemainingWork(runStatus)) return
+    if (poll.current.revision !== runRevision) poll.current = { revision: runRevision, attempt: 0 }
     const delay = Math.min(POLL_FIRST_MS * 2 ** poll.current.attempt, POLL_MAX_MS)
     const timer = window.setTimeout(() => {
       poll.current.attempt += 1
-      run.reload()
+      reloadRun()
       setRefreshKey((value) => value + 1)
     }, delay)
     return () => window.clearTimeout(timer)
-  }, [current?.status, current?.revision, refreshKey, run.reload])
+  }, [runStatus, runRevision, refreshKey, reloadRun])
 
   function refresh() {
     run.reload()
