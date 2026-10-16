@@ -769,14 +769,6 @@ export function RuleEditor() {
               </div>
             </details>
           </div>
-          {editing && editing.desiredState !== 'archived' && (
-            <div className="automation-danger-zone">
-              <p className="automation-meta">Archiving stops this rule for good. What it already did stays, with its history.</p>
-              <button type="button" className="btn btn-danger-ghost btn-sm" disabled={busy !== null} onClick={() => void archive()}>
-                Archive rule
-              </button>
-            </div>
-          )}
         </div>
 
         <aside className="automation-editor-side automation-review" id="preview" ref={previewRef} aria-label="Review and turn on">
@@ -832,6 +824,16 @@ export function RuleEditor() {
             </p>
           </div>
         </aside>
+
+        {/* After the review panel in the page's order, so a phone reaches Turn on before Archive. */}
+        {editing && editing.desiredState !== 'archived' && (
+          <div className="automation-danger-zone">
+            <p className="automation-meta">Archiving stops this rule for good. What it already did stays, with its history.</p>
+            <button type="button" className="btn btn-danger-ghost btn-sm" disabled={busy !== null} onClick={() => void archive()}>
+              Archive rule
+            </button>
+          </div>
+        )}
       </form>
     </PageShell>
   )

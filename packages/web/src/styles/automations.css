@@ -912,8 +912,29 @@
   }
 }
 
-/* Leaving for good sits apart from the form, under it. */
+/* Leaving for good sits apart from the form, under it: after the review
+   panel on a phone, in the form's column beside it on a wide screen. */
+.automation-editor:has(> .automation-danger-zone) {
+  grid-template-areas: 'main' 'side' 'danger';
+}
+
+.automation-editor:has(> .automation-danger-zone) > .automation-editor-main {
+  grid-area: main;
+}
+
+.automation-editor:has(> .automation-danger-zone) > .automation-editor-side {
+  grid-area: side;
+}
+
+@media (min-width: 900px) {
+  .automation-editor:has(> .automation-danger-zone) {
+    grid-template-areas: 'main side' 'danger side';
+    grid-template-rows: auto 1fr;
+  }
+}
+
 .automation-danger-zone {
+  grid-area: danger;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
