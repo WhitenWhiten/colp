@@ -177,6 +177,51 @@ function outcomeUnknown(error: unknown): boolean {
   return error.status === 0 || error.status >= 500 || error.status === 429 || error.status === 408
 }
 
+type ResponseShape = Record<string, 'string' | 'number' | 'boolean' | 'array' | 'object'>
+const RULE: ResponseShape = { id: 'string', revision: 'string', desiredState: 'string', effectiveState: 'string', definition: 'object', bindingSetId: 'string', createdAt: 'string', updatedAt: 'string' }
+const RUN: ResponseShape = { id: 'string', revision: 'string', ruleId: 'string', status: 'string', memberEventIds: 'array', recipientTargetIds: 'array' }
+const JOB: ResponseShape = { id: 'string', revision: 'string', runId: 'string', status: 'string', task: 'object' }
+
+/** Check the fields required to identify and use each write result before releasing its retry key. */
+function writeResponseShape(method: string, path: string): ResponseShape | null {
+  if (method === 'DELETE' && /\/binding-sets\/[^/]+$/u.test(path)) return null
+  if (/\/rules\/preview$/u.test(path)) return { previewId: 'string', sideEffects: 'boolean', decisions: 'array', diagnostics: 'array', plannedRunCount: 'number', remainderCount: 'number' }
+  if (/\/run-once\/preview$/u.test(path)) return { id: 'string', previewDigest: 'string', canStart: 'boolean', sample: 'array', expiresAt: 'string' }
+  if (/\/rules\/[^/]+\/run-once$/u.test(path)) return RUN
+  if (/\/rules\/[^/]+\/revalidate$/u.test(path)) return { ruleId: 'string', checkedAt: 'string', effectiveState: 'string', incidents: 'array' }
+  if (/\/rules(?:\/[^/]+(?:\/lifecycle)?)?$/u.test(path)) return RULE
+  if (/\/binding-sets(?:\/[^/]+)?$/u.test(path)) return { id: 'string', revision: 'string', name: 'string', values: 'object', updatedAt: 'string' }
+  if (/\/pause$/u.test(path)) return { paused: 'boolean', revision: 'string', heldJobs: 'number' }
+  if (/\/incidents\/[^/]+\/acknowledge$/u.test(path)) return { id: 'string', ruleId: 'string', state: 'string', severity: 'string' }
+  if (/\/runs\/[^/]+\/read$/u.test(path)) return { id: 'string', status: 'string', resourceId: 'string', diagnostics: 'array' }
+  if (/\/runs\/[^/]+(?:\/undo|\/cancel)$/u.test(path)) return RUN
+  if (/\/jobs\/[^/]+\/decision$/u.test(path)) return { jobId: 'string', resultId: 'string', proposalDigest: 'string', status: 'string', effectReceiptIds: 'array', diagnostics: 'array' }
+  if (/\/jobs\/[^/]+\/retry$/u.test(path)) return JOB
+  if (/\/connection-profiles\/[^/]+$/u.test(path)) return { id: 'string', revision: 'string', configuration: 'object', eventsSupport: 'string' }
+  if (/\/targets\/[^/]+\/pairings$/u.test(path)) return { pairingId: 'string', targetId: 'string', expiresAt: 'string' }
+  if (/\/targets(?:\/[^/]+(?:\/revoke)?)?$/u.test(path)) return { id: 'string', revision: 'string', configuration: 'object', status: 'string' }
+  throw new Error(`Missing Automation response contract for ${method} ${path}`)
+}
+
+function validateWriteResponse(method: string, path: string, value: unknown): void {
+  const shape = writeResponseShape(method, path)
+  if (shape === null) {
+    if (value !== null) throw badResponse('The empty response was not understood.')
+    return
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw badResponse('The Automation response was not understood.')
+  const record = value as Record<string, unknown>
+  for (const [key, kind] of Object.entries(shape)) {
+    const field = record[key]
+    if (kind === 'array' ? !Array.isArray(field) : kind === 'object' ? !field || typeof field !== 'object' || Array.isArray(field) : typeof field !== kind) {
+      throw badResponse(`The Automation response is missing a valid ${key}.`)
+    }
+  }
+  if (/\/targets\/[^/]+\/pairings$/u.test(path) && record.code !== null && typeof record.code !== 'string') {
+    throw badResponse('The pairing response is missing a valid code.')
+  }
+}
+
 export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
   const doFetch: FetchLike = (input, init) => (fetchImpl ?? globalThis.fetch)(input, init)
 
@@ -194,13 +239,17 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
         sameRequestRetrySafe: true,
       })
     }
-    if (response.status === 204) return null
+    if (response.status === 204) {
+      if (init.method === 'DELETE' && /\/binding-sets\/[^/]+$/u.test(path)) return null
+      throw badResponse('The Automation response had no body.')
+    }
     const text = await response.text()
     let body: unknown = null
     if (text) {
       try {
         body = JSON.parse(text) as unknown
       } catch {
+        if (response.ok) throw badResponse('The Automation response was not valid JSON.')
         body = { raw: text }
       }
     }
@@ -234,6 +283,7 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
         headers,
         ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
       })
+      validateWriteResponse(method, path, result)
       clearCommandId(intent)
       return result as T
     } catch (error) {

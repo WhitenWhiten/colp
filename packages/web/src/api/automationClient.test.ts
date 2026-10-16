@@ -4,6 +4,10 @@ import { applySessionView, clearSession } from './sessionStore'
 import { automationEtag, createAutomationApi } from './automationClient'
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
+const ruleResult = { id: 'rule-1', revision: '4', desiredState: 'enabled', effectiveState: 'active', definition: {}, bindingSetId: 'binding-1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }
+const runResult = { id: 'run-1', revision: '8', ruleId: 'rule-1', status: 'running', memberEventIds: [], recipientTargetIds: [] }
+const jobResult = { id: 'job-1', revision: '4', runId: 'run-1', status: 'ready', task: {} }
+const previewResult = { id: 'preview-1', previewDigest: 'digest', canStart: true, sample: [], expiresAt: '2099-01-01T00:00:00Z' }
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -34,7 +38,7 @@ describe('automation client', () => {
   })
 
   it('turns a rule on with CSRF, a command id, the revision as If-Match and the exact preview id', async () => {
-    const fetchImpl = vi.fn(async () => json(200, { id: 'rule-1', revision: '4' }))
+    const fetchImpl = vi.fn(async () => json(200, ruleResult))
     await createAutomationApi(fetchImpl).setRuleLifecycle('rule-1', {
       state: 'enabled', pendingRuns: 'hold', activationPreviewId: 'preview-9', reason: 'Owner turned it on.',
     }, '3')
@@ -50,7 +54,7 @@ describe('automation client', () => {
 
   it('replays the same command after an unknown outcome and starts a new one after success', async () => {
     const responses = [json(503, { error: { code: 'service_unavailable', message: 'Busy', recovery: 'same_request', sameRequestRetrySafe: true } }),
-      json(200, { paused: true, revision: '2' }), json(200, { paused: true, revision: '3' })]
+      json(200, { paused: true, revision: '2', heldJobs: 0 }), json(200, { paused: true, revision: '3', heldJobs: 0 })]
     const fetchImpl = vi.fn(async () => responses.shift() ?? json(500, {}))
     const api = createAutomationApi(fetchImpl)
     await expect(api.setPause(true, '1')).rejects.toMatchObject({ status: 503 })
@@ -61,8 +65,26 @@ describe('automation client', () => {
     expect(ids[2]).not.toBe(ids[1])
   })
 
+  it.each([
+    ['invalid JSON', () => new Response('{broken', { status: 201 })],
+    ['empty success', () => new Response('', { status: 201 })],
+    ['missing required fields', () => json(201, { id: 'rule-1' })],
+  ])('keeps the create command after %s and replays a committed request', async (_label, malformed) => {
+    const fetchImpl = vi.fn(async () => fetchImpl.mock.calls.length === 1 ? malformed() : json(201, ruleResult))
+    const api = createAutomationApi(fetchImpl)
+    const input = { definition: {} as never, bindingSetId: 'binding-1' }
+    await expect(api.createRule(input)).rejects.toMatchObject({ code: 'invalid_document', recovery: 'same_request' })
+    expect(await api.createRule(input)).toEqual(ruleResult)
+    expect(headersOf(fetchImpl.mock.calls[0]).get('Known-Command-Id')).toBe(headersOf(fetchImpl.mock.calls[1]).get('Known-Command-Id'))
+  })
+
+  it('accepts the binding deletion endpoint’s empty response', async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }))
+    await expect(createAutomationApi(fetchImpl).deleteBindingSet('binding-1', '2')).resolves.toBeUndefined()
+  })
+
   it('starts a new command after a definite refusal', async () => {
-    const responses = [json(412, { error: { code: 'precondition_failed', message: 'Changed', recovery: 'refresh_and_retry' } }), json(200, {})]
+    const responses = [json(412, { error: { code: 'precondition_failed', message: 'Changed', recovery: 'refresh_and_retry' } }), json(200, ruleResult)]
     const fetchImpl = vi.fn(async () => responses.shift() ?? json(500, {}))
     const api = createAutomationApi(fetchImpl)
     await expect(api.archiveRule('rule-1', '1')).rejects.toMatchObject({ status: 412, code: 'precondition_failed' })
@@ -72,7 +94,7 @@ describe('automation client', () => {
   })
 
   it('names one effect, its digest and the run revision when undoing', async () => {
-    const fetchImpl = vi.fn(async () => json(200, { id: 'run-1' }))
+    const fetchImpl = vi.fn(async () => json(200, runResult))
     await createAutomationApi(fetchImpl).undoRunEffect('run-1', {
       reason: 'Owner undid one effect.', expectedEffectDigest: 'a'.repeat(64), effectReceiptId: 'eff-1',
     }, '7')
@@ -92,7 +114,7 @@ describe('automation client', () => {
   })
 
   it('cancels a run and retries a job as commands on that resource’s revision', async () => {
-    const fetchImpl = vi.fn(async () => json(200, { id: 'x' }))
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => json(200, String(url).includes('/jobs/') ? jobResult : runResult))
     const api = createAutomationApi(fetchImpl)
     await api.cancelRun('run-1', '8')
     await api.retryJob('job-1', '4')
@@ -107,7 +129,7 @@ describe('automation client', () => {
   })
 
   it('decides a proposal by its exact digest on the job revision', async () => {
-    const fetchImpl = vi.fn(async () => json(200, { jobId: 'job-1', status: 'awaitingApproval' }))
+    const fetchImpl = vi.fn(async () => json(200, { jobId: 'job-1', resultId: 'result-1', proposalDigest: 'd'.repeat(64), status: 'awaitingApproval', effectReceiptIds: [], diagnostics: [] }))
     await createAutomationApi(fetchImpl).decideJob('job-1', { decision: 'approve', proposalDigest: 'd'.repeat(64), reason: 'Owner approved.' }, '7')
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('/api/v1/me/automations/jobs/job-1/decision')
@@ -118,7 +140,9 @@ describe('automation client', () => {
   })
 
   it('issues a pairing code and changes opt-ins on the resource revision', async () => {
-    const fetchImpl = vi.fn(async () => json(201, { pairingId: 'p', targetId: 't', code: 'c', expiresAt: '2099-01-01T00:00:00Z' }))
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => json(201, String(url).endsWith('/pairings')
+      ? { pairingId: 'p', targetId: 't', code: 'c', expiresAt: '2099-01-01T00:00:00Z' }
+      : { id: 'profile-1', revision: '5', configuration: {}, eventsSupport: 'unknown' }))
     const api = createAutomationApi(fetchImpl)
     await api.issuePairing('target-1', '3')
     await api.replaceConnectionProfile('profile-1', {
@@ -135,7 +159,8 @@ describe('automation client', () => {
   })
 
   it('pages a run’s outputs and marks read through one output on the run revision', async () => {
-    const fetchImpl = vi.fn(async () => json(200, { items: [], nextCursor: null }))
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => json(200, String(url).includes('/outputs')
+      ? { items: [], nextCursor: null } : { id: 'receipt-1', status: 'completed', resourceId: 'run-1', diagnostics: [] }))
     const api = createAutomationApi(fetchImpl)
     await api.listRunOutputs('run-1', { cursor: 'c2', limit: 3 })
     await api.markRunRead('run-1', 'output-9', '5')
@@ -148,9 +173,9 @@ describe('automation client', () => {
   })
 
   it('starts a run-once by the preview’s id and digest alone, replaying it after an unknown outcome', async () => {
-    const responses = [json(200, { id: 'preview-1' }), json(200, { id: 'preview-2' }),
+    const responses = [json(200, previewResult), json(200, { ...previewResult, id: 'preview-2' }),
       json(503, { error: { code: 'service_unavailable', message: 'Busy', recovery: 'same_request', sameRequestRetrySafe: true } }),
-      json(201, { id: 'run-1' })]
+      json(201, runResult)]
     const fetchImpl = vi.fn(async () => responses.shift() ?? json(500, {}))
     const api = createAutomationApi(fetchImpl)
     const input = { folder: { serverUuid: 'server', collectionId: 'collection', nodeId: 'root' }, includeDescendants: true, moveFolderedBookmarks: false, tasks: 'none' as const }
