@@ -1,51 +1,75 @@
 import { t } from './i18n.js';
 import type { PublicRootNode } from './types.js';
 
-/** Folder checkboxes describe whole-tree sync; hidden private flags hold explicit exclusions. */
 export const ROOTS_REPAINT = 'known:roots-repaint';
-const box = (row: Element, kind: 'select' | 'private') => row.querySelector<HTMLInputElement>(`.root-${kind} input`);
+interface FolderChoices { readonly roots: readonly PublicRootNode[]; excluded: Set<string> }
+const choices = new WeakMap<HTMLElement, FolderChoices>();
+const empty: FolderChoices = { roots: [], excluded: new Set() };
 
-/** Every editable browser root is selected. Only explicit exclusions are sent as private refs. */
-export function checkedRootRefs(tree: HTMLElement, kind: 'select' | 'private' = 'select'): string[] {
-  const selector = kind === 'select'
-    ? '.root-row[data-depth="0"] .root-select input:not([data-managed])'
-    : '.root-private input:checked';
-  return Array.from(tree.querySelectorAll<HTMLInputElement>(selector))
-    .map(input => input.dataset.ref).filter((value): value is string => Boolean(value));
+/** Explicit exclusions are the state; checkboxes only display whole-tree coverage. */
+export function initializeFolderCoverage(tree: HTMLElement, roots: readonly PublicRootNode[]): void {
+  choices.set(tree, { roots, excluded: new Set(roots.filter(root => root.privateLocal).map(root => root.ref)) });
 }
-export function outermostSelectedRefs(roots: readonly PublicRootNode[]): Set<string> {
-  return new Set(roots.filter(root => root.depth === 0 && !root.managed).map(root => root.ref));
+export function syncRootRefs(tree: HTMLElement): string[] {
+  return (choices.get(tree) ?? empty).roots.filter(root => root.depth === 0 && !root.managed).map(root => root.ref);
 }
-/** An excluded parent carries its descendants; checking it again restores their own choices. */
-export function paintCoverage(tree: HTMLElement): void {
-  const open: Array<{ depth: number; excluded: boolean }> = [];
-  for (const row of Array.from(tree.querySelectorAll<HTMLElement>('.root-row'))) {
-    const input = box(row, 'select'), depth = Number(row.dataset.depth);
-    if (!input) continue;
-    while (open.length && open.at(-1)!.depth >= depth) open.pop();
-    const inheritedExclusion = open.some(parent => parent.excluded);
-    const managed = input.dataset.managed !== undefined;
-    const excluded = Boolean(box(row, 'private')?.checked) || inheritedExclusion;
-    input.checked = !managed && !excluded;
-    input.disabled = managed || inheritedExclusion;
-    delete input.dataset.inherited;
-    const label = input.closest('label');
-    if (inheritedExclusion) label?.setAttribute('title', t('sync_keptWithParent', 'This folder stays on this browser with its parent.'));
-    else label?.removeAttribute('title');
-    row.dataset.localOnly = String(excluded);
-    open.push({ depth, excluded });
+export function excludedFolderRefs(tree: HTMLElement): string[] {
+  const state = choices.get(tree) ?? empty;
+  return state.roots.filter(root => state.excluded.has(root.ref)).map(root => root.ref);
+}
+export function replaceFolderExclusions(tree: HTMLElement, excluded: ReadonlySet<string>): void {
+  const state = choices.get(tree);
+  if (state) state.excluded = new Set(state.roots.filter(root => !root.managed && excluded.has(root.ref)).map(root => root.ref));
+}
+
+function coverage(state: FolderChoices) {
+  const parents: number[] = [];
+  const rows = state.roots.map(root => ({ root, included: false, inherited: false, partial: false, parent: -1 }));
+  for (const [index, row] of rows.entries()) {
+    while (parents.length && rows[parents.at(-1)!]!.root.depth >= row.root.depth) parents.pop();
+    row.parent = parents.at(-1) ?? -1;
+    row.inherited = row.parent >= 0 && !rows[row.parent]!.included;
+    row.included = !row.root.managed && !row.inherited && !state.excluded.has(row.root.ref);
+    parents.push(index);
   }
+  for (let index = rows.length - 1; index >= 0; index--) {
+    const row = rows[index]!;
+    if (row.parent >= 0 && (!row.included || row.partial)) rows[row.parent]!.partial = true;
+  }
+  return rows;
 }
-/** Translate a user checkbox change into an explicit private-local boundary. */
+
+/** Paint from the model, returning the count of folders included in sync. */
+export function paintCoverage(tree: HTMLElement): number {
+  const rows = new Map(Array.from(tree.querySelectorAll<HTMLElement>('.root-row')).map(row => [row.dataset.ref, row]));
+  const states = coverage(choices.get(tree) ?? empty);
+  for (const state of states) {
+    const row = rows.get(state.root.ref), input = row?.querySelector<HTMLInputElement>('.root-select input');
+    if (!input) continue;
+    input.indeterminate = state.included && state.partial;
+    input.checked = state.included && !state.partial;
+    input.disabled = state.root.managed || state.inherited;
+    const label = input.closest('label');
+    if (state.inherited) label?.setAttribute('title', t('sync_keptWithParent', 'This folder stays on this browser with its parent.'));
+    else label?.removeAttribute('title');
+  }
+  return states.filter(state => state.included).length;
+}
+
+/** An excluded parent carries descendants; restoring it retains their own exclusions. */
 export function recordFolderChoice(input: HTMLInputElement): void {
-  const row = input.closest('.root-row');
-  const privateInput = row && box(row, 'private');
-  if (privateInput) privateInput.checked = !input.checked;
-  if (row && input.checked && (row as HTMLElement).dataset.partiallySynced === 'true') {
-    const rows = Array.from(row.parentElement?.querySelectorAll<HTMLElement>('.root-row') ?? []);
-    const index = rows.indexOf(row as HTMLElement), depth = Number((row as HTMLElement).dataset.depth);
-    for (let next = index + 1; next < rows.length && Number(rows[next]!.dataset.depth) > depth; next++) {
-      const child = box(rows[next]!, 'private'); if (child) child.checked = false;
+  const tree = input.closest('.root-row')?.parentElement;
+  const state = tree && choices.get(tree);
+  if (!state || !input.dataset.ref) return;
+  const rows = coverage(state), index = rows.findIndex(row => row.root.ref === input.dataset.ref);
+  const row = rows[index];
+  if (!row || row.root.managed) return;
+  if (!input.checked) { state.excluded.add(row.root.ref); return; }
+  state.excluded.delete(row.root.ref);
+  // Including a mixed parent explicitly includes its whole subtree.
+  if (row.included && row.partial) {
+    for (let next = index + 1; next < rows.length && rows[next]!.root.depth > row.root.depth; next++) {
+      state.excluded.delete(rows[next]!.root.ref);
     }
   }
 }

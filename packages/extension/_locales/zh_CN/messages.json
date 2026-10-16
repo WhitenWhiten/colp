@@ -7895,10 +7895,6 @@
     "message": "两者都保留",
     "description": "Keep both"
   },
-  "sync_keepFolderOnBrowser": {
-    "message": "将 $1 仅保留在此浏览器上",
-    "description": "Keep $1 on this browser"
-  },
   "sync_keepHere": {
     "message": "保留在此",
     "description": "Keep it here"

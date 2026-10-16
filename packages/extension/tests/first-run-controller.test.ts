@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { readFile } from 'node:fs/promises';
 import { afterEach, expect, test, vi } from 'vitest';
+import { initializeFolderCoverage } from '../src/folder-coverage.js';
 import { bindFirstRunOnboarding } from '../src/first-run-ui.js';
 import { bindOptionsSyncProgress } from '../src/sync-progress-dom.js';
 import type { FirstRunPreviewOk, FirstRunRequest, PublicRootView } from '../src/types.js';
@@ -20,7 +21,8 @@ async function mount(sendMessage: (message: FirstRunRequest) => Promise<unknown>
   vi.stubGlobal('chrome', { storage: { local: { get: async (key: string) => ({ [key]: values[key] }),
     set: async (patch: Record<string, unknown>) => { Object.assign(values, patch); } } }, runtime: { sendMessage } });
   const rootTree = document.getElementById('root-tree')!;
-  rootTree.innerHTML = '<div class="root-row" data-depth="0"><label class="root-select"><input type="checkbox" data-ref="bar" checked></label><label class="root-private" hidden><input type="checkbox" data-ref="bar"></label></div>';
+  rootTree.innerHTML = '<div class="root-row" data-ref="bar" data-depth="0"><label class="root-select"><input type="checkbox" data-ref="bar" checked></label></div>';
+  initializeFolderCoverage(rootTree, view('fixture').roots);
   const ui = bindFirstRunOnboarding({ rootTree, saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
     requestPermission: document.getElementById('request-bookmark-permission') as HTMLButtonElement,
     folderHeading: document.getElementById('folder-heading')!, folderIntro: document.getElementById('folder-intro')!, showPane: () => {},

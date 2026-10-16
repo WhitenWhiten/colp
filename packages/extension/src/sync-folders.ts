@@ -1,6 +1,6 @@
 import { folderCountCopy, folderMetaCopy } from './first-run-ui.js';
 import type { bindFirstRunOnboarding } from './first-run-ui.js';
-import { checkedRootRefs, outermostSelectedRefs, paintCoverage, recordFolderChoice, ROOTS_REPAINT } from './folder-coverage.js';
+import { syncRootRefs, excludedFolderRefs, initializeFolderCoverage, paintCoverage, recordFolderChoice, ROOTS_REPAINT } from './folder-coverage.js';
 import { createIcon } from './icons.js';
 import { t, tn } from './i18n.js';
 import { el, emptyBlock } from './library-dom.js';
@@ -62,7 +62,7 @@ export function bindFolders(host: FoldersHost) {
   }
 
   function render(next: PublicRootView): void {
-    view = next; tree.replaceChildren(); paintAlert(next.status);
+    view = next; tree.replaceChildren(); initializeFolderCoverage(tree, next.roots); paintAlert(next.status);
     setPermissionControls(next.status === 'permission_required' ? 'required' : 'granted');
     const canEdit = next.status !== 'permission_required' && next.status !== 'tree_unavailable';
     selectAll.disabled = !canEdit || next.roots.length === 0;
@@ -95,10 +95,7 @@ export function bindFolders(host: FoldersHost) {
       meta.textContent = folderMetaCopy(root); meta.hidden = !root.managed && root.exclusionReason !== 'managed';
       const tail = root.managed ? el('span', t('common_managed', 'Managed'), 'badge') : el('span', folderCountCopy(root), 'folder-count');
       selection.wrapper.append(createIcon('folder', 16), label, meta, tail);
-      const privacy = checkbox('root-private', root.ref, root.privateLocal, false, t('sync_keepFolderOnBrowser', 'Keep $1 on this browser', root.title));
-      privacy.wrapper.hidden = true;
-
-      row.append(toggle, selection.wrapper, privacy.wrapper); tree.append(row);
+      row.append(toggle, selection.wrapper); tree.append(row);
       /* R13 D-21: the deep-linked folder arrives checked — draw the eye to it. */
       if (root.preselected === true) {
         selection.input.focus(); row.scrollIntoView({ block: 'nearest' });
@@ -148,37 +145,16 @@ export function bindFolders(host: FoldersHost) {
 
   /** Coverage, dashes on parents, the "3 of 6 folders" line and whether there is anything to cancel. */
   function paint(): void {
-    paintCoverage(tree);
-    const rows = Array.from(tree.querySelectorAll<HTMLElement>('.root-row'));
-    const inputs = rows.map((row) => row.querySelector<HTMLInputElement>('.root-select input'));
-    const depths = rows.map((row) => Number(row.dataset.depth));
-    for (const [index, input] of inputs.entries()) {
-      if (!input) continue;
-      let inside = false;
-      for (let next = index + 1; next < rows.length && depths[next]! > depths[index]!; next += 1) {
-        if (inputs[next]?.checked) { inside = true; break; }
-      }
-      input.indeterminate = input.checked && !inside && index + 1 < rows.length && depths[index + 1]! > depths[index]!;
-      if (input.checked && inside) {
-        let allChecked = true;
-        for (let next = index + 1; next < rows.length && depths[next]! > depths[index]!; next++) if (!inputs[next]?.checked) allChecked = false;
-        input.indeterminate = !allChecked;
-      }
-    }
-    for (const [index, input] of inputs.entries()) if (input) {
-      rows[index]!.dataset.partiallySynced = String(input.indeterminate);
-      if (input.indeterminate) input.checked = false;
-    }
-    const checked = rows.filter((row, index) => row.dataset.localOnly !== 'true' && inputs[index]?.dataset.managed === undefined).length;
+    const checked = paintCoverage(tree);
+    const rows = view?.roots ?? [];
     count.textContent = rows.length === 0 ? '' : tn('sync_foldersChecked', rows.length, '$2 of $1 folder', '$2 of $1 folders', checked);
     cancel.disabled = !dirty();
   }
 
   function dirty(): boolean {
     if (!view) return false;
-    const selected = new Set(checkedRootRefs(tree)), excluded = new Set(checkedRootRefs(tree, 'private'));
-    const loaded = outermostSelectedRefs(view.roots);
-    return view.roots.some((root) => selected.has(root.ref) !== loaded.has(root.ref) || excluded.has(root.ref) !== root.privateLocal);
+    const excluded = new Set(excludedFolderRefs(tree));
+    return view.roots.some(root => excluded.has(root.ref) !== root.privateLocal);
   }
 
   function paintCollapsed(): void {

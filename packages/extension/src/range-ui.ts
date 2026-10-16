@@ -1,5 +1,5 @@
 import type { PublicRangePreview, PublicRootView, RootRequest, RootResponse } from './types.js';
-import { checkedRootRefs } from './folder-coverage.js';
+import { syncRootRefs, excludedFolderRefs } from './folder-coverage.js';
 import { listCopy, t, tn } from './i18n.js';
 
 export function bindRangeAdjustment(host: {
@@ -35,7 +35,7 @@ export function bindRangeAdjustment(host: {
     if (!view) return;
     host.saveRoots.disabled = true; host.rootFeedback.textContent = t('sync_savingFolderSettings', 'Saving folder settings.');
     error.hidden = true;
-    const selectedRefs = checkedRootRefs(host.rootTree); const privateRefs = checkedRootRefs(host.rootTree, 'private');
+    const selectedRefs = excludedFolderRefs(host.rootTree); const privateRefs = syncRootRefs(host.rootTree);
     const response = await rootRequest({
       kind: 'known.roots.preview', viewId: view.viewId, selectedRefs, privateRefs,
     });

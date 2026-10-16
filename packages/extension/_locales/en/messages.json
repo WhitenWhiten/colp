@@ -6032,9 +6032,6 @@
   "sync_keepBoth": {
     "message": "Keep both"
   },
-  "sync_keepFolderOnBrowser": {
-    "message": "Keep $1 on this browser"
-  },
   "sync_keepHere": {
     "message": "Keep it here"
   },

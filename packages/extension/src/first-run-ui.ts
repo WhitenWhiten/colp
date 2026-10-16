@@ -15,7 +15,7 @@ import {
   advancedModeHint, advancedPreviewRequest, advancedPreviewSummary, type AdvancedUiMode, selectionFingerprint,
   PREVIEW_ONLY_GUIDANCE, PREVIEW_ONLY_SWITCH_LABEL,
 } from './advanced-first-run-ui.js';
-import { checkedRootRefs, ROOTS_REPAINT } from './folder-coverage.js';
+import { syncRootRefs, excludedFolderRefs, replaceFolderExclusions, ROOTS_REPAINT } from './folder-coverage.js';
 import { createFirstRunPreviewSession } from './first-run-preview-session.js';
 import { observeFirstRunResponse, type FirstRunObservation } from './first-run-observation.js';
 import { rejectedWorkCopy, syncAttentionTerminalCode, terminalFreezeReasonCopy } from './sync-attention-ui.js';
@@ -140,7 +140,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       if (firstPaint) {
         void readFirstRunDraft().then((draft) => {
           if (draft?.excluded?.length) {
-            applyCheckboxState(host.rootTree, restoreDraftSelection(next, { ...draft, selected: draft.excluded }));
+            applyFolderExclusions(host.rootTree, restoreDraftSelection(next, { ...draft, selected: draft.excluded }));
           }
     void refreshPreview();
         });
@@ -201,8 +201,8 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     if (!rangeActive || !view || view.status === 'permission_required' || observation.firstRun === 'running') return;
     if (!advancedRequest && advancedMode !== 'merge') return;
     say();
-    const selected = new Set(checkedRootRefs(host.rootTree));
-    const selection = collectPreviewSelection(view, selected, new Set(checkedRootRefs(host.rootTree, 'private')));
+    const selected = new Set(syncRootRefs(host.rootTree));
+    const selection = collectPreviewSelection(view, selected, new Set(excludedFolderRefs(host.rootTree)));
     const requestFingerprint = selectionFingerprint({ viewId: view.viewId,
       selectedRefs: selection.selectedRefs, excludedRefs: selection.excludedRefs, libraryId, mode: advancedMode });
     const ticket = previewSession.read(requestFingerprint); if (!ticket) return;
@@ -225,7 +225,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     if (!advancedRequest) {
       const prior = await readFirstRunDraft();
       if (!previewSession.current(ticket, currentSelectionFingerprint())) return;
-      const draft: FirstRunDraft = { selected: draftPicksFromView(view, selected), excluded: draftPicksFromView(view, new Set(checkedRootRefs(host.rootTree, 'private'))), deferred: prior?.deferred === true,
+      const draft: FirstRunDraft = { selected: draftPicksFromView(view, selected), excluded: draftPicksFromView(view, new Set(excludedFolderRefs(host.rootTree))), deferred: prior?.deferred === true,
         ...(libraryId ? { libraryId } : {}) };
       await writeFirstRunDraft(applyPreviewToDraft(draft, response));
     }
@@ -366,10 +366,10 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   async function deferFirstRun(): Promise<void> {
     clearStatusPoll();
     const preview = previewSession.preview;
-    const selected = new Set(checkedRootRefs(host.rootTree));
+    const selected = new Set(syncRootRefs(host.rootTree));
     const draft: FirstRunDraft = {
       selected: view ? draftPicksFromView(view, selected) : [],
-      excluded: view ? draftPicksFromView(view, new Set(checkedRootRefs(host.rootTree, 'private'))) : [], deferred: true,
+      excluded: view ? draftPicksFromView(view, new Set(excludedFolderRefs(host.rootTree))) : [], deferred: true,
       ...(libraryId ? { libraryId } : {}),
       ...(preview ? {
         previewId: preview.previewId, treeDigest: preview.treeDigest,
@@ -395,8 +395,8 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
 
   function currentSelectionFingerprint(): string {
     if (!view) return '';
-    const selected = new Set(checkedRootRefs(host.rootTree));
-    const selection = collectPreviewSelection(view, selected, new Set(checkedRootRefs(host.rootTree, 'private')));
+    const selected = new Set(syncRootRefs(host.rootTree));
+    const selection = collectPreviewSelection(view, selected, new Set(excludedFolderRefs(host.rootTree)));
     return selectionFingerprint({ viewId: view.viewId, selectedRefs: selection.selectedRefs,
       excludedRefs: selection.excludedRefs, libraryId, mode: advancedMode });
   }
@@ -540,10 +540,8 @@ function required(id: string): HTMLElement {
 }
 
 /** The draft's own picks; folder coverage then ticks what they carry, and the pane repaints its count. */
-function applyCheckboxState(tree: HTMLElement, excluded: ReadonlySet<string>): void {
-  for (const input of Array.from(tree.querySelectorAll<HTMLInputElement>('.root-private input'))) {
-    if (input.dataset.ref) input.checked = excluded.has(input.dataset.ref);
-  }
+function applyFolderExclusions(tree: HTMLElement, excluded: ReadonlySet<string>): void {
+  replaceFolderExclusions(tree, excluded);
   tree.dispatchEvent(new Event(ROOTS_REPAINT));
 }
 
