@@ -12,6 +12,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - The Know-N browser extension moved into `packages/extension`, with its own CI jobs and release workflow. It keeps its own version; see its [CHANGELOG](packages/extension/CHANGELOG.md).
 
+## [0.2.1] - 2026-10-16
+
+The protocol, canonical Schema, Profiles and Requirements Digest are unchanged from 0.2.0.
+
+### Node.js package
+
+- Automation editing previews accept an optional owned `ruleId`, allowing hosts to exclude the edited rule from competition and bind activation to its identity.
+- Automation `ChangeInput.executionPolicyId` accepts `null` for explicit policy removal; omission preserves the existing policy.
+- Automation usage views accept optional `heldRuns`, counting runs with remaining work explicitly held by the owner.
+
 ## [0.2.0] - 2026-10-14
 
 The protocol, the canonical Schema, the seven Profiles and the Requirements Digest are unchanged from 0.1.3. This release adds optional Automation APIs that sit outside protocol conformance.
