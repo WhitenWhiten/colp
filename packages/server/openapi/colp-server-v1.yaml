@@ -13853,7 +13853,6 @@ components:
         nodeCount:
           type: integer
           minimum: 0
-          maximum: 2000
         createdAt:
           $ref: "#/components/schemas/UtcDateTime"
         changeCounts:
@@ -13913,17 +13912,14 @@ components:
           type: boolean
         updatedNodeIds:
           type: array
-          maxItems: 2000
           items:
             $ref: "#/components/schemas/OpaqueId"
         movedNodeIds:
           type: array
-          maxItems: 2000
           items:
             $ref: "#/components/schemas/OpaqueId"
         deletedNodeIds:
           type: array
-          maxItems: 2000
           items:
             $ref: "#/components/schemas/OpaqueId"
         preRestoreVersionId:

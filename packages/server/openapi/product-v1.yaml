@@ -28895,7 +28895,7 @@ components:
           type: string
           enum: [ manual, pre_restore, pre_mutation ]
         label: { type: string, minLength: 1, maxLength: 80 }
-        nodeCount: { type: integer, minimum: 0, maximum: 2000 }
+        nodeCount: { type: integer, minimum: 0 }
         createdAt: { $ref: '#/components/schemas/UtcDateTime' }
         changeCounts: { $ref: '#/components/schemas/CollectionVersionChangeCounts' }
         changes:
@@ -28944,15 +28944,12 @@ components:
         noop: { type: boolean }
         updatedNodeIds:
           type: array
-          maxItems: 2000
           items: { $ref: '#/components/schemas/OpaqueId' }
         movedNodeIds:
           type: array
-          maxItems: 2000
           items: { $ref: '#/components/schemas/OpaqueId' }
         deletedNodeIds:
           type: array
-          maxItems: 2000
           items: { $ref: '#/components/schemas/OpaqueId' }
         preRestoreVersionId:
           type: [ 'string', 'null' ]
