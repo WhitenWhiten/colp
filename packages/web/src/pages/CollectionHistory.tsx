@@ -50,17 +50,26 @@ const NO_VERSIONS: CollectionVersion[] = []
 /** An unlabelled save comes back named "Snapshot <UTC timestamp>". */
 const SERVER_DEFAULT_LABEL = /^Snapshot \d{4}-\d{2}-\d{2}T[\d:.]+Z$/u
 
+/** The versions the server saves before a rule moves bookmarks, in the words
+    the Automations pages use. A Map, so an owner's own label is never read as
+    an object key. */
+const SERVER_LABELS = new Map([
+  ['Before deterministic automation placement', 'Before a rule filed a bookmark'],
+  ['Before explicit run-once placement', 'Before Run once'],
+])
+
 /** The list already shows when a version was saved, in local time, so an
     unlabelled save reads as "Snapshot" instead of repeating a UTC stamp. */
 function versionLabel(version: Pick<CollectionVersion, 'label'>): string {
-  return SERVER_DEFAULT_LABEL.test(version.label) ? 'Snapshot' : version.label
+  if (SERVER_DEFAULT_LABEL.test(version.label)) return 'Snapshot'
+  return SERVER_LABELS.get(version.label) ?? version.label
 }
 
 /** A version named in a sentence: its label, or its time when it has none. */
 function versionReference(version: Pick<CollectionVersion, 'label' | 'createdAt'>): string {
   return SERVER_DEFAULT_LABEL.test(version.label)
     ? `the snapshot from ${formatMediumInstant(version.createdAt)}`
-    : `“${version.label}”`
+    : `“${versionLabel(version)}”`
 }
 
 type HistoryCollection = {

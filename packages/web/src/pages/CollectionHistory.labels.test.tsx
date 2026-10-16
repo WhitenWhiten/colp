@@ -78,4 +78,31 @@ describe('Collection history version names', () => {
     expect(document.querySelector('[role="dialog"]')?.textContent)
       .toContain(`Restore the snapshot from ${formatMediumInstant(SAVED_AT)}?`)
   })
+
+  it('names the versions saved before a rule moves bookmarks the way the Automations pages do', async () => {
+    const filed = version({ label: 'Before deterministic automation placement', kind: 'pre_mutation' })
+    mocks.listCollectionVersions.mockResolvedValue({
+      items: [filed, version({ versionId: 'ver-2', label: 'Before explicit run-once placement', kind: 'pre_mutation' })],
+      nextCursor: null,
+    })
+    mocks.getCollectionVersion.mockResolvedValue(filed)
+    mountTree(
+      <MemoryRouter initialEntries={['/library/col-1/history']}>
+        <Routes><Route path="/library/:id/history" element={<CollectionHistory />} /></Routes>
+      </MemoryRouter>,
+    )
+    const detailHeading = () => document.querySelector('[data-testid="collection-history-page"] h2')
+    await waitForDom(() => domFinishedLoading() && detailHeading() !== null)
+
+    const rows = [...document.querySelectorAll('[data-testid="history-version-list"] button strong')]
+      .map((node) => node.textContent)
+    expect(rows).toEqual(['Before a rule filed a bookmark', 'Before Run once'])
+    expect(document.body.textContent).not.toContain('placement')
+
+    const restore = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find((node) => node.textContent?.trim() === 'Restore')
+    act(() => restore!.click())
+    await waitForDom(() => document.querySelector('[role="dialog"]') !== null)
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Restore “Before a rule filed a bookmark”?')
+  })
 })
