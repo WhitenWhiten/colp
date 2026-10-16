@@ -25,14 +25,14 @@ type FolderOption = { id: string; title: string; depth: number }
 
 type TargetTree =
   | { status: 'loading' }
-  | { status: 'ready'; rootId: string; nodes: EditableNodeView[] }
+  | { status: 'ready'; rootId: string; nodes: EditableNodeView[]; library: boolean }
   | { status: 'error'; message: string }
 
 type Props = {
   mode: 'move' | 'copy'
   /** Move mode: the current collection is locked as the only destination. */
   current?: {
-    collection: { id: string; title: string }
+    collection: { id: string; title: string; library?: boolean }
     rootId: string
     nodes: EditableNodeView[]
   }
@@ -65,11 +65,13 @@ function folderOptions(
   rootId: string,
   nodes: EditableNodeView[],
   exclude?: ReadonlySet<string>,
+  library = false,
 ): FolderOption[] {
   const options: FolderOption[] = []
   const visit = (parentId: string, depth: number, lineage: ReadonlySet<string>) => {
     for (const node of childrenOf(parentId, nodes)) {
       if (node.kind !== 'folder' || lineage.has(node.id) || exclude?.has(node.id)) continue
+      if (library && parentId === rootId && node.folderRole !== 'bookmarks-bar' && node.folderRole !== 'other-bookmarks') continue
       options.push({ id: node.id, title: node.title, depth })
       const next = new Set(lineage)
       next.add(node.id)
@@ -102,6 +104,7 @@ function FolderList({
   busy,
   currentParentId = null,
   excludeIds,
+  library = false,
   onPick,
 }: {
   collectionId: string
@@ -112,13 +115,14 @@ function FolderList({
   /** Move mode: the bookmarks' shared current parent is inert and flagged. */
   currentParentId?: string | null
   /** Move mode: moved folders and their subtrees — never destinations. */
+  library?: boolean
   excludeIds?: ReadonlySet<string>
   onPick: (destination: DestinationPick) => void
 }) {
-  const options = folderOptions(rootId, nodes, excludeIds)
+  const options = folderOptions(rootId, nodes, excludeIds, library)
   return (
     <ul className="library-dest-list" aria-label={`Folders in ${collectionTitle}`}>
-      <li>
+      {!library && <li>
         <button
           type="button"
           className="library-dest-item"
@@ -130,7 +134,7 @@ function FolderList({
           Top level
           {currentParentId === rootId && <span className="library-dest-current">(current)</span>}
         </button>
-      </li>
+      </li>}
       {options.map((folder) => (
         <li key={folder.id} style={{ marginInlineStart: `${folder.depth * 0.85}rem` }}>
           <button
@@ -198,7 +202,7 @@ export function CollectionDestinationPicker({
     void productClient.loadEditorSnapshot(id, { signal: controller.signal, maxRetries: 0 })
       .then((snapshot) => {
         if (controller.signal.aborted) return
-        setTree({ status: 'ready', rootId: snapshot.root.id, nodes: snapshot.nodes })
+        setTree({ status: 'ready', rootId: snapshot.root.id, nodes: snapshot.nodes, library: snapshot.collection.library === true })
       })
       .catch((err) => {
         if (controller.signal.aborted || isAbort(err)) return
@@ -232,6 +236,7 @@ export function CollectionDestinationPicker({
             <FolderList
               collectionId={current.collection.id}
               collectionTitle={current.collection.title}
+              library={current.collection.library}
               rootId={current.rootId}
               nodes={current.nodes}
               busy={busy}
@@ -270,6 +275,7 @@ export function CollectionDestinationPicker({
               <FolderList
                 collectionId={target.id}
                 collectionTitle={target.title}
+                library={tree.library}
                 rootId={tree.rootId}
                 nodes={tree.nodes}
                 busy={busy}

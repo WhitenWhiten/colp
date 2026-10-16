@@ -145,6 +145,28 @@ describeWithPostgres('one private bookmark library per account', () => {
     assert.equal(snapshot.nodes.filter(node => node.kind === 'folder' && node.folderRole === 'other-bookmarks').length, 1);
   });
 
+  test('Product create and move require a destination under a browser role folder', async () => {
+    const headers = { cookie: owner.cookie, origin: ORIGIN, 'x-csrf-token': owner.csrfToken,
+      'content-type': 'application/json' };
+    const create = (parentId: string) => app.inject({ method: 'POST', url: `/api/v1/collections/${library.id}/nodes`,
+      headers: { ...headers, 'known-command-id': randomUUID() }, payload: { parentId, afterId: null, beforeId: null,
+        node: { kind: 'bookmark', title: 'Saved link', url: 'https://example.test/saved', description: null, tags: [], visibility: 'inherit' } } });
+    const rejected = await create(library.rootNodeId);
+    assert.equal(rejected.statusCode, 422, rejected.body);
+    assert.equal(rejected.json().error.code, 'invalid_document', rejected.body);
+    const accepted = await create(library.bookmarksBarId);
+    assert.equal(accepted.statusCode, 201, accepted.body);
+    const node = accepted.json().node;
+    const parent = await isolated.runtime.db.selectFrom('nodes').selectAll().where('id', '=', library.bookmarksBarId).executeTakeFirstOrThrow();
+    const root = await isolated.runtime.db.selectFrom('nodes').selectAll().where('id', '=', library.rootNodeId).executeTakeFirstOrThrow();
+    const moved = await app.inject({ method: 'POST', url: `/api/v1/collections/${library.id}/nodes/${node.id}/move`,
+      headers: { ...headers, 'known-command-id': randomUUID(), 'if-match': node.etag }, payload: {
+        newParentId: library.rootNodeId, afterId: null, beforeId: null,
+        baseSourceParentRevision: parent.children_revision, baseTargetParentRevision: root.children_revision } });
+    assert.equal(moved.statusCode, 422, moved.body);
+    assert.equal(moved.json().error.code, 'invalid_document');
+  });
+
   test('MCP node update refuses role-folder renaming in apply and preview', async () => {
     const service = createPhase4bMcpLowRiskNodeUpdateService({
       unitOfWork: createPostgresCanonicalMutationUnitOfWork(isolated.runtime.db),

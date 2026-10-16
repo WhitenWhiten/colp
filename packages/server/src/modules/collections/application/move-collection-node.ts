@@ -1,3 +1,4 @@
+import { assertLibraryDestination } from './library-destination.js';
 import {
   assertCanonicalCommandId,
   type ProductCommandBinding,
@@ -189,6 +190,7 @@ export async function moveCollectionNode(
     ? sourceParent
     : await ports.nodes.getNode(validated.collectionId, validated.newParentId);
   assertValidStructuralParent(targetParent, validated.collectionId, 'newParent');
+  await assertLibraryDestination(ports, locked, targetParent);
 
   if (node.kind === 'folder') {
     await assertNoFolderCycle(

@@ -1,3 +1,4 @@
+import { assertLibraryDestination } from './library-destination.js';
 import {
   assertCanonicalCommandId,
   type ProductCommandBinding,
@@ -172,6 +173,7 @@ export async function createCollectionNode(
 
   const parent = await ports.nodes.getNode(validated.collectionId, validated.parentId);
   assertValidParent(parent, validated.collectionId);
+  await assertLibraryDestination(ports, locked, parent);
 
   const now = await ports.clock.now();
   const nodeId = validated.nodeId ?? generateOpaqueId();

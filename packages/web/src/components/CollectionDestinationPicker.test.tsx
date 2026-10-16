@@ -173,6 +173,24 @@ describe('CollectionDestinationPicker', () => {
     expect(mocks.loadEditorSnapshot).not.toHaveBeenCalled()
   })
 
+  it.each(['move', 'copy'] as const)('only offers role folders and their descendants for library %s', async (mode) => {
+    const role = { ...folderNode('bar', 'Bookmarks bar', 'root-x', 'a'), folderRole: 'bookmarks-bar' as const }
+    const nodes = [role, folderNode('nested', 'Nested', 'bar', 'a'), folderNode('loose', 'Outside roles', 'root-x', 'b')]
+    mocks.loadEditorSnapshot.mockResolvedValue({ collection: { library: true }, root: { id: 'root-x' }, nodes })
+    const onPick = vi.fn()
+    mountTree(<MemoryRouter><CollectionDestinationPicker mode={mode}
+      current={{ collection: { id: 'col-x', title: 'Library', library: true }, rootId: 'root-x', nodes }}
+      owned={[collectionItem('col-x', 'Library', true)]} onPick={onPick} onClose={() => {}} /></MemoryRouter>)
+    if (mode === 'copy') {
+      clickDestination('Library')
+      await waitForDom(() => destinationLabels().includes('Bookmarks bar'))
+    }
+    expect(destinationLabels()).not.toContain('Top level')
+    expect(destinationLabels()).not.toContain('Outside roles')
+    clickDestination('Nested')
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ parentId: 'nested' }))
+  })
+
   it('names a moved folder "folder" instead of "bookmark"', () => {
     mountTree(
       <MemoryRouter>
@@ -389,7 +407,7 @@ describe('CollectionDestinationPicker', () => {
 
   it('lists owned plus createNode shared collections in copy mode and filters the rest', async () => {
     mocks.loadEditorSnapshot.mockResolvedValue({
-      root: { id: 'root-col-b' },
+      collection: { library: false }, root: { id: 'root-col-b' },
       nodes: [folderNode('fb-1', 'Inbox', 'root-col-b', 'a', 'col-b')],
     })
     const onPick = vi.fn()
@@ -444,14 +462,14 @@ describe('CollectionDestinationPicker', () => {
     clickDestination('My shelf')
     expect(document.body.textContent).toContain('Loading folders…')
     await act(async () => {
-      resolveSnapshot({ root: { id: 'root-col-a' }, nodes: [] })
+      resolveSnapshot({ collection: { library: false }, root: { id: 'root-col-a' }, nodes: [] })
       await Promise.resolve()
     })
     expect(document.body.textContent).not.toContain('Loading folders…')
     expect(destinationButtons().some((button) => button.textContent?.includes('Top level'))).toBe(true)
   })
 
-  it('offers a New collection way out when nothing can receive copies', () => {
+  it('explains an unavailable library when nothing can receive copies', () => {
     mountTree(
       <MemoryRouter>
         <CollectionDestinationPicker
@@ -464,9 +482,8 @@ describe('CollectionDestinationPicker', () => {
         />
       </MemoryRouter>,
     )
-    expect(document.body.textContent).toContain('No destination collections')
+    expect(document.body.textContent).toContain('Your library is unavailable')
     expect(document.body.textContent).not.toContain('Read only share')
-    const link = document.querySelector<HTMLAnchorElement>('a[href="/library/new"]')
-    expect(link?.textContent).toContain('New collection')
+    expect(document.querySelector('a[href="/library/new"]')).toBeNull()
   })
 })
