@@ -11,10 +11,11 @@ const extension = resolve(import.meta.dirname, '../dist/production');
 test.use({ actionTimeout: 15_000, navigationTimeout: 20_000 });
 test('one library works across the real web, extension, local exclusions, saves and anonymous shares', async () => {
   test.setTimeout(300_000);
-  const stack = await startRealStack({ web: true }), profile = await mkdtemp(resolve(tmpdir(), 'known-library-web-'));
+  const stack = await startRealStack({ web: true, freshLibrary: true }), profile = await mkdtemp(resolve(tmpdir(), 'known-library-web-'));
   let context: BrowserContext | undefined;
   let guest: BrowserContext | undefined;
   try {
+    expect((await stack.observations()).libraryCount).toBe(0);
     const args = [`--host-resolver-rules=${stack.browserHostResolverRules}`, '--no-proxy-server', '--ignore-certificate-errors'];
     context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', ignoreHTTPSErrors: true,
       args: [...args, `--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
@@ -28,6 +29,12 @@ test('one library works across the real web, extension, local exclusions, saves 
     await expect(nav.getByRole('link', { name: /Bookmarks bar/ })).toBeVisible();
     await expect(nav.getByRole('link', { name: /Other bookmarks/ })).toBeVisible();
     await expect(web.getByTestId('library-main')).toContainText('0 bookmarks');
+    const created = await stack.observations();
+    expect(created.libraryCount).toBe(1);
+    const initialRoles = created.canonicalNodes as Array<{ id: string; folder_role: string | null }>;
+    expect(initialRoles).toHaveLength(3);
+    const barId = initialRoles.find(node => node.folder_role === 'bookmarks-bar')!.id;
+    const otherId = initialRoles.find(node => node.folder_role === 'other-bookmarks')!.id;
     const { page } = await openExtensionOptions(context);
     await showOptionsPane(page, 'bookmarks');
     await grantOptionalBookmarks(page, page.locator('#manager-grant'), 'Library web acceptance');
@@ -51,8 +58,8 @@ test('one library works across the real web, extension, local exclusions, saves 
     console.info('library-flow: first sync completed');
     const roles = (await stack.observations()).canonicalNodes as Array<{ folder_role: string | null; deleted_at: string | null }>;
     for (const role of ['bookmarks-bar', 'other-bookmarks']) expect(roles.filter(node => node.folder_role === role && node.deleted_at === null)).toHaveLength(1);
-    await web.goto(stack.serverOrigin + '/library?folder=p3-27-bookmarks-bar'); await expect(nav.getByRole('link', { name: /Keep on this browser/ })).toBeVisible();
-    await web.goto(stack.serverOrigin + '/library?folder=p3-27-other-bookmarks');
+    await web.goto(stack.serverOrigin + '/library?folder=' + encodeURIComponent(barId)); await expect(nav.getByRole('link', { name: /Keep on this browser/ })).toBeVisible();
+    await web.goto(stack.serverOrigin + '/library?folder=' + encodeURIComponent(otherId));
     await expect(web.getByText('From browser', { exact: true })).toBeVisible();
     // Review explicitly chooses the existing cloud-trash option; the native copy stays put.
     const privateRow = page.locator('.root-row').filter({ has: page.locator('.folder-name', { hasText: 'Keep on this browser' }) });
@@ -120,5 +127,18 @@ test('one library works across the real web, extension, local exclusions, saves 
     await page.locator('#save-roots').click(); await page.locator('#range-confirm').click();
     await expect.poll(async () => ((await stack.observations()).canonicalNodes as Array<{ title: string; deleted_at: string | null }>).filter(node => node.title === 'Keep on this browser' && node.deleted_at === null).length, { timeout: 45_000 }).toBe(1);
     expect(await page.evaluate(async id => (await chrome.bookmarks.getSubTree(id))[0]?.children?.length, native.privateFolder)).toBe(1);
+    // Whole browser-root exclusion must offer review/trash while preserving both role folders.
+    await page.locator('#refresh-roots').click();
+    const otherRow = page.locator('.root-row[data-depth="0"]').filter({ has: page.locator('.folder-name', { hasText: 'Other bookmarks' }) });
+    await otherRow.locator('.root-select input').uncheck();
+    await page.locator('#save-roots').click();
+    await expect(page.locator('#range-preview')).toContainText('Other bookmarks');
+    await page.locator('#range-remote-delete').check();
+    await page.locator('#range-confirm').click();
+    await expect(page.locator('#range-preview')).toBeHidden();
+    await expect.poll(async () => ((await stack.observations()).canonicalNodes as Array<{ title: string; deleted_at: string | null }>).some(node => node.title === 'From browser' && node.deleted_at === null), { timeout: 45_000 }).toBe(false);
+    expect(await page.evaluate(() => chrome.bookmarks.search({ title: 'From browser' }).then(nodes => nodes.length))).toBe(1);
+    const afterRootExclusion = (await stack.observations()).canonicalNodes as Array<{ id: string; deleted_at: string | null }>;
+    for (const id of [barId, otherId]) expect(afterRootExclusion.find(node => node.id === id)?.deleted_at).toBeNull();
   } finally { await guest?.close(); await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });

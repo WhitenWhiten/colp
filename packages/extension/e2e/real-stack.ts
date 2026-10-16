@@ -191,13 +191,14 @@ export interface RealStack {
 
 const MAX_SYNC_BATCH_OPERATIONS = knowNBackendRoot ? 1 : 50;
 
-export async function startRealStack(options: {readonly classification?:boolean; readonly syntheticCapture?: boolean; readonly subscriptions?: boolean; readonly web?: boolean} = {}): Promise<RealStack> {
+export async function startRealStack(options: {readonly classification?:boolean; readonly syntheticCapture?: boolean; readonly subscriptions?: boolean; readonly web?: boolean; readonly freshLibrary?: boolean} = {}): Promise<RealStack> {
   const externalOrigin = externalBackendOrigin();
   if (externalOrigin) return startExternalRealStack(externalOrigin);
   await clearExternalBuildPointing();
   const isolated = await createIsolatedDatabase();
   await runMigrations(isolated.runtime.db, 'latest', resolve(knowNBackendRoot ?? resolve(import.meta.dirname, '../../server'), 'migrations'));
-  await seedDatabase(isolated);
+  await seedDatabase(isolated, options.freshLibrary);
+  let activeLibraryId = FIXTURE_COLLECTION_ID;
   const subscriptionProduct = options.subscriptions && fixtureAccount
     ? await (await import('./bookmark-subscription-product-stack.js')).createBookmarkSubscriptionProductFixture(isolated.runtime, fixtureAccount) : undefined;
 
@@ -665,7 +666,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
   ].join(',');
   try {
     await mintAuxiliaryAccessToken();
-    for (const binding of [
+    if (!options.freshLibrary) for (const binding of [
       { replicaId: REPLICA_ID, browserProfileId: PROFILE_ID },
       ...P3_29_BINDINGS,
     ]) await bootstrapReplicaCheckpoint(binding);
@@ -701,7 +702,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
       replicaId: P3_29_BINDINGS[1].replicaId,
       browserProfileId: P3_29_BINDINGS[1].browserProfileId, generation: '1' }],
     authUserId,
-    collectionId: FIXTURE_COLLECTION_ID,
+    get collectionId() { return activeLibraryId; },
     serverOrigin: SERVER_ORIGIN,
     setMode(value) { mode = value; },
     setSyncOffline(value) { syncOffline = value; },
@@ -878,20 +879,22 @@ export async function startRealStack(options: {readonly classification?:boolean;
       return result.rows.map((row) => row.extensions as Record<string, unknown>);
     },
     async observations() {
+      const libraries = await isolated.runtime.pool.query('select id from collections where owner_subject_id=$1 and is_library and deleted_at is null', [fixtureAccount?.subjectId ?? SUBJECT]);
+      if (libraries.rows[0]) activeLibraryId = libraries.rows[0].id;
       const sessions = await isolated.runtime.pool.query('select count(*)::int as count from sync_sessions');
       const receipts = await isolated.runtime.pool.query('select count(*)::int as count from sync_session_idempotency_receipts');
       const replica = await isolated.runtime.pool.query('select status from sync_replicas where replica_id=$1', [REPLICA_ID]);
       const mutations = await isolated.runtime.pool.query(
-        'select count(*)::int as count from nodes where collection_id=$1 and not is_root', [COLLECTION_ID]);
+        'select count(*)::int as count from nodes where collection_id=$1 and not is_root', [activeLibraryId]);
       const pushReceipt = await isolated.runtime.pool.query(`select result_digest,result_json from sync_sequence_receipts
         where replica_id=$1 order by sequence_number limit 1`, [REPLICA_ID]);
       const sequenceReceipts = await isolated.runtime.pool.query(`select sequence_number,operation_id as op_id,result_digest,result_json
         from sync_sequence_receipts where replica_id=$1 order by sequence_number`, [REPLICA_ID]);
       const canonicalNodes = await isolated.runtime.pool.query(`select id,parent_id,title,url,is_root,folder_role,deleted_at,
-        position_token,resource_revision,children_revision from nodes where collection_id=$1 order by created_at,id`, [COLLECTION_ID]);
+        position_token,resource_revision,children_revision from nodes where collection_id=$1 order by created_at,id`, [activeLibraryId]);
       const canonicalSiblings = await isolated.runtime.pool.query(`select id,parent_id,position_token,title,url
         from nodes where collection_id=$1 and not is_root and deleted_at is null
-        order by parent_id collate "C", position_token collate "C", id collate "C"`, [COLLECTION_ID]);
+        order by parent_id collate "C", position_token collate "C", id collate "C"`, [activeLibraryId]);
       const canonicalSiblingOrders: Record<string, string[]> = {};
       for (const row of canonicalSiblings.rows) {
         const parentId = String(row.parent_id);
@@ -907,17 +910,17 @@ export async function startRealStack(options: {readonly classification?:boolean;
       const faviconEvidence = {
         bindings: (await isolated.runtime.pool.query(
           `select node_id,object_id,content_type,byte_size from bookmark_icons
-           where collection_id=$1 order by node_id`, [COLLECTION_ID])).rows,
+           where collection_id=$1 order by node_id`, [activeLibraryId])).rows,
         sources: (await isolated.runtime.pool.query(
           `select node_id,source_mode,revision from bookmark_icon_sources
-           where collection_id=$1 order by node_id`, [COLLECTION_ID])).rows,
+           where collection_id=$1 order by node_id`, [activeLibraryId])).rows,
         policies: (await isolated.runtime.pool.query(
           `select account_id,new_default,revision from account_favicon_policies
            where account_id=$1`, [fixtureAccount?.id ?? ''])).rows,
         objectPuts: [...faviconObjectStore.puts], objectDeletes: [...faviconObjectStore.deletes],
         objectCount: faviconObjectStore.objects.size,
       };
-      return { revokeCount, syncOfflineBlockedRequests,
+      return { libraryCount: libraries.rowCount, revokeCount, syncOfflineBlockedRequests,
         sessions: Number(sessions.rows[0]?.count ?? 0) - observationOffset.sessions,
         receipts: Number(receipts.rows[0]?.count ?? 0) - observationOffset.receipts,
         replicaStatus: replica.rows[0]?.status,
@@ -1248,7 +1251,7 @@ async function createIsolatedDatabase() {
   };
 }
 
-async function seedDatabase(isolated: Awaited<ReturnType<typeof createIsolatedDatabase>>) {
+async function seedDatabase(isolated: Awaited<ReturnType<typeof createIsolatedDatabase>>, freshLibrary = false) {
   // Task E3 (supervisor decision 3): the fixture account is created through the
   // REAL Better Auth flow — the production runtime boundary mounted on a
   // temporary Fastify app, business-account unit of work, Argon2id and a
@@ -1264,6 +1267,7 @@ async function seedDatabase(isolated: Awaited<ReturnType<typeof createIsolatedDa
   await isolated.runtime.db.insertInto('account_identities').values({ id: 'p3-27-identity',
     account_id: created.account.id, issuer: ISSUER, subject: created.account.subjectId, created_at: new Date(),
   }).execute();
+  if (freshLibrary) return created;
   const owner = { principalId: created.account.id, subjectId: created.account.subjectId };
   await createPostgresLibraryCollectionUnitOfWork(isolated.runtime.db).execute(owner, async ports => {
     await bootstrapCanonicalOwnedCollection(ports.bootstrap, {
