@@ -30,6 +30,7 @@ describeWithPostgres('live unlisted library folder shares', () => {
   let isolated: IsolatedPostgresRuntime, app: ReturnType<typeof buildApiApp>, owner: Client, outsider: Client;
   let library: LibraryCollection;
   let nextSlug: string | undefined;
+  const readSizes: number[] = [];
   const cursors = createPublicationCursorKeyring({ active: { id: 'shares', secret: Buffer.alloc(32, 17).toString('base64') }, retained: [] });
   const editorCursor = createProductEditorCursorSigner({ current: { id: 'shares', key: 'folder-share-editor-key-32-bytes-secret' } });
   const headers = (client = owner, command = randomUUID()) => ({ cookie: client.cookie, origin,
@@ -62,7 +63,10 @@ describeWithPostgres('live unlisted library folder shares', () => {
       collectionsEditorReadUnitOfWork: createPostgresCollectionsEditorReadUnitOfWork(isolated.runtime.db, { cursorSigner: editorCursor, cursorTtlMs: 60_000 }),
       folderShares: createPostgresFolderShareUnitOfWork(isolated.runtime.db, { newSlug: () => nextSlug ?? `folder-${randomUUID()}` }),
       exploreDirectoryRateLimiter: memoryExploreDirectoryLimiter(),
-      productPublicCollectionQuery: { folderShares: createPostgresPublicFolderShareReadPort(isolated.runtime.db),
+      productPublicCollectionQuery: { folderShares: createPostgresPublicFolderShareReadPort(isolated.runtime.db.withPlugin({
+        transformQuery: args => args.node,
+        async transformResult(args) { readSizes.push(args.result.rows.length); return args.result; },
+      })),
         locators: createPostgresProductPublicCollectionLocatorReadPort(isolated.runtime),
         viewCounts: createPostgresProductPublicCollectionViewCountReadPort(isolated.runtime), cursors,
         owners: createPostgresPublicProfileFactsReadPort(isolated.runtime),
@@ -186,7 +190,7 @@ describeWithPostgres('live unlisted library folder shares', () => {
       baseTargetParentRevision: (await editor()).nodes.find((n: { id: string }) => n.id === library.bookmarksBarId).childrenRevision } });
     assert.equal(move.statusCode, 200, move.body);
     assert.equal((await getPage(slug)).json().nodes.some((n: { id: string }) => n.id === visible.id), false);
-    assert.equal((await getPage(slug, `?limit=2&include=relations&cursor=${encodeURIComponent(cursor)}`)).statusCode, 409);
+    assert.equal((await getPage(slug, `?limit=2&include=relations&cursor=${encodeURIComponent(cursor)}`)).statusCode, 200);
     const incoming = await node(library.bookmarksBarId, 'Moved in', 'bookmark');
     const current = await editor();
     const movedIn = await app.inject({ method: 'POST', url: `/api/v1/collections/${library.id}/nodes/${incoming.id}/move`,
@@ -195,6 +199,41 @@ describeWithPostgres('live unlisted library folder shares', () => {
         baseTargetParentRevision: current.nodes.find((n: { id: string }) => n.id === folder.id).childrenRevision } });
     assert.equal(movedIn.statusCode, 200, movedIn.body);
     assert.equal((await getPage(slug)).json().nodes.some((n: { id: string }) => n.id === incoming.id), true);
+  });
+
+  test('bounded pages traverse a large share while unrelated browser sync keeps writing', async () => {
+    const folder = await node(library.bookmarksBarId, 'Large share');
+    const template = await node(folder.id, 'Template', 'bookmark');
+    const prefix = randomUUID();
+    await isolated.runtime.pool.query(`INSERT INTO resource_id_ledger(resource_id,resource_type)
+      SELECT $1 || '-' || i, 'node' FROM generate_series(1,1200) i`, [prefix]);
+    await isolated.runtime.pool.query(`INSERT INTO nodes(id,collection_id,parent_id,kind,title,url,description,tags,
+      position_token,resource_revision,children_revision,visibility,created_at,updated_at,payload_json,payload_schema_version,payload_authority_status)
+      SELECT $1 || '-' || i, collection_id,parent_id,kind,'Seed ' || i,url,description,tags,
+        'zz' || lpad(i::text,5,'0'),resource_revision,children_revision,visibility,created_at,updated_at,
+        payload_json || jsonb_build_object('id',$1 || '-' || i,'title','Seed ' || i,'position','zz' || lpad(i::text,5,'0')),
+        payload_schema_version,payload_authority_status FROM nodes CROSS JOIN generate_series(1,1200) i WHERE id=$2`, [prefix, template.id]);
+    const slug = (await put(folder.id)).json().share.slug;
+    const seen = new Set<string>();
+    let cursor: string | null = null, sequence = 0;
+    do {
+      readSizes.length = 0;
+      const response = await getPage(slug, `?limit=37${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+      assert.equal(response.statusCode, 200, response.body);
+      const page = response.json();
+      assert.equal(page.page.sequence, ++sequence);
+      assert.ok(page.nodes.length <= 37);
+      assert.ok(Math.max(...readSizes) <= 74, `unbounded database result: ${readSizes}`);
+      for (const item of page.nodes) { assert.ok(!seen.has(item.id)); seen.add(item.id); }
+      cursor = page.page.cursor;
+      // A real product write outside this share changes the library revision on every page.
+      await node(library.otherBookmarksId, `Concurrent sync ${sequence}`, 'bookmark');
+    } while (cursor);
+    assert.equal(seen.size, 1202);
+    assert.ok(sequence > 30);
+    readSizes.length = 0;
+    assert.equal((await getPage(slug, '?limit=37&cursor=invalid')).statusCode, 400);
+    assert.deepEqual(readSizes, []);
   });
 
   test('deleting the shared folder, or restricting an ancestor, ends public access', async () => {
