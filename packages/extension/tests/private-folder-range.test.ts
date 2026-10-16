@@ -77,3 +77,37 @@ test('including a folder excluded on first run releases its local-only placehold
     privateNativeIds: [], discovered: new Map(discovered.map(row => [row.nativeId, row.ancestorNativeIds])) });
   assert.equal(await store.getMappingByNativeId(scope, 'folder-parent'), null);
 });
+
+async function nestedDeletePreview() {
+  const { store } = await fixture(new IDBFactory());
+  await store.setFirstRun(scope, 'completed');
+  await store.configureBrowserRoots(scope, { discovered, selectedNativeIds: ['root-selected'], privateNativeIds: [], status: 'ready' });
+  const parent = (await store.getMappingByNativeId(scope, 'folder-parent'))!;
+  const { scopeKey: _scopeKey, ...parentInput } = parent;
+  await store.putMapping(scope, { ...parentInput, nodeKind: 'folder' });
+  const { preview } = await previewRangeChange(store, scope, { roots, selectedNativeIds: ['root-selected'], privateNativeIds: ['folder-parent'] });
+  await store.configureBrowserRoots(scope, { discovered, selectedNativeIds: ['root-selected'], privateNativeIds: ['folder-parent'], status: 'ready' });
+  return { store, command: frozenRemoteDeleteCommand(preview, 'folder-parent')! };
+}
+
+test('nested trash refuses a changed command token and a folder that was included again', async () => {
+  const { store, command } = await nestedDeletePreview();
+  assert.deepEqual(await executeRemoteDelete(store, scope, { ...command, confirmationToken: 'wrong' }), { ok: false, error: 'preview_stale' });
+  await store.configureBrowserRoots(scope, { discovered, selectedNativeIds: ['root-selected'], privateNativeIds: [], status: 'ready' });
+  assert.deepEqual(await executeRemoteDelete(store, scope, command), { ok: false, error: 'preview_stale' });
+  assert.equal((await store.listQueue(scope)).length, 0);
+});
+
+test('root trash refuses a changed mount boundary before authoring any child deletes', async () => {
+  const { store } = await fixture(new IDBFactory());
+  const root = (await store.getMappingByNativeId(scope, 'root-selected'))!;
+  await store.putMountBinding(scope, { mountId: 'bar', nativeRootId: 'root-selected', remoteMountNodeId: root.colpId,
+    rootRole: 'bookmarks-bar', status: 'active', boundaryVersion: '1', materialized: false });
+  await store.setFirstRun(scope, 'completed');
+  const { preview } = await previewRangeChange(store, scope, { roots, selectedNativeIds: [] });
+  const command = frozenRemoteDeleteCommand(preview, 'root-selected')!;
+  const mount = (await store.getMountBinding(scope, 'bar'))!;
+  await store.putMountBinding(scope, { ...mount, boundaryVersion: 'changed' });
+  assert.deepEqual(await executeRemoteDelete(store, scope, command), { ok: false, error: 'preview_stale' });
+  assert.equal((await store.listQueue(scope)).length, 0);
+});

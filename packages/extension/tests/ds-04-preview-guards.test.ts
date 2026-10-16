@@ -62,3 +62,13 @@ test('failure to recheck the observation after counting never authorizes deletio
   assert.deepEqual(await executeRemoteDelete(interrupted, scope, f.command), { ok: false, error: 'preview_stale' });
   assert.equal((await f.store.listQueue(scope)).length, 0);
 });
+
+test('loss of the counted subtree authority fails closed before authoring a delete', async () => {
+  const f = await fixture();
+  const interrupted = new Proxy({ ...f.store }, { get(target, property, receiver) {
+    if (property === 'getRecoveryHeader') return async () => { throw new Error('remote_subtree_unknown'); };
+    return Reflect.get(target, property, receiver);
+  } });
+  assert.deepEqual(await executeRemoteDelete(interrupted, scope, f.command), { ok: false, error: 'preview_stale' });
+  assert.equal((await f.store.listQueue(scope)).length, 0);
+});

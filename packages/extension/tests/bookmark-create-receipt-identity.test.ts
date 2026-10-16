@@ -509,3 +509,12 @@ async function enqueueFolder(
     result: { results: [{ opId, sequence: queued.sequence, status: 'applied', targetId, revision: 'server-r1' }] },
   });
 }
+
+test('a terminal create cannot reuse an authoritative mapping after its later tombstone', async () => {
+  const store = await ready();
+  await enqueueCreate(store, 'bm-deleted', 'b3.confirm.create.bm-deleted', 'terminal', 'node-original');
+  await mapping(store, 'bm-deleted', 'node-mapped-deleted', 'root-selected', 'server-r2', { title: 'Mapped' }, 'folder-parent');
+  await store.putRemoteObservation(scope, { colpId: 'node-mapped-deleted', kind: 'tombstone', remoteRevision: 'deleted',
+    cursor: 'deleted-cursor', payload: { deleted: true }, sourceDigest: 'd', observedAt: 1 });
+  assert.equal(await identityFromCreateReceipt(store, scope, 'bm-deleted'), null);
+});
