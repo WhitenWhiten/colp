@@ -1583,8 +1583,7 @@ button.library-bookmark-tag:hover {
 
 /* The reorder wiggle holds still while the pointer or focus is on a row's
    move buttons, so they are not a moving target. */
-.library-nav-tree.is-reordering .library-nav-reorder-item:has(> .reorder-move-buttons:hover, > .reorder-move-buttons:focus-within),
-.library-layer-reorder-list.is-reordering .library-layer-reorder-item:has(> .reorder-move-buttons:hover, > .reorder-move-buttons:focus-within) {
+.library-nav-tree.is-reordering .library-nav-reorder-item:has(> .reorder-move-buttons:hover, > .reorder-move-buttons:focus-within), .library-layer-reorder-list.is-reordering .library-layer-reorder-item:has(> .reorder-move-buttons:hover, > .reorder-move-buttons:focus-within) {
   animation-play-state: paused;
 }
 
@@ -2224,23 +2223,6 @@ body[data-bookmark-drag] {
   letter-spacing: var(--tracking-tight);
 }
 
-.get-started-progress {
-  display: grid;
-  justify-items: end;
-  gap: var(--space-1);
-}
-
-.get-started-count {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-}
-
-.get-started-meter {
-  width: 8rem;
-}
-
 .get-started-dismiss {
   display: grid;
   place-items: center;
@@ -2284,8 +2266,7 @@ body[data-bookmark-drag] {
   background: var(--surface-raised);
 }
 
-.get-started-step > .btn,
-.get-started-done {
+.get-started-step > .btn {
   align-self: flex-start;
   margin-top: auto;
 }
@@ -2324,12 +2305,6 @@ body[data-bookmark-drag] {
   line-height: var(--leading-copy);
 }
 
-.get-started-done {
-  color: var(--success);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-}
-
 .get-started-step[data-done] {
   border-style: dashed;
   background: transparent;
@@ -2353,16 +2328,6 @@ body[data-bookmark-drag] {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .get-started-progress {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-items: start;
-  }
-
-  .get-started-meter {
-    width: 100%;
-  }
-
   .get-started-steps {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
@@ -2375,8 +2340,7 @@ body[data-bookmark-drag] {
     gap: var(--space-3);
   }
 
-  .get-started-step > .btn,
-  .get-started-done {
+  .get-started-step > .btn {
     margin-top: 0;
     align-self: center;
   }

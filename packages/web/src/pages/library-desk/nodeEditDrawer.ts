@@ -178,7 +178,7 @@ export function useNodeEditDrawer({
           node.id,
           node.kind === 'bookmark'
             ? { title: nextTitle, url: url.trim(), description: nextDescription, tags: nextTags }
-            : { title: nextTitle, description: nextDescription, tags: nextTags },
+            : { ...(nextTitle !== node.title ? { title: nextTitle } : {}), description: nextDescription, tags: nextTags },
           node.etag,
           { intentId },
         )

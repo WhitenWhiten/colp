@@ -18,7 +18,6 @@ export function useSyncCenterData() {
   const [conflicts, setConflicts] = useState<SyncConflictSummary[]>([])
   const [drafts, setDrafts] = useState<Record<string, ConflictDraft>>({})
   const [trashItems, setTrashItems] = useState<SyncTrashListItem[]>([])
-  const [trashCollections, setTrashCollections] = useState<string[]>([])
   const [trashCollectionTitles, setTrashCollectionTitles] = useState<Record<string, string>>({})
   const [trashCollectionId, setTrashCollectionId] = useState<string | null>(null)
   const [trashDetails, setTrashDetails] = useState<Record<string, SyncTrashDetail>>({})
@@ -102,27 +101,17 @@ export function useSyncCenterData() {
     setLoadError(null)
     setLoadErrorKind(null)
     try {
-      const [nextStatus, nextConflicts, ownedCollectionsPage] = await Promise.all([
+      const [nextStatus, nextConflicts, library] = await Promise.all([
         productClient.getSyncStatus({ signal, maxRetries: 0 }),
         productClient.loadSyncConflicts({ signal, maxRetries: 0, limit: 25 }),
-        productClient.getOwnedCollectionsPage?.({ limit: 100 }, { signal, maxRetries: 0 })?.catch?.(() => null) ?? Promise.resolve(null),
+        productClient.getLibrary({ signal, maxRetries: 0 }),
       ])
       if (superseded() || !mounted.current) return
       markServerFeatureAvailable('sync')
       setStatus(nextStatus)
       applyConflicts(nextConflicts)
-      if (ownedCollectionsPage?.items) {
-        const titles: Record<string, string> = {}
-        for (const item of ownedCollectionsPage.items) {
-          titles[item.collection.id] = item.collection.title
-        }
-        setTrashCollectionTitles(titles)
-      }
-      const collections = ownedSyncCollectionIds(nextStatus)
-      setTrashCollections(collections)
-      const selected = selectedCollection.current && collections.includes(selectedCollection.current)
-        ? selectedCollection.current
-        : collections[0] ?? null
+      setTrashCollectionTitles({ [library.id]: library.title })
+      const selected = library.id
       await loadTrash(selected, signal)
     } catch (error) {
       // The signal, not `mounted`: a superseded pass that rejects with a
@@ -154,7 +143,7 @@ export function useSyncCenterData() {
     renderedIdentityRef.current = sessionIdentity
     mounted.current = true
     setStatus(null); setConflicts([]); setDrafts({}); setTrashItems([]); setTrashDetails({});
-    setTrashCollections([]); setTrashCollectionTitles({}); setTrashCollectionId(null)
+    setTrashCollectionTitles({}); setTrashCollectionId(null)
     setLoadError(null); setLoadErrorKind(null); setTrashError(null); setTrashErrorKind(null)
     const controller = new AbortController()
     void load('initial', controller.signal)
@@ -216,7 +205,6 @@ export function useSyncCenterData() {
     setDrafts,
     trashItems: identityReady ? trashItems : [],
     setTrashItems,
-    trashCollections: identityReady ? trashCollections : [],
     trashCollectionTitles: identityReady ? trashCollectionTitles : {},
     trashCollectionId: identityReady ? trashCollectionId : null,
     trashDetails: identityReady ? trashDetails : {},

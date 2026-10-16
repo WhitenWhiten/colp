@@ -1,224 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { isProductApiError, productClient, type OwnedCollectionListItem } from '../api'
+import { isProductApiError, productClient, type LibraryCollection, type OwnedCollectionListItem } from '../api'
 import { getSessionSnapshot, privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { subscribeLibraryInvalidation } from './libraryInvalidation'
 import { readRouteCache, writeRouteCache } from './routeCache'
-import { plural } from './plural'
 
-type LoadState = 'loading' | 'ready' | 'error'
+type LibraryState = { items: OwnedCollectionListItem[]; library?: LibraryCollection; state: 'loading' | 'ready' | 'error'; message: string }
+const EMPTY: LibraryState = { items: [], state: 'loading', message: 'Loading your library' }
+const CACHE_KEY = 'account-library'
 
-type CachedPage = {
-  items: OwnedCollectionListItem[]
-  cursor: string | null
-  message: string
-}
-
-const FIRST_PAGE_LIMIT = 30
-/** The server's page cap; a revalidation re-reads up to this many loaded rows. */
-const MAX_PAGE_LIMIT = 100
-/** An import or bulk move publishes one invalidation per write. */
-const INVALIDATION_SETTLE_MS = 300
-const CACHE_KEY = 'owned-collections'
-
-function identity() {
-  return privateSessionIdentity()
-}
-
-function usePrivateIdentity() {
-  const [value, setValue] = useState(identity)
-  useEffect(() => subscribeSession(() => setValue(identity())), [])
-  return value
-}
-
-function isAbort(error: unknown) {
-  return error instanceof DOMException && error.name === 'AbortError'
-}
-
+/** The account's one library. The identity fence also covers a mounted account switch. */
 export function useOwnedCollections() {
-  const privateIdentity = usePrivateIdentity()
-  const restored = readRouteCache<CachedPage>(CACHE_KEY)
-  const [items, setItems] = useState<OwnedCollectionListItem[]>(restored?.items ?? [])
-  const [state, setState] = useState<LoadState>(restored ? 'ready' : 'loading')
-  const [message, setMessage] = useState(restored?.message ?? 'Loading collections')
-  const [hasMore, setHasMore] = useState(Boolean(restored?.cursor))
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const itemsRef = useRef<OwnedCollectionListItem[]>(restored?.items ?? [])
-  const cursorRef = useRef<string | null>(restored?.cursor ?? null)
+  const [identity, setIdentity] = useState(privateSessionIdentity)
+  const [value, setValue] = useState<LibraryState>(() => readRouteCache<LibraryState>(CACHE_KEY) ?? EMPTY)
+  const renderedIdentity = useRef(identity)
   const generation = useRef(0)
-  const controllerRef = useRef<AbortController | null>(null)
-  const lastIdentityRef = useRef(privateIdentity)
-  const renderedIdentityRef = useRef(privateIdentity)
+  const controller = useRef<AbortController | null>(null)
+  useEffect(() => subscribeSession(() => setIdentity(privateSessionIdentity())), [])
 
-  const replaceItems = useCallback((next: OwnedCollectionListItem[]) => {
-    const seen = new Set<string>()
-    const unique = next.filter(({ collection }) => {
-      if (seen.has(collection.id)) return false
-      seen.add(collection.id)
-      return true
-    })
-    itemsRef.current = unique
-    setItems(unique)
-  }, [])
-
-  /** Publish what the desk is showing so the next mount can skip the skeleton. */
-  const cacheCurrent = useCallback((nextMessage: string) => {
-    writeRouteCache<CachedPage>(CACHE_KEY, {
-      items: itemsRef.current,
-      cursor: cursorRef.current,
-      message: nextMessage,
-    })
-  }, [])
-
-  const loadFirstPage = useCallback(async () => {
-    const snapshot = getSessionSnapshot()
-    controllerRef.current?.abort()
-    controllerRef.current = null
-    const requestGeneration = ++generation.current
-    const requestedIdentity = identity()
-    // Stale-while-revalidate: with rows already on screen the desk keeps them
-    // and refetches quietly, so returning from a sub-route does not replay the
-    // skeleton. A cold desk still shows its loading state.
-    const revalidating = itemsRef.current.length > 0
-    if (!revalidating) {
-      replaceItems([])
-      cursorRef.current = null
-      setHasMore(false)
-    }
-    setIsLoadingMore(false)
-    if (!snapshot.authenticated) {
-      setState('ready')
-      setMessage('Sign in to view your collections')
-      return
-    }
-    const controller = new AbortController()
-    controllerRef.current = controller
-    if (!revalidating) {
-      setState('loading')
-      setMessage('Loading collections')
-    }
+  const reload = useCallback(async () => {
+    controller.current?.abort()
+    const active = new AbortController(); controller.current = active
+    const at = ++generation.current; const owner = privateSessionIdentity()
+    if (!getSessionSnapshot().authenticated) { setValue({ ...EMPTY, state: 'ready', message: 'Sign in to view your library' }); return }
     try {
-      // A revalidation re-reads every row already shown, so pages added with
-      // Load more do not drop off after an edit.
-      const limit = revalidating
-        ? Math.min(Math.max(itemsRef.current.length, FIRST_PAGE_LIMIT), MAX_PAGE_LIMIT)
-        : FIRST_PAGE_LIMIT
-      const page = await productClient.getOwnedCollectionsPage(
-        { limit },
-        { signal: controller.signal, maxRetries: 0 },
-      )
-      if (controller.signal.aborted || requestGeneration !== generation.current || requestedIdentity !== identity()) return
-      replaceItems(page.items)
-      cursorRef.current = page.page.hasMore ? page.page.nextCursor : null
-      setHasMore(Boolean(page.page.hasMore && page.page.nextCursor))
-      setState('ready')
-      const nextMessage = page.items.length === 0 ? 'No collections yet' : plural(page.items.length, 'collection')
-      setMessage(nextMessage)
-      cacheCurrent(nextMessage)
+      const library = await productClient.getLibrary({ signal: active.signal, maxRetries: 0 })
+      const page = await productClient.getCollectionEditorPage(library.id, { limit: 1 }, { signal: active.signal, maxRetries: 0 })
+      if (active.signal.aborted || at !== generation.current || owner !== privateSessionIdentity()) return
+      const next: LibraryState = { library, items: [{ collection: page.collection, capabilities: page.capabilities }], state: 'ready', message: 'Your bookmark library' }
+      setValue(next); writeRouteCache(CACHE_KEY, next)
     } catch (error) {
-      if (controller.signal.aborted || requestGeneration !== generation.current || requestedIdentity !== identity() || isAbort(error)) return
-      // A failed revalidation keeps the rows the desk is already showing: the
-      // error copy only renders when the list is empty.
-      if (!revalidating) {
-        replaceItems([])
-        cursorRef.current = null
-        setHasMore(false)
-      }
-      setState('error')
-      setMessage(
-        isProductApiError(error) && error.isAuthRequired
-          ? 'Sign in to view your collections'
-          : isProductApiError(error) ? error.recoveryHint : "Couldn't load collections",
-      )
-    } finally {
-      if (controllerRef.current === controller) controllerRef.current = null
+      if (active.signal.aborted || at !== generation.current || owner !== privateSessionIdentity()) return
+      setValue(current => ({ ...current, state: 'error', message: isProductApiError(error) ? error.recoveryHint : "Couldn't load your library" }))
     }
-  }, [cacheCurrent, replaceItems])
-
-  const loadMore = useCallback(async () => {
-    const cursor = cursorRef.current
-    if (!cursor || controllerRef.current || isLoadingMore) return
-    const controller = new AbortController()
-    controllerRef.current = controller
-    const requestGeneration = ++generation.current
-    const requestedIdentity = identity()
-    setIsLoadingMore(true)
-    setMessage('Loading more collections')
-    try {
-      const page = await productClient.getOwnedCollectionsPage(
-        { cursor },
-        { signal: controller.signal, maxRetries: 0 },
-      )
-      if (controller.signal.aborted || requestGeneration !== generation.current || requestedIdentity !== identity()) return
-      const seen = new Set(itemsRef.current.map(({ collection }) => collection.id))
-      const appended = page.items.filter(({ collection }) => {
-        if (seen.has(collection.id)) return false
-        seen.add(collection.id)
-        return true
-      })
-      if (appended.length > 0) replaceItems([...itemsRef.current, ...appended])
-      const nextCursor = page.page.hasMore ? page.page.nextCursor : null
-      cursorRef.current = nextCursor && nextCursor !== cursor ? nextCursor : null
-      setHasMore(Boolean(cursorRef.current))
-      setState('ready')
-      const nextMessage = appended.length > 0
-        ? plural(itemsRef.current.length, 'collection')
-        : 'No new collections on this page'
-      setMessage(nextMessage)
-      cacheCurrent(nextMessage)
-    } catch (error) {
-      if (controller.signal.aborted || requestGeneration !== generation.current || requestedIdentity !== identity() || isAbort(error)) return
-      setState('ready')
-      setMessage(isProductApiError(error) ? error.recoveryHint : "Couldn't load more collections")
-    } finally {
-      if (controllerRef.current === controller) controllerRef.current = null
-      if (requestGeneration === generation.current) setIsLoadingMore(false)
-    }
-  }, [cacheCurrent, isLoadingMore, replaceItems])
-
+  }, [])
   useEffect(() => {
-    renderedIdentityRef.current = privateIdentity
-    // An account replacement can keep this hook mounted. Clear the previous
-    // actor's painted rows before the new request starts; routeCache's
-    // identity stamp protects future reads, but cannot clear React state.
-    if (lastIdentityRef.current !== privateIdentity) {
-      lastIdentityRef.current = privateIdentity
-      itemsRef.current = []
-      cursorRef.current = null
-      setItems([])
-      setState('loading')
-      setMessage('Loading collections')
-      setHasMore(false)
-      setIsLoadingMore(false)
-    }
-    void loadFirstPage()
-    return () => {
-      controllerRef.current?.abort()
-      generation.current += 1
-    }
-  }, [loadFirstPage, privateIdentity])
-
-  // Titles, visibility and counts change under the list: the settings sheet
-  // publishes a collection, a rename, an import. Re-read once writes settle.
+    renderedIdentity.current = identity
+    setValue(readRouteCache<LibraryState>(CACHE_KEY) ?? EMPTY)
+    void reload()
+    return () => { controller.current?.abort(); generation.current += 1 }
+  }, [identity, reload])
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    const unsubscribe = subscribeLibraryInvalidation(() => {
-      clearTimeout(timer)
-      timer = setTimeout(() => void loadFirstPage(), INVALIDATION_SETTLE_MS)
-    })
-    return () => {
-      clearTimeout(timer)
-      unsubscribe()
-    }
-  }, [loadFirstPage])
-
-  const identityReady = renderedIdentityRef.current === privateIdentity
-  return {
-    items: identityReady ? items : [],
-    state: identityReady ? state : 'loading',
-    message: identityReady ? message : 'Loading collections',
-    hasMore: identityReady ? hasMore : false,
-    isLoadingMore: identityReady ? isLoadingMore : false,
-    reload: loadFirstPage,
-    loadMore,
-  }
+    const unsubscribe = subscribeLibraryInvalidation(() => { clearTimeout(timer); timer = setTimeout(() => void reload(), 300) })
+    return () => { clearTimeout(timer); unsubscribe() }
+  }, [reload])
+  return { ...(renderedIdentity.current === identity ? value : EMPTY), reload }
 }

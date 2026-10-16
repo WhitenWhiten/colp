@@ -60,7 +60,7 @@ export function BookmarkArea({
   onEditNode,
   onEditCollection,
 }: {
-  /** The Get started checklist above already offers New collection. */
+  /** The Get started card offers an explicit new-folder action. */
   checklistShown?: boolean
   query: string
   setQuery: Dispatch<SetStateAction<string>>
@@ -116,6 +116,7 @@ export function BookmarkArea({
     setCompose,
     busy,
     createTitle,
+    createParentId, setCreateParentId,
     setCreateTitle,
     createUrl,
     setCreateUrl,
@@ -189,7 +190,7 @@ export function BookmarkArea({
       ? folderId
       : snap.root.id
   }, [folderId, snap])
-  const canLayerReorder = caps?.moveNode === true
+  const canLayerReorder = caps?.moveNode === true && !(snap?.collection.library && !selectedFolder)
     && reorderSection === null
     && (layer?.folders.length ?? 0) + (layer?.bookmarks.length ?? 0) >= 2
   const reorderItems = useMemo(() => {
@@ -331,21 +332,9 @@ export function BookmarkArea({
       <EmptyState
         role="alert"
         icon="alert"
-        title="Couldn't load your collections"
+        title="Couldn't load your library"
         description={collections.message}
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={() => void collections.reload()}>Try again</button>}
-      />
-    )
-  }
-  if (collections.state !== 'loading' && collections.items.length === 0 && shared.items.length === 0 && !selectedId) {
-    return (
-      <EmptyState
-        illustration="books"
-        title="No collections yet"
-        description={checklistShown
-          ? 'Your collections show up here, in the sidebar, and in every browser you connect.'
-          : 'Create a collection, then add bookmarks right from your library.'}
-        action={checklistShown ? undefined : <Link to="/library/new" className="btn btn-primary btn-sm">New collection</Link>}
       />
     )
   }
@@ -456,7 +445,14 @@ export function BookmarkArea({
         <>
           {compose && (
         <form className="edit-form panel panel-pad library-compose" data-testid="library-compose" onSubmit={(event) => void onCreate(event)}>
-          <h2 className="editor-section-title mt-0">{compose === 'folder' ? 'Add folder' : 'Add bookmark'}</h2>
+          <h2 className="editor-section-title mt-0">{compose === 'folder' ? 'New folder' : 'Add bookmark'}</h2>
+          {snap?.collection.library && !selectedFolder && <div className="field">
+            <label htmlFor="lc-parent">Create in</label>
+            <select id="lc-parent" value={createParentId} onChange={event => setCreateParentId(event.target.value)} required disabled={busy}>
+              <option value="">Choose a folder</option>
+              {snap.nodes.filter(node => node.kind === 'folder' && node.parentId === snap.root.id).map(node => <option key={node.id} value={node.id}>{node.title}</option>)}
+            </select>
+          </div>}
           {compose === 'bookmark' && (
             <div className="field">
               <label htmlFor="lc-url">URL</label>
@@ -595,8 +591,8 @@ export function BookmarkArea({
                 return (
                   <LibraryFolderMenu
                     title={node.title}
-                    canMove={Boolean(caps?.moveNode)}
-                    canDelete={Boolean(caps?.deleteNode)}
+                    canMove={Boolean(caps?.moveNode) && !data.protectedFolderIds.has(node.id)}
+                    canDelete={Boolean(caps?.deleteNode) && !data.protectedFolderIds.has(node.id)}
                     automateTo={automationsOn && snap
                       ? `/automations/new?collectionId=${encodeURIComponent(snap.collection.id)}&folderId=${encodeURIComponent(node.id)}`
                       : undefined}

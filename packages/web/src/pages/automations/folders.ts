@@ -56,8 +56,8 @@ let manifestUuid: Promise<string> | null = null
 
 export const defaultFolderSource: FolderSource = {
   async listCollections(signal) {
-    const items = await productClient.loadOwnedCollections({}, { signal, maxRetries: 0 })
-    return items.map((item) => ({ id: item.collection.id, title: item.collection.title }))
+    const library = await productClient.getLibrary({ signal, maxRetries: 0 })
+    return [{ id: library.id, title: library.title }]
   },
   async loadFolders(collectionId, signal) {
     const snapshot = await productClient.loadEditorSnapshot(collectionId, { signal, maxRetries: 0 })

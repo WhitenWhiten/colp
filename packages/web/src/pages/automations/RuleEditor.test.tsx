@@ -46,13 +46,13 @@ describe('Rule editor', () => {
 
   it('opens from Automate… with the folder already chosen, and Advanced closed', async () => {
     await readyNew()
-    expect(select('automation-collection').value).toBe('col-personal')
+    expect(document.getElementById('automation-collection')).toBeNull()
     expect([...select('automation-folder').options].map((option) => option.textContent))
       .toEqual(['Choose a folder', 'Academic', 'Reading', 'Reading › Design'])
     const advanced = [...document.querySelectorAll('details')].find((item) => item.querySelector('summary')?.textContent === 'Advanced: edit as JSON')
     expect(advanced?.open).toBe(false)
     expect(document.querySelector('[data-testid="automation-sentence"]')?.textContent)
-      .toBe('When a bookmark saved to Personal matches the conditions you add, move it to Academic.')
+      .toBe('When a bookmark saved to Bookmarks matches the conditions you add, move it to Academic.')
   })
 
   it('opens filled in from a browser rule, and creates nothing until the owner saves (AC-72)', async () => {
@@ -187,7 +187,7 @@ describe('Rule editor', () => {
 
   it('says what is missing instead of sending an incomplete rule', async () => {
     const api = mount('/automations/new')
-    await waitForDom(() => select('automation-collection')?.disabled === false)
+    await waitForDom(() => select('automation-folder')?.disabled === false)
     click(buttonNamed('Save as draft'))
     await waitForDom(() => document.querySelectorAll('[role="alert"]').length === 2)
     expect([...document.querySelectorAll('[role="alert"]')].map((item) => item.textContent))
@@ -205,7 +205,7 @@ describe('Rule editor', () => {
       </Routes>,
       { route: '/automations/new' },
     )
-    await waitForDom(() => select('automation-collection')?.value === 'col-personal' && select('automation-folder')?.disabled === false)
+    await waitForDom(() => select('automation-folder')?.disabled === false)
     expect([...select('automation-folder').options].map((option) => option.textContent))
       .toEqual(['Choose a folder', 'Academic', 'Reading', 'Reading › Design'])
     // Nothing typed yet: Cancel leaves without asking about unsaved changes.
@@ -216,7 +216,7 @@ describe('Rule editor', () => {
 
   it('lets Preview say what is missing, with the cursor on the first gap', async () => {
     const api = mount('/automations/new')
-    await waitForDom(() => select('automation-collection')?.disabled === false)
+    await waitForDom(() => select('automation-folder')?.disabled === false)
     const previewButton = buttonNamed('Preview')
     expect(previewButton?.disabled).toBe(false)
     click(previewButton)
@@ -228,7 +228,7 @@ describe('Rule editor', () => {
     if (!input) throw new Error('no condition input')
     typeInto(input, 'arxiv.org')
     click(buttonNamed('Preview'))
-    expect(document.activeElement).toBe(select('automation-collection'))
+    expect(document.activeElement).toBe(select('automation-folder'))
     expect(api.previewRule).not.toHaveBeenCalled()
   })
 
@@ -447,7 +447,7 @@ describe('Rule editor', () => {
       .toBe('A rule definition needs name, roles, scope, match, trigger, tasks and policy.')
     expect(document.querySelector('[data-testid="automation-json-note"]')).toBeNull()
     expect(document.querySelector('[data-testid="automation-sentence"]')?.textContent)
-      .toBe('When a bookmark saved to Personal matches the conditions you add, move it to Academic.')
+      .toBe('When a bookmark saved to Bookmarks matches the conditions you add, move it to Academic.')
   })
 
   it('does not claim an unchanged rule was saved or paused', async () => {

@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   retireSyncReplica: vi.fn(), abandonSyncConflictIntent: vi.fn(), abandonSyncReplicaIntent: vi.fn(),
   loadSyncTrash: vi.fn(), getSyncTrashItem: vi.fn(), restoreSyncTrashItem: vi.fn(),
   restoreSyncTrashBatch: vi.fn(), restoreSyncTrashSubtree: vi.fn(), emptySyncTrash: vi.fn(),
-  abandonSyncTrashIntent: vi.fn(), toast: vi.fn(), getOwnedCollectionsPage: vi.fn(),
+  abandonSyncTrashIntent: vi.fn(), toast: vi.fn(), getLibrary: vi.fn(),
 }))
 
 vi.mock('../api', async (importOriginal) => {
@@ -31,7 +31,7 @@ vi.mock('../api', async (importOriginal) => {
     restoreSyncTrashItem: mocks.restoreSyncTrashItem, restoreSyncTrashBatch: mocks.restoreSyncTrashBatch,
     restoreSyncTrashSubtree: mocks.restoreSyncTrashSubtree, emptySyncTrash: mocks.emptySyncTrash,
     abandonSyncTrashIntent: mocks.abandonSyncTrashIntent,
-    getOwnedCollectionsPage: mocks.getOwnedCollectionsPage,
+    getLibrary: mocks.getLibrary,
   } }
 })
 vi.mock('../components/AppToast', () => ({
@@ -76,14 +76,12 @@ function byButton(name: string) {
 
 describe('KNS-11 Sync Center trash', () => {
   beforeEach(() => {
+    mocks.getLibrary.mockResolvedValue({ id: 'collection-1', title: 'Bookmarks' })
     vi.clearAllMocks(); sessionStorage.clear(); document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     mocks.getSyncStatus.mockResolvedValue(status()); mocks.loadSyncConflicts.mockResolvedValue([conflict()])
     mocks.loadSyncTrash.mockResolvedValue([])
-    mocks.getOwnedCollectionsPage.mockResolvedValue({
-      items: [{ collection: { id: 'collection-1', title: 'Work bookmarks' } }],
-      page: { hasMore: false },
-    })
+
     mocks.restoreSyncTrashItem.mockResolvedValue({
       deletionId: 'deletion-fixture-1', nodeId: 'node-fixture', parentId: 'folder-fixture',
       revision: 'restored-r2', etag: '"restored-r2"', restoredAt: '2026-07-28T01:00:00.000Z',
@@ -130,7 +128,7 @@ describe('KNS-11 Sync Center trash', () => {
     expect(document.body.textContent).not.toContain('The requested Sync resource was not found.')
   })
 
-  it('does not query trash until an owned replica collection is known', async () => {
+  it('loads library trash before any browser has connected', async () => {
     /* Both StrictMode mounts must see the same "no owned replica" status: a
        `Once` here would hand the second mount `undefined` (and with it the
        `collection-1` replica queued by a previous test), which is a fixture
@@ -138,7 +136,7 @@ describe('KNS-11 Sync Center trash', () => {
     mocks.getSyncStatus.mockResolvedValue(status({ devices: [], replicas: [] }))
     mocks.loadSyncConflicts.mockResolvedValue([])
     render(); await waitForDom(domFinishedLoading)
-    expect(mocks.loadSyncTrash).not.toHaveBeenCalled()
+    expect(mocks.loadSyncTrash).toHaveBeenCalledWith(expect.objectContaining({ collectionId: 'collection-1' }))
     expect(document.body.textContent).toContain('No deleted items')
   })
 
@@ -304,7 +302,7 @@ describe('KNS-11 Sync Center trash', () => {
     act(() => byButton('Empty trash').click())
     await waitForDom(() => document.querySelector('[data-testid="modal-panel"]') !== null)
     expect(document.querySelector('[data-testid="modal-panel"]')?.textContent).toContain('Permanently delete 2 items')
-    expect(document.body.textContent).toContain('from “Work bookmarks” in COLP Server trash')
+    expect(document.body.textContent).toContain('from “Bookmarks” in COLP Server trash')
     expect(document.body.textContent).toContain("can't be undone")
     expect(document.body.textContent).toContain('at least 30 days')
     expect(mocks.emptySyncTrash).not.toHaveBeenCalled()
@@ -317,31 +315,13 @@ describe('KNS-11 Sync Center trash', () => {
     expect(mocks.toast).not.toHaveBeenCalled()
   })
 
-  it('displays collection titles in dropdown and empty trash confirmation for multiple collections', async () => {
-    mocks.getSyncStatus.mockResolvedValue(status({
-      replicas: [
-        { ...status().replicas[0]!, collectionId: 'collection-1' },
-        { ...status().replicas[0]!, id: 'replica-2', collectionId: 'collection-2', name: 'Firefox' },
-      ],
-    }))
-    mocks.getOwnedCollectionsPage.mockResolvedValue({
-      items: [
-        { collection: { id: 'collection-1', title: 'Work bookmarks' } },
-        { collection: { id: 'collection-2', title: 'Personal bookmarks' } },
-      ],
-      page: { hasMore: false },
-    })
-    mocks.loadSyncTrash.mockResolvedValue([trashItem()])
+  it('uses the library without a collection picker even when device facts reference other collections', async () => {
+    mocks.getSyncStatus.mockResolvedValue(status({ replicas: [
+      { ...status().replicas[0]!, collectionId: 'collection-1' },
+      { ...status().replicas[0]!, id: 'replica-2', collectionId: 'collection-2', name: 'Firefox' },
+    ] }))
     render(); await waitForDom(domFinishedLoading)
-    const select = document.querySelector<HTMLSelectElement>('select[aria-label="Trash collection"]')
-    expect(select).not.toBeNull()
-    expect(select?.options[0]?.textContent).toBe('Work bookmarks')
-    expect(select?.options[1]?.textContent).toBe('Personal bookmarks')
-
-    act(() => byButton('Empty trash').click())
-    // The first confirm is the shared danger modal, not an inline alertdialog.
-    await waitForDom(() => document.querySelector('[data-testid="modal-panel"]') !== null)
-    expect(document.querySelector('[role="alertdialog"]')).toBeNull()
-    expect(document.querySelector('[data-testid="modal-panel"]')?.textContent).toContain('from “Work bookmarks” in COLP Server trash')
+    expect(document.querySelector('select[aria-label="Trash collection"]')).toBeNull()
+    expect(mocks.loadSyncTrash).toHaveBeenCalledWith(expect.objectContaining({ collectionId: 'collection-1' }))
   })
 })

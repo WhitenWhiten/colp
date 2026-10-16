@@ -70,15 +70,10 @@ export function LibraryDeskView({
   const split = useLibraryDeskSplit()
   // Read once: dismissing or finishing the checklist hides it for good.
   const [checklistHidden] = useState(getStartedHidden)
-  const showChecklist = !checklistHidden && !folderId && collections.state === 'ready'
+  const showChecklist = !checklistHidden && !folderId && collections.state === 'ready' && data.snap !== null && data.selectedId === collections.items[0]?.collection.id && !data.snap.nodes.some(node => node.kind === 'bookmark')
 
   const { selectedId, snap, selectedFolder, caps } = data
-  const { reorderSection, orderedOwnedItems } = order
-  // Share opens the collection on screen when it is the owner's, otherwise
-  // the first one in the rail's order (not the API's newest-first order).
-  const shareId = (selectedId && orderedOwnedItems.some((item) => item.collection.id === selectedId)
-    ? selectedId
-    : orderedOwnedItems[0]?.collection.id) ?? null
+  const { reorderSection } = order
   const { active: layerReorderActive } = layerReorder
   const {
     selectMode,
@@ -225,6 +220,7 @@ export function LibraryDeskView({
           onDeclineInvite={onDeclineInvite}
           tagFilter={tagFilter}
           onShowAllTags={() => setTagPickerOpen(true)}
+          onNewFolder={() => mutations.openCompose('folder')}
         />
         <div
           {...split.dividerProps}
@@ -250,10 +246,7 @@ export function LibraryDeskView({
               onDeclineInvite={onDeclineInvite}
             />
             {showChecklist && (
-              <GetStarted
-                collections={collections.items}
-                shareTo={shareId ? `/library/${encodeURIComponent(shareId)}?collection=edit` : null}
-              />
+              <GetStarted onNewFolder={() => mutations.openCompose('folder')} />
             )}
             <BookmarkArea
               checklistShown={showChecklist}

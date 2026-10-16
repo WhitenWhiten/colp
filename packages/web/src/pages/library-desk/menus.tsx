@@ -224,6 +224,7 @@ export function LibraryMoreMenu({
   collaboratorsLive,
   onCompose,
   onEditCollection,
+  library = false,
 }: {
   className?: string
   caps: EditorSnapshot['capabilities'] | undefined
@@ -233,6 +234,7 @@ export function LibraryMoreMenu({
   collaboratorsLive: boolean
   onCompose: (kind: ComposeKind) => void
   onEditCollection?: () => void
+  library?: boolean
 }) {
   const { success, error } = useToast()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -285,7 +287,7 @@ export function LibraryMoreMenu({
         >
           {caps?.createNode && (
             <button type="button" role="menuitem" tabIndex={-1} onClick={() => compose('folder')}>
-              Add folder
+              New folder
             </button>
           )}
           {caps?.updateCollection && onEditCollection && (
@@ -299,7 +301,7 @@ export function LibraryMoreMenu({
                 onEditCollection()
               }}
             >
-              Edit collection
+              {library ? 'Library settings' : 'Edit collection'}
             </button>
           )}
           <Link
@@ -311,7 +313,7 @@ export function LibraryMoreMenu({
           >
             Version history
           </Link>
-          {collaboratorsLive && (
+          {collaboratorsLive && !library && (
             <Link
               role="menuitem"
               tabIndex={-1}

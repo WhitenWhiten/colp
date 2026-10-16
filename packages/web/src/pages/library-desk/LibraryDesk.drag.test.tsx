@@ -485,43 +485,6 @@ describe('LibraryDesk desktop bookmark drag', () => {
     pointer('pointerup', row, { x: 100, y: 140, pointerType: 'touch' })
   })
 
-  it('does not start a drag while sidebar reorder is active', async () => {
-    mount()
-    await waitForDom(domFinishedLoading)
-    act(() => {
-      document.querySelector<HTMLButtonElement>('[data-testid="library-nav-mine-reorder"]')?.click()
-    })
-    expect(document.querySelector('[data-library-reordering]')).not.toBeNull()
-
-    startDrag('col-1-loose')
-    expect(ghost()).toBeNull()
-    expect(document.body.hasAttribute('data-bookmark-drag')).toBe(false)
-    pointer('pointerup', bookmarkRow('col-1-loose'), { x: 100, y: 120 })
-  })
-
-  it('blocks the sidebar long-press reorder while a bookmark drag is active', async () => {
-    mount()
-    await waitForDom(domFinishedLoading)
-
-    startDrag('col-1-loose')
-    expect(ghost()).not.toBeNull()
-
-    vi.useFakeTimers()
-    const navRow = document.querySelector<HTMLElement>('[data-reorder-id="col-2"]')!
-    act(() => {
-      navRow.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 10 }))
-    })
-    act(() => {
-      vi.advanceTimersByTime(500)
-    })
-    expect(document.querySelector('[data-library-reordering]')).toBeNull()
-    expect(ghost()).not.toBeNull()
-    vi.useRealTimers()
-
-    pointer('pointerup', document.body, { x: 100, y: 120 })
-    expect(ghost()).toBeNull()
-  })
-
   it('drags the whole selection when the pressed row is part of it', async () => {
     const snap = snapshot('col-1', 'Reading queue')
     snap.nodes = [...snap.nodes, extraBookmark('col-1-third', 'col-1', 'root-col-1', 'd', 'Third bookmark')]

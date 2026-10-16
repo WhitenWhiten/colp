@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { productClient, type EditorSnapshot, type OwnedCollectionListItem } from '../api'
+import { productClient, type EditorSnapshot } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/AppToast'
 import { Breadcrumb } from '../components/Breadcrumb'
@@ -31,12 +31,7 @@ export function folderOptionText(depth: number, title: string): string {
 export function SelfHostedImport() {
   const { isLoggedIn, bootstrapping, user } = useAuth()
   const { success, error: toastError } = useToast()
-  const [collections, setCollections] = useState<OwnedCollectionListItem[]>([])
-  const [collectionsLoaded, setCollectionsLoaded] = useState(false)
   const [collectionId, setCollectionId] = useState('')
-  /* An owner with no collection yet names one here; Confirm creates it first. */
-  const [newTitle, setNewTitle] = useState('Bookmarks')
-  const [newTitleError, setNewTitleError] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<EditorSnapshot | null>(null)
   const [parentId, setParentId] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -60,11 +55,11 @@ export function SelfHostedImport() {
 
   useEffect(() => {
     const controller = new AbortController()
-    setCollections([]); setCollectionsLoaded(false); setCollectionId(''); setSnapshot(null); setPreview(null); setFileName(''); setFileError(null); setProgress(null); setBusy(false)
+    setCollectionId(''); setSnapshot(null); setPreview(null); setFileName(''); setFileError(null); setProgress(null); setBusy(false)
     active.current?.abort()
     fileGeneration.current += 1
-    if (isLoggedIn) void productClient.loadOwnedCollections({}, { signal: controller.signal })
-      .then(rows => { if (!controller.signal.aborted) { setCollections(rows); setCollectionsLoaded(true); setCollectionId(rows[0]?.collection.id ?? '') } })
+    if (isLoggedIn) void productClient.getLibrary({ signal: controller.signal })
+      .then(library => { if (!controller.signal.aborted) setCollectionId(library.id) })
       .catch(cause => { if (!controller.signal.aborted) toastError(message(cause)) })
     return () => { controller.abort(); active.current?.abort(); fileGeneration.current += 1 }
   }, [isLoggedIn, user?.accountId, toastError])
@@ -73,7 +68,7 @@ export function SelfHostedImport() {
     setSnapshot(null); setParentId('')
     attempt.current = bookmarkImportAttempt()
     if (collectionId) void productClient.loadEditorSnapshot(collectionId, { signal: controller.signal })
-      .then(value => { if (!controller.signal.aborted) { setSnapshot(value); setParentId(value.root.id) } })
+      .then(value => { if (!controller.signal.aborted) { setSnapshot(value) } })
       .catch(cause => { if (!controller.signal.aborted) toastError(message(cause)) })
     return () => controller.abort()
   }, [collectionId, toastError])
@@ -88,37 +83,17 @@ export function SelfHostedImport() {
       if (generation === fileGeneration.current) { setPreview(previewBookmarkImport(html)); setFileName(file.name) }
     } catch (cause) { if (generation === fileGeneration.current) setFileError(message(cause)) }
   }
-  const naming = collectionsLoaded && collections.length === 0
   const run = async () => {
     if (!preview || busy) return
-    if (!naming && (!snapshot || !parentId)) return
-    const title = newTitle.trim()
-    if (naming && !title) {
-      setNewTitleError('Name the collection to import into.')
-      document.getElementById('import-new-collection')?.focus()
-      return
-    }
+    if (!snapshot || !parentId) return
     const controller = new AbortController()
     active.current = controller
     const total = preview.folders + preview.bookmarks
     setBusy(true); setProgress({ done: 0, total })
-    let targetId = collectionId
-    let created = false
+    const targetId = collectionId
     try {
-      if (naming) {
-        const result = await productClient.createCollection(
-          { kind: 'bookmarks', title, summary: null },
-          { intentId: productClient.mutationIntentKey('create-collection', productClient.newCommandId()), signal: controller.signal },
-        )
-        targetId = result.collection.id
-        created = true
-        // From here the page imports into this collection, so a retry adds to
-        // it instead of creating a second one.
-        const rows = await productClient.loadOwnedCollections({}, { signal: controller.signal })
-        setCollections(rows); setCollectionId(targetId)
-      }
       const fresh = await productClient.loadEditorSnapshot(targetId, { signal: controller.signal })
-      const result = await importBookmarks({ snapshot: fresh, parentId: naming ? fresh.root.id : parentId, items: preview.items, skipDuplicates,
+      const result = await importBookmarks({ snapshot: fresh, parentId, items: preview.items, skipDuplicates,
         intentFor: attempt.current, signal: controller.signal,
         onProgress: (done, skipped) => setProgress({ done: done + skipped, total }),
       })
@@ -127,7 +102,7 @@ export function SelfHostedImport() {
         // bookmarks into the same folder, so the picker is cleared.
         success(
           `Imported ${plural(result.created, 'item')}${result.skipped > 0 ? `; skipped ${plural(result.skipped, 'duplicate')}` : ''}. Your browsers pick them up on their next sync.`,
-          { action: { label: 'View collection', to: `/library/${targetId}` } },
+          { action: { label: 'View folder', to: `/library/${targetId}?folder=${encodeURIComponent(parentId)}` } },
         )
         clearFile()
         attempt.current = bookmarkImportAttempt()
@@ -136,7 +111,7 @@ export function SelfHostedImport() {
       }
     } catch (cause) {
       if (!controller.signal.aborted) {
-        toastError(naming && !created ? message(cause) : `${message(cause)} Completed items are saved. Retry to continue.`)
+        toastError(`${message(cause)} Completed items are saved. Retry to continue.`)
       }
     } finally { if (!controller.signal.aborted) { setBusy(false); setProgress(null) } }
   }
@@ -188,34 +163,14 @@ export function SelfHostedImport() {
               </li>
               <li className="import-step">
                 <h2>Pick where it goes</h2>
-                {naming ? (
-                  <div className="field import-new-collection">
-                    <label htmlFor="import-new-collection">New collection</label>
-                    <input id="import-new-collection" value={newTitle} maxLength={512} autoComplete="off" disabled={busy}
-                      aria-invalid={newTitleError ? true : undefined}
-                      aria-describedby={newTitleError ? 'import-new-collection-error' : 'import-new-collection-hint'}
-                      onChange={event => { setNewTitle(event.target.value); setNewTitleError(null) }} />
-                    {newTitleError
-                      ? <p className="field-error" id="import-new-collection-error" role="alert">{newTitleError}</p>
-                      : <p className="field-hint" id="import-new-collection-hint">You have no collections yet. This one is created when you confirm, and the file’s folders go inside it.</p>}
-                  </div>
-                ) : (
-                  <>
-                    <div className="import-destination">
-                      <div className="field"><label htmlFor="import-collection">Collection</label>
-                        <select id="import-collection" value={collectionId} disabled={busy || !collectionsLoaded} onChange={event => { changeDestination(); setCollectionId(event.target.value) }}>
-                          {!collectionsLoaded && <option value="">Loading collections…</option>}
-                          {collections.map(row => <option key={row.collection.id} value={row.collection.id}>{row.collection.title}</option>)}
-                        </select></div>
-                      <div className="field"><label htmlFor="import-folder">Destination folder</label>
-                        <select id="import-folder" value={parentId} disabled={busy || !snapshot} onChange={event => { changeDestination(); setParentId(event.target.value) }}>
-                          {snapshot && <option value={snapshot.root.id}>Collection root</option>}
-                          {folders.map(option => <option key={option.id} value={option.id} title={option.label}>{folderOptionText(option.depth, option.title)}</option>)}
-                        </select></div>
-                    </div>
-                    <p className="field-hint">Folders in the file are created under this folder; existing folders with the same name are reused.</p>
-                  </>
-                )}
+                <div className="field">
+                  <label htmlFor="import-folder">Destination folder</label>
+                  <select id="import-folder" value={parentId} disabled={busy || !snapshot} onChange={event => { changeDestination(); setParentId(event.target.value) }}>
+                    <option value="">{snapshot ? 'Choose a folder' : 'Loading folders…'}</option>
+                    {folders.map(option => <option key={option.id} value={option.id} title={option.label}>{folderOptionText(option.depth, option.title)}</option>)}
+                  </select>
+                </div>
+                <p className="field-hint">Folders in the file are created under the folder you choose; existing folders with the same name are reused.</p>
               </li>
               <li className="import-step">
                 <h2>Import</h2>
@@ -227,7 +182,7 @@ export function SelfHostedImport() {
                     <span>{progress.done} of {plural(progress.total, 'item')} imported…</span>
                   </div>
                 )}
-                <button type="submit" className="btn btn-primary import-submit" disabled={busy || !preview || (!naming && (!snapshot || !parentId))}>{busy ? 'Importing…' : 'Confirm import'}</button>
+                <button type="submit" className="btn btn-primary import-submit" disabled={busy || !preview || (!snapshot || !parentId)}>{busy ? 'Importing…' : 'Confirm import'}</button>
               </li>
             </ol>
           </form>

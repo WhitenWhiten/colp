@@ -174,7 +174,7 @@ export function fakeApi(): Mocked<AutomationApi> {
 
 export function fakeFolders(): FolderSource {
   return {
-    listCollections: vi.fn(async () => [{ id: 'col-personal', title: 'Personal' }, { id: 'col-work', title: 'Work' }]),
+    listCollections: vi.fn(async () => [{ id: 'col-personal', title: 'Bookmarks' }]),
     loadFolders: vi.fn(async (collectionId: string) => collectionId === 'col-personal'
       ? {
           collectionId,

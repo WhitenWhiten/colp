@@ -163,8 +163,8 @@ export function CollectionSettingsSheet({
     <Modal
       open={open}
       onClose={requestClose}
-      label="Edit collection"
-      title="Edit collection"
+      label={current?.library ? "Library settings" : "Edit collection"}
+      title={current?.library ? "Library settings" : "Edit collection"}
     >
       <div
         data-testid="collection-settings"

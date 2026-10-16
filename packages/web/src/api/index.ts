@@ -17,6 +17,7 @@ export type {
   AnnotationView,
   AnnotationVisibility,
   CollectionKind,
+  LibraryCollection,
   OwnedCollectionListItem,
   OwnedCollectionPage,
   OwnedCollectionPageState,

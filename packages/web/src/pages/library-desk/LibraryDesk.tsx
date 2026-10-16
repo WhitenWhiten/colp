@@ -155,7 +155,7 @@ export function LibraryDesk() {
           kind="auth"
           icon="folder"
           title="Sign in to open your library"
-          description="Your collections and bookmarks are private to your account."
+          description="Your folders and bookmarks are private to your account."
           returnTo={returnTo}
         />
       </PageShell>
@@ -192,6 +192,7 @@ export function LibraryDesk() {
       <NodeEditDrawer
         snap={data.snap}
         nodeId={editingNodeId}
+        titleReadOnly={editingNodeId !== null && data.protectedFolderIds.has(editingNodeId)}
         onClose={() => {
           setEditingNodeId(null)
           dropSearchParam('node')

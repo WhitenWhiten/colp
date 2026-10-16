@@ -10,7 +10,6 @@ const Automations = lazyWithRetry('Automations', async () => (await import('./pa
 const Collection = lazyWithRetry('Collection', async () => (await import('./pages/Collection')).Collection)
 const Library = lazyWithRetry('Library', async () => (await import('./pages/Library')).Library)
 const CollectionEditor = lazyWithRetry('CollectionEditor', async () => (await import('./pages/CollectionEditor')).CollectionEditor)
-const CreateCollection = lazyWithRetry('CreateCollection', async () => (await import('./pages/CreateCollection')).CreateCollection)
 const Login = lazyWithRetry('Login', async () => (await import('./pages/SelfHostedLogin')).SelfHostedLogin)
 const Register = lazyWithRetry('Register', async () => (await import('./pages/SelfHostedRegister')).SelfHostedRegister)
 const AuthRecovery = lazyWithRetry('AuthRecovery', async () => (await import('./pages/AuthRecovery')).AuthRecovery)
@@ -50,7 +49,6 @@ export default function App() {
           <Route path="search" element={<Search />} />
           <Route path="c/:slug" element={<Collection />} />
           <Route path="r/:id" element={<ResourceDetail />} />
-          <Route path="library/new" element={<CreateCollection />} />
           <Route path="library/health" element={<LibraryHealth />} />
           <Route path="library/:id/edit" element={<CollectionEditor />} />
           <Route path="library/:id/history" element={<CollectionHistory />} />

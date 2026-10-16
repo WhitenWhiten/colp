@@ -33,6 +33,7 @@ export function NodeEditDrawer({
   success,
   error,
   refreshSession,
+  titleReadOnly = false,
 }: {
   snap: EditorSnapshot | null
   /** null closes the drawer; the last id is kept for the exit frame. */
@@ -44,6 +45,7 @@ export function NodeEditDrawer({
   success: (message: string) => void
   error: (message: string) => void
   refreshSession: () => Promise<void>
+  titleReadOnly?: boolean
 }) {
   const lastIdRef = useRef<string | null>(nodeId)
   if (nodeId) lastIdRef.current = nodeId
@@ -130,7 +132,7 @@ export function NodeEditDrawer({
       <div className="field">
         <label htmlFor="nd-title">Title</label>
         <input
-          id="nd-title"
+          id="nd-title" readOnly={titleReadOnly}
           value={drawer.title}
           maxLength={NODE_TITLE_MAX}
           disabled={!canEdit}

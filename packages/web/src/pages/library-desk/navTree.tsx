@@ -101,7 +101,7 @@ export function CollectionBranch({
   onSelect,
   listItem = false,
 }: {
-  collection: { id: string; title: string }
+  collection: { id: string; title: string; library?: boolean }
   bookmarkCount?: number
   selectedId: string | null
   folderId: string | null
@@ -173,7 +173,7 @@ export function CollectionBranch({
             aria-current={selected ? 'page' : undefined}
             onClick={() => onSelect(valueOf(null))}
           >
-            <NavRowMarks title={collection.title} count={bookmarkTotal} container="collection" />
+            <NavRowMarks title={collection.library ? 'All bookmarks' : collection.title} count={bookmarkTotal} container="collection" />
           </button>
         ) : (
           <Link
@@ -182,7 +182,7 @@ export function CollectionBranch({
             data-collection-id={collection.id}
             aria-current={selected ? 'page' : undefined}
           >
-            <NavRowMarks title={collection.title} count={bookmarkTotal} container="collection" />
+            <NavRowMarks title={collection.library ? 'All bookmarks' : collection.title} count={bookmarkTotal} container="collection" />
           </Link>
         )}
       </div>

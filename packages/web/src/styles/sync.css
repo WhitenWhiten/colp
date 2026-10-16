@@ -109,7 +109,6 @@
 .trash-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-3) 0 0; }
 .trash-facts dt { color: var(--muted); font-size: var(--text-xs); }
 .trash-facts dd { margin: var(--hair-20) 0 0; overflow-wrap: anywhere; font-size: var(--text-sm); }
-.trash-collection { max-width: 18rem; }
 .trash-list { --data-table-cols: auto minmax(11rem, 1fr) minmax(16rem, 2fr) auto; margin-top: var(--space-3); border-bottom: 1px solid var(--line); }
 .trash-row { gap: var(--space-4); }
 .trash-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }

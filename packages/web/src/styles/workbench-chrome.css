@@ -217,32 +217,9 @@
 /* Create-collection card: the card is already a reading-width column, so
    its title and summary fill it. Under the default --measure cap they
    stopped ~6rem short of the card edge the Create button sits on. */
-.cc-form .field input,
-.cc-form .field textarea {
-  max-width: none;
-}
 
 /* Create-collection kind list. Rows stay on .option-row; this only
    matches the form labels and wraps to two columns from 720px. */
-.cc-kind legend {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-2);
-  margin-bottom: var(--space-1);
-}
-
-@media (min-width: 720px) {
-  .cc-kind {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-2);
-  }
-
-  .cc-kind legend,
-  .cc-kind .field-hint {
-    grid-column: 1 / -1;
-  }
-}
 
 /* ——— Node annotation fields ———
    The annotation sections + visibility radiogroup of the shared

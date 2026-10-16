@@ -13,6 +13,7 @@ export type AuthenticatedSessionView = Schemas['AuthenticatedSessionView']
 export type MeView = Schemas['MeView']
 export type UpdateMeRequest = Schemas['UpdateMeRequest']
 
+export type LibraryCollection = Schemas['LibraryCollection']
 export type CollectionKind = Schemas['CollectionKind']
 export type CollectionView = Schemas['CollectionView']
 export type CollectionVisibility = Schemas['CollectionVisibility']

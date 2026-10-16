@@ -298,7 +298,7 @@ export function RuleEditor() {
     const empty = form.conditions.find((condition) => !condition.value.trim())
     const id = first === 'conditions' && empty
       ? `automation-condition-${empty.key}`
-      : first === 'folder' ? (form.collectionId ? 'automation-folder' : 'automation-collection') : null
+      : first === 'folder' ? 'automation-folder' : null
     if (id) document.getElementById(id)?.focus()
   }
 
@@ -591,21 +591,6 @@ export function RuleEditor() {
                   <h2 id="automation-step-where">…move it to</h2>
                 </div>
                 <div className="automation-where">
-                  <div className="field">
-                    <label htmlFor="automation-collection">Collection</label>
-                    <select
-                      id="automation-collection"
-                      value={draft.collectionId}
-                      disabled={collections.state.status !== 'ready'}
-                      aria-invalid={folderInvalid && !draft.collectionId ? true : undefined}
-                      onChange={(event) => update({ collectionId: event.target.value, folderId: '' })}
-                    >
-                      <option value="">{collections.state.status === 'loading' ? 'Loading…' : 'Choose a collection'}</option>
-                      {collections.state.status === 'ready' && collections.state.data.map((item) => (
-                        <option key={item.id} value={item.id}>{item.title}</option>
-                      ))}
-                    </select>
-                  </div>
                   <div className="field">
                     <label htmlFor="automation-folder">Folder</label>
                     <select

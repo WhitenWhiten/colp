@@ -131,6 +131,7 @@ export function useLibraryDeskMutations(options: {
   const [compose, setCompose] = useState<ComposeKind | null>(null)
   const [busy, setBusy] = useState(false)
   const [createTitle, setCreateTitle] = useState('')
+  const [createParentId, setCreateParentId] = useState('')
   const [createUrl, setCreateUrl] = useState('https://')
   const [createUrlError, setCreateUrlError] = useState<string | null>(null)
   const [createTitleError, setCreateTitleError] = useState<string | null>(null)
@@ -145,6 +146,7 @@ export function useLibraryDeskMutations(options: {
 
   const openCompose = (kind: ComposeKind) => {
     setCompose(kind)
+    setCreateParentId(options.parentId === snap?.root.id ? '' : options.parentId)
     setCreateTitle('')
     setCreateUrl('https://')
     setCreateUrlError(null)
@@ -184,7 +186,8 @@ export function useLibraryDeskMutations(options: {
       // Title is optional for bookmarks: an empty one falls back to the host.
       if (!title) title = parsed.hostname.replace(/^www\./, '') || rawUrl
     }
-    const parentId = options.parentId || snap.root.id
+    const parentId = snap.collection.library ? createParentId : options.parentId || snap.root.id
+    if (!parentId) { error('Choose where this item goes.'); document.getElementById('lc-parent')?.focus(); return }
     setBusy(true)
     try {
       const intentId = productClient.mutationIntentKey(
@@ -554,6 +557,7 @@ export function useLibraryDeskMutations(options: {
     setCompose,
     busy,
     createTitle,
+    createParentId, setCreateParentId,
     setCreateTitle,
     createUrl,
     setCreateUrl,

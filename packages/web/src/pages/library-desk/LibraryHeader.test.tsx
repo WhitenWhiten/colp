@@ -103,7 +103,7 @@ describe('LibraryHeader mobile switcher', () => {
     expect(switcher()).toBeNull()
   })
 
-  it('lists a pending invitation and New collection in the switcher', async () => {
+  it('lists a pending invitation and New folder in the switcher', async () => {
     // Invitations wait for multi-user; this exercises them behind the flag.
     window.__KNOWN_FLAGS__ = { collaborators: true }
     mocks.invites.items = [{
@@ -118,13 +118,13 @@ describe('LibraryHeader mobile switcher', () => {
     mount()
     await waitForDom(domFinishedLoading)
     const trigger = document.querySelector('[data-testid="library-mobile-switcher-trigger"]')
-    expect(trigger?.getAttribute('aria-label')).toBe('Collection or folder: Reading queue, 1 invitation pending')
+    expect(trigger?.getAttribute('aria-label')).toBe('Folder: Reading queue, 1 invitation pending')
     openSwitcher()
     const sheet = switcher()
     const accept = sheet?.querySelector<HTMLButtonElement>('[aria-label="Accept invitation to Frozen Shelf"]')
     expect(accept?.textContent).toBe('Accept')
     expect(accept?.className).toContain('btn-secondary')
-    expect(sheet?.querySelector('a[href="/library/new"]')?.textContent).toContain('New collection')
+    expect([...sheet!.querySelectorAll('button')].find(button => button.textContent === 'New folder')?.textContent).toContain('New folder')
     await act(async () => {
       sheet?.querySelector<HTMLButtonElement>('[aria-label="Decline invitation to Frozen Shelf"]')?.click()
       await Promise.resolve()
@@ -140,28 +140,5 @@ describe('LibraryHeader mobile switcher', () => {
     expect(switcher()).toBeNull()
   })
 
-  it('supports reordering collections in mobile switcher', async () => {
-    mount()
-    await waitForDom(domFinishedLoading)
-    openSwitcher()
-    const sheet = switcher()
-    expect(sheet).not.toBeNull()
-    const reorderBtn = sheet?.querySelector<HTMLButtonElement>('[data-testid="library-nav-mine-reorder"]')
-    expect(reorderBtn).not.toBeNull()
 
-    act(() => {
-      reorderBtn?.click()
-    })
-    await waitForDom(domFinishedLoading)
-
-    expect(sheet?.querySelector('[data-reordering]')).not.toBeNull()
-    const doneBtn = sheet?.querySelector<HTMLButtonElement>('[data-testid="library-nav-mine-done"]')
-    expect(doneBtn).not.toBeNull()
-
-    act(() => {
-      doneBtn?.click()
-    })
-    await waitForDom(domFinishedLoading)
-    expect(sheet?.querySelector('[data-reordering]')).toBeNull()
-  })
 })

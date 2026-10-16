@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { Icon } from '../../components/Icon'
 import { LoadMoreButton } from '../../components/LoadMoreButton'
 import { ReorderableNavList } from '../../components/ReorderableNavList'
@@ -26,6 +25,7 @@ export function LibrarySidebar({
   onDeclineInvite,
   tagFilter,
   onShowAllTags,
+  onNewFolder,
 }: {
   folderId: string | null
   collaboratorsLive: boolean
@@ -42,6 +42,7 @@ export function LibrarySidebar({
   /** The open collection's tags; null while no bookmark list is on screen. */
   tagFilter: LibraryTagFilter | null
   onShowAllTags: () => void
+  onNewFolder: () => void
 }) {
   const {
     trees,
@@ -77,7 +78,7 @@ export function LibrarySidebar({
   return (
     <aside
       className={reorderSection ? 'library-nav is-reordering' : 'library-nav'}
-      aria-label="Your collections"
+      aria-label="Your library"
       data-testid="library-nav"
       data-library-reordering={reorderSection || undefined}
     >
@@ -89,18 +90,14 @@ export function LibrarySidebar({
       <div className="library-nav-head">
         <LibraryNavMark />
         <div>
-          <h3 className="section-label">Collections</h3>
+          <h3 className="section-label">Library</h3>
         </div>
       </div>
 
-      {/* Create sits under the heading, not at the foot of the tree: with a
-          few sections open the foot fell below the fold, and "New
-          collection" is the first thing a new library needs. */}
       <div className="library-nav-actions">
-        <Link to="/library/new" className="library-nav-create">
-          <Icon name="plus" />
-          New collection
-        </Link>
+        <button type="button" className="library-nav-create" onClick={onNewFolder} disabled={!data.caps?.createNode}>
+          <Icon name="plus" />New folder
+        </button>
       </div>
 
       {showInviteNav && (
@@ -142,49 +139,24 @@ export function LibrarySidebar({
 
       <LibraryNavSection
         sectionId="mine"
-        title="My collections"
+        title="Bookmarks"
         collapsed={collapsedSections.has('mine')}
         onToggle={() => toggleSection('mine')}
         reordering={reorderSection === 'mine'}
-        canReorder={orderedOwnedItems.length >= 2}
+        canReorder={false}
         onBeginReorder={() => beginReorder('mine')}
         onFinishReorder={() => finishReorder()}
       >
         {collections.state === 'error' && collections.items.length === 0 ? (
           <p className="library-nav-hint" role="alert">{collections.message}</p>
         ) : (
-          <ReorderableNavList
-            ids={orderedOwnedItems.map((item) => item.collection.id)}
-            items={orderedOwnedItems.map((item) => ({
-              id: item.collection.id,
-              label: item.collection.title,
-              node: (
-                <CollectionBranch
-                  collection={item.collection}
-                  bookmarkCount={item.bookmarkCount}
-                  selectedId={selectedId}
-                  folderId={folderId}
-                  expanded={isExpanded(item.collection.id)}
-                  tree={trees[item.collection.id]}
-                  onToggle={() => toggleExpanded(item.collection.id, isExpanded(item.collection.id))}
-                />
-              ),
-            }))}
-            active={reorderSection === 'mine'}
-            disabled={orderedOwnedItems.length < 2}
-            ariaLabel="Collection folders"
-            onActivate={() => beginReorder('mine')}
-            onOrderChange={(ids) => setSectionIds('mine', ids)}
-            onDismiss={() => finishReorder()}
-          />
+          <div role="list" aria-label="Library folders">
+            {orderedOwnedItems.map(item => <CollectionBranch key={item.collection.id} collection={item.collection} bookmarkCount={item.bookmarkCount}
+              selectedId={selectedId} folderId={folderId} expanded={isExpanded(item.collection.id)}
+              tree={trees[item.collection.id]} onToggle={() => toggleExpanded(item.collection.id, isExpanded(item.collection.id))} listItem />)}
+          </div>
         )}
-        {collections.items.length > 0 && collections.hasMore && (
-          <LoadMoreButton
-            className="library-nav-more"
-            loading={collections.isLoadingMore}
-            onClick={() => void collections.loadMore()}
-          />
-        )}
+
       </LibraryNavSection>
 
       {collaboratorsLive && (

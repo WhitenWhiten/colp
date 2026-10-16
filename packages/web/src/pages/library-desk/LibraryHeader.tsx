@@ -68,10 +68,10 @@ export function LibraryHeader({
   const lede = selectedFolder
     ? `${plural(bookmarkCount, 'bookmark')} in ${collection?.title ?? 'this collection'}.`
     : collection
-      ? collection.summary || 'Bookmarks in this collection.'
+      ? collection.summary || 'All your folders and bookmarks, synced across your browsers.'
       : collaboratorsLive
         ? 'Collections you own and collections shared with you.'
-        : 'Your collections and the bookmarks in them.'
+        : 'Your folders and bookmarks.'
 
   const onMobileChange = (value: string) => {
     const [nextCollection, nextFolder] = value.split('::')
@@ -101,7 +101,7 @@ export function LibraryHeader({
     collection && (collection.visibility === 'public' || collection.visibility === 'unlisted')
       ? collection.publicationSlug
       : null
-  const visibilityBadge = collection
+  const visibilityBadge = collection && !collection.library
     ? collectionVisibilityBadge(collection.visibility)
     : null
 
@@ -109,6 +109,7 @@ export function LibraryHeader({
     <>
       <LibraryMobileNav
         heading={heading}
+        onNewFolder={() => openCompose('folder')}
         folderId={folderId}
         collaboratorsLive={collaboratorsLive}
         showInviteNav={showInviteNav}
@@ -133,15 +134,16 @@ export function LibraryHeader({
         documentTitle={heading}
         actions={
           <>
-            {collection?.id && <SubscribeButton sourceType="collection" sourceId={collection.id} />}
+            {collection?.id && !collection.library && <SubscribeButton sourceType="collection" sourceId={collection.id} />}
             {selectedId && (
               <LibraryMoreMenu
                 caps={caps}
                 selectedId={selectedId}
                 publicSlug={publicSlug}
-                collaboratorsLive={collaboratorsLive}
+                collaboratorsLive={collaboratorsLive && !collection?.library}
                 onCompose={openCompose}
                 onEditCollection={onEditCollection}
+                library={collection?.library}
               />
             )}
           </>
@@ -160,6 +162,7 @@ export function LibraryHeader({
 
 function LibraryMobileNav({
   heading,
+  onNewFolder,
   folderId,
   collaboratorsLive,
   showInviteNav,
@@ -171,6 +174,7 @@ function LibraryMobileNav({
   onDeclineInvite,
 }: {
   heading: string
+  onNewFolder: () => void
   folderId: string | null
   collaboratorsLive: boolean
   showInviteNav: boolean
@@ -216,7 +220,7 @@ function LibraryMobileNav({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={dialogId}
-        aria-label={`Collection or folder: ${heading}${inviteCount > 0 ? `, ${plural(inviteCount, 'invitation')} pending` : ''}`}
+        aria-label={`Folder: ${heading}${inviteCount > 0 ? `, ${plural(inviteCount, 'invitation')} pending` : ''}`}
         onClick={() => setOpen(true)}
       >
         <span className="library-nav-icon" aria-hidden>
@@ -235,8 +239,8 @@ function LibraryMobileNav({
           order?.finishReorder()
           setOpen(false)
         }}
-        label="Collections"
-        title="Collections"
+        label="Folders"
+        title="Folders"
         overlayProps={{ id: dialogId, 'data-testid': 'library-mobile-switcher' }}
       >
         {showInviteNav && invites.state === 'error' && invites.items.length === 0 && (
@@ -273,60 +277,11 @@ function LibraryMobileNav({
         <div className="library-nav-tree">
             {orderedOwned.length > 0 && (
               <div className="library-mobile-nav-section-head">
-                <p className="library-nav-sub">My collections</p>
-                {orderedOwned.length >= 2 && order && (
-                  reorderSection === 'mine' ? (
-                    <button
-                      type="button"
-                      className="chip chip--rail library-nav-section-action"
-                      data-testid="library-nav-mine-done"
-                      onClick={() => order.finishReorder()}
-                    >
-                      Done
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="chip chip--rail library-nav-section-action library-nav-section-action--icon"
-                      data-testid="library-nav-mine-reorder"
-                      aria-label="Reorder My collections"
-                      title="Reorder"
-                      onClick={() => order.beginReorder('mine')}
-                    >
-                      <Icon name="reorder" />
-                      <span>Reorder</span>
-                    </button>
-                  )
-                )}
+                <p className="library-nav-sub">Bookmarks</p>
+
               </div>
             )}
-            {reorderSection === 'mine' && order ? (
-              <ReorderableNavList
-                ids={orderedOwned.map((item) => item.collection.id)}
-                items={orderedOwned.map((item) => ({
-                  id: item.collection.id,
-                  label: item.collection.title,
-                  node: (
-                    <CollectionBranch
-                      collection={item.collection}
-                      bookmarkCount={item.bookmarkCount}
-                      selectedId={selectedId}
-                      folderId={folderId}
-                      expanded={false}
-                      tree={trees[item.collection.id]}
-                      onToggle={() => {}}
-                    />
-                  ),
-                }))}
-                active={true}
-                disabled={orderedOwned.length < 2}
-                ariaLabel="Collection folders"
-                onActivate={() => order.beginReorder('mine')}
-                onOrderChange={(ids) => order.setSectionIds('mine', ids)}
-                onDismiss={() => order.finishReorder()}
-              />
-            ) : (
-              <div role="list" aria-label="My collections">
+              <div role="list" aria-label="Library folders">
               {orderedOwned.map((item) => (
                 <CollectionBranch
                   listItem
@@ -342,7 +297,6 @@ function LibraryMobileNav({
                 />
               ))}
               </div>
-            )}
             {collaboratorsLive && orderedShared.length > 0 && (
               <>
                 <div className="library-mobile-nav-section-head">
@@ -418,10 +372,8 @@ function LibraryMobileNav({
               </>
             )}
         </div>
-        <div className="library-mobile-foot">
-          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor; Enter fires onClick (close the sheet) natively */}
-          <Link to="/library/new" className="btn btn-secondary btn-sm" onClick={() => setOpen(false)}>New collection</Link>
-        </div>
+
+        <div className="library-mobile-foot"><button type="button" className="btn btn-secondary btn-sm" disabled={!data.caps?.createNode} onClick={() => { setOpen(false); onNewFolder() }}>New folder</button></div>
       </Modal>
     </div>
   )

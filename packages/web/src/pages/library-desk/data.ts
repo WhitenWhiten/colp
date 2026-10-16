@@ -282,6 +282,7 @@ export function useLibraryDeskData(options: {
     id ? `${collectionBasePath}?folder=${encodeURIComponent(id)}` : collectionBasePath
 
   return {
+    protectedFolderIds: new Set([collections.library?.bookmarksBarId, collections.library?.otherBookmarksId].filter((id): id is string => Boolean(id))),
     trees,
     treesRef,
     expanded,

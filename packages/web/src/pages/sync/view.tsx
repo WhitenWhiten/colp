@@ -174,7 +174,6 @@ export function SyncView({ data, mutations, trashBatch }: {
           </section>
 
           <TrashSection
-            collections={data.trashCollections}
             collectionTitles={data.trashCollectionTitles}
             collectionId={data.trashCollectionId}
             items={data.trashItems}
@@ -190,7 +189,6 @@ export function SyncView({ data, mutations, trashBatch }: {
             error={data.trashError}
             errorKind={data.trashErrorKind}
             disabled={refreshing || restoreBusy}
-            onCollection={data.selectTrashCollection}
             onRevealUrl={(deletionId) => void data.revealTrashUrl(deletionId)}
             onRestore={(item) => void submitRestore(item)}
             onReplay={(item) => void submitRestore(item, true)}

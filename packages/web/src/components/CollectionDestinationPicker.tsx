@@ -280,13 +280,8 @@ export function CollectionDestinationPicker({
         ) : candidates.length === 0 ? (
           <EmptyState
             icon="folder"
-            title="No destination collections"
-            description="Create a collection you can copy bookmarks into."
-            action={(
-              <Link to="/library/new" className="btn btn-secondary btn-sm">
-                New collection
-              </Link>
-            )}
+            title="Your library is unavailable"
+            description="Close this dialog and reload your library, then try again."
           />
         ) : (
           <>

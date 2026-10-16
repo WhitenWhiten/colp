@@ -139,7 +139,7 @@ describe('LibraryDesk sharing and sidebar counts', () => {
     expect(sections).toContain('Shared with you')
     expect(document.body.textContent).not.toContain('The extension only syncs collections you own, not ones shared with you.')
     expect(document.querySelector('a[data-collection-id="col-shared"]')?.textContent).toContain('Team research')
-    const ownedTree = document.querySelector('[aria-label="Collection folders"]')
+    const ownedTree = document.querySelector('[aria-label="Library folders"]')
     expect(ownedTree?.querySelector('a[data-collection-id="col-shared"]')).toBeNull()
     act(() => {
       document.querySelector<HTMLButtonElement>('[data-testid="library-mobile-switcher-trigger"]')?.click()
@@ -186,7 +186,7 @@ describe('LibraryDesk sharing and sidebar counts', () => {
     expect(sections[0]).toBe('library-nav-invites')
     expect(sections[1]).toBe('library-nav-mine')
     // R15-44 (R13 D-25 option B): a list while idle, a tree only in reorder mode.
-    expect(nav?.querySelector('[aria-label="Collection folders"]')?.getAttribute('role')).toBe('list')
+    expect(nav?.querySelector('[aria-label="Library folders"]')?.getAttribute('role')).toBe('list')
   })
 
   it('accepts an invite, refreshes shared collections, and navigates to the collection', async () => {
@@ -252,7 +252,7 @@ describe('LibraryDesk sharing and sidebar counts', () => {
     mount()
     await waitForDom(domFinishedLoading)
     const eyebrows = [...document.querySelectorAll('[data-testid="library-nav"] .section-label')].map((node) => node.textContent)
-    expect(eyebrows).toContain('Collections')
+    expect(eyebrows).toContain('Library')
     expect(eyebrows).not.toContain('Invitations')
     const sharedSection = document.querySelector('[data-testid="library-nav-shared"]')
     expect(sharedSection?.textContent).toContain('Shared with you')

@@ -175,6 +175,8 @@ export class ProductApiError extends Error {
         return 'Sign in to continue.'
       case 'folder_not_empty':
         return 'Folder is not empty. Delete it together with everything inside.'
+      case 'library_protected':
+        return 'Your library and its browser folders are permanent. Create or edit a folder inside them.'
       case 'root_immutable':
         return 'The collection root cannot be modified or deleted.'
       case 'rate_limited':

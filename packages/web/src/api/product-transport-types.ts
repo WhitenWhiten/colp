@@ -253,6 +253,7 @@ export type ProductTransport = {
     body: CollectionVersionRestoreRequest,
     opts: MutationCallOptions & { ifMatch: string },
   ) => Promise<CollectionVersionRestoreReceipt>
+  getLibrary: (signal?: AbortSignal) => Promise<import('./types').LibraryCollection>
   listOwnedCollections: (params?: OwnedCollectionPageParams) => Promise<OwnedCollectionPage>
   createCollection: (
     body: CreateCollectionRequest,

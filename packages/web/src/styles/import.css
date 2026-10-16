@@ -142,15 +142,6 @@
 }
 
 /* No collection yet: one title field, as wide as one destination select. */
-.import-new-collection {
-  max-width: 22rem;
-}
-
-.import-destination {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-  gap: var(--space-3);
-}
 
 .import-submit {
   justify-self: start;

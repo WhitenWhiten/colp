@@ -66,7 +66,7 @@ export function CollectionMetaForm({
           maxLength={2000}
         />
       </div>
-      {caps?.managePublication && (
+      {caps?.managePublication && !collection.library && (
         <fieldset className="publication-controls">
           <legend>Publication</legend>
           <FilterRail

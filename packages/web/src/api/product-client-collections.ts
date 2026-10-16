@@ -728,6 +728,9 @@ export function createProductCollectionsClient(
   }
 
   return {
+    getLibrary: (options?: ReadOptions) => withSameRequestRetry(async () => {
+      try { return await transport.getLibrary(options?.signal) } catch (error) { throw wrapProductError(error) }
+    }, { maxRetries: options?.maxRetries, signal: options?.signal }),
     uploadBookmarkFavicon,
     deleteBookmarkFavicon,
     getOwnedCollectionsPage,

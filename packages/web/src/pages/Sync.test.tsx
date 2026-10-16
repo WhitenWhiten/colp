@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   retireSyncReplica: vi.fn(), abandonSyncConflictIntent: vi.fn(), abandonSyncReplicaIntent: vi.fn(),
   loadSyncTrash: vi.fn(), getSyncTrashItem: vi.fn(), restoreSyncTrashItem: vi.fn(),
   restoreSyncTrashBatch: vi.fn(), restoreSyncTrashSubtree: vi.fn(), emptySyncTrash: vi.fn(),
-  abandonSyncTrashIntent: vi.fn(), toast: vi.fn(), getOwnedCollectionsPage: vi.fn(),
+  abandonSyncTrashIntent: vi.fn(), toast: vi.fn(), getLibrary: vi.fn(),
 }))
 
 vi.mock('../api', async (importOriginal) => {
@@ -26,7 +26,7 @@ vi.mock('../api', async (importOriginal) => {
     restoreSyncTrashItem: mocks.restoreSyncTrashItem, restoreSyncTrashBatch: mocks.restoreSyncTrashBatch,
     restoreSyncTrashSubtree: mocks.restoreSyncTrashSubtree, emptySyncTrash: mocks.emptySyncTrash,
     abandonSyncTrashIntent: mocks.abandonSyncTrashIntent,
-    getOwnedCollectionsPage: mocks.getOwnedCollectionsPage,
+    getLibrary: mocks.getLibrary,
   } }
 })
 vi.mock('../components/AppToast', () => ({
@@ -62,15 +62,12 @@ function choose(value: string) { const radio = document.querySelector<HTMLInputE
 
 describe('Sync Center authoritative workflow', () => {
   beforeEach(() => {
+    mocks.getLibrary.mockResolvedValue({ id: 'collection-1', title: 'Bookmarks' })
     vi.clearAllMocks(); sessionStorage.clear(); document.body.innerHTML = '<div id="root"></div>'
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     mocks.getSyncStatus.mockResolvedValue(status()); mocks.loadSyncConflicts.mockResolvedValue([conflict()])
     mocks.loadSyncTrash.mockResolvedValue([])
-    mocks.getOwnedCollectionsPage.mockResolvedValue({ items: [], page: { hasMore: false } })
-    mocks.retireSyncReplica.mockResolvedValue({
-      replicaId: 'replica-1', status: 'retired', lifecycleRevision: '5', etag: '"5"',
-      retiredAt: '2026-07-28T01:00:00.000Z',
-    })
+
   })
   afterEach(() => { cleanup(); document.body.innerHTML = ''; vi.restoreAllMocks() })
   function render() { mountTree(<MemoryRouter><Sync /></MemoryRouter>) }

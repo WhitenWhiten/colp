@@ -14,13 +14,12 @@ import {
 import { productName } from '../../lib/edition'
 
 export function TrashSection({
-  collections, collectionTitles = {}, collectionId, items, details, drafts, receipts, notices,
+  collectionTitles = {}, collectionId, items, details, drafts, receipts, notices,
   selected, batchDraft, emptyDraft, batchView, emptyView,
-  error, errorKind, disabled, onCollection, onRevealUrl, onRestore, onReplay, onNewIntent, onRetry,
+  error, errorKind, disabled, onRevealUrl, onRestore, onReplay, onNewIntent, onRetry,
   onToggleSelected, onToggleAll, onRestoreSelected, onReplayBatch, onRestoreSubtree, onStartEmpty,
   onCancelEmpty, onConfirmEmpty, onReplayEmpty,
 }: {
-  collections: string[]
   collectionTitles?: Record<string, string>
   collectionId: string | null
   items: SyncTrashListItem[]
@@ -36,7 +35,6 @@ export function TrashSection({
   error: string | null
   errorKind: 'auth' | 'stale' | 'other' | null
   disabled: boolean
-  onCollection(collectionId: string): void
   onRevealUrl(deletionId: string): void
   onRestore(item: SyncTrashListItem): void
   onReplay(item: SyncTrashListItem): void
@@ -57,7 +55,7 @@ export function TrashSection({
   const allSelected = items.length > 0 && items.every((item) => selected.has(item.deletionId))
   const busy = batchDraft.phase === 'submitting' || emptyDraft.phase === 'submitting'
   const confirm = useConfirm()
-  const scopeCopy = collectionId ? `from “${collectionTitles[collectionId] || collectionId}” in ${productName()} trash` : `from ${productName()} trash`
+  const scopeCopy = collectionId ? `from “${collectionTitles[collectionId] || 'your library'}” in ${productName()} trash` : `from ${productName()} trash`
   const emptyCopy = `Permanently delete ${items.length} item${items.length === 1 ? '' : 's'} ${scopeCopy}. This can't be undone. Items are kept at least 30 days and while a browser still needs the deletion; offline browsers can delay this.`
   // The first confirm is the shared danger modal; a stale count (trash changed
   // under the prompt) asks again inline next to its message.
@@ -77,15 +75,7 @@ export function TrashSection({
             {items.length > 0 && <span className="sync-count" data-testid="sync-count">{items.length}</span>}
           </div>
         </div>
-        {collections.length > 1 && (
-          <label className="field trash-collection">
-            <span>Collection</span>
-            <select aria-label="Trash collection" value={collectionId ?? ''} disabled={disabled}
-              onChange={(event) => onCollection(event.target.value)}>
-              {collections.map((id) => <option key={id} value={id}>{collectionTitles[id] || id}</option>)}
-            </select>
-          </label>
-        )}
+
       </div>
       {error && errorKind === 'auth' && (
         <RouteState className="empty-state--compact" kind="auth" icon="link" title="Sign in to see deleted items" description="Sign in again to view deleted items." />

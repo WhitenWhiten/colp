@@ -25,6 +25,9 @@ import type {
 export function createEditorTransport(http: ProductTransportHttp) {
   const { request, mutationHeaders } = http
   return {
+    getLibrary(signal?: AbortSignal) {
+      return request<import('./types').LibraryCollection>({ method: 'GET', path: '/api/v1/me/library', signal })
+    },
     async createCollection(body: CreateCollectionRequest, opts: MutationCallOptions) {
       return request<CreateCollectionResult>({
         method: 'POST',
