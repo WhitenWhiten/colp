@@ -472,7 +472,7 @@ describe('public Collection page', () => {
     await waitForDom(domFinishedLoading)
 
     const saveButton = document.querySelector<HTMLButtonElement>('[data-collection-resource-save]')
-    expect(saveButton?.getAttribute('aria-label')).toBe('Copy First source to one of your collections')
+    expect(saveButton?.getAttribute('aria-label')).toBe('Copy First source to your bookmark library')
     expect(saveButton?.getAttribute('title')).toBe('Copy to my collection')
     expect(saveButton?.querySelector('[data-icon="fork"]')).not.toBeNull()
     expect(saveButton?.querySelector('[data-testid="save-mark"]')).toBeNull()

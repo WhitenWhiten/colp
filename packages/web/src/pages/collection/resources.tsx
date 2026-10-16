@@ -53,7 +53,7 @@ function ResourceSaveButton({ resource, onSave }: {
       type="button"
       className="collection-resource-save"
       data-collection-resource-save
-      aria-label={`Copy ${resource.node.title} to one of your collections`}
+      aria-label={`Copy ${resource.node.title} to your bookmark library`}
       title="Copy to my collection"
       onClick={() => onSave(resource)}
     >

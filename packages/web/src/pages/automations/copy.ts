@@ -395,7 +395,7 @@ const INCIDENT_MESSAGES: Record<string, string> = {
   'Live canonical ancestry is unavailable.': 'The folders above it can’t be read right now. Check again in a moment.',
   'Folder label refreshed; canonical identity and binding revision are unchanged.': 'The rule follows the folder under its new name. Nothing else changed.',
   'Folder ancestry changed; current subtree authority has been revalidated.': 'The rule follows the folder to its new place, and checked it there.',
-  'Current scope/write authority is unavailable; choose an authorized scope.': 'Its collection is gone, or you can no longer change it. Choose a collection you own.',
+  'Current scope/write authority is unavailable; choose an authorized scope.': 'Its collection is gone, or you can no longer change it. Choose your bookmark library.',
   'M1 execution requires the current collection Owner; an editor grant is not runtime authority.':
     'Only the collection’s owner can run rules on it; being able to edit it isn’t enough.',
   'Configuration is saved. Durable M1 execution is not installed; no bookmark effects or model tasks can run.':
