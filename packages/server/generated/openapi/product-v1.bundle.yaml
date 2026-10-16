@@ -19894,6 +19894,7 @@ components:
             maxRules:
               type: integer
               minimum: 0
+              description: Maximum unarchived rules; archiving retains history and releases a slot.
             maxExpressionBytes:
               type: integer
               minimum: 0
@@ -20931,6 +20932,10 @@ components:
         heldJobs:
           type: integer
           minimum: 0
+        heldRuns:
+          type: integer
+          minimum: 0
+          description: Runs with remaining work explicitly held by the Owner.
         externalCosts:
           type: string
           enum:

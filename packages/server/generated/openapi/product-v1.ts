@@ -5111,6 +5111,7 @@ export interface components {
             taskTypes: ("classify.root" | "classify.refine" | "tags.generate" | "summary.generate" | "metadata.resolve" | "review.generate" | "digest.generate")[];
             eventsEnabled: boolean;
             limits: {
+                /** @description Maximum unarchived rules; archiving retains history and releases a slot. */
                 maxRules: number;
                 maxExpressionBytes: number;
                 maxTasksPerRule: number;
@@ -5415,6 +5416,8 @@ export interface components {
             readyJobs: number;
             succeededJobs: number;
             heldJobs: number;
+            /** @description Runs with remaining work explicitly held by the Owner. */
+            heldRuns?: number;
             /** @enum {string} */
             externalCosts: "notApplicable" | "unknownDisclosed" | "known";
             costDisplay: string;
