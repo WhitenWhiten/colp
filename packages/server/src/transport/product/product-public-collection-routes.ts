@@ -1,4 +1,4 @@
-import { FolderSharePublicReadError } from '../../modules/publication/application/folder-share-public-query.js';
+import { FolderSharePublicReadError } from '../../modules/publication/index.js';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   getProductPublicCollectionPage,

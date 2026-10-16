@@ -13,3 +13,7 @@ export function createPublicationModule(cursorKeys?: PublicationCursorKeyring): 
     async stop() { cursorKeys?.destroy(); },
   });
 }
+export * from './application/folder-shares.js';
+export * from './application/folder-share-public-query.js';
+export { projectPublicNode } from './application/public-page-projection.js';
+export type { ProductPublicCollectionNode, ProductPublicCollectionPage } from './application/product-public-query.js';

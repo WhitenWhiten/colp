@@ -1,5 +1,5 @@
-import { assertLibraryDestination } from '../collections/application/library-destination.js';
-import { CollectionsError } from '../collections/domain/index.js';
+import { assertLibraryDestination } from '../collections/index.js';
+import { CollectionsError } from '../collections/index.js';
 import { createHash } from 'node:crypto';
 import { snapshotMcpAuthorizationBinding, type McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import { authorizeCapability } from '../access-policy/index.js';

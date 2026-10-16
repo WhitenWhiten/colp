@@ -605,6 +605,7 @@ const bootstrapTargets = new Set([
 // layer graph remains explicit without granting every transport file access to
 // every bootstrap, infrastructure, or COLP path.
 const transportTargets = new Set([
+  'transport/product/folder-share-routes.ts',
   'modules/automation/index.ts',
   'transport/product/automation-rule-routes.ts',
   'transport/product/automation-pagination.ts',

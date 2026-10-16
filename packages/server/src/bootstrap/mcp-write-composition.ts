@@ -1,5 +1,5 @@
 import { CollectionsError } from '../modules/collections/index.js';
-import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/library-collection-postgres.js';
+import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/index.js';
 import { recordMcpDeleteSubtreeTombstones } from '../infrastructure/sync/index.js';
 import {
   createAgentPolicyCommitGuard,

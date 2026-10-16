@@ -222,3 +222,4 @@ export {
 export { withCanonicalTreeCapacityBatch, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
 
 export { canonicalBookmarkMoveBatch } from './canonical-bookmark-move-batch.js';
+export { createPostgresLibraryCollectionUnitOfWork } from './library-collection-postgres.js';

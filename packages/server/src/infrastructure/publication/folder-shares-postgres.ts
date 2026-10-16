@@ -2,7 +2,7 @@ import { folderSharePublicationAllowedSql } from './folder-share-access.js';
 import { buildPublicationTargetAncestorRestrictionSql } from '../database/collection-control-sql.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
-import { FolderShareError, type FolderShareUnitOfWork, type FolderShareView } from '../../modules/publication/application/folder-shares.js';
+import { FolderShareError, type FolderShareUnitOfWork, type FolderShareView } from '../../modules/publication/index.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { createUnitOfWork } from '../database/unit-of-work.js';
 import type { DatabaseSchema } from '../database/runtime.js';

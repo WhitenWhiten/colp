@@ -103,7 +103,7 @@ export interface AppDependencies {
     readonly publicAccess: import('./product/link-preview-routes.js').LinkPreviewPublicAccess;
     readonly commands: import('../modules/collections/index.js').LinkPreviewCommandUnitOfWork;
   };
-  readonly folderShares?: import('../modules/publication/application/folder-shares.js').FolderShareUnitOfWork;
+  readonly folderShares?: import('../modules/publication/index.js').FolderShareUnitOfWork;
   readonly libraryCollectionUnitOfWork?: import('../modules/collections/index.js').LibraryCollectionUnitOfWork;
   readonly collectionsUnitOfWork?: CollectionsUnitOfWork;
   readonly productCollectionMutationUnitOfWork?: ProductCollectionMutationUnitOfWork;

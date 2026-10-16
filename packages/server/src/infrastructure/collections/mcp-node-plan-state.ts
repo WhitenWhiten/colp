@@ -1,4 +1,4 @@
-import { libraryFolderAllows } from '../../modules/collections/domain/library-folder-policy.js';
+import { libraryFolderAllows } from '../../modules/collections/index.js';
 import { CollectionsError } from '../../modules/collections/index.js';
 import { sql, type Kysely } from 'kysely';
 import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';

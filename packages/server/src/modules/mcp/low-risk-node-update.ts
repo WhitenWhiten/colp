@@ -1,4 +1,4 @@
-import { libraryFolderAllows } from '../collections/domain/library-folder-policy.js';
+import { libraryFolderAllows } from '../collections/index.js';
 /**
  * Low-risk MCP `nodes.update`. Applies a closed node merge patch with
  * `nodes:write` only. Preview (`dryRun: true`) inspects authorization and the

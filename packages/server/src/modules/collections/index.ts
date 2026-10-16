@@ -91,3 +91,5 @@ export * from './application/index.js';
 
 export * from './application/actor-bookmark-read.js';
 export * from './application/link-preview-exports.js';
+export { assertLibraryDestination } from './application/library-destination.js';
+export { libraryFolderAllows, isLibraryBrowserFolder, LIBRARY_BROWSER_FOLDER_ROLES, LIBRARY_REQUIRED_FOLDER_ROLES } from './domain/library-folder-policy.js';

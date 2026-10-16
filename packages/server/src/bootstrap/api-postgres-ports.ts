@@ -1,6 +1,6 @@
-import { createPostgresFolderShareUnitOfWork } from '../infrastructure/publication/folder-shares-postgres.js';
-import { createPostgresPublicFolderShareReadPort } from '../infrastructure/publication/folder-share-public-postgres.js';
-import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/library-collection-postgres.js';
+import { createPostgresFolderShareUnitOfWork } from '../infrastructure/publication/index.js';
+import { createPostgresPublicFolderShareReadPort } from '../infrastructure/publication/index.js';
+import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/index.js';
 import { createAutomationBindingVerifier } from './automation-binding-verifier.js';
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
 import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';

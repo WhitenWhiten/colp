@@ -1,4 +1,4 @@
-import { LIBRARY_REQUIRED_FOLDER_ROLES } from '../../modules/collections/domain/library-folder-policy.js';
+import { LIBRARY_REQUIRED_FOLDER_ROLES } from '../../modules/collections/index.js';
 import { sql, type Kysely } from 'kysely';
 import { createCanonicalMutationApplication } from '../../modules/collections/index.js';
 import type { LibraryCollectionUnitOfWork } from '../../modules/collections/index.js';

@@ -1,12 +1,12 @@
 import { folderSharePublicationAllowedSql } from './folder-share-access.js';
-import { projectPublicNode } from '../../modules/publication/application/public-page-projection.js';
+import { projectPublicNode } from '../../modules/publication/index.js';
 import { readPublicNodeMarks } from './postgres-public-marks-read.js';
 import { CompiledQuery, sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createUnitOfWork } from '../database/unit-of-work.js';
 import { buildPublicationTargetAncestorRestrictionSql, bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
-import type { FolderSharePosition, PublicFolderShareReadPort } from '../../modules/publication/application/folder-share-public-query.js';
-import type { ProductPublicCollectionNode, ProductPublicCollectionPage } from '../../modules/publication/application/product-public-query.js';
+import type { FolderSharePosition, PublicFolderShareReadPort } from '../../modules/publication/index.js';
+import type { ProductPublicCollectionNode, ProductPublicCollectionPage } from '../../modules/publication/index.js';
 
 export function createPostgresPublicFolderShareReadPort(db: Kysely<DatabaseSchema>): PublicFolderShareReadPort {
   return { load(slug, input) { return createUnitOfWork(db, { isolationLevel: 'repeatable read' }).execute(async ({ transaction: tx }) => {

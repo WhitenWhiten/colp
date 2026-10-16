@@ -12,3 +12,5 @@ export * from './publication-directory-cache.js';
 export * from './publication-snapshot-cache.js';
 
 export { createPostgresPublicationCollectionControlPort } from './postgres-collection-control.js';
+export { createPostgresFolderShareUnitOfWork } from './folder-shares-postgres.js';
+export { createPostgresPublicFolderShareReadPort } from './folder-share-public-postgres.js';

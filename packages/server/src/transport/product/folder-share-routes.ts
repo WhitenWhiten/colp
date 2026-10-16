@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { changeFolderShare, readFolderShare, FolderShareError } from '../../modules/publication/application/folder-shares.js';
+import { changeFolderShare, readFolderShare, FolderShareError } from '../../modules/publication/index.js';
 import { canonicalCommandFingerprint } from '../../modules/commands/index.js';
 import { ProductHttpError } from '../product-error.js';
 import { productRouteMetadata } from '../product-route-manifest.js';

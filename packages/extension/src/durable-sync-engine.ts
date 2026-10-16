@@ -1,6 +1,5 @@
 import { recordRecoveryDiagnostic } from './recovery-diagnostic.js';
 import { readEngineSessionAuthority } from './sync-session-handoff.js';
-import { persistentLocalSyncFailure, needsReplicaRebuild, responseProblemCode } from './durable-sync-engine-errors.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import type { SyncAckRequest, SyncAckResult, SyncPullV02 } from '@know-n/colp/types';
@@ -10,7 +9,7 @@ import type { AckIntentRecord, DurableSyncEngineState, JsonObject, MappingInput 
 import type { StoredCredential, StoredSession } from './types.js';
 import type { EngineOptions, PlacementRefreshOutcome } from './durable-sync-engine-types.js';
 import { holdsInboundPull, holdsUnprovenIdentity, httpFailure, pullApplyAckState, retryAfterMilliseconds,
-  stableError } from './durable-sync-engine-errors.js';
+  stableError, persistentLocalSyncFailure, needsReplicaRebuild, responseProblemCode } from './durable-sync-engine-errors.js';
 import { colpCredentialHeaders } from './auth-client.js';
 import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
 import { resumeLocalProjection } from './local-projection-recovery.js';
