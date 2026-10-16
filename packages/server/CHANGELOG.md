@@ -4,6 +4,8 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.6] - 2026-10-16
+
 ### Added
 
 - Restored bookmark favicon upload/removal, extension capture helpers, account/source settings and durable missing-icon filling with retries and cleanup. Self-hosted instances store icons in PostgreSQL by default, with existing R2 configuration supported; private reads require a live authorized session.
@@ -27,8 +29,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Changed
 
-- The server depends on the published `@know-n/colp` 0.2.0 instead of a vendored prerelease build; the image no longer copies `vendor/`.
-- Upgrade `@know-n/colp` to 0.1.3 and remove the server's temporary approval interaction and output-schema compatibility layer. The SDK now supplies URL elicitation and the `awaiting_approval` fallback directly.
+- The server depends on the published `@know-n/colp` 0.2.1 instead of the vendored `0.2.1-automation.1` build; the image no longer copies `vendor/`.
+- Automation editing preserves the complete rule definition, template reference, agent bindings and execution policy. Editing previews exclude the owned rule from competition; omitting `executionPolicyId` preserves the current policy, while `null` removes it explicitly.
+- The Automation editor applies changes to enabled rules, explains missing setup and preview warnings, and asks about earlier work only when runs are on hold. Rule and run pages refresh active work and use clearer status and worker setup guidance.
+- The SDK supplies URL elicitation and the `awaiting_approval` fallback directly, replacing the server's temporary approval interaction and output-schema compatibility layer.
 - Web: sign-in, registration, Agents, Approvals, Get started, Sync, Import, the shared collection page, Search, About and the 404 page are redesigned on Know-N's palette with the pegboard and ribbon motif. Collaborators is hidden until multi-user, and the account menu no longer shows the generated profile handle.
 - The in-memory MCP rate-limit stores reclaim expired buckets in a bounded step (at most 64 entries) when at capacity, instead of scanning every bucket; restarted buckets are re-inserted at the tail so the map stays ordered by window start.
 - `COLP_SERVER_SECRET` errors now say how the value was interpreted (base64 or UTF-8) and how many bytes it produced.
@@ -46,6 +50,9 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Fixed
 
+- Enabling an Automation can resume held runs with their pinned inputs, and usage views include owner-held runs. Archiving releases rule quota; current rule scans stay separate from archived history.
+- Worker reads, claims and bounded owner-maintenance sweeps converge invalid ready jobs to stale. Manual slices yield under lock contention, device bundles are reused, referenced evidence is retained, and health reflects unresolved delivery incidents.
+- Automation commands retain their IDs until write responses validate, active run reads invalidate stale data, and failed or rate-limited session checks no longer send signed-in owners back to Sign in.
 - Idle sync replicas accept Acks for the current Session-issued checkpoint cursor, extending the lease without entering a repeated Session-renewal recovery loop.
 - Favicon uploads share the command transaction when bytes are stored in PostgreSQL, avoiding nested pool acquisition. External upload failures retire orphan objects after rollback, including failures during receipt/commit; lost commit acknowledgements preserve live objects.
 - Favicon jobs recover an already-bound missing icon after a crash, fence node revisions during fetch, honor the deployment flag, and apply force-online to future bookmarks with a recoverable original state. Shared site-logo caches are projected again.
@@ -75,6 +82,13 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - `fastify` 5.12.5 (GHSA HTTP/2 trailer DoS), `fast-uri` 3.1.8 / 4.1.5 (authority injection, host confusion, case normalization), `source-map-js` 1.2.2 and `fflate` 0.7.5 via overrides. The runtime install audits clean; `vitest` 4.1.11 clears the dev-tree `tinypool`/`@vitest/mocker` advisories.
 
 ### Upgrade notes
+
+From 0.1.0-rc.5, update the checkout and `deploy/` files from the same revision,
+set `COLP_IMAGE_TAG=0.1.0-rc.6`, and recreate the server. Migrations
+`202610310900_automation_ready_input_checks` and
+`202610311000_automation_bundle_retention` run at startup. Existing enabled
+rules keep their execution policy when edited unless removal is explicit;
+review the editor's choice before resuming held work.
 
 The IP HTTPS fix requires the updated `deploy/compose.yaml`, both TLS Caddyfiles
 and `deploy/caddy-entrypoint.sh` from the same revision. Update the checkout

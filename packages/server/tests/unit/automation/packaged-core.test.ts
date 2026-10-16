@@ -5,7 +5,7 @@ import { expect, test } from 'vitest';
 const serverDirectory = fileURLToPath(new URL('../../../', import.meta.url));
 const assertions = `
   assert.equal(typeof core.preparePredicateInput, 'function',
-    'The installed Automation package is stale; refresh and commit the vendor tarball and both locks.');
+    'The installed Automation package is stale; update @know-n/colp and regenerate both dependency locks.');
   const facts = {
     eventId: 'packaged-event', operationId: 'packaged-operation', type: 'node.created',
     collectionId: 'packaged-collection', nodeId: 'packaged-node', commitOrdinal: '1',

@@ -88,10 +88,12 @@ Product 1.95.0 adds dependency/incident read and revalidation operations, preser
 immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
 independently of the usable configuration API and the server's general readiness.
 
-The server currently vendors `@know-n/colp` 0.2.1-automation.1 with the updated editing
-contract. `node packages/server/scripts/refresh-automation-package.mjs` packs unreleased
-shared-source changes into `packages/server/vendor/` and updates both locks. Docker
-dependency stages copy this artifact for reproducible installs.
+The server depends on published `@know-n/colp` 0.2.1 with the updated editing and
+held-run usage contracts. To try unreleased shared-source changes,
+`node packages/server/scripts/refresh-automation-package.mjs` packs a prerelease
+into `packages/server/vendor/` and updates both locks. Restore
+`COPY packages/server/vendor ./vendor` in both Docker dependency stages while
+using a vendored build, then remove it when switching back to a registry release.
 
 Editing previews carry the owned `ruleId` so competition excludes that rule by identity;
 other enabled rules still invalidate previews when they change. Replacement preserves
