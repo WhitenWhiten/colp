@@ -1,8 +1,7 @@
-/** Canonical folder roles, never labels or client-supplied native identities. */
-const BROWSER_INTAKE_ROLES = new Set(['bookmarks-bar', 'other-bookmarks', 'mobile-bookmarks']);
+import { isBrowserFolderRole } from '../../../generated/browser-folder-roles.js';
 
 export function isIntakeRootFolder(folder: { isRoot: boolean; folderRole: string | null } | undefined): boolean {
-  return !!folder && (folder.isRoot || BROWSER_INTAKE_ROLES.has(folder.folderRole ?? ''));
+  return !!folder && (folder.isRoot || isBrowserFolderRole(folder.folderRole));
 }
 
 /**

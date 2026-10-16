@@ -1,12 +1,11 @@
+import { BROWSER_FOLDER_ROLES } from './browser-folder-roles.js';
 /**
  * Frozen Sync create folderRole allow-list.
  * Backend uniqueness is implemented; this module is the shared spelling.
  */
 
 export const SYNC_CREATE_FOLDER_ROLE_ALLOW_LIST = Object.freeze([
-  'bookmarks-bar',
-  'other-bookmarks',
-  'mobile-bookmarks',
+  ...BROWSER_FOLDER_ROLES,
   'custom',
   'recovered',
 ] as const);
@@ -22,9 +21,7 @@ export const SYNC_CREATE_FOLDER_ROLE_FORBIDDEN = Object.freeze([
 ] as const);
 
 export const SYNC_CREATE_FOLDER_ROLE_UNIQUE_LIVE = Object.freeze([
-  'bookmarks-bar',
-  'other-bookmarks',
-  'mobile-bookmarks',
+  ...BROWSER_FOLDER_ROLES,
 ] as const);
 
 /** `recovered` is unique per live parent (owning mount or Collection-root fallback), not Collection-wide. */

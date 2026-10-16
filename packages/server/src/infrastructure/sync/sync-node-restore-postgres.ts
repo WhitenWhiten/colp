@@ -1,3 +1,4 @@
+import { BROWSER_FOLDER_ROLES } from '../../generated/browser-folder-roles.js';
 import { withCanonicalTreeCapacity } from '../collections/canonical-tree-capacity.js';
 import { assertManagedAncestryWritable, loadLockedManagedAncestryChain, managedAncestryNodeFact, type ManagedAncestryCapabilities } from './managed-ancestry-policy.js';
 import { randomBytes } from 'node:crypto';
@@ -20,7 +21,7 @@ import { persistAuthoritativeOperationEffect } from './sync-operation-effects-po
 import { createSystemRecoveredFolder } from './postgres/sync-recovered-create-postgres.js';
 import type { PostgresSyncNodeCreateOptions } from './postgres/sync-push-types-postgres.js';
 
-const MOUNT_ROLES = new Set(['bookmarks-bar', 'other-bookmarks', 'mobile-bookmarks', 'custom']);
+const MOUNT_ROLES = new Set<string>([...BROWSER_FOLDER_ROLES, 'custom']);
 
 export interface ApplyCanonicalNodeRestoreInput {
   readonly operation: Operation;

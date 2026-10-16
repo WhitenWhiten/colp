@@ -1,9 +1,10 @@
+import type { BrowserFolderRole } from './generated/browser-folder-roles.js';
 import { isSupportedBookmarkRoot } from './bookmark-folder-policy.js';
 
 export type BookmarkNodeKind = 'folder' | 'bookmark' | 'separator';
 export type BrowserRootKind = 'bookmarks_bar' | 'other' | 'mobile' | 'browser_root';
-export type ColpFolderRole = 'bookmarks-bar' | 'other-bookmarks' | 'mobile-bookmarks' | 'managed-bookmarks' | 'custom';
-export type SpecialFolderRole = 'bookmarks-bar' | 'other-bookmarks' | 'mobile-bookmarks';
+export type ColpFolderRole = BrowserFolderRole | 'managed-bookmarks' | 'custom';
+export type SpecialFolderRole = BrowserFolderRole;
 
 export interface ChromeBookmarkNode {
   readonly id: string;
