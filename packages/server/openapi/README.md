@@ -134,3 +134,9 @@ Product 1.97.0 records the corrected rule editing contract: omitted
 removes it. Preview accepts an optional owned `ruleId` for editing. See the rule
 editing reconciliation in ../../../docs/automation/ADR-BE1.md. The accepted
 snapshot is baselines/product-v1.1.97.0.yaml; 1.96.0 remains immutable.
+
+Product 1.98.0 records browser role metadata in editor folder views and removes
+obsolete node limits from collection history responses. Library initialization
+still creates Bookmarks bar and Other bookmarks; synchronized Mobile roots use
+the same write and protection rules. The frozen snapshot is
+baselines/product-v1.1.98.0.yaml; 1.97.0 remains immutable.

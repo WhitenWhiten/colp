@@ -571,95 +571,30 @@ describeWithPostgres('machine MCP interoperability', () => {
     }
   });
 
-  test('MCP collections.create and HTTP read share canonical identity; replay does not double-create', async () => {
+  test('strict and compatibility MCP reject collection creation without creating a second library', async () => {
     const composed = await composeMachine();
     try {
       const child = await issueChild(composed.app);
-      const mcpToken = await accessToken(
-        composed.app, child.secret, 'mcp_strict', 'mcp:read:own nodes:read nodes:write collections:create',
-      );
       const product = await accessToken(composed.app, child.secret, 'product', 'product:read product:write');
-      const title = `AC-04 mcp write ${randomUUID()}`;
-      // MRS-03 requires an intent key for MCP collection creation; the replay
-      // below reuses `args`, which is exactly the same-key replay it asserts.
-      const args = { title, kind: 'bookmarks' as const, summary: null, idempotencyKey: randomUUID() };
-      const first = await postStrict(
-        composed.app, mcpToken, 'tools/call', 1,
-        { name: 'collections.create', arguments: args },
-        { 'mcp-name': 'collections.create' },
-      );
-      assert.equal(first.statusCode, 200, first.body);
-      const firstBody = first.json() as {
-        result?: { resultType?: string; structuredContent?: { collectionId?: string } };
-        error?: unknown;
-      };
-      assert.equal(firstBody.error, undefined, first.body);
-      const collectionId = firstBody.result?.structuredContent?.collectionId;
-      assert.ok(typeof collectionId === 'string' && collectionId.length > 0, first.body);
-
-      const listed = await composed.app.inject({
-        method: 'GET', url: '/api/v1/collections',
-        headers: { authorization: `Bearer ${product}` },
-      });
-      assert.equal(listed.statusCode, 200, listed.body);
-      const ids = (listed.json().items as Array<{ collection?: { id?: string } }>)
-        .map((item) => item.collection?.id);
-      assert.equal(ids.includes(collectionId), true, listed.body);
-
-      const replay = await postStrict(
-        composed.app, mcpToken, 'tools/call', 2,
-        { name: 'collections.create', arguments: args },
-        { 'mcp-name': 'collections.create' },
-      );
-      assert.equal(replay.statusCode, 200, replay.body);
-      const replayBody = replay.json() as {
-        result?: { structuredContent?: { collectionId?: string } };
-        error?: unknown;
-      };
-      assert.equal(replayBody.error, undefined, replay.body);
-      assert.equal(replayBody.result?.structuredContent?.collectionId, collectionId, replay.body);
-
-      const listedAgain = await composed.app.inject({
-        method: 'GET', url: '/api/v1/collections',
-        headers: { authorization: `Bearer ${product}` },
-      });
-      const againIds = (listedAgain.json().items as Array<{ collection?: { id?: string } }>)
-        .map((item) => item.collection?.id)
-        .filter((id) => id === collectionId);
-      assert.equal(againIds.length, 1, listedAgain.body);
-
-      const compatToken = await accessToken(
-        composed.app, child.secret, 'mcp_compat', 'mcp:read:own nodes:read nodes:write collections:create',
-      );
-      const compatInit = await postCompat(
-        composed.app,
-        compatToken,
-        mcpCompatInitializeBody(MCP_COMPAT_NEGOTIATED_PROTOCOL_VERSION, { name: 'ac04-write', version: '1.0.0' }),
-      );
-      assert.equal(compatInit.statusCode, 200, compatInit.body);
-      await postCompat(composed.app, compatToken, mcpCompatInitializedBody());
-      const compatTitle = `AC-04 compat write ${randomUUID()}`;
-      const compatCreate = await postCompat(
-        composed.app,
-        compatToken,
-        mcpCompatToolsCallBody('collections.create', 3, { title: compatTitle, kind: 'bookmarks', summary: null, idempotencyKey: randomUUID() }),
-      );
-      assert.equal(compatCreate.statusCode, 200, compatCreate.body);
-      const compatRpc = asMcpCompatJsonRpc(parseMcpCompatHttpPayload(
-        String(compatCreate.headers['content-type'] ?? ''),
-        compatCreate.body,
-      ));
-      const compatText = JSON.stringify(compatRpc.result ?? {});
-      const listedCompat = await composed.app.inject({
-        method: 'GET', url: '/api/v1/collections',
-        headers: { authorization: `Bearer ${product}` },
-      });
-      const httpTitles = (listedCompat.json().items as Array<{ collection?: { title?: string } }>)
-        .map((item) => item.collection?.title);
-      assert.equal(httpTitles.includes(compatTitle), true, `${compatText}\n${listedCompat.body}`);
-    } finally {
-      await closeMachine(composed);
-    }
+      const list = async () => (await composed.app.inject({ method: 'GET', url: '/api/v1/collections',
+        headers: { authorization: `Bearer ${product}` } })).json().items;
+      const before = await list();
+      const args = { title: 'MCP cannot create collections', kind: 'bookmarks', summary: null, idempotencyKey: randomUUID() };
+      const strict = await accessToken(composed.app, child.secret, 'mcp_strict', 'mcp:read:own nodes:read nodes:write collections:create');
+      for (const id of [1, 2]) {
+        const response = await postStrict(composed.app, strict, 'tools/call', id,
+          { name: 'collections.create', arguments: args }, { 'mcp-name': 'collections.create' });
+        assert.equal(response.statusCode, 200, response.body);
+        assert.ok(response.json().error, response.body);
+      }
+      const compat = await accessToken(composed.app, child.secret, 'mcp_compat', 'mcp:read:own nodes:read nodes:write collections:create');
+      await postCompat(composed.app, compat, mcpCompatInitializeBody(MCP_COMPAT_NEGOTIATED_PROTOCOL_VERSION, { name: 'ac04-write', version: '1.0.0' }));
+      await postCompat(composed.app, compat, mcpCompatInitializedBody());
+      const response = await postCompat(composed.app, compat, mcpCompatToolsCallBody('collections.create', 3, args));
+      const rpc = asMcpCompatJsonRpc(parseMcpCompatHttpPayload(String(response.headers['content-type'] ?? ''), response.body));
+      assert.ok(rpc.error || (rpc.result as { isError?: boolean } | undefined)?.isError === true, response.body);
+      assert.deepEqual(await list(), before);
+    } finally { await closeMachine(composed); }
   });
 
   test('revoked child is rejected on MCP while the access token is unexpired', async () => {
