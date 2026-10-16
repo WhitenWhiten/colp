@@ -35,7 +35,8 @@ export function bindRangeAdjustment(host: {
     if (!view) return;
     host.saveRoots.disabled = true; host.rootFeedback.textContent = t('sync_savingFolderSettings', 'Saving folder settings.');
     error.hidden = true;
-    const selectedRefs = excludedFolderRefs(host.rootTree); const privateRefs = syncRootRefs(host.rootTree);
+    const selectedRefs = syncRootRefs(host.rootTree);
+    const privateRefs = excludedFolderRefs(host.rootTree);
     const response = await rootRequest({
       kind: 'known.roots.preview', viewId: view.viewId, selectedRefs, privateRefs,
     });

@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { syncRootRefs, excludedFolderRefs } from '../src/folder-coverage.js';
+import { bindRangeAdjustment } from '../src/range-ui.js';
 import { bindFolders } from '../src/sync-folders.js';
 import type { PublicRootNode, PublicRootView, RootRequest } from '../src/types.js';
 
@@ -109,4 +110,19 @@ test('restoring an excluded parent retains the child’s explicit exclusion', as
   expect(excludedFolderRefs(document.getElementById('root-tree')!)).toEqual(['seo']);
   expect(input('mkt').disabled).toBe(false);
   expect(input('seo').disabled).toBe(false);
+});
+
+
+test('range preview sends whole-browser roots and explicit exclusions in their respective fields', async () => {
+  const host = await mount();
+  input('mkt').click();
+  const range = bindRangeAdjustment({
+    saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
+    rootTree: document.getElementById('root-tree')!, rootFeedback: document.getElementById('root-feedback')!,
+    getView: host.view, setView: host.render, reloadBoundaries: () => {}, isConnected: () => true, renderFailure: () => {},
+  });
+  await range.save();
+  expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+    kind: 'known.roots.preview', viewId: 'v1', selectedRefs: ['bar', 'other'], privateRefs: ['mkt'],
+  });
 });
