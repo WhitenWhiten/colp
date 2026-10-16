@@ -137,6 +137,12 @@ describe('Run detail', () => {
     await waitForDom(() => document.querySelector('[data-job-id="job-b"]')?.getAttribute('data-status') === 'ready')
   })
 
+  it('shows no agent panel for a run that only filed a bookmark', async () => {
+    mount(withRun({ status: 'completed', jobIds: [], usage: usage() }))
+    await waitForDom(() => text('h1') !== '')
+    expect(document.querySelector('[data-testid="automation-usage"]')).toBeNull()
+  })
+
   it('reports a refused retry as the server worded it', async () => {
     const api = withRun({ status: 'running', jobIds: ['job-b'] })
     api.getJob.mockResolvedValue(job('job-b', 'uncertain'))

@@ -24,6 +24,15 @@ function withRule(patch = {}) {
   return api
 }
 
+/** A rule that asks an agent for a summary: only such a rule has job counts, an allowance and costs. */
+function withAgentRule(patch = {}) {
+  const agentDefinition = rule('rule-arxiv', 'Papers to Academic').definition
+  agentDefinition.tasks = [{ id: 'summary', type: 'summary.generate', after: [], executorRole: 'worker', required: true,
+    outputContract: 'summary.sourced.v1', inputFields: ['url'], instruction: 'Summarize.' }]
+  agentDefinition.roles.push({ key: 'worker', kind: 'executor', required: true, description: 'Worker' })
+  return withRule({ definition: agentDefinition, ...patch })
+}
+
 const text = (selector: string) => document.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
 const usageRows = () => [...document.querySelectorAll('[data-testid="automation-usage"] dl > div')]
   .map((row) => [row.getAttribute('data-key'), row.querySelector('dd')?.textContent])
@@ -51,7 +60,7 @@ describe('Rule detail', () => {
   })
 
   it('shows each job state the server counted, never a total, and the allowance as observed (AU-22, AU-23)', async () => {
-    const api = withRule({ usage: usage() })
+    const api = withAgentRule({ usage: usage() })
     mount(api)
     await waitForDom(() => usageRows().length > 0)
     expect(usageRows()).toEqual([
@@ -67,16 +76,22 @@ describe('Rule detail', () => {
   })
 
   it('says an exhausted allowance does not stop filing', async () => {
-    const api = withRule({ usage: usage({ reservedRuns: 20, remainingRuns: 0 }) })
+    const api = withAgentRule({ usage: usage({ reservedRuns: 20, remainingRuns: 0 }) })
     mount(api)
     await waitForDom(() => Boolean(document.querySelector('[data-testid="automation-allowance"]')))
     expect(text('[data-testid="automation-allowance"]')).toContain('None left today. Bookmarks are still filed')
   })
 
-  it('explains why a placement-only rule has no usage', async () => {
+  it('explains why a placement-only rule has no usage, even when the server sends empty agent counts', async () => {
     mount(withRule())
     await waitForDom(() => Boolean(document.querySelector('[data-testid="automation-usage"]')))
     expect(text('[data-testid="automation-usage"]')).toContain('This rule only files bookmarks')
+    cleanup()
+    mount(withRule({ usage: usage({ readyJobs: 0, succeededJobs: 0, heldJobs: 0, pendingJobs: 0, policyBlockedJobs: 0, budgetBlockedJobs: 0,
+      awaitingApprovalJobs: 0, uncertainJobs: 0, optionalCalls: 0, reservedRuns: 0, remainingRuns: 100, dailyRunLimit: 100 }) }))
+    await waitForDom(() => Boolean(document.querySelector('[data-testid="automation-usage"]')))
+    expect(text('[data-testid="automation-usage"]')).toContain('This rule only files bookmarks')
+    expect(document.querySelector('[data-testid="automation-allowance"]')).toBeNull()
   })
 
   it('finds this rule’s runs in the account’s run list, page by page', async () => {

@@ -330,8 +330,9 @@ export function RunDetail() {
               A run keeps the rule as it was when it started, so later edits don’t change it.
             </p>
           </section>
-          {/* Without the server's counts there is nothing true to say here; the steps are listed beside it. */}
-          {shown.usage && (
+          {/* Without the server's counts there is nothing true to say here; the steps are listed beside it.
+              A run with no agent steps only filed a bookmark: there is no agent work to count. */}
+          {shown.usage && shown.jobIds.length > 0 && (
             <UsagePanel usage={shown.usage} title="This run’s work" headingId="automation-run-usage" scope="run" />
           )}
         </div>

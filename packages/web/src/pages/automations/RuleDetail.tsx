@@ -306,7 +306,13 @@ export function RuleDetail() {
             )}
           </section>
 
-          <UsagePanel usage={shown.usage} title="Work and allowance" headingId="automation-rule-usage" scope="rule" />
+          {/* A rule that only files bookmarks has no agent work, allowance or cost to count, whatever the server returns. */}
+          <UsagePanel
+            usage={shown.definition.tasks.length > 0 ? shown.usage : undefined}
+            title="Work and allowance"
+            headingId="automation-rule-usage"
+            scope="rule"
+          />
         </div>
       </div>
     </PageShell>
