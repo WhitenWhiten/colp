@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { openExtensionOptions, selectCollectionFromList, signInExtension, showOptionsPane } from './extension-auth.js';
+import { openExtensionOptions, chooseLibraryMetadata, waitForLibraryBinding, signInExtension, showOptionsPane } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
@@ -83,7 +83,8 @@ async function grantBookmarks(page: Page, suffix: string) {
   await grantOptionalBookmarks(page, 'Allow bookmark access', `Known pins ${suffix}`);
   await expect.poll(() => page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))).toBe(true);
   // Pins sync with tags and notes, which only leave the browser after this consent.
-  await selectCollectionFromList(page, FIXTURE_COLLECTION_ID, 'sync');
+  await waitForLibraryBinding(page, FIXTURE_COLLECTION_ID);
+  await chooseLibraryMetadata(page, 'sync');
 }
 async function barOf(page: Page) { return (await page.evaluate(() => chrome.bookmarks.getTree()))[0]!.children![0]!.id; }
 async function topOfFolder(page: Page) {

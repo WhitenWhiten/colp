@@ -1,3 +1,5 @@
+import { createPostgresLibraryCollectionUnitOfWork } from '../../server/src/infrastructure/collections/library-collection-postgres.js';
+import { bootstrapCanonicalOwnedCollection, generateRevisionToken } from '../../server/src/modules/collections/index.js';
 import type { createBookmarkSubscriptionProductFixture } from './bookmark-subscription-product-stack.js';
 import { knowNBackendRoot, loadClassificationProductStack, type ClassificationProductFixture } from './cloud-product-fixtures.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -18,7 +20,7 @@ import { SignJWT, exportJWK, generateKeyPair } from '../../server/node_modules/j
 import pg from '../../server/node_modules/pg/lib/index.js';
 import { createDatabaseRuntime, runMigrations, createPostgresSharedExposureFactsPort, createAttachmentExposurePolicyAdapter } from '../../server/src/infrastructure/database/index.js';
 import { createPostgresOwnedCollectionsReadPort, createPostgresCollectionsUnitOfWork } from '../../server/src/infrastructure/collections/index.js';
-import { createPostgresBookmarkPreferencesQuery, createPostgresBookmarkPreferencesUnitOfWork, createPostgresExtensionOwnerSubjectPort, createPostgresIdentityUnitOfWork } from '../../server/src/infrastructure/identity/index.js';
+import { createPostgresBookmarkPreferencesQuery, createPostgresBookmarkPreferencesUnitOfWork, createPostgresExtensionOwnerSubjectPort, createPostgresExtensionOwnerAccountPort, createPostgresIdentityUnitOfWork } from '../../server/src/infrastructure/identity/index.js';
 import { createProductOwnedCollectionsCursorSigner } from '../../server/src/modules/collections/index.js';
 import { registerExtensionCollectionRoutes } from '../../server/src/transport/colp-sync/extension-collection-routes.js';
 import { createFixedWindowRateLimiter } from '../../server/src/transport/http-security.js';
@@ -588,6 +590,8 @@ export async function startRealStack(options: {readonly classification?:boolean;
     } }), rateLimit: { maxRequests: 100, windowMs: 60_000 },
     maxBodyBytes: 16_384, maxWarnings: 8, maxWarningBytes: 2_048 });
   registerExtensionCollectionRoutes(app, {
+    libraryCollectionUnitOfWork: createPostgresLibraryCollectionUnitOfWork(isolated.runtime.db),
+    ownerAccount: createPostgresExtensionOwnerAccountPort(isolated.runtime.db),
     credentialVerifier,
     ownerSubject: createPostgresExtensionOwnerSubjectPort(isolated.runtime.db),
     ownedCollectionsQuery: {
@@ -882,7 +886,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
         where replica_id=$1 order by sequence_number limit 1`, [REPLICA_ID]);
       const sequenceReceipts = await isolated.runtime.pool.query(`select sequence_number,operation_id as op_id,result_digest,result_json
         from sync_sequence_receipts where replica_id=$1 order by sequence_number`, [REPLICA_ID]);
-      const canonicalNodes = await isolated.runtime.pool.query(`select id,parent_id,title,url,is_root,deleted_at,
+      const canonicalNodes = await isolated.runtime.pool.query(`select id,parent_id,title,url,is_root,folder_role,deleted_at,
         position_token,resource_revision,children_revision from nodes where collection_id=$1 order by created_at,id`, [COLLECTION_ID]);
       const canonicalSiblings = await isolated.runtime.pool.query(`select id,parent_id,position_token,title,url
         from nodes where collection_id=$1 and not is_root and deleted_at is null
@@ -1256,78 +1260,30 @@ async function seedDatabase(isolated: Awaited<ReturnType<typeof createIsolatedDa
   fixtureAccount = created.account;
   fixtureAuthUserId = created.authUserId;
   fixtureAuthMailbox = created.authMailbox;
-  const now = new Date(Math.floor(Date.now() / 1_000) * 1_000);
-  const client = await isolated.runtime.pool.connect();
-  try {
-    await client.query('begin');
-    // The extension identity subject is the account's native subject id
-    // (accounts.subject_id = the Better Auth user id). The session verifier's
-    // identities.ensure returns this row, so the favourite helper's
-    // identityUnitOfWork accounts.findBySubjectId resolves the fixture account
-    // while the sync-session bootstrap still finds this same row.
-    await client.query(`insert into account_identities(id,account_id,issuer,subject)
-      values ('p3-27-identity',$1,$2,$3)`, [created.account.id, ISSUER, created.account.subjectId]);
-    await client.query(`insert into resource_id_ledger(resource_id,resource_type)
-      values ($1,'collection'),('p3-27-root','node')`, [COLLECTION_ID]);
-    await client.query(`insert into collections
-      (id,owner_subject_id,title,summary,kind,visibility,allow_search_indexing,root_node_id,resource_revision,
-       content_revision,policy_revision,commit_ordinal,created_at,updated_at,payload_authority_status)
-      values ($1,$2,'P3-27',null,'bookmarks','private',false,'p3-27-root','r1','c1','p1',0,$3,$3,'pending')`,
-    [COLLECTION_ID, created.account.subjectId, now]);
-    // Production's purge coordinator creates this row on first claim; the e2e runs no purge
-    // worker, so seed it — `retentionWindow.load` hard-fails (TypeError -> 500) without it.
-    await client.query(`insert into sync_collection_purge_state(collection_id) values ($1)
-      on conflict (collection_id) do nothing`, [COLLECTION_ID]);
-    await client.query(`insert into nodes
-      (id,collection_id,parent_id,kind,is_root,title,url,description,tags,visibility,position_token,resource_revision,
-       children_revision,created_at,updated_at,payload_authority_status)
-      values ('p3-27-root',$1,null,'folder',true,'Root',null,null,'[]'::jsonb,'inherit',null,'r1','ch1',$2,$2,'pending')`,
-    [COLLECTION_ID, now]);
-    const collection = await client.query(`select id, owner_subject_id, title, summary, kind, visibility,
-      allow_search_indexing, root_node_id, resource_revision, content_revision, policy_revision,
-      commit_ordinal::text as commit_ordinal, created_at, updated_at, deleted_at
-      from collections where id=$1`, [COLLECTION_ID]);
-    const root = await client.query(`select id, collection_id, parent_id, kind, is_root, title, url, description, tags,
-      visibility, position_token, resource_revision, children_revision, created_at, updated_at, deleted_at,
-      deleted_commit_ordinal from nodes where id='p3-27-root'`);
-    const collectionRow = collection.rows[0];
-    const rootRow = root.rows[0];
-    if (!collectionRow || !rootRow) throw new Error('real_stack_seed_row_missing');
-    const collectionPayload = materializeCollectionPayload({
-      id: String(collectionRow.id), ownerSubjectId: String(collectionRow.owner_subject_id),
-      title: String(collectionRow.title), summary: collectionRow.summary, kind: String(collectionRow.kind),
-      visibility: String(collectionRow.visibility), allowSearchIndexing: collectionRow.allow_search_indexing === true,
-      rootNodeId: String(collectionRow.root_node_id), resourceRevision: String(collectionRow.resource_revision),
-      contentRevision: String(collectionRow.content_revision), policyRevision: String(collectionRow.policy_revision),
-      commitOrdinal: String(collectionRow.commit_ordinal), createdAt: collectionRow.created_at,
-      updatedAt: collectionRow.updated_at, deletedAt: collectionRow.deleted_at,
+  await isolated.runtime.db.insertInto('account_identities').values({ id: 'p3-27-identity',
+    account_id: created.account.id, issuer: ISSUER, subject: created.account.subjectId, created_at: new Date(),
+  }).execute();
+  const owner = { principalId: created.account.id, subjectId: created.account.subjectId };
+  await createPostgresLibraryCollectionUnitOfWork(isolated.runtime.db).execute(owner, async ports => {
+    await bootstrapCanonicalOwnedCollection(ports.bootstrap, {
+      actor: { ...owner, principalType: 'account' }, collectionId: COLLECTION_ID, rootNodeId: 'p3-27-root',
+      isLibrary: true, title: 'Bookmarks', summary: null, kind: 'bookmarks',
+      operationId: randomUUID(), domainEventId: randomUUID(), outboxId: randomUUID(),
+      resourceRevision: generateRevisionToken(), contentRevision: generateRevisionToken(), policyRevision: generateRevisionToken(),
+      rootResourceRevision: generateRevisionToken(), rootChildrenRevision: generateRevisionToken(),
     });
-    const rootPayload = materializeNodePayload({
-      id: String(rootRow.id), collectionId: String(rootRow.collection_id), parentId: rootRow.parent_id,
-      kind: String(rootRow.kind), isRoot: rootRow.is_root === true, title: rootRow.title, url: rootRow.url,
-      description: rootRow.description, tags: rootRow.tags, visibility: String(rootRow.visibility),
-      positionToken: rootRow.position_token, resourceRevision: String(rootRow.resource_revision),
-      childrenRevision: String(rootRow.children_revision), createdAt: rootRow.created_at,
-      updatedAt: rootRow.updated_at, deletedAt: rootRow.deleted_at,
-      deletedCommitOrdinal: rootRow.deleted_commit_ordinal,
-    });
-    if (!collectionPayload.ok || !rootPayload.ok) {
-      throw new Error(`real_stack_seed_payload_invalid:${JSON.stringify({
-        collection: collectionPayload.ok ? null : collectionPayload,
-        root: rootPayload.ok ? null : rootPayload,
-      })}`);
+    for (const [role, title] of [['bookmarks-bar', 'Bookmarks bar'], ['other-bookmarks', 'Other bookmarks']]) {
+      await ports.mutate({ operationId: randomUUID(), collectionId: COLLECTION_ID,
+        actor: { ...owner, principalType: 'account' }, automationContext: { origin: 'system' },
+        mutation: { action: 'create', target: { collectionId: COLLECTION_ID, resourceId: 'p3-27-' + role, resourceKind: 'node' },
+          parentId: 'p3-27-root', fields: { kindFields: { kind: 'folder', title: title!, folderRole: role!,
+            description: null, tags: [], visibility: 'inherit' }, extensions: {} },
+        },
+      });
     }
-    await client.query(`update collections set payload_json=$1, payload_schema_version=$2, payload_authority_status='backfilled' where id=$3`,
-      [collectionPayload.payload, RESOURCE_PAYLOAD_SCHEMA_VERSION, COLLECTION_ID]);
-    await client.query(`update nodes set payload_json=$1, payload_schema_version=$2, payload_authority_status='backfilled' where id='p3-27-root'`,
-      [rootPayload.payload, RESOURCE_PAYLOAD_SCHEMA_VERSION]);
-    await client.query('commit');
-  } catch (error) {
-    await client.query('rollback');
-    throw error;
-  } finally {
-    client.release();
-  }
+  });
+  await isolated.runtime.db.insertInto('sync_collection_purge_state').values({ collection_id: COLLECTION_ID })
+    .onConflict(conflict => conflict.column('collection_id').doNothing()).execute();
   await seedReplica(isolated, { replicaId: REPLICA_ID, browserProfileId: PROFILE_ID, suffix: 'p3-27' });
   for (const binding of P3_29_BINDINGS) await seedReplica(isolated, binding);
   return created;

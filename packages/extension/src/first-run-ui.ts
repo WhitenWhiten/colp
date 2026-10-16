@@ -39,6 +39,7 @@ interface FirstRunUiHost {
   readonly requestPermission: HTMLButtonElement;
   readonly folderHeading: HTMLElement;
   readonly folderIntro: HTMLElement;
+  readonly serverLabel?: () => string;
   readonly showPane: (pane: 'account' | 'folders') => void;
   readonly onSyncStatusChanged?: () => void;
 }
@@ -136,8 +137,8 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       paintedViewId = next.viewId;
       if (firstPaint) {
         void readFirstRunDraft().then((draft) => {
-          if (draft && draft.selected.length > 0) {
-            applyCheckboxState(host.rootTree, restoreDraftSelection(next, draft));
+          if (draft?.excluded?.length) {
+            applyCheckboxState(host.rootTree, restoreDraftSelection(next, { ...draft, selected: draft.excluded }));
           }
     void refreshPreview();
         });
@@ -175,7 +176,9 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   }
 
   function applyRangeChrome(next: PublicRootView): void {
-    host.folderHeading.textContent = FIRST_RUN_RANGE_HEADING;
+    host.folderHeading.textContent = host.serverLabel
+      ? t('firstRun_syncBrowserWithServer', "Sync this browser's bookmarks with $1", host.serverLabel())
+      : FIRST_RUN_RANGE_HEADING;
     host.folderIntro.textContent = FIRST_RUN_INTRO;
     host.saveRoots.hidden = true;
     permissionHint.hidden = next.status !== 'permission_required';
@@ -197,7 +200,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     if (!advancedRequest && advancedMode !== 'merge') return;
     say();
     const selected = new Set(checkedRootRefs(host.rootTree));
-    const selection = collectPreviewSelection(view, selected);
+    const selection = collectPreviewSelection(view, selected, new Set(checkedRootRefs(host.rootTree, 'private')));
     const requestFingerprint = selectionFingerprint({ viewId: view.viewId,
       selectedRefs: selection.selectedRefs, excludedRefs: selection.excludedRefs, libraryId, mode: advancedMode });
     const ticket = previewSession.read(requestFingerprint); if (!ticket) return;
@@ -220,7 +223,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     if (!advancedRequest) {
       const prior = await readFirstRunDraft();
       if (!previewSession.current(ticket, currentSelectionFingerprint())) return;
-      const draft: FirstRunDraft = { selected: draftPicksFromView(view, selected), deferred: prior?.deferred === true,
+      const draft: FirstRunDraft = { selected: draftPicksFromView(view, selected), excluded: draftPicksFromView(view, new Set(checkedRootRefs(host.rootTree, 'private'))), deferred: prior?.deferred === true,
         ...(libraryId ? { libraryId } : {}) };
       await writeFirstRunDraft(applyPreviewToDraft(draft, response));
     }
@@ -228,7 +231,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     confirm.dataset.treeDigest = response.treeDigest;
     paintPreviewTotals(totals, response, () => previewSession.preview?.previewId, say);
     start.disabled = advancedMode !== 'merge' || !canStartFirstSync({
-      libraryId, preview: response, view, selectedCount: selection.selectedRefs.length,
+      libraryId, preview: response, view, selectedCount: host.rootTree.querySelectorAll('.root-select input:checked').length,
     });
     renderAdvancedPreview();
   }
@@ -360,7 +363,8 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     const preview = previewSession.preview;
     const selected = new Set(checkedRootRefs(host.rootTree));
     const draft: FirstRunDraft = {
-      selected: view ? draftPicksFromView(view, selected) : [], deferred: true,
+      selected: view ? draftPicksFromView(view, selected) : [],
+      excluded: view ? draftPicksFromView(view, new Set(checkedRootRefs(host.rootTree, 'private'))) : [], deferred: true,
       ...(libraryId ? { libraryId } : {}),
       ...(preview ? {
         previewId: preview.previewId, treeDigest: preview.treeDigest,
@@ -387,7 +391,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   function currentSelectionFingerprint(): string {
     if (!view) return '';
     const selected = new Set(checkedRootRefs(host.rootTree));
-    const selection = collectPreviewSelection(view, selected);
+    const selection = collectPreviewSelection(view, selected, new Set(checkedRootRefs(host.rootTree, 'private')));
     return selectionFingerprint({ viewId: view.viewId, selectedRefs: selection.selectedRefs,
       excludedRefs: selection.excludedRefs, libraryId, mode: advancedMode });
   }
@@ -531,11 +535,9 @@ function required(id: string): HTMLElement {
 }
 
 /** The draft's own picks; folder coverage then ticks what they carry, and the pane repaints its count. */
-function applyCheckboxState(tree: HTMLElement, selected: ReadonlySet<string>): void {
-  for (const input of Array.from(tree.querySelectorAll<HTMLInputElement>('.root-select input'))) {
-    const ref = input.dataset.ref;
-    if (!ref || input.dataset.managed !== undefined) continue;
-    input.checked = selected.has(ref); delete input.dataset.inherited;
+function applyCheckboxState(tree: HTMLElement, excluded: ReadonlySet<string>): void {
+  for (const input of Array.from(tree.querySelectorAll<HTMLInputElement>('.root-private input'))) {
+    if (input.dataset.ref) input.checked = excluded.has(input.dataset.ref);
   }
   tree.dispatchEvent(new Event(ROOTS_REPAINT));
 }

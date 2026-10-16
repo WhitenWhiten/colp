@@ -4,7 +4,6 @@ import { commitSaveFolder, DEVICE_FOLDER_SCOPE, folderIsInMount, readDefaultFold
 import { resolveFolderSyncTarget, type FolderSyncTarget } from './folder-sync-target.js';
 import { buildFolderRows, type FolderRow } from './folder-tree-model.js';
 import { readFolderRecents } from './folder-recents.js';
-import { resolveDefaultBookmarkParent } from './bookmark-placement.js';
 import { isUnsupportedBookmarkFolder } from './bookmark-folder-policy.js';
 import { createIcon } from './icons.js';
 import { t } from './i18n.js';
@@ -37,7 +36,7 @@ export interface SaveFolderUiHost {
 
 export function bindSaveFolderPicker(host: SaveFolderUiHost): {
   /* `scopeKey` keys the remembered folders: the bound library, else the device scope. */
-  init(scopeKey: string, mountNativeIds: readonly string[], saveContextId?: string): Promise<void>;
+  init(scopeKey: string, mountNativeIds: readonly string[]): Promise<void>;
   chosenFolderId(): string;
   /** `anyFolder` (local suggestions) accepts any personal folder; server suggestions must stay in the synced range. */
   chooseSuggestedFolder(nativeId: string, anyFolder?: boolean): Promise<boolean>;
@@ -115,7 +114,7 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
   });
 
   return {
-    async init(scopeKey, mountNativeIds, saveContextId) {
+    async init(scopeKey, mountNativeIds) {
       const at = ++selectionVersion;
       const keepSelection = collectionId === scopeKey && (picked || suggested);
       collectionId = scopeKey;
@@ -135,13 +134,12 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
         try {
           if (!await chrome.permissions.contains({ permissions: ['bookmarks'] })) return;
           /* The device scope has no sync mounts: a remembered folder is valid
-             anywhere, and an empty tree resolves to the browser default. */
-          const deviceScope = scopeKey === DEVICE_FOLDER_SCOPE;
+             anywhere. A destination is always chosen by the user. */
           const once = await readOnceFolder(scopeKey);
           const fallback = await readDefaultFolder();
           let target = '';
           // Recent folders remain shortcuts; they cannot override the explicit default.
-          for (const id of [once?.folderNativeId, fallback?.folderNativeId, saveContextId]) {
+          for (const id of [once?.folderNativeId, fallback?.folderNativeId]) {
             if (!id) continue;
             const [node] = await chrome.bookmarks.get(id).catch(() => []);
             if (at !== selectionVersion) return;
@@ -150,14 +148,13 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
               target = id; if (id === once?.folderNativeId) restoredPick = id; break;
             }
           }
-          if (!target && deviceScope) target = await resolveDefaultBookmarkParent(chrome.bookmarks).catch(() => '');
           if (at !== selectionVersion) return;
           chosenId = target;
           folderRootHint = chosenId;
-          if (!chosenId) return;
+          if (!chosenId) { await openPicker(); return; }
           if ((await chrome.bookmarks.get(chosenId)).length === 0) return;
           await updateLabel();
-        } catch { /* Picker is sugar; save still resolves its own parent. */ }
+        } catch { /* A failed folder lookup leaves the destination unset. */ }
       } finally {
         if (wasOpen) await renderTree();
         host.onChosen?.();

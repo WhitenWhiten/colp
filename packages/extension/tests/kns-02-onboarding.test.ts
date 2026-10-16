@@ -41,12 +41,12 @@ function node(partial: Partial<PublicRootView['roots'][number]> & Pick<PublicRoo
 
 describe('KNS-02 first-run copy and preview model', () => {
   test('locks product first-run copy and forbids protocol jargon', async () => {
-    assert.equal(FIRST_RUN_INTRO, "Keep using this browser's bookmarks. Search, organize, and open them in Know-N on every device.");
+    assert.equal(FIRST_RUN_INTRO, "All folders sync. Untick any folder to keep it on this browser.");
     assert.equal(FIRST_RUN_PERMISSION_ACTION, 'Allow bookmark access');
-    assert.equal(FIRST_RUN_PERMISSION_HINT, 'Read and sync the bookmark folders you choose');
+    assert.equal(FIRST_RUN_PERMISSION_HINT, 'Read and sync this browser’s bookmarks, except folders you keep on this browser.');
     assert.equal(FIRST_RUN_START, 'Start first sync');
     assert.equal(FIRST_RUN_LATER, 'Later');
-    assert.match(FIRST_RUN_MERGE_COPY, /this browser and in Know-N/);
+    assert.match(FIRST_RUN_MERGE_COPY, /browser and in your library/);
     assert.match(FIRST_RUN_KEEP_COPY, /are not deleted/);
     assert.equal(FIRST_RUN_UNSYNCED, 'Sync is off');
     assert.equal(FIRST_RUN_ENGINE_NOT_READY, 'Sync is not ready yet');
@@ -57,13 +57,13 @@ describe('KNS-02 first-run copy and preview model', () => {
     }
   });
 
-  test('default-preselects editable roots that have content', () => {
+  test('default-preselects every editable browser root, including empty roots', () => {
     assert.equal(shouldDefaultPreselect({
       managed: false, depth: 0, bookmarkCount: 2, folderCount: 1, firstRun: 'none', hasCommittedSelection: false,
     }), true);
     assert.equal(shouldDefaultPreselect({
       managed: false, depth: 0, bookmarkCount: 0, folderCount: 0, firstRun: 'none', hasCommittedSelection: false,
-    }), false);
+    }), true);
     assert.equal(shouldDefaultPreselect({
       managed: true, depth: 0, bookmarkCount: 4, folderCount: 1, firstRun: 'none', hasCommittedSelection: false,
     }), false);
@@ -110,17 +110,17 @@ describe('KNS-02 first-run copy and preview model', () => {
     });
   });
 
-  test('restores a later/cancel draft by kind, title and depth', () => {
+  test('restores a later draft by stable folder identity', () => {
     const tree = viewOf([
       node({ ref: 'new-bar', kind: 'bookmarks_bar', title: '收藏夹栏', depth: 0, bookmarkCount: 2 }),
       node({ ref: 'new-other', kind: 'other', title: '其他收藏夹', depth: 0, bookmarkCount: 1 }),
     ]);
     const selected = restoreDraftSelection(tree, {
       deferred: true,
-      selected: [{ kind: 'bookmarks_bar', title: '收藏夹栏', depth: 0 }],
+      selected: [{ ref: 'new-bar', kind: 'bookmarks_bar', title: '收藏夹栏', depth: 0 }],
     });
     assert.deepEqual([...selected], ['new-bar']);
-    assert.equal(parseFirstRunDraft({ deferred: true, selected: [{ kind: 'other', title: '其他收藏夹', depth: 0 }] })
+    assert.equal(parseFirstRunDraft({ deferred: true, selected: [{ ref: 'new-other', kind: 'other', title: '其他收藏夹', depth: 0 }] })
       ?.deferred, true);
     assert.equal(parseFirstRunDraft({ deferred: true, selected: [{ kind: 'nope', title: 'x', depth: 0 }] }), undefined);
   });
@@ -136,7 +136,6 @@ describe('KNS-02 first-run copy and preview model', () => {
     const confirm = buildFirstRunConfirm({ previewId: 'p1', libraryId: 'lib-1', confirmationId: 'c1' });
     assert.equal(confirm.kind, 'known.firstRun.confirm');
     assert.equal(confirm.libraryId, 'lib-1');
-    assert.equal('libraryDraft' in confirm, false);
   });
 
   test('popup never shows Synced when first-run is deferred or unfinished', () => {
@@ -193,7 +192,7 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
     assert.match(options, /Start first sync/);
     assert.match(options, /id="first-run-later"/);
     assert.match(options, /Allow bookmark access/);
-    assert.match(options, /Read and sync the bookmark folders you choose/);
+    assert.match(options, /Read and sync this browser’s bookmarks, except folders you keep on this browser./);
   });
 
   test('PublicRootNode carries counts and managed exclusion without native ids', async () => {

@@ -243,12 +243,7 @@ async function initSaveTarget(collectionId: string | undefined): Promise<void> {
   const status = await requestSaveStatus();
   lastMountNativeIds = status?.ok ? status.mountNativeIds : [];
   reflectNativeWaitLink(status?.ok === true && status.status.kind === 'action-required');
-  let saveContextId: string | undefined;
-  if (collectionId) {
-    const stored = (await chrome.storage.local.get(SAVE_CONTEXT_CACHE))[SAVE_CONTEXT_CACHE];
-    saveContextId = parseSaveContextCache(stored, collectionId)?.parentNativeId;
-  }
-  await folders.init(collectionId ?? DEVICE_FOLDER_SCOPE, lastMountNativeIds, saveContextId);
+  await folders.init(collectionId ?? DEVICE_FOLDER_SCOPE, lastMountNativeIds);
   await editExisting.reapply();
   // The rule's folder first, so an automatic suggestion knows whether to ask for tags only.
   await rule.refresh();
@@ -356,11 +351,15 @@ async function paintDestNote(): Promise<void> {
     paintDestSync(note, { kind: currentAuthState?.status !== 'connected' ? 'none' : 'sync-off' });
     return;
   }
+  const firstRun = await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }).catch(() => undefined) as { ok?: boolean; firstRun?: string } | undefined;
+  if (pass !== destNotePass) return;
+  if (firstRun?.ok && (firstRun.firstRun === 'none' || firstRun.firstRun === 'deferred')) {
+    paintDestSync(note, { kind: 'sync-off' }); return;
+  }
   const target = await folders.syncTarget();
   if (pass !== destNotePass) return;
   paintDestSync(note, target.kind !== 'local' ? { kind: target.kind === 'synced' ? 'synced' : 'none' }
-    : { kind: 'local', folderId: folders.chosenFolderId(), requestSave: async () => document.body.dataset.state === 'saved'
-      || (await submit(navigator.userActivation.isActive), document.body.dataset.state === 'saved') });
+    : { kind: 'local', folderId: folders.chosenFolderId() });
 }
 
 async function submit(hasUserGesture: boolean): Promise<void> {
@@ -405,8 +404,12 @@ async function submit(hasUserGesture: boolean): Promise<void> {
     const chosen = folders.chosenFolderId();
     // The picker and local cache are sufficient. Account/session renewal cannot precede native saving.
     // With a rule's folder on the pill, the worker gets the folder the rule replaces and decides again.
-    const target = rule.target(chosen || await cachedSaveParent(collectionId));
+    const target = rule.target(chosen);
     const parentNativeId = target.parentNativeId;
+    if (!parentNativeId) {
+      setFeedback(t('save_chooseFolderBeforeSaving', 'Choose a folder before saving.'));
+      await folders.open(); return;
+    }
     const localOnly = await folders.isOutOfRange();
     const live = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
     const favIconUrl = typeof live[0]?.favIconUrl === 'string' ? live[0].favIconUrl : tabFavIcon;
@@ -466,23 +469,6 @@ async function projectFollowUp(nativeId: string): Promise<void> {
   if (status?.ok) paintStatus(status.status);
 }
 
-/**
- * Offline fallback: the last native folder the worker resolved for this
- * collection keeps the save inside the sync boundary when a session cannot
- * be minted right now; the event queue uploads it after reconnect.
- */
-async function cachedSaveParent(collectionId: string | undefined): Promise<string | undefined> {
-  if (!collectionId) return undefined;
-  const stored = (await chrome.storage.local.get(SAVE_CONTEXT_CACHE))[SAVE_CONTEXT_CACHE];
-  const cached = parseSaveContextCache(stored, collectionId);
-  if (!cached) return undefined;
-  try {
-    await chrome.bookmarks.get(cached.parentNativeId);
-    return cached.parentNativeId;
-  } catch {
-    return undefined;
-  }
-}
 
 function restoreSave(): void {
   const wasSaved = document.body.dataset.state === 'saved';

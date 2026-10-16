@@ -128,9 +128,9 @@ describe('native bookmark placement', () => {
     assert.equal(blocked?.state, 'unproven');
   });
 
-  test('an omitted destination resolves the native Other Bookmarks root before top insertion', async () => {
+  test('an omitted destination never creates a bookmark in Other bookmarks', async () => {
     const creates: Array<{ readonly parentId?: string; readonly index?: number }> = [];
-    await savePagesThroughNativeIngress({
+    await assert.rejects(savePagesThroughNativeIngress({
       pages: [{ title: 'Default parent', url: 'https://default.example/' }],
       insertPosition: 'top',
       bookmarks: {
@@ -139,7 +139,7 @@ describe('native bookmark placement', () => {
         async create(input) { creates.push(input); return { id: 'created', title: input.title ?? '', url: input.url }; },
       },
       sidecar: { close() { /* test double */ }, async put() { /* no icon */ } } as never,
-    });
-    assert.deepEqual(creates, [{ parentId: '2', index: 0, title: 'Default parent', url: 'https://default.example/' }]);
+    }), /folder_required/);
+    assert.deepEqual(creates, []);
   });
 });

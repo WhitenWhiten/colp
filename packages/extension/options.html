@@ -229,8 +229,8 @@
 
         <section role="tabpanel" data-view-panel="folders" id="folder-card" class="set-group folder-access" aria-labelledby="tab-sync-folders" hidden>
           <div class="set-group-head">
-            <h2 id="folder-heading" data-i18n="options_foldersThatSync">Folders that sync</h2>
-            <p id="folder-intro" data-i18n="sync_foldersLede">Bookmarks in checked folders sync to your collection, along with the folders inside them. Others stay on this browser only.</p>
+            <h2 id="folder-heading" data-i18n="sync_browserOnlyFolders">Folders kept on this browser</h2>
+            <p id="folder-intro" data-i18n="sync_wholeTreeLede">All folders sync by default. Untick a folder to keep it on this browser; tick it again to sync it.</p>
           </div>
           <div id="root-alert" class="inline-alert" data-tone="warning" role="status" aria-live="polite" hidden>
             <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
@@ -249,7 +249,7 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" data-icon="refresh"></svg>
               </button>
             </div>
-            <p id="first-run-permission-hint" class="card-note" hidden data-i18n="firstRun_readSyncBookmarkFolders">Read and sync the bookmark folders you choose</p>
+            <p id="first-run-permission-hint" class="card-note" hidden data-i18n="firstRun_readWholeTree">Read and sync this browser’s bookmarks, except folders you keep on this browser.</p>
             <div id="root-tree" class="check-tree root-tree" role="group" aria-label="Bookmark folders" data-i18n-aria-label="common_bookmarkFolders"></div>
             <p id="first-run-empty" class="card-note" hidden></p>
             <div class="card-foot folder-foot">
@@ -257,12 +257,11 @@
               <button id="cancel-roots" class="btn btn-ghost btn-sm" type="button" disabled data-i18n="common_cancel">Cancel</button>
               <button id="save-roots" class="btn btn-primary btn-sm" type="button" disabled data-i18n="sync_reviewChanges">Review changes</button>
             </div>
-          </div>
 
-          <div id="first-run-confirm" class="set-card confirm-card" hidden>
+          <div id="first-run-confirm" class="confirm-card" hidden>
             <div class="set-row set-row--stack">
               <p id="first-run-totals" class="set-row-title confirm-totals"></p>
-              <p id="first-run-merge-copy" class="set-row-hint" data-i18n="firstRun_firstSyncKeepsBookmarks">First sync keeps bookmarks on this browser and in Know-N. Items that cannot be matched as the same bookmark are kept as two copies and are not deleted automatically.</p>
+              <p id="first-run-merge-copy" class="set-row-hint" data-i18n="firstRun_mergeLibrary">Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies.</p>
             </div>
             <details id="first-run-advanced" class="disclosure first-run-advanced">
               <summary data-i18n="options_advancedSyncPolicy">Advanced sync policy</summary>
@@ -303,6 +302,8 @@
               <button id="first-run-later" class="btn btn-ghost btn-sm" type="button" data-i18n="common_later">Later</button>
               <button id="first-run-start" class="btn btn-primary btn-sm" type="button" data-i18n="firstRun_startFirstSync">Start first sync</button>
             </div>
+          </div>
+
           </div>
 
           <div id="range-preview" class="set-card confirm-card" hidden>

@@ -1,3 +1,4 @@
+import { persistFirstRunBrowserRoots } from '../sw/first-run-browser-roots.js';
 import type { createSyncStateStore, MappingInput, SyncScope } from '../sync-state-store.js';
 import type { AdvancedPlanRecord, AdvancedStepRecord } from '../sync-state/advanced-repository.js';
 import type { AdvancedStep, AdvancedParentRef } from './advanced-plan-types.js';
@@ -21,6 +22,7 @@ export async function activateAdvancedPlan(store: Store, scope: SyncScope, plan:
   const mounts = metadata.mounts as unknown as readonly MountFact[];
   if (!Array.isArray(mounts) || mounts.length === 0) throw new Error('advanced_plan_corrupt');
   const bindings = await store.listMountBindings(scope);
+  await persistAdvancedPrivacy(store, scope, plan);
   const runs = await store.listBootstrapRuns(scope);
   if (runs.some((run) => run.runId === plan.planId)) {
     const recorded = await store.getScope(scope);
@@ -52,6 +54,20 @@ export async function activateAdvancedPlan(store: Store, scope: SyncScope, plan:
     ...(typeof metadata.remoteCursor === 'string' ? { snapshotCursor: metadata.remoteCursor } : {}),
   });
   if ((await store.getScope(scope))?.firstRun !== 'running') await store.setFirstRun(scope, 'running');
+}
+
+async function persistAdvancedPrivacy(store: Store, scope: SyncScope, plan: AdvancedPlanRecord, completed = false) {
+  const { discovered, selectedNativeIds, excludedNativeIds } = plan.metadata;
+  if (!Array.isArray(discovered) || !Array.isArray(selectedNativeIds) || !Array.isArray(excludedNativeIds)) return;
+  const roots = discovered as unknown as readonly { nativeId: string; ancestorNativeIds: readonly string[] }[];
+  const mappings = await store.listMappings(scope);
+  const recorded = await store.getScope(scope);
+  const existingSelected = mappings.filter(row => recorded?.selectedRoots.includes(row.colpId)).map(row => row.nativeId);
+  const existingPrivate = mappings.filter(row => recorded?.privateRoots?.includes(row.colpId)).map(row => row.nativeId);
+  const input = { discovered: roots, selectedNativeIds: completed ? selectedNativeIds as string[] : existingSelected,
+    privateNativeIds: [...new Set([...existingPrivate, ...excludedNativeIds as string[]])] };
+  if (completed) await persistFirstRunBrowserRoots(store, scope, input);
+  else await store.configureBrowserRoots(scope, { ...input, status: 'ready' });
 }
 
 export async function projectAdvancedSnapshot(store: Store, scope: SyncScope,
@@ -122,7 +138,10 @@ export async function executeActiveAdvancedPlan(store: Store, scope: SyncScope, 
   if (run) await store.putBootstrapRun(scope, { ...run, phase: result === 'completed' ? 'completed'
     : result === 'attention' ? 'needs_attention' : 'syncing', updatedAt: Date.now(),
     ...(result === 'attention' ? { retryReason: 'advanced_step_changed' } : {}) });
-  if (result === 'completed') await store.setFirstRun(scope, 'completed');
+  if (result === 'completed') {
+    await persistAdvancedPrivacy(store, scope, plan, true);
+    await store.setFirstRun(scope, 'completed');
+  }
   return true;
 }
 

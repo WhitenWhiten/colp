@@ -62,7 +62,7 @@ describe('runNativeSave entries', () => {
       test('creates a native bookmark in the remembered in-range folder and does not enqueue', async () => {
         const env = installEnv({ kind, defaultFolder: 'research' });
         const result = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
         });
         assert.equal(NATIVE_SAVE_INGRESS, 'chrome.bookmarks.create');
@@ -90,39 +90,36 @@ describe('runNativeSave entries', () => {
         assert.equal(env.local.get(SAVE_FEEDBACK_CACHE)?.message, SAVE_FEEDBACK_PERMISSION);
       });
 
-      test('out-of-range remembered folder is not used; save stays on the mount', async () => {
+      test('an explicitly chosen browser-only folder stays the destination', async () => {
         const env = installEnv({ kind, defaultFolder: 'scratch' });
         const result = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
         });
-        assert.equal(result.ok, true && (result as { parentNativeId?: string }).parentNativeId === 'bar');
-        assert.equal((env.creates[0] as { parentId?: string }).parentId, 'bar');
+        assert.equal(result.ok, true);
+        if (result.ok) assert.equal(result.localOnly, true);
+        assert.equal((env.creates[0] as { parentId?: string }).parentId, 'scratch');
         assert.equal(env.local.get(FOLDER_KEY)?.folderNativeId, 'scratch');
       });
 
-      test('no recent folder still native-creates without forging a queue row', async () => {
+      test('with no explicit folder, saving asks for a destination and creates nothing', async () => {
         const env = installEnv({ kind });
-        const result = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', mountNativeIds: ['bar'],
-          sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
-        });
-        assert.equal(result.ok, true);
-        if (!result.ok) return;
-        assert.equal(result.localOnly, true);
-        assert.equal((env.creates[0] as { parentId?: string }).parentId, undefined);
-        assert.equal(env.local.get(SAVE_FEEDBACK_CACHE)?.code, 'no_folder');
+        const result = await runNativeSave({ kind, hasPermission: true, collectionId: 'col', mountNativeIds: ['bar'],
+          sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs });
+        assert.deepEqual(result, { ok: false, error: 'folder_required' });
+        assert.equal(env.creates.length, 0);
+        assert.equal(env.local.get(SAVE_FEEDBACK_CACHE)?.code, 'folder_required');
       });
 
       test('duplicate click reuses the same native ids', async () => {
         const env = installEnv({ kind, defaultFolder: 'research' });
         const first = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
           now: () => 5_000,
         });
         const second = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
           now: () => 5_100,
         });
@@ -137,14 +134,14 @@ describe('runNativeSave entries', () => {
       test('browser restart (session cleared) still native-creates', async () => {
         const env = installEnv({ kind, defaultFolder: 'research' });
         const first = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
           now: () => 1_000,
         });
         env.session.clear();
         clearNativeSaveInflight();
         const second = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
           now: () => 1_100,
         });
@@ -159,7 +156,7 @@ describe('runNativeSave entries', () => {
       test('offline still native-creates into the remembered folder', async () => {
         const env = installEnv({ kind, defaultFolder: 'research' });
         const result = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: [], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
         });
         assert.equal(result.ok, true);
@@ -169,7 +166,7 @@ describe('runNativeSave entries', () => {
       test('unknown Chrome create failure stays pending and does not blindly recreate', async () => {
         const env = installEnv({ kind, defaultFolder: 'research', failCreate: true });
         const result = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
         });
         assert.deepEqual(result, { ok: false, error: 'create_failed' });
@@ -178,7 +175,7 @@ describe('runNativeSave entries', () => {
         assert.equal(pending.status, 'pending');
         assert.deepEqual(pending.nativeIds, []);
         const retry = await runNativeSave({
-          kind, hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+          kind, hasPermission: true, collectionId: 'col',
           mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
         });
         assert.deepEqual(retry, { ok: false, error: 'busy' });
@@ -190,7 +187,7 @@ describe('runNativeSave entries', () => {
     const env = installEnv({ kind: 'page', defaultFolder: 'research' });
     const sidecar = { close() { /* test double */ }, put: async () => { throw new Error('sidecar'); } } as never;
     const result = await runNativeSave({
-      kind: 'page', hasPermission: true, collectionId: 'col', saveContextParentId: 'bar',
+      kind: 'page', hasPermission: true, collectionId: 'col',
       mountNativeIds: ['bar'], sidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
     });
     assert.equal(result.ok, true);
@@ -201,13 +198,11 @@ describe('runNativeSave entries', () => {
 
   test('partial window failure resumes the durable prefix without recreating it', async () => {
     const env = installEnv({ kind: 'window', defaultFolder: 'research', failAfter: 1 });
-    const first = await runNativeSave({ kind: 'window', hasPermission: true, insertPosition: 'top', collectionId: 'col',
-      saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs });
+    const first = await runNativeSave({ kind: 'window', hasPermission: true, insertPosition: 'top', collectionId: 'col', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs });
     assert.deepEqual(first, { ok: false, error: 'create_failed' });
     assert.equal(env.creates.length, 1);
     env.failAfter = undefined;
-    const second = await runNativeSave({ kind: 'window', hasPermission: true, insertPosition: 'top', collectionId: 'col',
-      saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs });
+    const second = await runNativeSave({ kind: 'window', hasPermission: true, insertPosition: 'top', collectionId: 'col', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs });
     assert.equal(second.ok, true);
     assert.equal(env.creates.length, 2);
     assert.equal((env.creates[0] as { index?: number }).index, 0);
@@ -216,14 +211,12 @@ describe('runNativeSave entries', () => {
 
   test('a committed create with a lost result is recovered from native children without duplication', async () => {
     const env = installEnv({ kind: 'window', defaultFolder: 'research', commitThenThrowAt: 1 });
-    const first = await runNativeSave({ kind: 'window', hasPermission: true, insertPosition: 'top', collectionId: 'col',
-      saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks,
+    const first = await runNativeSave({ kind: 'window', hasPermission: true, insertPosition: 'top', collectionId: 'col', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks,
       queryTabs: env.queryTabs });
     assert.deepEqual(first, { ok: false, error: 'create_failed' });
     assert.equal(env.creates.length, 2);
     env.commitThenThrowAt = undefined;
-    const recovered = await runNativeSave({ kind: 'window', hasPermission: true, insertPosition: 'top', collectionId: 'col',
-      saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks,
+    const recovered = await runNativeSave({ kind: 'window', hasPermission: true, insertPosition: 'top', collectionId: 'col', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks,
       queryTabs: env.queryTabs });
     assert.equal(recovered.ok, true);
     if (!recovered.ok) return;
@@ -237,8 +230,7 @@ describe('runNativeSave entries', () => {
       identity: nativeSaveIdentity('page', [{ title: 'Old', url: 'https://old.example/' }], 'research', 'bottom'),
       status: 'pending', nativeIds: [], pages: [{ title: 'Old', url: 'https://old.example/' }], updatedAt: Date.now(),
     });
-    const result = await runNativeSave({ kind: 'page', hasPermission: true, collectionId: 'col',
-      saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
+    const result = await runNativeSave({ kind: 'page', hasPermission: true, collectionId: 'col', mountNativeIds: ['bar'], sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs,
       insertPosition: 'bottom' });
     assert.deepEqual(result, { ok: false, error: 'busy' });
     assert.equal(env.creates.length, 0);
@@ -345,8 +337,7 @@ function installEnv(input: {
 for (const position of ['top', 'bottom'] as const) {
   test(`partial ${position} batch resumes its frozen placement after preference and folder changes`, async () => {
     const env = installEnv({ kind: 'window', defaultFolder: 'research', failAfter: 1 });
-    const input = { kind: 'window' as const, hasPermission: true, collectionId: 'col',
-      saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar,
+    const input = { kind: 'window' as const, hasPermission: true, collectionId: 'col', mountNativeIds: ['bar'], sidecar: noopSidecar,
       bookmarks: env.bookmarks, queryTabs: env.queryTabs };
     assert.equal((await runNativeSave({ ...input, insertPosition: position })).ok, false);
     env.failAfter = undefined;
@@ -363,8 +354,7 @@ for (const position of ['top', 'bottom'] as const) {
 
 test('pending batch cannot be resumed in a different collection or a removed sync boundary', async () => {
   const env = installEnv({ kind: 'window', defaultFolder: 'research', failAfter: 1 });
-  const input = { kind: 'window' as const, hasPermission: true, collectionId: 'col', insertPosition: 'top' as const,
-    saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar,
+  const input = { kind: 'window' as const, hasPermission: true, collectionId: 'col', insertPosition: 'top' as const, mountNativeIds: ['bar'], sidecar: noopSidecar,
     bookmarks: env.bookmarks, queryTabs: env.queryTabs };
   await runNativeSave(input);
   env.failAfter = undefined;
@@ -381,8 +371,7 @@ for (const position of ['top', 'bottom'] as const) {
       const env = installEnv({ kind: 'window', defaultFolder: 'research' });
       const old = await env.bookmarks.create({ parentId: 'research', title: 'Old', url: 'https://old.test/' });
       env.failAfter = 2;
-      const input = { kind: 'window' as const, hasPermission: true, collectionId: 'col', insertPosition: position,
-        saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar,
+      const input = { kind: 'window' as const, hasPermission: true, collectionId: 'col', insertPosition: position, mountNativeIds: ['bar'], sidecar: noopSidecar,
         bookmarks: env.bookmarks, queryTabs: env.queryTabs };
       assert.equal((await runNativeSave(input)).ok, false);
       env.failAfter = undefined;
@@ -402,8 +391,7 @@ for (const position of ['top', 'bottom'] as const) {
 
 test('a confirmed prefix moved into another folder requires review without further creation', async () => {
   const env = installEnv({ kind: 'window', defaultFolder: 'research', failAfter: 1 });
-  const input = { kind: 'window' as const, hasPermission: true, collectionId: 'col', insertPosition: 'top' as const,
-    saveContextParentId: 'bar', mountNativeIds: ['bar'], sidecar: noopSidecar,
+  const input = { kind: 'window' as const, hasPermission: true, collectionId: 'col', insertPosition: 'top' as const, mountNativeIds: ['bar'], sidecar: noopSidecar,
     bookmarks: env.bookmarks, queryTabs: env.queryTabs };
   await runNativeSave(input);
   const prior = parseSaveAction(env.session.get(SAVE_ACTION_CACHE))!;
@@ -423,14 +411,14 @@ for (const removed of [false, true]) {
     ], selectedNativeIds: ['bar'], privateNativeIds: [], status: 'ready' });
     await mapping(store, 'research', 'research-colp', 'bar', 'r1', { title: 'Research' }, 'bar');
     let queue!: ReturnType<typeof createBookmarkEventQueue>;
-    const env = installEnv({ kind: 'window', commitThenThrowAt: 1,
+    const env = installEnv({ kind: 'window', defaultFolder: 'research', commitThenThrowAt: 1,
       afterCreated: async node => { assert.equal((await queue.created(node.id, node)).outcome, 'staged'); } });
     const placements = createBookmarkCreatePlacementStore();
     queue = createBookmarkEventQueue({ scope, store, api: env.bookmarks, autoFlush: false,
       resolveCreatePlacement: async (id, node) => placements.consumeForCreated({ ...node, id }),
       completeCreatePlacement: placements.complete });
     const input = { kind: 'window' as const, hasPermission: true, collectionId: scope.collectionId,
-      insertPosition: 'top' as const, saveContextParentId: 'research', mountNativeIds: ['bar'],
+      insertPosition: 'top' as const, mountNativeIds: ['bar'],
       sidecar: noopSidecar, bookmarks: env.bookmarks, queryTabs: env.queryTabs };
     assert.deepEqual(await runNativeSave(input), { ok: false, error: 'create_failed' });
     const pending = parseSaveAction(env.session.get(SAVE_ACTION_CACHE))!;

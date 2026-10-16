@@ -1,6 +1,6 @@
 import { folderCountCopy, folderMetaCopy } from './first-run-ui.js';
 import type { bindFirstRunOnboarding } from './first-run-ui.js';
-import { checkedRootRefs, outermostSelectedRefs, paintCoverage, ROOTS_REPAINT } from './folder-coverage.js';
+import { checkedRootRefs, outermostSelectedRefs, paintCoverage, recordFolderChoice, ROOTS_REPAINT } from './folder-coverage.js';
 import { createIcon } from './icons.js';
 import { t, tn } from './i18n.js';
 import { el, emptyBlock } from './library-dom.js';
@@ -88,20 +88,21 @@ export function bindFolders(host: FoldersHost) {
         });
       }
       const selection = checkbox('root-select', root.ref, root.selected, root.managed, root.title);
+      selection.input.addEventListener('change', () => recordFolderChoice(selection.input));
       const label = el('span', root.title, 'folder-name');
       const meta = el('span', undefined, 'folder-meta');
       /* Only the managed reason informs; a kind line echoed the name or said "Folder". */
       meta.textContent = folderMetaCopy(root); meta.hidden = !root.managed && root.exclusionReason !== 'managed';
       const tail = root.managed ? el('span', t('common_managed', 'Managed'), 'badge') : el('span', folderCountCopy(root), 'folder-count');
       selection.wrapper.append(createIcon('folder', 16), label, meta, tail);
-      const privacy = checkbox('root-private', root.ref, root.privateLocal, false, t('options_keepDevice', 'Exclude $1 from Know-N sync', root.title));
-      privacy.wrapper.classList.add('privacy-control'); privacy.wrapper.hidden = host.firstRun().isRangeActive();
-      privacy.wrapper.append(el('span', t('sync_stayLocal', 'No Know-N sync')));
+      const privacy = checkbox('root-private', root.ref, root.privateLocal, false, t('sync_keepFolderOnBrowser', 'Keep $1 on this browser', root.title));
+      privacy.wrapper.hidden = true;
+
       row.append(toggle, selection.wrapper, privacy.wrapper); tree.append(row);
       /* R13 D-21: the deep-linked folder arrives checked — draw the eye to it. */
       if (root.preselected === true) {
         selection.input.focus(); row.scrollIntoView({ block: 'nearest' });
-        feedback.textContent = t('sync_folderCheckedReview', '$1 is checked — choose Review changes to start syncing it.', root.title);
+        feedback.textContent = t('sync_folderHighlighted', '$1 is highlighted. Check it to include it in sync, then review your changes.', root.title);
       }
     }
     paintCollapsed(); paint();
@@ -156,9 +157,18 @@ export function bindFolders(host: FoldersHost) {
       for (let next = index + 1; next < rows.length && depths[next]! > depths[index]!; next += 1) {
         if (inputs[next]?.checked) { inside = true; break; }
       }
-      input.indeterminate = !input.checked && inside;
+      input.indeterminate = input.checked && !inside && index + 1 < rows.length && depths[index + 1]! > depths[index]!;
+      if (input.checked && inside) {
+        let allChecked = true;
+        for (let next = index + 1; next < rows.length && depths[next]! > depths[index]!; next++) if (!inputs[next]?.checked) allChecked = false;
+        input.indeterminate = !allChecked;
+      }
     }
-    const checked = inputs.filter((input) => input?.checked).length;
+    for (const [index, input] of inputs.entries()) if (input) {
+      rows[index]!.dataset.partiallySynced = String(input.indeterminate);
+      if (input.indeterminate) input.checked = false;
+    }
+    const checked = rows.filter((row, index) => row.dataset.localOnly !== 'true' && inputs[index]?.dataset.managed === undefined).length;
     count.textContent = rows.length === 0 ? '' : tn('sync_foldersChecked', rows.length, '$2 of $1 folder', '$2 of $1 folders', checked);
     cancel.disabled = !dirty();
   }
@@ -184,9 +194,9 @@ export function bindFolders(host: FoldersHost) {
   }
 
   function toggleVisible(mode: true | 'invert'): void {
-    for (const input of Array.from(tree.querySelectorAll<HTMLInputElement>('.root-select input:not(:disabled)'))) {
-      if (input.closest('.root-row')?.classList.contains('is-collapsed-child')) continue;
+    for (const input of Array.from(tree.querySelectorAll<HTMLInputElement>('.root-select input:not([data-managed])'))) {
       input.checked = mode === 'invert' ? !input.checked : true;
+      recordFolderChoice(input);
     }
     // A script-set box fires no event; the first-run preview and the dashes listen for one.
     tree.dispatchEvent(new Event('change', { bubbles: true }));

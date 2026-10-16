@@ -3899,10 +3899,6 @@
     "message": "浏览器中现有的书签不会被删除，无法识别的项目会保留为两份。",
     "description": "Existing browser bookmarks are not deleted. Items that cannot be identified are kept as two copies."
   },
-  "firstRun_firstSyncKeepsBookmarks": {
-    "message": "首次同步会保留此浏览器和 Know-N 中的书签。无法匹配为同一书签的项目会保留为两份，且不会被自动删除。",
-    "description": "First sync keeps bookmarks on this browser and in Know-N. Items that cannot be matched as the same bookmark are kept as two copies and are not deleted automatically."
-  },
   "firstRun_initializationFailed": {
     "message": "同步设置未能加载。请重新加载页面后重试，书签和草稿已保留。",
     "description": "Sync setup could not load. Reload this page to try again. Your bookmarks and draft are kept."
@@ -3918,10 +3914,6 @@
   "firstRun_keepBoth": {
     "message": "两者都保留",
     "description": "Keep both"
-  },
-  "firstRun_keepUsingBrowsersBookmarks": {
-    "message": "继续使用此浏览器的书签，并在每台设备上通过 Know-N 搜索、整理和打开它们。",
-    "description": "Keep using this browser's bookmarks. Search, organize, and open them in Know-N on every device."
   },
   "firstRun_kindBookmark": {
     "message": "书签",
@@ -3951,6 +3943,10 @@
     "message": "$1 个已匹配的项目",
     "description": "$1 matched items"
   },
+  "firstRun_mergeLibrary": {
+    "message": "将此浏览器和书签库中的书签合并。保留现有书签，未匹配的项目作为独立副本保留。",
+    "description": "Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies."
+  },
   "firstRun_modeNeedsReviewConfirm": {
     "message": "此模式需要你先查看并确认更改列表。",
     "description": "This mode needs you to review and confirm the change list first."
@@ -3979,9 +3975,9 @@
     "message": "仅预览，不运行",
     "description": "Preview only, do not run"
   },
-  "firstRun_readSyncBookmarkFolders": {
-    "message": "读取并同步你选择的书签文件夹",
-    "description": "Read and sync the bookmark folders you choose"
+  "firstRun_readWholeTree": {
+    "message": "读取并同步此浏览器的书签，但仅保留在此浏览器上的文件夹除外。",
+    "description": "Read and sync this browser’s bookmarks, except folders you keep on this browser."
   },
   "firstRun_remoteOnlyItems_other": {
     "message": "$1 个项目仅在 Know-N 中",
@@ -4011,9 +4007,13 @@
     "message": "切换到自动合并并同步",
     "description": "Switch to auto-merge and sync"
   },
-  "firstRun_syncDevicesBrowserBookmarks": {
-    "message": "同步此设备的浏览器书签",
-    "description": "Sync this device's browser bookmarks"
+  "firstRun_syncBrowserBookmarks": {
+    "message": "同步此浏览器的书签",
+    "description": "Sync this browser's bookmarks"
+  },
+  "firstRun_syncBrowserWithServer": {
+    "message": "将此浏览器的书签与 $1 同步",
+    "description": "Sync this browser's bookmarks with $1"
   },
   "firstRun_syncNotReadyYet": {
     "message": "同步尚未就绪",
@@ -4050,6 +4050,10 @@
   "firstRun_viewItemsNeedAttention": {
     "message": "查看需要处理的项目",
     "description": "View items that need attention"
+  },
+  "firstRun_wholeTreeIntro": {
+    "message": "默认同步所有文件夹。取消勾选即可将文件夹仅保留在此浏览器上。",
+    "description": "All folders sync. Untick any folder to keep it on this browser."
   },
   "firstRun_willSyncTotals": {
     "message": "将同步：$1，$2",
@@ -5171,10 +5175,6 @@
     "message": "此浏览器中的文件夹",
     "description": "Folders in this browser"
   },
-  "options_foldersThatSync": {
-    "message": "要同步的文件夹",
-    "description": "Folders that sync"
-  },
   "options_forOptionalSync": {
     "message": "以启用可选的同步",
     "description": "for optional sync"
@@ -5202,10 +5202,6 @@
   "options_keepBrowsersValues": {
     "message": "保留此浏览器的值",
     "description": "Keep this browser's values"
-  },
-  "options_keepDevice": {
-    "message": "将 $1 排除在 Know-N 同步之外",
-    "description": "Exclude $1 from Know-N sync"
   },
   "options_keepTypesafeKeyOwn": {
     "message": "请将你的 TypeSafe 密钥保存在你自己的 Cloudflare AI Gateway 中（别名为“default”）。扩展程序只保存 Cloudflare 令牌。",
@@ -5699,9 +5695,9 @@
     "message": "此文件夹已不可用，请手动选择文件夹。",
     "description": "This folder is no longer available. Choose a folder manually."
   },
-  "popup_folderNotSynced": {
-    "message": "此文件夹未同步到 Know-N",
-    "description": "This folder isn't synced to Know-N"
+  "popup_folderStaysOnBrowser": {
+    "message": "此文件夹仅保留在此浏览器上",
+    "description": "This folder stays on this browser"
   },
   "popup_localCallInProgress": {
     "message": "已有建议正在进行，请等待完成后重试。",
@@ -5895,13 +5891,13 @@
     "message": "暂无建议。你仍可以选择文件夹并保存。",
     "description": "Suggestions are unavailable. You can still choose a folder and save."
   },
+  "popup_syncIt": {
+    "message": "同步它…",
+    "description": "Sync it…"
+  },
   "popup_syncOff": {
     "message": "同步已关闭",
     "description": "Sync is off"
-  },
-  "popup_syncThisFolder": {
-    "message": "同步此文件夹…",
-    "description": "Sync this folder…"
   },
   "popup_tickSaveAnotherCopy": {
     "message": "勾选“再保存一份”即可再次保存此页面。",
@@ -6086,6 +6082,10 @@
   "save_checkingPreviousSaveResult": {
     "message": "正在检查上一次的保存结果。请打开保存记录查看详情。",
     "description": "Checking the previous save result. Open capture history for details."
+  },
+  "save_chooseFolderBeforeSaving": {
+    "message": "请先选择保存位置。",
+    "description": "Choose a folder before saving."
   },
   "save_couldNotSaveOpen": {
     "message": "无法保存。请打开保存记录查看该任务。",
@@ -7671,6 +7671,10 @@
     "message": "书签栏",
     "description": "Bookmarks bar"
   },
+  "sync_browserOnlyFolders": {
+    "message": "仅保留在此浏览器上的文件夹",
+    "description": "Folders kept on this browser"
+  },
   "sync_changesPreviewed": {
     "message": "任何内容同步前，都会先预览更改。",
     "description": "Changes are previewed before anything syncs."
@@ -7751,9 +7755,9 @@
     "message": "文件夹",
     "description": "Folder"
   },
-  "sync_folderCheckedReview": {
-    "message": "已勾选“$1”。选择“查看更改”即可开始同步。",
-    "description": "$1 is checked — choose Review changes to start syncing it."
+  "sync_folderHighlighted": {
+    "message": "已突出显示 $1。勾选它即可将其纳入同步，然后检查更改。",
+    "description": "$1 is highlighted. Check it to include it in sync, then review your changes."
   },
   "sync_folderIsntLinkedKnow": {
     "message": "此文件夹尚未关联到 Know-N，因此新顺序仅保留在此设备上",
@@ -7762,10 +7766,6 @@
   "sync_folderIsntSynced": {
     "message": "位于未同步的文件夹中",
     "description": "In a folder that isn't synced"
-  },
-  "sync_folderKeptOut": {
-    "message": "已通过“不与 Know-N 同步”排除。",
-    "description": "Kept out of sync with No Know-N sync."
   },
   "sync_folderLower": {
     "message": "文件夹",
@@ -7779,10 +7779,6 @@
     "message": "文件夹设置已保存",
     "description": "Folder settings saved"
   },
-  "sync_folderSyncsWithParent": {
-    "message": "随 $1 一起同步。如需排除，请选择“不与 Know-N 同步”。",
-    "description": "Syncs with $1. To leave it out, choose No Know-N sync."
-  },
   "sync_folderTreeChangedRefresh": {
     "message": "文件夹树已更改。请刷新并重新预览。",
     "description": "Folder tree changed. Refresh and preview again."
@@ -7790,10 +7786,6 @@
   "sync_foldersChecked_other": {
     "message": "已选 $2 / 共 $1 个文件夹",
     "description": "$2 of $1 folders"
-  },
-  "sync_foldersLede": {
-    "message": "已勾选文件夹中的书签（包括其中的子文件夹）会同步到你的合集，其余仅保留在此浏览器中。",
-    "description": "Bookmarks in checked folders sync to your collection, along with the folders inside them. Others stay on this browser only."
   },
   "sync_htmlFile": {
     "message": "HTML 书签文件",
@@ -7899,6 +7891,10 @@
     "message": "两者都保留",
     "description": "Keep both"
   },
+  "sync_keepFolderOnBrowser": {
+    "message": "将 $1 仅保留在此浏览器上",
+    "description": "Keep $1 on this browser"
+  },
   "sync_keepHere": {
     "message": "保留在此",
     "description": "Keep it here"
@@ -7910,6 +7906,10 @@
   "sync_keepSyncingNewLocation": {
     "message": "在新位置继续同步",
     "description": "Keep syncing at the new location"
+  },
+  "sync_keptWithParent": {
+    "message": "此文件夹与其父文件夹一同仅保留在此浏览器上。",
+    "description": "This folder stays on this browser with its parent."
   },
   "sync_latest": {
     "message": "$1 · 最近：$2",
@@ -8238,6 +8238,10 @@
   "sync_whenDeletedElsewhere": {
     "message": "当书签在另一台设备上被删除时",
     "description": "When a bookmark is deleted on another device"
+  },
+  "sync_wholeTreeLede": {
+    "message": "默认同步所有文件夹。取消勾选即可仅保留在此浏览器上；再次勾选即可恢复同步。",
+    "description": "All folders sync by default. Untick a folder to keep it on this browser; tick it again to sync it."
   },
   "sync_willSyncIn": {
     "message": "将同步 $2中的 $1。",

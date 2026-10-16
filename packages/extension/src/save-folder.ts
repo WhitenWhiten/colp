@@ -55,7 +55,7 @@ export async function walkAncestorIds(
 
 export function resolveSaveFolder(input: {
   readonly once?: FolderBinding; readonly fallback?: FolderBinding;
-  readonly saveContextId?: string; readonly collectionId: string;
+  readonly collectionId: string;
   readonly mountNativeIds: ReadonlySet<string>;
   readonly onceAncestors?: readonly string[]; readonly fallbackAncestors?: readonly string[];
 }): { readonly folderNativeId: string; readonly oneOff: boolean } | undefined {
@@ -65,7 +65,6 @@ export function resolveSaveFolder(input: {
   if (input.fallback && folderIsInMount(input.fallback.folderNativeId, input.fallbackAncestors ?? [], input.mountNativeIds)) {
     return { folderNativeId: input.fallback.folderNativeId, oneOff: false };
   }
-  if (input.saveContextId) return { folderNativeId: input.saveContextId, oneOff: false };
   return undefined;
 }
 

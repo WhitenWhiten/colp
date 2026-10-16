@@ -94,7 +94,7 @@ export async function handleAdvancedFirstRunPreview(message: FirstRunPreviewRequ
       sw.rootViewTokens = undefined; return { ok: false, error: 'request_invalid' };
     }
     const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
-    const privateNativeIds = await privateNativeIdsFor(scope);
+    const privateNativeIds = [...new Set([...await privateNativeIdsFor(scope), ...excluded])];
     const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: selected,
       excludedNativeIds: excluded, privateNativeIds });
     const authority = await readSnapshotAuthority(scope);
@@ -337,7 +337,7 @@ async function rescanAdvanced(scope: SyncScope, cache: CachedAdvancedPreview): P
     }
     const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
     const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: cache.selectedNativeIds,
-      excludedNativeIds: cache.excludedNativeIds, privateNativeIds: await privateNativeIdsFor(scope) });
+      excludedNativeIds: cache.excludedNativeIds, privateNativeIds: [...new Set([...await privateNativeIdsFor(scope), ...cache.excludedNativeIds])] });
     const localFacts = normalizeMountFacts(advancedLocalFacts(tree.roots, scan), scan.selectedNativeIds);
     const treeDigest = advancedTreeDigest(scan.treeDigest, localFacts);
     const recorded = await syncState.getScope(scope);
@@ -400,6 +400,7 @@ function advancedPlanMetadata(input: {
     remoteSnapshotId: input.plan.remoteSnapshotId, remoteRevision: input.plan.remoteRevision,
     remoteCursor: input.plan.remoteCursor, destructivePlanDigest: input.plan.destructivePlanDigest,
     selectedNativeIds: [...input.selectedNativeIds], excludedNativeIds: [...input.excludedNativeIds],
+    discovered: input.cache.discovered as unknown as JsonObject[],
     mounts: input.mounts as unknown as JsonObject[], rootNodeId: input.rootNodeId,
     boundaryVersion: input.boundaryVersion, libraryId: input.scope.collectionId };
 }

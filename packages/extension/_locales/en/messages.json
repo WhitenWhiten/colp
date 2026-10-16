@@ -2969,9 +2969,6 @@
   "firstRun_existingBrowserBookmarksNot": {
     "message": "Existing browser bookmarks are not deleted. Items that cannot be identified are kept as two copies."
   },
-  "firstRun_firstSyncKeepsBookmarks": {
-    "message": "First sync keeps bookmarks on this browser and in Know-N. Items that cannot be matched as the same bookmark are kept as two copies and are not deleted automatically."
-  },
   "firstRun_initializationFailed": {
     "message": "Sync setup could not load. Reload this page to try again. Your bookmarks and draft are kept."
   },
@@ -2986,9 +2983,6 @@
   },
   "firstRun_keepBoth": {
     "message": "Keep both"
-  },
-  "firstRun_keepUsingBrowsersBookmarks": {
-    "message": "Keep using this browser's bookmarks. Search, organize, and open them in Know-N on every device."
   },
   "firstRun_kindBookmark": {
     "message": "bookmark"
@@ -3017,6 +3011,9 @@
   "firstRun_matchedItems_other": {
     "message": "$1 matched items"
   },
+  "firstRun_mergeLibrary": {
+    "message": "Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies."
+  },
   "firstRun_modeNeedsReviewConfirm": {
     "message": "This mode needs you to review and confirm the change list first."
   },
@@ -3041,8 +3038,8 @@
   "firstRun_previewOnlyDoNot": {
     "message": "Preview only, do not run"
   },
-  "firstRun_readSyncBookmarkFolders": {
-    "message": "Read and sync the bookmark folders you choose"
+  "firstRun_readWholeTree": {
+    "message": "Read and sync this browser’s bookmarks, except folders you keep on this browser."
   },
   "firstRun_remoteOnlyItems_one": {
     "message": "$1 item only in Know-N"
@@ -3068,8 +3065,11 @@
   "firstRun_switchAutoMergeSync": {
     "message": "Switch to auto-merge and sync"
   },
-  "firstRun_syncDevicesBrowserBookmarks": {
-    "message": "Sync this device's browser bookmarks"
+  "firstRun_syncBrowserBookmarks": {
+    "message": "Sync this browser's bookmarks"
+  },
+  "firstRun_syncBrowserWithServer": {
+    "message": "Sync this browser's bookmarks with $1"
   },
   "firstRun_syncNotReadyYet": {
     "message": "Sync is not ready yet"
@@ -3097,6 +3097,9 @@
   },
   "firstRun_viewItemsNeedAttention": {
     "message": "View items that need attention"
+  },
+  "firstRun_wholeTreeIntro": {
+    "message": "All folders sync. Untick any folder to keep it on this browser."
   },
   "firstRun_willSyncTotals": {
     "message": "Will sync: $1, $2"
@@ -3953,9 +3956,6 @@
   "options_foldersBrowser": {
     "message": "Folders in this browser"
   },
-  "options_foldersThatSync": {
-    "message": "Folders that sync"
-  },
   "options_forOptionalSync": {
     "message": "for optional sync"
   },
@@ -3976,9 +3976,6 @@
   },
   "options_keepBrowsersValues": {
     "message": "Keep this browser's values"
-  },
-  "options_keepDevice": {
-    "message": "Exclude $1 from Know-N sync"
   },
   "options_keepTypesafeKeyOwn": {
     "message": "Keep your TypeSafe key in your own Cloudflare AI Gateway (alias \"default\"). The extension only stores the Cloudflare token."
@@ -4349,8 +4346,8 @@
   "popup_folderNoLongerAvailable": {
     "message": "This folder is no longer available. Choose a folder manually."
   },
-  "popup_folderNotSynced": {
-    "message": "This folder isn't synced to Know-N"
+  "popup_folderStaysOnBrowser": {
+    "message": "This folder stays on this browser"
   },
   "popup_localCallInProgress": {
     "message": "A suggestion is already running. Try again when it finishes."
@@ -4496,11 +4493,11 @@
   "popup_suggestionsUnavailableCanStill": {
     "message": "Suggestions are unavailable. You can still choose a folder and save."
   },
+  "popup_syncIt": {
+    "message": "Sync it…"
+  },
   "popup_syncOff": {
     "message": "Sync is off"
-  },
-  "popup_syncThisFolder": {
-    "message": "Sync this folder…"
   },
   "popup_tickSaveAnotherCopy": {
     "message": "Tick \"Save another copy\" to save this page again."
@@ -4639,6 +4636,9 @@
   },
   "save_checkingPreviousSaveResult": {
     "message": "Checking the previous save result. Open capture history for details."
+  },
+  "save_chooseFolderBeforeSaving": {
+    "message": "Choose a folder before saving."
   },
   "save_couldNotSaveOpen": {
     "message": "Could not save. Open capture history to review the task."
@@ -5837,6 +5837,9 @@
   "sync_bookmarksBar": {
     "message": "Bookmarks bar"
   },
+  "sync_browserOnlyFolders": {
+    "message": "Folders kept on this browser"
+  },
   "sync_changesPreviewed": {
     "message": "Changes are previewed before anything syncs."
   },
@@ -5897,17 +5900,14 @@
   "sync_folder": {
     "message": "Folder"
   },
-  "sync_folderCheckedReview": {
-    "message": "$1 is checked — choose Review changes to start syncing it."
+  "sync_folderHighlighted": {
+    "message": "$1 is highlighted. Check it to include it in sync, then review your changes."
   },
   "sync_folderIsntLinkedKnow": {
     "message": "This folder isn't linked to Know-N yet, so the new order stays on this device"
   },
   "sync_folderIsntSynced": {
     "message": "In a folder that isn't synced"
-  },
-  "sync_folderKeptOut": {
-    "message": "Kept out of sync with No Know-N sync."
   },
   "sync_folderLower": {
     "message": "folder"
@@ -5918,9 +5918,6 @@
   "sync_folderSettingsSaved": {
     "message": "Folder settings saved"
   },
-  "sync_folderSyncsWithParent": {
-    "message": "Syncs with $1. To leave it out, choose No Know-N sync."
-  },
   "sync_folderTreeChangedRefresh": {
     "message": "Folder tree changed. Refresh and preview again."
   },
@@ -5929,9 +5926,6 @@
   },
   "sync_foldersChecked_other": {
     "message": "$2 of $1 folders"
-  },
-  "sync_foldersLede": {
-    "message": "Bookmarks in checked folders sync to your collection, along with the folders inside them. Others stay on this browser only."
   },
   "sync_htmlFile": {
     "message": "HTML bookmarks file"
@@ -6035,6 +6029,9 @@
   "sync_keepBoth": {
     "message": "Keep both"
   },
+  "sync_keepFolderOnBrowser": {
+    "message": "Keep $1 on this browser"
+  },
   "sync_keepHere": {
     "message": "Keep it here"
   },
@@ -6043,6 +6040,9 @@
   },
   "sync_keepSyncingNewLocation": {
     "message": "Keep syncing at the new location"
+  },
+  "sync_keptWithParent": {
+    "message": "This folder stays on this browser with its parent."
   },
   "sync_latest": {
     "message": "$1 · Latest: $2"
@@ -6295,6 +6295,9 @@
   },
   "sync_whenDeletedElsewhere": {
     "message": "When a bookmark is deleted on another device"
+  },
+  "sync_wholeTreeLede": {
+    "message": "All folders sync by default. Untick a folder to keep it on this browser; tick it again to sync it."
   },
   "sync_willSyncIn": {
     "message": "Will sync $1 in $2."

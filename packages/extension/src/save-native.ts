@@ -6,7 +6,6 @@ import { commitSaveFolder, folderIsInMount, walkAncestorIds } from './save-folde
 import { resolveInRangeSaveParent } from './save-target.js';
 import { writeLastSave } from './save-status.js';
 import type { BookmarkInsertPosition } from './bookmark-preferences.js';
-import { resolveDefaultBookmarkParent } from './bookmark-placement.js';
 import { createBookmarkCreatePlacementStore } from './bookmark-create-placement.js';
 import { t } from './i18n.js';
 
@@ -18,7 +17,7 @@ export const SAVE_WINDOW_COMMAND = 'save-window-tabs';
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
 export type NativeSaveKind = 'page' | 'window';
-export type NativeSaveError = 'permission_required' | 'create_failed' | 'no_page' | 'busy';
+export type NativeSaveError = 'permission_required' | 'create_failed' | 'no_page' | 'busy' | 'folder_required';
 export type NativeSaveResult =
   | { readonly ok: true; readonly nativeIds: readonly string[]; readonly localOnly: boolean;
     readonly reused: boolean; readonly parentNativeId?: string; readonly captured: boolean }
@@ -46,7 +45,6 @@ export interface NativeSaveInput {
   readonly kind: NativeSaveKind;
   readonly hasPermission: boolean;
   readonly collectionId?: string;
-  readonly saveContextParentId?: string;
   readonly mountNativeIds: readonly string[];
   readonly now?: () => number;
   readonly queryTabs?: () => Promise<readonly { readonly title?: string; readonly url?: string;
@@ -148,18 +146,14 @@ export async function runNativeSave(input: NativeSaveInput): Promise<NativeSaveR
   try {
     const prior = priorAtStart;
     const target = resuming ? undefined : await resolveInRangeSaveParent({
-      collectionId: input.collectionId, saveContextParentId: input.saveContextParentId,
+      collectionId: input.collectionId,
       mountNativeIds: input.mountNativeIds, getParent: chromeParent, folderExists,
     });
     let parentNativeId = resuming ? priorAtStart.parentNativeId : target?.parentNativeId;
     if (resuming && parentNativeId && !await folderExists(parentNativeId)) return { ok: false, error: 'busy' };
-    if (!resuming && !parentNativeId && placement) {
-      const defaultBookmarks = input.bookmarks ?? chrome.bookmarks;
-      if (defaultBookmarks?.getTree) {
-        parentNativeId = await resolveDefaultBookmarkParent({
-          getTree: () => defaultBookmarks.getTree!.call(defaultBookmarks),
-        });
-      }
+    if (!parentNativeId) {
+      await presentSaveFeedback({ code: 'folder_required', entry, now: now() });
+      return { ok: false, error: 'folder_required' };
     }
     const mounts = new Set(input.mountNativeIds);
     const currentlyInRange = parentNativeId

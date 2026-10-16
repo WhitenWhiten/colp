@@ -25,7 +25,7 @@ export function bootstrapRunInFlight(phase: BootstrapRunRecord['phase']): boolea
 
 export interface ConfirmInput {
   readonly confirmationId: string; readonly previewId?: string; readonly libraryId?: string;
-  readonly libraryDraftTitle?: string; readonly treeDigest: string; readonly confirmationVersion: string;
+  readonly treeDigest: string; readonly confirmationVersion: string;
   readonly localFacts: readonly LocalNodeFact[]; readonly remoteFacts?: readonly RemoteNodeFact[];
   readonly mappings?: readonly MappingFact[]; readonly sidecars?: readonly SidecarFact[];
   readonly mounts: readonly MountFact[]; readonly rootNodeId?: string | null;

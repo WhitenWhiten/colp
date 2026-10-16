@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
-import { openExtensionOptions, signInExtension, showOptionsPane, selectCollectionFromList, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD } from './extension-auth.js';
+import { openExtensionOptions, chooseLibraryMetadata, signInExtension, showOptionsPane, waitForLibraryBinding, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD } from './extension-auth.js';
 import type { SyncScope, QueueOperation } from '../src/sync-state-store.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 
@@ -76,7 +76,7 @@ for (const nested of [false, true]) test(`paused local deletions survive browser
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
-test('offline logout preserves device facts and same-account reconnect requires review; missing target stops safely', async () => {
+test('offline logout preserves device facts and same-account reconnect requires review', async () => {
   test.setTimeout(150000);
   const stack = await startRealStack(), profile = await mkdtemp(resolve(tmpdir(), 'known-lifecycle-logout-'));
   let context: BrowserContext | undefined;
@@ -109,19 +109,13 @@ test('offline logout preserves device facts and same-account reconnect requires 
     await page.locator('#login-password').fill(EXTENSION_FIXTURE_PASSWORD);
     await page.locator('#login-submit').click();
     await expect(page.locator('body')).toHaveAttribute('data-state', 'connected');
-    await showOptionsPane(page, 'sync');
+    await showOptionsPane(page, 'sync-center');
     await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is paused');
     await change(page, 'Resume personal sync', 'Resume personal sync');
     await expect(page.locator('#personal-sync-status')).toHaveText(ENABLED);
     await change(page, 'Pause personal sync');
-    await stack.setFixtureCollectionUnavailable(true);
-    expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.collections.list' }))).toMatchObject({ ok: true, collections: [] });
-    await expect(page.locator('#personal-sync-status')).toContainText('selected collection is unavailable');
-    const policy = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.personalSync.status' }));
-    expect(policy).toMatchObject({ ok: true, policy: { mode: 'target-unavailable' } });
     await change(page, 'Disconnect personal sync', 'Disconnect personal sync');
     await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is disconnected');
-    await stack.setFixtureCollectionUnavailable(false);
     await change(page, 'Reconnect personal sync', 'Resume personal sync');
     await expect(page.locator('#personal-sync-status')).toHaveText(ENABLED);
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
@@ -131,8 +125,8 @@ async function evidence(page: Page, method: string, ...args: unknown[]) {
   expect(reply.ok).toBe(true); return reply.value;
 }
 async function change(page: Page, label: string, confirm?: string) {
-  // The personal sync controls head Sync › Collection.
-  await showOptionsPane(page, 'collection');
+  // Personal sync controls live in Sync › Status.
+  await showOptionsPane(page, 'sync-center');
   await page.getByRole('button', { name: label, exact: true }).click();
   if (confirm) await page.getByRole('dialog').getByRole('button', { name: confirm, exact: true }).click();
 }
@@ -164,7 +158,7 @@ test('Pause survives browser restart, reconciles edits on both sides, and discon
     expect((await stack.observations()).canonicalNodes).not.toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Saved while paused' })]));
     await context.close(); context = await launch(profile, stack.browserHostResolverRules);
     page = (await openExtensionOptions(context)).page;
-    await showOptionsPane(page, 'sync');
+    await showOptionsPane(page, 'sync-center');
     await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is paused');
     expect(await page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1'))).toEqual(lease);
     await change(page, 'Resume personal sync', 'Resume personal sync');
@@ -210,7 +204,8 @@ test('metadata opt-out holds an immutable old retry until user-confirmed reset a
     const record = exported.scope;
     const scope: SyncScope = { environment: record.environment, serverId: record.serverId, serverOrigin: record.serverOrigin,
       accountId: record.accountId, browserProfileId: record.browserProfileId, collectionId: record.collectionId, replicaId: record.replicaId, generation: record.generation };
-    await selectCollectionFromList(page, scope.collectionId, 'sync');
+    await waitForLibraryBinding(page, scope.collectionId);
+  await chooseLibraryMetadata(page, 'sync');
     // Seed an old-build queue through the real IndexedDB repository. All sends,
     // refusals, reset confirmation and server observations use production paths.
     stack.setPushFault('service_unavailable_once');
@@ -234,7 +229,8 @@ test('metadata opt-out holds an immutable old retry until user-confirmed reset a
     await evidence(page, 'wakeOutboundPushEvidence');
     const before = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
     expect(before.queue[0]!.status).toBe('unknown'); expect(before.queue[0]!.attempt).toBeDefined();
-    await selectCollectionFromList(page, scope.collectionId, 'local-only');
+    await waitForLibraryBinding(page, scope.collectionId);
+  await chooseLibraryMetadata(page, 'local-only');
     await expect.poll(() => Date.now() >= before.queue[0]!.retry.notBefore, { timeout: 20000 }).toBe(true);
     await evidence(page, 'wakeOutboundPushEvidence');
     const after = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };

@@ -3,13 +3,11 @@ import { startCapture, resumeCapture } from './capture.js';
 import { presentSaveFeedback } from '../save-feedback.js';
 import { automationSaveLine } from '../save-status.js';
 import { resolveIngressBoundary } from '../bookmark-event-ingress.js';
-import { parseSaveContextCache, SAVE_CONTEXT_CACHE } from '../save-context-cache.js';
 import { type NativeSavePage } from '../save-entry.js';
 import {
   runNativeSave, SAVE_PAGE_MENU_ID, SAVE_WINDOW_COMMAND, SAVE_WINDOW_MENU_ID, type NativeSaveKind,
   type NativeSaveResult,
 } from '../save-native.js';
-import { resolveFaviconSaveContext } from './favicon.js';
 import { COLLECTION_BINDING, hasBookmarkPermission, syncState } from './runtime.js';
 import { currentSyncScope } from './scope.js';
 import { readEffectiveBookmarkPreferences } from './bookmark-preferences.js';
@@ -42,7 +40,8 @@ export function installNativeSaveEntries(): void {
               : task.save === 'local-saved' ? automationSaveLine(task.automation)?.text ?? t('save_savedBrowserPeriod', 'Saved to this browser.')
                 : t('save_couldNotSaveOpen', 'Could not save. Open capture history to review the task.'),
           ...(task.nativeId ? { nativeId: task.nativeId } : {}),
-        })).catch(() => presentSaveFeedback({ code: 'permission_required', entry: 'page' }));
+        })).catch(error => presentSaveFeedback({ code: error instanceof Error && error.message === 'capture_target_required'
+          ? 'folder_required' : 'permission_required', entry: 'page' }));
       }
     });
     /* Titles follow the catalog in force: menus persist across worker sleeps,
@@ -69,13 +68,7 @@ export async function saveThroughNativeEntry(
     return runNativeSave({ kind, hasPermission: false, mountNativeIds: [], ...(queryTabs ? { queryTabs } : {}) });
   }
   let collectionId: string | undefined;
-  let saveContextParentId: string | undefined;
   let mountNativeIds: readonly string[] = [];
-  const context = await resolveFaviconSaveContext();
-  if (context.ok) {
-    collectionId = context.collectionId;
-    saveContextParentId = context.parentNativeId;
-  }
   try {
     const scope = await currentSyncScope();
     collectionId = collectionId ?? scope.collectionId;
@@ -85,19 +78,12 @@ export async function saveThroughNativeEntry(
     const stored = (await chrome.storage.local.get(COLLECTION_BINDING))[COLLECTION_BINDING];
     if (typeof stored === 'string' && stored) collectionId = stored;
   }
-  if (!saveContextParentId && collectionId) {
-    const cached = parseSaveContextCache(
-      (await chrome.storage.local.get(SAVE_CONTEXT_CACHE))[SAVE_CONTEXT_CACHE], collectionId,
-    );
-    saveContextParentId = cached?.parentNativeId;
-  }
   const preferences = await readEffectiveBookmarkPreferences().catch(() => ({ bookmarkInsertPosition: 'bottom' as const }));
   return runNativeSave({
     kind, hasPermission: true, mountNativeIds,
     insertPosition: preferences.bookmarkInsertPosition,
     ...('foldersFirst' in preferences && preferences.foldersFirst ? { foldersFirst: true } : {}),
     ...(collectionId ? { collectionId } : {}),
-    ...(saveContextParentId ? { saveContextParentId } : {}),
     ...(queryTabs ? { queryTabs } : {}),
   });
 }

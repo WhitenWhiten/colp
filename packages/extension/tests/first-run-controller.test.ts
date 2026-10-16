@@ -20,7 +20,7 @@ async function mount(sendMessage: (message: FirstRunRequest) => Promise<unknown>
   vi.stubGlobal('chrome', { storage: { local: { get: async (key: string) => ({ [key]: values[key] }),
     set: async (patch: Record<string, unknown>) => { Object.assign(values, patch); } } }, runtime: { sendMessage } });
   const rootTree = document.getElementById('root-tree')!;
-  rootTree.innerHTML = '<label class="root-select"><input type="checkbox" data-ref="bar" checked></label>';
+  rootTree.innerHTML = '<div class="root-row" data-depth="0"><label class="root-select"><input type="checkbox" data-ref="bar" checked></label><label class="root-private" hidden><input type="checkbox" data-ref="bar"></label></div>';
   const ui = bindFirstRunOnboarding({ rootTree, saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
     requestPermission: document.getElementById('request-bookmark-permission') as HTMLButtonElement,
     folderHeading: document.getElementById('folder-heading')!, folderIntro: document.getElementById('folder-intro')!, showPane: () => {},

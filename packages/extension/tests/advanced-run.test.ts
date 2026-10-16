@@ -22,7 +22,7 @@ const local: LocalNodeFact[] = [
   { nativeId: 'local-bookmark', mountNativeRootId: 'bar', parentNativeId: 'bar', kind: 'bookmark', title: 'Local', url: 'https://local.example/' },
 ];
 
-async function setup(mode: 'upload' | 'download' = 'download') {
+async function setup(mode: 'upload' | 'download' = 'download', excludedNativeIds: string[] = []) {
   const store = createSyncStateStore({ indexedDB: new IDBFactory() }); await active(store);
   const plan = buildAdvancedPlan({ scope, confirmationId: 'confirm', mode, boundaryVersion: '1',
     treeDigest: 'tree', remoteSnapshotId: 'snapshot', remoteRevision: 'revision', remoteCursor: 'cursor',
@@ -33,7 +33,9 @@ async function setup(mode: 'upload' | 'download' = 'download') {
     ...plan.steps,
   ];
   const committed = await store.commitAdvancedPlan(scope, { planId: plan.planId,
-    metadata: { mode, mounts: JSON.parse(JSON.stringify(mounts)), confirmationId: 'confirm', treeDigest: 'tree' },
+    metadata: { mode, mounts: JSON.parse(JSON.stringify(mounts)), confirmationId: 'confirm', treeDigest: 'tree',
+      selectedNativeIds: ['bar'], excludedNativeIds, discovered: [
+        { nativeId: 'bar', ancestorNativeIds: [] }, { nativeId: 'private', ancestorNativeIds: ['bar'] }] },
     steps: JSON.parse(JSON.stringify(definitions)) as JsonObject[], now: 10 });
   await activateAdvancedPlan(store, scope, committed);
   const staged: MappingInput[] = remote.map((fact) => ({ colpId: fact.nodeId, nativeId: `snapshot:${fact.nodeId}`,
@@ -64,6 +66,17 @@ test('cloud coverage uses the confirmed tree, retains mount roots and binds the 
   assert.deepEqual(mutations, ['create', 'remove']);
   await executeActiveAdvancedPlan(store, scope, api);
   assert.deepEqual(mutations, ['create', 'remove']);
+});
+
+test('advanced exclusions survive activation retries and remain private after completion', async () => {
+  const { store, plan } = await setup('download', ['private']);
+  const loaded = await store.readAdvancedPlan(scope, plan.planId);
+  await activateAdvancedPlan(store, scope, loaded!.plan);
+  const privateId = (await store.getMappingByNativeId(scope, 'private'))!.colpId;
+  assert.deepEqual((await store.getScope(scope))!.privateRoots, [privateId]);
+  await executeActiveAdvancedPlan(store, scope, nativeApi().api);
+  assert.deepEqual((await store.getScope(scope))!.privateRoots, [privateId]);
+  assert.deepEqual((await store.getScope(scope))!.selectedRoots, ['remote-bar']);
 });
 
 test('a create callback that arrives after its step settled, while the plan still runs, is an echo', async () => {

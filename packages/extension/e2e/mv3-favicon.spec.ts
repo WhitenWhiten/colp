@@ -289,7 +289,7 @@ async function waitForMappedSave(page: Page) {
     throw new Error(`save_mapping_timeout:${JSON.stringify(summary)}`, { cause: error });
   }
 }
-async function showOptionsPane(page: Page, pane: 'folders' | 'collection') {
+async function showOptionsPane(page: Page, pane: 'folders' | 'sync-center') {
   const { showOptionsPane } = await import('./extension-auth.js');
   await showOptionsPane(page, pane);
 }

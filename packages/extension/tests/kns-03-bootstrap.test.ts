@@ -313,10 +313,10 @@ describe('KNS-03 empty Collection bootstrap', () => {
     assert.equal((await store.listQueue(scope)).length, 0);
   });
 
-  test('libraryDraft without rootNodeId requests mount resolve and does not fake remote success', async () => {
+  test('a missing root requests mount resolve and does not fake remote success', async () => {
     const { store, coordinator } = await setup();
     const view = await coordinator.confirm(baseConfirm({
-      libraryDraftTitle: 'New library', rootNodeId: null, remoteFacts: [],
+      rootNodeId: null, remoteFacts: [],
       localFacts: [bookmark('bm-1', 'https://example.com/one')],
     }));
     assert.ok(view.run.mountResolveRequest?.includes('bookmarks-bar'));

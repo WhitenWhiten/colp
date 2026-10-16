@@ -80,7 +80,7 @@ async function handleFirstRunPreview(message: Extract<FirstRunRequest, { readonl
     sw.rootViewTokens = undefined; return { ok: false, error: 'request_invalid' };
   }
   const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
-  const privateNativeIds = await privateNativeIdsFor(scope);
+  const privateNativeIds = [...new Set([...await privateNativeIdsFor(scope), ...excluded])];
   const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: selected, excludedNativeIds: excluded,
     privateNativeIds });
   const boundaryVersion = await syncState.bumpBoundaryVersion(scope);
@@ -210,7 +210,7 @@ async function handleFirstRunConfirm(message: Extract<FirstRunRequest, { readonl
   const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
   const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: [...preview.boundary.selectedNativeIds],
     excludedNativeIds: [...preview.boundary.excludedNativeIds],
-    privateNativeIds: await privateNativeIdsFor(scope) });
+    privateNativeIds: [...new Set([...await privateNativeIdsFor(scope), ...(preview.privateNativeIds ?? [])])] });
   if (scan.treeDigest !== preview.treeDigest) {
     recordKns09FirstRun('failed', scope, message.confirmationId);
     return previewStaleFromScan(scan);
@@ -228,8 +228,6 @@ async function handleFirstRunConfirm(message: Extract<FirstRunRequest, { readonl
       preview.boundary.selectedNativeIds, preview.boundary.excludedNativeIds, await privateNativeIdsFor(scope)),
     mounts: mountsFromPreview(preview.boundary.mounts),
     ...(libraryId ? { libraryId } : {}),
-    ...(('libraryDraft' in message && message.libraryDraft)
-      ? { libraryDraftTitle: message.libraryDraft.title } : {}),
     ...(rootNodeId ? { rootNodeId } : { rootNodeId: null }),
   });
   await persistConfirmedPreviewRoots(scope, preview);

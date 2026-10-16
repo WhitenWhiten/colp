@@ -89,11 +89,11 @@ test('a refresh that switched accounts cannot retry as another owner', async () 
   assert.equal(fetcher.mock.calls.length, 1);
 });
 
-test('background discovery preserves a paused policy when the binding was absent', async () => {
+test.each([false, true])('discovery preserves a paused policy on login=%s when the binding was absent', async login => {
   f.target = null;
   await policy.write(owner, 'paused');
   vi.stubGlobal('fetch', async () => Response.json(library));
-  await bindLibraryOnStartup();
+  if (login) await ensureLibraryBinding({ login: true }); else await bindLibraryOnStartup();
   assert.equal((await storage.get(COLLECTION_BINDING))[COLLECTION_BINDING], library.id);
   assert.equal((await policy.read(owner)).mode, 'paused');
 });

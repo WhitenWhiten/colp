@@ -3,7 +3,6 @@ import { assertPersonalNativeAllowed } from './bookmark-subscriptions/guards.js'
 import { saveBookmarkWithFaviconCapture, type SaveBookmarkCaptureInput } from './favicon-save.js';
 import {
   mapBookmarksAtPosition,
-  resolveDefaultBookmarkParent,
   type BookmarkInsertPosition,
 } from './bookmark-placement.js';
 import type { createFaviconSidecarStore } from './favicon-sidecar-store.js';
@@ -48,12 +47,8 @@ export async function savePagesThroughNativeIngress(input: {
   readonly sidecar: ReturnType<typeof createFaviconSidecarStore>;
   readonly fetch?: typeof fetch; readonly randomUUID?: () => string; readonly now?: () => number;
 }): Promise<readonly NativeSaveResult[]> {
-  const placementParent = input.insertPosition
-    ? input.parentNativeId ?? (input.bookmarks.getTree
-      ? await resolveDefaultBookmarkParent({ getTree: () => input.bookmarks.getTree!.call(input.bookmarks) })
-      : undefined)
-    : input.parentNativeId;
-  if (input.insertPosition && !placementParent) throw new Error('bookmark_default_parent_unavailable');
+  const placementParent = input.parentNativeId;
+  if (!placementParent) throw new Error('folder_required');
   const placementStore = input.insertPosition && (input.collectionId || input.placementStore)
     ? input.placementStore ?? createBookmarkCreatePlacementStore()
     : undefined;

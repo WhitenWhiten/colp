@@ -7,7 +7,7 @@ import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { engineStatusIsStable, waitForEngineStability, type EngineStabilityStatus } from './engine-stability-barrier.js';
 import { copyProfileSnapshot, probeRetiredReplicaSession, remoteCollectionIdentity } from './mv3-multi-device-recovery-profile.js';
 import { nativeIdentityDiagnostics } from './mv3-multi-device-recovery-identity.js';
-import { EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD, openExtensionOptions, selectCollectionFromList, showOptionsPane, signInExtension } from './extension-auth.js';
+import { EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD, openExtensionOptions, waitForLibraryBinding, showOptionsPane, signInExtension } from './extension-auth.js';
 import {
   boundedRetryAfter, containsFieldValue, containsJsonString, credentialTokenMetadata, diagnosticMetadata,
   pullQueryMetadata, redactUrl, safeDiagnosticCode, safeProblemFields, secretMarkers, secretMetadata, sha,
@@ -900,7 +900,7 @@ async function bootstrapProductAccount(product: Page): Promise<string> { const o
     return collectionId;
   } finally { await product.goto(observerUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 }); } }
 async function selectCollectionThroughOptions(page: Page, value: string) {
-  await selectCollectionFromList(page, value);
+  await waitForLibraryBinding(page, value);
 }
 async function signInAndSelectRoot(page: Page, name: string, collectionId = '') {
   await page.evaluate(() => { const scope = window as typeof window & { __p338LoginResult?: unknown; __p338SendMessage?: typeof chrome.runtime.sendMessage };

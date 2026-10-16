@@ -134,15 +134,14 @@ export async function loadRootView(scope: SyncScope, preselectFolderId?: string)
     : undefined;
   const tokens = new Map<string, { nativeId: string; ancestorNativeIds: readonly string[] }>();
   const roots = flattened.map(({ node, rootKind, depth, ancestorNativeIds }): PublicRootNode => {
-    const ref = crypto.randomUUID(); tokens.set(ref, { nativeId: node.nativeId, ancestorNativeIds });
+    const ref = digestJson([rootScopeKey(scope), node.nativeId]).slice(7); tokens.set(ref, { nativeId: node.nativeId, ancestorNativeIds });
     const colpId = byNative.get(node.nativeId);
     const counts = countFolderContents(node);
     /* R13 D-21: a deep-linked folder arrives checked so the user only has to
        confirm — managed rows stay untouched. */
     const flagged = !node.managed && node.nativeId === preselectFolderId;
     const selected = node.managed ? false
-      : flagged
-      || (previewNativeIds ? previewNativeIds.has(node.nativeId)
+      : (previewNativeIds ? previewNativeIds.has(node.nativeId)
       : hasCommittedSelection ? colpId !== undefined && authority.selectedRoots.includes(colpId)
         : liveMountNative ? liveMountNative.has(node.nativeId)
         : shouldDefaultPreselect({

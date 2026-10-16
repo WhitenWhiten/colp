@@ -115,10 +115,4 @@ describe('advanced first-run UI contract', () => {
     assert.match(source, /host\.hidden = true/);
   });
 
-  test('library creation gives positive feedback on success and does not mislead when offline (UX-25)', async () => {
-    const source = await readFile(new URL('../src/first-run-ui.ts', import.meta.url), 'utf8');
-    assert.match(source, /Created collection/);
-    assert.match(source, /collectionFeedback\.dataset\.tone = 'ok'/);
-    assert.match(source, /You are offline\. Check your connection and try again\./);
-  });
 });

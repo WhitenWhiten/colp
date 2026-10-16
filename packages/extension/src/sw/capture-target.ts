@@ -2,8 +2,6 @@ import { assertPersonalNativeAllowed } from '../bookmark-subscriptions/guards.js
 import type { CaptureScope } from '../capture/contracts.js';
 import { assertCaptureScope } from './capture-native.js';
 import { parseFolderBinding, FOLDER_DEFAULT_BINDING, folderIsInMount, walkAncestorIds } from '../save-folder.js';
-import { resolveDefaultBookmarkParent } from '../bookmark-placement.js';
-import { parseSaveContextCache, SAVE_CONTEXT_CACHE } from '../save-context-cache.js';
 import { currentSyncScope } from './scope.js';
 import { resolveIngressBoundary } from '../bookmark-event-ingress.js';
 import { syncState } from './runtime.js';
@@ -11,8 +9,7 @@ import { LIBRARY_STATE, parseLibraryState } from '../library.js';
 import { isUnsupportedBookmarkFolder } from '../bookmark-folder-policy.js';
 export async function captureTarget(scope: CaptureScope, requestedId?: string) {
   const remembered = parseFolderBinding((await chrome.storage.local.get(FOLDER_DEFAULT_BINDING))[FOLDER_DEFAULT_BINDING]);
-  const cached = scope.collectionId ? parseSaveContextCache((await chrome.storage.local.get(SAVE_CONTEXT_CACHE))[SAVE_CONTEXT_CACHE], scope.collectionId) : undefined;
-  const nativeId = requestedId ?? remembered?.folderNativeId ?? cached?.parentNativeId ?? await resolveDefaultBookmarkParent(chrome.bookmarks);
+  const nativeId = requestedId ?? remembered?.folderNativeId;
   if (!nativeId) throw new Error('capture_target_required');
   await assertPersonalNativeAllowed(nativeId);
   const [node] = await chrome.bookmarks.get(nativeId);

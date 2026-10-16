@@ -222,13 +222,11 @@ describe('KNS-07 default vs one-off folder and native folder order', () => {
   test('resolves one-off separately from the in-range default', () => {
     const resolved = resolveSaveFolder({
       once: { collectionId: 'col', folderNativeId: 'scratch' },
-      fallback: { collectionId: 'col', folderNativeId: 'research' },
-      saveContextId: 'bar', collectionId: 'col', mountNativeIds: new Set(['bar']),
+      fallback: { collectionId: 'col', folderNativeId: 'research' }, collectionId: 'col', mountNativeIds: new Set(['bar']),
     });
     assert.deepEqual(resolved, { folderNativeId: 'scratch', oneOff: true });
     const def = resolveSaveFolder({
-      fallback: { collectionId: 'col', folderNativeId: 'research' },
-      saveContextId: 'bar', collectionId: 'col', mountNativeIds: new Set(['bar']),
+      fallback: { collectionId: 'col', folderNativeId: 'research' }, collectionId: 'col', mountNativeIds: new Set(['bar']),
       fallbackAncestors: ['bar'],
     });
     assert.deepEqual(def, { folderNativeId: 'research', oneOff: false });
@@ -242,9 +240,9 @@ describe('KNS-07 default vs one-off folder and native folder order', () => {
     const popup = await readFrom('src/popup.ts');
     const note = await readFrom('src/popup-dest-sync.ts');
     assert.doesNotMatch(`${ui}\n${popup}`, /rangePrompt|pendingOutOfRange|acceptLocalOnly/);
-    assert.match(note, /No Know-N sync/);
+    assert.match(note, /This folder stays on this browser/);
     assert.match(note, /options\.html#sync\/folders\?native=/);
-    assert.match(note, /requestSave\(\)/); // the save lands before the settings tab closes the popup
+    assert.doesNotMatch(note, /requestSave/); // changing sync coverage never saves implicitly
     // Settings links only navigate: the popup never rebinds scope or edits the sync range.
     assert.doesNotMatch(`${ui}\n${popup}\n${note}`, /known\.roots\.update|known\.scope\.rejoin|known\.scope\.detach/);
     // Saving never rebinds a collection or waits for a cloud session mint.

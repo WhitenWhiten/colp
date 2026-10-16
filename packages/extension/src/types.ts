@@ -205,10 +205,8 @@ export type FirstRunConfirmRequest = {
   readonly confirmationId: string;
   readonly bootstrapMode?: 'download' | 'upload' | 'merge' | 'mirror';
   readonly advancedConfirmation?: AdvancedFirstRunConfirmation;
-} & (
-  | { readonly libraryId: string; readonly libraryDraft?: never }
-  | { readonly libraryDraft: { readonly title: string }; readonly libraryId?: never }
-);
+  readonly libraryId: string;
+};
 export type FirstRunStatusRequest = { readonly kind: 'known.firstRun.status' };
 export type FirstRunLaterRequest = { readonly kind: 'known.firstRun.later' };
 export type FirstRunAttentionGetRequest = {

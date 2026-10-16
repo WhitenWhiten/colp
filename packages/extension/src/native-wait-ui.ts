@@ -145,6 +145,7 @@ export function bindNativeWaitSettings(): void {
     if (response.ok === false) { showFeedback(feedback, nativeWaitFeedbackCopy(response.code)); return; }
     if (!('waits' in response)) { showFeedback(feedback, nativeWaitFeedbackCopy('request_invalid')); return; }
     if (!force && (busy || list.contains(document.activeElement) || list.querySelector('.native-wait-cancel-confirm'))) return;
+    feedback.hidden = true; feedback.textContent = '';
     const waits = response.waits;
     // With nothing waiting there is nothing to read here: the group and its summary step aside.
     host.hidden = waits.length === 0;
@@ -179,7 +180,7 @@ export function bindNativeWaitSettings(): void {
   queueMicrotask(() => reflectDeepLink(host));
   window.addEventListener('hashchange', () => {
     reflectDeepLink(host);
-    if (isNativeWaitDeepLink(location.hash)) void refresh();
+    if (isNativeWaitDeepLink(location.hash) || location.hash.startsWith('#sync')) void refresh();
   });
   setInterval(() => { if (document.body.dataset.pane === 'sync') void refresh(); }, WAIT_REFRESH_MS);
 }

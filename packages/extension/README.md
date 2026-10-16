@@ -18,11 +18,13 @@ sign in to Know-N to sync bookmarks you own across browsers, follow collections,
 
 ## What an account adds
 
-Signing in does not upload anything. Sync starts only after you choose a collection under **Sync** and pick
-the folders to include. You can pause or disconnect it at any time; local bookmarks are kept either way.
+Signing in automatically connects your account’s private bookmark library. Open **Sync → Folders** to review
+this browser’s whole bookmark tree and start the first sync. Every folder syncs by default; untick a folder
+to keep it on this browser only. You can pause or disconnect sync at any time; local bookmarks are kept.
 
-- **Sync.** Bookmarks in the folders you choose sync with a Know-N collection you own, and from there with your
-  other browsers and the web. Tags, notes and folder descriptions sync only if you allow it.
+- **Sync.** Bookmarks bar, Other bookmarks, and Mobile bookmarks when available merge with the same folders
+  in your library. New folders inside synced roots sync automatically. Tags, notes and folder descriptions
+  sync only if you explicitly connect browser metadata under **Sync → Status**.
 - **Subscriptions.** Collections and digests you follow appear as read-only folders.
 - **Know-N suggestions.** Folder and tag suggestions billed in Know-N credits.
 
@@ -33,8 +35,9 @@ the other.
 
 Create the owner account on your COLP Server first. Then open the extension's **Account** page, enter the
 server origin in **Server**, and allow access when Chrome asks. The extension checks the server's COLP
-Manifest before saving the address. Sign in with your username and password, then choose a collection and
-the bookmark folders to sync. Leave Server empty to use Know-N.
+Manifest before saving the address. Sign in with your username and password. Your library connects automatically; review the browser tree
+under **Sync → Folders**, untick any folders to keep on this browser, then start sync. A server that does not
+yet provide the library endpoint is shown as unsupported, and no bookmark sync runs. Leave Server empty to use Know-N.
 
 Use HTTPS for remote and home-network servers. For private HTTPS, trust the server's local CA in Chrome
 first. Plain HTTP is supported only on `localhost`, `127.0.0.1`, or `[::1]`, after you acknowledge the

@@ -278,16 +278,8 @@ export function validFirstRunRequest(value: unknown): value is FirstRunRequest {
   if (request.kind !== 'known.firstRun.confirm' || !boundedId(request.previewId)
       || !boundedId(request.confirmationId)) return false;
   const keys = Object.keys(request);
-  if (typeof request.libraryId === 'string') {
-    return request.libraryDraft === undefined
-      && validFirstRunConfirmKeys(request, keys, boundedId(request.libraryId));
-  }
-  if (!request.libraryDraft || typeof request.libraryDraft !== 'object' || Array.isArray(request.libraryDraft)) {
-    return false;
-  }
-  const draft = request.libraryDraft as Record<string, unknown>;
-  return validFirstRunConfirmKeys(request, keys,
-    request.libraryId === undefined && Object.keys(draft).length === 1 && boundedId(draft.title, 256));
+  return typeof request.libraryId === 'string' && keys.every(key => ['kind', 'previewId', 'confirmationId', 'libraryId', 'bootstrapMode', 'advancedConfirmation'].includes(key))
+    && validFirstRunConfirmKeys(request, keys, boundedId(request.libraryId));
 }
 
 function validFirstRunConfirmKeys(request: Record<string, unknown>, keys: readonly string[], libraryValid: boolean): boolean {

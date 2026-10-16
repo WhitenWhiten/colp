@@ -63,7 +63,7 @@ export async function ensureLibraryBinding(options: { readonly login?: boolean; 
     if (!options.login && nextPolicy?.mode === 'disconnected') return;
     if (!target) {
       await browserMetadataSyncPolicy().write(nextIdentity, false);
-      if (policy && (options.login || nextPolicy?.mode === 'enabled')) await policy.write(nextIdentity, 'enabled', 'user', before?.revision);
+      if (policy && (nextPolicy?.mode === 'enabled' || (options.login && nextPolicy?.mode === 'disconnected'))) await policy.write(nextIdentity, 'enabled', 'user', before?.revision);
     }
     await store.assertWritable(authority.generation);
     await chrome.storage.local.set({ [LIBRARY_STATE]: state, [COLLECTION_BINDING]: library.id });

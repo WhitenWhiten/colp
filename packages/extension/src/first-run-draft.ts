@@ -8,15 +8,15 @@ export const FIRST_RUN_DRAFT = 'known.firstRun.draft.v1';
 
 export let FIRST_RUN_INTRO: string, BOOKMARK_PERMISSION_ACTION: string, FIRST_RUN_PERMISSION_ACTION: string, FIRST_RUN_PERMISSION_HINT: string, FIRST_RUN_START: string, FIRST_RUN_LATER: string, FIRST_RUN_MERGE_COPY: string, FIRST_RUN_KEEP_COPY: string, FIRST_RUN_RANGE_HEADING: string, FIRST_RUN_ENGINE_NOT_READY: string, FIRST_RUN_SYNC_PAUSED: string, FIRST_RUN_LIBRARY_REQUIRED: string, FIRST_RUN_UNSYNCED: string, FIRST_RUN_LOCAL_ONLY: string, FIRST_RUN_SYNCING: string, FIRST_RUN_SYNCED: string, FIRST_RUN_ACTION_REQUIRED: string, FIRST_RUN_REVIEW_CONFLICTS: string, FIRST_RUN_IMPORT_ISSUES: string, FIRST_RUN_NEEDS_ATTENTION: string, FIRST_RUN_VIEW_ATTENTION: string, FIRST_RUN_KEEP_BOTH: string, FIRST_RUN_CONFLICT_CENTER: string, FIRST_RUN_WAIT_NETWORK: string, FIRST_RUN_SYNC_RETRYING: string, FIRST_RUN_MANAGED_REASON: string;
 localized(() => {
-  FIRST_RUN_INTRO = t('firstRun_keepUsingBrowsersBookmarks', "Keep using this browser's bookmarks. Search, organize, and open them in Know-N on every device.");
+  FIRST_RUN_INTRO = t('firstRun_wholeTreeIntro', 'All folders sync. Untick any folder to keep it on this browser.');
   BOOKMARK_PERMISSION_ACTION = t('common_allowBookmarkAccess', 'Allow bookmark access');
   FIRST_RUN_PERMISSION_ACTION = BOOKMARK_PERMISSION_ACTION;
-  FIRST_RUN_PERMISSION_HINT = t('firstRun_readSyncBookmarkFolders', 'Read and sync the bookmark folders you choose');
+  FIRST_RUN_PERMISSION_HINT = t('firstRun_readWholeTree', 'Read and sync this browser’s bookmarks, except folders you keep on this browser.');
   FIRST_RUN_START = t('firstRun_startFirstSync', 'Start first sync');
   FIRST_RUN_LATER = t('common_later', 'Later');
-  FIRST_RUN_MERGE_COPY = t('firstRun_firstSyncKeepsBookmarks', 'First sync keeps bookmarks on this browser and in Know-N. Items that cannot be matched as the same bookmark are kept as two copies and are not deleted automatically.');
+  FIRST_RUN_MERGE_COPY = t('firstRun_mergeLibrary', 'Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies.');
   FIRST_RUN_KEEP_COPY = t('firstRun_existingBrowserBookmarksNot', 'Existing browser bookmarks are not deleted. Items that cannot be identified are kept as two copies.');
-  FIRST_RUN_RANGE_HEADING = t('firstRun_syncDevicesBrowserBookmarks', "Sync this device's browser bookmarks");
+  FIRST_RUN_RANGE_HEADING = t('firstRun_syncBrowserBookmarks', "Sync this browser's bookmarks");
   FIRST_RUN_ENGINE_NOT_READY = t('firstRun_syncNotReadyYet', 'Sync is not ready yet');
   FIRST_RUN_SYNC_PAUSED = t('firstRun_syncPausedChangesAlready', 'Sync is paused. Changes already sent will still finish uploading.');
   FIRST_RUN_LIBRARY_REQUIRED = t('firstRun_connectingLibrary', 'Connecting to your bookmark library…');
@@ -37,6 +37,7 @@ localized(() => {
 });
 
 export interface FirstRunDraftPick {
+  readonly ref: string;
   readonly kind: PublicRootNode['kind'];
   readonly title: string;
   readonly depth: number;
@@ -44,6 +45,7 @@ export interface FirstRunDraftPick {
 
 export interface FirstRunDraft {
   readonly selected: readonly FirstRunDraftPick[];
+  readonly excluded?: readonly FirstRunDraftPick[];
   readonly libraryId?: string;
   readonly deferred: boolean;
   readonly previewId?: string;
@@ -57,18 +59,25 @@ export function parseFirstRunDraft(value: unknown): FirstRunDraft | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const record = value as Record<string, unknown>;
   if (typeof record.deferred !== 'boolean' || !Array.isArray(record.selected)) return undefined;
+  const picks = (items: unknown): FirstRunDraftPick[] | undefined => {
+  if (!Array.isArray(items)) return undefined;
   const selected: FirstRunDraftPick[] = [];
-  for (const item of record.selected) {
+  for (const item of items) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return undefined;
     const row = item as Record<string, unknown>;
     if (row.kind !== 'bookmarks_bar' && row.kind !== 'other' && row.kind !== 'mobile' && row.kind !== 'folder') {
       return undefined;
     }
+    if (typeof row.ref !== 'string' || !row.ref || row.ref.length > 128) return undefined;
     if (typeof row.title !== 'string' || typeof row.depth !== 'number' || !Number.isInteger(row.depth) || row.depth < 0) {
       return undefined;
     }
-    selected.push({ kind: row.kind, title: row.title, depth: row.depth });
+    selected.push({ ref: row.ref, kind: row.kind, title: row.title, depth: row.depth });
   }
+  return selected;
+  };
+  const selected = picks(record.selected), excluded = record.excluded === undefined ? [] : picks(record.excluded);
+  if (!selected || !excluded) return undefined;
   const libraryId = record.libraryId;
   const previewId = record.previewId;
   const treeDigest = record.treeDigest;
@@ -80,7 +89,7 @@ export function parseFirstRunDraft(value: unknown): FirstRunDraft | undefined {
   const skippedCount = optionalCount(record.skippedCount);
   if (bookmarkCount === false || folderCount === false || skippedCount === false) return undefined;
   return {
-    selected, deferred: record.deferred,
+    selected, excluded, deferred: record.deferred,
     ...(libraryId ? { libraryId } : {}),
     ...(previewId ? { previewId } : {}),
     ...(treeDigest ? { treeDigest } : {}),
@@ -138,7 +147,7 @@ export function shouldDefaultPreselect(input: {
   readonly firstRun: FirstRunScopeState | undefined; readonly hasCommittedSelection: boolean;
 }): boolean {
   if (input.managed || input.hasCommittedSelection || !firstRunIncomplete(input.firstRun)) return false;
-  return input.depth === 0 && (input.bookmarkCount > 0 || input.folderCount > 0);
+  return input.depth === 0;
 }
 
 export function specialRootLabel(kind: PublicRootNode['kind']): string {
@@ -165,7 +174,7 @@ export function firstRunTotalsCopy(bookmarkCount: number, folderCount: number): 
 
 export function draftPicksFromView(view: PublicRootView, selectedRefs: ReadonlySet<string>): FirstRunDraftPick[] {
   return view.roots.filter((root) => selectedRefs.has(root.ref))
-    .map((root) => ({ kind: root.kind, title: root.title, depth: root.depth }));
+    .map((root) => ({ ref: root.ref, kind: root.kind, title: root.title, depth: root.depth }));
 }
 
 export function restoreDraftSelection(view: PublicRootView, draft: FirstRunDraft | undefined): Set<string> {
@@ -178,7 +187,7 @@ export function restoreDraftSelection(view: PublicRootView, draft: FirstRunDraft
   }
   const unused = draft.selected.map((pick) => ({ ...pick }));
   for (const root of view.roots) {
-    const index = unused.findIndex((pick) => pick.kind === root.kind && pick.title === root.title && pick.depth === root.depth);
+    const index = unused.findIndex((pick) => pick.ref === root.ref);
     if (index >= 0) {
       selected.add(root.ref);
       unused.splice(index, 1);
@@ -187,11 +196,11 @@ export function restoreDraftSelection(view: PublicRootView, draft: FirstRunDraft
   return selected;
 }
 
-export function collectPreviewSelection(view: PublicRootView, checkedRefs: ReadonlySet<string>): {
+export function collectPreviewSelection(view: PublicRootView, checkedRefs: ReadonlySet<string>, excluded: ReadonlySet<string> = new Set()): {
   readonly selectedRefs: readonly string[]; readonly excludedRefs: readonly string[];
 } {
   const selectedRefs = view.roots.filter((root) => checkedRefs.has(root.ref) && !root.managed).map((root) => root.ref);
-  return { selectedRefs, excludedRefs: [] };
+  return { selectedRefs, excludedRefs: view.roots.filter(root => excluded.has(root.ref) && !root.managed).map(root => root.ref) };
 }
 
 export function buildFirstRunConfirm(input: {

@@ -271,6 +271,26 @@ describe('P3-30 bookmark event normalization', () => {
     assert.equal(lookups, 0);
   });
 
+  test('a local-only sibling cannot block a later synced folder or its child', async () => {
+    const { queue, store, api } = await fixture(indexedDB);
+    api.put(folder('anchor', 'folder-parent', 0, 'Synced sibling'));
+    await mapping(store, 'anchor', 'anchor-colp', 'root-selected', 'anchor-r1', { title: 'Synced sibling' }, 'folder-parent');
+    api.put(folder('private-sibling', 'folder-parent', 1, 'Private sibling'));
+    await store.configureBrowserRoots(scope, { discovered: [
+      { nativeId: 'root-selected', ancestorNativeIds: [] },
+      { nativeId: 'folder-parent', ancestorNativeIds: ['root-selected'] },
+      { nativeId: 'private-sibling', ancestorNativeIds: ['root-selected', 'folder-parent'] },
+    ], selectedNativeIds: ['root-selected'], privateNativeIds: ['private-sibling'], status: 'ready' });
+    const later = folder('later', 'folder-parent', 2, 'Later'); api.put(later);
+    assert.equal((await queue.created(later.id, later)).outcome, 'staged');
+    const child = bookmark('later-child', 'later', 0, 'Later child', 'https://example.test/later'); api.put(child);
+    await queue.created(child.id, child); await queue.flush();
+    const queued = await store.listQueue(scope);
+    assert.equal(queued.length, 1); // child waits only for the real new parent receipt
+    assert.equal((queued[0]!.payload.payload as any).afterId, 'anchor-colp');
+    assert.equal(JSON.stringify(queued).includes('private-sibling'), false);
+  });
+
   test('orders consecutive create callbacks from their durable indexes without querying an unsettled Chrome tree', async () => {
     const { store, api } = await fixture(indexedDB); let lookups = 0;
     const first = folder('new-folder', 'folder-parent', 0, 'New folder');

@@ -2,7 +2,7 @@ import { chromium, expect, test, type BrowserContext, type Page } from '@playwri
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { gotoOptions, openExtensionOptions, selectCollectionFromList, showOptionsPane } from './extension-auth.js';
+import { gotoOptions, openExtensionOptions, waitForLibraryBinding, showOptionsPane } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 
 // Uses an operator-provided self-hosted server. No in-process backend, seeded
@@ -208,7 +208,7 @@ async function connect(page: Page): Promise<void> {
 }
 
 async function firstSync(page: Page, collection: string): Promise<void> {
-  await selectCollectionFromList(page, collection);
+  await waitForLibraryBinding(page, collection);
   await showOptionsPane(page, 'folders');
   const start = page.locator('#first-run-start');
   await expect(start).toBeVisible({ timeout: 20_000 });
@@ -269,7 +269,7 @@ async function exerciseBrowserMutations(a: Page, b: Page, addedId: string): Prom
   await expect.poll(() => findBookmarks(b, 'I2 reverse rename'), { timeout: 90_000 }).toHaveLength(0);
   process.stdout.write('I2: browser move, reorder and delete reached the second profile\n');
 
-  await showOptionsPane(a, 'collection');
+  await showOptionsPane(a, 'sync-center');
   await a.locator('#personal-sync-toggle').click();
   await expect(a.locator('#personal-sync-status')).toHaveText('Personal sync is paused');
   await addBookmark(a, 'I2 paused addition', 'https://example.test/i2/paused');

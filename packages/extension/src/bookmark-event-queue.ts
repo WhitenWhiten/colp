@@ -512,12 +512,16 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     const actual = siblings.findIndex((node) => node.id === nativeId);
     const pivot = actual >= 0 ? actual : Math.max(0, Math.min(index, siblings.length));
     for (let cursor = pivot - 1; cursor >= 0; cursor -= 1) {
-      const sibling = await captureStep('sibling_identity_failed', () => identityFor(siblings[cursor]!.id, events));
+      const node = siblings[cursor]!;
+      if (!(await privacyFor(node.id, true, undefined, parentNativeId, isManagedBookmarkNode(node))).allowOperationCandidate) continue;
+      const sibling = await captureStep('sibling_identity_failed', () => identityFor(node.id, events));
       if (sibling) return { wire: { afterId: sibling.colpId },
         afterNativeId: sibling.nativeId };
     }
     for (let cursor = pivot + (actual >= 0 ? 1 : 0); cursor < siblings.length; cursor += 1) {
-      const sibling = await captureStep('sibling_identity_failed', () => identityFor(siblings[cursor]!.id, events));
+      const node = siblings[cursor]!;
+      if (!(await privacyFor(node.id, true, undefined, parentNativeId, isManagedBookmarkNode(node))).allowOperationCandidate) continue;
+      const sibling = await captureStep('sibling_identity_failed', () => identityFor(node.id, events));
       if (sibling) return { wire: { beforeId: sibling.colpId },
         beforeNativeId: sibling.nativeId };
     }

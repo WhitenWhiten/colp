@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { gotoOptions, openExtensionOptions, selectCollectionFromList, showOptionsPane } from './extension-auth.js';
+import { gotoOptions, openExtensionOptions, waitForLibraryBinding, showOptionsPane } from './extension-auth.js';
 
 /**
  * AC-73 against a real colp-server (browser rules follow-up L3). Nothing is
@@ -126,9 +126,9 @@ async function createCollection(web: Page): Promise<string> {
 
 async function firstSync(page: Page, collection: string): Promise<void> {
   // The list was read at sign-in, before the collection existed.
-  await showOptionsPane(page, 'collection');
+  await showOptionsPane(page, 'sync-center');
   await page.locator('#refresh-collections').click();
-  await selectCollectionFromList(page, collection);
+  await waitForLibraryBinding(page, collection);
   await showOptionsPane(page, 'folders');
   const start = page.locator('#first-run-start');
   await expect(start).toBeVisible({ timeout: 20_000 });

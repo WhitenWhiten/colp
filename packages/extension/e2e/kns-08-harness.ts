@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { hasDownloadPathSettlement, hasFirstRunSettlementProof } from './first-run-settlement.js';
-import { EXTENSION_ID, openExtensionOptions, selectCollectionFromList, showOptionsPane, signInExtension } from './extension-auth.js';
+import { EXTENSION_ID, openExtensionOptions, waitForLibraryBinding, showOptionsPane, signInExtension } from './extension-auth.js';
 import { fixtureCollectionId } from './external-backend.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 import { redactEvidenceText } from './kns-08-redact.js';
@@ -84,7 +84,7 @@ export async function login(page: Page, binding: ProfileBinding): Promise<void> 
     await signInExtension(page, fixtureCollectionId());
   }
   await expect(page.locator('body')).toHaveAttribute('data-state', 'connected');
-  await selectCollectionFromList(page, fixtureCollectionId());
+  await waitForLibraryBinding(page, fixtureCollectionId());
   await expect.poll(async () => {
     await runtimeMessage(page, { kind: 'known.auth.status' }).catch(() => undefined);
     const roots = await runtimeMessage<{ ok?: boolean; error?: string }>(page, { kind: 'known.roots.get' })

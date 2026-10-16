@@ -7,7 +7,6 @@ export const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 export const EXTENSION_FIXTURE_EMAIL = 'p3-27-extension@example.test';
 export const EXTENSION_FIXTURE_PASSWORD = 'p3-27-extension-password-e3';
 
-const COLLECTION_BINDING = 'known.sync.collection.v1';
 
 export async function openExtensionOptions(
   context: BrowserContext,
@@ -51,12 +50,11 @@ export async function gotoOptions(page: Page, hash = '', extensionId = EXTENSION
   }
 }
 
-export type OptionsPane = 'account' | 'saving' | 'history' | 'ai' | 'general' | 'help' | 'subscriptions' | 'sync' | 'bookmarks' | 'collection' | 'folders' | 'import' | 'credits' | 'sync-center';
+export type OptionsPane = 'account' | 'saving' | 'history' | 'ai' | 'general' | 'help' | 'subscriptions' | 'sync' | 'bookmarks' | 'folders' | 'import' | 'credits' | 'sync-center';
 
 /* The retired Sync panes are tab panels inside Sync, so reaching one is a nav click followed by a tab click.
    Credits is a sub-page of Account, reached from its "View activity" link. */
 const PANE_TABS: Readonly<Record<string, { readonly nav: string; readonly tab: string; readonly card: string }>> = {
-  collection: { nav: 'nav-sync', tab: 'tab-sync-collections', card: 'collection-card' },
   folders: { nav: 'nav-sync', tab: 'tab-sync-folders', card: 'folder-card' },
   import: { nav: 'nav-sync', tab: 'tab-sync-import', card: 'import-card' },
   'sync-center': { nav: 'nav-sync', tab: 'tab-sync-center', card: 'sync-center' },
@@ -88,44 +86,30 @@ export async function showOptionsView(page: Page, pane: 'sync', view: string): P
   await expect(page.locator(`#${pane}-card [role="tabpanel"][data-view-panel="${view}"]`)).toBeVisible();
 }
 
-/** An omitted mode preserves an existing selection; a new selection defaults to local-only metadata. */
-export async function selectCollectionFromList(page: Page, collectionId: string,
-  metadataMode?: 'local-only' | 'sync'): Promise<void> {
-  await showOptionsPane(page, 'collection');
-  const byData = page.locator(`.collection-choice[data-id="${collectionId}"]`);
-  const current = page.locator(`.collection-row[data-id="${collectionId}"][aria-current="true"]`);
-  await expect(byData.first().or(current).first()).toBeVisible({ timeout: 15_000 });
-  if (await current.count()) {
-    if (metadataMode === undefined) return;
-    await current.locator('[data-role="metadata"]').click();
-  } else await byData.first().click();
-  // Do not fall back to a worker RPC when this UI fails: that bypassed user
-  // consent and could turn an unhandled modal into a false-positive browser test.
+/** The worker binds the account library after sign-in; test code never chooses or writes it. */
+export async function waitForLibraryBinding(page: Page, expectedId?: string): Promise<string> {
+  await expect.poll(() => page.evaluate(async () => {
+    const stored = await chrome.storage.local.get(['known.sync.collection.v1', 'known.sync.library.v1']);
+    const id = stored['known.sync.collection.v1'];
+    const state = stored['known.sync.library.v1'] as { library?: { id?: string } } | undefined;
+    return typeof id === 'string' && state?.library?.id === id ? id : '';
+  }), { timeout: 20_000 }).not.toBe('');
+  const id = await page.evaluate(async () => String((await chrome.storage.local.get('known.sync.collection.v1'))['known.sync.collection.v1']));
+  if (expectedId) expect(id).toBe(expectedId);
+  return id;
+}
+export async function chooseLibraryMetadata(page: Page, mode: 'local-only' | 'sync'): Promise<void> {
+  await showOptionsPane(page, 'sync-center');
+  await page.locator('#library-metadata-configure').click();
   const consent = page.getByRole('dialog', { name: 'Connect browser metadata', exact: true });
   await expect(consent).toBeVisible();
-  // With no tags, notes or descriptions yet the sync choice reads Sync with collection.
-  await consent.getByRole('button', { name: metadataMode === 'sync'
-    ? /^(Copy metadata to collection|Sync with collection)$/u : /^Keep metadata local$/u }).click();
+  await consent.getByRole('button', { name: mode === 'sync'
+    ? /^(Copy metadata to library|Sync with library)$/u : /^Keep metadata local$/u }).click();
   await expect(consent).toHaveCount(0);
-  await expect(page.locator('#collection-feedback')).toHaveText('Collection selected.', { timeout: 15_000 });
 }
 
 export async function signInExtension(page: Page, collectionId = fixtureCollectionId()): Promise<void> {
   await showOptionsPane(page, 'account');
-  await page.evaluate(async ({ collectionKey, collection }) => {
-    const current = await chrome.storage.local.get(collectionKey);
-    if (typeof current[collectionKey] !== 'string') {
-      await chrome.storage.local.set({ [collectionKey]: collection });
-    }
-  }, { collectionKey: COLLECTION_BINDING, collection: collectionId });
-  // A fresh profile's welcome page can hide Account after the binding is stored.
-  // The login panel stays in the DOM with its own hidden flag cleared.
-  await expect.poll(async () => {
-    if (await page.evaluate(() => document.body.dataset.pane) !== 'account') {
-      await page.evaluate(() => { location.hash = '#account'; });
-    }
-    return page.locator('#login-panel').isVisible();
-  }, { timeout: 15_000 }).toBe(true);
   await page.locator('#login-email').fill(EXTENSION_FIXTURE_EMAIL);
   await page.locator('#login-password').fill(EXTENSION_FIXTURE_PASSWORD);
   await expect(page.locator('#login-submit')).toBeEnabled();
@@ -138,4 +122,5 @@ export async function signInExtension(page: Page, collectionId = fixtureCollecti
     const alert = await toast.count() ? (await toast.first().textContent())?.trim() ?? '' : '';
     throw new Error(alert ? `extension_sign_in_failed:${alert}` : 'extension_sign_in_failed', { cause: error });
   }
+  await waitForLibraryBinding(page, collectionId);
 }
