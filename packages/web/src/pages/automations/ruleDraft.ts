@@ -230,6 +230,22 @@ function definitionKey(value: unknown): string {
   })
 }
 
+/** Group order is not meaning ("a and b" is "b and a"), a group of one is its item, and key order never is. */
+function canonicalMatch(predicate: AutomationPredicate): unknown {
+  if (predicate.kind === 'all' || predicate.kind === 'any') {
+    const items = predicate.items.map((item) => definitionKey(canonicalMatch(item))).sort()
+    const [only] = items
+    return items.length === 1 && only ? JSON.parse(only) as unknown : { kind: predicate.kind, items }
+  }
+  if (predicate.kind === 'not') return { kind: 'not', item: canonicalMatch(predicate.item) }
+  return predicate
+}
+
+/** The same conditions however they were written; the extension compares browser rules the same way. */
+export function sameMatch(a: AutomationPredicate, b: AutomationPredicate): boolean {
+  return definitionKey(canonicalMatch(a)) === definitionKey(canonicalMatch(b))
+}
+
 /** The form for a stored rule, or null when its definition goes beyond what the form shows. */
 export function draftFromRule(rule: AutomationRule, binding: AutomationBindingSet | undefined): RuleDraft | null {
   return draftFromDefinition(rule.definition, destinationFolder(rule.definition, binding))

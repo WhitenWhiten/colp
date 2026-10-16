@@ -122,6 +122,31 @@ describe('Rule editor', () => {
     expect(panel).not.toContain('immutable')
   })
 
+  it('warns before a rule that is on and this one would cancel each other out', async () => {
+    const api = fakeApi()
+    api.listRules.mockResolvedValue({ items: [
+      rule('rule-later', 'arXiv to read later'),
+      rule('rule-off', 'Old arXiv rule', { desiredState: 'paused', effectiveState: 'paused' }),
+    ], nextCursor: null })
+    api.getBindingSet.mockImplementation(async (id: string) => binding(id, 'f-reading'))
+    await readyNew(api)
+    const input = conditionInput()
+    if (!input) throw new Error('no condition input')
+    typeInto(input, 'arxiv.org')
+    await waitForDom(() => document.querySelectorAll('[data-testid="automation-overlap"]').length === 1)
+    expect(document.querySelector('[data-testid="automation-overlap"]')?.textContent).toBe('“arXiv to read later” sends these bookmarks to Reading'
+      + ' at the same priority. With both on, neither moves them: give one a higher priority under More options.')
+    expect(api.getBindingSet).toHaveBeenCalledWith('bind-rule-later', expect.anything())
+
+    // A higher priority here settles it; other conditions are another rule's business.
+    typeInto(document.getElementById('automation-priority') as HTMLInputElement, '101')
+    await waitForDom(() => document.querySelector('[data-testid="automation-overlap"]') === null)
+    typeInto(document.getElementById('automation-priority') as HTMLInputElement, '100')
+    await waitForDom(() => document.querySelector('[data-testid="automation-overlap"]') !== null)
+    typeInto(input, 'export.arxiv.org')
+    await waitForDom(() => document.querySelector('[data-testid="automation-overlap"]') === null)
+  })
+
   it('a new folder is a new configuration: the old preview no longer counts', async () => {
     const api = await readyNew()
     const input = conditionInput()

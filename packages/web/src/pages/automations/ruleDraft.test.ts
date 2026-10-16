@@ -11,6 +11,7 @@ import {
   draftProblems,
   emptyDraft,
   newConditionKey,
+  sameMatch,
   type RuleDraft,
 } from './ruleDraft'
 
@@ -139,5 +140,24 @@ describe('a new rule from the address (AW-70)', () => {
     expect(draft.conditions.map((condition) => [condition.kind, condition.value])).toEqual([['siteIs', '']])
     const many = new URLSearchParams(Array.from({ length: 10 }, (_, index) => ['condition', `titleContains:w${index}`]))
     expect(draftFromSearch(many).conditions).toHaveLength(8)
+  })
+})
+
+describe('the same conditions, however they were written', () => {
+  const host = { kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'arxiv.org' } as const
+  const title = { kind: 'field', field: 'bookmark.title', op: 'contains', value: 'Paper' } as const
+
+  it('ignores key order, group order and a group of one', () => {
+    // The server writes keys in its own order; the form writes them in another.
+    const fromServer = JSON.parse('{"value":"arxiv.org","op":"eq","field":"bookmark.url.host","kind":"field"}') as typeof host
+    expect(sameMatch(host, fromServer)).toBe(true)
+    expect(sameMatch({ kind: 'all', items: [host] }, host)).toBe(true)
+    expect(sameMatch({ kind: 'any', items: [host, title] }, { kind: 'any', items: [title, host] })).toBe(true)
+  })
+
+  it('tells different conditions apart', () => {
+    expect(sameMatch(host, { ...host, value: 'export.arxiv.org' })).toBe(false)
+    expect(sameMatch({ kind: 'any', items: [host, title] }, { kind: 'all', items: [host, title] })).toBe(false)
+    expect(sameMatch(host, { kind: 'not', item: host })).toBe(false)
   })
 })

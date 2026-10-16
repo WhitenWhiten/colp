@@ -995,7 +995,8 @@
   justify-self: start;
 }
 
-.automation-preview-stale {
+.automation-preview-stale,
+.automation-overlap {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius);

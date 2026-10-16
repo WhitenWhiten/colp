@@ -33,6 +33,7 @@ import {
   filledConditions,
   newConditionKey,
   ruleInput,
+  sameMatch,
   type ConditionKind,
   type RuleDraft,
 } from './ruleDraft'
@@ -165,6 +166,22 @@ export function RuleEditor() {
   const ruleNames = useMemo(() => new Map(
     otherRules.state.status === 'ready' ? otherRules.state.data.items.map((rule) => [rule.id, rule.definition.name]) : [],
   ), [otherRules.state])
+  // Rules that are on in this collection with these very conditions and a priority at least as high:
+  // the server's arbitration (equal priorities move nothing) said before the owner turns this one on.
+  const rivals = useMemo(() => {
+    if (!definition?.intake || !draft?.folderId || otherRules.state.status !== 'ready') return []
+    return otherRules.state.data.items.filter((rule) => rule.id !== current?.id
+      && rule.desiredState === 'enabled'
+      && Boolean(rule.definition.intake)
+      && rule.definition.scope.collectionId === definition.scope.collectionId
+      && rule.definition.trigger.mode === definition.trigger.mode
+      && rule.definition.priority >= definition.priority
+      && sameMatch(rule.definition.match, definition.match))
+  }, [current?.id, definition, draft?.folderId, otherRules.state])
+  const rivalKey = rivals.map((rule) => `${rule.id}@${rule.bindingSetId}`).join(',')
+  const rivalBindings = useLoad(rivalKey ? `rivals:${rivalKey}` : null, async (signal) => new Map(
+    await Promise.all(rivals.map(async (rule) => [rule.id, await api.getBindingSet(rule.bindingSetId, signal)] as const)),
+  ))
 
   // The first complete configuration is the baseline for "unsaved changes".
   useEffect(() => {
@@ -223,6 +240,13 @@ export function RuleEditor() {
     draft: true,
   })
   const canPreview = workerRule ? workerConfigured : problems.length === 0 && Boolean(draft.collectionId && draft.folderId)
+  const rivalFolders = rivalBindings.state.status === 'ready' ? rivalBindings.state.data : null
+  const overlaps = rivalFolders ? rivals.flatMap((rule) => {
+    const folder = destinationFolder(rule.definition, rivalFolders.get(rule.id))
+    if (!folder || (folder.collectionId === form.collectionId && folder.nodeId === form.folderId)) return []
+    const title = folder.nodeId === rootId ? 'Top level' : folderList.find((entry) => entry.id === folder.nodeId)?.title ?? 'another folder'
+    return [{ id: rule.id, name: rule.definition.name, folder: title, higher: rule.definition.priority > ruleDefinition.priority }]
+  }) : []
   const previewCurrent = previewView !== null && !previewView.stale
   /** The stored rule is on: a change is applied, not turned on. */
   const ruleOn = current?.desiredState === 'enabled'
@@ -759,6 +783,13 @@ export function RuleEditor() {
           <section className="automation-summary" aria-labelledby="automation-summary-heading">
             <h2 id="automation-summary-heading" className="automation-panel-title">This rule</h2>
             <Sentence parts={sentence} />
+            {overlaps.map((item) => (
+              <p key={item.id} className="automation-overlap" role="status" data-testid="automation-overlap">
+                {item.higher
+                  ? `“${item.name}” has a higher priority and sends these bookmarks to ${item.folder}, so this rule won’t move them.`
+                  : `“${item.name}” sends these bookmarks to ${item.folder} at the same priority. With both on, neither moves them: give one a higher priority ${jsonDefinition ? 'in the JSON' : 'under More options'}.`}
+              </p>
+            ))}
           </section>
           <PreviewPanel
             preview={previewView}
