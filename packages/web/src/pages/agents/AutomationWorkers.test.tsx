@@ -257,6 +257,21 @@ describe('Automation workers on Agents', () => {
     expect(document.querySelector('[data-testid="worker-no-connection"]')?.textContent).toContain('Do rule work')
   })
 
+  it('opens the worker steps from the worker form when no agent is set up for automations', async () => {
+    mount(automation([], []))
+    await waitForDom(() => document.body.textContent?.includes('No workers yet') === true)
+    act(() => button('Add worker').click())
+    const blocked = document.querySelector('[data-testid="worker-no-connection"]')
+    expect(blocked?.textContent).toContain('none of them is set up for automations yet')
+    const workerTab = () => document.querySelector<HTMLButtonElement>('#agents-tab-worker')
+    expect(workerTab()?.getAttribute('aria-selected')).toBe('false')
+
+    act(() => button('Show the worker steps', blocked).click())
+    await waitForDom(() => workerTab()?.getAttribute('aria-selected') === 'true')
+    expect(document.activeElement).toBe(workerTab())
+    expect(document.querySelector('[role="tabpanel"]')?.textContent).toContain('Give it its own key')
+  })
+
   it('adds the worker guide, pointed at this server', async () => {
     mount(automation([]), 'https://colp.example.net')
     await waitForDom(() => Boolean(document.querySelector('#agents-tab-worker')))

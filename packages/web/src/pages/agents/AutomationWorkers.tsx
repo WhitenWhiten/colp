@@ -342,11 +342,12 @@ function WorkerCard({
   )
 }
 
-function NewWorker({ workers, profiles, originLocal, onCreated }: {
+function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
   workers: AutomationWorkers
   profiles: readonly AutomationConnectionProfile[]
   originLocal: boolean
   onCreated: () => void
+  onShowSteps: () => void
 }) {
   const { success, error: toastError } = useToast()
   const usable = profiles.filter((profile) => profile.configuration.automationEnabled && hasCatalog(profile, 'automationWorker'))
@@ -361,10 +362,14 @@ function NewWorker({ workers, profiles, originLocal, onCreated }: {
 
   if (usable.length === 0) {
     return (
-      <p className="agents-note" data-testid="worker-no-connection">
-        To add a worker, first turn on <strong>Use for automations</strong> and <strong>Do rule work</strong> for its agent above.
-        The steps are under Connect an agent › Automation worker.
-      </p>
+      <div className="agents-worker-blocked" data-testid="worker-no-connection">
+        <p className="agents-note">
+          {profiles.length === 0
+            ? 'A worker runs as one of your agents, and none of them is set up for automations yet.'
+            : <>First turn on <strong>Use for automations</strong> and <strong>Do rule work</strong> for its agent, on the agent’s card.</>}
+        </p>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onShowSteps}>Show the worker steps</button>
+      </div>
     )
   }
 
@@ -490,10 +495,13 @@ export function AutomationWorkersSection({
   workers,
   agents,
   origin,
+  onShowWorkerSteps,
 }: {
   workers: AutomationWorkers
   agents: readonly AgentSummary[]
   origin: string
+  /** Opens the connect guide on its worker tab. */
+  onShowWorkerSteps: () => void
 }) {
   const [adding, setAdding] = useState(false)
   const { data } = workers
@@ -539,7 +547,13 @@ export function AutomationWorkersSection({
             <h3>Add a worker</h3>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAdding(false)}>Cancel</button>
           </div>
-          <NewWorker workers={workers} profiles={data.profiles} originLocal={local} onCreated={() => setAdding(false)} />
+          <NewWorker
+            workers={workers}
+            profiles={data.profiles}
+            originLocal={local}
+            onCreated={() => setAdding(false)}
+            onShowSteps={onShowWorkerSteps}
+          />
         </div>
       )}
 

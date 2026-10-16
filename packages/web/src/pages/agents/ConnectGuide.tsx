@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { AgentConnectCopy } from '../../api/agentsClient'
 import { CommandBlock } from '../../components/CommandBlock'
 import { TabList } from '../../components/TabList'
@@ -45,16 +45,18 @@ function Step({ title, children }: { title: string; children: ReactNode }) {
 export function ConnectGuide({
   connect,
   keyPanel,
-  initialClient = 'claude',
+  client: chosen,
+  onClientChange,
   automationOrigin,
 }: {
   connect: AgentConnectCopy
   keyPanel: ReactNode
-  initialClient?: ConnectClient
+  /** The open tab. The page owns it, so the worker section can open the worker steps. */
+  client: ConnectClient
+  onClientChange: (client: ConnectClient) => void
   /** This server's address, where it has automations; adds the worker tab. */
   automationOrigin?: string
 }) {
-  const [chosen, setClient] = useState<ConnectClient>(initialClient)
   const clients = automationOrigin ? [...CLIENTS, WORKER_CLIENT] : CLIENTS
   const client = chosen === 'worker' && !automationOrigin ? 'claude' : chosen
   return (
@@ -66,7 +68,7 @@ export function ConnectGuide({
         options={clients}
         tabIdFor={(id) => `agents-tab-${id}`}
         panelIdFor={(id) => `agents-panel-${id}`}
-        onChange={(id) => setClient(id)}
+        onChange={(id) => onClientChange(id)}
         testId="agents-tabs"
       />
       <div

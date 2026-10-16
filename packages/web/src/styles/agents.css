@@ -568,6 +568,13 @@
   justify-self: start;
 }
 
+/* No agent may do rule work yet: what to do first, and the way to its steps. */
+.agents-worker-blocked {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
 .agents-worker-hint {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius);

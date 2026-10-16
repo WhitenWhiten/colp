@@ -25,7 +25,7 @@ import { plural } from '../lib/plural'
 import { AgentCard, type AgentActivity } from './agents/AgentCard'
 import { AgentAutomationOptIns, AutomationWorkersSection } from './agents/AutomationWorkers'
 import { useAutomationWorkers } from './agents/automationWorkers'
-import { ConnectGuide } from './agents/ConnectGuide'
+import { ConnectGuide, type ConnectClient } from './agents/ConnectGuide'
 import '../styles/agents.css'
 
 function messageOf(error: unknown, fallback: string): string {
@@ -78,6 +78,10 @@ export function Agents({
   const [keyError, setKeyError] = useState<string | null>(null)
   const [issuing, setIssuing] = useState(false)
   const [issued, setIssued] = useState<IssuedAgentKey | null>(null)
+  const [guideClient, setGuideClient] = useState<ConnectClient>('claude')
+  /* Counts presses of "Show the worker steps", so a second press scrolls back
+     to the guide even when its worker tab is already open. */
+  const [workerStepsShown, setWorkerStepsShown] = useState(0)
   const issueIntent = useRef<string | null>(null)
   const secretRef = useRef<HTMLDivElement>(null)
   /* Set once a key is issued and the list has refreshed: the new agent card
@@ -106,6 +110,14 @@ export function Agents({
     // Copy is the next thing to do; focus it instead of leaving focus on the page.
     block.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true })
   }, [agents, issued, issuing])
+
+  useEffect(() => {
+    if (workerStepsShown === 0) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true
+    document.getElementById('agents-connect')?.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+    // The open tab, so the steps are the next thing a keyboard reaches.
+    document.getElementById('agents-tab-worker')?.focus({ preventScroll: true })
+  }, [workerStepsShown])
 
   useEffect(() => {
     setAgents([])
@@ -396,14 +408,28 @@ export function Agents({
           )}
 
           {isLoggedIn && automationsOn && (
-            <AutomationWorkersSection workers={workers} agents={agents} origin={pageOrigin} />
+            <AutomationWorkersSection
+              workers={workers}
+              agents={agents}
+              origin={pageOrigin}
+              onShowWorkerSteps={() => {
+                setGuideClient('worker')
+                setWorkerStepsShown((count) => count + 1)
+              }}
+            />
           )}
 
           <section className="agents-section" aria-labelledby="agents-connect">
             <div className="agents-section-head">
               <h2 id="agents-connect">Connect an agent</h2>
             </div>
-            <ConnectGuide connect={connect} keyPanel={keyPanel} automationOrigin={automationsOn ? pageOrigin : undefined} />
+            <ConnectGuide
+              connect={connect}
+              keyPanel={keyPanel}
+              client={guideClient}
+              onClientChange={setGuideClient}
+              automationOrigin={automationsOn ? pageOrigin : undefined}
+            />
           </section>
         </div>
 
