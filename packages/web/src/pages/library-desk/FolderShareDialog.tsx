@@ -45,7 +45,9 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
         : await productClient.deleteFolderShare(collectionId, nodeId, options)
       if (!current()) return
       setSharing(response)
-      success(action === 'share' && !response.unavailableReason ? 'Folder shared by link' : 'Sharing stopped. The link no longer works.')
+      success(action === 'share'
+        ? response.unavailableReason ? 'The share link is currently unavailable.' : 'Folder shared by link'
+        : 'Sharing stopped. The link no longer works.')
       await onChanged()
     } catch (cause) {
       if (current()) error(isProductApiError(cause) ? cause.recoveryHint : 'Could not change sharing. Try again.')

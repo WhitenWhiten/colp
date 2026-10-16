@@ -1,10 +1,10 @@
+import { folderSharePublicationAllowedSql } from './folder-share-access.js';
 import { projectPublicNode } from '../../modules/publication/application/public-page-projection.js';
 import { readPublicNodeMarks } from './postgres-public-marks-read.js';
 import { CompiledQuery, sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createUnitOfWork } from '../database/unit-of-work.js';
-import { COLLECTION_OWNER_LIVE_SQL, buildPublicationTargetAncestorRestrictionSql,
-  collectionHidePublicControlSql, bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
+import { buildPublicationTargetAncestorRestrictionSql, bookmarkHidePublicExistsSql } from '../database/collection-control-sql.js';
 import type { FolderSharePosition, PublicFolderShareReadPort } from '../../modules/publication/application/folder-share-public-query.js';
 import type { ProductPublicCollectionNode, ProductPublicCollectionPage } from '../../modules/publication/application/product-public-query.js';
 
@@ -17,7 +17,7 @@ export function createPostgresPublicFolderShareReadPort(db: Kysely<DatabaseSchem
       JOIN nodes folder ON folder.id = s.node_id AND folder.collection_id = c.id
       WHERE s.slug = ${slug} AND s.revoked_at IS NULL AND c.is_library AND c.deleted_at IS NULL
         AND folder.kind = 'folder' AND NOT folder.is_root AND folder.deleted_at IS NULL
-        AND ${sql.raw(COLLECTION_OWNER_LIVE_SQL)} AND ${sql.raw(collectionHidePublicControlSql('c'))}
+        AND ${sql.raw(folderSharePublicationAllowedSql('c'))}
         AND NOT ${sql.raw(buildPublicationTargetAncestorRestrictionSql('folder'))}`.execute(tx);
     const share = target.rows[0]; if (!share) return null;
     // Root is first; all remaining entities use immutable ids in C order.

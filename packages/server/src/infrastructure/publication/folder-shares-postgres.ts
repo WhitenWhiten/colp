@@ -1,4 +1,5 @@
-import { buildPublicationTargetAncestorRestrictionSql, collectionHidePublicControlSql } from '../database/collection-control-sql.js';
+import { folderSharePublicationAllowedSql } from './folder-share-access.js';
+import { buildPublicationTargetAncestorRestrictionSql } from '../database/collection-control-sql.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import { FolderShareError, type FolderShareUnitOfWork, type FolderShareView } from '../../modules/publication/application/folder-shares.js';
@@ -28,7 +29,7 @@ export function createPostgresFolderShareUnitOfWork(db: Kysely<DatabaseSchema>, 
         }
         const visibility = await sql<{ folder_restricted: boolean; publication_allowed: boolean }>`
           SELECT ${sql.raw(buildPublicationTargetAncestorRestrictionSql('folder'))} AS folder_restricted,
-            ${sql.raw(collectionHidePublicControlSql('c'))} AS publication_allowed
+            ${sql.raw(folderSharePublicationAllowedSql('c'))} AS publication_allowed
           FROM nodes folder JOIN collections c ON c.id = folder.collection_id
           WHERE folder.id = ${nodeId} AND c.id = ${collectionId}`.execute(tx);
         const facts = visibility.rows[0]!;

@@ -95,18 +95,18 @@ export async function readPublicNodeMarks(
   nodeIds: readonly string[],
   options: { textOnly?: boolean } = {},
 ): Promise<ReadonlyMap<string, PublicNodeMark>> {
-      if (nodeIds.length === 0) return new Map();
-      const result = await query.query<NodeMarkRow>(
-        `select distinct on (subject_id, type) subject_id, type, value_json
-           from annotations
-          where collection_id = $1
-            and subject_type = 'node'
-            and subject_id = any($2::text[])
-            and type in ('tldr', 'note')
-            and visibility = 'public'
-            and deleted_at is null
-          order by subject_id, type, updated_at desc, id collate "C" desc`,
-        [collectionId, nodeIds],
-      );
-      return composeNodeMarks(options.textOnly ? result.rows.filter(row => typeof row.value_json === 'string') : result.rows);
+  if (nodeIds.length === 0) return new Map();
+  const result = await query.query<NodeMarkRow>(
+    `select distinct on (subject_id, type) subject_id, type, value_json
+       from annotations
+      where collection_id = $1
+        and subject_type = 'node'
+        and subject_id = any($2::text[])
+        and type in ('tldr', 'note')
+        and visibility = 'public'
+        and deleted_at is null
+      order by subject_id, type, updated_at desc, id collate "C" desc`,
+    [collectionId, nodeIds],
+  );
+  return composeNodeMarks(options.textOnly ? result.rows.filter(row => typeof row.value_json === 'string') : result.rows);
 }

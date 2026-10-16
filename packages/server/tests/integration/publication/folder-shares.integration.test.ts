@@ -120,6 +120,27 @@ describeWithPostgres('live unlisted library folder shares', () => {
     assert.equal((await app.inject({ method: 'DELETE', url: shareUrl(folder.id), headers: headers() })).statusCode, 200);
   });
 
+  test('owner share state and anonymous access agree on account publication restrictions', async () => {
+    const folder = await node(library.bookmarksBarId, 'Publication control');
+    const slug = (await put(folder.id)).json().share.slug;
+    const caseId = randomUUID(), actionId = randomUUID();
+    await isolated.runtime.pool.query(`INSERT INTO moderation_cases(id,reporter_account_id,target_kind,target_id,target_json,
+      target_fingerprint,category,description,status,revision,created_at,updated_at)
+      VALUES($1,$2,'account',$2,'{}',$1,'privacy','Fixture restriction','resolved','1',now(),now())`, [caseId, owner.accountId]);
+    await isolated.runtime.pool.query(`INSERT INTO moderation_actions(id,case_id,target_kind,target_id,target_json,
+      target_fingerprint,action,reason,actor_account_id,state,revision,created_at)
+      VALUES($1,$2,'account',$3,'{}',$2,'restrict_publication','Fixture restriction',$3,'active','1',now())`, [actionId, caseId, owner.accountId]);
+    try {
+      const state = await app.inject({ method: 'GET', url: shareUrl(folder.id), headers: { cookie: owner.cookie } });
+      assert.equal(state.json().unavailableReason, 'publication_restricted');
+      assert.equal((await put(folder.id)).statusCode, 422);
+      assert.equal((await getPage(slug)).statusCode, 404);
+    } finally {
+      await isolated.runtime.pool.query("UPDATE moderation_actions SET state='revoked', revoked_at=now() WHERE id=$1", [actionId]);
+    }
+    assert.equal((await getPage(slug)).statusCode, 200);
+  });
+
   test('share creation is idempotent, editor marks it, and revocation kills every old page and cursor', async () => {
     const folder = await node(library.bookmarksBarId, 'Shared reading');
     await node(folder.id, 'Page one', 'bookmark'); await node(folder.id, 'Page two', 'bookmark');
@@ -160,8 +181,12 @@ describeWithPostgres('live unlisted library folder shares', () => {
         type, visibility: 'public', revision: 'r1', createdAt: at, updatedAt: at }]);
     };
     await relation(visible.id, nested.id); await relation(visible.id, sibling.id, 'mentions');
-    for (const [subject, text, visibility] of [[visible.id, 'Inside public note', 'public'], [sibling.id, 'Outside note', 'public'], [nested.id, 'Private note', 'private']]) {
-      const id = randomUUID(), at = new Date().toISOString();
+    for (const [subject, text, visibility, fixedId, fixedAt] of [
+      [visible.id, 'Inside public note', 'public'], [sibling.id, 'Outside note', 'public'], [nested.id, 'Private note', 'private'],
+      [visible.id, 'Earlier tied note', 'public', 'ffffffff-ffff-4fff-8fff-fffffffffff1', '2030-01-01T00:00:00Z'],
+      [visible.id, 'Latest tied note', 'public', 'ffffffff-ffff-4fff-8fff-fffffffffff2', '2030-01-01T00:00:00Z'],
+    ]) {
+      const id = fixedId ?? randomUUID(), at = fixedAt ?? new Date().toISOString();
       await isolated.runtime.pool.query("insert into resource_id_ledger(resource_id,resource_type) values($1,'annotation')", [id]);
       await isolated.runtime.pool.query(`insert into annotations(id,collection_id,subject_type,subject_id,creator_principal_id,type,format,
         value_json,visibility,resource_revision,created_at,updated_at,payload_json)
@@ -174,7 +199,7 @@ describeWithPostgres('live unlisted library folder shares', () => {
       const response = await app.inject({ method: 'GET', url: `/api/v1/collections/${slug}?include=relations`, headers: cookie ? { cookie } : {} });
       assert.equal(response.statusCode, 200, response.body);
       const body = response.json(); assert.equal(body.nodes.length, 4); assert.equal(body.nodes[0].parentId, null);
-      assert.equal(body.nodes.find((n: { id: string }) => n.id === visible.id).note, 'Inside public note');
+      assert.equal(body.nodes.find((n: { id: string }) => n.id === visible.id).note, 'Latest tied note');
       assert.equal(body.relations.length, 1); assert.equal(body.relations[0].toNodeId, nested.id);
       assert.ok(!/Sibling secret|Secret page|Restricted|Outside note|Private note|Bookmarks/.test(response.body));
     }
