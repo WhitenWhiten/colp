@@ -3,7 +3,7 @@ import {
 } from '../../components/CollectionDestinationPicker'
 import type { ConfirmRequest } from '../../components/ConfirmModal'
 import type { EditableNodeView, EditorSnapshot } from '../../api'
-import type { useOwnedCollections } from '../../lib/useOwnedCollections'
+import type { useLibrary } from '../../lib/useLibrary'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import type { LibraryDeskMutations } from './mutations'
 import { plural } from '../../lib/plural'
@@ -105,7 +105,7 @@ export function LibraryOverlays({
   selection,
   mutations,
 }: {
-  collections: ReturnType<typeof useOwnedCollections>
+  collections: ReturnType<typeof useLibrary>
   shared: ReturnType<typeof useSharedCollections>
   snap: EditorSnapshot | null
   selection: LibraryDeskSelection
@@ -136,7 +136,7 @@ export function LibraryOverlays({
             rootId: snap.root.id,
             nodes: snap.nodes,
           }}
-          owned={collections.items}
+          library={collections.library ?? undefined}
           shared={shared.items}
           onPick={(destination) => {
             const { mode, nodes } = picker

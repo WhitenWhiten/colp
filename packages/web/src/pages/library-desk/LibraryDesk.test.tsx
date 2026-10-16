@@ -21,9 +21,11 @@ vi.mock('../../components/AppToast', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
   return { useToast: () => ({ toast: mocks.toast, success: mocks.success, error: mocks.error }) }
 })
-vi.mock('../../lib/useOwnedCollections', async () => {
+vi.mock('../../lib/useLibrary', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
-  return { useOwnedCollections: () => mocks.collections }
+  return { useLibrary: () => ({ state: mocks.collections.state, message: mocks.collections.message, reload: mocks.collections.reload,
+    library: mocks.collections.items[0] ? { ...mocks.collections.items[0].collection, library: true,
+      bookmarksBarId: 'library-bar', otherBookmarksId: 'library-other' } : null }) }
 })
 vi.mock('../../lib/useSharedCollections', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
@@ -55,7 +57,7 @@ vi.mock('../../api', async (importOriginal) => {
 })
 
 describe('LibraryDesk', () => {
-  beforeEach(setUpLibraryDesk)
+  beforeEach(() => { setUpLibraryDesk(); window.__KNOWN_FLAGS__ = { collaborators: true } })
   afterEach(tearDownLibraryDesk)
 
   it('shows bookmarks first and keeps edit behind More', async () => {

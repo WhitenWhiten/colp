@@ -19,13 +19,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../api/errors'
 import type { OwnedCollectionPage } from '../api/types'
 import { applyMeView, applySessionView, clearSession, getSessionSnapshot } from '../api/sessionStore'
-import { useOwnedCollections } from './useOwnedCollections'
+import { useLibrary } from './useLibrary'
 import { useSharedCollections } from './useSharedCollections'
-import ownedHookSource from './useOwnedCollections.ts?raw'
+import ownedHookSource from './useLibrary.ts?raw'
 import sharedHookSource from './useSharedCollections.ts?raw'
 import { cleanup, domFinishedLoading, mountTree, settled, waitForDom } from '../test/render'
 
-const mocks = vi.hoisted(() => ({ page: vi.fn(), ownedPage: vi.fn() }))
+const mocks = vi.hoisted(() => ({ page: vi.fn(), ownedPage: vi.fn(), library: vi.fn() }))
 vi.mock('../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api')>()
   return {
@@ -33,7 +33,7 @@ vi.mock('../api', async (importOriginal) => {
     productClient: {
       ...actual.productClient,
       listSharedCollections: mocks.page,
-      getOwnedCollectionsPage: mocks.ownedPage,
+      getOwnedCollectionsPage: mocks.ownedPage, getLibrary: mocks.library,
     },
   }
 })
@@ -72,10 +72,10 @@ function Harness() {
 
 /** The sibling owned-list hook, driven against the same two mocked endpoints. */
 function OwnedHarness() {
-  const collections = useOwnedCollections()
+  const collections = useLibrary()
   return (
     <div data-state={collections.state}>
-      <span data-testid="owned-ids">{collections.items.map((item) => item.collection.id).join(',')}</span>
+      <span data-testid="owned-ids">{collections.library?.id}</span>
       <span data-testid="owned-message">{collections.message}</span>
     </div>
   )
@@ -92,7 +92,7 @@ describe('useSharedCollections', () => {
     })
     applyMeView({ account: { id: 'account-a', email: 'a@test' }, profile: { id: 'profile-a', handle: 'a', displayName: 'A', avatarUrl: null } })
     mocks.page.mockResolvedValue(page(['one']))
-    mocks.ownedPage.mockResolvedValue(page(['owned-one']))
+    mocks.library.mockResolvedValue({ id: 'owned-one', title: 'Bookmarks', library: true, rootNodeId: 'root', bookmarksBarId: 'bar', otherBookmarksId: 'other' })
   })
   afterEach(() => { cleanup(); clearSession(); document.body.innerHTML = '' })
   function render() { mountTree(<Harness />) }
@@ -218,14 +218,14 @@ describe('useSharedCollections', () => {
   })
 
   describe('owned collection behaviour', () => {
-    it('reads the owned endpoint and never the shared one', async () => {
+    it('reads the account library endpoint and never the shared or owned-list endpoints', async () => {
       /* The converse of the boundary above: the owned list must not be fed by
          the shared endpoint either, which is what "these two hooks are not the
          same input" means when the code actually runs. */
       mountTree(<OwnedHarness />)
       await waitForDom(() => document.querySelector('[data-testid="owned-ids"]')?.textContent === 'owned-one')
-      expect(mocks.ownedPage).toHaveBeenCalled()
-      expect(mocks.ownedPage.mock.calls[0]?.[0]).toEqual({ limit: 30 })
+      expect(mocks.library).toHaveBeenCalled()
+      expect(mocks.ownedPage).not.toHaveBeenCalled()
       expect(mocks.page).not.toHaveBeenCalled()
       expect(document.body.textContent).not.toMatch(DEMO_PEOPLE)
     })

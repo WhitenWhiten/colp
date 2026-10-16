@@ -34,16 +34,10 @@ vi.mock('../api', async (importOriginal) => {
   }
 })
 
-vi.mock('../lib/useOwnedCollections', () => ({
-  useOwnedCollections: () => ({
+vi.mock('../lib/useLibrary', () => ({
+  useLibrary: () => ({
     state: 'ready' as const,
-    items: [
-      {
-        collection: { id: 'col-own-aaaaaaaaaaaaA', title: 'My shelf' },
-        capabilities: { createNode: true },
-        bookmarkCount: 3,
-      },
-    ] as unknown as import('../api').OwnedCollectionListItem[],
+    library: { id: 'col-own-aaaaaaaaaaaaA', title: 'My shelf', rootNodeId: 'root-own', library: true, bookmarksBarId: 'bar', otherBookmarksId: 'other' },
     message: '',
     hasMore: false,
     isLoadingMore: false,

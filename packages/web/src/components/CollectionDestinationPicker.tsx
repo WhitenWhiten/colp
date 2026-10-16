@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import {
   isProductApiError,
   productClient,
   type EditableNodeView,
+  type LibraryCollection,
   type OwnedCollectionListItem,
 } from '../api'
 import { childrenOf, isAbort } from '../lib/libraryTree'
@@ -36,8 +36,8 @@ type Props = {
     rootId: string
     nodes: EditableNodeView[]
   }
-  /** Copy mode: owned collections (destination candidates). */
-  owned?: OwnedCollectionListItem[]
+  /** The account’s one library is the owned destination. */
+  library?: LibraryCollection
   /** Copy mode: shared collections; only capabilities.createNode may receive. */
   shared?: OwnedCollectionListItem[]
   /** Number of bookmarks the action applies to. */
@@ -165,7 +165,7 @@ function FolderList({
 export function CollectionDestinationPicker({
   mode,
   current,
-  owned = [],
+  library,
   shared = [],
   count = 0,
   noun = 'bookmark',
@@ -181,15 +181,15 @@ export function CollectionDestinationPicker({
 
   const candidates = useMemo(() => {
     const seen = new Set<string>()
-    const eligible: OwnedCollectionListItem[] = []
-    for (const item of [...owned, ...shared]) {
-      if (!item.capabilities.createNode) continue
-      if (seen.has(item.collection.id)) continue
+    const eligible: { collection: { id: string; title: string; library?: boolean } }[] = library ? [{ collection: library }] : []
+    if (library) seen.add(library.id)
+    for (const item of shared) {
+      if (!item.capabilities.createNode || seen.has(item.collection.id)) continue
       seen.add(item.collection.id)
       eligible.push(item)
     }
     return eligible
-  }, [owned, shared])
+  }, [library, shared])
 
   useEffect(() => () => loaderRef.current?.abort(), [])
 
@@ -259,7 +259,7 @@ export function CollectionDestinationPicker({
               }}
             >
               <Icon name="chevron-right" />
-              All collections
+              Destinations
             </button>
             <p className="library-dest-note">
               Copy {plural(count, 'bookmark')} into <strong>{target.title}</strong>. Copies the link,
@@ -296,7 +296,7 @@ export function CollectionDestinationPicker({
             </p>
             <ul
               className="library-dest-list"
-              aria-label="Destination collections"
+              aria-label="Destinations"
             >
               {candidates.map((item) => (
                 <li key={item.collection.id}>

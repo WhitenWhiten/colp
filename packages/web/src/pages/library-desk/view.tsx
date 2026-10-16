@@ -13,7 +13,7 @@ import { useBookmarkDrag } from '../../lib/useBookmarkDrag'
 import { PageShell } from '../../components/PageShell'
 import { useUiDensity } from '../../lib/useUiDensity'
 import type { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
-import type { useOwnedCollections } from '../../lib/useOwnedCollections'
+import type { useLibrary } from '../../lib/useLibrary'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import { BookmarkArea } from './BookmarkArea'
 import { BulkActionBar } from './BulkActionBar'
@@ -33,7 +33,7 @@ export type LibraryDeskViewProps = {
   folderId: string | null
   collaboratorsLive: boolean
   showInviteNav: boolean
-  collections: ReturnType<typeof useOwnedCollections>
+  collections: ReturnType<typeof useLibrary>
   shared: ReturnType<typeof useSharedCollections>
   invites: ReturnType<typeof useMyCollaborationInvites>
   data: LibraryDeskData
@@ -73,7 +73,7 @@ export function LibraryDeskView({
   const split = useLibraryDeskSplit()
   // Read once: dismissing or finishing the checklist hides it for good.
   const [checklistHidden] = useState(getStartedHidden)
-  const showChecklist = !checklistHidden && !folderId && collections.state === 'ready' && data.snap !== null && data.selectedId === collections.items[0]?.collection.id && !data.snap.nodes.some(node => node.kind === 'bookmark')
+  const showChecklist = !checklistHidden && !folderId && collections.state === 'ready' && data.snap !== null && data.selectedId === collections.library?.id && !data.snap.nodes.some(node => node.kind === 'bookmark')
 
   const { selectedId, snap, selectedFolder, caps } = data
   const { reorderSection } = order

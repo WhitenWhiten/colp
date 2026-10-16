@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EditableNodeView, OwnedCollectionListItem } from '../api/types'
+import type { EditableNodeView, LibraryCollection, OwnedCollectionListItem } from '../api/types'
 import { CollectionDestinationPicker } from './CollectionDestinationPicker'
 import { cleanup, mountTree, waitForDom } from '../test/render'
 
@@ -109,6 +109,10 @@ function collectionItem(id: string, title: string, createNode: boolean): OwnedCo
   }
 }
 
+function library(id: string, title: string): LibraryCollection {
+  return { id, title, library: true, rootNodeId: `root-${id}`, bookmarksBarId: 'bar', otherBookmarksId: 'other' }
+}
+
 function destinationButtons() {
   return [...document.querySelectorAll<HTMLButtonElement>('[data-testid="destination-option"]')]
 }
@@ -150,7 +154,7 @@ describe('CollectionDestinationPicker', () => {
               bookmarkNode('b-1', 'Some link', 'root-x', 'b'),
             ],
           }}
-          owned={[collectionItem('col-other', 'Another shelf', true)]}
+          library={library('col-other', 'Another shelf')}
           onPick={onPick}
           onClose={() => {}}
         />
@@ -174,13 +178,13 @@ describe('CollectionDestinationPicker', () => {
   })
 
   it.each(['move', 'copy'] as const)('only offers role folders and their descendants for library %s', async (mode) => {
-    const role = { ...folderNode('bar', 'Bookmarks bar', 'root-x', 'a'), folderRole: 'bookmarks-bar' as const }
+    const role = { ...folderNode('bar', 'Bookmarks bar', 'root-x', 'a'), folderRole: 'bookmarks-bar' }
     const nodes = [role, folderNode('nested', 'Nested', 'bar', 'a'), folderNode('loose', 'Outside roles', 'root-x', 'b')]
     mocks.loadEditorSnapshot.mockResolvedValue({ collection: { library: true }, root: { id: 'root-x' }, nodes })
     const onPick = vi.fn()
     mountTree(<MemoryRouter><CollectionDestinationPicker mode={mode}
       current={{ collection: { id: 'col-x', title: 'Library', library: true }, rootId: 'root-x', nodes }}
-      owned={[collectionItem('col-x', 'Library', true)]} onPick={onPick} onClose={() => {}} /></MemoryRouter>)
+      library={library('col-x', 'Library')} onPick={onPick} onClose={() => {}} /></MemoryRouter>)
     if (mode === 'copy') {
       clickDestination('Library')
       await waitForDom(() => destinationLabels().includes('Bookmarks bar'))
@@ -416,7 +420,7 @@ describe('CollectionDestinationPicker', () => {
         <CollectionDestinationPicker
           mode="copy"
           count={3}
-          owned={[collectionItem('col-a', 'My shelf', true)]}
+          library={library('col-a', 'My shelf')}
           shared={[
             collectionItem('col-b', 'Team docs', true),
             collectionItem('col-c', 'Read only share', false),
@@ -433,7 +437,7 @@ describe('CollectionDestinationPicker', () => {
     clickDestination('Team docs')
     expect(mocks.loadEditorSnapshot).toHaveBeenCalledWith('col-b', expect.anything())
     await waitForDom(() => destinationButtons().some((button) => button.textContent?.includes('Inbox')))
-    expect(destinationLabels()).toEqual(['All collections', 'Top level', 'Inbox'])
+    expect(destinationLabels()).toEqual(['Destinations', 'Top level', 'Inbox'])
     clickDestination('Inbox')
     expect(onPick).toHaveBeenCalledWith({
       collectionId: 'col-b',
@@ -453,7 +457,7 @@ describe('CollectionDestinationPicker', () => {
         <CollectionDestinationPicker
           mode="copy"
           count={1}
-          owned={[collectionItem('col-a', 'My shelf', true)]}
+          library={library('col-a', 'My shelf')}
           onPick={() => {}}
           onClose={() => {}}
         />
@@ -475,7 +479,7 @@ describe('CollectionDestinationPicker', () => {
         <CollectionDestinationPicker
           mode="copy"
           count={1}
-          owned={[]}
+          library={undefined}
           shared={[collectionItem('col-c', 'Read only share', false)]}
           onPick={() => {}}
           onClose={() => {}}

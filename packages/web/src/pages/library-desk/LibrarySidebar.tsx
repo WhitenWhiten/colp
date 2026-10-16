@@ -3,7 +3,7 @@ import { LoadMoreButton } from '../../components/LoadMoreButton'
 import { ReorderableNavList } from '../../components/ReorderableNavList'
 import type { LibraryOrderSectionId } from '../../lib/libraryOrder'
 import type { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
-import type { useOwnedCollections } from '../../lib/useOwnedCollections'
+import type { useLibrary } from '../../lib/useLibrary'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import { collectionIsExpanded, type LibraryDeskData } from './data'
 import { CollectionBranch, LibraryNavMark, LibraryNavSection } from './navTree'
@@ -30,7 +30,7 @@ export function LibrarySidebar({
   folderId: string | null
   collaboratorsLive: boolean
   showInviteNav: boolean
-  collections: ReturnType<typeof useOwnedCollections>
+  collections: ReturnType<typeof useLibrary>
   shared: ReturnType<typeof useSharedCollections>
   invites: ReturnType<typeof useMyCollaborationInvites>
   data: LibraryDeskData
@@ -52,7 +52,6 @@ export function LibrarySidebar({
   const {
     collapsedSections,
     reorderSection,
-    orderedOwnedItems,
     orderedSharedItems,
     setSectionIds,
     finishReorder,
@@ -147,13 +146,14 @@ export function LibrarySidebar({
         onBeginReorder={() => beginReorder('mine')}
         onFinishReorder={() => finishReorder()}
       >
-        {collections.state === 'error' && collections.items.length === 0 ? (
+        {collections.state === 'error' && !collections.library ? (
           <p className="library-nav-hint" role="alert">{collections.message}</p>
         ) : (
           <div role="list" aria-label="Library folders">
-            {orderedOwnedItems.map(item => <CollectionBranch key={item.collection.id} collection={item.collection} bookmarkCount={item.bookmarkCount}
-              selectedId={selectedId} folderId={folderId} expanded={isExpanded(item.collection.id)}
-              tree={trees[item.collection.id]} onToggle={() => toggleExpanded(item.collection.id, isExpanded(item.collection.id))} listItem />)}
+            {collections.library && <CollectionBranch collection={collections.library}
+              selectedId={selectedId} folderId={folderId} expanded={isExpanded(collections.library.id)}
+              tree={trees[collections.library.id]} onToggle={() => toggleExpanded(collections.library!.id, isExpanded(collections.library!.id))} listItem />}
+
           </div>
         )}
 

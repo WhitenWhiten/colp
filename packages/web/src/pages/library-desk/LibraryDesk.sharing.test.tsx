@@ -54,9 +54,11 @@ vi.mock('../../components/AppToast', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
   return { useToast: () => ({ toast: mocks.toast, success: mocks.success, error: mocks.error }) }
 })
-vi.mock('../../lib/useOwnedCollections', async () => {
+vi.mock('../../lib/useLibrary', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
-  return { useOwnedCollections: () => mocks.collections }
+  return { useLibrary: () => ({ state: mocks.collections.state, message: mocks.collections.message, reload: mocks.collections.reload,
+    library: mocks.collections.items[0] ? { ...mocks.collections.items[0].collection, library: true,
+      bookmarksBarId: 'library-bar', otherBookmarksId: 'library-other' } : null }) }
 })
 vi.mock('../../lib/useSharedCollections', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
@@ -156,7 +158,7 @@ describe('LibraryDesk sharing and sidebar counts', () => {
       document.querySelector<HTMLButtonElement>('[data-testid="library-mobile-switcher-trigger"]')?.click()
     })
     const sheet = document.querySelector('[data-testid="library-mobile-switcher"]')
-    expect(sheet?.querySelector('[data-collection-id="col-1"]')?.textContent).toContain('Reading queue')
+    expect(sheet?.querySelector('[data-collection-id="col-1"]')?.textContent).toContain('All bookmarks')
     expect(sheet?.querySelector('[data-folder-id="col-1-folder"]')?.textContent).toContain('Later')
   })
 
@@ -237,8 +239,8 @@ describe('LibraryDesk sharing and sidebar counts', () => {
     mocks.shared.items = []
     mount()
     await waitForDom(domFinishedLoading)
-    expect(document.querySelector('a[data-collection-id="col-1"]')?.textContent).toContain('Reading queue')
-    expect(document.querySelector('a[data-collection-id="col-2"]')?.textContent).toContain('Second shelf')
+    expect(document.querySelector('a[data-collection-id="col-1"]')?.textContent).toContain('All bookmarks')
+    expect(document.querySelector('a[data-collection-id="col-2"]')).toBeNull()
     expect(document.querySelector('[aria-label="Shared collections"]')).toBeNull()
     expect([...document.querySelectorAll('[data-testid="library-nav-shared"] [role="alert"]')].some((node) => node.textContent === "Couldn't load shared collections")).toBe(true)
     expect(document.querySelector('[data-testid="library-bookmarks"]')?.textContent).toContain('Loose bookmark')
@@ -274,8 +276,8 @@ describe('LibraryDesk sharing and sidebar counts', () => {
   it('shows list bookmarkCount for a collection that was never opened', async () => {
     mocks.collections.items = [
       collectionItem('col-1', 'Reading queue', { bookmarkCount: 2 }),
-      collectionItem('col-2', 'Second shelf', { bookmarkCount: 9 }),
     ]
+    mocks.shared.items = [collectionItem('col-2', 'Second shelf', { bookmarkCount: 9 })]
     mocks.loadEditorSnapshot.mockImplementation((id: string) => {
       if (id === 'col-2') return rejectSnapshot(id)
       return Promise.resolve(snapshot(id, 'Reading queue'))
@@ -290,8 +292,8 @@ describe('LibraryDesk sharing and sidebar counts', () => {
   it('renders bookmarkCount 0 in the collection nav', async () => {
     mocks.collections.items = [
       collectionItem('col-1', 'Reading queue', { bookmarkCount: 2 }),
-      collectionItem('col-2', 'Second shelf', { bookmarkCount: 0 }),
     ]
+    mocks.shared.items = [collectionItem('col-2', 'Second shelf', { bookmarkCount: 0 })]
     mount('/library/col-1')
     await waitForDom(domFinishedLoading)
     expect(document.querySelector('[data-collection-id="col-2"] .library-nav-count')?.textContent).toBe('0 bookmarks')
@@ -311,8 +313,8 @@ describe('LibraryDesk sharing and sidebar counts', () => {
   it('overlays flattenBookmarks length over the list bookmarkCount when a snapshot is ready', async () => {
     mocks.collections.items = [
       collectionItem('col-1', 'Reading queue', { bookmarkCount: 3 }),
-      collectionItem('col-2', 'Second shelf', { bookmarkCount: 9 }),
     ]
+    mocks.shared.items = [collectionItem('col-2', 'Second shelf', { bookmarkCount: 9 })]
     const snap = snapshot('col-1', 'Reading queue')
     snap.nodes = [
       ...snap.nodes,
@@ -355,8 +357,8 @@ describe('LibraryDesk sharing and sidebar counts', () => {
   it('does not loadEditorSnapshot for an unselected unexpanded collection', async () => {
     mocks.collections.items = [
       collectionItem('col-1', 'Reading queue', { bookmarkCount: 2 }),
-      collectionItem('col-2', 'Second shelf', { bookmarkCount: 9 }),
     ]
+    mocks.shared.items = [collectionItem('col-2', 'Second shelf', { bookmarkCount: 9 })]
     mocks.loadEditorSnapshot.mockImplementation((id: string) => {
       if (id === 'col-2') return rejectSnapshot(id)
       return Promise.resolve(snapshot(id, 'Reading queue'))

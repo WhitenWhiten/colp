@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { isProductApiError, productClient, type LibraryCollection, type OwnedCollectionListItem } from '../api'
+import { isProductApiError, productClient, type LibraryCollection } from '../api'
 import { getSessionSnapshot, privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { subscribeLibraryInvalidation } from './libraryInvalidation'
 import { readRouteCache, writeRouteCache } from './routeCache'
 
-type LibraryState = { items: OwnedCollectionListItem[]; library?: LibraryCollection; state: 'loading' | 'ready' | 'error'; message: string }
-const EMPTY: LibraryState = { items: [], state: 'loading', message: 'Loading your library' }
+type LibraryState = { library: LibraryCollection | null; state: 'loading' | 'ready' | 'error'; message: string }
+const EMPTY: LibraryState = { library: null, state: 'loading', message: 'Loading your library' }
 const CACHE_KEY = 'account-library'
 
 /** The account's one library. The identity fence also covers a mounted account switch. */
-export function useOwnedCollections() {
+export function useLibrary() {
   const [identity, setIdentity] = useState(privateSessionIdentity)
   const [value, setValue] = useState<LibraryState>(() => readRouteCache<LibraryState>(CACHE_KEY) ?? EMPTY)
   const renderedIdentity = useRef(identity)
@@ -24,9 +24,8 @@ export function useOwnedCollections() {
     if (!getSessionSnapshot().authenticated) { setValue({ ...EMPTY, state: 'ready', message: 'Sign in to view your library' }); return }
     try {
       const library = await productClient.getLibrary({ signal: active.signal, maxRetries: 0 })
-      const page = await productClient.getCollectionEditorPage(library.id, { limit: 1 }, { signal: active.signal, maxRetries: 0 })
       if (active.signal.aborted || at !== generation.current || owner !== privateSessionIdentity()) return
-      const next: LibraryState = { library, items: [{ collection: page.collection, capabilities: page.capabilities }], state: 'ready', message: 'Your bookmark library' }
+      const next: LibraryState = { library, state: 'ready', message: 'Your bookmark library' }
       setValue(next); writeRouteCache(CACHE_KEY, next)
     } catch (error) {
       if (active.signal.aborted || at !== generation.current || owner !== privateSessionIdentity()) return

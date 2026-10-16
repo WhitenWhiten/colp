@@ -6,7 +6,7 @@ import { BookmarkIcon } from '../../components/BookmarkIcon'
 import { DomainMark } from '../../components/DomainMark'
 import { Icon } from '../../components/Icon'
 import { ResourceList, type ResourceListItem } from '../../components/ResourceList'
-import { useOwnedCollections } from '../../lib/useOwnedCollections'
+import { useLibrary } from '../../lib/useLibrary'
 import { bookmarkIconSrc } from '../../lib/bookmarkIcon'
 import { resourceDetailPath } from '../../lib/useResourceNode'
 import { resourceKindLabel } from '../../lib/resourceKind'
@@ -66,7 +66,7 @@ export function SaveResourcePicker({ resource, onClose }: {
   resource: CollectionResource
   onClose: () => void
 }) {
-  const owned = useOwnedCollections()
+  const accountLibrary = useLibrary()
   const { success, error } = useToast()
   const [busy, setBusy] = useState(false)
   const targets = resource.node.url ? [{ item: resource, url: resource.node.url }] : []
@@ -112,7 +112,7 @@ export function SaveResourcePicker({ resource, onClose }: {
       mode="copy"
       count={targets.length}
       busy={busy}
-      owned={owned.items}
+      library={accountLibrary.library ?? undefined}
       onPick={(destination) => {
         void onPick(destination)
       }}

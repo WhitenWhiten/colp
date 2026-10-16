@@ -17,9 +17,11 @@ vi.mock('../../components/AppToast', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
   return { useToast: () => ({ toast: mocks.toast, success: mocks.success, error: mocks.error }) }
 })
-vi.mock('../../lib/useOwnedCollections', async () => {
+vi.mock('../../lib/useLibrary', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
-  return { useOwnedCollections: () => mocks.collections }
+  return { useLibrary: () => ({ state: mocks.collections.state, message: mocks.collections.message, reload: mocks.collections.reload,
+    library: mocks.collections.items[0] ? { ...mocks.collections.items[0].collection, library: true,
+      bookmarksBarId: 'library-bar', otherBookmarksId: 'library-other' } : null }) }
 })
 vi.mock('../../lib/useSharedCollections', async () => {
   const { mocks } = await import('./LibraryDesk.test-mocks')
@@ -61,7 +63,7 @@ function switcher() {
 }
 
 describe('LibraryHeader mobile switcher', () => {
-  beforeEach(setUpLibraryDesk)
+  beforeEach(() => { setUpLibraryDesk(); window.__KNOWN_FLAGS__ = { collaborators: true } })
   afterEach(tearDownLibraryDesk)
 
   it('does not render a native select in the mobile nav', async () => {
@@ -75,13 +77,13 @@ describe('LibraryHeader mobile switcher', () => {
     expect(document.querySelector('[data-testid="library-nav"] a[data-collection-id="col-1"]')).not.toBeNull()
   })
 
-  it('opens a sheet of owned collections and navigates on choose', async () => {
+  it('opens the library and shared destinations and navigates on choose', async () => {
     mount()
     await waitForDom(domFinishedLoading)
     openSwitcher()
     const sheet = switcher()
     expect(sheet).not.toBeNull()
-    expect(sheet?.textContent).toContain('Reading queue')
+    expect(sheet?.textContent).toContain('All bookmarks')
     expect(sheet?.textContent).toContain('Second shelf')
     act(() => {
       sheet?.querySelector<HTMLButtonElement>('[data-collection-id="col-2"]')?.click()

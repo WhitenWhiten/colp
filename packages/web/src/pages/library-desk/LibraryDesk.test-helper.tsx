@@ -295,10 +295,10 @@ export function setUpLibraryDesk() {
   delete window.__KNOWN_FLAGS__
   mocks.auth.isLoggedIn = true
   mocks.auth.bootstrapping = false
-  mocks.collections.items = [collectionItem('col-1', 'Reading queue'), collectionItem('col-2', 'Second shelf')]
+  mocks.collections.items = [collectionItem('col-1', 'Reading queue')]
   mocks.collections.state = 'ready'
   mocks.collections.message = ''
-  mocks.shared.items = []
+  mocks.shared.items = [collectionItem('col-2', 'Second shelf')]
   mocks.shared.state = 'ready'
   mocks.shared.message = ''
   mocks.invites.items = []

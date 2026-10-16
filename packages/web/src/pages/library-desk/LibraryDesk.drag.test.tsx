@@ -50,7 +50,9 @@ vi.mock('../../auth/AuthContext', () => ({ useAuth: () => mocks.auth }))
 vi.mock('../../components/AppToast', () => ({
   useToast: () => ({ toast: mocks.toast, success: mocks.success, error: mocks.error }),
 }))
-vi.mock('../../lib/useOwnedCollections', () => ({ useOwnedCollections: () => mocks.collections }))
+vi.mock('../../lib/useLibrary', () => ({ useLibrary: () => ({ state: mocks.collections.state, message: mocks.collections.message, reload: mocks.collections.reload,
+    library: mocks.collections.items[0] ? { ...mocks.collections.items[0].collection, library: true,
+      bookmarksBarId: 'library-bar', otherBookmarksId: 'library-other' } : null }) }))
 vi.mock('../../lib/useSharedCollections', () => ({ useSharedCollections: () => mocks.shared }))
 vi.mock('../../lib/useMyCollaborationInvites', () => ({ useMyCollaborationInvites: () => mocks.invites }))
 vi.mock('../../api', async (importOriginal) => {
@@ -452,6 +454,8 @@ describe('LibraryDesk desktop bookmark drag', () => {
   })
 
   it('never highlights foreign collections or the bookmark’s current folder', async () => {
+    window.__KNOWN_FLAGS__ = { collaborators: true }
+    mocks.shared.items = [collectionItem('col-2', 'Second shelf')]
     mount()
     await waitForDom(domFinishedLoading)
     await expandSidebarFolders()

@@ -30,7 +30,6 @@ export function useLibraryDeskOrder(options: {
   error: (message: string) => void
   isLoggedIn: boolean
   bootstrapping: boolean
-  ownedSidebarItems: readonly OwnedCollectionListItem[]
   sharedSidebarItems: readonly OwnedCollectionListItem[]
   setExpanded: Dispatch<SetStateAction<ReadonlySet<string>>>
 }) {
@@ -38,7 +37,6 @@ export function useLibraryDeskOrder(options: {
     error,
     isLoggedIn,
     bootstrapping,
-    ownedSidebarItems,
     sharedSidebarItems,
     setExpanded,
   } = options
@@ -62,10 +60,6 @@ export function useLibraryDeskOrder(options: {
   const sessionIdentityRef = useRef<string | null>(null)
   const [orderEpoch, setOrderEpoch] = useState(0)
 
-  const orderedOwnedItems = useMemo(
-    () => applyLibraryOrder(ownedSidebarItems, sectionOrder.mine, (item) => item.collection.id),
-    [ownedSidebarItems, sectionOrder.mine],
-  )
   const orderedSharedItems = useMemo(
     () => applyLibraryOrder(sharedSidebarItems, sectionOrder.shared, (item) => item.collection.id),
     [sharedSidebarItems, sectionOrder.shared],
@@ -75,7 +69,7 @@ export function useLibraryDeskOrder(options: {
     shared: [],
   })
   loadedIdsRef.current = {
-    mine: orderedOwnedItems.map((item) => item.collection.id),
+    mine: [],
     shared: orderedSharedItems.map((item) => item.collection.id),
   }
 
@@ -135,6 +129,7 @@ export function useLibraryDeskOrder(options: {
   }, [persistSectionOrder, reorderSection])
 
   const beginReorder = useCallback((section: LibraryOrderSectionId) => {
+    if (section !== 'shared') return
     if (reorderSection && reorderSection !== section) persistSectionOrder(reorderSection)
     setReorderSection(section)
     setCollapsedSections((current) => {
@@ -144,7 +139,7 @@ export function useLibraryDeskOrder(options: {
       return next
     })
     const drop = new Set<string>()
-    for (const item of section === 'mine' ? ownedSidebarItems : sharedSidebarItems) drop.add(item.collection.id)
+    for (const item of sharedSidebarItems) drop.add(item.collection.id)
     setExpanded((current) => {
       if (current.size === 0) return current
       let changed = false
@@ -154,7 +149,7 @@ export function useLibraryDeskOrder(options: {
       }
       return changed ? next : current
     })
-  }, [ownedSidebarItems, persistSectionOrder, reorderSection, setExpanded, sharedSidebarItems])
+  }, [persistSectionOrder, reorderSection, setExpanded, sharedSidebarItems])
 
   useEffect(() => {
     if (!reorderSection) return
@@ -221,7 +216,6 @@ export function useLibraryDeskOrder(options: {
   return {
     collapsedSections,
     reorderSection,
-    orderedOwnedItems,
     orderedSharedItems,
     setSectionIds,
     persistSectionOrder,

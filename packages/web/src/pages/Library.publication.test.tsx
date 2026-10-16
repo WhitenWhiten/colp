@@ -35,9 +35,11 @@ vi.mock('../auth/AuthContext', async () => {
   const { mocks: m } = await import('./Library.test-mocks')
   return { useAuth: () => m.auth }
 })
-vi.mock('../lib/useOwnedCollections', async () => {
+vi.mock('../lib/useLibrary', async () => {
   const { mocks: m } = await import('./Library.test-mocks')
-  return { useOwnedCollections: () => m.collections }
+  return { useLibrary: () => ({ state: m.collections.state, message: m.collections.message, reload: m.collections.reload,
+    library: m.collections.items[0] ? { ...m.collections.items[0].collection, library: true,
+      bookmarksBarId: 'library-bar', otherBookmarksId: 'library-other' } : null }) }
 })
 vi.mock('../lib/useSharedCollections', async () => {
   const { mocks: m } = await import('./Library.test-mocks')
@@ -91,7 +93,7 @@ describe('Library owned collection publication', () => {
     expect(menus.length).toBe(1)
     for (const labels of menus) {
       expect(labels).toEqual([
-        'Add folder',
+        'New folder',
         'Edit collection',
         'Version history',
         'Open public page',

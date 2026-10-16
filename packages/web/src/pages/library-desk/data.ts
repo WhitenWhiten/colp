@@ -12,7 +12,7 @@ import {
 } from '../../api'
 import { findFolder, isAbort } from '../../lib/libraryTree'
 import { readRouteCache, writeRouteCache } from '../../lib/routeCache'
-import type { useOwnedCollections } from '../../lib/useOwnedCollections'
+import type { useLibrary } from '../../lib/useLibrary'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 
 export type TreeStatus = 'loading' | 'ready' | 'error'
@@ -91,7 +91,7 @@ export function useLibraryDeskData(options: {
   folderId: string | null
   isLoggedIn: boolean
   bootstrapping: boolean
-  collections: ReturnType<typeof useOwnedCollections>
+  collections: ReturnType<typeof useLibrary>
   shared: ReturnType<typeof useSharedCollections>
 }) {
   const {
@@ -119,19 +119,10 @@ export function useLibraryDeskData(options: {
   treesRef.current = trees
 
   const selectedId = collectionId
-    ?? collections.items[0]?.collection.id
-    ?? shared.items[0]?.collection.id
+    ?? collections.library?.id
     ?? null
 
-  const ownedSidebarItems = useMemo(() => {
-    const items = collections.items
-    const snap = selectedId ? trees[selectedId]?.snap : undefined
-    if (!snap) return items
-    if (items.some((item) => item.collection.id === snap.collection.id)) return items
-    if (shared.items.some((item) => item.collection.id === snap.collection.id)) return items
-    if (shared.state === 'loading') return items
-    return [{ collection: snap.collection, capabilities: snap.capabilities } satisfies OwnedCollectionListItem, ...items]
-  }, [collections.items, selectedId, shared.items, shared.state, trees])
+  const library = collections.library
 
   const sharedSidebarItems = shared.items
 
@@ -291,7 +282,7 @@ export function useLibraryDeskData(options: {
     loadTree,
     toggleExpanded,
     selectedId,
-    ownedSidebarItems,
+    library,
     sharedSidebarItems,
     snap,
     load,

@@ -192,7 +192,7 @@ function LibraryMobileNav({
   const dialogId = useId()
   const {
     selectedId,
-    ownedSidebarItems,
+    library,
     sharedSidebarItems,
     trees,
     expanded,
@@ -201,7 +201,6 @@ function LibraryMobileNav({
   } = data
 
   const reorderSection = order?.reorderSection ?? null
-  const orderedOwned = order ? order.orderedOwnedItems : ownedSidebarItems
   const orderedShared = order ? order.orderedSharedItems : sharedSidebarItems
 
   const isExpanded = (id: string) =>
@@ -278,27 +277,17 @@ function LibraryMobileNav({
           </section>
         )}
         <div className="library-nav-tree">
-            {orderedOwned.length > 0 && (
+            {library !== null && (
               <div className="library-mobile-nav-section-head">
                 <p className="library-nav-sub">Bookmarks</p>
 
               </div>
             )}
               <div role="list" aria-label="Library folders">
-              {orderedOwned.map((item) => (
-                <CollectionBranch
-                  listItem
-                  key={item.collection.id}
-                  collection={item.collection}
-                  bookmarkCount={item.bookmarkCount}
-                  selectedId={selectedId}
-                  folderId={folderId}
-                  expanded={isExpanded(item.collection.id)}
-                  tree={trees[item.collection.id]}
-                  onToggle={() => toggleExpanded(item.collection.id, isExpanded(item.collection.id))}
-                  onSelect={choose}
-                />
-              ))}
+              {library && <CollectionBranch listItem collection={library}
+                selectedId={selectedId} folderId={folderId} expanded={isExpanded(library.id)}
+                tree={trees[library.id]} onToggle={() => toggleExpanded(library.id, isExpanded(library.id))} onSelect={choose} />}
+
               </div>
             {collaboratorsLive && orderedShared.length > 0 && (
               <>

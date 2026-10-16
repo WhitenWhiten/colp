@@ -17,7 +17,7 @@ import { LibraryDeskView } from './view'
 import { NodeEditDrawer } from './NodeEditDrawer'
 import { useDocumentTitle } from '../../lib/useDocumentTitle'
 import { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
-import { useOwnedCollections } from '../../lib/useOwnedCollections'
+import { useLibrary } from '../../lib/useLibrary'
 import { useSharedCollections } from '../../lib/useSharedCollections'
 
 export function LibraryDesk() {
@@ -29,7 +29,7 @@ export function LibraryDesk() {
   const navigate = useNavigate()
   const { toast, success, error } = useToast()
   const { isLoggedIn, bootstrapping, refreshSession } = useAuth()
-  const collections = useOwnedCollections()
+  const collections = useLibrary()
   const shared = useSharedCollections()
   const invites = useMyCollaborationInvites()
   const collaboratorsLive = isLive('collaborators')
@@ -50,7 +50,6 @@ export function LibraryDesk() {
     error,
     isLoggedIn,
     bootstrapping,
-    ownedSidebarItems: data.ownedSidebarItems,
     sharedSidebarItems: data.sharedSidebarItems,
     setExpanded: data.setExpanded,
   })

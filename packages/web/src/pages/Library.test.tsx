@@ -31,9 +31,11 @@ vi.mock('../auth/AuthContext', async () => {
   const { mocks: m } = await import('./Library.test-mocks')
   return { useAuth: () => m.auth }
 })
-vi.mock('../lib/useOwnedCollections', async () => {
+vi.mock('../lib/useLibrary', async () => {
   const { mocks: m } = await import('./Library.test-mocks')
-  return { useOwnedCollections: () => m.collections }
+  return { useLibrary: () => ({ state: m.collections.state, message: m.collections.message, reload: m.collections.reload,
+    library: m.collections.items[0] ? { ...m.collections.items[0].collection, library: true,
+      bookmarksBarId: 'library-bar', otherBookmarksId: 'library-other' } : null }) }
 })
 vi.mock('../lib/useSharedCollections', async () => {
   const { mocks: m } = await import('./Library.test-mocks')
@@ -49,12 +51,12 @@ describe('Library', () => {
   beforeEach(setUpLibrary)
   afterEach(tearDownLibrary)
 
-  it('keeps New collection visible and never falls back to sample folders', async () => {
+  it('keeps unavailable library discovery free of sample folders', async () => {
     mount()
     await waitForDom(domFinishedLoading)
-    expect(document.querySelector('a[href="/library/new"]')?.textContent).toContain('New collection')
+    expect(document.querySelector('a[href="/library/new"]')).toBeNull()
     expect(document.body.textContent).not.toContain('All bookmarks')
-    expect(document.body.textContent).toContain('No collections yet')
+    expect(document.querySelector('[data-testid="library-nav"]')).not.toBeNull()
     expect(document.body.textContent).not.toContain('The extension only syncs collections you own, not ones shared with you.')
   })
 
@@ -71,12 +73,14 @@ describe('Library', () => {
   })
 
   it('opens the collection workspace instead of the editor', async () => {
-    mocks.collections.items = [entry('space /?#', 'Editable'), entry('locked', 'Read only', false)]
+    window.__KNOWN_FLAGS__ = { collaborators: true }
+    mocks.collections.items = [entry('space /?#', 'Editable')]
+    mocks.shared.items = [entry('locked', 'Read only', false)]
     mocks.loadEditorSnapshot.mockImplementation((id: string) => Promise.resolve(snapshot(id, id === 'locked' ? 'Read only' : 'Editable')))
     mount()
     await waitForDom(domFinishedLoading)
     expect(document.querySelector('[data-testid="library-workspace"]')).not.toBeNull()
-    expect(document.querySelector('aside[aria-label="Your collections"]')).not.toBeNull()
+    expect(document.querySelector('aside[aria-label="Your library"]')).not.toBeNull()
     expect(document.querySelector('div.library-collection-grid')).toBeNull()
     const open = document.querySelector<HTMLAnchorElement>('a[data-collection-id="space /?#"]')
     expect(open?.getAttribute('href')).toBe('/library/space%20%2F%3F%23')
@@ -154,7 +158,7 @@ describe('Library', () => {
     await waitForDom(() => document.querySelector('a[data-collection-id="shared-a"]') != null)
     const toggles = sectionToggles()
     expect(toggles.map((toggle) => toggle.textContent?.trim().replace(/\d+$/u, '').trim()))
-      .toEqual(['My collections', 'Shared with you'])
+      .toEqual(['Bookmarks', 'Shared with you'])
     for (const toggle of toggles) expect(toggle.getAttribute('aria-expanded')).toBe('true')
 
     const mine = toggles[0]!

@@ -17,7 +17,7 @@ import { pluralNoun } from '../../lib/plural'
 import { useBookmarkAnnotations } from '../../lib/useBookmarkAnnotations'
 import { previewCover } from '../../lib/linkPreview'
 import { useLinkPreviewRequests } from '../../lib/useLinkPreviewRequests'
-import type { useOwnedCollections } from '../../lib/useOwnedCollections'
+import type { useLibrary } from '../../lib/useLibrary'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import { KIND_LABEL, libraryBookmarkItem } from './bookmarkItem'
 import { LibraryViewSwitch, useDeskGallery } from './deskGallery'
@@ -71,7 +71,7 @@ export function BookmarkArea({
   onShowAllTags: () => void
   compact: boolean
   folderId: string | null
-  collections: ReturnType<typeof useOwnedCollections>
+  collections: ReturnType<typeof useLibrary>
   shared: ReturnType<typeof useSharedCollections>
   data: LibraryDeskData
   order: LibraryDeskOrder
@@ -329,7 +329,7 @@ export function BookmarkArea({
     />
   )
 
-  if (collections.state === 'error' && collections.items.length === 0 && !selectedId) {
+  if (collections.state === 'error' && !collections.library && !selectedId) {
     return (
       <EmptyState
         role="alert"
