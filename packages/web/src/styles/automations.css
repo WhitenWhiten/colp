@@ -703,6 +703,16 @@
   line-height: var(--leading-snug);
 }
 
+/* A lone step has no number, so it keeps no column for one. */
+.automation-step--lone {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.automation-step--lone > *,
+.automation-step--lone .automation-step-head h2 {
+  grid-column: 1;
+}
+
 .automation-optional {
   margin-left: var(--space-1);
   color: var(--muted);

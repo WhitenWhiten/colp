@@ -220,9 +220,10 @@ export function RunOnce() {
         <div className="automation-editor-main">
           <div className="automation-form">
             <ol className="automation-steps">
-              <li className="automation-step" aria-labelledby="run-once-where">
+              {/* One step is no sequence, so it goes unnumbered. */}
+              <li className={hasTasks ? 'automation-step' : 'automation-step automation-step--lone'} aria-labelledby="run-once-where">
                 <div className="automation-step-head">
-                  <span className="automation-step-index" aria-hidden>1</span>
+                  {hasTasks && <span className="automation-step-index" aria-hidden>1</span>}
                   <h2 id="run-once-where">Which bookmarks</h2>
                 </div>
                 <div className="field">

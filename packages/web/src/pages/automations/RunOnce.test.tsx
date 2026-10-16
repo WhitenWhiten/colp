@@ -99,6 +99,21 @@ describe('Run once', () => {
     expect(api.getRun.mock.calls[0]?.[0]).toBe('run_manual')
   })
 
+  it('numbers its steps only when there is more than one', async () => {
+    // Each step's number sits just before its heading.
+    const indexes = () => [...document.querySelectorAll('[data-testid="automation-run-once"] ol > li h2')]
+      .map((heading) => heading.previousElementSibling?.textContent ?? null)
+    mount(withRule())
+    await waitForDom(() => folderSelect()?.value === 'root-p')
+    expect(indexes()).toEqual([null])
+
+    cleanup()
+    document.body.innerHTML = ''
+    mount(withRule({ definition: definition('Papers to Academic', { kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'arxiv.org' }, { tasks: [summarize] }) }))
+    await waitForDom(() => folderSelect()?.value === 'root-p')
+    expect(indexes()).toEqual(['1', '2'])
+  })
+
   it('throws the preview away when any option changes, so a changed selection cannot start', async () => {
     const api = withRule({ definition: definition('Papers to Academic', { kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'arxiv.org' }, { tasks: [summarize] }) })
     api.previewRunOnce.mockResolvedValue(current())
