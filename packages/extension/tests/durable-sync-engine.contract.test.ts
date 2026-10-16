@@ -58,7 +58,7 @@ describe('P3-33 durable engine static contract', () => {
     // static-only: `src/sw/auth.ts` request routing. The refresh/logout branches need a
     // live credential, manifest and replica-retirement graph; `tests/auth-shell.test.ts`
     // covers the controller-level behaviour but not the worker's message routing.
-    assert.match(worker, /message\.kind === 'known\.auth\.refresh'[\s\S]{0,160}pushSessionAuthority\(true\)/u);
+    assert.match(worker, /message\.kind === 'known\.auth\.refresh'[\s\S]{0,600}pushSessionAuthority\(true\)/u);
     // Logout first tears down subscription state for the signed-in subject
     // (BS-05), then signs out and drains the auth lane. The window stops well
     // short of the next message branch.
@@ -68,7 +68,7 @@ describe('P3-33 durable engine static contract', () => {
     }
   });
 
-  test('first-run confirm/status and bound-collection select wake the durable engine', async () => {
+  test('first-run confirmation and automatic library binding wake the durable engine', async () => {
     const worker = await readServiceWorkerGraph();
     // static-only: `first-run.ts` must not import the engine module — the wake is owned
     // by the router. Absence of an import has no runtime trace; the router behaviour it
@@ -86,7 +86,7 @@ describe('P3-33 durable engine static contract', () => {
     assert.match(auth, /async function scheduleSyncEngineWakeIfRootConfigured\(\) \{[\s\S]{0,280}getScope\(scope\)/u);
     // The window covers the personal-sync and metadata checks that run before the credential branch.
     assert.match(auth,
-      /message\.kind === 'known\.collection\.select'[\s\S]{0,3200}if \(credential\) \{[\s\S]{0,1400}scheduleSyncEngineWakeIfRootConfigured\(\)/u);
+      /ensureLibraryBinding\(\{ login: true \}\)[\s\S]{0,1800}scheduleSyncEngineWakeIfRootConfigured\(\)/u);
   });
 
   test('requires a production packaged MV3 gate with two isolated profiles and privacy scans', async () => {

@@ -7,6 +7,8 @@ import { setupT03, seedMappedNode, t03Scope as scope } from './srg-t03-delete-ha
 
 async function fixture() {
   const f = await setupT03();
+  const mount = (await f.store.getMountBinding(scope, 'mount-native-root')) ?? (await f.store.listMountBindings(scope))[0];
+  if (mount) await f.store.putMountBinding(scope, { ...mount, rootRole: undefined, customSourceKey: 'folder:ordinary' });
   await seedMappedNode(f, { nativeId: 'child', colpId: 'child-colp', parentNativeId: 'native-root',
     parentColpId: 'root-colp', nodeKind: 'bookmark', url: 'https://example.test/' });
   const { preview } = await previewRangeChange(f.store, scope, { selectedNativeIds: [], roots: [{

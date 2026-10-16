@@ -12,7 +12,7 @@ async function fixture(crash?: string, source: 'active' | 'detached' = 'active',
   const f = await setup(crash);
   await f.store.setFirstRun(scope, 'completed');
   await f.store.putMountBinding(scope, { mountId: 'mount-bar', nativeRootId: 'native-root', remoteMountNodeId: 'root-colp',
-    boundaryVersion: '1', materialized: false, status: source, rootRole: 'bookmarks-bar' });
+    boundaryVersion: '1', materialized: false, status: source, customSourceKey: 'folder:ordinary' });
   await f.store.putMountBinding(scope, { mountId: 'mount-other', nativeRootId: 'native-other', remoteMountNodeId: 'other-colp',
     boundaryVersion: '1', materialized: false, status: dest, rootRole: 'other-bookmarks' });
   await f.store.putMapping(scope, { nativeId: 'native-other', colpId: 'other-colp', rootNativeId: 'native-other', nodeKind: 'folder',

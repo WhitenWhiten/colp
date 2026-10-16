@@ -37,7 +37,7 @@ describe('P3-27 release artifact contract', () => {
     assert.match(source, /page\.pathname === '\/options\.html'/);
     assert.match(source, /page\.pathname === '\/popup\.html'/);
     assert.match(source, /ensureFreshCredential/);
-    assert.match(source, /collections_unauthorized/);
+    assert.match(source, /library_unavailable/);
     assert.match(source, /colpCredentialHeaders\(credential\.accessToken\)/);
     assert.doesNotMatch(source, /sender\.url === `chrome-extension:\/\/\$\{chrome\.runtime\.id\}\/(?:options|popup)\.html`/);
   });

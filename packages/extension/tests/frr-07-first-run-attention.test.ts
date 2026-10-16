@@ -26,7 +26,7 @@ async function persistNeedsAttention(runId: string) {
     checkpoint: { serverRevision: 'r0', cursor: 'c0' }, selectedRoots: [],
   });
   const coordinator = createBootstrapCoordinator({ store, scope, now: () => 10, randomUUID: () => runId });
-  const view = await coordinator.confirm({
+  const input = {
     confirmationId: `conf-${runId}`, treeDigest: 'sha256:tree', confirmationVersion: '1',
     localFacts: [
       { nativeId: 'a', mountNativeRootId: 'bar', parentNativeId: 'bar', kind: 'bookmark',
@@ -43,7 +43,17 @@ async function persistNeedsAttention(runId: string) {
     ],
     mounts: [{ nativeRootId: 'bar', rootRole: 'bookmarks-bar', remoteMountNodeId: 'mount-bar' }],
     rootNodeId: 'folder-root',
-  });
+  } satisfies Parameters<typeof coordinator.confirm>[0];
+  await coordinator.confirm(input);
+  for (const row of await store.listQueue(scope)) {
+    await store.completeQueueWithReceipt(scope, row.sequence, {
+      opId: row.opId, operationDigest: row.digest, kind: 'terminal', receiptId: `receipt-${row.sequence}`,
+      resultDigest: `sha256:${row.sequence}`, result: { results: [{ opId: row.opId, sequence: row.sequence,
+        status: 'applied', targetId: `uploaded-${row.sequence}`, revision: `r-${row.sequence}` }] },
+    });
+  }
+  const view = await coordinator.resume(input);
+  if (!view) throw new Error('bootstrap_run_missing');
   return { store, coordinator, view };
 }
 

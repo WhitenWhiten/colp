@@ -120,7 +120,7 @@ async function boundStore(options: { includeMountMapping?: boolean } = {}) {
   });
   await store.putMountBinding(scope, {
     mountId: 'mount-bar', nativeRootId: 'bar', remoteMountNodeId: 'remote-bar', boundaryVersion: '1',
-    materialized: false, status: 'active', rootRole: 'bookmarks-bar',
+    materialized: false, status: 'active', customSourceKey: 'folder:ordinary',
   });
   if (options.includeMountMapping !== false) {
     await store.putMapping(scope, {

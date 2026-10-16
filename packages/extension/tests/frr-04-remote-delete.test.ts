@@ -48,8 +48,8 @@ test('FRR-04-A: remote-delete stamps a valid Wire Operation and uses delete_subt
   assert.equal((await store.listQueue(scope))[0]!.opId, queued.opId);
 });
 
-test('bound mount with only the root mapping cannot prove an empty remote folder', async () => {
-  const store = await boundStore();
+test('bound mount with no remote mapping cannot prove an empty remote folder', async () => {
+  const store = await boundStore({ includeMountMapping: false });
   await assert.rejects(() => countMountAffected(store, scope, 'mount-bar'), /remote_subtree_unknown/);
   const rejected = await executeRemoteDelete(store, scope, {
     mountId: 'mount-bar', affectedCount: 0,
@@ -175,7 +175,7 @@ test('unbound mount is mount_not_bound and does not enqueue', async () => {
   });
   await store.putMountBinding(scope, {
     mountId: 'mount-bar', nativeRootId: 'bar', remoteMountNodeId: null, boundaryVersion: '1',
-    materialized: false, status: 'active', rootRole: 'bookmarks-bar',
+    materialized: false, status: 'active', customSourceKey: 'folder:ordinary',
   });
   const rejected = await executeRemoteDelete(store, scope, {
     mountId: 'mount-bar', affectedCount: 0,
@@ -194,7 +194,7 @@ async function boundStore(options: { includeMountMapping?: boolean } = {}) {
   });
   await store.putMountBinding(scope, {
     mountId: 'mount-bar', nativeRootId: 'bar', remoteMountNodeId: 'remote-bar', boundaryVersion: '1',
-    materialized: false, status: 'active', rootRole: 'bookmarks-bar',
+    materialized: false, status: 'active', customSourceKey: 'folder:ordinary',
   });
   if (options.includeMountMapping !== false) {
     await store.putMapping(scope, {

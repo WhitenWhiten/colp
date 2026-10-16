@@ -52,7 +52,7 @@ describe('signed-out popup local saves (capture plan §12.4)', () => {
 
   test('the worker resolve order prefers the remembered device folder for signed-out captures', async () => {
     const target = await readFile(new URL('../src/sw/capture-target.ts', import.meta.url), 'utf8');
-    assert.match(target, /remembered\?\.folderNativeId \?\? cached\?\.parentNativeId/);
+    assert.match(target, /requestedId \?\? remembered\?\.folderNativeId/);
     const popup = await readFile(new URL('../src/popup.ts', import.meta.url), 'utf8');
     assert.match(popup, /deviceSave\.init\(snapshot\)/);
     assert.match(popup, /deviceSave\.init\(settled\)/);

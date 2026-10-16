@@ -149,7 +149,7 @@ test('FRR-04.3: shrinking or rebound remote identity fails closed', async () => 
   await store.putMountBinding(scope, {
     mountId: rebound!.mountId, nativeRootId: rebound!.nativeRootId, remoteMountNodeId: 'remote-other',
     boundaryVersion: rebound!.boundaryVersion, materialized: rebound!.materialized, status: rebound!.status,
-    rootRole: rebound!.rootRole,
+    customSourceKey: rebound!.customSourceKey,
   });
   const identity = await executeRemoteDelete(store, scope, command);
   assert.equal(identity.ok, false);
@@ -172,7 +172,7 @@ async function boundStore() {
   });
   await store.putMountBinding(scope, {
     mountId: 'mount-bar', nativeRootId: 'bar', remoteMountNodeId: 'remote-bar', boundaryVersion: '1',
-    materialized: false, status: 'active', rootRole: 'bookmarks-bar',
+    materialized: false, status: 'active', customSourceKey: 'folder:ordinary',
   });
   await store.putMapping(scope, {
     nativeId: 'bar', colpId: 'remote-bar', rootNativeId: 'bar', mountId: 'mount-bar', nodeKind: 'folder',

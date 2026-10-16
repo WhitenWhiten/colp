@@ -262,7 +262,7 @@ describe('KNS-10 scope detach, deletion journal and recovery', () => {
     const fixture = await pullFixture();
     await fixture.store.putMountBinding(scope, {
       mountId: 'mount-bar', nativeRootId: 'native-root', remoteMountNodeId: 'root-colp',
-      boundaryVersion: '1', materialized: false, status: 'detached', rootRole: 'bookmarks-bar',
+      boundaryVersion: '1', materialized: false, status: 'detached', customSourceKey: 'folder:ordinary',
     });
     await fixture.applier.stage(fixture.page([fixture.mutationEvent('delete')]));
     await fixture.applier.resume();
@@ -370,7 +370,7 @@ async function activeOn(store: ReturnType<typeof createSyncStateStore>) {
 async function seedMount(store: ReturnType<typeof createSyncStateStore>) {
   await store.putMountBinding(scope, {
     mountId: 'mount-bar', nativeRootId: 'bar', remoteMountNodeId: 'remote-bar', boundaryVersion: '1',
-    materialized: false, status: 'active', rootRole: 'bookmarks-bar',
+    materialized: false, status: 'active', customSourceKey: 'folder:ordinary',
   });
   await store.putMapping(scope, {
     nativeId: 'bar', colpId: 'remote-bar', rootNativeId: 'bar', mountId: 'mount-bar', nodeKind: 'folder',
