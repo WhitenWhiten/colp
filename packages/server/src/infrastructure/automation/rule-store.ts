@@ -24,7 +24,8 @@ export function createRuleStore(db: Kysely<DatabaseSchema>, runtimeEnabled = fal
       return (await query.orderBy('r.created_at').orderBy('r.id').limit(limit).execute()).map(map);
     },
     async count(ownerId) {
-      return Number((await db.selectFrom('automation_rules').select(eb => eb.fn.countAll<string>().as('n')).where('owner_id', '=', ownerId).executeTakeFirstOrThrow()).n);
+      return Number((await db.selectFrom('automation_rules').select(eb => eb.fn.countAll<string>().as('n'))
+        .where('owner_id', '=', ownerId).where('desired_state', '!=', 'archived').executeTakeFirstOrThrow()).n);
     },
     async save(ownerId, rule) {
       const { view } = rule;

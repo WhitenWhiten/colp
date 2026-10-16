@@ -7,6 +7,6 @@ test('the per-Owner rule limit is counted, not listed, and reported as a rule co
   const ports = { workerEnabled: false, rules: { count: async () => MAX_RULES_PER_OWNER, list: async () => { listed = true; return []; } } } as unknown as AutomationPorts;
   const actor = { accountId: 'owner', subjectId: 'subject' };
   await expect(createRule(ports, actor, { definition: fixture, bindingSetId: 'bindings' }))
-    .rejects.toMatchObject({ code: 'automation_rule_conflict', fieldErrors: [{ code: 'maxRules' }] });
+    .rejects.toMatchObject({ code: 'automation_rule_conflict', message: expect.stringContaining('archive one'), fieldErrors: [{ code: 'maxRules' }] });
   expect(listed).toBe(false);
 });

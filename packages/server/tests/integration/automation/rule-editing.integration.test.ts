@@ -64,4 +64,18 @@ describeWithPostgres('editor configuration and activation contract', () => {
     const stranger=await f.issue('stranger');
     await expect(f.uow.execute(stranger,p => previewRule(p,stranger,{ rule:input,ruleId:stored.id,mode:'currentState' }))).rejects.toMatchObject({ code:'resource_not_found' });
   });
+  test('archiving retains history and frees a rule slot for another configuration', async () => {
+    runtime = await automationRuntimeFixture('rule_slot', true);
+    const f = runtime;
+    const active = await f.uow.execute(f.owner, p => p.rules.load(f.owner.accountId, f.rule.id));
+    expect(await f.uow.execute(f.owner, p => p.rules.count(f.owner.accountId))).toBe(1);
+    await f.uow.execute(f.owner, p => setLifecycle(p, f.owner, active!.view.id,
+      { state: 'archived', pendingRuns: 'cancel', reason: 'Free a rule slot.' }, `"${active!.view.revision}"`));
+    expect(await f.uow.execute(f.owner, p => p.rules.count(f.owner.accountId))).toBe(0);
+    expect((await f.uow.execute(f.owner, p => p.rules.load(f.owner.accountId, f.rule.id)))?.view.desiredState).toBe('archived');
+    const next = await f.uow.execute(f.owner, p => createRule(p, f.owner,
+      { definition: f.rule.definition, bindingSetId: f.binding.id }));
+    expect(next.desiredState).toBe('draft');
+    expect(await f.uow.execute(f.owner, p => p.rules.count(f.owner.accountId))).toBe(1);
+  });
 });

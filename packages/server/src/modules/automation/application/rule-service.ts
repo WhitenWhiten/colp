@@ -64,7 +64,7 @@ export async function validateRule(ports: AutomationPorts, actor: AutomationActo
 export async function createRule(ports: AutomationPorts, actor: AutomationActor, body: unknown) {
   const input = normalizeRuleInput(parseContract('RuleInput', body)); assertSupportedRule(input,ports.workerEnabled);
   if (await ports.rules.count(actor.accountId) >= MAX_RULES_PER_OWNER) throw new AutomationError('automation_rule_conflict',
-    `The Owner already keeps the maximum of ${MAX_RULES_PER_OWNER} rules; delete one before creating another.`, [{ path: '', code: 'maxRules', message: 'Rule limit reached.' }]);
+    `The Owner already has ${MAX_RULES_PER_OWNER} unarchived rules; archive one before creating another.`, [{ path: '', code: 'maxRules', message: 'Rule limit reached.' }]);
   const inspected = await inspectInput(ports, actor, input), now = (await ports.now()).toISOString();
   const rule: StoredRule = { definitionRevisionId: ports.id(), definitionRevision: '1', sortCreatedAt: now, view: { ...input, id: ports.id(), revision: '1',
     desiredState: 'draft', effectiveState: 'draft', createdAt: now, updatedAt: now } };

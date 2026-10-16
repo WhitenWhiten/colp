@@ -1,7 +1,7 @@
 import { AUTOMATION_CONTRACT_VERSION,AUTOMATION_PROFILE,type Capabilities } from '@know-n/colp/automation';
 import type { AutomationPorts } from './ports.js';
 
-/** Every rule an Owner keeps, archived ones included. */
+/** Configurations the Owner can still use; archived history does not consume a slot. */
 export const MAX_RULES_PER_OWNER = 500;
 
 /** Worker orchestration adds task capabilities; predicate evaluation keeps its installed bounded profile. */
