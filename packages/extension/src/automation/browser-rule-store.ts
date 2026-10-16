@@ -1,5 +1,6 @@
 import { validateM1Rule } from '@know-n/colp/automation';
 import type { AutomationStateArea } from './bundle-store.js';
+import { relateBrowserRule, type OverlapRule } from './browser-overlap.js';
 import { BROWSER_RULE_LIMIT, checkBrowserDraft, type BrowserRule, type BrowserRuleDraft, type DraftProblem } from './browser-rules.js';
 
 /**
@@ -137,6 +138,17 @@ export function createBrowserRuleStore(area: AutomationStateArea, options: { rea
         if (!rules.some((rule) => rule.id === id)) return false;
         await write(rules.filter((rule) => rule.id !== id));
         return true;
+      });
+    },
+    /** Recheck the current rule inside the write lane before retiring an account duplicate. */
+    retireIfDuplicate(id: string, account: readonly OverlapRule[], now: number): Promise<BrowserRule | null> {
+      return exclusive(async () => {
+        const rules = await read(), current = rules.find((rule) => rule.id === id);
+        if (!current || current.movingSince === undefined) return null;
+        const relation = relateBrowserRule(current, account, undefined, now);
+        if (relation?.kind !== 'duplicate') return null;
+        await write(rules.filter((rule) => rule.id !== id));
+        return current;
       });
     },
     /** Newest first. */

@@ -34,6 +34,38 @@ describe('the web editor, filled in', () => {
 });
 
 describe('a rule waiting to move', () => {
+  it.each(['edit', 'keep'] as const)('does not retire after a queued %s commits', async (change) => {
+    const base = memoryArea();
+    let releaseWrite: (() => void) | undefined;
+    let writeStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => { writeStarted = resolve; });
+    const gate = new Promise<void>((resolve) => { releaseWrite = resolve; });
+    let blockNext = false;
+    const area: AutomationStateArea = {
+      get: base.get,
+      set: async (key, value) => {
+        if (blockNext) { blockNext = false; writeStarted?.(); await gate; }
+        await base.set(key, value);
+      },
+    };
+    const store = createBrowserRuleStore(area, { id: () => 'b-1' });
+    await store.save({ draft: draft() }, NOW);
+    await store.markMoving('b-1', NOW + 1);
+    const snapshot = (await store.list())[0]!;
+    const account = [{ id: 'a-1', definition: snapshot.definition, folderNativeId: snapshot.folderNativeId }];
+    blockNext = true;
+    const userChange = change === 'edit'
+      ? store.save({ id: 'b-1', draft: draft({ name: 'Edited', folderNativeId: '31' }) }, NOW + 2)
+      : store.stopMoving('b-1');
+    await started;
+    const refreshes = [store.retireIfDuplicate('b-1', account, NOW + 3), store.retireIfDuplicate('b-1', account, NOW + 3)];
+    releaseWrite?.();
+    await userChange;
+    expect(await Promise.all(refreshes)).toEqual([null, null]);
+    expect(await store.list()).toMatchObject([{ id: 'b-1' }]);
+    expect((await store.list())[0]).not.toHaveProperty('movingSince');
+  });
+
   it('is marked once, keeps the first time, and stops waiting when it is edited', async () => {
     const store = createBrowserRuleStore(memoryArea(), { id: () => 'b-1' });
     await store.save({ draft: draft() }, NOW);

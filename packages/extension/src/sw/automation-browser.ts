@@ -147,8 +147,8 @@ export async function retireMovedBrowserRules(account: readonly AccountRuleForOv
   const store = browserRuleStore(), now = Date.now(), retired: string[] = [];
   for (const rule of await store.list()) {
     if (rule.movingSince === undefined) continue;
-    const relation = relateBrowserRule({ id: rule.id, definition: rule.definition, folderNativeId: rule.folderNativeId }, account, undefined, now);
-    if (relation?.kind === 'duplicate' && await store.remove(rule.id)) retired.push(rule.definition.name);
+    const removed = await store.retireIfDuplicate(rule.id, account, now);
+    if (removed) retired.push(removed.definition.name);
   }
   return retired;
 }
