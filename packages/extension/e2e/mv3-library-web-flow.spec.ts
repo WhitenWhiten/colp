@@ -92,6 +92,11 @@ test('one library works across the real web, extension, local exclusions, saves 
     await expect(popup.locator('#dest-toggle')).toBeVisible();
     await expect(popup.locator('#dest-panel')).toBeVisible();
     await expect(popup.locator('#dest-toggle')).toHaveAttribute('aria-expanded', 'true');
+    await popup.getByRole('searchbox', { name: 'Search folders' }).fill('Keep on this browser');
+    await popup.locator(`[data-folder-id="${native.privateFolder}"]`).first().click();
+    await expect(popup.getByText('This folder stays on this browser', { exact: false })).toBeVisible();
+    await expect(popup.getByRole('button', { name: 'Sync it…', exact: true })).toBeVisible();
+    await popup.locator('#dest-toggle').click();
     await popup.getByRole('searchbox', { name: 'Search folders' }).fill('Web to browser');
     await popup.locator(`[data-folder-id="${nativeWebFolder}"]`).first().click();
     await popup.locator('#tab-title').fill('Saved from popup');

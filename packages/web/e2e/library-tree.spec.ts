@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures'
 import { fulfillPassiveFeatureRequest } from './helpers/passive-feature-mocks'
 
-test('a fresh account opens its two role folders and chooses every creation destination', async ({ page }) => {
+test('a library with a synced Mobile root chooses every creation destination', async ({ page }) => {
   const collection = { id: 'library', library: true, kind: 'bookmarks', title: 'Bookmarks', summary: null,
     visibility: 'private', allowSearchIndexing: false, publicationSlug: null, publishedAt: null, rootNodeId: 'root',
     revision: 'r1', etag: '"r1"', contentRevision: 'c1', contentEtag: '"c1"', policyRevision: 'p1', policyEtag: '"p1"',
