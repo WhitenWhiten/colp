@@ -37,7 +37,7 @@ test('shares a folder, shows only its subtree to a fresh visitor, and stops the 
           expect(route.request().headers()['known-command-id']).toMatch(/^[\da-f-]{36}$/)
           active = method === 'PUT'
         }
-        return json({ share: active ? share : null })
+        return json({ share: active ? share : null, unavailableReason: null })
       }
       if (path === `/api/v1/collections/${share.slug}`) {
         if (!active) return json({ error: { code: 'resource_not_found', message: 'Not found', recovery: 'none' } }, 404)

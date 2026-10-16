@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { isProductApiError, privateSessionIdentity, productClient, subscribeSession, type FolderShareView } from '../../api'
+import { isProductApiError, privateSessionIdentity, productClient, subscribeSession, type FolderShareState } from '../../api'
 import { useToast } from '../../components/AppToast'
 import { CopyField } from '../../components/CopyField'
 import { LoadingState } from '../../components/EmptyState'
@@ -11,7 +11,8 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
   const identity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const actor = useRef(identity)
   const controller = useRef<AbortController | null>(null)
-  const [share, setShare] = useState<FolderShareView | null>(null)
+  const [sharing, setSharing] = useState<FolderShareState>({ share: null, unavailableReason: null })
+  const { share, unavailableReason } = sharing
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [busy, setBusy] = useState(false)
   const { success, error } = useToast()
@@ -22,7 +23,7 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
     try {
       const response = await productClient.getFolderShare(collectionId, nodeId, { signal: active.signal, maxRetries: 0 })
       if (!current() || active.signal.aborted) return
-      setShare(response.share); setState('ready')
+      setSharing(response); setState('ready')
     } catch (cause) {
       if (!current() || active.signal.aborted) return
       error(isProductApiError(cause) ? cause.recoveryHint : 'Could not load this folder’s share link. Try again.')
@@ -43,8 +44,8 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
       const response = action === 'share' ? await productClient.putFolderShare(collectionId, nodeId, options)
         : await productClient.deleteFolderShare(collectionId, nodeId, options)
       if (!current()) return
-      setShare(response.share)
-      success(action === 'share' ? 'Folder shared by link' : 'Sharing stopped. The link no longer works.')
+      setSharing(response)
+      success(action === 'share' && !response.unavailableReason ? 'Folder shared by link' : 'Sharing stopped. The link no longer works.')
       await onChanged()
     } catch (cause) {
       if (current()) error(isProductApiError(cause) ? cause.recoveryHint : 'Could not change sharing. Try again.')
@@ -54,19 +55,22 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
   const url = share ? `${window.location.origin}/c/${encodeURIComponent(share.slug)}` : null
   return <Modal open onClose={() => { if (!busy) onClose() }} title={`Share ${title}`} label="Share folder">
     <div className="edit-form" aria-busy={busy || state === 'loading'}>
-      <p className="m-0">Anyone with the link can view this folder.</p>
+      <p className="m-0">{unavailableReason === 'folder_restricted'
+        ? 'This folder or one of its parents is private or protected. The link is unavailable until its visibility changes.'
+        : unavailableReason === 'publication_restricted' ? 'Public access to this library is restricted. This link is unavailable.'
+        : 'Anyone with the link can view this folder.'}</p>
       {state === 'loading' ? <LoadingState label="Loading share link…" /> : state === 'error'
         ? <button type="button" className="btn btn-secondary" onClick={() => void reload()}>Try again</button>
         : url ? <>
-          <CopyField label="Folder link" value={url} onCopied={() => success('Link copied')}
-            onCopyFailed={() => error('Couldn’t copy the link. Select and copy it.')} />
+          {!unavailableReason && <CopyField label="Folder link" value={url} onCopied={() => success('Link copied')}
+            onCopyFailed={() => error('Couldn’t copy the link. Select and copy it.')} />}
           <div className="row-end">
-            <a href={url} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">Open link</a>
+            {!unavailableReason && <a href={url} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">Open link</a>}
             <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void change('stop')}>Stop sharing</button>
           </div>
         </> : <>
           <p className="field-hint m-0">This folder has no share link yet. Your library stays private.</p>
-          <div className="row-end"><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void change('share')}>Create link</button></div>
+          <div className="row-end"><button type="button" className="btn btn-primary" disabled={busy || Boolean(unavailableReason)} onClick={() => void change('share')}>Create link</button></div>
         </>}
     </div>
   </Modal>

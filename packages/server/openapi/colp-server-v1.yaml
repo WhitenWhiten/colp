@@ -13299,8 +13299,12 @@ components:
     FolderShareState:
       type: object
       additionalProperties: false
-      required: [ share ]
+      required: [ share, unavailableReason ]
       properties:
+        unavailableReason:
+          type: [string, 'null']
+          enum: [folder_restricted, publication_restricted, null]
+          description: Why privacy or publication policy currently prevents access, including for an existing link.
         share:
           oneOf:
             - $ref: '#/components/schemas/FolderShareView'

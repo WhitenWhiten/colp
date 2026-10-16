@@ -1,3 +1,4 @@
+import { buildPublicationTargetAncestorRestrictionSql, collectionHidePublicControlSql } from '../database/collection-control-sql.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import { FolderShareError, type FolderShareUnitOfWork, type FolderShareView } from '../../modules/publication/application/folder-shares.js';
@@ -25,6 +26,13 @@ export function createPostgresFolderShareUnitOfWork(db: Kysely<DatabaseSchema>, 
         if (!collection.is_library || node.kind !== 'folder' || node.is_root) {
           throw new FolderShareError('invalid_document', 'Choose a folder inside your bookmark library to share.');
         }
+        const visibility = await sql<{ folder_restricted: boolean; publication_allowed: boolean }>`
+          SELECT ${sql.raw(buildPublicationTargetAncestorRestrictionSql('folder'))} AS folder_restricted,
+            ${sql.raw(collectionHidePublicControlSql('c'))} AS publication_allowed
+          FROM nodes folder JOIN collections c ON c.id = folder.collection_id
+          WHERE folder.id = ${nodeId} AND c.id = ${collectionId}`.execute(tx);
+        const facts = visibility.rows[0]!;
+        return facts.folder_restricted ? 'folder_restricted' : facts.publication_allowed ? null : 'publication_restricted';
       },
       async findLive(collectionId, nodeId) {
         const result = await sql<ShareRow>`SELECT * FROM folder_shares

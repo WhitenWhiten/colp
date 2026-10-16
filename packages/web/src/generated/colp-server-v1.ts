@@ -3523,6 +3523,11 @@ export interface components {
             createdAt: components["schemas"]["UtcDateTime"];
         };
         FolderShareState: {
+            /**
+             * @description Why privacy or publication policy currently prevents access, including for an existing link.
+             * @enum {string|null}
+             */
+            unavailableReason: "folder_restricted" | "publication_restricted" | null;
             share: components["schemas"]["FolderShareView"] | null;
         };
         LibraryCollection: {

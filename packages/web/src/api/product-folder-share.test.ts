@@ -12,7 +12,7 @@ test('folder share writes include cookies, CSRF and the same command id when a l
   vi.stubGlobal('fetch', async (url: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ url: String(url), init })
     if (lost) { lost = false; throw new TypeError('response lost') }
-    return Response.json({ share: null })
+    return Response.json({ share: null, unavailableReason: null })
   })
   const options = { intentId: 'share-response-replay', maxRetries: 0 }
   await expect(productClient.putFolderShare('library', 'folder', options)).rejects.toThrow()

@@ -85,6 +85,34 @@ describeWithPostgres('live unlisted library folder shares', () => {
     assert.equal((await put(bookmark.id)).statusCode, 422);
   });
 
+  test('restricted targets cannot create links and existing links report their effective restriction', async () => {
+    for (const visibility of ['private', 'protected']) {
+      const parent = await node(library.bookmarksBarId, `Hidden ${visibility}`, 'folder', visibility);
+      const child = await node(parent.id, `Inherited ${visibility}`);
+      for (const target of [parent, child]) {
+        const state = await app.inject({ method: 'GET', url: shareUrl(target.id), headers: { cookie: owner.cookie } });
+        assert.equal(state.json().unavailableReason, 'folder_restricted');
+        assert.equal(state.json().share, null);
+        const created = await put(target.id);
+        assert.equal(created.statusCode, 422, created.body);
+        assert.match(created.json().error.message, /private or protected/);
+        assert.equal((await isolated.runtime.db.selectFrom('folder_shares').select('id').where('node_id', '=', target.id).execute()).length, 0);
+      }
+    }
+    const folder = await node(library.bookmarksBarId, 'Later restricted');
+    const shared = await put(folder.id);
+    assert.equal(shared.json().unavailableReason, null);
+    const share = shared.json().share;
+    const patch = await app.inject({ method: 'PATCH', url: `/api/v1/collections/${library.id}/nodes/${folder.id}`, headers: {
+      ...headers(), 'if-match': folder.etag, 'content-type': 'application/merge-patch+json' }, payload: { visibility: 'private' } });
+    assert.equal(patch.statusCode, 200, patch.body);
+    const state = await app.inject({ method: 'GET', url: shareUrl(folder.id), headers: { cookie: owner.cookie } });
+    assert.equal(state.json().share.id, share.id);
+    assert.equal(state.json().unavailableReason, 'folder_restricted');
+    assert.equal((await getPage(share.slug)).statusCode, 404);
+    assert.equal((await app.inject({ method: 'DELETE', url: shareUrl(folder.id), headers: headers() })).statusCode, 200);
+  });
+
   test('share creation is idempotent, editor marks it, and revocation kills every old page and cursor', async () => {
     const folder = await node(library.bookmarksBarId, 'Shared reading');
     await node(folder.id, 'Page one', 'bookmark'); await node(folder.id, 'Page two', 'bookmark');
