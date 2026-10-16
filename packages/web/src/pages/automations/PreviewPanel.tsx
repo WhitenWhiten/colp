@@ -39,7 +39,7 @@ export function PreviewPanel({
   collectionTitle: string | null
   names: PreviewNames
   onPreview: () => void
-  /** The draft is not complete enough to preview. */
+  /** Another action on the page is running. An incomplete rule stays previewable: the page says what is missing. */
   disabled: boolean
 }) {
   const where = collectionTitle ? <strong>{collectionTitle}</strong> : 'the collection'

@@ -247,9 +247,26 @@ export function RuleEditor() {
     return created.id
   }
 
+  /** Says what is still missing, and puts the cursor on the first of it. */
+  function revealProblems() {
+    setShowProblems(true)
+    if (!workerConfigured) {
+      setAdvancedOpen(true)
+      const id = workerBindingId ? 'automation-execution-policy' : 'automation-worker-bindings'
+      requestAnimationFrame(() => document.getElementById(id)?.focus())
+      return
+    }
+    const first = problems[0]?.field
+    const empty = form.conditions.find((condition) => !condition.value.trim())
+    const id = first === 'conditions' && empty
+      ? `automation-condition-${empty.key}`
+      : first === 'folder' ? (form.collectionId ? 'automation-folder' : 'automation-collection') : null
+    if (id) document.getElementById(id)?.focus()
+  }
+
   async function runPreview() {
     if (!workerConfigured || (!canPreview && !jsonDefinition)) {
-      setShowProblems(true)
+      revealProblems()
       return
     }
     setBusy('preview')
@@ -295,7 +312,7 @@ export function RuleEditor() {
 
   async function save() {
     if (problems.length > 0) {
-      setShowProblems(true)
+      revealProblems()
       return
     }
     const base = saved ?? editing
@@ -734,7 +751,7 @@ export function RuleEditor() {
             busy={busy === 'preview'}
             collectionTitle={collectionTitle}
             names={{ rules: ruleNames, folders: new Map(chosenFolder ? [[chosenFolder.id, chosenFolder.title]] : []) }}
-            disabled={!workerConfigured || (!canPreview && !jsonDefinition)}
+            disabled={busy !== null}
             onPreview={() => void runPreview()}
           />
           <div className="automation-editor-actions">

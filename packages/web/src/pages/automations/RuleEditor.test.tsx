@@ -171,6 +171,24 @@ describe('Rule editor', () => {
     expect(api.createBindingSet).not.toHaveBeenCalled()
   })
 
+  it('lets Preview say what is missing, with the cursor on the first gap', async () => {
+    const api = mount('/automations/new')
+    await waitForDom(() => select('automation-collection')?.disabled === false)
+    const previewButton = buttonNamed('Preview')
+    expect(previewButton?.disabled).toBe(false)
+    click(previewButton)
+    await waitForDom(() => document.querySelectorAll('[role="alert"]').length === 2)
+    expect(document.activeElement).toBe(conditionInput())
+    expect(api.previewRule).not.toHaveBeenCalled()
+
+    const input = conditionInput()
+    if (!input) throw new Error('no condition input')
+    typeInto(input, 'arxiv.org')
+    click(buttonNamed('Preview'))
+    expect(document.activeElement).toBe(select('automation-collection'))
+    expect(api.previewRule).not.toHaveBeenCalled()
+  })
+
   it('previews and turns on a stored rule as stored, with its own binding and revision', async () => {
     const api = fakeApi()
     api.getRule.mockResolvedValue(rule('rule-arxiv', 'Papers to Academic', { desiredState: 'paused', effectiveState: 'paused', revision: '5' }))
@@ -279,7 +297,10 @@ describe('Rule editor', () => {
     click(buttonNamed('Apply JSON'))
     await waitForDom(() => Boolean(document.getElementById('automation-worker-bindings')))
     expect(document.body.textContent).toContain('pasting task JSON alone does not prepare them')
-    expect(buttonNamed(/^Preview( again)?$/)?.disabled).toBe(true)
+    // Preview stays available and points at what is missing instead of greying out.
+    click(buttonNamed(/^Preview( again)?$/))
+    expect(api.previewRule).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Enter both configuration IDs before previewing')
     typeInto(document.getElementById('automation-worker-bindings') as HTMLInputElement, 'prepared-bindings')
     typeInto(document.getElementById('automation-execution-policy') as HTMLInputElement, 'policy-1')
     await preview(api)
