@@ -43,22 +43,7 @@ export function createPostgresPublicMarksReadPort(
   runtime: Pick<DatabaseRuntime, 'pool'>,
 ): PublicMarksReadPort {
   return Object.freeze({
-    async findPublicMarksByNodeIds(collectionId: string, nodeIds: readonly string[]) {
-      if (nodeIds.length === 0) return new Map();
-      const result = await runtime.pool.query<NodeMarkRow>(
-        `select distinct on (subject_id, type) subject_id, type, value_json
-           from annotations
-          where collection_id = $1
-            and subject_type = 'node'
-            and subject_id = any($2::text[])
-            and type in ('tldr', 'note')
-            and visibility = 'public'
-            and deleted_at is null
-          order by subject_id, type, updated_at desc, id collate "C" desc`,
-        [collectionId, nodeIds],
-      );
-      return composeNodeMarks(result.rows);
-    },
+    findPublicMarksByNodeIds: (collectionId: string, nodeIds: readonly string[]) => readPublicNodeMarks(runtime.pool, collectionId, nodeIds),
     async findPublicMarksForCollections(collectionIds: readonly string[]) {
       if (collectionIds.length === 0) return new Map();
       const result = await runtime.pool.query<CollectionMarkRow>(
@@ -100,4 +85,28 @@ function markText(value: unknown): string | null {
   if (typeof value === 'string') return value;
   if (value === null || value === undefined) return null;
   return JSON.stringify(value);
+}
+export interface PublicMarksQuery {
+  query<Row extends import('pg').QueryResultRow>(text: string, values: unknown[]): Promise<{ rows: Row[] }>;
+}
+export async function readPublicNodeMarks(
+  query: PublicMarksQuery,
+  collectionId: string,
+  nodeIds: readonly string[],
+  options: { textOnly?: boolean } = {},
+): Promise<ReadonlyMap<string, PublicNodeMark>> {
+      if (nodeIds.length === 0) return new Map();
+      const result = await query.query<NodeMarkRow>(
+        `select distinct on (subject_id, type) subject_id, type, value_json
+           from annotations
+          where collection_id = $1
+            and subject_type = 'node'
+            and subject_id = any($2::text[])
+            and type in ('tldr', 'note')
+            and visibility = 'public'
+            and deleted_at is null
+          order by subject_id, type, updated_at desc, id collate "C" desc`,
+        [collectionId, nodeIds],
+      );
+      return composeNodeMarks(options.textOnly ? result.rows.filter(row => typeof row.value_json === 'string') : result.rows);
 }

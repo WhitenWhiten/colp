@@ -1,9 +1,8 @@
+import { projectPublicNode, safeAvatarUrl } from './public-page-projection.js';
 import { getProductPublicFolderSharePage, type PublicFolderShareReadPort } from './folder-share-public-query.js';
-import type { Relation, SnapshotNode } from '@know-n/colp/types';
+import type { Relation } from '@know-n/colp/types';
 import {
   attachBookmarkPreviewImages,
-  iconUrlForNode,
-  isBookmarkPinned,
   loadBookmarkIconObjectIds,
   type BookmarkPreviewImageView,
   type LinkPreviewReadPort,
@@ -165,10 +164,12 @@ export async function getProductPublicCollectionPage(
       `Public Collection page limit must be between 2 and ${PRODUCT_PUBLIC_COLLECTION_MAX_LIMIT}`,
     );
   }
-  const sharePage = await getProductPublicFolderSharePage(ports, { ...input, slug, limit });
-  if (sharePage) return sharePage;
   const collectionId = await ports.locators.findCollectionIdBySlug(slug);
-  if (collectionId === null) throw new ProductPublicCollectionNotFoundError();
+  if (collectionId === null) {
+    const sharePage = await getProductPublicFolderSharePage(ports, { ...input, slug, limit });
+    if (sharePage) return sharePage;
+    throw new ProductPublicCollectionNotFoundError();
+  }
   const context = Object.freeze({
     slug,
     principal: input.principal.kind === 'anonymous' ? 'anonymous' : `account:${input.principal.principalId}`,
@@ -248,7 +249,7 @@ export async function getProductPublicCollectionPage(
       Object.freeze({ id, fromNodeId, toNodeId, type, ...(label === undefined ? {} : { label }) })) } : {}),
     nodes: mergeModerationTombstones(
       await attachBookmarkPreviewImages(ports.linkPreviews, ports.productOrigin, result.snapshot.nodes.map((node) =>
-        mapNode(node, iconObjectIds, ports.productOrigin, marksByNodeId, faviconSourceModes, cdnAllowed))),
+        projectPublicNode(node, iconObjectIds, ports.productOrigin, marksByNodeId, faviconSourceModes, cdnAllowed))),
       result.moderationHiddenBookmarks,
     ),
     page: Object.freeze({
@@ -257,18 +258,6 @@ export async function getProductPublicCollectionPage(
       sequence: result.snapshot.page.sequence,
     }),
   });
-}
-
-function safeAvatarUrl(value: string | null): string | null {
-  if (value === null || value === '') return null;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'https:' && parsed.username === '' && parsed.password === ''
-      ? parsed.href
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 function normalizeSlug(value: string): string {
@@ -314,40 +303,3 @@ function compareProductPublicNodes(
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }
 
-function mapNode(
-  node: SnapshotNode,
-  iconObjectIds: ReadonlyMap<string, string>,
-  productOrigin: string | undefined,
-  marksByNodeId: ReadonlyMap<string, ProductPublicNodeMarks> | undefined,
-  faviconSourceModes: ReadonlyMap<string, 'inherit' | 'online' | 'uploaded' | 'none'>,
-  collectionCdnAllowed: boolean,
-): ProductPublicCollectionNode {
-  if (!['root', 'folder', 'bookmark'].includes(node.kind) || typeof node.title !== 'string') {
-    throw new Error('Publication Snapshot contains an unsupported Product page node');
-  }
-  if (node.kind === 'bookmark' && typeof node.url !== 'string') {
-    throw new Error('Publication Snapshot Bookmark is missing its URL');
-  }
-  const marks = marksByNodeId?.get(node.id);
-  // Keep the legacy policy field false for old clients as well. Folder/root nodes carry no icon.
-  const nodeCdnAllowed = node.kind !== 'bookmark'
-    ? undefined
-    : collectionCdnAllowed;
-  return Object.freeze({
-    id: node.id,
-    parentId: node.parentId,
-    kind: node.kind as ProductPublicCollectionNode['kind'],
-    title: node.title,
-    description: node.description ?? null,
-    url: node.kind === 'bookmark' ? node.url! : null,
-    position: node.position,
-    iconUrl: node.kind === 'bookmark' && faviconSourceModes.get(node.id) !== 'none'
-      ? iconUrlForNode(node.id, iconObjectIds, productOrigin)
-      : null,
-    ...(nodeCdnAllowed === undefined ? {} : { faviconCdnAllowed: nodeCdnAllowed }),
-    ...(node.kind === 'bookmark' ? { previewImage: null } : {}),
-    ...(node.kind === 'bookmark' && isBookmarkPinned(node.extensions) ? { pinned: true as const } : {}),
-    ...(marks?.tldr ? { tldr: marks.tldr } : {}),
-    ...(marks?.note ? { note: marks.note } : {}),
-  });
-}

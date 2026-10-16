@@ -1,4 +1,6 @@
-import { sql, type Kysely } from 'kysely';
+import { projectPublicNode } from '../../modules/publication/application/public-page-projection.js';
+import { readPublicNodeMarks } from './postgres-public-marks-read.js';
+import { CompiledQuery, sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createUnitOfWork } from '../database/unit-of-work.js';
 import { COLLECTION_OWNER_LIVE_SQL, buildPublicationTargetAncestorRestrictionSql,
@@ -50,23 +52,17 @@ export function createPostgresPublicFolderShareReadPort(db: Kysely<DatabaseSchem
       ? { phase: 'relations', after: lastRelation.id }
       : { phase: 'nodes', after: lastNode!.id === share.id ? '' : lastNode!.id };
     const nodeIds = selected.map(row => row.id);
-    const annotations = nodeIds.length ? (await sql<{ subject_id: string; type: 'tldr' | 'note'; value_json: unknown }>`
-      SELECT DISTINCT ON (subject_id, type) subject_id, type, value_json FROM annotations
-      WHERE collection_id = ${share.collection_id} AND subject_type = 'node'
-        AND subject_id = ANY(${nodeIds}::text[]) AND type IN ('tldr', 'note')
-        AND visibility = 'public' AND deleted_at IS NULL
-      ORDER BY subject_id, type, updated_at DESC, id COLLATE "C" DESC`.execute(tx)).rows : [];
-    const marks = new Map<string, { note?: string; tldr?: string }>();
-    for (const annotation of annotations) {
-      if (typeof annotation.value_json !== 'string' || !['tldr', 'note'].includes(annotation.type)) continue;
-      const value = marks.get(annotation.subject_id) ?? {};
-      value[annotation.type as 'tldr' | 'note'] ??= annotation.value_json; marks.set(annotation.subject_id, value);
-    }
-    const nodes: ProductPublicCollectionNode[] = selected.map(row => ({ id: row.id,
+    const marks = await readPublicNodeMarks({
+      async query<Row extends import('pg').QueryResultRow>(text: string, values: unknown[]) {
+        return tx.executeQuery<Row>(CompiledQuery.raw(text, values));
+      },
+    }, share.collection_id, nodeIds, { textOnly: true });
+    const nodes: ProductPublicCollectionNode[] = selected.map(row => projectPublicNode({
+      id: row.id,
       parentId: row.id === share.id ? null : row.parent_id, kind: row.id === share.id ? 'root' : row.kind,
-      title: row.title, description: row.description, url: row.kind === 'bookmark' ? row.url : null,
-      position: row.id === share.id ? null : row.position_token, iconUrl: null,
-      ...(row.kind === 'bookmark' ? { faviconCdnAllowed: false, previewImage: null } : {}), ...marks.get(row.id) }));
+      title: row.title, description: row.description, ...(row.kind === 'bookmark' ? { url: row.url } : {}),
+      position: row.id === share.id ? null : row.position_token,
+    }, new Map(), undefined, marks, new Map(), false));
     return { shareId: share.share_id, collectionId: share.collection_id, ownerSubjectId: share.owner_subject_id,
       title: share.title, description: share.description, rootId: share.id, updatedAt: share.updated_at.toISOString(),
       nextPosition, nodes,

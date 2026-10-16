@@ -1,3 +1,4 @@
+import { safeAvatarUrl } from './public-page-projection.js';
 import type { ProductPublicCollectionPage, ProductPublicCollectionNode, ProductPublicCollectionQueryPorts } from './product-public-query.js';
 
 export interface FolderSharePosition { readonly phase: 'nodes' | 'relations'; readonly after: string }
@@ -43,19 +44,14 @@ export async function getProductPublicFolderSharePage(ports: ProductPublicCollec
   });
   if (!tree) return null;
   const owner = await ports.owners.findByOwnerSubjectId(tree.ownerSubjectId);
-  if (!owner || owner.ownerSubjectId !== tree.ownerSubjectId || !owner.displayName) throw new FolderSharePublicReadError('resource_not_found');
-  let avatarUrl: string | null = null;
-  try {
-    const url = new URL(owner.avatarUrl ?? '');
-    if (url.protocol === 'https:' && !url.username && !url.password) avatarUrl = url.href;
-  } catch { /* No public avatar. */ }
+  if (!owner || owner.ownerSubjectId !== tree.ownerSubjectId || !owner.displayName || owner.displayName.length > 120) throw new FolderSharePublicReadError('resource_not_found');
   const cursor = tree.nextPosition ? ports.cursors.product.sign({ ...context,
     nextPosition: JSON.stringify({ ...tree.nextPosition, sequence: sequence + 1, expiresAt }) }) : null;
   return {
     collection: { id: tree.collectionId, slug: input.slug, title: tree.title, summary: tree.description,
       kind: 'bookmarks', rootNodeId: tree.rootId, updatedAt: tree.updatedAt, access: 'public',
       folderShare: true, viewCount: 0, curatorNote: null,
-      owner: { profileId: owner.profileId, handle: owner.handle, displayName: owner.displayName, avatarUrl }, faviconCdnAllowed: false },
+      owner: { profileId: owner.profileId, handle: owner.handle, displayName: owner.displayName, avatarUrl: safeAvatarUrl(owner.avatarUrl) }, faviconCdnAllowed: false },
     nodes: tree.nodes,
     ...(input.includeRelations ? { relations: tree.relations } : {}),
     page: { cursor, hasMore: cursor !== null, sequence },
