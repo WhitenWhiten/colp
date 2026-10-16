@@ -1,3 +1,4 @@
+import { deletionNodeKind } from './bookmark-deletion-scope.js';
 import { subtreeDeleteSource } from '@know-n/colp/sync/canonical';
 import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -36,7 +37,7 @@ export async function scopeSubtreeDeleteSource(store: ReturnType<typeof createSy
 export async function remoteSubtreeMappings(store: ReturnType<typeof createSyncStateStore>, scope: SyncScope): Promise<MappingInput[]> {
   const header = await store.getRecoveryHeader(scope);
   const rows: MappingInput[] = header?.complete ? (await store.listRecoveryNodes(scope))
-    .filter(row => row.snapshotId === header.snapshotId).map(row => ({ ...row.mapping,
+    .filter(row => row.snapshotId === header.snapshotId).map(row => ({ ...row.mapping, nodeKind: deletionNodeKind({ snapshotKind: row.kind, mappedKind: row.mapping.nodeKind }),
       ...(row.parentId ? { parentColpId: row.parentId } : {}) })) : await store.listMappings(scope);
   if (!header?.complete) {
     const byId = new Map(rows.map(row => [row.colpId, row]));
@@ -51,7 +52,8 @@ export async function remoteSubtreeMappings(store: ReturnType<typeof createSyncS
       if (prior && !parentId) continue;
       byId.set(observation.colpId, { ...(prior ?? { nativeId: `sidecar:${observation.colpId}`,
         colpId: observation.colpId, rootNativeId: 'remote-observation' }),
-      ...(parentId ? { parentColpId: parentId } : {}), projection: { ...(prior?.projection ?? { digest: observation.sourceDigest }),
+      ...(parentId ? { parentColpId: parentId } : {}),
+      nodeKind: deletionNodeKind({ mappedKind: prior?.nodeKind, mappedContent: payload }), projection: { ...(prior?.projection ?? { digest: observation.sourceDigest }),
         revision: observation.remoteRevision } });
     }
     return [...byId.values()];

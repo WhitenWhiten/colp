@@ -134,6 +134,21 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     store.close();
   });
 
+  test('role-root trash uses remote-only bookmark kind evidence', async () => {
+    const store = await activeStore();
+    await seedBar(store);
+    await store.putRemoteObservation(scope, { colpId: 'remote-only-bm', remoteRevision: 'remote-only-r1', cursor: 'c1',
+      kind: 'content', payload: { parentId: 'remote-bar', title: 'Remote only', url: 'https://example.test/remote' },
+      sourceDigest: 'digest', observedAt: 1 });
+    const { preview } = await previewRangeChange(store, scope, { roots: tree(), selectedNativeIds: ['bar'], privateNativeIds: ['bar'] });
+    const { frozenRemoteDeleteCommand } = await import('../src/scope-commands.js');
+    assert.equal((await executeRemoteDelete(store, scope, frozenRemoteDeleteCommand(preview, 'bar')!)).ok, true);
+    const queued = await store.listQueue(scope);
+    assert.deepEqual(queued.map(row => row.payload.targetId).sort(), ['colp-bm-1', 'remote-only-bm']);
+    assert.ok(queued.every(row => row.payload.type === 'delete_node'));
+    store.close();
+  });
+
   test('excluding an empty browser root has a zero-content trash plan', async () => {
     const store = await activeStore();
     await seedBar(store);
