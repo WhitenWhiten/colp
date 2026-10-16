@@ -11,6 +11,7 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
   const identity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const actor = useRef(identity)
   const controller = useRef<AbortController | null>(null)
+  const pendingIntent = useRef<{ action: 'share' | 'stop'; id: string } | null>(null)
   const [sharing, setSharing] = useState<FolderShareState>({ share: null, unavailableReason: null })
   const { share, unavailableReason } = sharing
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -23,6 +24,8 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
     try {
       const response = await productClient.getFolderShare(collectionId, nodeId, { signal: active.signal, maxRetries: 0 })
       if (!current() || active.signal.aborted) return
+      // A successful read resolves any earlier ambiguous write. The next action is new.
+      pendingIntent.current = null
       setSharing(response); setState('ready')
     } catch (cause) {
       if (!current() || active.signal.aborted) return
@@ -40,10 +43,13 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
     if (busy || !current()) return
     setBusy(true)
     try {
-      const options = { intentId: productClient.mutationIntentKey(`folder-share:${collectionId}:${nodeId}`, action), signal: controller.current?.signal }
+      if (pendingIntent.current?.action !== action) pendingIntent.current = { action,
+        id: productClient.mutationIntentKey(`folder-share:${collectionId}:${nodeId}:${action}`, productClient.newCommandId()) }
+      const options = { intentId: pendingIntent.current.id, signal: controller.current?.signal, maxRetries: 0 }
       const response = action === 'share' ? await productClient.putFolderShare(collectionId, nodeId, options)
         : await productClient.deleteFolderShare(collectionId, nodeId, options)
       if (!current()) return
+      pendingIntent.current = null
       setSharing(response)
       success(action === 'share'
         ? response.unavailableReason ? 'The share link is currently unavailable.' : 'Folder shared by link'
