@@ -41,7 +41,7 @@ describe('Automations home', () => {
     mount(api)
     await waitForDom(() => text('[data-rule-id="rule-arxiv"] [data-testid="automation-sentence"]').includes('Academic'))
     expect(text('[data-rule-id="rule-arxiv"] [data-testid="automation-sentence"]'))
-      .toBe('When a bookmark saved to Personal is from arxiv.org, move it to Academic.')
+      .toBe('When a bookmark saved to Bookmarks is from arxiv.org, move it to Academic.')
     expect(text('[data-rule-id="rule-arxiv"] [data-state]')).toBe('On')
     expect(buttonNamed('Pause', document.querySelector('[data-rule-id="rule-arxiv"]') ?? document)).toBeDefined()
   })

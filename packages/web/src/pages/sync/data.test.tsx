@@ -25,7 +25,7 @@ vi.mock('../../api', async (importOriginal) => {
       getSyncStatus: mocks.status,
       loadSyncConflicts: mocks.conflicts,
       loadSyncTrash: mocks.trash,
-      getOwnedCollectionsPage: mocks.collections,
+      getLibrary: mocks.collections,
     },
   }
 })
@@ -77,7 +77,7 @@ describe('useSyncCenterData load ordering', () => {
     mocks.status.mockImplementation(() => defer(statusCalls))
     mocks.conflicts.mockImplementation(() => defer(conflictCalls))
     mocks.trash.mockResolvedValue([])
-    mocks.collections.mockResolvedValue({ items: [], page: { hasMore: false } })
+    mocks.collections.mockResolvedValue({ id: 'collection-a', title: 'Bookmarks', library: true, rootNodeId: 'root', bookmarksBarId: 'bar', otherBookmarksId: 'other' })
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })
   afterEach(() => { cleanup(); document.body.innerHTML = '' })

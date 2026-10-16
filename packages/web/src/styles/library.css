@@ -2376,8 +2376,6 @@ body[data-bookmark-drag] {
 }
 
 
-}
-
 /* A quiet link mark stays next to the folder name, before its count. */
 .library-share-mark {
   display: inline-flex;
@@ -2389,4 +2387,6 @@ body[data-bookmark-drag] {
 .library-share-mark svg {
   width: 1em;
   height: 1em;
+}
+
 }

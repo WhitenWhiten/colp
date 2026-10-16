@@ -17,7 +17,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import authSource from '../auth/AuthContext.tsx?raw'
-import createCollectionSource from '../pages/CreateCollection.tsx?raw'
 import collectionEditorRoot from '../pages/CollectionEditor.tsx?raw'
 import collectionSource from '../pages/Collection.tsx?raw'
 import libraryCollectionSource from '../pages/library-desk/LibraryDesk.tsx?raw'
@@ -78,7 +77,6 @@ const exactTransportImport = /from ['"]\.\/product-transport['"]/
 
 const phase1Consumers = {
   AuthContext: authSource,
-  CreateCollection: createCollectionSource,
   CollectionEditor: collectionEditorSurface,
   Collection: collectionSurface,
   LibraryDesk: libraryCollectionSurface,
