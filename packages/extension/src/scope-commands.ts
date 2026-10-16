@@ -115,6 +115,19 @@ export async function executeRemoteDelete(store: Store, scope: SyncScope, comman
   if (freeze && command.affectedCount !== freeze.affectedCount) {
     return { ok: false, error: 'confirmation_mismatch' };
   }
+  if (mount.rootRole) {
+    if (!command.previewId || !freeze?.subtreeSource || !freeze.contentDeletes || freeze.remoteMountNodeId !== mount.remoteMountNodeId
+      || freeze.boundaryVersion !== mount.boundaryVersion) return { ok: false, error: 'preview_stale' };
+    const operations = freeze.contentDeletes.map(child => ({ ...child,
+      opId: `range.private.${digestJson([command.previewId!, child.targetId]).slice(7)}` }));
+    // A retry resumes the frozen plan even after some children have echoed.
+    if (!(await Promise.all(operations.map(child => store.getQueueByOpId(scope, child.opId)))).some(Boolean)) {
+      const source = await scopeSubtreeDeleteSource(store, scope, mount.remoteMountNodeId);
+      if (digestJson(source) !== digestJson(freeze.subtreeSource)) return { ok: false, error: 'preview_stale' };
+    }
+    for (const child of operations) await enqueueColpDelete(store, scope, child);
+    return { ok: true, phase: 'syncing', firstRun: 'completed' };
+  }
   let liveCount: number;
   try { liveCount = await countMountAffected(store, scope, command.mountId); }
   catch (error) {

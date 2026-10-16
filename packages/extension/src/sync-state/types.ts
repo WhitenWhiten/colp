@@ -223,6 +223,9 @@ export interface RemoteDeleteFreezeEntry {
   readonly nativeRootId: string; readonly mountId: string; readonly remoteMountNodeId: string;
   readonly affectedCount: number; readonly boundaryVersion: string;
   readonly subtreeSource?: JsonObject;
+  /** Role folders survive; only these frozen direct children enter trash. */
+  readonly contentDeletes?: readonly { readonly targetId: string; readonly kind: 'folder' | 'bookmark' | 'separator';
+    readonly baseRevision: string; readonly source: JsonObject }[];
 }
 export interface BootstrapRunRecord {
   readonly scopeKey: string; readonly runId: string; readonly phase: BootstrapRunPhase;

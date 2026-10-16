@@ -4,7 +4,7 @@ import { digestJson } from './bookmark-event-codec.js';
 import { scanBoundary, type BoundaryScan } from './bookmark-boundary.js';
 import type { NormalizedBookmarkRoot } from './chrome-bookmark-tree.js';
 import { PREVIEW_TTL_MS } from './sync-state/mount-repository.js';
-import { scopeSubtreeDeleteSource } from './subtree-observation.js';
+import { mappedSubtreeDeleteSource, remoteSubtreeMappings, scopeSubtreeDeleteSource } from './subtree-observation.js';
 import type {
   MappingInput, MountBindingRecord, RemoteDeleteFreezeEntry, ScopePreviewRecord, SyncScope,
   createSyncStateStore,
@@ -76,7 +76,6 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   const previousPrivate = new Set((recorded?.privateRoots ?? []).map(id => mappings.find(row => row.colpId === id)?.nativeId).filter((id): id is string => Boolean(id)));
   const nextPrivate = new Set(input.privateNativeIds ?? []);
   const newlyPrivate = [...nextPrivate].filter(id => !previousPrivate.has(id)
-    && !liveMounts.some(mount => mount.nativeRootId === id)
     && mappings.some(row => row.nativeId === id && !row.projection.revision.startsWith('local-')));
   const reincluded = [...previousPrivate].filter(id => discovered.has(id) && (scan.selectedNativeIds.includes(id) || (discovered.get(id) ?? []).some(ancestor => scan.selectedNativeIds.includes(ancestor))) && !nextPrivate.has(id)
     && !(discovered.get(id) ?? []).some(ancestor => nextPrivate.has(ancestor)));
@@ -161,7 +160,7 @@ export async function applyConfirmedRange(store: Store, scope: SyncScope, input:
   for (const nativeId of input.preview.removedNativeIds ?? []) {
     if (keep.has(nativeId) || remoteDelete.has(nativeId)) continue;
     const mount = byNative.get(nativeId);
-    if (!mount || mount.status === 'detached') continue;
+    if (!mount || mount.status === 'detached' || mount.rootRole) continue;
     await detachScopeMount(store, scope, mount.mountId);
     unmounted.push(nativeId);
   }
@@ -222,6 +221,7 @@ async function remoteDeleteEvidenceFor(store: Store, scope: SyncScope, nativeIds
       affectedCount: await countRemoteMountDescendants(store, scope, mount),
       boundaryVersion: mount.boundaryVersion,
       subtreeSource: await scopeSubtreeDeleteSource(store, scope, mount.remoteMountNodeId),
+      ...(mount.rootRole ? { contentDeletes: await freezeRoleContents(store, scope, mount.remoteMountNodeId) } : {}),
     });
   }
   return evidence;
@@ -265,4 +265,12 @@ async function mergePreviewMounts(store: Store, scope: SyncScope, existing: read
     const { scopeKey: _scopeKey, ...row } = mount;
     await store.putMountBinding(scope, row);
   }
+}
+
+async function freezeRoleContents(store: Store, scope: SyncScope, rootId: string) {
+  const rows = await remoteSubtreeMappings(store, scope);
+  const byNative = new Map(rows.map(row => [row.nativeId, row.colpId]));
+  return rows.filter(row => (row.parentColpId ?? byNative.get(row.parentNativeId ?? '')) === rootId)
+    .map(row => ({ targetId: row.colpId, kind: row.nodeKind ?? 'folder' as const,
+      baseRevision: row.projection.revision, source: mappedSubtreeDeleteSource(row.colpId, rows) }));
 }

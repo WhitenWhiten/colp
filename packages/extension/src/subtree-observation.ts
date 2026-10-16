@@ -30,6 +30,10 @@ export function mappedSubtreeDeleteSource(rootId: string, mappings: readonly Map
 
 export async function scopeSubtreeDeleteSource(store: ReturnType<typeof createSyncStateStore>, scope: SyncScope,
   rootId: string) {
+  return mappedSubtreeDeleteSource(rootId, await remoteSubtreeMappings(store, scope));
+}
+
+export async function remoteSubtreeMappings(store: ReturnType<typeof createSyncStateStore>, scope: SyncScope): Promise<MappingInput[]> {
   const header = await store.getRecoveryHeader(scope);
   const rows: MappingInput[] = header?.complete ? (await store.listRecoveryNodes(scope))
     .filter(row => row.snapshotId === header.snapshotId).map(row => ({ ...row.mapping,
@@ -50,7 +54,7 @@ export async function scopeSubtreeDeleteSource(store: ReturnType<typeof createSy
       ...(parentId ? { parentColpId: parentId } : {}), projection: { ...(prior?.projection ?? { digest: observation.sourceDigest }),
         revision: observation.remoteRevision } });
     }
-    return mappedSubtreeDeleteSource(rootId, [...byId.values()]);
+    return [...byId.values()];
   }
-  return mappedSubtreeDeleteSource(rootId, rows);
+  return rows;
 }

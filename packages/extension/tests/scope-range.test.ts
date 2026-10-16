@@ -94,7 +94,7 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     if (!staleConfirm.ok) assert.equal(staleConfirm.error, 'preview_stale');
   });
 
-  test('unmount keeps native mapping, remote id and does not enqueue delete', async () => {
+  test('excluding a role root keeps its binding and does not enqueue delete', async () => {
     const store = await activeStore();
     await seedBar(store);
     const roots = tree();
@@ -103,11 +103,31 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     await applyConfirmedRange(store, scope, {
       preview, keepNativeIds: [], unmountNativeIds: ['bar'],
     });
-    assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'detached');
+    assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'active');
     assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.remoteMountNodeId, 'remote-bar');
     assert.equal((await store.getMappingByNativeId(scope, 'bm-1'))?.colpId, 'colp-bm-1');
     assert.equal((await store.listQueue(scope)).some((row) => row.payload.type === 'delete_node'
       || row.payload.type === 'delete_subtree'), false);
+  });
+
+  test('whole browser root exclusion appears in review and trashes contents idempotently', async () => {
+    const store = await activeStore();
+    await seedBar(store);
+    const { preview, diff } = await previewRangeChange(store, scope, {
+      roots: tree(), selectedNativeIds: ['bar'], privateNativeIds: ['bar'],
+    });
+    assert.deepEqual(diff.removedNativeIds, ['bar']);
+    assert.equal(preview.remoteDeleteEvidence?.[0]?.affectedCount, 1);
+    await applyConfirmedRange(store, scope, { preview, keepNativeIds: [], unmountNativeIds: [] });
+    const { frozenRemoteDeleteCommand } = await import('../src/scope-commands.js');
+    const command = frozenRemoteDeleteCommand(preview, 'bar')!;
+    assert.equal((await executeRemoteDelete(store, scope, command)).ok, true);
+    assert.equal((await executeRemoteDelete(store, scope, command)).ok, true);
+    const queued = await store.listQueue(scope);
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0]?.payload.targetId, 'colp-bm-1');
+    assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'active');
+    store.close();
   });
 
   test('explicit remote delete is a separate confirmed path with real COLP target', async () => {
@@ -129,8 +149,9 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     });
     assert.equal(accepted.ok, true);
     const queued = await store.listQueue(scope);
-    assert.equal(queued[0]?.payload.type, 'delete_subtree');
-    assert.equal(queued[0]?.payload.targetId, 'remote-bar');
+    assert.equal(queued[0]?.payload.type, 'delete_node');
+    assert.equal(queued[0]?.payload.targetId, 'colp-bm-1');
+    assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'active');
   });
 
   test('keeping a shifted ordinary folder preserves the COLP id', async () => {

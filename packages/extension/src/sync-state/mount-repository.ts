@@ -371,14 +371,15 @@ function validateRemoteDeleteEvidence(input: unknown): NonNullable<ScopePreviewR
   if (!Array.isArray(input)) throw new SyncStateError('preview_remote_evidence_invalid');
   return input.map((item) => {
     const row = strictObject(clone(item),
-      ['nativeRootId', 'mountId', 'remoteMountNodeId', 'affectedCount', 'boundaryVersion', 'subtreeSource'],
-      'preview remote evidence', ['subtreeSource']);
+      ['nativeRootId', 'mountId', 'remoteMountNodeId', 'affectedCount', 'boundaryVersion', 'subtreeSource', 'contentDeletes'],
+      'preview remote evidence', ['subtreeSource', 'contentDeletes']);
     return {
       nativeRootId: boundedString(row.nativeRootId, 'nativeRootId'),
       mountId: boundedString(row.mountId, 'mountId'),
       remoteMountNodeId: boundedString(row.remoteMountNodeId, 'remoteMountNodeId'),
       affectedCount: safeInteger(row.affectedCount, 'affectedCount'),
       boundaryVersion: boundedString(row.boundaryVersion, 'boundaryVersion', 64),
+      ...(row.contentDeletes === undefined ? {} : { contentDeletes: validateContentDeletes(row.contentDeletes) }),
       ...(row.subtreeSource === undefined ? {} : { subtreeSource: clone(row.subtreeSource) as import('./types.js').JsonObject }),
     };
   });
@@ -476,4 +477,14 @@ function validateDeletionJournal(key: string, input: unknown, maxBytes: number):
     ...(value.mountId === undefined ? {} : { mountId: boundedString(value.mountId, 'mountId') }),
     ...(value.contentDigest === undefined ? {} : { contentDigest: boundedString(value.contentDigest, 'contentDigest') }) };
   validateJson(record as never, 'deletion journal'); validateRecord(record, maxBytes); return record;
+}
+
+function validateContentDeletes(input: unknown): NonNullable<import('./types.js').RemoteDeleteFreezeEntry['contentDeletes']> {
+  if (!Array.isArray(input)) throw new SyncStateError('preview_remote_evidence_invalid');
+  return input.map(item => {
+    const row = strictObject(clone(item), ['targetId', 'kind', 'baseRevision', 'source'], 'content delete');
+    if (!['folder', 'bookmark', 'separator'].includes(String(row.kind))) throw new SyncStateError('preview_remote_evidence_invalid');
+    return { targetId: boundedString(row.targetId, 'targetId'), kind: row.kind as 'folder' | 'bookmark' | 'separator',
+      baseRevision: boundedString(row.baseRevision, 'baseRevision'), source: clone(row.source) as import('./types.js').JsonObject };
+  });
 }
