@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'vitest';
 import { encodeMcp20260728ParamValue } from '@know-n/colp/mcp';
-import { COLLECTION_KINDS } from '../../../src/modules/collections/index.js';
 import {
   PHASE4B_MCP_WRITE_COLLECTION_ID_HEADER,
   PHASE4B_MCP_WRITE_MOUNTED_TOOL_NAMES,
   PHASE4B_MCP_WRITE_TOOL_REQUIRED_SCOPES,
   PHASE4B_MCP_WRITE_TOOL_PARAM_DECLARATIONS,
-  Phase4bMcpLowRiskNodeCreateError,
 } from '../../../src/modules/mcp/index.js';
 import { createInMemoryWriteToolFixture } from '../../support/phase4b-mcp-write-tools-fixture.js';
 import {
@@ -128,80 +126,19 @@ test('write Tool constants expose no direct nodes.set_visibility surface', () =>
   ]);
 });
 
-test('collections.create returns a private collectionId and rootNodeId', async () => {
+test('collections.create refuses with library and browser-folder identities', async () => {
   const fixture = createInMemoryWriteToolFixture();
   const auth = await authFixture(WRITE_SCOPES);
   const server = await startApi(mcpEnv(WRITE_SCOPES), auth, fixture);
   const response = await postJson(server, 'tools/call', 8, {
-    headers: {
-      authorization: `Bearer ${auth.token}`,
-      'mcp-name': 'collections.create',
-    },
-    body: modernBody('tools/call', 8, {
-      name: 'collections.create',
-      arguments: { title: '测试收藏夹', idempotencyKey: crypto.randomUUID() },
-    }),
-  });
-  assert.equal(response.status, 200);
-  const payload = parseJsonRpc(await response.text());
-  assert.equal(payload.error, undefined);
-  const content = payload.result?.structuredContent as {
-    readonly collectionId?: string;
-    readonly rootNodeId?: string;
-    readonly visibility?: string;
-    readonly title?: string;
-    readonly revision?: string;
-    readonly contentRevision?: string;
-    readonly policyRevision?: string;
-    readonly rootRevision?: string;
-    readonly childrenRevision?: string;
-  };
-  assert.equal(content.collectionId, 'col-w06-created');
-  assert.equal(content.rootNodeId, 'root-w06-created');
-  assert.equal(content.visibility, 'private');
-  assert.equal(content.title, '测试收藏夹');
-  assert.equal(content.revision, 'res-w06-created');
-  assert.equal(content.contentRevision, 'cnt-w06-created');
-  assert.equal(content.policyRevision, 'pol-w06-created');
-  assert.equal(content.rootRevision, 'root-res-w06-created');
-  assert.equal(content.childrenRevision, 'ch-w06-created');
-});
-
-
-test('collections.create catalog reject on the wire names field and retries collections.create', async () => {
-  const fixture = createInMemoryWriteToolFixture({
-    collectionCreateService: Object.freeze({
-      execute: async () => {
-        throw new Phase4bMcpLowRiskNodeCreateError(
-          'invalid_catalog_input',
-          'collections.create title must be a non-empty string.',
-          { field: 'title', nextTool: 'collections.create' },
-        );
-      },
-    }),
-  });
-  const auth = await authFixture(WRITE_SCOPES);
-  const server = await startApi(mcpEnv(WRITE_SCOPES), auth, fixture);
-  const response = await postJson(server, 'tools/call', 9, {
-    headers: {
-      authorization: `Bearer ${auth.token}`,
-      'mcp-name': 'collections.create',
-    },
-    body: modernBody('tools/call', 9, {
-      name: 'collections.create',
-      arguments: { title: '测试收藏夹', idempotencyKey: crypto.randomUUID() },
-    }),
+    headers: { authorization: `Bearer ${auth.token}`, 'mcp-name': 'collections.create' },
+    body: modernBody('tools/call', 8, { name: 'collections.create', arguments: {} }),
   });
   assert.equal(response.status, 200);
   const payload = parseJsonRpc(await response.text());
   assert.equal(payload.error?.code, -32602);
-  assert.deepEqual(payload.error?.data, {
-    code: 'invalid_params',
-    field: 'title',
-    allowedKinds: COLLECTION_KINDS,
-    allowedVisibilities: ['private'],
-    nextTool: 'collections.create',
-  });
+  const serialized = JSON.stringify(payload.error);
+  for (const value of ['library_protected', 'nodes.create', 'col-w06-library', 'bar-w06-library', 'other-w06-library']) assert.ok(serialized.includes(value), serialized);
 });
 
 test('low-risk nodes.create executes with encoded custom Mcp-Name/Param headers and secret-safe output', async () => {

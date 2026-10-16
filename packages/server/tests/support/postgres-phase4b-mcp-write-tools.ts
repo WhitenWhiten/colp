@@ -1,3 +1,4 @@
+import { createPostgresLibraryCollectionUnitOfWork } from '../../src/infrastructure/collections/library-collection-postgres.js';
 import { createPhase4bMcpGatewayPlanner } from '../../src/modules/mcp/change-plan-gateway-planner.js';
 import { createPhase4bMcpChangePlanDigestVerifier } from '../../src/modules/mcp/change-plan-service.js';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -181,7 +182,7 @@ export function createPostgresPhase4bMcpWriteHarness(
   const bundle = createPhase4bMcpWriteToolAdapter({
     changePlan: { ...changePlan, planner: createPhase4bMcpGatewayPlanner(changePlan) } as McpChangePlanServiceOptions,
     nodeCreateService: createPhase4bMcpLowRiskNodeCreateService({ unitOfWork, inspect }),
-    collectionCreateService: createPhase4bMcpOwnedCollectionCreateService({ unitOfWork }),
+    collectionCreateService: createPhase4bMcpOwnedCollectionCreateService({ libraryCollectionUnitOfWork: createPostgresLibraryCollectionUnitOfWork(runtime.db) }),
     nodeUpdateService: createPhase4bMcpLowRiskNodeUpdateService({ unitOfWork, inspect }),
     collectionUpdateService: createPhase4bMcpLowRiskCollectionUpdateService({
       unitOfWork,

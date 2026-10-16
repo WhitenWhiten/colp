@@ -17,7 +17,8 @@ import {
   McpChangePlanError,
   type Mcp20260728WireErrorKind,
 } from '@know-n/colp/mcp';
-import { CollectionsError, COLLECTION_KINDS } from '../collections/index.js';
+import { LibraryFolderRequiredError, libraryFolderRequiredMessage } from './owned-collection-mcp.js';
+import { CollectionsError, COLLECTION_KINDS, type LibraryCollection } from '../collections/index.js';
 import { MCP_PLAN_IMPACT_EXCEEDED_MESSAGE } from './agent-plan-history-error.js';
 import type { McpApplicationRejectedResult } from './application-results.js';
 import {
@@ -55,6 +56,7 @@ export type Phase4bMcpWriteErrorClass =
 export type Phase4bMcpWriteErrorOutcome = 'rejected' | 'cancelled' | 'dependency_error';
 
 export type Phase4bMcpWriteErrorClassification = Readonly<{
+  readonly library?: LibraryCollection;
   readonly stableClass: Phase4bMcpWriteErrorClass;
   readonly colpKind: Extract<
     Mcp20260728WireErrorKind,
@@ -251,6 +253,7 @@ const CLASSIFICATION_BY_STABLE_CLASS = Object.freeze({
 }) satisfies Record<Phase4bMcpWriteErrorClass, Phase4bMcpWriteErrorClassification>;
 
 export function classifyPhase4bMcpWriteError(error: unknown): Phase4bMcpWriteErrorClassification {
+  if (error instanceof LibraryFolderRequiredError) return { ...LIBRARY_PROTECTED, safeMessage: error.message, library: error.library };
   if (error instanceof CollectionsError && error.code === 'library_protected') return LIBRARY_PROTECTED;
   if (error instanceof Phase4bMcpLowRiskNodeCreateError) {
     return classifyPhase4bMcpLowRiskNodeCreateError(error);
@@ -292,6 +295,9 @@ const CHANGE_PLAN_REJECTION_MESSAGES: Readonly<Record<string, string>> = Object.
 });
 
 export function rethrowPhase4bMcpWriteAdapterError(error: unknown): never {
+  if (error instanceof CollectionsError && error.code === 'library_protected') {
+    throw toPhase4bMcpWriteRequestError(LIBRARY_PROTECTED);
+  }
   if (error instanceof Mcp20260728RequestError && error.kind === 'internal_error') {
     throw new Error('Internal error');
   }
@@ -340,12 +346,6 @@ const NODE_UPDATE_HINT = Object.freeze({
   nextTool: 'nodes.update' as const,
 });
 
-const COLLECTION_CREATE_HINT = Object.freeze({
-  allowedKinds: COLLECTION_KINDS,
-  allowedVisibilities: Object.freeze(['private'] as const),
-  nextTool: 'collections.create' as const,
-});
-
 const COLLECTION_UPDATE_HINT = Object.freeze({
   allowedKinds: COLLECTION_KINDS,
   allowedVisibilities: Object.freeze(['private'] as const),
@@ -380,13 +380,12 @@ export function toPhase4bMcpWriteRequestError(
     return new Mcp20260728RequestError(classification.colpKind, classification.safeMessage);
   }
   const data: Record<string, unknown> = { code: classification.stableClass };
+  if (classification.library) { data.library = classification.library; data.nextTool = 'nodes.create'; }
   if (
     classification.stableClass === 'invalid_params'
     || classification.stableClass === 'parent_invalid'
   ) {
-    const catalogHint = hint?.nextTool === 'collections.create'
-      ? COLLECTION_CREATE_HINT
-      : hint?.nextTool === 'collections.update'
+    const catalogHint = hint?.nextTool === 'collections.update'
         ? COLLECTION_UPDATE_HINT
         : hint?.nextTool === 'nodes.update'
           ? NODE_UPDATE_HINT
@@ -445,6 +444,10 @@ function classificationFromRequestErrorData(
   if (data === undefined || typeof data !== 'object' || Array.isArray(data)) return undefined;
   const code = (data as { readonly code?: unknown }).code;
   if (!isPhase4bMcpWriteErrorClass(code)) return undefined;
+  const library = (data as { readonly library?: unknown }).library;
+  if (code === 'library_protected' && isLibraryIdentity(library)) {
+    return { ...LIBRARY_PROTECTED, library, safeMessage: libraryFolderRequiredMessage(library) };
+  }
   return CLASSIFICATION_BY_STABLE_CLASS[code];
 }
 
@@ -456,4 +459,12 @@ function classifyCancelledError(error: unknown): Phase4bMcpWriteErrorClassificat
   if (error.name === 'AbortError' || error.name === 'McpReadRequestAbortedError') return CANCELLED;
   if (error.message === 'aborted') return CANCELLED;
   return undefined;
+}
+
+function isLibraryIdentity(value: unknown): value is LibraryCollection {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return row.library === true && typeof row.title === 'string'
+    && ['id', 'rootNodeId', 'bookmarksBarId', 'otherBookmarksId'].every(key =>
+      typeof row[key] === 'string' && /^[A-Za-z0-9._~-]{1,128}$/u.test(row[key] as string));
 }

@@ -28,7 +28,6 @@ export type Phase4bMcpLowRiskNodeCreateErrorCode =
 export type Phase4bMcpWriteRetryTool =
   | 'nodes.create'
   | 'nodes.update'
-  | 'collections.create'
   | 'collections.update'
   | 'annotations.create'
   | 'annotations.update';

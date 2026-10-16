@@ -1,3 +1,4 @@
+import { CollectionsError } from '../../modules/collections/index.js';
 import { sql, type Kysely } from 'kysely';
 import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import type { DatabaseSchema } from '../database/index.js';
@@ -17,8 +18,11 @@ export function createMcpNodePlanState(
         if (!node || node.is_root || !node.parent_id) return unavailable();
         await authorize(trx, node.collection_id, binding, 'move_node');
         const collection = await trx.selectFrom('collections')
-          .select(['content_revision', 'visibility']).where('id', '=', node.collection_id)
+          .select(['content_revision', 'visibility', 'is_library']).where('id', '=', node.collection_id)
           .where('deleted_at', 'is', null).executeTakeFirst();
+        if (collection?.is_library && ['bookmarks-bar', 'other-bookmarks'].includes(node.folder_role ?? '')) {
+          throw new CollectionsError('library_protected', 'The library’s browser folders cannot be moved.');
+        }
         const source = await liveNode(trx, node.parent_id, node.collection_id);
         const target = await liveNode(trx, input.parentId, node.collection_id);
         if (!collection || !source || !target || target.kind !== 'folder') return unavailable();
@@ -45,9 +49,12 @@ export function createMcpNodePlanState(
         if (!node || node.is_root || !node.parent_id) return unavailable();
         await authorize(trx, node.collection_id, binding, 'delete_node');
         const parent = await liveNode(trx, node.parent_id, node.collection_id);
-        const collection = await trx.selectFrom('collections').select('content_revision')
+        const collection = await trx.selectFrom('collections').select(['content_revision', 'is_library'])
           .where('id', '=', node.collection_id).where('deleted_at', 'is', null).executeTakeFirst();
         if (!parent || !collection) return unavailable();
+        if (collection.is_library && ['bookmarks-bar', 'other-bookmarks'].includes(node.folder_role ?? '')) {
+          throw new CollectionsError('library_protected', 'The library’s browser folders cannot be deleted.');
+        }
         const count = await sql<{ count: number }>`WITH RECURSIVE subtree AS (
           SELECT id FROM nodes WHERE id = ${node.id} AND collection_id = ${node.collection_id} AND deleted_at IS NULL
           UNION SELECT child.id FROM nodes child JOIN subtree ON child.parent_id = subtree.id
@@ -63,7 +70,7 @@ export function createMcpNodePlanState(
 
 function liveNode(db: Kysely<DatabaseSchema>, nodeId: string, collectionId?: string) {
   let query = db.selectFrom('nodes').select(['id', 'collection_id', 'parent_id', 'is_root',
-    'title', 'kind', 'resource_revision', 'children_revision'])
+    'title', 'kind', 'folder_role', 'resource_revision', 'children_revision'])
     .where('id', '=', nodeId).where('deleted_at', 'is', null);
   if (collectionId !== undefined) query = query.where('collection_id', '=', collectionId);
   return query.executeTakeFirst();

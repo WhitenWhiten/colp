@@ -30,7 +30,6 @@ import {
   type Phase4bMcpSnapshotResourceProjection,
   type Phase4bMcpWriteErrorClassification,
 } from '../../../src/modules/mcp/index.js';
-import { COLLECTION_KINDS } from '../../../src/modules/collections/index.js';
 import { createPhase4bMcpApplicationFacadeFromColpAdapters } from '../../../src/transport/mcp/mcp-strict-application-adapter.js';
 import {
   AUDIENCE,
@@ -127,29 +126,6 @@ test('invalid_params data names the failed field and retries nodes.create', () =
     allowedVisibilities: Object.freeze(['inherit', 'protected', 'private']),
     nextTool: 'nodes.create',
   });
-});
-
-test('collections.create invalid_params names the field and does not send the model to nodes.create', () => {
-  const error = new Phase4bMcpLowRiskNodeCreateError(
-    'invalid_catalog_input',
-    'collections.create title must be a non-empty string.',
-    { field: 'title', nextTool: 'collections.create' },
-  );
-  const wire = toPhase4bMcpWriteRequestError(
-    classifyPhase4bMcpWriteError(error),
-    writeErrorHintFrom(error),
-  );
-  assert.deepEqual(wire.data, {
-    code: 'invalid_params',
-    field: 'title',
-    allowedKinds: COLLECTION_KINDS,
-    allowedVisibilities: Object.freeze(['private']),
-    nextTool: 'collections.create',
-  });
-  const data = wire.data as { readonly nextTool?: string; readonly allowedKinds?: readonly string[] };
-  assert.notEqual(data.nextTool, 'nodes.create');
-  assert.equal(data.allowedKinds?.includes('folder'), false);
-  assert.equal(data.allowedKinds?.includes('bookmark'), false);
 });
 
 test('parent_invalid data always names parentId and retries nodes.create', () => {

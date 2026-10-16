@@ -29,18 +29,18 @@ export const MCP_COMPAT_ONERROR_CLASSIFIER = 'mcp_compat_serving_failure';
 
 /**
  * Frozen initialize `instructions` for the compatibility surface (T-06 / T-10).
- * The first 512 characters are self-contained: create a private library, save
+ * The first 512 characters are self-contained: find the private library, save
  * links with nodes.create (apply by default), and never use changes.plan to
  * save a bookmark. Contains no user/tenant data, dynamic URLs, tokens, or
  * ops internals.
  */
 export const MCP_COMPAT_INITIALIZE_INSTRUCTIONS = [
-  'Create: collections.create(title,idempotencyKey). New UUID v4 per intent; reuse on retry.',
-  'Save: nodes.create(collectionId,node.kind/title; bookmarks need node.url).',
+  'One library per account. collections.list finds it; collections.create returns folder IDs.',
+  'Save or create folders: nodes.create(collectionId,parentId,node.kind/title; bookmarks need node.url).',
   'Do not call changes.plan to save links.',
-  'Parent defaults to root. dryRun:true or confirmApply:false previews; omit both to apply.',
+  'Choose parentId. dryRun:true or confirmApply:false previews; omit both to apply.',
   'changes.plan dryRun:true stores a pending plan; open approvalUri then changes.commit.',
-  'Publish with collections.get revision.',
+  'The library stays private. Share folders on the web.',
   'No elicitation, sampling, requestState or inputResponses.',
 ].join(' ');
 

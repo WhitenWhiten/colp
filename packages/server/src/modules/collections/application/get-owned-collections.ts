@@ -69,7 +69,7 @@ export function toOwnedCollectionListItem(
     },
   };
 }
-export interface GetOwnedCollectionsPagePorts { readonly reads: OwnedCollectionsReadPort; readonly cursors: ProductOwnedCollectionsCursorSignerPort; readonly clock: CollectionsClock; }
+export interface GetOwnedCollectionsPagePorts { readonly libraryCollectionUnitOfWork?: import('./ensure-library-collection.js').LibraryCollectionUnitOfWork; readonly reads: OwnedCollectionsReadPort; readonly cursors: ProductOwnedCollectionsCursorSignerPort; readonly clock: CollectionsClock; }
 
 export async function getOwnedCollectionsPage(ports: GetOwnedCollectionsPagePorts, input: GetOwnedCollectionsPageInput): Promise<OwnedCollectionsPage> {
   const subjectId = nonEmpty(input.actor?.subjectId, 'actor.subjectId');

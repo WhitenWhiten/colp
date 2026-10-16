@@ -400,12 +400,7 @@ test('collections.update schema rejects extra properties and empty patch', () =>
     () => collectionUpdateInputValidator(collectionApplyInput(Object.freeze({}))),
     (error: unknown) => error instanceof McpToolInputError,
   );
-  assert.throws(
-    () => collectionUpdateInputValidator(
-      collectionApplyInput(Object.freeze({ title: 'x', visibility: 'private' })),
-    ),
-    (error: unknown) => error instanceof McpToolInputError,
-  );
+  assert.doesNotThrow(() => collectionUpdateInputValidator(collectionApplyInput({ visibility: 'private' })));
 });
 
 test('collections.update dryRun true does not call the mutator or unit of work', async () => {

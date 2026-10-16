@@ -111,7 +111,7 @@ export const PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION =
  * tools by description, so the host replaces those with what each tool does.
  */
 export const PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS: Readonly<Record<string, string>> = Object.freeze({
-  'collections.create': 'Create a new private library (collection) you own. Applies at once; reuse the same idempotencyKey only to retry the same request.',
+  'collections.create': 'Unavailable: each account has one private bookmark library. Call this for its folder IDs, then create a folder with nodes.create and an explicit parentId.',
   'collections.update': 'Change a library\'s title or summary. Pass the revision you read as baseRevision (or ifMatch). Applies at once.',
   'nodes.create': 'Add a folder or bookmark to a library under parentId. Applies at once unless dryRun is true or confirmApply is false.',
   'nodes.update': 'Change a folder or bookmark title, URL, description or tags. Pass the node revision as baseRevision (or ifMatch). Applies at once. Set returnRepresentation true to receive the updated node. Visibility changes require a plan.',

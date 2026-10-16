@@ -1,6 +1,5 @@
 /**
- * Low-risk MCP `collections.update`. Title and/or summary only; visibility,
- * slug, and indexing stay on Product HTTP / high-risk Plan. `collections:write` only.
+ * Low-risk MCP library metadata update. Publication attempts receive a typed refusal.
  */
 import { types as nodeTypes } from 'node:util';
 import {
@@ -54,6 +53,9 @@ export const PHASE4B_MCP_COLLECTIONS_UPDATE_PATCH_SCHEMA = Object.freeze({
   additionalProperties: false,
   minProperties: 1,
   properties: Object.freeze({
+    visibility: Object.freeze({ type: 'string', enum: Object.freeze(['private', 'public', 'unlisted']) }),
+    publicationSlug: Object.freeze({ type: 'string' }),
+    allowSearchIndexing: Object.freeze({ type: 'boolean' }),
     title: Object.freeze({ type: 'string', minLength: 1, maxLength: TITLE_MAX }),
     summary: Object.freeze({
       oneOf: Object.freeze([
@@ -153,6 +155,19 @@ export function createPhase4bMcpLowRiskCollectionUpdateService(
       const accountSubjectId = requireMcpAccountSubjectId({
         accountSubjectId: context.accountSubjectId,
       });
+      const rawPatch = readRequiredObject(input, 'patch');
+      if (inspect && ['visibility', 'publicationSlug', 'allowSearchIndexing'].some(key => Object.hasOwn(rawPatch, key))) {
+        const collectionId = readRequiredString(input, 'collectionId');
+        await inspect.execute(async ports => {
+          const collection = await ports.getCollection(collectionId);
+          const decision = await authorizeCapability(ports.accessPolicy, {
+            collectionId, actor: { principalId: binding.principalId, subjectId: accountSubjectId, kind: 'account' },
+            capability: 'manage_publication',
+          });
+          if (!collection || collection.deletedAt || decision.outcome !== 'allow') throwRejected(PHASE4B_MCP_COLLECTIONS_UPDATE_TOOL_NAME);
+          if (collection.isLibrary) throw new Phase4bMcpLowRiskNodeCreateError('library_protected', 'The bookmark library is private and cannot be published.');
+        });
+      }
       const parsed = parseCollectionUpdateInput(input);
       if (parsed.dryRun) {
         if (inspect === undefined) {

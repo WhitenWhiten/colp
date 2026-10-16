@@ -1,3 +1,5 @@
+import { CollectionsError } from '../modules/collections/index.js';
+import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/library-collection-postgres.js';
 import { recordMcpDeleteSubtreeTombstones } from '../infrastructure/sync/index.js';
 import {
   createAgentPolicyCommitGuard,
@@ -207,7 +209,7 @@ export function createPhase4bMcpWriteComposition(
     inspect,
   });
   const collectionCreateService = createPhase4bMcpOwnedCollectionCreateService({
-    unitOfWork: canonicalUnitOfWork,
+    libraryCollectionUnitOfWork: createPostgresLibraryCollectionUnitOfWork(options.db),
   });
   const nodeUpdateService = createPhase4bMcpLowRiskNodeUpdateService({
     unitOfWork: canonicalUnitOfWork,
@@ -530,7 +532,7 @@ function createPhase4bMcpWriteRevisionPort(
         }
         return db.transaction().setIsolationLevel('read committed').execute(async (trx) => {
           const collection = await trx.selectFrom('collections')
-            .select(['id', 'resource_revision', 'policy_revision'])
+            .select(['id', 'resource_revision', 'policy_revision', 'is_library'])
             .where('id', '=', typed.collectionId)
             .where('deleted_at', 'is', null)
             .executeTakeFirst();
@@ -559,6 +561,9 @@ function createPhase4bMcpWriteRevisionPort(
             binding,
             decision?.kind === 'collection' ? 'manage_publication' : 'update_node',
           );
+          if (decision?.kind === 'collection' && collection?.is_library) {
+            throw new CollectionsError('library_protected', 'The bookmark library is private and cannot be published.');
+          }
           if (decision === null) {
             throwAuthoritativeStateUnavailable();
           }

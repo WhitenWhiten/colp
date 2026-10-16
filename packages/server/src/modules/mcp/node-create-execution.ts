@@ -183,6 +183,9 @@ export async function loadAndAssertCreateState(
       'Current policy denied nodes.create inside the canonical transaction.',
     );
   }
+  if (locked.isLibrary && parsed.parentId === undefined) {
+    throw new Phase4bMcpLowRiskNodeCreateError('parent_invalid', 'Choose a parent folder explicitly in the bookmark library.', nodeCreateHint('parentId'));
+  }
   return Object.freeze({ collection: locked, parent, parentId, appliedVisibility });
 }
 

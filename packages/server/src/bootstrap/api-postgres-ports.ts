@@ -127,6 +127,7 @@ export interface ApiPostgresPorts {
     readonly sharedExposure: ReturnType<typeof createPostgresSharedExposureFactsPort>;
   };
   readonly ownedCollectionsQueryPorts: {
+    readonly libraryCollectionUnitOfWork: ReturnType<typeof createPostgresLibraryCollectionUnitOfWork>;
     readonly reads: ReturnType<typeof createPostgresOwnedCollectionsReadPort>;
     readonly cursors: ReturnType<typeof createProductOwnedCollectionsCursorSigner>;
     readonly clock: { now: () => Promise<Date> };
@@ -237,6 +238,7 @@ export function createApiPostgresPorts(input: {
     collectionControl: publicationCollectionControl,
   };
   const ownedCollectionsQueryPorts = {
+    libraryCollectionUnitOfWork,
     reads: createPostgresOwnedCollectionsReadPort(database.db),
     cursors: ownedCollectionsCursorSigner,
     clock: { now: async () => new Date() },

@@ -1,3 +1,4 @@
+import { LibraryFolderRequiredError } from '../../src/modules/mcp/owned-collection-mcp.js';
 import { createInMemoryApprovalStore, createInMemoryPlanStore } from './mcp-memory-stores.js';
 import {
   type McpApprovalStorePort,
@@ -214,17 +215,10 @@ export function createInMemoryWriteToolFixture(
   });
   const collectionCreateService: Phase4bMcpOwnedCollectionCreateService =
     options.collectionCreateService ?? Object.freeze({
-      execute: async (input) => Object.freeze({
-        collectionId: 'col-w06-created',
-        rootNodeId: 'root-w06-created',
-        title: String(input.title),
-        visibility: 'private' as const,
-        revision: 'res-w06-created',
-        contentRevision: 'cnt-w06-created',
-        policyRevision: 'pol-w06-created',
-        rootRevision: 'root-res-w06-created',
-        childrenRevision: 'ch-w06-created',
-      }),
+      execute: async () => { throw new LibraryFolderRequiredError({
+        id: 'col-w06-library', title: 'Bookmarks', rootNodeId: 'root-w06-library', library: true,
+        bookmarksBarId: 'bar-w06-library', otherBookmarksId: 'other-w06-library',
+      }); },
     });
   const nodeUpdateService: Phase4bMcpLowRiskNodeUpdateService = Object.freeze({
     execute: async (input): Promise<Phase4bMcpLowRiskNodeUpdateOutput> => {

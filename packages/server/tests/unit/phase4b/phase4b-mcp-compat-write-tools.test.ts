@@ -79,12 +79,12 @@ test('initialize instructions constant is self-contained in 512 chars and pinned
   assert.equal(
     MCP_COMPAT_INITIALIZE_INSTRUCTIONS,
     [
-      'Create: collections.create(title,idempotencyKey). New UUID v4 per intent; reuse on retry.',
-      'Save: nodes.create(collectionId,node.kind/title; bookmarks need node.url).',
+      'One library per account. collections.list finds it; collections.create returns folder IDs.',
+      'Save or create folders: nodes.create(collectionId,parentId,node.kind/title; bookmarks need node.url).',
       'Do not call changes.plan to save links.',
-      'Parent defaults to root. dryRun:true or confirmApply:false previews; omit both to apply.',
+      'Choose parentId. dryRun:true or confirmApply:false previews; omit both to apply.',
       'changes.plan dryRun:true stores a pending plan; open approvalUri then changes.commit.',
-      'Publish with collections.get revision.',
+      'The library stays private. Share folders on the web.',
       'No elicitation, sampling, requestState or inputResponses.',
     ].join(' '),
   );
@@ -396,25 +396,18 @@ test('low-risk nodes.create confirmApply completes without awaiting_approval or 
   assert.equal(fixture.nodeCreateCalls.length, 1);
 });
 
-test('low-risk collections.create complete result includes JSON text content matching structuredContent', async () => {
+test('collections.create refuses and points to folders in the private library', async () => {
   const fixture = createWriteFixture();
   const auth = await signedCompatWriteClient();
   const server = track(startCompatWriteApp({ writeFixture: fixture, verifier: auth.verifier }));
-  const called = await injectCompatLegacyPost(
-    server.app,
-    mcpCompatToolsCallBody('collections.create', 11, { title: '测试收藏夹', idempotencyKey: crypto.randomUUID() }),
-    COMPAT_REVISION,
-    { authorization: `Bearer ${auth.token}` },
-  );
+  const called = await injectCompatLegacyPost(server.app,
+    mcpCompatToolsCallBody('collections.create', 11, {}), COMPAT_REVISION,
+    { authorization: `Bearer ${auth.token}` });
   assert.equal(called.statusCode, 200);
   const result = compatJsonRpc(called).result ?? {};
-  assertCompatCallToolEnvelope(result);
-  assert.equal(result.isError === true, false);
-  assert.equal(
-    (result.structuredContent as { collectionId?: string } | undefined)?.collectionId,
-    'col-w06-created',
-  );
-  assertJsonTextContentMatchesStructured(result);
+  assert.equal(result.isError, true);
+  const text = JSON.stringify(result);
+  for (const value of ['nodes.create', 'col-w06-library', 'bar-w06-library', 'other-w06-library']) assert.ok(text.includes(value), text);
 });
 
 test('compat tools/list schema yields minimal legal folder and bookmark calls; invalid node shapes fail before write', async () => {
