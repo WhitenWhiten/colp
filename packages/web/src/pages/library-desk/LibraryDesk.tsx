@@ -183,7 +183,7 @@ export function LibraryDesk() {
       />
       <CollectionSettingsSheet
         collectionId={data.selectedId}
-        open={settingsOpen}
+        open={settingsOpen && !data.collection?.library}
         onClose={() => {
           setSettingsOpen(false)
           dropSearchParam('collection')

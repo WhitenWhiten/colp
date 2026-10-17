@@ -298,7 +298,8 @@ export function LibraryMoreMenu({
           {onShareFolder && <button type="button" role="menuitem" tabIndex={-1} onClick={() => {
             menu.close(); triggerRef.current?.focus(); onShareFolder()
           }}>Share…</button>}
-          {caps?.updateCollection && onEditCollection && (
+          {/* The library has nothing to set: its title never shows and it is never published. */}
+          {caps?.updateCollection && onEditCollection && !library && (
             <button
               type="button"
               role="menuitem"
@@ -309,7 +310,7 @@ export function LibraryMoreMenu({
                 onEditCollection()
               }}
             >
-              {library ? 'Library settings' : 'Edit collection'}
+              Edit collection
             </button>
           )}
           <Link

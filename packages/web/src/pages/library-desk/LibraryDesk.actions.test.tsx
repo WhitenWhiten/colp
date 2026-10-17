@@ -193,6 +193,19 @@ describe('LibraryDesk menus and selection', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toBe('More collection actions')
   })
 
+  it('offers no collection settings for the library, whose title never shows', async () => {
+    const base = snapshot('col-1')
+    mocks.loadEditorSnapshot.mockResolvedValue({ ...base, collection: { ...base.collection, library: true } })
+    mount('/library/col-1?collection=edit')
+    await waitForDom(domFinishedLoading)
+    expect(document.querySelector('[data-testid="collection-settings"]')).toBeNull()
+    act(() => document.querySelector<HTMLButtonElement>('button[aria-label="More collection actions"]')!.click())
+    const labels = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
+    expect(labels).toContain('Version history')
+    expect(labels).not.toContain('Edit collection')
+    expect(labels).not.toContain('Library settings')
+  })
+
   it('returns focus to the More trigger after Edit collection closes its sheet', async () => {
     mount()
     await waitForDom(domFinishedLoading)
