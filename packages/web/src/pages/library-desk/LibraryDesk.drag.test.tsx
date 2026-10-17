@@ -406,6 +406,21 @@ describe('LibraryDesk desktop bookmark drag', () => {
     )
   })
 
+  it('offers no drop on All bookmarks, whose root holds only the browser folders', async () => {
+    const base = snapshot()
+    mocks.loadEditorSnapshot.mockResolvedValue({ ...base, collection: { ...base.collection, library: true } })
+    mount()
+    await waitForDom(domFinishedLoading)
+    filterDesk('example')
+
+    startDrag('col-1-first')
+    const root = document.querySelector<HTMLAnchorElement>('a[data-collection-id="col-1"]')!
+    pointer('pointermove', root, { x: 20, y: 60 })
+    expect(dropTarget()).toBeNull()
+    pointer('pointerup', root, { x: 20, y: 60 })
+    expect(mocks.moveCollectionNode).not.toHaveBeenCalled()
+  })
+
   it('keeps a sub-threshold press as a plain click that still opens the source', async () => {
     mount()
     await waitForDom(domFinishedLoading)

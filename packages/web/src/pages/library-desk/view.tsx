@@ -186,7 +186,8 @@ export function LibraryDeskView({
         return { element: anchor.closest('.library-nav-row') ?? anchor, parentId: dropFolderId }
       }
       if (anchor.getAttribute('data-collection-id') !== snap.collection.id) return null
-      if (nodes.every((n) => n.parentId === snap.root.id)) return null
+      // The library's root holds only the browser folders, so All bookmarks takes no drops.
+      if (snap.collection.library || nodes.every((n) => n.parentId === snap.root.id)) return null
       return { element: anchor.closest('.library-nav-row') ?? anchor, parentId: snap.root.id }
     },
     onDrop: (nodes, parentId) => {
