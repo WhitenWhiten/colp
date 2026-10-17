@@ -57,6 +57,29 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     assert.ok(scan.warnings.some((row) => row.code === 'nested_normalized'));
   });
 
+  test.each(['bookmarks_bar', 'browser_root'] as const)(
+    'confirming a %s range replaces the previous mount identity', async (rootKind) => {
+      const store = await activeStore();
+      try {
+        await seedBar(store);
+        const { scopeKey: _scopeKey, rootRole: _rootRole, ...prior } = (await store.getMountBinding(scope, 'mount-bar'))!;
+        await store.putMountBinding(scope, { ...prior, ...(rootKind === 'bookmarks_bar'
+          ? { customSourceKey: 'folder:legacy' } : { rootRole: 'bookmarks-bar' as const }) });
+        const roots = tree().map(root => root.nativeId === 'bar' ? { ...root, rootKind } : root);
+        const { preview } = await previewRangeChange(store, scope, { roots, selectedNativeIds: ['bar'] });
+
+        await applyConfirmedRange(store, scope, { preview, keepNativeIds: [], unmountNativeIds: [] });
+
+        const mount = (await store.getMountBinding(scope, 'mount-bar'))!;
+        assert.equal(mount.rootRole, rootKind === 'bookmarks_bar' ? 'bookmarks-bar' : undefined);
+        assert.equal(mount.customSourceKey, rootKind === 'browser_root' ? 'folder:bar' : undefined);
+        assert.equal(mount.remoteMountNodeId, prior.remoteMountNodeId);
+        assert.equal(mount.status, prior.status);
+        assert.equal((await store.getMappingByNativeId(scope, 'bm-1'))?.colpId, 'colp-bm-1');
+        assert.deepEqual(await store.listQueue(scope), []);
+      } finally { store.close(); }
+    });
+
   test.each([['bar', 'other'], ['bar', 'nested', 'other']])(
     'expanding sync to browser roots preserves already synced nested folders (%j)', async (...selectedNativeIds) => {
       const store = await activeStore();

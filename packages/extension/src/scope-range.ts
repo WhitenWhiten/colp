@@ -302,7 +302,8 @@ export async function mergePreviewMounts(store: Store, scope: SyncScope, existin
   for (const planned of preview.boundary.mounts.filter((mount) => mount.writable)) {
     const prior = byRoot.get(planned.nativeRootId);
     if (prior?.status === 'detached') continue;
-    const { scopeKey: _scopeKey, pendingShift: _shift, pendingRemoteDelete: _pending, ...rest } = prior ?? {
+    const { scopeKey: _scopeKey, pendingShift: _shift, pendingRemoteDelete: _pending,
+      rootRole: _rootRole, customSourceKey: _customSourceKey, ...rest } = prior ?? {
       mountId: `mount:${planned.nativeRootId}`, nativeRootId: planned.nativeRootId, remoteMountNodeId: null,
       boundaryVersion: preview.boundaryVersion, materialized: planned.materialized, status: 'pending' as const,
     };
@@ -311,9 +312,9 @@ export async function mergePreviewMounts(store: Store, scope: SyncScope, existin
       remoteMountNodeId: prior?.remoteMountNodeId ?? null,
       boundaryVersion: preview.boundaryVersion, materialized: planned.materialized,
       status: prior?.status === 'active' || prior?.status === 'pending' ? prior.status : 'pending',
-      ...(planned.rootRole ? { rootRole: planned.rootRole } : prior?.rootRole ? { rootRole: prior.rootRole } : {}),
-      ...(planned.customSourceKey ? { customSourceKey: planned.customSourceKey }
-        : prior?.customSourceKey ? { customSourceKey: prior.customSourceKey } : {}),
+      // The confirmed plan replaces the mutually exclusive mount identity fields.
+      ...(planned.rootRole ? { rootRole: planned.rootRole } : {}),
+      ...(planned.customSourceKey ? { customSourceKey: planned.customSourceKey } : {}),
     });
   }
   for (const mount of byRoot.values()) {
