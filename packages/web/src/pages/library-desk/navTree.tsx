@@ -9,6 +9,7 @@ import {
   childFolders,
   flattenBookmarks,
   folderTrail,
+  rootTitle,
   type FolderNode,
 } from '../../lib/libraryTree'
 import { plural, pluralNoun } from '../../lib/plural'
@@ -153,7 +154,7 @@ export function CollectionBranch({
   }
 
   const rootLabel = (
-    <NavRowMarks title={collection.library ? 'All bookmarks' : collection.title} count={bookmarkTotal} container="collection" />
+    <NavRowMarks title={rootTitle(collection)} count={bookmarkTotal} container="collection" />
   )
   const rootLink = onSelect ? (
     <button

@@ -17,6 +17,7 @@ import { LibraryDeskView } from './view'
 import { NodeEditDrawer } from './NodeEditDrawer'
 import { useDocumentTitle } from '../../lib/useDocumentTitle'
 import { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
+import { rootTitle } from '../../lib/libraryTree'
 import { useLibrary } from '../../lib/useLibrary'
 import { useSharedCollections } from '../../lib/useSharedCollections'
 
@@ -97,7 +98,7 @@ export function LibraryDesk() {
     setBulk: selection.setBulk,
   })
 
-  const heading = data.selectedFolder?.title ?? data.collection?.title ?? 'Library'
+  const heading = data.selectedFolder?.title ?? (data.collection ? rootTitle(data.collection) : 'Library')
   useDocumentTitle(heading)
 
   const resetCompose = mutations.resetCompose

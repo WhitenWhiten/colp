@@ -12,7 +12,7 @@ import {
   type FolderNode,
 } from '../../lib/libraryTree'
 import { BOOKMARK_FILTER_PLACEHOLDER } from '../../lib/searchCopy'
-import { hostOf } from '../../lib/libraryTree'
+import { hostOf, rootTitle } from '../../lib/libraryTree'
 import { pluralNoun } from '../../lib/plural'
 import { useBookmarkAnnotations } from '../../lib/useBookmarkAnnotations'
 import { previewCover } from '../../lib/linkPreview'
@@ -438,7 +438,7 @@ export function BookmarkArea({
           items={reorderItems}
           active
           disabled={layerReorder.ids.length < 2}
-          ariaLabel={selectedFolder ? `Reorder ${selectedFolder.title}` : `Reorder ${collection?.title ?? 'collection'}`}
+          ariaLabel={selectedFolder ? `Reorder ${selectedFolder.title}` : `Reorder ${collection ? rootTitle(collection) : 'collection'}`}
           onActivate={beginLayerReorder}
           onOrderChange={layerReorder.change}
           onDismiss={() => void layerReorder.finish()}
@@ -545,7 +545,7 @@ export function BookmarkArea({
                   </button>
                 )}
                 <Link className="btn btn-ghost btn-sm" to={folderPath(deskTrail.at(-1)?.id ?? null)}>
-                  Back to {deskTrail.at(-1)?.title ?? collection?.title ?? 'collection'}
+                  Back to {deskTrail.at(-1)?.title ?? (collection ? rootTitle(collection) : 'collection')}
                 </Link>
               </>
             }

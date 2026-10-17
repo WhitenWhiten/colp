@@ -491,7 +491,7 @@ describe('public Collection page', () => {
     // Copy-mode destination picker: pick the owned collection, then Top level.
     expect(document.querySelector('[data-testid="destination-picker"]')?.getAttribute('data-mode')).toBe('copy')
     const collectionOption = [...document.querySelectorAll<HTMLButtonElement>('[data-testid="destination-option"]')]
-      .find((option) => option.textContent?.includes('My shelf'))
+      .find((option) => option.textContent?.includes('All bookmarks'))
     await act(async () => collectionOption?.click())
     const topLevel = [...document.querySelectorAll<HTMLButtonElement>('[data-testid="destination-option"]')]
       .find((option) => option.textContent?.includes('Top level'))
@@ -509,7 +509,7 @@ describe('public Collection page', () => {
       }),
       expect.objectContaining({ intentId: expect.any(String) }),
     )
-    expect(mocks.success).toHaveBeenCalledWith('Saved to “My shelf”')
+    expect(mocks.success).toHaveBeenCalledWith('Saved to “All bookmarks”')
     expect(document.querySelector('[data-testid="destination-picker"]')).toBeNull()
   })
 })

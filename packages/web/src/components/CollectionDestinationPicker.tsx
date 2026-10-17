@@ -7,7 +7,7 @@ import {
   type OwnedCollectionListItem,
 } from '../api'
 import { isBrowserFolderRole } from '../generated/browser-folder-roles'
-import { childrenOf, isAbort } from '../lib/libraryTree'
+import { childrenOf, isAbort, rootTitle } from '../lib/libraryTree'
 import { plural } from '../lib/plural'
 import { EmptyState, LoadingState } from './EmptyState'
 import { Icon } from './Icon'
@@ -232,11 +232,13 @@ export function CollectionDestinationPicker({
         {mode === 'move' && current ? (
           <>
             <p className="library-dest-note">
-              Move {plural(count, noun)} within <strong>{current.collection.title}</strong>.
+              {current.collection.library
+                ? <>Move {plural(count, noun)} to another folder.</>
+                : <>Move {plural(count, noun)} within <strong>{current.collection.title}</strong>.</>}
             </p>
             <FolderList
               collectionId={current.collection.id}
-              collectionTitle={current.collection.title}
+              collectionTitle={rootTitle(current.collection)}
               library={current.collection.library}
               rootId={current.rootId}
               nodes={current.nodes}
@@ -306,10 +308,10 @@ export function CollectionDestinationPicker({
                     className="library-dest-item"
                     data-testid="destination-option"
                     disabled={busy}
-                    onClick={() => openTarget(item.collection.id, item.collection.title)}
+                    onClick={() => openTarget(item.collection.id, rootTitle(item.collection))}
                   >
                     <Icon name="folder" />
-                    <span className="library-dest-label">{item.collection.title}</span>
+                    <span className="library-dest-label">{rootTitle(item.collection)}</span>
                     <Icon name="chevron-right" />
                   </button>
                 </li>

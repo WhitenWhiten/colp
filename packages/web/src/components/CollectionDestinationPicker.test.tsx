@@ -188,7 +188,7 @@ describe('CollectionDestinationPicker', () => {
       current={{ collection: { id: 'col-x', title: 'Library', library: true }, rootId: 'root-x', nodes }}
       library={library('col-x', 'Library')} onPick={onPick} onClose={() => {}} /></MemoryRouter>)
     if (mode === 'copy') {
-      clickDestination('Library')
+      clickDestination('All bookmarks')
       await waitForDom(() => destinationLabels().includes('Bookmarks bar'))
     }
     expect(destinationLabels()).not.toContain('Top level')
@@ -437,7 +437,8 @@ describe('CollectionDestinationPicker', () => {
       </MemoryRouter>,
     )
     expect(document.body.textContent).toContain('Copies the link, title and note')
-    expect(destinationLabels()).toEqual(['My shelf', 'Team docs'])
+    // The library's root is All bookmarks here too, never its stored title.
+    expect(destinationLabels()).toEqual(['All bookmarks', 'Team docs'])
     expect(document.body.textContent).not.toContain('Read only share')
 
     clickDestination('Team docs')
@@ -469,7 +470,7 @@ describe('CollectionDestinationPicker', () => {
         />
       </MemoryRouter>,
     )
-    clickDestination('My shelf')
+    clickDestination('All bookmarks')
     expect(document.body.textContent).toContain('Loading folders…')
     await act(async () => {
       resolveSnapshot({ collection: { library: false }, root: { id: 'root-col-a' }, nodes: [] })

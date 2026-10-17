@@ -1,4 +1,5 @@
 import { FolderShareDialog } from './FolderShareDialog'
+import { rootTitle } from '../../lib/libraryTree'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -195,7 +196,7 @@ export function LibraryDeskView({
       void runMove(nodes, {
         collectionId: snap.collection.id,
         parentId,
-        collectionTitle: snap.collection.title,
+        collectionTitle: rootTitle(snap.collection),
         parentTitle: parentId === snap.root.id
           ? null
           : snap.nodes.find((node) => node.id === parentId)?.title ?? null,

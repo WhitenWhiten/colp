@@ -8,7 +8,7 @@ import { Icon } from '../../components/Icon'
 import { Modal } from '../../components/Modal'
 import { PageHead } from '../../components/PageHead'
 import { StatusBadge, type StatusTone } from '../../components/StatusBadge'
-import type { FolderNode } from '../../lib/libraryTree'
+import { rootTitle, type FolderNode } from '../../lib/libraryTree'
 import { plural } from '../../lib/plural'
 import type { useMyCollaborationInvites } from '../../lib/useMyCollaborationInvites'
 import { collectionIsExpanded, type LibraryDeskData } from './data'
@@ -66,9 +66,10 @@ export function LibraryHeader({
     folderPath,
   } = data
 
-  const heading = selectedFolder?.title ?? collection?.title ?? 'Library'
+  const heading = selectedFolder?.title ?? (collection ? rootTitle(collection) : 'Library')
+  // A library folder speaks for itself; the bar below already counts it.
   const lede = selectedFolder
-    ? `${plural(bookmarkCount, 'bookmark')} in ${collection?.title ?? 'this collection'}.`
+    ? selectedFolder.description || (collection?.library ? '' : `${plural(bookmarkCount, 'bookmark')} in ${collection?.title ?? 'this collection'}.`)
     : collection
       ? collection.summary || 'All your folders and bookmarks, synced across your browsers.'
       : collaboratorsLive
@@ -90,7 +91,7 @@ export function LibraryHeader({
     ? (
       <FolderTrail
         testId="library-folder-trail"
-        rootTitle={collection.title}
+        rootTitle={rootTitle(collection)}
         rootTo={collectionBasePath}
         crumbs={deskTrail.map((node) => ({ id: node.id, title: node.title, to: folderPath(node.id) }))}
         currentTitle={selectedFolder.title}
@@ -152,12 +153,14 @@ export function LibraryHeader({
           </>
         }
       >
-        <ClampedText
-          text={lede}
-          className="lede"
-          wrapperClassName="library-desk-lede"
-          toggleClassName="library-desk-lede-toggle"
-        />
+        {lede && (
+          <ClampedText
+            text={lede}
+            className="lede"
+            wrapperClassName="library-desk-lede"
+            toggleClassName="library-desk-lede-toggle"
+          />
+        )}
       </PageHead>
     </>
   )
