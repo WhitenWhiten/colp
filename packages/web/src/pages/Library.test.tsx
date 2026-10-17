@@ -150,7 +150,7 @@ describe('Library', () => {
     return [...document.querySelectorAll<HTMLButtonElement>('button[aria-controls^="library-nav-section-"]')]
   }
 
-  it('groups the sidebar into collapsible My collections and Shared with you sections', async () => {
+  it('lists the library above a collapsible Shared with you section', async () => {
     window.__KNOWN_FLAGS__ = { collaborators: true }
     mocks.collections.items = [entry('one', 'One')]
     mocks.shared.items = [entry('shared-a', 'Shared shelf', false)]
@@ -158,17 +158,13 @@ describe('Library', () => {
     await waitForDom(() => document.querySelector('a[data-collection-id="shared-a"]') != null)
     const toggles = sectionToggles()
     expect(toggles.map((toggle) => toggle.textContent?.trim().replace(/\d+$/u, '').trim()))
-      .toEqual(['Bookmarks', 'Shared with you'])
-    for (const toggle of toggles) expect(toggle.getAttribute('aria-expanded')).toBe('true')
+      .toEqual(['Shared with you'])
+    expect(document.querySelector('a[data-collection-id="one"]')?.textContent).toContain('All bookmarks')
 
-    const mine = toggles[0]!
-    expect(document.querySelector('a[data-collection-id="one"]')).not.toBeNull()
-    act(() => mine.click())
-    expect(mine.getAttribute('aria-expanded')).toBe('false')
-    expect(document.querySelector('a[data-collection-id="one"]')).toBeNull()
-    expect(document.querySelector('a[data-collection-id="shared-a"]')).not.toBeNull()
-    act(() => mine.click())
-    expect(mine.getAttribute('aria-expanded')).toBe('true')
+    const shared = toggles[0]!
+    act(() => shared.click())
+    expect(shared.getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('a[data-collection-id="shared-a"]')).toBeNull()
     expect(document.querySelector('a[data-collection-id="one"]')).not.toBeNull()
   })
 

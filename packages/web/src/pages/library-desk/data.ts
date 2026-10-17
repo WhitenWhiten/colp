@@ -169,8 +169,10 @@ export function useLibraryDeskData(options: {
     }
   }, [navigate])
 
+  // The rail always lists the library's folders, even beside a shared collection.
+  const libraryId = collections.library?.id ?? null
   const visible = useRef(new Set<string>())
-  visible.current = new Set([...expanded, ...(selectedId ? [selectedId] : [])])
+  visible.current = new Set([...expanded, ...(selectedId ? [selectedId] : []), ...(libraryId ? [libraryId] : [])])
   useEffect(() => {
     let identity = privateSessionIdentity()
     const refresh = createScopedRefresh<string>({
@@ -220,6 +222,7 @@ export function useLibraryDeskData(options: {
     if (bootstrapping || !isLoggedIn) return
     const ids = new Set(expanded)
     if (selectedId) ids.add(selectedId)
+    if (libraryId) ids.add(libraryId)
     for (const id of ids) {
       const entry = treesRef.current[id]
       if (entry?.status === 'loading') continue
@@ -234,7 +237,7 @@ export function useLibraryDeskData(options: {
       refreshed.current.add(id)
       void loadTree(id)
     }
-  }, [bootstrapping, expanded, isLoggedIn, loadTree, selectedId])
+  }, [bootstrapping, expanded, isLoggedIn, libraryId, loadTree, selectedId])
 
   useEffect(() => () => {
     for (const controller of loaders.current.values()) controller.abort()

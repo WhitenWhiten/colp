@@ -152,6 +152,63 @@ export function CollectionBranch({
     })
   }
 
+  const rootLabel = (
+    <NavRowMarks title={collection.library ? 'All bookmarks' : collection.title} count={bookmarkTotal} container="collection" />
+  )
+  const rootLink = onSelect ? (
+    <button
+      type="button"
+      className="library-nav-link"
+      data-collection-id={collection.id}
+      aria-current={selected ? 'page' : undefined}
+      onClick={() => onSelect(valueOf(null))}
+    >
+      {rootLabel}
+    </button>
+  ) : (
+    <Link
+      className="library-nav-link"
+      to={rowTo}
+      data-collection-id={collection.id}
+      aria-current={selected ? 'page' : undefined}
+    >
+      {rootLabel}
+    </Link>
+  )
+  const folderRows = snap && folders.map((folder) => (
+    <FolderBranch
+      key={folder.id}
+      folder={folder}
+      snap={snap}
+      folderTo={folderTo}
+      currentFolderId={currentFolderId}
+      openFolders={openFolders}
+      onToggleFolder={toggleFolder}
+      onPick={onSelect ? (id) => onSelect(valueOf(id)) : undefined}
+    />
+  ))
+
+  /* The library is the account's one tree: All bookmarks and its browser
+     folders sit side by side as the rail's top level, never folded away. */
+  if (collection.library) {
+    const current = collection.id === selectedId && !folderId
+    return (
+      <>
+        <div className="library-nav-group" role={listItem ? 'listitem' : undefined}>
+          <div className={current ? 'library-nav-row is-current' : 'library-nav-row'}>
+            <span className="library-nav-toggle library-nav-toggle--void" aria-hidden />
+            {rootLink}
+          </div>
+        </div>
+        {!snap && tree?.status === 'loading' && <LoadingState label="Loading folders…" />}
+        {!snap && tree?.status === 'error' && (
+          <p className="library-nav-hint">{tree.message ?? "Couldn't load folders"}</p>
+        )}
+        {folderRows}
+      </>
+    )
+  }
+
   return (
     // R15-44: the list item role comes from the container (the reorder list
     // wrapper or the mobile sheet); disclosure lives on the toggle button.
@@ -166,26 +223,7 @@ export function CollectionBranch({
         >
           <Icon name={open ? 'chevron-down' : 'chevron-right'} />
         </button>
-        {onSelect ? (
-          <button
-            type="button"
-            className="library-nav-link"
-            data-collection-id={collection.id}
-            aria-current={selected ? 'page' : undefined}
-            onClick={() => onSelect(valueOf(null))}
-          >
-            <NavRowMarks title={collection.library ? 'All bookmarks' : collection.title} count={bookmarkTotal} container="collection" />
-          </button>
-        ) : (
-          <Link
-            className="library-nav-link"
-            to={rowTo}
-            data-collection-id={collection.id}
-            aria-current={selected ? 'page' : undefined}
-          >
-            <NavRowMarks title={collection.library ? 'All bookmarks' : collection.title} count={bookmarkTotal} container="collection" />
-          </Link>
-        )}
+        {rootLink}
       </div>
       <Collapse open={open} className="library-nav-children" role="list">
         {tree?.status === 'loading' && folders.length === 0 && (
@@ -194,18 +232,7 @@ export function CollectionBranch({
         {tree?.status === 'error' && folders.length === 0 && (
           <p className="library-nav-hint">{tree.message ?? "Couldn't load folders"}</p>
         )}
-        {snap && folders.map((folder) => (
-          <FolderBranch
-            key={folder.id}
-            folder={folder}
-            snap={snap}
-            folderTo={folderTo}
-            currentFolderId={currentFolderId}
-            openFolders={openFolders}
-            onToggleFolder={toggleFolder}
-            onPick={onSelect ? (id) => onSelect(valueOf(id)) : undefined}
-          />
-        ))}
+        {folderRows}
       </Collapse>
     </div>
   )

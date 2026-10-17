@@ -1328,11 +1328,18 @@ button.library-bookmark-tag:hover {
    above, breathing room around the header, and a lightly inset body, so the
    boundary between one category's collections and the next reads at a
    glance without turning the rail into boxes. */
-.library-nav-section {
+.library-nav-section,
+.library-nav-library {
   min-width: 0;
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px solid var(--line);
+}
+
+/* Content height: .library-nav-tree's flex: 1 would push Shared with you
+   and Tags to the bottom of the rail. */
+.library-nav-library {
+  flex: 0 0 auto;
 }
 
 .library-nav-section-head {

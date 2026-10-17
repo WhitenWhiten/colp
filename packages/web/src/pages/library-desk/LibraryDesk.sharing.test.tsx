@@ -177,8 +177,8 @@ describe('LibraryDesk sharing and sidebar counts', () => {
     const nav = document.querySelector('[data-testid="library-nav"]')
     const invites = nav?.querySelector('[data-testid="library-nav-invites"]')
     const sections = [...(nav?.children ?? [])]
-      .filter((node) => node.tagName === 'SECTION')
       .map((node) => node.getAttribute('data-testid'))
+      .filter((id) => id?.startsWith('library-nav-'))
     expect([...document.querySelectorAll('[data-testid="library-nav"] .section-label')].map((node) => node.textContent)).toContain('Invitations')
     expect(invites?.querySelector('[aria-label="Pending invitations"]')?.textContent).toContain('Frozen Shelf')
     expect(invites?.querySelector('[aria-label="Pending invitations"]')?.getAttribute('role')).not.toBe('tree')

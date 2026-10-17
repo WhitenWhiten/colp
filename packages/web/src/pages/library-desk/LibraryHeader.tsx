@@ -277,18 +277,11 @@ function LibraryMobileNav({
           </section>
         )}
         <div className="library-nav-tree">
-            {library !== null && (
-              <div className="library-mobile-nav-section-head">
-                <p className="library-nav-sub">Bookmarks</p>
-
-              </div>
-            )}
-              <div role="list" aria-label="Library folders">
-              {library && <CollectionBranch listItem collection={library}
-                selectedId={selectedId} folderId={folderId} expanded={isExpanded(library.id)}
-                tree={trees[library.id]} onToggle={() => toggleExpanded(library.id, isExpanded(library.id))} onSelect={choose} />}
-
-              </div>
+          <div className="library-nav-tree" role="list" aria-label="Library folders">
+            {library && <CollectionBranch listItem collection={library}
+              selectedId={selectedId} folderId={folderId} expanded
+              tree={trees[library.id]} onToggle={() => undefined} onSelect={choose} />}
+          </div>
             {collaboratorsLive && orderedShared.length > 0 && (
               <>
                 <div className="library-mobile-nav-section-head">

@@ -160,21 +160,20 @@ describe('LibraryDesk', () => {
     expect(document.querySelector('[data-testid="library-bookmarks"]')?.textContent).toContain('Loose bookmark')
   })
 
-  it('auto-expands the selected collection and still collapses/expands by hand', async () => {
+  it('lists the library as the rail’s top level, with no control that folds it away', async () => {
     mount()
     await waitForDom(domFinishedLoading)
     // Sidebar-scoped: the desk folder layer also carries data-folder-id rows.
     const navFolder = (id: string) =>
       document.querySelector(`[data-testid="library-nav"] [data-folder-id="${id}"]`)
-    // Selection expands the first folder level without an extra Expand click.
     expect(navFolder('col-1-folder')?.textContent).toContain('Later')
-    const collapse = document.querySelector<HTMLButtonElement>('button[aria-label="Collapse Reading queue"]')
-    expect(collapse).not.toBeNull()
-    act(() => collapse?.click())
-    expect(navFolder('col-1-folder')).toBeNull()
+    expect(document.querySelector('a[data-collection-id="col-1"]')?.textContent).toContain('All bookmarks')
+    expect(document.querySelector('button[aria-label="Collapse Reading queue"]')).toBeNull()
     act(() => {
-      document.querySelector<HTMLButtonElement>('button[aria-label="Expand Reading queue"]')?.click()
+      document.querySelector<HTMLAnchorElement>('a[data-collection-id="col-2"]')?.click()
     })
+    await waitForDom(domFinishedLoading)
+    // Beside a shared collection, the library's folders stay listed.
     expect(navFolder('col-1-folder')?.textContent).toContain('Later')
   })
 
@@ -184,36 +183,44 @@ describe('LibraryDesk', () => {
     const navFolder = (id: string) =>
       document.querySelector(`[data-testid="library-nav"] [data-folder-id="${id}"]`)
     act(() => {
-      document.querySelector<HTMLButtonElement>('button[aria-label="Collapse Reading queue"]')?.click()
-    })
-    expect(navFolder('col-1-folder')).toBeNull()
-    act(() => {
       document.querySelector<HTMLAnchorElement>('a[data-collection-id="col-2"]')?.click()
     })
     await waitForDom(domFinishedLoading)
     // The newly selected collection auto-expands…
     expect(navFolder('col-2-folder')?.textContent).toContain('Later')
     act(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="Collapse Second shelf"]')?.click()
+    })
+    expect(navFolder('col-2-folder')).toBeNull()
+    act(() => {
       document.querySelector<HTMLAnchorElement>('a[data-collection-id="col-1"]')?.click()
     })
     await waitForDom(domFinishedLoading)
+    act(() => {
+      document.querySelector<HTMLAnchorElement>('a[data-collection-id="col-2"]')?.click()
+    })
+    await waitForDom(domFinishedLoading)
     // …but the manually collapsed one stays collapsed on reselection.
-    expect(navFolder('col-1-folder')).toBeNull()
-    expect(document.querySelector('button[aria-label="Expand Reading queue"]')).not.toBeNull()
+    expect(navFolder('col-2-folder')).toBeNull()
+    expect(document.querySelector('button[aria-label="Expand Second shelf"]')).not.toBeNull()
   })
 
   it('keeps the parent collection current when a selected folder is collapsed', async () => {
     mount()
     await waitForDom(domFinishedLoading)
     act(() => {
-      document.querySelector<HTMLAnchorElement>('a[data-folder-id="col-1-folder"]')?.click()
+      document.querySelector<HTMLAnchorElement>('a[data-collection-id="col-2"]')?.click()
     })
     await waitForDom(domFinishedLoading)
     act(() => {
-      document.querySelector<HTMLButtonElement>('button[aria-label="Collapse Reading queue"]')?.click()
+      document.querySelector<HTMLAnchorElement>('[data-testid="library-nav"] a[data-folder-id="col-2-folder"]')?.click()
     })
-    expect(document.querySelector('[data-folder-id="col-1-folder"]')).toBeNull()
-    expect(document.querySelector('a[data-collection-id="col-1"]')?.closest('.library-nav-row')?.classList.contains('is-current')).toBe(true)
+    await waitForDom(domFinishedLoading)
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="Collapse Second shelf"]')?.click()
+    })
+    expect(document.querySelector('[data-testid="library-nav"] [data-folder-id="col-2-folder"]')).toBeNull()
+    expect(document.querySelector('a[data-collection-id="col-2"]')?.closest('.library-nav-row')?.classList.contains('is-current')).toBe(true)
   })
 
   it('filters bookmarks when a folder is selected', async () => {
@@ -386,7 +393,7 @@ describe('LibraryDesk', () => {
     await waitForDom(domFinishedLoading)
     const firstLink = document.querySelector('a[data-collection-id="col-1"]')
     const nav = document.querySelector('[aria-label="Collection folders"]')
-    expect(document.querySelector('button[aria-label="Collapse Reading queue"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="library-nav"] [data-folder-id="col-1-folder"]')).not.toBeNull()
     expect(document.querySelector('button[aria-label="Expand Second shelf"]')).not.toBeNull()
     expect(document.querySelector('[data-folder-id="col-2-folder"]')).toBeNull()
     act(() => {

@@ -136,28 +136,15 @@ export function LibrarySidebar({
         </section>
       )}
 
-      <LibraryNavSection
-        sectionId="mine"
-        title="Bookmarks"
-        collapsed={collapsedSections.has('mine')}
-        onToggle={() => toggleSection('mine')}
-        reordering={reorderSection === 'mine'}
-        canReorder={false}
-        onBeginReorder={() => beginReorder('mine')}
-        onFinishReorder={() => finishReorder()}
-      >
-        {collections.state === 'error' && !collections.library ? (
-          <p className="library-nav-hint" role="alert">{collections.message}</p>
-        ) : (
-          <div role="list" aria-label="Library folders">
-            {collections.library && <CollectionBranch collection={collections.library}
-              selectedId={selectedId} folderId={folderId} expanded={isExpanded(collections.library.id)}
-              tree={trees[collections.library.id]} onToggle={() => toggleExpanded(collections.library!.id, isExpanded(collections.library!.id))} listItem />}
-
-          </div>
-        )}
-
-      </LibraryNavSection>
+      {collections.state === 'error' && !collections.library ? (
+        <p className="library-nav-hint" role="alert">{collections.message}</p>
+      ) : (
+        <div className="library-nav-tree library-nav-library" role="list" aria-label="Library folders" data-testid="library-nav-mine">
+          {collections.library && <CollectionBranch collection={collections.library}
+            selectedId={selectedId} folderId={folderId} expanded
+            tree={trees[collections.library.id]} onToggle={() => undefined} listItem />}
+        </div>
+      )}
 
       {collaboratorsLive && (
         <LibraryNavSection
