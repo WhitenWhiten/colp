@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { BookmarkIconSrc } from '../lib/bookmarkIcon'
+import { imageLoadHints, markImageShown } from '../lib/shownImages'
 
 export function BookmarkIcon({
   icon,
@@ -26,9 +27,9 @@ export function BookmarkIcon({
       alt=""
       width={width}
       height={height}
-      loading="lazy"
-      decoding="async"
+      {...imageLoadHints(src)}
       referrerPolicy="no-referrer"
+      onLoad={() => markImageShown(src)}
       onError={() => setFailedSrc(src)}
     />
   )

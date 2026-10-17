@@ -5,6 +5,7 @@ import { Icon } from './Icon'
 import type { PreviewCover } from '../lib/linkPreview'
 import { plural, pluralNoun } from '../lib/plural'
 import { useGalleryMasonry } from '../lib/useGalleryMasonry'
+import { imageLoadHints, markImageShown } from '../lib/shownImages'
 
 export type FolderEntryItem = {
   id: string
@@ -188,10 +189,10 @@ function FolderCoverMosaic({ covers }: { covers: readonly PreviewCover[] }) {
           width={cover.width}
           height={cover.height}
           alt=""
-          loading="lazy"
-          decoding="async"
+          {...imageLoadHints(cover.url)}
           referrerPolicy="no-referrer"
           draggable={false}
+          onLoad={() => markImageShown(cover.url)}
           onError={() => setFailed((prev) => new Set(prev).add(cover.url))}
         />
       ))}
