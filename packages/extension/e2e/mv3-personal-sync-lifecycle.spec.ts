@@ -10,7 +10,7 @@ import { grantOptionalBookmarks } from './bookmark-permission.js';
 const extension = resolve(import.meta.dirname, '../dist/production');
 // These scopes sync through the pre-bootstrapped fixture replica without a first sync in this browser,
 // which the card reports as ready to sync; either way the policy is enabled.
-const ENABLED = /^(Personal sync is enabled|Ready to sync\. Choose folders to start the first sync\.)$/u;
+const ENABLED = /^(Personal sync is enabled|Ready to sync\. Review your browser’s bookmarks to start the first sync\.)$/u;
 const launch = (profile: string, rules: string) => chromium.launchPersistentContext(profile, {
   headless: false, channel: 'chromium', ignoreHTTPSErrors: true,
   args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
