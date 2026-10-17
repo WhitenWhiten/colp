@@ -355,7 +355,7 @@ export function LibraryHealth() {
                   {issueCount === 0
                     ? 'Nothing on this page needs review'
                     : `${plural(issueCount, 'item needs', 'items need')} review${
-                      collectionCount > 0
+                      collectionCount > 1
                         ? ` across ${plural(collectionCount, 'collection')}`
                         : ''
                     }`}

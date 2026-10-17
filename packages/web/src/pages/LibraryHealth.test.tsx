@@ -160,7 +160,8 @@ describe('LibraryHealth Product wiring', () => {
     expect(document.querySelector('[role="status"]')).toBeNull()
     expect(document.body.textContent).toContain('Pending bookmark')
     expect(document.body.textContent).toContain('example.test')
-    expect(document.body.textContent).toContain('Reading list')
+    // An owned link is in the owner's one library; its stored title stays out.
+    expect(document.body.textContent).not.toContain('Reading list')
     expect(document.body.textContent).toContain('Not checked yet')
     expect(mocks.getMyLinkHealth).toHaveBeenCalledWith(
       { limit: 50 },
@@ -341,6 +342,7 @@ describe('LibraryHealth Product wiring', () => {
     act(() => scopeButton('Shared with me').click())
     await waitForDom(domFinishedLoading)
     expect(document.querySelector('[data-testid="health-resource"]')?.textContent).toContain('Editor')
+    expect(document.querySelector('[data-testid="health-resource"]')?.textContent).toContain('Reading list')
     act(() => scopeButton('All').click())
     await waitForDom(domFinishedLoading)
     expect(document.querySelector('[data-testid="health-resource"]')?.textContent).toContain('Editor')

@@ -23,11 +23,10 @@ export function resourceMeta(
   item: LinkHealthItem,
   scope: 'owned' | 'shared' | 'all',
 ): string {
-  const base = `${hostOf(item)} · ${item.collectionTitle}`
-  if (scope === 'owned' || item.membership == null) return base
-  const caption = item.membership === 'owner' ? 'Owner'
-    : item.membership === 'editor' ? 'Editor' : 'Viewer'
-  return `${base} · ${caption}`
+  // What the owner owns is their one library, whose stored title never shows.
+  if (scope === 'owned' || item.membership == null) return hostOf(item)
+  if (item.membership === 'owner') return `${hostOf(item)} · Your library`
+  return `${hostOf(item)} · ${item.collectionTitle} · ${item.membership === 'editor' ? 'Editor' : 'Viewer'}`
 }
 
 export function HealthRow({
