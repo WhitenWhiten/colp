@@ -52,6 +52,22 @@ describe('LibraryDesk menus and selection', () => {
   beforeEach(setUpLibraryDesk)
   afterEach(tearDownLibraryDesk)
 
+  it('keeps every browser root of the library in place, a synced Mobile bookmarks included', async () => {
+    const base = snapshot('col-1')
+    const roots = (['bookmarks-bar', 'mobile-bookmarks'] as const).map((folderRole, index) => ({
+      ...base.nodes[0]!, id: folderRole, folderRole, title: folderRole === 'bookmarks-bar' ? 'Bookmarks bar' : 'Mobile bookmarks',
+      parentId: base.root.id, position: String(index) }))
+    mocks.loadEditorSnapshot.mockResolvedValue({ ...base, collection: { ...base.collection, library: true },
+      nodes: [...roots, { ...base.nodes[0]!, parentId: 'bookmarks-bar' }] })
+    mount()
+    await waitForDom(() => document.querySelector('button[aria-label="Actions for Mobile bookmarks"]') !== null)
+    openRowMenu('Mobile bookmarks')
+    const items = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
+    expect(items).toContain('Edit details')
+    expect(items).not.toContain('Move to…')
+    expect(items).not.toContain('Delete')
+  })
+
   it('shows the bookmark row menu with caps-gated items and never navigates', async () => {
     mount()
     await waitForDom(domFinishedLoading)

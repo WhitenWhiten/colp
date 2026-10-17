@@ -10,6 +10,7 @@ import {
   type EditorSnapshot,
   type OwnedCollectionListItem,
 } from '../../api'
+import { isBrowserFolderRole } from '../../generated/browser-folder-roles'
 import { findFolder, isAbort } from '../../lib/libraryTree'
 import { readRouteCache, writeRouteCache } from '../../lib/routeCache'
 import type { useLibrary } from '../../lib/useLibrary'
@@ -271,9 +272,12 @@ export function useLibraryDeskData(options: {
     : '/library'
   const folderPath = (id: string | null) =>
     id ? `${collectionBasePath}?folder=${encodeURIComponent(id)}` : collectionBasePath
+  // Every browser root the server protects, a synced Mobile bookmarks included.
+  const protectedFolderIds = useMemo(() => new Set(snap?.collection.library
+    ? snap.nodes.filter((node) => node.kind === 'folder' && isBrowserFolderRole(node.folderRole)).map((node) => node.id) : []), [snap])
 
   return {
-    protectedFolderIds: new Set([collections.library?.bookmarksBarId, collections.library?.otherBookmarksId].filter((id): id is string => Boolean(id))),
+    protectedFolderIds,
     trees,
     treesRef,
     expanded,
