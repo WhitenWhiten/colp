@@ -482,6 +482,7 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/me/collaboration-invites',
   '/api/v1/me/favicon-jobs/:jobId',
   '/api/v1/me/favicon-policy',
+  '/api/v1/me/library',
   '/api/v1/me/library-order',
   '/api/v1/me/link-health',
   '/api/v1/me/shared-collections',

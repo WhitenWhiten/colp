@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, describe, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import {
+  COLLECTION_TREE_VERSION_MAX_BYTES,
   createProductCollectionVersionCursorSigner,
   strongEntityTag,
   type CollectionTreeLiveMember,
@@ -359,16 +360,29 @@ describe('POST/GET /api/v1/collections/:collectionId/versions', () => {
     }), 412, 'precondition_failed');
   });
 
-  test('more than 2000 live members is 400 invalid_request', async () => {
+  test('more than 2000 live members within the byte budget can be captured', async () => {
     const members = Array.from({ length: 2001 }, (_, index) =>
       member(`bm-${index}`, { positionToken: `p${index}` }));
-    const { app, owner } = await harness({ enabled: true, members });
+    const { app, owner, rows } = await harness({ enabled: true, members });
+    const response = await app.inject({
+      method: 'POST', url: LIST,
+      headers: mutationHeaders(owner, randomUUID(), { 'if-match': MATCH }),
+      payload: {},
+    });
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.json().nodeCount, members.length);
+    assert.equal(rows.length, 1);
+  });
+
+  test('serialized tree data above 32 MiB is 400 invalid_request without inserting a version', async () => {
+    const members = [member('large', { title: '界'.repeat(Math.ceil(COLLECTION_TREE_VERSION_MAX_BYTES / 3)) })];
+    const { app, owner, rows } = await harness({ enabled: true, members });
     assertProductErrorEnvelope(await app.inject({
-      method: 'POST',
-      url: LIST,
+      method: 'POST', url: LIST,
       headers: mutationHeaders(owner, randomUUID(), { 'if-match': MATCH }),
       payload: {},
     }), 400, 'invalid_request');
+    assert.equal(rows.length, 0);
   });
 
   test('manual create within 10s cooldown is 429 rate_limited', async () => {

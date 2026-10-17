@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import { test } from 'vitest';
 import { createAuthenticatedBinding, materializeClosedMcpToolSchema } from '@know-n/colp/mcp';
 import { createPhase4bMcpRequestContext } from '../../../src/modules/mcp/request-context.js';
@@ -20,7 +19,6 @@ test('every direct write receipt conforms to the output schema a strict client d
   });
   const tools = (await bundle.adapter.listTools(context)).tools as Record<string, unknown>[];
   const cases: [string, Record<string, unknown>, boolean][] = [
-    ['collections.create', { title: 'Notebook', idempotencyKey: randomUUID() }, true],
     ['collections.update', { collectionId: 'collection-1', baseRevision: 'r1', patch: { title: 'Notebook' } }, true],
     ['nodes.create', { collectionId: 'collection-1', node: { kind: 'folder', title: 'Inbox' } }, true],
     ['nodes.create', { collectionId: 'collection-1', node: { kind: 'folder', title: 'Inbox' }, dryRun: true, confirmApply: false }, false],

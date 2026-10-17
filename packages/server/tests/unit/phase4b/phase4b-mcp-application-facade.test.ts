@@ -478,25 +478,21 @@ test('mapStrictCallResult keeps a non-empty complete content array', async () =>
   assertNoEraWireFields(result);
 });
 
-test('collections.create and nodes.create complete results expose JSON text content equal to structuredContent', async () => {
+test('collections.create rejects with library guidance and nodes.create exposes matching JSON content', async () => {
   const fixture = createInMemoryWriteToolFixture();
   const facade = createFacade(fixture.bundle.adapter);
   const context = writeAppContext();
-  const missingIntent = await facade.callTool(context, 'collections.create', Object.freeze({ title: '测试收藏夹' }));
-  assert.equal(missingIntent.kind, 'rejected', 'new-intent key is required at the application facade');
-  const created = await facade.callTool(context, 'collections.create', Object.freeze({ title: '测试收藏夹', idempotencyKey: 'b24c31fe-e58c-40fa-8c80-2a9438d5ecc1' }));
-  assertJsonTextContentMatchesStructured(created);
-  if (created.kind !== 'complete') return;
-  const createdBody = created.structuredContent as {
-    readonly collectionId?: string;
-    readonly rootNodeId?: string;
-    readonly revision?: string;
-    readonly childrenRevision?: string;
-  };
-  assert.equal(createdBody.collectionId, 'col-w06-created');
-  assert.equal(createdBody.rootNodeId, 'root-w06-created');
-  assert.equal(createdBody.revision, 'res-w06-created');
-  assert.equal(createdBody.childrenRevision, 'ch-w06-created');
+  const legacyCreate = await facade.callTool(context, 'collections.create', Object.freeze({ title: '测试收藏夹' }));
+  assert.equal(legacyCreate.kind, 'rejected', 'retired creation arguments are rejected');
+  const created = await facade.callTool(context, 'collections.create', Object.freeze({}));
+  assert.equal(created.kind, 'rejected');
+  if (created.kind !== 'rejected') return;
+  assert.equal(created.stableCode, 'library_protected');
+  assert.equal(created.retryable, false);
+  assert.match(created.safeMessage, /nodes\.create/u);
+  assert.match(created.safeMessage, /col-w06-library/u);
+  assert.match(created.safeMessage, /bar-w06-library/u);
+  assert.match(created.safeMessage, /other-w06-library/u);
   assertNoEraWireFields(created);
 
   const node = await facade.callTool(context, 'nodes.create', nodeCreateArgs());

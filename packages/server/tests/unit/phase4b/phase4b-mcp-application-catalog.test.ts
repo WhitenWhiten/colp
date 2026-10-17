@@ -428,7 +428,7 @@ test('write Tool list freezes mounted names, descriptions, schemas, scopes, and 
   assert.equal(collectionsUpdateInput.properties?.patch?.additionalProperties, false);
   assert.deepEqual(
     Object.keys(collectionsUpdateInput.properties?.patch?.properties ?? {}).sort(),
-    ['summary', 'title'],
+    ['allowSearchIndexing', 'publicationSlug', 'summary', 'title', 'visibility'],
   );
   const annotationsCreateInput = byName.get('annotations.create')?.inputSchema as {
     readonly additionalProperties?: boolean;

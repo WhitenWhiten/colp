@@ -57,6 +57,9 @@ const cursors = createPublicationCursorKeyring({
 });
 const ports: PublicationSnapshotQueryPorts = {
   cursors,
+  // Cursor expiry is part of the bytes hashed by the ETag. Keep requests in
+  // the same time window even when the test runs across a minute boundary.
+  now: () => new Date(instant),
   origin: 'https://known.example',
   // P4A-R06: deny-by-default exposure gate over logical blob facts; no blobs in this unit harness.
   sharedExposure: Object.freeze({ async listBlobFacts() { return []; } }),

@@ -10,6 +10,10 @@ type RegisteredRoute = readonly [method: string, path: string];
 
 function recordingApp(routes: RegisteredRoute[]): FastifyInstance {
   const app = {
+    route(options: { method: string; url: string }) {
+      routes.push([options.method, options.url]);
+      return app;
+    },
     post(path: string) {
       routes.push(['POST', path]);
       return app;
@@ -60,12 +64,16 @@ test('collection facade registers each route once in the established order', () 
 
   assert.deepEqual(routes, [
     ['POST', '/api/v1/collections'],
+    ['DELETE', '/api/v1/collections/:collectionId'],
     ['PATCH', '/api/v1/collections/:collectionId'],
     ['GET', '/api/v1/collections'],
     ['POST', '/api/v1/collections/:collectionId/nodes'],
     ['PATCH', '/api/v1/collections/:collectionId/nodes/:nodeId'],
     ['POST', '/api/v1/collections/:collectionId/nodes/:nodeId/move'],
     ['DELETE', '/api/v1/collections/:collectionId/nodes/:nodeId'],
+    ['GET', '/api/v1/collections/:collectionId/nodes/:nodeId/share'],
+    ['PUT', '/api/v1/collections/:collectionId/nodes/:nodeId/share'],
+    ['DELETE', '/api/v1/collections/:collectionId/nodes/:nodeId/share'],
     ['GET', '/api/v1/collections/:collectionId/editor'],
     ['GET', '/api/v1/collections/:collectionId/annotations'],
     ['POST', '/api/v1/collections/:collectionId/annotations'],

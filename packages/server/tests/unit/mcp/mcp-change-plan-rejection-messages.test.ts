@@ -34,7 +34,7 @@ test('host and SDK impact rejections explain the history limit without exposing 
     assert.ok(error instanceof Mcp20260728RequestError);
     assert.equal(error.kind, 'invalid_params');
     assert.deepEqual(error.data, { code: 'impact_exceeded' });
-    assert.match(error.message, /2000 live folders and bookmarks/u);
+    assert.match(error.message, /32 MiB of serialized tree data per snapshot/u);
     assert.match(error.message, /Nothing was changed/u);
     assert.doesNotMatch(error.message, /private dependency details/u);
   }

@@ -152,7 +152,7 @@ describe('extension collection list route', () => {
     assert.deepEqual(response.json(), {
       items: [{
         id: OWNED_COLLECTION_ID, title: 'Owned library-one', kind: 'bookmarks', visibility: 'private',
-        rootNodeId: `root-${OWNED_COLLECTION_ID}`,
+        rootNodeId: `root-${OWNED_COLLECTION_ID}`, library: false,
       }],
     });
   });

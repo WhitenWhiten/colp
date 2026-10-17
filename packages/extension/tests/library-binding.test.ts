@@ -128,3 +128,20 @@ test('a pause made after a 404 survives successful rediscovery', async () => {
   await ensureLibraryBinding({ login: true });
   assert.equal((await policy.read(owner)).mode, 'paused');
 });
+
+test.each([
+  ['same library', library, 'available'],
+  ['another library', { ...library, id: 'other' }, 'unavailable'],
+  ['missing library', null, 'unknown'],
+  ['legacy collection listing', { items: [] }, 'unknown'],
+  ['unmarked library', { ...library, library: false }, 'unknown'],
+  ['missing browser folder', { ...library, bookmarksBarId: undefined }, 'unknown'],
+  ['invalid root identity', { ...library, rootNodeId: 'invalid root' }, 'unknown'],
+] as const)('availability verifies the account library: %s', async (_label, body, expected) => {
+  vi.stubGlobal('fetch', async () => Response.json(body));
+  assert.equal(await verifyLibraryAvailability(owner), expected);
+});
+test.each([401, 403, 404, 503])('HTTP %s cannot prove the library was deleted', async status => {
+  vi.stubGlobal('fetch', async () => new Response(null, { status }));
+  assert.equal(await verifyLibraryAvailability(owner), 'unknown');
+});
