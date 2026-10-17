@@ -17,7 +17,7 @@ import { handleAttentionDecide, handleAttentionGet, latestBootstrapRun, withAtte
 import { persistFirstRunBrowserRoots } from './first-run-browser-roots.js';
 import { resolveLibraryRootId } from './library.js';
 import { hasBookmarkPermission, rootScopeKey, sw, syncState } from './runtime.js';
-import { currentSyncScope, retireLegacyScopeForRemount } from './scope.js';
+import { currentSyncScope, restoredSyncScope, retireLegacyScopeForRemount } from './scope.js';
 import { readRootFolders, sameDiscovered } from './roots.js';
 import { nativeChromeFacts } from './native-chrome.js';
 import { advancedFirstRunStatus, handleAdvancedFirstRunConfirm, handleAdvancedFirstRunPreview } from './advanced-first-run.js';
@@ -112,7 +112,9 @@ async function handleFirstRunLater(): Promise<FirstRunOrScopeResponse> {
 
 async function handleFirstRunStatus(): Promise<FirstRunOrScopeResponse> {
   let scope: SyncScope;
-  try { scope = await currentSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
+  // Options can ask before anything restored the credential after a restart;
+  // answering not_connected then reopened the first-run card on a synced browser.
+  try { scope = await restoredSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
   const engine = await syncState.getEngineState(scope);
   const recorded = await syncState.getScope(scope);
   const recoveryCode = typeof recorded?.metadata?.recoveryCode === 'string' ? recorded.metadata.recoveryCode : undefined;
