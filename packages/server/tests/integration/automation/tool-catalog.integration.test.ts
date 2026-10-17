@@ -1,5 +1,6 @@
 import { afterEach,expect,test } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import { automationWorkerFixture } from '../../support/automation-worker-fixture.js';
 import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 import { automationWorkPrincipal,createMcpApplicationContext,withAutomationCatalog,
@@ -55,6 +56,25 @@ describeWithPostgres('AW-30 current conditional Automation catalogs',() => {
     expect((await api.listTools(c)).tools).toEqual([]);
     expect(await api.getTool!(c,'automation.jobs.list')).toBeUndefined();
     expect(await api.callTool(c,'automation.jobs.list',{})).toMatchObject({ stableCode: 'unknown_tool' });
+  });
+  test('a credential the Owner’s live code could confirm sees only the pair tool beside its standard tools',async () => {
+    f = await automationWorkerFixture('aw30_confirm');const c = await context(),api = facade();
+    const s = await f.setup({ credentialBindingId: 'pending-owner-chose-agent' });
+    const pending = await api.listTools(c);
+    expect(pending.tools.map(t => t.name)).toEqual(['nodes.get','automation.targets.pair']);
+    expect(await api.getTool!(c,'automation.jobs.list')).toBeUndefined();
+    expect(await api.callTool(c,'automation.jobs.list',{})).toMatchObject({ stableCode: 'unknown_tool' });
+    expect(await api.listResources(c)).toEqual(await base.listResources(c));
+    // No live code, nothing new.
+    await sql`UPDATE automation_pairings SET expires_at=clock_timestamp()-interval '1 second'`.execute(f.db);
+    expect(await api.listTools(c)).toEqual(await base.listTools(c));
+    const target = await f.app.inject({ url: `/api/v1/me/automations/targets/${s.target.id}`,headers: { cookie: f.owner.cookie } });
+    const grant = await f.ownerPost(`/targets/${s.target.id}/pairings`,{ reason: 'Pair the chosen agent' },String(target.headers.etag));
+    expect(grant.statusCode,grant.body).toBe(201);expect((await f.pair(grant.json())).statusCode).toBe(200);
+    expect((await api.listTools(c)).tools.map(t => t.name)).toContain('automation.jobs.list');
+    // Another credential of the same agent sees nothing new once the connection is confirmed and no code is out.
+    const other = await context(await f.mint({ scopes: ['automation:work','mcp:read:own'] }));
+    expect(await api.listTools(other)).toEqual(await base.listTools(other));
   });
   test('explicit combined catalogs still require each scope and current binding; no global catalog cache',async () => {
     f = await automationWorkerFixture('aw30_combined',100,true);const s = await f.setup();

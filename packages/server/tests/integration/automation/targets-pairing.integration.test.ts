@@ -34,6 +34,51 @@ describeWithPostgres('AW-26 authenticated worker bootstrap and pairing',() => {
     const fresh = await f.ownerPost(`/targets/${setup.target.id}/pairings`,{ reason: 'Fresh grant' },setup.grantEtag);expect(fresh.statusCode,fresh.body).toBe(201);
     const races = await Promise.all([f.pair(fresh.json()),f.pair(fresh.json())]);expect(races.map(r => r.statusCode).sort()).toEqual([200,404]);
   });
+  test('the chosen agent confirms its credential with its first valid code, and only then',async () => {
+    f = await automationWorkerFixture('aw26_adopt'); const setup = await f.setup({ credentialBindingId: 'pending-owner-chose-agent' });
+    const binding = async () => (await sql<{ binding: string; revision: string }>`SELECT configuration_json->>'credentialBindingId' AS binding,revision::text AS revision
+      FROM automation_connection_profiles WHERE id=${setup.profile.id}`.execute(f.db)).rows[0]!;
+    // Another client, another Owner or a wrong code leaves the Owner's registration alone.
+    expect((await f.pair(setup.grant,randomUUID(),await f.mint({ clientId: 'other-client' }))).statusCode).toBe(404);
+    const foreign = await f.issue('adopt_foreign');expect((await f.pair(setup.grant,randomUUID(),await f.mint({ subjectId: foreign.subjectId }))).statusCode).toBe(404);
+    expect((await f.pair({ ...setup.grant,code: 'wrong' })).statusCode).toBe(404);
+    expect(await binding()).toEqual({ binding: 'pending-owner-chose-agent',revision: setup.profile.revision });
+
+    const command = randomUUID(),paired = await f.pair(setup.grant,command);expect(paired.statusCode,paired.body).toBe(200);
+    expect(paired.json()).toMatchObject({ id: setup.target.id,wakeReadiness: 'active' });
+    expect((await binding()).binding).toBe(f.actor.credentialBindingId);
+    expect(Number((await binding()).revision)).toBe(Number(setup.profile.revision)+1);
+    await f.db.transaction().execute(tx => f.worker.authorize(tx,f.actor,setup.target.id));
+    expect((await f.pair(setup.grant,command)).body).toBe(paired.body);
+    const profile = await f.app.inject({ url: `/api/v1/me/automations/connection-profiles/${setup.profile.id}`,headers: { cookie: f.owner.cookie } });
+    expect(profile.json().configuration.credentialBindingId).toBe(f.actor.credentialBindingId);
+  });
+  test('a code never moves a working worker to another credential of its agent',async () => {
+    f = await automationWorkerFixture('aw26_adopt_guard'); const setup = await f.setup();
+    expect((await f.pair(setup.grant)).statusCode).toBe(200);
+    const second = await f.ownerPost('/targets',{ ...setup.target.configuration,name: 'Second target' });expect(second.statusCode,second.body).toBe(201);
+    const grant = await f.ownerPost(`/targets/${second.json().id}/pairings`,{ reason: 'Owner pairs a second worker' },String(second.headers.etag));
+    expect(grant.statusCode,grant.body).toBe(201);
+    // Same agent, different scopes: a different OAuth connection.
+    const other = await f.mint({ scopes: ['automation:work','automation:read'] });
+    expect((await f.pair(grant.json(),randomUUID(),other)).statusCode).toBe(404);
+    const stored = (await sql<{ binding: string }>`SELECT configuration_json->>'credentialBindingId' AS binding FROM automation_connection_profiles`.execute(f.db)).rows[0]!;
+    expect(stored.binding).toBe(f.actor.credentialBindingId);
+    await f.db.transaction().execute(tx => f.worker.authorize(tx,f.actor,setup.target.id));
+  });
+  test('pairing a lone worker again moves it to the agent’s new credential',async () => {
+    f = await automationWorkerFixture('aw26_adopt_rotate'); const setup = await f.setup();
+    const first = await f.pair(setup.grant);expect(first.statusCode,first.body).toBe(200);
+    const again = await f.ownerPost(`/targets/${setup.target.id}/pairings`,{ reason: 'Owner pairs again' },`"${first.json().revision}"`);
+    expect(again.statusCode,again.body).toBe(201);
+    const rotated = await f.mint({ scopes: ['automation:work','automation:read'] });
+    const verified = await f.verifier.verify({ authorization: 'Bearer '+rotated,requiredScopes: ['automation:work'] });
+    expect(verified.automationConnectionId).not.toBe(f.actor.credentialBindingId);
+    expect((await f.pair(again.json(),randomUUID(),rotated)).statusCode).toBe(200);
+    const stored = (await sql<{ binding: string }>`SELECT configuration_json->>'credentialBindingId' AS binding FROM automation_connection_profiles`.execute(f.db)).rows[0]!;
+    expect(stored.binding).toBe(verified.automationConnectionId);
+    await expect(f.db.transaction().execute(tx => f.worker.authorize(tx,f.actor,setup.target.id))).rejects.toMatchObject({ code: 'resource_not_found' });
+  });
   test('shared credentials cannot activate restricted work; Events readiness is unavailable rather than inferred',async () => {
     f = await automationWorkerFixture('aw26_restricted'); const setup = await f.setup({ privacy: 'restricted',wakeMode: 'events' });
     const paired = await f.pair(setup.grant);expect(paired.statusCode,paired.body).toBe(200);

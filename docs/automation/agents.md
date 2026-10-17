@@ -8,9 +8,9 @@ server-owned model. No Web or extension client is required.
 
 ## Connect
 
-1. Enable the server automation runtime and worker features. As Owner, create a
-   dedicated credential/connection profile with the `automationWorker` catalog and
-   `automation:work`. Add ordinary collection read scopes only when separately needed;
+1. Enable the server automation runtime and worker features. As Owner, give the
+   worker a dedicated credential with `automation:work`; an API key issued on Agents
+   works. Add ordinary collection read scopes only when separately needed;
    canonical write scopes and manager scope are unnecessary for typed worker effects.
    For restricted work, give this dedicated credential no broader node-read authority.
 2. Use the existing account credential exchange or OAuth login to obtain an access
@@ -19,9 +19,20 @@ server-owned model. No Web or extension client is required.
    The exported transport accepts an async `accessToken` supplier for integrations
    that refresh tokens. The CLI exits on expired/revoked credentials: refresh externally
    and restart using the same journal.
-3. As Owner, create a poll target for that exact profile and mint a single-use pairing
-   grant. Configure the target ID, pairing ID/code and a stable command UUID below.
+3. As Owner, press **Add worker** and then **Add and pair** under Agents › Automation
+   workers. That creates a connection profile for the chosen agent (its client ID, the
+   `automationWorker` catalog), a poll target and a single-use pairing grant, and shows
+   the target ID, pairing ID/code and a stable command UUID to configure below. Over
+   the API, do the same; the profile's `credentialBindingId` may be a unique placeholder.
    Redemption uses worker-only auth; no prior pairing or manager scope is required.
+
+   The first valid redemption by a credential of that same client confirms it: the
+   profile adopts the credential's binding, and the grant carries over. Nothing is
+   adopted for another client or Owner, without the code, or while another target of
+   the profile is paired, so a code never moves a working worker. Pairing a lone target
+   again moves it to the agent's current credential. Over MCP, a credential that a live
+   grant could confirm this way sees `automation.targets.pair` beside its standard
+   tools, and nothing else new, until it pairs.
 4. Create bindings, an execution policy and a rule using
    [the summary-only fixture](design/examples/academic-summary-only.json), preview it
    and activate that exact preview. Automatic canonical effects also require the

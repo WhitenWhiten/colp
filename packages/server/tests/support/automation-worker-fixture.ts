@@ -85,8 +85,9 @@ export async function automationWorkerFixture(prefix: string,maxPairRequests = 1
   const ownerHeaders = (commandId = randomUUID(),etag?: string) => ({ cookie: f.owner.cookie,origin,'x-csrf-token': f.owner.csrfToken,'known-command-id': commandId,...(etag ? { 'if-match': etag } : {}) });
   const ownerPost = (path: string,payload: unknown,etag?: string,commandId?: string) => app.inject({ method: 'POST',url: '/api/v1/me/automations'+path,headers: ownerHeaders(commandId,etag),payload });
   const pair = (grant: { pairingId: string; code: string | null },commandId = randomUUID(),bearer = token) => app.inject({ method: 'POST',url: '/api/v1/automation-work/pairings/claim',headers: { authorization: 'Bearer '+bearer,'known-command-id': commandId },payload: { pairingId: grant.pairingId,code: grant.code } });
-  async function setup(options: { privacy?: 'standard' | 'restricted'; wakeMode?: 'poll' | 'events' } = {}) {
-    const p = await ownerPost('/connection-profiles',{ name: 'Polling worker',automationEnabled: true,authorizedClientId: actor.clientId,credentialBindingId: actor.credentialBindingId,catalogs: ['automationWorker'] });
+  /** credentialBindingId: what the Owner registers; anything but the worker's own is confirmed by its first pairing. */
+  async function setup(options: { privacy?: 'standard' | 'restricted'; wakeMode?: 'poll' | 'events'; credentialBindingId?: string } = {}) {
+    const p = await ownerPost('/connection-profiles',{ name: 'Polling worker',automationEnabled: true,authorizedClientId: actor.clientId,credentialBindingId: options.credentialBindingId ?? actor.credentialBindingId,catalogs: ['automationWorker'] });
     if (p.statusCode !== 201) throw new Error(p.body);
     const t = await ownerPost('/targets',{ name: 'Polling target',providerLabel: 'Deterministic injected output',broadcastOptIn: false,privacy: options.privacy ?? 'standard',
       connectionProfileId: p.json().id,wakeMode: options.wakeMode ?? 'poll',pollIntervalMinutes: 1 });
