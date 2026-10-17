@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AgentSummary } from '../../api/agentsClient'
 import type {
   AutomationConnectionProfile,
@@ -16,6 +16,8 @@ import { StatusBadge } from '../../components/StatusBadge'
 import { formatDateTime } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
 import {
+  canDoRuleWork,
+  defaultWorkerName,
   hasCatalog,
   originHint,
   pairingRefusal,
@@ -34,6 +36,14 @@ function messageOf(error: unknown, fallback: string): string {
 function pairedWorkers(profile: AutomationConnectionProfile, targets: readonly AutomationTarget[]): number {
   return targets.filter((target) => target.configuration.connectionProfileId === profile.id
     && target.wakeReadiness !== 'waitingForPairing' && target.wakeReadiness !== 'disabled').length
+}
+
+function unpairQuestion(count: number, profileName: string, confirmLabel: string) {
+  return {
+    title: `Unpair ${plural(count, 'worker')}?`,
+    body: `Changing this unpairs the ${plural(count, 'worker')} using “${profileName}”. Their waiting work stays queued; pair them again to continue.`,
+    confirmLabel,
+  }
 }
 
 function Switch({
@@ -92,14 +102,7 @@ export function AgentAutomationOptIns({
   const affected = pairedWorkers(profile, workers.data.targets)
 
   async function save(next: AutomationConnectionProfileInput, unpairs: boolean) {
-    if (unpairs && affected > 0) {
-      const accepted = await confirm({
-        title: `Unpair ${plural(affected, 'worker')}?`,
-        body: `Changing this unpairs the ${plural(affected, 'worker')} using “${configuration.name}”. Their waiting work stays queued; pair them again to continue.`,
-        confirmLabel: 'Change and unpair',
-      })
-      if (!accepted) return
-    }
+    if (unpairs && affected > 0 && !await confirm(unpairQuestion(affected, configuration.name, 'Change and unpair'))) return
     setBusy(true)
     try {
       await workers.saveProfile(profile, next)
@@ -154,9 +157,20 @@ function PairingGrant({ issued, origin, onDone, onAgain, busy }: {
   busy: boolean
 }) {
   const { grant } = issued
+  const ref = useRef<HTMLDivElement>(null)
+
+  // A new code is the next thing to act on: bring it into view with its first button focused.
+  useEffect(() => {
+    const block = ref.current
+    if (!block) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true
+    block.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+    block.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true })
+  }, [issued])
+
   if (grant.code === null) {
     return (
-      <div className="agents-secret agents-worker-grant" role="status" data-testid="worker-grant">
+      <div className="agents-secret agents-worker-grant" role="status" data-testid="worker-grant" ref={ref}>
         <p className="agents-secret-head">
           <Icon name="alert" />
           <span>This code was already shown once, so it can’t be shown again. Make a new one.</span>
@@ -170,9 +184,10 @@ function PairingGrant({ issued, origin, onDone, onAgain, busy }: {
     `export COLP_TARGET_ID=${grant.targetId}`,
     `export COLP_PAIRING_ID=${grant.pairingId}`,
     `export COLP_PAIRING_CODE=${grant.code}`,
+    `export COLP_PAIRING_COMMAND_ID=${issued.commandId}`,
   ].join('\n')
   return (
-    <div className="agents-secret agents-worker-grant" role="status" data-testid="worker-grant">
+    <div className="agents-secret agents-worker-grant" role="status" data-testid="worker-grant" ref={ref}>
       <p className="agents-secret-head">
         <Icon name="alert" />
         <span>
@@ -182,18 +197,21 @@ function PairingGrant({ issued, origin, onDone, onAgain, busy }: {
       </p>
       <CommandBlock label="Pairing settings for the worker" command={env} />
       <p className="agents-note">
-        Give these to the worker as environment variables, with its own access token. Keep them out of shell history and logs.
+        Set these in the worker’s environment, next to its own access token (<code>COLP_ACCESS_TOKEN</code>), then start it.
+        Keep them out of shell history and logs.
       </p>
       <button type="button" className="btn btn-secondary btn-sm" onClick={onDone}>Done, hide it</button>
     </div>
   )
 }
 
+function checksEvery(minutes: number | undefined): string {
+  if (!minutes) return 'Checks for work'
+  return minutes === 1 ? 'Checks for work every minute' : `Checks for work every ${minutes} minutes`
+}
+
 function wakeLine(target: AutomationTarget): string {
-  if (target.wakeMode === 'poll') {
-    const every = target.pollIntervalMinutes ? ` every ${plural(target.pollIntervalMinutes, 'minute')}` : ''
-    return `Checks for work${every}. That timing is the worker’s own; COLP doesn’t start it.`
-  }
+  if (target.wakeMode === 'poll') return `${checksEvery(target.pollIntervalMinutes)}. That timing is the worker’s own; COLP doesn’t start it.`
   return target.wakeReadiness === 'active'
     ? 'Woken by events when work is ready.'
     : 'Woken by events, once a subscription is verified. Chosen, not active yet.'
@@ -276,8 +294,7 @@ function WorkerCard({
         <div className="agent-card-title">
           <h3 id={`worker-${target.id}`}>{configuration.name}</h3>
           <p className="agent-card-meta">
-            {configuration.providerLabel}
-            {profileName ? <> · through {profileName}</> : null}
+            {[profileName ? `Runs as ${profileName}` : null, configuration.providerLabel || null].filter(Boolean).join(' · ')}
           </p>
         </div>
         <div className="agents-worker-head-end">
@@ -290,7 +307,9 @@ function WorkerCard({
         </div>
       </header>
 
-      <p className="agents-worker-reason" data-testid="worker-reason">{readinessReason(target.wakeReason)}</p>
+      <p className="agents-worker-reason" data-testid="worker-reason">
+        {unpaired && grant?.grant.code ? 'Waiting for the worker to use the code below.' : readinessReason(target.wakeReason)}
+      </p>
       <dl className="agents-worker-facts">
         <div><dt>Learns about work</dt><dd>{wakeLine(target)}</dd></div>
         <div>
@@ -342,6 +361,12 @@ function WorkerCard({
   )
 }
 
+/**
+ * Adding a worker is one press: a name nobody has to type, the agent picked
+ * for you when there is only one, and the defaults that suit the reference
+ * worker (it checks for work every minute; standard rules). Adding also pairs
+ * it, and turns on rule work for its agent when that is still off.
+ */
 function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
   workers: AutomationWorkers
   profiles: readonly AutomationConnectionProfile[]
@@ -349,53 +374,71 @@ function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
   onCreated: () => void
   onShowSteps: () => void
 }) {
+  const confirm = useConfirm()
   const { success, error: toastError } = useToast()
-  const usable = profiles.filter((profile) => profile.configuration.automationEnabled && hasCatalog(profile, 'automationWorker'))
-  const [name, setName] = useState('')
+  // Agents that may already do rule work come first: choosing one changes nothing else.
+  const candidates = [...profiles].sort((a, b) => Number(canDoRuleWork(b)) - Number(canDoRuleWork(a)))
+  const [name, setName] = useState(() => defaultWorkerName(workers.data.targets))
+  const [profileId, setProfileId] = useState(candidates[0]?.id ?? '')
   const [provider, setProvider] = useState('')
-  const [profileId, setProfileId] = useState(usable[0]?.id ?? '')
   const [privacy, setPrivacy] = useState<AutomationTargetInput['privacy']>('standard')
   const [wakeMode, setWakeMode] = useState<NonNullable<AutomationTargetInput['wakeMode']>>('poll')
-  const [pollMinutes, setPollMinutes] = useState('')
+  const [pollMinutes, setPollMinutes] = useState('1')
+  const [moreOpen, setMoreOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  if (usable.length === 0) {
+  const profile = candidates.find((item) => item.id === profileId) ?? candidates[0]
+  if (!profile) {
     return (
       <div className="agents-worker-blocked" data-testid="worker-no-connection">
-        <p className="agents-note">
-          {profiles.length === 0
-            ? 'A worker runs as one of your agents, and none of them is set up for automations yet.'
-            : <>First turn on <strong>Use for automations</strong> and <strong>Do rule work</strong> for its agent, on the agent’s card.</>}
-        </p>
+        <p className="agents-note">A worker runs as one of your agents, and none of them is set up for automations yet.</p>
         <button type="button" className="btn btn-secondary btn-sm" onClick={onShowSteps}>Show the worker steps</button>
       </div>
     )
   }
 
-  async function submit() {
-    const minutes = pollMinutes.trim() ? Number(pollMinutes) : undefined
-    if (!name.trim() || !provider.trim()) {
-      setError('Name the worker and say where it runs.')
+  const agentName = profile.configuration.name
+  const turnsOn = !canDoRuleWork(profile)
+  const minutes = Number(pollMinutes)
+  const minutesValid = Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440
+  const chosen = [
+    wakeMode === 'events' ? 'Woken by events' : checksEvery(minutesValid ? minutes : undefined),
+    privacy === 'restricted' ? 'restricted and standard rules' : 'standard rules',
+  ].join(' · ')
+
+  // An arrow, not a hoisted function, so `profile` stays narrowed.
+  const submit = async () => {
+    const workerName = name.trim()
+    if (!workerName) {
+      setError('Name the worker so you can tell it apart later.')
+      document.getElementById('worker-name')?.focus()
       return
     }
-    if (minutes !== undefined && (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440)) {
+    if (wakeMode === 'poll' && !minutesValid) {
+      setMoreOpen(true)
       setError('Check interval is a whole number of minutes, from 1 to 1440.')
       return
     }
+    const affected = turnsOn ? pairedWorkers(profile, workers.data.targets) : 0
+    if (affected > 0 && !await confirm(unpairQuestion(affected, agentName, 'Add and unpair'))) return
     setError(null)
     setBusy(true)
     try {
-      await workers.createTarget({
-        name: name.trim(),
+      if (turnsOn) {
+        await workers.saveProfile(profile, { ...withCatalog(profile.configuration, 'automationWorker', true), automationEnabled: true })
+      }
+      const { pairingError } = await workers.addWorker({
+        name: workerName,
         providerLabel: provider.trim(),
         broadcastOptIn: false,
         privacy,
-        connectionProfileId: profileId,
+        connectionProfileId: profile.id,
         wakeMode,
-        ...(wakeMode === 'poll' && minutes !== undefined ? { pollIntervalMinutes: minutes } : {}),
+        ...(wakeMode === 'poll' ? { pollIntervalMinutes: minutes } : {}),
       })
-      success(`Added “${name.trim()}”. Pair it to start.`)
+      if (pairingError) toastError(`Added “${workerName}”, but it isn’t paired yet. ${pairingRefusal(pairingError)}`)
+      else success(`Added “${workerName}”. Copy its pairing settings now.`)
       onCreated()
     } catch (failure) {
       toastError(messageOf(failure, 'Could not add this worker.'))
@@ -406,82 +449,127 @@ function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
 
   return (
     <form
-      className="agents-form agents-worker-form"
+      className="agents-worker-form"
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
         void submit()
       }}
     >
-      <div className="field">
-        <label htmlFor="worker-name">Name</label>
-        <input id="worker-name" value={name} maxLength={200} autoComplete="off" placeholder="Paper summaries" onChange={(event) => setName(event.target.value)} />
-      </div>
-      <div className="field">
-        <label htmlFor="worker-provider">Where it runs</label>
-        <input id="worker-provider" value={provider} maxLength={100} autoComplete="off" placeholder="Script on my laptop" onChange={(event) => setProvider(event.target.value)} />
-      </div>
-      <div className="field">
-        <label htmlFor="worker-profile">Agent</label>
-        <select id="worker-profile" value={profileId} onChange={(event) => setProfileId(event.target.value)}>
-          {usable.map((profile) => <option key={profile.id} value={profile.id}>{profile.configuration.name}</option>)}
-        </select>
-      </div>
-      <fieldset className="option-group">
-        <legend>How it learns about work</legend>
-        <label className="option-row">
-          <input type="radio" name="worker-wake" checked={wakeMode === 'poll'} onChange={() => setWakeMode('poll')} />
-          <span>
-            <strong>It checks for work</strong>
-            <span className="agent-card-meta">Works anywhere it can reach this server, including a home server. Its own schedule decides how fresh it is.</span>
-          </span>
-        </label>
-        <label className="option-row">
-          <input
-            type="radio"
-            name="worker-wake"
-            checked={wakeMode === 'events'}
-            disabled={!workers.data.eventsEnabled}
-            onChange={() => setWakeMode('events')}
-          />
-          <span>
-            <strong>Wake it with events</strong>
-            <span className="agent-card-meta">
-              {workers.data.eventsEnabled
-                ? 'For hosted agents. Needs this server at a public HTTPS address and a subscription the server verifies.'
-                : 'Events are off on this server.'}
-            </span>
-          </span>
-        </label>
-      </fieldset>
-      {wakeMode === 'events' && originLocal && (
-        <p className="agents-note agents-worker-hint" role="status" data-testid="worker-origin-hint">
-          This server’s address isn’t a public HTTPS address, so hosted agents probably can’t reach it. Choose checking for work, or serve it over public HTTPS.
-        </p>
-      )}
-      {wakeMode === 'poll' && (
+      <div className="agents-worker-form-main">
         <div className="field">
-          <label htmlFor="worker-interval">Check interval, in minutes (optional)</label>
-          <input id="worker-interval" type="number" inputMode="numeric" min={1} max={1440} value={pollMinutes} onChange={(event) => setPollMinutes(event.target.value)} />
-          <p className="field-hint">Set it to match the worker, so rule pages can say how fresh results are.</p>
+          <label htmlFor="worker-name">Name</label>
+          <input
+            id="worker-name"
+            value={name}
+            maxLength={200}
+            autoComplete="off"
+            onChange={(event) => {
+              setName(event.target.value)
+              setError(null)
+            }}
+          />
         </div>
-      )}
-      <fieldset className="option-group">
-        <legend>Rules it can serve</legend>
-        <label className="option-row">
-          <input type="radio" name="worker-privacy" checked={privacy === 'standard'} onChange={() => setPrivacy('standard')} />
-          <span><strong>Standard</strong></span>
-        </label>
-        <label className="option-row">
-          <input type="radio" name="worker-privacy" checked={privacy === 'restricted'} onChange={() => setPrivacy('restricted')} />
-          <span>
-            <strong>Restricted and standard</strong>
-            <span className="agent-card-meta">Only with a credential that no other worker or tool uses; otherwise it stays blocked.</span>
-          </span>
-        </label>
-      </fieldset>
+        {candidates.length > 1 && (
+          <div className="field">
+            <label htmlFor="worker-profile">Runs as</label>
+            <select id="worker-profile" value={profile.id} onChange={(event) => setProfileId(event.target.value)}>
+              {candidates.map((item) => <option key={item.id} value={item.id}>{item.configuration.name}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+      <p className="agents-note" data-testid="worker-agent-note">
+        {candidates.length === 1 && <>Runs as <strong>{agentName}</strong>. </>}
+        {turnsOn
+          ? <>Adding it also lets {candidates.length === 1 ? 'this agent' : <strong>{agentName}</strong>} do rule work.</>
+          : 'You get its one-use pairing code straight away.'}
+      </p>
+
+      <details
+        className="agents-worker-more"
+        open={moreOpen}
+        onToggle={(event) => setMoreOpen((event.currentTarget as HTMLDetailsElement).open)}
+      >
+        <summary>
+          <Icon name="chevron-right" className="agents-worker-more-chevron" />
+          More options
+          <span className="agents-worker-more-note" data-testid="worker-more-note">{chosen}</span>
+        </summary>
+        <div className="agents-worker-options">
+          <div className="field">
+            <label htmlFor="worker-provider">Where it runs (optional)</label>
+            <input id="worker-provider" value={provider} maxLength={100} autoComplete="off" placeholder="Script on my laptop" onChange={(event) => setProvider(event.target.value)} />
+          </div>
+          <fieldset className="option-group">
+            <legend>How it learns about work</legend>
+            <label className="option-row">
+              <input type="radio" name="worker-wake" checked={wakeMode === 'poll'} onChange={() => setWakeMode('poll')} />
+              <span>
+                <strong>It checks for work</strong>
+                <span className="agent-card-meta">Works anywhere it can reach this server, including a home server. Its own schedule decides how fresh it is.</span>
+              </span>
+            </label>
+            <label className="option-row">
+              <input
+                type="radio"
+                name="worker-wake"
+                checked={wakeMode === 'events'}
+                disabled={!workers.data.eventsEnabled}
+                onChange={() => setWakeMode('events')}
+              />
+              <span>
+                <strong>Wake it with events</strong>
+                <span className="agent-card-meta">
+                  {workers.data.eventsEnabled
+                    ? 'For hosted agents. Needs this server at a public HTTPS address and a subscription the server verifies.'
+                    : 'Events are off on this server.'}
+                </span>
+              </span>
+            </label>
+          </fieldset>
+          {wakeMode === 'events' && originLocal && (
+            <p className="agents-note agents-worker-hint" role="status" data-testid="worker-origin-hint">
+              This server’s address isn’t a public HTTPS address, so hosted agents probably can’t reach it. Choose checking for work, or serve it over public HTTPS.
+            </p>
+          )}
+          {wakeMode === 'poll' && (
+            <div className="field">
+              <label htmlFor="worker-interval">Check interval, in minutes</label>
+              <input
+                id="worker-interval"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={1440}
+                value={pollMinutes}
+                onChange={(event) => {
+                  setPollMinutes(event.target.value)
+                  setError(null)
+                }}
+              />
+              <p className="field-hint">Match the worker’s own schedule, so rule pages can say how fresh results are. The reference worker checks every minute.</p>
+            </div>
+          )}
+          <fieldset className="option-group">
+            <legend>Rules it can serve</legend>
+            <label className="option-row">
+              <input type="radio" name="worker-privacy" checked={privacy === 'standard'} onChange={() => setPrivacy('standard')} />
+              <span><strong>Standard</strong></span>
+            </label>
+            <label className="option-row">
+              <input type="radio" name="worker-privacy" checked={privacy === 'restricted'} onChange={() => setPrivacy('restricted')} />
+              <span>
+                <strong>Restricted and standard</strong>
+                <span className="agent-card-meta">Only with a credential that no other worker or tool uses; otherwise it stays blocked.</span>
+              </span>
+            </label>
+          </fieldset>
+        </div>
+      </details>
+
       {error && <p className="field-error" role="alert">{error}</p>}
-      <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : 'Add worker'}</button>
+      <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : 'Add and pair'}</button>
     </form>
   )
 }
@@ -557,7 +645,8 @@ export function AutomationWorkersSection({
         </div>
       )}
 
-      {data.status === 'ready' && active.length === 0 && !adding && (
+      {/* A worker just added is on its way in with its pairing code: no empty state in between. */}
+      {data.status === 'ready' && active.length === 0 && !adding && !workers.grant && (
         <EmptyState
           icon="bolt"
           className="empty-state--compact agents-empty"

@@ -25,7 +25,8 @@ export type WorkersData = {
   eventsEnabled: boolean
 }
 
-export type IssuedGrant = { targetId: string; grant: AutomationPairingGrant }
+/** commandId is the stable Known-Command-Id the worker redeems with, so a lost reply can be replayed. */
+export type IssuedGrant = { targetId: string; grant: AutomationPairingGrant; commandId: string }
 
 const MAX_PAGES = 5
 
@@ -86,10 +87,22 @@ export function useAutomationWorkers(enabled: boolean, api: AutomationApi = auto
       await api.replaceConnectionProfile(profile.id, configuration, profile.revision)
       reload()
     },
-    async createTarget(input: AutomationTargetInput) {
-      const created = await api.createTarget(input)
-      reload()
-      return created
+    /**
+     * Adds a worker and pairs it straight away, so its pairing settings are
+     * the next thing on screen. The worker exists even when pairing is
+     * refused; that refusal comes back instead of being thrown.
+     */
+    async addWorker(input: AutomationTargetInput): Promise<{ target: AutomationTarget; pairingError: unknown }> {
+      const target = await api.createTarget(input)
+      try {
+        const issued = await api.issuePairing(target.id, target.revision)
+        if (mounted.current) setGrant({ targetId: target.id, grant: issued, commandId: crypto.randomUUID() })
+        return { target, pairingError: null }
+      } catch (error) {
+        return { target, pairingError: error }
+      } finally {
+        reload()
+      }
     },
     async saveTarget(target: AutomationTarget, configuration: AutomationTargetInput) {
       await api.replaceTarget(target.id, configuration, target.revision)
@@ -97,7 +110,7 @@ export function useAutomationWorkers(enabled: boolean, api: AutomationApi = auto
     },
     async pair(target: AutomationTarget) {
       const issued = await api.issuePairing(target.id, target.revision)
-      if (mounted.current) setGrant({ targetId: target.id, grant: issued })
+      if (mounted.current) setGrant({ targetId: target.id, grant: issued, commandId: crypto.randomUUID() })
       reload()
     },
     async revoke(target: AutomationTarget) {
@@ -162,6 +175,19 @@ export function originHint(origin: string): OriginHint {
   } catch {
     return 'local'
   }
+}
+
+/** May this agent's connection do rule work now, without changing its opt-ins? */
+export function canDoRuleWork(profile: AutomationConnectionProfile): boolean {
+  return profile.configuration.automationEnabled && hasCatalog(profile, 'automationWorker')
+}
+
+/** A name nobody has to type: “Rule worker”, then “Rule worker 2” and on. */
+export function defaultWorkerName(targets: readonly AutomationTarget[]): string {
+  const taken = new Set(targets.filter((target) => target.wakeReadiness !== 'disabled').map((target) => target.configuration.name))
+  let name = 'Rule worker'
+  for (let number = 2; taken.has(name); number += 1) name = `Rule worker ${number}`
+  return name
 }
 
 export function hasCatalog(profile: AutomationConnectionProfile, catalog: AutomationConnectionProfileInput['catalogs'][number]): boolean {

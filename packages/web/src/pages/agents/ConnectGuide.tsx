@@ -21,8 +21,8 @@ function workerCommand(origin: string): string {
     'export COLP_TARGET_ID=your_target_id',
     'export COLP_ADAPTER=examples/worker-script/deterministic-summary.mjs',
     'export COLP_JOURNAL=/private/worker-state/summary.json',
-    '# Also set COLP_ACCESS_TOKEN, COLP_PAIRING_ID, COLP_PAIRING_CODE',
-    '# and COLP_PAIRING_COMMAND_ID from your secret manager.',
+    '# Also set COLP_ACCESS_TOKEN from your secret manager and, for the',
+    '# first run only, the pairing settings shown by Add and pair.',
     'node examples/worker-script/claim-and-summarize.mjs',
   ].join('\n')
 }
@@ -156,17 +156,15 @@ export function ConnectGuide({
                 back as proposals. A key no other worker or tool uses is required for restricted rules.
               </p>
             </Step>
-            <Step title="Let its agent do rule work">
+            <Step title="Add and pair it">
               <p className="agents-note">
-                Once it has connected, its card under Connected agents shows <strong>Automations</strong>. Turn on{' '}
-                <strong>Use for automations</strong> and <strong>Do rule work</strong>. An agent appears there after its
-                automation connection is registered with the server’s automation API; this page can’t register one for you.
+                Under Automation workers, press <strong>Add worker</strong>, then <strong>Add and pair</strong>. If its agent
+                can’t do rule work yet, that turns it on. The pairing settings are shown once and the code works for five
+                minutes; nothing is saved, so copy them straight into the worker’s environment.
               </p>
-            </Step>
-            <Step title="Add a worker and pair it">
               <p className="agents-note">
-                Under Automation workers, add a worker for that agent and press Pair. The one-use code is shown once and
-                works for five minutes. It isn’t saved anywhere, so copy it straight into the worker’s environment.
+                The agent must already have an automation connection, registered with the server’s automation API; this page
+                can’t register one for you.
               </p>
             </Step>
             <Step title="Run it">

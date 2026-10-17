@@ -541,15 +541,78 @@
   letter-spacing: var(--tracking-tight);
 }
 
-/* A form with several questions reads top to bottom, unlike the key form. */
+/* Name (and the agent, when there is a choice) on one line; everything
+   with a good default waits under More options. */
 .agents-worker-form {
   display: grid;
   align-items: start;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
-.agents-worker-form .field {
+.agents-worker-form-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.agents-worker-form-main .field {
+  flex: 1 1 14rem;
+  max-width: 22rem;
+}
+
+.agents-worker-form .agents-note {
+  margin: 0;
+}
+
+.agents-worker-options .field {
   max-width: 28rem;
+}
+
+.agents-worker-more {
+  border-top: 1px solid var(--line);
+}
+
+.agents-worker-more > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  list-style: none;
+  cursor: pointer;
+}
+
+.agents-worker-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.agents-worker-more > summary:hover {
+  color: var(--ink);
+}
+
+.agents-worker-more-chevron {
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted);
+}
+
+.agents-worker-more[open] .agents-worker-more-chevron {
+  transform: rotate(90deg);
+}
+
+.agents-worker-more-note {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: var(--weight-regular);
+}
+
+.agents-worker-options {
+  display: grid;
+  gap: var(--space-4);
+  padding-bottom: var(--space-4);
 }
 
 .agents-worker-form .field-hint {
