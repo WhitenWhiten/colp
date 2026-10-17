@@ -2076,6 +2076,12 @@ body[data-bookmark-drag] {
   }
 }
 
+/* ——— Folder share dialog (library-desk/FolderShareDialog) ———
+   Stop sharing sits apart at the row's start; Open link and Done close it. */
+.folder-share-stop {
+  margin-inline-end: auto;
+}
+
 /* ——— Node edit drawer ——— */
 /* Desk-only overlay shell (pages/library-desk/NodeEditDrawer.tsx); this
    file loads on the Library route, so the chrome travels with it. The

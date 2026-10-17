@@ -61,25 +61,28 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
   }
   if (identity !== actor.current) return null
   const url = share ? `${window.location.origin}/c/${encodeURIComponent(share.slug)}` : null
-  return <Modal open onClose={() => { if (!busy) onClose() }} title={`Share ${title}`} label="Share folder">
+  const close = () => { if (!busy) onClose() }
+  return <Modal open onClose={close} title={`Share ${title}`} label="Share folder">
     <div className="edit-form" aria-busy={busy || state === 'loading'}>
       <p className="m-0">{unavailableReason === 'folder_restricted'
         ? 'This folder or one of its parents is private or protected. The link is unavailable until its visibility changes.'
         : unavailableReason === 'publication_restricted' ? 'Public access to this library is restricted. This link is unavailable.'
-        : 'Anyone with the link can view this folder.'}</p>
+        : url ? 'Anyone with the link can view this folder and the folders inside it. The rest of your library stays private.'
+        : 'Create a link that lets anyone view this folder and the folders inside it. The rest of your library stays private.'}</p>
       {state === 'loading' ? <LoadingState label="Loading share link…" /> : state === 'error'
-        ? <button type="button" className="btn btn-secondary" onClick={() => void reload()}>Try again</button>
+        ? <div className="row-end"><button type="button" className="btn btn-secondary" onClick={() => void reload()}>Try again</button></div>
         : url ? <>
           {!unavailableReason && <CopyField label="Folder link" value={url} onCopied={() => success('Link copied')}
             onCopyFailed={() => error('Couldn’t copy the link. Select and copy it.')} />}
           <div className="row-end">
+            {/* Revoking is one click away but not the row's loudest action. */}
+            <button type="button" className="btn btn-danger-ghost btn-sm folder-share-stop" disabled={busy} onClick={() => void change('stop')}>Stop sharing</button>
             {!unavailableReason && <a href={url} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">Open link</a>}
-            <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void change('stop')}>Stop sharing</button>
+            <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={close}>Done</button>
           </div>
-        </> : <>
-          <p className="field-hint m-0">This folder has no share link yet. Your library stays private.</p>
-          <div className="row-end"><button type="button" className="btn btn-primary" disabled={busy || Boolean(unavailableReason)} onClick={() => void change('share')}>Create link</button></div>
-        </>}
+        </> : <div className="row-end">
+          <button type="button" className="btn btn-primary" disabled={busy || Boolean(unavailableReason)} onClick={() => void change('share')}>Create link</button>
+        </div>}
     </div>
   </Modal>
 }

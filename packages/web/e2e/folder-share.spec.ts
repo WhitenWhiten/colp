@@ -59,7 +59,7 @@ test('shares a folder, shows only its subtree to a fresh visitor, and stops the 
   await page.getByRole('menuitem', { name: 'Share…', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Share Reading' })
   await dialog.getByRole('button', { name: 'Create link', exact: true }).click()
-  await expect(dialog.getByText('Anyone with the link can view this folder.')).toBeVisible()
+  await expect(dialog.getByText('Anyone with the link can view this folder and the folders inside it.')).toBeVisible()
   await expect(dialog.getByTestId('copy-field-value')).toContainText(share.slug)
   await expect(page.getByTestId('library-nav').getByRole('img', { name: 'Shared by link' })).toHaveCount(1)
   await dialog.getByRole('button', { name: 'Copy Folder link' }).click()
