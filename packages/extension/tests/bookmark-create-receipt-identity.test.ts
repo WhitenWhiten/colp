@@ -9,7 +9,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, test } from 'vitest';
 import {
-  identityFromCreateReceipt, inFlightCreateEvidence, plannedCreateOpIdForNative,
+  identityFromCreateReceipt, identityFromPendingCreate, inFlightCreateEvidence, plannedCreateOpIdForNative,
 } from '../src/bookmark-create-receipt-identity.js';
 import { createSyncStateStore, SyncStateError, type JsonObject } from '../src/sync-state-store.js';
 import { mapping, scope } from './bookmark-event-queue-harness.js';
@@ -517,4 +517,44 @@ test('a terminal create cannot reuse an authoritative mapping after its later to
   await store.putRemoteObservation(scope, { colpId: 'node-mapped-deleted', kind: 'tombstone', remoteRevision: 'deleted',
     cursor: 'deleted-cursor', payload: { deleted: true }, sourceDigest: 'd', observedAt: 1 });
   assert.equal(await identityFromCreateReceipt(store, scope, 'bm-deleted'), null);
+});
+
+test('pending create identity rejects virtual, missing, terminal and rejected owners', async () => {
+  const store = await ready();
+  try {
+    assert.equal(await identityFromPendingCreate(store, scope, 'pending-virtual'), null);
+    assert.equal(await identityFromPendingCreate(store, scope, 'missing'), null);
+    const opId = 'b3.confirm.create.bm-pending';
+    await enqueueCreate(store, 'bm-pending', opId, 'pending', 'unused');
+    assert.deepEqual(await identityFromPendingCreate(store, scope, 'bm-pending'), {
+      nativeId: 'bm-pending', colpId: `pending-${opId}`, rootNativeId: 'root-selected',
+      parentNativeId: 'folder-parent', revision: `local-${opId}`, createOpId: opId,
+      nodeKind: 'bookmark', content: { title: 'Receipt', url: 'https://example.test/receipt' },
+    });
+    assert.equal(await store.getMappingByNativeId(scope, 'bm-pending'), null);
+    const lease = await store.acquireLease(scope, 'worker-receipt', 1, 30_000);
+    const queued = (await store.claimNextQueue(scope, 'worker-receipt', lease.fence, 1))!;
+    await store.settleClaimedPush(scope, queued.sequence, 'worker-receipt', lease.fence, {
+      outcome: 'rejected', recovery: { code: 'invalid_operation' },
+    });
+    assert.equal(await identityFromPendingCreate(store, scope, 'bm-pending'), null);
+    await enqueueCreate(store, 'bm-terminal', 'b3.confirm.create.bm-terminal', 'terminal', 'remote-terminal');
+    assert.equal(await identityFromPendingCreate(store, scope, 'bm-terminal'), null);
+  } finally { store.close(); }
+});
+
+test('pending create identity requires a proven parent mapping or active mount', async () => {
+  const store = await readyWithoutParent();
+  try {
+    await enqueueCreate(store, 'bm-orphan', 'b3.confirm.create.bm-orphan', 'pending', 'unused');
+    assert.equal(await identityFromPendingCreate(store, scope, 'bm-orphan'), null);
+    await store.putMountBinding(scope, { mountId: 'parent-mount', nativeRootId: 'native-parent',
+      remoteMountNodeId: 'folder-colp', status: 'active', boundaryVersion: '1', materialized: true,
+      customSourceKey: 'folder:native-parent' });
+    const identity = await identityFromPendingCreate(store, scope, 'bm-orphan');
+    assert.equal(identity?.rootNativeId, 'native-parent');
+    assert.equal(identity?.parentNativeId, 'native-parent');
+    await store.detachMount(scope, 'parent-mount');
+    assert.equal(await identityFromPendingCreate(store, scope, 'bm-orphan'), null);
+  } finally { store.close(); }
 });

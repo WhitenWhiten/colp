@@ -176,6 +176,23 @@ test('FRR-06: confirmed upload destructive deletes remote-only descendants', () 
     && op.reason === 'destructive'));
 });
 
+test('upload resolves an unbound special mount by role and preserves another device mount', () => {
+  const remote = [...remoteTree(1),
+    { nodeId: 'peer-mount', parentId: 'folder-root', kind: 'folder' as const, title: 'Peer folder',
+      folderRole: 'custom', revision: 'r1' },
+    { nodeId: 'peer-bookmark', parentId: 'peer-mount', kind: 'bookmark' as const, title: 'Peer bookmark',
+      url: 'https://example.test/peer', revision: 'r1' },
+  ];
+  const report = matchLocalRemote({ scopeKey: 'scope-1', confirmationId: 'unbound-upload',
+    local: [{ nativeId: 'bar', mountNativeRootId: 'bar', parentNativeId: null, kind: 'folder', title: 'Bar' }],
+    remote, mappings: [], mounts: [{ nativeRootId: 'bar', rootRole: 'bookmarks-bar', remoteMountNodeId: null }],
+    rootNodeId: 'folder-root', bootstrapMode: 'upload', destructiveConfirmed: true,
+  });
+  assert.deepEqual(report.destructivePlan?.deletes, [{ targetId: 'bm-0', side: 'remote' }]);
+  assert.deepEqual(report.planned.map(op => [op.type, op.targetId]), [['delete_node', 'bm-0']]);
+  assert.ok(report.matched.some(row => row.nativeId === 'bar' && row.nodeId === 'mount-bar'));
+});
+
 const scope: SyncScope = {
   environment: 'production', serverId: 'server-frr06', serverOrigin: 'https://known.example',
   accountId: 'account-frr06', browserProfileId: 'profile-frr06', collectionId: 'collection-frr06',
