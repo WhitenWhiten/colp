@@ -19,7 +19,7 @@ vi.mock('../src/bookmark-subscriptions/store.js', () => ({ subscriptionStore: {
   pendingOperations: async () => [], all: async () => [],
 } }));
 
-import { loadRootView, readRootFolders } from '../src/sw/roots.js';
+import { handleRootRequest, loadRootView, readRootFolders } from '../src/sw/roots.js';
 import { handleRangePreview } from '../src/sw/range.js';
 import { sw, syncState } from '../src/sw/runtime.js';
 import type { SyncScope } from '../src/sync-state-store.js';
@@ -28,9 +28,14 @@ const scope: SyncScope = {
   environment: 'development', serverId: 'server', serverOrigin: 'https://known.test',
   accountId: 'account', browserProfileId: 'profile', collectionId: 'collection', replicaId: 'replica', generation: 1,
 };
-vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => scope }));
+const readiness = vi.hoisted(() => ({ current: true, hydrated: true, hydrations: 0 }));
+vi.mock('../src/sw/scope.js', () => ({
+  currentSyncScope: async () => { if (!readiness.current) throw new Error('not_connected'); return scope; },
+  requireSyncScope: async () => { readiness.hydrations++; if (!readiness.hydrated) throw new Error('not_connected'); return scope; },
+}));
 
 beforeEach(async () => {
+  readiness.current = true; readiness.hydrated = true; readiness.hydrations = 0;
   sw.rootViewTokens = undefined;
   vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, bookmarks: {
     getTree: async () => workspaceFolderTree(),
@@ -42,6 +47,20 @@ beforeEach(async () => {
 });
 afterEach(() => vi.unstubAllGlobals());
 afterAll(() => syncState.close());
+
+test('the first folder read joins pending session initialization after reconnect', async () => {
+  readiness.current = false;
+  const response = await handleRootRequest({ kind: 'known.roots.get' });
+  expect(readiness.hydrations).toBe(1);
+  expect(response).toMatchObject({ ok: true, view: { status: 'ready' } });
+});
+
+test('an existing scope reads folders locally and a failed initialization stays disconnected', async () => {
+  expect(await handleRootRequest({ kind: 'known.roots.get' })).toMatchObject({ ok: true });
+  expect(readiness.hydrations).toBe(0);
+  readiness.current = false; readiness.hydrated = false;
+  expect(await handleRootRequest({ kind: 'known.roots.get' })).toEqual({ ok: false, error: 'not_connected' });
+});
 
 test('sync range exposes only supported folders and excludes workspaces from its persisted preview', async () => {
   const { discovered } = await readRootFolders();

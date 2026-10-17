@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
-import { openExtensionOptions, showOptionsPane, waitForLibraryBinding, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD } from './extension-auth.js';
+import { openExtensionOptions, showOptionsPane, waitForLibraryBinding, signInExtension, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD } from './extension-auth.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 
 const extension = resolve(import.meta.dirname, '../dist/production');
@@ -83,5 +83,55 @@ test('a fresh browser merges both roots into one library, keeps exclusions local
     await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is enabled');
     await expect(page.locator('#library-metadata-configure')).toBeVisible();
     await page.screenshot({ path: '/tmp/colp-e2-status-desktop.png', fullPage: true });
+  } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
+});
+
+test('only a directly selected subfolder uploads, and its selection survives reload', async () => {
+  test.setTimeout(180_000);
+  const stack = await startRealStack(), profile = await mkdtemp(resolve(tmpdir(), 'known-subfolder-ui-'));
+  let context: BrowserContext | undefined;
+  try {
+    context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', ignoreHTTPSErrors: true,
+      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
+        `--host-resolver-rules=${stack.browserHostResolverRules}`, '--no-proxy-server', '--ignore-certificate-errors'] });
+    const { page } = await openExtensionOptions(context);
+    await showOptionsPane(page, 'bookmarks');
+    await grantOptionalBookmarks(page, page.locator('#manager-grant'), 'COLP selected subfolder');
+    await page.evaluate(async () => {
+      const roots = (await chrome.bookmarks.getTree())[0]!.children!;
+      const bar = roots.find(node => node.id === '1') ?? roots[0]!;
+      const other = roots.find(node => node.id === '2') ?? roots[1]!;
+      await chrome.bookmarks.create({ parentId: bar.id, title: 'Parent bookmark stays local', url: 'https://example.test/parent-local' });
+      await chrome.bookmarks.create({ parentId: other.id, title: 'Other root stays local', url: 'https://example.test/other-local' });
+      const parent = await chrome.bookmarks.create({ parentId: bar.id, title: 'Unselected parent' });
+      await chrome.bookmarks.create({ parentId: parent.id, title: 'Sibling stays local', url: 'https://example.test/sibling-local' });
+      const child = await chrome.bookmarks.create({ parentId: parent.id, title: 'Selected child' });
+      await chrome.bookmarks.create({ parentId: child.id, title: 'Only selected bookmark', url: 'https://example.test/selected-only' });
+    });
+    await signInExtension(page);
+    await showOptionsPane(page, 'folders');
+    await expect(page.locator('#tree-clear-selection')).toBeEnabled();
+    await page.locator('#tree-clear-selection').click();
+    const child = page.locator('.root-row').filter({ has: page.getByText('Selected child', { exact: true }) }).locator('input');
+    const parent = page.locator('.root-row').filter({ has: page.getByText('Unselected parent', { exact: true }) }).locator('input');
+    await expect(child).toBeEnabled();
+    await child.check();
+    await expect.poll(() => parent.evaluate(input => (input as HTMLInputElement).indeterminate)).toBe(true);
+    await expect(page.locator('#first-run-start')).toBeEnabled();
+    await page.reload();
+    await showOptionsPane(page, 'folders');
+    await expect(child).toBeChecked();
+    await expect.poll(() => parent.evaluate(input => (input as HTMLInputElement).indeterminate)).toBe(true);
+    await expect(page.locator('#first-run-start')).toBeEnabled();
+    await page.locator('#first-run-start').click();
+    await expect.poll(() => page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }) as { firstRun?: string }).firstRun),
+      { timeout: 90_000 }).toBe('completed');
+    await expect.poll(async () => ((await stack.observations()).canonicalNodes as CanonicalNode[])
+      .filter(node => node.deleted_at === null && node.url).map(node => node.url)).toEqual(['https://example.test/selected-only']);
+    expect(await page.evaluate(() => chrome.bookmarks.search({ url: 'https://example.test/parent-local' }).then(rows => rows.length))).toBe(1);
+    await page.reload();
+    await showOptionsPane(page, 'folders');
+    await expect(child).toBeChecked();
+    await expect.poll(() => parent.evaluate(input => (input as HTMLInputElement).indeterminate)).toBe(true);
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });

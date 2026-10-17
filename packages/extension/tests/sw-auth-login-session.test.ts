@@ -122,6 +122,37 @@ test('a login keeps the Session the lane minted for it', async () => {
 const library = { id: 'login-collection', title: 'Bookmarks', library: true,
   rootNodeId: 'login-root', bookmarksBarId: 'login-bar', otherBookmarksId: 'login-other' };
 
+test('signing in again establishes a sync scope with the production policy gate enabled', async () => {
+  const f = await loginFixture();
+  const { browserPersonalSyncPolicy } = await import('../src/personal-sync-policy.js');
+  const { configurePersonalSyncTransport } = await import('../src/personal-sync-fetch.js');
+  const policy = browserPersonalSyncPolicy();
+  configurePersonalSyncTransport(policy);
+  vi.stubGlobal('fetch', async () => Response.json(library));
+  const response = await f.api.handle({ kind: 'known.auth.login', method: 'password', userGesture: true,
+    email: 'login@example.test', password: 'secret' }, await f.store.fence.capture());
+  assert.equal(response.ok, true);
+  assert.equal((await f.store.loadSession())?.sessionId, 'minted-1');
+  const { currentSyncScope } = await import('../src/sw/scope.js');
+  assert.equal((await currentSyncScope()).collectionId, library.id);
+});
+
+test('signing in again preserves an explicit user pause', async () => {
+  const f = await loginFixture();
+  const { browserPersonalSyncPolicy } = await import('../src/personal-sync-policy.js');
+  const { configurePersonalSyncTransport } = await import('../src/personal-sync-fetch.js');
+  const policy = browserPersonalSyncPolicy();
+  configurePersonalSyncTransport(policy);
+  const identity = { serverOrigin: f.credential.serverOrigin, accountId: f.credential.subject, collectionId: library.id };
+  const paused = await policy.write(identity, 'paused', 'user');
+  vi.stubGlobal('fetch', async () => Response.json(library));
+  const response = await f.api.handle({ kind: 'known.auth.login', method: 'password', userGesture: true,
+    email: 'login@example.test', password: 'secret' }, await f.store.fence.capture());
+  assert.equal(response.ok, true);
+  assert.deepEqual(await policy.read(identity), paused);
+  assert.equal(mocks.session.mock.calls.length, 0);
+});
+
 test('sign-in automatically binds the library and stores the root from its response', async () => {
   const f = await loginFixture();
   await f.local.remove(f.COLLECTION_BINDING);

@@ -59,6 +59,53 @@ test('a mixed parent can include all its descendants again', async () => {
   expect(input('bar').indeterminate).toBe(false);
   expect(excludedFolderRefs(document.getElementById('root-tree')!)).toEqual([]);
 });
+
+test('a child can be selected directly while its parent is unselected', async () => {
+  await mount(() => ({ ok: true, view: ready(tree().roots.map(root => ({ ...root, selected: false }))) }));
+  expect(input('mkt').disabled).toBe(false);
+  input('mkt').click();
+  expect(input('mkt').checked).toBe(true);
+  expect(input('seo').checked).toBe(true);
+  expect(input('bar').indeterminate).toBe(true);
+  expect(input('prog').checked).toBe(false);
+  expect(input('other').checked).toBe(false);
+  expect(syncRootRefs(document.getElementById('root-tree')!)).toEqual(['mkt']);
+  expect(text('folder-count')).toBe('2 of 5 folders sync');
+});
+
+test('clearing the selection leaves nested folders editable and previews only the selected subtree', async () => {
+  const host = await mount();
+  document.getElementById('tree-clear-selection')!.click();
+  for (const ref of ['bar', 'mkt', 'seo', 'prog', 'other']) {
+    expect(input(ref).checked).toBe(false);
+    expect(input(ref).disabled).toBe(false);
+  }
+  input('seo').click();
+  expect(input('bar').indeterminate).toBe(true);
+  expect(input('mkt').indeterminate).toBe(true);
+  expect(input('prog').checked).toBe(false);
+  expect(syncRootRefs(document.getElementById('root-tree')!)).toEqual(['seo']);
+  expect((document.getElementById('cancel-roots') as HTMLButtonElement).disabled).toBe(false);
+  const range = bindRangeAdjustment({
+    saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
+    rootTree: document.getElementById('root-tree')!, rootFeedback: document.getElementById('root-feedback')!,
+    getView: host.view, setView: host.render, reloadBoundaries: () => {}, isConnected: () => true, renderFailure: () => {},
+  });
+  await range.save();
+  expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+    kind: 'known.roots.preview', viewId: 'v1', selectedRefs: ['seo'], privateRefs: [],
+  });
+});
+
+test('unchecking an independent parent allows selecting a deeper descendant', async () => {
+  await mount();
+  input('bar').click();
+  input('other').click();
+  expect(input('seo').disabled).toBe(false);
+  input('seo').click();
+  expect(syncRootRefs(document.getElementById('root-tree')!)).toEqual(['seo']);
+  expect(excludedFolderRefs(document.getElementById('root-tree')!)).toEqual([]);
+});
 test('managed folders stay read-only and there is one visible checkbox per editable folder', async () => {
   await mount(() => ({ ok: true, view: ready([row('a', 'Reading', 0), row('m', 'Managed', 0, { managed: true, exclusionReason: 'managed' })]) }));
   expect(document.querySelectorAll('.root-private')).toHaveLength(0);
@@ -68,7 +115,8 @@ test('managed folders stay read-only and there is one visible checkbox per edita
 test('Sync all brings every unticked folder back into sync', async () => {
   await mount(); const rootTree = document.getElementById('root-tree')!, changed = vi.fn();
   input('mkt').click(); input('other').click();
-  expect(excludedFolderRefs(rootTree)).toEqual(['mkt', 'other']);
+  expect(syncRootRefs(rootTree)).toEqual(['bar']);
+  expect(excludedFolderRefs(rootTree)).toEqual(['mkt']);
   rootTree.addEventListener('change', changed);
   expect(document.getElementById('tree-invert')).toBeNull();
   expect(text('tree-select-level')).toBe('Sync all');

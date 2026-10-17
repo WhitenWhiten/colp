@@ -5,7 +5,8 @@ import { nativeTreeProof, localProofDigest } from '../native-tree-proof.js';
 import { isProtocolOpaqueId } from '../protocol-id.js';
 import { store, sw, syncState, hasBookmarkPermission, workCoordinator, COLLECTION_BINDING } from './runtime.js';
 import { boundCollectionId, currentSyncScope, pushSessionAuthority } from './scope.js';
-import { verifyLibraryAvailability } from './library.js';
+import { fetchAccountLibrary, verifyLibraryAvailability } from './library.js';
+import { LIBRARY_STATE } from '../library.js';
 import { scheduleSyncEngineWake } from './engine.js';
 import { captureStore } from './capture.js';
 import { browserHistoryStore, BROWSER_HISTORY_RETENTION_MS } from '../capture/browser-history-store.js';
@@ -34,7 +35,8 @@ export async function rememberPersonalConnection(identity: PersonalSyncIdentity 
 export async function suspendPersonalSyncForLogout() {
   const identity = await personalSyncIdentity().catch(() => null);
   if (identity) {
-    await browserPersonalSyncPolicy().write(identity, 'paused', 'signed-out');
+    const policy = browserPersonalSyncPolicy(), current = await policy.read(identity);
+    if (current.mode === 'enabled') await policy.write(identity, 'paused', 'signed-out', current.revision);
     await rememberPersonalConnection(identity);
   }
   const owner = await currentCaptureScope();
@@ -68,7 +70,7 @@ export function personalSyncLifecycle() {
       return { digest: await localProofDigest([tree, proof, metadata]),
         queued: queue.filter(row => !['terminal', 'rejected'].includes(row.status)).length, attached: exported !== null || Boolean(await boundCollectionId() && await store.loadBinding()) };
     },
-    available: verifyLibraryAvailability,
+    resolveTarget: fetchAccountLibrary, available: verifyLibraryAvailability,
     async disconnect(identity, generation) {
       await store.assertWritable(generation);
       await rememberPersonalConnection(identity);
@@ -86,12 +88,23 @@ export function personalSyncLifecycle() {
         resetPersonalSyncRuntime();
       });
     },
-    async reconnect(identity, generation, publish) {
+    async reconnect(identity, generation, publish, library) {
       await workCoordinator.run('auth', () => publish(async () => {
         await store.assertWritable(generation);
-        if (await boundCollectionId() && await store.loadBinding()) return;
-        const remembered = await connections().read(identity);
+        const target = await boundCollectionId();
+        if (target && await store.loadBinding()) {
+          if (target !== identity.collectionId) throw new Error('binding_mismatch');
+          return;
+        }
+        let remembered = await connections().read(identity);
         if (!remembered) throw new Error('connection_invalid');
+        if (remembered.collectionId !== identity.collectionId) {
+          if (library?.id !== identity.collectionId) throw new Error('connection_invalid');
+          // A rebuilt account library gets a fresh replica; archived work keeps its old scope.
+          remembered = { ...remembered, collectionId: library.id,
+            binding: { ...remembered.binding, replicaId: `replica-${crypto.randomUUID()}`, generation: '1' } };
+          await connections().write(identity, remembered);
+        }
         const unbound = await store.loadBinding();
         if (unbound && unbound.replicaId !== remembered.binding.replicaId) {
           // Read-only folder views may provision an unused identity after login.
@@ -100,7 +113,9 @@ export function personalSyncLifecycle() {
           await store.replaceBindingForRebuild(generation, unbound.replicaId, remembered.binding);
         } else await store.restoreBinding(remembered.binding, generation);
         await store.assertWritable(generation);
-        await chrome.storage.local.set({ [COLLECTION_BINDING]: remembered.collectionId });
+        await chrome.storage.local.set({ [COLLECTION_BINDING]: remembered.collectionId,
+          ...(library ? { [LIBRARY_STATE]: { accountId: identity.accountId, serverOrigin: identity.serverOrigin,
+            status: 'ready', library } } : {}) });
         resetPersonalSyncRuntime();
       }));
     },

@@ -1,6 +1,6 @@
 import { folderCountCopy, folderMetaCopy } from './first-run-ui.js';
 import type { bindFirstRunOnboarding } from './first-run-ui.js';
-import { syncRootRefs, excludedFolderRefs, initializeFolderCoverage, paintCoverage, recordFolderChoice, ROOTS_REPAINT } from './folder-coverage.js';
+import { syncRootRefs, excludedFolderRefs, initializeFolderCoverage, replaceFolderSelection, paintCoverage, recordFolderChoice, ROOTS_REPAINT } from './folder-coverage.js';
 import { createIcon } from './icons.js';
 import { t, tn } from './i18n.js';
 import { el, emptyBlock } from './library-dom.js';
@@ -33,6 +33,7 @@ export function bindFolders(host: FoldersHost) {
   const grant = required('request-bookmark-permission') as HTMLButtonElement;
   const revoke = required('remove-bookmark-permission') as HTMLButtonElement;
   const selectAll = required('tree-select-level') as HTMLButtonElement;
+  const clearSelection = required('tree-clear-selection') as HTMLButtonElement;
   const collapsed = new Set<string>();
   let view: PublicRootView | undefined;
   let preselect: string | undefined;
@@ -40,6 +41,10 @@ export function bindFolders(host: FoldersHost) {
   refresh.addEventListener('click', () => { void load(); });
   retry.addEventListener('click', () => { void load(); });
   selectAll.addEventListener('click', syncAll);
+  clearSelection.addEventListener('click', () => {
+    replaceFolderSelection(tree, new Set(), new Set());
+    tree.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   cancel.addEventListener('click', () => { if (view) { render(view); feedback.textContent = ''; } });
   tree.addEventListener('change', paint);
   tree.addEventListener(ROOTS_REPAINT, paint);
@@ -64,6 +69,7 @@ export function bindFolders(host: FoldersHost) {
     setPermissionControls(next.status === 'permission_required' ? 'required' : 'granted');
     const canEdit = next.status !== 'permission_required' && next.status !== 'tree_unavailable';
     selectAll.disabled = !canEdit || next.roots.length === 0;
+    clearSelection.disabled = selectAll.disabled;
     if (next.roots.length === 0) {
       // A missing permission or an unreadable tree is said once, in the alert; the empty list says nothing more.
       showEmpty(next.status === 'ready' ? t('options_noBookmarkFoldersAvailable', 'No bookmark folders are available.') : '',
@@ -151,7 +157,9 @@ export function bindFolders(host: FoldersHost) {
   function dirty(): boolean {
     if (!view) return false;
     const excluded = new Set(excludedFolderRefs(tree));
-    return view.roots.some(root => excluded.has(root.ref) !== root.privateLocal);
+    const selected = new Set(syncRootRefs(tree));
+    return view.roots.some(root => !root.managed
+      && (excluded.has(root.ref) !== root.privateLocal || selected.has(root.ref) !== root.selected));
   }
 
   function paintCollapsed(): void {
@@ -167,12 +175,9 @@ export function bindFolders(host: FoldersHost) {
     }
   }
 
-  /** Ticked means synced, so the one bulk action brings every folder back into sync. */
+  /** Selecting every browser root includes every editable subtree. */
   function syncAll(): void {
-    for (const input of Array.from(tree.querySelectorAll<HTMLInputElement>('.root-select input:not([data-managed])'))) {
-      input.checked = true;
-      recordFolderChoice(input);
-    }
+    replaceFolderSelection(tree, new Set(view?.roots.filter(root => root.depth === 0 && !root.managed).map(root => root.ref)), new Set());
     // A script-set box fires no event; the first-run preview and the dashes listen for one.
     tree.dispatchEvent(new Event('change', { bubbles: true }));
   }
@@ -188,7 +193,7 @@ export function bindFolders(host: FoldersHost) {
       if (connected) return;
       view = undefined; tree.replaceChildren(); alert.hidden = true; count.textContent = '';
       showEmpty(t('sync_signInLibrary', 'Sign in to sync this browser with your bookmark library.'), 'empty');
-      setPermissionControls('disconnected'); selectAll.disabled = true;
+      setPermissionControls('disconnected'); selectAll.disabled = true; clearSelection.disabled = true;
     },
   };
 }

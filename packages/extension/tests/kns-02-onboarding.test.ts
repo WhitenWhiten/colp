@@ -41,9 +41,9 @@ function node(partial: Partial<PublicRootView['roots'][number]> & Pick<PublicRoo
 
 describe('KNS-02 first-run copy and preview model', () => {
   test('locks product first-run copy and forbids protocol jargon', async () => {
-    assert.equal(FIRST_RUN_INTRO, "All folders sync. Untick any folder to keep it on this browser.");
+    assert.equal(FIRST_RUN_INTRO, 'Choose folders to sync. You can select a subfolder without selecting its parent.');
     assert.equal(FIRST_RUN_PERMISSION_ACTION, 'Allow bookmark access');
-    assert.equal(FIRST_RUN_PERMISSION_HINT, 'Read and sync this browser’s bookmarks, except folders you keep on this browser.');
+    assert.equal(FIRST_RUN_PERMISSION_HINT, 'Allow bookmark access, then choose which folders to sync.');
     assert.equal(FIRST_RUN_START, 'Start first sync');
     assert.equal(FIRST_RUN_LATER, 'Later');
     assert.match(FIRST_RUN_MERGE_COPY, /browser and in your library/);
@@ -125,6 +125,12 @@ describe('KNS-02 first-run copy and preview model', () => {
     assert.equal(parseFirstRunDraft({ deferred: true, selected: [{ kind: 'nope', title: 'x', depth: 0 }] }), undefined);
   });
 
+  test('an explicitly cleared draft stays empty instead of restoring the default roots', () => {
+    const tree = viewOf([node({ ref: 'bar', kind: 'bookmarks_bar', selected: true })]);
+    assert.deepEqual([...restoreDraftSelection(tree, { deferred: false, selected: [] })], []);
+    assert.deepEqual([...restoreDraftSelection(tree, undefined)], ['bar']);
+  });
+
   test('confirm requires a real library id and never treats a draft title as created', () => {
     const preview = {
       ok: true as const, previewId: 'p1', boundaryVersion: '1', treeDigest: 'sha256:abc',
@@ -192,7 +198,7 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
     assert.match(options, /Start first sync/);
     assert.match(options, /id="first-run-later"/);
     assert.match(options, /Allow bookmark access/);
-    assert.match(options, /Read and sync this browser’s bookmarks, except folders you keep on this browser./);
+    assert.match(options, /Allow bookmark access, then choose which folders to sync\./);
   });
 
   test('PublicRootNode carries counts and managed exclusion without native ids', async () => {

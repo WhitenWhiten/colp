@@ -4,6 +4,9 @@ import { MemoryStorageArea } from '../src/credential-store.js';
 import { createPersonalSyncPolicyStore } from '../src/personal-sync-policy.js';
 import { createPersonalSyncLifecycle, type LifecycleFacts } from '../src/personal-sync-lifecycle.js';
 
+const libraryFor = (id: string) => ({ id, title: 'Bookmarks', library: true as const,
+  rootNodeId: `${id}-root`, bookmarksBarId: `${id}-bar`, otherBookmarksId: `${id}-other` });
+
 function fixture() {
   const identity = { serverOrigin: 'https://known.test', accountId: 'one', collectionId: 'collection' };
   const storage = new MemoryStorageArea(), policy = createPersonalSyncPolicyStore(storage);
@@ -11,7 +14,7 @@ function fixture() {
   let available: 'available' | 'unavailable' | 'unknown' = 'available', archives = 0, reconnects = 0, wakes = 0;
   const lifecycle = createPersonalSyncLifecycle({ policy, identity: async () => identity, generation: async () => generation,
     assertCurrent: async expected => { if (expected !== generation) throw new Error('authority_fenced'); },
-    facts: async () => facts, available: async () => available,
+    facts: async () => facts, resolveTarget: async target => libraryFor(target.collectionId), available: async () => available,
     disconnect: async () => { archives++; facts = { ...facts, attached: false }; },
     reconnect: async (_identity, _generation, publish) => publish(async () => { reconnects++; }), wake: () => { wakes++; } });
   const preview = async (action: 'resume' | 'disconnect') => {
@@ -85,6 +88,7 @@ test('failed retirement refuses repeated Resume without changing disconnected st
   let reconnects = 0, wakes = 0;
   const lifecycle = createPersonalSyncLifecycle({ policy, identity: async () => identity, generation: async () => 1,
     assertCurrent: async () => undefined, facts: async () => ({ digest: 'old-queue', queued: 2, attached: true }),
+    resolveTarget: async target => libraryFor(target.collectionId),
     available: async () => 'available', disconnect: async () => { throw new Error('archive_failed'); },
     reconnect: async (_identity, _generation, publish) => publish(async () => { reconnects++; }), wake: () => { wakes++; } });
   async function command(action: 'resume' | 'disconnect') {
@@ -110,6 +114,7 @@ test('a stale Resume cannot publish attachment after a newer Disconnect', async 
   const started = new Promise<void>(resolve => { entered = resolve; });
   const lifecycle = createPersonalSyncLifecycle({ policy, identity: async () => identity, generation: async () => 1,
     assertCurrent: async () => undefined, facts: async () => ({ digest: attached ? 'attached' : 'detached', queued: 0, attached }),
+    resolveTarget: async target => libraryFor(target.collectionId),
     available: async () => { entered(); return available; }, disconnect: async () => { attached = false; },
     reconnect: async (_identity, _generation, publish) => publish(async () => { attached = true; reconnects++; }), wake: () => undefined });
   async function command(action: 'resume' | 'disconnect') {
@@ -124,4 +129,35 @@ test('a stale Resume cannot publish attachment after a newer Disconnect', async 
   release('available'); await refused;
   assert.equal((await policy.read(identity)).mode, 'disconnected');
   assert.equal(reconnects, 0); assert.equal(attached, false);
+});
+
+test('a disconnected library rebuilt on the server reconnects to the reviewed current library', async () => {
+  const identity = { serverOrigin: 'https://known.test', accountId: 'owner', collectionId: 'old-library' };
+  const policy = createPersonalSyncPolicyStore(new MemoryStorageArea());
+  await policy.write(identity, 'disconnected');
+  let currentLibrary = libraryFor('rebuilt-library'), connected = '';
+  const lifecycle = createPersonalSyncLifecycle({ policy, identity: async () => identity, generation: async () => 1,
+    assertCurrent: async () => undefined, facts: async () => ({ digest: 'detached', queued: 0, attached: false }),
+    resolveTarget: async () => currentLibrary,
+    available: async target => target.collectionId === currentLibrary.id ? 'available' : 'unavailable',
+    disconnect: async () => undefined,
+    reconnect: async (target, _generation, publish) => publish(async () => { connected = target.collectionId; }),
+    wake: () => undefined });
+  async function preview() {
+    const result = await lifecycle.handle({ kind: 'known.personalSync.preview', action: 'resume' });
+    assert.ok('token' in result && 'revision' in result);
+    return { result, command: { kind: 'known.personalSync.change' as const, action: 'resume' as const,
+      token: result.token!, revision: result.revision!, userGesture: true as const } };
+  }
+  const first = await preview();
+  assert.equal(first.result.collectionId, 'rebuilt-library');
+  currentLibrary = libraryFor('changed-again');
+  await assert.rejects(lifecycle.handle(first.command), /preview_stale/);
+  assert.equal(connected, '');
+  assert.equal((await policy.read(identity)).mode, 'disconnected');
+  const reviewed = await preview();
+  await lifecycle.handle(reviewed.command);
+  assert.equal(connected, 'changed-again');
+  assert.equal((await policy.read(identity)).mode, 'enabled');
+  assert.equal((await policy.read(identity)).collectionId, 'changed-again');
 });

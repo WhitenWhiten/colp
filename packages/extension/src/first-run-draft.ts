@@ -8,10 +8,10 @@ export const FIRST_RUN_DRAFT = 'known.firstRun.draft.v1';
 
 export let FIRST_RUN_INTRO: string, BOOKMARK_PERMISSION_ACTION: string, FIRST_RUN_PERMISSION_ACTION: string, FIRST_RUN_PERMISSION_HINT: string, FIRST_RUN_START: string, FIRST_RUN_LATER: string, FIRST_RUN_MERGE_COPY: string, FIRST_RUN_KEEP_COPY: string, FIRST_RUN_RANGE_HEADING: string, FIRST_RUN_ENGINE_NOT_READY: string, FIRST_RUN_SYNC_PAUSED: string, FIRST_RUN_LIBRARY_REQUIRED: string, FIRST_RUN_UNSYNCED: string, FIRST_RUN_LOCAL_ONLY: string, FIRST_RUN_SYNCING: string, FIRST_RUN_SYNCED: string, FIRST_RUN_ACTION_REQUIRED: string, FIRST_RUN_REVIEW_CONFLICTS: string, FIRST_RUN_IMPORT_ISSUES: string, FIRST_RUN_NEEDS_ATTENTION: string, FIRST_RUN_VIEW_ATTENTION: string, FIRST_RUN_KEEP_BOTH: string, FIRST_RUN_CONFLICT_CENTER: string, FIRST_RUN_WAIT_NETWORK: string, FIRST_RUN_SYNC_RETRYING: string, FIRST_RUN_MANAGED_REASON: string;
 localized(() => {
-  FIRST_RUN_INTRO = t('firstRun_wholeTreeIntro', 'All folders sync. Untick any folder to keep it on this browser.');
+  FIRST_RUN_INTRO = t('firstRun_wholeTreeIntro', 'Choose folders to sync. You can select a subfolder without selecting its parent.');
   BOOKMARK_PERMISSION_ACTION = t('common_allowBookmarkAccess', 'Allow bookmark access');
   FIRST_RUN_PERMISSION_ACTION = BOOKMARK_PERMISSION_ACTION;
-  FIRST_RUN_PERMISSION_HINT = t('firstRun_readWholeTree', 'Read and sync this browser’s bookmarks, except folders you keep on this browser.');
+  FIRST_RUN_PERMISSION_HINT = t('firstRun_readWholeTree', 'Allow bookmark access, then choose which folders to sync.');
   FIRST_RUN_START = t('firstRun_startFirstSync', 'Start first sync');
   FIRST_RUN_LATER = t('common_later', 'Later');
   FIRST_RUN_MERGE_COPY = t('firstRun_mergeLibrary', 'Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies.');
@@ -179,7 +179,7 @@ export function draftPicksFromView(view: PublicRootView, selectedRefs: ReadonlyS
 
 export function restoreDraftSelection(view: PublicRootView, draft: FirstRunDraft | undefined): Set<string> {
   const selected = new Set<string>();
-  if (!draft || draft.selected.length === 0) {
+  if (!draft) {
     for (const root of view.roots) {
       if (root.selected) selected.add(root.ref);
     }

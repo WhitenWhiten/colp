@@ -15,7 +15,7 @@ import {
   advancedModeHint, advancedPreviewRequest, advancedPreviewSummary, type AdvancedUiMode, selectionFingerprint,
   PREVIEW_ONLY_GUIDANCE, PREVIEW_ONLY_SWITCH_LABEL,
 } from './advanced-first-run-ui.js';
-import { syncRootRefs, excludedFolderRefs, replaceFolderExclusions, ROOTS_REPAINT } from './folder-coverage.js';
+import { syncRootRefs, excludedFolderRefs, replaceFolderSelection, ROOTS_REPAINT } from './folder-coverage.js';
 import { createFirstRunPreviewSession } from './first-run-preview-session.js';
 import { observeFirstRunResponse, type FirstRunObservation } from './first-run-observation.js';
 import { rejectedWorkCopy, syncAttentionTerminalCode, terminalFreezeReasonCopy } from './sync-attention-ui.js';
@@ -139,8 +139,9 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       paintedViewId = next.viewId;
       if (firstPaint) {
         void readFirstRunDraft().then((draft) => {
-          if (draft?.excluded?.length) {
-            applyFolderExclusions(host.rootTree, restoreDraftSelection(next, { ...draft, selected: draft.excluded }));
+          if (draft && (!draft.libraryId || draft.libraryId === libraryId)) {
+            applyFolderSelection(host.rootTree, restoreDraftSelection(next, draft),
+              restoreDraftSelection(next, { ...draft, selected: draft.excluded ?? [] }));
           }
     void refreshPreview();
         });
@@ -540,8 +541,8 @@ function required(id: string): HTMLElement {
 }
 
 /** The draft's own picks; folder coverage then ticks what they carry, and the pane repaints its count. */
-function applyFolderExclusions(tree: HTMLElement, excluded: ReadonlySet<string>): void {
-  replaceFolderExclusions(tree, excluded);
+function applyFolderSelection(tree: HTMLElement, selected: ReadonlySet<string>, excluded: ReadonlySet<string>): void {
+  replaceFolderSelection(tree, selected, excluded);
   tree.dispatchEvent(new Event(ROOTS_REPAINT));
 }
 

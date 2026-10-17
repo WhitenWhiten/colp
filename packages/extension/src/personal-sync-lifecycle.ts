@@ -1,5 +1,6 @@
 import { createSyncConfirmations, type PersonalSyncCommand, type ConfirmationBasis } from './personal-sync-commands.js';
 import { personalSyncKey, type PersonalSyncIdentity, type createPersonalSyncPolicyStore } from './personal-sync-policy.js';
+import type { Library } from './library.js';
 
 export interface LifecycleFacts { readonly digest: string; readonly queued: number; readonly attached: boolean }
 export interface PersonalSyncLifecyclePorts {
@@ -8,22 +9,27 @@ export interface PersonalSyncLifecyclePorts {
   generation(): Promise<number>;
   assertCurrent(generation: number): Promise<void>;
   facts(): Promise<LifecycleFacts>;
+  resolveTarget(identity: PersonalSyncIdentity & { collectionId: string }): Promise<Library | undefined>;
   available(identity: PersonalSyncIdentity & { collectionId: string }): Promise<'available' | 'unavailable' | 'unknown'>;
   disconnect(identity: PersonalSyncIdentity & { collectionId: string }, generation: number): Promise<void>;
   /** Invoke publish inside the adapter's local mutation lane, never around HTTP or lane acquisition. */
   reconnect(identity: PersonalSyncIdentity & { collectionId: string }, generation: number,
-    publish: (effect: () => Promise<void>) => Promise<void>): Promise<void>;
+    publish: (effect: () => Promise<void>) => Promise<void>, library?: Library): Promise<void>;
   wake(): void;
 }
 export function createPersonalSyncLifecycle(ports: PersonalSyncLifecyclePorts) {
   const confirmations = createSyncConfirmations();
-  async function snapshot() {
+  async function snapshot(action: 'pause' | 'resume' | 'disconnect') {
     const generation = await ports.generation(), identity = await ports.identity();
     const policy = await ports.policy.read(identity), facts = await ports.facts();
+    const rediscover = action === 'resume' && policy.mode === 'disconnected';
+    const library = rediscover ? await ports.resolveTarget(identity) : undefined;
     await ports.assertCurrent(generation);
+    if (rediscover && !library) throw new Error('personal_sync_target_unverified');
+    const target = { ...identity, collectionId: library?.id ?? identity.collectionId };
     const basis: ConfirmationBasis = { accountKey: personalSyncKey(identity), generation,
-      revision: policy.revision, collectionId: identity.collectionId, digest: facts.digest };
-    return { identity, policy, facts, basis };
+      revision: policy.revision, collectionId: identity.collectionId, targetCollectionId: target.collectionId, digest: facts.digest };
+    return { identity, target, library, policy, facts, basis };
   }
   return Object.freeze({ async handle(command: PersonalSyncCommand) {
     if (command.kind === 'known.personalSync.status') {
@@ -38,10 +44,10 @@ export function createPersonalSyncLifecycle(ports: PersonalSyncLifecyclePorts) {
       await ports.assertCurrent(generation);
       return { ok: true as const };
     }
-    const { identity, policy, facts, basis } = await snapshot();
+    const { identity, target, library, policy, facts, basis } = await snapshot(command.action);
     if (command.kind === 'known.personalSync.preview') {
       return { ok: true as const, token: confirmations.issue(command.action, basis), revision: policy.revision,
-        queued: facts.queued, collectionId: identity.collectionId };
+        queued: facts.queued, collectionId: target.collectionId };
     }
     if (command.revision !== policy.revision) throw new Error('personal_sync_preview_stale');
     if (command.action === 'pause') throw new Error('request_invalid');
@@ -57,17 +63,17 @@ export function createPersonalSyncLifecycle(ports: PersonalSyncLifecyclePorts) {
       await ports.assertCurrent(basis.generation);
       return { ok: true as const };
     }
-    const available = await ports.available(identity);
+    const available = await ports.available(target);
     await ports.assertCurrent(basis.generation);
     if (available !== 'available') {
       if (available === 'unavailable') await ports.policy.write(identity, 'target-unavailable', 'target-unavailable', stopped.revision);
       throw new Error(available === 'unavailable' ? 'personal_sync_target_unavailable' : 'personal_sync_target_unverified');
     }
     await ports.policy.withRevision(identity, stopped.revision, async () => { await ports.assertCurrent(basis.generation); });
-    await ports.reconnect(identity, basis.generation,
-      effect => ports.policy.withRevision(identity, stopped.revision, effect));
+    await ports.reconnect(target, basis.generation,
+      effect => ports.policy.withRevision(identity, stopped.revision, effect), library);
     await ports.assertCurrent(basis.generation);
-    await ports.policy.write(identity, 'enabled', 'user', stopped.revision);
+    await ports.policy.write(target, 'enabled', 'user', stopped.revision);
     await ports.assertCurrent(basis.generation);
     ports.wake();
     return { ok: true as const };

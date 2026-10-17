@@ -27,6 +27,7 @@ export interface ConfirmationBasis {
   readonly generation: number;
   readonly revision: string;
   readonly collectionId: string;
+  readonly targetCollectionId: string;
   readonly digest: string;
 }
 /** Ephemeral, single-use confirmations: a worker restart requires a fresh preview, never blind replay. */

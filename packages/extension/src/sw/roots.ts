@@ -15,12 +15,17 @@ import { bookmarkListenerLifecycle, recoverBookmarkEvents } from './bookmarks.js
 import { scheduleSyncEngineWake } from './engine.js';
 import { handleRangeConfirm, handleRangePreview } from './range.js';
 import { DEFAULT_SYNC_FOLDER_TITLE, hasBookmarkPermission, rootScopeKey, sw, syncState } from './runtime.js';
-import { currentSyncScope } from './scope.js';
+import { currentSyncScope, requireSyncScope } from './scope.js';
 import { t } from '../i18n.js';
 
 export async function handleRootRequest(message: RootRequest): Promise<RootResponse> {
   let scope: SyncScope;
-  try { scope = await currentSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
+  try { scope = await currentSyncScope(); } catch {
+    if (message.kind !== 'known.roots.get') return { ok: false, error: 'not_connected' };
+    // A reconnect publishes its binding before the Session lane finishes. Join
+    // that lane so the first folder read does not get stuck on "connecting".
+    try { scope = await requireSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
+  }
   const permissionGranted = await hasBookmarkPermission();
   if (message.kind === 'known.roots.permissionChanged' && permissionGranted !== message.granted) {
     return { ok: false, error: 'request_invalid' };

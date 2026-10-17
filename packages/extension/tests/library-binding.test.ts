@@ -98,6 +98,15 @@ test.each([false, true])('discovery preserves a paused policy on login=%s when t
   assert.equal((await policy.read(owner)).mode, 'paused');
 });
 
+test.each([false, true])('a signed-out pause resumes only on explicit login=%s', async login => {
+  f.target = null;
+  await policy.write(owner, 'paused', 'signed-out');
+  vi.stubGlobal('fetch', async () => Response.json(library));
+  await ensureLibraryBinding({ login });
+  assert.equal((await storage.get(COLLECTION_BINDING))[COLLECTION_BINDING], library.id);
+  assert.equal((await policy.read(owner)).mode, login ? 'enabled' : 'paused');
+});
+
 
 test.each([false, true])('404 then 200 recovers the same account library on login=%s', async login => {
   vi.stubGlobal('fetch', async () => new Response(null, { status: 404 }));

@@ -16,7 +16,7 @@ import { bindServerOriginField } from './server-origin-field.js';
 import { announceAuthReason, bindLoginForm, setLoginProductLinks } from './login-form.js';
 import { COLLECTION_BINDING, LIBRARY_STATE, boundLibrary, parseLibraryState } from './library.js';
 import { bindPersonalSyncControls } from './personal-sync-ui.js';
-import { PERSONAL_SYNC_PREFIX } from './personal-sync-policy.js';
+import { PERSONAL_SYNC_PREFIX, parsePersonalSyncPolicy } from './personal-sync-policy.js';
 import { bindFolders } from './sync-folders.js';
 import { bindImport } from './sync-import.js';
 import { bindFirstRunOnboarding } from './first-run-ui.js';
@@ -137,7 +137,9 @@ async function refreshLibrary(): Promise<void> {
   importPane.setCollection(libraryName);
 }
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (COLLECTION_BINDING in changes || LIBRARY_STATE in changes)) {
+  const resumed = Object.entries(changes).some(([key, change]) => key.startsWith(PERSONAL_SYNC_PREFIX)
+    && parsePersonalSyncPolicy(change.newValue).mode === 'enabled');
+  if (area === 'local' && (COLLECTION_BINDING in changes || LIBRARY_STATE in changes || resumed)) {
     void refreshLibrary().then(() => { if (connected) void folders.load(); });
   }
 });

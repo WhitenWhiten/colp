@@ -3980,8 +3980,8 @@
     "description": "Preview only, do not run"
   },
   "firstRun_readWholeTree": {
-    "message": "读取并同步此浏览器的书签，但仅保留在此浏览器上的文件夹除外。",
-    "description": "Read and sync this browser’s bookmarks, except folders you keep on this browser."
+    "message": "允许访问书签后，选择要同步的目录。",
+    "description": "Allow bookmark access, then choose which folders to sync."
   },
   "firstRun_remoteOnlyItems_other": {
     "message": "$1 个项目仅在 Know-N 中",
@@ -4056,8 +4056,8 @@
     "description": "View items that need attention"
   },
   "firstRun_wholeTreeIntro": {
-    "message": "默认同步所有文件夹。取消勾选即可将文件夹仅保留在此浏览器上。",
-    "description": "All folders sync. Untick any folder to keep it on this browser."
+    "message": "选择要同步的目录。可以直接勾选子目录，无需选中父目录。",
+    "description": "Choose folders to sync. You can select a subfolder without selecting its parent."
   },
   "firstRun_willSyncTotals": {
     "message": "将同步：$1，$2",
@@ -8244,8 +8244,8 @@
     "description": "When a bookmark is deleted on another device"
   },
   "sync_wholeTreeLede": {
-    "message": "默认同步所有文件夹。取消勾选即可仅保留在此浏览器上；再次勾选即可恢复同步。",
-    "description": "All folders sync by default. Untick a folder to keep it on this browser; tick it again to sync it."
+    "message": "选择要同步的目录。可以直接勾选子目录，无需选中父目录。",
+    "description": "Choose folders to sync. You can select a subfolder without selecting its parent."
   },
   "sync_willSyncIn": {
     "message": "将同步 $2中的 $1。",

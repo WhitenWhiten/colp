@@ -3042,7 +3042,7 @@
     "message": "Preview only, do not run"
   },
   "firstRun_readWholeTree": {
-    "message": "Read and sync this browser’s bookmarks, except folders you keep on this browser."
+    "message": "Allow bookmark access, then choose which folders to sync."
   },
   "firstRun_remoteOnlyItems_one": {
     "message": "$1 item only in Know-N"
@@ -3102,7 +3102,7 @@
     "message": "View items that need attention"
   },
   "firstRun_wholeTreeIntro": {
-    "message": "All folders sync. Untick any folder to keep it on this browser."
+    "message": "Choose folders to sync. You can select a subfolder without selecting its parent."
   },
   "firstRun_willSyncTotals": {
     "message": "Will sync: $1, $2"
@@ -6300,7 +6300,7 @@
     "message": "When a bookmark is deleted on another device"
   },
   "sync_wholeTreeLede": {
-    "message": "All folders sync by default. Untick a folder to keep it on this browser; tick it again to sync it."
+    "message": "Choose folders to sync. You can select a subfolder without selecting its parent."
   },
   "sync_willSyncIn": {
     "message": "Will sync $1 in $2."

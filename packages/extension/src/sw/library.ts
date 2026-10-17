@@ -66,7 +66,8 @@ export async function ensureLibraryBinding(options: { readonly login?: boolean; 
     }
     const recoveredTarget = nextPolicy?.mode === 'target-unavailable'
       && (nextPolicy.collectionId === null || nextPolicy.collectionId === library.id);
-    if (policy && (recoveredTarget || (!target && (nextPolicy?.mode === 'enabled'
+    const signedOutPause = options.login && nextPolicy?.mode === 'paused' && nextPolicy.reason === 'signed-out';
+    if (policy && (recoveredTarget || signedOutPause || (!target && (nextPolicy?.mode === 'enabled'
       || (options.login && nextPolicy?.mode === 'disconnected'))))) {
       await policy.write(nextIdentity, 'enabled', 'user', before?.revision);
     }
@@ -85,14 +86,17 @@ export async function resolveLibraryRootId(collectionId: string): Promise<string
   const library = await ensureLibraryBinding();
   return library?.id === collectionId ? library.rootNodeId : undefined;
 }
-export async function verifyLibraryAvailability(identity: PersonalSyncIdentity & { collectionId: string }) {
+export async function fetchAccountLibrary(identity: PersonalSyncIdentity): Promise<Library | undefined> {
   try {
     const { response, credential } = await fetchLibrary();
     if (credential.subject !== identity.accountId || credential.serverOrigin !== identity.serverOrigin) throw new Error('account_switch');
-    if (!response.ok) return 'unknown' as const;
-    const library = parseLibrary(await response.json());
-    return !library ? 'unknown' as const : library.id === identity.collectionId ? 'available' as const : 'unavailable' as const;
-  } catch { return 'unknown' as const; }
+    if (!response.ok) return;
+    return parseLibrary(await response.json());
+  } catch { return; }
+}
+export async function verifyLibraryAvailability(identity: PersonalSyncIdentity & { collectionId: string }) {
+  const library = await fetchAccountLibrary(identity);
+  return !library ? 'unknown' as const : library.id === identity.collectionId ? 'available' as const : 'unavailable' as const;
 }
 export async function libraryUnsupported(): Promise<boolean> {
   const credential = await store.loadCredential();

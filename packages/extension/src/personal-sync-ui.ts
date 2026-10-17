@@ -4,6 +4,7 @@ import type { PersonalSyncCommand, PersonalSyncAction } from './personal-sync-co
 import { createDialog, dialogButton } from './dialog.js';
 import { button, el } from './library-dom.js';
 import { t } from './i18n.js';
+import { dismissToast, showToast } from './toast.js';
 
 type Reply = { ok: boolean; error?: string; policy?: PersonalSyncPolicy; token?: string; revision?: string; queued?: number };
 export function bindPersonalSyncControls(host: HTMLElement) {
@@ -15,8 +16,7 @@ export function bindPersonalSyncControls(host: HTMLElement) {
   const actions = el('div', undefined, 'set-row-control personal-sync-actions');
   const toggle = button('', 'btn btn-secondary btn-sm'), disconnect = button(t('sync_personalDisconnect', 'Disconnect personal sync'), 'btn btn-ghost btn-sm');
   toggle.id = 'personal-sync-toggle'; disconnect.id = 'personal-sync-disconnect';
-  const feedback = el('p', undefined, 'feedback'); feedback.id = 'personal-sync-feedback'; feedback.setAttribute('role', 'status');
-  text.append(status, hint); actions.append(toggle, disconnect); row.append(text, actions); card.append(row, feedback);
+  text.append(status, hint); actions.append(toggle, disconnect); row.append(text, actions); card.append(row);
   // Status keeps urgent sync notices first, followed by this connection card.
   host.append(card);
   const metadata = bindLibraryMetadata(card);
@@ -74,7 +74,7 @@ export function bindPersonalSyncControls(host: HTMLElement) {
   }
   async function change(action: PersonalSyncAction) {
     if (!policy || busy) return;
-    busy = true; paint(); feedback.textContent = '';
+    busy = true; paint();
     try {
       if (action === 'pause') await send({ kind: 'known.personalSync.change', action, revision: policy.revision, userGesture: true });
       else {
@@ -82,8 +82,9 @@ export function bindPersonalSyncControls(host: HTMLElement) {
         if (!await confirm(action, preview.queued ?? 0)) return;
         await send({ kind: 'known.personalSync.change', action, revision: preview.revision!, token: preview.token!, userGesture: true });
       }
+      dismissToast();
     } catch {
-      feedback.textContent = t('sync_personalLibraryChangeFailed', 'The change could not be completed. Check the connection and review again. Sync stays stopped until reconnect is verified.');
+      showToast(t('sync_personalLibraryChangeFailed', 'The change could not be completed. Check the connection and review again. Sync stays stopped until reconnect is verified.'), 'error', { announce: true });
     } finally { busy = false; await refresh(); }
   }
   toggle.onclick = () => { void change(policy?.mode === 'enabled' ? 'pause' : 'resume'); };

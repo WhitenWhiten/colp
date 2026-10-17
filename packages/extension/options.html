@@ -230,7 +230,7 @@
         <section role="tabpanel" data-view-panel="folders" id="folder-card" class="set-group folder-access" aria-labelledby="tab-sync-folders" hidden>
           <div class="set-group-head">
             <h2 id="folder-heading" data-i18n="sync_syncedFolders">Synced folders</h2>
-            <p id="folder-intro" data-i18n="sync_wholeTreeLede">All folders sync by default. Untick a folder to keep it on this browser; tick it again to sync it.</p>
+            <p id="folder-intro" data-i18n="sync_wholeTreeLede">Choose folders to sync. You can select a subfolder without selecting its parent.</p>
           </div>
           <div id="root-alert" class="inline-alert" data-tone="warning" role="status" aria-live="polite" hidden>
             <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="alert"></svg>
@@ -243,12 +243,13 @@
             <div class="card-bar">
               <span class="grow"><span id="folder-count" aria-live="polite"></span><button type="button" class="info-pill" data-tip="An unticked folder stays on this browser; its bookmarks never upload. Changes are previewed before anything syncs. Your browser’s own bookmark sync is separate." aria-label="More about synced folders" data-i18n-data-tip="options_syncedFoldersTip" data-i18n-aria-label="options_moreAboutSyncedFolders"><svg width="20" height="20" aria-hidden="true" focusable="false" data-icon="info"></svg></button></span>
               <button id="tree-select-level" class="btn btn-ghost btn-sm" type="button" disabled data-i18n="sync_syncAll">Sync all</button>
+              <button id="tree-clear-selection" class="btn btn-ghost btn-sm" type="button" disabled data-i18n="manager_clearSelection">Clear selection</button>
               <button id="refresh-roots" class="btn btn-ghost btn-sm btn-icon" type="button" disabled
                 aria-label="Refresh folders" title="Refresh folders" data-i18n-title="common_refreshFolders" data-i18n-aria-label="common_refreshFolders">
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" data-icon="refresh"></svg>
               </button>
             </div>
-            <p id="first-run-permission-hint" class="card-note" hidden data-i18n="firstRun_readWholeTree">Read and sync this browser’s bookmarks, except folders you keep on this browser.</p>
+            <p id="first-run-permission-hint" class="card-note" hidden data-i18n="firstRun_readWholeTree">Allow bookmark access, then choose which folders to sync.</p>
             <div id="root-tree" class="check-tree root-tree" role="group" aria-label="Bookmark folders" data-i18n-aria-label="common_bookmarkFolders"></div>
             <p id="first-run-empty" class="card-note" hidden></p>
             <div class="card-foot folder-foot">
