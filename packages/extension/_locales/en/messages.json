@@ -3935,9 +3935,6 @@
   "options_disconnectingServer": {
     "message": "Disconnecting server…"
   },
-  "options_doesNotChangeDefault": {
-    "message": "This does not change the default save folder. Changes are previewed before anything syncs. Your browser’s own bookmark sync is separate."
-  },
   "options_enableLocalClassification": {
     "message": "Use this AI service"
   },
@@ -4093,6 +4090,9 @@
   },
   "options_staySignedIn": {
     "message": "Stay signed in"
+  },
+  "options_syncedFoldersTip": {
+    "message": "An unticked folder stays on this browser; its bookmarks never upload. Changes are previewed before anything syncs. Your browser’s own bookmark sync is separate."
   },
   "options_useBrowsersBookmarksStart": {
     "message": "Use This browser's bookmarks to start an import."
@@ -5837,9 +5837,6 @@
   "sync_bookmarksBar": {
     "message": "Bookmarks bar"
   },
-  "sync_browserOnlyFolders": {
-    "message": "Folders kept on this browser"
-  },
   "sync_changesPreviewed": {
     "message": "Changes are previewed before anything syncs."
   },
@@ -5924,11 +5921,11 @@
   "sync_folderTreeChangedRefresh": {
     "message": "Folder tree changed. Refresh and preview again."
   },
-  "sync_foldersChecked_one": {
-    "message": "$2 of $1 folder"
+  "sync_foldersSyncing_one": {
+    "message": "$2 of $1 folder syncs"
   },
-  "sync_foldersChecked_other": {
-    "message": "$2 of $1 folders"
+  "sync_foldersSyncing_other": {
+    "message": "$2 of $1 folders sync"
   },
   "sync_htmlFile": {
     "message": "HTML bookmarks file"
@@ -6209,9 +6206,6 @@
   "sync_savingFolderSettings": {
     "message": "Saving folder settings."
   },
-  "sync_selectAll": {
-    "message": "Select all"
-  },
   "sync_signInLibrary": {
     "message": "Sign in to sync this browser with your bookmark library."
   },
@@ -6226,6 +6220,9 @@
   },
   "sync_stopSyncing": {
     "message": "Stop syncing"
+  },
+  "sync_syncAll": {
+    "message": "Sync all"
   },
   "sync_syncDeviceHasStopped": {
     "message": "Sync on this device has stopped: the saved bookmark’s original folder or position cannot be confirmed. Its save location needs review."
@@ -6256,6 +6253,9 @@
   },
   "sync_syncResetIsntFinished": {
     "message": "The sync reset isn't finished. Your bookmarks are safe. Try again to finish it."
+  },
+  "sync_syncedFolders": {
+    "message": "Synced folders"
   },
   "sync_tabImport": {
     "message": "Import"

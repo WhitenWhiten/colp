@@ -33,15 +33,13 @@ export function bindFolders(host: FoldersHost) {
   const grant = required('request-bookmark-permission') as HTMLButtonElement;
   const revoke = required('remove-bookmark-permission') as HTMLButtonElement;
   const selectAll = required('tree-select-level') as HTMLButtonElement;
-  const invert = required('tree-invert') as HTMLButtonElement;
   const collapsed = new Set<string>();
   let view: PublicRootView | undefined;
   let preselect: string | undefined;
 
   refresh.addEventListener('click', () => { void load(); });
   retry.addEventListener('click', () => { void load(); });
-  selectAll.addEventListener('click', () => { toggleVisible(true); });
-  invert.addEventListener('click', () => { toggleVisible('invert'); });
+  selectAll.addEventListener('click', syncAll);
   cancel.addEventListener('click', () => { if (view) { render(view); feedback.textContent = ''; } });
   tree.addEventListener('change', paint);
   tree.addEventListener(ROOTS_REPAINT, paint);
@@ -66,7 +64,6 @@ export function bindFolders(host: FoldersHost) {
     setPermissionControls(next.status === 'permission_required' ? 'required' : 'granted');
     const canEdit = next.status !== 'permission_required' && next.status !== 'tree_unavailable';
     selectAll.disabled = !canEdit || next.roots.length === 0;
-    invert.disabled = !canEdit || next.roots.length === 0;
     if (next.roots.length === 0) {
       // A missing permission or an unreadable tree is said once, in the alert; the empty list says nothing more.
       showEmpty(next.status === 'ready' ? t('options_noBookmarkFoldersAvailable', 'No bookmark folders are available.') : '',
@@ -143,11 +140,11 @@ export function bindFolders(host: FoldersHost) {
     save.disabled = !host.isConnected() || !granted || !view || view.status === 'tree_unavailable';
   }
 
-  /** Coverage, dashes on parents, the "3 of 6 folders" line and whether there is anything to cancel. */
+  /** Coverage, dashes on parents, the "3 of 6 folders sync" line and whether there is anything to cancel. */
   function paint(): void {
     const checked = paintCoverage(tree);
     const rows = view?.roots ?? [];
-    count.textContent = rows.length === 0 ? '' : tn('sync_foldersChecked', rows.length, '$2 of $1 folder', '$2 of $1 folders', checked);
+    count.textContent = rows.length === 0 ? '' : tn('sync_foldersSyncing', rows.length, '$2 of $1 folder syncs', '$2 of $1 folders sync', checked);
     cancel.disabled = !dirty();
   }
 
@@ -170,9 +167,10 @@ export function bindFolders(host: FoldersHost) {
     }
   }
 
-  function toggleVisible(mode: true | 'invert'): void {
+  /** Ticked means synced, so the one bulk action brings every folder back into sync. */
+  function syncAll(): void {
     for (const input of Array.from(tree.querySelectorAll<HTMLInputElement>('.root-select input:not([data-managed])'))) {
-      input.checked = mode === 'invert' ? !input.checked : true;
+      input.checked = true;
       recordFolderChoice(input);
     }
     // A script-set box fires no event; the first-run preview and the dashes listen for one.
@@ -190,7 +188,7 @@ export function bindFolders(host: FoldersHost) {
       if (connected) return;
       view = undefined; tree.replaceChildren(); alert.hidden = true; count.textContent = '';
       showEmpty(t('sync_signInLibrary', 'Sign in to sync this browser with your bookmark library.'), 'empty');
-      setPermissionControls('disconnected'); selectAll.disabled = true; invert.disabled = true;
+      setPermissionControls('disconnected'); selectAll.disabled = true;
     },
   };
 }

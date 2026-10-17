@@ -35,7 +35,7 @@ test('every folder syncs by default, including an empty browser root, and descen
   for (const ref of ['bar', 'mkt', 'seo', 'prog', 'other']) {
     expect(input(ref).checked).toBe(true); expect(input(ref).disabled).toBe(false);
   }
-  expect(text('folder-count')).toBe('5 of 5 folders');
+  expect(text('folder-count')).toBe('5 of 5 folders sync');
   expect(syncRootRefs(document.getElementById('root-tree')!)).toEqual(['bar', 'other']);
 });
 test('unticking a folder keeps its subtree on this browser; ticking restores it', async () => {
@@ -44,7 +44,7 @@ test('unticking a folder keeps its subtree on this browser; ticking restores it'
   expect(excludedFolderRefs(document.getElementById('root-tree')!)).toContain('mkt');
   expect(input('seo').checked).toBe(false); expect(input('seo').disabled).toBe(true);
   expect(input('bar').indeterminate).toBe(true); expect(input('other').checked).toBe(true);
-  expect(text('folder-count')).toBe('3 of 5 folders');
+  expect(text('folder-count')).toBe('3 of 5 folders sync');
   expect(excludedFolderRefs(document.getElementById('root-tree')!)).toEqual(['mkt']);
   expect((document.getElementById('cancel-roots') as HTMLButtonElement).disabled).toBe(false);
   input('mkt').click();
@@ -65,15 +65,17 @@ test('managed folders stay read-only and there is one visible checkbox per edita
   expect(input('m').disabled).toBe(true); expect(input('m').checked).toBe(false);
   expect(document.querySelector('.root-row[data-ref="m"] .badge')!.textContent).toBe('Managed');
 });
-test('bulk checkbox changes update the same explicit exclusion boundaries', async () => {
+test('Sync all brings every unticked folder back into sync', async () => {
   await mount(); const rootTree = document.getElementById('root-tree')!, changed = vi.fn();
+  input('mkt').click(); input('other').click();
+  expect(excludedFolderRefs(rootTree)).toEqual(['mkt', 'other']);
   rootTree.addEventListener('change', changed);
-  document.getElementById('tree-invert')!.click();
-  expect(Array.from(document.querySelectorAll<HTMLInputElement>('.root-select input')).every(box => !box.checked)).toBe(true);
-  expect(syncRootRefs(rootTree)).toEqual(['bar', 'other']);
+  expect(document.getElementById('tree-invert')).toBeNull();
+  expect(text('tree-select-level')).toBe('Sync all');
   document.getElementById('tree-select-level')!.click();
-  expect(changed).toHaveBeenCalledTimes(2);
-  expect(text('folder-count')).toBe('5 of 5 folders');
+  expect(changed).toHaveBeenCalledTimes(1);
+  expect(syncRootRefs(rootTree)).toEqual(['bar', 'other']);
+  expect(text('folder-count')).toBe('5 of 5 folders sync');
   expect(excludedFolderRefs(rootTree)).toEqual([]);
 });
 test('collapsing the tree preserves unsaved exclusions', async () => {

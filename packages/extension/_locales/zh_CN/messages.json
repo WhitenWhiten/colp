@@ -5147,10 +5147,6 @@
     "message": "正在断开服务器…",
     "description": "Disconnecting server…"
   },
-  "options_doesNotChangeDefault": {
-    "message": "不会改变默认保存文件夹。任何更改都会在同步前预览。浏览器自带的书签同步与此无关。",
-    "description": "This does not change the default save folder. Changes are previewed before anything syncs. Your browser’s own bookmark sync is separate."
-  },
   "options_enableLocalClassification": {
     "message": "使用此 AI 服务",
     "description": "Use this AI service"
@@ -5358,6 +5354,10 @@
   "options_staySignedIn": {
     "message": "保持登录",
     "description": "Stay signed in"
+  },
+  "options_syncedFoldersTip": {
+    "message": "取消勾选的文件夹仅保留在此浏览器上，其中的书签不会上传。任何更改都会在同步前预览。浏览器自带的书签同步与此无关。",
+    "description": "An unticked folder stays on this browser; its bookmarks never upload. Changes are previewed before anything syncs. Your browser’s own bookmark sync is separate."
   },
   "options_useBrowsersBookmarksStart": {
     "message": "请使用“此浏览器的书签”开始导入。",
@@ -7671,10 +7671,6 @@
     "message": "书签栏",
     "description": "Bookmarks bar"
   },
-  "sync_browserOnlyFolders": {
-    "message": "仅保留在此浏览器上的文件夹",
-    "description": "Folders kept on this browser"
-  },
   "sync_changesPreviewed": {
     "message": "任何内容同步前，都会先预览更改。",
     "description": "Changes are previewed before anything syncs."
@@ -7787,9 +7783,9 @@
     "message": "文件夹树已更改。请刷新并重新预览。",
     "description": "Folder tree changed. Refresh and preview again."
   },
-  "sync_foldersChecked_other": {
-    "message": "已选 $2 / 共 $1 个文件夹",
-    "description": "$2 of $1 folders"
+  "sync_foldersSyncing_other": {
+    "message": "同步 $2 / 共 $1 个文件夹",
+    "description": "$2 of $1 folders sync"
   },
   "sync_htmlFile": {
     "message": "HTML 书签文件",
@@ -8127,10 +8123,6 @@
     "message": "正在保存文件夹设置。",
     "description": "Saving folder settings."
   },
-  "sync_selectAll": {
-    "message": "全选",
-    "description": "Select all"
-  },
   "sync_signInLibrary": {
     "message": "登录后即可将此浏览器与你的书签库同步。",
     "description": "Sign in to sync this browser with your bookmark library."
@@ -8150,6 +8142,10 @@
   "sync_stopSyncing": {
     "message": "停止同步",
     "description": "Stop syncing"
+  },
+  "sync_syncAll": {
+    "message": "全部同步",
+    "description": "Sync all"
   },
   "sync_syncDeviceHasStopped": {
     "message": "此设备上的同步已停止：无法确认已保存书签的原文件夹或位置，需要查看其保存位置。",
@@ -8190,6 +8186,10 @@
   "sync_syncResetIsntFinished": {
     "message": "同步重置尚未完成。你的书签是安全的，请重试以完成重置。",
     "description": "The sync reset isn't finished. Your bookmarks are safe. Try again to finish it."
+  },
+  "sync_syncedFolders": {
+    "message": "同步的文件夹",
+    "description": "Synced folders"
   },
   "sync_tabImport": {
     "message": "导入",

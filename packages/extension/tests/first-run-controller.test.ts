@@ -63,7 +63,7 @@ test('starting first sync reveals the progress card without a reload or the idle
     await vi.advanceTimersByTimeAsync(1_000);
     expect(document.getElementById('sync-progress-title')!.textContent).toBe('Sync complete');
     expect(document.getElementById('save-roots')!.hidden).toBe(false);
-    expect(document.getElementById('folder-heading')!.textContent).toBe('Folders kept on this browser');
+    expect(document.getElementById('folder-heading')!.textContent).toBe('Synced folders');
   } finally { progress.stop(); }
 });
 
