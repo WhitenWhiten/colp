@@ -1350,6 +1350,12 @@ kbd,
   overflow-clip-margin: var(--space-1);
   min-height: 0;
   min-width: 0;
+  /* The clip only reaches absolutely positioned descendants (the rail's
+     visually-hidden counts) whose containing block sits inside it. Without
+     this they kept their full-height static positions while the row
+     animated, and the library rail flashed a scrollbar on expand and
+     collapse. */
+  position: relative;
 }
 
 /* Mid-keyframe a fractional row lays the content out taller than its box,
