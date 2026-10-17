@@ -84,7 +84,7 @@ export function buildRemoteIndex(
     if (cached) return cached;
     const row = byId.get(nodeId);
     if (!row) return nodeId;
-    if (row.folderRole && SPECIAL_FOLDER_ROLES.has(row.folderRole)) {
+    if (row.folderRole && (SPECIAL_FOLDER_ROLES.has(row.folderRole) || row.folderRole === 'custom')) {
       mountOf.set(nodeId, row.nodeId);
       return row.nodeId;
     }

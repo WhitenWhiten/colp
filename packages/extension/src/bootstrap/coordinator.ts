@@ -186,7 +186,10 @@ export function createBootstrapCoordinator(options: {
       bootstrapMode: run.bootstrapMode, destructiveConfirmed: run.destructiveConfirmed === true,
       previewOnly: run.previewOnly === true,
     });
-    if (!readOnly) await persistConfirmedMatches(report, local, remote);
+    if (!readOnly) {
+      await persistConfirmedMatches(report, local, remote);
+      await bindResolvedMounts(run.confirmationId);
+    }
     return { report, run, rootNodeId, fromRecovery: loaded.fromRecovery };
   }
 

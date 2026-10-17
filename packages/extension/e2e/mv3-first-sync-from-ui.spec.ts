@@ -86,7 +86,7 @@ test('a fresh browser merges both roots into one library, keeps exclusions local
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
-test('only a directly selected subfolder uploads, and its selection survives reload', async () => {
+test('a directly selected subfolder survives reload and reconnect without duplicate uploads', async () => {
   test.setTimeout(180_000);
   const stack = await startRealStack(), profile = await mkdtemp(resolve(tmpdir(), 'known-subfolder-ui-'));
   let context: BrowserContext | undefined;
@@ -133,5 +133,34 @@ test('only a directly selected subfolder uploads, and its selection survives rel
     await showOptionsPane(page, 'folders');
     await expect(child).toBeChecked();
     await expect.poll(() => parent.evaluate(input => (input as HTMLInputElement).indeterminate)).toBe(true);
+    const before = ((await stack.observations()).canonicalNodes as CanonicalNode[])
+      .filter(node => node.deleted_at === null).map(node => node.id).sort();
+    const nativeBefore = await page.evaluate(async () => {
+      const flatten = (nodes: chrome.bookmarks.BookmarkTreeNode[]): string[] => nodes.flatMap(node =>
+        [JSON.stringify([node.id, node.parentId, node.title, node.url]), ...flatten(node.children ?? [])]);
+      return flatten(await chrome.bookmarks.getTree());
+    });
+    await showOptionsPane(page, 'sync-center');
+    await page.getByRole('button', { name: 'Disconnect personal sync', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Disconnect personal sync', exact: true }).click();
+    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is disconnected');
+    await page.getByRole('button', { name: 'Reconnect personal sync', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Resume personal sync', exact: true }).click();
+    await expect(page.locator('#personal-sync-status')).toHaveText(/^(Personal sync is enabled|Ready to sync\.)/u);
+    await page.reload();
+    await showOptionsPane(page, 'folders');
+    await page.locator('#tree-clear-selection').click();
+    await child.check();
+    await expect(page.locator('#first-run-start')).toBeEnabled();
+    await page.locator('#first-run-start').click();
+    await expect.poll(() => page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }) as { firstRun?: string }).firstRun),
+      { timeout: 90_000 }).toBe('completed');
+    expect(((await stack.observations()).canonicalNodes as CanonicalNode[])
+      .filter(node => node.deleted_at === null).map(node => node.id).sort()).toEqual(before);
+    expect(await page.evaluate(async () => {
+      const flatten = (nodes: chrome.bookmarks.BookmarkTreeNode[]): string[] => nodes.flatMap(node =>
+        [JSON.stringify([node.id, node.parentId, node.title, node.url]), ...flatten(node.children ?? [])]);
+      return flatten(await chrome.bookmarks.getTree());
+    })).toEqual(nativeBefore);
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });

@@ -3,6 +3,7 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 import type { BootstrapMode, SpecialFolderRole } from '../sync-state/types.js';
 import { canonicalJson } from '../sync-state/codec.js';
 import { bootstrapOpId as opId } from './run-identity.js';
+import { pairCustomMountRoots } from './custom-mount-match.js';
 export { bootstrapOpId, bootstrapRunOpPrefix, mountResolveOpIdMatches } from './run-identity.js';
 import {
   buildLocalIndex, buildRemoteIndex, encodeFactKey, mappingByNativeMap, matchIndexBuilds,
@@ -110,6 +111,11 @@ export function matchLocalRemote(input: {
     if (row.sourceRefColpId) pair(row.nativeId, row.sourceRefColpId);
   }
   for (const sidecar of input.sidecars ?? []) pair(sidecar.nativeId, sidecar.colpId);
+  for (const mount of input.mounts) {
+    if (mount.remoteMountNodeId) pair(mount.nativeRootId, mount.remoteMountNodeId);
+  }
+  pairCustomMountRoots({ mounts: input.mounts, rootNodeId: input.rootNodeId, localById,
+    remote: input.remote, consumedLocal: consumedL, consumedRemote: consumedR }, pair);
   pairStructureByParentDepth(input, localIndex, remoteIndex, mappingByNative, mountsByRoot, consumedL, consumedR, pair);
   const candidates: DuplicateCandidate[] = [];
   const seenCandidate = new Set<string>();
