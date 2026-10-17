@@ -17,12 +17,14 @@ export function createBookmarkContentCapture(options: {
   readonly correlationFor: (kind: 'change', nativeId: string, details: JsonObject) => string;
   readonly stage: (kind: 'change', nativeId: string, details: JsonObject, eventId: string, correlation?: string) => Promise<Result>;
   readonly uuid: () => string;
+  readonly captureUnmapped?: (nativeId: string, fields: JsonObject) => Promise<Result | null>;
 }) {
   const { identityFor, canWrite, reservedByProjection, correlationFor, stage, uuid } = options;
 
   async function changed(nativeId: string, rawChanges: { readonly title?: string; readonly url?: string },
     source: 'scan' | 'callback' = 'scan'): Promise<Result> {
     const identity = await identityFor(nativeId);
+    if (!identity && source === 'callback') return await options.captureUnmapped?.(nativeId, rawChanges) ?? { outcome: 'filtered' };
     let observed: BookmarkEventNode | undefined;
     try { observed = (await options.api.get(nativeId))[0]; } catch { observed = undefined; }
     const allowed = identity && await canWrite(nativeId, identity, observed);

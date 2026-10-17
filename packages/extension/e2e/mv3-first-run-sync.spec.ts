@@ -66,6 +66,62 @@ test('first-run sync uploads selected ordinary folders as custom mounts', async 
   }
 });
 
+test('first-sync shares live bookmark creates and finishes nested uploads', async () => {
+  const stack = await startRealStack();
+  const dirs = await twinDirs();
+  let context: BrowserContext | undefined;
+  try {
+    context = await launchPersistent(dirs.a, stack.browserHostResolverRules);
+    const page = await ready(context, bindingA);
+    const roots = await specialRoots(page);
+    await page.evaluate(async parentId => {
+      await chrome.bookmarks.create({ parentId, title: 'Initial bookmark', url: 'https://example.test/initial' });
+      const parent = await chrome.bookmarks.create({ parentId, title: 'Nested upload parent' });
+      for (const title of ['Nested A', 'Nested B']) {
+        const child = await chrome.bookmarks.create({ parentId: parent.id, title });
+        await chrome.bookmarks.create({ parentId: child.id, title: `${title} bookmark`,
+          url: `https://example.test/nested-${title.endsWith('A') ? 'a' : 'b'}` });
+      }
+    }, roots.barId);
+    const preview = await previewFirstRun(page, [roots.barTitle]);
+    // Hold transport while both real producers see the new native bookmark.
+    stack.setSyncOffline(true);
+    await confirmPreview(page, preview.previewId);
+    await expect.poll(async () => {
+      const facts = await scopeFacts(page, stack, bindingA);
+      return facts.firstRun === 'running' && facts.recoveryFrozen !== true;
+    }, { timeout: 30_000 }).toBe(true);
+    const added = await page.evaluate(parentId => chrome.bookmarks.create({ parentId,
+      title: 'Added during first sync', url: 'https://example.test/live-first-sync' }), roots.barId);
+    await expect.poll(async () => {
+      await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }));
+      const facts = await scopeFacts(page, stack, bindingA);
+      return facts.queueOpIds.filter(opId => opId.endsWith(`.create.${added.id}`)).length;
+    }, { timeout: 30_000 }).toBe(1);
+    stack.setSyncOffline(false);
+    await wakeEngine(page);
+    const settled = await waitFirstRunProductQuiet(page, stack, bindingA);
+    expect(settled.recoveryFrozen).toBe(false);
+    expect(settled.cursor).toBe(settled.ackedCursor);
+    const live = await liveCanonical(stack);
+    expect(live.filter(node => node.url === 'https://example.test/live-first-sync')).toHaveLength(1);
+    for (const suffix of ['a', 'b']) {
+      const child = live.find(node => node.title === `Nested ${suffix.toUpperCase()}`)!;
+      expect(child).toBeDefined();
+      expect(live.filter(node => node.url === `https://example.test/nested-${suffix}`)
+        .map(node => node.parent_id)).toEqual([child.id]);
+    }
+    const exported = await evidence<any>(page, 'exportOutboundPushEvidence');
+    expect(exported.queue.filter((row: any) => row.payload.type === 'create_node'
+      && row.payload.payload.node.url === 'https://example.test/live-first-sync')).toHaveLength(1);
+    expect(exported.mappings.filter((row: any) => row.nativeId === added.id)).toHaveLength(1);
+  } finally {
+    await closeAll(context);
+    await stack.close();
+    await rmDirs(dirs);
+  }
+});
+
 test('KNS-08-AC-01/02/03/08 first-run preview is local then dual-mount bootstrap skips unselected', async ({}, testInfo) => {
   const id = 'KNS-08-AC-01-preview-zero-mutation';
   const stack = await startRealStack();

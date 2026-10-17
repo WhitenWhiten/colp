@@ -1,5 +1,7 @@
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import type { JsonObject, MappingInput, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import { createSuccessorTarget, localRemovalCoversNative } from './local-create-successor.js';
+import { materializeNativeMutation } from './bookmark-native-mutation.js';
 
 type Store = ReturnType<typeof createSyncStateStore>;
 type Native = Awaited<ReturnType<PullBookmarkApi['get']>>[number];
@@ -7,7 +9,11 @@ type Native = Awaited<ReturnType<PullBookmarkApi['get']>>[number];
 /** Validate a later local post-state without promoting a pending inbox mapping. */
 export async function advancedSelfProjectionIsProven(store: Store, scope: SyncScope, mapping: MappingInput,
   native: Native | undefined, originalParentNativeId: string, afterSequence: number): Promise<boolean> {
-  if (!native || native.id !== mapping.nativeId) return false;
+  const predecessor = (await store.listQueue(scope, undefined, afterSequence - 1, 1))[0];
+  const createOpId = predecessor?.sequence === afterSequence && predecessor.payload.type === 'create_node'
+    ? predecessor.opId : undefined;
+  if (!native) return createOpId !== undefined && localRemovalIsProven(store, scope, mapping, createOpId, afterSequence);
+  if (native.id !== mapping.nativeId) return false;
   let observedProjection = mapping;
   let pendingEvidence = false;
   let pendingMoveParent: string | undefined;
@@ -15,12 +21,14 @@ export async function advancedSelfProjectionIsProven(store: Store, scope: SyncSc
   for (;;) {
     const events = await store.listBookmarkEventsByStatus(scope, 'pending', afterOrdinal, 1_000);
     for (const event of events) {
-      const draft = object(event.details.draft); const projected = object(event.details.mapping);
+      const details = event.details.nativeMutation === true ? materializeNativeMutation(event, {
+        ...mapping, revision: mapping.projection.revision, content: mapping.projection.content ?? null }) : event.details;
+      const draft = object(details.draft); const projected = object(details.mapping);
       if (event.nativeId !== mapping.nativeId || projected?.nativeId !== mapping.nativeId
-          || projected.colpId !== mapping.colpId) continue;
+          || !createSuccessorTarget(projected.colpId, mapping.colpId, createOpId)) continue;
       if (!(event.kind === 'change' && draft?.type === 'update_node_content'
           || event.kind === 'move' && draft?.type === 'move_node')) continue;
-      const context = object(event.details.context);
+      const context = object(details.context);
       if (event.kind === 'move' && (typeof context?.targetParentNativeId !== 'string'
           || context.targetParentNativeId !== projected.parentNativeId)) continue;
       observedProjection = projected as unknown as MappingInput;
@@ -46,6 +54,25 @@ export async function advancedSelfProjectionIsProven(store: Store, scope: SyncSc
   }
   return Boolean(move && object(move.payload.payload)?.newParentId === parent.colpId
     && (move.status !== 'terminal' || await successfulProjectionReceipt(store, scope, move)));
+}
+
+async function localRemovalIsProven(store: Store, scope: SyncScope, mapping: MappingInput,
+  createOpId: string, afterSequence: number): Promise<boolean> {
+  for (const status of ['pending', 'processed'] as const) {
+    let after = 0;
+    for (;;) {
+      const events = await store.listBookmarkEventsByStatus(scope, status, after, 1000);
+      for (const event of events) {
+        if (!localRemovalCoversNative(event, mapping.nativeId, mapping.colpId, createOpId)) continue;
+        if (status === 'pending') return true;
+        const queued = event.opId ? await store.getQueueByOpId(scope, event.opId) : null;
+        if (queued && queued.sequence > afterSequence && queued.status !== 'rejected') return true;
+      }
+      if (events.length < 1000) break;
+      after = events.at(-1)!.ordinal;
+    }
+  }
+  return false;
 }
 
 async function matchingProjectionOperation(store: Store, scope: SyncScope, mapping: MappingInput,

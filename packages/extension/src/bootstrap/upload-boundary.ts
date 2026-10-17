@@ -1,8 +1,11 @@
 import { plannedCreateNativeId } from '../bookmark-event-codec.js';
+import { classifyBookmarkApiFailure } from '../bookmark-api-error.js';
+import { localRemovalCoversNative } from '../local-create-successor.js';
 import type { QueueOperation, SyncScope, createSyncStateStore } from '../sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>, 'getScope' | 'getMappingByColpId' | 'listMountBindings'
-  | 'listBootstrapRuns' | 'getScopePreview' | 'getLocalSyncExclusion'>;
+  | 'listBootstrapRuns' | 'getScopePreview' | 'getLocalSyncExclusion' | 'getMappingByNativeId'
+  | 'listBookmarkEventsByStatus' | 'listDeletionJournal'>;
 
 export class BootstrapUploadExcludedError extends Error {
   readonly code = 'bootstrap_upload_excluded';
@@ -33,7 +36,29 @@ export async function assertBootstrapUploadAllowed(input: {
     if (privateIds.has(id) || await store.getLocalSyncExclusion(scope, id)) throw new BootstrapUploadExcludedError('private_local');
     if (excluded.has(id)) throw new BootstrapUploadExcludedError('unselected_range');
     if (selected.has(id)) inRange = true;
-    id = await input.parentOf(id);
+    const currentId = id;
+    try { id = await input.parentOf(currentId); }
+    catch (error) {
+      if (classifyBookmarkApiFailure(error) !== 'not_found') throw error;
+      const parent = await removedNativeParent(store, scope, currentId, input.queue.opId);
+      if (!parent) throw error;
+      id = parent;
+    }
   }
   if (!inRange) throw new BootstrapUploadExcludedError('unselected_range');
+}
+
+async function removedNativeParent(store: Store, scope: SyncScope, nativeId: string, createOpId: string) {
+  const mapping = await store.getMappingByNativeId(scope, nativeId);
+  let after = 0;
+  for (;;) {
+    const events = await store.listBookmarkEventsByStatus(scope, 'pending', after, 1000);
+    const removal = events.find(event => localRemovalCoversNative(event, nativeId, mapping?.colpId ?? `pending-${createOpId}`, createOpId));
+    if (removal) {
+      return [...await store.listDeletionJournal(scope, nativeId)].sort((a, b) => b.ordinal - a.ordinal)[0]?.parentNativeId
+        ?? (removal.nativeId !== nativeId ? mapping?.parentNativeId : undefined);
+    }
+    if (events.length < 1000) return undefined;
+    after = events.at(-1)!.ordinal;
+  }
 }

@@ -1,6 +1,6 @@
 import { liveCreateNativeId, plannedCreateNativeId } from './bookmark-event-codec.js';
 import { authoritativeColpId, identityFromMapping } from './bookmark-node-identity.js';
-import type { BookmarkEventRecord, JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export interface CreateReceiptIdentity {
   readonly nativeId: string; readonly colpId: string; readonly rootNativeId: string;
@@ -10,6 +10,23 @@ export interface CreateReceiptIdentity {
 }
 
 type Store = ReturnType<typeof createSyncStateStore>;
+type PendingCreateStore = Pick<Store, 'listQueue'> & {
+  getMappingByColpId(scope: SyncScope, colpId: string): Promise<MappingInput | null>;
+  listMountBindings(scope: SyncScope): Promise<readonly MountBindingRecord[]>;
+};
+
+/** The immutable planned create owns the native before a server mapping exists. */
+export async function identityFromPendingCreate(store: PendingCreateStore,
+  scope: SyncScope, nativeId: string): Promise<CreateReceiptIdentity | null> {
+  if (!liveCreateNativeId(nativeId)) return null;
+  const queued = await findPlannedCreateRow(store, scope, nativeId);
+  if (!queued || queued.status === 'terminal' || queued.status === 'rejected') return null;
+  const parent = await createReceiptParentIdentity(store, scope, queued.payload);
+  if (!parent) return null;
+  return { nativeId, colpId: `pending-${queued.opId}`, rootNativeId: parent.rootNativeId,
+    parentNativeId: parent.nativeId, revision: `local-${queued.opId}`,
+    content: createPayloadContent(queued.payload), nodeKind: createPayloadKind(queued.payload), createOpId: queued.opId };
+}
 
 /** Resolve a live native from a terminal planned create_node receipt. Never invents pending-* identity. */
 export async function identityFromCreateReceipt(store: Store, scope: SyncScope, nativeId: string):
@@ -69,7 +86,7 @@ async function findCreateQueueForNative(store: Store, scope: SyncScope, nativeId
   return create?.opId ? store.getQueueByOpId(scope, create.opId) : null;
 }
 
-async function findPlannedCreateRow(store: Store, scope: SyncScope, nativeId: string) {
+async function findPlannedCreateRow(store: Pick<Store, 'listQueue'>, scope: SyncScope, nativeId: string) {
   let after = 0;
   for (;;) {
     const page = await store.listQueue(scope, undefined, after, 1_000);
@@ -91,7 +108,8 @@ async function latestCreateEvent(store: Store, scope: SyncScope, nativeId: strin
   }
 }
 
-async function createReceiptParentIdentity(store: Store, scope: SyncScope, payload: JsonObject) {
+async function createReceiptParentIdentity(store: Pick<PendingCreateStore, 'getMappingByColpId' | 'listMountBindings'>,
+  scope: SyncScope, payload: JsonObject) {
   const inner = payload.payload;
   if (!inner || typeof inner !== 'object' || Array.isArray(inner)) return null;
   const parentId = (inner as JsonObject).parentId;

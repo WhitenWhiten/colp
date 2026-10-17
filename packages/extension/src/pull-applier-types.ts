@@ -1,5 +1,5 @@
 import type { StrictNode } from '@know-n/colp/types';
-import type { JsonObject, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export interface PullBookmarkApi {
   create(input: { parentId?: string; index?: number; title?: string; url?: string;
@@ -15,6 +15,8 @@ export interface PullBookmarkApi {
 }
 
 export interface PullApplierOptions {
+  readonly settleNativeEvents?: () => Promise<void>;
+  readonly repairOwnCreate?: (mapping: MappingInput, parent: MappingInput) => Promise<void>;
   readonly assertCurrent?: () => Promise<void>;
   readonly scope: SyncScope; readonly store: ReturnType<typeof createSyncStateStore>; readonly api?: PullBookmarkApi;
   readonly session: { readonly acceptedProtocolVersion?: string; readonly sessionId: string;

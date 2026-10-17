@@ -1,6 +1,8 @@
 import { folderSyncCoverage } from './bookmark-sync-range.js';
 import { placementDomainKeys } from './bookmark-event-placement-domain.js';
 import { createBookmarkContentCapture } from './bookmark-content-capture.js';
+import { captureNativeMutation } from './bookmark-native-mutation.js';
+import { lookupBookmark } from './bookmark-api-error.js';
 import { kns09Paused, recordKns09PausedDrop } from './kns-09-release.js';
 import { decideIngressPrivacy, isManagedBookmarkNode, recordIngressDiagnostic,
   resolveIngressBoundary } from './bookmark-event-ingress.js';
@@ -18,7 +20,7 @@ import { reconcileBookmarkTree } from './bookmark-event-reconcile.js';
 import { captureMissingNativeRemovals } from './bookmark-removal-reconcile.js';
 import { journalSubtreeNativeIds, persistRemovalJournal } from './deletion-journal.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
-import { mappedSubtreeDeleteSource } from './subtree-observation.js';
+import { captureSubtreeDeletion } from './subtree-observation.js';
 import { resolveEventIdentityTokens } from './bookmark-event-resolve.js';
 import { createProjectionSuppression, projectionSuppresses, type ProjectionChangeFields } from './recovery-overlay.js';
 import { recordMoveOutOfBoundaryShift } from './scope-range-shift.js';
@@ -68,7 +70,10 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     listPendingEvents: async () => pendingSnapshot ?? await listPendingEvents() });
   const quarantine = createBookmarkEventQuarantine({ scope: options.scope, store: options.store, now });
   const identityFor = healer.identityFor;
+  const captureUnmapped = (kind: 'change' | 'move', nativeId: string, fields: JsonObject) => captureNativeMutation({ ...options, kind, nativeId, fields, uuid, now,
+    allowed: async (parentId, node) => (await privacyFor(parentId, true, undefined, undefined, isManagedBookmarkNode(node), true)).allowOperationCandidate });
   const { changed, described, tagged, pinned } = createBookmarkContentCapture({ ...options, identityFor, uuid, stage, correlationFor, reservedByProjection,
+    captureUnmapped: (nativeId, fields) => captureUnmapped('change', nativeId, fields),
     canWrite: async (nativeId, identity, observed) => (await privacyFor(nativeId, false, identity, undefined,
       observed ? isManagedBookmarkNode(observed) : false)).allowOperationCandidate });
   const reorderUplink = createReorderUplink({ store: options.store, scope: options.scope, uuid, identityFor,
@@ -122,6 +127,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
   async function moved(nativeId: string, move: { readonly parentId: string; readonly index: number;
     readonly oldParentId: string; readonly oldIndex: number }): Promise<CaptureResult> {
     const identity = await identityFor(nativeId); const sourcePrivacy = await privacyFor(nativeId, false, identity);
+    if (!identity) { const captured = await captureUnmapped('move', nativeId, { ...move }); if (captured) return captured; }
     const targetPrivacy = await privacyFor(move.parentId, true);
     if (!identity || !sourcePrivacy.allowOperationCandidate) {
       // Snapshot moves of not-yet-mapped natives must not become local creates.
@@ -187,6 +193,11 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     }
     const mappings = await options.store.listMappings(options.scope);
     const mapping = await options.store.getMappingByNativeId(options.scope, nativeId);
+    const identity = await identityFor(nativeId) ?? await identityFromCreateReceipt(options.store, options.scope, nativeId);
+    if (!identity && (await options.store.getScope(options.scope))?.firstRun === 'running') {
+      await persistRemovalJournal(options.store, options.scope, { nativeId, removal, mappings });
+      return { outcome: 'filtered' };
+    }
     const boundary = await resolveIngressBoundary(options.store, options.scope);
     const detachedNative = new Set((await options.store.listMountBindings(options.scope))
       .filter((mount) => mount.status === 'detached').map((mount) => mount.nativeRootId));
@@ -201,8 +212,6 @@ export function createBookmarkEventQueue(options: QueueOptions) {
       return { outcome: 'identity_unproven' };
     }
     await persistRemovalJournal(options.store, options.scope, { nativeId, removal, mappings });
-    const identity = await identityFor(nativeId)
-      ?? await identityFromCreateReceipt(options.store, options.scope, nativeId);
     if (!identity) {
       await freezeScopeRecovery(options.store, options.scope, 'deletion_identity_unproven');
       return { outcome: 'identity_unproven' };
@@ -255,14 +264,17 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     deleteNativeIds: readonly string[]): Promise<CaptureResult> {
     const boundaries = await boundaryRootNativeIds();
     const type = deletionOperationType(kind);
-    const source = type === 'delete_subtree'
-      ? mappedSubtreeDeleteSource(identity.colpId, await options.store.listMappings(options.scope)) : undefined;
+    const projected = new Map((await options.store.listMappings(options.scope)).map(row => [row.nativeId, row as MappingInput]));
+    for (const pending of await listPendingEvents()) if (pending.details.mapping) { const row = pending.details.mapping as unknown as MappingInput; projected.set(row.nativeId, row); }
+    const subtree = type === 'delete_subtree'
+      ? captureSubtreeDeletion(identity.colpId, [...projected.values()]) : undefined;
     const eventId = uuid(); return stage('remove', nativeId, { operation: { type,
       targetId: identity.colpId, baseRevision: identity.revision, dependencies: [],
-      ...(source ? { source } : {}),
+      ...(subtree?.source ? { source: subtree.source } : {}),
       payload: { reason: 'browser_event' } },
     // Keep boundary-root mappings out of every delete: root authority is
     // reconciled through configureBrowserRoots, not by bookmark events.
+    ...(subtree?.observation ? { subtreeObservation: subtree.observation } : {}),
     deleteNativeIds: deleteNativeIds.filter((id) => !boundaries.has(id)) }, eventId);
   }
 
@@ -310,6 +322,8 @@ export function createBookmarkEventQueue(options: QueueOptions) {
         .some((key) => heldDomains.has(key));
       let firstFailure: unknown;
       for (const event of events) {
+        if (event.details.nativeMutation === true && await options.store.discardSatisfiedNativeMutation(options.scope, event.eventId,
+          (await lookupBookmark(id => options.api.get(id), event.nativeId)).class === 'not_found')) continue;
         if (attempted.has(event.eventId)) continue;
         attempted.add(event.eventId);
         if (event.kind === 'remove' && await options.store.discardAppliedRemoteDeleteEcho(

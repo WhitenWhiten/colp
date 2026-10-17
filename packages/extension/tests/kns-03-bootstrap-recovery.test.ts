@@ -92,8 +92,9 @@ describe('KNS-03 bootstrap nested trees, recovery and freeze', () => {
       && op.parentId === 'folder-root').length, 0);
     assert.equal((await store.getScope(scope))?.firstRun, 'running');
     assert.equal(resumed.run.phase, 'syncing');
-    assert.equal((await store.listMappings(scope)).filter((row) => row.colpId.startsWith('pending-')
-      || row.nativeId.startsWith('pending-')).length, 0);
+    const provisional = (await store.listMappings(scope)).filter(row => row.colpId.startsWith('pending-'));
+    assert.deepEqual(provisional.map(row => row.nativeId), ['bm-nested']);
+    assert.equal(provisional[0]!.projection.revision, `local-${child.opId}`);
   });
 
   test('terminal parent create receipt rematch enqueues nested child without pending mapping', async () => {

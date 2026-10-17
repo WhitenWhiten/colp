@@ -134,7 +134,7 @@ export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode): strin
   if (code === 'create_placement_parent_deleted' || code === 'create_placement_unproven') {
     return t('sync_syncDeviceHasStopped', 'Sync on this device has stopped: the saved bookmark’s original folder or position cannot be confirmed. Its save location needs review.');
   }
-  if (code === 'legacy_resolution_sequence_collision') {
+  if (code === 'legacy_resolution_sequence_collision' || code === 'mapping_identity_collision') {
     return t('sync_syncDeviceStoppedBecause', 'Sync on this device stopped because of an internal mismatch. Your bookmarks are safe. Reset sync on this device to continue.');
   }
   if (code === 'replica_rebuild_pending') {

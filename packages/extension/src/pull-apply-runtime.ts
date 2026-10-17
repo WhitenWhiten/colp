@@ -396,12 +396,25 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     // Verification read, not an existence expectation: a vanished native must reach the existing
     // `native === undefined` branch (which then proves or refuses the self projection), while a
     // genuine API fault still surfaces instead of masquerading as "not proven".
-    const native = readOptional(isVirtualNativeId(existing.nativeId) ? undefined : await lookup(existing.nativeId));
-    const exact = isVirtualNativeId(existing.nativeId)
+    let native = readOptional(isVirtualNativeId(existing.nativeId) ? undefined : await lookup(existing.nativeId));
+    let exact = isVirtualNativeId(existing.nativeId)
       ? effect.node.kind === 'separator' && options.session.conversionPolicy?.separator === 'preserve_remote'
       : native?.parentId === parent.nativeId && native.title === expectedNode.title && native.url === expectedNode.url;
-    const advanced = !exact && await advancedSelfProjectionIsProven(options.store, options.scope,
+    if (!exact && options.settleNativeEvents) {
+      // Chrome can expose the edited node before its callback has finished journalling it.
+      await options.settleNativeEvents();
+      native = readOptional(isVirtualNativeId(existing.nativeId) ? undefined : await lookup(existing.nativeId));
+      exact = native?.parentId === parent.nativeId && native.title === expectedNode.title && native.url === expectedNode.url;
+    }
+    let advanced = !exact && await advancedSelfProjectionIsProven(options.store, options.scope,
       existing, native, parent.nativeId, event.operation.sequence);
+    if (!exact && !advanced && !isVirtualNativeId(existing.nativeId) && options.repairOwnCreate) {
+      await options.repairOwnCreate(existing, parent);
+      native = readOptional(await lookup(existing.nativeId));
+      exact = native?.parentId === parent.nativeId && native.title === expectedNode.title && native.url === expectedNode.url;
+      advanced = !exact && await advancedSelfProjectionIsProven(options.store, options.scope,
+        existing, native, parent.nativeId, event.operation.sequence);
+    }
     if (!exact && !advanced) { await enterRecoveryRequired('create_ambiguous'); throw new Error('recovery_required'); }
     const { scopeKey: _scopeKey, ...currentMapping } = existing as MappingInput & { readonly scopeKey?: string };
     return advanced ? currentMapping : mappingFor(effect.node, existing.nativeId, parent.nativeId, parent.colpId,

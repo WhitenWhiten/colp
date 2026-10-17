@@ -1,4 +1,5 @@
 import { createQueueBatchRepository } from './sync-state/queue-batch-repository.js';
+import { createNativeMutationRepository } from './sync-state/native-mutation-repository.js';
 import { createClassificationRepository } from './sync-state/classification-repository.js';
 export {
   DATABASE_NAME, DATABASE_VERSION, LARGE_QUEUE_CONTRACT_SIZE,
@@ -55,6 +56,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
   const facts = createScopeFactsRepository(ctx);
   return Object.freeze({
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
+    ...createNativeMutationRepository(ctx),
     ...createQueueBatchRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),
     registerScope: scope.registerScope, getScope: scope.getScope,
     putMapping: mapping.putMapping, deleteMapping: mapping.deleteMapping, listMappings: mapping.listMappings,

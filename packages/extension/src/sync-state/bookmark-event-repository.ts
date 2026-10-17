@@ -1,4 +1,5 @@
 import { claimIngressDiagnosticSource } from './ingress-diagnostic-source.js';
+import { bootstrapCreateIdentity } from './bootstrap-create-identity.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt,
   hasPendingMove } from './queue-live-work.js';
 import { PARK_MARKER_PREFIX } from '../bookmark-event-quarantine.js';
@@ -40,8 +41,7 @@ import type { SyncStoreRuntime } from './runtime.js';
  * `state_unavailable`, and the quarantine/flush round rejects while the inbox
  * events stay durably staged for the next attempt.
  *
- * Exported so the storage tests pin the boundary, the way `MAX_PREPARE_FAILURES`
- * pins the quarantine's attempt count.
+ * Exported so the storage tests pin the boundary.
  */
 export const INGRESS_DIAGNOSTIC_SCAN_LIMIT = 20_000;
 export function validateBookmarkEventInput(input: unknown, maxBytes: number): BookmarkEventInput {
@@ -239,7 +239,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
       readonly blocker: QueueOperation } } = {};
     // Atomic authority order: durable_sequences -> outbound_queue -> bookmark_events -> native_mappings.
     try { await runTransaction(db, [STORES.scopes, STORES.sequences, STORES.queue, STORES.bookmarkEvents,
-      STORES.mappings, STORES.engine], 'readwrite', async (tx) => {
+      STORES.mappings, STORES.engine, STORES.bootstrapRuns], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const events = tx.objectStore(STORES.bookmarkEvents);
       const event = await requestValue(events.get([key, eventId])) as BookmarkEventRecord | undefined;
       if (!event) throw new SyncStateError('bookmark_event_not_found');
@@ -252,6 +252,8 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
       }
       const engine = await requestValue(tx.objectStore(STORES.engine).get(key)) as DurableSyncEngineState | undefined;
       if (engine?.recoveryFrozen) throw new SyncStateError('queue_recovery_frozen');
+      const sharedCreate = await bootstrapCreateIdentity(tx, key, validatedEvent, operationTemplate, maxRecordBytes);
+      if (sharedCreate?.queued) { committed = sharedCreate.queued; return; }
       // F010: only an event that really depends on an unsettled attempt is
       // held — the same canonical target, a parent it writes into, or the same
       // native subtree. Unrelated targets keep ingressing; the held event stays
@@ -274,7 +276,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
       const counter = await requestValue(sequences.get(key)) as { scopeKey: string; next: number } | undefined;
       if (!counter) throw new SyncStateError('sequence_missing'); const sequence = safeInteger(counter.next, 'sequence', 1);
       if (sequence === Number.MAX_SAFE_INTEGER) throw new SyncStateError('sequence_exhausted');
-      const opId = boundedString(commitInput.allocateOperationId(), 'opId');
+      const opId = boundedString(sharedCreate?.opId ?? commitInput.allocateOperationId(), 'opId');
       const operationResolved = replaceLocalToken(operationTemplate, validatedEvent.eventId, opId) as JsonObject;
       const operation = { ...operationResolved, opId, replicaId: input.replicaId,
         sequence, collectionId: input.collectionId, occurredAt: validatedEvent.occurredAt } as JsonObject;

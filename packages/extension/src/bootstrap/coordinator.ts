@@ -1,4 +1,6 @@
 import { filterBootstrapFacts } from './fact-boundary.js';
+import { bootstrapRunInFlight } from './run-identity.js';
+export { bootstrapRunInFlight } from './run-identity.js';
 import { authoritativeColp, placeholderOccupant, mountNeedsRemote, mountRemoteFromReceipt, receiptTargetId,
   operationPayload, remoteFromRecovery, liveRemoteFromMapping } from './coordinator-operations.js';
 import { recordKns09FirstRun } from '../kns-09-release.js';
@@ -18,10 +20,6 @@ import {
 
 type Store = ReturnType<typeof createSyncStateStore>;
 export type PauseAfter = 'confirmed' | 'scanning' | 'matching' | `enqueue:${number}`;
-
-export function bootstrapRunInFlight(phase: BootstrapRunRecord['phase']): boolean {
-  return phase === 'confirmed' || phase === 'scanning' || phase === 'matching' || phase === 'syncing';
-}
 
 export interface ConfirmInput {
   readonly confirmationId: string; readonly previewId?: string; readonly libraryId?: string;
@@ -162,12 +160,12 @@ export function createBootstrapCoordinator(options: {
       fromRecovery: boolean }> {
     const events = await pendingEvents();
     const allLocal = applyInboxToFacts(input.localFacts, events);
-    const [recorded, live, preview] = await Promise.all([store.getScope(scope), store.listMappings(scope),
-      run.previewId ? store.getScopePreview(scope, run.previewId) : null]);
+    const [recorded, live, preview, removals] = await Promise.all([store.getScope(scope), store.listMappings(scope),
+      run.previewId ? store.getScopePreview(scope, run.previewId) : null, store.listDeletionJournal(scope)]);
     const nativeByColp = new Map(live.map(row => [row.colpId, row.nativeId]));
     const { facts: local, skipped } = filterBootstrapFacts({ facts: allLocal, parents: live, mounts: input.mounts,
       privateNativeIds: (recorded?.privateRoots ?? []).flatMap(id => nativeByColp.get(id) ?? []),
-      excludedNativeIds: preview?.boundary.excludedNativeIds ?? [] });
+      excludedNativeIds: preview?.boundary.excludedNativeIds ?? [], removedNativeIds: removals.map(row => row.nativeId) });
     if (!readOnly) for (const item of skipped) {
       await store.putIngressDiagnostic(scope, { code: item.reason }, { sourceId: `bootstrap:${run.runId}:${item.nativeId}` });
     }
@@ -288,6 +286,7 @@ export function createBootstrapCoordinator(options: {
           if (added >= limit) return { caughtUp: false, resumeCursor: `enqueue:${index + 1}` };
         }
       } catch (error) {
+        if (error instanceof Error && error.message === 'bootstrap_native_removed') { index += 1; continue; }
         if (isQueueRecoveryFrozen(error)) {
           await persist({ ...run, phase: 'syncing', retryReason: 'queue_recovery_frozen', updatedAt: now() });
           return { caughtUp: false, resumeCursor: `enqueue:${index}`, retryReason: 'queue_recovery_frozen' };
@@ -302,11 +301,17 @@ export function createBootstrapCoordinator(options: {
   async function enqueueOp(op: PlannedOperation): Promise<QueueOperation | null> {
     const occurredAt = new Date(now()).toISOString();
     const payload = operationPayload(op, occurredAt);
+    const parent = op.parentId ? await store.getMappingByColpId(scope, op.parentId) : null;
+    const provisionalCreateMapping: MappingInput | undefined = op.reason === 'local-only' && op.nativeId && op.node && parent
+      ? { nativeId: op.nativeId, colpId: `pending-${op.opId}`, nodeKind: op.node.kind,
+        parentNativeId: parent.nativeId, parentColpId: parent.colpId, rootNativeId: parent.rootNativeId,
+        projection: { revision: `local-${op.opId}`, digest: digestJson(op.node),
+          content: { title: op.node.title, ...(op.node.url ? { url: op.node.url } : {}) } } } : undefined;
     return store.allocateSequenceAndEnqueue(scope, {
       opId: op.opId, batchId: op.opId, idempotencyKey: op.opId, digest: 'sha256:pending', endpointIdentity: 'syncPush',
       mediaType: 'application/json', baseRevision: op.type === 'create_node' ? null : 'revision-0',
       operationRevision: `local-${op.opId}`, status: 'pending', retry: { attempt: 0, notBefore: 0 }, payload,
-    }, { validateOperation, digestOperation: digestJson });
+    }, { validateOperation, digestOperation: digestJson, ...(provisionalCreateMapping ? { provisionalCreateMapping } : {}) });
   }
 
   async function mappingsFromTerminalCreates(confirmationId: string, local: readonly LocalNodeFact[],

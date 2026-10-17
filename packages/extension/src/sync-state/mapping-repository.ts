@@ -1,9 +1,10 @@
 import { digestJson } from '../bookmark-event-codec.js';
+import { bootstrapOpId } from '../bootstrap/run-identity.js';
 import { normalizeBookmarkProjection } from '../bookmark-projection-metadata.js';
 import {
   SyncStateError, type BrowserRootAuthority, type ConfigureBrowserRootsInput, type DiscoveredRoot, type FaultOptions,
   type MappingInput, type MountBindingRecord, type QueueOperation, type ReceiptRecord, type SyncScope,
-  type BookmarkEventRecord, type JsonObject, type ScopeRecord, type BindMountMappingInput,
+  type BookmarkEventRecord, type JsonObject, type ScopeRecord, type BindMountMappingInput, type BootstrapRunRecord,
 } from './types.js';
 import { boundedString, clone, strictObject, validateJson, validateRecord } from './codec.js';
 import { constraintError, inject } from './errors.js';
@@ -82,7 +83,11 @@ export async function rebindCreateInTransaction(tx: IDBTransaction, key: string,
   if (mapping.colpId !== `pending-${queued.opId}` || !mapping.projection.revision.startsWith('local-')) return;
   const events = await cursorPage<BookmarkEventRecord>(tx.objectStore(STORES.bookmarkEvents).index(INDEXES.eventByOrdinal),
     IDBKeyRange.bound([key, 1], [key, Number.MAX_SAFE_INTEGER]), Number.MAX_SAFE_INTEGER);
-  if (!events.some((event) => event.status === 'processed' && event.opId === queued.opId
+  const bootstrapRuns = tx.objectStoreNames.contains(STORES.bootstrapRuns)
+    ? await cursorPage<BootstrapRunRecord>(tx.objectStore(STORES.bootstrapRuns), scopeRowsRange(key), Number.POSITIVE_INFINITY) : [];
+  const planned = queued.payload.type === 'create_node' && bootstrapRuns.some(run =>
+    bootstrapOpId(run.confirmationId, 'create', authority.nativeId) === queued.opId);
+  if (!planned && !events.some((event) => event.status === 'processed' && event.opId === queued.opId
       && event.nativeId === authority.nativeId && event.kind === 'create')) {
     throw new SyncStateError('provisional_mapping_binding_invalid');
   }
@@ -90,9 +95,10 @@ export async function rebindCreateInTransaction(tx: IDBTransaction, key: string,
   mappings.put(validateMapping(key, { nativeId: mapping.nativeId, colpId: authority.targetId,
     rootNativeId: mapping.rootNativeId, ...(mapping.nodeKind ? { nodeKind: mapping.nodeKind } : {}),
     ...(mapping.parentNativeId ? { parentNativeId: mapping.parentNativeId } : {}),
+    ...(mapping.parentColpId ? { parentColpId: mapping.parentColpId } : {}),
     ...(mapping.mountId ? { mountId: mapping.mountId } : {}),
     ...(mapping.rootRole ? { rootRole: mapping.rootRole } : {}), projection: {
-      revision: authority.revision, digest: mapping.projection.digest,
+      revision: authority.revision, ...(mapping.nodeKind === 'folder' ? { childrenRevision: authority.revision } : {}), digest: mapping.projection.digest,
       ...(mapping.projection.content ? { content: mapping.projection.content } : {}) } }, maxBytes));
 }
 

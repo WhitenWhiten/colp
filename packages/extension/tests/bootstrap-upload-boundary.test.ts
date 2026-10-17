@@ -11,6 +11,30 @@ installOutboundPushIndexedDb();
 const queue = { opId: 'b3.confirm.create.3' } as QueueOperation;
 
 describe('bootstrap dispatch rechecks current native privacy', () => {
+  test.each(['valid', 'different-create', 'missing-journal', 'permission'] as const)(
+    'a removed native uses only its durable removal ancestry: %s', async mode => {
+      const store = await setup();
+      try {
+        await store.putMapping(scope, bar);
+        await store.putMapping(scope, { nativeId: '3', colpId: `pending-${queue.opId}`, rootNativeId: '1',
+          parentNativeId: '1', nodeKind: 'bookmark', projection: { revision: `local-${queue.opId}`, digest: 'd' } });
+        await store.putMountBinding(scope, { mountId: 'mount', nativeRootId: '1', remoteMountNodeId: 'bar',
+          boundaryVersion: '1', materialized: false, status: 'active', rootRole: 'bookmarks-bar' });
+        if (mode !== 'missing-journal') await store.putDeletionJournal(scope, {
+          nativeId: '3', ordinal: 1, kind: 'bookmark', parentNativeId: '1' });
+        await store.stageBookmarkEvent(scope, { eventId: 'remove', dedupeKey: 'remove', nativeId: '3', kind: 'remove',
+          occurredAt: '2026-10-17T00:00:00Z', details: { deleteNativeIds: ['3'], draft: {
+            type: 'delete_node', targetId: mode === 'different-create' ? 'pending-other-create' : `pending-${queue.opId}`,
+            baseRevision: `local-${queue.opId}`, payload: {} } } });
+        const check = assertBootstrapUploadAllowed({ store, scope, queue, parentOf: async id => {
+          if (id === '3') throw new Error(mode === 'permission' ? 'permission denied' : "Can't find bookmark for id.");
+          return undefined;
+        } });
+        if (mode === 'valid') await check;
+        else await assert.rejects(check, mode === 'permission' ? /permission denied/ : /Can't find bookmark/);
+      } finally { store.close(); }
+    });
+
   test('blocks an old queued create under a private ancestor before any network request', async () => {
     const store = await setup(); await store.putMapping(scope, bar);
     await store.putMapping(scope, { nativeId: '2', colpId: 'private-folder', rootNativeId: '1', nodeKind: 'folder',

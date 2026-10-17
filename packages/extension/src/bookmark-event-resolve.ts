@@ -4,6 +4,7 @@ import type { JsonObject, SyncScope, createSyncStateStore } from './sync-state-s
 /** Resolve identity references only. User titles/URLs/extensions are immutable data. */
 export async function resolveEventIdentityTokens(store: Pick<ReturnType<typeof createSyncStateStore>, 'getBookmarkEvent'>,
   scope: SyncScope, details: JsonObject, resolved: Map<string, string>): Promise<JsonObject> {
+  if (details.nativeMutation === true) return details;
   const draft = asObject(details.draft!, 'draft');
   const mapping = details.mapping === undefined ? undefined : asObject(details.mapping, 'mapping');
   const projection = mapping ? asObject(mapping.projection!, 'projection') : undefined;

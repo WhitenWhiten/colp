@@ -14,6 +14,7 @@ const f = vi.hoisted(() => ({
   queue: [] as string[],
   tree: [] as unknown[],
   extraMappings: [] as Array<{ nativeId: string; colpId: string }>,
+  captures: false, acknowledgement: false, frozen: false, aligned: true,
 }));
 
 vi.mock('../src/sw/scope.js', () => ({
@@ -28,7 +29,7 @@ vi.mock('../src/sw/runtime.js', () => ({
     getScope: async () => ({ firstRun: f.firstRun, selectedRoots: [], privateRoots: ['colp-private'] }),
     listBootstrapRuns: async () => [
       { runId: 'old', phase: 'completed', updatedAt: 1, previewId: 'p-old' },
-      { runId: 'new', phase: 'syncing', updatedAt: 2, previewId: 'p-new' },
+      { runId: 'new', phase: f.firstRun === 'completed' ? 'completed' : 'syncing', updatedAt: 2, previewId: 'p-new' },
     ],
     getScopePreview: async (_scope: unknown, previewId: string) => previewId === 'p-new'
       ? { boundary: { selectedNativeIds: ['bar'], excludedNativeIds: ['skip'], mounts: [] } } : null,
@@ -37,6 +38,9 @@ vi.mock('../src/sw/runtime.js', () => ({
       ...f.extraMappings, { nativeId: 'bar', colpId: 'colp-bar' }, { nativeId: 'a', colpId: 'colp-a' }, { nativeId: 'private', colpId: 'colp-private' },
     ],
     listQueue: async (_scope: unknown, status: string) => (f.queue.includes(status) ? [{ status }] : []),
+    getEngineState: async () => ({ recoveryFrozen: f.frozen, lastPublishedCursor: 'cursor', lastAckedCursor: f.aligned ? 'cursor' : 'previous' }),
+    listBookmarkEventsByStatus: async () => f.captures ? [{ status: 'pending' }] : [],
+    listAckIntents: async () => f.acknowledgement ? [{ state: 'pending' }] : [],
   },
 }));
 
@@ -45,7 +49,8 @@ const { handleSyncProgressRequest } = await import('../src/sw/sync-progress.js')
 function bookmark(id: string): ChromeBookmarkNode { return { id, title: id, url: `https://${id}.example` }; }
 
 beforeEach(() => {
-  Object.assign(f, { permission: true, connected: true, firstRun: 'running', queue: ['pending'], extraMappings: [] });
+  Object.assign(f, { permission: true, connected: true, firstRun: 'running', queue: ['pending'], extraMappings: [],
+    captures: false, acknowledgement: false, frozen: false, aligned: true });
   f.tree = [{ id: '0', title: '', children: [
     { id: 'bar', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [
       bookmark('a'), bookmark('b'),
@@ -71,11 +76,17 @@ describe('handleSyncProgressRequest', () => {
     assert.ok(response.ok && response.progress);
     assert.deepEqual(response.progress.bookmarks, { synced: 1, total: 2 });
     assert.equal(response.progress.stage, 'syncing'); assert.equal(response.progress.liveWork, true);
-    f.extraMappings = [{ nativeId: 'b', colpId: 'colp-b' }]; f.queue = [];
+    f.extraMappings = [{ nativeId: 'b', colpId: 'colp-b' }]; f.queue = []; f.firstRun = 'completed';
     const uploaded = await handleSyncProgressRequest();
     assert.ok(uploaded.ok && uploaded.progress);
     assert.deepEqual(uploaded.progress.bookmarks, { synced: 2, total: 2 });
     assert.equal(uploaded.progress.stage, 'done');
+  });
+
+  test.each(['captures', 'acknowledgement', 'frozen'] as const)('waits for %s after the last upload', async key => {
+    f.extraMappings = [{ nativeId: 'b', colpId: 'colp-b' }]; f.queue = []; f.firstRun = 'completed'; f[key] = true;
+    const response = await handleSyncProgressRequest();
+    assert.equal(response.ok && response.progress?.stage, 'syncing');
   });
 
   test('reports liveWork only while changes are queued', async () => {

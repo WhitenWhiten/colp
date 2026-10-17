@@ -41,7 +41,8 @@ export function durableEventDetails(details: JsonObject): JsonObject {
     targetId: operation.targetId!, baseRevision: operation.baseRevision!, payload };
   else if (operation.type === 'move_node') draft = { type: operation.type,
     ...(operation.targetId === undefined ? {} : { targetId: operation.targetId }),
-    ...(typeof operation.baseRevision === 'string' && !/^(?:pending|local)-/u.test(operation.baseRevision)
+    ...(typeof operation.baseRevision === 'string' && (typeof operation.targetId === 'string' && operation.targetId.startsWith('pending-')
+      || !/^(?:pending|local)-/u.test(operation.baseRevision))
       ? { baseRevision: operation.baseRevision } : {}), payload: {} };
   else draft = { type: operation.type!, targetId: operation.targetId!, baseRevision: operation.baseRevision!, payload };
   const { operation: _operation, ...localDetails } = details;

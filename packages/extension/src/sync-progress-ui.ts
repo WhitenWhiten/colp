@@ -64,6 +64,7 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
   const { bookmarks, folders } = progress;
   const total = bookmarks.total + folders.total; const synced = bookmarks.synced + folders.synced;
   const paused = status?.kind === 'paused' && progress.stage !== 'done';
+  const blocked = status?.kind === 'action-required' || status?.kind === 'review-conflicts';
   const pausedTitle = progress.firstSync || progress.stage === 'preparing'
     ? t('syncProgress_firstPausedTitle', 'First sync paused') : t('syncProgress_pausedTitle', 'Sync paused');
   if (progress.stage === 'preparing' && paused) {
@@ -76,7 +77,7 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
       title: t('syncProgress_preparingTitle', 'Preparing your first sync'),
       detail: t('syncProgress_preparingDetail', 'Comparing this browser’s bookmarks with your library. Large libraries take a minute.'),
       short: t('syncProgress_preparingShort', 'Preparing first sync…'),
-      ...(stallNote(progress, status) ? { note: stallNote(progress, status)! } : {}), guidance: guidance() };
+      ...(stallNote(progress, status) ? { note: stallNote(progress, status)! } : {}), guidance: blocked ? [] : guidance() };
   }
   // tn passes the raw count as $1; the formatted numbers are $2 and $3.
   const bookmarkLine = tn('syncProgress_bookmarksSynced', bookmarks.total, '$2 of $3 bookmark synced', '$2 of $3 bookmarks synced',
@@ -100,7 +101,7 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
     short: paused ? t('syncProgress_pausedShort', 'Paused at $1 of $2', count(synced), count(total))
       : t('syncProgress_short', 'Syncing $1 of $2', count(synced), count(total)),
     // "While it runs" advice is for a sync that runs.
-    ...(note ? { note } : {}), guidance: paused ? [] : guidance() };
+    ...(note ? { note } : {}), guidance: paused || blocked ? [] : guidance() };
 }
 
 /** Faster while the count moves; the slow cadence notices a new backlog (an import, another device). */

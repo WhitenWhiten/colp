@@ -1,9 +1,24 @@
 import { deletionNodeKind } from './bookmark-deletion-scope.js';
 import { subtreeDeleteSource } from '@know-n/colp/sync/canonical';
-import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 /** Capture once, before dropping native mappings; never recompute at upload. */
 export function mappedSubtreeDeleteSource(rootId: string, mappings: readonly MappingInput[]) {
+  const members = capturedSubtreeMembers(rootId, mappings);
+  if (members.some(row => /^(pending-|local-)/u.test(row.colpId) || row.revision.startsWith('local-'))) {
+    throw new Error('subtree_observation_unavailable');
+  }
+  return subtreeDeleteSource(rootId, members.map(row => ({ id: row.colpId, revision: row.revision })));
+}
+
+export function captureSubtreeDeletion(rootId: string, mappings: readonly MappingInput[]) {
+  const members = capturedSubtreeMembers(rootId, mappings);
+  return members.some(row => /^(pending-|local-)/u.test(row.colpId) || row.revision.startsWith('local-'))
+    ? { observation: members as JsonObject[], source: undefined }
+    : { observation: undefined, source: subtreeDeleteSource(rootId, members.map(row => ({ id: row.colpId, revision: row.revision }))) };
+}
+
+function capturedSubtreeMembers(rootId: string, mappings: readonly MappingInput[]) {
   const byNative = new Map(mappings.map(row => [row.nativeId, row.colpId]));
   const children = new Map<string, MappingInput[]>();
   for (const row of mappings) {
@@ -14,19 +29,16 @@ export function mappedSubtreeDeleteSource(rootId: string, mappings: readonly Map
   }
   const root = mappings.find(row => row.colpId === rootId);
   if (!root) throw new Error('subtree_observation_unavailable');
-  const members: { id: string; revision: string }[] = [];
+  const members: { nativeId: string; colpId: string; revision: string }[] = [];
   const pending = [root]; const seen = new Set<string>();
   while (pending.length) {
     const row = pending.pop()!;
     if (seen.has(row.colpId)) throw new Error('subtree_observation_unavailable');
     seen.add(row.colpId);
-    if (/^(pending-|local-)/u.test(row.colpId) || row.projection.revision.startsWith('local-')) {
-      throw new Error('subtree_observation_unavailable');
-    }
-    members.push({ id: row.colpId, revision: row.projection.revision });
+    members.push({ nativeId: row.nativeId, colpId: row.colpId, revision: row.projection.revision });
     for (const child of children.get(row.colpId) ?? []) pending.push(child);
   }
-  return subtreeDeleteSource(rootId, members);
+  return members;
 }
 
 export async function scopeSubtreeDeleteSource(store: ReturnType<typeof createSyncStateStore>, scope: SyncScope,

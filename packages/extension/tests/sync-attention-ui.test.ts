@@ -66,6 +66,8 @@ describe('A-10 terminal freeze predicate and copy', () => {
     }
     const input = { lastError: 'payload_too_large', recoveryCode: 'payload_too_large', phase: 'recovery' };
     assert.match(terminalFreezeReasonCopy('payload_too_large'), /transfer size/);
+    assert.match(terminalFreezeReasonCopy('mapping_identity_collision'), /internal mismatch/);
+    assert.doesNotMatch(terminalFreezeReasonCopy('mapping_identity_collision'), /missing/);
     // A missing half is stated as unrecorded, never invented.
     assert.match(terminalFreezeReport({ lastError: 'payload_too_large' }), /recoveryCode: \(not recorded\)/);
     const report = terminalFreezeReport(input, SYNC_CENTER);

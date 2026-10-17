@@ -1,5 +1,8 @@
 import { asObject, asStringArray, digestJson } from './bookmark-event-codec.js';
 import { resolveObservedBase } from './bookmark-observed-base.js';
+import { identityFromPendingCreate } from './bookmark-create-receipt-identity.js';
+import { resolveSubtreePredecessors } from './bookmark-subtree-predecessors.js';
+import { materializeNativeMutation } from './bookmark-native-mutation.js';
 import type { BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord, QueueOperation,
   SyncScope } from './sync-state-store.js';
 
@@ -11,6 +14,7 @@ import type { BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord,
  * revive the event on real convergence evidence.
  */
 export interface HealStore {
+  listQueue: ReturnType<typeof import('./sync-state-store.js').createSyncStateStore>['listQueue'];
   getRemoteObservation: ReturnType<typeof import('./sync-state-store.js').createSyncStateStore>['getRemoteObservation'];
   getMappingByNativeId(scope: SyncScope, nativeId: string): Promise<MappingInput | null>;
   getMappingByColpId(scope: SyncScope, colpId: string): Promise<MappingInput | null>;
@@ -39,6 +43,11 @@ export function createBookmarkEventHealer(input: {
   readonly listPendingEvents: () => Promise<readonly BookmarkEventRecord[]>;
 }) {
   async function prepare(event: BookmarkEventRecord, details: JsonObject): Promise<PrepareOutcome> {
+    if (details.nativeMutation === true) {
+      const identity = await seedIdentity(event.nativeId);
+      if (!identity) return blockedOutcome({ nativeId: event.nativeId });
+      details = materializeNativeMutation(event, identity);
+    }
     const template = asObject(details.draft, 'draft');
     const type = String(template.type);
     const context = details.context === undefined ? {} : asObject(details.context, 'context');
@@ -57,9 +66,10 @@ export function createBookmarkEventHealer(input: {
     }
     const identity = await trusted(event.nativeId, event.ordinal);
     if ('blocked' in identity) return blockedOutcome(identity.blocked);
-    const observedRevision = type === 'update_node_content' || type === 'delete_node' || type === 'delete_subtree'
+    const observedRevision = type === 'move_node' && template.baseRevision === undefined ? identity.identity.revision
+      : type === 'update_node_content' || type === 'move_node' || type === 'delete_node' || type === 'delete_subtree'
       ? await resolveObservedBase(input.store, input.scope, template, identity.identity.colpId) : null;
-    if ((type === 'update_node_content' || type === 'delete_node' || type === 'delete_subtree')
+    if ((type === 'update_node_content' || type === 'move_node' || type === 'delete_node' || type === 'delete_subtree')
         && observedRevision === null) return { kind: 'blocked', reason: 'content_unavailable',
       dependency: { nativeId: event.nativeId } };
     if (type === 'update_node_content') {
@@ -96,7 +106,7 @@ export function createBookmarkEventHealer(input: {
       const preserveRemotePlacement = details.snapshotPlacementBarrier === true
         || sourceParent !== undefined && durableParent !== undefined && sourceParent !== durableParent;
       return { kind: 'ready', operation: { ...template, targetId: identity.identity.colpId,
-        baseRevision: typeof template.baseRevision === 'string' ? template.baseRevision : identity.identity.revision,
+        baseRevision: observedRevision!,
         dependencies: [], payload: { newParentId: target.identity.colpId,
           ...relative.wire, baseSourceParentRevision: source.identity.childrenRevision,
           baseTargetParentRevision: target.identity.childrenRevision } },
@@ -105,8 +115,15 @@ export function createBookmarkEventHealer(input: {
             rootNativeId: target.identity.rootNativeId, parentNativeId: target.identity.nativeId },
         } : {}), deleteNativeIds };
     }
-    if (type === 'delete_node' || type === 'delete_subtree') return { kind: 'ready', operation: { ...template,
-      targetId: identity.identity.colpId, baseRevision: observedRevision!, dependencies: [] }, deleteNativeIds };
+    if (type === 'delete_node' || type === 'delete_subtree') {
+      const resolved = type === 'delete_subtree' && Array.isArray(details.subtreeObservation)
+        ? await resolveSubtreePredecessors(input.store, input.scope, identity.identity.colpId,
+          details.subtreeObservation as JsonObject[]) : undefined;
+      if (resolved && 'blocked' in resolved) return blockedOutcome(resolved.blocked);
+      return { kind: 'ready', operation: { ...template,
+        ...(resolved ? { source: resolved.source as unknown as JsonObject } : {}),
+        targetId: identity.identity.colpId, baseRevision: observedRevision!, dependencies: [] }, deleteNativeIds };
+    }
     throw new Error('operation_schema_invalid');
   }
 
@@ -228,7 +245,7 @@ export function createBookmarkEventHealer(input: {
         content: durable.projection.content ?? null, ...(durable.nodeKind ? { nodeKind: durable.nodeKind } : {}),
         ...(durable.parentNativeId ? { parentNativeId: durable.parentNativeId } : {}) };
     }
-    return mountRootIdentity(nativeId);
+    return await identityFromPendingCreate(input.store, input.scope, nativeId) ?? mountRootIdentity(nativeId);
   }
 
   async function mountRootIdentity(nativeId: string): Promise<LocalIdentity | null> {

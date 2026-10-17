@@ -46,7 +46,11 @@ for (const mode of ['normal', 'lost-batch-response'] as const) {
       expect(settled.bootstrapAckComplete).toBe(true);
       const nodes = await liveCanonical(stack);
       expect(nodes.filter(node => typeof node.url === 'string')).toHaveLength(958);
-      expect(nodes.filter(node => node.url === null)).toHaveLength(9);
+      // The selected browser tree has nine folders. The server also retains
+      // its pre-existing, unselected bookmarks-bar mount.
+      expect(nodes.filter(node => node.url === null)).toHaveLength(10);
+      expect(nodes.filter(node => node.folder_role === 'bookmarks-bar')).toHaveLength(1);
+      expect(nodes.filter(node => node.folder_role === 'other-bookmarks')).toHaveLength(1);
       expect(await page.evaluate(async () => {
         let count = 0;
         const visit = (node: chrome.bookmarks.BookmarkTreeNode) => {

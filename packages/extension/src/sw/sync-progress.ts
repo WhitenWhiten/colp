@@ -41,10 +41,15 @@ export async function handleSyncProgressRequest(): Promise<SyncProgressResponse>
   for (const status of LIVE_STATUSES) {
     if ((await syncState.listQueue(scope, status, 0, 1)).length > 0) { liveWork = true; break; }
   }
+  const [engine, captures, acknowledgements] = await Promise.all([syncState.getEngineState(scope),
+    syncState.listBookmarkEventsByStatus(scope, 'pending', 0, 1), syncState.listAckIntents(scope)]);
+  const unsettled = engine?.recoveryFrozen === true || captures.length > 0
+    || acknowledgements.some(row => row.state === 'pending')
+    || Boolean(engine?.lastPublishedCursor && engine.lastPublishedCursor !== engine.lastAckedCursor);
   return { ok: true, progress: projectSyncProgress({
     firstRun, ...(run ? { runPhase: run.phase } : {}), roots: tree.roots, classifications: scan.classifications,
     // Provisional identities exist before a create has a server receipt.
     mappedNativeIds: new Set(mappings.filter((row) => !/^(pending-|local-|mount:)/u.test(row.colpId))
-      .map((row) => row.nativeId)), liveWork,
+      .map((row) => row.nativeId)), liveWork, unsettled,
   }) };
 }

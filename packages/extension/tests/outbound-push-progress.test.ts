@@ -57,6 +57,8 @@ test('the real progress handler advances on individual receipts across two 50-op
   assert.equal((await worker.drain()).outcome, 'terminal');
   assert.deepEqual(atDispatch, [0, 50]);
   assert.deepEqual(atReceipt, Array.from({ length: 100 }, (_, index) => index + 1));
+  assert.equal((await readProgress()).stage, 'syncing', 'receipts alone do not finish the bootstrap');
+  await value.store.setFirstRun(scope, 'completed');
   const complete = await readProgress();
   assert.deepEqual(complete.bookmarks, { synced: 100, total: 100 });
   assert.equal(complete.stage, 'done'); assert.equal(complete.liveWork, false);
@@ -86,5 +88,7 @@ test.each(['lost_response', 'receipt_rollback'])('%s leaves progress incomplete 
   });
   assert.equal((await worker.drain()).outcome, 'terminal');
   assert.deepEqual(recovered, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal((await readProgress()).stage, 'syncing');
+  await value.store.setFirstRun(scope, 'completed');
   assert.equal((await readProgress()).stage, 'done');
 });

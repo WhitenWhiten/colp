@@ -217,6 +217,47 @@ describe('P3-32 durable Pull authority', () => {
     fixture.store.close();
   });
 
+  test.each(['change', 'move', 'remove'] as const)('lost first-sync response preserves a later local %s without recreating Chrome nodes', async kind => {
+    const fixture = await setup();
+    try {
+      const opId = 'b3.concurrent.create.native-bootstrap';
+      const event: any = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 1,
+        collectionId: scope.collectionId, parentId: 'root-colp', replicaId: scope.replicaId, opId });
+      await fixture.store.allocateSequenceAndEnqueue(scope, { opId, batchId: opId, idempotencyKey: opId,
+        digest: event.effect.operationDigest, endpointIdentity: 'syncPush', mediaType: 'application/json',
+        baseRevision: null, operationRevision: `local-${opId}`, status: 'pending', retry: { attempt: 1, notBefore: 0 },
+        payload: event.operation }, { allowUnstamped: true });
+      const mapping = { nativeId: 'native-bootstrap', colpId: `pending-${opId}`, rootNativeId: 'native-root',
+        parentNativeId: kind === 'move' ? 'native-target' : 'native-root', nodeKind: 'bookmark' as const,
+        projection: { revision: 'local-successor', digest: 'sha256:successor',
+          content: { title: kind === 'change' ? 'Local newer' : event.effect.node.title, url: event.effect.node.url } } };
+      if (kind !== 'remove') fixture.api.seed({ id: mapping.nativeId, parentId: mapping.parentNativeId,
+        title: mapping.projection.content.title, url: event.effect.node.url, index: 0 });
+      if (kind === 'move') {
+        fixture.api.seed({ id: 'native-target', parentId: 'native-root', title: 'Destination', index: 1 });
+        await fixture.store.putMapping(scope, fixture.mapping('native-target', 'target-colp', 'native-root'));
+      }
+      const captureSuccessor = () => fixture.store.stageBookmarkEvent(scope, { eventId: 'successor', dedupeKey: 'successor', kind,
+        nativeId: mapping.nativeId, occurredAt: '2026-10-17T00:00:00Z', details: {
+          draft: { type: kind === 'change' ? 'update_node_content' : kind === 'move' ? 'move_node' : 'delete_node',
+            targetId: `pending-${opId}`, baseRevision: `local-${opId}`, payload: kind === 'change'
+              ? { base: { title: event.effect.node.title }, value: { title: 'Local newer' } } : {} },
+          ...(kind === 'remove' ? { deleteNativeIds: [mapping.nativeId] } : { mapping }),
+          ...(kind === 'move' ? { context: { sourceParentNativeId: 'native-root', targetParentNativeId: 'native-target' } } : {}),
+        } });
+      // In the removal case Chrome's negative lookup wins the race with the callback journal.
+      const applier = kind === 'remove' ? createPullApplier({ ...fixture.options,
+        settleNativeEvents: async () => { await captureSuccessor(); } }) : fixture.applier;
+      if (kind !== 'remove') await captureSuccessor();
+      await applier.stage(fixture.page([event]));
+      await applier.resume();
+      assert.equal(fixture.api.calls.filter(call => call.kind === 'create').length, 0);
+      assert.equal((await fixture.store.getMappingByNativeId(scope, mapping.nativeId))?.colpId, event.effect.node.id);
+      assert.notEqual((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
+      assert.equal((await fixture.store.listBookmarkEventsByStatus(scope, 'pending')).length, 1);
+    } finally { fixture.store.close(); }
+  });
+
   test('rebinds an unsettled own-create echo during browser-call recovery without duplicating', async () => {
     // Same race, but the worker died mid-apply: resume() re-enters through the
     // uncertain-create recovery path instead of the ordinary commit path.

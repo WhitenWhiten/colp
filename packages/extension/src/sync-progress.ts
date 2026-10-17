@@ -15,6 +15,8 @@ export interface SyncProgressFacts {
   readonly mappedNativeIds: ReadonlySet<string>;
   /** Whether outbound work is still queued. */
   readonly liveWork: boolean;
+  /** Pending inbox, acknowledgement or recovery work keeps a full bar from claiming completion. */
+  readonly unsettled?: boolean;
 }
 
 /**
@@ -39,7 +41,8 @@ export function projectSyncProgress(facts: SyncProgressFacts): PublicSyncProgres
   const preparing = facts.runPhase !== undefined && PREPARING_PHASES.has(facts.runPhase);
   const left = bookmarks.total - bookmarks.synced + folders.total - folders.synced;
   return {
-    stage: preparing ? 'preparing' : left > 0 ? 'syncing' : 'done',
+    stage: preparing ? 'preparing' : left > 0 || facts.liveWork || facts.unsettled
+      || facts.firstRun === 'running' || facts.runPhase === 'syncing' ? 'syncing' : 'done',
     firstSync: facts.firstRun === 'running' || preparing || facts.runPhase === 'syncing',
     liveWork: facts.liveWork,
     bookmarks, folders,

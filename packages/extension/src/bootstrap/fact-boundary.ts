@@ -8,8 +8,10 @@ export function filterBootstrapFacts(input: {
   readonly mounts: readonly MountFact[];
   readonly privateNativeIds: readonly string[];
   readonly excludedNativeIds: readonly string[];
+  readonly removedNativeIds?: readonly string[];
 }) {
   const privateIds = new Set(input.privateNativeIds); const excluded = new Set(input.excludedNativeIds);
+  const removed = new Set(input.removedNativeIds);
   const mounts = new Set(input.mounts.map(mount => mount.nativeRootId));
   const parents = new Map(input.parents.map(row => [row.nativeId, row.parentNativeId]));
   const reasons = new Map<string, string>();
@@ -27,7 +29,8 @@ export function filterBootstrapFacts(input: {
     let id: string | undefined = row.nativeId; const seen = new Set<string>();
     while (id && !seen.has(id)) {
       seen.add(id);
-      const reason = privateIds.has(id) ? 'private_local' : excluded.has(id) ? 'unselected_range' : reasons.get(id);
+      const reason = removed.has(id) ? 'local_removed'
+        : privateIds.has(id) ? 'private_local' : excluded.has(id) ? 'unselected_range' : reasons.get(id);
       if (reason) { skipped.push({ nativeId: row.nativeId, reason }); return false; }
       id = parents.get(id);
     }

@@ -47,9 +47,17 @@ describe('projectSyncProgress', () => {
   });
 
   test('is done once every counted item is mapped, and reports nothing before sync is set up', () => {
-    assert.equal(projectSyncProgress(facts({ mappedNativeIds: new Set(['bar', 'design', 'a', 'b', 'c']) }))?.stage, 'done');
+    assert.equal(projectSyncProgress(facts({ mappedNativeIds: new Set(['bar', 'design', 'a', 'b', 'c']), liveWork: false }))?.stage, 'done');
     assert.equal(projectSyncProgress(facts({ firstRun: 'none' })), null);
     assert.equal(projectSyncProgress(facts({ firstRun: 'deferred' })), null);
+  });
+
+  test('a full mapping count waits for edits, first sync, recovery and acknowledgements to settle', () => {
+    const mappedNativeIds = new Set(['bar', 'design', 'a', 'b', 'c']);
+    for (const state of [{ liveWork: true }, { liveWork: false, firstRun: 'running' as const },
+      { liveWork: false, runPhase: 'syncing' }, { liveWork: false, unsettled: true }]) {
+      assert.equal(projectSyncProgress(facts({ mappedNativeIds, ...state }))?.stage, 'syncing');
+    }
   });
 
   test('a bootstrap still comparing the trees is preparing, and a running one is the first sync', () => {
@@ -78,6 +86,14 @@ describe('describeSyncProgress', () => {
     assert.match(describeSyncProgress(progress(), projectSyncStatus('paused')).note ?? '', /until you resume/u);
     assert.match(describeSyncProgress(progress({ firstSync: false, liveWork: false })).note ?? '', /haven’t been uploaded/u);
     assert.equal(describeSyncProgress(progress(), projectSyncStatus('syncing')).note, undefined);
+  });
+
+  test.each(['action-required', 'review-conflicts'] as const)('does not promise automatic continuation while %s', kind => {
+    for (const stage of ['preparing', 'syncing'] as const) {
+      const view = describeSyncProgress(progress({ stage }), projectSyncStatus(kind));
+      assert.deepEqual(view.guidance, []);
+      assert.match(view.note!, /needs your attention/);
+    }
   });
 
   test('a paused sync says it is paused and stops looking busy', () => {
