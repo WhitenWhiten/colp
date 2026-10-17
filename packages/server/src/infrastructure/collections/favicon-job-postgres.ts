@@ -41,7 +41,7 @@ import {
 import { createUnitOfWork, type DatabaseTransaction } from '../database/unit-of-work.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 
-interface JobRow {
+export interface JobRow {
   id: string;
   account_id: string;
   owner_subject_id: string;

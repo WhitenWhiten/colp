@@ -331,6 +331,15 @@ describe('productClient favicon policy and source', () => {
     expect(headers.get('content-type')).toContain('application/json')
   })
 
+  it('discovers active favicon jobs without a remembered job id', async () => {
+    seedAuthenticatedSession('csrf-fav-job')
+    const mock = installFetchMock(() => jsonResponse({ activeJobs: 0, job: null }))
+    restoreFetch = mock.restore
+    expect(await productClient.getMyFaviconJobActivity({ maxRetries: 0 })).toEqual({ activeJobs: 0, job: null })
+    expect(requestPathAndSearch(lastCall(mock.calls)).pathname).toBe('/api/v1/me/favicon-jobs')
+    expect(requestMethod(lastCall(mock.calls))).toBe('GET')
+  })
+
   it('FO-03: getMyFaviconJob GETs one owned job with its counters and error list', async () => {
     seedAuthenticatedSession('csrf-fav-job')
     const mock = installFetchMock(() => jsonResponse({

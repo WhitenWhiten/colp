@@ -10,7 +10,7 @@ import { createAutomationBindingVerifier } from './automation-binding-verifier.j
 import { createWorkerApprovalApplier } from './automation-approval-composition.js';
 import { createMcpSecurityEpochReader } from './api-mcp-oauth-composition.js';
 import { createPostgresMcpOauthRevocationStore } from '../infrastructure/database/index.js';
-import { createDatabaseFaviconStore } from '../infrastructure/collections/index.js';
+import { createDatabaseFaviconStore, FaviconProviderCache } from '../infrastructure/collections/index.js';
 import { loadSharedFaviconConfig } from './config-favicon-shared.js';
 import { SharedFaviconCache } from '../infrastructure/collections/favicon-shared-cache.js';
 import { createScheduledFaviconFetcher } from '../infrastructure/collections/favicon-provider-scheduler.js';
@@ -315,7 +315,9 @@ function composeFaviconWorkerRuntime(
       ...(resolve === undefined ? {} : { resolve }),
       ...(connect === undefined ? {} : { connect }),
     }), sharedConfig.providerIntervalMs);
-  const shared = new SharedFaviconCache(database.pool, store, scheduledFetch, {
+  const cached = new FaviconProviderCache(database.pool, scheduledFetch, sharedConfig.refreshIntervalMs);
+  const shared = new SharedFaviconCache(database.pool, store, cached.fetch, {
+    fetchCacheExpiry: cached.expiresAt,
     providerTemplate: sharedConfig.providerTemplate,
     refreshIntervalMs: sharedConfig.refreshIntervalMs,
     retentionSeconds: config.faviconPolicy.historyRetentionSeconds,
@@ -331,7 +333,10 @@ function composeFaviconWorkerRuntime(
     gc: createPostgresFaviconGcRepository(database.pool),
     verify: createPostgresFaviconJobWorkerUnitOfWork(database.db),
     fetcher: shared.fetch,
-    maintainSharedCache: () => shared.runOnce(),
+    maintainSharedCache: async () => {
+      await cached.collectExpired();
+      return shared.runOnce();
+    },
     store,
     logger,
     metrics,

@@ -8,6 +8,7 @@
  * cardinality is the SQL count, not a fetched item list.
  */
 import { sql } from 'kysely';
+import { faviconItemReadyAtSql } from './favicon-item-scheduling-postgres.js';
 import type { FaviconBatchAggregate, FaviconRestoreGenerationPage } from '../../modules/collections/index.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { DatabaseSchema } from '../database/runtime.js';
@@ -245,16 +246,19 @@ export async function aggregateFaviconJobItems(
   observe?: FaviconRestoreReadObserver,
 ): Promise<FaviconBatchAggregate> {
   const result = await sql<AggregateSummary>`
+    with scheduled_items as (
+      select i.status, case when i.status in ('pending', 'running')
+        then ${faviconItemReadyAtSql()} else null end as ready_at
+      from favicon_job_items i where i.job_id = ${jobId}
+    )
     select count(*)::int as total,
            count(*) filter (where status = 'succeeded')::int as succeeded,
            count(*) filter (where status = 'failed')::int as failed,
            count(*) filter (where status = 'skipped')::int as skipped,
            count(*) filter (where status in ('pending', 'running'))::int as pending_count,
-           min(next_attempt_at) filter (
-             where status in ('pending', 'running') and next_attempt_at is not null
-           ) as next_attempt_at
-    from favicon_job_items
-    where job_id = ${jobId}
+           case when bool_or(status in ('pending','running') and ready_at is null) then null
+             else min(ready_at) filter (where status in ('pending','running')) end as next_attempt_at
+    from scheduled_items
   `.execute(transaction);
   const row = result.rows[0];
   if (row === undefined) throw new Error('favicon job aggregate returned no row');

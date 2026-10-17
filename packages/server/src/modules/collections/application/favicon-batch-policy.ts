@@ -146,6 +146,8 @@ export interface FaviconRestoreGenerationInput {
 
 /** Transaction-scoped batch job + item writes (enqueue + worker item CAS). */
 export interface FaviconBatchJobWritePort {
+  /** Owner-scoped discovery, including single refreshes started outside Settings. */
+  findActiveForAccount(accountId: string): Promise<import('./favicon-job-activity.js').FaviconJobActivityRecord>;
   insertJob(input: {
     readonly jobId: string;
     readonly accountId: string;

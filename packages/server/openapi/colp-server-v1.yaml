@@ -7496,6 +7496,34 @@ paths:
         '500': { $ref: '#/components/responses/FaviconOrderingError500' }
         '503': { $ref: '#/components/responses/FaviconOrderingError503' }
   /api/v1/me/favicon-jobs:
+    get:
+      tags: [ Favicon ]
+      operationId: getMyFaviconJobActivity
+      summary: Get current favicon job activity
+      description: >-
+        Owner-only discovery of pending/running favicon jobs, including individual
+        refreshes started outside Settings. Returns the active job count and one
+        active job (oldest batch first, otherwise oldest individual refresh).
+        Batch counters are read from committed item rows so progress is visible
+        before the worker finishes its cycle. No jobs returns activeJobs 0 and
+        job null. private, no-store. Feature flag off returns 404.
+      security:
+        - cookieAuth: []
+        - productBearer: []
+      responses:
+        '200':
+          description: Current account favicon activity.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FaviconOrderingJobActivity' }
+        '400': { $ref: '#/components/responses/FaviconOrderingError400' }
+        '401': { $ref: '#/components/responses/FaviconOrderingError401' }
+        '404': { $ref: '#/components/responses/FaviconOrderingError404' }
+        '429': { $ref: '#/components/responses/FaviconOrderingError429' }
+        '503': { $ref: '#/components/responses/FaviconOrderingError503' }
     post:
       tags: [ Favicon ]
       operationId: createMyFaviconJob
@@ -15917,6 +15945,16 @@ components:
         the durable refresh chain (FO-02). uploaded cannot be written through
         this endpoint. Selecting online does not change the account newDefault;
         the providerTemplate existing alone never enables online.
+    FaviconOrderingJobActivity:
+      type: object
+      additionalProperties: false
+      properties:
+        activeJobs: { type: integer, minimum: 0, maximum: 2147483647 }
+        job:
+          anyOf:
+            - $ref: '#/components/schemas/FaviconOrderingIconJob'
+            - type: 'null'
+      required: [ activeJobs, job ]
     FaviconOrderingIconJob:
       type: object
       additionalProperties: false

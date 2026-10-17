@@ -11,6 +11,7 @@ import type {
   BookmarkFaviconSource,
   FaviconCreateIconJobRequest,
   FaviconIconJob,
+  FaviconJobActivity,
   FaviconIconJobAccepted,
   FaviconIconPolicy,
   FaviconIconPolicyPatch,
@@ -131,6 +132,17 @@ export function createProductFaviconClient(
     )
   }
 
+  async function getMyFaviconJobActivity(options?: ReadOptions): Promise<FaviconJobActivity> {
+    return withSameRequestRetry(async () => {
+      try {
+        return await transport.getMyFaviconJobActivity(options?.signal)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') throw error
+        throw wrapProductError(error)
+      }
+    }, { maxRetries: options?.maxRetries, signal: options?.signal })
+  }
+
   async function getMyFaviconJob(jobId: string, options?: ReadOptions): Promise<FaviconIconJob> {
     return withSameRequestRetry(async () => {
       try {
@@ -167,6 +179,7 @@ export function createProductFaviconClient(
     refreshBookmarkFavicon,
     createMyFaviconJob,
     getMyFaviconJob,
+    getMyFaviconJobActivity,
     retryMyFaviconJob,
     abandonFaviconIntent,
   }

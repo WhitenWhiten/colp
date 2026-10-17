@@ -8,7 +8,7 @@ import {
 } from '../../modules/collections/index.js';
 
 /** Database-wide admission, shared by warming, batch and individual refreshes. */
-export function createScheduledFaviconFetcher(pool: Pool, fetcher: FaviconFetcher, intervalMs = 10_000): FaviconFetcher {
+export function createScheduledFaviconFetcher(pool: Pool, fetcher: FaviconFetcher, intervalMs = 1_000): FaviconFetcher {
   if (!Number.isSafeInteger(intervalMs) || intervalMs < 1000) throw new RangeError('invalid favicon provider interval');
   return async (input) => {
     const provider = new URL(input.url).origin;

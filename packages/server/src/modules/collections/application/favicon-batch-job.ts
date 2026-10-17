@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFaviconJobDto } from './favicon-job-activity.js';
 import {
   assertCanonicalCommandId,
   canonicalCommandFingerprint,
@@ -25,13 +26,11 @@ import type {
   IconJobDto,
 } from './favicon-batch-policy.js';
 import {
-  FAVICON_BATCH_ERRORS_PAGE_SIZE,
   FAVICON_BATCH_JOB_COMMAND_CONTRACT_VERSION,
   FAVICON_BATCH_JOB_ROUTE,
   FaviconBatchJobCommandError,
   buildFaviconBatchJobItems,
   buildFaviconRestoreItems,
-  toIconJobDto,
 } from './favicon-batch-policy.js';
 // ---------------------------------------------------------------------------
 // Commands
@@ -226,12 +225,7 @@ export async function getMyFaviconJob(
 ): Promise<IconJobDto | null> {
   const job = await ports.jobs.findJobForAccount(input.jobId, input.actor.principalId);
   if (job === null) return null;
-  const errors = job.operation === 'refresh_one'
-    ? (job.errorNodeId !== null && job.errorReason !== null
-      ? [{ nodeId: job.errorNodeId, reason: job.errorReason }]
-      : [])
-    : await ports.items.listFailedItems(input.jobId, FAVICON_BATCH_ERRORS_PAGE_SIZE);
-  return toIconJobDto(job, errors);
+  return readFaviconJobDto(ports.items, job);
 }
 
 export interface RetryMyFaviconJobInput {

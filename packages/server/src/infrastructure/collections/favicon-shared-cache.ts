@@ -21,6 +21,7 @@ export interface SharedFaviconOptions {
   readonly refreshIntervalMs: number;
   readonly retentionSeconds: number;
   readonly fetch: Omit<FaviconFetchOptions, 'url'>;
+  readonly fetchCacheExpiry?: (url: string) => Promise<Date | null>;
 }
 
 /** Each tick refreshes at most one domain. Leases and dates survive worker restarts. */
@@ -43,17 +44,33 @@ export class SharedFaviconCache {
     const id = result.rows[0]?.object_id;
     const stored = id ? await this.store.get(id) : null;
     if (!stored) {
-      // Repair an unexpectedly missing R2 object through the background queue;
-      // requests still cannot bypass provider admission or force a fresh fetch.
-      if (id) await this.pool.query(`UPDATE favicon_shared_domains SET next_refresh_at=least(next_refresh_at, clock_timestamp())
-        WHERE hostname=$1 AND object_id=$2`, [hostname, id]);
-      throw new FaviconFetchDeferred(new Date(Date.now() + 60_000));
+      // User work fills cold known hosts immediately, through the same durable
+      // provider cache/admission as other hosts. Keep the shared provider rule.
+      const url = resolveFaviconProviderUrl(this.options.providerTemplate, hostname);
+      if (!url) throw new Error('invalid shared favicon provider template');
+      await this.pool.query(`INSERT INTO favicon_shared_domains(hostname,next_refresh_at)
+        VALUES ($1, clock_timestamp() - interval '1 day')
+        ON CONFLICT(hostname) DO UPDATE SET
+          next_refresh_at=least(favicon_shared_domains.next_refresh_at, EXCLUDED.next_refresh_at),
+          object_id=CASE WHEN favicon_shared_domains.object_id=$2 THEN NULL ELSE favicon_shared_domains.object_id END`, [hostname, id ?? null]);
+      return this.fetcher({ ...input, url });
     }
     const decoded = decodeFaviconImage(stored.body, input.maxBytes, input.maxDecompressedBytes);
     return { ...decoded, body: stored.body };
   };
 
   async runOnce(): Promise<boolean> {
+    // A sleeping user job still owns the next provider slot; warming must not
+    // take it simply because claimDue cannot run until its cooldown expires.
+    const active = await this.pool.query(`SELECT 1 FROM favicon_jobs WHERE status IN ('pending','running') LIMIT 1`);
+    if (active.rows.length > 0) return false;
+    const cooling = await this.pool.query(`SELECT 1 FROM favicon_provider_admission
+      WHERE provider=$1 AND greatest(next_request_at,lease_until) > clock_timestamp()`,
+    [new URL(this.options.providerTemplate).origin]);
+    if (cooling.rows.length > 0) {
+      await this.collectOne();
+      return false;
+    }
     if (!this.seeded) {
       await this.pool.query(`
         INSERT INTO favicon_shared_domains(hostname)
@@ -84,6 +101,9 @@ export class SharedFaviconCache {
       const url = resolveFaviconProviderUrl(this.options.providerTemplate, claim.hostname);
       if (!url) throw new Error('invalid shared favicon provider template');
       const image = await this.fetcher({ ...this.options.fetch, url });
+      const fetchExpiry = await this.options.fetchCacheExpiry?.(url);
+      const refreshAt = new Date(Math.max(Date.now() + 1000,
+        fetchExpiry?.getTime() ?? Date.now() + this.nextRefreshDelay(claim.hostname)));
       const digest = createHash('sha256').update(image.body).digest('hex');
       const existing = claim.object_id ? await this.pool.query<{ digest: string }>(
         'SELECT digest FROM favicon_shared_objects WHERE object_id=$1', [claim.object_id],
@@ -109,9 +129,9 @@ export class SharedFaviconCache {
       }
       await this.pool.query(`
         UPDATE favicon_shared_domains SET object_id=$3, failures=0, lease_owner=NULL, lease_until=NULL,
-          updated_at=clock_timestamp(), next_refresh_at=clock_timestamp() + $4 * interval '1 millisecond'
+          updated_at=clock_timestamp(), next_refresh_at=$4
         WHERE hostname=$1 AND lease_owner=$2 AND lease_until > clock_timestamp()
-      `, [claim.hostname, owner, objectId, this.nextRefreshDelay(claim.hostname)]);
+      `, [claim.hostname, owner, objectId, refreshAt]);
     } catch (error) {
       const deferred = error instanceof FaviconFetchDeferred;
       const retryAt = deferred ? error.retryAt : new Date(Date.now() + Math.min(86_400_000, 60_000 * 2 ** Math.min(claim.failures, 11)));

@@ -65,12 +65,13 @@ function fakeJobRepository(overrides: {
   };
 }
 
-function makeLoop(repository: FaviconJobWorkerRepository, concurrency = 2): FaviconJobWorkerLoop {
+function makeLoop(repository: FaviconJobWorkerRepository, concurrency = 2, maintainSharedCache?: () => Promise<boolean>): FaviconJobWorkerLoop {
   // The job loop never touches the GC repository or the verify runner when
   // every claim fails markRunning (the processClaim fast path); the casts
   // stand in for those unused seams.
   const options = {
     repository,
+    maintainSharedCache,
     gc: { claimDue: async () => [], repository: {} } as unknown as FaviconJobWorkerLoopOptions['gc'],
     verify: { run: async () => { throw new Error('unused in this unit test'); } } as unknown as FaviconJobWorkerLoopOptions['verify'],
     fetcher: async () => { throw new Error('unused in this unit test'); },
@@ -100,6 +101,14 @@ function makeLoop(repository: FaviconJobWorkerRepository, concurrency = 2): Favi
 }
 
 describe('FaviconJobWorkerLoop.runOnce (FO-08 concurrency bound)', () => {
+  test('foreground work takes the tick; warming runs only on an idle tick', async () => {
+    let maintenance = 0;
+    const maintain = async () => { maintenance += 1; return false; };
+    await makeLoop(fakeJobRepository({ pending: [claim('user-work')] }).repository, 2, maintain).runOnce();
+    assert.equal(maintenance, 0);
+    await makeLoop(fakeJobRepository().repository, 2, maintain).runOnce();
+    assert.equal(maintenance, 1);
+  });
   test('an overdue sweep filling every slot skips the pending batch entirely', async () => {
     const fake = fakeJobRepository({ overdue: [claim('overdue-1'), claim('overdue-2')] });
     const loop = makeLoop(fake.repository, 2);

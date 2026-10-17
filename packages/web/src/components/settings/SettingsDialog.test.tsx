@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     logout: vi.fn<() => Promise<'signed-out' | 'failed'>>(),
   },
   updateMe: vi.fn(),
+  faviconActivity: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
   isLive: vi.fn((flag: string) => flag !== 'mfa'),
@@ -53,6 +54,7 @@ vi.mock('../../api', () => ({
   isProductApiError: (error: unknown) => !!error && typeof error === 'object' && 'fieldErrors' in error,
   isLive: mocks.isLive,
   productClient: {
+    getMyFaviconJobActivity: mocks.faviconActivity,
     updateMe: mocks.updateMe,
     newCommandId: () => 'command-1',
     mutationIntentKey: (scope: string, id: string) => `${scope}:${id}`,
@@ -82,6 +84,7 @@ describe('Settings profile persistence', () => {
     mocks.auth.refreshSession.mockReset().mockResolvedValue(undefined)
     mocks.auth.logout.mockReset().mockResolvedValue('signed-out')
     mocks.updateMe.mockReset()
+    mocks.faviconActivity.mockReset().mockResolvedValue({ activeJobs: 0, job: null })
     mocks.success.mockReset()
     mocks.error.mockReset()
     mocks.authClient.getAuthSession.mockReset()
@@ -110,6 +113,22 @@ describe('Settings profile persistence', () => {
   function render() {
     mountTree(<MemoryRouter initialEntries={['/library?settings=profile']}><SettingsDialog /></MemoryRouter>)
   }
+
+  it('shows favicon progress in other settings sections and keeps it when switching sections', async () => {
+    mocks.faviconActivity.mockResolvedValue({ activeJobs: 1, job: {
+      id: 'job-other-tab', operation: 'fill_missing', status: 'running', total: 10,
+      succeeded: 3, failed: 1, skipped: 0, errors: [],
+    } })
+    render()
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    const strip = document.querySelector('[data-testid="favicon-job-progress"]')!
+    expect(strip.textContent).toContain('4/10 processed')
+    expect(document.querySelector('[data-settings-nav] [aria-current="true"]')?.textContent).toBe('Profile')
+    const bookmarks = [...document.querySelectorAll<HTMLButtonElement>('[data-settings-nav] button')].find(button => button.textContent === 'Bookmarks')!
+    await act(async () => { bookmarks.click() })
+    expect(document.querySelector('[data-settings-nav] [aria-current="true"]')?.textContent).toBe('Bookmarks')
+    expect(document.querySelector('[data-testid="favicon-job-progress"]')).toBe(strip)
+  })
 
   it.each(['credentials', 'grants'])('old %s deep links cannot open bot management', (section) => {
     mocks.isLive.mockReturnValue(true)

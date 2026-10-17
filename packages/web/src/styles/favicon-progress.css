@@ -1,0 +1,36 @@
+@layer pages {
+  .favicon-job-progress {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+
+  .favicon-job-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .favicon-job-row > svg { flex: none; color: var(--muted); }
+  .favicon-job-title { flex: 1; min-width: 0; font-weight: var(--weight-medium); }
+  .favicon-job-percent { flex: none; color: var(--muted); }
+  .favicon-job-detail { margin: 0; font-variant-numeric: tabular-nums; }
+  .favicon-job-bar { height: 0.1875rem; }
+  .favicon-job-bar::-webkit-progress-value { background: var(--ink); }
+  .favicon-job-bar::-moz-progress-bar { background: var(--ink); }
+  .favicon-job-progress[data-state="done"] .favicon-job-bar::-webkit-progress-value { background: var(--success); }
+  .favicon-job-progress[data-state="done"] .favicon-job-bar::-moz-progress-bar { background: var(--success); }
+  .favicon-job-progress:is([data-state="failed"], [data-state="stalled"]) .favicon-job-bar::-webkit-progress-value { background: var(--warning); }
+  .favicon-job-progress:is([data-state="failed"], [data-state="stalled"]) .favicon-job-bar::-moz-progress-bar { background: var(--warning); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .favicon-job-bar::-webkit-progress-value { transition: none; }
+  }
+}

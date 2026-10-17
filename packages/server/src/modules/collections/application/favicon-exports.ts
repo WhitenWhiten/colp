@@ -2,6 +2,7 @@
 export * from './favicon-policy.js';
 export * from './favicon-icon-source.js';
 export * from './favicon-job.js';
+export * from './favicon-job-activity.js';
 export * from './favicon-job-execution.js';
 export * from './favicon-batch-policy.js';
 export * from './favicon-batch-job.js';

@@ -1,11 +1,12 @@
 /**
  * FO-03 durable favicon job routes:
  *
+ *   getMyFaviconJobActivity GET /api/v1/me/favicon-jobs
  *   createMyFaviconJob  POST   /api/v1/me/favicon-jobs
  *   getMyFaviconJob     GET    /api/v1/me/favicon-jobs/{jobId}
  *   retryMyFaviconJob   POST   /api/v1/me/favicon-jobs/{jobId}/retry
  *
- * All three live behind the same KNOWN_FEATURE_FAVICON_POLICY gate and share
+ * All live behind the same KNOWN_FEATURE_FAVICON_POLICY gate and share
  * the faviconJobs worker runtime (no additional consumer). create/retry are
  * receipts mutations with Known-Command-Id; get is an owner-only read whose
  * missing/foreign job conceals as 404.
@@ -16,6 +17,7 @@ import {
   FaviconBatchJobCommandError,
   createMyFaviconJob,
   getMyFaviconJob,
+  getMyFaviconJobActivity,
   retryMyFaviconJob,
   type FaviconBatchJobCommandPorts,
   type IconJobDto,
@@ -109,6 +111,26 @@ export function registerFaviconJobRoutes(
       });
     }
   };
+
+  app.get(JOBS, {
+    exposeHeadRoute: false,
+    config: { ...productRouteMetadata('GET', JOBS), productTransport: privateTransport },
+    onRequest: admission,
+  }, async (request, reply) => {
+    await exposure();
+    rejectNonemptyBody(request);
+    const { account } = await requireSessionActor(request, deps.identityUnitOfWork, { touch: false });
+    try {
+      const dto = await withCancellation(request, deps.timeoutMs, (signal) =>
+        deps.collectionsUnitOfWork.execute((ports) => {
+          requireJobPorts(ports);
+          return getMyFaviconJobActivity(jobCommandPorts(ports), account.id);
+        }, { signal }));
+      return reply.header('cache-control', 'private, no-store').send(dto);
+    } catch (error) {
+      throw mapFaviconJobRouteError(error);
+    }
+  });
 
   app.post(JOBS, {
     exposeHeadRoute: false,

@@ -105,6 +105,20 @@ bookmarks. Explicit **No icon** choices and manual uploads are preserved by miss
 Force-online also applies to future bookmarks and records their original icon state for restoration.
 Each bookmark's edit drawer offers immediate upload/removal and icon-source selection.
 PNG, JPEG, WebP and ICO uploads are limited to 64 KiB; SVG and GIF are rejected.
+Every Settings section shows active favicon work as a count and thin progress bar.
+Reopening Settings discovers current account jobs, including individual refreshes
+started elsewhere. Progress reads committed batch-item counts; failed items can be
+retried after completion, and closing Settings leaves the server task running.
+Online results are cached in PostgreSQL by complete provider URL, including query
+parameters, for `FAVICON_SHARED_REFRESH_INTERVAL_SECONDS` (default 30 days) with
+stable ±10% expiration jitter. Concurrent requests share a fetch, including across
+workers. Different providers and size parameters have separate cache entries.
+Cached icons bypass provider limits; queued cold requests wait without consuming
+attempts or repeatedly updating every bookmark. Curated-site warming runs only
+when no account has active favicon jobs; cold sites requested by a user fill on demand.
+`FAVICON_PROVIDER_INTERVAL_MS` defaults to 1000 (1 second). Providers remain
+serialized, and `429` responses persist `Retry-After` / exponential cooldowns.
+Previously failed jobs can be retried after deployment to recover standard DIB ICOs.
 
 No object-storage service is required: favicon bytes persist in PostgreSQL and are included in
 normal database backups. Upload bytes, bindings and receipts commit in one transaction. Existing `AVATAR_R2_*` storage configuration stores favicon objects

@@ -339,6 +339,7 @@ test('generated Product route manifest contains owned Collections, public Profil
       { method: 'GET', path: '/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-source', operationId: 'getBookmarkFaviconSource' },
       { method: 'PUT', path: '/api/v1/collections/{collectionId}/nodes/{nodeId}/favicon-source', operationId: 'setBookmarkFaviconSource' },
       { method: 'GET', path: '/api/v1/favicon/{faviconId}', operationId: 'getBookmarkFavicon' },
+      { method: 'GET', path: '/api/v1/me/favicon-jobs', operationId: 'getMyFaviconJobActivity' },
       { method: 'POST', path: '/api/v1/me/favicon-jobs', operationId: 'createMyFaviconJob' },
       { method: 'GET', path: '/api/v1/me/favicon-jobs/{jobId}', operationId: 'getMyFaviconJob' },
       { method: 'POST', path: '/api/v1/me/favicon-jobs/{jobId}/retry', operationId: 'retryMyFaviconJob' },

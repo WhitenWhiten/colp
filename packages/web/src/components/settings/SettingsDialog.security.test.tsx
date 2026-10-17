@@ -54,6 +54,7 @@ vi.mock('../../api', () => ({
   isProductApiError: (error: unknown) => !!error && typeof error === 'object' && 'fieldErrors' in error,
   isLive: mocks.isLive,
   productClient: {
+    getMyFaviconJobActivity: vi.fn().mockResolvedValue({ activeJobs: 0, job: null }),
     updateMe: mocks.updateMe,
     newCommandId: () => 'command-1',
     mutationIntentKey: (scope: string, id: string) => `${scope}:${id}`,

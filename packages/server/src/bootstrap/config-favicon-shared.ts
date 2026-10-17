@@ -19,6 +19,6 @@ export function loadSharedFaviconConfig(env: NodeJS.ProcessEnv): SharedFaviconCo
   return {
     providerTemplate,
     refreshIntervalMs: integer('FAVICON_SHARED_REFRESH_INTERVAL_SECONDS', 2_592_000, 86_400, 31_536_000) * 1000,
-    providerIntervalMs: integer('FAVICON_PROVIDER_INTERVAL_MS', 10_000, 1000, 3_600_000),
+    providerIntervalMs: integer('FAVICON_PROVIDER_INTERVAL_MS', 1_000, 1000, 3_600_000),
   };
 }

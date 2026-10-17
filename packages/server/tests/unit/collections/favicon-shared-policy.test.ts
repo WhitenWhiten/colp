@@ -28,11 +28,11 @@ test('Retry-After handles seconds, dates and malformed input', () => {
   expect(faviconRetryAfterMs(null, now)).toBeNull();
 });
 
-test('shared config defaults to monthly favicone refreshes and 10 second spacing', () => {
+test('shared config defaults to monthly favicone refreshes and one second spacing', () => {
   expect(loadSharedFaviconConfig({})).toEqual({
     providerTemplate: 'https://favicone.com/{hostname}',
     refreshIntervalMs: 2592000000,
-    providerIntervalMs: 10000,
+    providerIntervalMs: 1000,
   });
   expect(() => loadSharedFaviconConfig({ FAVICON_PROVIDER_INTERVAL_MS: '0' })).toThrow();
   expect(() => loadSharedFaviconConfig({ FAVICON_SHARED_REFRESH_INTERVAL_SECONDS: 'nan' })).toThrow();

@@ -4,6 +4,7 @@ import type {
   BookmarkFaviconSource,
   FaviconCreateIconJobRequest,
   FaviconIconJob,
+  FaviconJobActivity,
   FaviconIconJobAccepted,
   FaviconIconPolicy,
   FaviconIconPolicyPatch,
@@ -85,6 +86,9 @@ export function createFaviconTransport(http: ProductTransportHttp) {
     },
 
     // FO-03 account job surface (create/get/retry durable batch jobs).
+    async getMyFaviconJobActivity(signal?: AbortSignal) {
+      return request<FaviconJobActivity>({ method: 'GET', path: '/api/v1/me/favicon-jobs', signal })
+    },
     async createMyFaviconJob(body: FaviconCreateIconJobRequest, opts: MutationCallOptions) {
       return request<FaviconIconJobAccepted>({
         method: 'POST',

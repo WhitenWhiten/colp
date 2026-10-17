@@ -1,5 +1,6 @@
 import { useAuth } from '../../auth/AuthContext'
 import { FaviconSection } from './FaviconSection'
+import { FaviconJobProgress } from './FaviconJobProgress'
 import { useEffect, useRef, useState } from 'react'
 import { BookmarkPreferencesSection } from './BookmarkPreferencesSection'
 import { Link } from 'react-router-dom'
@@ -31,6 +32,7 @@ export function SettingsDialog() {
   // R14-45: profile edits survive a section switch or dialog close until
   // the user confirms the discard.
   const dirtyRef = useRef(false)
+  const [faviconJobId, setFaviconJobId] = useState<string | null>(null)
   const confirm = useConfirm()
   const guard = () => confirm({
     title: 'Discard changes?',
@@ -42,6 +44,10 @@ export function SettingsDialog() {
     void guard().then((ok) => {
       if (ok) { dirtyRef.current = false; close() }
     })
+  }
+  const selectSection = (next: SettingsSection) => {
+    if (!dirtyRef.current) { open(next); return }
+    void guard().then((ok) => { if (ok) { dirtyRef.current = false; open(next) } })
   }
 
   // Phones lay the nav out as one scrolling strip: fade whichever edge still
@@ -109,7 +115,7 @@ export function SettingsDialog() {
               type="button"
               className="tree-item"
               aria-current={section === id ? 'true' : undefined}
-              onClick={() => { if (!dirtyRef.current) { open(id); return } void guard().then((ok) => { if (ok) { dirtyRef.current = false; open(id) } }) }}
+              onClick={() => selectSection(id)}
             >
               {sectionLabels[id]}
             </button>
@@ -129,9 +135,11 @@ export function SettingsDialog() {
         </aside>
         <div className="settings-dialog-body">
           <AuthStatusRegion />
+          {isOpen && user && <FaviconJobProgress key={user.accountId} startedJobId={faviconJobId} onJobStarted={setFaviconJobId}
+            onDetails={section === 'favicon' ? undefined : () => selectSection('favicon')} />}
           {section === 'profile' && <ProfileSection onDirtyChange={(value) => { dirtyRef.current = value }} />}
           {section === 'bookmarks' && <BookmarkPreferencesSection />}
-          {section === 'favicon' && user && <FaviconSection key={user.accountId} onDirtyChange={(value) => { dirtyRef.current = value }} />}
+          {section === 'favicon' && user && <FaviconSection key={user.accountId} onJobStarted={setFaviconJobId} onDirtyChange={(value) => { dirtyRef.current = value }} />}
           {section === 'security' && (
             <div className="stack gap-1" data-testid="settings-security">
               <div className="settings-section-head">

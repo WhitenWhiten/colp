@@ -166,7 +166,6 @@ export class FaviconJobWorkerLoop {
     if (claims.length === 0) return await this.options.maintainSharedCache?.() ?? false;
     this.options.metrics?.increment('collections.favicon_jobs.claims', claims.length);
     await Promise.all(claims.map((claim) => this.processClaim(claim)));
-    await this.options.maintainSharedCache?.();
     return true;
   }
 

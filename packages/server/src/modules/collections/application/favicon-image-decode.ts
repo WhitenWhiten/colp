@@ -17,6 +17,7 @@
  * polyglot tolerance, no unbounded allocation.
  */
 import { inflateSync } from 'node:zlib';
+import { validateIcoDib } from './favicon-ico-dib.js';
 import {
   BOOKMARK_FAVICON_MAX_BYTES,
   BookmarkFaviconImageError,
@@ -329,14 +330,7 @@ function decodeEmbeddedIcoPayload(payload: Buffer, width: number, height: number
     decodePng(payload, budget);
     return;
   }
-  if (payload.byteLength < 26 || payload.subarray(0, 2).toString('latin1') !== 'BM') invalid('ICO payload is not a decodable image');
-  const headerSize = readLe32(payload, 14);
-  if (headerSize < 40 || payload.byteLength < 14 + headerSize) invalid('ICO BMP header invalid');
-  const bmpWidth = readLe32(payload, 18);
-  const bmpHeight = readLe32(payload, 22);
-  if (bmpWidth !== width || (bmpHeight !== height && bmpHeight !== height * 2)) {
-    invalid('ICO embedded BMP dimensions do not match the directory');
-  }
+  validateIcoDib(payload, width, height);
 }
 
 /**

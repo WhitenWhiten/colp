@@ -538,8 +538,8 @@ export async function processFaviconBatchClaim(
   const batchSize = ports.options.batchSize;
   let processed = 0;
   while (processed < batchSize) {
-    // FO-08: re-arm the 60s job lease before every item. A cycle of up to 100
-    // serial fetches can outlive the original lease; renewal keeps the claim
+    // Re-arm the job lease before selecting another bounded page. A cycle
+    // may span several pages; renewal keeps the claim
     // exclusive. A failed renew means another worker re-claimed the job —
     // abort the cycle before its next item write.
     const renewed = await ports.worker.renewLease({

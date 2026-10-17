@@ -1176,6 +1176,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "downloadMyExportJob"
   },
   {
+    "method": "GET",
+    "path": "/api/v1/me/favicon-jobs",
+    "operationId": "getMyFaviconJobActivity"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/me/favicon-jobs",
     "operationId": "createMyFaviconJob"

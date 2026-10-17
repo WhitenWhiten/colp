@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   isProductApiError,
   productClient,
-  type FaviconIconJob,
   type FaviconIconPolicy,
 } from '../../api'
 import { LoadingState } from '../../components/EmptyState'
@@ -17,115 +16,18 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
-const JOB_POLL_DELAY_MS = 5_000
-
-function isTerminal(status: FaviconIconJob['status']): boolean {
-  return status === 'succeeded' || status === 'partial' || status === 'failed' || status === 'superseded'
-}
-
-/**
- * Batch-job progress (FO-03): polls the durable job through
- * getMyFaviconJob every 5s, shows the aggregate counters, and offers an
- * explicit retry of a failed/partial job (retryMyFaviconJob re-runs only the
- * failed items). Closing the settings dialog stops the polling, never the job.
- */
-function JobProgress({ jobId, onRetried }: {
-  jobId: string
-  onRetried: (jobId: string) => void
-}) {
-  const [job, setJob] = useState<FaviconIconJob | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const retryingRef = useRef(false)
-
-  useEffect(() => {
-    let timer: number | undefined
-    let stopped = false
-    const poll = async (): Promise<void> => {
-      if (stopped) return
-      try {
-        const next = await productClient.getMyFaviconJob(jobId, { maxRetries: 0 })
-        if (stopped) return
-        setJob(next)
-        if (isTerminal(next.status)) return
-      } catch (pollError) {
-        if (isAbort(pollError) || stopped) return
-        setError('The favicon job progress could not be checked.')
-        return
-      }
-      timer = window.setTimeout(() => { void poll() }, JOB_POLL_DELAY_MS)
-    }
-    void poll()
-    return () => {
-      stopped = true
-      if (timer !== undefined) window.clearTimeout(timer)
-    }
-  }, [jobId])
-
-  const retry = async (): Promise<void> => {
-    if (retryingRef.current) return
-    retryingRef.current = true
-    setError(null)
-    try {
-      const accepted = await productClient.retryMyFaviconJob(jobId, {
-        intentId: productClient.mutationIntentKey(`retry-favicon-job:${jobId}`, productClient.newCommandId()),
-        maxRetries: 0,
-      })
-      onRetried(accepted.jobId)
-    } catch (retryError) {
-      if (!isAbort(retryError)) {
-        setError(isProductApiError(retryError) ? retryError.recoveryHint : 'The favicon job could not be retried.')
-      }
-    } finally {
-      retryingRef.current = false
-    }
-  }
-
-  if (job === null && error === null) {
-    return <p className="meta" role="status">Batch icon job running…</p>
-  }
-  return (
-    <p className="meta" data-testid="favicon-job-progress">
-      {job !== null && !isTerminal(job.status) && (
-        <span role="status">
-          Batch icon job {job.status === 'pending' ? 'queued' : 'in progress'} — {job.succeeded}/{job.total}
-          {job.failed > 0 ? `, ${job.failed} failed` : ''}
-          {job.skipped > 0 ? `, ${job.skipped} skipped` : ''}
-        </span>
-      )}
-      {job !== null && isTerminal(job.status) && job.status !== 'succeeded' && (
-        <span className="field-error" role="status">
-          Batch icon job {job.status === 'failed' ? 'failed' : 'finished with errors'} —{' '}
-          {job.succeeded}/{job.total} ok, {job.failed} failed, {job.skipped} skipped.
-        </span>
-      )}
-      {job !== null && job.status === 'succeeded' && (
-        <span role="status">Batch icon job finished — {job.succeeded} updated.</span>
-      )}
-      {job !== null && (job.status === 'failed' || job.status === 'partial') && (
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          data-testid="favicon-job-retry"
-          disabled={retryingRef.current}
-          onClick={() => void retry()}
-        >
-          Retry {job.failed} failed
-        </button>
-      )}
-      {error !== null && <span className="field-error" role="alert">{error}</span>}
-    </p>
-  )
-}
-
 /**
  * Settings → Favicon: the account-wide icon source policy. FO-03 makes every
  * setting real: the new-bookmark default (capture/online/none), the online
  * provider template, fillMissing and forceAllOnline. A policy change that
- * activates a batch behavior returns a durable jobId which is polled here
- * (progress + explicit retry of failed items); the online providerTemplate
+ * activates a batch behavior returns a durable jobId tracked by the Settings
+ * progress strip (with failed-item retries); the online providerTemplate
  * alone never enables online, and no-op patches keep the same revision.
  */
-export function FaviconSection({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
+export function FaviconSection({ onDirtyChange, onJobStarted }: {
+  onDirtyChange?: (dirty: boolean) => void
+  onJobStarted?: (jobId: string) => void
+} = {}) {
   const [state, setState] = useState<FaviconPolicyState>({ kind: 'loading' })
   const [busy, setBusy] = useState(false)
   const lifecycle = useRef<AbortController | null>(null)
@@ -137,7 +39,6 @@ export function FaviconSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     onDirtyChange?.(dirtyProvider)
     return () => onDirtyChange?.(false)
   }, [dirtyProvider, onDirtyChange])
-  const [jobId, setJobId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null)
 
   const load = useCallback(async (signal?: AbortSignal, resetProvider = false) => {
@@ -184,7 +85,7 @@ export function FaviconSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       })
       if (signal.aborted) return
       await load(signal, 'providerTemplate' in patch)
-      setJobId(result.jobId)
+      if (result.jobId !== null) onJobStarted?.(result.jobId)
       if (result.jobId !== null) setNotice({ kind: 'info', text: 'A batch icon job was started for this change.' })
     } catch (error) {
       if (isAbort(error) || signal.aborted) return
@@ -353,7 +254,6 @@ export function FaviconSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
               {notice.text}
             </p>
           )}
-          {jobId !== null && current !== null && <JobProgress key={jobId} jobId={jobId} onRetried={setJobId} />}
         </>
       )}
     </section>

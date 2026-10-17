@@ -7,6 +7,14 @@ Migrations follow expand/contract deployment order: add backward-compatible stru
 deploy readers and writers, validate/backfill, then remove obsolete structures in a later
 release. A migration must not make the currently deployed reader unable to start.
 
+## Favicon provider result cache
+
+Apply `202610311400_favicon_provider_cache` before deploying the favicon worker
+and progress readers. The additive table stores bounded, validated icon bytes keyed
+by the SHA-256 of the complete provider URL, with fetch leases and expiration.
+Existing bookmark bindings and image objects are unchanged. Previous binaries
+ignore the table; dropping it discards reusable fetch results, not bookmark icons.
+
 ## Digest scheduler revision fence
 
 Apply `202610210000_digest_run_schedule_revision.ts` before deploying the updated

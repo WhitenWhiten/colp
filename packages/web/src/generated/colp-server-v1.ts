@@ -1914,7 +1914,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get current favicon job activity
+         * @description Owner-only discovery of pending/running favicon jobs, including individual refreshes started outside Settings. Returns the active job count and one active job (oldest batch first, otherwise oldest individual refresh). Batch counters are read from committed item rows so progress is visible before the worker finishes its cycle. No jobs returns activeJobs 0 and job null. private, no-store. Feature flag off returns 404.
+         */
+        get: operations["getMyFaviconJobActivity"];
         put?: never;
         /**
          * Create a durable batch favicon job
@@ -4387,6 +4391,10 @@ export interface components {
         FaviconOrderingSetIconSource: {
             /** @enum {string} */
             sourceMode: "inherit" | "online" | "none";
+        };
+        FaviconOrderingJobActivity: {
+            activeJobs: number;
+            job: components["schemas"]["FaviconOrderingIconJob"] | null;
         };
         /** @description FO-03. One durable favicon job. errors lists the first 100 failed items in stable node-ID order; the counters reflect all items. */
         FaviconOrderingIconJob: {
@@ -10507,6 +10515,33 @@ export interface operations {
             428: components["responses"]["FaviconOrderingError428"];
             429: components["responses"]["FaviconOrderingError429"];
             500: components["responses"]["FaviconOrderingError500"];
+            503: components["responses"]["FaviconOrderingError503"];
+        };
+    };
+    getMyFaviconJobActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current account favicon activity. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaviconOrderingJobActivity"];
+                };
+            };
+            400: components["responses"]["FaviconOrderingError400"];
+            401: components["responses"]["FaviconOrderingError401"];
+            404: components["responses"]["FaviconOrderingError404"];
+            429: components["responses"]["FaviconOrderingError429"];
             503: components["responses"]["FaviconOrderingError503"];
         };
     };

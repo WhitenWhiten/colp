@@ -25,6 +25,8 @@ import type {
   FaviconSourceRestoreWritePort,
 } from '../../modules/collections/index.js';
 import { insertFaviconJobRow, JOB_COLUMNS, mapJob } from './favicon-job-postgres.js';
+import { findActiveFaviconJobs } from './favicon-job-activity-postgres.js';
+import { faviconItemCachedSql, faviconItemReadyAtSql } from './favicon-item-scheduling-postgres.js';
 import {
   aggregateFaviconJobItems,
   extendFaviconRestoreGeneration,
@@ -96,6 +98,7 @@ export function createPostgresFaviconBatchJobWritePort(
   observeRestoreRead?: FaviconRestoreReadObserver,
 ): FaviconBatchJobWritePort {
   return Object.freeze({
+    findActiveForAccount: (accountId: string) => findActiveFaviconJobs(transaction, accountId),
     async insertJob(input) {
       await insertFaviconJobRow(transaction, input);
     },
@@ -262,11 +265,23 @@ export function createPostgresFaviconBatchItemPort(
     },
     async listDueItems(input) {
       const rows = (await sql<ItemRow>`
-        select ${ITEM_COLUMNS} from favicon_job_items
-        where job_id = ${input.jobId}
-          and status = 'pending'
-          and (next_attempt_at is null or next_attempt_at <= ${input.now})
-        order by node_id
+        with ready_items as (
+          select i.*, ${faviconItemReadyAtSql()} as ready_at, ${faviconItemCachedSql()} as is_cached
+          from favicon_job_items i where i.job_id = ${input.jobId} and i.status = 'pending'
+        ), candidates as (
+          select *, row_number() over (
+            partition by case when is_cached or not exists (
+                select 1 from favicon_provider_admission p
+                where p.provider=substring(source_url from '^https://[^/]+')
+              ) then 'item:' || node_id
+              else 'provider:' || substring(source_url from '^https://[^/]+') end
+            order by updated_at, node_id
+          ) as provider_rank
+          from ready_items where ready_at is null or ready_at <= ${input.now}
+        )
+        select ${ITEM_COLUMNS} from candidates
+        where provider_rank = 1
+        order by not is_cached, updated_at, node_id
         limit ${input.limit}
       `.execute(transaction)).rows;
       return Object.freeze(rows.map(mapItem));

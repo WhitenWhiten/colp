@@ -8,8 +8,6 @@ import { FaviconSection } from './FaviconSection'
 const mocks = vi.hoisted(() => ({
   getMyFaviconPolicy: vi.fn(),
   updateMyFaviconPolicy: vi.fn(),
-  getMyFaviconJob: vi.fn(),
-  retryMyFaviconJob: vi.fn(),
   mutationIntentKey: (scope: string, id: string) => `${scope}:${id}`,
   newCommandId: () => 'command-fav',
   isProductApiError: (error: unknown) =>
@@ -20,8 +18,6 @@ vi.mock('../../api', () => ({
   productClient: {
     getMyFaviconPolicy: mocks.getMyFaviconPolicy,
     updateMyFaviconPolicy: mocks.updateMyFaviconPolicy,
-    getMyFaviconJob: mocks.getMyFaviconJob,
-    retryMyFaviconJob: mocks.retryMyFaviconJob,
     mutationIntentKey: mocks.mutationIntentKey,
     newCommandId: mocks.newCommandId,
   },
@@ -53,8 +49,6 @@ describe('Settings FaviconSection', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     mocks.getMyFaviconPolicy.mockReset()
     mocks.updateMyFaviconPolicy.mockReset()
-    mocks.getMyFaviconJob.mockReset()
-    mocks.retryMyFaviconJob.mockReset()
   })
 
   afterEach(() => cleanup())
@@ -178,48 +172,15 @@ describe('Settings FaviconSection', () => {
       { providerTemplate: 'https://icons.example.com/{hostname}' }, '"favicon-policy:2"', expect.anything())
   })
 
-  it('FO-03: a policy change returning a jobId polls the batch job and offers a failed-items retry', async () => {
-    vi.useFakeTimers()
-    /* Stateful endpoint: the fill-missing PATCH starts batch job 100 and the
-       section re-reads the policy at its new revision afterwards. */
-    let current = policy()
-    mocks.getMyFaviconPolicy.mockImplementation(async () => current)
-    mocks.updateMyFaviconPolicy.mockImplementation(async (patch: Record<string, unknown>) => {
-      current = policy({ revision: '2', etag: '"favicon-policy:2"', ...patch })
-      return { policy: { revision: '2' }, jobId: '123e4567-e89b-42d3-a456-426614174100' }
-    })
-    // Both reads of a job id answer the same way: StrictMode mounts the subtree
-    // twice, so a `mockResolvedValueOnce` queue would hand the two mounts
-    // different jobs.
-    const partial = { status: 'partial' as const, succeeded: 9, total: 10, failed: 1, skipped: 0,
-      errors: [{ nodeId: 'n9', reason: 'fetch_failed' }] }
-    const succeeded = { status: 'succeeded' as const, succeeded: 1, total: 1, failed: 0, skipped: 0 }
-    mocks.getMyFaviconJob.mockImplementation(async (jobId: string) =>
-      jobId === '123e4567-e89b-42d3-a456-426614174100' ? partial : succeeded)
-    mocks.retryMyFaviconJob.mockResolvedValue({ jobId: '123e4567-e89b-42d3-a456-426614174101' })
-
-    mountTree(<FaviconSection />)
-    await act(async () => { await Promise.resolve() })
-    const fill = document.querySelector<HTMLInputElement>('[data-testid="favicon-fill-missing"]')!
-    await act(async () => { fill.click() })
-    // The job progress appears and reads the durable job.
-    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
-    expect(mocks.getMyFaviconJob).toHaveBeenCalledWith(
-      '123e4567-e89b-42d3-a456-426614174100', expect.objectContaining({ maxRetries: 0 }))
-    const retry = document.querySelector<HTMLButtonElement>('[data-testid="favicon-job-retry"]')!
-    expect(retry).not.toBeNull()
-    expect(retry.textContent).toContain('Retry 1 failed')
-
-    await act(async () => { retry.click() })
-    await act(async () => { await Promise.resolve() })
-    expect(mocks.retryMyFaviconJob).toHaveBeenCalledWith(
-      '123e4567-e89b-42d3-a456-426614174100',
-      expect.objectContaining({ intentId: `retry-favicon-job:123e4567-e89b-42d3-a456-426614174100:command-fav` }),
-    )
-    // The retry job id is tracked now.
-    expect(mocks.getMyFaviconJob).toHaveBeenLastCalledWith(
-      '123e4567-e89b-42d3-a456-426614174101', expect.objectContaining({ maxRetries: 0 }))
-    vi.useRealTimers()
+  it('reports new jobs to the Settings-wide progress strip', async () => {
+    mocks.getMyFaviconPolicy.mockResolvedValue(policy())
+    mocks.updateMyFaviconPolicy.mockResolvedValue({ policy: policy(), jobId: 'job-started' })
+    const onJobStarted = vi.fn()
+    mountTree(<FaviconSection onJobStarted={onJobStarted} />)
+    await flushAsync()
+    await act(async () => { document.querySelector<HTMLInputElement>('[data-testid="favicon-fill-missing"]')!.click() })
+    await flushAsync()
+    expect(onJobStarted).toHaveBeenCalledWith('job-started')
   })
 
   it('stale ETag (412) refreshes the policy instead of failing the section', async () => {

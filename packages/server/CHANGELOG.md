@@ -6,6 +6,11 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Changed
 
+- Online favicon jobs reuse validated results by complete provider URL in PostgreSQL, coalesce concurrent requests and fence fetches across workers. Cached items bypass provider admission; uncached work admits one candidate per provider, rotates waiting items and sleeps until the provider/item retry deadline instead of repeatedly scanning blocked bookmarks. User jobs take priority over curated-site warming, including while waiting for a retry; cold curated sites fill on demand. The default provider spacing is now 1 second, with explicit configuration preserved and durable `429` / `Retry-After` cooldowns. Apply migration `202610311400_favicon_provider_cache` before deploying.
+- Fixed standard ICO files containing headerless DIB images being rejected as `invalid_image`; palette, pixel/mask bounds, dimensions and bitfields remain validated.
+
+- Settings shows a favicon task strip across all sections, with live processed/failed/skipped counts, a thin progress bar and failed-item retries. Closing and reopening Settings discovers active account jobs through `GET /api/v1/me/favicon-jobs`, including individual refreshes started elsewhere; in-flight batch reads use committed item counters instead of waiting for the next worker-cycle aggregate.
+
 - Gallery preview images now use a 7–15 day cache (public for public/unlisted images, browser-only for private images), with stable jitter per image ID to spread expiration, and content ETags with `If-None-Match` / `304` revalidation. Revalidation still checks current access and image validity; already cached images may remain usable for up to 15 days after access is revoked. PostgreSQL storage is unchanged. The default and minimum `LINK_PREVIEW_RETENTION_SECONDS` are now 1296000 (15 days), covering the longest image cache lifetime.
 
 ## [0.1.0-rc.6] - 2026-10-16

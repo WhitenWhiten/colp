@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { beforeAll, beforeEach, afterAll, expect, test, vi } from 'vitest';
 import { createIsolatedPostgresRuntime, describeWithPostgres, type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
 import { up } from '../../../migrations/202610202400_shared_favicons.js';
+import { up as providerCacheMigration } from '../../../migrations/202610311400_favicon_provider_cache.js';
+import { FaviconProviderCache } from '../../../src/infrastructure/collections/favicon-provider-cache.js';
 import { SharedFaviconCache } from '../../../src/infrastructure/collections/favicon-shared-cache.js';
 import { createScheduledFaviconFetcher } from '../../../src/infrastructure/collections/favicon-provider-scheduler.js';
 import { FaviconFetchDeferred, FaviconProviderThrottled } from '../../../src/modules/collections/application/favicon-fetch-deferred.js';
@@ -24,9 +26,11 @@ describeWithPostgres('shared favicon cache and provider admission', () => {
   beforeAll(async () => {
     isolated = await createIsolatedPostgresRuntime('shared_favicon');
     await up(isolated.runtime.db);
+    await providerCacheMigration(isolated.runtime.db);
+    await isolated.runtime.pool.query('CREATE TABLE favicon_jobs(status text NOT NULL)');
   });
   beforeEach(async () => {
-    await isolated.runtime.pool.query('TRUNCATE favicon_shared_objects, favicon_shared_domains, favicon_provider_admission');
+    await isolated.runtime.pool.query('TRUNCATE favicon_shared_objects, favicon_shared_domains, favicon_provider_admission, favicon_provider_cache, favicon_jobs');
     objects.clear(); vi.clearAllMocks();
   });
   afterAll(async () => isolated?.close());
@@ -96,13 +100,51 @@ describeWithPostgres('shared favicon cache and provider admission', () => {
     expect(store.put.mock.calls.length).toBe(count);
   });
 
-  test('cold known hosts defer instead of hitting an account provider, unknown hosts use it', async () => {
+  test('cold known hosts use the shared provider immediately, unknown hosts use the account provider', async () => {
     const fetcher = vi.fn(async () => image);
     const shared = cache(fetcher);
-    await expect(shared.fetch({ ...input, targetHostname: 'youtube.com' })).rejects.toBeInstanceOf(FaviconFetchDeferred);
-    expect(fetcher).not.toHaveBeenCalled();
+    await expect(shared.fetch({ ...input, targetHostname: 'youtube.com', url: 'https://user-provider.example/youtube.com' })).resolves.toEqual(image);
+    expect(fetcher).toHaveBeenLastCalledWith(expect.objectContaining({ url: 'https://favicone.com/youtube.com' }));
     await shared.fetch({ ...input, targetHostname: 'unknown.example' });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  test('shared publication inherits the fetch cache expiry instead of extending stale bytes for another month', async () => {
+    const cached = new FaviconProviderCache(isolated.runtime.pool, async () => image, 2_592_000_000);
+    await cached.fetch(input);
+    await isolated.runtime.pool.query("UPDATE favicon_provider_cache SET expires_at=now()+interval '1 hour'");
+    const shared = new SharedFaviconCache(isolated.runtime.pool, store, cached.fetch, {
+      providerTemplate: 'https://favicone.com/{hostname}', refreshIntervalMs: 2_592_000_000,
+      retentionSeconds: 31_536_000, fetch: input, fetchCacheExpiry: cached.expiresAt,
+    });
+    await shared.runOnce(); await makeDue('google.com'); await shared.runOnce();
+    const row = (await isolated.runtime.pool.query("SELECT next_refresh_at FROM favicon_shared_domains WHERE hostname='google.com'")).rows[0];
+    expect(row.next_refresh_at.getTime() - Date.now()).toBeLessThanOrEqual(3_600_000);
+    expect(row.next_refresh_at.getTime() - Date.now()).toBeGreaterThan(3_500_000);
+  });
+
+  test('pending user work reserves the provider even while its job is sleeping', async () => {
+    const fetcher = vi.fn(async () => image);
+    const shared = cache(fetcher);
+    await isolated.runtime.pool.query("INSERT INTO favicon_jobs(status) VALUES ('pending')");
+    expect(await shared.runOnce()).toBe(false);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await isolated.runtime.pool.query('SELECT count(*)::int n FROM favicon_shared_domains')).rows[0].n).toBe(0);
+    await isolated.runtime.pool.query('DELETE FROM favicon_jobs');
+    expect(await shared.runOnce()).toBe(true);
     expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  test('warming sleeps during durable provider cooldown without claiming every cold domain', async () => {
+    const fetcher = vi.fn(async () => image);
+    const shared = cache(fetcher);
+    await isolated.runtime.pool.query(`INSERT INTO favicon_provider_admission(provider,next_request_at)
+      VALUES ('https://favicone.com',now()+interval '2 minutes')`);
+    expect(await shared.runOnce()).toBe(false);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await isolated.runtime.pool.query('SELECT count(*)::int n FROM favicon_shared_domains')).rows[0].n).toBe(0);
+    await openGate();
+    expect(await shared.runOnce()).toBe(true);
   });
 
   test('refresh failure keeps old bytes, delays retry and survives restart', async () => {
@@ -169,12 +211,13 @@ describeWithPostgres('shared favicon cache and provider admission', () => {
     expect((await isolated.runtime.pool.query('SELECT count(*)::int n FROM favicon_shared_objects')).rows[0].n).toBe(1);
   });
 
-  test('missing R2 bytes schedule repair without contacting an account provider', async () => {
+  test('missing object bytes use the shared provider and clear the broken overlay until repair', async () => {
     const fetcher = vi.fn(async () => image);
     const shared = cache(fetcher); await shared.runOnce(); await makeDue('google.com'); await shared.runOnce();
     objects.clear(); fetcher.mockClear();
-    await expect(shared.fetch({ ...input, targetHostname: 'google.com' })).rejects.toBeInstanceOf(FaviconFetchDeferred);
-    expect(fetcher).not.toHaveBeenCalled();
+    await expect(shared.fetch({ ...input, url: 'https://user-provider.example/google.com', targetHostname: 'google.com' })).resolves.toEqual(image);
+    expect(fetcher).toHaveBeenLastCalledWith(expect.objectContaining({ url: 'https://favicone.com/google.com' }));
+    expect((await isolated.runtime.pool.query("SELECT object_id FROM favicon_shared_domains WHERE hostname='google.com'")).rows[0].object_id).toBeNull();
     const row = (await isolated.runtime.pool.query("SELECT next_refresh_at FROM favicon_shared_domains WHERE hostname='google.com'")).rows[0];
     expect(row.next_refresh_at.getTime()).toBeLessThanOrEqual(Date.now());
     await shared.runOnce();
