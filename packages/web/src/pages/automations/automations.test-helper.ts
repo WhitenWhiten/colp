@@ -160,6 +160,7 @@ export function fakeApi(): Mocked<AutomationApi> {
     listRunOutputs: vi.fn(async () => ({ items: [], nextCursor: null })),
     markRunRead: vi.fn(),
     listConnectionProfiles: vi.fn(async () => ({ items: [], nextCursor: null })),
+    createConnectionProfile: vi.fn(),
     replaceConnectionProfile: vi.fn(),
     listTargets: vi.fn(async () => ({ items: [], nextCursor: null })),
     createTarget: vi.fn(),

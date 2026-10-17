@@ -100,6 +100,8 @@ export interface AutomationApi {
   decideJob(id: string, input: AutomationDecisionInput, revision: string): Promise<AutomationSubmissionResult>
   exportAutomations(signal?: AbortSignal): Promise<AutomationExport>
   listConnectionProfiles(cursor?: string | null, signal?: AbortSignal): Promise<AutomationPage<AutomationConnectionProfile>>
+  /** The worker's first pairing confirms which of this agent's credentials the connection trusts (server rule). */
+  createConnectionProfile(input: AutomationConnectionProfileInput): Promise<AutomationConnectionProfile>
   /** Changing the client, credential, opt-in or worker catalog unpairs its targets (server rule). */
   replaceConnectionProfile(id: string, input: AutomationConnectionProfileInput, revision: string): Promise<AutomationConnectionProfile>
   listTargets(cursor?: string | null, signal?: AbortSignal): Promise<AutomationPage<AutomationTarget>>
@@ -197,7 +199,7 @@ function writeResponseShape(method: string, path: string): ResponseShape | null 
   if (/\/runs\/[^/]+(?:\/undo|\/cancel)$/u.test(path)) return RUN
   if (/\/jobs\/[^/]+\/decision$/u.test(path)) return { jobId: 'string', resultId: 'string', proposalDigest: 'string', status: 'string', effectReceiptIds: 'array', diagnostics: 'array' }
   if (/\/jobs\/[^/]+\/retry$/u.test(path)) return JOB
-  if (/\/connection-profiles\/[^/]+$/u.test(path)) return { id: 'string', revision: 'string', configuration: 'object', eventsSupport: 'string' }
+  if (/\/connection-profiles(?:\/[^/]+)?$/u.test(path)) return { id: 'string', revision: 'string', configuration: 'object', eventsSupport: 'string' }
   if (/\/targets\/[^/]+\/pairings$/u.test(path)) return { pairingId: 'string', targetId: 'string', expiresAt: 'string' }
   if (/\/targets(?:\/[^/]+(?:\/revoke)?)?$/u.test(path)) return { id: 'string', revision: 'string', configuration: 'object', status: 'string' }
   throw new Error(`Missing Automation response contract for ${method} ${path}`)
@@ -411,6 +413,7 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       await read(`${BASE}/connection-profiles${query({ cursor })}`, signal),
       'connection',
     ),
+    createConnectionProfile: async (input) => write('POST', `${BASE}/connection-profiles`, { body: input, intent: 'create' }),
     replaceConnectionProfile: async (id, input, revision) => write('PUT', `${BASE}/connection-profiles/${opaqueId(id, 'connection')}`, {
       body: input,
       revision,

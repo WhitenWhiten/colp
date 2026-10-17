@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentsApi } from '../../api/agentsClient'
+import type { AgentSummary, AgentsApi } from '../../api/agentsClient'
 import type { AutomationConnectionProfile, AutomationTarget } from '../../api/automationTypes'
 import { ProductApiError } from '../../api/errors'
 import { resetAutomationStatus } from '../../lib/automationStatus'
@@ -40,9 +40,9 @@ const agent = {
   createdAt: '2026-10-01T12:00:00.000Z', lastSeenAt: null, policy: 'manual' as const,
 }
 
-function agentsApi(): AgentsApi {
+function agentsApi(agents: AgentSummary[] = [agent]): AgentsApi {
   return {
-    listAgents: vi.fn(async () => ({ agents: [agent] })),
+    listAgents: vi.fn(async () => ({ agents })),
     listAgentAudit: vi.fn(),
     getAgentPolicy: vi.fn(),
     putAgentPolicy: vi.fn(),
@@ -71,8 +71,8 @@ function automation(targets: AutomationTarget[], profiles = [profile()], eventsE
   return api
 }
 
-function mount(api: ReturnType<typeof automation>, origin = 'http://127.0.0.1:3000') {
-  mountTree(<Agents api={agentsApi()} automationApi={api} origin={origin} />, { initialEntries: ['/agents'] })
+function mount(api: ReturnType<typeof automation>, origin = 'http://127.0.0.1:3000', agents: AgentSummary[] = [agent]) {
+  mountTree(<Agents api={agentsApi(agents)} automationApi={api} origin={origin} />, { initialEntries: ['/agents'] })
 }
 
 const card = (id: string) => document.querySelector(`[data-target-id="${id}"]`)
@@ -257,6 +257,7 @@ describe('Automation workers on Agents', () => {
     expect(api.replaceConnectionProfile).not.toHaveBeenCalled()
     expect(card('created')?.textContent).toContain('export COLP_PAIRING_CODE=fresh-code')
     expect(text(card('created'), 'worker-reason')).toBe('Waiting for the worker to use the code below.')
+    expect(card('created')?.textContent).toContain('an access token of Research worker key with the automation:work permission')
     expect(toast.success).toHaveBeenCalledWith('Added “Rule worker”. Copy its pairing settings now.')
     expect(document.querySelector('form.agents-worker-form')).toBeNull()
   })
@@ -311,6 +312,34 @@ describe('Automation workers on Agents', () => {
     expect(api.replaceConnectionProfile.mock.invocationCallOrder[0]).toBeLessThan(api.createTarget.mock.invocationCallOrder[0] ?? 0)
   })
 
+  it('connects an agent that has no automation connection yet; its first pairing confirms the credential', async () => {
+    const api = automation([], [])
+    serverTargets(api, scenario('unpaired', 'created'))
+    const created = profile()
+    api.createConnectionProfile.mockImplementation(async () => {
+      api.listConnectionProfiles.mockResolvedValue({ items: [created], nextCursor: null })
+      return created
+    })
+    api.issuePairing.mockResolvedValue({ pairingId: 'pair-1', targetId: 'created', code: 'fresh-code', expiresAt: new Date(Date.now() + 300_000).toISOString() })
+    const claude = { ...agent, id: 'client-claude', name: 'Claude Code', kind: 'oauth_client' as const, scopes: ['mcp:read:own'] }
+    mount(api, undefined, [claude, agent])
+    await waitForDom(() => document.body.textContent?.includes('No workers yet') === true && document.body.textContent?.includes('Claude Code') === true)
+    act(() => button('Add worker').click())
+    // A key comes first: a worker script runs on one.
+    const select = document.getElementById('worker-profile') as HTMLSelectElement
+    expect([...select.options].map((option) => option.textContent)).toEqual(['Research worker key', 'Claude Code'])
+    expect(text(document.body, 'worker-agent-note')).toBe('Adding it also lets Research worker key do rule work.')
+
+    act(() => button('Add and pair').click())
+    await waitForDom(() => Boolean(card('created')?.querySelector('[data-testid="worker-grant"]')))
+    expect(api.createConnectionProfile).toHaveBeenCalledWith({
+      name: 'Research worker key', automationEnabled: true, authorizedClientId: 'client-research',
+      credentialBindingId: expect.stringMatching(/^pending-[0-9a-f-]{36}$/u), catalogs: ['standard', 'automationWorker'],
+    })
+    expect(api.createTarget).toHaveBeenCalledWith(expect.objectContaining({ connectionProfileId: 'profile.fixture' }))
+    expect(api.replaceConnectionProfile).not.toHaveBeenCalled()
+  })
+
   it('keeps the added worker when pairing is refused, and says so', async () => {
     const api = automation([])
     serverTargets(api, scenario('unpaired', 'created'))
@@ -334,12 +363,12 @@ describe('Automation workers on Agents', () => {
     expect(document.querySelector('[data-testid="worker-origin-hint"]')?.textContent).toContain('isn’t a public HTTPS address')
   })
 
-  it('opens the worker steps from the worker form when no agent is set up for automations', async () => {
-    mount(automation([], []))
+  it('opens the worker steps from the worker form when no agent is connected', async () => {
+    mount(automation([], []), undefined, [])
     await waitForDom(() => document.body.textContent?.includes('No workers yet') === true)
     act(() => button('Add worker').click())
     const blocked = document.querySelector('[data-testid="worker-no-connection"]')
-    expect(blocked?.textContent).toContain('none of them is set up for automations yet')
+    expect(blocked?.textContent).toContain('none is connected yet')
     const workerTab = () => document.querySelector<HTMLButtonElement>('#agents-tab-worker')
     expect(workerTab()?.getAttribute('aria-selected')).toBe('false')
 
@@ -356,7 +385,7 @@ describe('Automation workers on Agents', () => {
     const panel = document.querySelector('[role="tabpanel"]')?.textContent ?? ''
     expect(panel).toContain('export COLP_ORIGIN=https://colp.example.net')
     expect(panel).toContain('choosing events doesn’t make it active')
-    expect(panel).toContain('this page can’t register one for you')
+    expect(panel).toContain('the worker’s first pairing confirms its credential')
   })
 })
 

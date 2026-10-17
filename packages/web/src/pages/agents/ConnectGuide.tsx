@@ -151,20 +151,17 @@ export function ConnectGuide({
           <ol className="agents-steps">
             <Step title="Give it its own key">
               <p className="agents-note">
-                Issue an API key for the worker alone (the API key tab) and exchange it for a token with the{' '}
-                <code>automation:work</code> permission. It needs no permission to change your library: its results come
-                back as proposals. A key no other worker or tool uses is required for restricted rules.
+                Issue an API key for the worker alone (the API key tab); it then shows under Connected agents. The worker trades
+                it for a token with the <code>automation:work</code> permission. It needs no permission to change your library:
+                its results come back as proposals. A key no other worker or tool uses is required for restricted rules.
               </p>
             </Step>
             <Step title="Add and pair it">
               <p className="agents-note">
-                Under Automation workers, press <strong>Add worker</strong>, then <strong>Add and pair</strong>. If its agent
-                can’t do rule work yet, that turns it on. The pairing settings are shown once and the code works for five
+                Under Automation workers, press <strong>Add worker</strong>, choose the key under <strong>Runs as</strong> if
+                you have several agents, then press <strong>Add and pair</strong>. That lets the key do rule work, and the
+                worker’s first pairing confirms its credential. The pairing settings are shown once and the code works for five
                 minutes; nothing is saved, so copy them straight into the worker’s environment.
-              </p>
-              <p className="agents-note">
-                The agent must already have an automation connection, registered with the server’s automation API; this page
-                can’t register one for you.
               </p>
             </Step>
             <Step title="Run it">

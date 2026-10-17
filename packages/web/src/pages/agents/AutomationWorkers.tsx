@@ -149,9 +149,10 @@ export function AgentAutomationOptIns({
   )
 }
 
-function PairingGrant({ issued, origin, onDone, onAgain, busy }: {
+function PairingGrant({ issued, origin, agentName, onDone, onAgain, busy }: {
   issued: IssuedGrant
   origin: string
+  agentName: string | null
   onDone: () => void
   onAgain: () => void
   busy: boolean
@@ -197,8 +198,8 @@ function PairingGrant({ issued, origin, onDone, onAgain, busy }: {
       </p>
       <CommandBlock label="Pairing settings for the worker" command={env} />
       <p className="agents-note">
-        Set these in the worker’s environment, next to its own access token (<code>COLP_ACCESS_TOKEN</code>), then start it.
-        Keep them out of shell history and logs.
+        Set these in the worker’s environment, next to {agentName ? <>an access token of <strong>{agentName}</strong></> : 'its own access token'} with
+        the <code>automation:work</code> permission (<code>COLP_ACCESS_TOKEN</code>), then start it. Keep them out of shell history and logs.
       </p>
       <button type="button" className="btn btn-secondary btn-sm" onClick={onDone}>Done, hide it</button>
     </div>
@@ -327,6 +328,7 @@ function WorkerCard({
         <PairingGrant
           issued={grant}
           origin={origin}
+          agentName={profileName}
           busy={busy}
           onDone={workers.clearGrant}
           onAgain={() => void pair(false)}
@@ -361,25 +363,48 @@ function WorkerCard({
   )
 }
 
+/** What a worker can run as: an agent's automation connection, or a connected agent with none yet. */
+type RunsAs = { key: string; name: string; agentId: string; profile: AutomationConnectionProfile | null }
+
+/**
+ * Connections that may already do rule work come first, since choosing one
+ * changes nothing else; then agents with no connection yet, keys before
+ * sign-ins because a worker script runs on a key; then connections turned off.
+ */
+function runsAsChoices(profiles: readonly AutomationConnectionProfile[], agents: readonly AgentSummary[]): RunsAs[] {
+  const connected = new Set(profiles.map((profile) => profile.configuration.authorizedClientId))
+  const ofProfile = (profile: AutomationConnectionProfile): RunsAs => ({
+    key: `profile:${profile.id}`, name: profile.configuration.name, agentId: profile.configuration.authorizedClientId, profile,
+  })
+  const fresh = agents.filter((agent) => !connected.has(agent.id))
+    .sort((a, b) => Number(b.kind === 'api_key') - Number(a.kind === 'api_key'))
+    .map((agent): RunsAs => ({ key: `agent:${agent.id}`, name: agent.name, agentId: agent.id, profile: null }))
+  return [...profiles.filter(canDoRuleWork).map(ofProfile), ...fresh, ...profiles.filter((profile) => !canDoRuleWork(profile)).map(ofProfile)]
+}
+
 /**
  * Adding a worker is one press: a name nobody has to type, the agent picked
  * for you when there is only one, and the defaults that suit the reference
  * worker (it checks for work every minute; standard rules). Adding also pairs
- * it, and turns on rule work for its agent when that is still off.
+ * it, and lets its agent do rule work when it can't yet. For an agent with no
+ * automation connection, the worker's first pairing confirms its credential.
  */
-function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
+function NewWorker({ workers, profiles, agents, originLocal, onCreated, onShowSteps }: {
   workers: AutomationWorkers
   profiles: readonly AutomationConnectionProfile[]
+  agents: readonly AgentSummary[]
   originLocal: boolean
   onCreated: () => void
   onShowSteps: () => void
 }) {
   const confirm = useConfirm()
   const { success, error: toastError } = useToast()
-  // Agents that may already do rule work come first: choosing one changes nothing else.
-  const candidates = [...profiles].sort((a, b) => Number(canDoRuleWork(b)) - Number(canDoRuleWork(a)))
+  const candidates = runsAsChoices(profiles, agents)
   const [name, setName] = useState(() => defaultWorkerName(workers.data.targets))
-  const [profileId, setProfileId] = useState(candidates[0]?.id ?? '')
+  // By agent too: once its connection exists, the same agent is still the choice.
+  const [choice, setChoice] = useState({ key: candidates[0]?.key ?? '', agentId: candidates[0]?.agentId ?? '' })
+  // Stands in for the credential until the first pairing confirms it; one per form, so a retry repeats the same request.
+  const [pendingBinding] = useState(() => `pending-${crypto.randomUUID()}`)
   const [provider, setProvider] = useState('')
   const [privacy, setPrivacy] = useState<AutomationTargetInput['privacy']>('standard')
   const [wakeMode, setWakeMode] = useState<NonNullable<AutomationTargetInput['wakeMode']>>('poll')
@@ -388,18 +413,20 @@ function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const profile = candidates.find((item) => item.id === profileId) ?? candidates[0]
-  if (!profile) {
+  const runsAs = candidates.find((item) => item.key === choice.key)
+    ?? candidates.find((item) => item.agentId === choice.agentId)
+    ?? candidates[0]
+  if (!runsAs) {
     return (
       <div className="agents-worker-blocked" data-testid="worker-no-connection">
-        <p className="agents-note">A worker runs as one of your agents, and none of them is set up for automations yet.</p>
+        <p className="agents-note">A worker runs as one of your agents, and none is connected yet. Issue it an API key first.</p>
         <button type="button" className="btn btn-secondary btn-sm" onClick={onShowSteps}>Show the worker steps</button>
       </div>
     )
   }
 
-  const agentName = profile.configuration.name
-  const turnsOn = !canDoRuleWork(profile)
+  const agentName = runsAs.name
+  const turnsOn = !runsAs.profile || !canDoRuleWork(runsAs.profile)
   const minutes = Number(pollMinutes)
   const minutesValid = Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440
   const chosen = [
@@ -407,7 +434,7 @@ function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
     privacy === 'restricted' ? 'restricted and standard rules' : 'standard rules',
   ].join(' · ')
 
-  // An arrow, not a hoisted function, so `profile` stays narrowed.
+  // An arrow, not a hoisted function, so `runsAs` stays narrowed.
   const submit = async () => {
     const workerName = name.trim()
     if (!workerName) {
@@ -420,12 +447,23 @@ function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
       setError('Check interval is a whole number of minutes, from 1 to 1440.')
       return
     }
-    const affected = turnsOn ? pairedWorkers(profile, workers.data.targets) : 0
+    const existing = runsAs.profile
+    const affected = existing && turnsOn ? pairedWorkers(existing, workers.data.targets) : 0
     if (affected > 0 && !await confirm(unpairQuestion(affected, agentName, 'Add and unpair'))) return
     setError(null)
     setBusy(true)
     try {
-      if (turnsOn) {
+      let profile = existing
+      if (!profile) {
+        // Standard stays in the catalogs, so the agent's other tools keep working once it pairs.
+        profile = await workers.createProfile({
+          name: agentName.slice(0, 200),
+          automationEnabled: true,
+          authorizedClientId: runsAs.agentId,
+          credentialBindingId: pendingBinding,
+          catalogs: ['standard', 'automationWorker'],
+        })
+      } else if (turnsOn) {
         await workers.saveProfile(profile, { ...withCatalog(profile.configuration, 'automationWorker', true), automationEnabled: true })
       }
       const { pairingError } = await workers.addWorker({
@@ -473,8 +511,15 @@ function NewWorker({ workers, profiles, originLocal, onCreated, onShowSteps }: {
         {candidates.length > 1 && (
           <div className="field">
             <label htmlFor="worker-profile">Runs as</label>
-            <select id="worker-profile" value={profile.id} onChange={(event) => setProfileId(event.target.value)}>
-              {candidates.map((item) => <option key={item.id} value={item.id}>{item.configuration.name}</option>)}
+            <select
+              id="worker-profile"
+              value={runsAs.key}
+              onChange={(event) => {
+                const next = candidates.find((item) => item.key === event.target.value)
+                if (next) setChoice({ key: next.key, agentId: next.agentId })
+              }}
+            >
+              {candidates.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
             </select>
           </div>
         )}
@@ -638,6 +683,7 @@ export function AutomationWorkersSection({
           <NewWorker
             workers={workers}
             profiles={data.profiles}
+            agents={agents}
             originLocal={local}
             onCreated={() => setAdding(false)}
             onShowSteps={onShowWorkerSteps}

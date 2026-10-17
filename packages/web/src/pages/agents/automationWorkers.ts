@@ -13,9 +13,11 @@ import type { StatusTone } from '../../components/StatusBadge'
 
 /* AU-21/AU-26: the agents that do rule work. A connection profile is the
    Owner's opt-in for one agent (its own catalogs: manage rules, do rule
-   work); a target is one worker paired to that connection. Readiness and
-   its reason are the server's; a selected wake mode is a choice, not proof
-   that anything is listening. The pairing code lives in memory only. */
+   work); a target is one worker paired to that connection. The Owner names
+   the agent; the worker's first pairing confirms which of its credentials
+   the connection trusts. Readiness and its reason are the server's; a
+   selected wake mode is a choice, not proof that anything is listening.
+   The pairing code lives in memory only. */
 
 export type WorkersData = {
   status: 'loading' | 'ready' | 'error'
@@ -83,6 +85,11 @@ export function useAutomationWorkers(enabled: boolean, api: AutomationApi = auto
     grant,
     clearGrant: () => setGrant(null),
     reload,
+    async createProfile(input: AutomationConnectionProfileInput) {
+      const created = await api.createConnectionProfile(input)
+      reload()
+      return created
+    },
     async saveProfile(profile: AutomationConnectionProfile, configuration: AutomationConnectionProfileInput) {
       await api.replaceConnectionProfile(profile.id, configuration, profile.revision)
       reload()

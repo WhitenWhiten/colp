@@ -158,6 +158,21 @@ describe('automation client', () => {
     expect(new Headers(profileInit.headers).get('If-Match')).toBe('"4"')
   })
 
+  it('registers an agent’s automation connection without a revision', async () => {
+    const fetchImpl = vi.fn(async () => json(201, { id: 'profile-2', revision: '1', configuration: {}, eventsSupport: 'unknown' }))
+    const input = {
+      name: 'Worker key', automationEnabled: true, authorizedClientId: 'client', credentialBindingId: 'pending-1', catalogs: ['standard', 'automationWorker'],
+    } as const
+    await expect(createAutomationApi(fetchImpl).createConnectionProfile({ ...input, catalogs: [...input.catalogs] })).resolves.toMatchObject({ id: 'profile-2' })
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/v1/me/automations/connection-profiles')
+    expect(init.method).toBe('POST')
+    const headers = new Headers(init.headers)
+    expect(headers.get('If-Match')).toBeNull()
+    expect(headers.get('Known-Command-Id')).toMatch(UUID_V4)
+    expect(JSON.parse(String(init.body))).toEqual(input)
+  })
+
   it('pages a run’s outputs and marks read through one output on the run revision', async () => {
     const fetchImpl = vi.fn(async (url: RequestInfo | URL) => json(200, String(url).includes('/outputs')
       ? { items: [], nextCursor: null } : { id: 'receipt-1', status: 'completed', resourceId: 'run-1', diagnostics: [] }))
