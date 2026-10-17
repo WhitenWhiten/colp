@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   isProductApiError,
   productClient,
@@ -194,7 +194,7 @@ export function CollectionDestinationPicker({
 
   useEffect(() => () => loaderRef.current?.abort(), [])
 
-  const openTarget = (id: string, title: string) => {
+  const openTarget = useCallback((id: string, title: string) => {
     loaderRef.current?.abort()
     const controller = new AbortController()
     loaderRef.current = controller
@@ -212,7 +212,16 @@ export function CollectionDestinationPicker({
           message: isProductApiError(err) ? err.recoveryHint : "Couldn't load this collection",
         })
       })
-  }
+  }, [])
+
+  /* Copying into the library alone (no shared collection takes copies)
+     skips a one-row Destinations list and opens its folders directly. */
+  const sole = mode === 'copy' && candidates.length === 1 ? candidates[0]!.collection : null
+  const soleId = sole?.id ?? null
+  const soleTitle = sole ? rootTitle(sole) : ''
+  useEffect(() => {
+    if (soleId) openTarget(soleId, soleTitle)
+  }, [openTarget, soleId, soleTitle])
 
   const title = mode === 'move' ? 'Move to…' : 'Copy to…'
   const excludeIds = mode === 'move' && current && movingIds && movingIds.length > 0
@@ -250,7 +259,7 @@ export function CollectionDestinationPicker({
           </>
         ) : target ? (
           <>
-            <button
+            {!sole && <button
               type="button"
               className="library-dest-item library-dest-back"
               data-testid="destination-option"
@@ -263,7 +272,7 @@ export function CollectionDestinationPicker({
             >
               <Icon name="chevron-right" />
               Destinations
-            </button>
+            </button>}
             <p className="library-dest-note">
               Copy {plural(count, 'bookmark')} into <strong>{target.title}</strong>. Copies the link,
               title and note. The icon, TL;DR and other annotations stay with the original.

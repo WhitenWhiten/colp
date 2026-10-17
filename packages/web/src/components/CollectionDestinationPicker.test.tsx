@@ -454,7 +454,7 @@ describe('CollectionDestinationPicker', () => {
     })
   })
 
-  it('shows a loading state while the target tree loads', async () => {
+  it('opens the library\'s folders at once when it is the only destination', async () => {
     let resolveSnapshot: (value: unknown) => void = () => {}
     mocks.loadEditorSnapshot.mockImplementation(
       () => new Promise((resolve) => { resolveSnapshot = resolve }),
@@ -470,8 +470,10 @@ describe('CollectionDestinationPicker', () => {
         />
       </MemoryRouter>,
     )
-    clickDestination('All bookmarks')
+    // The library is the only destination, so its folders open at once.
+    expect(mocks.loadEditorSnapshot).toHaveBeenCalledWith('col-a', expect.anything())
     expect(document.body.textContent).toContain('Loading folders…')
+    expect(destinationLabels()).not.toContain('Destinations')
     await act(async () => {
       resolveSnapshot({ collection: { library: false }, root: { id: 'root-col-a' }, nodes: [] })
       await Promise.resolve()
