@@ -131,7 +131,13 @@ export function LibraryHeader({
         eyebrow={heading === 'Library' ? undefined : 'Library'}
         breadcrumb={folderTrail}
         title={heading}
-        afterTitle={selectedFolder?.shared ? <StatusBadge tone="accent">Shared by link</StatusBadge> : visibilityBadge ? (
+        afterTitle={selectedFolder?.shared ? onShareFolder ? (
+          // The state doubles as the way back to the link: it opens the Share dialog.
+          <button type="button" className="chip chip--rail" aria-haspopup="dialog" title="Manage the share link"
+            onClick={() => onShareFolder(selectedFolder)}>
+            <Icon name="link" />Shared by link
+          </button>
+        ) : <StatusBadge>Shared by link</StatusBadge> : visibilityBadge ? (
           <StatusBadge tone={visibilityBadge.tone} data-testid="library-visibility">{visibilityBadge.label}</StatusBadge>
         ) : undefined}
         documentTitle={heading}

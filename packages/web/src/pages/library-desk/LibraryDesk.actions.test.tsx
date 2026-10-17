@@ -41,6 +41,7 @@ vi.mock('../../api', async (importOriginal) => {
       moveCollectionNode: mocks.moveCollectionNode,
       deleteCollectionNode: mocks.deleteCollectionNode,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
+      getFolderShare: mocks.getFolderShare,
       updateMyLibraryOrder: mocks.updateMyLibraryOrder,
       newCommandId: () => '11111111-1111-4111-8111-111111111111',
       mutationIntentKey: (scope: string, commandId: string) => `${scope}:${commandId}`,
@@ -204,6 +205,21 @@ describe('LibraryDesk menus and selection', () => {
     expect(labels).toContain('Version history')
     expect(labels).not.toContain('Edit collection')
     expect(labels).not.toContain('Library settings')
+  })
+
+  it('opens the Share dialog from a shared folder\'s state in the header', async () => {
+    const base = snapshot('col-1')
+    mocks.loadEditorSnapshot.mockResolvedValue({ ...base, collection: { ...base.collection, library: true },
+      nodes: base.nodes.map((node) => node.id === 'col-1-folder' ? { ...node, shared: true } : node) })
+    mocks.getFolderShare.mockResolvedValue({ share: null, unavailableReason: null })
+    mount('/library/col-1?folder=col-1-folder')
+    await waitForDom(() => document.querySelector('button[aria-haspopup="dialog"][title="Manage the share link"]') !== null)
+    const state = document.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"][title="Manage the share link"]')!
+    expect(state.textContent).toBe('Shared by link')
+    act(() => state.click())
+    await waitForDom(() => document.querySelector('[role="dialog"]') !== null)
+    expect(document.body.textContent).toContain('Share Later')
+    expect(mocks.getFolderShare).toHaveBeenCalledWith('col-1', 'col-1-folder', expect.anything())
   })
 
   it('returns focus to the More trigger after Edit collection closes its sheet', async () => {

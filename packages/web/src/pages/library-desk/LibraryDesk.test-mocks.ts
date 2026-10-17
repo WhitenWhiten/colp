@@ -29,6 +29,7 @@ export const mocks = {
   getAnnotation: vi.fn(),
   abandonAnnotationIntent: vi.fn(),
   getMyLibraryOrder: vi.fn(),
+  getFolderShare: vi.fn(),
   updateMyLibraryOrder: vi.fn(),
   collections: {
     items: [] as OwnedCollectionListItem[],
