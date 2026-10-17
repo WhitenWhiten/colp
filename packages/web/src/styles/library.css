@@ -595,6 +595,13 @@ body[data-library-split] {
   .library-desk-head .page-head-actions {
     grid-column: 2;
   }
+
+  /* A library folder without a description has no lede: the actions sit
+     beside its title (or the badge under it) instead of on a row of their
+     own. Add bookmark and More are narrow enough to leave the title room. */
+  .library-desk-head--bare .page-head-copy > :last-child {
+    grid-column: 1;
+  }
 }
 
 /* Wherever the head actions wrap under the title (below 1100), the quiet

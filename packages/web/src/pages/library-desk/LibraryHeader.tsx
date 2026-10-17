@@ -125,7 +125,7 @@ export function LibraryHeader({
       />
 
       <PageHead
-        className="library-desk-head"
+        className={collection?.library && !lede ? 'library-desk-head library-desk-head--bare' : 'library-desk-head'}
         layout="split"
         variant="workbench"
         eyebrow={heading === 'Library' ? undefined : 'Library'}
