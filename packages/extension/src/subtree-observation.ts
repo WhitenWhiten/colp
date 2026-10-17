@@ -1,6 +1,8 @@
+import { materializeNativeMutation } from './bookmark-native-mutation.js';
+import { identityFromMapping } from './bookmark-node-identity.js';
 import { deletionNodeKind } from './bookmark-deletion-scope.js';
 import { subtreeDeleteSource } from '@know-n/colp/sync/canonical';
-import type { JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { BookmarkEventRecord, JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 /** Capture once, before dropping native mappings; never recompute at upload. */
 export function mappedSubtreeDeleteSource(rootId: string, mappings: readonly MappingInput[]) {
@@ -71,4 +73,17 @@ export async function remoteSubtreeMappings(store: ReturnType<typeof createSyncS
     return [...byId.values()];
   }
   return rows;
+}
+
+/** Include pending local predecessors in the exact subtree the user removed. */
+export function capturePendingSubtreeDeletion(rootId: string, mappings: readonly MappingInput[],
+  events: readonly BookmarkEventRecord[]) {
+  const projected = new Map(mappings.map(row => [row.nativeId, row]));
+  for (const event of events) {
+    const prior = projected.get(event.nativeId);
+    const details = event.details.nativeMutation === true && prior
+      ? materializeNativeMutation(event, identityFromMapping(prior)) : event.details;
+    if (details.mapping) projected.set(event.nativeId, details.mapping as unknown as MappingInput);
+  }
+  return captureSubtreeDeletion(rootId, [...projected.values()]);
 }

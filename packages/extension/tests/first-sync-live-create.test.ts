@@ -1,32 +1,10 @@
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
-import { IDBFactory } from 'fake-indexeddb';
 import { test } from 'vitest';
-import { createBootstrapCoordinator, type ConfirmInput } from '../src/bootstrap/coordinator.js';
+import { createBootstrapCoordinator } from '../src/bootstrap/coordinator.js';
 import { bootstrapOpId } from '../src/bootstrap/matcher.js';
-import { bookmark, fixture, scope } from './bookmark-event-queue-harness.js';
-
-async function setup() {
-  const context = await fixture(new IDBFactory());
-  const mount = (await context.store.getMappingByNativeId(scope, 'root-selected'))!;
-  const input: ConfirmInput = {
-    confirmationId: 'live-create', treeDigest: 'sha256:tree', confirmationVersion: '1',
-    localFacts: [], mounts: [{ nativeRootId: mount.nativeId, customSourceKey: 'selected', remoteMountNodeId: mount.colpId }],
-    rootNodeId: 'collection-root', remoteFacts: [
-      { nodeId: 'collection-root', parentId: null, kind: 'folder', title: '', folderRole: 'root', revision: 'r1' },
-      { nodeId: mount.colpId, parentId: 'collection-root', kind: 'folder', title: 'Selected root', revision: 'r1' },
-    ], pauseAfter: 'matching',
-  };
-  const coordinator = createBootstrapCoordinator({ store: context.store, scope });
-  await coordinator.confirm(input);
-  const node = bookmark('new-native', 'root-selected', 0, 'Added during sync', 'https://example.test/during-sync');
-  context.api.put(node);
-  const resumed: ConfirmInput = { ...input, pauseAfter: undefined, localFacts: [{
-    nativeId: node.id, parentNativeId: node.parentId, mountNativeRootId: 'root-selected',
-    kind: 'bookmark', title: node.title, url: node.url,
-  }] };
-  return { ...context, coordinator, resumed, node };
-}
+import { scope } from './bookmark-event-queue-harness.js';
+import { setupBootstrapRace as setup } from './bootstrap-event-race-harness.js';
 
 test.each(['event-first', 'bootstrap-first', 'concurrent'] as const)(
   'first-sync and a live create share one operation: %s', async order => {

@@ -1,3 +1,5 @@
+import { createBookmarkPlacement } from './bookmark-event-placement.js';
+import { hasRunningBootstrap } from './bootstrap/run-identity.js';
 import { folderSyncCoverage } from './bookmark-sync-range.js';
 import { placementDomainKeys } from './bookmark-event-placement-domain.js';
 import { createBookmarkContentCapture } from './bookmark-content-capture.js';
@@ -20,7 +22,7 @@ import { reconcileBookmarkTree } from './bookmark-event-reconcile.js';
 import { captureMissingNativeRemovals } from './bookmark-removal-reconcile.js';
 import { journalSubtreeNativeIds, persistRemovalJournal } from './deletion-journal.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
-import { captureSubtreeDeletion } from './subtree-observation.js';
+import { capturePendingSubtreeDeletion } from './subtree-observation.js';
 import { resolveEventIdentityTokens } from './bookmark-event-resolve.js';
 import { createProjectionSuppression, projectionSuppresses, type ProjectionChangeFields } from './recovery-overlay.js';
 import { recordMoveOutOfBoundaryShift } from './scope-range-shift.js';
@@ -70,7 +72,11 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     listPendingEvents: async () => pendingSnapshot ?? await listPendingEvents() });
   const quarantine = createBookmarkEventQuarantine({ scope: options.scope, store: options.store, now });
   const identityFor = healer.identityFor;
+  const placement = createBookmarkPlacement({ store: options.store, scope: options.scope, listPendingEvents, identityFor, readChildren,
+    canAnchor: async (node, parent, unmapped) => (await privacyFor(node.id, true, undefined, parent,
+      isManagedBookmarkNode(node), unmapped)).allowOperationCandidate });
   const captureUnmapped = (kind: 'change' | 'move', nativeId: string, fields: JsonObject) => captureNativeMutation({ ...options, kind, nativeId, fields, uuid, now,
+    placement: (parent, native, index) => placement(parent, native, index, 'unmapped'),
     allowed: async (parentId, node) => (await privacyFor(parentId, true, undefined, undefined, isManagedBookmarkNode(node), true)).allowOperationCandidate });
   const { changed, described, tagged, pinned } = createBookmarkContentCapture({ ...options, identityFor, uuid, stage, correlationFor, reservedByProjection,
     captureUnmapped: (nativeId, fields) => captureUnmapped('change', nativeId, fields),
@@ -112,7 +118,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
       markAttention: options.markCreatePlacementAttention, store: options.store, scope: options.scope, nativeId, node: rawNode, parentNativeId });
     if (placementResolution.invalid) return { outcome: 'identity_unproven' };
     const relative = await captureStep('relative_placement_failed', () =>
-      placement(parentNativeId, nativeId, rawNode.index ?? 0, true));
+      placement(parentNativeId, nativeId, rawNode.index ?? 0, 'create-history'));
     const staged = await captureStep('bookmark_event_stage_failed', () => stage('create', nativeId,
       { operation: { type: 'create_node', baseRevision: null, dependencies: [], payload: { parentId, ...relative.wire, node } },
         context: { parentNativeId, index: rawNode.index ?? 0, ...(relative.afterNativeId ? { afterNativeId: relative.afterNativeId } : {}),
@@ -194,7 +200,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     const mappings = await options.store.listMappings(options.scope);
     const mapping = await options.store.getMappingByNativeId(options.scope, nativeId);
     const identity = await identityFor(nativeId) ?? await identityFromCreateReceipt(options.store, options.scope, nativeId);
-    if (!identity && (await options.store.getScope(options.scope))?.firstRun === 'running') {
+    if (!identity && await hasRunningBootstrap(options.store, options.scope)) {
       await persistRemovalJournal(options.store, options.scope, { nativeId, removal, mappings });
       return { outcome: 'filtered' };
     }
@@ -264,10 +270,8 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     deleteNativeIds: readonly string[]): Promise<CaptureResult> {
     const boundaries = await boundaryRootNativeIds();
     const type = deletionOperationType(kind);
-    const projected = new Map((await options.store.listMappings(options.scope)).map(row => [row.nativeId, row as MappingInput]));
-    for (const pending of await listPendingEvents()) if (pending.details.mapping) { const row = pending.details.mapping as unknown as MappingInput; projected.set(row.nativeId, row); }
-    const subtree = type === 'delete_subtree'
-      ? captureSubtreeDeletion(identity.colpId, [...projected.values()]) : undefined;
+    const subtree = type === 'delete_subtree' ? capturePendingSubtreeDeletion(identity.colpId,
+      await options.store.listMappings(options.scope), await listPendingEvents()) : undefined;
     const eventId = uuid(); return stage('remove', nativeId, { operation: { type,
       targetId: identity.colpId, baseRevision: identity.revision, dependencies: [],
       ...(subtree?.source ? { source: subtree.source } : {}),
@@ -322,7 +326,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
         .some((key) => heldDomains.has(key));
       let firstFailure: unknown;
       for (const event of events) {
-        if (event.details.nativeMutation === true && await options.store.discardSatisfiedNativeMutation(options.scope, event.eventId,
+        if (event.details.nativeMutation === true && await options.store.discardRemovedNativeMutation(options.scope, event.eventId,
           (await lookupBookmark(id => options.api.get(id), event.nativeId)).class === 'not_found')) continue;
         if (attempted.has(event.eventId)) continue;
         attempted.add(event.eventId);
@@ -485,61 +489,6 @@ export function createBookmarkEventQueue(options: QueueOptions) {
       current = typeof parent === 'string' ? parent : depth === 0 && fallbackParent ? fallbackParent : '';
     }
     return result;
-  }
-
-  async function placement(parentNativeId: string, nativeId: string, index: number,
-    preferCreateEventHistory = false): Promise<{
-    readonly wire: JsonObject; readonly afterNativeId?: string; readonly beforeNativeId?: string
-  }> {
-    const mappings = await options.store.listMappings(options.scope); const events = await listPendingEvents();
-    const pendingMappings = events.flatMap((event) => event.details.mapping === undefined ? []
-      : [event.details.mapping as unknown as MappingInput]);
-    if (![...mappings, ...pendingMappings].some((mapping) => mapping.nativeId !== nativeId
-      && mapping.parentNativeId === parentNativeId)) return { wire: {} };
-    if (preferCreateEventHistory) {
-      const historical = events.flatMap((event) => {
-        const context = event.details.context; const mapping = event.details.mapping as unknown as MappingInput | undefined;
-        if (!context || typeof context !== 'object' || Array.isArray(context) || !mapping
-          || mapping.nativeId === nativeId || mapping.parentNativeId !== parentNativeId
-          || typeof context.index !== 'number' || !Number.isSafeInteger(context.index)) return [];
-        return [{ nativeId: mapping.nativeId, index: context.index }];
-      });
-      const candidates: Array<{ nativeId: string; index: number }> = [];
-      for (const candidate of historical) {
-        const identity = await identityFor(candidate.nativeId, events);
-        if (identity && (identity.colpId.startsWith('pending-') || identity.revision.startsWith('local-'))) {
-          candidates.push(candidate);
-        }
-      }
-      const before = candidates.filter((candidate) => candidate.index < index)
-        .sort((left, right) => right.index - left.index)[0];
-      if (before) { const identity = await identityFor(before.nativeId, events); if (identity) {
-        return { wire: { afterId: identity.colpId }, afterNativeId: identity.nativeId }; } }
-      const after = candidates.filter((candidate) => candidate.index >= index)
-        .sort((left, right) => left.index - right.index)[0];
-      if (after) { const identity = await identityFor(after.nativeId, events); if (identity) {
-        return { wire: { beforeId: identity.colpId }, beforeNativeId: identity.nativeId }; } }
-    }
-    let siblings: readonly BookmarkEventNode[];
-    try { siblings = await captureStep('children_lookup_failed', () => readChildren(parentNativeId)); }
-    catch (error) { if (preferCreateEventHistory) return { wire: {} }; throw error; }
-    const actual = siblings.findIndex((node) => node.id === nativeId);
-    const pivot = actual >= 0 ? actual : Math.max(0, Math.min(index, siblings.length));
-    for (let cursor = pivot - 1; cursor >= 0; cursor -= 1) {
-      const node = siblings[cursor]!;
-      if (!(await privacyFor(node.id, true, undefined, parentNativeId, isManagedBookmarkNode(node))).allowOperationCandidate) continue;
-      const sibling = await captureStep('sibling_identity_failed', () => identityFor(node.id, events));
-      if (sibling) return { wire: { afterId: sibling.colpId },
-        afterNativeId: sibling.nativeId };
-    }
-    for (let cursor = pivot + (actual >= 0 ? 1 : 0); cursor < siblings.length; cursor += 1) {
-      const node = siblings[cursor]!;
-      if (!(await privacyFor(node.id, true, undefined, parentNativeId, isManagedBookmarkNode(node))).allowOperationCandidate) continue;
-      const sibling = await captureStep('sibling_identity_failed', () => identityFor(node.id, events));
-      if (sibling) return { wire: { beforeId: sibling.colpId },
-        beforeNativeId: sibling.nativeId };
-    }
-    return { wire: {} };
   }
 
   async function readChildren(parentNativeId: string): Promise<readonly BookmarkEventNode[]> {

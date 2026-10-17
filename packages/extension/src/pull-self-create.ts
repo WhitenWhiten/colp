@@ -31,3 +31,13 @@ export async function provisionalSelfCreateMapping(options: PullApplierOptions,
   return mappingFor(event.effect.node, nativeId, parent.nativeId, parent.colpId,
     event.effect.nodeChildrenRevision, parent.rootNativeId);
 }
+
+/** Recovery may inspect local edits only when this replica durably authored the create. */
+export async function hasQueuedSelfCreate(options: PullApplierOptions,
+  event: Extract<SyncPullEventV02, { kind: 'operation' }>): Promise<boolean> {
+  if (event.operation.replicaId !== options.scope.replicaId || event.effect.kind !== 'node_created') return false;
+  const queued = await options.store.getQueueByOpId(options.scope, event.operation.opId);
+  return !!queued && queued.status !== 'rejected' && queued.payload.type === 'create_node'
+    && queued.sequence === event.operation.sequence
+    && canonicalOperationDigest(queued.payload as unknown as Operation) === event.effect.operationDigest;
+}

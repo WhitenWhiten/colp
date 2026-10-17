@@ -32,7 +32,7 @@ import {
 import { applyRemoteNodeContentUpdate } from './pull-native-content-barrier.js';
 import { kns09Paused, recordKns09Stop } from './kns-09-release.js';
 import { pauseBindingForMapping } from './sync-state/remote-observation.js';
-import { provisionalSelfCreateMapping } from './pull-self-create.js';
+import { hasQueuedSelfCreate, provisionalSelfCreateMapping } from './pull-self-create.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -408,7 +408,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     }
     let advanced = !exact && await advancedSelfProjectionIsProven(options.store, options.scope,
       existing, native, parent.nativeId, event.operation.sequence);
-    if (!exact && !advanced && !isVirtualNativeId(existing.nativeId) && options.repairOwnCreate) {
+    if (!exact && !advanced && !isVirtualNativeId(existing.nativeId) && options.repairOwnCreate
+        && await hasQueuedSelfCreate(options, event)) {
       await options.repairOwnCreate(existing, parent);
       native = readOptional(await lookup(existing.nativeId));
       exact = native?.parentId === parent.nativeId && native.title === expectedNode.title && native.url === expectedNode.url;

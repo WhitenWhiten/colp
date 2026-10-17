@@ -1,17 +1,19 @@
 import { bookmarkRepresentability, digestJson, type BookmarkEventNode } from './bookmark-event-codec.js';
+import { hasRunningBootstrap } from './bootstrap/run-identity.js';
 import { projectionSuppresses } from './recovery-overlay.js';
 import { nativeIsLocallyExcluded } from './remote-delete-exclusion.js';
 import type { EventIdentity } from './bookmark-event-heal.js';
 import type { BookmarkEventApi } from './bookmark-event-queue.js';
 import type { BookmarkEventRecord, JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
-/** Preserve callbacks that arrive between the first scan and creation of their queue identity. */
+/** Preserve callbacks that arrive between a bootstrap scan and creation of their queue identity. */
 export async function captureNativeMutation(input: {
   store: ReturnType<typeof createSyncStateStore>; scope: SyncScope; api: BookmarkEventApi;
   nativeId: string; kind: 'change' | 'move'; fields: JsonObject; uuid(): string; now(): string;
   allowed(parentNativeId: string, node: BookmarkEventNode): Promise<boolean>;
+  placement(parentId: string, nativeId: string, index: number): Promise<{ afterNativeId?: string; beforeNativeId?: string }>;
 }) {
-  if ((await input.store.getScope(input.scope))?.firstRun !== 'running') return null;
+  if (!await hasRunningBootstrap(input.store, input.scope)) return null;
   const node = (await input.api.get(input.nativeId))[0];
   if (!node?.parentId || bookmarkRepresentability(node) !== 'supported' || !await input.allowed(node.parentId, node)) return null;
   const intents = await input.store.listProjectionIntents(input.scope);
@@ -23,10 +25,13 @@ export async function captureNativeMutation(input: {
     ancestors.push(parent); parent = (await input.api.get(parent))[0]?.parentId;
   }
   if (await nativeIsLocallyExcluded(input.store, input.scope, input.nativeId, ancestors)) return null;
+  const relative = input.kind === 'move' ? await input.placement(node.parentId, input.nativeId, node.index ?? 0) : {};
   const eventId = input.uuid();
   const details: JsonObject = { nativeMutation: true, ...input.fields, parentNativeId: node.parentId,
     ancestorNativeIds: ancestors, ...(input.kind === 'move' ? { context: {
-      sourceParentNativeId: input.fields.oldParentId!, targetParentNativeId: node.parentId, index: node.index ?? 0 } } : {}) };
+      sourceParentNativeId: input.fields.oldParentId!, targetParentNativeId: node.parentId, index: node.index ?? 0,
+      ...(relative.afterNativeId ? { afterNativeId: relative.afterNativeId } : {}),
+      ...(relative.beforeNativeId ? { beforeNativeId: relative.beforeNativeId } : {}) } } : {}) };
   const staged = await input.store.stageBookmarkEvent(input.scope, { eventId, kind: input.kind,
     nativeId: input.nativeId, occurredAt: input.now(), details,
     dedupeKey: digestJson({ kind: input.kind, nativeId: input.nativeId, details }) });

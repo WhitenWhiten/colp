@@ -239,7 +239,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
       readonly blocker: QueueOperation } } = {};
     // Atomic authority order: durable_sequences -> outbound_queue -> bookmark_events -> native_mappings.
     try { await runTransaction(db, [STORES.scopes, STORES.sequences, STORES.queue, STORES.bookmarkEvents,
-      STORES.mappings, STORES.engine, STORES.bootstrapRuns], 'readwrite', async (tx) => {
+      STORES.mappings, STORES.engine, STORES.bootstrapRuns, STORES.receipts, STORES.remoteObservations], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const events = tx.objectStore(STORES.bookmarkEvents);
       const event = await requestValue(events.get([key, eventId])) as BookmarkEventRecord | undefined;
       if (!event) throw new SyncStateError('bookmark_event_not_found');

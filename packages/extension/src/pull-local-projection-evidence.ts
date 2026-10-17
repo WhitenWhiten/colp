@@ -22,7 +22,7 @@ export async function advancedSelfProjectionIsProven(store: Store, scope: SyncSc
     const events = await store.listBookmarkEventsByStatus(scope, 'pending', afterOrdinal, 1_000);
     for (const event of events) {
       const details = event.details.nativeMutation === true ? materializeNativeMutation(event, {
-        ...mapping, revision: mapping.projection.revision, content: mapping.projection.content ?? null }) : event.details;
+        ...observedProjection, revision: observedProjection.projection.revision, content: observedProjection.projection.content ?? null }) : event.details;
       const draft = object(details.draft); const projected = object(details.mapping);
       if (event.nativeId !== mapping.nativeId || projected?.nativeId !== mapping.nativeId
           || !createSuccessorTarget(projected.colpId, mapping.colpId, createOpId)) continue;

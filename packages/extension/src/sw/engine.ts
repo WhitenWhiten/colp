@@ -1,7 +1,8 @@
+import { repairOwnCreateFromNative } from '../bookmark-own-create-repair.js';
 import { assertBootstrapUploadAllowed } from '../bootstrap/upload-boundary.js';
 import { withSubscriptionRead } from '../bookmark-subscriptions/barrier.js';
 import { assertSubscriptionUploadAllowed } from '../bookmark-subscriptions/personal-boundary.js';
-import { BookmarkApiError, bookmarkApiErrorFromUnknown, classifyBookmarkApiFailure, lookupBookmark } from '../bookmark-api-error.js';
+import { BookmarkApiError, bookmarkApiErrorFromUnknown, classifyBookmarkApiFailure } from '../bookmark-api-error.js';
 import { createSyncEffectAuthority } from '../sync-effect-authority.js';
 import { configuredPersonalSyncPolicy, personalSyncNativeApi } from '../personal-sync-fetch.js';
 import { refreshLocalClassificationProjection } from './classification-local-projection.js';
@@ -157,22 +158,8 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
         await new Promise<void>(resolve => setTimeout(resolve, 0));
         await bookmarkListenerLifecycle.settled();
       }, repairOwnCreate: async (mapping, parent) => {
-        // A killed worker can lose the callback while Chrome retains the user's edit.
-        if ((await syncState.getScope(scope))?.firstRun !== 'running') return;
         const queue = await currentBookmarkEventQueue(true); if (!queue) return;
-        const looked = await lookupBookmark(id => readPermittedBookmarkApi(() => chrome.bookmarks.get(id)), mapping.nativeId);
-        if (looked.class === 'not_found') {
-          const content = mapping.projection.content ?? {};
-          await queue.removed(mapping.nativeId, { parentId: mapping.parentNativeId ?? parent.nativeId, index: 0,
-            node: { id: mapping.nativeId, title: String(content.title ?? ''),
-              ...(typeof content.url === 'string' ? { url: content.url } : {}), type: mapping.nodeKind ?? 'bookmark' } });
-        } else if (looked.class === 'present') {
-          const native = looked.nodes[0]!;
-          if (native.parentId && native.parentId !== (mapping.parentNativeId ?? parent.nativeId)) await queue.moved(mapping.nativeId, {
-            parentId: native.parentId, index: native.index ?? 0, oldParentId: mapping.parentNativeId ?? parent.nativeId, oldIndex: 0 });
-          await queue.changed(mapping.nativeId, { ...(native.title === undefined ? {} : { title: native.title }),
-            ...(native.url === undefined ? {} : { url: native.url }) });
-        } else throw new Error(looked.message);
+        await repairOwnCreateFromNative(queue, id => readPermittedBookmarkApi(() => chrome.bookmarks.get(id)), mapping, parent);
       } }); };
   const engine = createDurableSyncEngine({ scope, store: syncState, endpoints, sessions, fetch: effects.fetch,
     origin: extensionOrigin(),

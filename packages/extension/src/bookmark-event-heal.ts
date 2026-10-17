@@ -3,6 +3,7 @@ import { resolveObservedBase } from './bookmark-observed-base.js';
 import { identityFromPendingCreate } from './bookmark-create-receipt-identity.js';
 import { resolveSubtreePredecessors } from './bookmark-subtree-predecessors.js';
 import { materializeNativeMutation } from './bookmark-native-mutation.js';
+import { projectPendingBookmarkEvent } from './bookmark-event-projection.js';
 import type { BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord, QueueOperation,
   SyncScope } from './sync-state-store.js';
 
@@ -137,17 +138,7 @@ export function createBookmarkEventHealer(input: {
     let identity = await seedIdentity(nativeId);
     for (const prior of await input.listPendingEvents()) {
       if (prior.ordinal >= beforeOrdinal || prior.status !== 'pending' || prior.nativeId !== nativeId) continue;
-      if (prior.details.mapping !== undefined) {
-        const mapping = prior.details.mapping as unknown as MappingInput;
-        identity = { nativeId, colpId: mapping.colpId, rootNativeId: mapping.rootNativeId,
-          revision: mapping.projection.revision, content: pendingContent(identity?.content, prior, mapping),
-          ...(mapping.projection.childrenRevision ? { childrenRevision: mapping.projection.childrenRevision } : {}),
-          ...(mapping.projection.childrenOrder ? { childrenOrder: mapping.projection.childrenOrder } : {}),
-          ...(mapping.nodeKind ? { nodeKind: mapping.nodeKind } : {}),
-          ...(mapping.parentNativeId ? { parentNativeId: mapping.parentNativeId } : {}) };
-      }
-      if (prior.details.deleteNativeIds !== undefined
-        && asStringArray(prior.details.deleteNativeIds, 'deleteNativeIds').includes(nativeId)) identity = null;
+      identity = projectPendingBookmarkEvent(identity, prior);
     }
     if (!identity) return { blocked: { nativeId } };
     if (identity.colpId.startsWith('pending-')) return { blocked: await pendingDependency(nativeId,
@@ -169,17 +160,7 @@ export function createBookmarkEventHealer(input: {
     for (const event of events) {
       if (event.status !== 'pending') continue;
       if (event.nativeId !== nativeId) continue;
-      if (event.details.mapping !== undefined) {
-        const mapping = event.details.mapping as unknown as MappingInput;
-        identity = { nativeId, colpId: mapping.colpId, rootNativeId: mapping.rootNativeId,
-          revision: mapping.projection.revision, content: pendingContent(identity?.content, event, mapping),
-          ...(mapping.projection.childrenRevision ? { childrenRevision: mapping.projection.childrenRevision } : {}),
-          ...(mapping.projection.childrenOrder ? { childrenOrder: mapping.projection.childrenOrder } : {}),
-          ...(mapping.nodeKind ? { nodeKind: mapping.nodeKind } : {}),
-          ...(mapping.parentNativeId ? { parentNativeId: mapping.parentNativeId } : {}) };
-      }
-      if (event.details.deleteNativeIds !== undefined
-        && asStringArray(event.details.deleteNativeIds, 'deleteNativeIds').includes(nativeId)) identity = null;
+      identity = projectPendingBookmarkEvent(identity, event);
     }
     return identity;
   }
@@ -281,14 +262,6 @@ export function createBookmarkEventHealer(input: {
 
   function identityDigest(identity: LocalIdentity) {
     return identity.content ? digestJson(identity.content) : 'sha256:projection-unknown';
-  }
-
-  function pendingContent(current: JsonObject | null | undefined, event: BookmarkEventRecord, mapping: MappingInput) {
-    if (event.kind === 'move') return current ?? mapping.projection.content ?? null;
-    if (event.kind !== 'change') return mapping.projection.content ?? null;
-    const draft = asObject(event.details.draft!, 'draft');
-    const payload = asObject(draft.payload!, 'payload');
-    return { ...(current ?? mapping.projection.content), ...asObject(payload.value!, 'value') };
   }
 
   return Object.freeze({ prepare, identityFor, dependencyStamp, blockerIsRejected });
