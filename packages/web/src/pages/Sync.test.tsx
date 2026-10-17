@@ -99,8 +99,9 @@ describe('Sync Center authoritative workflow', () => {
     // action: the Refresh click now observes a recovery-required replica.
     mocks.getSyncStatus.mockResolvedValueOnce(status({ replicas: [{ ...status().replicas[0]!, status: 'recovery_required' }] }))
     act(() => byButton('Refresh').click())
-    await waitForDom(() => (document.body.textContent ?? '').includes('Recovery required'))
-    expect(document.body.textContent).toContain('Recovery required')
+    await waitForDom(() => (document.body.textContent ?? '').includes('Catching up'))
+    expect(document.body.textContent).toContain('will reload your library from this server on its next sync')
+    expect(document.body.textContent).not.toContain('sync reset')
   })
 
   it('announces initial loading and exposes a retryable Product read error', async () => {

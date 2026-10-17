@@ -36,7 +36,7 @@ export const RESOLUTIONS: ReadonlyArray<{ value: Resolution; label: string; deta
 ]
 
 export const STATUS_LABELS: Record<SyncReplicaView['status'], string> = {
-  active: 'Active', expired: 'Inactive', recovery_required: 'Recovery required', retired: 'Stopped syncing',
+  active: 'Active', expired: 'Inactive', recovery_required: 'Catching up', retired: 'Stopped syncing',
 }
 
 export const REPLICA_KIND_LABELS: Record<SyncReplicaView['kind'], string> = {
@@ -54,7 +54,7 @@ export const CONFLICT_TYPE_LABELS: Record<SyncConflictSummary['type'], string> =
 export const REPLICA_STATE_TONE: Record<SyncReplicaView['status'], StatusTone> = {
   active: 'success',
   expired: 'warning',
-  recovery_required: 'warning',
+  recovery_required: 'neutral',
   retired: 'muted',
 }
 

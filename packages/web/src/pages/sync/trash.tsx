@@ -55,7 +55,7 @@ export function TrashSection({
   const allSelected = items.length > 0 && items.every((item) => selected.has(item.deletionId))
   const busy = batchDraft.phase === 'submitting' || emptyDraft.phase === 'submitting'
   const confirm = useConfirm()
-  const scopeCopy = collectionId ? `from “${collectionTitles[collectionId] || 'your library'}” in ${productName()} trash` : `from ${productName()} trash`
+  const scopeCopy = collectionId && collectionId in collectionTitles ? 'from your library’s trash' : `from ${productName()} trash`
   const emptyCopy = `Permanently delete ${items.length} item${items.length === 1 ? '' : 's'} ${scopeCopy}. This can't be undone. Items are kept at least 30 days and while a browser still needs the deletion; offline browsers can delay this.`
   // The first confirm is the shared danger modal; a stale count (trash changed
   // under the prompt) asks again inline next to its message.
@@ -87,7 +87,7 @@ export function TrashSection({
       {!error && items.length === 0 && receiptList.length === 0 && noticeList.length === 0
         && !batchView && !emptyView && (
         <EmptyState className="sync-empty empty-state--compact" icon="trash" title="No deleted items"
-          description={`Deleted bookmarks from collections you own wait here. Restoring puts them back in ${productName()}, and your browsers get them on their next sync.`} />
+          description={`Bookmarks deleted in a synced browser wait here. Restoring puts them back in your library, and your browsers get them on their next sync.`} />
       )}
       {(receiptList.length > 0 || noticeList.length > 0 || batchView || emptyView) && (
         <div className="trash-receipt-list">

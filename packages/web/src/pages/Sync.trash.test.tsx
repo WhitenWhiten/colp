@@ -302,7 +302,7 @@ describe('KNS-11 Sync Center trash', () => {
     act(() => byButton('Empty trash').click())
     await waitForDom(() => document.querySelector('[data-testid="modal-panel"]') !== null)
     expect(document.querySelector('[data-testid="modal-panel"]')?.textContent).toContain('Permanently delete 2 items')
-    expect(document.body.textContent).toContain('from “Bookmarks” in COLP Server trash')
+    expect(document.body.textContent).toContain('from your library’s trash')
     expect(document.body.textContent).toContain("can't be undone")
     expect(document.body.textContent).toContain('at least 30 days')
     expect(mocks.emptySyncTrash).not.toHaveBeenCalled()

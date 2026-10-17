@@ -46,7 +46,7 @@ export function SyncView({ data, mutations, trashBatch }: {
           title="Sync center"
           documentTitle="Sync"
           lede={isLive('collaborators')
-            ? 'Every browser that syncs with this server, the changes that need your decision, and what was deleted. The extension only syncs collections you own, not ones shared with you.'
+            ? 'Every browser that syncs with this server, the changes that need your decision, and what was deleted. The extension syncs your library, not collections shared with you.'
             : 'Every browser that syncs with this server, the changes that need your decision, and what was deleted.'}
           actions={
             <button type="button" className="btn btn-secondary btn-sm" disabled={loading || refreshing || retireBusy || restoreBusy}
@@ -106,7 +106,7 @@ export function SyncView({ data, mutations, trashBatch }: {
                 className="sync-empty"
                 icon="browser"
                 title="No browsers syncing yet"
-                description="Install the browser extension, point it at this server, and pick the folders to sync. Each browser then shows up here with its last sync."
+                description="Install the browser extension and connect it to this server. Its bookmarks then sync with your library, and the browser shows up here with its last sync."
                 action={<Link to="/extension" className="btn btn-primary btn-sm">Connect a browser</Link>}
               />
             )
@@ -123,8 +123,8 @@ export function SyncView({ data, mutations, trashBatch }: {
                     </div>
                     <dl className="replica-facts">
                       <div>
-                        <dt>Collection</dt>
-                        <dd>{data.trashCollectionTitles[replica.collectionId] ?? 'A collection you own'}</dd>
+                        <dt>Syncs</dt>
+                        <dd>{replica.collectionId in data.trashCollectionTitles ? 'Your library' : 'A collection you own'}</dd>
                       </div>
                       <div>
                         <dt>Last synced</dt>
@@ -144,7 +144,7 @@ export function SyncView({ data, mutations, trashBatch }: {
               </ul>}
           </section>
 
-          {recoveryCount > 0 && <aside className="sync-recovery" role="status"><strong>Recovery required</strong><span>{plural(recoveryCount, 'browser')} {recoveryCount === 1 ? 'needs' : 'need'} a sync reset before syncing can continue. Open the extension's settings on that browser.</span></aside>}
+          {recoveryCount > 0 && <aside className="sync-recovery" role="status"><strong>Catching up</strong><span>{plural(recoveryCount, 'browser')} will reload your library from this server on {recoveryCount === 1 ? 'its' : 'their'} next sync to take in changes made here. If one stays here, open the extension on that browser.</span></aside>}
 
           <section className="sync-section" aria-labelledby="conflict-heading">
             <div className="section-head section-head--split">

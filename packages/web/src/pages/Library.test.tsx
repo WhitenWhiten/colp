@@ -57,7 +57,7 @@ describe('Library', () => {
     expect(document.querySelector('a[href="/library/new"]')).toBeNull()
     expect(document.body.textContent).not.toContain('All bookmarks')
     expect(document.querySelector('[data-testid="library-nav"]')).not.toBeNull()
-    expect(document.body.textContent).not.toContain('The extension only syncs collections you own, not ones shared with you.')
+    expect(document.body.textContent).not.toContain('The extension syncs your library, not collections shared with you.')
   })
 
   it('asks signed-out visitors to log in instead of showing a mock library', async () => {
