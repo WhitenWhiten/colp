@@ -123,7 +123,7 @@ test('one library works across the real web, extension, local exclusions, saves 
       await visitor.screenshot({ path: '/tmp/colp-real-shared-folder.png', fullPage: true });
       await dialog.getByRole('button', { name: 'Stop sharing', exact: true }).click();
       await expect(dialog.getByRole('button', { name: 'Create link', exact: true })).toBeVisible();
-      await visitor.reload(); await expect(visitor.getByRole('heading', { name: 'Collection unavailable', exact: true })).toBeVisible();
+      await visitor.reload(); await expect(visitor.getByRole('heading', { name: 'Link unavailable', exact: true })).toBeVisible();
     } finally { await guest.close(); guest = undefined; await visitorBrowser.close(); }
     console.info('library-flow: anonymous share and revocation verified');
     // Including the trashed folder again uploads fresh identities, preserving the native tree.

@@ -85,7 +85,7 @@ test('shares a folder, shows only its subtree to a fresh visitor, and stops the 
     await dialog.getByRole('button', { name: 'Stop sharing', exact: true }).click()
     await expect(dialog.getByRole('button', { name: 'Create link', exact: true })).toBeVisible()
     await expect(page.getByTestId('library-nav').getByRole('img', { name: 'Shared by link' })).toHaveCount(0)
-    await guest.reload(); await expect(guest.getByRole('heading', { name: 'Collection unavailable', exact: true })).toBeVisible()
+    await guest.reload(); await expect(guest.getByRole('heading', { name: 'Link unavailable', exact: true })).toBeVisible()
     await expect(guest.getByText('Inside reading', { exact: true })).toHaveCount(0)
   } finally { await visitor.close() }
   expect(unexpected).toEqual([])

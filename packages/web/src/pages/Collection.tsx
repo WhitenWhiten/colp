@@ -90,7 +90,7 @@ export function Collection() {
     load.status === 'ready'
       ? load.snapshot.collection.title
       : load.status === 'unavailable'
-        ? 'Collection unavailable'
+        ? 'Link unavailable'
         : load.status === 'error'
           ? 'Collection error'
           : 'Collection'
@@ -208,9 +208,9 @@ export function Collection() {
   if (load.status === 'unavailable') {
     return (
       <AbsenceStage
-        title="Collection unavailable"
-        description="This collection was not found, has been withdrawn, or is not available to this account."
-        corners={ABSENCE_CORNERS.collection}
+        title="Link unavailable"
+        description="This shared folder or collection was not found, is no longer shared, or is not available to this account."
+        corners={ABSENCE_CORNERS.link}
         exits={[{ to: '/', label: 'Back home' }]}
       />
     )
