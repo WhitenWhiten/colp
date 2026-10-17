@@ -229,6 +229,8 @@ export function LibraryMoreMenu({
   onEditCollection,
   library = false,
   onShareFolder,
+  onEditFolder,
+  onDeleteFolder,
 }: {
   className?: string
   caps: EditorSnapshot['capabilities'] | undefined
@@ -240,6 +242,10 @@ export function LibraryMoreMenu({
   onEditCollection?: () => void
   library?: boolean
   onShareFolder?: () => void
+  /** The folder the desk stands in: its own name, description and tags. */
+  onEditFolder?: () => void
+  /** The folder the desk stands in, with everything inside it. */
+  onDeleteFolder?: () => void
 }) {
   const { success, error } = useToast()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -271,6 +277,12 @@ export function LibraryMoreMenu({
     onCompose(kind)
   }
 
+  const runItem = (action: () => void) => {
+    menu.close()
+    triggerRef.current?.focus()
+    action()
+  }
+
   const copyPublicLink = async (slug: string) => {
     try {
       await copyTextToClipboard(`${window.location.origin}/c/${encodeURIComponent(slug)}`)
@@ -295,9 +307,12 @@ export function LibraryMoreMenu({
               New folder
             </button>
           )}
-          {onShareFolder && <button type="button" role="menuitem" tabIndex={-1} onClick={() => {
-            menu.close(); triggerRef.current?.focus(); onShareFolder()
-          }}>Share…</button>}
+          {onEditFolder && (
+            <button type="button" role="menuitem" tabIndex={-1} onClick={() => runItem(onEditFolder)}>
+              Edit folder
+            </button>
+          )}
+          {onShareFolder && <button type="button" role="menuitem" tabIndex={-1} onClick={() => runItem(onShareFolder)}>Share…</button>}
           {/* The library has nothing to set: its title never shows and it is never published. */}
           {caps?.updateCollection && onEditCollection && !library && (
             <button
@@ -368,6 +383,11 @@ export function LibraryMoreMenu({
             >
               Check links
             </Link>
+          )}
+          {onDeleteFolder && (
+            <button type="button" role="menuitem" tabIndex={-1} onClick={() => runItem(onDeleteFolder)}>
+              Delete folder
+            </button>
           )}
         </div>,
         document.body,

@@ -483,8 +483,9 @@ export function useLibraryDeskMutations(options: {
     }
   }
 
-  const runDelete = async (nodes: EditableNodeView[], confirmedContentEtag = snap?.collection.contentEtag) => {
-    if (!snap || !snap.capabilities.deleteNode || nodes.length === 0) return
+  /** Resolves true once every node is deleted. */
+  const runDelete = async (nodes: EditableNodeView[], confirmedContentEtag = snap?.collection.contentEtag): Promise<boolean> => {
+    if (!snap || !snap.capabilities.deleteNode || nodes.length === 0) return false
     let contentEtag = confirmedContentEtag
     const operationCollectionId = snap.collection.id
     // Captured before the delete so Undo can rebuild each bookmark. A folder
@@ -532,8 +533,10 @@ export function useLibraryDeskMutations(options: {
       )
       completeBatch()
       exitSelectMode()
+      return true
     } catch (err) {
       bulkFailure(err, 'Deleted', done, total, 'Could not delete this bookmark')
+      return false
     } finally {
       setBulk(null)
       await loadTree(operationCollectionId, { silent: true })
@@ -543,13 +546,14 @@ export function useLibraryDeskMutations(options: {
   const runDeleteRef = useRef(runDelete)
   runDeleteRef.current = runDelete
 
-  const requestDelete = useCallback(async (nodes: EditableNodeView[]) => {
-    if (nodes.length === 0) return
+  /** Resolves true when the owner confirmed and every node was deleted. */
+  const requestDelete = useCallback(async (nodes: EditableNodeView[]): Promise<boolean> => {
+    if (nodes.length === 0) return false
     const collectionId = snapCollectionIdRef.current
     const contentEtag = snap?.collection.contentEtag
     const ok = await confirm(libraryDeleteRequest(nodes, snap?.nodes ?? []))
-    if (!ok || snapCollectionIdRef.current !== collectionId) return
-    await runDeleteRef.current(nodes, contentEtag)
+    if (!ok || snapCollectionIdRef.current !== collectionId) return false
+    return runDeleteRef.current(nodes, contentEtag)
   }, [confirm, snap])
 
   return {

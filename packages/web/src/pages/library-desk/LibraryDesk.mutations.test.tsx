@@ -224,6 +224,47 @@ describe('LibraryDesk move copy and delete', () => {
     expect(mocks.success).toHaveBeenCalledWith('Folder deleted', undefined)
   })
 
+  it('edits the folder the desk stands in from its More menu', async () => {
+    mount('/library/col-1?folder=col-1-folder')
+    await waitForDom(domFinishedLoading)
+    act(() => document.querySelector<HTMLButtonElement>('button[aria-label="More collection actions"]')!.click())
+    clickMenuItem('Edit folder')
+    await waitForDom(() => document.querySelector('[data-testid="node-drawer"]') !== null)
+    expect(document.querySelector<HTMLInputElement>('#nd-title')?.value).toBe('Later')
+  })
+
+  it('deletes the folder the desk stands in from its More menu and climbs to the parent', async () => {
+    mount('/library/col-1?folder=col-1-folder')
+    await waitForDom(domFinishedLoading)
+    act(() => document.querySelector<HTMLButtonElement>('button[aria-label="More collection actions"]')!.click())
+    const labels = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
+    expect(labels.at(-1)).toBe('Delete folder')
+    clickMenuItem('Delete folder')
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Delete “Later” and everything in it')
+    act(() => {
+      [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+        .find((button) => button.textContent === 'Delete folder')?.click()
+    })
+    await waitForDom(() => document.querySelector('[data-testid="location"]')?.textContent === '/library/col-1')
+    expect(mocks.deleteCollectionNode).toHaveBeenCalledWith(
+      'col-1', 'col-1-folder', '"f-col-1"', expect.objectContaining({ recursive: true }))
+    expect(mocks.success).toHaveBeenCalledWith('Folder deleted', undefined)
+  })
+
+  it('stays in the folder when its delete is cancelled', async () => {
+    mount('/library/col-1?folder=col-1-folder')
+    await waitForDom(domFinishedLoading)
+    act(() => document.querySelector<HTMLButtonElement>('button[aria-label="More collection actions"]')!.click())
+    clickMenuItem('Delete folder')
+    act(() => {
+      [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+        .find((button) => button.textContent === 'Cancel')?.click()
+    })
+    await waitForDom(() => document.querySelector('[role="dialog"]') === null)
+    expect(mocks.deleteCollectionNode).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="location"]')?.textContent).toBe('/library/col-1?folder=col-1-folder')
+  })
+
   it('bulk-moves sequentially and chains each returned childrenRevision', async () => {
     const snap = snapshot('col-1', 'Reading queue')
     snap.nodes = [...snap.nodes, extraBookmark('col-1-third', 'col-1', 'root-col-1', 'd', 'Third bookmark')]

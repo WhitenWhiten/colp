@@ -39,6 +39,8 @@ export function LibraryHeader({
   openCompose,
   onEditCollection,
   onShareFolder,
+  onEditFolder,
+  onDeleteFolder,
   onAcceptInvite,
   onDeclineInvite,
 }: {
@@ -53,6 +55,8 @@ export function LibraryHeader({
   openCompose: LibraryDeskMutations['openCompose']
   onEditCollection: () => void
   onShareFolder?: (folder: FolderNode) => void
+  onEditFolder?: (folder: FolderNode) => void
+  onDeleteFolder?: (folder: FolderNode) => void
   onAcceptInvite: (inviteId: string, collectionId: string) => Promise<void>
   onDeclineInvite: (inviteId: string) => Promise<void>
 }) {
@@ -64,6 +68,7 @@ export function LibraryHeader({
     caps,
     collectionBasePath,
     folderPath,
+    protectedFolderIds,
   } = data
 
   const heading = selectedFolder?.title ?? (collection ? rootTitle(collection) : 'Library')
@@ -154,6 +159,10 @@ export function LibraryHeader({
                 onEditCollection={onEditCollection}
                 library={collection?.library}
                 onShareFolder={collection?.library && selectedFolder && onShareFolder ? () => onShareFolder(selectedFolder) : undefined}
+                onEditFolder={selectedFolder && caps?.updateNode && onEditFolder ? () => onEditFolder(selectedFolder) : undefined}
+                onDeleteFolder={selectedFolder && caps?.deleteNode && onDeleteFolder && !protectedFolderIds.has(selectedFolder.id)
+                  ? () => onDeleteFolder(selectedFolder)
+                  : undefined}
               />
             )}
           </>

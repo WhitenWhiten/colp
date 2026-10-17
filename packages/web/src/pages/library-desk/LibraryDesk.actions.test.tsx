@@ -69,6 +69,19 @@ describe('LibraryDesk menus and selection', () => {
     expect(items).not.toContain('Delete')
   })
 
+  it('lets a browser root be edited but never deleted from its own More menu', async () => {
+    const base = snapshot('col-1')
+    const bar = { ...base.nodes[0]!, id: 'bookmarks-bar', folderRole: 'bookmarks-bar' as const, title: 'Bookmarks bar', parentId: base.root.id }
+    mocks.loadEditorSnapshot.mockResolvedValue({ ...base, collection: { ...base.collection, library: true },
+      nodes: [bar, { ...base.nodes[0]!, parentId: 'bookmarks-bar' }] })
+    mount('/library/col-1?folder=bookmarks-bar')
+    await waitForDom(domFinishedLoading)
+    act(() => document.querySelector<HTMLButtonElement>('button[aria-label="More collection actions"]')!.click())
+    const items = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
+    expect(items).toContain('Edit folder')
+    expect(items).not.toContain('Delete folder')
+  })
+
   it('shows the bookmark row menu with caps-gated items and never navigates', async () => {
     mount()
     await waitForDom(domFinishedLoading)

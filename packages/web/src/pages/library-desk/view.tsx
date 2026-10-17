@@ -1,7 +1,7 @@
 import { FolderShareDialog } from './FolderShareDialog'
 import { rootTitle } from '../../lib/libraryTree'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   flattenBookmarks,
   folderTrail,
@@ -90,6 +90,14 @@ export function LibraryDeskView({
     exitSelectMode,
   } = selection
   const { runMove, runTag, requestDelete } = mutations
+  const navigate = useNavigate()
+  /* Deleting the folder the desk stands in climbs to its parent, which is
+     where the deleted folder used to be listed. */
+  const deleteCurrentFolder = async (folder: import('../../lib/libraryTree').FolderNode) => {
+    if (!(await requestDelete([folder]))) return
+    const parentId = folder.parentId && folder.parentId !== snap?.root.id ? folder.parentId : null
+    navigate(data.folderPath(parentId), { replace: true })
+  }
 
   useEffect(() => {
     setQuery('')
@@ -248,6 +256,8 @@ export function LibraryDeskView({
               openCompose={mutations.openCompose}
               onEditCollection={onEditCollection}
               onShareFolder={setSharingFolder}
+              onEditFolder={(folder) => onEditNode(folder.id)}
+              onDeleteFolder={(folder) => void deleteCurrentFolder(folder)}
               order={order}
               onAcceptInvite={onAcceptInvite}
               onDeclineInvite={onDeclineInvite}
