@@ -98,7 +98,7 @@ test('a terminal first-sync failure replaces the syncing timer with the actual s
   await vi.advanceTimersByTimeAsync(1);
   stopped = true;
   await vi.advanceTimersByTimeAsync(1_000);
-  expect(document.getElementById('first-run-error')!.textContent).toContain('Sync on this device has stopped');
+  expect(document.getElementById('first-run-error')!.textContent).toContain('Sync on this device stopped');
   await vi.advanceTimersByTimeAsync(100_000);
   expect(document.getElementById('first-run-error')!.textContent).not.toContain('still running in the background');
 });

@@ -4,7 +4,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { syncRootRefs, excludedFolderRefs } from '../src/folder-coverage.js';
 import { bindRangeAdjustment } from '../src/range-ui.js';
 import { bindFolders } from '../src/sync-folders.js';
-import type { PublicRootNode, PublicRootView, RootRequest } from '../src/types.js';
+import { bindOptionsSyncProgress } from '../src/sync-progress-dom.js';
+import type { PublicRangePreview, PublicRootNode, PublicRootView, RootRequest } from '../src/types.js';
 
 const row = (ref: string, title: string, depth: number, over: Partial<PublicRootNode> = {}): PublicRootNode => ({
   ref, kind: depth === 0 ? 'bookmarks_bar' : 'folder', title, depth, selected: depth === 0,
@@ -28,7 +29,7 @@ async function mount(response: (message: RootRequest) => unknown = () => ({ ok: 
   return host;
 }
 beforeEach(() => { firstRun.onRootsRendered.mockClear(); });
-afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
 test('every folder syncs by default, including an empty browser root, and descendants remain editable', async () => {
   await mount();
@@ -89,7 +90,7 @@ test('clearing the selection leaves nested folders editable and previews only th
   const range = bindRangeAdjustment({
     saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
     rootTree: document.getElementById('root-tree')!, rootFeedback: document.getElementById('root-feedback')!,
-    getView: host.view, setView: host.render, reloadBoundaries: () => {}, isConnected: () => true, renderFailure: () => {},
+    getView: host.view, setView: host.render, reloadBoundaries: () => {}, onConfirmed: () => {}, isConnected: () => true, renderFailure: () => {},
   });
   await range.save();
   expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
@@ -169,10 +170,71 @@ test('range preview sends whole-browser roots and explicit exclusions in their r
   const range = bindRangeAdjustment({
     saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
     rootTree: document.getElementById('root-tree')!, rootFeedback: document.getElementById('root-feedback')!,
-    getView: host.view, setView: host.render, reloadBoundaries: () => {}, isConnected: () => true, renderFailure: () => {},
+    getView: host.view, setView: host.render, reloadBoundaries: () => {}, onConfirmed: () => {}, isConnected: () => true, renderFailure: () => {},
   });
   await range.save();
   expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
     kind: 'known.roots.preview', viewId: 'v1', selectedRefs: ['bar', 'other'], privateRefs: ['mkt'],
   });
+});
+
+test.each(['done', 'syncing', 'failed'] as const)('confirming a range immediately reports %s without waiting for the idle poll', async outcome => {
+  const preview: PublicRangePreview = { previewId: 'range', treeDigest: 'tree', boundaryVersion: '2',
+    bookmarkCount: 12, folderCount: 5, addedCount: 1, removedCount: 0, shiftCount: 0,
+    skippedCount: 0, expiresAt: Date.now() + 60_000, shifts: [], removals: [], warnings: [] };
+  let stage = 'done';
+  let finish!: (response: unknown) => void;
+  const host = await mount(message => {
+    const kind = (message as { kind: string }).kind;
+    if (kind === 'known.sync.progress.get') return { ok: true, progress: {
+      stage, firstSync: false, liveWork: stage !== 'done',
+      bookmarks: { synced: stage === 'done' ? 12 : 11, total: 12 }, folders: { synced: 5, total: 5 },
+    } };
+    if (kind === 'known.personalSync.status') return { ok: true, policy: { mode: 'enabled' } };
+    if (kind === 'known.firstRun.status') return { ok: true, firstRun: 'completed', phase: 'completed' };
+    if (kind === 'known.sync.engine.status') return { ok: true, engine: { phase: 'sleeping', hasPendingWork: stage !== 'done' } };
+    if (message.kind === 'known.roots.preview') return { ok: true, preview };
+    if (message.kind === 'known.roots.confirm') return new Promise(resolve => { finish = resolve; });
+    return { ok: true, view: tree() };
+  });
+  vi.useFakeTimers();
+  const progress = bindOptionsSyncProgress({ connected: () => true });
+  const onConfirmed = vi.fn(() => { void progress.refresh({ showDone: true }); });
+  const range = bindRangeAdjustment({
+    saveRoots: document.getElementById('save-roots') as HTMLButtonElement,
+    rootTree: document.getElementById('root-tree')!, rootFeedback: document.getElementById('root-feedback')!,
+    getView: host.view, setView: host.render, reloadBoundaries: () => {}, onConfirmed,
+    isConnected: () => true, renderFailure: code => { throw new Error(code); },
+  });
+  try {
+    await progress.refresh();
+    expect(document.getElementById('sync-progress')!.hidden).toBe(true);
+    await range.save();
+    const confirm = document.getElementById('range-confirm') as HTMLButtonElement;
+    confirm.click(); confirm.click();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(confirm.getAttribute('aria-busy')).toBe('true');
+    expect(confirm.textContent).toBe('Saving…');
+    expect(text('root-feedback')).toBe('Saving folder settings.');
+    expect((document.getElementById('range-cancel') as HTMLButtonElement).disabled).toBe(true);
+    expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.filter(([message]) => (message as RootRequest).kind === 'known.roots.confirm')).toHaveLength(1);
+    stage = outcome === 'syncing' ? 'syncing' : 'done';
+    finish(outcome === 'failed' ? { ok: false, error: 'preview_stale' } : { ok: true, view: tree() });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(confirm.hasAttribute('aria-busy')).toBe(false);
+    expect(confirm.textContent).toBe('Confirm folder changes');
+    const card = document.getElementById('sync-progress')!;
+    if (outcome === 'failed') {
+      expect(onConfirmed).not.toHaveBeenCalled(); expect(card.hidden).toBe(true);
+      expect(text('root-feedback')).toContain('Folder tree changed');
+    } else {
+      expect(onConfirmed).toHaveBeenCalledTimes(1); expect(card.hidden).toBe(false);
+      expect(text('sync-progress-title')).toBe(outcome === 'done' ? 'Sync complete' : 'Syncing bookmarks');
+      expect(card.dataset.state).toBe(outcome === 'done' ? 'done' : 'running');
+      if (outcome === 'syncing') {
+        stage = 'done'; await vi.advanceTimersByTimeAsync(2_000);
+        expect(text('sync-progress-title')).toBe('Sync complete');
+      }
+    }
+  } finally { progress.stop(); }
 });

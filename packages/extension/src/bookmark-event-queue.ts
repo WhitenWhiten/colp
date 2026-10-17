@@ -370,6 +370,10 @@ export function createBookmarkEventQueue(options: QueueOptions) {
             ...(prepared.mapping ? { mapping: prepared.mapping } : {}),
             deleteNativeIds: prepared.deleteNativeIds }, options.fault ? { fault: options.fault } : {});
           resolved.set(event.eventId, committed.opId);
+          // A bootstrap receipt can settle a capture without writing a new
+          // optimistic mapping. Later siblings must see that confirmed identity,
+          // not reapply this now-processed capture from the round's snapshot.
+          pendingSnapshot = pendingSnapshot?.filter(row => row.eventId !== event.eventId);
         } catch (error) {
           const code = bookmarkEventErrorCode(error);
           // The queue itself holds live work for this event; it waits in the

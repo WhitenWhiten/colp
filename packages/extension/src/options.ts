@@ -175,6 +175,7 @@ chrome.permissions.onAdded?.addListener?.(() => { if (connected) void folders.lo
 const rangeAdjustment = bindRangeAdjustment({ saveRoots, rootTree, rootFeedback,
   getView: () => folders.view(), setView: (view) => { folders.render(view); },
   reloadBoundaries: () => { void bookmarkManager.reloadBoundaries(); },
+  onConfirmed: () => { void syncProgress.refresh({ showDone: true }); void refreshEngineStatus(); },
   isConnected: () => connected, renderFailure: (code) => { folders.renderFailure(code); } });
 saveRoots.addEventListener('click', () => { void rangeAdjustment.save(); });
 self.addEventListener('online', (event) => {

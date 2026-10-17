@@ -120,25 +120,28 @@ export async function readSyncProgress(): Promise<PublicSyncProgress | null> {
 
 /**
  * Polls the progress read while the page is visible and paints every target.
- * A sync seen running on this page ends on a "Sync complete" state instead of
- * vanishing mid-sentence; a page opened after it finished shows nothing.
+ * A sync seen running or explicitly requested on this page ends on a "Sync
+ * complete" state; a page opened after it finished shows nothing.
  */
 export function watchSyncProgress(input: {
   readonly paint: (view: SyncProgressView, progress: PublicSyncProgress | null) => void;
   readonly status?: () => Promise<SyncStatus | undefined>;
   readonly enabled?: () => boolean;
-}): { refresh(): Promise<void>; stop(): void } {
-  let timer = 0; let turn = 0; let sawRunning = false; let stopped = false;
-  async function refresh(): Promise<void> {
+}): { refresh(options?: { readonly showDone?: boolean }): Promise<void>; stop(): void } {
+  let timer = 0; let turn = 0; let showCompletion = false; let stopped = false;
+  async function refresh(options: { readonly showDone?: boolean } = {}): Promise<void> {
     window.clearTimeout(timer);
     if (stopped) return;
+    // A confirmed folder change can finish before the next poll sees it run.
+    // Its initiating page still owes the user a verified completion message.
+    if (options.showDone) showCompletion = true;
     const mine = ++turn;
     const progress = input.enabled && !input.enabled() ? null : await readSyncProgress();
     const running = progress !== null && progress.stage !== 'done';
     const status = running && input.status ? await input.status().catch(() => undefined) : undefined;
     if (mine !== turn || stopped) return;
-    if (running) sawRunning = true;
-    input.paint(describeSyncProgress(progress, status, { showDone: sawRunning }), progress);
+    if (running) showCompletion = true;
+    input.paint(describeSyncProgress(progress, status, { showDone: showCompletion }), progress);
     if (document.visibilityState !== 'hidden') {
       timer = window.setTimeout(() => { void refresh(); }, running ? SYNC_PROGRESS_ACTIVE_MS : SYNC_PROGRESS_IDLE_MS);
     }

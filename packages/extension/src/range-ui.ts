@@ -9,6 +9,7 @@ export function bindRangeAdjustment(host: {
   getView(): PublicRootView | undefined;
   setView(view: PublicRootView): void;
   reloadBoundaries(): void;
+  onConfirmed(): void;
   isConnected(): boolean;
   renderFailure(code: string): void;
 }): { save(): Promise<void> } {
@@ -49,8 +50,12 @@ export function bindRangeAdjustment(host: {
   }
 
   async function confirmPreview(): Promise<void> {
-    if (!preview) return;
-    confirm.disabled = true; error.hidden = true;
+    if (!preview || confirm.disabled) return;
+    confirm.disabled = true; cancel.disabled = true; error.hidden = true;
+    confirm.setAttribute('aria-busy', 'true');
+    const label = confirm.textContent;
+    confirm.textContent = t('common_saving', 'Saving…');
+    host.rootFeedback.textContent = t('sync_savingFolderSettings', 'Saving folder settings.');
     const shiftActions = Array.from(shiftList.querySelectorAll<HTMLSelectElement>('select[data-ref]'))
       .map((select) => ({ ref: select.dataset.ref!, action: select.value === 'keep' ? 'keep' as const : 'unmount' as const }));
     const unmountedShiftRefs = shiftActions.filter((row) => row.action === 'unmount').map((row) => row.ref);
@@ -62,7 +67,8 @@ export function bindRangeAdjustment(host: {
       ...(shiftActions.length ? { shiftActions } : {}),
       ...(remoteDeleteRefs && remoteDeleteRefs.length ? { remoteDeleteRefs } : {}),
     });
-    confirm.disabled = false;
+    confirm.disabled = false; cancel.disabled = false; confirm.removeAttribute('aria-busy');
+    confirm.textContent = label;
     if (!response.ok) {
       const message = confirmFailureCopy(response.error);
       error.hidden = false;
@@ -78,6 +84,7 @@ export function bindRangeAdjustment(host: {
     host.setView(response.view);
     host.rootFeedback.textContent = t('sync_folderSettingsSaved', 'Folder settings saved');
     host.reloadBoundaries();
+    host.onConfirmed();
     host.saveRoots.disabled = !host.isConnected();
   }
 

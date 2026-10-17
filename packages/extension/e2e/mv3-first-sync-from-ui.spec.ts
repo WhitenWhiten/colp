@@ -10,7 +10,9 @@ const extension = resolve(import.meta.dirname, '../dist/production');
 type CanonicalNode = { id: string; parent_id: string | null; title: string; url: string | null; folder_role: string | null; deleted_at: string | null };
 
 test('a fresh browser merges both roots into one library, keeps exclusions local and syncs later folders', async () => {
-  test.setTimeout(180_000);
+  // SYNC_EXISTING_COUNT=1019 also exercises completion with 1,021 synced bookmarks.
+  const extraBookmarks = Number(process.env.SYNC_EXISTING_COUNT ?? 0);
+  test.setTimeout(extraBookmarks > 0 ? 600_000 : 180_000);
   const stack = await startRealStack(), profile = await mkdtemp(resolve(tmpdir(), 'known-library-ui-'));
   let context: BrowserContext | undefined;
   const nodes = async () => ((await stack.observations()).canonicalNodes as CanonicalNode[]).filter(node => node.deleted_at === null);
@@ -25,16 +27,18 @@ test('a fresh browser merges both roots into one library, keeps exclusions local
     const { page } = await openExtensionOptions(context);
     await showOptionsPane(page, 'bookmarks');
     await grantOptionalBookmarks(page, page.locator('#manager-grant'), 'COLP library first sync');
-    const native = await page.evaluate(async () => {
+    const native = await page.evaluate(async (extraCount) => {
       const roots = (await chrome.bookmarks.getTree())[0]!.children!;
       const bar = roots.find(node => node.id === '1') ?? roots[0]!;
       const other = roots.find(node => node.id === '2') ?? roots[1]!;
       await chrome.bookmarks.create({ parentId: bar.id, title: 'From the bar', url: 'https://example.test/from-bar' });
       await chrome.bookmarks.create({ parentId: other.id, title: 'From other bookmarks', url: 'https://example.test/from-other' });
+      for (let index = 0; index < extraCount; index++) await chrome.bookmarks.create({ parentId: bar.id,
+        title: `Existing ${index}`, url: `https://example.test/existing/${index}` });
       const local = await chrome.bookmarks.create({ parentId: bar.id, title: 'Only on this browser' });
       await chrome.bookmarks.create({ parentId: local.id, title: 'Private browser page', url: 'https://example.test/browser-only' });
       return { bar: bar.id, other: other.id, local: local.id };
-    });
+    }, extraBookmarks);
     await showOptionsPane(page, 'account');
     await page.locator('#login-email').fill(EXTENSION_FIXTURE_EMAIL);
     await page.locator('#login-password').fill(EXTENSION_FIXTURE_PASSWORD);
@@ -59,8 +63,21 @@ test('a fresh browser merges both roots into one library, keeps exclusions local
     await page.setViewportSize({ width: 1280, height: 960 });
     await page.locator('#first-run-start').click();
     await expect(page.locator('#sync-progress')).toBeVisible({ timeout: 5_000 });
-    await expect.poll(() => page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }) as { firstRun?: string }).firstRun),
-      { timeout: 90_000 }).toBe('completed');
+    try {
+      await expect.poll(async () => (await nodes()).filter(node => node.url).length,
+        { timeout: extraBookmarks > 0 ? 400_000 : 90_000 }).toBe(extraBookmarks + 2);
+      await expect.poll(() => page.evaluate(async () => (await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }) as { firstRun?: string }).firstRun),
+        { timeout: 45_000 }).toBe('completed');
+    } catch (error) {
+      console.log(JSON.stringify(await page.evaluate(async () => ({
+        progress: await chrome.runtime.sendMessage({ kind: 'known.sync.progress.get' }),
+        bootstrap: await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }),
+        engine: await chrome.runtime.sendMessage({ kind: 'known.sync.engine.status' }),
+        attention: await chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' }),
+      }))));
+      throw error;
+    }
+    await expect(page.locator('#sync-progress-title')).toHaveText('Sync complete', { timeout: 5_000 });
     await expect.poll(async () => (await nodes()).filter(node => node.url).map(node => node.url), { timeout: 45_000 })
       .toEqual(expect.arrayContaining(['https://example.test/from-bar', 'https://example.test/from-other']));
     const merged = await nodes();
@@ -171,19 +188,15 @@ test('a directly selected subfolder survives reload and reconnect without duplic
       for (let index = 0; index < 10; index++) await chrome.bookmarks.create({ parentId: folder.id,
         title: `Later bookmark ${index}`, url: `https://example.test/later-selected/${index}` });
     });
-    const added = await page.evaluate(async () => {
-      const current = await chrome.runtime.sendMessage({ kind: 'known.roots.get' }) as {
-        ok: boolean; view: { viewId: string; roots: { ref: string; title: string; selected: boolean; privateLocal: boolean }[] } };
-      const preview = await chrome.runtime.sendMessage({ kind: 'known.roots.preview', viewId: current.view.viewId,
-        selectedRefs: current.view.roots.filter(root => root.selected || root.title === 'Later selected folder').map(root => root.ref),
-        privateRefs: current.view.roots.filter(root => root.privateLocal).map(root => root.ref) }) as {
-        ok: boolean; preview: { previewId: string; treeDigest: string; addedCount: number } };
-      if (!preview.ok) return preview;
-      if (preview.preview.addedCount !== 1) throw new Error(`range_added_count:${preview.preview.addedCount}`);
-      return chrome.runtime.sendMessage({ kind: 'known.roots.confirm', previewId: preview.preview.previewId,
-        treeDigest: preview.preview.treeDigest, confirmationId: crypto.randomUUID() });
-    });
-    expect(added).toMatchObject({ ok: true });
+    await page.locator('#refresh-roots').click();
+    const later = page.locator('.root-row').filter({ has: page.getByText('Later selected folder', { exact: true }) }).locator('input');
+    await expect(later).toBeEnabled();
+    await later.check();
+    await page.locator('#save-roots').click();
+    await expect(page.locator('#range-preview-totals')).toContainText('1 added');
+    await page.locator('#range-confirm').click();
+    await expect(page.locator('#range-preview')).toBeHidden();
+    await expect(page.locator('#sync-progress')).toBeVisible({ timeout: 5_000 });
     const readStatus = () => page.evaluate(async () => ({
       progress: await chrome.runtime.sendMessage({ kind: 'known.sync.progress.get' }),
       bootstrap: await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }),
@@ -199,6 +212,7 @@ test('a directly selected subfolder survives reload and reconnect without duplic
         const status = await readStatus() as { progress: { progress?: { stage: string } }; engine: { engine?: { errorCode?: string } } };
         return { stage: status.progress.progress?.stage, error: status.engine.engine?.errorCode };
       }, { timeout: 45_000 }).toEqual({ stage: 'done', error: undefined });
+      await expect(page.locator('#sync-progress-title')).toHaveText('Sync complete', { timeout: 5_000 });
     } catch (error) {
       console.log(JSON.stringify(await readStatus()));
       throw error;

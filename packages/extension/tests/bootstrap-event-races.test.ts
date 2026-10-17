@@ -107,6 +107,44 @@ for (const phase of ['completed', 'needs_attention', 'later-run'] as const) test
   } finally { f.store.close(); }
 });
 
+test('one flush settles sibling create callbacks whose bootstrap uploads are already confirmed', async () => {
+  const f = await setupBootstrapRace();
+  try {
+    const nodes = [f.node, ...Array.from({ length: 5 }, (_, index) => bookmark(`sibling-${index}`, 'root-selected',
+      index + 1, `Sibling ${index}`, `https://example.test/sibling/${index}`))];
+    for (const node of nodes) f.api.put(node);
+    const input = { ...f.resumed, localFacts: nodes.map(node => ({ nativeId: node.id, parentNativeId: node.parentId,
+      mountNativeRootId: 'root-selected', kind: 'bookmark' as const, title: node.title, url: node.url })) };
+    await f.coordinator.resume(input);
+    const lease = await f.store.acquireLease(scope, 'sibling-worker', 1, 30_000);
+    const creates = await f.store.listQueue(scope);
+    for (const node of nodes) {
+      const row = await f.store.claimNextQueue(scope, 'sibling-worker', lease.fence, 1);
+      assert.ok(row);
+      const targetId = `remote-${node.id}`, revision = `rev-${node.id}`;
+      await f.store.settleClaimedPush(scope, row.sequence, 'sibling-worker', lease.fence, {
+        outcome: 'terminal', receipt: { opId: row.opId, operationDigest: row.digest, kind: 'terminal',
+          receiptId: `receipt-${row.opId}`, resultDigest: 'sha256:receipt', result: { results: [{
+            opId: row.opId, sequence: row.sequence, status: 'applied', targetId, revision,
+          }] } }, authoritativeCreate: { nativeId: node.id, targetId, revision },
+      });
+    }
+    await f.coordinator.resume(input);
+    const before = await f.store.listMappings(scope);
+    const callbacks = [];
+    for (const node of nodes) callbacks.push(await f.queue.created(node.id, node));
+    // An extension reload must also settle a backlog persisted by the old worker.
+    const restarted = createBookmarkEventQueue({ scope, store: f.store, api: f.api, autoFlush: false });
+    await restarted.flush();
+    assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 0);
+    assert.deepEqual(await f.store.listMappings(scope), before);
+    assert.equal((await f.store.listQueue(scope)).length, creates.length);
+    for (let index = 0; index < nodes.length; index++) {
+      assert.equal((await f.store.getBookmarkEvent(scope, callbacks[index]!.eventId!))?.opId, creates[index]!.opId);
+    }
+  } finally { f.store.close(); }
+});
+
 test.each(['absent', 'replaced', 'tombstoned'] as const)('historical bootstrap creates do not claim a native with %s ownership', async state => {
   const f = await setupBootstrapRace();
   try {
