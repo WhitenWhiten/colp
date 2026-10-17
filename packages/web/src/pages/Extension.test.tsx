@@ -14,12 +14,12 @@ describe('Extension install page', () => {
     document.body.innerHTML = ''
   })
 
-  it('walks through connecting the extension to this server and syncing owned collections', () => {
+  it('walks through connecting the extension to this server and syncing the library', () => {
     mountTree(<MemoryRouter><Extension origin="https://colp.example" /></MemoryRouter>)
-    expect(document.body.textContent).toContain('syncs browser folders into collections you own on this server')
+    expect(document.body.textContent).toContain('keeps a browser’s bookmarks in sync with your library on this server')
     const setup = document.querySelector('[aria-label="Setup steps"]')
     expect([...setup!.querySelectorAll('h3, strong')].map((node) => node.textContent)).toEqual(
-      expect.arrayContaining(['Install', 'Connect this server', 'Sign in', 'Choose folders']),
+      expect.arrayContaining(['Install', 'Connect this server', 'Sign in', 'Start syncing']),
     )
     expect(setup?.textContent).toContain('Options → Account → Server')
     // Step 02 shows the address to type into the extension, with a Copy button.
@@ -27,8 +27,8 @@ describe('Extension install page', () => {
     expect(address?.querySelector('[data-testid="copy-field-value"]')?.textContent).toBe('https://colp.example')
     expect(address?.querySelector('button')?.getAttribute('aria-label')).toBe('Copy Server address')
     const permissions = document.querySelector('[aria-label="Permissions"]')
-    expect(permissions?.textContent).toContain('Never uploads folders you did not select')
-    expect(permissions?.textContent).toContain('Sync uses collections you own on this server')
+    expect(permissions?.textContent).toContain('Never uploads folders you keep on the browser')
+    expect(permissions?.textContent).toContain('Syncs only with your library on this server')
     expect(document.querySelector('a[href="/sync"]')?.textContent).toBe('Open sync center')
     expect(document.querySelector('a[href="/import"]')?.textContent).toBe('Import bookmarks')
     expect(document.querySelector('a[href="/classify"], a[href="/onboarding"]')).toBeNull()

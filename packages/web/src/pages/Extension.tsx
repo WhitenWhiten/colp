@@ -28,8 +28,8 @@ function setupSteps(origin: string) {
     body: 'Sign in with the username and password you use here.',
   },
   {
-    title: 'Choose folders',
-    body: 'Pick a collection and the browser folders to sync. Repeat in each browser; they converge within a minute.',
+    title: 'Start syncing',
+    body: 'Review the first sync. Every folder syncs with your library; untick any you want to keep on this browser only. Repeat in each browser; they converge within a minute.',
   },
   ]
 }
@@ -51,7 +51,7 @@ export function Extension({ origin }: { origin?: string } = {}) {
           eyebrow="Tools"
           title="Connect a browser"
           documentTitle="Extension"
-          lede="The Know-N browser extension syncs browser folders into collections you own on this server. You choose the folders; conflicts are kept for you to resolve."
+          lede="The Know-N browser extension keeps a browser’s bookmarks in sync with your library on this server. Any folder can stay on the browser only; conflicts are kept for you to resolve."
         />
         <div className="cta-row extension-cta">
           {storeUrl && <a className="btn btn-primary btn-lg" href={storeUrl} target="_blank" rel="noopener noreferrer">Install extension</a>}
@@ -77,9 +77,9 @@ export function Extension({ origin }: { origin?: string } = {}) {
           <h2>Permissions</h2>
           <ul className="benefit-list">
             <li><Icon name="check" /> Read bookmark folders after you grant bookmark access</li>
-            <li><Icon name="check" /> Never uploads folders you did not select</li>
-            <li><Icon name="check" /> Sync uses collections you own on this server</li>
-            <li><Icon name="check" /> Optional: save the page you have open into a collection you own</li>
+            <li><Icon name="check" /> Never uploads folders you keep on the browser</li>
+            <li><Icon name="check" /> Syncs only with your library on this server</li>
+            <li><Icon name="check" /> Optional: save the page you have open into your library</li>
             <li><Icon name="check" /> Optional: allow bookmark access so saves can land in a browser folder</li>
           </ul>
         </aside>
