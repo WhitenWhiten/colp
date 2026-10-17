@@ -342,6 +342,41 @@
   }
 }
 
+.settings-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.settings-avatar-preview {
+  width: 4.5rem;
+  height: 4.5rem;
+  font-size: var(--text-lg);
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm), var(--inset-highlight);
+}
+
+/* Fills the rest of the profile column beside the preview. `min-width: 0`
+   because the dashed card is a flex item with its own content: a floor wide
+   enough for the copy would push the preview onto its own line as soon as the
+   column got any narrower. */
+.settings-avatar-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 10rem;
+}
+
+.avatar-upload-status {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding-left: var(--space-1);
+}
+
 /* Settings dialog navigation. Card/sticky page chrome is retired; the
    sidebar is a pane divider inside .settings-dialog. Sheet (≤ 44rem)
    reuses the two-column segmented row. */

@@ -39,6 +39,12 @@
   display: block;
 }
 
+.avatar-lg {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: var(--text-base);
+}
+
 .avatar-md {
   width: 2.25rem;
   height: 2.25rem;

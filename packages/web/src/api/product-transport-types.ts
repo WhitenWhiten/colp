@@ -210,6 +210,7 @@ export type ProductTransport = {
   getSession: (opts?: SessionCallOptions) => Promise<SessionView>
   getMe: (opts?: SessionCallOptions) => Promise<MeView>
   updateMe: (body: UpdateMeRequest, opts: MutationCallOptions) => Promise<MeView>
+  uploadAvatar: (file: File, opts: MutationCallOptions) => Promise<MeView>
   deleteSession: (opts: { csrfToken: string; signal?: AbortSignal }) => Promise<void>
   searchResources: (params: SearchParams) => Promise<SearchPage>
   getSyncStatus: (signal?: AbortSignal) => Promise<SyncStatusView>

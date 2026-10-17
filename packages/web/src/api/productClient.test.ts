@@ -41,6 +41,7 @@ const {
   updateCollection,
   updateCollectionNode,
   updateMe,
+  uploadAvatar,
 } = productClient
 
 function lastCall(calls: FetchCall[]): FetchCall {
@@ -292,6 +293,33 @@ describe('canonical productClient', () => {
     expect(headers.get('X-CSRF-Token')).toBe('csrf-profile')
     expect(isUuidV4(headers.get('Known-Command-Id')!)).toBe(true)
     expect(headers.get('Content-Type')).toMatch(/application\/json/i)
+  })
+
+  it('uploadAvatar sends the raw image to /api/v1/me/avatar and applies the returned me', async () => {
+    seedAuthenticatedSession('csrf-avatar')
+    const mock = installFetchMock(() => jsonResponse({
+      account: { id: 'acc-1', email: 'ada@example.com' },
+      profile: { id: 'prof-1', handle: 'ada', displayName: 'Ada', avatarUrl: 'https://app.example.test/api/v1/avatar/abc' },
+    }))
+    restoreFetch = mock.restore
+
+    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'avatar.png', { type: 'image/png' })
+    const updated = await uploadAvatar(
+      file,
+      { intentId: 'update-avatar:success', maxRetries: 0 },
+    )
+    expect(updated.profile.avatarUrl).toBe('https://app.example.test/api/v1/avatar/abc')
+    expect(getSessionSnapshot().me?.profile.avatarUrl).toBe('https://app.example.test/api/v1/avatar/abc')
+
+    const call = lastCall(mock.calls)
+    expect(requestMethod(call)).toBe('POST')
+    expect(requestPathAndSearch(call).pathname).toBe('/api/v1/me/avatar')
+    expect(call.init?.credentials).toBe('include')
+    expect(call.init?.body).toBe(file)
+    const headers = requestHeaders(call)
+    expect(headers.get('X-CSRF-Token')).toBe('csrf-avatar')
+    expect(headers.get('Content-Type')).toBe('image/png')
+    expect(isUuidV4(headers.get('Known-Command-Id')!)).toBe(true)
   })
 
   it('updateMe preserves 409 handle conflict and 422 field errors for Settings', async () => {

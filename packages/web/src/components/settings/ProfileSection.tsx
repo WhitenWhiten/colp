@@ -2,6 +2,12 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { isProductApiError, productClient } from '../../api'
 import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../AppToast'
+import { AvatarImage } from '../AvatarImage'
+import { Icon } from '../Icon'
+
+/** Mirrors AVATAR_ALLOWED_CONTENT_TYPES and AVATAR_MAX_BYTES on the server. */
+const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 
 export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void }) {
   const [name, setName] = useState('')
@@ -11,6 +17,7 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   const [handle, setHandle] = useState('')
   const [about, setAbout] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [profileDirty, setProfileDirty] = useState(false)
   const hydratedAccountId = useRef<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -31,6 +38,43 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   useEffect(() => {
     onDirtyChange?.(profileDirty)
   }, [profileDirty, onDirtyChange])
+
+  async function handleAvatarFile(file: File | undefined) {
+    if (!file) return
+    setFieldErrors({})
+    if (!AVATAR_TYPES.includes(file.type)) {
+      setProfileError('Choose a PNG, JPEG or WebP image.')
+      return
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setProfileError('Choose an image of 2 MB or less.')
+      return
+    }
+    setUploadingAvatar(true)
+    setProfileError(null)
+    try {
+      await runAuthMutation(() => productClient.uploadAvatar(
+        file,
+        { intentId: productClient.mutationIntentKey('upload-avatar', productClient.newCommandId()) },
+      ))
+      success('Avatar updated')
+    } catch (err) {
+      if (isProductApiError(err)) {
+        // The server says why uploads are off here (no HTTPS, no storage);
+        // the generic hint would only suggest retrying.
+        const message = err.fieldErrors.length > 0
+          ? err.fieldErrors[0]!.message
+          : err.code === 'feature_temporarily_unavailable' && err.retryAfterSeconds == null
+            ? err.message
+            : err.recoveryHint
+        setProfileError(message)
+      } else {
+        setProfileError('Avatar could not be uploaded. Try again.')
+      }
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -68,12 +112,33 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     <section className="settings-section">
       <div className="settings-section-head">
         <h3 className="settings-toggle-label">Profile</h3>
-        <p className="meta">Your name in the account menu and on collections you share.</p>
+        <p className="meta">Your picture and name in the account menu and on collections you share.</p>
       </div>
       <form
         className="stack settings-form gap-4"
         onSubmit={saveProfile}
       >
+        <div className="field">
+          <label htmlFor="set-avatar-file">Avatar</label>
+          <div className="settings-avatar-row">
+            <span className="avatar avatar-lg settings-avatar-preview" aria-hidden data-testid="settings-avatar-preview">
+              <AvatarImage url={user?.avatarUrl} initials={user?.initials ?? ''} />
+            </span>
+            <div className="settings-avatar-upload">
+              <label className="file-drop-card" htmlFor="set-avatar-file">
+                <span className="file-drop-card-preview" aria-hidden="true">
+                  <Icon name="person" />
+                </span>
+                <span className="file-drop-card-copy">
+                  <strong>{user?.avatarUrl ? 'Change avatar' : 'Upload avatar'}</strong>
+                  <small>PNG, JPEG or WebP · max 2 MB</small>
+                </span>
+                <input id="set-avatar-file" type="file" accept={AVATAR_TYPES.join(',')} disabled={bootstrapping || !user || savingProfile || uploadingAvatar} onChange={(e) => { void handleAvatarFile(e.currentTarget.files?.[0]); e.currentTarget.value = '' }} />
+              </label>
+              {uploadingAvatar && <span className="meta avatar-upload-status" data-testid="avatar-upload-status">Uploading…</span>}
+            </div>
+          </div>
+        </div>
         <div className="field">
           <label htmlFor="set-name">Display name</label>
           <input id="set-name" value={name} disabled={bootstrapping || !user || savingProfile} aria-invalid={!!fieldErrors['/displayName']} aria-describedby={fieldErrors['/displayName'] ? 'set-name-error' : undefined} onChange={(e) => { setName(e.target.value); setProfileDirty(true) }} />
@@ -87,7 +152,7 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
           </div>
         )}
         {profileError && <p className="field-error" role="alert">{profileError}</p>}
-        <button type="submit" className="btn btn-primary settings-save-btn" disabled={bootstrapping || !user || savingProfile}>
+        <button type="submit" className="btn btn-primary settings-save-btn" disabled={bootstrapping || !user || savingProfile || uploadingAvatar}>
           {savingProfile ? 'Saving…' : 'Save profile'}
         </button>
       </form>

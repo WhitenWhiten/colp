@@ -67,6 +67,7 @@ export const productClient = Object.freeze({
   getSession: sessionClient.getSession,
   getMe: sessionClient.getMe,
   updateMe: sessionClient.updateMe,
+  uploadAvatar: sessionClient.uploadAvatar,
   bootstrapSession: sessionClient.bootstrapSession,
   deleteSession: sessionClient.deleteSession,
   getLibrary: collectionsClient.getLibrary,

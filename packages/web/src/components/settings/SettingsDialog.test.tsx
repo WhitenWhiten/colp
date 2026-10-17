@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     logout: vi.fn<() => Promise<'signed-out' | 'failed'>>(),
   },
   updateMe: vi.fn(),
+  uploadAvatar: vi.fn(),
   faviconActivity: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock('../../api', () => ({
   productClient: {
     getMyFaviconJobActivity: mocks.faviconActivity,
     updateMe: mocks.updateMe,
+    uploadAvatar: mocks.uploadAvatar,
     newCommandId: () => 'command-1',
     mutationIntentKey: (scope: string, id: string) => `${scope}:${id}`,
   },
@@ -84,6 +86,7 @@ describe('Settings profile persistence', () => {
     mocks.auth.refreshSession.mockReset().mockResolvedValue(undefined)
     mocks.auth.logout.mockReset().mockResolvedValue('signed-out')
     mocks.updateMe.mockReset()
+    mocks.uploadAvatar.mockReset()
     mocks.faviconActivity.mockReset().mockResolvedValue({ activeJobs: 0, job: null })
     mocks.success.mockReset()
     mocks.error.mockReset()
@@ -136,6 +139,73 @@ describe('Settings profile persistence', () => {
     expect(document.querySelector('[data-settings-nav] [aria-current="true"]')?.textContent).toBe('Profile')
     expect([...document.querySelectorAll('[data-settings-nav] button')].map((button) => button.textContent))
       .not.toEqual(expect.arrayContaining(['Credentials', 'Grants']))
+  })
+
+  function pickAvatar(file: File) {
+    const input = document.querySelector<HTMLInputElement>('#set-avatar-file')!
+    Object.defineProperty(input, 'files', { value: [file], configurable: true })
+    return act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+  }
+
+  const PNG_FILE = () => new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'avatar.png', { type: 'image/png' })
+  const UPLOADED = {
+    account: { id: 'account-1', email: 'user@example.test' },
+    profile: { id: 'account-1', handle: 'original_handle', displayName: 'Phase 1 Real Stack', avatarUrl: 'https://app.example.test/api/v1/avatar/a' },
+  }
+
+  it('uploads a picked image and shows the account avatar in the preview', async () => {
+    mocks.uploadAvatar.mockResolvedValue(UPLOADED)
+    render()
+    expect(document.querySelector('[data-testid="settings-avatar-preview"] img')).toBeNull()
+    expect(document.querySelector('[data-testid="settings-avatar-preview"]')?.textContent).toBe('P1')
+    const file = PNG_FILE()
+    await pickAvatar(file)
+    expect(mocks.uploadAvatar).toHaveBeenCalledWith(file, { intentId: 'upload-avatar:command-1' })
+    expect(mocks.success).toHaveBeenCalledWith('Avatar updated')
+
+    // The session store hands the new profile to useAuth.
+    mocks.auth.user = { ...mocks.auth.user!, avatarUrl: UPLOADED.profile.avatarUrl }
+    render()
+    expect(document.querySelector('[data-testid="settings-avatar-preview"] img')?.getAttribute('src'))
+      .toBe(UPLOADED.profile.avatarUrl)
+    expect(document.querySelector('[for="set-avatar-file"] strong')?.textContent).toBe('Change avatar')
+  })
+
+  it('blocks another pick and the profile save while an avatar uploads', async () => {
+    let finish!: (value: typeof UPLOADED) => void
+    mocks.uploadAvatar.mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    render()
+    await pickAvatar(PNG_FILE())
+    expect(document.querySelector<HTMLInputElement>('#set-avatar-file')!.disabled).toBe(true)
+    expect(document.querySelector('[data-testid="avatar-upload-status"]')?.textContent).toBe('Uploading…')
+    expect(document.querySelector<HTMLButtonElement>('form button[type="submit"]')!.disabled).toBe(true)
+
+    await act(async () => { finish(UPLOADED) })
+    expect(document.querySelector<HTMLInputElement>('#set-avatar-file')!.disabled).toBe(false)
+    expect(document.querySelector('[data-testid="avatar-upload-status"]')).toBeNull()
+    expect(document.querySelector<HTMLButtonElement>('form button[type="submit"]')!.disabled).toBe(false)
+  })
+
+  it('refuses other image types and large files before uploading', async () => {
+    render()
+    await pickAvatar(new File(['gif'], 'avatar.gif', { type: 'image/gif' }))
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe('Choose a PNG, JPEG or WebP image.')
+    await pickAvatar(new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' }))
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe('Choose an image of 2 MB or less.')
+    expect(mocks.uploadAvatar).not.toHaveBeenCalled()
+  })
+
+  it('says why this server cannot take avatars instead of suggesting a retry', async () => {
+    mocks.uploadAvatar.mockRejectedValue({
+      code: 'feature_temporarily_unavailable', message: 'Avatar upload needs the server to run on HTTPS.',
+      fieldErrors: [], retryAfterSeconds: null, recoveryHint: 'Temporarily unavailable. Retry shortly.',
+    })
+    render()
+    await pickAvatar(PNG_FILE())
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe('Avatar upload needs the server to run on HTTPS.')
+    expect(mocks.success).not.toHaveBeenCalled()
   })
 
   it('does not overwrite dirty fields when the same account refreshes asynchronously', () => {

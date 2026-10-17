@@ -47,5 +47,15 @@ export function createSessionTransport(http: ProductTransportHttp) {
         signal: opts.signal,
       })
     },
+
+    async uploadAvatar(file: File, opts: MutationCallOptions) {
+      return request<MeView>({
+        method: 'POST',
+        path: '/api/v1/me/avatar',
+        headers: mutationHeaders(opts, { 'Content-Type': file.type || 'application/octet-stream' }),
+        rawBody: file,
+        signal: opts.signal,
+      })
+    },
   }
 }
