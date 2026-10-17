@@ -1070,6 +1070,10 @@ button.library-bookmark-tag:hover {
 .library-host-favicon {
   width: 1.35rem;
   height: 1.35rem;
+  /* Favicons are drawn for 16px; stretched across the whole tile they
+     blurred. The tile keeps its size, so rows still line up with letter
+     marks, and the icon sits at 1rem inside the hairline. */
+  padding: calc((0.35rem - 2px) / 2);
   border-radius: var(--radius-xs);
   object-fit: contain;
   background: var(--surface);
