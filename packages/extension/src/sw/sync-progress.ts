@@ -49,7 +49,8 @@ export async function handleSyncProgressRequest(): Promise<SyncProgressResponse>
   return { ok: true, progress: projectSyncProgress({
     firstRun, ...(run ? { runPhase: run.phase } : {}), roots: tree.roots, classifications: scan.classifications,
     // Provisional identities exist before a create has a server receipt.
-    mappedNativeIds: new Set(mappings.filter((row) => !/^(pending-|local-|mount:)/u.test(row.colpId))
+    mappedNativeIds: new Set(mappings.filter((row) => !/^(pending-|local-|mount:)/u.test(row.colpId)
+      && row.projection?.revision !== 'local-root')
       .map((row) => row.nativeId)), liveWork, unsettled,
   }) };
 }

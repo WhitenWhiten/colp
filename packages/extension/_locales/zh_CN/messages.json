@@ -7623,6 +7623,14 @@
     "message": "正在比对此浏览器的书签与你的书签库。书签较多时需要一分钟左右。",
     "description": "Comparing this browser’s bookmarks with your library. Large libraries take a minute."
   },
+  "syncProgress_preparingMoreShort": {
+    "message": "正在准备同步…",
+    "description": "Preparing sync…"
+  },
+  "syncProgress_preparingMoreTitle": {
+    "message": "正在准备书签同步",
+    "description": "Preparing bookmark sync"
+  },
   "syncProgress_preparingPausedDetail": {
     "message": "尚未同步任何内容。恢复后，会比对此浏览器的书签与你的书签库。",
     "description": "Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your library."

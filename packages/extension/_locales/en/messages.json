@@ -5801,6 +5801,12 @@
   "syncProgress_preparingDetail": {
     "message": "Comparing this browser’s bookmarks with your library. Large libraries take a minute."
   },
+  "syncProgress_preparingMoreShort": {
+    "message": "Preparing sync…"
+  },
+  "syncProgress_preparingMoreTitle": {
+    "message": "Preparing bookmark sync"
+  },
   "syncProgress_preparingPausedDetail": {
     "message": "Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your library."
   },

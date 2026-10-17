@@ -65,6 +65,16 @@ describe('projectSyncProgress', () => {
     assert.equal(projectSyncProgress(facts({ firstRun: 'running', runPhase: 'syncing' }))?.firstSync, true);
     assert.equal(projectSyncProgress(facts({ runPhase: 'completed' }))?.firstSync, false);
   });
+
+  test('adding a sync folder preserves the completed onboarding identity', () => {
+    for (const runPhase of ['confirmed', 'scanning', 'matching', 'syncing']) {
+      const result = projectSyncProgress(facts({ firstRun: 'completed', runPhase }));
+      assert.equal(result?.firstSync, false);
+      const view = describeSyncProgress(result);
+      assert.doesNotMatch(view.title, /first sync/i);
+      assert.doesNotMatch(view.short, /first sync/i);
+    }
+  });
 });
 
 describe('describeSyncProgress', () => {
@@ -126,6 +136,14 @@ describe('describeSyncProgress', () => {
 
   test('stays hidden once personal sync is disconnected', () => {
     assert.equal(describeSyncProgress(progress(), projectSyncStatus('local-only')).show, false);
+  });
+
+  test('full mapping counts awaiting confirmation do not claim bookmarks are missing', () => {
+    const view = describeSyncProgress(progress({ firstSync: false, liveWork: false,
+      bookmarks: { synced: 970, total: 970 }, folders: { synced: 9, total: 9 } }));
+    assert.equal(view.title, 'Syncing bookmarks');
+    assert.equal(view.note, undefined);
+    assert.equal(view.done, false);
   });
 
   test('runs without a value while preparing, and ends on Sync complete only when watched', () => {

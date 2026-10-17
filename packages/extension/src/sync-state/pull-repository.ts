@@ -402,7 +402,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
         for (const nativeId of (event.pendingDeleteNativeIds as string[] | undefined) ?? []) projectionState.set(nativeId, null);
       }
       const planned = blocked ? { blocked: true as const, writes: [] }
-        : await planPullMappingWrites(mappings, key, pageEvents, preservedMappings);
+        : await planPullMappingWrites(mappings, key, pageEvents, preservedMappings, tx.objectStore(STORES.mounts));
       if (planned.blocked && !blocked) blocked = 'mapping_identity_conflict';
       if (blocked) { pages.put({ ...page, state: 'blocked', recoveryCode: blocked, blockedAt: Date.now() });
         scopes.put({ ...current, lifecycle: 'recovery_required', metadata: { ...(current.metadata ?? {}),
@@ -451,7 +451,11 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
       pages.put({ ...page, state: 'page_complete', completedAt: Date.now() });
       tx.objectStore(STORES.cursors).put({ scopeKey: key, cursor: page.nextCursor, checkpoint: page.collectionRevision,
         evidence: { pullPageId: page.pageId, pageDigest: page.pageDigest } });
-      scopes.put({ ...current, checkpoint: { cursor: String(page.nextCursor), serverRevision: String(page.collectionRevision) } });
+      const rootRebindings = !planned.blocked ? planned.rootRebindings : new Map<string, string>();
+      scopes.put({ ...current,
+        selectedRoots: current.selectedRoots.map(id => rootRebindings.get(id) ?? id),
+        ...(current.privateRoots ? { privateRoots: current.privateRoots.map(id => rootRebindings.get(id) ?? id) } : {}),
+        checkpoint: { cursor: String(page.nextCursor), serverRevision: String(page.collectionRevision) } });
     });
     if (blocked) throw new SyncStateError('recovery_required');
   }

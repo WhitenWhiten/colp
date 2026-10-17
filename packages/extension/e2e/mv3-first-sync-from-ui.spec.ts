@@ -162,5 +162,53 @@ test('a directly selected subfolder survives reload and reconnect without duplic
         [JSON.stringify([node.id, node.parentId, node.title, node.url]), ...flatten(node.children ?? [])]);
       return flatten(await chrome.bookmarks.getTree());
     })).toEqual(nativeBefore);
+    await page.reload();
+    await showOptionsPane(page, 'folders');
+    await expect(page.locator('body')).toHaveAttribute('data-first-run', '');
+    await page.evaluate(async () => {
+      const bar = (await chrome.bookmarks.getTree())[0]!.children![0]!;
+      const folder = await chrome.bookmarks.create({ parentId: bar.id, title: 'Later selected folder' });
+      for (let index = 0; index < 10; index++) await chrome.bookmarks.create({ parentId: folder.id,
+        title: `Later bookmark ${index}`, url: `https://example.test/later-selected/${index}` });
+    });
+    const added = await page.evaluate(async () => {
+      const current = await chrome.runtime.sendMessage({ kind: 'known.roots.get' }) as {
+        ok: boolean; view: { viewId: string; roots: { ref: string; title: string; selected: boolean; privateLocal: boolean }[] } };
+      const preview = await chrome.runtime.sendMessage({ kind: 'known.roots.preview', viewId: current.view.viewId,
+        selectedRefs: current.view.roots.filter(root => root.selected || root.title === 'Later selected folder').map(root => root.ref),
+        privateRefs: current.view.roots.filter(root => root.privateLocal).map(root => root.ref) }) as {
+        ok: boolean; preview: { previewId: string; treeDigest: string; addedCount: number } };
+      if (!preview.ok) return preview;
+      if (preview.preview.addedCount !== 1) throw new Error(`range_added_count:${preview.preview.addedCount}`);
+      return chrome.runtime.sendMessage({ kind: 'known.roots.confirm', previewId: preview.preview.previewId,
+        treeDigest: preview.preview.treeDigest, confirmationId: crypto.randomUUID() });
+    });
+    expect(added).toMatchObject({ ok: true });
+    const readStatus = () => page.evaluate(async () => ({
+      progress: await chrome.runtime.sendMessage({ kind: 'known.sync.progress.get' }),
+      bootstrap: await chrome.runtime.sendMessage({ kind: 'known.firstRun.status' }),
+      engine: await chrome.runtime.sendMessage({ kind: 'known.sync.engine.status' }),
+      attention: await chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' }),
+    }));
+    expect((await readStatus() as { progress: { progress: { firstSync: boolean } } }).progress.progress.firstSync).toBe(false);
+    try {
+      await expect.poll(async () => ((await stack.observations()).canonicalNodes as CanonicalNode[])
+        .filter(node => node.deleted_at === null && node.url?.startsWith('https://example.test/later-selected/')).length,
+      { timeout: 60_000 }).toBe(10);
+      await expect.poll(async () => {
+        const status = await readStatus() as { progress: { progress?: { stage: string } }; engine: { engine?: { errorCode?: string } } };
+        return { stage: status.progress.progress?.stage, error: status.engine.engine?.errorCode };
+      }, { timeout: 45_000 }).toEqual({ stage: 'done', error: undefined });
+    } catch (error) {
+      console.log(JSON.stringify(await readStatus()));
+      throw error;
+    }
+    const nativeAfter = await page.evaluate(async () => {
+      const flatten = (nodes: chrome.bookmarks.BookmarkTreeNode[]): string[] => nodes.flatMap(node =>
+        [JSON.stringify([node.id, node.parentId, node.title, node.url]), ...flatten(node.children ?? [])]);
+      return flatten(await chrome.bookmarks.getTree());
+    });
+    expect(nativeAfter).toHaveLength(nativeBefore.length + 11);
+    expect(nativeBefore.every(node => nativeAfter.includes(node))).toBe(true);
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });

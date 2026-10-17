@@ -51,7 +51,8 @@ function stallNote(progress: PublicSyncProgress, status: SyncStatus | undefined)
     case 'review-conflicts': return t('syncProgress_attention', 'Sync needs your attention. Open Status to see what is waiting.');
     default: break;
   }
-  if (progress.stage === 'syncing' && !progress.liveWork && !progress.firstSync) {
+  if (progress.stage === 'syncing' && !progress.liveWork && !progress.firstSync
+      && (progress.bookmarks.synced < progress.bookmarks.total || progress.folders.synced < progress.folders.total)) {
     return t('syncProgress_notQueued', 'Some bookmarks haven’t been uploaded yet. Sync checks again on its own.');
   }
   return undefined;
@@ -65,7 +66,7 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
   const total = bookmarks.total + folders.total; const synced = bookmarks.synced + folders.synced;
   const paused = status?.kind === 'paused' && progress.stage !== 'done';
   const blocked = status?.kind === 'action-required' || status?.kind === 'review-conflicts';
-  const pausedTitle = progress.firstSync || progress.stage === 'preparing'
+  const pausedTitle = progress.firstSync
     ? t('syncProgress_firstPausedTitle', 'First sync paused') : t('syncProgress_pausedTitle', 'Sync paused');
   if (progress.stage === 'preparing' && paused) {
     return { show: true, indeterminate: false, value: 0, done: false, paused, title: pausedTitle,
@@ -74,9 +75,11 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
   }
   if (progress.stage === 'preparing') {
     return { show: true, indeterminate: true, value: 0, done: false, paused,
-      title: t('syncProgress_preparingTitle', 'Preparing your first sync'),
+      title: progress.firstSync ? t('syncProgress_preparingTitle', 'Preparing your first sync')
+        : t('syncProgress_preparingMoreTitle', 'Preparing bookmark sync'),
       detail: t('syncProgress_preparingDetail', 'Comparing this browser’s bookmarks with your library. Large libraries take a minute.'),
-      short: t('syncProgress_preparingShort', 'Preparing first sync…'),
+      short: progress.firstSync ? t('syncProgress_preparingShort', 'Preparing first sync…')
+        : t('syncProgress_preparingMoreShort', 'Preparing sync…'),
       ...(stallNote(progress, status) ? { note: stallNote(progress, status)! } : {}), guidance: blocked ? [] : guidance() };
   }
   // tn passes the raw count as $1; the formatted numbers are $2 and $3.

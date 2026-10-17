@@ -94,6 +94,17 @@ test('same-title local custom roots are kept distinct', () => {
   assert.equal(report.planned.filter(op => op.reason === 'mount-resolve').length, 2);
 });
 
+test('adding a folder does not flag pre-existing cloud-only duplicates as needing a decision', () => {
+  const report = match({ remote: [root, remoteFolder, remoteNested, remoteChild,
+    { ...remoteFolder, nodeId: 'existing-mount', title: 'Existing' },
+    { ...remoteNested, nodeId: 'existing-subfolder', parentId: 'existing-mount' },
+    { ...remoteChild, nodeId: 'existing-a', parentId: 'existing-mount', url: 'https://example.test/existing' },
+    { ...remoteChild, nodeId: 'existing-b', parentId: 'existing-subfolder', url: 'https://example.test/existing' },
+  ] });
+  assert.deepEqual(report.candidates, []);
+  assert.deepEqual(report.planned, []);
+});
+
 for (const extra of [{ parentId: 'another-root' }, { folderRole: 'bookmarks-bar' },
   { folderRole: undefined }, { managed: true }, { privateLocal: true }]) {
   test(`custom-root merge does not adopt an ineligible candidate: ${JSON.stringify(extra)}`, () => {

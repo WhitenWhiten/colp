@@ -147,8 +147,9 @@ export function matchLocalRemote(input: {
     const url = group.locals[0]?.url ?? group.remotes[0]?.url;
     if (!url) continue;
     const freeLocals = group.locals.filter((row) => !consumedL.has(row.nativeId));
-    const freeRemotes = group.remotes.filter((row) => !consumedR.has(row.nodeId));
-    if (freeLocals.length === 0 && freeRemotes.length === 0) continue;
+    // Existing cloud duplicates do not require a decision when adding an
+    // unrelated local folder. Candidates must involve this merge's local work.
+    if (freeLocals.length === 0) continue;
     const parents = [...new Set([...group.locals.map((row) => row.parentNativeId ?? ''),
       ...group.remotes.map((row) => row.parentId ?? '')])];
     const nodeIds = [...group.remotes.map((row) => row.nodeId), ...freeLocals.map((row) => row.nativeId)];

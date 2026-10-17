@@ -43,7 +43,7 @@ export function projectSyncProgress(facts: SyncProgressFacts): PublicSyncProgres
   return {
     stage: preparing ? 'preparing' : left > 0 || facts.liveWork || facts.unsettled
       || facts.firstRun === 'running' || facts.runPhase === 'syncing' ? 'syncing' : 'done',
-    firstSync: facts.firstRun === 'running' || preparing || facts.runPhase === 'syncing',
+    firstSync: facts.firstRun === 'running',
     liveWork: facts.liveWork,
     bookmarks, folders,
   };

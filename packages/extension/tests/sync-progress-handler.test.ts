@@ -13,7 +13,7 @@ const f = vi.hoisted(() => ({
   firstRun: 'running' as string,
   queue: [] as string[],
   tree: [] as unknown[],
-  extraMappings: [] as Array<{ nativeId: string; colpId: string }>,
+  extraMappings: [] as Array<{ nativeId: string; colpId: string; projection?: { revision: string } }>,
   captures: false, acknowledgement: false, frozen: false, aligned: true,
 }));
 
@@ -93,6 +93,12 @@ describe('handleSyncProgressRequest', () => {
     f.queue = ['rejected'];
     const response = await handleSyncProgressRequest();
     assert.equal(response.ok && response.progress?.liveWork, false);
+  });
+
+  test('a local root UUID is not a confirmed server mapping', async () => {
+    f.extraMappings = [{ nativeId: 'b', colpId: 'reserved-local-uuid', projection: { revision: 'local-root' } }];
+    const response = await handleSyncProgressRequest();
+    assert.deepEqual(response.ok && response.progress?.bookmarks, { synced: 1, total: 2 });
   });
 
   test('answers null when sync is not set up, not connected, or bookmarks are off', async () => {
