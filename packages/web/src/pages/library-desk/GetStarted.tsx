@@ -22,7 +22,7 @@ export function GetStarted({ onNewFolder }: { onNewFolder: () => void }) {
         <div className="get-started-text"><h3>Install the extension</h3><p>Sync this browser’s bookmarks with your library.</p></div>
         <Link to="/extension" className="btn btn-secondary btn-sm">Install the extension</Link></li>
       <li className="get-started-step"><span className="get-started-mark" aria-hidden><Icon name="folder" /></span>
-        <div className="get-started-text"><h3>Make room for your bookmarks</h3><p>Create a folder in Bookmarks bar or Other bookmarks.</p></div>
+        <div className="get-started-text"><h3>Sort with folders</h3><p>Add a folder to Bookmarks bar or Other bookmarks. Your browsers get it on their next sync.</p></div>
         <button type="button" className="btn btn-secondary btn-sm" onClick={onNewFolder}>New folder</button></li>
     </ol>
   </section>

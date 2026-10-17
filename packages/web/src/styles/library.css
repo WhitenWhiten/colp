@@ -2212,7 +2212,7 @@ body[data-bookmark-drag] {
 }
 
 /* ——— Get started (library-desk/GetStarted) ———
-   Five steps as tiles on wide screens, rows on phones. A done step keeps
+   The steps as tiles on wide screens, rows on phones. A done step keeps
    its place (progress you can see) but steps back visually. */
 .get-started {
   display: grid;
