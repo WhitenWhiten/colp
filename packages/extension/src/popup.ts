@@ -407,6 +407,7 @@ async function submit(hasUserGesture: boolean): Promise<void> {
     const target = rule.target(chosen);
     const parentNativeId = target.parentNativeId;
     if (!parentNativeId) {
+      restoreSave();
       setFeedback(t('save_chooseFolderBeforeSaving', 'Choose a folder before saving.'));
       await folders.open(); return;
     }
