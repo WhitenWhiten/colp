@@ -42,7 +42,7 @@ export function PreviewPanel({
   /** Another action on the page is running. An incomplete rule stays previewable: the page says what is missing. */
   disabled: boolean
 }) {
-  const where = collectionTitle ? <strong>{collectionTitle}</strong> : 'the collection'
+  const where = collectionTitle ? <strong>{collectionTitle}</strong> : 'your library'
   if (!preview) {
     return (
       <section className="automation-preview" aria-labelledby="automation-preview-heading" data-state="empty">

@@ -227,7 +227,7 @@ export function RunOnce() {
                   <h2 id="run-once-where">Which bookmarks</h2>
                 </div>
                 <div className="field">
-                  <label htmlFor="run-once-folder">Folder in {collectionTitle ?? 'this collection'}</label>
+                  <label htmlFor="run-once-folder">Folder in {collectionTitle ?? 'your library'}</label>
                   <select
                     id="run-once-folder"
                     value={options.folderId}
@@ -240,7 +240,7 @@ export function RunOnce() {
                   </select>
                 </div>
                 {tree.state.status === 'error' && (
-                  <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of this collection.')}</p>
+                  <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of your library.')}</p>
                 )}
                 <fieldset className="option-group" disabled={busy !== null}>
                   <legend className="visually-hidden">Which bookmarks</legend>

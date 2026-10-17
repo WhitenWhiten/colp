@@ -607,17 +607,17 @@ export function RuleEditor() {
                 </div>
                 {folderInvalid && <p className="field-error" role="alert">Choose the folder bookmarks go to.</p>}
                 {tree.state.status === 'error' && (
-                  <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of this collection.')}</p>
+                  <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of your library.')}</p>
                 )}
                 {draft.folderId && tree.state.status === 'ready' && !chosenFolder && (
                   <p className="field-error" role="alert">This folder is gone. Choose another one.</p>
                 )}
                 {tree.state.status === 'ready' && folderList.length === 0 && (
-                  <p className="field-hint">This collection has no folders yet. Create one in your library first.</p>
+                  <p className="field-hint">Your library has no folders yet. Create one there first.</p>
                 )}
                 <p className="field-hint">
                   The rule follows the folder itself, so renaming or moving it later keeps the rule working.
-                  It applies to bookmarks saved to this collection.
+                  It applies to bookmarks saved anywhere in your library.
                 </p>
               </li>}
 

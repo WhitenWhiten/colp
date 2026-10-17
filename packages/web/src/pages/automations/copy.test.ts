@@ -48,7 +48,7 @@ describe('automation copy', () => {
   it('reads the editor’s unfinished rule as a template, not as a broken sentence', () => {
     const empty = { ...definition, match: { kind: 'all' as const, items: [] } }
     expect(sentenceText(ruleSentence(empty, { collection: null, folder: null, draft: true })))
-      .toBe('When a bookmark saved to the collection you choose matches the conditions you add, move it to the folder you choose.')
+      .toBe('When a bookmark saved to your library matches the conditions you add, move it to the folder you choose.')
     // A stored rule's missing names are its own, not blanks to fill in.
     expect(sentenceText(ruleSentence(definition, { collection: 'Personal', folder: null })))
       .toBe('When a bookmark saved to Personal is from arxiv.org, move it to its folder.')

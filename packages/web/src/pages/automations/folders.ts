@@ -57,7 +57,9 @@ let manifestUuid: Promise<string> | null = null
 export const defaultFolderSource: FolderSource = {
   async listCollections(signal) {
     const library = await productClient.getLibrary({ signal, maxRetries: 0 })
-    return [{ id: library.id, title: library.title }]
+    // Rules watch the one library, whose stored title never shows: sentences
+    // and labels read “saved to your library”, “Folder in your library”.
+    return [{ id: library.id, title: 'your library' }]
   },
   async loadFolders(collectionId, signal) {
     const snapshot = await productClient.loadEditorSnapshot(collectionId, { signal, maxRetries: 0 })

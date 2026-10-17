@@ -58,6 +58,7 @@ async function mockOwnerWithAutomations(page: Page) {
     account: { id: 'acc-automations', email: 'owner@colp.test' },
     profile: { id: 'prof-1', handle: 'owner', displayName: 'Owner', avatarUrl: null },
   }))
+  await page.route((url) => url.pathname === '/api/v1/me/library', (route) => json(route, { ...collection, library: true }))
   await page.route((url) => url.pathname === '/api/v1/collections', (route) => json(route, {
     items: [{ collection, capabilities, bookmarkCount: 1 }],
     page: { returnedCount: 1, hasMore: false, nextCursor: null },
@@ -130,7 +131,7 @@ test.describe('automations with mocked Product API', () => {
 
     const turnOn = page.getByTestId('automation-turn-on')
     await page.getByLabel('Site is').fill('arxiv.org')
-    await expect(page.getByTestId('automation-sentence')).toHaveText('When a bookmark saved to Personal is from arxiv.org, move it to Academic.')
+    await expect(page.getByTestId('automation-sentence')).toHaveText('When a bookmark saved to your library is from arxiv.org, move it to Academic.')
     await expect(turnOn).toBeDisabled()
 
     await page.getByRole('button', { name: 'Preview', exact: true }).click()
@@ -146,7 +147,7 @@ test.describe('automations with mocked Product API', () => {
 
     await turnOn.click()
     await expect(page).toHaveURL(/\/automations$/u)
-    await expect(page.getByTestId('automation-sentence')).toHaveText('When a bookmark saved to Personal is from arxiv.org, move it to Academic.')
+    await expect(page.getByTestId('automation-sentence')).toHaveText('When a bookmark saved to your library is from arxiv.org, move it to Academic.')
 
     const byPath = (suffix: string) => writes.find((write) => write.path === `${A}${suffix}`)
     const binding = byPath('/binding-sets')

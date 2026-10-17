@@ -101,7 +101,7 @@ export function ruleSentence(
   const many = trigger.mode === 'countBatch'
   const draft = names.draft === true
   parts.push({ text: many ? `Every ${trigger.count} bookmarks saved to ` : 'When a bookmark saved to ' })
-  parts.push({ text: names.collection ?? (draft ? 'the collection you choose' : 'its collection'), term: names.collection !== null })
+  parts.push({ text: names.collection ?? (draft ? 'your library' : 'its collection'), term: names.collection !== null })
   parts.push({ text: many ? ' that ' : ' ' })
   parts.push(...matchParts(definition.match, many, draft))
   if (definition.intake) {
