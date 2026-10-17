@@ -4,13 +4,14 @@
  * live attribution check: a bookmark that anonymous readers can see, or a
  * signed-in reader's own collection. A stored UUID is not enough: a private
  * collection, hide_public or a removed URL must 404 at the origin. Cached
- * successes may remain usable for one day after access is revoked.
+ * successes may remain usable for up to fifteen days after access is revoked.
  */
 import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
 import {
   LINK_PREVIEW_CACHE_MAX_AGE_SECONDS,
+  LINK_PREVIEW_CACHE_MIN_AGE_SECONDS,
   sniffBookmarkFaviconCanonicalMime,
   type LinkPreviewObjectStore,
 } from '../../modules/collections/index.js';
@@ -20,8 +21,6 @@ import { requireBrowserSessionActor } from '../session-auth.js';
 import { admitPublicObjectGet, type PublicObjectRateLimiter } from './public-object-rate-limit.js';
 import { abortPublicationRead, productReadDeadlineMs, requestCancellation } from './publication-request-cancel.js';
 
-const LINK_PREVIEW_OBJECT_CACHE_CONTROL = `public, max-age=${LINK_PREVIEW_CACHE_MAX_AGE_SECONDS}, must-revalidate`;
-const LINK_PREVIEW_PRIVATE_CACHE_CONTROL = `private, max-age=${LINK_PREVIEW_CACHE_MAX_AGE_SECONDS}, must-revalidate`;
 const LINK_PREVIEW_MISSING_CACHE_CONTROL = 'public, max-age=60';
 const LINK_PREVIEW_ID_PATTERN = /^[a-f0-9-]{36}$/u;
 const SERVABLE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -92,9 +91,14 @@ export function registerLinkPreviewRoutes(app: FastifyInstance, deps: LinkPrevie
     const mime = sniffBookmarkFaviconCanonicalMime(stored.body);
     if (mime === null || !SERVABLE_MIME.has(mime)) throw linkPreviewNotFound(privateRead);
     const etag = `"${createHash('sha256').update(stored.body).digest('hex')}"`;
+    // Stable per-object jitter spreads simultaneous loads across 7–15 days,
+    // and stays consistent across revalidation, restarts and server replicas.
+    const jitterRange = LINK_PREVIEW_CACHE_MAX_AGE_SECONDS - LINK_PREVIEW_CACHE_MIN_AGE_SECONDS + 1;
+    const maxAge = LINK_PREVIEW_CACHE_MIN_AGE_SECONDS
+      + createHash('sha256').update(previewId).digest().readUInt32BE(0) % jitterRange;
     reply
       .header('content-type', mime)
-      .header('cache-control', publicAccess ? LINK_PREVIEW_OBJECT_CACHE_CONTROL : LINK_PREVIEW_PRIVATE_CACHE_CONTROL)
+      .header('cache-control', `${publicAccess ? 'public' : 'private'}, max-age=${maxAge}, must-revalidate`)
       .header('etag', etag)
       .header('vary', 'Cookie')
       .header('x-content-type-options', 'nosniff');

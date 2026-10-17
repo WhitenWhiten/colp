@@ -1996,7 +1996,7 @@ export interface paths {
         };
         /**
          * Get a bookmark preview image by id
-         * @description Preview image bytes: a validated copy of a bookmark page's own sharing image (og:image, twitter:image, or link rel=image_src), served from the server's origin so clients never hotlink third parties. previewId is a lowercase UUID. Anonymous readers get the image while a public or unlisted bookmark still exposes it (public, max-age=86400, must-revalidate). A signed-in owner or member also gets the images of their private collections (private, max-age=86400, must-revalidate). Successful responses carry a strong content ETag; If-None-Match uses weak comparison, including lists and *, and returns a bodyless 304 only after checking current access and stored image validity. Both 200 and 304 vary on Cookie. Cached images may remain usable for up to one day after access is revoked. Illegal ids, missing objects, objects the reader cannot see, and bytes that fail image validation share the same 404 resource_not_found shape (no existence oracle). Registered only while KNOWN_FEATURE_LINK_PREVIEW is on; otherwise every id is 404. No Set-Cookie.
+         * @description Preview image bytes: a validated copy of a bookmark page's own sharing image (og:image, twitter:image, or link rel=image_src), served from the server's origin so clients never hotlink third parties. previewId is a lowercase UUID. Anonymous readers get the image while a public or unlisted bookmark still exposes it (public cache). A signed-in owner or member also gets the images of their private collections (private, browser-only cache). Successes use max-age between 604800 and 1296000 seconds (7–15 days), with stable jitter derived from the image ID and must-revalidate. Images loaded together get staggered expiration; revalidation, restarts and server replicas keep the same lifetime. Successful responses carry a strong content ETag; If-None-Match uses weak comparison, including lists and *, and returns a bodyless 304 only after checking current access and stored image validity. Both 200 and 304 vary on Cookie. Cached images may remain usable for up to fifteen days after access is revoked. Illegal ids, missing objects, objects the reader cannot see, and bytes that fail image validation share the same 404 resource_not_found shape (no existence oracle). Registered only while KNOWN_FEATURE_LINK_PREVIEW is on; otherwise every id is 404. No Set-Cookie.
          */
         get: operations["getLinkPreviewObject"];
         put?: never;
@@ -5105,8 +5105,8 @@ export interface components {
         RetryAfter: number;
         /** @description Session or one-time OIDC transaction cookie. */
         SetCookie: string;
-        /** @description One-day public cache while a public or unlisted bookmark exposes the image; browser-only cache for private images. Expired responses must revalidate. Access revocation can take up to one day to affect cached copies. */
-        LinkPreviewImageCache: "public, max-age=86400, must-revalidate" | "private, max-age=86400, must-revalidate";
+        /** @description Public cache while a public or unlisted bookmark exposes the image; browser-only cache for private images. max-age is between 604800 and 1296000 seconds (7–15 days), with stable jitter per image ID. Expired responses must revalidate. Access revocation can take up to fifteen days to affect cached copies. */
+        LinkPreviewImageCache: string;
         /** @description Short public cache for anonymous misses; private, no-store when the request carried a cookie. */
         LinkPreviewMissCache: "public, max-age=60" | "private, no-store";
         /** @description Short public cache for favicon object misses. */

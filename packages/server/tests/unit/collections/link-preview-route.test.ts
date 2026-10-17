@@ -1,7 +1,7 @@
 /**
  * LP-04: GET /api/v1/link-preview/:previewId. Registered only while the
  * feature is on. Anonymous readers get bytes only while a public or unlisted
- * bookmark still exposes the object, with a one-day revalidated cache. A
+ * bookmark still exposes the object, with a jittered 7–15 day cache. A
  * signed-in owner or member also gets their private collection's objects,
  * cached only in their browser. Illegal ids, hidden objects, missing objects and non-images
  * share one 404.
@@ -52,20 +52,49 @@ function app(store: MemoryObjectStore, publicAccess: LinkPreviewPublicAccess, ex
   return built;
 }
 
+function previewCacheAge(value: unknown, visibility: 'public' | 'private'): number {
+  const match = new RegExp(`^${visibility}, max-age=(\\d+), must-revalidate$`, 'u').exec(String(value));
+  assert.ok(match, `unexpected cache policy: ${String(value)}`);
+  const age = Number(match[1]);
+  assert.ok(age >= 604_800 && age <= 1_296_000, `cache age out of 7–15 day range: ${age}`);
+  return age;
+}
+
 describe('GET /api/v1/link-preview/:previewId', () => {
-  test('serves stored image bytes with a one-day cache, ETag and nosniff', async () => {
+  test('serves stored image bytes with a 7–15 day cache, ETag and nosniff', async () => {
     const store = createMemoryObjectStore();
     const png = makePng(400, 210);
     await store.put(ID, png, 'text/html'); // declared type is ignored
     const response = await app(store, access({ servable: true })).inject({ method: 'GET', url: `/api/v1/link-preview/${ID}` });
     assert.equal(response.statusCode, 200, response.body);
     assert.equal(response.headers['content-type'], 'image/png');
-    assert.equal(response.headers['cache-control'], 'public, max-age=86400, must-revalidate');
+    previewCacheAge(response.headers['cache-control'], 'public');
     assert.match(String(response.headers.etag), /^"[a-f0-9]{64}"$/u);
     assert.equal(response.headers.vary, 'Cookie');
     assert.equal(response.headers['x-content-type-options'], 'nosniff');
     assert.equal(response.headers['set-cookie'], undefined);
     assert.deepEqual(response.rawPayload, png);
+  });
+
+  test('spreads identical images across cache lifetimes and keeps each lifetime stable across servers', async () => {
+    const store = createMemoryObjectStore();
+    const png = makePng(400, 210);
+    const server = app(store, access({ servable: true }));
+    const replica = app(store, access({ servable: true }));
+    const ages: number[] = [];
+    for (let index = 0; index < 32; index += 1) {
+      const id = `${index.toString(16).padStart(8, '0')}-4e5f-4a6b-8c7d-9e0f1a2b3c4d`;
+      await store.put(id, png, 'image/png');
+      const url = `/api/v1/link-preview/${id}`;
+      const response = await server.inject({ method: 'GET', url });
+      assert.equal(response.statusCode, 200);
+      ages.push(previewCacheAge(response.headers['cache-control'], 'public'));
+      const revalidated = await replica.inject({ method: 'GET', url, headers: { 'if-none-match': String(response.headers.etag) } });
+      assert.equal(revalidated.statusCode, 304);
+      assert.equal(revalidated.headers['cache-control'], response.headers['cache-control']);
+    }
+    assert.ok(new Set(ages).size > 24, 'different image IDs should not share one expiration');
+    assert.ok(Math.max(...ages) - Math.min(...ages) > 6 * 86_400, 'lifetimes should span most of the jitter window');
   });
 
   test('revalidates strong, weak, list and wildcard validators without sending image bytes', async () => {
@@ -174,9 +203,14 @@ describe('GET /api/v1/link-preview/:previewId', () => {
 
     const read = await server.inject({ method: 'GET', url, headers: { cookie: owner.cookie } });
     assert.equal(read.statusCode, 200, read.body);
-    assert.equal(read.headers['cache-control'], 'private, max-age=86400, must-revalidate');
+    const privateAge = previewCacheAge(read.headers['cache-control'], 'private');
     assert.equal(read.headers.vary, 'Cookie');
     assert.deepEqual(read.rawPayload, png);
+
+    visibility.servable = true;
+    const publicRead = await server.inject({ method: 'GET', url });
+    assert.equal(previewCacheAge(publicRead.headers['cache-control'], 'public'), privateAge);
+    visibility.servable = false;
 
     const etag = String(read.headers.etag);
     const revalidated = await server.inject({ method: 'GET', url, headers: { cookie: owner.cookie, 'if-none-match': etag } });

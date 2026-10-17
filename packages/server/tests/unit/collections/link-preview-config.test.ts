@@ -16,7 +16,7 @@ test('KNOWN_FEATURE_LINK_PREVIEW defaults off with the contracted numbers', () =
     enabled: false,
     workerConcurrency: 2,
     perHostGapMs: 2_000,
-    retentionSeconds: 86_400,
+    retentionSeconds: 1_296_000,
   });
   assert.equal(loadConfig({ ...env, KNOWN_FEATURE_LINK_PREVIEW: 'TRUE' }).linkPreview?.enabled, true);
   assert.throws(
@@ -32,12 +32,14 @@ test('out-of-range numbers fail startup with the env key', () => {
     ['LINK_PREVIEW_CONCURRENCY', '1.5'],
     ['LINK_PREVIEW_HOST_GAP_MS', '-1'],
     ['LINK_PREVIEW_HOST_GAP_MS', '60001'],
-    // A displaced object must outlive the one-day image cache.
-    ['LINK_PREVIEW_RETENTION_SECONDS', '86399'],
+    // A displaced object must outlive the longest (15-day) image cache.
+    ['LINK_PREVIEW_RETENTION_SECONDS', '86400'],
+    ['LINK_PREVIEW_RETENTION_SECONDS', '1295999'],
   ] as const) {
     assert.throws(() => loadConfig({ ...env, [key]: value }), new RegExp(key, 'u'), `${key}=${value}`);
   }
   assert.equal(loadConfig({ ...env, LINK_PREVIEW_HOST_GAP_MS: '0' }).linkPreview?.perHostGapMs, 0);
+  assert.equal(loadConfig({ ...env, LINK_PREVIEW_RETENTION_SECONDS: '1296000' }).linkPreview?.retentionSeconds, 1_296_000);
 });
 
 test('the worker budget counts link preview fetches only while the feature is on', () => {

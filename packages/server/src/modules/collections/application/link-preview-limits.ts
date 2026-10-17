@@ -9,8 +9,9 @@ export const LINK_PREVIEW_MAX_IMAGE_BYTES = 2_097_152;
 export const LINK_PREVIEW_MAX_DECOMPRESSED_BYTES = 41_943_040;
 /** Longest accepted side; matches the favicon decoder's hard dimension ceiling. */
 export const LINK_PREVIEW_MAX_DIMENSION = 4096;
-/** Freshness of a stored preview version in browser caches. */
-export const LINK_PREVIEW_CACHE_MAX_AGE_SECONDS = 86_400;
+/** Per-image cache freshness is jittered between seven and fifteen days. */
+export const LINK_PREVIEW_CACHE_MIN_AGE_SECONDS = 7 * 86_400;
+export const LINK_PREVIEW_CACHE_MAX_AGE_SECONDS = 15 * 86_400;
 
 // A preview object must be able to hold anything a favicon can.
 if (LINK_PREVIEW_MAX_IMAGE_BYTES < BOOKMARK_FAVICON_MAX_BYTES) {

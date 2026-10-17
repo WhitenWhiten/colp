@@ -6,7 +6,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Changed
 
-- Gallery preview images now use a 24-hour cache (public for public/unlisted images, browser-only for private images) and content ETags with `If-None-Match` / `304` revalidation. Revalidation still checks current access and image validity; already cached images may remain usable for up to 24 hours after access is revoked. PostgreSQL storage is unchanged. The minimum `LINK_PREVIEW_RETENTION_SECONDS` is now 86400, matching its existing default and the image cache lifetime.
+- Gallery preview images now use a 7–15 day cache (public for public/unlisted images, browser-only for private images), with stable jitter per image ID to spread expiration, and content ETags with `If-None-Match` / `304` revalidation. Revalidation still checks current access and image validity; already cached images may remain usable for up to 15 days after access is revoked. PostgreSQL storage is unchanged. The default and minimum `LINK_PREVIEW_RETENTION_SECONDS` are now 1296000 (15 days), covering the longest image cache lifetime.
 
 ## [0.1.0-rc.6] - 2026-10-16
 

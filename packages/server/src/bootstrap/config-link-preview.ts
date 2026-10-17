@@ -2,7 +2,7 @@ import { LINK_PREVIEW_CACHE_MAX_AGE_SECONDS } from '../modules/collections/index
 
 /** A displaced version must outlive the freshness of a served image. */
 export const LINK_PREVIEW_MIN_RETENTION_SECONDS = LINK_PREVIEW_CACHE_MAX_AGE_SECONDS;
-export const LINK_PREVIEW_DEFAULT_RETENTION_SECONDS = 86_400;
+export const LINK_PREVIEW_DEFAULT_RETENTION_SECONDS = LINK_PREVIEW_MIN_RETENTION_SECONDS;
 
 export interface LinkPreviewFeatureConfig {
   /** `KNOWN_FEATURE_LINK_PREVIEW`; off means 404 routes, null fields, no worker loop. */
