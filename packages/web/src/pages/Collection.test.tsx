@@ -151,6 +151,16 @@ describe('public Collection page', () => {
     expect(canonicalHref()).toBeNull()
   })
 
+  it('offers no copy on the owner’s own shared folder, which is already in their library', async () => {
+    const own = snapshot()
+    own.collection = { ...own.collection, folderShare: true, title: 'Shared reading',
+      owner: { ...own.collection.owner!, handle: 'actor' } }
+    mocks.loadPublicCollectionSnapshot.mockResolvedValue(own)
+    renderCollection(); await waitForDom(domFinishedLoading)
+    expect(document.body.textContent).toContain('First source')
+    expect(document.querySelector('[data-collection-resource-save]')).toBeNull()
+  })
+
   it('renders an explicit empty state when only the published root is visible', async () => {
     mocks.loadPublicCollectionSnapshot.mockResolvedValue(snapshot([rootNode()]))
     renderCollection()
@@ -473,7 +483,7 @@ describe('public Collection page', () => {
 
     const saveButton = document.querySelector<HTMLButtonElement>('[data-collection-resource-save]')
     expect(saveButton?.getAttribute('aria-label')).toBe('Copy First source to your bookmark library')
-    expect(saveButton?.getAttribute('title')).toBe('Copy to my collection')
+    expect(saveButton?.getAttribute('title')).toBe('Copy to my library')
     expect(saveButton?.querySelector('[data-icon="fork"]')).not.toBeNull()
     expect(saveButton?.querySelector('[data-testid="save-mark"]')).toBeNull()
     await act(async () => saveButton?.click())

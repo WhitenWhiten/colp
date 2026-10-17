@@ -236,7 +236,9 @@ export function Collection() {
   }
 
   const { collection } = load.snapshot
-  const onSaveResource = isLoggedIn && !bootstrapping ? setSaveTarget : undefined
+  // A shared folder of the owner's own library is already in it; copying would duplicate it.
+  const ownFolder = collection.folderShare && Boolean(user && collection.owner?.handle === user.handle)
+  const onSaveResource = isLoggedIn && !bootstrapping && !ownFolder ? setSaveTarget : undefined
   const socialActions = collection.folderShare ? undefined : (
     <SocialActions
       links={

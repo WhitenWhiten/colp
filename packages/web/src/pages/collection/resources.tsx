@@ -40,9 +40,8 @@ function ResourceExternalLink({ resource, className }: {
   )
 }
 
-/* R7-07: a signed-in visitor copies a public bookmark into a collection
-   they own as a real node (the same createCollectionNode write the desk
-   uses). */
+/* R7-07: a signed-in visitor copies a public bookmark into their library
+   as a real node (the same createCollectionNode write the desk uses). */
 function ResourceSaveButton({ resource, onSave }: {
   resource: CollectionResource
   onSave: (resource: CollectionResource) => void
@@ -54,7 +53,7 @@ function ResourceSaveButton({ resource, onSave }: {
       className="collection-resource-save"
       data-collection-resource-save
       aria-label={`Copy ${resource.node.title} to your bookmark library`}
-      title="Copy to my collection"
+      title="Copy to my library"
       onClick={() => onSave(resource)}
     >
       <Icon name="fork" />
