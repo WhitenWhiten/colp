@@ -127,5 +127,13 @@ blocking as favicons, decodes the image and keeps a validated copy in PostgreSQL
 it from this server, never from the third-party site. Public and unlisted collections are filled
 in the background. A private collection's pages are fetched only after its owner or an editor
 opens it in Gallery. Shared-folder links do not expose private preview images.
+Successful preview images are cached for 24 hours, publicly for public/unlisted
+bookmarks and only in the browser for private ones (`Vary: Cookie`). Expired
+images and browser revalidation requests use content ETags and bodyless `304`
+responses after a fresh access check. A cached image may remain usable for up to
+24 hours after access is revoked; changed image content gets a new URL.
+Image bytes remain in PostgreSQL; no object-storage bucket is required.
 `KNOWN_FEATURE_LINK_PREVIEW=false` turns previews off; `LINK_PREVIEW_CONCURRENCY`
 (default 2) sets the worker's parallel fetches.
+`LINK_PREVIEW_RETENTION_SECONDS` (default and minimum 86400) retains displaced
+image versions for at least the cache lifetime before garbage collection.

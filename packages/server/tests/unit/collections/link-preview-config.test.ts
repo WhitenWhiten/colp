@@ -32,8 +32,8 @@ test('out-of-range numbers fail startup with the env key', () => {
     ['LINK_PREVIEW_CONCURRENCY', '1.5'],
     ['LINK_PREVIEW_HOST_GAP_MS', '-1'],
     ['LINK_PREVIEW_HOST_GAP_MS', '60001'],
-    // Shorter than the 60 s revalidating cache of a served object.
-    ['LINK_PREVIEW_RETENTION_SECONDS', '299'],
+    // A displaced object must outlive the one-day image cache.
+    ['LINK_PREVIEW_RETENTION_SECONDS', '86399'],
   ] as const) {
     assert.throws(() => loadConfig({ ...env, [key]: value }), new RegExp(key, 'u'), `${key}=${value}`);
   }

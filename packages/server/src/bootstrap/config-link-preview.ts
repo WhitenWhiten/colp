@@ -1,8 +1,7 @@
-/**
- * Link preview images are served with a 60 s revalidating cache, so a
- * displaced version only has to outlive that before GC may delete it.
- */
-export const LINK_PREVIEW_MIN_RETENTION_SECONDS = 300;
+import { LINK_PREVIEW_CACHE_MAX_AGE_SECONDS } from '../modules/collections/index.js';
+
+/** A displaced version must outlive the freshness of a served image. */
+export const LINK_PREVIEW_MIN_RETENTION_SECONDS = LINK_PREVIEW_CACHE_MAX_AGE_SECONDS;
 export const LINK_PREVIEW_DEFAULT_RETENTION_SECONDS = 86_400;
 
 export interface LinkPreviewFeatureConfig {

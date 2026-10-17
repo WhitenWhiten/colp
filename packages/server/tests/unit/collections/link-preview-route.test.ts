@@ -1,9 +1,9 @@
 /**
  * LP-04: GET /api/v1/link-preview/:previewId. Registered only while the
  * feature is on. Anonymous readers get bytes only while a public or unlisted
- * bookmark still exposes the object, with a short revalidated cache. A
+ * bookmark still exposes the object, with a one-day revalidated cache. A
  * signed-in owner or member also gets their private collection's objects,
- * never cached. Illegal ids, hidden objects, missing objects and non-images
+ * cached only in their browser. Illegal ids, hidden objects, missing objects and non-images
  * share one 404.
  */
 import assert from 'node:assert/strict';
@@ -53,17 +53,78 @@ function app(store: MemoryObjectStore, publicAccess: LinkPreviewPublicAccess, ex
 }
 
 describe('GET /api/v1/link-preview/:previewId', () => {
-  test('serves stored image bytes with a short revalidated cache and nosniff', async () => {
+  test('serves stored image bytes with a one-day cache, ETag and nosniff', async () => {
     const store = createMemoryObjectStore();
     const png = makePng(400, 210);
     await store.put(ID, png, 'text/html'); // declared type is ignored
     const response = await app(store, access({ servable: true })).inject({ method: 'GET', url: `/api/v1/link-preview/${ID}` });
     assert.equal(response.statusCode, 200, response.body);
     assert.equal(response.headers['content-type'], 'image/png');
-    assert.equal(response.headers['cache-control'], 'public, max-age=60, must-revalidate');
+    assert.equal(response.headers['cache-control'], 'public, max-age=86400, must-revalidate');
+    assert.match(String(response.headers.etag), /^"[a-f0-9]{64}"$/u);
+    assert.equal(response.headers.vary, 'Cookie');
     assert.equal(response.headers['x-content-type-options'], 'nosniff');
     assert.equal(response.headers['set-cookie'], undefined);
     assert.deepEqual(response.rawPayload, png);
+  });
+
+  test('revalidates strong, weak, list and wildcard validators without sending image bytes', async () => {
+    const store = createMemoryObjectStore();
+    await store.put(ID, makePng(400, 210), 'image/png');
+    const server = app(store, access({ servable: true }));
+    const url = `/api/v1/link-preview/${ID}`;
+    const first = await server.inject({ method: 'GET', url });
+    const etag = String(first.headers.etag);
+    for (const validator of [etag, `W/${etag}`, `"other,tag", W/${etag}`, '*']) {
+      const response = await server.inject({ method: 'GET', url, headers: { 'if-none-match': validator } });
+      assert.equal(response.statusCode, 304, validator);
+      assert.equal(response.rawPayload.length, 0);
+      assert.equal(response.headers.etag, etag);
+      assert.equal(response.headers['cache-control'], first.headers['cache-control']);
+      assert.equal(response.headers.vary, 'Cookie');
+      assert.equal(response.headers['set-cookie'], undefined);
+    }
+    for (const validator of ['"outdated"', `${etag}, garbage`, `"broken, ${etag}`, `${etag}, *`]) {
+      const response = await server.inject({ method: 'GET', url, headers: { 'if-none-match': validator } });
+      assert.equal(response.statusCode, 200, validator);
+      assert.deepEqual(response.rawPayload, first.rawPayload);
+    }
+  });
+
+  test('revalidation checks current public access, object existence and image validity before 304', async () => {
+    const store = createMemoryObjectStore();
+    await store.put(ID, makePng(400, 210), 'image/png');
+    const visibility = { servable: true };
+    const server = app(store, access(visibility));
+    const url = `/api/v1/link-preview/${ID}`;
+    const first = await server.inject({ method: 'GET', url });
+    const headers = { 'if-none-match': String(first.headers.etag) };
+    visibility.servable = false;
+    const revoked = await server.inject({ method: 'GET', url, headers });
+    assert.equal(revoked.statusCode, 404);
+    assert.equal(revoked.headers.etag, undefined);
+    visibility.servable = true;
+    await store.delete(ID);
+    assert.equal((await server.inject({ method: 'GET', url, headers })).statusCode, 404);
+    await store.put(ID, Buffer.from('<html>invalid image</html>'), 'image/png');
+    assert.equal((await server.inject({ method: 'GET', url, headers: { 'if-none-match': '*' } })).statusCode, 404);
+  });
+
+  test('a changed image version sends the new image even with the old ETag', async () => {
+    const store = createMemoryObjectStore();
+    const nextId = '1a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+    const nextPng = makePng(400, 210, 64);
+    await store.put(ID, makePng(400, 210), 'image/png');
+    await store.put(nextId, nextPng, 'image/png');
+    const server = app(store, access({ servable: true }));
+    const first = await server.inject({ method: 'GET', url: `/api/v1/link-preview/${ID}` });
+    const next = await server.inject({
+      method: 'GET', url: `/api/v1/link-preview/${nextId}`,
+      headers: { 'if-none-match': String(first.headers.etag) },
+    });
+    assert.equal(next.statusCode, 200);
+    assert.notEqual(next.headers.etag, first.headers.etag);
+    assert.deepEqual(next.rawPayload, nextPng);
   });
 
   test('illegal ids, missing objects and non-servable bytes share one short-cached 404', async () => {
@@ -96,7 +157,7 @@ describe('GET /api/v1/link-preview/:previewId', () => {
     assert.equal(response.headers['content-type']?.includes('image/'), false);
   });
 
-  test('a private collection\'s image reaches its signed-in reader only, never cached', async () => {
+  test('a private image is browser-cached and revalidated only for its current signed-in reader', async () => {
     const identity = createIdentityMemoryUnitOfWork(createIdentityMemoryState(NOW));
     const factory = createInMemoryBetterAuthTestFactory({ identityUnitOfWork: identity });
     const owner = await issueTestSession({ factory, subject: 'lp-owner', displayName: 'Owner', handle: 'lpowner' });
@@ -104,7 +165,8 @@ describe('GET /api/v1/link-preview/:previewId', () => {
     const store = createMemoryObjectStore();
     const png = makePng(400, 210);
     await store.put(ID, png, 'image/png');
-    const server = app(store, access({ servable: false, readers: [owner.subjectId] }), {
+    const visibility = { servable: false, readers: [owner.subjectId] };
+    const server = app(store, access(visibility), {
       identityUnitOfWork: identity,
       browserSessionAuthority: factory.authority,
     });
@@ -112,16 +174,31 @@ describe('GET /api/v1/link-preview/:previewId', () => {
 
     const read = await server.inject({ method: 'GET', url, headers: { cookie: owner.cookie } });
     assert.equal(read.statusCode, 200, read.body);
-    assert.equal(read.headers['cache-control'], 'private, no-store');
+    assert.equal(read.headers['cache-control'], 'private, max-age=86400, must-revalidate');
     assert.equal(read.headers.vary, 'Cookie');
     assert.deepEqual(read.rawPayload, png);
 
+    const etag = String(read.headers.etag);
+    const revalidated = await server.inject({ method: 'GET', url, headers: { cookie: owner.cookie, 'if-none-match': etag } });
+    assert.equal(revalidated.statusCode, 304);
+    assert.equal(revalidated.rawPayload.length, 0);
+    assert.equal(revalidated.headers['cache-control'], read.headers['cache-control']);
+    assert.equal(revalidated.headers.etag, etag);
+    assert.equal(revalidated.headers.vary, 'Cookie');
+    assert.equal(revalidated.headers['set-cookie'], undefined);
+
     for (const headers of [{ cookie: outsider.cookie }, { cookie: 'better-auth.session_token=forged' }]) {
-      const denied = await server.inject({ method: 'GET', url, headers });
+      const denied = await server.inject({ method: 'GET', url, headers: { ...headers, 'if-none-match': etag } });
       assert.equal(denied.statusCode, 404, denied.body);
       assert.equal(denied.headers['cache-control'], 'private, no-store');
+      assert.equal(denied.headers.etag, undefined);
     }
-    const anonymous = await server.inject({ method: 'GET', url });
+    visibility.readers = [];
+    const revoked = await server.inject({ method: 'GET', url, headers: { cookie: owner.cookie, 'if-none-match': etag } });
+    assert.equal(revoked.statusCode, 404);
+    assert.equal(revoked.headers['cache-control'], 'private, no-store');
+    assert.equal(revoked.headers.etag, undefined);
+    const anonymous = await server.inject({ method: 'GET', url, headers: { 'if-none-match': '*' } });
     assert.equal(anonymous.statusCode, 404);
     assert.equal(anonymous.headers['cache-control'], 'public, max-age=60');
   });

@@ -7683,9 +7683,14 @@ paths:
         image (og:image, twitter:image, or link rel=image_src), served from the
         server's origin so clients never hotlink third parties. previewId is a
         lowercase UUID. Anonymous readers get the image while a public or
-        unlisted bookmark still exposes it (public, max-age=60,
+        unlisted bookmark still exposes it (public, max-age=86400,
         must-revalidate). A signed-in owner or member also gets the images of
-        their private collections (private, no-store). Illegal ids, missing
+        their private collections (private, max-age=86400, must-revalidate).
+        Successful responses carry a strong content ETag; If-None-Match uses
+        weak comparison, including lists and *, and returns a bodyless 304
+        only after checking current access and stored image validity. Both
+        200 and 304 vary on Cookie. Cached images may remain usable for up to
+        one day after access is revoked. Illegal ids, missing
         objects, objects the reader cannot see, and bytes that fail image
         validation share the same 404 resource_not_found shape (no existence
         oracle). Registered only while KNOWN_FEATURE_LINK_PREVIEW is on;
@@ -7695,11 +7700,15 @@ paths:
         - cookieAuth: []
       parameters:
         - $ref: '#/components/parameters/LinkPreviewId'
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: Preview image bytes.
           headers:
             Cache-Control: { $ref: '#/components/headers/LinkPreviewImageCache' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            Vary:
+              schema: { type: string, const: Cookie }
             X-Content-Type-Options:
               $ref: '#/components/headers/XContentTypeOptions'
             X-Request-Id:
@@ -7711,6 +7720,14 @@ paths:
               schema: { type: string, format: binary }
             image/webp:
               schema: { type: string, format: binary }
+        '304':
+          description: The reader still has access and the cached image is unchanged. No body.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/LinkPreviewImageCache' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            Vary:
+              schema: { type: string, const: Cookie }
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
         '404':
           $ref: '#/components/responses/LinkPreviewNotFound'
   /api/v1/collections/{collectionId}/nodes/{nodeId}/favicon:
@@ -8612,12 +8629,12 @@ components:
         minLength: 1
     LinkPreviewImageCache:
       description: >-
-        Short revalidated public cache while a public or unlisted bookmark
-        exposes the image, so a later revocation takes effect; private, no-store
-        when only the signed-in reader's own collection exposes it.
+        One-day public cache while a public or unlisted bookmark exposes the
+        image; browser-only cache for private images. Expired responses must
+        revalidate. Access revocation can take up to one day to affect cached copies.
       schema:
         type: string
-        enum: [ 'public, max-age=60, must-revalidate', 'private, no-store' ]
+        enum: [ 'public, max-age=86400, must-revalidate', 'private, max-age=86400, must-revalidate' ]
     LinkPreviewMissCache:
       description: Short public cache for anonymous misses; private, no-store when the request carried a cookie.
       schema:

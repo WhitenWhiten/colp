@@ -3,19 +3,25 @@
  * bookmark page's own sharing image. Shared public-object admission, then a
  * live attribution check: a bookmark that anonymous readers can see, or a
  * signed-in reader's own collection. A stored UUID is not enough: a private
- * collection, hide_public or a removed URL must 404. Public success caching
- * is short and revalidated so a later 404 takes effect.
+ * collection, hide_public or a removed URL must 404 at the origin. Cached
+ * successes may remain usable for one day after access is revoked.
  */
+import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
-import { sniffBookmarkFaviconCanonicalMime, type LinkPreviewObjectStore } from '../../modules/collections/index.js';
+import {
+  LINK_PREVIEW_CACHE_MAX_AGE_SECONDS,
+  sniffBookmarkFaviconCanonicalMime,
+  type LinkPreviewObjectStore,
+} from '../../modules/collections/index.js';
 import { ProductHttpError } from '../product-error.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
 import { requireBrowserSessionActor } from '../session-auth.js';
 import { admitPublicObjectGet, type PublicObjectRateLimiter } from './public-object-rate-limit.js';
 import { abortPublicationRead, productReadDeadlineMs, requestCancellation } from './publication-request-cancel.js';
 
-const LINK_PREVIEW_OBJECT_CACHE_CONTROL = 'public, max-age=60, must-revalidate';
+const LINK_PREVIEW_OBJECT_CACHE_CONTROL = `public, max-age=${LINK_PREVIEW_CACHE_MAX_AGE_SECONDS}, must-revalidate`;
+const LINK_PREVIEW_PRIVATE_CACHE_CONTROL = `private, max-age=${LINK_PREVIEW_CACHE_MAX_AGE_SECONDS}, must-revalidate`;
 const LINK_PREVIEW_MISSING_CACHE_CONTROL = 'public, max-age=60';
 const LINK_PREVIEW_ID_PATTERN = /^[a-f0-9-]{36}$/u;
 const SERVABLE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -85,11 +91,35 @@ export function registerLinkPreviewRoutes(app: FastifyInstance, deps: LinkPrevie
     // Declared Content-Type is ignored; only magic bytes decide what is served.
     const mime = sniffBookmarkFaviconCanonicalMime(stored.body);
     if (mime === null || !SERVABLE_MIME.has(mime)) throw linkPreviewNotFound(privateRead);
-    return reply
+    const etag = `"${createHash('sha256').update(stored.body).digest('hex')}"`;
+    reply
       .header('content-type', mime)
-      .header('cache-control', publicAccess ? LINK_PREVIEW_OBJECT_CACHE_CONTROL : 'private, no-store')
+      .header('cache-control', publicAccess ? LINK_PREVIEW_OBJECT_CACHE_CONTROL : LINK_PREVIEW_PRIVATE_CACHE_CONTROL)
+      .header('etag', etag)
       .header('vary', 'Cookie')
-      .header('x-content-type-options', 'nosniff')
-      .send(stored.body);
+      .header('x-content-type-options', 'nosniff');
+    // Authorization and stored-image validation must precede every 304.
+    if (matchesPreviewEtag(request.headers['if-none-match'], etag)) return reply.code(304).send();
+    return reply.send(stored.body);
   });
+}
+
+/** GET uses weak comparison. Ignore malformed validators rather than accepting a partial match. */
+function matchesPreviewEtag(value: string | undefined, etag: string): boolean {
+  if (value === undefined) return false;
+  if (value.trim() === '*') return true;
+  const validators: string[] = [];
+  let start = 0;
+  let quoted = false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === '"') quoted = !quoted;
+    if (value[index] === ',' && !quoted) {
+      validators.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  if (quoted) return false;
+  validators.push(value.slice(start).trim());
+  return validators.every((item) => /^(?:W\/)?"[\x21\x23-\x7E\u0080-\u00FF]*"$/u.test(item))
+    && validators.some((item) => item.replace(/^W\//u, '') === etag);
 }
