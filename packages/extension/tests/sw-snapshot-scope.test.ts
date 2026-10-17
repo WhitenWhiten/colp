@@ -53,7 +53,7 @@ test.each(['snapshot', 'pull-collection', 'pull-login', 'pull-logout'])('worker 
     rootScopeKey:()=>JSON.stringify(current), hasBookmarkPermission:async()=>true,
     BOOKMARK_RECOVERY_ALARM:'recovery',COLLECTION_BINDING:'collection',
     faviconSidecar:{list:async()=>[],prune:async()=>0},safeError:(error:Error)=>error.message}));
-  vi.doMock(root+'/sw/scope.js',()=>({ currentSyncScope:async()=>current, loadConfig:async()=>({}),
+  vi.doMock(root+'/sw/scope.js',()=>({ currentSyncScope:async()=>current, restoredSyncScope:async()=>current, loadConfig:async()=>({}),
     pushSessionAuthority:async()=>undefined, currentSyncStatusAuthority:async()=>undefined }));
   vi.doMock(root+'/sw/scope-rebuild.js',()=>({replicaRebuilder:()=>({resume:async()=>undefined})}));
   vi.doMock(root+'/sw/bookmarks.js',()=>({bookmarkListenerLifecycle:{install:()=>undefined},currentBookmarkEventQueue:async()=>undefined}));

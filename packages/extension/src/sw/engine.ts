@@ -31,7 +31,7 @@ import { currentBookmarkEventQueue, bookmarkListenerLifecycle } from './bookmark
 import { drainFaviconSidecarsForCurrentScope } from './favicon.js';
 import { resumeRunningBootstrap } from './first-run.js';
 import { hasBookmarkPermission, extensionOrigin, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
-import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAuthority } from './scope.js';
+import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAuthority, restoredSyncScope } from './scope.js';
 import { createSyncAlarmScheduler } from '../sync-alarm.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
@@ -74,7 +74,7 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   context: AuthorityContext) {
   try { await store.assertWritable(context.generation); } catch { return; }
   try { await replicaRebuilder().resume(); } catch { return; }
-  let scope: SyncScope; try { scope = await currentSyncScope(); } catch { return; }
+  let scope: SyncScope; try { scope = await restoredSyncScope(); } catch { return; }
   if (configuredPersonalSyncPolicy() && !await configuredPersonalSyncPolicy()!.allowed(scope)) return;
   await syncState.prunePullHistory(scope).catch(() => undefined);
   const advanced = await activeAdvancedPlan(syncState, scope);

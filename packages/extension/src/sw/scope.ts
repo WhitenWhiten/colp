@@ -178,6 +178,20 @@ export async function currentSyncScope(options: { allowStopped?: boolean } = {})
   return scope;
 }
 
+/**
+ * A browser restart empties the session storage area, so a worker that wakes
+ * before any page has asked for auth status holds no credential yet. The
+ * Session lane restores it from the browser's cookie. Without this, the
+ * start-up Pull gave up and nothing scheduled another until a bookmark changed.
+ */
+export async function restoredSyncScope(): Promise<SyncScope> {
+  try { return await currentSyncScope(); } catch (error) {
+    if (await store.loadCredential() || !await store.loadBinding() || !await hasBoundCollection()) throw error;
+    await pushSessionAuthority();
+    return currentSyncScope();
+  }
+}
+
 export async function requireSyncScope(): Promise<SyncScope> {
   const owner = await store.loadCredential(), target = await boundCollectionId();
   if (owner?.subject && target) await configuredPersonalSyncPolicy()?.capture({ serverOrigin: owner.serverOrigin, accountId: owner.subject, collectionId: target });

@@ -77,6 +77,7 @@ async function offlineWorker() {
   vi.doMock('../src/sw/scope.js', async () => ({
     ...await vi.importActual<typeof import('../src/sw/scope.js')>('../src/sw/scope.js'),
     currentSyncScope: async () => scope,
+    restoredSyncScope: async () => scope,
   }));
   const worker = await import('../src/sw/bookmarks.js');
   const engine = await import('../src/sw/engine.js');

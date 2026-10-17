@@ -40,7 +40,7 @@ test('worker binds outbound push dispatch to the live authority capability', asy
     rootScopeKey: () => JSON.stringify(scope), hasBookmarkPermission: async () => true,
     BOOKMARK_RECOVERY_ALARM: 'recovery', COLLECTION_BINDING: 'collection',
     faviconSidecar: { list: async () => [], prune: async () => 0 }, safeError: (error: Error) => error.message }));
-  vi.doMock(root + '/sw/scope.js', () => ({ currentSyncScope: async () => scope, loadConfig: async () => ({}),
+  vi.doMock(root + '/sw/scope.js', () => ({ currentSyncScope: async () => scope, restoredSyncScope: async () => scope, loadConfig: async () => ({}),
     pushSessionAuthority: async () => undefined, currentSyncStatusAuthority: async () => undefined }));
   vi.doMock(root + '/sw/scope-rebuild.js', () => ({ replicaRebuilder: () => ({ resume: async () => undefined }) }));
   vi.doMock(root + '/sw/bookmarks.js', () => ({ bookmarkListenerLifecycle: { install: () => undefined },

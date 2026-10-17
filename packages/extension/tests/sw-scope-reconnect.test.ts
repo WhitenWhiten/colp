@@ -67,6 +67,16 @@ test('expired offline renewal can clear Session without losing the existing reco
   await assert.rejects(f.api.currentSyncStatusAuthority(), /not_connected/);
 });
 
+test('a restart that emptied the session area restores the credential instead of reporting no connection', async () => {
+  const f = await disconnectedSession();
+  assert.deepEqual(await f.api.restoredSyncScope(), f.scope, 'a live credential needs no restore');
+  assert.equal(serverCalls(f.network), 0);
+  await f.store.clearCredential();
+  await assert.rejects(f.api.currentSyncScope(), /not_connected/);
+  // No browser cookie here, so the Session lane's restore is what fails, not the scope read.
+  await assert.rejects(f.api.restoredSyncScope(), /authentication_required/);
+});
+
 /** The manifest the e2e-fixture config points at, as the server serves it. */
 function fixtureManifest() {
   const origin = 'https://known.example';

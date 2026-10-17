@@ -20,6 +20,8 @@ const observed = vi.hoisted(() => ({
   alarms: [] as Array<{ name: string; when: number }>,
   scopeReads: 0,
   fetches: 0,
+  credentialRestored: true,
+  restores: 0,
 }));
 
 vi.mock('../src/sw/runtime.js', async () => {
@@ -46,6 +48,11 @@ vi.mock('../src/sw/runtime.js', async () => {
 vi.mock('../src/sw/scope.js', () => ({
   requireSyncScope: async () => observed.scope,
   currentSyncScope: async () => { observed.scopeReads += 1; return observed.scope; },
+  // The real helper restores a missing cookie credential through the Session lane.
+  restoredSyncScope: async () => {
+    if (!observed.credentialRestored) { observed.restores += 1; observed.credentialRestored = true; }
+    observed.scopeReads += 1; return observed.scope;
+  },
   loadConfig: async () => ({ manifestUrl: 'https://known.example/manifest.json' }),
   pushSessionAuthority: async () => undefined, currentSyncStatusAuthority: async () => undefined,
   stateAfterFailure: async () => undefined, ensureSyncScope: async () => observed.scope,
@@ -56,7 +63,7 @@ vi.mock('../src/sw/scope.js', () => ({
 describe('durable engine wake uses one bounded MV3 alarm and one engine lane', () => {
   beforeEach(() => {
     observed.lanes.length = 0; observed.alarmNames.length = 0; observed.alarms.length = 0;
-    observed.scopeReads = 0; observed.fetches = 0;
+    observed.scopeReads = 0; observed.fetches = 0; observed.credentialRestored = true; observed.restores = 0;
     // The wake must stay hermetic: an unregistered scope has no durable work, so
     // runSyncEngine returns before it can discover endpoints.
     vi.stubGlobal('fetch', async () => { observed.fetches += 1; throw new Error('network_disabled'); });
@@ -94,6 +101,14 @@ describe('durable engine wake uses one bounded MV3 alarm and one engine lane', (
     assert.deepEqual(observed.alarmNames, []);
     assert.equal(observed.scopeReads > 0, true, 'the wake reached the durable engine run');
     assert.equal(observed.fetches, 0, 'an idle scope must not open a network round trip');
+  });
+
+  test('a start-up wake before any page asked for auth status restores the credential and still runs', async () => {
+    const { scheduleSyncEngineWake } = await import('../src/sw/engine.js');
+    observed.credentialRestored = false;
+    await scheduleSyncEngineWake('startup');
+    assert.equal(observed.restores, 1, 'the wake restored the cookie credential instead of giving up');
+    assert.equal(observed.scopeReads > 0, true, 'the wake reached the durable engine run');
   });
 
   test('concurrent confirmed-online wakes coalesce into one engine-lane operation', async () => {
