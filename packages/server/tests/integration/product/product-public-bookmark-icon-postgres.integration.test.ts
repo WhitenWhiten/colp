@@ -123,6 +123,24 @@ describeWithPostgres('BF-04 PostgreSQL live bookmark icon JOIN on public Collect
     }
   });
 
+  test('signed-in readers share one object for identical icons; public readers keep their own', async () => {
+    // icon-bm-1 (published) and icon-secret (private) store the same bytes.
+    const shared = await createPostgresBookmarkIconReadPort(isolated.runtime.db)
+      .findObjectIdsByNodeIds(['icon-bm-1', 'icon-secret', 'icon-bm-8']);
+    assert.equal(shared.get('icon-bm-1'), ICON_A);
+    assert.equal(shared.get('icon-secret'), ICON_A);
+    assert.equal(shared.has('icon-bm-8'), false);
+    assert.equal(await isFaviconReadableBySubject(isolated.runtime.db, ICON_A, owner.subjectId), true);
+    // Alone in a batch, a bookmark still resolves to the collection's shared object.
+    assert.equal((await createPostgresBookmarkIconReadPort(isolated.runtime.db)
+      .findObjectIdsByNodeIds(['icon-secret'])).get('icon-secret'), ICON_A);
+
+    const perNode = await createPostgresBookmarkIconReadPort(isolated.runtime.db, { perNode: true })
+      .findObjectIdsByNodeIds(['icon-bm-1', 'icon-secret']);
+    assert.equal(perNode.get('icon-bm-1'), ICON_A);
+    assert.equal(perNode.get('icon-secret'), ICON_SECRET);
+  });
+
   test('empty node-id list is a no-op (no bookmark_icons SQL)', async () => {
     let queries = 0;
     const counted = isolated.runtime.db.withPlugin({
@@ -158,7 +176,7 @@ describeWithPostgres('BF-04 PostgreSQL live bookmark icon JOIN on public Collect
       assert.equal(denied.headers['cache-control'], 'private, no-store');
       const allowed = await app.inject({ method: 'GET', url, headers: { cookie: owner.cookie } });
       assert.equal(allowed.statusCode, 200);
-      assert.equal(allowed.headers['cache-control'], 'private, no-store');
+      assert.equal(allowed.headers['cache-control'], 'private, max-age=604800, immutable');
       assert.deepEqual(allowed.rawPayload, png);
       await isolated.runtime.pool.query('DELETE FROM bookmark_icons WHERE object_id = $1', [ICON_SECRET]);
       const retired = await app.inject({ method: 'GET', url, headers: { cookie: owner.cookie } });
@@ -177,7 +195,7 @@ function buildTestApp(isolated: IsolatedPostgresRuntime, onIconLookup: () => voi
     OIDC_JWKS_URI: 'https://issuer.example/realms/known/certs',
   });
   const cursors = createPublicationCursorKeyring({ active: keyA, retained: [] });
-  const origin = createPostgresBookmarkIconReadPort(isolated.runtime.db);
+  const origin = createPostgresBookmarkIconReadPort(isolated.runtime.db, { perNode: true });
   const app = buildApiApp({
     config,
     faviconStore: createDatabaseFaviconStore(isolated.runtime.db),

@@ -7376,7 +7376,9 @@ paths:
       summary: Get a bookmark favicon image by id
       description: >-
         Public favicon bytes are readable anonymously. Private bytes require a
-        current owner/member browser session and use private, no-store caching.
+        current owner/member browser session and use private, max-age=604800,
+        immutable caching: objects are never rewritten. Owner and member reads
+        project one object id for byte-identical icons in a collection.
         faviconId is a 36-character UUID leaf matching /^[a-f0-9-]{36}$/i.
         Illegal ids and missing objects share the same 404 resource_not_found
         shape (no existence oracle). Transport may use public-revalidate so
@@ -7395,7 +7397,7 @@ paths:
             Cache-Control:
               schema: { type: string }
               description: Public bindings use public, max-age=30, must-revalidate; private
-                reads use private, no-store.
+                reads use private, max-age=604800, immutable.
             X-Content-Type-Options:
               $ref: '#/components/headers/XContentTypeOptions'
             X-Request-Id:

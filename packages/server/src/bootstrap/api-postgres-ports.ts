@@ -344,7 +344,7 @@ export function createApiPostgresAppDependencies(input: {
       cursors: publicationCursorKeys,
       owners: publicProfileFacts,
       productOrigin: config.productOrigin,
-      bookmarkIcons: createPostgresBookmarkIconReadPort(database.db),
+      bookmarkIcons: createPostgresBookmarkIconReadPort(database.db, { perNode: true }),
       faviconSources: createPostgresFaviconSourceModeReadPort(database.db),
       publicMarks: createPostgresPublicMarksReadPort(database),
       ...(config.linkPreview?.enabled === true

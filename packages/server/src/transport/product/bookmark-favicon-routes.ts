@@ -32,6 +32,13 @@ import { requireMutationActor } from '../mutation-actor.js';
 // changes. Keep shared caches on a short revalidation window so the positive
 // liveness check is consulted promptly after a withdrawal.
 const FAVICON_OBJECT_CACHE_CONTROL = 'public, max-age=30, must-revalidate';
+/**
+ * Objects are never rewritten: new bytes always get a new id. A signed-in
+ * reader's browser may keep one for a week instead of downloading it again
+ * each time a windowed row remounts; an icon already seen can outlive a
+ * revoked membership in that browser for as long.
+ */
+const FAVICON_PRIVATE_CACHE_CONTROL = 'private, max-age=604800, immutable';
 const FAVICON_MISSING_CACHE_CONTROL = 'public, max-age=60';
 const FAVICON_ID_PATTERN = /^[a-f0-9-]{36}$/iu;
 const PRODUCT_FAVICON_ROUTE = '/api/v1/collections/:collectionId/nodes/:nodeId/favicon';
@@ -272,7 +279,7 @@ export function registerBookmarkFaviconRoutes(
       }
       return reply
         .header('content-type', contentType)
-        .header('cache-control', publicAccess ? FAVICON_OBJECT_CACHE_CONTROL : 'private, no-store')
+        .header('cache-control', publicAccess ? FAVICON_OBJECT_CACHE_CONTROL : FAVICON_PRIVATE_CACHE_CONTROL)
         .header('vary', 'Cookie')
         .header('x-content-type-options', 'nosniff')
         .send(stored.body);

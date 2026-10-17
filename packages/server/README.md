@@ -129,7 +129,11 @@ runs the worker; deployments running API and worker separately must run both.
 
 The server fetches provider icons with bounded requests and blocks private network targets.
 Browsers display stored objects; public pages never contact a third-party icon provider.
-Private objects require a current owner/member browser session and use `private, no-store` caching.
+Private objects require a current owner/member browser session. Objects are never rewritten,
+so browsers keep private reads for a week (`private, max-age=604800, immutable`); an icon already
+seen can stay in that browser for as long after access is revoked. Owners and members get one
+object URL for byte-identical icons in a collection, so a site's icon downloads once rather than
+once per bookmark; public pages keep each bookmark's own object.
 The extension's favicon helper uploads bytes separately after syncing a bookmark; images are
 not embedded in COLP Push operations. Existing helper paths and ETag checks are preserved.
 

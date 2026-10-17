@@ -11,6 +11,8 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 - Settings shows a favicon task strip across all sections, with live processed/failed/skipped counts, a thin progress bar and failed-item retries. Closing and reopening Settings discovers active account jobs through `GET /api/v1/me/favicon-jobs`, including individual refreshes started elsewhere; in-flight batch reads use committed item counters instead of waiting for the next worker-cycle aggregate.
 
+- Private favicon reads are cached by the browser for a week (`private, max-age=604800, immutable`) instead of `private, no-store`, so scrolling a long library no longer downloads icons again. Bookmarks in one collection with byte-identical icons now share one object URL for owners and members, so a site's icon downloads once rather than once per bookmark; public pages keep per-bookmark objects. An icon already seen can stay in that browser's cache for up to a week after access is revoked.
+
 - Gallery preview images now use a 7–15 day cache (public for public/unlisted images, browser-only for private images), with stable jitter per image ID to spread expiration, and content ETags with `If-None-Match` / `304` revalidation. Revalidation still checks current access and image validity; already cached images may remain usable for up to 15 days after access is revoked. PostgreSQL storage is unchanged. The default and minimum `LINK_PREVIEW_RETENTION_SECONDS` are now 1296000 (15 days), covering the longest image cache lifetime.
 
 ## [0.1.0-rc.6] - 2026-10-16

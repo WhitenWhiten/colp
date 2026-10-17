@@ -1872,7 +1872,7 @@ export interface paths {
         };
         /**
          * Get a bookmark favicon image by id
-         * @description Public favicon bytes are readable anonymously. Private bytes require a current owner/member browser session and use private, no-store caching. faviconId is a 36-character UUID leaf matching /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404 resource_not_found shape (no existence oracle). Transport may use public-revalidate so admission does not fill no-store; 200 and 404 pin Cache-Control themselves. 200 is public, max-age=30, must-revalidate. Anonymous 404 is public, max-age=60; session misses use private, no-store. The route confirms the current live bookmark binding and publication state before serving bytes. No Set-Cookie.
+         * @description Public favicon bytes are readable anonymously. Private bytes require a current owner/member browser session and use private, max-age=604800, immutable caching: objects are never rewritten. Owner and member reads project one object id for byte-identical icons in a collection. faviconId is a 36-character UUID leaf matching /^[a-f0-9-]{36}$/i. Illegal ids and missing objects share the same 404 resource_not_found shape (no existence oracle). Transport may use public-revalidate so admission does not fill no-store; 200 and 404 pin Cache-Control themselves. 200 is public, max-age=30, must-revalidate. Anonymous 404 is public, max-age=60; session misses use private, no-store. The route confirms the current live bookmark binding and publication state before serving bytes. No Set-Cookie.
          */
         get: operations["getBookmarkFavicon"];
         put?: never;
@@ -10421,7 +10421,7 @@ export interface operations {
             /** @description Favicon image bytes. */
             200: {
                 headers: {
-                    /** @description Public bindings use public, max-age=30, must-revalidate; private reads use private, no-store. */
+                    /** @description Public bindings use public, max-age=30, must-revalidate; private reads use private, max-age=604800, immutable. */
                     "Cache-Control"?: string;
                     "X-Content-Type-Options": components["headers"]["XContentTypeOptions"];
                     "X-Request-Id": components["headers"]["XRequestId"];

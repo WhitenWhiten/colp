@@ -1,5 +1,5 @@
 import { overlaySharedFaviconObjectIds } from './favicon-shared-projection.js';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type {
   BookmarkIconReadPort,
   BookmarkIconRow,
@@ -51,24 +51,69 @@ export async function deleteBookmarkIconsForCollection(
     .execute();
 }
 
+export interface BookmarkIconLookupOptions {
+  /**
+   * Each bookmark keeps its own object. Public readers need this: they may
+   * see only part of a collection, and an object is served publicly only
+   * while its own bookmark is published.
+   */
+  readonly perNode?: boolean;
+}
+
 export async function findBookmarkIconObjectIdsByNodeIds(
   db: DatabaseTransaction | Kysely<DatabaseSchema>,
   nodeIds: readonly string[],
+  options: BookmarkIconLookupOptions = {},
 ): Promise<ReadonlyMap<string, string>> {
   if (nodeIds.length === 0) return new Map();
-  const rows = await db
-    .selectFrom('bookmark_icons')
-    .select(['node_id', 'object_id'])
-    .where('node_id', 'in', [...nodeIds])
-    .execute();
+  const rows = options.perNode === true
+    ? await db
+      .selectFrom('bookmark_icons')
+      .select(['node_id', 'object_id'])
+      .where('node_id', 'in', [...nodeIds])
+      .execute()
+    : await sharedObjectIdsByNodeIds(db, nodeIds);
   return overlaySharedFaviconObjectIds(db, nodeIds, new Map(rows.map((row) => [row.node_id, row.object_id])));
+}
+
+/**
+ * Every bookmark of a site usually stores the same icon bytes under its own
+ * object, so a browser downloaded one copy per bookmark. Bookmarks in one
+ * collection with byte-identical icons now share the lowest of their object
+ * ids. An owner or member can read every bookmark in the collection, and
+ * objects are never rewritten, so the shared id serves the same bytes.
+ */
+async function sharedObjectIdsByNodeIds(
+  db: DatabaseTransaction | Kysely<DatabaseSchema>,
+  nodeIds: readonly string[],
+): Promise<Array<{ node_id: string; object_id: string }>> {
+  const result = await sql<{ node_id: string; object_id: string }>`
+    WITH wanted AS (
+      SELECT node_id, collection_id, digest_sha256, object_id
+        FROM bookmark_icons
+       WHERE node_id = ANY(${[...nodeIds]}::text[])
+    ), shared AS (
+      SELECT i.collection_id, i.digest_sha256, min(i.object_id::text) AS object_id
+        FROM bookmark_icons i
+        JOIN nodes n ON n.id = i.node_id AND n.collection_id = i.collection_id
+       WHERE (i.collection_id, i.digest_sha256) IN (SELECT collection_id, digest_sha256 FROM wanted)
+         AND n.kind = 'bookmark'
+         AND n.deleted_at IS NULL
+       GROUP BY i.collection_id, i.digest_sha256
+    )
+    SELECT w.node_id, coalesce(s.object_id, w.object_id::text) AS object_id
+      FROM wanted w
+      LEFT JOIN shared s USING (collection_id, digest_sha256)
+  `.execute(db);
+  return result.rows;
 }
 
 export function createPostgresBookmarkIconReadPort(
   db: DatabaseTransaction | Kysely<DatabaseSchema>,
+  options: BookmarkIconLookupOptions = {},
 ): BookmarkIconReadPort {
   return {
-    findObjectIdsByNodeIds: (nodeIds) => findBookmarkIconObjectIdsByNodeIds(db, nodeIds),
+    findObjectIdsByNodeIds: (nodeIds) => findBookmarkIconObjectIdsByNodeIds(db, nodeIds, options),
   };
 }
 
