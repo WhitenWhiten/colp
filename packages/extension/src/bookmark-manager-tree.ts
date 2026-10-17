@@ -64,7 +64,7 @@ export function renderManagerTree(into: HTMLElement, top: NativeNode, host: Tree
   into.replaceChildren();
   const roots = host.synced.filter((id) => host.nodes.has(id));
   if (roots.length > 0) {
-    into.append(kicker(t('common_yourCollection', 'Your collection')));
+    into.append(kicker(t('common_yourLibrary', 'Your library')));
     const walk = (node: NativeNode, depth: number): void => {
       into.append(treeRow(node, depth, host));
       if (!host.expanded.has(node.id)) return;

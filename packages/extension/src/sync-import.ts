@@ -94,7 +94,7 @@ export function bindImport(host: ImportHost) {
 
   function renderPreview(value: PublicImportPreview): void {
     preview.hidden = false; progress.hidden = true; say();
-    count.textContent = grouped(tn('sync_importItems', value.creates, '$1 item will be added to your collection.', '$1 items will be added to your collection.'), value.creates);
+    count.textContent = grouped(tn('sync_importItems', value.creates, '$1 item will be added to your library.', '$1 items will be added to your library.'), value.creates);
     warnings.replaceChildren();
     for (const warning of value.warnings.slice(0, MAX_NOTES)) warnings.append(el('li', importWarningCopy(warning.message)));
     if (value.warnings.length > MAX_NOTES) warnings.append(el('li', tn('sync_importMoreNotes', value.warnings.length - MAX_NOTES, '$1 more note.', '$1 more notes.')));

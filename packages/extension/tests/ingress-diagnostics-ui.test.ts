@@ -149,7 +149,7 @@ describe('A-08 filtered-bookmark copy (pure)', () => {
     assert.equal(idle.ok === false && idle.message, ingressDiagnosticsFailureCopy('extension_unavailable'));
     const refused = describeIngressDiagnostics({ ok: false, error: 'not_connected' });
     assert.equal(refused.ok === false && refused.message, ingressDiagnosticsFailureCopy('not_connected'));
-    assert.match(ingressDiagnosticsFailureCopy('not_connected'), /No collection syncs here yet/u);
+    assert.match(ingressDiagnosticsFailureCopy('not_connected'), /Nothing syncs here yet/u);
     assert.match(ingressDiagnosticsFailureCopy('state_unavailable'), /Could not read the exclusion list/u);
     // R13-109: an unknown code reads as a sentence; the raw code is not shown.
     assert.equal(ingressDiagnosticsFailureCopy('weird_code'), "Couldn't read the list of excluded items. Try again.");

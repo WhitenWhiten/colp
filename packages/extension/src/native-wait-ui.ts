@@ -32,7 +32,7 @@ const WAIT_REFRESH_MS = 8_000;
 const ACTIONS: readonly NativeWaitConfirmAction[] = ['bind', 'keep_local_and_create', 'cancel'];
 
 export function nativeWaitIntroCopy(): string {
-  return t('nativeWait_intro', 'Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your collection but not on this browser.');
+  return t('nativeWait_intro', 'Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your library but not on this browser.');
 }
 
 /** The alert line over the Status page while items wait. */
@@ -236,7 +236,7 @@ function showCancelConfirmation(row: HTMLElement, onConfirm: () => void): void {
   if (!text || !controls || row.querySelector('.native-wait-cancel-confirm')) return;
   controls.hidden = true;
   const wrap = el('div', undefined, 'native-wait-cancel-confirm');
-  const note = el('p', t('nativeWait_dontPlaceCloudItem2', "Don't place this cloud item on this device? The cloud bookmark will stay in your collection, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."));
+  const note = el('p', t('nativeWait_dontPlaceCloudItem2', "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."));
   const actions = el('div', undefined, 'confirm-actions');
   const keep = el('button', t('common_keepItem', 'Keep item'), 'btn btn-ghost btn-sm'); keep.type = 'button';
   keep.addEventListener('click', () => { wrap.remove(); controls.hidden = false; controls.querySelector('button')?.focus(); });

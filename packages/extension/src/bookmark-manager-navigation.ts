@@ -20,7 +20,7 @@ export function createBookmarkManagerNavigation(host: HTMLElement) {
       if (!id && route.params.get('node')) {
         const reply = await chrome.runtime.sendMessage({ kind: 'known.capture.navigation.resolve', nodeId: route.params.get('node'), collectionId: route.params.get('collection') }) as { ok: boolean; nativeId?: string };
         if (location.hash !== key) return null;
-        if (!reply?.ok || !reply.nativeId) { status.textContent = t('manager_cloudBookmarkNotMapped', 'This cloud bookmark is not mapped to the current browser and collection.'); applied = key; return null; }
+        if (!reply?.ok || !reply.nativeId) { status.textContent = t('manager_cloudBookmarkNotMapped', 'This bookmark from your library isn’t on this browser.'); applied = key; return null; }
         id = reply.nativeId;
       }
       applied = key;

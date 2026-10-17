@@ -162,7 +162,7 @@ export function createCaptureControlView(host: HTMLElement) {
     if (!view || editing) return;
     editing = true;
     const currentView = await chrome.runtime.sendMessage({ kind: 'known.capture.control' }).catch(() => null) as CaptureRuntimeView | null;
-    if (!currentView?.ok || currentView.scopeKey !== view.scopeKey) { editing = false; setStatus(t('capture_activeAccountCollectionChanged', 'The active account or collection changed. Refresh settings.')); return; }
+    if (!currentView?.ok || currentView.scopeKey !== view.scopeKey) { editing = false; setStatus(t('capture_activeAccountCollectionChanged', 'The account or library changed. Refresh settings.')); return; }
     view = currentView; paint(); const current = version, bound = view;
     const form = element('form', undefined, 'set-row set-row--stack'), field = element('div', undefined, 'set-field');
     const label = element('label', t('capture_defaultFolderBrowser', 'Default folder on this browser')), select = element('select', undefined, 'select-quiet'); select.id = 'capture-default-folder'; label.htmlFor = select.id;
@@ -181,7 +181,7 @@ export function createCaptureControlView(host: HTMLElement) {
     if (!view || editing) return;
     editing = true;
     const currentView = await chrome.runtime.sendMessage({ kind: 'known.capture.control' }).catch(() => null) as CaptureRuntimeView | null;
-    if (!currentView?.ok || currentView.scopeKey !== view.scopeKey) { editing = false; setStatus(t('capture_activeAccountCollectionChanged', 'The active account or collection changed. Refresh settings.')); return; }
+    if (!currentView?.ok || currentView.scopeKey !== view.scopeKey) { editing = false; setStatus(t('capture_activeAccountCollectionChanged', 'The account or library changed. Refresh settings.')); return; }
     view = currentView; paint(); const current = version, bound = view, form = element('form', undefined, 'set-row set-row--stack set-fields'), message = element('p', t('capture_checkingCurrentPrice', 'Checking current price…'), 'set-row-hint'); message.setAttribute('role', 'status'); form.append(message); settings.append(form);
     try {
       const result = await chrome.runtime.sendMessage({ kind: 'known.capture.control.quote' }) as { ok: boolean; quote: { priceVersion: string; unitPoints: number; available: number } };

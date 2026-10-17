@@ -37,7 +37,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.repla
 test('the preview maps each folder, and Import stays off until every folder has a destination or Skip', async () => {
   await mount((message) => message.kind === 'known.import.previewFile' ? { ok: true, preview: preview() } : { ok: false, error: 'no_import' });
   await choose();
-  expect(byId('import-count').textContent).toBe('1,204 items will be added to your collection.');
+  expect(byId('import-count').textContent).toBe('1,204 items will be added to your library.');
   const labels = Array.from(document.querySelectorAll('.import-map-label')).map((label) => label.textContent);
   expect(labels).toEqual(['Bookmarks bar (641 items)', 'Safari']);
   const commit = byId('commit-import') as HTMLButtonElement;

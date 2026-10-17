@@ -197,7 +197,7 @@ function showFeedback(node: HTMLElement, error: string): void {
       : error === 'remote_delete_generation_fenced' ? t('nativeWait_syncIdentityUpdatedReopen', 'Sync identity was updated. Reopen settings.')
         : error === 'sync_paused' ? t('sync_syncPaused', 'Sync is paused.')
           // The Sync page shows its sign-in card while signed out, so here this means no collection syncs yet.
-          : error === 'not_connected' ? t('remoteDelete_startSyncChangeHowCloud', 'Start syncing a collection to change how cloud deletions are applied here.')
+          : error === 'not_connected' ? t('remoteDelete_startSyncChangeHowCloud', 'Start syncing to change how cloud deletions are applied here.')
             : error === 'extension_unavailable' ? t('remoteDelete_extensionBackgroundTemporarilyUnavailable', 'The extension background is temporarily unavailable. Try again in a moment.')
               : t('remoteDelete_couldntCompleteTryAgain', "Couldn't complete this. Try again.");
 }

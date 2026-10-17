@@ -131,8 +131,10 @@ async function refreshLibrary(): Promise<void> {
     libraryNotice = notice;
   } else libraryNotice = '';
   firstRun.setLibraryId(library?.id);
-  accountView.setCollection(library?.title ?? '');
-  importPane.setCollection(library?.title ?? '');
+  // The library's stored title never shows: it is “your library” here as on the web.
+  const libraryName = library ? t('common_yourLibraryInline', 'your library') : '';
+  accountView.setCollection(libraryName);
+  importPane.setCollection(libraryName);
 }
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (COLLECTION_BINDING in changes || LIBRARY_STATE in changes)) {

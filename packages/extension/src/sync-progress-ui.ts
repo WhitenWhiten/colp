@@ -68,13 +68,13 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
     ? t('syncProgress_firstPausedTitle', 'First sync paused') : t('syncProgress_pausedTitle', 'Sync paused');
   if (progress.stage === 'preparing' && paused) {
     return { show: true, indeterminate: false, value: 0, done: false, paused, title: pausedTitle,
-      detail: t('syncProgress_preparingPausedDetail', 'Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your collection.'),
+      detail: t('syncProgress_preparingPausedDetail', 'Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your library.'),
       short: t('syncProgress_pausedTitle', 'Sync paused'), note: stallNote(progress, status)!, guidance: [] };
   }
   if (progress.stage === 'preparing') {
     return { show: true, indeterminate: true, value: 0, done: false, paused,
       title: t('syncProgress_preparingTitle', 'Preparing your first sync'),
-      detail: t('syncProgress_preparingDetail', 'Comparing this browser’s bookmarks with your collection. Large libraries take a minute.'),
+      detail: t('syncProgress_preparingDetail', 'Comparing this browser’s bookmarks with your library. Large libraries take a minute.'),
       short: t('syncProgress_preparingShort', 'Preparing first sync…'),
       ...(stallNote(progress, status) ? { note: stallNote(progress, status)! } : {}), guidance: guidance() };
   }

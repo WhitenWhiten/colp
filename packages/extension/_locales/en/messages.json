@@ -1008,7 +1008,7 @@
     "message": "Account preferences changed elsewhere. Review both values."
   },
   "capture_activeAccountCollectionChanged": {
-    "message": "The active account or collection changed. Refresh settings."
+    "message": "The account or library changed. Refresh settings."
   },
   "capture_allCloudDevices": {
     "message": "All cloud devices"
@@ -2096,6 +2096,9 @@
   "common_deleted": {
     "message": "Deleted."
   },
+  "common_destination": {
+    "message": "Destination"
+  },
   "common_development": {
     "message": "Development"
   },
@@ -2732,9 +2735,6 @@
   "common_tags": {
     "message": "Tags"
   },
-  "common_targetCollection": {
-    "message": "Target collection"
-  },
   "common_task": {
     "message": "Task"
   },
@@ -2837,8 +2837,11 @@
   "common_wrongFolder": {
     "message": "Wrong folder"
   },
-  "common_yourCollection": {
-    "message": "Your collection"
+  "common_yourLibrary": {
+    "message": "Your library"
+  },
+  "common_yourLibraryInline": {
+    "message": "your library"
   },
   "credits_availableCount": {
     "message": "$1 available"
@@ -3432,7 +3435,7 @@
     "message": "Clear tags"
   },
   "manager_cloudBookmarkNotMapped": {
-    "message": "This cloud bookmark is not mapped to the current browser and collection."
+    "message": "This bookmark from your library isn’t on this browser."
   },
   "manager_confirmDeleteMove": {
     "message": "Confirm this delete or move."
@@ -3807,13 +3810,13 @@
     "message": "Don't place this cloud item on this device"
   },
   "nativeWait_dontPlaceCloudItem2": {
-    "message": "Don't place this cloud item on this device? The cloud bookmark will stay in your collection, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."
+    "message": "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."
   },
   "nativeWait_extensionBackgroundTemporarilyUnavailable": {
     "message": "The extension background is temporarily unavailable. Try again."
   },
   "nativeWait_intro": {
-    "message": "Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your collection but not on this browser."
+    "message": "Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your library but not on this browser."
   },
   "nativeWait_itemAlreadyHandledNo": {
     "message": "This item was already handled. No further confirmation is needed."
@@ -3906,7 +3909,7 @@
     "message": "Collections and digests you follow, kept up to date as read-only folders in this browser."
   },
   "options_collectionsSyncedFoldersConfirmations2": {
-    "message": "Sign in to sync with Know-N and import into your collection. Saving, organizing and HTML import work without an account."
+    "message": "Sign in to sync with Know-N and import into your library. Saving, organizing and HTML import work without an account."
   },
   "options_completingSecureSign": {
     "message": "Completing secure sign-in."
@@ -3963,7 +3966,7 @@
     "message": "This server uses plain HTTP. Credentials and bookmarks travel unencrypted."
   },
   "options_iUnderstandCurrentBookmark": {
-    "message": "The page's URL and title, your folder names and descriptions, and a few bookmark titles and domains from each folder. Tag names are included when a collection is synced. Know-N never sees the request or the reply. The key stays on this browser and is never synced."
+    "message": "The page's URL and title, your folder names and descriptions, and a few bookmark titles and domains from each folder. Tag names are included when your library syncs. Know-N never sees the request or the reply. The key stays on this browser and is never synced."
   },
   "options_ifBrowserAlsoSyncs": {
     "message": "If your browser also syncs bookmarks, private subscription content can appear in your other browser profiles. Add subscriptions in each profile separately."
@@ -4277,8 +4280,8 @@
   "popup_bookmarkAccessOffAllow": {
     "message": "Bookmark access is off — allow it to save bookmarks to this browser."
   },
-  "popup_bookmarkNotSyncedCollection": {
-    "message": "This bookmark is not in the synced collection."
+  "popup_bookmarkNotSynced": {
+    "message": "This bookmark doesn’t sync with your library."
   },
   "popup_bookmarkUsesManuallySet": {
     "message": "This bookmark uses a manually set icon."
@@ -4530,7 +4533,7 @@
     "message": "Your data"
   },
   "prefs_dataHint": {
-    "message": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes them, except what syncs with a collection. Export a Know-N backup to keep a copy."
+    "message": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes them, except what syncs with your library. Export a Know-N backup to keep a copy."
   },
   "prefs_dataTitle": {
     "message": "Kept on this browser"
@@ -4626,7 +4629,7 @@
     "message": "This item changed. Review the confirmation list again."
   },
   "remoteDelete_startSyncChangeHowCloud": {
-    "message": "Start syncing a collection to change how cloud deletions are applied here."
+    "message": "Start syncing to change how cloud deletions are applied here."
   },
   "save_allowBookmarkAccessSave": {
     "message": "Allow bookmark access to save this page."
@@ -4854,7 +4857,7 @@
     "message": "Signed-in account"
   },
   "shell_sourceKnowNHint": {
-    "message": "Needs an account. Uses credits and learns from your synced collection."
+    "message": "Needs an account. Uses credits and learns from your synced library."
   },
   "shell_sourceOwn": {
     "message": "Your own AI service"
@@ -5796,10 +5799,10 @@
     "message": "Sync paused"
   },
   "syncProgress_preparingDetail": {
-    "message": "Comparing this browser’s bookmarks with your collection. Large libraries take a minute."
+    "message": "Comparing this browser’s bookmarks with your library. Large libraries take a minute."
   },
   "syncProgress_preparingPausedDetail": {
-    "message": "Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your collection."
+    "message": "Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your library."
   },
   "syncProgress_preparingShort": {
     "message": "Preparing first sync…"
@@ -5883,7 +5886,7 @@
     "message": "Sync error, retrying"
   },
   "sync_exclusionsAfterFirstSync": {
-    "message": "No collection syncs here yet. Excluded items are listed once one does."
+    "message": "Nothing syncs here yet. Excluded items are listed after the first sync."
   },
   "sync_existingBookmark": {
     "message": "Existing bookmark"
@@ -5949,13 +5952,13 @@
     "message": "Import issues"
   },
   "sync_importItems_one": {
-    "message": "$1 item will be added to your collection."
+    "message": "$1 item will be added to your library."
   },
   "sync_importItems_other": {
-    "message": "$1 items will be added to your collection."
+    "message": "$1 items will be added to your library."
   },
   "sync_importLede": {
-    "message": "Copies bookmarks into your Know-N collection. Nothing changes on this browser."
+    "message": "Copies bookmarks into your Know-N library. Nothing changes on this browser."
   },
   "sync_importMinutesLeft_one": {
     "message": "About $1 minute left"

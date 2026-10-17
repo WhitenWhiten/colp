@@ -1320,8 +1320,8 @@
     "description": "Account preferences changed elsewhere. Review both values."
   },
   "capture_activeAccountCollectionChanged": {
-    "message": "当前账号或合集已更改，请刷新设置。",
-    "description": "The active account or collection changed. Refresh settings."
+    "message": "账号或书签库已更改，请刷新设置。",
+    "description": "The account or library changed. Refresh settings."
   },
   "capture_allCloudDevices": {
     "message": "所有云端设备",
@@ -2759,6 +2759,10 @@
     "message": "已删除。",
     "description": "Deleted."
   },
+  "common_destination": {
+    "message": "目标位置",
+    "description": "Destination"
+  },
   "common_development": {
     "message": "开发",
     "description": "Development"
@@ -3599,10 +3603,6 @@
     "message": "标签",
     "description": "Tags"
   },
-  "common_targetCollection": {
-    "message": "目标合集",
-    "description": "Target collection"
-  },
   "common_task": {
     "message": "任务",
     "description": "Task"
@@ -3739,9 +3739,13 @@
     "message": "文件夹错误",
     "description": "Wrong folder"
   },
-  "common_yourCollection": {
-    "message": "你的合集",
-    "description": "Your collection"
+  "common_yourLibrary": {
+    "message": "你的书签库",
+    "description": "Your library"
+  },
+  "common_yourLibraryInline": {
+    "message": "你的书签库",
+    "description": "your library"
   },
   "credits_availableCount": {
     "message": "可用 $1",
@@ -4492,8 +4496,8 @@
     "description": "Clear tags"
   },
   "manager_cloudBookmarkNotMapped": {
-    "message": "此云端书签未映射到当前的浏览器和合集。",
-    "description": "This cloud bookmark is not mapped to the current browser and collection."
+    "message": "你书签库中的这个书签不在此浏览器上。",
+    "description": "This bookmark from your library isn’t on this browser."
   },
   "manager_confirmDeleteMove": {
     "message": "请确认此删除或移动操作。",
@@ -4976,16 +4980,16 @@
     "description": "Don't place this cloud item on this device"
   },
   "nativeWait_dontPlaceCloudItem2": {
-    "message": "不将此云端项目放置到此设备？该云端书签会保留在你的合集中，但不会添加到此浏览器。如需稍后同步，请在 Know-N 中编辑该书签。",
-    "description": "Don't place this cloud item on this device? The cloud bookmark will stay in your collection, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."
+    "message": "不将此云端项目放置到此设备？该云端书签会保留在你的书签库中，但不会添加到此浏览器。如需稍后同步，请在 Know-N 中编辑该书签。",
+    "description": "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."
   },
   "nativeWait_extensionBackgroundTemporarilyUnavailable": {
     "message": "扩展程序后台暂时不可用，请重试。",
     "description": "The extension background is temporarily unavailable. Try again."
   },
   "nativeWait_intro": {
-    "message": "在你决定之前，传入同步会暂停；上传照常进行。“不放置”表示该项目保留在合集中，但不会添加到此浏览器。",
-    "description": "Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your collection but not on this browser."
+    "message": "在你决定之前，传入同步会暂停；上传照常进行。“不放置”表示该项目保留在书签库中，但不会添加到此浏览器。",
+    "description": "Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your library but not on this browser."
   },
   "nativeWait_itemAlreadyHandledNo": {
     "message": "此项已处理，无需再次确认。",
@@ -5108,8 +5112,8 @@
     "description": "Collections and digests you follow, kept up to date as read-only folders in this browser."
   },
   "options_collectionsSyncedFoldersConfirmations2": {
-    "message": "登录后可与 Know-N 同步并导入到你的合集。保存、整理和导入 HTML 文件无需账号。",
-    "description": "Sign in to sync with Know-N and import into your collection. Saving, organizing and HTML import work without an account."
+    "message": "登录后可与 Know-N 同步并导入到你的书签库。保存、整理和导入 HTML 文件无需账号。",
+    "description": "Sign in to sync with Know-N and import into your library. Saving, organizing and HTML import work without an account."
   },
   "options_completingSecureSign": {
     "message": "正在完成安全登录。",
@@ -5184,8 +5188,8 @@
     "description": "This server uses plain HTTP. Credentials and bookmarks travel unencrypted."
   },
   "options_iUnderstandCurrentBookmark": {
-    "message": "页面的网址和标题、你的文件夹名称和描述，以及每个文件夹中少量书签的标题和域名；同步合集时还包括标签名称。Know-N 不会看到请求或回复。密钥仅保存在此浏览器中，不会同步。",
-    "description": "The page's URL and title, your folder names and descriptions, and a few bookmark titles and domains from each folder. Tag names are included when a collection is synced. Know-N never sees the request or the reply. The key stays on this browser and is never synced."
+    "message": "页面的网址和标题、你的文件夹名称和描述，以及每个文件夹中少量书签的标题和域名；书签库同步时还包括标签名称。Know-N 不会看到请求或回复。密钥仅保存在此浏览器中，不会同步。",
+    "description": "The page's URL and title, your folder names and descriptions, and a few bookmark titles and domains from each folder. Tag names are included when your library syncs. Know-N never sees the request or the reply. The key stays on this browser and is never synced."
   },
   "options_ifBrowserAlsoSyncs": {
     "message": "如果你的浏览器也会同步书签，私有订阅内容可能出现在你的其他浏览器配置文件中。请在每个配置文件中分别添加订阅。",
@@ -5603,9 +5607,9 @@
     "message": "书签访问权限已关闭——请允许，才能将书签保存到此浏览器。",
     "description": "Bookmark access is off — allow it to save bookmarks to this browser."
   },
-  "popup_bookmarkNotSyncedCollection": {
-    "message": "此书签不在已同步的合集中。",
-    "description": "This bookmark is not in the synced collection."
+  "popup_bookmarkNotSynced": {
+    "message": "此书签未与你的书签库同步。",
+    "description": "This bookmark doesn’t sync with your library."
   },
   "popup_bookmarkUsesManuallySet": {
     "message": "此书签使用的是手动设置的图标。",
@@ -5940,8 +5944,8 @@
     "description": "Your data"
   },
   "prefs_dataHint": {
-    "message": "标签、备注、文件夹说明、保存历史和设置都保存在此扩展中。移除 Know-N 会删除它们，已与合集同步的内容除外。导出 Know-N 备份即可保留一份副本。",
-    "description": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes them, except what syncs with a collection. Export a Know-N backup to keep a copy."
+    "message": "标签、备注、文件夹说明、保存历史和设置都保存在此扩展中。移除 Know-N 会删除它们，已与书签库同步的内容除外。导出 Know-N 备份即可保留一份副本。",
+    "description": "Tags, notes, folder descriptions, save history and settings live in this extension. Removing Know-N deletes them, except what syncs with your library. Export a Know-N backup to keep a copy."
   },
   "prefs_dataTitle": {
     "message": "保存在此浏览器中",
@@ -6068,8 +6072,8 @@
     "description": "This item changed. Review the confirmation list again."
   },
   "remoteDelete_startSyncChangeHowCloud": {
-    "message": "开始同步一个合集后，才能更改云端删除在此处的处理方式。",
-    "description": "Start syncing a collection to change how cloud deletions are applied here."
+    "message": "开始同步后，才能更改云端删除在此处的处理方式。",
+    "description": "Start syncing to change how cloud deletions are applied here."
   },
   "save_allowBookmarkAccessSave": {
     "message": "请允许书签访问权限以保存此页面。",
@@ -6372,8 +6376,8 @@
     "description": "Signed-in account"
   },
   "shell_sourceKnowNHint": {
-    "message": "需要账号。消耗积分，并从你已同步的合集中学习。",
-    "description": "Needs an account. Uses credits and learns from your synced collection."
+    "message": "需要账号。消耗积分，并从你已同步的书签库中学习。",
+    "description": "Needs an account. Uses credits and learns from your synced library."
   },
   "shell_sourceOwn": {
     "message": "你自己的 AI 服务",
@@ -7616,12 +7620,12 @@
     "description": "Sync paused"
   },
   "syncProgress_preparingDetail": {
-    "message": "正在比对此浏览器的书签与你的合集。书签较多时需要一分钟左右。",
-    "description": "Comparing this browser’s bookmarks with your collection. Large libraries take a minute."
+    "message": "正在比对此浏览器的书签与你的书签库。书签较多时需要一分钟左右。",
+    "description": "Comparing this browser’s bookmarks with your library. Large libraries take a minute."
   },
   "syncProgress_preparingPausedDetail": {
-    "message": "尚未同步任何内容。恢复后，会比对此浏览器的书签与你的合集。",
-    "description": "Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your collection."
+    "message": "尚未同步任何内容。恢复后，会比对此浏览器的书签与你的书签库。",
+    "description": "Nothing has synced yet. After you resume, this browser’s bookmarks are compared with your library."
   },
   "syncProgress_preparingShort": {
     "message": "正在准备首次同步…",
@@ -7732,8 +7736,8 @@
     "description": "Sync error, retrying"
   },
   "sync_exclusionsAfterFirstSync": {
-    "message": "此处尚未同步任何合集。开始同步后，这里会列出被排除的项目。",
-    "description": "No collection syncs here yet. Excluded items are listed once one does."
+    "message": "此处尚未同步任何内容。首次同步后，这里会列出被排除的项目。",
+    "description": "Nothing syncs here yet. Excluded items are listed after the first sync."
   },
   "sync_existingBookmark": {
     "message": "现有书签",
@@ -7816,12 +7820,12 @@
     "description": "Import issues"
   },
   "sync_importItems_other": {
-    "message": "将向你的合集添加 $1 项。",
-    "description": "$1 items will be added to your collection."
+    "message": "将向你的书签库添加 $1 项。",
+    "description": "$1 items will be added to your library."
   },
   "sync_importLede": {
-    "message": "把书签复制到你的 Know-N 合集中，此浏览器上的内容不会改变。",
-    "description": "Copies bookmarks into your Know-N collection. Nothing changes on this browser."
+    "message": "把书签复制到你的 Know-N 书签库中，此浏览器上的内容不会改变。",
+    "description": "Copies bookmarks into your Know-N library. Nothing changes on this browser."
   },
   "sync_importMinutesLeft_other": {
     "message": "大约还需 $1 分钟",

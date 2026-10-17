@@ -31,7 +31,7 @@ describe('options bookmark manager UI contract', () => {
     assert.match(source, /unmodifiable === 'managed'/);
     assert.match(rows, /unmodifiable === 'managed'/);
     // The collection section is pinned above the plain browser tree.
-    assert.match(tree, /'Your collection'/);
+    assert.match(tree, /'Your library'/);
     assert.match(source, /'No Know-N sync'/);
     assert.match(source, /projectVisibleChildren\(folder\.children \?\? \[\], foldersFirst\)/u);
     const start = source.indexOf('async function renderSearch');

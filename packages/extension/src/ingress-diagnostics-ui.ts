@@ -188,7 +188,7 @@ export function ingressDiagnosticsSummary(rows: readonly IngressDiagnosticRow[])
 /** A failed read must say so; it never falls back to an empty "successful" list. */
 export function ingressDiagnosticsFailureCopy(error: string): string {
   // Sync > Status only opens while signed in, so this means no collection syncs here yet.
-  if (error === 'not_connected') return t('sync_exclusionsAfterFirstSync', 'No collection syncs here yet. Excluded items are listed once one does.');
+  if (error === 'not_connected') return t('sync_exclusionsAfterFirstSync', 'Nothing syncs here yet. Excluded items are listed after the first sync.');
   if (error === 'state_unavailable') return t('sync_couldNotReadExclusion', 'Could not read the exclusion list. Reopen this page in a moment.');
   if (error === 'extension_unavailable') return t('sync_extensionBackgroundTemporarilyUnavailable', 'The extension background is temporarily unavailable. Reopen this page in a moment.');
   return t('sync_couldntReadListExcluded', "Couldn't read the list of excluded items. Try again.");

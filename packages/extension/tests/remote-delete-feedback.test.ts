@@ -16,7 +16,7 @@ test('a failed read clears once a later read succeeds, and never asks a signed-i
   bindRemoteDeleteSettings();
   const feedback = document.getElementById('remote-delete-feedback')!;
   await vi.waitFor(() => expect(feedback.hidden).toBe(false));
-  expect(feedback.textContent).toBe('Start syncing a collection to change how cloud deletions are applied here.');
+  expect(feedback.textContent).toBe('Start syncing to change how cloud deletions are applied here.');
   location.hash = '#sync/center';
   window.dispatchEvent(new Event('hashchange'));
   await vi.waitFor(() => expect(feedback.hidden).toBe(true));

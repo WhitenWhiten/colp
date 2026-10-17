@@ -46,7 +46,7 @@ export function bindClearIconAction(ports: ClearIconUiPorts): (tabUrl: string | 
         else ports.setFeedback(t('popup_couldNotClearIcon', 'Could not clear the icon right now.'), 'error');
       } else {
         ports.setFeedback(response?.error === 'bookmark_unmapped'
-          ? t('popup_bookmarkNotSyncedCollection', 'This bookmark is not in the synced collection.') : t('popup_couldNotClearIcon', 'Could not clear the icon right now.'), 'error');
+          ? t('popup_bookmarkNotSynced', 'This bookmark doesn’t sync with your library.') : t('popup_couldNotClearIcon', 'Could not clear the icon right now.'), 'error');
       }
     } catch {
       ports.setFeedback(t('popup_couldNotClearIcon', 'Could not clear the icon right now.'), 'error');
