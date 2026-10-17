@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import 'fake-indexeddb/auto';
 import { expect, test } from 'vitest';
 import { createBootstrapCoordinator } from '../src/bootstrap/coordinator.js';
+import { matchLocalRemote } from '../src/bootstrap/matcher.js';
 import { resolveIngressBoundary } from '../src/bookmark-event-ingress.js';
 import { confirmAddRange, previewAddRange } from '../src/scope-commands.js';
 import { applyConfirmedRange, previewRangeChange } from '../src/scope-range.js';
@@ -23,6 +24,20 @@ const barRoot = {
   children: [{ nativeId: 'bm-1', title: 'bm-1', kind: 'bookmark' as const, managed: false,
     url: 'https://example.com/one', children: [] }],
 };
+
+test('resuming an expanded range preserves a custom mount under its independent Collection parent', () => {
+  const report = matchLocalRemote({ scopeKey: 'range', confirmationId: 'expand', rootNodeId: 'folder-root', bootstrapMode: 'merge',
+    mounts: [{ nativeRootId: 'bar', remoteMountNodeId: 'remote-bar', rootRole: 'bookmarks-bar' },
+      { nativeRootId: 'nested', remoteMountNodeId: 'remote-nested', customSourceKey: 'folder:nested' }],
+    local: [{ nativeId: 'nested', mountNativeRootId: 'bar', parentNativeId: 'bar', kind: 'folder', title: 'Nested' },
+      { nativeId: 'leaf', mountNativeRootId: 'bar', parentNativeId: 'nested', kind: 'bookmark', title: 'Leaf', url: 'https://example.test/leaf' }],
+    remote: [root, { nodeId: 'remote-bar', parentId: root.nodeId, kind: 'folder', title: 'Bar', folderRole: 'bookmarks-bar', revision: 'r-bar' },
+      { nodeId: 'remote-nested', parentId: root.nodeId, kind: 'folder', title: 'Nested', folderRole: 'custom', revision: 'r-nested' },
+      { nodeId: 'remote-leaf', parentId: 'remote-nested', kind: 'bookmark', title: 'Leaf', url: 'https://example.test/leaf', revision: 'r-leaf' }],
+    mappings: [{ nativeId: 'nested', colpId: 'remote-nested' }, { nativeId: 'leaf', colpId: 'remote-leaf' }],
+  });
+  expect(report.conflicts).toEqual([]); expect(report.planned).toEqual([]);
+});
 
 test('R2: range bootstrap can resume after mount receipt when onboarding was completed', async () => {
   const { store } = await setup();

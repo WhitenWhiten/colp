@@ -16,7 +16,7 @@ import {
   previewAddRange,
 } from '../src/scope-commands.js';
 import {
-  applyConfirmedRange, consumeRangePreview, liveAuthorityFromExport, previewRangeChange, previewRejection,
+  applyConfirmedRange, consumeRangePreview, discoveredFromRoots, liveAuthorityFromExport, previewRangeChange, previewRejection,
 } from '../src/scope-range.js';
 import { keepShiftedMount, preserveShiftMappings } from '../src/scope-range-shift.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
@@ -55,6 +55,47 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     assert.deepEqual(scan.selectedNativeIds, ['bar']);
     assert.equal(scan.nestedNormalized, true);
     assert.ok(scan.warnings.some((row) => row.code === 'nested_normalized'));
+  });
+
+  test.each([['bar', 'other'], ['bar', 'nested', 'other']])(
+    'expanding sync to browser roots preserves already synced nested folders (%j)', async (...selectedNativeIds) => {
+      const store = await activeStore();
+      await seedNested(store);
+      const roots = tree();
+      const discovered = [...discoveredFromRoots(roots)].map(([nativeId, ancestorNativeIds]) => ({ nativeId, ancestorNativeIds }));
+      await store.configureBrowserRoots(scope, { discovered, selectedNativeIds: ['nested'], privateNativeIds: [], status: 'ready' });
+      const beforeMount = await store.getMountBinding(scope, 'mount-nested');
+      const beforeMappings = await store.listMappings(scope);
+
+      const { preview, diff } = await previewRangeChange(store, scope, { roots, selectedNativeIds });
+      assert.deepEqual(diff.addedNativeIds, ['bar', 'other']);
+      assert.deepEqual(diff.removedNativeIds, []);
+      assert.deepEqual(diff.shiftNativeIds, []);
+      assert.equal(preview.bookmarkCount, 4);
+      assert.deepEqual(preview.remoteDeleteEvidence ?? [], []);
+
+      await applyConfirmedRange(store, scope, { preview, keepNativeIds: [], unmountNativeIds: [] });
+      await store.configureBrowserRoots(scope, { discovered, selectedNativeIds: preview.boundary.selectedNativeIds,
+        privateNativeIds: [], status: 'ready' });
+      assert.deepEqual(await store.getMountBinding(scope, 'mount-nested'), beforeMount);
+      for (const mapping of beforeMappings) {
+        assert.deepEqual(await store.getMappingByNativeId(scope, mapping.nativeId), mapping);
+      }
+      assert.deepEqual(await store.listQueue(scope), []);
+      store.close();
+    });
+
+  test('explicitly excluding an existing nested mount still offers removal under a selected ancestor', async () => {
+    const store = await activeStore();
+    await seedNested(store);
+    const { preview, diff } = await previewRangeChange(store, scope, {
+      roots: tree(), selectedNativeIds: ['bar', 'other'], privateNativeIds: ['nested'],
+    });
+    assert.deepEqual(diff.removedNativeIds, ['nested']);
+    assert.equal(preview.remoteDeleteEvidence?.[0]?.nativeRootId, 'nested');
+    await applyConfirmedRange(store, scope, { preview, keepNativeIds: [], unmountNativeIds: [] });
+    assert.equal((await store.getMountBinding(scope, 'mount-nested'))?.status, 'detached');
+    store.close();
   });
 
   test('managed and private-local folders are excluded from writable mounts', async () => {
@@ -103,7 +144,7 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     await applyConfirmedRange(store, scope, {
       preview, keepNativeIds: [], unmountNativeIds: ['bar'],
     });
-    assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'active');
+    assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'detached');
     assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.remoteMountNodeId, 'remote-bar');
     assert.equal((await store.getMappingByNativeId(scope, 'bm-1'))?.colpId, 'colp-bm-1');
     assert.equal((await store.listQueue(scope)).some((row) => row.payload.type === 'delete_node'
@@ -345,6 +386,22 @@ async function seedBar(store: ReturnType<typeof createSyncStateStore>) {
     nativeId: 'bm-1', colpId: 'colp-bm-1', rootNativeId: 'bar', mountId: 'mount-bar', parentNativeId: 'bar',
     nodeKind: 'bookmark', projection: { revision: 'r-bm', digest: 'sha256:bm',
       content: { title: 'One', url: 'https://example.com/one' } },
+  });
+}
+
+async function seedNested(store: ReturnType<typeof createSyncStateStore>) {
+  await store.putMountBinding(scope, {
+    mountId: 'mount-nested', nativeRootId: 'nested', remoteMountNodeId: 'remote-nested', boundaryVersion: '1',
+    materialized: false, status: 'active', customSourceKey: 'folder:nested',
+  });
+  await store.putMapping(scope, {
+    nativeId: 'nested', colpId: 'remote-nested', rootNativeId: 'nested', mountId: 'mount-nested', nodeKind: 'folder',
+    projection: { revision: 'r-nested', childrenRevision: 'c-nested', digest: 'sha256:nested', content: { title: 'Nested' } },
+  });
+  await store.putMapping(scope, {
+    nativeId: 'bm-3', colpId: 'colp-bm-3', rootNativeId: 'nested', mountId: 'mount-nested', parentNativeId: 'nested',
+    nodeKind: 'bookmark', projection: { revision: 'r-bm-3', digest: 'sha256:bm-3',
+      content: { title: 'Three', url: 'https://example.com/three' } },
   });
 }
 

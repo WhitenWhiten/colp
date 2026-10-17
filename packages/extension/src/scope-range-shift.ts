@@ -10,17 +10,12 @@ export interface RangeShiftCandidate {
   readonly colpId: string;
 }
 
-export function isOrdinaryFolderMount(mount: MountBindingRecord): boolean {
-  return mount.rootRole === undefined && typeof mount.customSourceKey === 'string';
-}
-
 export function detectRangeShifts(input: {
   readonly liveMounts: readonly MountBindingRecord[];
   readonly mappings: readonly MappingInput[];
   readonly selectedNativeIds: readonly string[];
   readonly discovered: ReadonlyMap<string, readonly string[]>;
 }): RangeShiftCandidate[] {
-  const selected = new Set(input.selectedNativeIds);
   const byNative = new Map(input.mappings.map((row) => [row.nativeId, row]));
   const out: RangeShiftCandidate[] = [];
   const seen = new Set<string>();
@@ -30,18 +25,12 @@ export function detectRangeShifts(input: {
     out.push(row);
   };
   for (const mount of input.liveMounts) {
-    if (!input.discovered.has(mount.nativeRootId)) continue;
+    // Deselection is not evidence of a browser move. Only the event journal can
+    // offer a choice to keep a folder syncing at a new location.
+    if (!mount.pendingShift || !input.discovered.has(mount.nativeRootId)) continue;
     const mapping = byNative.get(mount.nativeRootId);
     const colpId = mount.remoteMountNodeId ?? mapping?.colpId;
     if (!colpId) continue;
-    if (mount.pendingShift) {
-      push({ nativeRootId: mount.nativeRootId, mountId: mount.mountId, remoteMountNodeId: mount.remoteMountNodeId,
-        colpId });
-      continue;
-    }
-    if (mount.status === 'detached' || selected.has(mount.nativeRootId) || !isOrdinaryFolderMount(mount)) continue;
-    const ancestors = input.discovered.get(mount.nativeRootId) ?? [];
-    if (ancestors.some((id) => selected.has(id))) continue;
     push({ nativeRootId: mount.nativeRootId, mountId: mount.mountId, remoteMountNodeId: mount.remoteMountNodeId,
       colpId });
   }

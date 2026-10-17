@@ -62,6 +62,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     putMapping: mapping.putMapping, deleteMapping: mapping.deleteMapping, listMappings: mapping.listMappings,
     getMappingByNativeId: mapping.getMappingByNativeId, getMappingByColpId: mapping.getMappingByColpId,
     bindMountMapping: mapping.bindMountMapping,
+    bindResolvedMountMapping: mapping.bindResolvedMountMapping,
     rebindProvisionalBookmarkIdentity: mapping.rebindProvisionalBookmarkIdentity,
     configureBrowserRoots: mapping.configureBrowserRoots, reconcileBrowserRoots: mapping.reconcileBrowserRoots,
     setBrowserRootStatus: mapping.setBrowserRootStatus,

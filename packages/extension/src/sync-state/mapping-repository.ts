@@ -422,6 +422,37 @@ export function createMappingRepository(ctx: SyncStoreRuntime) {
     }
   }
 
-  return { putMapping, deleteMapping, listMappings, getMappingByNativeId, getMappingByColpId, bindMountMapping,
+  /** Promote a confirmed mount's local reservation using authoritative remote folder facts. */
+  async function bindResolvedMountMapping(input: SyncScope, mappingInput: MappingInput): Promise<boolean> {
+    assertWritable(); const key = scopeKey(validateScope(input));
+    const mapping = validateMapping(key, mappingInput, maxRecordBytes);
+    if (!mapping.mountId || mapping.nodeKind !== 'folder' || mapping.nativeId !== mapping.rootNativeId
+        || mapping.projection.revision.startsWith('local-')) return false;
+    const db = await writableDatabase(); let bound = false; let authority: BrowserRootAuthority | undefined;
+    await runTransaction(db, [STORES.scopes, STORES.mappings, STORES.mounts], 'readwrite', async tx => {
+      const scope = validateScopeRecord(await requireActiveScope(tx, key), maxRecordBytes);
+      const mounts = tx.objectStore(STORES.mounts), mappings = tx.objectStore(STORES.mappings);
+      const mount = await requestValue(mounts.get([key, mapping.mountId!])) as MountBindingRecord | undefined;
+      const current = await requestValue(mappings.get([key, mapping.nativeId])) as MappingInput | undefined;
+      const local = current?.projection.revision === 'local-root' && current.projection.digest === 'sha256:local-root';
+      if (!mount || mount.status === 'detached' || mount.nativeRootId !== mapping.nativeId
+          || mount.rootRole !== mapping.rootRole || current && !local
+          || mount.remoteMountNodeId && mount.remoteMountNodeId !== mapping.colpId
+            && (!local || mount.remoteMountNodeId !== current?.colpId)) return;
+      const owner = await requestValue(mappings.index(INDEXES.mappingByColpId).get([key, mapping.colpId])) as MappingInput | undefined;
+      if (owner && owner.nativeId !== mapping.nativeId && !virtualPlaceholderNativeId(owner.nativeId)) return;
+      if (owner && owner.nativeId !== mapping.nativeId) mappings.delete([key, owner.nativeId]);
+      mappings.put(mapping);
+      mounts.put({ ...mount, remoteMountNodeId: mapping.colpId, status: 'active' });
+      const replace = (ids: readonly string[]) => ids.map(id => local && id === current?.colpId ? mapping.colpId : id);
+      const selectedRoots = replace(scope.selectedRoots), privateRoots = replace(scope.privateRoots ?? []);
+      tx.objectStore(STORES.scopes).put({ ...scope, selectedRoots, privateRoots });
+      authority = { selectedRoots, privateRoots, rootStatus: scope.rootStatus ?? 'ready' }; bound = true;
+    });
+    if (authority) durableCache.set(key, clone(authority));
+    return bound;
+  }
+
+  return { putMapping, deleteMapping, listMappings, getMappingByNativeId, getMappingByColpId, bindMountMapping, bindResolvedMountMapping,
     rebindProvisionalBookmarkIdentity, configureBrowserRoots, reconcileBrowserRoots, setBrowserRootStatus };
 }

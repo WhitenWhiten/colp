@@ -10,6 +10,26 @@ written back as if Chrome applied them.
 Writable-active means confirmed, reconciled, writable, and not private-local/managed/pending/unknown.
 `status !== 'detached'` is not that test.
 
+Range adjustment uses subtree coverage, including explicit exclusions, rather than equality
+between selected root IDs. Selecting a parent preserves its existing child mounts; clearing
+selection stops both ordinary and role mounts while retaining their bindings and bookmarks.
+Only a journaled `pendingShift` is a move. A user deselecting a folder is a removal.
+
+Preview/confirm binds the normalized browser tree, including folders being removed, and the
+current boundary version. Remote trash evidence is revalidated before range mutations. Concurrent
+confirmations for one scope serialize; a successful confirmation consumes its preview once.
+Stopping a shifted folder must also remove its selection (or exclude it beneath a selected parent).
+Restoring a selected ancestor rejoins covered detached mounts using their pause baselines.
+Canonical browser-role mounts bind to unique remote role facts. Local `local-root` reservations
+are never remote identity evidence; their promotion updates the mapping, mount and root authority
+in one transaction. An unavailable startup status retries without reopening onboarding or restoring
+an old draft over completed sync settings.
+
+`tests/range-lifecycle.test.ts` exercises the actual picker → runtime message → range planner →
+IndexedDB/bootstrap path, plus later event capture and download eligibility. The focused browser
+scenario `existing folder sync expands` in `e2e/mv3-first-run-sync.spec.ts` uses Chromium and the
+real backend for partial sync → Sync all → clear → restore. Run browser tests through `with-xvfb.mjs`.
+
 ## Range Move conversion
 
 | Remote Move source → destination | This device |

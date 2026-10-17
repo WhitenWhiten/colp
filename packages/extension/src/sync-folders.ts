@@ -60,7 +60,13 @@ export function bindFolders(host: FoldersHost) {
       renderFailure(response.ok ? 'request_invalid' : response.error);
       return;
     }
-    render(response.view); save.disabled = !host.isConnected()
+    // Status refreshes can finish after a user edits the picker. Keep that draft
+    // while adopting the refreshed view/token; Cancel still restores saved choices.
+    const preserve = view && dirty() && response.view.roots.some(root => view!.roots.some(prior => prior.ref === root.ref));
+    const selected = new Set(syncRootRefs(tree)), excluded = new Set(excludedFolderRefs(tree));
+    render(response.view);
+    if (preserve) { replaceFolderSelection(tree, selected, excluded); paint(); }
+    save.disabled = !host.isConnected()
       || response.view.status === 'permission_required' || response.view.status === 'tree_unavailable';
   }
 

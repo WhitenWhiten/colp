@@ -24,16 +24,22 @@ export function bindRangeAdjustment(host: {
   const cancel = required('range-cancel') as HTMLButtonElement;
   const confirm = required('range-confirm') as HTMLButtonElement;
   const folderCard = required('folder-card');
+  const treeActions = Array.from(folderCard.querySelectorAll<HTMLButtonElement>('.card-bar button'));
+  const disabledActions = new Map<HTMLButtonElement, boolean>();
   let preview: PublicRangePreview | undefined;
+  let loading = false;
 
   cancel.addEventListener('click', () => { hidePreview(); host.rootFeedback.textContent = ''; });
   confirm.addEventListener('click', () => { void confirmPreview(); });
+  shiftList.addEventListener('change', updateTrashAvailability);
 
   return { save };
 
   async function save(): Promise<void> {
     const view = host.getView();
-    if (!view) return;
+    if (!view || loading || preview) return;
+    loading = true;
+    setReviewing(true);
     host.saveRoots.disabled = true; host.rootFeedback.textContent = t('sync_savingFolderSettings', 'Saving folder settings.');
     error.hidden = true;
     const selectedRefs = syncRootRefs(host.rootTree);
@@ -41,8 +47,12 @@ export function bindRangeAdjustment(host: {
     const response = await rootRequest({
       kind: 'known.roots.preview', viewId: view.viewId, selectedRefs, privateRefs,
     });
-    if (!response.ok) { host.renderFailure(response.error); hidePreview(); return; }
-    if (!('preview' in response)) { host.renderFailure('request_invalid'); hidePreview(); return; }
+    loading = false;
+    if (!response.ok) { hidePreview(); host.renderFailure(response.error); return; }
+    if (!('preview' in response)) { hidePreview(); host.renderFailure('request_invalid'); return; }
+    if (host.getView()?.viewId !== view.viewId) {
+      hidePreview(); host.rootFeedback.textContent = confirmFailureCopy('preview_stale'); return;
+    }
     preview = response.preview;
     host.rootFeedback.textContent = '';
     renderPreview(response.preview);
@@ -61,6 +71,7 @@ export function bindRangeAdjustment(host: {
     const unmountedShiftRefs = shiftActions.filter((row) => row.action === 'unmount').map((row) => row.ref);
     const remoteDeleteRefs = remoteDelete.checked
       ? preview.removals.map((row) => row.ref).concat(unmountedShiftRefs) : undefined;
+    shiftList.toggleAttribute('inert', true); remoteDelete.disabled = true;
     const response = await rootRequest({
       kind: 'known.roots.confirm', previewId: preview.previewId, confirmationId: crypto.randomUUID(),
       treeDigest: preview.treeDigest,
@@ -68,6 +79,7 @@ export function bindRangeAdjustment(host: {
       ...(remoteDeleteRefs && remoteDeleteRefs.length ? { remoteDeleteRefs } : {}),
     });
     confirm.disabled = false; cancel.disabled = false; confirm.removeAttribute('aria-busy');
+    shiftList.toggleAttribute('inert', false); remoteDelete.disabled = false;
     confirm.textContent = label;
     if (!response.ok) {
       const message = confirmFailureCopy(response.error);
@@ -98,10 +110,16 @@ export function bindRangeAdjustment(host: {
       ? t('sync_someSelectedFoldersWere', 'Some folders you picked are inside other picked folders. Only the outer folders are listed.') : '';
     paintRows(shiftList, value.shifts, true);
     paintRows(removeList, value.removals, false);
-    const canTrash = value.removals.length + value.shifts.length > 0;
-    remoteLabel.hidden = !canTrash;
     remoteDelete.checked = false;
+    updateTrashAvailability();
     confirm.disabled = false;
+  }
+
+  function updateTrashAvailability(): void {
+    const canTrash = (preview?.removals.length ?? 0) > 0
+      || Array.from(shiftList.querySelectorAll<HTMLSelectElement>('select[data-ref]')).some(select => select.value === 'unmount');
+    remoteLabel.hidden = !canTrash;
+    if (!canTrash) remoteDelete.checked = false;
   }
 
   function paintRows(list: HTMLElement, rows: PublicRangePreview['shifts'], shift: boolean): void {
@@ -133,12 +151,22 @@ export function bindRangeAdjustment(host: {
     panel.hidden = true;
     setReviewing(false);
     remoteDelete.checked = false;
+    host.saveRoots.disabled = !host.isConnected();
   }
 
   /** While the change list is open it owns the actions: the tree goes quiet and its Cancel / Review footer steps aside. */
   function setReviewing(on: boolean): void {
     if (on) folderCard.dataset.reviewing = ''; else delete folderCard.dataset.reviewing;
     host.rootTree.toggleAttribute('inert', on);
+    for (const action of treeActions) {
+      if (on) {
+        if (!disabledActions.has(action)) disabledActions.set(action, action.disabled);
+        action.disabled = true;
+      } else if (disabledActions.has(action)) {
+        action.disabled = disabledActions.get(action)!;
+        disabledActions.delete(action);
+      }
+    }
   }
 }
 

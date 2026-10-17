@@ -77,7 +77,7 @@ export function remoteFromRecovery(node: RecoveryNodeRecord): RemoteNodeFact {
 }
 
 export function liveRemoteFromMapping(mapping: MappingInput): RemoteNodeFact[] {
-  if (!authoritativeColp(mapping.colpId) || mapping.colpId.startsWith('unmounted:')
+  if (mapping.projection.revision === 'local-root' || !authoritativeColp(mapping.colpId) || mapping.colpId.startsWith('unmounted:')
       || mapping.nativeId.startsWith('unmounted:') || mapping.nativeId.startsWith('pending-')) {
     return [];
   }

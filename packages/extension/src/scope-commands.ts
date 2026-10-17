@@ -13,7 +13,7 @@ import { kns09Paused } from './kns-09-release.js';
 import { classifyRejoinMappings, type RejoinClassification } from './scope-reconcile.js';
 import { unmountedRejoinMembers } from './scope-rejoin-materialize.js';
 import { applyRejoinObservations } from './scope-rejoin-reconcile.js';
-import { consumeRangePreview, previewRangeChange, previewRejection } from './scope-range.js';
+import { consumeRangePreview, mergePreviewMounts, previewRangeChange, previewRejection } from './scope-range.js';
 import { countRemoteMountDescendants } from './scope-remote-count.js';
 import type {
   FirstRunOrScopeResponse, FirstRunPreviewOk,
@@ -216,7 +216,7 @@ export async function previewAddRange(store: Store, scope: SyncScope, input: {
 }): Promise<FirstRunPreviewOk> {
   const { preview, scan } = await previewRangeChange(store, scope, input);
   return {
-    ok: true, previewId: preview.previewId, boundaryVersion: preview.boundaryVersion, treeDigest: scan.treeDigest,
+    ok: true, previewId: preview.previewId, boundaryVersion: preview.boundaryVersion, treeDigest: preview.treeDigest,
     bookmarkCount: scan.bookmarkCount, folderCount: scan.folderCount, skippedCount: scan.skippedCount,
     warnings: scan.warnings,
   };
@@ -226,6 +226,7 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
   readonly previewId: string; readonly confirmationId: string; readonly treeDigest: string;
   readonly localFacts: ConfirmInput['localFacts']; readonly remoteFacts?: ConfirmInput['remoteFacts'];
   readonly rootNodeId?: string | null; readonly now?: () => number;
+  readonly consumePreview?: boolean;
 }): Promise<FirstRunOrScopeResponse> {
   if (await kns09Paused('coordinator')) return { ok: false, error: 'sync_paused' };
   const recordedScope = await store.getScope(scope);
@@ -260,7 +261,7 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
   });
   // Keep onboarding completed; later range jobs resume from the bootstrap run.
   if (priorFirstRun === 'completed') await store.setFirstRun(scope, 'completed');
-  await consumeRangePreview(store, scope, preview);
+  if (input.consumePreview !== false) await consumeRangePreview(store, scope, preview);
   const recorded = await store.getScope(scope);
   return { ok: true, phase: view.run.phase, firstRun: recorded?.firstRun ?? 'running' };
 }
@@ -268,26 +269,8 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
 function provenMappings(mappings: readonly MappingInput[], localNativeIds: readonly string[]) {
   const local = new Set(localNativeIds);
   return mappings.filter((mapping) => local.has(mapping.nativeId) && !mapping.colpId.startsWith('pending-')
-    && !mapping.nativeId.startsWith('recovery:'))
+    && mapping.projection.revision !== 'local-root' && !mapping.nativeId.startsWith('recovery:'))
     .map((mapping) => ({ nativeId: mapping.nativeId, colpId: mapping.colpId }));
-}
-
-async function mergePreviewMounts(store: Store, scope: SyncScope, existing: readonly MountBindingRecord[],
-  preview: ScopePreviewRecord): Promise<void> {
-  const byRoot = new Map(existing.map((mount) => [mount.nativeRootId, mount]));
-  for (const planned of preview.boundary.mounts.filter((mount) => mount.writable)) {
-    const prior = byRoot.get(planned.nativeRootId);
-    if (prior?.status === 'detached') continue;
-    byRoot.set(planned.nativeRootId, {
-      scopeKey: preview.scopeKey, mountId: prior?.mountId ?? `mount:${planned.nativeRootId}`,
-      nativeRootId: planned.nativeRootId, remoteMountNodeId: prior?.remoteMountNodeId ?? null,
-      boundaryVersion: preview.boundaryVersion, materialized: planned.materialized,
-      status: prior?.status === 'active' || prior?.status === 'pending' ? prior.status : 'pending',
-      ...(planned.rootRole ? { rootRole: planned.rootRole } : {}),
-      ...(planned.customSourceKey ? { customSourceKey: planned.customSourceKey } : {}),
-    });
-  }
-  await store.replaceMountBindings(scope, [...byRoot.values()].map(({ scopeKey: _scopeKey, ...row }) => row));
 }
 
 function reuseOrAllocateRemoteDeleteOpId(prior: string | undefined): string {

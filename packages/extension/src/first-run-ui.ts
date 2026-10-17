@@ -128,26 +128,13 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       invalidateAdvancedPreview();
       if (!hasLibrary) libraryId = undefined;
       if (!rangeActive) {
-        confirm.hidden = true;
+        confirm.hidden = projectFirstRunSurface(observation) !== 'attention';
         advancedPanel.hidden = true;
         host.saveRoots.hidden = next.status === 'permission_required';
         document.body.dataset.firstRun = '';
         return;
       }
-      applyRangeChrome(next);
-      const firstPaint = paintedViewId !== next.viewId;
-      paintedViewId = next.viewId;
-      if (firstPaint) {
-        void readFirstRunDraft().then((draft) => {
-          if (draft && (!draft.libraryId || draft.libraryId === libraryId)) {
-            applyFolderSelection(host.rootTree, restoreDraftSelection(next, draft),
-              restoreDraftSelection(next, { ...draft, selected: draft.excluded ?? [] }));
-          }
-    void refreshPreview();
-        });
-        return;
-      }
-      void refreshPreview();
+      renderOnboardingView(next);
     },
     setLibraryId(id) { if (libraryId !== id) { libraryId = id; invalidateAdvancedPreview(); } },
     onSignedIn(connected, hasLibrary) {
@@ -170,12 +157,26 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   };
 
   async function hydrate(): Promise<void> {
-    const draft = await readFirstRunDraft();
     libraryId = await boundLibraryId();
     const status = await firstRunMessage({ kind: 'known.firstRun.status' });
-    if (!status.ok && draft?.deferred) observation = { firstRun: 'deferred' };
     applyStatusResponse(status, { pollIfSyncing: true, fallbackOnboarding: true });
 
+  }
+
+  function renderOnboardingView(next: PublicRootView): void {
+    applyRangeChrome(next);
+    const firstPaint = paintedViewId !== next.viewId;
+    paintedViewId = next.viewId;
+    if (firstPaint) {
+      void readFirstRunDraft().then(draft => {
+        if (!rangeActive || view?.viewId !== next.viewId || !firstRunOnboardingActive(observation.firstRun)) return;
+        if (draft && (!draft.libraryId || draft.libraryId === libraryId)) {
+          applyFolderSelection(host.rootTree, restoreDraftSelection(next, draft),
+            restoreDraftSelection(next, { ...draft, selected: draft.excluded ?? [] }));
+        }
+        void refreshPreview();
+      });
+    } else void refreshPreview();
   }
 
   function applyRangeChrome(next: PublicRootView): void {
@@ -249,6 +250,9 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
         showHandshakeCopy(terminal ? terminalFreezeReasonCopy(terminal) : rejectedWorkCopy(), 'warning');
         return;
       }
+      // An unavailable status is not evidence that setup has never completed.
+      if (options.fallbackOnboarding) startStatusPoll();
+      return;
     }
     const previous = observation;
     observation = observeFirstRunResponse(response, observation);
@@ -279,8 +283,10 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     }
     if (options.fallbackOnboarding) {
       clearStatusPoll();
+      const wasActive = rangeActive;
       rangeActive = firstRunOnboardingActive(observation.firstRun);
       applyOnboardingDataset();
+      if (rangeActive && !wasActive && view) renderOnboardingView(view);
     }
   }
 
@@ -313,7 +319,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   }
 
   function showHandshakeCopy(copy: string, tone: 'info' | 'warning'): void {
-    rangeActive = true;
+    rangeActive = firstRunOnboardingActive(observation.firstRun);
     confirm.hidden = false;
     start.disabled = true;
     say(copy, tone);
@@ -361,7 +367,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       return;
     }
     const response = await firstRunMessage({ kind: 'known.firstRun.status' });
-    applyStatusResponse(response, { pollIfSyncing: false });
+    applyStatusResponse(response, { pollIfSyncing: false, fallbackOnboarding: true });
   }
 
   async function deferFirstRun(): Promise<void> {

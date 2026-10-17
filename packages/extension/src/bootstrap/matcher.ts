@@ -102,7 +102,8 @@ export function matchLocalRemote(input: {
       conflicts.push({ kind: 'url', localNativeId: nativeId, remoteNodeId: nodeId });
     }
     const localParent = mappedParent(local, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot);
-    if (localParent && remote.parentId && localParent !== remote.parentId) {
+    // A mount root's browser container and Collection parent are independent.
+    if (!mountsByRoot.has(local.nativeId) && localParent && remote.parentId && localParent !== remote.parentId) {
       conflicts.push({ kind: 'parent', localNativeId: nativeId, remoteNodeId: nodeId });
     }
   };

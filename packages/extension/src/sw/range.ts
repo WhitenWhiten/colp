@@ -7,7 +7,8 @@ import { scanBoundary, countFolderContents } from '../bookmark-boundary.js';
 import { createChromeBookmarkTreeAdapter } from '../chrome-bookmark-tree.js';
 import { kns09Paused } from '../kns-09-release.js';
 import {
-  applyConfirmedRange, consumeRangePreview, discoveredFromRoots, previewRangeChange, previewRejection, releaseReincludedPrivateMappings,
+  adoptSelectedSubtreeMappings, applyConfirmedRange, consumeRangePreview, discoveredFromRoots, previewRangeChange, previewRejection, rangeTreeDigest,
+  rangeRemoteDeletesMatch, releaseReincludedPrivateMappings,
 } from '../scope-range.js';
 import type { ScopePreviewRecord, SyncScope } from '../sync-state-store.js';
 import type {
@@ -54,10 +55,24 @@ export async function handleRangePreview(message: PreviewRequest): Promise<RootR
 }
 
 export type RangeConfirmResult = { readonly ok: true } | Extract<RootResponse, { readonly ok: false }>;
+const confirmations = new Map<string, Promise<RangeConfirmResult>>();
 
 export async function handleRangeConfirm(message: ConfirmRequest): Promise<RangeConfirmResult> {
   let scope: SyncScope;
   try { scope = await currentSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
+  const key = rootScopeKey(scope);
+  const prior = confirmations.get(key) ?? Promise.resolve({ ok: true } as const);
+  const pending = prior.catch(() => undefined).then(async (): Promise<RangeConfirmResult> => {
+    try { if (rootScopeKey(await currentSyncScope()) !== key) return { ok: false, error: 'not_connected' }; }
+    catch { return { ok: false, error: 'not_connected' }; }
+    return confirmRange(message, scope);
+  });
+  confirmations.set(key, pending);
+  try { return await pending; }
+  finally { if (confirmations.get(key) === pending) confirmations.delete(key); }
+}
+
+async function confirmRange(message: ConfirmRequest, scope: SyncScope): Promise<RangeConfirmResult> {
   if (!await hasBookmarkPermission()) return { ok: false, error: 'permission_required' };
   if (await kns09Paused('coordinator')) return { ok: false, error: 'sync_paused' };
   const recorded = await syncState.getScope(scope);
@@ -68,24 +83,35 @@ export async function handleRangeConfirm(message: ConfirmRequest): Promise<Range
   });
   if (rejected === 'duplicate_confirm') return { ok: false, error: 'duplicate_confirm' };
   if (rejected === 'preview_stale') return { ok: false, error: 'preview_stale' };
-  if (!preview || rejected) return { ok: false, error: 'request_invalid' };
+  if (!preview || rejected || preview.kind !== 'range') return { ok: false, error: 'request_invalid' };
   const tree = await createChromeBookmarkTreeAdapter(personalTreeApi()).read();
   const scan = scanBoundary({
     roots: tree.roots, selectedNativeIds: [...preview.boundary.selectedNativeIds],
     excludedNativeIds: [...preview.boundary.excludedNativeIds],
     privateNativeIds: preview.privateNativeIds ?? [],
   });
-  if (scan.treeDigest !== preview.treeDigest) return { ok: false, error: 'preview_stale' };
+  if (rangeTreeDigest(tree.roots, scan) !== preview.treeDigest) return { ok: false, error: 'preview_stale' };
   const keepNativeIds = resolveActionNativeIds(message.shiftActions, 'keep', preview.shiftNativeIds ?? []);
   const unmountNativeIds = resolveActionNativeIds(message.shiftActions, 'unmount', preview.shiftNativeIds ?? []);
-  const remoteDeleteNativeIds = resolveRemoteDeleteNativeIds(message.remoteDeleteRefs, preview);
+  const remoteDeleteNativeIds = resolveRemoteDeleteNativeIds(message.remoteDeleteRefs, preview, unmountNativeIds ?? []);
   if (!keepNativeIds || !unmountNativeIds || !remoteDeleteNativeIds) return { ok: false, error: 'request_invalid' };
+  const stopped = new Set(unmountNativeIds);
+  const selectedNativeIds = unique([...scan.selectedNativeIds.filter(id => !stopped.has(id)), ...keepNativeIds]);
+  const discoveredTree = discoveredFromRoots(tree.roots);
+  const privateNativeIds = unique([...(preview.privateNativeIds ?? []), ...unmountNativeIds.filter(id =>
+    (discoveredTree.get(id) ?? []).some(ancestor => selectedNativeIds.includes(ancestor)))]);
+  const confirmedScan = scanBoundary({ roots: tree.roots, selectedNativeIds,
+    excludedNativeIds: preview.boundary.excludedNativeIds, privateNativeIds });
+  try {
+    if (!await rangeRemoteDeletesMatch(syncState, scope, preview, remoteDeleteNativeIds)) return { ok: false, error: 'preview_stale' };
+  } catch { return { ok: false, error: 'preview_stale' }; }
   await applyConfirmedRange(syncState, scope, {
     preview, keepNativeIds, unmountNativeIds, remoteDeleteNativeIds,
   });
   const present = collectNativeIds(tree.roots);
   let addedPending = false;
   for (const nativeId of preview.addedNativeIds ?? []) {
+    if (stopped.has(nativeId) || (discoveredTree.get(nativeId) ?? []).some(id => stopped.has(id))) continue;
     const mount = (await syncState.listMountBindings(scope)).find(row => row.nativeRootId === nativeId);
     if (mount?.status === 'detached') {
       const result = await rejoinScopeMount(syncState, scope, mount.mountId, present, [...present], nativeChromeFacts());
@@ -97,8 +123,8 @@ export async function handleRangeConfirm(message: ConfirmRequest): Promise<Range
   if (addedPending) {
     const started = await confirmAddRange(syncState, scope, {
       previewId: preview.previewId, confirmationId: message.confirmationId, treeDigest: preview.treeDigest,
-      localFacts: localFactsFromRoots(tree.roots, preview.boundary.selectedNativeIds,
-        preview.boundary.excludedNativeIds, preview.privateNativeIds ?? []),
+      consumePreview: false,
+      localFacts: localFactsFromRoots(tree.roots, selectedNativeIds, preview.boundary.excludedNativeIds, privateNativeIds),
       ...(await collectionRootNodeId(scope)),
     });
     if (!started.ok) {
@@ -110,15 +136,12 @@ export async function handleRangeConfirm(message: ConfirmRequest): Promise<Range
     }
   }
   await releaseReincludedPrivateMappings(syncState, scope, {
-    previousPrivateRoots: recorded.privateRoots ?? [], privateNativeIds: preview.privateNativeIds ?? [],
-    discovered: discoveredFromRoots(tree.roots),
+    previousPrivateRoots: recorded.privateRoots ?? [], privateNativeIds, discovered: discoveredTree,
   });
-  const selectedNativeIds = unique([
-    ...scan.selectedNativeIds, ...keepNativeIds,
-  ]);
+  await adoptSelectedSubtreeMappings(syncState, scope, preview, confirmedScan, discoveredTree);
   const { discovered } = await readRootFolders();
   await syncState.configureBrowserRoots(scope, {
-    discovered, selectedNativeIds, privateNativeIds: preview.privateNativeIds ?? [], status: 'ready',
+    discovered, selectedNativeIds, privateNativeIds, status: 'ready',
   });
   for (const nativeId of remoteDeleteNativeIds) {
     const deleted = await remoteDeleteMount(scope, preview, nativeId);
@@ -203,11 +226,13 @@ function resolveActionNativeIds(actions: readonly PublicRangeShiftAction[] | und
   allowed: readonly string[]): string[] | null {
   if (!actions) return action === 'keep' ? [] : [...allowed];
   const allowedSet = new Set(allowed);
+  const seen = new Set<string>();
   const out: string[] = [];
   for (const row of actions) {
-    if (row.action !== action) continue;
     const nativeId = nativeForRef(row.ref);
-    if (!nativeId || !allowedSet.has(nativeId)) return null;
+    if (!nativeId || !allowedSet.has(nativeId) || seen.has(nativeId)) return null;
+    seen.add(nativeId);
+    if (row.action !== action) continue;
     out.push(nativeId);
   }
   if (action === 'unmount') {
@@ -217,9 +242,10 @@ function resolveActionNativeIds(actions: readonly PublicRangeShiftAction[] | und
   return out;
 }
 
-function resolveRemoteDeleteNativeIds(refs: readonly string[] | undefined, preview: ScopePreviewRecord): string[] | null {
+function resolveRemoteDeleteNativeIds(refs: readonly string[] | undefined, preview: ScopePreviewRecord,
+  unmountNativeIds: readonly string[]): string[] | null {
   if (!refs || refs.length === 0) return [];
-  const allowed = new Set([...(preview.removedNativeIds ?? []), ...(preview.shiftNativeIds ?? [])]);
+  const allowed = new Set([...(preview.removedNativeIds ?? []), ...unmountNativeIds]);
   const out: string[] = [];
   for (const ref of refs) {
     const nativeId = nativeForRef(ref);

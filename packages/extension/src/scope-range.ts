@@ -2,8 +2,10 @@ import { SUBTREE_OBSERVATION_EXTENSION } from '@know-n/colp/sync/canonical';
 import { detachScopeMount } from './scope-detach.js';
 import { digestJson } from './bookmark-event-codec.js';
 import { scanBoundary, type BoundaryScan } from './bookmark-boundary.js';
+import { folderIsInMount, folderIsInSyncRange } from './bookmark-sync-range.js';
 import type { NormalizedBookmarkRoot } from './chrome-bookmark-tree.js';
 import { PREVIEW_TTL_MS } from './sync-state/mount-repository.js';
+import { canonicalJson } from './sync-state/codec.js';
 import { mappedSubtreeDeleteSource, remoteSubtreeMappings, scopeSubtreeDeleteSource } from './subtree-observation.js';
 import type {
   MappingInput, MountBindingRecord, RemoteDeleteFreezeEntry, ScopePreviewRecord, SyncScope,
@@ -35,20 +37,36 @@ export function boundaryDigestFromScan(scan: Pick<BoundaryScan, 'selectedNativeI
   });
 }
 
+/** Removing a range also reviews folders outside the next selection. */
+export function rangeTreeDigest(roots: readonly NormalizedBookmarkRoot[], scan: Pick<BoundaryScan, 'treeDigest'>): string {
+  return digestJson({ boundary: scan.treeDigest, tree: canonicalJson(roots) });
+}
+
 export function diffLiveRange(input: {
   readonly liveMounts: readonly MountBindingRecord[];
   readonly mappings: readonly MappingInput[];
   readonly selectedNativeIds: readonly string[];
+  readonly excludedNativeIds?: readonly string[];
+  readonly previousExcludedNativeIds?: readonly string[];
   readonly discovered: ReadonlyMap<string, readonly string[]>;
 }): RangeDiff {
-  const liveSelected = input.liveMounts.filter((mount) => mount.status !== 'detached' && !mount.pendingShift)
+  const previousExcluded = new Set(input.previousExcludedNativeIds);
+  const ancestors = (id: string) => input.discovered.get(id) ?? [];
+  const liveSelected = input.liveMounts.filter((mount) => mount.status !== 'detached' && !mount.pendingShift
+    && !folderIsInMount(mount.nativeRootId, ancestors(mount.nativeRootId), previousExcluded))
     .map((mount) => mount.nativeRootId);
   const next = new Set(input.selectedNativeIds);
+  const excluded = new Set(input.excludedNativeIds);
+  const included = (id: string) => folderIsInSyncRange(id, ancestors(id), next, excluded);
   const live = new Set(liveSelected);
   const shifts = detectRangeShifts(input);
   const shiftNative = new Set(shifts.map((row) => row.nativeRootId));
-  const addedNativeIds = input.selectedNativeIds.filter((id) => !live.has(id));
-  const removedNativeIds = liveSelected.filter((id) => !next.has(id) && !shiftNative.has(id));
+  const resumed = input.liveMounts.filter(mount => mount.status === 'detached' && !mount.pendingShift
+    && included(mount.nativeRootId)).map(mount => mount.nativeRootId);
+  const addedNativeIds = [...new Set([...input.selectedNativeIds.filter(id => included(id) && !live.has(id)), ...resumed])];
+  // Selecting an ancestor keeps existing nested mounts in the sync range.
+  const removedNativeIds = liveSelected.filter((id) => !included(id)
+    && !shiftNative.has(id));
   return { addedNativeIds, removedNativeIds, shiftNativeIds: [...shiftNative], shifts };
 }
 
@@ -70,10 +88,11 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   const liveMounts = await store.listMountBindings(scope);
   const mappings = await store.listMappings(scope);
   const discovered = input.discovered ?? discoveredFromRoots(input.roots);
+  const previousPrivate = new Set((recorded?.privateRoots ?? []).map(id => mappings.find(row => row.colpId === id)?.nativeId).filter((id): id is string => Boolean(id)));
   const mountDiff = diffLiveRange({
     liveMounts, mappings, selectedNativeIds: scan.selectedNativeIds, discovered,
+    excludedNativeIds: [...scan.excludedNativeIds, ...(input.privateNativeIds ?? [])], previousExcludedNativeIds: [...previousPrivate],
   });
-  const previousPrivate = new Set((recorded?.privateRoots ?? []).map(id => mappings.find(row => row.colpId === id)?.nativeId).filter((id): id is string => Boolean(id)));
   const nextPrivate = new Set(input.privateNativeIds ?? []);
   const newlyPrivate = [...nextPrivate].filter(id => !previousPrivate.has(id)
     && mappings.some(row => row.nativeId === id && !row.projection.revision.startsWith('local-')));
@@ -97,7 +116,7 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   const remoteDeleteEvidence = await remoteDeleteEvidenceFor(store, scope,
     [...new Set([...diff.removedNativeIds, ...diff.shiftNativeIds])]);
   const preview = await store.putScopePreview(scope, {
-    previewId, boundaryVersion: recorded?.boundaryVersion ?? '0', treeDigest: scan.treeDigest,
+    previewId, boundaryVersion: recorded?.boundaryVersion ?? '0', treeDigest: rangeTreeDigest(input.roots, scan),
     bookmarkCount: scan.bookmarkCount, folderCount: scan.folderCount, skippedCount: scan.skippedCount,
     expiresAt: now() + PREVIEW_TTL_MS, warnings: scan.warnings,
     boundary: { selectedNativeIds: scan.selectedNativeIds, excludedNativeIds: scan.excludedNativeIds,
@@ -136,7 +155,6 @@ export async function applyConfirmedRange(store: Store, scope: SyncScope, input:
   const byNative = new Map(mounts.map((mount) => [mount.nativeRootId, mount]));
   const keep = new Set(input.keepNativeIds);
   const unmount = new Set(input.unmountNativeIds);
-  const remoteDelete = new Set(input.remoteDeleteNativeIds ?? []);
   const kept: string[] = [];
   const unmounted: string[] = [];
   for (const nativeId of input.preview.shiftNativeIds ?? []) {
@@ -154,14 +172,19 @@ export async function applyConfirmedRange(store: Store, scope: SyncScope, input:
       continue;
     }
     if (unmount.has(nativeId) || !keep.has(nativeId)) {
-      if (!remoteDelete.has(nativeId)) await detachScopeMount(store, scope, mount.mountId);
+      const detached = await detachScopeMount(store, scope, mount.mountId);
+      const { scopeKey: _scopeKey, pendingShift: _shift, ...binding } = detached;
+      await store.putMountBinding(scope, binding);
       unmounted.push(nativeId);
     }
   }
   for (const nativeId of input.preview.removedNativeIds ?? []) {
-    if (keep.has(nativeId) || remoteDelete.has(nativeId)) continue;
+    if (keep.has(nativeId)) continue;
     const mount = byNative.get(nativeId);
-    if (!mount || mount.status === 'detached' || mount.rootRole) continue;
+    if (!mount || mount.status === 'detached') continue;
+    // A private browser root keeps its role binding; deselecting it must stop
+    // the mount too, otherwise ingress and a reload silently restore syncing.
+    if (mount.rootRole && input.preview.boundary.selectedNativeIds.includes(nativeId)) continue;
     await detachScopeMount(store, scope, mount.mountId);
     unmounted.push(nativeId);
   }
@@ -192,12 +215,43 @@ export async function mountIdForNative(store: Store, scope: SyncScope, nativeId:
   return mount?.mountId;
 }
 
+/** A narrower selection takes ownership of its mapped subtree from a removed parent mount. */
+export async function adoptSelectedSubtreeMappings(store: Store, scope: SyncScope, preview: ScopePreviewRecord,
+  scan: BoundaryScan, discovered: ReadonlyMap<string, readonly string[]>): Promise<void> {
+  const mounts = await store.listMountBindings(scope);
+  const removed = new Set(preview.removedNativeIds);
+  const byNative = new Map(mounts.filter(mount => mount.status === 'active').map(mount => [mount.nativeRootId, mount]));
+  for (const mapping of await store.listMappings(scope)) {
+    const source = mounts.find(mount => mount.mountId === mapping.mountId || mount.nativeRootId === mapping.rootNativeId);
+    if (source?.status !== 'detached' || !removed.has(source.nativeRootId)) continue;
+    const classification = scan.classifications.get(mapping.nativeId);
+    if (classification !== 'ordinary-folder' && classification !== 'special-root') continue;
+    const target = [mapping.nativeId, ...[...(discovered.get(mapping.nativeId) ?? [])].reverse()]
+      .map(id => byNative.get(id)).find(mount => mount !== undefined);
+    if (!target || !target.remoteMountNodeId) continue;
+    const { scopeKey: _scopeKey, ...row } = mapping;
+    await store.putMapping(scope, { ...row, rootNativeId: target.nativeRootId, mountId: target.mountId });
+  }
+}
+
 export async function removalCounts(store: Store, scope: SyncScope, nativeIds: readonly string[]): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   const evidence = await remoteDeleteEvidenceFor(store, scope, nativeIds);
   const byNative = new Map(evidence.map((row) => [row.nativeRootId, row.affectedCount]));
   for (const nativeId of nativeIds) counts.set(nativeId, byNative.get(nativeId) ?? 0);
   return counts;
+}
+
+/** Validate every destructive choice before changing mounts or browser authority. */
+export async function rangeRemoteDeletesMatch(store: Store, scope: SyncScope, preview: ScopePreviewRecord,
+  nativeIds: readonly string[]): Promise<boolean> {
+  if (!nativeIds.length) return true;
+  const live = await remoteDeleteEvidenceFor(store, scope, nativeIds);
+  return nativeIds.every(id => {
+    const frozen = preview.remoteDeleteEvidence?.find(row => row.nativeRootId === id);
+    const current = live.find(row => row.nativeRootId === id);
+    return frozen !== undefined && current !== undefined && canonicalJson(frozen) === canonicalJson(current);
+  });
 }
 
 async function remoteDeleteEvidenceFor(store: Store, scope: SyncScope, nativeIds: readonly string[]):
@@ -242,7 +296,7 @@ export function discoveredFromRoots(roots: readonly NormalizedBookmarkRoot[]): M
   return discovered;
 }
 
-async function mergePreviewMounts(store: Store, scope: SyncScope, existing: readonly MountBindingRecord[],
+export async function mergePreviewMounts(store: Store, scope: SyncScope, existing: readonly MountBindingRecord[],
   preview: ScopePreviewRecord): Promise<void> {
   const byRoot = new Map(existing.map((mount) => [mount.nativeRootId, mount]));
   for (const planned of preview.boundary.mounts.filter((mount) => mount.writable)) {

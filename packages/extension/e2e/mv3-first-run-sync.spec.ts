@@ -27,6 +27,7 @@ import {
 import { resolveIncomingConflict } from './kns-08-conflict.js';
 import { seedPreexistingBookmarks } from './preexisting-bookmarks.js';
 import { knowNBackendRoot } from './cloud-product-fixtures.js';
+import { showOptionsPane } from './extension-auth.js';
 
 const bindingA = KNS08_BINDINGS[0];
 const bindingB = KNS08_BINDINGS[1];
@@ -64,6 +65,76 @@ test('first-run sync uploads selected ordinary folders as custom mounts', async 
     await stack.close();
     await rmDirs(dirs);
   }
+});
+
+test('existing folder sync expands to Sync all, stops on clear, and resumes without duplicate bookmarks', async () => {
+  const stack = await startRealStack(); const dirs = await twinDirs();
+  let context: BrowserContext | undefined;
+  type RangeExport = { scope: { selectedRoots: string[]; firstRun?: string }; mountBindings: { nativeRootId: string; status: string }[];
+    mappings: { nativeId: string; colpId: string }[];
+    queue: { payload: { type: string; targetId?: string } }[] };
+  try {
+    context = await launchPersistent(dirs.a, stack.browserHostResolverRules);
+    const page = await ready(context, bindingA); const roots = await specialRoots(page);
+    const created = await page.evaluate(async parentId => {
+      const ids: string[] = [];
+      for (const title of ['Range novels', 'Range AI']) {
+        const folder = await chrome.bookmarks.create({ parentId, title });
+        const bookmark = await chrome.bookmarks.create({ parentId: folder.id, title: `${title} bookmark`, url: `https://example.test/${folder.id}` });
+        ids.push(bookmark.id);
+      }
+      await chrome.bookmarks.create({ parentId, title: 'Range extra bookmark', url: 'https://example.test/range-extra' });
+      return ids;
+    }, roots.barId);
+    const preview = await previewFirstRun(page, ['Range novels', 'Range AI']);
+    await confirmPreview(page, preview.previewId); await waitFirstRunProductQuiet(page, stack, bindingA);
+    const before = await evidence<RangeExport>(page, 'exportOutboundPushEvidence');
+    const identities = before.mappings.filter(row => created.includes(row.nativeId)).map(({ nativeId, colpId }) => ({ nativeId, colpId }));
+    expect(identities).toHaveLength(2);
+
+    await page.reload(); await showOptionsPane(page, 'folders');
+    await page.locator('#tree-select-level').click(); await page.locator('#save-roots').click();
+    await expect(page.locator('#range-preview')).toBeVisible();
+    await expect(page.locator('#range-remove-list')).toBeHidden();
+    await expect(page.locator('#range-shift-list')).toBeHidden();
+    await expect(page.locator('#range-remote-delete-label')).toBeHidden();
+    await page.locator('#range-confirm').click(); await expect(page.locator('#root-feedback')).toHaveText('Folder settings saved');
+    await waitFirstRunProductQuiet(page, stack, bindingA);
+    for (const title of ['Range novels bookmark', 'Range AI bookmark', 'Range extra bookmark']) {
+      expect((await liveCanonical(stack)).filter(row => row.title === title)).toHaveLength(1);
+    }
+    const after = await evidence<RangeExport>(page, 'exportOutboundPushEvidence');
+    expect(after.mappings.filter(row => created.includes(row.nativeId)).map(({ nativeId, colpId }) => ({ nativeId, colpId }))).toEqual(identities);
+    await page.evaluate(id => chrome.bookmarks.update(id, { title: 'Range edited while syncing' }), created[0]!);
+    await expect.poll(async () => (await liveCanonical(stack)).filter(row => row.title === 'Range edited while syncing').length,
+      { timeout: 30_000 }).toBe(1);
+    await waitFirstRunProductQuiet(page, stack, bindingA);
+
+    await page.locator('#tree-clear-selection').click(); await page.locator('#save-roots').click();
+    await expect(page.locator('#range-remove-list')).toBeVisible();
+    await expect(page.locator('#range-shift-list')).toBeHidden();
+    await expect(page.locator('#range-remote-delete')).not.toBeChecked();
+    await page.locator('#range-confirm').click(); await expect(page.locator('#root-feedback')).toHaveText('Folder settings saved');
+    expect((await evidence<RangeExport>(page, 'exportOutboundPushEvidence')).scope.selectedRoots).toEqual([]);
+    await page.reload(); await showOptionsPane(page, 'folders');
+    const reloaded = await evidence<RangeExport>(page, 'exportOutboundPushEvidence');
+    expect(reloaded.scope.selectedRoots).toEqual([]);
+    expect(reloaded.mountBindings.every(mount => mount.status === 'detached')).toBe(true);
+    await expect(page.locator('.root-select input:checked')).toHaveCount(0);
+    const paused = await evidence<RangeExport>(page, 'exportOutboundPushEvidence');
+    await page.evaluate(id => chrome.bookmarks.update(id, { title: 'Range edited while paused' }), created[0]!);
+    await evidence(page, 'drainBookmarkEventCaptureEvidence');
+    expect((await evidence<RangeExport>(page, 'exportOutboundPushEvidence')).queue).toEqual(paused.queue);
+
+    await page.locator('#tree-select-level').click(); await page.locator('#save-roots').click();
+    await expect(page.locator('#range-remove-list')).toBeHidden(); await page.locator('#range-confirm').click();
+    await expect(page.locator('#root-feedback')).toHaveText('Folder settings saved');
+    await waitFirstRunProductQuiet(page, stack, bindingA);
+    await expect.poll(async () => (await liveCanonical(stack)).filter(row => row.title === 'Range edited while paused').length,
+      { timeout: 30_000 }).toBe(1);
+    expect((await evidence<RangeExport>(page, 'exportOutboundPushEvidence')).mappings
+      .filter(row => created.includes(row.nativeId)).map(({ nativeId, colpId }) => ({ nativeId, colpId }))).toEqual(identities);
+  } finally { await closeAll(context); await stack.close(); await rmDirs(dirs); }
 });
 
 test('first-sync shares live bookmark creates and finishes nested uploads', async () => {

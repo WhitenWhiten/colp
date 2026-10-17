@@ -1,5 +1,6 @@
 import { filterBootstrapFacts } from './fact-boundary.js';
 import { bootstrapRunInFlight } from './run-identity.js';
+import { bindKnownRoleMounts } from './known-role-mounts.js';
 export { bootstrapRunInFlight } from './run-identity.js';
 import { authoritativeColp, placeholderOccupant, mountNeedsRemote, mountRemoteFromReceipt, receiptTargetId,
   operationPayload, remoteFromRecovery, liveRemoteFromMapping } from './coordinator-operations.js';
@@ -174,8 +175,11 @@ export function createBootstrapCoordinator(options: {
     const remote = loaded.fromRecovery ? loaded.remote : (input.remoteFacts ?? loaded.remote);
     const rootNodeId = input.rootNodeId ?? loaded.rootNodeId
       ?? remote.find((row) => row.folderRole === 'root')?.nodeId ?? null;
-    if (!readOnly) await bindResolvedMounts(run.confirmationId);
-    const storedMappings = input.mappings ?? (await store.listMappings(scope)).map((row) => (
+    if (!readOnly) {
+      await bindKnownRoleMounts(store, scope, remote, rootNodeId);
+      await bindResolvedMounts(run.confirmationId);
+    }
+    const storedMappings = input.mappings ?? (await store.listMappings(scope)).filter(row => row.projection.revision !== 'local-root').map((row) => (
       { nativeId: row.nativeId, colpId: row.colpId }));
     const mounts = await mergeMounts(input.mounts);
     const mappings = mergeAuthoritativeMappings(storedMappings,
@@ -363,7 +367,7 @@ export function createBootstrapCoordinator(options: {
         continue;
       }
       const mapping = byNative.get(mount.nativeRootId);
-      let remoteId = mapping && authoritativeColp(mapping.colpId) ? mapping.colpId : null;
+      let remoteId = mapping && mapping.projection.revision !== 'local-root' && authoritativeColp(mapping.colpId) ? mapping.colpId : null;
       if (!remoteId) {
         receiptsByOpId ??= await receiptsForOps(
           queued.filter((row) => row.status === 'terminal').map((row) => row.opId));
@@ -407,7 +411,8 @@ export function createBootstrapCoordinator(options: {
 
   async function mergeMounts(input: readonly MountFact[]): Promise<MountFact[]> {
     const live = await store.listMountBindings(scope);
-    const mapped = new Map((await store.listMappings(scope)).map((row) => [row.nativeId, row.colpId]));
+    const mapped = new Map((await store.listMappings(scope)).filter(row => row.projection.revision !== 'local-root')
+      .map((row) => [row.nativeId, row.colpId]));
     const source = input.length > 0 ? input : live.map((row) => ({
       nativeRootId: row.nativeRootId, remoteMountNodeId: row.remoteMountNodeId,
       ...(row.rootRole ? { rootRole: row.rootRole } : {}),

@@ -44,7 +44,11 @@ export async function handleRootRequest(message: RootRequest): Promise<RootRespo
     return { ok: true, boundaries: { selected: toNative(stored?.selectedRoots),
       privateLocal: toNative(stored?.privateRoots) } };
   }
-  if (!permissionGranted) return permissionRequiredView(scope);
+  if (!permissionGranted) {
+    const required = await permissionRequiredView(scope);
+    return message.kind === 'known.roots.get' || message.kind === 'known.roots.permissionChanged'
+      ? required : { ok: false, error: 'permission_required' };
+  }
   try {
     if (message.kind === 'known.roots.update') {
       const selected = resolveRootRefs(scope, message.viewId, message.selectedRefs);
