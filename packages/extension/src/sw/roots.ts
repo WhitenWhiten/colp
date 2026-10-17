@@ -75,6 +75,11 @@ export async function handleRootRequest(message: RootRequest): Promise<RootRespo
     const status = error instanceof BookmarkTreeError ? error.code === 'bookmark_tree_corrupt' ? 'corrupt' : error.code : 'corrupt';
     await syncState.setBrowserRootStatus(scope, status);
     sw.rootViewTokens = undefined;
+    // A failed write/confirmation must never masquerade as a successful
+    // folder-settings save merely because we can render a degraded root view.
+    if (message.kind !== 'known.roots.get' && message.kind !== 'known.roots.permissionChanged') {
+      return { ok: false, error: 'root_update_failed' };
+    }
     return { ok: true, view: { viewId: crypto.randomUUID(), status, roots: [] } };
   }
 }
