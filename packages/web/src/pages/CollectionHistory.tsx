@@ -17,7 +17,7 @@ import { StatusBadge, type StatusTone } from '../components/StatusBadge'
 import { classifyRouteError } from '../lib/classifyRouteError'
 import { formatMediumInstant } from '../lib/formatDate'
 import { libraryFeatureUnavailable } from '../lib/libraryCopy'
-import { isAbort } from '../lib/libraryTree'
+import { isAbort, rootTitle } from '../lib/libraryTree'
 import { plural } from '../lib/plural'
 import { useRouteData } from '../lib/useRouteData'
 // Shared product-loop stylesheet (see main.tsx); ships with this route chunk.
@@ -75,6 +75,7 @@ function versionReference(version: Pick<CollectionVersion, 'label' | 'createdAt'
 type HistoryCollection = {
   collection: {
     title: string
+    library?: boolean
     contentEtag: string
     publicationSlug: string | null
   }
@@ -97,6 +98,7 @@ async function readHistoryCollection(
   return {
     collection: {
       title: page.collection.title,
+      library: page.collection.library,
       contentEtag: page.collection.contentEtag,
       publicationSlug: page.collection.publicationSlug,
     },
@@ -139,6 +141,7 @@ export function CollectionHistory() {
     fallbackError: "Couldn't load collection history. Try again.",
   })
   const owned = route.data?.owned ?? null
+  const library = owned?.collection.library === true
   const versions = route.data?.versions ?? NO_VERSIONS
   const reload = route.reload
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -226,7 +229,7 @@ export function CollectionHistory() {
     if (selected.changeCounts.removed > 0) return
     const ok = await confirm({
       title: `Restore ${versionReference(selected)}?`,
-      body: selected.changeCounts.added > 0 ? `The collection will match this version. ${plural(selected.changeCounts.added, 'item')} added since then will be deleted, and moved or renamed items go back.` : 'The collection will match this version. Moved or renamed items go back.',
+      body: `${library ? 'Your library' : 'The collection'} will match this version. ${selected.changeCounts.added > 0 ? `${plural(selected.changeCounts.added, 'item')} added since then will be deleted, and moved` : 'Moved'} or renamed items go back.`,
       confirmLabel: 'Restore version',
     })
     if (!ok) return
@@ -242,8 +245,11 @@ export function CollectionHistory() {
           maxRetries: 0,
         },
       )
-      success(`Restored ${versionReference(selected)} on this collection.`, {
-        action: { label: 'Edit collection', to: `/library/${collectionId}?collection=edit` },
+      // The library has no collection settings; its folders are what changed.
+      success(`Restored ${versionReference(selected)} on ${library ? 'your library' : 'this collection'}.`, {
+        action: library
+          ? { label: 'Open library', to: `/library/${collectionId}` }
+          : { label: 'Edit collection', to: `/library/${collectionId}?collection=edit` },
       })
       await reload()
       if (selectedId) {
@@ -256,7 +262,7 @@ export function CollectionHistory() {
     } finally {
       setRestoring(false)
     }
-  }, [collectionId, confirm, detail, failAction, owned, reload, selectedId, success, versions])
+  }, [collectionId, confirm, detail, failAction, library, owned, reload, selectedId, success, versions])
 
   if (!enabled) {
     return (
@@ -271,7 +277,7 @@ export function CollectionHistory() {
     )
   }
 
-  const title = owned?.collection.title ?? 'Collection'
+  const title = owned ? rootTitle(owned.collection) : 'Collection'
   const slug = owned?.collection.publicationSlug
   const loading = route.status === 'loading'
   const error = route.status === 'error' ? route.error : null
@@ -299,7 +305,7 @@ export function CollectionHistory() {
         }
         title="Version history"
         documentTitle="History"
-        lede="Compare versions of this collection and restore an earlier one."
+        lede={`Compare versions of ${library ? 'your library' : 'this collection'} and restore an earlier one.`}
         actions={
           <>
             {slug ? <Link to={`/c/${slug}`} className="btn btn-ghost btn-sm">View published</Link> : null}
@@ -350,7 +356,7 @@ export function CollectionHistory() {
           data-testid="history-empty-versions"
           icon="folder"
           title="No versions yet"
-          description="Save a version to keep a restorable copy of this collection as it is now."
+          description={`Save a version to keep a restorable copy of ${library ? 'your library' : 'this collection'} as it is now.`}
           action={(
             <button
               type="button"
@@ -419,7 +425,7 @@ export function CollectionHistory() {
                     <div>
                       <strong>Restore isn't available for this version</strong>
                       <p>
-                        {`${plural(removed, 'bookmark or folder', 'bookmarks or folders')} from this version ${removed === 1 ? 'is' : 'are'} no longer in the collection, and restoring can't bring deleted items back yet.`}
+                        {`${plural(removed, 'bookmark or folder', 'bookmarks or folders')} from this version ${removed === 1 ? 'is' : 'are'} no longer in ${library ? 'your library' : 'the collection'}, and restoring can't bring deleted items back yet.`}
                       </p>
                     </div>
                   </section>
@@ -434,7 +440,7 @@ export function CollectionHistory() {
                   {detailLoading ? (
                     <LoadingState label="Loading changes…" />
                   ) : changes.length === 0 ? (
-                    <p className="meta">This version matches the collection as it is now.</p>
+                    <p className="meta">{`This version matches ${library ? 'your library' : 'the collection'} as it is now.`}</p>
                   ) : changes.map((change) => (
                     <article key={`${change.nodeId}-${change.type}`} className="history-change-row">
                       <StatusBadge tone={CHANGE_KIND_TONE[change.type] ?? 'neutral'}>{CHANGE_LABEL[change.type] ?? change.type}</StatusBadge>

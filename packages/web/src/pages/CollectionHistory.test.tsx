@@ -411,6 +411,29 @@ describe('Collection history Product wiring', () => {
       expectEditorMetaRead(2)
     })
 
+    it('speaks of the library as your library and sends a restore back to it', async () => {
+      mocks.enabled = true
+      const page = editorPage('col-1')
+      mocks.getCollectionEditorPage.mockResolvedValue({ ...page, collection: { ...page.collection, library: true } })
+      mocks.listCollectionVersions.mockResolvedValue({ items: [version()], nextCursor: null })
+      render()
+      await waitForDom(domFinishedLoading)
+      expect(document.body.textContent).toContain('Compare versions of your library')
+      expect(document.querySelector('nav[aria-label="Breadcrumb"]')?.textContent).toContain('All bookmarks')
+      act(() => versionRow('Live snapshot A')!.click())
+      await waitForDom(domFinishedLoading)
+      act(() => namedButton(/^\s*Restore\s*$/i)!.click())
+      await waitForDom(domFinishedLoading)
+      expect(document.body.textContent).toContain('Your library will match this version.')
+      act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+        .find((btn) => btn.textContent?.trim() === 'Restore version')!.click())
+      await waitForDom(domFinishedLoading)
+      expect(mocks.success).toHaveBeenCalledWith(
+        expect.stringContaining('on your library.'),
+        { action: { label: 'Open library', to: '/library/col-1' } },
+      )
+    })
+
     it('disables Restore when changeCounts.removed is greater than zero', async () => {
       mocks.enabled = true
       const blocked = version({ changeCounts: changeCounts({ removed: 2 }) })
