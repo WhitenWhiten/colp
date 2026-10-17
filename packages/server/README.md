@@ -137,6 +137,15 @@ once per bookmark; public pages keep each bookmark's own object.
 The extension's favicon helper uploads bytes separately after syncing a bookmark; images are
 not embedded in COLP Push operations. Existing helper paths and ETag checks are preserved.
 
+### Profile avatars
+
+Settings uploads a PNG, JPEG or WebP avatar (at most 2 MB) with `POST /api/v1/me/avatar`;
+the account menu, members list and shared collections show it. Without `AVATAR_R2_*`
+configuration the bytes live in PostgreSQL (`avatar_object_bytes`) and are included in
+normal database backups; with it they go to the R2 bucket under `AVATAR_R2_PREFIX`.
+A replaced avatar is deleted once no profile references it. Avatar URLs are HTTPS on
+the default port, so the plain-HTTP setup answers uploads with `503`.
+
 ### Gallery preview images
 
 Gallery cards show the bookmark page's own sharing image (`og:image`, `twitter:image` or

@@ -4,6 +4,10 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Profile avatar uploads work without object storage: when no `AVATAR_R2_*` bucket is configured, avatar images are stored in PostgreSQL (`avatar_object_bytes`) and included in database backups. Apply migration `202611010100_avatar_object_bytes` before deploying. A plain-HTTP origin answers `POST /api/v1/me/avatar` with `503` and says avatars need HTTPS, instead of failing as an invalid avatar URL.
+
 ### Changed
 
 - Online favicon jobs reuse validated results by complete provider URL in PostgreSQL, coalesce concurrent requests and fence fetches across workers. Cached items bypass provider admission; uncached work admits one candidate per provider, rotates waiting items and sleeps until the provider/item retry deadline instead of repeatedly scanning blocked bookmarks. User jobs take priority over curated-site warming, including while waiting for a retry; cold curated sites fill on demand. The default provider spacing is now 1 second, with explicit configuration preserved and durable `429` / `Retry-After` cooldowns. Apply migration `202610311400_favicon_provider_cache` before deploying.

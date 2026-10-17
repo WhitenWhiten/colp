@@ -256,7 +256,7 @@ function createMemoryPorts(state: MemoryState): IdentityPorts {
   };
 }
 
-function createHarness(avatarStore?: MemoryAvatarStore) {
+function createHarness(avatarStore?: MemoryAvatarStore, productOrigin = 'https://app.example.test') {
   const state: MemoryState = {
     accounts: new Map(),
     profiles: new Map(),
@@ -275,11 +275,11 @@ function createHarness(avatarStore?: MemoryAvatarStore) {
   };
   const config = loadConfig({
     DATABASE_URL: 'postgres://localhost/known_test',
-    PRODUCT_ORIGIN: 'https://app.example.test',
-    ALLOWED_ORIGINS: 'https://app.example.test',
+    PRODUCT_ORIGIN: productOrigin,
+    ALLOWED_ORIGINS: productOrigin,
     OIDC_ISSUER: 'https://issuer.example/realms/known',
     OIDC_CLIENT_ID: 'known-web',
-    OIDC_REDIRECT_URI: 'https://app.example.test/api/v1/auth/oidc/callback',
+    OIDC_REDIRECT_URI: `${productOrigin}/api/v1/auth/oidc/callback`,
     OIDC_AUTHORIZATION_ENDPOINT: 'https://issuer.example/realms/known/auth',
     OIDC_TOKEN_ENDPOINT: 'https://issuer.example/realms/known/token',
     OIDC_ALLOW_TEST_PROVIDER: 'true',
@@ -1945,6 +1945,34 @@ describe('browser auth transport', () => {
 
     const profile = state.profiles.get(accountId);
     assert.equal(profile?.avatarUrl, me.profile.avatarUrl);
+  });
+
+  test('avatar upload explains that a plain-HTTP origin cannot serve avatars', async () => {
+    const avatarStore = createMemoryAvatarStore();
+    const { app, unitOfWork, config } = createHarness(avatarStore, 'http://127.0.0.1:8080');
+    apps.push(app);
+    const issued = await unitOfWork.execute(async (ports) => {
+      const ensured = await ensureAccountFromOidcIdentity(ports, {
+        issuer: config.oidc.issuer, subject: 'avatar-http', displayName: 'Avatar Http', handle: 'avatar_http',
+      });
+      return createSession(ports, { accountId: ensured.account.id });
+    });
+    const upload = await app.inject({
+      method: 'POST', url: '/api/v1/me/avatar',
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(issued.rawSessionToken)}`,
+        origin: config.productOrigin,
+        'x-csrf-token': issued.rawCsrfToken,
+        'known-command-id': '123e4567-e89b-42d3-a456-426614174000',
+        'content-type': 'image/png',
+      },
+      payload: Buffer.from('89504e470d0a1a0a', 'hex'),
+    });
+    assert.equal(upload.statusCode, 503);
+    const error = (upload.json() as { error: { code: string; message: string } }).error;
+    assert.equal(error.code, 'feature_temporarily_unavailable');
+    assert.match(error.message, /HTTPS/u);
+    assert.equal(avatarStore.objects.size, 0);
   });
 
   test('avatar routes fail closed when no avatar store is configured', async () => {

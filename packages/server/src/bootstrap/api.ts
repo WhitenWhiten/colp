@@ -6,7 +6,7 @@ import {
   createPostgresLinkPreviewPublicAccess,
 } from '../infrastructure/collections/index.js';
 import { KNOWN_FAVICON_DOMAINS } from '../modules/collections/index.js';
-import { createPersistentAvatarStore } from '../infrastructure/identity/index.js';
+import { createDatabaseAvatarStore, createPersistentAvatarStore } from '../infrastructure/identity/index.js';
 import { createPostgresAccountDeletionStore } from '../infrastructure/auth/business-account-unit-of-work.js';
 import { loadConfig, sanitizedRuntimeCapacity, type AppConfig } from './config.js';
 import { createApiCacheComposition, composeCollectionBookmarkCountLookup } from './cache-composition.js';
@@ -358,7 +358,10 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
     // hashes (bare SHA-256 fallback only when unconfigured).
     { secretHmacKey: config.accountCredentials.cursorHmacKey?.toString('utf8') },
   );
-  const avatarStore = publicObjects.avatarStore ? createPersistentAvatarStore(database.db, publicObjects.avatarStore) : undefined;
+  const avatarStore = createPersistentAvatarStore(
+    database.db,
+    publicObjects.avatarStore ?? createDatabaseAvatarStore(database.db),
+  );
   const lifecycle = {
     accountCredentialCursors: accountCredentialCursors ?? { destroy() { /* feature off */ } },
     accountCredentialGrantCursors: accountCredentialGrantCursors ?? { destroy() { /* feature off */ } },
@@ -573,7 +576,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
   const listen = async (): Promise<void> => {
     await database.verifyReady();
     await app.listen({ host: config.host, port: config.port });
-    avatarStore?.startCleanup(error => app.log.error({ error }, 'Avatar cleanup will retry from its durable lease'));
+    avatarStore.startCleanup(error => app.log.error({ error }, 'Avatar cleanup will retry from its durable lease'));
     // Sanitized capacity only — never log DATABASE_URL or credentials.
     app.log.info({ service: 'api', capacity }, 'api started');
   };

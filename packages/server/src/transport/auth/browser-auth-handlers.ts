@@ -13,6 +13,7 @@ import {
   assertAvatarImage,
   AVATAR_ALLOWED_CONTENT_TYPES,
   AVATAR_MAX_BYTES,
+  isValidAvatarUrl,
   type IdentityPorts,
   type UpdateProfileSettingsCommandResult,
   type UploadAvatarResult,
@@ -619,6 +620,17 @@ export function registerAvatarRoutes(app: FastifyInstance, deps: BrowserAuthDeps
         statusCode: 503,
         code: 'feature_temporarily_unavailable',
         message: 'Avatar upload is not available on this deployment.',
+        recovery: 'none',
+      });
+    }
+    // Avatar URLs are https on the default port wherever they are read; a
+    // plain-HTTP origin would fail later as an invalid avatarUrl.
+    const sampleAvatarUrl = `${deps.config.productOrigin.replace(/\/+$/u, '')}/api/v1/avatar/00000000-0000-4000-8000-000000000000`;
+    if (!isValidAvatarUrl(sampleAvatarUrl)) {
+      throw new ProductHttpError({
+        statusCode: 503,
+        code: 'feature_temporarily_unavailable',
+        message: 'Avatar upload needs the server to run on HTTPS.',
         recovery: 'none',
       });
     }

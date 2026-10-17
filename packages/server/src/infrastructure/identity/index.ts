@@ -31,3 +31,4 @@ export { createR2AvatarStore, type R2AvatarStoreOptions } from './avatar-r2-adap
 export { createPostgresExtensionIdentityBindingPort, createPostgresExtensionOwnerSubjectPort,
   createPostgresExtensionOwnerAccountPort } from './postgres-extension-identity-binding.js';
 export { createPersistentAvatarStore, type PersistentAvatarStore } from './avatar-lifecycle-store.js';
+export { createDatabaseAvatarStore } from './avatar-database-store.js';

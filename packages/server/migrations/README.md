@@ -7,6 +7,13 @@ Migrations follow expand/contract deployment order: add backward-compatible stru
 deploy readers and writers, validate/backfill, then remove obsolete structures in a later
 release. A migration must not make the currently deployed reader unable to start.
 
+## Avatar object bytes
+
+Apply `202611010100_avatar_object_bytes` before deploying the API. The additive
+table holds avatar images when no `AVATAR_R2_*` bucket is configured; the existing
+`avatar_objects` lifecycle rows still track ownership and cleanup. Previous binaries
+ignore the table; dropping it loses avatars uploaded without R2.
+
 ## Favicon provider result cache
 
 Apply `202610311400_favicon_provider_cache` before deploying the favicon worker
