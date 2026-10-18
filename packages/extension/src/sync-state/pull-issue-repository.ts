@@ -32,7 +32,7 @@ export interface LocalIssueRecord {
 export const PULL_ISSUE_TITLE_MAX = 200;
 const prefix = (key: string) => `pull-issue:${key}:`;
 /** States an event can fail in before its browser call changed anything. */
-const SET_ASIDE_STATES = new Set(['staged', 'intent_prepared', 'browser_call_started']);
+const SET_ASIDE_STATES = new Set(['staged', 'intent_prepared']);
 const localPrefix = (key: string) => `local-issue:${key}:`;
 
 /**
@@ -70,6 +70,11 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
         if (typeof event.intentId === 'string') {
           const intents = tx.objectStore(STORES.intents);
           const intent = await requestValue(intents.get([key, event.intentId])) as UnknownRecord | undefined;
+          if (intent && (intent.apiResultEvidence || intent.nativeEventEvidence
+            || intent.apiPhase === 'browser_call_started' || intent.nativeResult === 'applied_with_evidence'
+            || intent.replayState === 'started' || intent.replayState === 'awaiting_receipt')) {
+            throw new SyncStateError('pull_event_state_invalid');
+          }
           if (intent) intents.put({ ...intent, state: 'authority_committed', apiPhase: 'authority_committed',
             apiResultEvidence: { setAside: code } });
         }

@@ -95,7 +95,7 @@ export async function setAsideFailedPullItem(options: PullApplierOptions,
   const subject = subjectOf(event); const eventId = String(entered.eventId);
   if (!subject || !setsAsidePullItem(code) || !['staged', 'intent_prepared'].includes(String(entered.state))) return false;
   const current = await options.store.getPullEvent(options.scope, eventId);
-  if (!current || !['staged', 'intent_prepared', 'browser_call_started'].includes(String(current.state))) return false;
+  if (!current || !['staged', 'intent_prepared'].includes(String(current.state))) return false;
   assertBelowCeiling(await openIssues(options));
   const title = typeof subject.node?.title === 'string' ? subject.node.title : undefined;
   await options.store.setAsidePullEvent(options.scope, eventId, { code, nodeId: subject.nodeId, now,
