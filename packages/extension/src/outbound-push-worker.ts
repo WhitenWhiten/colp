@@ -1,6 +1,7 @@
 import { startPushLeaseRenewal } from './push-lease-renewal.js';
 import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
+import { holdRepeatedLocalFailure } from './push-local-failure.js';
 import type { RecaptureQueueRow } from './queue-recapture.js';
 import { rejectExcludedBootstrapUpload } from './bootstrap/upload-rejection.js';
 import { sendBootstrapCreateBatch } from './outbound-push-batch.js';
@@ -16,8 +17,8 @@ import { colpCredentialHeaders } from './auth-client.js';
 import { readBoundedJson } from './json-response.js';
 import type { SyncEndpoints } from './manifest-client.js';
 import { parseColpProblem, parseSyncPushResult } from './sync-push-wire.js';
-import { mountResolveOpIdMatches } from './bootstrap/matcher.js';
-import { isSpecialMountRole, persistMountBinding } from './pull-mount-apply.js';
+import { persistMountBinding } from './pull-mount-apply.js';
+import { createNodeFolderRole, isAuthoredMountRole, matchMountByRole, usableNativeRoot } from './push-mount-role.js';
 import { rebaseTombstonedCreate, retainValidPlacementAnchors } from './tombstone-parent-rebase.js';
 import { rebaseStaleCreatePlacement, savedCreatePlacement } from './create-placement-rebase.js';
 import { pushRecoveryBarrierActive, releaseClaimForRecovery } from './push-recovery-barrier.js';
@@ -34,7 +35,7 @@ import type { PlacementRefreshOutcome } from './durable-sync-engine-types.js';
 
 export { classifyPushProblem };
 export type { PushProblemDisposition };
-import type { JsonObject, MountBindingRecord, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { JsonObject, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
 import type { StoredCredential, StoredSession } from './types.js';
 
 const RESPONSE_MAX_BYTES = 128 * 1024;
@@ -133,7 +134,8 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       const queue = await options.store.claimNextQueue(options.scope, ownerId, lease.fence, now());
       if (!queue) { await scheduleOutstanding(); return last; }
       if (queue.mediaType !== 'application/json') {
-        const outcome = await persistUnknown(queue, lease.fence, 'push_media_type_invalid');
+        const outcome = await persistLocalFailure(queue, lease.fence, 'push_media_type_invalid');
+        if (outcome === 'terminal') { last = { outcome, sequence: queue.sequence }; continue; }
         return { outcome, sequence: queue.sequence };
       }
       let authority: Awaited<ReturnType<PushSessionController['get']>>;
@@ -158,7 +160,8 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         if (reasonCode(error, '') === 'bootstrap_upload_excluded') {
           await rejectExcluded(queue, lease.fence, error); last = { outcome: 'rejected', sequence: queue.sequence }; continue;
         }
-        const outcome = await persistUnknown(queue, lease.fence, reasonCode(error, 'push_attempt_bind_failed'));
+        const outcome = await persistLocalFailure(queue, lease.fence, reasonCode(error, 'push_attempt_bind_failed'));
+        if (outcome === 'terminal') { last = { outcome, sequence: queue.sequence }; continue; }
         return { outcome, sequence: queue.sequence };
       }
       if (refreshEnteredRecovery || await pushRecoveryBarrierActive(options.store, options.scope,
@@ -411,6 +414,12 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     return persistUnknown(queue, fence, 'push_authentication_exhausted');
   }
 
+  /** A repeated local failure of a never-sent change leaves the lane as one item (see push-local-failure.ts). */
+  async function persistLocalFailure(queue: QueueOperation, fence: number, reason: string): Promise<'unknown' | 'terminal'> {
+    if (await holdRepeatedLocalFailure({ store: options.store, scope: options.scope, ownerId }, queue, fence, reason)) return 'terminal';
+    return persistUnknown(queue, fence, reason);
+  }
+
   async function persistUnknown(queue: QueueOperation, fence: number, reason: string, retryAfter: string | null = null,
     clearAttempt = false) {
     const attempt = queue.retry.attempt + 1;
@@ -536,35 +545,6 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     }
   }
   return Object.freeze({ drain });
-}
-
-function createNodeFolderRole(queue: QueueOperation): string | undefined {
-  if (queue.payload.type !== 'create_node') return undefined;
-  const nested = queue.payload.payload;
-  if (!nested || typeof nested !== 'object' || Array.isArray(nested)) return undefined;
-  const node = (nested as JsonObject).node;
-  if (!node || typeof node !== 'object' || Array.isArray(node)) return undefined;
-  const role = (node as JsonObject).folderRole;
-  return typeof role === 'string' ? role : undefined;
-}
-function isAuthoredMountRole(role: string | undefined) {
-  return isSpecialMountRole(role) || role === 'custom' || role === 'recovered';
-}
-function usableNativeRoot(nativeId: string | undefined) {
-  if (!nativeId || nativeId.startsWith('pending-') || nativeId.startsWith('recovery:')
-      || nativeId.startsWith('sidecar:') || nativeId.startsWith('unmounted:')) return undefined;
-  return nativeId;
-}
-function matchMountByRole(mounts: readonly MountBindingRecord[], role: string | undefined, opId?: string) {
-  if (isSpecialMountRole(role)) return mounts.find((mount) => mount.rootRole === role);
-  if (role !== 'custom') return undefined;
-  const customs = mounts.filter((mount) => mount.customSourceKey !== undefined && mount.status !== 'detached');
-  if (opId) {
-    const byOp = customs.find((mount) => mount.customSourceKey !== undefined
-      && mountResolveOpIdMatches(opId, mount.customSourceKey));
-    if (byOp) return byOp;
-  }
-  return undefined;
 }
 
 function encodeRequest(queue: QueueOperation, sessionId: string, batchId: string) {

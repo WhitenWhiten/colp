@@ -282,7 +282,9 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       if ((await unavailableImportOpIds(tx, key)).has(first.opId)) return;
       if (first.status === 'claimed' && first.retry.ownerId === ownerId && first.retry.fence === fence
           && (first.retry.claimExpiresAt ?? Number.MAX_SAFE_INTEGER) > now) return;
-      const updated = validateQueueRecord({ ...first, status: 'claimed', recovery: undefined,
+      // The last failure stays on the claimed row: the worker holds a never-sent change
+      // only when the same local failure repeats, which it can see only here.
+      const updated = validateQueueRecord({ ...first, status: 'claimed',
         retry: { attempt: first.retry.attempt, notBefore: first.retry.notBefore, ownerId, fence,
           claimExpiresAt: lease.expiresAt } }, maxRecordBytes);
       queue.put(updated); claimed = updated;

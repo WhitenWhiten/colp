@@ -1,5 +1,6 @@
 import { readHealthReceipt } from './replica-health-receipt.js';
 import { isOpenQueueIssue } from '../sync-state/open-issue-facts.js';
+import { DEPENDENT_HOLDS } from '../sync-state/queue-hold.js';
 import { readOpenSyncIssues } from '../sync-issues.js';
 import { createHealthDelivery } from './replica-health-delivery.js';
 import { REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_MAX_ITEMS, REPLICA_COMMAND_RESULTS_MAX,
@@ -116,8 +117,13 @@ export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): Replica
     const at = instant(row.payload.occurredAt);
     const nodeId = serverNodeId(row.payload.targetId);
     const title = titleOf(row.payload);
-    // A change held for a decision about its own placement or identity goes through the same checks again.
-    const retry = row.status === 'set_aside' && OPAQUE.test(row.opId) && classifySyncFailure(code)?.exit === 'decide';
+    // A change held for a decision about its own placement or identity, or for a local failure
+    // the classifier has no entry for, goes through the same checks again from a fresh capture.
+    // A change waiting on another one is released by that one, and a record that cannot be
+    // stored or a rebuild-class problem is not cured by capturing it again.
+    const policy = classifySyncFailure(code);
+    const retry = row.status === 'set_aside' && OPAQUE.test(row.opId)
+      && (policy?.exit === 'decide' || policy === undefined && !DEPENDENT_HOLDS.has(code));
     return [{ issueId: issueId(['push', code, row.opId]), code, direction: 'push' as const,
       ...(nodeId ? { nodeId } : {}), ...(OPAQUE.test(row.opId) ? { opId: row.opId } : {}),
       ...(title ? { title } : {}), count: 1, firstSeenAt: at, lastSeenAt: at, actions: retry ? ['retry' as const] : [] }];

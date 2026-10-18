@@ -71,7 +71,10 @@ export function issueSummary(issue: SyncReplicaIssue): string {
     case 'native_result_unknown': return 'Waiting for a decision in the browser'
     case 'waiting_dependency': return 'Waiting for another change to finish'
   }
-  if (issue.direction === 'push') return 'The server didn’t accept this change'
+  // A held upload that offers Retry never reached the server: the browser could not get it ready.
+  if (issue.direction === 'push') return issue.actions.includes('retry')
+    ? 'That browser couldn’t get it ready to upload'
+    : 'The server didn’t accept this change'
   if (issue.direction === 'pull') return 'Couldn’t be applied in the browser'
   return 'Couldn’t be prepared for sync'
 }
