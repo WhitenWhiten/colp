@@ -219,12 +219,23 @@ async function resolve(store: ReturnType<typeof createSyncStateStore>, opId: str
   if (mode !== 'independent-issue') assert.deepEqual(await store.listPullIssues(scope), [], 'the real resolution effect must not set itself aside');
 }
 
-test('a resolved conflict with no live queue must resume held uploads via the real engine', async () => {
-  const f = await fixture();
+for (const hold of ['none', 'other-conflict', 'local-issue']) test(`engine wake recaptures resolved holds with an empty lane (${hold})`, async () => {
+  const f = await fixture({ conflicts: hold === 'other-conflict' ? ['op-x1', 'op-y'] : ['op-x1'] });
   try {
+    browsers.get(f.store)!.seed({ id: 'native-z', parentId: 'root-native', title: 'z', url: 'https://example.test/' });
     await update(f.store, 'op-x1', 'node-x'); await update(f.store, 'op-x2', 'node-x');
+    if (hold === 'other-conflict') { await update(f.store, 'op-y', 'node-y'); await update(f.store, 'op-y2', 'node-y'); }
     await f.worker.drain();
-    await resolve(f.store, 'op-x1', 'conflict-op-x1');
+    if (hold === 'other-conflict') { await f.worker.drain(); await f.worker.drain(); }
+    if (hold === 'local-issue') await f.store.recordLocalIssue(scope, { nativeId: 'native-x', code: 'recovery_identity_unproven', now: 10000 });
+    const resolution: any = pullFixtures.mutationEvent({ kind: 'update', sequence: 41,
+      collectionId: scope.collectionId, targetId: 'node-x', parentId: 'root' });
+    resolution.operation.source = { adapterProfile: 'known-conflict-resolution' };
+    resolution.operation.dependencies = ['op-x1'];
+    resolution.effect.operationDigest = canonicalOperationDigest(resolution.operation);
+    resolution.effect.effectDigest = canonicalAuthoritativeEffectDigest(resolution.effect);
+    const independent = pullFixtures.mutationEvent({ kind: 'update', sequence: 42, collectionId: scope.collectionId, targetId: 'node-z', parentId: 'root' });
+    let resolved = false;
     assert.equal(await f.store.firstLaneQueue(scope), null);
     f.store.close(); // reopen through the real worker/engine after resolution
     let drains = 0; let clock = 10000;
@@ -237,8 +248,9 @@ test('a resolved conflict with no live queue must resume held uploads via the re
       pullApplier: applier, snapshotProjector: async () => { throw new Error('unexpected_snapshot'); },
       fetch: async (url, init) => {
         if (String(url).includes('/pull')) {
-          const cursor = (await f.store.getCursor(scope))!.cursor!;
-          return json(200, pullFixtures.page({ events: [], nextCursor: cursor, collectionRevision: 'revision-op-x1' }));
+          const cursor = (await f.store.getCursor(scope))?.cursor ?? 'cursor-0';
+          const events = resolved ? [] : [resolution, independent]; resolved = true;
+          return json(200, pullFixtures.page({ events, nextCursor: events.length ? 'cursor-resolution' : cursor, collectionRevision: 'revision-op-x1' }));
         }
         const body = JSON.parse(String(init?.body));
         return json(200, { replicaId: scope.replicaId, ackedCursor: body.cursor, ackedAt: '2026-10-18T00:00:00Z' });
@@ -246,8 +258,17 @@ test('a resolved conflict with no live queue must resume held uploads via the re
     for (let n = 0; n < 3; n++) { await engine.wake('manual'); clock += 30000; }
     const row = await f.store.getQueueByOpId(scope, 'op-x2');
     assert.ok(drains > 0);
-    assert.equal(row?.recovery?.code, 'recaptured', 'resolution schedules recapture with an empty lane');
-    assert.ok(f.sent.some(sent => sent.opId !== 'op-x1'));
-    assert.equal((await f.store.listQueue(scope)).filter(row => row.status === 'set_aside').length, 0);
+    assert.equal(browsers.get(f.store)!.getNode('native-z')?.title, 'Remote update', 'independent work continues through real Pull');
+    if (hold === 'local-issue') {
+      assert.equal(row?.status, 'set_aside');
+      assert.deepEqual(f.sent.map(row => row.opId), ['op-x1']);
+      assert.equal((await f.store.listPullIssues(scope))[0]?.code, 'parent_set_aside');
+    } else {
+      assert.equal(row?.recovery?.code, 'recaptured', 'resolution schedules recapture with an empty lane');
+      assert.ok(f.sent.some(sent => !['op-x1', 'op-y'].includes(sent.opId)));
+      if (hold === 'other-conflict') assert.equal((await f.store.getQueueByOpId(scope, 'op-y2'))?.status, 'set_aside');
+      else assert.equal((await f.store.listQueue(scope)).filter(row => row.status === 'set_aside').length, 0);
+    }
+
   } finally { f.store.close(); }
 });

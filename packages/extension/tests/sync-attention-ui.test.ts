@@ -111,13 +111,13 @@ describe('A-10 terminal freeze predicate and copy', () => {
 describe('SR-09 inbound pause copy', () => {
   test('states the exact blast radius and the minimum MV3 cycle', () => {
     const copy = inboundPauseCopy({ waitCount: 1 });
-    assert.match(copy, /Incoming sync from Know-N is paused\. Uploads from this device are not affected/);
+    assert.match(copy, /Items awaiting a decision and their related changes are held\. Other incoming changes and uploads continue/);
     assert.match(copy, /1 cloud item is waiting for your decision/);
     assert.match(copy, /no more often than every 30 seconds/);
     assert.match(SYNC_MINIMUM_CYCLE_COPY, /30 seconds/);
     const deletions = inboundPauseCopy({ remoteDeletePendingCount: 2 });
     assert.match(deletions, /2 cloud deletions are waiting for your decision/);
-    assert.match(deletions, /Incoming sync from Know-N is paused/);
+    assert.match(deletions, /Other incoming changes and uploads continue/);
   });
 
   test('a native wait, a remote-delete decision or the engine flag all raise the pause line', () => {

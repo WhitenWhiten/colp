@@ -113,7 +113,7 @@ export function isTerminalSyncAttention(input: SyncAttentionInput): boolean {
 
 /** SR-09: the exact blast radius of a park — inbound stops, uploads do not. */
 export function inboundPauseCopy(input: SyncAttentionInput): string {
-  const parts = [t('sync_inboundPausedPlain', 'Incoming sync from Know-N is paused. Uploads from this device are not affected.')];
+  const parts = [t('sync_inboundPausedPlain', 'Items awaiting a decision and their related changes are held. Other incoming changes and uploads continue.')];
   const waits = Math.max(0, Math.trunc(input.waitCount ?? 0));
   if (waits > 0) {
     parts.push(tn('sync_inboundWaitsPlain', waits, '$1 cloud item is waiting for your decision.', '$1 cloud items are waiting for your decision.'));

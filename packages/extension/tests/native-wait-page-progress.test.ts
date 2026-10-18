@@ -11,23 +11,36 @@ import { MemoryStorageArea } from '../src/credential-store.js';
 import { endpoints, json } from './outbound-push-worker-harness.js';
 import { confirmNativeWait, projectNativeWaits } from '../src/native-wait.js';
 
-test('one unknown native result must not block unrelated subsequent Pull pages', async () => {
+for (const legacy of [false, true]) test(`unknown native result defers without blocking subsequent Pull pages (legacy=${legacy})`, async () => {
   let f = await setupT02('after_create_before_evidence');
   try {
-    await f.applier.stage(f.page([f.createEvent('Bookmark', 1), f.createEvent('Folder', 2)], 'cursor-page-1'));
+    await f.applier.stage(f.page([f.createEvent('Folder', 1), f.createEvent('Bookmark', 2)], 'cursor-page-1'));
     await assert.rejects(f.applier.resume(), /worker_crash/);
     f.disableCrash(); f = await reopenT02(f);
     await assert.rejects(f.applier.resume(), /native_result_unknown/);
     await f.applier.resume();
     assert.equal((await projectNativeWaits(f.store, scope)).length, 1);
+    if (legacy) {
+      const [wait] = await projectNativeWaits(f.store, scope); const intent = (await f.store.getApplyIntent(scope, wait!.intentId))!;
+      const event = (await f.store.getPullEvent(scope, intent.eventId!))!;
+      const { deferredNativeIntentId: _binding, ...oldEvent } = event;
+      const { suspendedCorrelationId, ...oldIntent } = intent;
+      const tx = (await f.store.open()).transaction(['pull_events', 'apply_intents'], 'readwrite');
+      tx.objectStore('pull_events').put(oldEvent);
+      tx.objectStore('apply_intents').put({ ...oldIntent, correlationId: suspendedCorrelationId });
+      await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+      f = await reopenT02(f);
+    }
+
     assert.equal(f.api.calls.filter(c => c.kind === 'create').length, 2, 'same-page sibling native application completed');
     let pulls = 0; let clock = 10000; const acks: string[] = [];
-    const child = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 4, collectionId: scope.collectionId, parentId: 'node-created-1' });
+    const child = pullFixtures.createEvent({ kind: 'Folder', sequence: 4, collectionId: scope.collectionId, parentId: 'node-created-1' });
     const anchored: any = f.createEvent('Bookmark', 5);
     anchored.effect.placement.afterId = 'node-created-1';
     anchored.effect.effectDigest = canonicalAuthoritativeEffectDigest(anchored.effect);
-    const deletion = pullFixtures.mutationEvent({ kind: 'delete', sequence: 6, collectionId: scope.collectionId, targetId: 'node-created-1', parentId: 'root-colp' });
-    const later: any[] = [f.createEvent('Bookmark', 3), child, anchored, deletion];
+    const grandchild = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 7, collectionId: scope.collectionId, parentId: 'node-created-4' });
+    const deletion = pullFixtures.mutationEvent({ kind: 'delete', sequence: 8, collectionId: scope.collectionId, targetId: 'node-created-1', parentId: 'root-colp' });
+    const later: any[] = [f.createEvent('Folder', 3), child, anchored, grandchild, deletion];
     for (const event of later) { event.effect.operationDigest = canonicalOperationDigest(event.operation); event.effect.effectDigest = canonicalAuthoritativeEffectDigest(event.effect); }
     const engine = () => createDurableSyncEngine({ scope, store: f.store, endpoints: async () => endpoints,
       now: () => clock, sessions: { get: async () => ({ credential: { accessToken: 'token' }, session: {
@@ -46,7 +59,7 @@ test('one unknown native result must not block unrelated subsequent Pull pages',
     assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-page-2');
     assert.ok(acks.includes('cursor-page-2'));
     assert.equal(f.api.calls.filter(c => c.kind === 'create').length, 3);
-    assert.equal((await f.store.listPullEvents(scope, ['awaiting_confirmation'])).length, 4);
+    assert.equal((await f.store.listPullEvents(scope, ['awaiting_confirmation'])).length, 5);
     assert.equal((await f.store.listPullIssues(scope)).length, 0);
     const status = await handleSyncAttentionRequest({ scope: async () => scope, store: f.store });
     assert.ok(status.ok && (status.attention.issueCount ?? 0) > 0);
@@ -74,7 +87,8 @@ test('one unknown native result must not block unrelated subsequent Pull pages',
     assert.equal((await f.store.listPullEvents(scope, ['awaiting_confirmation'])).length, 0);
     assert.ok(await f.store.getMappingByColpId(scope, 'node-created-4'));
     assert.ok(await f.store.getMappingByColpId(scope, 'node-created-5'));
-    assert.equal(f.api.calls.filter(c => c.kind === 'create').length, 5, 'only the two deferred creates are new');
+    assert.ok(await f.store.getMappingByColpId(scope, 'node-created-7'));
+    assert.equal(f.api.calls.filter(c => c.kind === 'create').length, 6, 'only the three deferred creates are new');
 
   } finally { f.store.close(); }
 });

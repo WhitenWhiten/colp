@@ -33,7 +33,7 @@ const WAIT_REFRESH_MS = 8_000;
 const ACTIONS: readonly NativeWaitConfirmAction[] = ['bind', 'keep_local_and_create', 'cancel'];
 
 export function nativeWaitIntroCopy(): string {
-  return t('nativeWait_intro', 'Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your library but not on this browser.');
+  return t('nativeWait_intro', 'Only this item and related incoming sync wait for your decision; other incoming changes and uploads continue. “Don’t place” keeps the item in your library and preserves its unresolved browser result.');
 }
 
 /** The alert line over the Status page while items wait. */

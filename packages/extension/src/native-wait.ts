@@ -198,8 +198,9 @@ async function putConfirmedMapping(input: ConfirmNativeWaitInput, intent: Intent
   if (!intent.colpId) return;
   const existing = await input.store.getMappingByColpId(input.scope, intent.colpId);
   const rootNativeId = existing?.rootNativeId ?? mounts[0]?.nativeRootId ?? intent.nativeParentId ?? nativeId;
+  const { scopeKey: _scopeKey, ...prior } = existing ?? {} as { scopeKey?: string };
   const mapping: MappingInput = {
-    nativeId, colpId: intent.colpId, rootNativeId,
+    ...prior, nativeId, colpId: intent.colpId, rootNativeId,
     ...(intent.nativeParentId ? { parentNativeId: intent.nativeParentId } : {}),
     projection: existing?.projection ?? { revision: 'confirm-native', digest: `sha256:${intent.colpId}` },
   };

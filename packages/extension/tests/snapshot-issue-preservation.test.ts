@@ -92,7 +92,8 @@ test('local issue protects descendants and ancestors without protecting independ
   } finally { f.store.close(); }
 });
 
-test('Snapshot retains an unresolved real native-create wait without creating a second copy', async () => {
+for (const scenario of ['same', 'newer', 'newer-crash']) test(`Snapshot retains an unresolved native wait then confirms without baseline rollback (${scenario})`, async () => {
+  const newer = scenario !== 'same';
   const { setupT02, reopenT02, t02Scope } = await import('./srg-t02-native-harness.js');
   const { projectNativeWaits, confirmNativeWait } = await import('../src/native-wait.js');
   const f = await setupT02('after_create_before_evidence');
@@ -106,8 +107,8 @@ test('Snapshot retains an unresolved real native-create wait without creating a 
     const { scopeKey: _key, ...root } = parent;
     const created = { nativeId: `recovery:${event.effect.node.id}`, colpId: event.effect.node.id,
       rootNativeId: 'native-root', parentColpId: root.colpId, nodeKind: 'bookmark' as const,
-      projection: { revision: event.effect.node.revision, digest: event.effect.effectDigest,
-        content: { title: event.effect.node.title, url: event.effect.node.url } } };
+      projection: { revision: newer ? 'newer-snapshot-revision' : event.effect.node.revision, digest: event.effect.effectDigest,
+        content: { title: newer ? 'Newer snapshot title' : event.effect.node.title, url: event.effect.node.url } } };
     const independent = { ...created, colpId: 'independent-node', nativeId: 'recovery:independent-node',
       projection: { ...created.projection, content: { title: 'Independent', url: 'https://independent.test/' } } };
     const staged = [root, created, independent];
@@ -132,11 +133,20 @@ test('Snapshot retains an unresolved real native-create wait without creating a 
     const nativeId = f.api.calls.find(call => call.kind === 'create')!.nativeId!;
     assert.equal((await confirmNativeWait({ scope: t02Scope, store: resumed.store, api: resumed.api,
       waitRef: wait.waitRef, intentId: wait.intentId, generation: t02Scope.generation, action: 'bind', nativeId })).ok, true);
+    if (scenario === 'newer-crash') {
+      const update = resumed.api.update.bind(resumed.api); let crash = true;
+      resumed.api.update = async (...args) => { await update(...args); if (crash) { crash = false; throw new Error('worker_crash'); } };
+      await assert.rejects(resumed.applier.resume(), /worker_crash/u);
+      resumed.store.close();
+    }
     await resumed.applier.resume();
+    if (newer) assert.equal(f.api.calls.filter(call => call.kind === 'update' && call.nativeId === nativeId).length, 1);
     assert.equal((await resumed.store.getCursor(t02Scope))?.cursor, 'wait-cursor');
     assert.deepEqual(await resumed.store.getMappingByColpId(t02Scope, root.colpId), rootBefore);
     assert.equal(f.api.calls.filter(call => call.kind === 'create').length, before + 1);
     assert.equal((await projectNativeWaits(resumed.store, t02Scope)).length, 0);
+    assert.equal((await resumed.store.getMappingByColpId(t02Scope, created.colpId))?.projection.revision, created.projection.revision);
+    assert.equal(f.api.getNode(nativeId)?.title, created.projection.content.title);
 
   } finally { f.store.close(); }
 });

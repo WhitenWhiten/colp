@@ -347,6 +347,7 @@ test('cancel stays settled through page completion and native repair', async () 
   assert.deepEqual(await pendingNativeOrPullFacts(f.store, t02Scope),
     { pendingIncompletePull: false, nativeResultUnknown: false });
   assert.equal((await f.store.listPullPages(t02Scope))[0]?.state, 'page_complete');
+  assert.equal((await f.store.listPullIssues(t02Scope))[0]?.code, 'native_result_unknown', 'declined placement retains the unresolved native fact');
   assert.deepEqual(await handleNativeWaitRequest(message, harness(f).deps), { ok: true, result: 'duplicate' });
 });
 

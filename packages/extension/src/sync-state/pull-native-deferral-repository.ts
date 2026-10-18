@@ -1,3 +1,4 @@
+import { validateIntent } from './pull-validate.js';
 import { pullDeferral, validatedPullDeferral } from '../pull-deferral.js';
 import { projectUnresolvedNativeWait } from '../native-wait-open.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction } from './idb.js';
@@ -29,6 +30,19 @@ export function createPullNativeDeferralRepository(ctx: SyncStoreRuntime) {
       const events = tx.objectStore(STORES.pullEvents);
       for (const event of await cursorPage<UnknownRecord>(events.index(INDEXES.pullEventByState), IDBKeyRange.bound([key, 'awaiting_confirmation'], [key, 'awaiting_confirmation', []]), Number.MAX_SAFE_INTEGER)) {
         const binding = pullDeferral(event);
+        // Reopen waits persisted before page deferrals existed. Enroll only an
+        // original, generation-bound unknown invocation; never invent a receipt.
+        if (!binding && typeof event.intentId === 'string') {
+          const intent = await requestValue<IntentRecord | undefined>(tx.objectStore(STORES.intents).get([key, event.intentId]));
+          if (intent && intent.eventId === event.eventId && intent.generation === input.generation && projectUnresolvedNativeWait(intent, event.state)) {
+            const { scopeKey: _scopeKey, ...prior } = intent;
+            tx.objectStore(STORES.intents).put(validateIntent(key, { ...prior,
+              suspendedCorrelationId: intent.suspendedCorrelationId ?? intent.correlationId,
+              correlationId: `native-wait:${intent.intentId}` }, ctx.maxRecordBytes));
+            events.put({ ...event, deferredNativeIntentId: intent.intentId });
+          }
+          continue;
+        }
         if (event.state !== 'awaiting_confirmation' || binding?.kind !== 'native_result'
             || event.intentId === binding.id || !await validatedPullDeferral(tx, key, event, input.generation)) continue;
         const intent = await requestValue<IntentRecord>(tx.objectStore(STORES.intents).get([key, binding.id]));

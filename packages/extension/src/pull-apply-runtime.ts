@@ -1,3 +1,4 @@
+import { resumeSnapshotDeferredCreate } from './pull-native-snapshot-resume.js';
 import { finishReadyPullPages } from './pull-page-completion.js';
 import { exceedsSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from './remote-delete-pending-facts.js';
@@ -479,9 +480,10 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       await options.store.recordPullApiEvidence(options.scope, eventKey, { operationId: event.operation.opId,
         nativeId, recovery: 'uncertain_create' }).catch(() => undefined);
     }
-    await options.store.commitPullEvent(options.scope, eventKey, { mappings: [mappingFor(effect.node, nativeId,
-      parent.nativeId, parent.colpId, effect.kind === 'node_created' ? effect.nodeChildrenRevision : null, parent.rootNativeId),
-      await parentRevisionMapping(effect.parentRevision)],
+    const resumed = await resumeSnapshotDeferredCreate(options, api, eventKey, event, mappingFor(effect.node, nativeId,
+      parent.nativeId, parent.colpId, effect.kind === 'node_created' ? effect.nodeChildrenRevision : null, parent.rootNativeId));
+    await options.store.commitPullEvent(options.scope, eventKey, { mappings: [resumed.mapping,
+      await parentRevisionMapping(effect.parentRevision)], observations: resumed.rangeExit ? [resumed.rangeExit.observation] : [],
       deleteNativeIds: existing && isRecoveryPlaceholder(existing.nativeId) ? [existing.nativeId] : [],
       apiResultEvidence: {
         operationId: event.operation.opId, recovery: 'uncertain_create' } });

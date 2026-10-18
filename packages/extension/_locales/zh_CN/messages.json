@@ -4988,8 +4988,8 @@
     "description": "The extension background is temporarily unavailable. Try again."
   },
   "nativeWait_intro": {
-    "message": "在你决定之前，传入同步会暂停；上传照常进行。“不放置”表示该项目保留在书签库中，但不会添加到此浏览器。",
-    "description": "Incoming sync pauses until you decide; uploads continue. “Don’t place” keeps the item in your library but not on this browser."
+    "message": "只有此条目及相关的传入同步等待你决定；其他传入更改和上传继续。“不放置”会将条目保留在资料库中，并保留尚未确认的浏览器调用结果。",
+    "description": "Only this item and related incoming sync wait for your decision; other incoming changes and uploads continue. “Don’t place” keeps the item in your library and preserves its unresolved browser result."
   },
   "nativeWait_itemAlreadyHandledNo": {
     "message": "此项已处理，无需再次确认。",
@@ -7880,8 +7880,8 @@
     "description": "$1 cloud deletions are waiting for your decision."
   },
   "sync_inboundPausedPlain": {
-    "message": "来自 Know-N 的同步已暂停，本设备的上传不受影响。",
-    "description": "Incoming sync from Know-N is paused. Uploads from this device are not affected."
+    "message": "等待决定的条目及相关更改已暂停。其他传入更改和上传继续。",
+    "description": "Items awaiting a decision and their related changes are held. Other incoming changes and uploads continue."
   },
   "sync_inboundRecheckPlain": {
     "message": "同步会自动再次检查，$1。",
@@ -7988,7 +7988,7 @@
     "description": "Other bookmarks"
   },
   "sync_personalBoundary": {
-    "message": "个人同步与登录、订阅、浏览器自身同步和 AI 服务分别控制。本机书签仍可使用。",
+    "message": "此浏览器的书签与你的书签库保持同步。暂停或断开都不会删除此浏览器中的书签。",
     "description": "Personal sync is separate from sign-in, subscriptions, browser sync and your AI provider. Local bookmarks remain available."
   },
   "sync_personalConnecting": {
@@ -7996,7 +7996,7 @@
     "description": "Connecting to your bookmark library…"
   },
   "sync_personalDisconnect": {
-    "message": "断开个人同步",
+    "message": "断开同步",
     "description": "Disconnect personal sync"
   },
   "sync_personalDisconnectHint": {
@@ -8004,11 +8004,11 @@
     "description": "Your local bookmarks and metadata are kept. $1 queued changes will be archived and will not retry. Subscriptions and sign-in are kept."
   },
   "sync_personalDisconnected": {
-    "message": "个人同步已断开",
+    "message": "同步已断开",
     "description": "Personal sync is disconnected"
   },
   "sync_personalEnabled": {
-    "message": "个人同步已启用",
+    "message": "同步已开启",
     "description": "Personal sync is enabled"
   },
   "sync_personalLibraryChangeFailed": {
@@ -8020,27 +8020,27 @@
     "description": "Reconnect to your bookmark library. Your local bookmarks are kept."
   },
   "sync_personalPause": {
-    "message": "暂停个人同步",
+    "message": "暂停同步",
     "description": "Pause personal sync"
   },
   "sync_personalPaused": {
-    "message": "个人同步已暂停",
+    "message": "同步已暂停",
     "description": "Personal sync is paused"
   },
   "sync_personalReconnect": {
-    "message": "重新连接个人同步",
+    "message": "重新连接同步",
     "description": "Reconnect personal sync"
   },
   "sync_personalResume": {
-    "message": "恢复个人同步",
+    "message": "恢复同步",
     "description": "Resume personal sync"
   },
   "sync_personalResumeHint": {
-    "message": "将协调暂停期间此设备和 Know-N 上的更改。已断开的连接会重新选择文件夹并检查合并。",
+    "message": "暂停期间此浏览器和书签库中的更改将被协调。断开后再次同步时，会重新选择文件夹并检查合并。",
     "description": "Changes made while paused on this device and in Know-N will be reconciled. A disconnected connection starts with a fresh folder selection and merge review."
   },
   "sync_personalResumeReview": {
-    "message": "确认个人同步",
+    "message": "恢复前确认",
     "description": "Review personal sync"
   },
   "sync_previewAlreadyConfirmed": {

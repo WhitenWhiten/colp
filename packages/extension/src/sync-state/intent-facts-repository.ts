@@ -1,3 +1,4 @@
+import { putPullIssueFact } from './pull-issue-repository.js';
 import {
   SyncStateError, type IntentLiveWorkKind, type IntentRecord, type IntentReplayState, type JsonObject,
   type NativeResultConfirmation, type PersistedNativeCallResult, type PullApplyState, type SyncScope,
@@ -50,7 +51,7 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
     const id = boundedString(intentId, 'intentId');
     const db = await writableDatabase();
     let saved: IntentRecord | undefined;
-    await runTransaction(db, [STORES.scopes, STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
+    await runTransaction(db, [STORES.scopes, STORES.intents, STORES.pullEvents, STORES.diagnostics], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const intents = tx.objectStore(STORES.intents);
       const intent = await requestValue(intents.get([key, id])) as IntentRecord | undefined;
@@ -94,7 +95,7 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
       }
       if (patch.repairJobId === null) delete next.repairJobId;
       else if (patch.repairJobId !== undefined) next.repairJobId = patch.repairJobId;
-      if (patch.eventState === 'awaiting_confirmation' && next.nativeResult === 'result_unknown') {
+      if (patch.eventState === 'awaiting_confirmation' && ['result_unknown', 'waiting_dependency'].includes(String(next.nativeResult))) {
         // A parked invocation no longer owns event correlation for independent
         // creates with identical content. Preserve its original evidence key.
         next.suspendedCorrelationId ??= intent.correlationId;
@@ -102,11 +103,17 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
       }
       const record = validateIntent(key, next, ctx.maxRecordBytes);
       intents.put(record); saved = record;
+      if (patch.nativeWaitDecision?.action === 'cancel' && record.nativeResult === 'result_unknown' && record.colpId && record.eventId) {
+        // Declining placement closes the prompt, never the unknown invocation.
+        // Keep the node protected and visible until explicit replica repair.
+        await putPullIssueFact(tx, key, { code: 'native_result_unknown', nodeId: record.colpId,
+          eventId: record.eventId, now: Date.now() });
+      }
       if (patch.eventState !== undefined && intent.eventId) {
         const events = tx.objectStore(STORES.pullEvents);
         const event = await requestValue(events.get([key, intent.eventId])) as Record<string, unknown> | undefined;
         if (event) events.put({ ...event, state: patch.eventState,
-          ...(patch.eventState === 'awaiting_confirmation' && record.nativeResult === 'result_unknown'
+          ...(patch.eventState === 'awaiting_confirmation' && ['result_unknown', 'waiting_dependency'].includes(String(record.nativeResult))
             ? { deferredNativeIntentId: id } : {}) });
       }
     });
