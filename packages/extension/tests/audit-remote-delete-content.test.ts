@@ -14,6 +14,42 @@ const scope: SyncScope = { environment: 'production', serverId: 'server-pull', s
 let indexedDB: IDBFactory;
 beforeEach(() => { indexedDB = new IDBFactory(); });
 
+test('a subtree deletion protects a descendant inside a private native folder', async () => {
+  const f = await setup();
+  try {
+    f.api.seed({ id: 'native-node', parentId: 'native-root', index: 0, title: 'node-1' });
+    const { scopeKey: _parentKey, ...parent } = (await f.store.getMappingByNativeId(scope, 'native-node'))!;
+    await f.store.putMapping(scope, { ...parent, nodeKind: 'folder',
+      projection: { ...parent.projection, content: { title: 'node-1' } } });
+    f.api.seed({ id: 'native-private', parentId: 'native-node', index: 0, title: 'Private' });
+    f.api.seed({ id: 'native-child', parentId: 'native-private', index: 0, title: 'node-child', url: 'https://example.test/' });
+    const { scopeKey: _mappingKey, ...child } = (await f.store.getMappingByNativeId(scope, 'native-child'))!;
+    await f.store.putMapping(scope, { ...child, parentNativeId: 'native-private' });
+    await f.store.configureBrowserRoots(scope, { discovered: [
+      { nativeId: 'native-root', ancestorNativeIds: [] },
+      { nativeId: 'native-node', ancestorNativeIds: ['native-root'] },
+      { nativeId: 'native-private', ancestorNativeIds: ['native-root', 'native-node'] },
+    ], selectedNativeIds: ['native-root'], privateNativeIds: ['native-private'], status: 'ready' });
+    await f.applier.stage(f.page([f.subtreeEvent(false)]));
+    await f.applier.resume();
+    assert.equal(f.api.getNode('native-child')?.parentId, 'native-private');
+    assert.equal(f.api.getNode('native-private')?.title, 'Private');
+    assert.equal(f.api.calls.some(call => call.kind === 'delete' && call.nativeId === 'native-child'), false);
+  } finally { f.store.close(); }
+});
+
+test('permission lost after preparing a delete reports the failure without deleting the bookmark', async () => {
+  const f = await setup('after_intent');
+  try {
+    await f.applier.stage(f.page([f.mutationEvent('delete')]));
+    await assert.rejects(() => f.applier.resume(), /worker_crash/);
+    f.api.denyPermission('native-node');
+    await assert.rejects(() => f.applier.resume(), /permission/i);
+    assert.equal(f.api.getNode('native-node')?.url, 'https://example.test/');
+    assert.equal(f.api.calls.some(call => call.kind === 'delete'), false);
+  } finally { f.store.close(); }
+});
+
 async function setup(crash?: string, omitNodeMappings = false) {
   const store = createSyncStateStore({ indexedDB }); await store.registerScope({ ...scope, lifecycle: 'active',
     lease: { leaseId: 'lease-pull', expiresAt: Date.parse('2099-01-01T00:00:00Z') },

@@ -192,19 +192,18 @@ describe('T-04R2 duplicate pull events', () => {
 describe('T-04R2 freeze trigger surface', () => {
   test('freezes the identity-conflict family and leaves transport failures retryable', () => {
     for (const code of ['pull_event_conflict', 'recovery_capability_invalid', 'pull_page_reuse',
-      'recovery_capability_premature', 'recovery_required']) {
+      'recovery_capability_premature', 'recovery_required', 'snapshot_chain_invalid', 'snapshot_graph_incomplete']) {
       assert.equal(shouldFreezePullApply(new Error(code)), true, code);
     }
     for (const code of ['pull_failed', 'rate_limited', 'network_unavailable', 'pull_page_pending',
-      'pull_cursor_discontinuous', 'pull_page_incomplete', 'snapshot_chain_invalid',
-      'snapshot_graph_incomplete', 'snapshot_http_503', 'payload_too_large']) {
+      'pull_cursor_discontinuous', 'pull_page_incomplete', 'snapshot_http_503', 'payload_too_large']) {
       assert.equal(shouldFreezePullApply(new Error(code)), false, code);
     }
   });
 });
 
 describe('T-04R2 engine-level growth page (acceptance §2 reproduction)', () => {
-  test('never raises constraint_error and exits the blocked page once the conflict clears', async () => {
+  test('a mapping identity conflict preserves its blocked page until explicit Rebuild', async () => {
     const { fixture, engine, clock, forced, pullCursors } = await engineFixture((call) => {
       const { first, growth } = growthPages(fixture);
       return Response.json(call === 1 ? first : growth);
@@ -224,30 +223,24 @@ describe('T-04R2 engine-level growth page (acceptance §2 reproduction)', () => 
       assert.equal(exported.engine.authorityRefreshRequired, true, `wake ${wake}`);
       clock.now += 600_000;
     }
-    // One Pull per wake, and every retry is preceded by a forced Session refresh.
-    assert.deepEqual(pullCursors, ['cursor-old', 'cursor-old', 'cursor-old', 'cursor-old']);
-    assert.deepEqual(forced, [false, true, true, true]);
-    // The adopted event was applied to Chrome exactly once; only the genuinely new one added.
-    assert.equal(fixture.api.calls.filter((entry) => entry.kind === 'create').length, 2);
-    assert.ok((await fixture.store.exportDiagnostics()).records.some((row) =>
-      row.kind === 'pull_page_handover' && row.code === 'superseded_by_growth_page'));
-
-    // Exit: the mapping conflict clears, the blocked page replays and completes.
+    assert.deepEqual(pullCursors, ['cursor-old']);
+    assert.deepEqual(forced, [false]);
+    assert.equal(fixture.api.calls.filter((entry) => entry.kind === 'create').length, 1);
+    assert.equal((await fixture.store.listPullPages(scope))[0]?.state, 'blocked');
+    // Removing the blocker cannot silently authorize a previously unproven identity.
     await fixture.store.deleteMapping(scope, 'native-blocker');
     clock.now += 600_000;
     await engine.wake('manual');
-    const done = await fixture.store.exportScope(scope);
-    assert.equal(done.scope?.lifecycle, 'active');
-    assert.equal(done.cursor?.cursor, 'cursor-next-2');
-    assert.equal(done.pullPages.every((page) => page.state === 'page_complete'), true);
-    assert.equal(fixture.api.calls.filter((entry) => entry.kind === 'create').length, 2);
-    assert.equal((await fixture.store.getMappingByColpId(scope, 'node-created-1'))?.nativeId, 'created-0');
-    assert.equal((await fixture.store.getMappingByColpId(scope, 'node-created-2'))?.nativeId, 'created-1');
+    const stopped = await fixture.store.exportScope(scope);
+    assert.equal(stopped.scope?.lifecycle, 'recovery_required');
+    assert.equal(stopped.engine.recoveryFrozen, true);
+    assert.equal(stopped.scope?.metadata?.recoveryCode, 'mapping_identity_conflict');
+    assert.deepEqual(pullCursors, ['cursor-old']);
     assert.equal((await fixture.store.auditIntegrity()).outcome, 'valid');
     fixture.store.close();
   });
 
-  test('freezes a byte-conflicting growth page with the named code instead of looping', async () => {
+  test('a rebuild-only mapping conflict cannot be replaced by a byte-conflicting growth page', async () => {
     const { fixture, engine, clock, forced } = await engineFixture((call) => {
       const { first, growth } = growthPages(fixture);
       if (call === 1) return Response.json(first);
@@ -259,16 +252,16 @@ describe('T-04R2 engine-level growth page (acceptance §2 reproduction)', () => 
     clock.now += 600_000;
     await engine.wake('manual');
     const exported = await fixture.store.exportScope(scope);
-    assert.equal(exported.engine.lastError, 'pull_event_conflict');
+    assert.equal(exported.engine.lastError, 'recovery_required');
     assert.equal(exported.engine.phase, 'recovery');
     assert.equal(exported.engine.recoveryFrozen, true);
     assert.equal(exported.engine.authorityRefreshRequired, true);
     assert.equal(exported.scope?.lifecycle, 'recovery_required');
-    assert.equal(exported.scope?.metadata?.recoveryCode, 'pull_event_conflict');
+    assert.equal(exported.scope?.metadata?.recoveryCode, 'mapping_identity_conflict');
     assert.equal(exported.pullEvents.length, 1);
     assert.equal(exported.pullPages[0]?.state, 'blocked');
     assert.equal(exported.engine.lastError === 'constraint_error', false);
-    assert.deepEqual(forced, [false, true]);
+    assert.deepEqual(forced, [false]);
     fixture.store.close();
   });
 });

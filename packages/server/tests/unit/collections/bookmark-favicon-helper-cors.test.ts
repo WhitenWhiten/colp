@@ -21,7 +21,7 @@ const COLLECTION_ID = 'col-favicon-cors-1';
 const NODE_ID = 'node-favicon-cors-1';
 const HELPER_PATH = `/colp/v0.1/sync/collections/${COLLECTION_ID}/nodes/${NODE_ID}/favicon`;
 const SYNC_COLLECTIONS_ALLOW_HEADERS =
-  'Authorization, Content-Type, Cookie, Origin, Idempotency-Key, If-Match, Known-Sync-Session';
+  'Authorization, Content-Type, Cookie, Origin, Idempotency-Key, If-Match, Known-Sync-Session, Known-Sync-Replica-Proof';
 
 const NOW = new Date('2026-07-22T12:00:00.000Z');
 

@@ -41,13 +41,16 @@ export async function setup(overrides: {
   allowSnapshotMoves?: boolean;
   seedMount?: boolean;
   requestTimeoutMilliseconds?: number;
+  fetch?: typeof globalThis.fetch;
+  compactScope?: ReturnType<typeof createSyncStateStore>['compactScope'];
 } = {}) {
   // There is deliberately no unnamed way back to the synthetic projector: an opt-out has to say
   // which non-production path it means.
   if (overrides.useVerifiedProjector === false && overrides.useStandInProjector !== true) {
     throw new Error('use_stand_in_projector');
   }
-  const indexedDB = new IDBFactory(); const store = createSyncStateStore({ indexedDB });
+  const indexedDB = new IDBFactory(); const baseStore = createSyncStateStore({ indexedDB });
+  const store = overrides.compactScope ? { ...baseStore, compactScope: overrides.compactScope } : baseStore;
   await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease-1', expiresAt: 99_999 },
     checkpoint: { serverRevision: 'revision-0', cursor: 'cursor-0' },
     selectedRoots: overrides.emptyCollection ? [] : ['root-old'],
@@ -233,7 +236,7 @@ export async function setup(overrides: {
           ...(parent ? { parentNativeId: parent.nativeId } : {}) }); }
       return projected; }, boundary: (point: string) => {
       if (crashAt === point) { crashAt = undefined; throw new Error('worker_crash'); } },
-    fetch: async (url: string, init: RequestInit) => {
+    fetch: overrides.fetch ?? (async (url: string, init: RequestInit) => {
       if (url.includes('/pull')) { const cursor = new URL(url).searchParams.get('cursor'); order.push(`pull:${cursor}`);
         pullRequests.push(url); return await pullResponses.shift()!; }
       if (url.includes('/snapshot/conflicts')) {
@@ -249,7 +252,7 @@ export async function setup(overrides: {
       order.push(`ack:${JSON.parse(body).cursor}`); ackRequests.push({ body, key, headerSession });
       const response = await ackResponses.shift()!;
       if (response.status === 200) recovered = true; return response;
-    } };
+    }) };
   let engine = createDurableSyncEngine(options);
   return { store, order, pullResponses, snapshotResponses, ackResponses, pullRequests, pullCursorAuthorities,
     snapshotOrigins, snapshotRequests, snapshotMoveCalls, ackRequests,

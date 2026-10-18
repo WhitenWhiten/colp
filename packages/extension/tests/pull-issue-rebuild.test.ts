@@ -34,8 +34,10 @@ test('a health-delivered web Rebuild uses the real rebuilder and reports the act
       commands: { replica: () => runReplicaRebuildCommand(request => f.rebuilder.handle(request)),
         issue: async () => ({ outcome: 'failed' }) },
       fetch: async (_url, init) => {
-        reports.push(JSON.parse(String(init?.body)));
-        return Response.json({ accepted: true, commands: reports.length === 1 ? [{ commandId: 'web-reset', action: 'rebuild' }] : [] });
+        const report = JSON.parse(String(init?.body));
+        reports.push(report);
+        return Response.json({ replicaId: report.replicaId, revision: report.revision,
+          accepted: true, commands: reports.length === 1 ? [{ commandId: 'web-reset', action: 'rebuild' }] : [] });
       } });
     assert.ok(reports[0].actions.includes('rebuild'));
     assert.equal(reports[0].state, 'degraded');

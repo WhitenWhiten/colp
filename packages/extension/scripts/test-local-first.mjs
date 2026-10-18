@@ -8,7 +8,7 @@ const root = resolve(import.meta.dirname, '..');
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 const work = await mkdtemp(join(tmpdir(), 'known-local-first-tests-'));
-const modules = ['personal-sync-policy', 'personal-sync-connection', 'personal-sync-commands', 'metadata-reassociation', 'native-tree-proof', 'personal-sync-fetch'];
+const modules = ['personal-sync-policy', 'personal-sync-connection', 'personal-sync-commands', 'metadata-reassociation', 'native-tree-proof', 'personal-sync-fetch', 'sync-failure-class'];
 try {
   await writeFile(join(work, 'package.json'), '{"type":"module"}\n');
   for (const name of modules) {

@@ -168,8 +168,10 @@ describe('KNS-08 acceptance IDs and evidence harness', () => {
     assert.match(conflict, /canonicalPlacement\(stack, conflictNodeId\)/u);
     assert.match(conflict, /canonical\.title\)\.toBe\(forkA\.title\)/u);
     assert.match(conflict, /movedA\.parentTitle\)\.toBe\(canonical\.parentTitle\)/u);
-    assert.equal((conflict.match(/waitNonterminalQueue\(pageA, stack, bindingA\)/gu) ?? []).length, 2);
-    assert.equal((conflict.match(/waitNonterminalQueue\(pageB, stack, bindingB\)/gu) ?? []).length, 2);
+    assert.equal((conflict.match(/waitNonterminalQueue\(pageA, stack, bindingA\)/gu) ?? []).length, 1);
+    assert.equal((conflict.match(/waitNonterminalQueue\(pageB, stack, bindingB\)/gu) ?? []).length, 1);
+    assert.match(conflict, /captureStates\.includes\('move:pending'\)/u);
+    assert.match(conflict, /queueTypes\.includes\('move_node'\)/u);
     assert.match(lost, /assertPushEnvelopeReused\(digestsBeforeLost, lost\.pushRequestDigests\)/u);
     assert.doesNotMatch(lost, /new Set\([^)]*pushRequestDigests[^)]*\)\.size\)\.toBeGreaterThan\(0\)/u);
     assert.match(lost, /filter\(\(title\) => title === 'KNS08 lost push'\)\)\.toHaveLength\(1\)/u);

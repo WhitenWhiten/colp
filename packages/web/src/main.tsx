@@ -32,6 +32,7 @@ import { isChunkLoadError, reloadOnce } from './lib/lazyWithRetry'
  *   capture.css           → components: shared capture result recipe (design-system source
  *                           copied verbatim by the extension build; entry-loaded so the
  *                           web app and the extension share one layered source)
+ *   favicon-progress.css  → components: favicon jobs in the cross-route Settings dialog
  *   collection.css        → pages: public collection + list/compact streams
  *   pages-shared.css      → pages: breadcrumb + folder trail
  *   workbench-chrome.css  → pages: cross-route workbench chrome consumed by
@@ -97,6 +98,7 @@ import './styles/overlays.css'
 import './styles/shared-chrome.css'
 import './styles/cards.css'
 import './styles/capture.css'
+import './styles/favicon-progress.css'
 import './styles/collection.css'
 import './styles/pages-shared.css'
 import './styles/workbench-chrome.css'

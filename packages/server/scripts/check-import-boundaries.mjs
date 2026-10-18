@@ -758,6 +758,7 @@ const transportTargets = new Set([
   'transport/product/collection-children-routes.ts',
   'transport/product/explore-directory-rate-limit.ts',
   'transport/colp-sync/extension-collection-routes.ts',
+  'transport/colp-sync/extension-replica-health-routes.ts',
   // FO-04: the colp-sync favicon helper surface (Product-envelope helpers)
   // is registered by the same colp-sync composition seam.
   'transport/colp-sync/sync-favicon-helper-routes.ts',

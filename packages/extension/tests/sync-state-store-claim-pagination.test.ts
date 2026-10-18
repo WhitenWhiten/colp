@@ -51,7 +51,7 @@ describe('P3-31 claim pagination beyond the large-queue contract', () => {
     store.close();
   }, 120_000);
 
-  test('claimNextQueue treats a rejected head as settled history and claims the work behind it', async () => {
+  test('claimNextQueue skips rejected history for independent work and holds a later edit of the same node', async () => {
     // A permanently refused operation ('rejected', retryable:false) is
     // settled history everywhere else — firstOutstanding, commitRecovery and
     // hasRecoverableQueueWork all skip it. The head claim must agree, or one
@@ -66,13 +66,14 @@ describe('P3-31 claim pagination beyond the large-queue contract', () => {
       batchId: `batch-${sequence}`, idempotencyKey: `idempotency-${sequence}`, digest: `sha256:op-${sequence}`,
       endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: 'revision-0',
       operationRevision: 'revision-local-1', status, retry: { attempt: 0, notBefore: 0 },
-      payload: { type: 'update_node', targetId: 'node-1' },
+      payload: { type: 'update_node', targetId: sequence === 2 ? 'node-2' : 'node-1' },
       ...(status === 'rejected' ? { recovery: { code: 'payload_too_large' } } : {}) });
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction('outbound_queue', 'readwrite');
       const queue = tx.objectStore('outbound_queue');
       queue.add(seed(1, 'rejected'));
       queue.add(seed(2, 'pending'));
+      queue.add(seed(3, 'pending'));
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error as Error);
       tx.onabort = () => reject(tx.error as Error);
@@ -85,6 +86,9 @@ describe('P3-31 claim pagination beyond the large-queue contract', () => {
     // The rejected row itself is never claimed again outside the explicit
     // import retry path.
     assert.equal((await store.listQueue(scope))[0]?.status, 'rejected');
+    const held = (await store.listQueue(scope)).find(row => row.sequence === 3);
+    assert.equal(held?.status, 'set_aside');
+    assert.equal(held?.recovery?.code, 'dependency_hold');
     store.close();
   });
 

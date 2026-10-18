@@ -30,7 +30,8 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
       after = rows.at(-1)!.sequence;
     }
   }
-  const pull = await store.listPullIssues?.(scope) ?? [];
+  const pull = (await store.listPullIssues?.(scope) ?? []).filter(issue => !issue.conflictOpIds?.length
+    || !issue.conflictOpIds.every(opId => options.excludeQueueOpIds?.has(opId)));
   const local = mergeLocalIssues([...(await store.listLocalIssues?.(scope) ?? []),
     ...(await store.listOpenIngressIssues?.(scope) ?? [])]);
   const replica: BlockedPullIssue[] = [];

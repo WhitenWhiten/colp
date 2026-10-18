@@ -35,50 +35,62 @@ function creates(fixture: Awaited<ReturnType<typeof prepared>>) {
 }
 
 describe('N-2 restore anchor placement', () => {
-  test('an anchor missing from the start does not create or commit', async () => {
+  test('a restore whose parent mapping disappears after native evidence never creates a duplicate', async () => {
+    const fixture = await setup('after_api_evidence');
+    try {
+      await fixture.applier.stage(fixture.page([restore({ sequence: 79, targetId: 'n2-parent-lost', title: 'Saved restore' })]));
+      await assert.rejects(() => fixture.applier.resume(), /worker_crash/);
+      await fixture.store.deleteMapping(scope, 'native-root');
+      await assert.rejects(() => fixture.applier.resume(), /need_authority/);
+      assert.equal(creates(fixture).length, 1);
+      assert.equal(fixture.api.all().filter(node => node.title === 'Saved restore').length, 1);
+    } finally { fixture.store.close(); }
+  });
+  test('an anchor missing from the start is set aside without a native create', async () => {
     const fixture = await setup();
     await fixture.api.remove('native-child');
     await fixture.applier.stage(fixture.page([restore({
       sequence: 80, targetId: 'n2-missing', afterId: 'node-child', title: 'n2-missing',
     })]));
-    await assert.rejects(() => fixture.applier.resume(), /anchor_mapping_missing/);
+    await fixture.applier.resume();
     assert.equal(creates(fixture).length, 0);
     assert.equal(await fixture.store.getMappingByColpId(scope, 'n2-missing'), null);
     const events = await fixture.store.listPullEvents(scope);
     assert.equal(events.length, 1);
-    assert.equal(events[0]?.state, 'staged');
-    assert.equal(pullEventCallFact(events[0]!, undefined), 'not_called');
+    assert.equal(events[0]?.state, 'page_complete');
+    assert.equal(pullEventCallFact(events[0]!, undefined), 'known');
+    assert.deepEqual(events[0]?.apiResultEvidence, { setAside: 'anchor_mapping_missing', nodeId: 'n2-missing' });
     assert.equal(await fixture.store.getApplyIntent(scope, `intent:${String(events[0]?.eventId)}`), undefined);
-    assert.equal((await fixture.store.getScope(scope))?.lifecycle, 'recovery_required');
-    assert.equal((await fixture.store.getScope(scope))?.metadata?.recoveryCode, 'anchor_mapping_missing');
+    assert.equal((await fixture.store.getScope(scope))?.lifecycle, 'active');
+    assert.equal((await fixture.store.listPullIssues(scope))[0]?.code, 'anchor_mapping_missing');
     assert.notEqual((await fixture.store.getScope(scope))?.lifecycle, 'retired');
-    await assert.rejects(() => fixture.applier.resume(), /recovery_required/);
+    await fixture.applier.resume();
     assert.equal(creates(fixture).length, 0);
   });
 
   test('an anchor lost after prepare does not create at index 0', async () => {
     const fixture = await prepared('after_intent', 'n2-lost', 81);
     await fixture.api.remove('native-child');
-    await assert.rejects(() => fixture.applier.resume(), /anchor_mapping_missing/);
+    await fixture.applier.resume();
     assert.equal(creates(fixture).length, 0);
     assert.equal(fixture.api.all().some((node) => node.title === 'n2-lost'), false);
     assert.equal(await fixture.store.getMappingByColpId(scope, 'n2-lost'), null);
     const events = await fixture.store.listPullEvents(scope);
     const event = events[0]!;
     const intent = await fixture.store.getApplyIntent(scope, `intent:${String(event.eventId)}`) as IntentRecord | null;
-    assert.equal(event.state, 'staged');
+    assert.equal(event.state, 'page_complete');
     assert.equal(intent?.nativeResult, 'not_started');
     assert.equal(intent?.replayState, 'not_started');
-    assert.equal(intent?.state, 'staged');
-    assert.equal(intent?.apiResultEvidence ?? null, null);
-    assert.equal(pullEventCallFact(event, intent ?? undefined), 'not_called');
+    assert.equal(intent?.state, 'page_complete');
+    assert.deepEqual(intent?.apiResultEvidence, { setAside: 'anchor_mapping_missing' });
+    assert.equal(pullEventCallFact(event, intent ?? undefined), 'known');
     const diagnostics = await fixture.store.exportDiagnostics();
     assert.equal(diagnostics.records.some((row) => row.kind === 'restore_create_not_called'
       && row.code === 'anchor_mapping_missing'
       && (row.details as { browserCalled?: boolean } | undefined)?.browserCalled === false), true);
-    assert.equal((await fixture.store.getScope(scope))?.lifecycle, 'recovery_required');
-    assert.equal((await fixture.store.getScope(scope))?.metadata?.recoveryCode, 'anchor_mapping_missing');
-    await assert.rejects(() => fixture.applier.resume(), /recovery_required/);
+    assert.equal((await fixture.store.getScope(scope))?.lifecycle, 'active');
+    assert.equal((await fixture.store.listPullIssues(scope))[0]?.code, 'anchor_mapping_missing');
+    await fixture.applier.resume();
     assert.equal(creates(fixture).length, 0);
   });
 

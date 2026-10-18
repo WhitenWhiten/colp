@@ -290,7 +290,7 @@ describe('sync compaction upgrade contract', () => {
     const resolver = await readFile(new URL('../src/bookmark-event-resolve.ts', import.meta.url), 'utf8');
     assert.match(resolver, /getBookmarkEvent/);
     assert.match(engine, /compactScope/);
-    assert.match(engine, /listQueue\(options\.scope, status, 0, 1\)/);
+    assert.match(engine, /firstLaneQueue\(options\.scope\)/);
     assert.match(compaction, /COMPACTION_BATCH = 200/);
   });
 });

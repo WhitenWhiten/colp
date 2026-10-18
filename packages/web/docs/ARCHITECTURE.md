@@ -62,6 +62,7 @@ src/styles/
 ├── overlays.css            # base layer — modal + toast chrome
 ├── shared-chrome.css       # base layer — cross-site primitives (avatar, view-switch rail, lib-snippet annotation)
 ├── cards.css               # components layer — popover motion, context-menu rows, collection-card chrome
+├── favicon-progress.css    # components layer — favicon job progress in the cross-route settings dialog
 ├── capture.css             # components layer — shared capture result recipe (design-system source copied verbatim by the Known-Extension build)
 ├── cards-ui.css            # components layer — card UI system (result cards and boards, card body typography, library rows, compact density)
 ├── data-table.css          # components layer — ops-table primitive (components/DataTable.tsx): library health, sync, write approvals

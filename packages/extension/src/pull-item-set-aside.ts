@@ -90,16 +90,23 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     // their evidence until repair, even after the remote tombstone.
     if (subject.deleted && (event.effect.kind === 'subtree_deleted'
       || await options.store.getMappingByColpId(options.scope, subject.nodeId))) return false;
-    await options.store.setAsidePullEvent(options.scope, eventId, { code: self.code, nodeId: self.nodeId, now });
+    await options.store.setAsidePullEvent(options.scope, eventId, { code: self.code, nodeId: self.nodeId,
+      ...(self.conflictOpIds ? { conflictOpIds: self.conflictOpIds } : {}), now });
     return true;
   }
   if (!subject.deleted) {
     const mappings = await options.store.listMappings(options.scope);
     const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : []), ...subject.anchors ?? []];
     if (dependsOnIssue(targets, issues.roots, issueAncestry(mappings, issues.queue))) {
+      const conflicts = issues.queue.filter(row => row.status === 'blocked' && row.recovery?.code === 'conflict_pending'
+        && row.payload.targetId === subject.nodeId).map(row => row.opId);
+      const remaining = conflicts.length ? await readOpenSyncIssues(options.store, options.scope,
+        { excludeQueueOpIds: new Set([...excluded, ...conflicts]), resolvingRestoreOpId: event.operation.opId }) : issues;
+      const conflictOnly = conflicts.length > 0
+        && !dependsOnIssue(targets, remaining.roots, issueAncestry(mappings, remaining.queue));
       // A target or ancestor has an unresolved issue; keep the native state and dependency evidence.
       await options.store.setAsidePullEvent(options.scope, eventId, { code: 'parent_set_aside', nodeId: subject.nodeId,
-        now, ...(title ? { title } : {}) });
+        now, ...(conflictOnly ? { conflictOpIds: conflicts } : {}), ...(title ? { title } : {}) });
       return true;
     }
   }

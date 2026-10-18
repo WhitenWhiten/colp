@@ -12,6 +12,10 @@ const response = JSON.parse(await readFile(new URL('../../../protocol/examples/s
 const authority = { leaseExpiresAt: '2026-10-18T00:00:00Z', lastSeenAt: '2026-10-17T00:00:00Z',
   cursor: 'cursor-1', checkpoint: 'r1', lifecycle: 'active' };
 const warning = { code: 'record_invalid', message: 'This browser set this node aside.', path: '/nodes/middle' };
+test('the bundled health schema matches the current protocol definitions', async () => {
+  await promisify(execFile)(process.execPath,
+    [new URL('../../../scripts/generate-sync-resilience-schema.mjs', import.meta.url).pathname, '--check']);
+});
 const fixtures = {
   'SYNC-0032': { resolutionEffect: { effectId: 'effect-x', state: 'page_complete', apiResultEvidence: { effectDigest: 'sha256:effect' } }, results: [{ opId: 'x1', targetId: 'x', sequence: 1, status: 'conflicted' },
     { opId: 'y1', targetId: 'y', sequence: 2, status: 'applied' }],

@@ -52,6 +52,24 @@ const natives: NativeFact[] = [
   { nativeId: 'native-extra', title: 'Gone', parentNativeId: 'native-root', index: 2, folder: false },
 ];
 
+test('Snapshot recovery keeps an issue-protected native projection instead of replacing its content', () => {
+  const incoming = { ...bookmark, projection: { ...bookmark.projection, content: { title: 'Remote replacement' } } };
+  const plan = planRecoveryOverlay({ snapshot: [node(root, 'a', null), node(folder, 'a', 'root'), node(incoming, 'a', 'folder-1')],
+    mappings: [root, folder, bookmark], outstanding: [], nativeFacts: natives,
+    selectedRootNativeId: 'native-root', issueProtectedIds: new Set(['bm-1']) });
+  assert.deepEqual(plan.targetMappings.find(row => row.colpId === 'bm-1'), bookmark);
+  assert.equal(plan.intents.some(row => row.colpId === 'bm-1'), false);
+});
+
+test('Snapshot recovery retains quarantined records without scheduling native mutations', () => {
+  const quarantined: MappingInput = { ...bookmark,
+    quarantine: { code: 'record_too_large', snapshotId: 'snapshot-1', payloadDigest: 'sha256:quarantined' } };
+  const plan = planRecoveryOverlay({ snapshot: [node(root, 'a', null), node(folder, 'a', 'root'), node(quarantined, 'a', 'folder-1')],
+    mappings: [root, folder, bookmark], outstanding: [], nativeFacts: natives, selectedRootNativeId: 'native-root' });
+  assert.deepEqual(plan.targetMappings.find(row => row.colpId === 'bm-1'), quarantined);
+  assert.equal(plan.intents.some(row => row.colpId === 'bm-1'), false);
+});
+
 test('extracts typed create identity without reading payload.targetId', () => {
   const create = extractOutstandingTarget(op({
     opId: 'op-create', payload: { type: 'create_node', payload: { parentId: 'root', node: { title: 'Draft' } } },

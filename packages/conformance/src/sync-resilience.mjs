@@ -1,6 +1,8 @@
 import { REVIEW_CHECKS, verifyReviewCase } from './sync-resilience-review-checks.mjs';
 import { isDeepStrictEqual } from 'node:util';
-import { createValidatorRegistry } from '@know-n/colp/schema';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import schema from './generated/sync-resilience-schema.mjs';
 import { Report } from './report.mjs';
 
 export const SYNC_RESILIENCE_CHECKS = Object.freeze([
@@ -14,6 +16,15 @@ export const SYNC_RESILIENCE_CHECKS = Object.freeze([
 ].map(([id, title]) => Object.freeze({ id, title, level: 'MUST' })));
 const checks = new Map(SYNC_RESILIENCE_CHECKS.map(check => [check.id, check]));
 let validators;
+function healthValidators() {
+  if (!validators) {
+    const ajv = new Ajv2020({ allErrors: true });
+    addFormats(ajv);
+    ajv.addSchema(schema, 'sync-resilience');
+    validators = { validate: (name, value) => ({ valid: ajv.getSchema(`sync-resilience#/$defs/${name}`)(value) }) };
+  }
+  return validators;
+}
 const unsafe = /https?:\/\/|javascript:|chrome:|authorization|bearer|token=|secret|native[_ -]?id/iu;
 const warningCodes = new Set(['apply_set_aside', 'placement_unproven', 'identity_unproven', 'record_invalid', 'delete_held']);
 
@@ -62,7 +73,7 @@ export function verifySyncResilienceCase(id, observed) {
       require(o.protected.every(node => o.excluded.includes(node) && o.retainedIssues.includes(node)), 'retained member lost exclusion or repair evidence');
       require(typeof o.cursor === 'string' && o.cursor !== o.previousCursor, 'independent delete did not complete');
     } else if (id === 'SYNC-0036') {
-      validators ??= createValidatorRegistry();
+      validators = healthValidators();
       require(validators.validate('syncReplicaHealthReport', o.report).valid, 'invalid health wire document');
       require(Buffer.byteLength(JSON.stringify(o.report), 'utf8') <= 32768, 'health UTF-8 body exceeds budget');
       require(o.report.issues.total >= o.report.issues.items.length, 'issue total lost omitted items');
@@ -81,7 +92,7 @@ export function verifySyncResilienceCase(id, observed) {
         'older revision rolled health back');
       require(isDeepStrictEqual(o.storedWarnings, o.ackWarnings) && array(o.ackWarnings).length > 0, 'Ack warnings were not retained');
     } else if (id === 'SYNC-0037') {
-      validators ??= createValidatorRegistry();
+      validators = healthValidators();
       require(o.deliveries.length >= 2 && o.deliveries[0].commandId === o.deliveries[1].commandId, 'fixture did not redeliver a command');
       require(o.deliveries.every(command => validators.validate('syncReplicaCommand', command).valid), 'commands contain data or invalid fields');
       const commandId = o.deliveries[0].commandId;

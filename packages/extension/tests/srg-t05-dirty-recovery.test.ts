@@ -173,7 +173,12 @@ async function seedPreRecoveryDirt(fixture: Fixture) {
     projection: { revision: 'revision-dirty', digest: 'sha256:race',
       content: { title: 'Remote', url: 'https://example.test/' } } }] });
   await assert.rejects(() => store.completePullPage(scope, 'page-blocked'), /recovery_required/u);
-  await freezeScopeRecovery(store, scope, 'recovery_required', () => fixture.clock.now);
+  // Exercise a refreshable integrity failure. A mapping identity conflict now
+  // requires an explicit Rebuild and must never be retried automatically.
+  const recorded = (await store.getScope(scope))!;
+  const { scopeKey: _key, ...authority } = recorded;
+  await store.registerScope({ ...authority, metadata: { ...recorded.metadata, recoveryCode: 'pull_event_conflict' } });
+  await freezeScopeRecovery(store, scope, 'pull_event_conflict', () => fixture.clock.now);
 }
 
 async function stageIncompleteSnapshotChain(store: Fixture['store']) {

@@ -153,6 +153,9 @@ describeWithPostgres('P3-08 Sync Session real HTTP/PostgreSQL black box', () => 
   });
 
   test('creates, exact-replays after server restart, and leaves Manifest sync Profile unclaimed', async () => {
+    const priorSessions = await isolated.runtime.pool.query(
+      "select count(*)::int n from sync_sessions where replica_id='http-replica'",
+    );
     const firstServer = await start();
     const first = await client(firstServer.origin).create({ idempotencyKey: 'restart-key', request: wireRequest() });
     assert.equal(first.status, 201);
@@ -199,7 +202,8 @@ describeWithPostgres('P3-08 Sync Session real HTTP/PostgreSQL black box', () => 
     const rows = await isolated.runtime.pool.query(
       "select session_id from sync_sessions where replica_id='http-replica'",
     );
-    assert.equal(rows.rowCount, 1);
+    assert.equal(rows.rowCount, priorSessions.rows[0].n + 1);
+    assert.ok(rows.rows.some(row => row.session_id === first.body.sessionId));
   }, 20_000);
 
   test('preserves Folder roles on a stored Snapshot continuation and rejects an invalid role', async () => {

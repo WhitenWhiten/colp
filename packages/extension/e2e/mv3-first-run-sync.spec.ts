@@ -549,8 +549,15 @@ test('KNS-08-AC-04/06 field conflict and concurrent move', async ({}, testInfo) 
       return bookmark.id;
     });
     expect(bMove).toBeTruthy();
-    await waitNonterminalQueue(pageA, stack, bindingA);
-    await waitNonterminalQueue(pageB, stack, bindingB);
+    // A move may need fresh placement authority before it can become an upload.
+    // Offline, its durable inbox event is the save proof; reconnect before
+    // requiring a queued operation, then retain the full convergence oracle below.
+    for (const [page, binding] of [[pageA, bindingA], [pageB, bindingB]] as const) {
+      await expect.poll(async () => {
+        const facts = await scopeFacts(page, stack, binding);
+        return facts.captureStates.includes('move:pending') || facts.queueTypes.includes('move_node');
+      }).toBe(true);
+    }
     await restoreConnectivity(a, pageA); await restoreConnectivity(b, pageB);
     // A stale move may need a rebase cycle before its receipt. Start the
     // propagation budget after both writes settle: the final Push can land

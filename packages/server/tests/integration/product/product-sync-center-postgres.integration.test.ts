@@ -265,6 +265,12 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       assert.equal(secondPush.status, 200, JSON.stringify(secondPush.body));
       const secondConflictId = syncResult(secondPush.body).results[0]!.conflictId!;
       assert.equal(syncResult(secondPush.body).results[0]?.status, 'conflicted');
+      // Conflict timestamps can tie; the keyset then orders by opaque ID,
+      // rather than by the order in which this test issued the two requests.
+      const summaries = new Map([
+        [conflictId, { current: 'Server title', incoming: 'Incoming title' }],
+        [secondConflictId, { current: 'Second server title', incoming: 'Second incoming title' }],
+      ]);
 
       const ownerStatus = await api.inject({ method: 'GET', url: '/api/v1/sync/status', headers: { cookie: owner.cookie } });
       const outsiderStatus = await api.inject({ method: 'GET', url: '/api/v1/sync/status', headers: { cookie: outsider.cookie } });
@@ -287,14 +293,14 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       assert.equal(ownerConflicts.statusCode, 200, ownerConflicts.body);
       const firstPage = ownerConflicts.json() as { items: Array<{ id: string; summary: { current: string | null; incoming: string | null } }>; page: { nextCursor: string | null } };
       assert.equal(firstPage.items.length, 1);
-      assert.deepEqual(firstPage.items[0]?.summary, { current: 'Second server title', incoming: 'Second incoming title' });
+      assert.deepEqual(firstPage.items[0]?.summary, summaries.get(firstPage.items[0]!.id));
       assert.ok(firstPage.page.nextCursor);
       const secondPageResponse = await api.inject({ method: 'GET',
         url: `/api/v1/sync/conflicts?cursor=${encodeURIComponent(firstPage.page.nextCursor)}`,
         headers: { cookie: owner.cookie } });
       assert.equal(secondPageResponse.statusCode, 200, secondPageResponse.body);
       const secondPage = secondPageResponse.json() as { items: Array<{ id: string; summary: { current: string | null; incoming: string | null } }>; page: { nextCursor: string | null } };
-      assert.deepEqual(secondPage.items[0]?.summary, { current: 'Server title', incoming: 'Incoming title' });
+      assert.deepEqual(secondPage.items[0]?.summary, summaries.get(secondPage.items[0]!.id));
       assert.deepEqual(new Set([...firstPage.items, ...secondPage.items].map((item) => item.id)),
         new Set([conflictId, secondConflictId]));
       assert.equal(secondPage.page.nextCursor, null);

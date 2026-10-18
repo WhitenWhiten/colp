@@ -156,7 +156,9 @@ export async function validatedConflictResolutionRows(tx: IDBTransaction, key: s
 }
 
 export async function settleResolvedConflictQueue(tx: IDBTransaction, key: string, event: UnknownRecord, maxBytes: number) {
-  for (const row of await validatedConflictResolutionRows(tx, key, event, maxBytes)) {
+  const rows = await validatedConflictResolutionRows(tx, key, event, maxBytes);
+  for (const row of rows) {
     tx.objectStore(STORES.queue).put(validateQueueRecord({ ...row, status: 'terminal', echoApplied: true, recovery: undefined }, maxBytes));
   }
+  return rows.map(row => row.opId);
 }

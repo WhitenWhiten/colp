@@ -67,6 +67,8 @@ export const protocolExampleContracts = {
   'sync-pull-v02.json': 'syncPullV02',
   'sync-push-result.json': 'syncPushResult',
   'sync-push.json': 'syncPush',
+  'sync-replica-health.json': 'syncReplicaHealthReport',
+  'sync-replica-health-result.json': 'syncReplicaHealthResult',
   'sync-session-request.json': 'syncSessionRequest',
   'sync-session-result.json': 'syncSessionResult',
   'sync-snapshot.json': 'snapshot',

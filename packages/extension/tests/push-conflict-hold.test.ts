@@ -124,6 +124,37 @@ test('the resolution exemption does not cross a separate local issue on the same
   } finally { store.close(); }
 });
 
+for (const mode of ['held-peer-same-page', 'held-peer-previous-page'] as const) {
+  test(`a conflict decision settles a Pull hold caused only by that conflict (${mode})`, async () => {
+    const { store, worker } = await fixture();
+    try {
+      await update(store, 'op-x1', 'node-x'); await worker.drain();
+      const { scopeKey: _key, ...mapping } = (await store.getMappingByNativeId(scope, 'native-x'))!;
+      await browsers.get(store)!.update('native-x', { title: 'After op-x1' });
+      await store.putMapping(scope, { ...mapping, projection: { ...mapping.projection,
+        revision: 'local-op-x1', content: { title: 'After op-x1', url: 'https://example.test/' } } });
+      await resolve(store, 'op-x1', 'conflict-op-x1', mode);
+      assert.deepEqual(await store.listPullIssues(scope), []);
+      assert.equal((await store.getQueueByOpId(scope, 'op-x1'))?.echoApplied, true);
+      assert.equal((await store.getMappingByNativeId(scope, 'native-x'))?.projection.revision, 'revision-node-x');
+      assert.equal(browsers.get(store)!.getNode('native-x')?.title, 'Remote update');
+    } finally { store.close(); }
+  });
+}
+
+test('a later independent local issue keeps a previously conflict-derived Pull hold', async () => {
+  const { store, worker } = await fixture();
+  try {
+    await update(store, 'op-x1', 'node-x'); await worker.drain();
+    await resolve(store, 'op-x1', 'conflict-op-x1', 'held-peer-independent');
+    const [issue] = await store.listPullIssues(scope);
+    assert.equal(issue?.code, 'parent_set_aside');
+    assert.equal(issue?.conflictOpIds, undefined);
+    assert.equal((await store.listLocalIssues(scope))[0]?.nativeId, 'native-x');
+    assert.equal(browsers.get(store)!.getNode('native-x')?.title, 'Current native title');
+  } finally { store.close(); }
+});
+
 async function fixture(input: { readonly conflicts?: readonly string[] } = {}) {
   const store = createSyncStateStore({ indexedDB: new IDBFactory() });
   await store.registerScope({ ...scope, lifecycle: 'active',
@@ -185,7 +216,8 @@ async function statuses(store: ReturnType<typeof createSyncStateStore>) {
   return (await store.listQueue(scope)).map((row) => [row.opId, row.status]);
 }
 
-async function resolve(store: ReturnType<typeof createSyncStateStore>, opId: string, conflictId: string, mode: 'ordinary' | 'open-first' | 'resolved-after' | 'independent-issue' = 'ordinary') {
+async function resolve(store: ReturnType<typeof createSyncStateStore>, opId: string, conflictId: string,
+  mode: 'ordinary' | 'open-first' | 'resolved-after' | 'independent-issue' | 'held-peer-same-page' | 'held-peer-previous-page' | 'held-peer-independent' = 'ordinary') {
   const next = `cursor-resolved-${opId}`;
   const row = (await store.getQueueByOpId(scope, opId))!;
   const event: any = pullFixtures.mutationEvent({ kind: 'update', sequence: 40 + row.sequence,
@@ -209,14 +241,28 @@ async function resolve(store: ReturnType<typeof createSyncStateStore>, opId: str
     assert.equal((await store.releaseSettledHolds(scope, captures.get(store)!)).length, 0);
     store.close();
   }
-  await applier.stage(pullFixtures.page({ events: [event], nextCursor: next, collectionRevision: `revision-${opId}` }));
+  const peer = pullFixtures.mutationEvent({ kind: 'update', sequence: 39,
+    collectionId: scope.collectionId, targetId: String(row.payload.targetId), parentId: 'root' });
+  if (mode === 'held-peer-previous-page' || mode === 'held-peer-independent') {
+    await applier.stage(pullFixtures.page({ events: [peer], nextCursor: 'cursor-held-peer', collectionRevision: 'peer' }));
+    await applier.resume();
+    assert.deepEqual((await store.listPullIssues(scope))[0]?.conflictOpIds, [opId]);
+    store.close();
+    if (mode === 'held-peer-independent') {
+      await store.recordLocalIssue(scope, { nativeId: 'native-x', code: 'recovery_identity_unproven', now: 20_000 });
+    }
+  }
+  await applier.stage(pullFixtures.page({ events: mode === 'held-peer-same-page' ? [peer, event] : [event],
+    nextCursor: next, collectionRevision: `revision-${opId}` }));
   await applier.resume();
   if (mode === 'resolved-after') {
     await applier.stage(pullFixtures.page({ events: [{ kind: 'conflict', cursor: 'cursor-fact', conflict: { ...conflict, status: 'resolved' } }],
       nextCursor: 'cursor-fact', collectionRevision: 'after-resolution' }));
     await applier.resume();
   }
-  if (mode !== 'independent-issue') assert.deepEqual(await store.listPullIssues(scope), [], 'the real resolution effect must not set itself aside');
+  if (mode !== 'independent-issue' && mode !== 'held-peer-independent') {
+    assert.deepEqual(await store.listPullIssues(scope), [], 'the real resolution effect must not set itself aside');
+  }
 }
 
 for (const hold of ['none', 'other-conflict', 'local-issue']) test(`engine wake recaptures resolved holds with an empty lane (${hold})`, async () => {

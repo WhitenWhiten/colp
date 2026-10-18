@@ -38,6 +38,42 @@ function refreshDiagnostics(records: ReadonlyArray<Record<string, unknown>>) {
 }
 
 describe('SR-14 engine placement refresh', () => {
+  test('a timed-out Pull aborts the request and leaves a retryable offline state', async () => {
+    let aborted = false;
+    const fixture = await setup({ requestTimeoutMilliseconds: 5, fetch: async (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init!.signal!.addEventListener('abort', () => { aborted = true; reject(init!.signal!.reason); }, { once: true });
+      }) });
+    try {
+      await fixture.engine.wake('manual');
+      assert.equal(aborted, true);
+      assert.equal((await fixture.store.getEngineState(scope))?.phase, 'offline');
+      assert.notEqual((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
+    } finally { fixture.store.close(); }
+  });
+
+  test('a failed Session refresh is journalled without losing its cause', async () => {
+    const fixture = await setup();
+    try {
+      fixture.sessionFailures.push(new Error('session_authority_invalid'));
+      assert.equal(await fixture.engine.refreshPlacement(), 'continue');
+      assert.equal(refreshDiagnostics(await diagnosticRows(fixture))[0]?.code, 'session_authority_invalid');
+    } finally { fixture.store.close(); }
+  });
+
+  test('an idle compaction failure keeps the completed Pull and schedules the next wake', async () => {
+    const fixture = await setup({ compactScope: async () => { throw new Error('storage unavailable'); } });
+    try {
+      fixture.pullResponses.push(json(200, emptyPullPage('cursor-1')));
+      fixture.ackResponses.push(json(200, ack('cursor-1')));
+      await fixture.engine.wake('manual');
+      assert.equal((await fixture.store.getCursor(scope))?.cursor, 'cursor-1');
+      assert.equal((await fixture.store.getEngineState(scope))?.phase, 'sleeping');
+      assert.ok((await diagnosticRows(fixture)).some(row => row.code === 'compaction_failed'));
+      assert.ok(fixture.scheduled.length > 0);
+    } finally { fixture.store.close(); }
+  });
+
   test('refreshPlacement walks the real Pull path and advances the cursor', async () => {
     const fixture = await setup();
     fixture.pullResponses.push(json(200, emptyPullPage('cursor-1')));

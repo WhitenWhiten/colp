@@ -13,6 +13,8 @@ export interface PullIssueRecord {
   readonly nodeId: string;
   readonly code: string;
   readonly eventId: string;
+  /** A conflict decision carrying this node's full state can settle this derived hold. */
+  readonly conflictOpIds?: readonly string[];
   readonly title?: string;
   readonly count: number;
   readonly firstSeenAt: number;
@@ -56,12 +58,14 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
    */
   async function setAsidePullEvent(input: SyncScope, eventId: string, issue: {
     readonly code: string; readonly nodeId: string; readonly title?: string;
+    readonly conflictOpIds?: readonly string[];
     readonly now: number;
   }): Promise<void> {
     ctx.assertWritable(); const key = scopeKey(validateScope(input));
     const code = boundedString(issue.code, 'recovery code'); const nodeId = boundedString(issue.nodeId, 'nodeId');
     const now = safeInteger(issue.now, 'now');
     const title = issue.title?.trim() ? issue.title.trim().slice(0, PULL_ISSUE_TITLE_MAX) : undefined;
+    const conflictOpIds = issue.conflictOpIds?.map(id => boundedString(id, 'conflict operation id'));
     await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.pullEvents, STORES.intents,
       STORES.diagnostics], 'readwrite', async (tx) => {
         await requireActiveScope(tx, key); const events = tx.objectStore(STORES.pullEvents);
@@ -86,7 +90,8 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
         const committed = { ...event, state: 'authority_committed', pendingMappings: [], pendingObservations: [],
           pendingDeleteNativeIds: [], apiResultEvidence: { setAside: code, nodeId } };
         events.put(committed); putPullTerminalFacts(tx, key, committed);
-        await putPullIssueFact(tx, key, { code, nodeId, eventId, ...(title ? { title } : {}), now });
+        await putPullIssueFact(tx, key, { code, nodeId, eventId, ...(title ? { title } : {}),
+          ...(conflictOpIds?.length ? { conflictOpIds } : {}), now });
       });
   }
 
@@ -97,6 +102,7 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
       pullIssueRange(key), Number.MAX_SAFE_INTEGER);
     await completion;
     return rows.map((row) => clone({ nodeId: String(row.nodeId), code: String(row.code), eventId: String(row.eventId),
+      ...(Array.isArray(row.conflictOpIds) ? { conflictOpIds: row.conflictOpIds as string[] } : {}),
       ...(typeof row.title === 'string' ? { title: row.title } : {}), count: Number(row.count),
       firstSeenAt: Number(row.firstSeenAt), lastSeenAt: Number(row.lastSeenAt) }));
   }
@@ -167,11 +173,27 @@ export function localIssueRange(key: string): IDBKeyRange {
 /** A bounded issue fact, shared by Pull application and Snapshot recovery transactions. */
 export async function putPullIssueFact(tx: IDBTransaction, key: string, issue: {
   readonly code: string; readonly nodeId: string; readonly eventId: string; readonly title?: string; readonly now: number;
+  readonly conflictOpIds?: readonly string[];
 }): Promise<void> {
   const rows = tx.objectStore(STORES.diagnostics); const id = `${prefix(key)}${issue.nodeId}`;
   const prior = await requestValue(rows.get(id)) as PullIssueRecord | undefined;
   const title = prior?.title ?? issue.title?.slice(0, PULL_ISSUE_TITLE_MAX);
+  const conflictOpIds = issue.conflictOpIds?.length && (!prior || prior.conflictOpIds?.length)
+    ? [...new Set([...prior?.conflictOpIds ?? [], ...issue.conflictOpIds])] : undefined;
   rows.put({ id, scopeKey: key, kind: 'pull_issue', nodeId: issue.nodeId, code: prior?.code ?? issue.code,
+    ...(conflictOpIds ? { conflictOpIds } : {}),
     eventId: issue.eventId, ...(title ? { title } : {}), count: (prior?.count ?? 0) + 1,
     firstSeenAt: prior?.firstSeenAt ?? issue.now, lastSeenAt: issue.now });
+}
+
+/** Clear only a conflict-derived hold whose full node state actually landed in this transaction. */
+export async function settleConflictPullIssue(tx: IDBTransaction, key: string, event: UnknownRecord,
+  resolved: readonly string[]): Promise<void> {
+  if (!resolved.length) return;
+  const payload = event.payload as { operation?: { targetId?: string } };
+  const nodeId = payload.operation?.targetId;
+  if (!nodeId || !(event.pendingMappings as MappingInput[] | undefined)?.some(row => row.colpId === nodeId)) return;
+  const rows = tx.objectStore(STORES.diagnostics); const id = `${prefix(key)}${nodeId}`;
+  const issue = await requestValue<PullIssueRecord | undefined>(rows.get(id));
+  if (issue?.conflictOpIds?.length && issue.conflictOpIds.every(opId => resolved.includes(opId))) rows.delete(id);
 }

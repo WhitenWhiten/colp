@@ -565,7 +565,7 @@ describe('P3-32 durable Pull authority', () => {
       assert.ok(fixture.api.calls.filter((call) => call.kind === 'create').length <= 1);
     });
 
-  test('applies inline and paged subtree deletion exactly, and sets a delete with unknown members aside', async () => {
+  test('applies inline and paged subtree deletion exactly without inventing native identities for unknown members', async () => {
     const fixture = await setup();
     await fixture.applier.stage(fixture.page([fixture.subtreeEvent(false)])); await fixture.applier.resume();
     const deleted = fixture.api.calls.filter((call) => call.kind === 'delete').map((call) => call.nativeId);
@@ -578,9 +578,11 @@ describe('P3-32 durable Pull authority', () => {
     indexedDB = new IDBFactory();
     const missing = await setup(undefined, true);
     await missing.applier.stage(missing.page([missing.subtreeEvent(true)])); await missing.applier.resume();
-    // G4: a delete this browser cannot map deletes nothing here; it is one reported item.
+    // Unknown remote members have no proven native identity. Their tombstones
+    // advance the page without deleting unrelated local bookmarks or inventing an issue.
     assert.equal(missing.api.calls.some((call) => call.kind === 'delete'), false);
-    assert.equal((await missing.store.listPullIssues(scope)).length, 1);
+    assert.equal((await missing.store.listPullIssues(scope)).length, 0);
+    assert.equal((await missing.store.getCursor(scope))?.cursor, 'cursor-next');
   });
 });
 

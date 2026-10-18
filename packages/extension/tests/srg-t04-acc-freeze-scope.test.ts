@@ -4,8 +4,8 @@
  * Goal 1: the widened FREEZE set must not turn ordinary, retryable Pull failures
  * into `recovery_required` (over-freeze).
  * Goal 2: after an F005 block, a pathological server that keeps re-offering a
- * conflicting page must never see the same cursor requested twice; every further
- * attempt has to go through a forced Session authority refresh.
+ * conflicting identity must never see the same cursor requested twice; a mapping
+ * identity conflict stays stopped until the owner explicitly rebuilds the replica.
  */
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
@@ -94,7 +94,7 @@ describe('T-04 acceptance: transient failures do not freeze the scope', () => {
 });
 
 describe('T-04 acceptance: a blocked page never retries the same cursor', () => {
-  test('four pathological wakes never re-request the stale cursor and always refresh authority', async () => {
+  test('four pathological wakes keep a mapping conflict stopped until explicit Rebuild', async () => {
     const { fixture, engine, clock, forced, pullCursors } = await engineFixture((cursor) =>
       Response.json(pullFixtures.page({ events: [fixture.createEvent('Bookmark', 1)],
         nextCursor: `${cursor}-next`, collectionRevision: 'revision-next' })));
@@ -108,13 +108,10 @@ describe('T-04 acceptance: a blocked page never retries the same cursor', () => 
       assert.equal(exported.engine.authorityRefreshRequired, true, `wake ${wake}`);
       clock.now += 600_000;
     }
-    // One Pull per wake: no retry loop inside a wake.
-    assert.equal(pullCursors.length, 4);
-    assert.deepEqual(pullCursors, ['cursor-old', 'cursor-refreshed-1', 'cursor-refreshed-2', 'cursor-refreshed-3']);
-    // Session authority is refreshed before every retry; the stale cursor is never reused.
-    assert.deepEqual(forced, [false, true, true, true]);
-    assert.equal(pullCursors.filter((cursor) => cursor === 'cursor-old').length, 1);
-    assert.equal(new Set(pullCursors).size, pullCursors.length);
+    // Rebuild-only identity failures admit no further Session or Pull request.
+    assert.deepEqual(pullCursors, ['cursor-old']);
+    assert.deepEqual(forced, [false]);
+    assert.equal((await fixture.store.getScope(scope))?.metadata?.recoveryCode, 'mapping_identity_conflict');
     fixture.store.close();
   });
 });

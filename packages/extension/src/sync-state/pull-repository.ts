@@ -20,6 +20,7 @@ import { validateMapping, validateMappingRecord } from './mapping-repository.js'
 import { planPullMappingWrites } from './pull-mapping-writes.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import { settleResolvedConflictQueue } from './queue-hold.js';
+import { settleConflictPullIssue } from './pull-issue-repository.js';
 import { markQueuePullEchoApplied } from './pull-queue-echo.js';
 import { hasQueueRevisionForTarget } from './queue-live-work.js';
 import { sameEffectPageRecord, samePullEventRecord, uniqueExclusions, validateCursor,
@@ -436,7 +437,8 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
           code: blocked, pageId, previousCursor: page.previousCursor, nextCursor: page.nextCursor,
           publishedCursor, eventCount: pageEvents.length })); return; }
       for (const event of pageEvents) {
-        await settleResolvedConflictQueue(tx, key, event, maxRecordBytes);
+        const resolved = await settleResolvedConflictQueue(tx, key, event, maxRecordBytes);
+        await settleConflictPullIssue(tx, key, event, resolved);
         await markQueuePullEchoApplied(tx, key, event.operationId, maxRecordBytes);
         const completed = { ...event, state: 'page_complete' };
         tx.objectStore(STORES.pullEvents).put(completed); putPullTerminalFacts(tx, key, completed);

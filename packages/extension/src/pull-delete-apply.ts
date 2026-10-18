@@ -1,6 +1,7 @@
 import { SyncFailureError } from './sync-failure-class.js';
 import { withinPrivateNativeBoundary } from './native-private-boundary.js';
 import { lookupBookmark } from './bookmark-api-error.js';
+import { currentPullMapping } from './pull-mapping-view.js';
 import { recordKns09Stop } from './kns-09-release.js';
 import { remoteDeleteDecisionId, remoteDeleteMemberIds } from './remote-delete-policy.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
@@ -36,14 +37,14 @@ export async function applyRemoteDeletion(input: {
   parentRevisionMapping: (revision: { readonly parentId: string; readonly childrenRevision: string }) =>
     Promise<MappingInput>;
 }): Promise<RemoteDeletionApply> {
-  const { event, mounts, api, requireMapping, store, scope } = input;
+  const { event, mounts, api, store, scope } = input;
   const effect = event.effect;
   if (effect.kind !== 'node_deleted' && effect.kind !== 'subtree_deleted') throw new SyncFailureError('pull_effect_kind_invalid');
   const ids = remoteDeleteMemberIds(event);
   // Missing members have no proven native identity; process their mapped
   // siblings without inventing a native target from a remote id.
   const mappings = await Promise.all(ids.map(async (id): Promise<MappingInput> =>
-    await store.getMappingByColpId(scope, id) ?? { colpId: id, nativeId: unmountedNativeId(id),
+    await currentPullMapping(store, scope, id) ?? { colpId: id, nativeId: unmountedNativeId(id),
       rootNativeId: unmountedNativeId(id),
       ...(id === (effect.kind === 'node_deleted' ? effect.tombstone.targetId : effect.rootTombstone.targetId)
         ? { parentColpId: effect.parentRevision.parentId } : {}),

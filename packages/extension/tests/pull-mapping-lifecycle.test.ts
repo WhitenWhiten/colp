@@ -326,15 +326,16 @@ for (const prefix of ['sidecar:', 'unmounted:', 'recovery:']) {
   });
 }
 
-test('a genuine missing native still freezes identity before Snapshot projection', async () => {
+test('a genuine missing native becomes a local issue before Snapshot projection', async () => {
   const f = await setup();
   try {
     await f.store.putMapping(scope, mapping('native-unproven', 'node-unproven', mountId));
     const live = (await f.store.listMappings(scope)).map(({ scopeKey: _key, ...row }) => row);
-    await assert.rejects(() => recoverVerifiedOrFreeze({ scope, store: f.store, staged: live,
-      api: f.api, freezeUnprovenIdentity: true }), /recovery_identity_unproven/);
-    assert.equal((await f.store.getEngineState(scope))?.recoveryFrozen, true);
-    assert.equal((await f.store.getEngineState(scope))?.authorityRefreshRequired, true);
+    await recoverVerifiedOrFreeze({ scope, store: f.store, staged: live,
+      api: f.api, freezeUnprovenIdentity: true });
+    assert.deepEqual((await f.store.listLocalIssues(scope)).map(row => [row.nativeId, row.code]),
+      [['native-unproven', 'recovery_identity_unproven']]);
+    assert.notEqual((await f.store.getEngineState(scope))?.recoveryFrozen, true);
     assert.equal(f.calls.length, 0);
   } finally { f.store.close(); }
 });

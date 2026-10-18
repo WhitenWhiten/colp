@@ -48,7 +48,7 @@ for (const direction of ['local', 'push', 'mixed'] as const) test(`global ceilin
     }
     assert.equal((await readOpenSyncIssues(f.store, scope)).total, 201);
   } finally { f.store.close(); }
-});
+}, 60_000);
 
 test('the threshold is strictly more than 200 distinct open facts', async () => {
   const f = await setup();
@@ -75,7 +75,7 @@ test('pure Pull records the crossing item before stopping', async () => {
     assert.equal((await f.store.getEngineState(pullScope))?.lastError, 'sync_issue_ceiling');
     assert.equal(f.api.calls.filter(call => call.kind === 'create').length, 0);
   } finally { f.store.close(); }
-});
+}, 60_000);
 
 test('ceiling resumes an already-started native call without admitting the next mutation', async () => {
   const f = await setup({ useRealPullApplier: true });

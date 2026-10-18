@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { isProductApiError, productClient } from '../../api'
 import { Icon } from '../Icon'
 import { isFaviconJobTerminal, useFaviconJobActivity } from './useFaviconJobActivity'
-import '../../styles/favicon-progress.css'
 
 /** Settings-wide strip matching the extension popup: count, thin bar, details. */
 export function FaviconJobProgress({ startedJobId, onJobStarted, onDetails }: {

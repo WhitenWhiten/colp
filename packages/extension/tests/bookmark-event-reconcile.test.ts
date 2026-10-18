@@ -15,6 +15,21 @@ let indexedDB: IDBFactory;
 beforeEach(() => { indexedDB = new IDBFactory(); });
 
 describe('bookmark tree reconcile', () => {
+  test('captures an uncaptured native move with its source and destination parents', async () => {
+    const { store } = await fixture(indexedDB);
+    try {
+      await mapping(store, 'moved-native', 'moved-node', 'root-selected', 'r1',
+        { title: 'Moved', url: 'https://example.test/moved' }, 'root-selected');
+      const moved: unknown[] = [];
+      await reconcileBookmarkTree(host(store, {
+        readChildren: async parent => parent === 'root-selected' ? [folder('folder-parent', 'root-selected', 0, 'Parent')]
+          : parent === 'folder-parent' ? [bookmark('moved-native', 'folder-parent', 0, 'Moved', 'https://example.test/moved')] : [],
+        moved: async (nativeId, details) => { moved.push({ nativeId, ...details }); },
+      }));
+      assert.deepEqual(moved, [{ nativeId: 'moved-native', parentId: 'folder-parent', index: 0,
+        oldParentId: 'root-selected', oldIndex: 0 }]);
+    } finally { store.close(); }
+  });
   test('ignores scopes that are not ready', async () => {
     const { store } = await fixture(indexedDB);
     const current = await store.getScope(scope);
@@ -125,6 +140,9 @@ describe('bookmark tree reconcile', () => {
       nativeId: 'mapped', colpId: 'other-colp', rootNativeId: 'root-selected', revision: 'r2', content: null,
     });
     assert.equal(collision, false);
+    assert.equal(await bindReceiptMapping(store, scope, {
+      nativeId: 'other-native', colpId: 'mapped-colp', rootNativeId: 'root-selected', revision: 'r2', content: null,
+    }), false, 'a receipt cannot bind an already-owned COLP identity to another native');
     const same = await bindReceiptMapping(store, scope, {
       nativeId: 'mapped', colpId: 'mapped-colp', rootNativeId: 'root-selected', revision: 'r1', content: null,
     });

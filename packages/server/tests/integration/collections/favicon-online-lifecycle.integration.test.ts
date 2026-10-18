@@ -1,5 +1,5 @@
 import { KNOWN_FAVICON_DOMAINS } from '../../../src/modules/collections/index.js';
-import { isFaviconPubliclyAccessible } from '../../../src/infrastructure/database/publication-object-controls.js';
+import { isFaviconPubliclyAccessible, isFaviconReadableBySubject } from '../../../src/infrastructure/database/publication-object-controls.js';
 /**
  * FO-02 favicon online lifecycle (real PostgreSQL + real bootstrap routes +
  * real worker loops with an injected controlled provider).
@@ -109,8 +109,11 @@ interface Store {
   delete(objectId: string): Promise<void>;
 }
 
+// The database outlives each scenario's worker. Its shared icon projection must
+// read the same durable bucket, while counters and fault injection stay per worker.
+const iconObjects = new Map<string, { contentType: string; body: Buffer }>();
 function createTestFaviconStore(): Store {
-  const objects = new Map<string, { contentType: string; body: Buffer }>();
+  const objects = iconObjects;
   return {
     objects,
     puts: [],
@@ -196,6 +199,15 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
   let stranger: { cookie: string; csrfToken: string; accountId: string; subjectId: string };
   let config: ReturnType<typeof loadConfig>;
 
+  async function assertRenderedIcon(address: string, view: ReturnType<typeof assertIconSource>, expected: Buffer) {
+    assert.ok(view.iconUrl);
+    assert.equal(view.iconVersion, view.iconUrl.split('/').at(-1));
+    const served = await apiRaw('GET', `${address}${new URL(view.iconUrl).pathname}`, { cookie: owner.cookie });
+    assert.equal(served.status, 200);
+    assert.equal(served.headers['content-type'], 'image/png');
+    assert.deepEqual(served.rawBody, expected);
+  }
+
   const PRIVATE_COLLECTION = 'fo02-private-collection-0001';
   const PRIVATE_ROOT = 'fo02-private-root-0000001';
   const PRIVATE_BOOKMARK = 'fo02-private-bookmark-0001';
@@ -265,7 +277,10 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       productCollectionMutationUnitOfWork: createPostgresCanonicalMutationUnitOfWork(
         isolated.runtime.db, { productOrigin: ORIGIN }),
       browserSessionAuthority: factory.authority,
-      faviconPublicAccess: { isPubliclyAccessible: objectId => isFaviconPubliclyAccessible(isolated.runtime.db, objectId, KNOWN_FAVICON_DOMAINS) },
+      faviconPublicAccess: {
+        isPubliclyAccessible: objectId => isFaviconPubliclyAccessible(isolated.runtime.db, objectId, KNOWN_FAVICON_DOMAINS),
+        isReadableBySubject: (objectId, subjectId) => isFaviconReadableBySubject(isolated.runtime.db, objectId, subjectId),
+      },
       faviconStore: store ?? createTestFaviconStore(),
     });
   }
@@ -674,7 +689,7 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
         { cookie: owner.cookie });
       const view = assertIconSource(source.json);
       assert.equal(view.status, 'failed');
-      assert.equal(view.iconUrl, `${ORIGIN}/api/v1/favicon/${good.object_id}`);
+      await assertRenderedIcon(address, view, PNG_V1);
       const binding = (await isolated.runtime.pool.query(
         `select object_id from bookmark_icons where node_id = $1`, [node])).rows[0] as { object_id: string };
       assert.equal(binding.object_id, good.object_id, 'failed replacement must not clear the valid binding');
@@ -1266,7 +1281,7 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       const publicView = await api('GET', `${address}/api/v1/collections/${PRIVATE_COLLECTION}/nodes/${node}/favicon-source`,
         { cookie: owner.cookie });
       const publicBody = assertIconSource(publicView.json);
-      assert.equal(publicBody.iconUrl, `${ORIGIN}/api/v1/favicon/${binding.object_id}`);
+      await assertRenderedIcon(address, publicBody, PNG_V1);
       assert.equal(publicBody.directUrl, null);
 
       // Back to private (unshared): the icon is kept; directUrl returns.
@@ -1275,7 +1290,8 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       const privateView = await api('GET', `${address}/api/v1/collections/${PRIVATE_COLLECTION}/nodes/${node}/favicon-source`,
         { cookie: owner.cookie });
       const privateBody = assertIconSource(privateView.json);
-      assert.equal(privateBody.iconUrl, `${ORIGIN}/api/v1/favicon/${binding.object_id}`);
+      assert.equal(privateBody.iconUrl, publicBody.iconUrl);
+      await assertRenderedIcon(address, privateBody, PNG_V1);
       assert.equal(privateBody.directUrl, 'https://favicone.com/vis.example.org');
       const get = await api('GET', `${address}/api/v1/favicon/${binding.object_id}`, {});
       assert.equal(get.status, 404);
@@ -1374,7 +1390,8 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
         rawBody: PNG_V1, contentType: 'image/png',
       });
       assert.equal(upload.status, 200);
-      const uploadedObjectId = (upload.json as { iconUrl: string }).iconUrl.split('/').at(-1) ?? '';
+      const uploadedObjectId = (await isolated.runtime.pool.query(
+        'select object_id from bookmark_icons where node_id=$1', [node])).rows[0].object_id as string;
       const online = await setOnline(PRIVATE_COLLECTION, node, address, owner.cookie, owner.csrfToken);
       assert.equal(online.status, 200);
       const afterSwitch = await api('GET', `${address}/api/v1/collections/${PRIVATE_COLLECTION}/nodes/${node}/favicon-source`,
@@ -1383,7 +1400,10 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
       assert.equal(switchView.sourceMode, 'online');
       assert.equal(switchView.effectiveMode, 'online');
       assert.equal(switchView.status, 'ready');
-      assert.equal(switchView.iconVersion, uploadedObjectId, 'the upload stays bound after switching to online');
+      await assertRenderedIcon(address, switchView, PNG_V1);
+      assert.equal((await isolated.runtime.pool.query(
+        'select object_id from bookmark_icons where node_id=$1', [node])).rows[0].object_id, uploadedObjectId,
+      'the upload stays bound after switching to online');
       assert.equal((await isolated.runtime.pool.query(
         `select count(*)::int n from favicon_pending_deletions where object_id = $1`, [uploadedObjectId])).rows[0]?.n, 0);
 
@@ -1400,8 +1420,7 @@ describeWithPostgres('FO-02 favicon online lifecycle (HTTP → durable job → w
         { cookie: owner.cookie });
       const failView = assertIconSource(afterFail.json);
       assert.equal(failView.status, 'failed');
-      assert.equal(failView.iconVersion, uploadedObjectId);
-      assert.equal(failView.iconUrl, `${ORIGIN}/api/v1/favicon/${uploadedObjectId}`);
+      await assertRenderedIcon(address, failView, PNG_V1);
       const originalVisibility = (await isolated.runtime.pool.query('select visibility,publication_slug,published_at from collections where id=$1', [PRIVATE_COLLECTION])).rows[0];
       await isolated.runtime.pool.query("update collections set visibility='public',publication_slug='ci-favicon-'||md5(id),published_at=now() where id=$1", [PRIVATE_COLLECTION]);
       const oldServed = await apiRaw('GET', `${address}/api/v1/favicon/${uploadedObjectId}`, {});

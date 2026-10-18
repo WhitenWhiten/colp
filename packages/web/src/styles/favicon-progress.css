@@ -1,4 +1,4 @@
-@layer pages {
+@layer components {
   .favicon-job-progress {
     display: grid;
     gap: var(--space-2);

@@ -41,7 +41,9 @@
     "pack:release": "node scripts/pack-release.mjs"
   },
   "dependencies": {
-    "@know-n/colp": "file:../node"
+    "@know-n/colp": "file:../node",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
   },
   "publishConfig": {
     "access": "public",

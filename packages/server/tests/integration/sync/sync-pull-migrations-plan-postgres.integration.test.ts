@@ -150,6 +150,7 @@ describeWithPostgres('P3-20 sync-pull-migrations-plan-postgres.integration.test.
     for (const name of [
       '202610202500_accounts_security_epoch_bumped_at',
       '202610202501_stamp_security_epoch_bumped_at_on_bump',
+      '202611010400_sync_replica_report_authorities',
     ]) excludedMigrations.delete(name);
     const migrationDirectory = await migrationDirectoryExcluding(excludedMigrations);
     try {
