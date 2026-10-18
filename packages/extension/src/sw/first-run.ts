@@ -1,3 +1,4 @@
+import { reasonCode } from '../push-error-code.js';
 import { recordBoundaryDiagnostics } from '../bootstrap/boundary-diagnostics.js';
 import { personalTreeApi } from '../bookmark-subscriptions/personal-boundary.js';
 import { personalSyncNativeApi } from '../personal-sync-fetch.js';
@@ -124,9 +125,9 @@ async function handleFirstRunStatus(): Promise<FirstRunOrScopeResponse> {
   if (advanced) return advanced;
   const coordinator = createBootstrapCoordinator({ store: syncState, scope });
   const snapshot = await coordinator.status();
-  if ((snapshot.retryReason === 'queue_recovery_frozen' || snapshot.retryReason === 'snapshot_pending')
-      && (snapshot.firstRun === 'running' || bootstrapRunInFlight(snapshot.phase))) {
-    try { await resumeRunningBootstrap(scope); } catch { /* Status stays a projection if resume cannot run. */ }
+  if ((snapshot.phase === 'needs_attention' || snapshot.retryReason === 'queue_recovery_frozen' || snapshot.retryReason === 'snapshot_pending')
+      && (snapshot.phase === 'needs_attention' || snapshot.firstRun === 'running' || bootstrapRunInFlight(snapshot.phase))) {
+    try { await resumeRunningBootstrap(scope); } catch (error) { return { ok: false, error: reasonCode(error, 'bootstrap_status_unavailable') }; }
   }
   const next = await coordinator.status();
   if (next.retryReason === 'bootstrap_upload_rejected') return { ok: false, error: next.retryReason };
@@ -139,34 +140,31 @@ export async function resumeRunningBootstrap(scope: SyncScope): Promise<boolean>
   if (await kns09Paused('coordinator')) return false;
   if ((await syncState.getEngineState(scope))?.recoveryFrozen === true) return false;
   const runs = [...await syncState.listBootstrapRuns(scope)].sort((left, right) => right.updatedAt - left.updatedAt);
-  const run = runs.find((row) => bootstrapRunInFlight(row.phase));
-  if (!run) return false;
+  const candidates = runs.filter(row => bootstrapRunInFlight(row.phase) || row.phase === 'needs_attention');
+  if (!candidates.length) return false;
   const priorOpIds = new Set(await listAllQueueOpIds(scope));
-  const input = await resumeConfirmInput(scope, run);
-  const view = await createBootstrapCoordinator({
-    store: syncState, scope,
-    retireLegacy: async () => { await retireLegacyScopeForRemount(); },
-  }).confirm(input);
-  try {
-    await persistConfirmedPreviewRoots(scope, input.previewId
+  let added = false;
+  for (const run of candidates) {
+    const input = await resumeConfirmInput(scope, run);
+    const view = await createBootstrapCoordinator({ store: syncState, scope,
+      retireLegacy: async () => { await retireLegacyScopeForRemount(); } }).advance(run.runId, input);
+    if (bootstrapRunInFlight(run.phase)) await persistConfirmedPreviewRoots(scope, input.previewId
       ? await syncState.getScopePreview(scope, input.previewId) : null);
-  } catch { /* Live mounts still project if selectedRoots stays empty. */ }
-  return view.queuedOpIds.some((opId) => !priorOpIds.has(opId));
+    added ||= view.queuedOpIds.some(opId => !priorOpIds.has(opId));
+  }
+  return added;
 }
 
 async function resumeConfirmInput(scope: SyncScope, run: BootstrapRunRecord): Promise<ConfirmInput> {
   const preview = run.previewId ? await syncState.getScopePreview(scope, run.previewId) : null;
   const bindings = await syncState.listMountBindings(scope);
   const mounts = overlayMountsFromBindings(preview ? mountsFromPreview(preview.boundary.mounts) : [], bindings);
-  let localFacts: ConfirmInput['localFacts'] = [];
-  if (await hasBookmarkPermission()) {
-    try {
-      const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
-      const selected = preview?.boundary.selectedNativeIds ?? bindings.map((row) => row.nativeRootId);
-      const excluded = preview?.boundary.excludedNativeIds ?? [];
-      localFacts = localFactsFromRoots(tree.roots, selected, excluded, await privateNativeIdsFor(scope));
-    } catch { /* Resume with store mounts even when the native tree is unavailable. */ }
-  }
+  if (!await hasBookmarkPermission()) throw new Error('permission_required');
+  // An unreadable tree is not an empty tree and cannot close an existing report.
+  const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
+  const selected = preview?.boundary.selectedNativeIds ?? bindings.filter(row => row.status === 'active').map(row => row.nativeRootId);
+  const excluded = preview?.boundary.excludedNativeIds ?? [];
+  const localFacts = localFactsFromRoots(tree.roots, selected, excluded, await privateNativeIdsFor(scope));
   const rootNodeId = await resolveLibraryRootId(scope.collectionId);
   return {
     confirmationId: run.confirmationId,
@@ -248,6 +246,7 @@ async function handleAttentionMessage(message: Extract<FirstRunRequest,
   const firstRun = ((await syncState.getScope(scope))?.firstRun ?? 'none') as
     'none' | 'deferred' | 'running' | 'completed';
   if (message.kind === 'known.firstRun.attention.get') {
+    try { await resumeRunningBootstrap(scope); } catch (error) { return { ok: false, error: reasonCode(error, 'bootstrap_status_unavailable') }; }
     return handleAttentionGet(syncState, scope, message.reportId, message.cursor, firstRun);
   }
   return handleAttentionDecide(syncState, scope, message.reportId, message.itemId, firstRun);

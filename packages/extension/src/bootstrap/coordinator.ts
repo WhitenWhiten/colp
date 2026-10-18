@@ -7,7 +7,7 @@ import { authoritativeColp, placeholderOccupant, mountNeedsRemote, mountRemoteFr
 import { recordKns09FirstRun } from '../kns-09-release.js';
 import { digestJson, validateOperation } from '../bookmark-event-codec.js';
 import { virtualNativeId } from '../projection-native-occupancy.js';
-import { buildAttentionReport } from './attention-report.js';
+import { buildAttentionReport, publicAttentionSummary } from './attention-report.js';
 import type {
   BootstrapMode, BootstrapRunRecord, BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord,
   QueueOperation, RecoveryNodeRecord, ScopePreviewRecord, SyncScope, createSyncStateStore,
@@ -85,7 +85,17 @@ export function createBootstrapCoordinator(options: {
       return preview({ ...input, bootstrapMode: run.bootstrapMode });
     }
     if (run.phase === 'completed' || run.phase === 'needs_attention') {
-      return view(runId, (await rematch(run, input)).report);
+      const matched = await rematch(run, input);
+      const attention = buildAttentionReport(run, matched.report, now());
+      const phase = publicAttentionSummary(attention).pendingCount > 0 ? 'needs_attention' : 'completed';
+      if (run.reportDigest !== matched.report.reportDigest || run.phase !== phase
+          || JSON.stringify(run.attention) !== JSON.stringify(attention)) {
+        await store.putScopeDiagnostic(scope, { kind: 'bootstrap_attention_history', code: 'bootstrap_attention_refreshed', details: { runId,
+          previousDigest: run.reportDigest ?? 'unrecorded', pendingCount: run.attention ? publicAttentionSummary(run.attention).pendingCount : 0 } });
+        await store.putBootstrapRun(scope, { ...matched.run, phase, attention,
+          reportDigest: matched.report.reportDigest, updatedAt: now() }, run);
+      }
+      return view(runId, matched.report);
     }
     if (run.phase === 'confirmed') {
       const retired = await retireIfNeeded(run);
@@ -137,7 +147,7 @@ export function createBootstrapCoordinator(options: {
     retryReason?: string; attention?: BootstrapRunRecord['attention'] }> {
     const recorded = await store.getScope(scope);
     const runs = [...await store.listBootstrapRuns(scope)].sort((left, right) => right.updatedAt - left.updatedAt);
-    const run = runs[0];
+    const run = runs.find(row => row.attention && publicAttentionSummary(row.attention).pendingCount > 0) ?? runs[0];
     return {
       phase: run?.phase ?? 'draft', firstRun: recorded?.firstRun ?? 'none',
       ...(run ? { runId: run.runId } : {}),

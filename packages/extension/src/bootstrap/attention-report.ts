@@ -41,7 +41,7 @@ export function buildAttentionReport(
   const priorById = new Map((prior?.items ?? []).map((item) => [item.itemId, item]));
   const items: AttentionItemRecord[] = [];
   for (const candidate of report.candidates) {
-    const itemId = digest({ kind: 'duplicate_candidate', url: candidate.url, nodeIds: candidate.nodeIds });
+    const itemId = digest({ kind: 'duplicate_candidate', url: candidate.url, nodeIds: [...candidate.nodeIds].sort() });
     items.push({
       itemId, nodeRefs: candidate.nodeIds, kind: 'duplicate_candidate', locationCount: Math.max(candidate.nodeIds.length, candidate.parents.length),
       decision: priorById.get(itemId)?.decision === 'keep_both' ? 'keep_both' : 'open',
@@ -58,20 +58,21 @@ export function buildAttentionReport(
       });
     }
   }
+  const unique = [...new Map(items.map(item => [item.itemId, item])).values()];
   return {
     reportId: run.runId, version: ATTENTION_REPORT_VERSION,
-    candidateCount: report.candidates.length, conflictCount: report.conflicts.length,
+    candidateCount: unique.filter(item => item.kind === 'duplicate_candidate').length, conflictCount: unique.filter(item => item.kind === 'conflict').length,
     localOnlyCount: report.localOnly.length, remoteOnlyCount: report.remoteOnly.length,
-    matchedCount: report.matched.length, items, createdAt: prior?.createdAt ?? now,
+    matchedCount: report.matched.length, items: unique, createdAt: prior?.createdAt ?? now,
   };
 }
 
 export function publicAttentionSummary(attention: AttentionReportRecord): PublicAttentionSummary {
   return {
     reportId: attention.reportId,
-    candidateCount: attention.candidateCount,
-    conflictCount: attention.conflictCount,
-    pendingCount: attention.items.filter((item) => item.decision === 'open').length,
+    candidateCount: uniqueAttentionItems(attention).filter(item => item.kind === 'duplicate_candidate').length,
+    conflictCount: uniqueAttentionItems(attention).filter(item => item.kind === 'conflict').length,
+    pendingCount: uniqueAttentionItems(attention).filter((item) => item.decision === 'open').length,
   };
 }
 
@@ -80,9 +81,10 @@ export function pageAttention(attention: AttentionReportRecord, cursor?: string)
 } {
   const offset = Number.parseInt(cursor ?? '0', 10);
   const start = Number.isFinite(offset) && offset > 0 ? offset : 0;
-  const items = attention.items.slice(start, start + PAGE_SIZE);
+  const current = uniqueAttentionItems(attention);
+  const items = current.slice(start, start + PAGE_SIZE);
   const next = start + PAGE_SIZE;
-  return { items, ...(next < attention.items.length ? { nextCursor: String(next) } : {}) };
+  return { items, ...(next < current.length ? { nextCursor: String(next) } : {}) };
 }
 
 export function decideAttentionItem(
@@ -97,4 +99,8 @@ export function decideAttentionItem(
   });
   if (items.every((item, index) => item === attention.items[index])) return null;
   return { ...attention, items };
+}
+
+export function uniqueAttentionItems(attention: AttentionReportRecord): AttentionItemRecord[] {
+  return [...new Map(attention.items.map(item => [item.itemId, item])).values()];
 }

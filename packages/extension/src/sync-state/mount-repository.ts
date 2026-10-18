@@ -1,3 +1,4 @@
+import { digestJson } from '../bookmark-event-codec.js';
 import { storeAttentionPages, loadAttentionPages } from './attention-pages.js';
 import {
   SyncStateError, type BootstrapMode, type BootstrapRunRecord, type DeletionJournalRecord,
@@ -177,7 +178,7 @@ export function createMountRepository(ctx: SyncStoreRuntime) {
     return value ? clone(validateScopePreview(key, value, maxRecordBytes)) : null;
   }
 
-  async function putBootstrapRun(input: SyncScope, run: Omit<BootstrapRunRecord, 'scopeKey'>): Promise<BootstrapRunRecord> {
+  async function putBootstrapRun(input: SyncScope, run: Omit<BootstrapRunRecord, 'scopeKey'>, expected?: BootstrapRunRecord): Promise<BootstrapRunRecord> {
     assertWritable(); const key = scopeKey(validateScope(input));
     const { attention: rawAttention, ...rest } = run;
     const attention = rawAttention ? validateAttention(rawAttention) : undefined;
@@ -185,6 +186,13 @@ export function createMountRepository(ctx: SyncStoreRuntime) {
     const db = await writableDatabase();
     await runTransaction(db, [STORES.scopes, STORES.bootstrapRuns, STORES.diagnostics], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
+      if (expected) {
+        const prior = await requestValue<BootstrapRunRecord | undefined>(tx.objectStore(STORES.bootstrapRuns).get([key, run.runId]));
+        const current = prior && { ...prior, ...(prior.attention ? { attention: await loadAttentionPages(tx, key, prior.attention) } : {}) };
+        if (!current || digestJson(JSON.parse(JSON.stringify(current))) !== digestJson(JSON.parse(JSON.stringify(expected)))) {
+          throw new SyncStateError('bootstrap_confirmation_stale');
+        }
+      }
       const storedAttention = attention ? await storeAttentionPages(tx, key, attention, maxRecordBytes) : undefined;
       tx.objectStore(STORES.bootstrapRuns).put({ ...record, ...(storedAttention ? { attention: storedAttention } : {}) });
     });

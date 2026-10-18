@@ -20,7 +20,7 @@ export function withAttention(
 
 export async function latestBootstrapRun(store: Store, scope: SyncScope): Promise<BootstrapRunRecord | undefined> {
   const runs = [...await store.listBootstrapRuns(scope)].sort((left, right) => right.updatedAt - left.updatedAt);
-  return runs[0];
+  return runs.find(row => row.attention && publicAttentionSummary(row.attention).pendingCount > 0) ?? runs[0];
 }
 
 export async function handleAttentionGet(store: Store, scope: SyncScope, reportId: string, cursor?: string,
@@ -52,6 +52,6 @@ export async function handleAttentionDecide(store: Store, scope: SyncScope, repo
   if (!next) return { ok: false, error: 'request_invalid' };
   const saved = await store.putBootstrapRun(scope, { ...run, attention: next,
     ...(publicAttentionSummary(next).pendingCount === 0 && firstRun === 'completed' ? { phase: 'completed' as const } : {}),
-    updatedAt: Date.now() });
+    updatedAt: Date.now() }, run);
   return withAttention(saved.phase, firstRun, saved);
 }
