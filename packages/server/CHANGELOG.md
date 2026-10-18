@@ -4,8 +4,12 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.7] - 2026-10-18
+
 ### Added
 
+- Each account has one private bookmark library. Opening the library, starting extension sync, or an agent calling `collections.list` creates it when it is missing, with Bookmarks bar and Other bookmarks. The library stays private: it cannot be published or deleted, its root cannot be shared, and its browser role folders cannot be renamed, moved, or deleted. Agents cannot create another collection; `collections.create` returns the library and those folder ids and tells the agent to create a folder with `nodes.create` and an explicit `parentId`. Apply migration `202610311100_account_library` before deploying.
+- A folder inside the library can be shared with a revocable unlisted link. Anyone with the link can read that folder's live contents, including subfolders; private and protected items stay hidden. Stopping the share, or deleting the folder, ends the link immediately, and restoring the folder does not reopen it. Apply migrations `202610311200_folder_shares` and `202610311300_folder_share_keyset_indexes` before deploying.
 - The Sync center can ask a browser to fix itself. A stopped browser's card offers Retry and Reset sync (after a danger confirm), and a held item in its list offers Try again, whenever the browser's last report offers them. `POST /api/v1/sync/replicas/{replicaId}/commands` (owner session, `Known-Command-Id`) takes `{ action, issueId? }` and answers `412` when the last report does not offer that action, or `429` with eight commands already waiting; an open command for the same action and issue is returned instead of a second one. A command names no data, reaches the browser in the `commands` of its next replica-health response, and its result returns in a later report's `commandResults`; it expires after seven days. `health` adds `actions` (what the browser offers for itself) and `commands` (the last seven days, newest first), and the card says what came of the latest one: waiting for the browser, ran, didn't work and why, or expired. A browser reset from here says so and shows up again as a new browser after setup. Apply migration `202611010300_sync_replica_commands` before deploying.
 - The Sync center shows each browser's own report. `GET /api/v1/sync/status` adds optional `health` (`state`, `code`, `since`, `reportedAt`, `issueCount`; `null` before the first report or when retired) to each replica, and `GET /api/v1/sync/replicas/{replicaId}/issues` lists the items it set aside and its latest Ack warnings. The device card says Stopped with the reason in plain words, Needs attention with the items on request, or Paused. A change held behind a conflict (`conflict_hold`) reads as waiting for a conflict on that bookmark; an item the browser could not store says so, and one whose folder is set aside (`parent_set_aside`) says its folder is missing there. Saves the browser set aside because their folder was deleted, their place or identity couldn't be proven, or a deletion couldn't be matched each get a plain reason. A browser that stopped because it set aside too many items (`pull_issue_ceiling`) says so.
 - Browsers report their own sync health to the server. `POST /colp/v0.1/sync/replica-health` (extension origin, Sync credential, no Session) stores a replica's state (`syncing`, `degraded`, `stopped`, `paused`), its reason code and up to 50 set-aside issues; an older revision never replaces a newer one, and a report renews no lease and moves no cursor. Issue titles that look like a URL, credential or browser id are dropped. Successful Acks also keep the replica's latest `warnings`, which were validated and discarded before. Apply migration `202611010200_sync_replica_reports` before deploying.
@@ -23,6 +27,29 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 - Private favicon reads are cached by the browser for a week (`private, max-age=604800, immutable`) instead of `private, no-store`, so scrolling a long library no longer downloads icons again. Bookmarks in one collection with byte-identical icons now share one object URL for owners and members, so a site's icon downloads once rather than once per bookmark; public pages keep per-bookmark objects. An icon already seen can stay in that browser's cache for up to a week after access is revoked.
 
 - Gallery preview images now use a 7–15 day cache (public for public/unlisted images, browser-only for private images), with stable jitter per image ID to spread expiration, and content ETags with `If-None-Match` / `304` revalidation. Revalidation still checks current access and image validity; already cached images may remain usable for up to 15 days after access is revoked. PostgreSQL storage is unchanged. The default and minimum `LINK_PREVIEW_RETENTION_SECONDS` are now 1296000 (15 days), covering the longest image cache lifetime.
+
+### Security
+
+- Replica health reports, Sync-center command delivery, and command results now require `Known-Sync-Replica-Proof` as well as a fresh Sync credential. The proof is the SHA-256 of that installation's Session id and is stored only as a digest. Apply migration `202611010400_sync_replica_report_authorities` before deploying. It copies a proof from each still-active Sync session, so a browser that still has that Session can keep reporting; an installation with neither the proof nor that Session has to sign in again. Account ownership alone no longer authorizes a health report.
+
+### Upgrade notes
+
+From 0.1.0-rc.6, update the checkout and `deploy/` files from the same revision,
+set `COLP_IMAGE_TAG=0.1.0-rc.7`, and recreate the server. These additive
+migrations run at startup:
+
+- `202610311100_account_library`
+- `202610311200_folder_shares`
+- `202610311300_folder_share_keyset_indexes`
+- `202610311400_favicon_provider_cache`
+- `202611010100_avatar_object_bytes`
+- `202611010200_sync_replica_reports`
+- `202611010300_sync_replica_commands`
+- `202611010400_sync_replica_report_authorities`
+
+Existing collections stay. A library is created the first time that account
+opens the library, starts sync, or an agent lists collections. Folder shares
+start with no links. Compose files are unchanged from 0.1.0-rc.6.
 
 ## [0.1.0-rc.6] - 2026-10-16
 
