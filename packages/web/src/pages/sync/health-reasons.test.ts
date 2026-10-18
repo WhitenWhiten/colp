@@ -22,3 +22,10 @@ test('a held upload the browser could not prepare is not blamed on the server', 
   expect(issueSummary({ ...base, code: 'invalid_node_constraints', actions: [] }))
     .toBe('The server didn’t accept this change')
 })
+
+test('a stalled upload says the lane behind it waits, instead of claiming a rejection', () => {
+  const base = { issueId: 'i', direction: 'push' as const, count: 9, firstSeenAt: 'now', lastSeenAt: 'now', actions: [] }
+  expect(issueSummary({ ...base, code: 'push_response_unrecognized' })).toContain('wait behind it')
+  expect(issueSummary({ ...base, code: 'push_deferred' })).toContain('keeps deferring')
+  expect(issueSummary({ ...base, code: 'sequence_gap' })).toContain('earlier change first')
+})

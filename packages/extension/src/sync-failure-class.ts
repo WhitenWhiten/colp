@@ -67,6 +67,18 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   push_authentication_rejected: entry('authority', 'refresh'),
   push_denial_escalated: entry('authority', 'refresh'),
   push_scope_mismatch: entry('authority', 'refresh'),
+  // Push settlement reasons about the browser's authority or connectivity, never about one change:
+  // a never-sent change is not held for them, and a sent change waiting on them is not a stalled upload.
+  push_authority_expired: entry('authority', 'refresh'),
+  push_authority_denied: entry('authority', 'refresh'),
+  push_authority_response_invalid: entry('authority', 'refresh'),
+  push_authentication_refresh_required: entry('authority', 'refresh'),
+  push_authentication_exhausted: entry('authority', 'refresh'),
+  push_denial_unrecognized: entry('authority', 'refresh'),
+  push_session_unavailable: entry('authority', 'refresh'),
+  push_session_refresh_failed: entry('authority', 'refresh'),
+  push_network_failed: entry('transient', 'retry'),
+  push_batch_prefix_pending: entry('transient', 'retry'),
 
   recovery_identity_unproven: entry('item', 'decide', FREEZES),
   deletion_identity_unproven: entry('item', 'decide', FREEZES),

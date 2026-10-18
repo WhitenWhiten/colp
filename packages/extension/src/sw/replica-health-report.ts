@@ -28,7 +28,7 @@ import type { PersonalSyncMode } from '../personal-sync-policy.js';
 import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } from '../sync-state-store.js';
 import { refreshesReplicaIntegrity, classifySyncFailure, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
 import type { PublicSyncAttention } from '../types.js';
-import { handleSyncAttentionRequest, type SyncAttentionStore } from './sync-attention.js';
+import { handleSyncAttentionRequest, readStalledUpload, type SyncAttentionStore } from './sync-attention.js';
 
 export const REPLICA_HEALTH_PATH = '/colp/v0.1/sync/replica-health';
 export const REPLICA_HEALTH_RECORD_KEY = 'known.sync.health.v1';
@@ -327,8 +327,20 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
       firstSeenAt: new Date(row.updatedAt).toISOString(), lastSeenAt: new Date(row.updatedAt).toISOString(), actions: [] })) ,
     ...open.replica.map(issue => ({ issueId: issueId(['replica', issue.pageId]), direction: 'pull' as const,
       code: issue.code, count: 1, firstSeenAt: new Date(issue.at).toISOString(), lastSeenAt: new Date(issue.at).toISOString(), actions: [] }))];
+  const stalled = await readStalledUpload(deps.store, deps.scope);
+  if (stalled) issues.push(stalledUploadIssue(stalled.row, stalled.code, deps.now()));
   const mode = await deps.mode();
-  return projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues, total: open.total });
+  return projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues,
+    total: open.total + (stalled ? 1 : 0) });
+}
+
+/** A sent change the server has kept unsettled; later uploads wait behind it, so the Sync center must see it. */
+function stalledUploadIssue(row: QueueOperation, code: string, now: number): ReplicaHealthIssue {
+  const nodeId = serverNodeId(row.payload.targetId); const title = titleOf(row.payload);
+  return { issueId: issueId(['push', 'stalled', row.opId]), code: CODE.test(code) ? code : 'push_stalled', direction: 'push',
+    ...(nodeId ? { nodeId } : {}), ...(OPAQUE.test(row.opId) ? { opId: row.opId } : {}), ...(title ? { title } : {}),
+    count: Math.max(1, row.retry.attempt), firstSeenAt: instant(row.payload.occurredAt),
+    lastSeenAt: new Date(now).toISOString(), actions: [] };
 }
 
 /** Checks the command against what this browser offers now, not what it offered when the owner asked. */

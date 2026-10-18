@@ -1,4 +1,6 @@
 import { isOpenQueueIssue } from './sync-state/open-issue-facts.js';
+import { classifySyncFailure } from './sync-failure-class.js';
+import type { QueueOperation } from './sync-state-store.js';
 export function cooldownIsPending(input: {
   readonly now: number | undefined;
   readonly sessionNotBefore: number | undefined;
@@ -43,4 +45,28 @@ export function queueStatusProjection(rows: readonly { readonly status?: string;
   if (hasRecoverableQueueWork(rows)) return 'syncing';
   if (hasRejectedBarrier(rows)) return 'rejected';
   return 'idle';
+}
+
+/** Tries a sent change may collect before the lane waiting behind it is reported. */
+export const STALLED_UPLOAD_ATTEMPTS = 8;
+/** The lane statuses a sent change can keep while the server has not settled it. */
+const UNSETTLED_STATUSES: ReadonlySet<string> = new Set(['claimed', 'deferred', 'gap', 'unknown']);
+
+/**
+ * The head of the lane was sent, and the server's answer has kept it unsettled
+ * for many tries: an answer that cannot be read, a result that cannot be
+ * processed, a deferral or sequence gap that never ends. Every later upload
+ * waits behind it, as the protocol requires for a change that may already own
+ * its server sequence, but the wait must be visible. Lost connectivity, a
+ * busy server and authority problems are about the browser, not the change,
+ * and are not reported as a stalled upload.
+ */
+export function stalledUploadHead(rows: readonly QueueOperation[]): { readonly row: QueueOperation; readonly code: string } | undefined {
+  const head = [...rows].filter((row) => UNSETTLED_STATUSES.has(row.status)).sort((left, right) => left.sequence - right.sequence)[0];
+  if (!head || head.attempt === undefined || head.retry.attempt < STALLED_UPLOAD_ATTEMPTS) return undefined;
+  const code = head.status === 'deferred' ? 'push_deferred' : head.recovery?.code;
+  if (!code) return undefined;
+  const policy = classifySyncFailure(code);
+  if (policy?.class === 'transient' || policy?.class === 'authority') return undefined;
+  return { row: head, code };
 }

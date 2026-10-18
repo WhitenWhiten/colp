@@ -70,6 +70,12 @@ export function issueSummary(issue: SyncReplicaIssue): string {
     case 'bounded_string_invalid': return 'A field is too long for this browser to store'
     case 'native_result_unknown': return 'Waiting for a decision in the browser'
     case 'waiting_dependency': return 'Waiting for another change to finish'
+    // A sent change the server keeps unsettled; the browser's later uploads wait behind it.
+    case 'push_deferred': return 'The server keeps deferring this change; later uploads from that browser wait behind it'
+    case 'sequence_gap': return 'The server is waiting for an earlier change first; later uploads from that browser wait behind it'
+    case 'push_response_unrecognized': case 'push_result_processing_failed': case 'push_problem_status_mismatch':
+    case 'push_batch_response_invalid': case 'push_stalled':
+      return 'The server’s answer to this change couldn’t be settled; later uploads from that browser wait behind it'
   }
   // A held upload that offers Retry never reached the server: the browser could not get it ready.
   if (issue.direction === 'push') return issue.actions.includes('retry')
