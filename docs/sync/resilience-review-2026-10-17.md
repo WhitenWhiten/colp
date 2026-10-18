@@ -564,3 +564,33 @@ remain historical and are not claimed as rerun evidence.
 - No temporary service, browser or external database was started by this task.
   Existing services and concurrent work were preserved. The supplied reproduction
   directory is unchanged. No remote push was performed.
+
+## Fourth round (2026-10-18): re-check after the third review
+
+Three production gaps found by probing `e62dfd53` with real-module tests, each with a
+permanent test that failed before its repair:
+
+- `b51061e0` — the circuit breaker's progress signal used the scope checkpoint's server
+  revision, which a renewed Session rebases onto the collection head; any edit on another
+  device reset the window, so a denial loop never tripped while anyone else was active.
+  Progress is now committed work (cursor evidence plus push head); a rebase that only dropped
+  evidence matches the window it continues. `tests/sync-circuit-breaker.test.ts`.
+- `334eb2a1` — a never-sent change failing locally before any request was retried at the
+  lane head forever and reported nowhere. After five identical local failures it is set aside
+  with that code and offered Retry; pause/authority codes never blame the change; a sent change
+  keeps its attempt. `src/push-local-failure.ts`, `tests/push-local-failure-hold.test.ts`.
+- `da3edeb5` — a sent change the server kept unsettled (unreadable answer, failed result
+  processing, endless deferral, sequence gap) blocked the lane silently. After eight tries it is
+  projected as a stalled upload in Status and in the health report (degraded), without becoming
+  an item. Push authority/connectivity settlement codes are registered in the failure table.
+  `tests/push-stalled-head.test.ts`.
+
+Stale tests that already failed at `e62dfd53` were brought to the current contract in
+`ef5d9d79` and `94e5cd9a` (ghost native ids, repair-pass stub, parked-scope copy; T-04
+blocked-page exits are Rebuild / fail-closed integrity). Receipt: 56 affected extension suites,
+512 tests; web Sync tests 28; typecheck, changed-file lint, source-size, i18n and
+`git diff --check` passed. No browser E2E or service was started.
+
+Limits kept: `mapping_identity_conflict` stops the replica until Rebuild; a sent-unsettled head
+still holds the lane (now visible); uncaught engine exceptions at wake start are not reflected in
+health; the server infers activity only for replicas that are behind.
