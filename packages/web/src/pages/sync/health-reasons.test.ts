@@ -29,3 +29,7 @@ test('a stalled upload says the lane behind it waits, instead of claiming a reje
   expect(issueSummary({ ...base, code: 'push_deferred' })).toContain('keeps deferring')
   expect(issueSummary({ ...base, code: 'sequence_gap' })).toContain('earlier change first')
 })
+
+test('a pulled change that collides with an existing mapping names the rebuild exit', () => {
+  expect(stopReason('mapping_identity_conflict')).toBe('its copy of your library needs a rebuild.')
+})

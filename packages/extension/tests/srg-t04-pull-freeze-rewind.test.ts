@@ -9,6 +9,7 @@ import { describe, test } from 'vitest';
 import { createPullApplier } from '../src/pull-applier.js';
 import { digest } from '../src/pull-codec.js';
 import { createDurableSyncEngine } from '../src/durable-sync-engine.js';
+import { needsReplicaRebuild } from '../src/sync-failure-class.js';
 import { createSyncStateStore } from '../src/sync-state-store.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 import {
@@ -233,7 +234,10 @@ describe('T-04 pull block freeze and blocked-page exit', () => {
 });
 
 describe('T-04 engine-driven pull block recovery (F005/F008)', () => {
-  test('never re-pulls the blocked cursor: the next wake refreshes authority and restarts the chain', async () => {
+  // Sync resilience (2026-10-18): a page blocked on a mapping identity conflict is a
+  // replica-class stop whose exit is Rebuild. Later wakes make no Session or Pull
+  // request and keep the blocked page's evidence; the stop is visible as terminal.
+  test('never re-pulls the blocked cursor: the conflict keeps its evidence and waits for Rebuild', async () => {
     const fixture = await setup();
     await fixture.store.putMapping(scope, mappingInput('native-blocker', 'node-created-1'));
     const clock = { now: 1_000 };
@@ -279,24 +283,29 @@ describe('T-04 engine-driven pull block recovery (F005/F008)', () => {
     assert.ok((await fixture.store.exportDiagnostics()).records.some((row) =>
       row.kind === 'pull_page_blocked' && row.code === 'mapping_identity_conflict'));
 
-    clock.now += 600_000;
-    await engine.wake('manual');
+    for (const reason of ['manual', 'startup', 'alarm'] as const) {
+      clock.now += 600_000;
+      await engine.wake(reason);
+    }
     exported = await fixture.store.exportScope(scope);
-    assert.deepEqual(pullRequests, ['cursor-old', 'cursor-refreshed']);
-    assert.deepEqual(forced, [false, true]);
-    assert.equal(exported.scope?.lifecycle, 'active');
-    assert.equal(exported.cursor?.cursor, 'cursor-refreshed');
-    assert.equal(exported.pullPages.some((row) => row.state === 'blocked'), false);
-    assert.equal(exported.engine.recoveryFrozen, false);
-    assert.equal(exported.engine.lastError, undefined);
-    assert.ok((await fixture.store.exportDiagnostics()).records.some((row) =>
-      row.kind === 'pull_page_handover' && row.recoveryCode === 'mapping_identity_conflict'));
+    assert.deepEqual(pullRequests, ['cursor-old'], 'the stale cursor is never re-pulled');
+    assert.deepEqual(forced, [false], 'an active Session cannot clear a local identity conflict');
+    assert.equal(exported.scope?.lifecycle, 'recovery_required');
+    assert.equal(exported.pullPages[0]?.state, 'blocked', 'the evidence stays for Rebuild');
+    assert.equal(exported.engine.recoveryFrozen, true);
+    // The engine row keeps the generic freeze; the scope's recovery code names the cause for Status and health.
+    assert.equal(exported.scope?.metadata?.recoveryCode, 'mapping_identity_conflict');
+    assert.equal(needsReplicaRebuild(exported.scope?.metadata?.recoveryCode as string), true);
     fixture.store.close();
   });
 });
 
 describe('T-04 recovery capability premature freeze', () => {
-  test('a pull_page_reuse freeze never re-pulls the stale cursor: authority refresh comes first', async () => {
+  // Sync resilience (2026-10-18, third review task 3): a stream integrity failure is
+  // fail-closed. The wake refreshes authority first, but an ordinary active Session
+  // cannot bypass it: the stale cursor is never re-pulled, the stop keeps its cause,
+  // and the breaker counts the integrity refresh so repeats stop automatic probes.
+  test('a pull_page_reuse freeze never re-pulls the stale cursor: an active Session cannot clear it', async () => {
     const fixture = await engineSetup();
     await fixture.store.transitionEngine(engineScope, { phase: 'recovery', updatedAt: 1, recoveryFrozen: true,
       authorityRefreshRequired: true, notBefore: 0, lastError: 'pull_page_reuse' });
@@ -308,13 +317,12 @@ describe('T-04 recovery capability premature freeze', () => {
     await fixture.engine.wake('alarm');
     const requests = fixture.pullRequests.map((url) => new URL(url).searchParams.get('cursor'));
     assert.equal(fixture.sessionForces[0], true);
-    assert.deepEqual(requests, ['cursor-refreshed']);
-    assert.equal(requests.includes('cursor-0'), false);
+    assert.deepEqual(requests, [], 'neither the stale nor the refreshed cursor is pulled under the integrity stop');
     const exported = await fixture.store.exportScope(engineScope);
-    assert.equal(exported.cursor?.cursor, 'cursor-advanced');
-    assert.equal(exported.scope?.lifecycle, 'active');
-    assert.equal(exported.engine.recoveryFrozen, false);
-    assert.equal(exported.engine.lastError, undefined);
+    assert.equal(exported.scope?.lifecycle, 'recovery_required');
+    assert.equal(exported.engine.recoveryFrozen, true);
+    assert.equal(exported.engine.lastError, 'pull_page_reuse');
+    assert.equal(exported.engine.circuitBreaker?.failures[0]?.code, 'replica_integrity_refresh');
     fixture.store.close();
   });
 

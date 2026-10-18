@@ -28,8 +28,8 @@ export function replicaBadge(replica: SyncReplicaView): { readonly tone: StatusT
 const RECORD_CODES = new Set(['record_too_large', 'bounded_string_invalid', 'secret_field_forbidden', 'i_json_invalid',
   'operation_schema_invalid', 'operation_byte_budget_exceeded'])
 const REBUILD_CODES = new Set(['pull_apply_target_missing', 'pull_apply_evidence_missing', 'anchor_mapping_missing',
-  'legacy_resolution_sequence_collision', 'mapping_identity_collision', 'create_ambiguous', 'create_evidence_missing',
-  'snapshot_projection_incomplete'])
+  'legacy_resolution_sequence_collision', 'mapping_identity_collision', 'mapping_identity_conflict', 'create_ambiguous',
+  'create_evidence_missing', 'snapshot_projection_incomplete'])
 const STOP_REASONS: Readonly<Record<string, string>> = {
   create_placement_unproven: 'it can’t tell where a saved bookmark belongs.',
   create_placement_parent_deleted: 'a saved bookmark’s folder was deleted before the bookmark synced.',

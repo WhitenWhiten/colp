@@ -15,6 +15,8 @@ import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import { createDurableSyncEngine } from '../src/durable-sync-engine.js';
 import { shouldFreezePullApply } from '../src/pull-recovery-freeze.js';
+import { syncAttentionTerminalCode } from '../src/sync-attention-ui.js';
+import { needsReplicaRebuild } from '../src/sync-failure-class.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 import { installKns05IndexedDb, mappingInput, scope, setup } from './kns-05-pull-harness.js';
 
@@ -30,7 +32,12 @@ function session(cursor: string) {
 }
 
 describe('T-04R2 acceptance: a blocked page always has an exit', () => {
-  test('rebased authority hands the blocked page over, restarts the chain and reactivates the scope', async () => {
+  // Sync resilience (2026-10-18): a mapping identity conflict is a replica-class stop
+  // whose exit is Rebuild. The engine never re-pulls the stale cursor, never mints a
+  // Session to get past it, and keeps the blocked page's evidence, even when the
+  // server's checkpoint for the replica has moved on. Status and health show it as
+  // terminal with Rebuild; the automatic handover exit remains for authority codes.
+  test('a mapping identity conflict keeps its evidence and waits for Rebuild instead of looping', async () => {
     const fixture = await setup();
     const clock = { now: 1_000 }; const forced: boolean[] = []; const pullCursors: string[] = [];
     // The replica checkpoint only moves once the server has accepted the acked page; until
@@ -73,37 +80,29 @@ describe('T-04R2 acceptance: a blocked page always has an exit', () => {
     assert.equal(blocked.engine.recoveryFrozen, true);
     assert.equal(blocked.engine.authorityRefreshRequired, true);
 
-    // wake 1: same authority head + byte-conflicting growth page => named freeze, never
-    // a raw ConstraintError under an active lifecycle.
-    clock.now += 600_000;
-    await engine.wake('manual');
-    const conflicted = await fixture.store.exportScope(scope);
-    assert.equal(conflicted.engine.lastError, 'pull_event_conflict');
-    assert.equal(conflicted.engine.recoveryFrozen, true);
-    assert.equal(conflicted.scope?.lifecycle, 'recovery_required');
-    assert.equal(conflicted.pullEvents.length, 1, 'the conflicting page rolled back');
-    assert.equal(conflicted.pullPages[0]?.state, 'blocked');
+    assert.equal(blocked.scope?.lifecycle, 'recovery_required');
+    assert.equal(blocked.scope?.metadata?.recoveryCode, 'mapping_identity_conflict');
 
-    // wake 2: the replica checkpoint advances, so the forced refresh rebases the cursor
-    // and the stale blocked page is handed over; the chain restarts and completes.
-    serverCursor = 'cursor-next-2'; clock.now += 600_000;
-    await engine.wake('manual');
-    const recovered = await fixture.store.exportScope(scope);
-    assert.equal(recovered.scope?.lifecycle, 'active');
-    assert.equal(recovered.cursor?.cursor, 'cursor-next-2');
-    assert.equal(recovered.pullPages.filter((page) => page.state === 'blocked').length, 0,
-      'no page is left neither replayed nor completed');
-    assert.equal(recovered.engine.recoveryFrozen, false);
-    assert.notEqual(recovered.engine.lastError, 'constraint_error');
-    const diagnostics = (await fixture.store.exportDiagnostics()).records;
-    assert.ok(diagnostics.some((row) => row.kind === 'pull_page_handover'
-      && row.code === 'stale_blocked_page_discarded'));
-    assert.ok(diagnostics.some((row) => row.kind === 'pull_page_blocked'));
+    // wakes 1-3: with and without the replica checkpoint advancing on the server, the
+    // engine makes no Pull or Session request and the blocked page keeps its evidence.
+    for (const [reason, cursor] of [['manual', 'cursor-old'], ['startup', 'cursor-next-2'], ['alarm', 'cursor-next-2']] as const) {
+      serverCursor = cursor; clock.now += 600_000;
+      await engine.wake(reason);
+    }
+    const held = await fixture.store.exportScope(scope);
+    assert.equal(held.scope?.lifecycle, 'recovery_required');
+    assert.equal(held.engine.recoveryFrozen, true);
+    assert.equal(held.scope?.metadata?.recoveryCode, 'mapping_identity_conflict');
+    assert.equal(held.pullPages[0]?.state, 'blocked');
+    assert.equal(held.pullEvents.length, 1, 'the applied event stays as evidence for Rebuild');
+    assert.equal(held.cursor?.cursor ?? held.scope?.checkpoint?.cursor, 'cursor-old');
     assert.equal((await fixture.store.auditIntegrity()).outcome, 'valid');
-    // The decisive anti-loop evidence: the third Pull uses the rebased cursor, not the
-    // stale one, and every retry was preceded by a forced Session refresh.
-    assert.deepEqual(pullCursors, ['cursor-old', 'cursor-old', 'cursor-next-2']);
-    assert.deepEqual(forced, [false, true, true]);
+    // The decisive anti-loop evidence: one Pull, one Session, and a terminal exit.
+    assert.deepEqual(pullCursors, ['cursor-old']);
+    assert.deepEqual(forced, [false]);
+    assert.equal(syncAttentionTerminalCode(held.engine.lastError, held.scope?.metadata?.recoveryCode as string),
+      'mapping_identity_conflict');
+    assert.equal(needsReplicaRebuild('mapping_identity_conflict'), true);
     fixture.store.close();
   });
 });
@@ -111,7 +110,9 @@ describe('T-04R2 acceptance: a blocked page always has an exit', () => {
 describe('T-04R2 acceptance: freeze surface and forward path', () => {
   test('freezes only the block family and keeps transport/staging failures retryable', () => {
     for (const code of ['pull_page_reuse', 'recovery_required', 'recovery_capability_premature',
-      'recovery_capability_invalid', 'recovery_authority_invalid', 'pull_event_conflict']) {
+      'recovery_capability_invalid', 'recovery_authority_invalid', 'pull_event_conflict',
+      // Snapshot integrity failures are fail-closed too (third review, task 3).
+      'snapshot_chain_invalid', 'snapshot_graph_incomplete']) {
       assert.equal(shouldFreezePullApply(new Error(code)), true, code);
     }
     // `constraint_error` is a generic IndexedDB failure: the B1 fix removes its cause
@@ -119,7 +120,7 @@ describe('T-04R2 acceptance: freeze surface and forward path', () => {
     for (const code of ['pull_failed', 'rate_limited', 'network_unavailable', 'pull_page_pending',
       'pull_cursor_discontinuous', 'pull_cursor_missing', 'pull_page_incomplete', 'pull_effect_gate_closed',
       'effect_endpoint_binding_invalid', 'pull_transport_unavailable', 'pull_cursor_not_durable',
-      'snapshot_chain_invalid', 'snapshot_graph_incomplete', 'snapshot_http_503', 'payload_too_large',
+      'snapshot_http_503', 'payload_too_large',
       'native_result_unknown', 'range_dependency_pending', 'sync_paused', 'constraint_error']) {
       assert.equal(shouldFreezePullApply(new Error(code)), false, code);
     }
