@@ -17,5 +17,6 @@ packages/server/openapi
 packages/web/e2e
 packages/web/docs
 packages/web/upstream-fixtures
-protocol
+protocol/*
+!protocol/replica-health-limits.json
 docs

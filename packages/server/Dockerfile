@@ -12,7 +12,8 @@
 #   runtime       runtime-deps node_modules, dist, UI at /srv/web
 #
 # Build context is the repository root: the server stage needs packages/server
-# and the web stage needs packages/web plus packages/server/generated.
+# plus the replica-health limit check inputs, and the web stage needs
+# packages/web plus packages/server/generated.
 #
 # deploy/compose.yaml mounts the named volume colp-web on /srv/web (Caddy
 # mounts the same volume read-only and serves it). That mount hides the image
@@ -37,7 +38,10 @@ RUN npm run build \
     && cp /src/docs/CHANGELOG.md /src/docs/INSTALL.md dist/
 
 FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS server-build
-WORKDIR /app
+# Keep the repo layout. `npm run build` runs
+# ../../scripts/generate-replica-health-limits.mjs --check, and that script
+# resolves the repo root from its own path.
+WORKDIR /src/packages/server
 COPY packages/server/package.json packages/server/package-lock.json ./
 # Lifecycle scripts stay off (repo .npmrc). esbuild still needs its install
 # script for the migrations bundle in `npm run build`. Same idea as Know-N's
@@ -51,6 +55,9 @@ COPY packages/server/src ./src
 COPY packages/server/generated ./generated
 COPY packages/server/migrations ./migrations
 COPY packages/server/scripts ./scripts
+COPY scripts/generate-replica-health-limits.mjs /src/scripts/generate-replica-health-limits.mjs
+COPY protocol/replica-health-limits.json /src/protocol/replica-health-limits.json
+COPY packages/extension/src/generated/replica-health-limits.ts /src/packages/extension/src/generated/replica-health-limits.ts
 RUN npm run build \
     && test -d dist/migrations
 
@@ -74,7 +81,7 @@ RUN apk add --no-cache su-exec \
     && mkdir -p /srv/web /opt/colp-web
 COPY --from=runtime-deps /app/package.json /app/package-lock.json ./
 COPY --from=runtime-deps /app/node_modules ./node_modules
-COPY --from=server-build /app/dist ./dist
+COPY --from=server-build /src/packages/server/dist ./dist
 COPY --from=web-build /src/packages/web/dist /opt/colp-web
 COPY --from=web-build /src/packages/web/dist /srv/web
 COPY packages/server/docker-entrypoint.sh /usr/local/bin/colp-entrypoint
