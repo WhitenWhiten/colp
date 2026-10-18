@@ -911,14 +911,10 @@ button.library-bookmark-tag:hover {
   }
 }
 
-.library-compose {
-  margin-bottom: var(--space-5);
-}
-
-/* FE-11: the compose form's inputs stay within the prose measure instead of
-   stretching across the whole desk column. */
-.library-compose .field input {
-  max-width: 36rem;
+/* New folder / Add bookmark (ComposeDialog): a few short fields, so the
+   window is narrower than the 36rem default. */
+.library-compose-dialog {
+  width: min(100%, 32rem);
 }
 
 /* The shared folder layer (FolderEntries), fitted to the desk column — the

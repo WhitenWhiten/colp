@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type Dispatch, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
+import { useMemo, type Dispatch, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
 import { Link } from 'react-router-dom'
 import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { FolderEntries } from '../../components/FolderEntries'
@@ -88,8 +88,6 @@ export function BookmarkArea({
   onEditCollection: () => void
   onShareFolder: (node: import('../../lib/libraryTree').FolderNode) => void
 }) {
-  const titleRef = useRef<HTMLInputElement>(null)
-  const urlRef = useRef<HTMLInputElement>(null)
   const {
     selectedId,
     snap,
@@ -113,30 +111,7 @@ export function BookmarkArea({
     exitSelectMode,
     toggleSelected,
   } = selection
-  const {
-    compose,
-    setCompose,
-    busy,
-    createTitle,
-    createParentId, setCreateParentId,
-    setCreateTitle,
-    createUrl,
-    setCreateUrl,
-    createUrlError,
-    setCreateUrlError,
-    createTitleError,
-    setCreateTitleError,
-    openCompose,
-    onCreate,
-    requestDelete,
-  } = mutations
-
-  useEffect(() => {
-    if (!compose) return
-    // Bookmarks lead with the URL (the one required field); folders keep Title.
-    if (compose === 'bookmark') urlRef.current?.focus()
-    else titleRef.current?.focus()
-  }, [compose])
+  const { openCompose, requestDelete } = mutations
 
   const layer = useMemo(
     () => (snap ? immediateEntries(snap.root, snap.nodes, folderId) : null),
@@ -445,69 +420,6 @@ export function BookmarkArea({
         />
       ) : (
         <>
-          {compose && (
-        <form className="edit-form panel panel-pad library-compose" data-testid="library-compose" onSubmit={(event) => void onCreate(event)}>
-          <h2 className="editor-section-title mt-0">{compose === 'folder' ? 'New folder' : 'Add bookmark'}</h2>
-          {snap?.collection.library && !selectedFolder && <div className="field">
-            <label htmlFor="lc-parent">Create in</label>
-            <select id="lc-parent" value={createParentId} onChange={event => setCreateParentId(event.target.value)} required disabled={busy}>
-              <option value="">Choose a folder</option>
-              {snap.nodes.filter(node => node.kind === 'folder' && node.parentId === snap.root.id).map(node => <option key={node.id} value={node.id}>{node.title}</option>)}
-            </select>
-          </div>}
-          {compose === 'bookmark' && (
-            <div className="field">
-              <label htmlFor="lc-url">URL</label>
-              <input
-                id="lc-url"
-                ref={urlRef}
-                value={createUrl}
-                onChange={(event) => {
-                  setCreateUrl(event.target.value)
-                  setCreateUrlError(null)
-                }}
-                disabled={busy}
-                maxLength={4096}
-                aria-invalid={createUrlError ? true : undefined}
-                aria-describedby={createUrlError ? 'lc-url-error' : undefined}
-              />
-              {createUrlError && (
-                <p id="lc-url-error" className="field-error" role="alert">{createUrlError}</p>
-              )}
-            </div>
-          )}
-          <div className="field">
-            <label htmlFor="lc-title">
-              {compose === 'bookmark' ? 'Title (optional)' : 'Title'}
-            </label>
-            <input
-              id="lc-title"
-              ref={titleRef}
-              value={createTitle}
-              onChange={(event) => {
-                setCreateTitle(event.target.value)
-                setCreateTitleError(null)
-              }}
-              disabled={busy}
-              maxLength={512}
-              aria-invalid={createTitleError ? true : undefined}
-              aria-describedby={createTitleError ? 'lc-title-error' : undefined}
-            />
-            {createTitleError && (
-              <p id="lc-title-error" className="field-error" role="alert">{createTitleError}</p>
-            )}
-          </div>
-          <div className="row-end">
-            <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setCompose(null)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
-              {busy ? 'Adding…' : 'Add'}
-            </button>
-          </div>
-        </form>
-      )}
-
       {filtering ? (
         bookmarks.length === 0 ? (
           <EmptyState

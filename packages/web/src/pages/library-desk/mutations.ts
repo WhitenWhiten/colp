@@ -9,7 +9,7 @@ import {
 import type { ToastAction } from '../../components/AppToast'
 import type { DestinationPick } from '../../components/CollectionDestinationPicker'
 import { useConfirm } from '../../components/ConfirmModal'
-import type { BookmarkNode, FolderNode } from '../../lib/libraryTree'
+import { childFolders, rootTitle, type BookmarkNode, type FolderNode } from '../../lib/libraryTree'
 import { retag } from '../../lib/libraryTags'
 import { plural } from '../../lib/plural'
 import type { TreeEntry } from './data'
@@ -135,6 +135,7 @@ export function useLibraryDeskMutations(options: {
   const [createUrl, setCreateUrl] = useState('https://')
   const [createUrlError, setCreateUrlError] = useState<string | null>(null)
   const [createTitleError, setCreateTitleError] = useState<string | null>(null)
+  const [createParentError, setCreateParentError] = useState<string | null>(null)
 
   const resetCompose = useCallback(() => {
     setCompose(null)
@@ -142,15 +143,24 @@ export function useLibraryDeskMutations(options: {
     setCreateUrl('https://')
     setCreateUrlError(null)
     setCreateTitleError(null)
+    setCreateParentError(null)
   }, [])
 
+  /* The dialog starts in the folder on screen. The library root holds only
+     the browser folders, so from there it starts in the first of them. */
   const openCompose = (kind: ComposeKind) => {
     setCompose(kind)
-    setCreateParentId(options.parentId === snap?.root.id ? '' : options.parentId)
+    const atRoot = !options.parentId || options.parentId === snap?.root.id
+    setCreateParentId(!atRoot
+      ? options.parentId
+      : snap?.collection.library
+        ? childFolders(snap.root.id, snap.nodes)[0]?.id ?? ''
+        : snap?.root.id ?? '')
     setCreateTitle('')
     setCreateUrl('https://')
     setCreateUrlError(null)
     setCreateTitleError(null)
+    setCreateParentError(null)
   }
 
   const onCreate = async (event: React.FormEvent) => {
@@ -186,8 +196,12 @@ export function useLibraryDeskMutations(options: {
       // Title is optional for bookmarks: an empty one falls back to the host.
       if (!title) title = parsed.hostname.replace(/^www\./, '') || rawUrl
     }
-    const parentId = snap.collection.library ? createParentId : options.parentId || snap.root.id
-    if (!parentId) { error('Choose where this item goes.'); document.getElementById('lc-parent')?.focus(); return }
+    const parentId = createParentId || (snap.collection.library ? '' : snap.root.id)
+    if (!parentId) {
+      setCreateParentError('Choose a folder')
+      document.getElementById('lc-parent')?.focus()
+      return
+    }
     setBusy(true)
     try {
       const intentId = productClient.mutationIntentKey(
@@ -207,7 +221,22 @@ export function useLibraryDeskMutations(options: {
         },
         { intentId },
       )
-      success(compose === 'folder' ? 'Folder created' : 'Bookmark created')
+      // Created somewhere other than the folder on screen: offer the way there.
+      const created = compose === 'folder' ? 'Folder created' : 'Bookmark created'
+      if (parentId === (options.parentId || snap.root.id)) success(created)
+      else {
+        const parentTitle = parentId === snap.root.id
+          ? rootTitle(snap.collection)
+          : snap.nodes.find((node) => node.id === parentId)?.title ?? 'folder'
+        success(created, {
+          action: {
+            label: `View in ${parentTitle}`,
+            to: parentId === snap.root.id
+              ? `/library/${encodeURIComponent(snap.collection.id)}`
+              : `/library/${encodeURIComponent(snap.collection.id)}?folder=${encodeURIComponent(parentId)}`,
+          },
+        })
+      }
       setCompose(null)
       setCreateTitle('')
       setCreateUrl('https://')
@@ -569,6 +598,8 @@ export function useLibraryDeskMutations(options: {
     setCreateUrlError,
     createTitleError,
     setCreateTitleError,
+    createParentError,
+    setCreateParentError,
     resetCompose,
     openCompose,
     onCreate,

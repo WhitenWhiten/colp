@@ -18,6 +18,7 @@ import type { useLibrary } from '../../lib/useLibrary'
 import type { useSharedCollections } from '../../lib/useSharedCollections'
 import { BookmarkArea } from './BookmarkArea'
 import { BulkActionBar } from './BulkActionBar'
+import { ComposeDialog } from './ComposeDialog'
 import { GetStarted, getStartedHidden } from './GetStarted'
 import type { LibraryDeskData } from './data'
 import type { LibraryLayerReorder } from './layerReorder'
@@ -340,6 +341,7 @@ export function LibraryDeskView({
       {sharingFolder && snap && <FolderShareDialog key={`${snap.collection.id}:${sharingFolder.id}`}
         collectionId={snap.collection.id} nodeId={sharingFolder.id} title={sharingFolder.title}
         onClose={closeShare} onChanged={() => data.loadTree(snap.collection.id, { silent: true })} />}
+      <ComposeDialog snap={snap} mutations={mutations} />
       <LibraryOverlays
         collections={collections}
         shared={shared}

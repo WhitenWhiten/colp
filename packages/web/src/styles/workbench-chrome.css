@@ -256,8 +256,4 @@
   cursor: not-allowed;
   transform: none;
 }
-
-.editor-section-title {
-  font-size: var(--text-base);
-}
 }

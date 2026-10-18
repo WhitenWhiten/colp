@@ -454,7 +454,8 @@ describe('LibraryDesk', () => {
     // URL comes first in the form; the title is explicitly optional.
     expect(url.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(document.querySelector('label[for="lc-title"]')?.textContent).toBe('Title (optional)')
-    expect(document.activeElement).toBe(url)
+    // The dialog focuses the URL on its first frame.
+    await waitForDom(() => document.activeElement === url)
     setControlValue(url, 'https://www.example.com/some/page')
     await act(async () => {
       document.querySelector<HTMLFormElement>('[data-testid="library-compose"]')?.requestSubmit()
@@ -473,6 +474,56 @@ describe('LibraryDesk', () => {
       expect.anything(),
     )
     expect(mocks.success).toHaveBeenCalledWith('Bookmark created')
+  })
+
+  it('starts the library root compose in its first folder and lists folders by path', async () => {
+    mocks.loadEditorSnapshot.mockImplementation((id: string) => {
+      const snap = snapshot(id)
+      return Promise.resolve({ ...snap, collection: { ...snap.collection, library: true } })
+    })
+    mocks.createCollectionNode.mockResolvedValue({})
+    mount()
+    await waitForDom(domFinishedLoading)
+    openBookmarkCompose()
+    const parent = document.getElementById('lc-parent') as HTMLSelectElement
+    // The library root holds only folders, so there is no root option.
+    expect([...parent.options].map((option) => option.textContent)).toEqual(['Later'])
+    expect(parent.value).toBe('col-1-folder')
+    setControlValue(document.getElementById('lc-url') as HTMLInputElement, 'https://added.example')
+    await act(async () => {
+      document.querySelector<HTMLFormElement>('[data-testid="library-compose"]')?.requestSubmit()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.createCollectionNode).toHaveBeenCalledWith('col-1', expect.objectContaining({ parentId: 'col-1-folder' }), expect.anything())
+    // Filed somewhere other than the folder on screen: the toast leads there.
+    expect(mocks.success).toHaveBeenCalledWith('Bookmark created', {
+      action: { label: 'View in Later', to: '/library/col-1?folder=col-1-folder' },
+    })
+  })
+
+  it('asks for a folder inline when the library root has none to start in', async () => {
+    mocks.loadEditorSnapshot.mockImplementation((id: string) => {
+      const snap = snapshot(id)
+      return Promise.resolve({
+        ...snap,
+        collection: { ...snap.collection, library: true },
+        nodes: snap.nodes.filter((node) => node.kind === 'bookmark').map((node) => ({ ...node, parentId: snap.root.id })),
+      })
+    })
+    mount()
+    await waitForDom(domFinishedLoading)
+    openBookmarkCompose()
+    setControlValue(document.getElementById('lc-url') as HTMLInputElement, 'https://added.example')
+    await act(async () => {
+      document.querySelector<HTMLFormElement>('[data-testid="library-compose"]')?.requestSubmit()
+      await Promise.resolve()
+    })
+    expect(mocks.createCollectionNode).not.toHaveBeenCalled()
+    expect(mocks.error).not.toHaveBeenCalled()
+    const alert = document.getElementById('lc-parent-error')
+    expect(alert?.textContent).toBe('Choose a folder')
+    expect(document.getElementById('lc-parent')?.getAttribute('aria-describedby')).toBe('lc-parent-error')
   })
 
   it('shows inline URL validation with role=alert instead of a toast', async () => {
