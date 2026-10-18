@@ -33,11 +33,12 @@ async function someLiveQueueRow(queue: IDBObjectStore, key: string,
  * work behind it, or one bad row wedges outbound push forever.
  */
 export async function firstLiveQueueRow(queue: IDBObjectStore, key: string,
-  maxRecordBytes: number): Promise<QueueOperation | null> {
+  maxRecordBytes: number, afterSequence = 0): Promise<QueueOperation | null> {
   const index = queue.index(INDEXES.queueByStatusSequence); const candidates: QueueOperation[] = [];
+  if (afterSequence >= Number.MAX_SAFE_INTEGER) return null;
   for (const status of LIVE_STATUSES) {
     const value = await requestValue(index.get(
-      IDBKeyRange.bound([key, status, 1], [key, status, Number.MAX_SAFE_INTEGER])));
+      IDBKeyRange.bound([key, status, afterSequence + 1], [key, status, Number.MAX_SAFE_INTEGER])));
     if (value) candidates.push(validateQueueRecord(value, maxRecordBytes));
   }
   return candidates.sort((left, right) => left.sequence - right.sequence)[0] ?? null;

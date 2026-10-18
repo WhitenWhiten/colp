@@ -1,3 +1,4 @@
+import { hasConflictBarrier } from './engine-public-stability.js';
 import { mappingLooksAuthoritative, type SaveStatusFacts, type SaveStatusPaint } from './save-status.js';
 import type { BookmarkEventRecord, QueueOperation, SyncScope } from './sync-state/types.js';
 
@@ -37,7 +38,7 @@ export async function collectSaveStatusFacts(input: {
     const row = await input.store.getQueueByOpId(input.scope, event.opId);
     if (row) queueRows.push(row);
   }
-  const relatedConflict = queueRows.some((row) => row.status === 'blocked' && row.recovery?.code === 'conflict_pending');
+  const relatedConflict = hasConflictBarrier(queueRows);
   const relatedRejected = queueRows.some((row) => row.status === 'rejected');
   const relatedHeld = queueRows.some((row) => row.status === 'set_aside');
   const relatedReuseUnknown = queueRows.some((row) => row.status === 'unknown'

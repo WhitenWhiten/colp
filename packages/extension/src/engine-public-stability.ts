@@ -20,14 +20,16 @@ export function hasRecoverableQueueWork(rows: readonly { readonly status?: strin
 }
 
 /**
- * A conflicted push is a designed order barrier: the row stays blocked until
- * the server's resolution arrives through Pull. It needs no local recovery,
- * but the UI must be able to say "waiting on a conflict" instead of a vague
- * pending state that never seems to finish.
+ * A conflicted push waits for the server's resolution to arrive through Pull,
+ * and later changes of the same bookmark are held with it (`conflict_hold`);
+ * the rest of the lane keeps syncing. It needs no local recovery, but the UI
+ * must be able to say "waiting on a conflict" instead of a vague pending state
+ * that never seems to finish.
  */
 export function hasConflictBarrier(rows: readonly { readonly status?: string;
   readonly recovery?: { readonly code?: string } }[]): boolean {
-  return rows.some((row) => row.status === 'blocked' && row.recovery?.code === 'conflict_pending');
+  return rows.some((row) => (row.status === 'blocked' && row.recovery?.code === 'conflict_pending')
+    || (row.status === 'set_aside' && row.recovery?.code === 'conflict_hold'));
 }
 
 export function hasRejectedBarrier(rows: readonly { readonly status?: string }[]): boolean {

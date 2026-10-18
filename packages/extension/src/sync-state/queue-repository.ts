@@ -1,10 +1,9 @@
-import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
-import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt,
-  firstLiveQueueRow } from './queue-live-work.js';
+import { firstLaneQueueRow, holdable, holdIfWaiting, holdWaitingRows } from './queue-conflict-hold.js';
+import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt } from './queue-live-work.js';
 import {
   SyncStateError, type DurableSyncEngineState, type FaultOptions, type JsonObject, type LeaseRecord, type LeaseResult,
-  type PushSettlement, type QueueOperation, type ReceiptInput, type SyncScope, type UnknownRecord, type MappingInput,
+  type PushSettlement, type QueueOperation, type ReceiptInput, type SyncScope, type MappingInput,
 } from './types.js';
 import { boundedString, clone, safeInteger, validateJson } from './codec.js';
 import { constraintError, inject } from './errors.js';
@@ -23,32 +22,6 @@ import { rebindCreateInTransaction, rebindProjectionInTransaction, assertAuthori
   assertAuthoritativeProjectionReceipt, validateMapping } from './mapping-repository.js';
 import { settleImportNode, unavailableImportOpIds } from './import-settle.js';
 import type { SyncStoreRuntime } from './runtime.js';
-
-
-
-export async function settleResolvedConflictQueue(tx: IDBTransaction, key: string, event: UnknownRecord, maxBytes: number) {
-  const bindings = conflictResolutionBindings(event);
-  const queueStore = tx.objectStore(STORES.queue);
-  for (const binding of bindings) {
-    const raw = await requestValue(queueStore.index(INDEXES.queueByOpId).get([key, binding.opId]));
-    if (!raw) continue;
-    const queued = validateQueueRecord(raw, maxBytes);
-    if (queued.status === 'terminal' && queued.echoApplied === true) continue;
-    if (queued.status !== 'terminal' && (queued.status !== 'blocked' || queued.recovery?.code !== 'conflict_pending')) {
-      throw new SyncStateError('conflict_resolution_binding_invalid');
-    }
-    const receiptRaw = await requestValue(tx.objectStore(STORES.receipts).index('by_scope_sequence')
-      .get([key, queued.sequence]));
-    const receipt = receiptRaw ? validateReceipt(key, queued.sequence, receiptRaw, maxBytes) : null;
-    const results = Array.isArray(receipt?.result?.results) ? receipt.result.results : [];
-    const matched = results.some((candidate) => candidate && typeof candidate === 'object' && !Array.isArray(candidate)
-      && (candidate as UnknownRecord).opId === binding.opId
-      && (binding.conflictId === undefined || (candidate as UnknownRecord).conflictId === binding.conflictId)
-      && ['conflicted', 'conflict'].includes(String((candidate as UnknownRecord).status)));
-    if (!matched) throw new SyncStateError('conflict_resolution_binding_invalid');
-    queueStore.put(validateQueueRecord({ ...queued, status: 'terminal', echoApplied: true, recovery: undefined }, maxBytes));
-  }
-}
 
 /** Every bounded queue read shares one ceiling and one error code. */
 function boundedLimit(limit?: number): void {
@@ -115,6 +88,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       committed = stampValidate && stampDigest
         ? stampColpQueueRecord(input, key, operation, sequence, maxRecordBytes, stampValidate, stampDigest)
         : { ...operation, scopeKey: key, sequence };
+      committed = await holdIfWaiting(queue, key, committed, maxRecordBytes);
       sequences.put({ scopeKey: key, next: sequence + 1 }); inject(faults.fault, 'after_sequence', tx);
       queue.add(committed); inject(faults.fault, 'after_queue', tx);
       if (provisional) {
@@ -283,7 +257,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId');
     safeInteger(fence, 'fence', 1); safeInteger(now, 'now'); const db = await writableDatabase();
     let claimed: QueueOperation | null = null;
-    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.importPlans, STORES.importNodes], 'readwrite', async (tx) => {
+    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.importPlans,
+      STORES.importNodes], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || lease.expiresAt <= now) {
         throw new SyncStateError('stale_fence');
@@ -294,8 +269,14 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       // of terminal rows. firstLiveQueueRow reads the earliest row per
       // non-terminal status instead, and rejected rows are settled history:
       // a permanently refused operation must not mask the pending work behind
-      // it, or one bad row wedges outbound push forever.
-      const first = await firstLiveQueueRow(queue, key, maxRecordBytes);
+      // it, or one bad row wedges outbound push forever. A consumed conflict
+      // holds only its own bookmark; a change queued before that was known is
+      // held now, with every later change waiting with it.
+      const receipts = tx.objectStore(STORES.receipts);
+      let first = await firstLaneQueueRow(queue, receipts, key, maxRecordBytes);
+      if (first && holdable(first) && await holdWaitingRows(queue, key, maxRecordBytes, first.sequence - 1) > 0) {
+        first = await firstLaneQueueRow(queue, receipts, key, maxRecordBytes);
+      }
       if (!first || first.retry.notBefore > now || first.status === 'gap' || first.status === 'blocked') return;
       if ((await unavailableImportOpIds(tx, key)).has(first.opId)) return;
       if (first.status === 'claimed' && first.retry.ownerId === ownerId && first.retry.fence === fence
@@ -338,14 +319,14 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     if (typeof digestOperation !== 'function') throw new SyncStateError('operation_validator_missing');
     const db = await writableDatabase();
     let mode: 'renumber_down' | 'renumber_up' | 'resume_at_expected' | undefined;
-    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.sequences], 'readwrite', async (tx) => {
+    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.sequences], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || lease.expiresAt <= now) {
         throw new SyncStateError('stale_fence');
       }
       const queue = tx.objectStore(STORES.queue);
-      const head = await firstLiveQueueRow(queue, key, maxRecordBytes);
+      const head = await firstLaneQueueRow(queue, tx.objectStore(STORES.receipts), key, maxRecordBytes);
       const expected = head?.status === 'gap' ? head.recovery?.expectedSequence : undefined;
       if (!head || expected === undefined) return;
       const sequences = tx.objectStore(STORES.sequences);
@@ -495,6 +476,9 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
             ...(settlement.outcome === 'blocked' ? { recovery: settlement.recovery } : { recovery: undefined }),
             retry: { attempt: settlement.retry?.attempt ?? queued.retry.attempt,
               notBefore: settlement.retry?.notBefore ?? queued.retry.notBefore } }, maxRecordBytes));
+          // A conflicted result consumed its sequence: later changes of the same
+          // bookmark wait for the resolution; everything else keeps the lane.
+          if (settlement.outcome === 'blocked') await holdWaitingRows(queue, key, maxRecordBytes, sequence);
           await settleImportNode(tx, key, queued.opId, settlement.outcome, receipt.result);
           await persistPushPullHint(tx, key, receipt.result, maxRecordBytes);
           return;

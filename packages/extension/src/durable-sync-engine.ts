@@ -19,6 +19,7 @@ import { sessionTransportBudget } from './colp-transport-budget-browser.js';
 import { mayUnfreezeForCompletedBootstrapAck, pendingNativeOrPullFacts } from './bootstrap-ack-unfreeze.js';
 import { recoverSnapshot } from './durable-sync-engine-recovery.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
+import { releaseSettledConflictHolds } from './outbound-push-settlement.js';
 const DEFAULT_PULL_LIMIT = 100; const MAX_PULL_PAGES_PER_WAKE = 20; const MAX_NETWORK_BACKOFF_MS = 30_000;
 // SYNC-F003: clamp the advisory pull cadence to the backend max (86_400s).
 const MAX_RECOMMENDED_PULL_AFTER_SECONDS = 86_400;
@@ -240,6 +241,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
       const pulled = await pull(authority);
       if (pulled === 'recovery') return state();
       if (pulled === 'offline') return options.store.getEngineState(options.scope);
+      // The Pull may have settled a conflict; the changes held for it rejoin the lane now.
+      await releaseSettledConflictHolds(options.store, options.scope);
       const afterPull = await firstOutstanding();
       if (afterPull && !afterPull.attempt) {
         await transition('pushing', { sessionId: authority.session.sessionId });
@@ -493,14 +496,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
     });
     return authority;
   }
-  async function firstOutstanding() {
-    const live: Array<'pending' | 'claimed' | 'deferred' | 'gap' | 'blocked' | 'unknown'> = [
-      'pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown',
-    ];
-    const heads = await Promise.all(live.map((status) => options.store.listQueue(options.scope, status, 0, 1)));
-    const candidates = heads.flat();
-    return candidates.sort((left, right) => left.sequence - right.sequence)[0] ?? null;
-  }
+  /** The lane head. A conflict the server already consumed waits for Pull, not for this lane. */
+  function firstOutstanding() { return options.store.firstLaneQueue(options.scope); }
   async function sleep(session: StoredSession) { const prior = await state();
     const outstanding = await firstOutstanding();
     const retryAt = outstanding && outstanding.status !== 'gap' && outstanding.status !== 'blocked'

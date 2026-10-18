@@ -378,7 +378,8 @@ describe('KNS-04 browser ingress, durable queue and Push', () => {
     assert.equal(conflictedRows[0]?.status, 'blocked');
     assert.equal(conflictedRows[1]?.status, 'pending');
     assert.equal((await conflicted.getMappingByNativeId(scope, 'native-b'))?.colpId, 'node-b');
-    assert.equal(await conflicted.claimNextQueue(scope, 'owner', conflictLease.fence, 1), null);
+    // The conflict consumed its sequence: it holds only node-a, so node-b is next.
+    assert.equal((await conflicted.claimNextQueue(scope, 'owner', conflictLease.fence, 1))?.opId, 'op-b');
   });
 
   test('HTTP revision_conflict on one Node leaves an unrelated queue row pending', async () => {

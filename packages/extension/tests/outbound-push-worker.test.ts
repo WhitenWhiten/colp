@@ -32,7 +32,7 @@ describe('P3-31 outbound Push protocol and exact retry', () => {
     assert.equal(requests.length, 1);
   });
 
-  test('persists conflicted receipt as a durable barrier and does not send the next sequence', async () => {
+  test('persists a conflicted receipt durably and holds the work that depends on it', async () => {
     const fixture = await setup(); let requests = 0;
     const worker = createOutboundPushWorker({ ...fixture.options, fetch: async () => { requests += 1;
       return json(200, { batchId: fixture.queued.batchId, results: [{ opId: fixture.queued.opId, sequence: 1,
@@ -42,11 +42,14 @@ describe('P3-31 outbound Push protocol and exact retry', () => {
       idempotencyKey: 'idempotency-push-2', digest: 'sha256:operation-push-2', endpointIdentity: 'syncPush',
       mediaType: 'application/json', baseRevision: fixture.queued.baseRevision,
       operationRevision: 'local-event-push-2', status: 'pending', retry: { attempt: 0, notBefore: 0 },
-      payload: { ...operation, opId: 'op-push-2', sequence: 2 } }, { allowUnstamped: true });
+      // A bookmark created inside the conflicted create waits for its resolution.
+      payload: { ...operation, opId: 'op-push-2', sequence: 2,
+        payload: { ...(operation.payload as JsonObject), parentId: 'pending-op-push-1' } } }, { allowUnstamped: true });
     assert.equal((await worker.drain()).outcome, 'idle');
     const exported = await fixture.store.exportScope(scope);
     assert.equal(exported.queue[0]?.status, 'blocked'); assert.equal(exported.queue[0]?.recovery?.code, 'conflict_pending');
-    assert.equal(exported.queue[1]?.status, 'pending'); assert.equal(exported.receipts[0]?.kind, 'terminal');
+    assert.equal(exported.queue[1]?.status, 'set_aside'); assert.equal(exported.queue[1]?.recovery?.code, 'conflict_hold');
+    assert.equal(exported.receipts[0]?.kind, 'terminal');
     assert.equal(requests, 1);
   });
 

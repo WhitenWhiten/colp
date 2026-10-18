@@ -1,3 +1,4 @@
+import { reasonCode } from './push-error-code.js';
 import type { ParsedPushResult } from './sync-push-wire.js';
 import type { JsonObject, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -59,4 +60,20 @@ export async function settlePushResult(input: {
   }
   try { await input.onTerminal?.(queue); } catch { /* startup recovery resumes the durable event inbox */ }
   return 'terminal';
+}
+
+/**
+ * Returns the changes held for a settled conflict to the push lane. A failed
+ * pass keeps them held for the next drain, but is journaled and counted as
+ * attention so a stuck hold is distinguishable from "nothing to release".
+ */
+export async function releaseSettledConflictHolds(store: ReturnType<typeof createSyncStateStore>,
+  scope: SyncScope): Promise<number> {
+  try {
+    await store.releaseConflictHolds(scope); return 0;
+  } catch (error) {
+    try { await store.putScopeDiagnostic(scope, { kind: 'conflict_hold_release',
+      code: reasonCode(error, 'conflict_hold_release_failed') }); } catch { /* best effort */ }
+    return 1;
+  }
 }

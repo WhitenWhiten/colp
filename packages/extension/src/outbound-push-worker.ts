@@ -1,7 +1,7 @@
 import { rejectExcludedBootstrapUpload } from './bootstrap/upload-rejection.js';
 import { sendBootstrapCreateBatch } from './outbound-push-batch.js';
 import { createPushWorkBudget, recordPushBatchDecision, MAX_PUSH_DRAIN_OPERATIONS as MAX_DRAIN_OPERATIONS } from './push-work-budget.js';
-import { settlePushResult } from './outbound-push-settlement.js';
+import { releaseSettledConflictHolds, settlePushResult } from './outbound-push-settlement.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { stopDeniedMetadataAttempt } from './metadata-dispatch-recovery.js';
 import { reasonCode } from './push-error-code.js';
@@ -121,6 +121,8 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       try { await options.store.putScopeDiagnostic(options.scope,
         { kind: 'queue_realign', code: reasonCode(error, 'realign_failed') }); } catch { /* best effort */ }
     }
+    // Changes held for a conflict the pulled resolution has settled rejoin the lane in their own slots.
+    repair.attention += await releaseSettledConflictHolds(options.store, options.scope);
     let last: DrainOutcome = { outcome: 'idle' }; let diagnosed = false;
     const deadline = now() + (options.drainBudgetMilliseconds ?? 20_000);
     try { for (let count = 0; count < MAX_DRAIN_OPERATIONS; count += 1) {
@@ -528,11 +530,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     }, replaceAfterAuthenticationDenial);
   }
   async function scheduleOutstanding() {
-    const live: Array<'pending' | 'claimed' | 'deferred' | 'gap' | 'blocked' | 'unknown'> = [
-      'pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown',
-    ];
-    const heads = await Promise.all(live.map((status) => options.store.listQueue(options.scope, status, 0, 1)));
-    const first = heads.flat().sort((left, right) => left.sequence - right.sequence)[0];
+    const first = await options.store.firstLaneQueue(options.scope);
     if (first && first.status !== 'gap' && first.status !== 'blocked') {
       options.schedule?.(Math.max(1_000, first.retry.notBefore - now()));
     }

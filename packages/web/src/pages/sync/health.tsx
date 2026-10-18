@@ -47,6 +47,7 @@ export function stopReason(code: string | null | undefined): string {
 export function issueSummary(issue: SyncReplicaIssue): string {
   switch (issue.code) {
     case 'conflict_pending': return 'Waiting for a conflict to be resolved'
+    case 'conflict_hold': return 'Waiting for a conflict on this bookmark to be resolved'
     case 'native_result_unknown': return 'Waiting for a decision in the browser'
     case 'waiting_dependency': return 'Waiting for another change to finish'
   }

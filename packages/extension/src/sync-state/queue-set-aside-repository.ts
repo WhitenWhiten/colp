@@ -1,10 +1,11 @@
 import { boundedString, clone, safeInteger } from './codec.js';
-import { requestValue, requireActiveScope, runTransaction } from './idb.js';
+import { requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
+import { conflictHolders, firstLaneQueueRow, heldBy } from './queue-conflict-hold.js';
 import { validateQueueRecord } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
-import { SyncStateError, type JsonObject, type QueueOperation, type SyncScope } from './types.js';
+import { SyncStateError, type QueueOperation, type SyncScope } from './types.js';
 
 /** Rows that own no server sequence: refused history and held work. A gap realign parks them after live work. */
 export function parkedOutOfLane(row: QueueOperation): boolean {
@@ -42,45 +43,66 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
   }
 
   /**
-   * Returns held rows to the push lane at its tail, in their original order,
-   * under fresh sequences. They were never sent, so new operation bytes and a
-   * new idempotency identity are safe (the gap realign makes the same move);
-   * the opId stays, so mappings and import plans still find them. The push
-   * worker rebases placement at send time. A row already released is skipped.
+   * Returns held rows to the push lane in their own slots. A held row was never
+   * sent and every gap realign parks it after the surviving work, so its slot
+   * is still ahead of the server lane: releasing it in place leaves no hole to
+   * heal and keeps its order with the rest of its bookmark's changes. A row
+   * already released is skipped.
    */
-  async function releaseSetAsideQueue(input: SyncScope, sequences: readonly number[],
-    digestOperation: (operation: JsonObject) => string): Promise<QueueOperation[]> {
-    ctx.assertWritable(); const key = scopeKey(validateScope(input));
+  function releaseSetAsideQueue(input: SyncScope, sequences: readonly number[]): Promise<QueueOperation[]> {
     for (const sequence of sequences) safeInteger(sequence, 'sequence', 1);
-    if (typeof digestOperation !== 'function') throw new SyncStateError('operation_validator_missing');
-    const db = await ctx.writableDatabase(); const released: QueueOperation[] = [];
-    await runTransaction(db, [STORES.scopes, STORES.queue, STORES.sequences], 'readwrite', async (tx) => {
-      await requireActiveScope(tx, key);
-      const queue = tx.objectStore(STORES.queue); const counters = tx.objectStore(STORES.sequences);
-      const counter = await requestValue(counters.get(key)) as { scopeKey: string; next: number } | undefined;
-      if (!counter) throw new SyncStateError('sequence_missing');
+    return releaseInPlace(input, async (queue, key) => {
       const rows: QueueOperation[] = [];
       for (const sequence of [...new Set(sequences)].sort((left, right) => left - right)) {
         const value = await requestValue(queue.index(INDEXES.queueBySequence).get([key, sequence]));
         const row = value ? validateQueueRecord(value, ctx.maxRecordBytes) : null;
         if (row?.status === 'set_aside') rows.push(row);
       }
-      let next = counter.next;
-      for (const row of rows) {
-        if (next === Number.MAX_SAFE_INTEGER) throw new SyncStateError('sequence_exhausted');
-        queue.delete([key, row.sequence]);
-        const sequence = next; next += 1;
-        const payload = { ...row.payload, sequence };
-        const record = validateQueueRecord({ ...row, sequence, payload,
-          digest: boundedString(digestOperation(payload), 'operation digest'),
-          idempotencyKey: `${row.opId}.release.${sequence}`, status: 'pending', recovery: undefined, attempt: undefined,
-          retry: { attempt: row.retry.attempt, notBefore: 0 } }, ctx.maxRecordBytes);
-        queue.add({ ...record, scopeKey: key }); released.push(record);
+      return rows;
+    });
+  }
+
+  /**
+   * Releases the changes held for conflicts that are no longer open: the
+   * resolution arrived through Pull and settled the conflicted row. A change
+   * still waiting for an open conflict, or for an earlier change that stays
+   * held, keeps waiting.
+   */
+  function releaseConflictHolds(input: SyncScope): Promise<QueueOperation[]> {
+    return releaseInPlace(input, async (queue, key) => {
+      const holders = await conflictHolders(queue, key, ctx.maxRecordBytes);
+      const kept = holders.filter((row) => row.status === 'blocked'); const released: QueueOperation[] = [];
+      for (const row of holders) {
+        if (row.status !== 'set_aside') continue;
+        if (heldBy(row, kept)) kept.push(row); else released.push(row);
       }
-      if (next !== counter.next) counters.put({ scopeKey: key, next });
+      return released;
+    });
+  }
+
+  async function releaseInPlace(input: SyncScope,
+    pick: (queue: IDBObjectStore, key: string) => Promise<QueueOperation[]>): Promise<QueueOperation[]> {
+    ctx.assertWritable(); const key = scopeKey(validateScope(input));
+    const db = await ctx.writableDatabase(); const released: QueueOperation[] = [];
+    await runTransaction(db, [STORES.scopes, STORES.queue], 'readwrite', async (tx) => {
+      await requireActiveScope(tx, key); const queue = tx.objectStore(STORES.queue);
+      for (const row of await pick(queue, key)) {
+        const record = validateQueueRecord({ ...row, status: 'pending', recovery: undefined,
+          retry: { attempt: row.retry.attempt, notBefore: 0 } }, ctx.maxRecordBytes);
+        queue.put(record); released.push(record);
+      }
     });
     return released.map((row) => clone(row));
   }
 
-  return { setAsideQueue, releaseSetAsideQueue };
+  /** The row the push lane sends next, past conflicts the server already consumed; null when none. */
+  async function firstLaneQueue(input: SyncScope): Promise<QueueOperation | null> {
+    const key = scopeKey(validateScope(input)); const db = await ctx.open();
+    const tx = db.transaction([STORES.queue, STORES.receipts], 'readonly'); const completion = transactionDone(tx);
+    const row = await firstLaneQueueRow(tx.objectStore(STORES.queue), tx.objectStore(STORES.receipts), key,
+      ctx.maxRecordBytes);
+    await completion; return row ? clone(row) : null;
+  }
+
+  return { setAsideQueue, releaseSetAsideQueue, releaseConflictHolds, firstLaneQueue };
 }
