@@ -8,22 +8,33 @@ const AUTH_PATHS = [
 /** Primary navigation for a signed-in owner; a guest can only sign in. */
 export const APP_NAV = [
   { to: '/library', label: 'Library' },
+  // The Sync center: every syncing browser, its conflicts and what was deleted.
+  { to: '/sync', label: 'Sync' },
   { to: '/agents', label: 'Agents' },
   // P2: "I approve once … with Undo on the approvals page" — the page an
   // agent sends the owner to must be one click away, not inside a menu.
   { to: '/approvals', label: 'Approvals' },
 ] as const
 
-/** Shown after Library once the server says it offers automations. */
+/** Shown before Agents once the server says it offers automations. */
 export const AUTOMATIONS_NAV = { to: '/automations', label: 'Automations' } as const
 
-export type AppNavItem = { readonly to: string; readonly label: string }
+export type AppNavPath = (typeof APP_NAV)[number]['to'] | typeof AUTOMATIONS_NAV.to
 
-/** The signed-in primary nav, with Automations next to Agents when the server has it. */
-export function appNav(automations: boolean): readonly AppNavItem[] {
-  if (!automations) return APP_NAV
-  const [library, ...rest] = APP_NAV
-  return [library, AUTOMATIONS_NAV, ...rest]
+export type AppNavItem = { readonly to: AppNavPath; readonly label: string }
+
+/** What the server offers: Automations shows once it said yes, Sync leaves
+    once it said no (its availability is only known after the first read). */
+export type AppNavFeatures = { readonly automations: boolean; readonly sync: boolean }
+
+/** The signed-in primary nav. Sync holds second place whether or not the
+    server has automations, so its tab does not move between servers. */
+export function appNav({ automations, sync }: AppNavFeatures): readonly AppNavItem[] {
+  return APP_NAV.flatMap((item): AppNavItem[] => {
+    if (item.to === '/sync') return sync ? [item] : []
+    if (item.to === '/agents' && automations) return [AUTOMATIONS_NAV, item]
+    return [item]
+  })
 }
 
 export function isAuthPath(pathname: string): boolean {

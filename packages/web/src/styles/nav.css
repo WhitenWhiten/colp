@@ -90,6 +90,8 @@
 }
 
 .nav-links {
+  /* Also the inset of the underline (interactions.css). */
+  --nav-link-pad-x: var(--hair-65);
   display: none;
   align-items: center;
   gap: var(--hair-15);
@@ -99,7 +101,7 @@
 
 .nav-links a {
   position: relative;
-  padding: var(--hair-40) var(--hair-65);
+  padding: var(--hair-40) var(--nav-link-pad-x);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -194,6 +196,19 @@
 @media (min-width: 720px) {
   .nav-links {
     display: flex;
+  }
+}
+
+/* 720–899: the brand, five primary links (Automations with its Paused flag)
+   and the compact actions share the bar; tighter links and gaps keep the
+   last link clear of the actions down to 720. */
+@media (min-width: 720px) and (max-width: 899px) {
+  .topnav-inner {
+    gap: var(--space-3);
+  }
+
+  .nav-links {
+    --nav-link-pad-x: var(--hair-40);
   }
 }
 
@@ -582,25 +597,6 @@
   transition: background var(--duration-fast) var(--ease-quart);
 }
 
-/* A tool the server reported as off: listed in the same row rhythm, muted,
-   not a link (Tools dropdown and the mobile drawer). */
-.nav-item-unavailable {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--hair-55);
-  color: var(--faint);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  cursor: default;
-}
-
-.nav-item-unavailable small {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-regular);
-}
-
 /* Group label inside a dropdown (Tools → Moderation): .section-label type
    at the dropdown's item inset. */
 .nav-dropdown-label {
@@ -674,9 +670,12 @@
   backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-saturate));
 }
 
+/* Equal tabs while every label fits. A label that would not (Automations
+   among five tabs on a 360px phone) widens its own tab at the others'
+   expense instead of truncating below the 12px label floor. */
 .bottom-nav-item {
   flex: 1;
-  min-width: 0;
+  min-width: max-content;
   min-height: 2.75rem;
   display: flex;
   flex-direction: column;

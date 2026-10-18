@@ -63,7 +63,7 @@ test.describe('top bar follows the nav cuts', () => {
     if (width >= 1100) {
       await expect(burger).toBeHidden()
       await expect(primary).toBeVisible()
-      await expect(primary.getByRole('link')).toHaveText(['Library', 'Agents', 'Approvals'])
+      await expect(primary.getByRole('link')).toHaveText(['Library', 'Sync', 'Agents', 'Approvals'])
       await expect(fullSearch).toBeVisible()
       await expect(compactSearch).toBeHidden()
       return
@@ -74,12 +74,12 @@ test.describe('top bar follows the nav cuts', () => {
     await expect(compactSearch).toBeVisible()
     if (width >= 720) {
       await expect(primary).toBeVisible()
-      await expect(primary.getByRole('link')).toHaveText(['Library', 'Agents', 'Approvals'])
+      await expect(primary.getByRole('link')).toHaveText(['Library', 'Sync', 'Agents', 'Approvals'])
     } else {
       await expect(primary).toBeHidden()
       const tabs = page.getByRole('navigation', { name: 'Mobile primary' })
       await expect(tabs).toBeVisible()
-      await expect(tabs.getByRole('link')).toHaveText(['Library', 'Agents', 'Approvals'])
+      await expect(tabs.getByRole('link')).toHaveText(['Library', 'Sync', 'Agents', 'Approvals'])
     }
   })
 

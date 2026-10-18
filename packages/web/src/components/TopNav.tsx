@@ -24,7 +24,6 @@ const SearchPalette = lazyWithRetry('SearchPalette', async () => (await import('
 
 const SESSION_TOOLS = [
   { to: '/extension', label: 'Extension' },
-  { to: '/sync', label: 'Sync center' },
   { to: '/library/health', label: 'Link health' },
   { to: '/import', label: 'Import' },
 ] as const
@@ -57,13 +56,11 @@ export function TopNav() {
   // (.is-menu-open) until the drawer has finished leaving.
   const { mounted: menuMounted, closing: menuClosing } = useExitAnimation(menuOpen)
   const drawerTrapRef = useFocusTrap<HTMLElement>(menuMounted && !menuClosing)
-  // Sync's availability is only known after its first request, so it stays
-  // listed and turns "Not available" once the server said so.
+  // Sync's availability is only known after its first request, so its entry
+  // stays in the bar until the server said it has none.
   const syncUnavailable = useServerFeatureUnavailable('sync')
   // A guest can only sign in; the tools need the owner's session.
-  const toolItems: ToolItem[] = isLoggedIn
-    ? SESSION_TOOLS.map((item) => (item.to === '/sync' && syncUnavailable ? { ...item, unavailable: true } : item))
-    : []
+  const toolItems: readonly ToolItem[] = isLoggedIn ? SESSION_TOOLS : []
 
   const authRoute = isAuthPath(location.pathname)
   const showChrome = !authRoute
@@ -73,7 +70,7 @@ export function TopNav() {
   /* Automations appear once the server says it has them; "Paused" rides on
      the entry so a paused library is visible from every page (AU-14). */
   const automation = useAutomationStatus(isLoggedIn ? user?.accountId ?? null : null)
-  const primaryNav = isLoggedIn ? appNav(automation.state === 'available') : []
+  const primaryNav = isLoggedIn ? appNav({ automations: automation.state === 'available', sync: !syncUnavailable }) : []
   const automationsPaused = automation.state === 'available' && automation.paused
   // Sign-in and sign-up pages link to each other in their cards already.
   // While the session check fails the visitor may well be signed in, so the

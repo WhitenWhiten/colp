@@ -43,7 +43,6 @@ export function SyncView({ data, mutations, trashBatch }: {
           as="header"
           layout="split"
           variant="workbench"
-          eyebrow="Tools"
           title="Sync center"
           documentTitle="Sync"
           lede={isLive('collaborators')

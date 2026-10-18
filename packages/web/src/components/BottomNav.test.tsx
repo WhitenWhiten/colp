@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BottomNav } from './BottomNav'
 import { cleanup, mountTree } from '../test/render'
+import { markServerFeatureAvailable, markServerFeatureUnavailable } from '../lib/serverFeatureAvailability'
 
 const mocks = vi.hoisted(() => ({
   auth: {
@@ -40,9 +41,20 @@ describe('BottomNav', () => {
   it('lists the owner destinations in desktop nav order once signed in', () => {
     mocks.auth.isLoggedIn = true
     render('/library')
-    expect(tabHrefs()).toEqual(['/library', '/agents', '/approvals'])
+    expect(tabHrefs()).toEqual(['/library', '/sync', '/agents', '/approvals'])
     const labels = [...document.querySelectorAll('[data-testid="bottom-nav-label"]')].map((node) => node.textContent)
-    expect(labels).toEqual(['Library', 'Agents', 'Approvals'])
+    expect(labels).toEqual(['Library', 'Sync', 'Agents', 'Approvals'])
+  })
+
+  it('drops the Sync tab once the server said it has no sync', () => {
+    mocks.auth.isLoggedIn = true
+    try {
+      markServerFeatureUnavailable('sync')
+      render('/library')
+      expect(tabHrefs()).toEqual(['/library', '/agents', '/approvals'])
+    } finally {
+      markServerFeatureAvailable('sync')
+    }
   })
 
   it('renders nothing for a guest: Sign in already sits in the top bar', () => {

@@ -1,20 +1,19 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { Icon, type IconName } from './Icon'
 import { useAuth } from '../auth/AuthContext'
-import { isAppNavActive } from '../lib/chrome'
+import { appNav, isAppNavActive, type AppNavPath } from '../lib/chrome'
 import { useAutomationStatus } from '../lib/automationStatus'
+import { useServerFeatureUnavailable } from '../lib/serverFeatureAvailability'
 import { prefetchRoute } from './topnav/prefetch'
 
-type TabItem = { to: string; label: string; icon: IconName }
-
-// Same order as the desktop nav (lib/chrome.ts).
-const SESSION_TABS: readonly TabItem[] = [
-  { to: '/library', label: 'Library', icon: 'bookmark' },
-  { to: '/agents', label: 'Agents', icon: 'terminal' },
-  { to: '/approvals', label: 'Approvals', icon: 'check' },
-]
-
-const AUTOMATIONS_TAB: TabItem = { to: '/automations', label: 'Automations', icon: 'bolt' }
+// The tabs are the desktop nav (lib/chrome.ts), each with its icon.
+const TAB_ICONS: Readonly<Record<AppNavPath, IconName>> = {
+  '/library': 'bookmark',
+  '/sync': 'sync',
+  '/automations': 'bolt',
+  '/agents': 'terminal',
+  '/approvals': 'check',
+}
 
 /** Persistent ≤719px primary destinations of the signed-in owner. Hidden on
     desktop via CSS. A visitor on a shared link has no destinations here; a
@@ -23,10 +22,9 @@ export function BottomNav() {
   const location = useLocation()
   const { isLoggedIn, user } = useAuth()
   const automation = useAutomationStatus(isLoggedIn ? user?.accountId ?? null : null)
+  const syncUnavailable = useServerFeatureUnavailable('sync')
   if (!isLoggedIn) return null
-  const tabs = automation.state === 'available'
-    ? SESSION_TABS.flatMap((tab) => (tab.to === '/library' ? [tab, AUTOMATIONS_TAB] : [tab]))
-    : SESSION_TABS
+  const tabs = appNav({ automations: automation.state === 'available', sync: !syncUnavailable })
   const paused = automation.state === 'available' && automation.paused
 
   return (
@@ -44,7 +42,7 @@ export function BottomNav() {
             onFocus={() => prefetchRoute(tab.to)}
           >
             <span className="bottom-nav-icon">
-              <Icon name={tab.icon} />
+              <Icon name={TAB_ICONS[tab.to]} />
               {tab.to === '/automations' && paused && <span className="bottom-nav-flag" aria-hidden />}
             </span>
             <span className="bottom-nav-label" data-testid="bottom-nav-label">{tab.label}</span>

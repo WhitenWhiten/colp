@@ -66,8 +66,8 @@
   content: '';
   position: absolute;
   bottom: 2px;
-  left: var(--hair-65);
-  right: var(--hair-65);
+  left: var(--nav-link-pad-x);
+  right: var(--nav-link-pad-x);
   height: 1.5px;
   background: var(--ink);
   border-radius: var(--radius-pill);

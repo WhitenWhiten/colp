@@ -46,11 +46,7 @@ export function MobileDrawer({
         <div className="mobile-drawer-section" key={label}>
           <span className="mobile-drawer-label">{label}</span>
           <div className="mobile-drawer-grid">
-            {items.map((item) => item.unavailable ? (
-              <span key={item.to} className="nav-item-unavailable" aria-disabled="true">
-                {item.label} <small>Not available</small>
-              </span>
-            ) : (
+            {items.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

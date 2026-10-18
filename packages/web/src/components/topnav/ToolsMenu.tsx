@@ -9,8 +9,6 @@ export type ToolItem = {
   to: string
   label: string
   group?: string
-  /** The server said the feature is off: listed, but not a link. */
-  unavailable?: boolean
 }
 
 type Props = {
@@ -68,21 +66,15 @@ export function ToolsMenu({ items, open, onToggle, onClose, triggerRef }: Props)
                   <p className="section-label nav-dropdown-label">{item.group}</p>
                 </>
               ) : null}
-              {item.unavailable ? (
-                <span className="nav-item-unavailable" aria-disabled="true">
-                  {item.label} <small>Not available</small>
-                </span>
-              ) : (
-                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor (Enter activates natively); hover prefetch has focus parity via onFocus
-                <Link
-                  to={item.to}
-                  onClick={onClose}
-                  onPointerEnter={() => prefetchRoute(item.to)}
-                  onFocus={() => prefetchRoute(item.to)}
-                >
-                  {item.label}
-                </Link>
-              )}
+              {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- react-router Link renders a native anchor (Enter activates natively); hover prefetch has focus parity via onFocus */}
+              <Link
+                to={item.to}
+                onClick={onClose}
+                onPointerEnter={() => prefetchRoute(item.to)}
+                onFocus={() => prefetchRoute(item.to)}
+              >
+                {item.label}
+              </Link>
             </Fragment>
           ))}
         </nav>

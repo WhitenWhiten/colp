@@ -145,11 +145,11 @@ describe('TopNav session chrome', () => {
     expect(document.querySelector('a[href^="/login"]')).toBeNull()
   })
 
-  it('shows Library, Agents and Approvals and a warning Sign out when signed in', () => {
+  it('shows Library, Sync, Agents and Approvals and a warning Sign out when signed in', () => {
     signIn()
     render('/library/col-1')
     const primary = [...document.querySelectorAll('[aria-label="Primary"] a')]
-    expect(primary.map((anchor) => anchor.getAttribute('href'))).toEqual(['/library', '/agents', '/approvals'])
+    expect(primary.map((anchor) => anchor.getAttribute('href'))).toEqual(['/library', '/sync', '/agents', '/approvals'])
     expect(primary.every((anchor) => anchor.classList.contains('nav-link-core'))).toBe(true)
     expect(document.querySelector('[aria-label="Primary"] a[href="/library"]')?.classList.contains('is-active')).toBe(true)
     act(() => document.querySelector<HTMLButtonElement>('[data-testid="account-trigger"]')!.click())
@@ -204,7 +204,6 @@ describe('TopNav session chrome', () => {
     const drawer = document.getElementById('mobile-navigation')
     expect([...drawer!.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual([
       '/extension',
-      '/sync',
       '/library/health',
       '/import',
       '/approvals',
@@ -295,13 +294,11 @@ describe('TopNav session chrome', () => {
     expect(dropdown.getAttribute('role')).toBeNull()
     expect([...dropdown.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))).toEqual([
       '/extension',
-      '/sync',
       '/library/health',
       '/import',
     ])
     expect([...dropdown.querySelectorAll('a')].map((anchor) => anchor.textContent)).toEqual([
       'Extension',
-      'Sync center',
       'Link health',
       'Import',
     ])
@@ -311,19 +308,17 @@ describe('TopNav session chrome', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('marks Sync unavailable once the server said so', () => {
+  it('drops Sync from the primary nav once the server said it has none', () => {
     signIn()
+    render('/library')
+    const primaryHrefs = () => [...document.querySelectorAll('[aria-label="Primary"] a')].map((anchor) => anchor.getAttribute('href'))
+    expect(primaryHrefs()).toContain('/sync')
     try {
-      markServerFeatureUnavailable('sync')
-      render('/library')
-      act(() => document.querySelector<HTMLButtonElement>('[data-testid="tools-trigger"]')!.click())
-      const dropdown = document.querySelector<HTMLElement>('[data-testid="tools-dropdown"]')!
-      const hrefs = [...dropdown.querySelectorAll('a')].map((anchor) => anchor.getAttribute('href'))
-      expect(hrefs).not.toContain('/sync')
-      const sync = dropdown.querySelector('[aria-disabled="true"]')
-      expect(sync?.textContent).toBe('Sync center Not available')
+      act(() => markServerFeatureUnavailable('sync'))
+      expect(primaryHrefs()).toEqual(['/library', '/agents', '/approvals'])
     } finally {
       act(() => markServerFeatureAvailable('sync'))
     }
+    expect(primaryHrefs()).toContain('/sync')
   })
 })

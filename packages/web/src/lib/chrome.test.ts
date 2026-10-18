@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { APP_NAV, isAppNavActive, isAuthPath, loginPath } from './chrome'
+import { APP_NAV, appNav, isAppNavActive, isAuthPath, loginPath } from './chrome'
 
 describe('chrome helpers', () => {
-  it('lists Library, Agents and Approvals as the signed-in primary nav', () => {
-    expect(APP_NAV.map((item) => item.to)).toEqual(['/library', '/agents', '/approvals'])
-    expect(APP_NAV.map((item) => item.label)).toEqual(['Library', 'Agents', 'Approvals'])
+  it('lists Library, Sync, Agents and Approvals as the signed-in primary nav', () => {
+    expect(APP_NAV.map((item) => item.to)).toEqual(['/library', '/sync', '/agents', '/approvals'])
+    expect(APP_NAV.map((item) => item.label)).toEqual(['Library', 'Sync', 'Agents', 'Approvals'])
+  })
+
+  it('adds Automations before Agents and keeps Sync second, dropping it once the server has none', () => {
+    const paths = (automations: boolean, sync: boolean) => appNav({ automations, sync }).map((item) => item.to)
+    expect(paths(false, true)).toEqual(['/library', '/sync', '/agents', '/approvals'])
+    expect(paths(true, true)).toEqual(['/library', '/sync', '/automations', '/agents', '/approvals'])
+    expect(paths(true, false)).toEqual(['/library', '/automations', '/agents', '/approvals'])
   })
 
   it('treats auth routes as auth paths', () => {
