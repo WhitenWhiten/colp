@@ -158,3 +158,24 @@ disposable PostgreSQL container closed normally.
 
 P2 browser/live-server acceptance and the separate Push-only issue-ceiling
 certification remain outside these two completion tasks.
+
+## Second review remediation (baseline f3612b9d, 2026-10-18)
+
+### Task 1 — bind remote commands to their authorized target
+
+Root cause: response handling reused its pre-request health projection and the
+runner looked up the global current rebuilder. A delayed A response could rebuild B.
+Rebuild preview now carries a digest of the complete scope and authority generation;
+confirm checks it against freshly inspected facts. Remote Rebuild also compares
+preview with the original scope. The reporter rereads actions inside the engine
+lane, whose captured authority/scope is checked after network and queue waits.
+Retry and issue recapture use the same fence; scheduled Retry reports
+`retry_scheduled`, without claiming synchronization success. Interrupted Rebuild
+retains the existing archive/outbox delivery path.
+
+Before: all six initial permanent target/action tests failed (wrong replica was
+rebuilt, stale action executed). After: 28 tests in replica-command-target,
+replica-health-report, replica-rebuild, replica-health-outbox and pull-issue-rebuild
+passed. Includes full target changes, authority change, delayed real Rebuild,
+redelivery, archive-based restart and response-loss delivery. Extension typecheck
+and changed-source/test ESLint passed. No service started.

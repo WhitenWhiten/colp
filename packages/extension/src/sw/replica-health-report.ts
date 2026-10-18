@@ -58,6 +58,7 @@ export interface ReplicaCommandOutcome {
   readonly replaced?: true;
 }
 export interface ReplicaCommandRunner {
+  run?<T>(work: () => Promise<T>): Promise<T>;
   replica(action: ReplicaAction): Promise<ReplicaCommandOutcome>;
   issue(action: 'retry', issue: ReplicaHealthIssue): Promise<ReplicaCommandOutcome>;
 }
@@ -194,6 +195,8 @@ export interface ReplicaHealthReporterDeps {
   readonly now: () => number;
   /** Carries out what the Sync center asks; without one, commands are left for a later report. */
   readonly commands?: ReplicaCommandRunner;
+  /** Captured before dispatch, checked again inside the serialized execution lane. */
+  readonly assertCommandCurrent?: () => Promise<void>;
   /** Send even when nothing changed since the last report. */
   readonly force?: boolean;
 }
@@ -208,15 +211,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   const delivery = await createHealthDelivery({ scope: deps.scope, storage: deps.storage, now: deps.now,
     post: (body, scope) => post({ ...deps, scope }, body), archive: deps.store.exportArchive });
   deps = { ...deps, storage: delivery.storage };
-  const open = await readOpenSyncIssues(deps.store, deps.scope);
-  const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
-    ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
-  if (response.ok !== true) return 'failed';
-  const issues = [...replicaIssuesFromQueue(open.queue), ...replicaIssuesFromPull(open.pull),
-    ...replicaIssuesFromLocal(open.local), ...replicaIssuesFromWaits(open.waits),
-    ...open.replica.map(issue => ({ issueId: issueId(['replica', issue.pageId]), direction: 'pull' as const,
-      code: issue.code, count: 1, firstSeenAt: new Date(issue.at).toISOString(), lastSeenAt: new Date(issue.at).toISOString(), actions: [] }))];
-  const projection = projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues, total: open.total });
+  const projection = await readProjection(deps);
   // Times are display facts: a report that only moved a clock is not a change.
   const digest = digestJson({ state: projection.state, code: projection.code ?? null, total: projection.issues.total,
     items: projection.issues.items.map((item) => [item.issueId, item.code, item.title ?? null, item.count, ...item.actions]),
@@ -276,7 +271,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
     }
     if (replaced || !deps.commands) continue;
     commands = [...commands, { commandId: command.commandId, action: command.action }]; await save(commands);
-    const outcome = await carryOut(command, projection, deps.commands);
+    const outcome = await carryOut(command, deps, deps.commands);
     replaced ||= outcome.replaced === true; ran = true;
     commands = commands.map((entry) => entry.commandId === command.commandId ? { commandId: entry.commandId,
       outcome: outcome.outcome, ...(outcome.code ? { code: outcome.code } : {}) } : entry);
@@ -307,18 +302,36 @@ async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknow
   });
 }
 
+async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaHealthProjection> {
+  const open = await readOpenSyncIssues(deps.store, deps.scope);
+  const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
+    ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
+  if (response.ok !== true) throw new Error('scope_unavailable');
+  const issues = [...replicaIssuesFromQueue(open.queue), ...replicaIssuesFromPull(open.pull),
+    ...replicaIssuesFromLocal(open.local), ...replicaIssuesFromWaits(open.waits),
+    ...open.replica.map(issue => ({ issueId: issueId(['replica', issue.pageId]), direction: 'pull' as const,
+      code: issue.code, count: 1, firstSeenAt: new Date(issue.at).toISOString(), lastSeenAt: new Date(issue.at).toISOString(), actions: [] }))];
+  const mode = await deps.mode();
+  return projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues, total: open.total });
+}
+
 /** Checks the command against what this browser offers now, not what it offered when the owner asked. */
-async function carryOut(command: ReplicaCommand, projection: ReplicaHealthProjection,
+async function carryOut(command: ReplicaCommand, deps: ReplicaHealthReporterDeps,
   runner: ReplicaCommandRunner): Promise<ReplicaCommandOutcome> {
   try {
-    if (command.issueId === undefined) {
-      const action = projection.actions.find((offered) => offered === command.action);
-      return action ? await runner.replica(action) : { outcome: 'failed', code: 'action_unavailable' };
-    }
-    const issue = projection.issues.items.find((item) => item.issueId === command.issueId);
-    if (!issue) return { outcome: 'failed', code: 'issue_gone' };
-    return command.action === 'retry' && issue.actions.includes('retry') ? await runner.issue('retry', issue)
-      : { outcome: 'failed', code: 'action_unavailable' };
+    const execute = async (): Promise<ReplicaCommandOutcome> => {
+      await deps.assertCommandCurrent?.();
+      const projection = await readProjection(deps);
+      if (command.issueId === undefined) {
+        const action = projection.actions.find((offered) => offered === command.action);
+        return action ? await runner.replica(action) : { outcome: 'failed', code: 'action_unavailable' };
+      }
+      const issue = projection.issues.items.find((item) => item.issueId === command.issueId);
+      if (!issue) return { outcome: 'failed', code: 'issue_gone' };
+      return command.action === 'retry' && issue.actions.includes('retry') ? await runner.issue('retry', issue)
+        : { outcome: 'failed', code: 'action_unavailable' };
+    };
+    return runner.run ? await runner.run(execute) : await execute();
   } catch (error) {
     const code = error instanceof Error ? error.message : '';
     return { outcome: 'failed', code: CODE.test(code) ? code : 'command_failed' };

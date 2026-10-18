@@ -53,7 +53,7 @@ export async function setup(input: { degraded?: boolean } = {}) {
   const preview = await rebuilder.handle({ kind: 'known.scope.rebuild.preview' });
   assert.ok(preview.ok && 'preview' in preview);
   const request: ReplicaRebuildRequest = { kind: 'known.scope.rebuild.confirm', userGesture: true,
-    replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision };
+    replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision, targetFence: preview.preview.targetFence };
   return { scope, store, credentials, journal, deps, request, rebuilder, preview: preview.preview,
     setOffline(value: boolean) { failRegistration = value; }, get registrations() { return registrations; } };
 }

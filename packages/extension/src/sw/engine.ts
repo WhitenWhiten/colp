@@ -41,7 +41,7 @@ import { reportReplicaHealth } from './replica-health.js';
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
 export function scheduleSyncEngineWake(reason: 'startup' | 'alarm' | 'online' | 'manual', delayMilliseconds = 0,
-  connectivityRestored = false) {
+  connectivityRestored = false, assertTarget?: () => Promise<void>) {
   if (delayMilliseconds > 0) {
     // Chromium clamps alarms to roughly thirty seconds in MV3 service workers.
     // Keep the durable deadline aligned with that platform floor so sub-minute
@@ -54,7 +54,7 @@ export function scheduleSyncEngineWake(reason: 'startup' | 'alarm' | 'online' | 
     sw.confirmedOnlineWakePending = true;
   }
   const operation = workCoordinator.run('engine', async (context) => {
-    try { await runSyncEngine(reason, connectivityRestored, context); }
+    try { await assertTarget?.(); await runSyncEngine(reason, connectivityRestored, context); }
     finally {
       // Every pass, including one a stopped engine returns from at once, tells
       // the Sync center where this browser stands.

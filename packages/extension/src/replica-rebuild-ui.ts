@@ -49,7 +49,7 @@ export function bindReplicaRebuildButton(hostId: string): void {
       const proceed = await askConfirmation(button, feedback, replicaRebuildConfirmation(preview.preview.queuedOperations));
       if (!proceed) return;
       const result = await send({ kind: 'known.scope.rebuild.confirm', userGesture: true,
-        replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision });
+        replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision, targetFence: preview.preview.targetFence });
       if (!result.ok) throw new Error(result.code);
       feedback.hidden = false; feedback.textContent = t('sync_syncDeviceResetBookmarks', 'Sync on this device was reset and your bookmarks were kept. Choose which folders sync, then review the merge again.');
       const url = chrome.runtime.getURL('options.html#sync');

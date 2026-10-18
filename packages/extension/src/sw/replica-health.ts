@@ -1,3 +1,4 @@
+import { digestJson } from '../bookmark-event-codec.js';
 import { runReplicaRebuildCommand } from '../replica-rebuild.js';
 import { createQueueRecapture } from '../queue-recapture.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
@@ -7,7 +8,7 @@ import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaHealthReport,
   type ReplicaCommandRunner } from './replica-health-report.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState, workCoordinator } from './runtime.js';
 import { replicaRebuilder } from './scope-rebuild.js';
-import { createRuntimeAuth, loadConfig, restoredSyncScope } from './scope.js';
+import { createRuntimeAuth, currentSyncScope, loadConfig, restoredSyncScope } from './scope.js';
 
 /** The heartbeat that still reports when no engine pass runs, e.g. after a terminal stop. */
 export const REPLICA_HEALTH_ALARM = 'known-sync-health';
@@ -25,6 +26,11 @@ export function reportReplicaHealth(force = false): Promise<void> {
 async function send(force: boolean) {
   let scope: Awaited<ReturnType<typeof restoredSyncScope>>;
   try { scope = await restoredSyncScope(); } catch { return; }
+  const authority = await store.fence.capture();
+  const assertCurrent = async () => {
+    await store.fence.assertWritable(authority.generation);
+    if (digestJson({ ...await currentSyncScope() }) !== digestJson({ ...scope })) throw new Error('stale_ref');
+  };
   const policy = configuredPersonalSyncPolicy();
   const report = (forced: boolean) => sendReplicaHealthReport({
     scope, store: syncState,
@@ -36,7 +42,7 @@ async function send(force: boolean) {
     fetch: (input, init) => fetch(input, init),
     storage: chrome.storage.local, origin: extensionOrigin(),
     extensionVersion: chrome.runtime.getManifest().version, now: Date.now,
-    commands: commandRunner(scope), force: forced,
+    assertCommandCurrent: assertCurrent, commands: commandRunner(scope, assertCurrent), force: forced,
   });
   // Commands ran: report again so the Sync center sees their results and the state they left.
   if (await report(force) === 'ran') await report(true);
@@ -48,18 +54,20 @@ async function send(force: boolean) {
  * item's Retry returns one held change to the push lane, where it goes through
  * every placement and identity check again.
  */
-function commandRunner(scope: SyncScope): ReplicaCommandRunner {
+function commandRunner(scope: SyncScope, assertCurrent: () => Promise<void>): ReplicaCommandRunner {
   return {
+    run: work => workCoordinator.run('engine', async () => { await assertCurrent(); return work(); }),
     async replica(action) {
-      if (action === 'retry') { await scheduleSyncEngineWake('manual'); return { outcome: 'done' }; }
-      return runReplicaRebuildCommand(request => workCoordinator.run('engine', () => replicaRebuilder().handle(request)));
+      if (action === 'retry') { void scheduleSyncEngineWake('manual', 0, false, assertCurrent); return { outcome: 'done', code: 'retry_scheduled' }; }
+      return runReplicaRebuildCommand(async request => { await assertCurrent(); return replicaRebuilder().handle(request); }, scope);
     },
     async issue(_action, issue) {
       const row = issue.opId ? await syncState.getQueueByOpId(scope, issue.opId) : null;
       if (row?.status !== 'set_aside') return { outcome: 'failed', code: 'issue_gone' };
-      await workCoordinator.run('engine', () => syncState.releaseSetAsideQueue(scope, [row.sequence],
-        createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission })));
-      await scheduleSyncEngineWake('manual');
+      await assertCurrent();
+      await syncState.releaseSetAsideQueue(scope, [row.sequence],
+        createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission }));
+      void scheduleSyncEngineWake('manual', 0, false, assertCurrent);
       return { outcome: 'done' };
     },
   };

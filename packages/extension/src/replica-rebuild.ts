@@ -1,3 +1,4 @@
+import { digestJson } from './bookmark-event-codec.js';
 import { readOpenSyncIssues } from './sync-issues.js';
 import type { StorageArea, createCredentialStore } from './credential-store.js';
 import type { StoredAuthBinding } from './types.js';
@@ -6,9 +7,10 @@ import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
 export const REPLICA_REBUILD_JOURNAL = 'known.sync.replica-rebuild.v1';
 export type ReplicaRebuildRequest = { readonly kind: 'known.scope.rebuild.preview' }
   | { readonly kind: 'known.scope.rebuild.confirm'; readonly userGesture: true;
-    readonly replicaId: string; readonly generation: number; readonly revision: number };
+    readonly replicaId: string; readonly generation: number; readonly revision: number; readonly targetFence: string };
 export interface ReplicaRebuildPreview {
   readonly replicaId: string; readonly generation: number; readonly revision: number; readonly queuedOperations: number;
+  readonly targetFence: string; readonly scope: SyncScope;
 }
 export type ReplicaRebuildResponse = { readonly ok: true; readonly preview: ReplicaRebuildPreview }
   | { readonly ok: true; readonly result: 'setup_required' }
@@ -33,7 +35,8 @@ export function validReplicaRebuildRequest(value: unknown): value is ReplicaRebu
   const row = value as Record<string, unknown>; const keys = Object.keys(row);
   if (row.kind === 'known.scope.rebuild.preview') return keys.length === 1;
   return row.kind === 'known.scope.rebuild.confirm' && row.userGesture === true
-    && keys.length === 5 && keys.every(key => ['kind', 'userGesture', 'replicaId', 'generation', 'revision'].includes(key))
+    && keys.length === 6 && keys.every(key => ['kind', 'userGesture', 'replicaId', 'generation', 'revision', 'targetFence'].includes(key))
+    && typeof row.targetFence === 'string' && /^sha256:[a-f0-9]{64}$/u.test(row.targetFence)
     && typeof row.replicaId === 'string' && /^[A-Za-z0-9._:-]{1,256}$/u.test(row.replicaId)
     && Number.isSafeInteger(row.generation) && Number(row.generation) > 0
     && Number.isSafeInteger(row.revision) && Number(row.revision) >= 0;
@@ -47,7 +50,7 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     const credential = await deps.credentials.loadCredential();
     const authority = await deps.credentials.fence.read();
     if (authority.revoked || authority.generation !== value.authorityGeneration
-        || !credential?.subject || credential.subject !== value.scope.accountId) {
+        || !credential?.subject || credential.subject !== value.scope.accountId || credential.serverOrigin !== value.scope.serverOrigin) {
       await deps.journal.remove(REPLICA_REBUILD_JOURNAL); return undefined;
     }
     return value;
@@ -55,7 +58,8 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
   async function inspect(): Promise<{ scope: SyncScope; preview: ReplicaRebuildPreview }> {
     const scope = await deps.currentScope();
     const credential = await deps.credentials.loadCredential();
-    if (credential?.subject !== scope.accountId) throw new Error('account_switch');
+    if (credential?.subject !== scope.accountId || credential.serverOrigin !== scope.serverOrigin) throw new Error('account_switch');
+    const authority = await deps.credentials.fence.assertWritable();
     const state = await deps.store.getEngineState(scope);
     if (!state?.recoveryFrozen && (await readOpenSyncIssues(deps.store, scope)).total === 0) {
       throw new Error('rebuild_not_required');
@@ -69,10 +73,13 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
       }
     }
     return { scope, preview: { replicaId: scope.replicaId, generation: scope.generation,
-      revision: state?.revision ?? 0, queuedOperations } };
+      revision: state?.revision ?? 0, queuedOperations, scope, targetFence: digestJson({ scope: { ...scope }, authority: authority.generation }) } };
   }
   async function resume(): Promise<boolean> {
     const plan = await pending(); if (!plan) return false;
+    const current = await deps.currentScope();
+    const expected = { ...plan.scope, replicaId: current.replicaId, generation: current.generation };
+    if (digestJson({ ...current }) !== digestJson(expected)) throw new Error('stale_ref');
     const binding = await deps.credentials.loadBinding();
     if (binding?.replicaId !== plan.scope.replicaId && binding?.replicaId !== plan.nextBinding.replicaId) {
       throw new Error('stale_ref');
@@ -101,7 +108,8 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
       }
       const inspected = existing ? { scope: existing.scope, preview: existing.preview } : await inspect();
       if (inspected.preview.replicaId !== message.replicaId || inspected.preview.generation !== message.generation
-          || inspected.preview.revision !== message.revision) throw new Error('stale_ref');
+          || inspected.preview.revision !== message.revision || inspected.preview.targetFence !== message.targetFence) throw new Error('stale_ref');
+      if (!existing && (await inspect()).preview.targetFence !== message.targetFence) throw new Error('stale_ref');
       if (!existing) {
         const authority = await deps.credentials.fence.capture();
         const binding = await deps.credentials.loadBinding();
@@ -119,11 +127,12 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
 }
 
 /** The same checked preview/confirm path serves a web command and local Status. */
-export async function runReplicaRebuildCommand(handle: (request: ReplicaRebuildRequest) => Promise<ReplicaRebuildResponse>) {
+export async function runReplicaRebuildCommand(handle: (request: ReplicaRebuildRequest) => Promise<ReplicaRebuildResponse>, target?: SyncScope) {
   const preview = await handle({ kind: 'known.scope.rebuild.preview' });
   if (!preview.ok) return { outcome: 'failed' as const, code: preview.code };
   if (!('preview' in preview)) return { outcome: 'failed' as const, code: 'rebuild_failed' };
+  if (target && digestJson({ ...target }) !== digestJson({ ...preview.preview.scope })) return { outcome: 'failed' as const, code: 'stale_ref' };
   const result = await handle({ kind: 'known.scope.rebuild.confirm', userGesture: true,
-    replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision });
+    replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision, targetFence: preview.preview.targetFence });
   return result.ok ? { outcome: 'done' as const, replaced: true as const } : { outcome: 'failed' as const, code: result.code };
 }
