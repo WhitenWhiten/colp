@@ -44,7 +44,10 @@ export async function applyRemoteDeletion(input: {
   // siblings without inventing a native target from a remote id.
   const mappings = await Promise.all(ids.map(async (id): Promise<MappingInput> =>
     await store.getMappingByColpId(scope, id) ?? { colpId: id, nativeId: unmountedNativeId(id),
-      rootNativeId: unmountedNativeId(id), projection: { revision: 'deleted', digest: effect.effectDigest } }));
+      rootNativeId: unmountedNativeId(id),
+      ...(id === (effect.kind === 'node_deleted' ? effect.tombstone.targetId : effect.rootTombstone.targetId)
+        ? { parentColpId: effect.parentRevision.parentId } : {}),
+      projection: { revision: 'deleted', digest: effect.effectDigest } }));
   const rootId = effect.kind === 'node_deleted' ? effect.tombstone.targetId : effect.rootTombstone.targetId;
   const root = mappings.find((row) => row.colpId === rootId);
   if (!root) throw new SyncFailureError('mapping_missing:subtree_root');
@@ -57,7 +60,7 @@ export async function applyRemoteDeletion(input: {
       mappings: [await input.parentRevisionMapping(effect.parentRevision)],
     };
   }
-  const writable = mayMutateNative(root, mounts);
+  const writable = mappings.some(row => !isNonChromeNativeId(row.nativeId) && mayMutateNative(row, mounts));
   if (writable && event.operation.replicaId !== scope.replicaId
       && (await store.getRemoteDeletePolicy(scope)).policy !== 'sync') {
     const decision = await store.getRemoteDeleteDecision(scope, remoteDeleteDecisionId(`${event.cursor}:${event.operation.opId}`));
@@ -82,6 +85,8 @@ export async function applyRemoteDeletion(input: {
   const retainedRange = retainedRoots.length
     ? await collectRetainedNativeIds(api, retainedRoots, deletedSet) : [];
   const deleteColp = new Set(ids);
+  await retainUnmappedAncestors(input, retainedRange, deleteColp);
+  const retainedBoundary = mappings.find(row => !isNonChromeNativeId(row.nativeId))?.rootNativeId ?? root.rootNativeId;
   const exclusions: Omit<LocalSyncExclusionRecord, 'scopeKey'>[] = [];
   const unbindNativeIds: string[] = [];
   const virtualMappings: MappingInput[] = [];
@@ -91,7 +96,7 @@ export async function applyRemoteDeletion(input: {
       ?? mappings.find((row) => row.nativeId === nativeId);
     if (mapping && !deleteColp.has(mapping.colpId)) continue;
     exclusions.push({
-      nativeId, decisionId, rootNativeId: mapping?.rootNativeId ?? root.rootNativeId,
+      nativeId, decisionId, rootNativeId: mapping?.rootNativeId ?? retainedBoundary,
       generation: scope.generation, sourceKind: 'remote_delete',
       ...(mapping ? { priorColpId: mapping.colpId } : {}),
     });
@@ -166,4 +171,25 @@ function tombstonedMountBindings(scope: SyncScope, mounts: readonly MountBinding
     });
   }
   return updates;
+}
+
+/** A missing remote-root mapping must not leave retained native ancestors uploadable again. */
+async function retainUnmappedAncestors(input: { store: Store; scope: SyncScope; api: PullBookmarkApi;
+  mounts: readonly MountBindingRecord[] }, retained: string[], deletedColpIds: ReadonlySet<string>) {
+  const included = new Set(retained);
+  for (const nativeId of [...retained]) {
+    let current = nativeId; const seen = new Set<string>();
+    while (!seen.has(current) && seen.size < 256) {
+      seen.add(current);
+      const looked = await lookupBookmark(id => input.api.get(id), current);
+      if (looked.class === 'not_found') break;
+      if (looked.class !== 'present') throw new Error(looked.message);
+      const parent = looked.nodes[0]?.parentId;
+      if (!parent || isProtectedNativeRoot(parent, input.mounts)) break;
+      const mapping = await input.store.getMappingByNativeId(input.scope, parent);
+      if (mapping && !deletedColpIds.has(mapping.colpId)) break;
+      if (!included.has(parent)) { included.add(parent); retained.push(parent); }
+      current = parent;
+    }
+  }
 }

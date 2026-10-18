@@ -1,3 +1,4 @@
+import { isOpenQueueIssue } from './sync-state/open-issue-facts.js';
 export function cooldownIsPending(input: {
   readonly now: number | undefined;
   readonly sessionNotBefore: number | undefined;
@@ -32,8 +33,8 @@ export function hasConflictBarrier(rows: readonly { readonly status?: string;
     || (row.status === 'set_aside' && row.recovery?.code === 'conflict_hold'));
 }
 
-export function hasRejectedBarrier(rows: readonly { readonly status?: string }[]): boolean {
-  return rows.some((row) => row.status === 'rejected');
+export function hasRejectedBarrier(rows: readonly { readonly status?: string; readonly recovery?: { readonly code?: string } }[]): boolean {
+  return rows.some((row) => row.status === 'rejected' && isOpenQueueIssue(row));
 }
 
 export function queueStatusProjection(rows: readonly { readonly status?: string;

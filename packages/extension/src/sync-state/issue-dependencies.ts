@@ -1,3 +1,4 @@
+import { openIngressIssue, blockedPullIssue } from './open-issue-facts.js';
 /** Transaction-local view of the same durable issue roots used by Pull and delete protection. */
 import { issueAncestry } from '../sync-issues.js';
 import { projectUnresolvedNativeWait } from '../native-wait-open.js';
@@ -5,28 +6,40 @@ import { cursorPage, scopeRowsRange, requestValue } from './idb.js';
 import { STORES, INDEXES } from './schema.js';
 import type { IntentRecord, MappingInput, UnknownRecord, BookmarkEventRecord } from './types.js';
 
-export const ISSUE_DEPENDENCY_STORES = [STORES.mappings, STORES.diagnostics, STORES.intents, STORES.pullEvents, STORES.bookmarkEvents] as const;
-export async function transactionIssueDependencies(queue: IDBObjectStore, key: string) {
+export const ISSUE_DEPENDENCY_STORES = [STORES.mappings, STORES.diagnostics, STORES.intents, STORES.pullEvents, STORES.bookmarkEvents, STORES.pullPages] as const;
+export async function transactionIssueDependencies(queue: IDBObjectStore, key: string, excludeEventId?: string) {
   const tx = queue.transaction;
-  const mappings = await cursorPage<MappingInput>(tx.objectStore(STORES.mappings), scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
-  const diagnostics = await cursorPage<UnknownRecord>(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope),
-    IDBKeyRange.bound([key], [key, []]), Number.MAX_SAFE_INTEGER);
+  const mappings = await requestValue<MappingInput[]>(tx.objectStore(STORES.mappings).getAll(scopeRowsRange(key)));
+  const diagnostics = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope)
+    .getAll(IDBKeyRange.bound([key], [key, []])));
   const roots = new Set<string>(); const nativeRoots = new Set<string>();
   for (const row of diagnostics) {
     if (row.kind === 'pull_issue' && typeof row.nodeId === 'string') roots.add(row.nodeId);
     if (row.kind === 'local_issue' && typeof row.nativeId === 'string') nativeRoots.add(row.nativeId);
   }
-  const intents = await cursorPage<IntentRecord>(tx.objectStore(STORES.intents), scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
+  const intents = await requestValue<IntentRecord[]>(tx.objectStore(STORES.intents).getAll(scopeRowsRange(key)));
   for (const intent of intents) {
     const event = intent.eventId ? await requestValue(tx.objectStore(STORES.pullEvents).get([key, intent.eventId])) as UnknownRecord | undefined : undefined;
     if (!projectUnresolvedNativeWait(intent, event?.state)) continue;
     if (intent.colpId) roots.add(intent.colpId);
     if (intent.nativeTargetId) nativeRoots.add(intent.nativeTargetId);
   }
-  for (const row of mappings) if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
+  for (const diagnostic of diagnostics) {
+    const park = diagnostic.park as UnknownRecord | undefined; if (typeof park?.eventId !== 'string' || park.eventId === excludeEventId) continue;
+    const event = await requestValue<BookmarkEventRecord | undefined>(tx.objectStore(STORES.bookmarkEvents).get([key, park.eventId]));
+    const issue = openIngressIssue(diagnostic, event); if (issue) nativeRoots.add(issue.nativeId);
+  }
+  for (const mapping of mappings) if (nativeRoots.has(mapping.nativeId)) roots.add(mapping.colpId);
+  const pages = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.pullPages).getAll(scopeRowsRange(key)));
+  for (const page of pages) {
+    if (page.state !== 'blocked') continue;
+    const events = await cursorPage<UnknownRecord>(tx.objectStore(STORES.pullEvents).index(INDEXES.pullEventByPage),
+      IDBKeyRange.bound([key, page.pageId], [key, page.pageId, []]), Number.MAX_SAFE_INTEGER);
+    const issue = blockedPullIssue(page, events); for (const id of issue?.nodeIds ?? []) roots.add(id);
+  }
   const byNative = new Map(mappings.map(row => [row.nativeId, row.colpId]));
   const operationParents = new Map<string, string[]>();
-  const events = await cursorPage<BookmarkEventRecord>(tx.objectStore(STORES.bookmarkEvents), scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
+  const events = await requestValue<BookmarkEventRecord[]>(tx.objectStore(STORES.bookmarkEvents).getAll(scopeRowsRange(key)));
   for (const event of events) {
     if (!event.opId) continue;
     const context = event.details.context as UnknownRecord | undefined;

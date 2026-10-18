@@ -128,3 +128,20 @@ async function seed(rows: ReturnType<typeof row>[]) {
   assert.equal(lease.outcome, 'acquired');
   return { store, lease: lease as { fence: number } };
 }
+
+test('one recapture failure keeps that evidence held while unrelated settled dependants join the tail', async () => {
+  const { store } = await seed([row(1, 'set_aside', { recovery: { code: 'dependency_hold' } }),
+    row(2, 'set_aside', { recovery: { code: 'dependency_hold' } })]);
+  try {
+    const released = await store.releaseSettledHolds(scope, async old => {
+      if (old.opId === 'op-1') throw new Error('recovery_identity_unproven');
+      return { operations: [{ ...payload('fresh-independent', 1), targetId: 'node-op-2',
+        payload: { base: { title: 'Before' }, value: { title: 'Current independent content' } } }] };
+    });
+    assert.equal(released.length, 1);
+    assert.equal(released[0]!.opId, 'fresh-independent');
+    assert.equal((await store.getQueueByOpId(scope, 'op-1'))?.status, 'set_aside');
+    assert.equal((await store.getQueueByOpId(scope, 'op-2'))?.recovery?.code, 'recaptured');
+    assert.equal((await store.firstLaneQueue(scope))?.opId, 'fresh-independent');
+  } finally { store.close(); }
+});

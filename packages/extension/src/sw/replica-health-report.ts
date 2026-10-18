@@ -1,3 +1,5 @@
+import { isOpenQueueIssue } from '../sync-state/open-issue-facts.js';
+import { readOpenSyncIssues } from '../sync-issues.js';
 import { createHealthDelivery } from './replica-health-delivery.js';
 import { REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_MAX_ITEMS, REPLICA_COMMAND_RESULTS_MAX,
   REPLICA_HEALTH_TITLE_MAX } from '../generated/replica-health-limits.js';
@@ -20,7 +22,6 @@ import { colpCredentialHeaders } from '../auth-client.js';
 import { digestJson } from '../bookmark-event-codec.js';
 import type { StorageArea } from '../credential-store.js';
 import type { NativeWaitProjection } from '../native-create-executor.js';
-import { projectNativeWaits } from '../native-wait.js';
 import type { PersonalSyncMode } from '../personal-sync-policy.js';
 import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } from '../sync-state-store.js';
 import { classifySyncFailure, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
@@ -84,8 +85,9 @@ export function projectReplicaHealth(input: {
   readonly mode?: PersonalSyncMode;
   readonly attention: PublicSyncAttention;
   readonly issues: readonly ReplicaHealthIssue[];
+  readonly total?: number;
 }): ReplicaHealthProjection {
-  const total = input.issues.length;
+  const total = input.total ?? input.issues.length;
   // While paused nothing syncs, so the report names no bookmarks and offers nothing.
   if (input.mode === 'paused') return { state: 'paused', issues: { total, items: [] }, actions: [] };
   const issues = { total, items: input.issues.slice(0, MAX_ITEMS) };
@@ -104,9 +106,8 @@ export function projectReplicaHealth(input: {
 /** Uploads the server refused, held for a conflict, or set aside for another problem, one issue each. */
 export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): ReplicaHealthIssue[] {
   return rows.flatMap((row) => {
-    if (row.recovery?.code === 'recaptured') return [];
+    if (!isOpenQueueIssue(row)) return [];
     const conflict = row.status === 'blocked' && row.recovery?.code === 'conflict_pending';
-    if (row.status !== 'rejected' && row.status !== 'set_aside' && !conflict) return [];
     const fallback = row.status === 'set_aside' ? 'set_aside' : 'push_rejected';
     const code = conflict ? 'conflict_pending' : CODE.test(row.recovery?.code ?? '') ? row.recovery!.code : fallback;
     const at = instant(row.payload.occurredAt);
@@ -207,22 +208,18 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   const delivery = await createHealthDelivery({ scope: deps.scope, storage: deps.storage, now: deps.now,
     post: (body, scope) => post({ ...deps, scope }, body), archive: deps.store.exportArchive });
   deps = { ...deps, storage: delivery.storage };
-  const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store,
+  const open = await readOpenSyncIssues(deps.store, deps.scope);
+  const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
   if (response.ok !== true) return 'failed';
-  const rows: QueueOperation[] = [];
-  for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
-    rows.push(...await deps.store.listQueue(deps.scope, status, 0, 1_000).catch(() => []));
-  }
-  const waits = await projectNativeWaits(deps.store, deps.scope).catch(() => []);
-  const pulled = await deps.store.listPullIssues?.(deps.scope).catch(() => []) ?? [];
-  const local = await deps.store.listLocalIssues?.(deps.scope).catch(() => []) ?? [];
-  const issues = [...replicaIssuesFromQueue(rows.sort((left, right) => left.sequence - right.sequence)),
-    ...replicaIssuesFromPull(pulled), ...replicaIssuesFromLocal(local), ...replicaIssuesFromWaits(waits)];
-  const projection = projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues });
+  const issues = [...replicaIssuesFromQueue(open.queue), ...replicaIssuesFromPull(open.pull),
+    ...replicaIssuesFromLocal(open.local), ...replicaIssuesFromWaits(open.waits),
+    ...open.replica.map(issue => ({ issueId: issueId(['replica', issue.pageId]), direction: 'pull' as const,
+      code: issue.code, count: 1, firstSeenAt: new Date(issue.at).toISOString(), lastSeenAt: new Date(issue.at).toISOString(), actions: [] }))];
+  const projection = projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues, total: open.total });
   // Times are display facts: a report that only moved a clock is not a change.
   const digest = digestJson({ state: projection.state, code: projection.code ?? null, total: projection.issues.total,
-    items: projection.issues.items.map((item) => [item.issueId, item.count, ...item.actions]),
+    items: projection.issues.items.map((item) => [item.issueId, item.code, item.title ?? null, item.count, ...item.actions]),
     actions: [...projection.actions] });
   const now = deps.now();
   const stored = (await deps.storage.get(REPLICA_HEALTH_RECORD_KEY))[REPLICA_HEALTH_RECORD_KEY] as SentRecord | undefined;

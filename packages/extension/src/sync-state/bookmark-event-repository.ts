@@ -296,7 +296,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
         status: 'pending', retry: { attempt: 0, notBefore: 0 },
         payload: operation }, maxRecordBytes);
       sequences.put({ scopeKey: key, next: sequence + 1 }); inject(faults.fault, 'after_sequence', tx);
-      committed = await holdIfWaiting(queue, key, { ...queueInput, scopeKey: key, sequence }, maxRecordBytes, validatedEvent.details.hold);
+      committed = await holdIfWaiting(queue, key, { ...queueInput, scopeKey: key, sequence }, maxRecordBytes, validatedEvent.details.hold, validatedEvent.eventId);
       queue.add(committed); inject(faults.fault, 'after_queue', tx);
       const mappings = tx.objectStore(STORES.mappings);
       const mapping = mappingTemplate ? validateMapping(key,

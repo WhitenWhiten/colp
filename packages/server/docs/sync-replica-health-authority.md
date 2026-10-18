@@ -9,7 +9,10 @@ Session issuance stores its SHA-256 digest separately in
 `sync_replica_report_authorities`, bound to the account, replica, device ID,
 browser profile, browser generation, credential issuer/client, and account
 security epoch. The client retains the proof separately from its live Session,
-scoped by server/account/browser/generation/replica. Proofs never appear in health
+scoped by server/account/browser/generation/replica. Proofs for pending final
+delivery survive account switching, but local revocation or absence of a fresh
+matching account credential prevents reading/sending them. Server epoch and
+revocation checks still apply when that account signs back in. Proofs never appear in health
 JSON or product status. The new header is redacted from logs.
 
 A report verifies the current credential's revocation/epoch and active account,
@@ -18,8 +21,10 @@ before any report write, command delivery, or result settlement. Access-token
 rotation and Session/lease expiry do not invalidate this separate reporting
 capability. Reports neither issue a Session nor change lease, checkpoint, cursor,
 last-seen, or replica lifecycle. Account epoch changes, removed accounts, changed
-browser generation and retired replicas fail closed. Proof rows follow their
-account/replica deletion lifecycle; no clear-text proof is stored server-side.
+browser generation and retired replicas fail closed. Report-proof rows follow their
+account/replica deletion lifecycle and contain only proof digests. The existing
+Session store/audit retains Session identifiers under its existing access policy;
+these identifiers must now also be treated as possession capabilities.
 
 Existing-replica Session HTTP issuance also checks continuity: either the same
 previously admitted credential or an installation proof is required. Otherwise

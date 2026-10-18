@@ -144,6 +144,10 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     if (effect.kind === 'node_created' || effect.kind === 'node_restored') return expectedCreateLike(event);
     const colpId = effect.kind === 'node_deleted' ? effect.tombstone.targetId
       : effect.kind === 'subtree_deleted' ? effect.rootTombstone.targetId : effect.node.id;
+    if (effect.kind === 'subtree_deleted' && !await options.store.getMappingByColpId(options.scope, colpId)) {
+      return sidecarExpectation(effect.effectDigest, { colpId, nativeId: unmountedNativeId(colpId),
+        rootNativeId: unmountedNativeId(colpId), projection: { revision: 'deleted', digest: effect.effectDigest } });
+    }
     const mapping = await requireMapping(colpId, 'target');
     const mounts = await options.store.listMountBindings(options.scope);
     if (effect.kind !== 'node_moved' && !mayMutateNative(mapping, mounts)) {

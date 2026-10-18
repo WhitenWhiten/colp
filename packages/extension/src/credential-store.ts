@@ -50,10 +50,10 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
       const credential = unstamp(await read<Stamped<StoredCredential>>(storage, CREDENTIAL), current);
       const binding = await read<StoredAuthBinding>(storage, BINDING);
       if (credential?.subject && binding) {
-        const proofs = unstamp(await read<Stamped<Record<string, string>>>(storage, REPORT_PROOFS), current) ?? {};
+        const proofs = await read<Record<string, string>>(storage, REPORT_PROOFS) ?? {};
         const key = proofKey({ serverOrigin: credential.serverOrigin, accountId: credential.subject,
           replicaId: binding.replicaId, browserProfileId: binding.browserProfileId, generation: Number(binding.generation) });
-        await storage.set({ [REPORT_PROOFS]: stamp({ ...proofs, [key]: value.sessionId }, generation) });
+        await storage.set({ [REPORT_PROOFS]: { ...proofs, [key]: value.sessionId } });
       }
       await storage.set({ [SESSION]: stamp(value, generation) });
       await reclaimIfFenced(storage, fence, SESSION, generation);
@@ -64,17 +64,18 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
     clearSession: () => storage.remove(SESSION),
     async loadReplicaReportProof(scope: Pick<SyncScope, 'serverOrigin' | 'accountId' | 'replicaId' | 'browserProfileId' | 'generation'>): Promise<string | undefined> {
       const authority = await fence.read(); if (authority.revoked) return undefined;
-      const proofs = unstamp(await read<Stamped<Record<string, string>>>(storage, REPORT_PROOFS), authority);
-      if (proofs?.[proofKey(scope)]) return proofs[proofKey(scope)];
-      // Compatibility with an installation whose last Session predates proof storage.
       const credential = unstamp(await read<Stamped<StoredCredential>>(storage, CREDENTIAL), authority);
+      if (credential?.subject !== scope.accountId || credential.serverOrigin !== scope.serverOrigin) return undefined;
+      const proofs = await read<Record<string, string>>(storage, REPORT_PROOFS);
+      if (typeof proofs?.[proofKey(scope)] === 'string') return proofs[proofKey(scope)];
+      // Compatibility with an installation whose last Session predates proof storage.
       const binding = await read<StoredAuthBinding>(storage, BINDING);
       const session = unstamp(await read<Stamped<StoredSession>>(storage, SESSION), authority);
       if (credential?.subject !== scope.accountId || credential.serverOrigin !== scope.serverOrigin
           || binding?.replicaId !== scope.replicaId || binding.browserProfileId !== scope.browserProfileId
           || Number(binding.generation) !== scope.generation) return undefined;
       if (session) {
-        await storage.set({ [REPORT_PROOFS]: stamp({ ...proofs, [proofKey(scope)]: session.sessionId }, authority.generation) });
+        await storage.set({ [REPORT_PROOFS]: { ...proofs, [proofKey(scope)]: session.sessionId } });
       }
       return session?.sessionId;
     },
@@ -143,7 +144,7 @@ export function createCredentialStore(storage: StorageArea, now: () => number = 
     loadSignOutReason: async (): Promise<string | null> =>
       (await read<{ readonly code?: string }>(storage, SIGN_OUT_REASON))?.code ?? null,
     clearSignOutReason: () => storage.remove(SIGN_OUT_REASON),
-    clearAuthority: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION, BINDING, REPORT_PROOFS]),
+    clearAuthority: () => storage.remove([TRANSACTION, CREDENTIAL, SESSION, BINDING]),
     activateAuthority: fence.activate,
     revokeAuthority: fence.revoke,
     assertWritable: fence.assertWritable,

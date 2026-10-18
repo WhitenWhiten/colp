@@ -8334,5 +8334,13 @@
   "welcome_title": {
     "message": "欢迎使用 Know-N",
     "description": "Welcome to Know-N"
+  },
+  "sync_itemsNeedAttention_one": {
+    "message": "$1 项需要处理。",
+    "description": "$1 item needs attention."
+  },
+  "sync_itemsNeedAttention_other": {
+    "message": "$1 项需要处理。",
+    "description": "$1 items need attention."
   }
 }

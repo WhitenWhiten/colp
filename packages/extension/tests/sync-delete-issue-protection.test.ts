@@ -69,3 +69,23 @@ test('single mapped Pull issue and missing subtree members retain evidence while
     assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-4');
   } finally { f.store.close(); }
 });
+
+test('a missing subtree-root mapping does not prevent allowed mapped siblings from being deleted', async () => {
+  const f = await setup();
+  try {
+    await apply(f, [create(91, 'root-colp', 'Folder'), create(92, id(91)), create(93, id(91))], 'cursor-1');
+    const root = (await f.store.getMappingByColpId(scope, id(91)))!;
+    const held = (await f.store.getMappingByColpId(scope, id(92)))!;
+    const sibling = (await f.store.getMappingByColpId(scope, id(93)))!;
+    await apply(f, [update(94, id(92), id(91), true)], 'cursor-2');
+    await f.store.deleteMapping(scope, root.nativeId);
+    await apply(f, [pullFixtures.subtreeEvent({ sequence: 95, targetId: id(91), collectionId: scope.collectionId,
+      members: [id(91), id(92), id(93)], paged: false })], 'cursor-3');
+    assert.ok(f.api.getNode(held.nativeId)); assert.ok(f.api.getNode(root.nativeId));
+    assert.equal(f.api.getNode(sibling.nativeId), undefined);
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-3');
+    assert.equal((await f.store.listPullIssues(scope)).length, 1);
+    assert.ok(await f.store.getLocalSyncExclusion(scope, held.nativeId));
+    assert.equal((await f.store.getLocalSyncExclusion(scope, root.nativeId))?.rootNativeId, 'native-root');
+  } finally { f.store.close(); }
+});

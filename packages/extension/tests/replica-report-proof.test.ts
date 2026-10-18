@@ -29,3 +29,22 @@ test('report possession proof survives access-token refresh, Session clearing an
     assert.equal(await f.credentials.loadReplicaReportProof(f.scope), undefined);
   } finally { f.store.close(); }
 });
+
+test('account switching preserves final-delivery proof but requires fresh matching account authority to read it', async () => {
+  const f = await setup();
+  try {
+    const credential = (await f.credentials.loadCredential())!;
+    const session: StoredSession = { sessionId: 'old-replica-report-proof', credentialAuthorityDigest: 'digest',
+      expiresAt: '2099-01-01T00:00:00Z', scope: 'collection', snapshotRequired: false,
+      collection: { collectionId: f.scope.collectionId, serverCursor: 'c', serverRevision: 'r' },
+      replicaLease: { leaseId: 'lease', generation: '1', state: 'active', expiresAt: '2099-01-01T00:00:00Z' } };
+    await f.credentials.saveSession(session);
+    await f.credentials.revokeAuthority(); await f.credentials.clearAuthority();
+    assert.equal(await f.credentials.loadReplicaReportProof(f.scope), undefined);
+    const authority = await f.credentials.activateAuthority();
+    await f.credentials.saveCredential({ ...credential, subject: 'another-account' }, authority.generation);
+    assert.equal(await f.credentials.loadReplicaReportProof(f.scope), undefined);
+    await f.credentials.saveCredential({ ...credential, accessToken: 'new-matching-account-token' }, authority.generation);
+    assert.equal(await f.credentials.loadReplicaReportProof(f.scope), session.sessionId);
+  } finally { f.store.close(); }
+});

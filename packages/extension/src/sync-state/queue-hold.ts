@@ -1,3 +1,4 @@
+import { isOpenQueueIssue } from './open-issue-facts.js';
 import { dependsOnIssue, issueAncestry } from '../sync-issues.js';
 import { transactionIssueDependencies } from './issue-dependencies.js';
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
@@ -37,13 +38,13 @@ export async function firstLaneQueueRow(queue: IDBObjectStore, receipts: IDBObje
   return row;
 }
 
-/** Rows later changes of their bookmark wait for: open conflicts and every held row, in sequence order. */
+/** Rows later changes of their bookmark wait for: open conflicts, rejections and held rows, in sequence order. */
 export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordBytes: number): Promise<QueueOperation[]> {
   const rows: unknown[] = [];
-  for (const status of ['blocked', 'set_aside'] as const) {
+  for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
     await iterateCursor(queue.index(INDEXES.queueByStatusSequence),
       IDBKeyRange.bound([key, status, 1], [key, status, Number.MAX_SAFE_INTEGER]), (value) => {
-        if (status === 'set_aside' || (value as QueueOperation).recovery?.code === 'conflict_pending') rows.push(value);
+        if (isOpenQueueIssue(value as QueueOperation)) rows.push(value);
       });
   }
   return rows.map((value) => validateQueueRecord(value, maxRecordBytes)).sort((left, right) => left.sequence - right.sequence);
@@ -93,12 +94,12 @@ function dependentHold(holder: QueueOperation): string {
  * conflict or held waits with it instead of joining the lane.
  */
 export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: unknown, maxRecordBytes: number,
-  hold?: unknown): Promise<QueueOperation> {
+  hold?: unknown, resolvingEventId?: string): Promise<QueueOperation> {
   const row = validateQueueRecord(input, maxRecordBytes);
   if (!holdable(row)) return row;
   const code = hold && typeof hold === 'object' ? (hold as { readonly code?: unknown }).code : undefined;
   if (typeof code === 'string' && code.length > 0) return asHeld(row, code, maxRecordBytes);
-  const holder = heldBy(row, await laneHolders(queue, key, maxRecordBytes), await transactionIssueDependencies(queue, key));
+  const holder = heldBy(row, await laneHolders(queue, key, maxRecordBytes), await transactionIssueDependencies(queue, key, resolvingEventId));
   return holder ? asHeld(row, dependentHold(holder), maxRecordBytes) : row;
 }
 

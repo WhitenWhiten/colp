@@ -41,37 +41,36 @@ function subjectOf(event: OpEvent): Subject | null {
 
 /**
  * Runs before a staged event touches the browser. An event about a node that
- * is already set aside, or placed inside one, is set aside with it; a delete
- * of that node closes it. A node whose record cannot be stored is set aside
+ * is already set aside, or placed inside one, is set aside with it. Deletes
+ * use per-member protection and retain the issue evidence. A node whose record cannot be stored is set aside
  * here, before a browser call could leave an unmapped bookmark behind.
  * Returns true when the event is settled and must not be applied.
  */
 export async function setAsidePullItem(options: PullApplierOptions, eventId: string, event: OpEvent,
   now: number): Promise<boolean> {
   const subject = subjectOf(event); if (!subject) return false;
-  const open = await openIssues(options);
+  const issues = await readOpenSyncIssues(options.store, options.scope);
+  const open = new Map(issues.pull.map(issue => [issue.nodeId, issue]));
   const node = subject.node; const title = typeof node?.title === 'string' ? node.title : undefined;
   const self = open.get(subject.nodeId);
   if (self) {
     // Mapped deletes must reach the member executor: it retains issue nodes and
     // their ancestors while deleting independent members. Unmapped issues keep
     // their evidence until repair, even after the remote tombstone.
-    if (subject.deleted && await options.store.getMappingByColpId(options.scope, subject.nodeId)) return false;
+    if (subject.deleted && (event.effect.kind === 'subtree_deleted'
+      || await options.store.getMappingByColpId(options.scope, subject.nodeId))) return false;
     await options.store.setAsidePullEvent(options.scope, eventId, { code: self.code, nodeId: self.nodeId, now });
     return true;
   }
   if (!subject.deleted) {
-    const issues = await readOpenSyncIssues(options.store, options.scope);
     const mappings = await options.store.listMappings(options.scope);
-    const nativeRoots = new Set(mappings.filter(row => issues.nativeRoots.has(row.nativeId)).map(row => row.colpId));
-    const roots = new Set([...issues.roots, ...nativeRoots]);
     const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : [])];
-    if (dependsOnIssue(targets, roots, issueAncestry(mappings, issues.queue))) {
-    assertBelowCeiling(open);
-    // Its folder is not in this browser, so it has nowhere to go; it waits as its own item.
-    await options.store.setAsidePullEvent(options.scope, eventId, { code: 'parent_set_aside', nodeId: subject.nodeId,
-      now, ...(title ? { title } : {}) });
-    return true;
+    if (dependsOnIssue(targets, issues.roots, issueAncestry(mappings, issues.queue))) {
+      assertBelowCeiling(issues.total);
+      // A target or ancestor has an unresolved issue; keep the native state and dependency evidence.
+      await options.store.setAsidePullEvent(options.scope, eventId, { code: 'parent_set_aside', nodeId: subject.nodeId,
+        now, ...(title ? { title } : {}) });
+      return true;
     }
   }
   if (!node || (node.kind !== 'bookmark' && node.kind !== 'folder')) return false;
@@ -81,7 +80,7 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     return false;
   } catch (error) {
     if (!(error instanceof SyncStateError) || classifySyncFailure(error.code, { nodeId: node.id })?.class !== 'item') throw error;
-    assertBelowCeiling(open);
+    assertBelowCeiling(issues.total);
     await options.store.setAsidePullEvent(options.scope, eventId, { code: error.code, nodeId: node.id, now,
       ...(title ? { title } : {}) });
     return true;
@@ -92,8 +91,8 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
  * B5: an event that fails about its own node before its browser call changed
  * anything is set aside with that node; the rest of the page applies and the
  * cursor moves on. Only an event that entered this pass staged or prepared
- * qualifies: one already past its browser call may have changed the browser in
- * an earlier pass. Any other failure keeps its class (`freezesPull` or retry).
+ * qualifies, and it must still be in one of those states at failure. A started
+ * browser call may already have changed the browser in this or an earlier pass. Any other failure keeps its class (`freezesPull` or retry).
  * Returns true when the event is settled.
  */
 export async function setAsideFailedPullItem(options: PullApplierOptions,
@@ -104,7 +103,7 @@ export async function setAsideFailedPullItem(options: PullApplierOptions,
   if (!subject || !setsAsidePullItem(code, { nodeId: subject.nodeId, eventId }) || !['staged', 'intent_prepared'].includes(String(entered.state))) return false;
   const current = await options.store.getPullEvent(options.scope, eventId);
   if (!current || !['staged', 'intent_prepared'].includes(String(current.state))) return false;
-  assertBelowCeiling(await openIssues(options));
+  assertBelowCeiling((await readOpenSyncIssues(options.store, options.scope)).total);
   const title = typeof subject.node?.title === 'string' ? subject.node.title : undefined;
   await options.store.setAsidePullEvent(options.scope, eventId, { code, nodeId: subject.nodeId, now,
     ...(title ? { title } : {}) });
@@ -134,10 +133,6 @@ export async function pullAckWarnings(store: Pick<ReturnType<typeof createSyncSt
   return warnings;
 }
 
-async function openIssues(options: PullApplierOptions): Promise<Map<string, PullIssueRecord>> {
-  return new Map((await options.store.listPullIssues(options.scope)).map((issue) => [issue.nodeId, issue]));
-}
-
-function assertBelowCeiling(open: ReadonlyMap<string, PullIssueRecord>): void {
-  if (open.size >= PULL_ISSUE_CEILING) throw new SyncFailureError('pull_issue_ceiling');
+function assertBelowCeiling(count: number): void {
+  if (count >= PULL_ISSUE_CEILING) throw new SyncFailureError('pull_issue_ceiling');
 }

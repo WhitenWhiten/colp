@@ -1,4 +1,4 @@
-import { readOpenSyncIssues } from '../sync-issues.js';
+import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 /**
  * S7 / B2 (SR-09 · SR-11 · SR-13): the read-only service-worker side of the
  * popup/settings attention exits.
@@ -12,17 +12,18 @@ import { readOpenSyncIssues } from '../sync-issues.js';
  * the queue is doing. No engine wake, no write, no user gesture.
  */
 import { hasConflictBarrier, hasRejectedBarrier, queueStatusProjection } from '../engine-public-stability.js';
-import { projectNativeWaits, type NativeWaitStore } from '../native-wait.js';
+import type { NativeWaitStore } from '../native-wait.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, SyncScope } from '../sync-state-store.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listPullIssues' | 'listLocalIssues'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
   readonly store: SyncAttentionStore;
+  readonly openIssues?: OpenSyncIssues;
   readonly rebuildPending?: () => Promise<boolean>;
 }
 
@@ -39,20 +40,21 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
   let scope: SyncScope;
   try { scope = await deps.scope(); } catch { return { ok: false, error: 'not_connected' }; }
   try {
-    const [recorded, engine, waits] = await Promise.all([
+    const [recorded, engine] = await Promise.all([
       deps.store.getScope(scope),
       deps.store.getEngineState(scope),
-      projectNativeWaits(deps.store, scope).catch(() => []),
     ]);
     const recoveryCode = typeof recorded?.metadata?.recoveryCode === 'string'
       ? recorded.metadata.recoveryCode : undefined;
     const lastError = engine?.lastError;
     const terminalCode = syncAttentionTerminalCode(lastError, recoveryCode);
-    const queue = await queueFacts(deps.store, scope);
-    const open = await readOpenSyncIssues(deps.store, scope);
+    const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
+    const waits = open.waits;
+    const queue = await queueFacts(deps.store, scope, open);
     const issues = [...open.pull.map(row => ({ direction: 'pull' as const, code: row.code,
       ...(row.title ? { title: row.title } : {}) })),
       ...open.local.map(row => ({ direction: 'local' as const, code: row.code, ...(row.title ? { title: row.title } : {}) })),
+      ...open.replica.map(row => ({ direction: 'pull' as const, code: row.code })),
       ...open.queue.map(row => ({ direction: 'push' as const, code: row.recovery?.code ?? 'push_rejected' }))];
     return { ok: true, attention: {
       ...(engine?.phase ? { phase: engine.phase } : {}),
@@ -72,13 +74,14 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
 }
 
 /** Best-effort like `sw/remote-delete.ts#status`: a failed queue read still leaves the freeze visible. */
-async function queueFacts(store: SyncAttentionStore, scope: SyncScope) {
+async function queueFacts(store: SyncAttentionStore, scope: SyncScope, open: OpenSyncIssues) {
   const live: Array<{ readonly status?: string; readonly recovery?: { readonly code?: string } }> = [];
   try {
     for (const status of LIVE_STATUSES) live.push(...(await store.listQueue(scope, status, 0, QUEUE_PAGE)).filter(row => row.recovery?.code !== 'recaptured'));
   } catch {
     return { queueProjection: 'idle' as const, conflictPending: false, rejectedPending: false };
   }
-  return { queueProjection: queueStatusProjection(live), conflictPending: hasConflictBarrier(live),
-    rejectedPending: hasRejectedBarrier(live) };
+  const facts = [...live, ...open.queue];
+  return { queueProjection: queueStatusProjection(facts), conflictPending: hasConflictBarrier(facts),
+    rejectedPending: hasRejectedBarrier(facts) };
 }

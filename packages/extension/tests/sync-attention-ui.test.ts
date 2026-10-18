@@ -248,7 +248,10 @@ describe('sync attention wiring', () => {
     assert.match(ui, /holdsUnprovenIdentity/);
     assert.match(ui, /withNativeWaitFallback/);
     assert.doesNotMatch(ui, /innerHTML|insertAdjacentHTML|document\.write/);
-    assert.match(swHandler, /projectNativeWaits/);
+    assert.match(swHandler, /readOpenSyncIssues/);
+    assert.match(swHandler, /open\.waits/);
+    const sharedIssues = await readFile(resolve(root, 'src/sync-issues.ts'), 'utf8');
+    assert.match(sharedIssues, /projectNativeWaits/);
     assert.match(swHandler, /queueStatusProjection/);
     assert.match(swHandler, /metadata\?\.recoveryCode/);
     assert.match(worker, /validSyncAttentionRequest\(message\)/);

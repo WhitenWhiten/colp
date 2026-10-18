@@ -1,3 +1,4 @@
+import { withinPrivateNativeBoundary } from './native-private-boundary.js';
 import { SyncFailureError } from './sync-failure-class.js';
 /**
  * Per-member remote delete. Completed members replay; missing parents do not
@@ -20,7 +21,7 @@ import type {
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'getApplyIntent' | 'persistApplyIntentFacts' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings'
-  | 'listApplyIntents' | 'getPullEvent'>;
+  | 'listApplyIntents' | 'getPullEvent' | 'getScope' | 'getMappingByColpId'>;
 
 export type DeleteMemberResult = 'not_started' | 'applied' | 'absent' | 'retained' | 'protected' | 'failed';
 
@@ -77,7 +78,8 @@ export async function executeRemoteDeleteMembers(input: {
   }
   const order = await orderMembers(input.api, frozen.members, results);
   const issues = await readOpenSyncIssues(input.store, input.scope);
-  const ancestry = issueAncestry(await input.store.listMappings(input.scope), issues.queue);
+  const privateRoots = (await input.store.getScope(input.scope))?.privateRoots ?? [];
+  const ancestry = issueAncestry([...await input.store.listMappings(input.scope), ...input.mappings], issues.queue);
   for (const row of order) {
     const prior = results[row.colpId];
     if (prior && TERMINAL.has(prior)) continue;
@@ -90,6 +92,14 @@ export async function executeRemoteDeleteMembers(input: {
       continue;
     }
     const mapping = mappingByNative.get(row.nativeId);
+    if (mapping && privateRoots.length > 0) {
+      const current = await lookupBookmark(id => input.api.get(id), row.nativeId);
+      if (current.class === 'present' && await withinPrivateNativeBoundary({ store: input.store, scope: input.scope,
+        mapping, privateRoots, lookup: id => lookupBookmark(native => input.api.get(native), id) })) {
+        results[row.colpId] = 'protected'; await writeResults(input, frozen.members, results); continue;
+      }
+      if (current.class !== 'present' && current.class !== 'not_found') throw deleteFailure(current);
+    }
     if (isProtectedNativeRoot(row.nativeId, input.mounts)
       || (mapping !== undefined && !mayMutateNative(mapping, input.mounts))) {
       results[row.colpId] = 'protected';

@@ -1,3 +1,4 @@
+import { reasonCode } from '../push-error-code.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import type { RecaptureQueueRow } from '../queue-recapture.js';
 import { recapturedOperationDigest } from '../queue-recapture.js';
@@ -80,7 +81,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
         if (heldBy(row, kept, graph)) kept.push(row); else released.push(row);
       }
       return released;
-    }, recapture);
+    }, recapture, true);
   }
 
   /**
@@ -109,14 +110,21 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
 
   async function releaseRecaptured(input: SyncScope,
     pick: (queue: IDBObjectStore, key: string) => Promise<QueueOperation[]>,
-    recapture?: RecaptureQueueRow): Promise<QueueOperation[]> {
+    recapture?: RecaptureQueueRow, independent = false): Promise<QueueOperation[]> {
     ctx.assertWritable(); const key = scopeKey(validateScope(input)); const db = await ctx.writableDatabase();
     const read = db.transaction([STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readonly'); const completion = transactionDone(read);
     const picked = await pick(read.objectStore(STORES.queue), key); await completion;
     if (picked.length === 0) return [];
     if (!recapture) throw new SyncStateError('recapture_required');
     const plans: { row: QueueOperation; capture: Awaited<ReturnType<RecaptureQueueRow>> }[] = [];
-    for (const row of picked) plans.push({ row, capture: await recapture(row) });
+    const failed: { row: QueueOperation; code: string }[] = [];
+    for (const row of picked) {
+      try { plans.push({ row, capture: await recapture(row) }); }
+      catch (error) {
+        if (!independent) throw error;
+        failed.push({ row, code: reasonCode(error, 'recapture_required') });
+      }
+    }
     const released: QueueOperation[] = [];
     await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.queue, STORES.sequences, STORES.mappings,
       STORES.bookmarkEvents, STORES.metadata], 'readwrite', async tx => {
@@ -129,11 +137,26 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
       const ordinalCounter = await requestValue(metadata.get(ordinalKey)) as { next: number } | undefined;
       const previousEvents = await cursorPage<{ ordinal: number }>(tx.objectStore(STORES.bookmarkEvents),
         scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
-      let ordinal = Math.max(ordinalCounter?.next ?? 1, ...previousEvents.map(event => event.ordinal + 1));
+      let ordinal = previousEvents.reduce((next, event) => Math.max(next, event.ordinal + 1), ordinalCounter?.next ?? 1);
+      for (const { row, code } of failed) tx.objectStore(STORES.diagnostics).put({
+        id: `queue-recapture:${key}:${row.opId}`, scopeKey: key, kind: 'queue_recapture_failed', code,
+        details: { opId: row.opId },
+      });
       for (const { row, capture } of plans) {
         const live = await requestValue(queue.index(INDEXES.queueByOpId).get([key, row.opId]));
-        if ((!live || JSON.stringify(validateQueueRecord(live, ctx.maxRecordBytes)) !== JSON.stringify(row))) throw new SyncStateError('stale_ref');
+        if (!live || JSON.stringify(validateQueueRecord(live, ctx.maxRecordBytes)) !== JSON.stringify(row)) throw new SyncStateError('stale_ref');
         queue.put(validateQueueRecord({ ...row, status: 'rejected', recovery: { code: 'recaptured' } }, ctx.maxRecordBytes));
+        if (row.payload.type === 'create_node' && capture.operations.length === 0) {
+          const mappings = tx.objectStore(STORES.mappings);
+          const mapping = await requestValue<MappingInput | undefined>(mappings.index(INDEXES.mappingByColpId)
+            .get([key, `pending-${row.opId}`]));
+          if (mapping) {
+            tx.objectStore(STORES.diagnostics).put({ id: `queue-recapture-discarded:${key}:${row.opId}`, scopeKey: key,
+              kind: 'queue_recapture_discarded', code: 'create_not_current',
+              details: { opId: row.opId, nativeId: mapping.nativeId, colpId: mapping.colpId, rootNativeId: mapping.rootNativeId } });
+            mappings.delete([key, mapping.nativeId]);
+          }
+        }
         for (const operation of capture.operations) {
           const payload = replaceTokens(operation, replacements) as JsonObject;
           const opId = boundedString(payload.opId, 'opId');
@@ -166,7 +189,8 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
           if (!['pending', 'set_aside'].includes(row.status) || row.attempt) continue;
           const payload = replaceTokens(row.payload, replacements) as JsonObject;
           if (JSON.stringify(payload) === JSON.stringify(row.payload)) continue;
-          queue.put(validateQueueRecord({ ...row, payload, digest: recapturedOperationDigest(payload),
+          queue.put(validateQueueRecord({ ...row, payload,
+            baseRevision: replaceTokens(row.baseRevision, replacements), digest: recapturedOperationDigest(payload),
             idempotencyKey: `${row.opId}.recaptured` }, ctx.maxRecordBytes));
         }
         const mappings = tx.objectStore(STORES.mappings);

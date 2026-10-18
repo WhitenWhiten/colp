@@ -66,7 +66,7 @@ export interface QueueOperation {
   /**
    * `set_aside`: held out of the push lane because of one item's problem; never
    * sent, so it owns no server sequence. It is outstanding local work, not
-   * settled history, and is released to the tail of the lane when the problem
+   * settled history, and is recaptured as a fresh operation at the tail when the problem
    * clears (`releaseSetAsideQueue`).
    */
   readonly status: 'pending' | 'claimed' | 'deferred' | 'terminal' | 'gap' | 'blocked' | 'unknown' | 'rejected'

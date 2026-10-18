@@ -75,6 +75,7 @@ for (const change of ['delete', 'outside', 'private'] as const) test(`held creat
     }
     assert.deepEqual(await f.store.releaseSetAsideQueue(scope, [f.queued.sequence], f.capture), []);
     assert.equal(await f.store.firstLaneQueue(scope), null);
+    assert.equal(await f.store.getMappingByNativeId(scope, 'native-create'), null, 'retired creates leave no dangling provisional identity');
     assert.equal((await f.store.getQueueByOpId(scope, f.queued.opId))?.recovery?.code, 'recaptured');
   } finally { f.store.close(); }
 });
@@ -110,5 +111,18 @@ test('recapturing a create rebinds never-sent dependent targets and operation de
     assert.deepEqual(rebound.payload.dependencies, [fresh!.opId]);
     assert.equal(rebound.digest, canonicalOperationDigest(rebound.payload as never));
     assert.notEqual(rebound.idempotencyKey, dependent.idempotencyKey);
+  } finally { f.store.close(); }
+});
+
+test('a mapping created by an identity-failed capture cannot prove its own identity on Retry', async () => {
+  const f = await fixture();
+  try {
+    const event = (await f.store.listBookmarkEvents(scope, 0, 100))[0]!;
+    const tx = (await f.store.open()).transaction('bookmark_events', 'readwrite');
+    tx.objectStore('bookmark_events').put({ ...event, details: { ...event.details, hold: { code: 'recovery_identity_unproven' } } });
+    await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+    await assert.rejects(f.store.releaseSetAsideQueue(scope, [f.queued.sequence], f.capture), /recovery_identity_unproven/);
+    assert.equal((await f.store.getQueueByOpId(scope, f.queued.opId))?.status, 'set_aside');
+    assert.equal(await f.store.firstLaneQueue(scope), null);
   } finally { f.store.close(); }
 });

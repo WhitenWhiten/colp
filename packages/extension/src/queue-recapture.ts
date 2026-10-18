@@ -1,10 +1,10 @@
-import { canonicalOperationDigest } from '@know-n/colp/sync';
+import { canonicalOperationDigest } from '@know-n/colp/sync/canonical';
 import { lookupBookmark, type BookmarkNode } from './bookmark-api-error.js';
 import { bookmarkKind, bookmarkRepresentability, nodeCreate, nodeContent, validateOperation,
   type BookmarkEventNode } from './bookmark-event-codec.js';
 import { resolveIngressBoundary, isManagedBookmarkNode } from './bookmark-event-ingress.js';
 import { nativeIsLocallyExcluded } from './remote-delete-exclusion.js';
-import type { JsonObject, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { JsonObject, QueueOperation, BookmarkEventRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export interface QueueRecapture {
   readonly operations: readonly JsonObject[];
@@ -22,7 +22,7 @@ export function createQueueRecapture(input: { store: ReturnType<typeof createSyn
     if (!await input.permission()) throw new Error('permission_required');
     const recorded = await store.getScope(scope);
     if (recorded?.lifecycle !== 'active' || recorded.rootStatus !== 'ready') throw new Error('scope_not_writable');
-    let event: { nativeId: string } | undefined;
+    let event: BookmarkEventRecord | undefined;
     let after = 0;
     for (;;) {
       const events = await store.listBookmarkEvents(scope, after, 100);
@@ -30,6 +30,11 @@ export function createQueueRecapture(input: { store: ReturnType<typeof createSyn
       if (event || events.length < 100) break;
       after = events.at(-1)!.ordinal;
     }
+    // The original placement reservation failed identity proof. Matching the
+    // mapping this very capture created cannot independently prove that identity.
+    // v1 repairs this through archived replica Rebuild; Retry must keep the hold.
+    const originalHold = event?.details.hold as JsonObject | undefined;
+    if (originalHold?.code === 'recovery_identity_unproven') throw new Error('recovery_identity_unproven');
     const target = typeof row.payload.targetId === 'string' ? row.payload.targetId : `pending-${row.opId}`;
     const mapping = await store.getMappingByColpId(scope, target);
     // Retry never removes an identity hold merely because a mapping happens to exist.

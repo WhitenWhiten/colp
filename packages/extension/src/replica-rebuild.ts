@@ -20,7 +20,7 @@ interface RebuildJournal {
 export interface ReplicaRebuildDeps {
   readonly store: Pick<ReturnType<typeof createSyncStateStore>, 'getScope' | 'getEngineState' | 'listQueue'
     | 'retireScope' | 'exportArchive'> & Partial<Pick<ReturnType<typeof createSyncStateStore>,
-      'listPullIssues' | 'listLocalIssues' | 'listApplyIntents'>>;
+      'listPullIssues' | 'listLocalIssues' | 'listApplyIntents' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
   readonly credentials: ReturnType<typeof createCredentialStore>;
   readonly journal: StorageArea;
   currentScope(): Promise<SyncScope>;

@@ -40,6 +40,9 @@ export async function createHealthDelivery(input: { scope: SyncScope; storage: P
   }
   const flush = async () => {
     for (const [entryKey, entry] of Object.entries(journal.records)) {
+      if (entryKey !== key && input.now() - entry.updatedAt > RETENTION_MS) {
+        delete journal.records[entryKey]; await persist(); continue;
+      }
       if (!sameOwner(entry.scope, input.scope)) continue;
       if (entry.final && !entry.final.confirmedAt) {
         if (input.now() - entry.final.createdAt > RETENTION_MS) { delete journal.records[entryKey]; await persist(); continue; }

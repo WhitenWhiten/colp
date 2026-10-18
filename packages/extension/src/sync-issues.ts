@@ -1,14 +1,16 @@
+import { mergeLocalIssues, blockedPullIssue, isOpenQueueIssue, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
 /** One interpretation of durable open issues, shared by sync and repair consumers. */
 import { projectNativeWaits, type NativeWaitStore } from './native-wait.js';
 import type { LocalIssueRecord, MappingInput, PullIssueRecord, QueueOperation, SyncScope,
   createSyncStateStore } from './sync-state-store.js';
 
 type Store = Partial<Pick<ReturnType<typeof createSyncStateStore>,
-  'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings'> & NativeWaitStore>;
+  'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'> & NativeWaitStore>;
 export interface OpenSyncIssues {
   readonly queue: readonly QueueOperation[];
   readonly pull: readonly PullIssueRecord[];
   readonly local: readonly LocalIssueRecord[];
+  readonly replica: readonly BlockedPullIssue[];
   readonly waits: Awaited<ReturnType<typeof projectNativeWaits>>;
   readonly roots: ReadonlySet<string>;
   readonly nativeRoots: ReadonlySet<string>;
@@ -21,15 +23,21 @@ export async function readOpenSyncIssues(store: Store, scope: SyncScope): Promis
     let after = 0;
     for (;;) {
       const rows = await store.listQueue(scope, status, after, 1_000);
-      queue.push(...rows.filter(row => row.recovery?.code !== 'recaptured' && (status !== 'blocked' || row.recovery?.code === 'conflict_pending')));
+      queue.push(...rows.filter(isOpenQueueIssue));
       if (rows.length < 1_000) break;
       after = rows.at(-1)!.sequence;
     }
   }
   const pull = await store.listPullIssues?.(scope) ?? [];
-  const local = await store.listLocalIssues?.(scope) ?? [];
+  const local = mergeLocalIssues([...(await store.listLocalIssues?.(scope) ?? []),
+    ...(await store.listOpenIngressIssues?.(scope) ?? [])]);
+  const replica: BlockedPullIssue[] = [];
+  if (store.listPullPages && store.listPullEventsByPage) for (const page of await store.listPullPages(scope, ['blocked'])) {
+    const issue = blockedPullIssue(page, await store.listPullEventsByPage(scope, String(page.pageId)));
+    if (issue) replica.push(issue);
+  }
   const waits = store.listApplyIntents ? await projectNativeWaits(store as NativeWaitStore, scope) : [];
-  const roots = new Set(pull.map(row => row.nodeId));
+  const roots = new Set([...pull.map(row => row.nodeId), ...replica.flatMap(issue => issue.nodeIds)]);
   for (const row of queue) {
     if (typeof row.payload.targetId === 'string') roots.add(row.payload.targetId);
     if (row.payload.type === 'create_node') roots.add(`pending-${row.opId}`);
@@ -39,8 +47,8 @@ export async function readOpenSyncIssues(store: Store, scope: SyncScope): Promis
   if (nativeRoots.size && store.listMappings) for (const row of await store.listMappings(scope)) {
     if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
   }
-  return { queue, pull, local, waits, roots, nativeRoots,
-    total: queue.length + pull.length + local.length + waits.length };
+  return { queue, pull, local, waits, replica, roots, nativeRoots,
+    total: queue.length + pull.length + local.length + waits.length + replica.length };
 }
 
 /** Parent edges include existing mappings and never-confirmed creates. */
