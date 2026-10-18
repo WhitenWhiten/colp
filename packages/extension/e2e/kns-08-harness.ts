@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { hasDownloadPathSettlement, hasFirstRunSettlementProof } from './first-run-settlement.js';
-import { EXTENSION_ID, openExtensionOptions, waitForLibraryBinding, showOptionsPane, signInExtension } from './extension-auth.js';
+import { installFixtureReplicaBinding, EXTENSION_ID, openExtensionOptions, waitForLibraryBinding, showOptionsPane, signInExtension } from './extension-auth.js';
 import { fixtureCollectionId } from './external-backend.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 import { redactEvidenceText } from './kns-08-redact.js';
@@ -79,7 +79,7 @@ export async function optionsPage(context: BrowserContext): Promise<Page> {
 }
 
 export async function login(page: Page, binding: ProfileBinding): Promise<void> {
-  await page.evaluate((value) => chrome.storage.local.set({ 'known.auth.binding.v1': value }), binding);
+  await installFixtureReplicaBinding(page, binding);
   if (await page.locator('body').getAttribute('data-state') !== 'connected') {
     await signInExtension(page, fixtureCollectionId());
   }

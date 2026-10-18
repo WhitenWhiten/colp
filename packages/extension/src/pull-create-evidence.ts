@@ -6,11 +6,17 @@ import { chromeCreate, nodeCreate } from './pull-projection.js';
 import type { PullApplierOptions, PullBookmarkApi } from './pull-applier-types.js';
 import { executeNativeCreate, type NativeCreateOutcome } from './native-create-executor.js';
 import { scopeKey } from './sync-state/scope-key.js';
-import type { IntentRecord } from './sync-state-store.js';
+import type { IntentRecord, MappingInput } from './sync-state-store.js';
 
 type Event = Extract<SyncPullEventV02, { kind: 'operation' }>;
 
 export type { NativeCreateOutcome };
+
+export function sidecarExpectation(effectDigest: string, mapping: MappingInput,
+  parentNativeId = mapping.parentNativeId ?? null) {
+  return { eventKind: 'sidecar', nativeId: mapping.nativeId, parentNativeId,
+    details: { effectDigest }, anchors: {}, preStateDigest: mapping.projection.digest };
+}
 
 export function createExpectation(effect: Event['effect'], parentNativeId: string, index: number,
   children: readonly { readonly id: string }[]) {

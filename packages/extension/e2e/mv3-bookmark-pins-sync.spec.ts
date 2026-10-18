@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { openExtensionOptions, chooseLibraryMetadata, waitForLibraryBinding, signInExtension, showOptionsPane } from './extension-auth.js';
+import { installFixtureReplicaBinding, openExtensionOptions, chooseLibraryMetadata, waitForLibraryBinding, signInExtension, showOptionsPane } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
@@ -72,10 +72,9 @@ async function launch(profile: string, browserHostResolverRules: string) {
       `--host-resolver-rules=${browserHostResolverRules}`, '--no-proxy-server', '--ignore-certificate-errors'] });
 }
 async function extensionPage(context: BrowserContext) { return (await openExtensionOptions(context)).page; }
-async function login(page: Page, binding: unknown) {
-  await page.evaluate(({ value, collection }) => chrome.storage.local.set({
-    'known.auth.binding.v1': value, 'known.sync.collection.v1': collection,
-  }), { value: binding, collection: FIXTURE_COLLECTION_ID });
+async function login(page: Page, binding: import('./real-stack.js').FixtureReplicaBinding) {
+  await installFixtureReplicaBinding(page, binding);
+  await page.evaluate(collection => chrome.storage.local.set({ 'known.sync.collection.v1': collection }), FIXTURE_COLLECTION_ID);
   await signInExtension(page);
 }
 async function grantBookmarks(page: Page, suffix: string) {

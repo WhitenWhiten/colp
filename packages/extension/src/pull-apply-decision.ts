@@ -8,6 +8,8 @@ import { planRemoteMove } from './pull-range-move.js';
 import { queueHasPendingTarget } from './pull-queue-facts.js';
 import { remoteDeleteMemberIds } from './remote-delete-policy.js';
 import { provisionalSelfCreateMapping } from './pull-self-create.js';
+import { removedSelfProjectionIsProven } from './pull-local-projection-evidence.js';
+import { digest } from './pull-codec.js';
 
 type OpEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
 type MappingRole = 'anchor' | 'deletion' | 'parent' | 'parent_revision' | 'target';
@@ -44,7 +46,8 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
   selfCreateProjection: (event: OpEvent, existing: MappingInput, parent: MappingInput) => Promise<MappingInput>,
 ): Promise<void> {
   const effect = event.effect;
-  if (await missingTerminalSelfDeletion(options, event)) return;
+  if (await missingTerminalSelfDeletion(options, event)
+      || await removedSelfProjectionIsProven(options.store, options.scope, event)) return;
   if (effect.kind === 'node_restored') {
     const plan = await planRestored(options.store, options.scope, effect.placement.parentId);
     if (plan.kind === 'skip_unmounted') return;
@@ -120,6 +123,33 @@ export async function commitMissingTerminalSelfDeletion(options: PullApplierOpti
     event.effect.kind === 'node_deleted' || event.effect.kind === 'subtree_deleted'
       ? event.effect.parentRevision : unreachableDeletion())],
   apiResultEvidence: { operationId: event.operation.opId, recovery: 'self_echo' } });
+}
+
+/** Settle an acknowledged update superseded by a captured local removal, even after its mapping is gone. */
+export async function commitRemovedSelfProjection(options: PullApplierOptions, eventId: string, event: OpEvent,
+  now: number,
+  parentRevisionMapping: (revision: { readonly parentId: string; readonly childrenRevision: string }) => Promise<MappingInput>,
+): Promise<boolean> {
+  if (!await removedSelfProjectionIsProven(options.store, options.scope, event)) return false;
+  const current = await options.store.getPullEvent(options.scope, eventId);
+  if (current?.state === 'staged') {
+    options.crash?.('before_intent');
+    await options.store.preparePullIntent(options.scope, eventId, {
+      intentId: `intent:${eventId}`, correlationId: digest({ eventId, recovery: 'local_removal' }),
+      operationId: event.operation.opId, eventId, effectId: event.effect.effectId,
+      expected: { kind: 'sidecar', nativeId: `removed:${event.operation.opId}` },
+      expiresAt: now + 300_000, generation: options.scope.generation,
+    });
+  }
+  options.crash?.('after_intent');
+  if (current?.state === 'staged' || current?.state === 'intent_prepared') {
+    await options.store.markPullBrowserCallStarted(options.scope, eventId);
+  }
+  await options.store.recordPullApiEvidence(options.scope, eventId, { operationId: event.operation.opId, recovery: 'local_removal' });
+  await options.store.commitPullEvent(options.scope, eventId, {
+    mappings: event.effect.kind === 'node_created' ? [await parentRevisionMapping(event.effect.parentRevision)] : [],
+    apiResultEvidence: { recovery: 'local_removal' } });
+  return true;
 }
 
 function unreachableDeletion(): never { throw new SyncFailureError('pull_effect_kind_invalid'); }

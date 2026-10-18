@@ -29,7 +29,7 @@ import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { KNOW_N_BACKEND_ONLY, knowNBackendRoot } from './cloud-product-fixtures.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { EXTENSION_ID, openExtensionOptions, signInExtension } from './extension-auth.js';
+import { installFixtureReplicaBinding, EXTENSION_ID, openExtensionOptions, signInExtension } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
@@ -226,8 +226,8 @@ async function launchPersistentContext(profile: string, browserHostResolverRules
 async function extensionPage(context: BrowserContext) {
   return (await openExtensionOptions(context)).page;
 }
-async function login(page: Page, binding: unknown) {
-  await page.evaluate((value) => chrome.storage.local.set({ 'known.auth.binding.v1': value }), binding);
+async function login(page: Page, binding: import('./real-stack.js').FixtureReplicaBinding) {
+  await installFixtureReplicaBinding(page, binding);
   await signInExtension(page);
 }
 async function grantBookmarks(page: Page) {

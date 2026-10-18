@@ -39,6 +39,7 @@ test('confirm parks B-side Chrome delete until apply, then trees match', async (
     await waitFirstRunProductQuiet(pageB, stack, bindingB);
     await waitTitles(pageB, ['P102 confirm item']);
     await setPolicy(pageB, 'confirm');
+    const beforeCursor = (await exportedScope(pageB)).cursor?.cursor ?? null;
 
     await pageA.evaluate(async () => {
       const walk = async (nodes: chrome.bookmarks.BookmarkTreeNode[]): Promise<string | undefined> => {
@@ -59,7 +60,9 @@ test('confirm parks B-side Chrome delete until apply, then trees match', async (
       return pending.ok && pending.policy === 'confirm' && present && pending.pendingCount > 0
         ? 'parked' : `policy=${pending.policy} pending=${pending.pendingCount} present=${present}`;
     }, { timeout: 90_000 }).toBe('parked');
-    const beforeCursor = (await exportedScope(pageB)).cursor?.cursor ?? null;
+    // A parked deletion is durable, so Pull/Ack advance before the user decides.
+    const parkedCursor = (await exportedScope(pageB)).cursor?.cursor ?? null;
+    expect(parkedCursor).not.toBe(beforeCursor);
 
     await applyFirstPending(pageB);
     await waitTitlesGone(pageB, ['P102 confirm item']);
@@ -70,7 +73,8 @@ test('confirm parks B-side Chrome delete until apply, then trees match', async (
     const exported = await exportedScope(pageB);
     expect(exported.pullEvents?.every((event: { state: string }) => event.state === 'page_complete'
       || event.state === 'authority_committed')).toBe(true);
-    expect(exported.cursor?.cursor ?? factsB.cursor).not.toBe(beforeCursor);
+    expect(exported.cursor?.cursor ?? factsB.cursor).toBe(parkedCursor);
+    expect((await pendingStatus(pageB)).pendingCount).toBe(0);
   } finally {
     await closeAll(a, b); await rmDirs(dirs); await stack.close();
   }

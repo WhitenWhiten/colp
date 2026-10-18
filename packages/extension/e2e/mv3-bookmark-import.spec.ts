@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
+import { installFixtureReplicaBinding, openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
@@ -210,8 +210,7 @@ test('options import remains keyboard-operable and coherent at 320px', async ({}
 async function extensionPage(context: BrowserContext) {
   return (await openExtensionOptions(context)).page;
 }
-async function login(page: Page, binding: unknown) { await page.evaluate((value) => chrome.storage.local.set({
-  'known.auth.binding.v1': value }), binding); await signInExtension(page); }
+async function login(page: Page, binding: import('./real-stack.js').FixtureReplicaBinding) { await installFixtureReplicaBinding(page, binding); await signInExtension(page); }
 async function evidence<T = unknown>(page: Page, method: string, ...args: unknown[]): Promise<T> { const result = await page.evaluate(
   ({ method, args }) => chrome.runtime.sendMessage({ kind: 'known.sync-state.evidence', method, args }), { method, args }) as any;
   if (!result.ok) throw new Error(result.error); return result.value as T; }

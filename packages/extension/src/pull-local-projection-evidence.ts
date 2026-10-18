@@ -2,9 +2,27 @@ import type { PullBookmarkApi } from './pull-applier-types.js';
 import type { JsonObject, MappingInput, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
 import { createSuccessorTarget, localRemovalCoversNative } from './local-create-successor.js';
 import { materializeNativeMutation } from './bookmark-native-mutation.js';
+import type { SyncPullEventV02 } from '@know-n/colp/types';
 
 type Store = ReturnType<typeof createSyncStateStore>;
 type Native = Awaited<ReturnType<PullBookmarkApi['get']>>[number];
+
+/** A receipt-backed create/update echo must not resurrect a bookmark removed by later local work. */
+export async function removedSelfProjectionIsProven(store: Store, scope: SyncScope,
+  event: Extract<SyncPullEventV02, { kind: 'operation' }>): Promise<boolean> {
+  if ((event.effect.kind !== 'node_content_updated' && event.effect.kind !== 'node_created')
+      || event.operation.replicaId !== scope.replicaId) return false;
+  const creating = event.effect.kind === 'node_created';
+  const mapping = await store.getMappingByColpId(scope, event.effect.node.id);
+  if (mapping && !creating && mapping.projection.revision !== event.effect.node.revision) return false;
+  const queued = await store.getQueueByOpId(scope, event.operation.opId);
+  if (queued?.status !== 'terminal' || queued.sequence !== event.operation.sequence
+      || queued.payload.type !== (creating ? 'create_node' : 'update_node_content')
+      || (!creating && queued.payload.targetId !== event.effect.node.id)
+      || !await successfulProjectionReceipt(store, scope, queued, event.effect.node.revision, event.effect.node.id, true)) return false;
+  return localRemovalIsProven(store, scope, mapping ?? { colpId: event.effect.node.id },
+    creating ? queued.opId : undefined, queued.sequence);
+}
 
 /** Validate a later local post-state without promoting a pending inbox mapping. */
 export async function advancedSelfProjectionIsProven(store: Store, scope: SyncScope, mapping: MappingInput,
@@ -12,7 +30,9 @@ export async function advancedSelfProjectionIsProven(store: Store, scope: SyncSc
   const predecessor = (await store.listQueue(scope, undefined, afterSequence - 1, 1))[0];
   const createOpId = predecessor?.sequence === afterSequence && predecessor.payload.type === 'create_node'
     ? predecessor.opId : undefined;
-  if (!native) return createOpId !== undefined && localRemovalIsProven(store, scope, mapping, createOpId, afterSequence);
+  // The native read may predate a removal whose callback finished while this proof yielded.
+  if (createOpId !== undefined && await localRemovalIsProven(store, scope, mapping, createOpId, afterSequence)) return true;
+  if (!native) return false;
   if (native.id !== mapping.nativeId) return false;
   let observedProjection = mapping;
   let pendingEvidence = false;
@@ -56,14 +76,14 @@ export async function advancedSelfProjectionIsProven(store: Store, scope: SyncSc
     && (move.status !== 'terminal' || await successfulProjectionReceipt(store, scope, move)));
 }
 
-async function localRemovalIsProven(store: Store, scope: SyncScope, mapping: MappingInput,
-  createOpId: string, afterSequence: number): Promise<boolean> {
+async function localRemovalIsProven(store: Store, scope: SyncScope, mapping: { readonly colpId: string; readonly nativeId?: string },
+  createOpId: string | undefined, afterSequence: number): Promise<boolean> {
   for (const status of ['pending', 'processed'] as const) {
     let after = 0;
     for (;;) {
       const events = await store.listBookmarkEventsByStatus(scope, status, after, 1000);
       for (const event of events) {
-        if (!localRemovalCoversNative(event, mapping.nativeId, mapping.colpId, createOpId)) continue;
+        if (!localRemovalCoversNative(event, mapping.nativeId ?? event.nativeId, mapping.colpId, createOpId)) continue;
         if (status === 'pending') return true;
         const queued = event.opId ? await store.getQueueByOpId(scope, event.opId) : null;
         if (queued && queued.sequence > afterSequence && queued.status !== 'rejected') return true;
@@ -88,7 +108,7 @@ async function matchingProjectionOperation(store: Store, scope: SyncScope, mappi
 }
 
 async function successfulProjectionReceipt(store: Store, scope: SyncScope, queued: QueueOperation,
-  revision?: string): Promise<boolean> {
+  revision?: string, targetId = queued.payload.targetId, requireTarget = false): Promise<boolean> {
   const receipt = await store.getQueueReceipt(scope, queued.sequence);
   const results = receipt?.result?.results;
   const result = Array.isArray(results) && results.length === 1 ? object(results[0]) : undefined;
@@ -96,7 +116,7 @@ async function successfulProjectionReceipt(store: Store, scope: SyncScope, queue
     && result?.opId === queued.opId && result.sequence === queued.sequence
     && (result.status === 'applied' || result.status === 'rebased') && typeof result.revision === 'string'
     && (revision === undefined || result.revision === revision)
-    && (result.targetId === undefined || result.targetId === queued.payload.targetId);
+    && (result.targetId === targetId || (!requireTarget && result.targetId === undefined));
 }
 
 async function* queueAfter(store: Store, scope: SyncScope, afterSequence: number,

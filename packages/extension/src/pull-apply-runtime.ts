@@ -5,7 +5,7 @@ import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from './remote-dele
 import { SyncFailureError } from './sync-failure-class.js';
 import { setAsideFailedPullItem, setAsidePullItem } from './pull-item-set-aside.js';
 import { createPullBookmarkEvidence, readOptional } from './pull-bookmark-evidence.js';
-import { createExpectation, executePullNativeCreate, recoverCreatedNative } from './pull-create-evidence.js';
+import { createExpectation, executePullNativeCreate, recoverCreatedNative, sidecarExpectation } from './pull-create-evidence.js';
 import { applyRemoteDeletion } from './pull-delete-apply.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import type { JsonObject, JsonValue, MappingInput, RemoteObservationRecord } from './sync-state-store.js';
@@ -24,7 +24,7 @@ import { materializeRestoredNode } from './pull-restore-apply.js';
 import { advancedSelfProjectionIsProven } from './pull-local-projection-evidence.js';
 import { interceptStagedRemoteDelete, settleAppliedRemoteDelete, settleParkedRemoteDeletes } from './remote-delete-apply.js';
 import {
-  commitMissingTerminalSelfDeletion, missingTerminalSelfDeletion, preflightPullDependencies,
+  commitMissingTerminalSelfDeletion, commitRemovedSelfProjection, missingTerminalSelfDeletion, preflightPullDependencies,
   preflightPullMapping, requirePullMapping,
 } from './pull-apply-decision.js';
 import {
@@ -85,6 +85,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (!ordinaryPullEventAllowed(authority, raw) && !detached) { await recoverSupersededPullEvent(options, authority, raw); continue; }
       const event = raw.payload as unknown as Extract<SyncPullEventV02, { kind: 'operation' }>;
       try {
+      if (await commitRemovedSelfProjection(options, String(raw.eventId), event, now(), parentRevisionMapping)) continue;
       if (raw.state === 'staged') {
         if (await setAsidePullItem(options, String(raw.eventId), event, now())) continue;
         if (await interceptStagedRemoteDelete(options, api, String(raw.eventId), String(raw.pageId), event, now) === 'skip') continue;
@@ -261,6 +262,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
   }
 
   async function callAndCommit(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
+    if (await commitRemovedSelfProjection(options, eventId, event, now(), parentRevisionMapping)) return;
     options.crash?.('before_event'); const effect = event.effect; const mappings: MappingInput[] = []; const deleteNativeIds: string[] = [];
     if (await missingTerminalSelfDeletion(options, event)) {
       await commitMissingTerminalSelfDeletion(options, eventId, event, parentRevisionMapping); return; }
@@ -415,6 +417,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       native = readOptional(isVirtualNativeId(existing.nativeId) ? undefined : await lookup(existing.nativeId));
       exact = native?.parentId === parent.nativeId && native.title === expectedNode.title && native.url === expectedNode.url;
     }
+    // Receipts and native callbacks can advance the mapping while the reads above yield.
+    existing = await options.store.getMappingByColpId(options.scope, existing.colpId) ?? existing;
     let advanced = !exact && await advancedSelfProjectionIsProven(options.store, options.scope,
       existing, native, parent.nativeId, event.operation.sequence);
     if (!exact && !advanced && !isVirtualNativeId(existing.nativeId) && options.repairOwnCreate
@@ -567,12 +571,6 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const { scopeKey: _scopeKey, ...mapping } = parent as MappingInput & { readonly scopeKey?: string };
     return { ...mapping, projection: { ...parent.projection,
       childrenRevision: revision.childrenRevision } } satisfies MappingInput;
-  }
-
-  function sidecarExpectation(effectDigest: string, mapping: Awaited<ReturnType<typeof requireMapping>>,
-    parentNativeId = mapping.parentNativeId ?? null) {
-    return { eventKind: 'sidecar', nativeId: mapping.nativeId, parentNativeId,
-      details: { effectDigest }, anchors: {}, preStateDigest: mapping.projection.digest };
   }
 
   async function observe(event: NativeEvent) {

@@ -3,7 +3,7 @@ import { test, expect, chromium, type BrowserContext, type Page } from '@playwri
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { KNOW_N_BACKEND_ONLY, knowNBackendRoot } from './cloud-product-fixtures.js';
-import { EXTENSION_ID, openExtensionOptions, signInExtension } from './extension-auth.js';
+import { installFixtureReplicaBinding, EXTENSION_ID, openExtensionOptions, signInExtension } from './extension-auth.js';
 import { grantTabAccess, openPopupOver } from './popup-page.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 
@@ -28,8 +28,8 @@ test('real Chromium Product cookies bootstrap CSRF, reject COLP/mixed carriers a
       `--host-resolver-rules=${stack.browserHostResolverRules}`,'--no-proxy-server','--ignore-certificate-errors']});
   try{
     const {page}=await openExtensionOptions(context);
-    await page.evaluate(({binding,collection})=>chrome.storage.local.set({'known.auth.binding.v1':binding,'known.sync.collection.v1':collection}),
-      {binding:stack.extensionBinding,collection:FIXTURE_COLLECTION_ID});
+    await installFixtureReplicaBinding(page, stack.extensionBinding);
+    await page.evaluate(collection => chrome.storage.local.set({ 'known.sync.collection.v1': collection }), FIXTURE_COLLECTION_ID);
     await signInExtension(page);
     await stack.classificationProduct!.fundClassification(FIXTURE_COLLECTION_ID);
     // The fixture runs with tags enabled, so a tags preview reaches the provider (unavailable until switched on).

@@ -139,15 +139,20 @@ export interface CanonicalFixture {
   readonly folderTitle: string; readonly bookmarkTitle: string; readonly bookmarkUrl: string;
 }
 
+export interface FixtureReplicaBinding {
+  readonly replicaId: string;
+  readonly browserProfileId: string;
+  readonly generation: '1';
+  /** Handoff from the fixture's real Session/Snapshot/Ack bootstrap to its browser. */
+  readonly reportProof?: { readonly key: string; readonly value: string };
+}
+
 export interface RealStack {
   readonly subscriptionProduct?: Awaited<ReturnType<typeof createBookmarkSubscriptionProductFixture>>;
   readonly classificationProduct?: ClassificationProductFixture;
   readonly browserHostResolverRules: string;
-  readonly extensionBinding: { readonly replicaId: string; readonly browserProfileId: string; readonly generation: '1' };
-  readonly extensionBindings: readonly [
-    { readonly replicaId: string; readonly browserProfileId: string; readonly generation: '1' },
-    { readonly replicaId: string; readonly browserProfileId: string; readonly generation: '1' },
-  ];
+  readonly extensionBinding: FixtureReplicaBinding;
+  readonly extensionBindings: readonly [FixtureReplicaBinding, FixtureReplicaBinding];
   readonly authUserId: string;
   readonly collectionId: string;
   readonly serverOrigin: string;
@@ -689,6 +694,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
   const authUserId = fixtureAuthUserId;
   let observationOffset = { sessions: 0, receipts: 0 };
   const replicaCheckpoints = new Map<string, string>();
+  const replicaReportProofs = new Map<string, string>();
   const httpsPort = await listenOnLoopbackHttps(app);
   const browserHostResolverRules = [
     `MAP known.example:443 127.0.0.1:${httpsPort}`,
@@ -738,11 +744,8 @@ export async function startRealStack(options: {readonly classification?:boolean;
     subscriptionProduct,
     classificationProduct,
     browserHostResolverRules,
-    extensionBinding: { replicaId: REPLICA_ID, browserProfileId: PROFILE_ID, generation: '1' },
-    extensionBindings: [{ replicaId: P3_29_BINDINGS[0].replicaId,
-      browserProfileId: P3_29_BINDINGS[0].browserProfileId, generation: '1' }, {
-      replicaId: P3_29_BINDINGS[1].replicaId,
-      browserProfileId: P3_29_BINDINGS[1].browserProfileId, generation: '1' }],
+    extensionBinding: fixtureBinding({ replicaId: REPLICA_ID, browserProfileId: PROFILE_ID }),
+    extensionBindings: [fixtureBinding(P3_29_BINDINGS[0]), fixtureBinding(P3_29_BINDINGS[1])],
     authUserId,
     get collectionId() { return activeLibraryId; },
     serverOrigin: SERVER_ORIGIN,
@@ -1107,6 +1110,13 @@ export async function startRealStack(options: {readonly classification?:boolean;
     auxiliaryAuthority = { sessionId: response.body.sessionId, nextSequence: 1 }; return auxiliaryAuthority;
   }
 
+  function fixtureBinding(binding: { readonly replicaId: string; readonly browserProfileId: string }): FixtureReplicaBinding {
+    const proof = replicaReportProofs.get(binding.replicaId);
+    return { replicaId: binding.replicaId, browserProfileId: binding.browserProfileId, generation: '1',
+      ...(proof ? { reportProof: { key: JSON.stringify([SERVER_ORIGIN, authUserId,
+        binding.replicaId, binding.browserProfileId, 1]), value: proof } } : {}) };
+  }
+
   async function bootstrapReplicaCheckpoint(binding: { readonly replicaId: string; readonly browserProfileId: string }) {
     const accessToken = latestAccessToken ?? await mintAuxiliaryAccessToken();
     const session = await publicJson('/v1/session', {
@@ -1117,6 +1127,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
       throw new Error(`harness_bootstrap_session_failed:${binding.replicaId}:${session.status}:`
         + JSON.stringify(session.body));
     }
+    replicaReportProofs.set(binding.replicaId, session.body.sessionId);
     if (session.body.collection?.snapshotRequired !== true) {
       replicaCheckpoints.set(binding.replicaId, session.body.collection.serverCursor);
       return;

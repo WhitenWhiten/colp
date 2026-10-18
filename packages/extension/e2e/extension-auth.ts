@@ -1,11 +1,27 @@
 import { expect, type BrowserContext, type Page, type Worker } from '@playwright/test';
 import { fixtureCollectionId } from './external-backend.js';
+import type { FixtureReplicaBinding } from './real-stack.js';
 
 export const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 
 /** Task E3 fixture — same values as real-stack Better Auth registration. */
 export const EXTENSION_FIXTURE_EMAIL = 'p3-27-extension@example.test';
 export const EXTENSION_FIXTURE_PASSWORD = 'p3-27-extension-password-e3';
+
+/** Restore possession of a prebootstrapped test installation alongside its identity. */
+export async function installFixtureReplicaBinding(page: Page, binding: FixtureReplicaBinding): Promise<void> {
+  await page.evaluate(async ({ replicaId, browserProfileId, generation, reportProof }) => {
+    const values: Record<string, unknown> = {
+      'known.auth.binding.v1': { replicaId, browserProfileId, generation },
+    };
+    if (reportProof) {
+      const key = 'known.sync.report-proofs.v1';
+      const stored = await chrome.storage.local.get(key);
+      values[key] = { ...(stored[key] as Record<string, string> | undefined), [reportProof.key]: reportProof.value };
+    }
+    await chrome.storage.local.set(values);
+  }, binding);
+}
 
 
 export async function openExtensionOptions(

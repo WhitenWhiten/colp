@@ -38,6 +38,16 @@ test('a missing native requires a removal of that exact create, not an unrelated
   } finally { f.store.close(); }
 });
 
+test('a captured removal supersedes an earlier native-read snapshot', async () => {
+  const f = await fixture();
+  try {
+    await f.remove();
+    assert.equal(await advancedSelfProjectionIsProven(f.store, scope, mapping,
+      { id: mapping.nativeId, parentId: '1', title: 'Earlier content', url: 'https://example.test/earlier' },
+      '1', f.create.sequence), true);
+  } finally { f.store.close(); }
+});
+
 test.each(['pending', 'processed', 'rejected'] as const)(
   'self-create absence proof respects a %s removal', async status => {
     const f = await fixture();

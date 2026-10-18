@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack, type RealStack } from './real-stack.js';
-import { EXTENSION_ID, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD, openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
+import { EXTENSION_ID, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD, installFixtureReplicaBinding, openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
 import { fixtureCollectionId } from './external-backend.js';
 
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
@@ -177,9 +177,8 @@ async function options(context: BrowserContext): Promise<{ worker: Worker; page:
 }
 
 async function installBinding(page: Page): Promise<void> {
-  await page.evaluate(({ binding, collection }) => chrome.storage.local.set({
-    'known.auth.binding.v1': binding, 'known.sync.collection.v1': collection,
-  }), { binding: requireStack().extensionBinding, collection: fixtureCollectionId() });
+  await installFixtureReplicaBinding(page, requireStack().extensionBinding);
+  await page.evaluate(collection => chrome.storage.local.set({ 'known.sync.collection.v1': collection }), fixtureCollectionId());
 }
 
 async function noOverflow(page: Page): Promise<boolean> {

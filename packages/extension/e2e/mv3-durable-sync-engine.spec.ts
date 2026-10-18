@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
+import { installFixtureReplicaBinding, openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
 import { confirmFirstRun, waitQueueQuiet } from './kns-08-harness.js';
 import { fixtureCollectionId } from './external-backend.js';
 
@@ -117,10 +117,9 @@ async function launch(profile: string, browserHostResolverRules: string) { retur
 async function extensionPage(context: BrowserContext) {
   return (await openExtensionOptions(context)).page;
 }
-async function login(page: Page, binding: unknown) {
-  await page.evaluate(({ value, collection }) => chrome.storage.local.set({
-    'known.auth.binding.v1': value, 'known.sync.collection.v1': collection,
-  }), { value: binding, collection: fixtureCollectionId() });
+async function login(page: Page, binding: import('./real-stack.js').FixtureReplicaBinding) {
+  await installFixtureReplicaBinding(page, binding);
+  await page.evaluate(collection => chrome.storage.local.set({ 'known.sync.collection.v1': collection }), fixtureCollectionId());
   await signInExtension(page);
 }
 async function grantBookmarks(page: Page, suffix: string) {

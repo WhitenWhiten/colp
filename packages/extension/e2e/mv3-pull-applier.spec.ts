@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { openExtensionOptions, signInExtension } from './extension-auth.js';
+import { installFixtureReplicaBinding, openExtensionOptions, signInExtension } from './extension-auth.js';
 import { startRealStack } from './real-stack.js';
 import { fixtureCollectionId } from './external-backend.js';
 
@@ -60,9 +60,8 @@ test('real Backend/PostgreSQL effect pages resume across 429 and MV3 worker rest
   let context = await launchRealPersistentContext(profile, stack.browserHostResolverRules);
   try {
     let page = await extensionPage(context);
-    await page.evaluate(({ binding, collection }) => chrome.storage.local.set({
-      'known.auth.binding.v1': binding, 'known.sync.collection.v1': collection,
-    }), { binding: stack.extensionBinding, collection: fixtureCollectionId() });
+    await installFixtureReplicaBinding(page, stack.extensionBinding);
+    await page.evaluate(collection => chrome.storage.local.set({ 'known.sync.collection.v1': collection }), fixtureCollectionId());
     await signInExtension(page);
     const effect = await stack.seedPagedSubtree(10_000);
     expect(effect).toMatchObject({ pageCount: 20, memberCount: 10_000 });

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack } from './real-stack.js';
-import { openExtensionOptions, chooseLibraryMetadata, signInExtension, showOptionsPane, waitForLibraryBinding, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD } from './extension-auth.js';
+import { installFixtureReplicaBinding, openExtensionOptions, chooseLibraryMetadata, signInExtension, showOptionsPane, waitForLibraryBinding, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD } from './extension-auth.js';
 import type { SyncScope, QueueOperation } from '../src/sync-state-store.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 
@@ -25,7 +25,7 @@ for (const nested of [false, true]) test(`paused local deletions survive browser
     const canonical = await stack.seedCanonicalFixture(nested);
     context = await launch(profile, stack.browserHostResolverRules);
     let page = (await openExtensionOptions(context)).page;
-    await page.evaluate(binding => chrome.storage.local.set({ 'known.auth.binding.v1': binding }), stack.extensionBinding);
+    await installFixtureReplicaBinding(page, stack.extensionBinding);
     await signInExtension(page); await showOptionsPane(page, 'folders');
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Know-N paused deletion');
     const local = await page.evaluate(async nested => {
@@ -83,7 +83,7 @@ test('offline logout preserves device facts and same-account reconnect requires 
   try {
     context = await launch(profile, stack.browserHostResolverRules);
     const page = (await openExtensionOptions(context)).page;
-    await page.evaluate(binding => chrome.storage.local.set({ 'known.auth.binding.v1': binding }), stack.extensionBinding);
+    await installFixtureReplicaBinding(page, stack.extensionBinding);
     await signInExtension(page); await showOptionsPane(page, 'folders');
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Know-N logout lifecycle');
     const saved = await page.evaluate(async () => {
@@ -138,7 +138,7 @@ test('Pause survives browser restart, reconciles edits on both sides, and discon
     const canonical = await stack.seedCanonicalFixture();
     context = await launch(profile, stack.browserHostResolverRules);
     let page = (await openExtensionOptions(context)).page;
-    await page.evaluate(binding => chrome.storage.local.set({ 'known.auth.binding.v1': binding }), stack.extensionBinding);
+    await installFixtureReplicaBinding(page, stack.extensionBinding);
     await signInExtension(page); await showOptionsPane(page, 'folders');
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Know-N personal lifecycle');
     const local = await page.evaluate(async () => {
@@ -188,7 +188,7 @@ test('metadata opt-out holds an immutable old retry until user-confirmed reset a
     const canonical = await stack.seedCanonicalFixture();
     context = await launch(profile, stack.browserHostResolverRules);
     const page = (await openExtensionOptions(context)).page;
-    await page.evaluate(binding => chrome.storage.local.set({ 'known.auth.binding.v1': binding }), stack.extensionBinding);
+    await installFixtureReplicaBinding(page, stack.extensionBinding);
     await signInExtension(page); await showOptionsPane(page, 'folders');
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Know-N metadata queue');
     const local = await page.evaluate(async () => {

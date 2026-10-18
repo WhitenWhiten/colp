@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { startRealStack, type PushRequestObservation } from './real-stack.js';
 import { expectAuthenticatedRestartReplay } from './push-replay-assertions.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
+import { installFixtureReplicaBinding, openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
@@ -29,13 +29,13 @@ test('real bookmark create/update/delete events become one canonical Push and re
     const unselectedBookmark = await page.evaluate((parentId) => chrome.bookmarks.create({ parentId,
       title: 'UNSELECTED-P3-31-TITLE', url: 'https://unselected-p3-31.invalid/token-unselected' }), bar);
     const folder = await page.evaluate((parentId) => chrome.bookmarks.create({ parentId, title: 'Public folder' }), selected.id);
-    await waitForTerminalCount(page, 1);
+    await waitForTerminalCount(page, 1, true);
     const bookmark = await page.evaluate((parentId) => chrome.bookmarks.create({ parentId, title: 'Public bookmark',
       url: 'https://example.test/p3-31/crud' }), folder.id);
-    await waitForTerminalCount(page, 2);
+    await waitForTerminalCount(page, 2, true);
     await page.evaluate((id) => chrome.bookmarks.update(id, { title: 'Public bookmark updated' }), bookmark.id);
-    await waitForTerminalCount(page, 3);
-    await page.evaluate((id) => chrome.bookmarks.remove(id), bookmark.id); await waitForTerminalCount(page, 4);
+    await waitForTerminalCount(page, 3, true);
+    await page.evaluate((id) => chrome.bookmarks.remove(id), bookmark.id); await waitForTerminalCount(page, 4, true);
 
     const local = await evidence<any>(page, 'exportOutboundPushEvidence'); const server = await stack.observations() as any;
     expect(local.queue.map((item: any) => item.payload.type)).toEqual(
@@ -483,20 +483,21 @@ async function launchPersistentContext(profile: string, browserHostResolverRules
 async function extensionPage(context: BrowserContext) {
   return (await openExtensionOptions(context)).page;
 }
-async function login(page: Page, binding: { readonly replicaId: string; readonly browserProfileId: string;
-  readonly generation: '1' }) {
-  await page.evaluate((value) => chrome.storage.local.set({ 'known.auth.binding.v1': value }), binding);
+async function login(page: Page, binding: import('./real-stack.js').FixtureReplicaBinding) {
+  await installFixtureReplicaBinding(page, binding);
   await signInExtension(page); }
 async function grantBookmarks(page: Page) {
   await showOptionsPane(page, 'folders');
   await grantOptionalBookmarks(page, 'Allow bookmark access', 'Known outbound permission');
   await expect.poll(() => page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))).toBe(true);
 }
-async function waitForTerminalCount(page: Page, count: number) {
+async function waitForTerminalCount(page: Page, count: number, awaitPullEcho = false) {
   // A callback racing Pull's recovery freeze is staged for the recovery alarm.
   // Its 30-second MV3 minimum must elapse before we allow time for Push/receipt.
   try { await expect.poll(async () => { const state = await evidence<any>(page, 'exportOutboundPushEvidence');
-    return state.queue.filter((item: any) => item.status === 'terminal').length; }, { timeout: 60_000 }).toBe(count); }
+    // Sequential CRUD checks need the full round trip before the next edit; a Push receipt can precede Pull.
+    return state.queue.filter((item: any) => item.status === 'terminal'
+      && (!awaitPullEcho || item.echoApplied === true)).length; }, { timeout: 60_000 }).toBe(count); }
   catch (error) { const state = await evidence<any>(page, 'exportOutboundPushEvidence');
     const engine = await evidence<any>(page, 'syncEngineState');
     const summary = state.queue.map((item: any) => ({ sequence: item.sequence, status: item.status,
