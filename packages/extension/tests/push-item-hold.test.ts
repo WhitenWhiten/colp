@@ -41,10 +41,9 @@ test('a save set aside for its deleted folder holds only what depends on it, and
     ['create_placement_parent_deleted', 'dependency_hold', 'dependency_hold']);
   // Nothing releases the dependants while the save they wait for is held.
   assert.deepEqual(await store.releaseSettledHolds(scope), []);
-  // Once the save itself is released, the changes that waited for it follow it.
-  await store.releaseSetAsideQueue(scope, [rows[0]!.sequence]);
-  assert.deepEqual((await store.releaseSettledHolds(scope)).map((row) => row.opId), ['op-edit', 'op-child']);
-  assert.deepEqual((await store.listQueue(scope)).map((row) => row.status), ['pending', 'pending', 'pending', 'terminal']);
+  // A decision cannot clear identity/placement proof and replay the old bytes.
+  await assert.rejects(store.releaseSetAsideQueue(scope, [rows[0]!.sequence]), /recapture_required/);
+  assert.deepEqual(await store.releaseSettledHolds(scope), []);
   store.close();
 
   async function enqueue(opId: string, payload: JsonObject) {

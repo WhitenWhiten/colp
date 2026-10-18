@@ -1,3 +1,5 @@
+import { createQueueRecapture } from '../src/queue-recapture.js';
+import { honestChrome } from './kns-05-pull-harness.js';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
@@ -8,6 +10,8 @@ import { replicaIssuesFromQueue } from '../src/sw/replica-health-report.js';
 import { createSyncStateStore, type JsonObject } from '../src/sync-state-store.js';
 import { endpoints, json, problem, scope } from './outbound-push-worker-harness.js';
 
+const captures = new WeakMap<object, ReturnType<typeof createQueueRecapture>>();
+const browsers = new WeakMap<object, ReturnType<typeof honestChrome>>();
 type Sent = { readonly opId: string; readonly sequence: number };
 
 describe('C1 a conflict holds only its own bookmark', () => {
@@ -39,10 +43,17 @@ describe('C1 a conflict holds only its own bookmark', () => {
 
     // The resolution arrives through Pull; the held changes follow it in order.
     await resolve(store, 'op-x1', 'conflict-op-x1');
+    assert.equal((await worker.drain()).outcome, 'gap');
     assert.equal((await worker.drain()).outcome, 'terminal');
-    assert.deepEqual(sent.slice(4).map((item) => [item.opId, item.sequence]), [['op-x2', 4], ['op-x3', 5]]);
-    assert.deepEqual(await statuses(store), [['op-x1', 'terminal'], ['op-y', 'terminal'], ['op-z', 'terminal'],
-      ['op-x2', 'terminal'], ['op-x3', 'terminal']]);
+    const fresh = (await store.listQueue(scope)).filter(row => row.opId !== 'op-x1' && row.status === 'terminal'
+      && row.payload.targetId === 'node-x');
+    assert.equal(fresh.length, 2);
+    for (const row of fresh) {
+      assert.ok(!['op-x2', 'op-x3'].includes(row.opId));
+      assert.equal((row.payload.payload as any).value.title, 'Current native title');
+    }
+    assert.equal((await store.getQueueByOpId(scope, 'op-x2'))?.status, 'rejected');
+    assert.equal((await store.getQueueByOpId(scope, 'op-x3'))?.status, 'rejected');
     assert.equal(hasConflictBarrier(await store.listQueue(scope)), false);
     assert.deepEqual(await store.auditIntegrity(), { outcome: 'valid' });
     store.close();
@@ -57,7 +68,9 @@ describe('C1 a conflict holds only its own bookmark', () => {
     assert.deepEqual(await statuses(store), [['op-x1', 'blocked'], ['op-y', 'blocked'],
       ['op-y2', 'set_aside'], ['op-x2', 'set_aside']]);
     await resolve(store, 'op-x1', 'conflict-op-x1');
-    assert.deepEqual((await store.releaseSettledHolds(scope)).map((row) => row.opId), ['op-x2']);
+    const released = await store.releaseSettledHolds(scope, captures.get(store));
+    assert.equal(released.length, 1); assert.equal(released[0]!.payload.targetId, 'node-x');
+    assert.notEqual(released[0]!.opId, 'op-x2');
     assert.equal((await store.getQueueByOpId(scope, 'op-y2'))?.status, 'set_aside');
     store.close();
   });
@@ -67,10 +80,14 @@ async function fixture(input: { readonly conflicts?: readonly string[] } = {}) {
   const store = createSyncStateStore({ indexedDB: new IDBFactory() });
   await store.registerScope({ ...scope, lifecycle: 'active',
     lease: { leaseId: 'lease-server', expiresAt: Date.parse('2099-01-01T00:00:00Z') },
-    checkpoint: { cursor: 'cursor-0', serverRevision: 'revision-0' }, selectedRoots: [] });
+    checkpoint: { cursor: 'cursor-0', serverRevision: 'revision-0' }, selectedRoots: ['root'], rootStatus: 'ready' });
+  const api = honestChrome(); api.seed({ id: 'root-native', title: 'Root' });
+  await store.putMapping(scope, { nativeId: 'root-native', colpId: 'root', rootNativeId: 'root-native',
+    nodeKind: 'folder', projection: { revision: 'root-r1', childrenRevision: 'children-r1', digest: 'sha256:root' } });
   for (const node of ['x', 'y', 'z']) {
+    api.seed({ id: `native-${node}`, parentId: 'root-native', title: 'Current native title', url: 'https://example.test/' });
     await store.putMapping(scope, { nativeId: `native-${node}`, colpId: `node-${node}`, rootNativeId: 'root-native',
-      nodeKind: 'bookmark', projection: { revision: `${node}-r1`, digest: `sha256:${node}`, content: { title: node } } });
+      parentNativeId: 'root-native', parentColpId: 'root', nodeKind: 'bookmark', projection: { revision: `${node}-r1`, digest: `sha256:${node}`, content: { title: node } } });
   }
   const conflicts = new Set(input.conflicts ?? ['op-x1']); const sent: Sent[] = []; let expected = 1;
   // A strict lane: one expected sequence; a conflict consumes its slot like any result.
@@ -91,7 +108,9 @@ async function fixture(input: { readonly conflicts?: readonly string[] } = {}) {
       credentialAuthorityDigest: 'a'.repeat(64),
       collection: { collectionId: scope.collectionId, serverCursor: 'cursor-0', serverRevision: 'revision-0' },
       replicaLease: { leaseId: 'lease-server', generation: '1', state: 'active', expiresAt: '2099-01-01T00:00:00Z' } } }; } };
-  const worker = createOutboundPushWorker({ scope, store, endpoints: async () => endpoints, sessions, fetch,
+  const recaptureHeld = createQueueRecapture({ store, scope, api, permission: async () => true });
+  captures.set(store, recaptureHeld); browsers.set(store, api);
+  const worker = createOutboundPushWorker({ scope, store, recaptureHeld, endpoints: async () => endpoints, sessions, fetch,
     now: () => 10_000, random: () => 0, ownerId: () => 'owner-push', schedule: () => undefined });
   return { store, worker, sent };
 }
@@ -101,10 +120,16 @@ async function update(store: ReturnType<typeof createSyncStateStore>, opId: stri
     type: 'update_node_content', targetId, baseRevision: `${targetId.slice(-1)}-r1`,
     occurredAt: '2026-10-17T00:00:00.000Z', dependencies: [],
     payload: { base: { title: 'Before' }, value: { title: `After ${opId}` } } };
-  return store.allocateSequenceAndEnqueue(scope, { opId, batchId: opId, idempotencyKey: opId, digest: `sha256:${opId}`,
+  const queued = await store.allocateSequenceAndEnqueue(scope, { opId, batchId: opId, idempotencyKey: opId, digest: `sha256:${opId}`,
     endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: String(payload.baseRevision),
     operationRevision: `local-${opId}`, status: 'pending', retry: { attempt: 0, notBefore: 0 }, payload },
   { validateOperation: () => true, digestOperation: (operation) => `sha256:${String(operation.opId)}-${String(operation.sequence)}` });
+  const event = await store.stageBookmarkEvent(scope, { eventId: `event-${opId}`, dedupeKey: `event-${opId}`,
+    occurredAt: '2026-10-17T00:00:00Z', kind: 'change', nativeId: `native-${targetId.slice(-1)}`, details: {} });
+  const tx = (await store.open()).transaction('bookmark_events', 'readwrite');
+  tx.objectStore('bookmark_events').put({ ...event.event, status: 'processed', opId });
+  await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+  return queued;
 }
 
 async function statuses(store: ReturnType<typeof createSyncStateStore>) {

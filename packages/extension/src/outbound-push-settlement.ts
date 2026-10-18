@@ -1,3 +1,4 @@
+import type { RecaptureQueueRow } from './queue-recapture.js';
 import { reasonCode } from './push-error-code.js';
 import type { ParsedPushResult } from './sync-push-wire.js';
 import type { JsonObject, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -69,9 +70,9 @@ export async function settlePushResult(input: {
  * distinguishable from "nothing to release".
  */
 export async function releaseSettledQueueHolds(store: ReturnType<typeof createSyncStateStore>,
-  scope: SyncScope): Promise<number> {
+  scope: SyncScope, recapture?: RecaptureQueueRow): Promise<number> {
   try {
-    await store.releaseSettledHolds(scope); return 0;
+    await store.releaseSettledHolds(scope, recapture); return 0;
   } catch (error) {
     try { await store.putScopeDiagnostic(scope, { kind: 'conflict_hold_release',
       code: reasonCode(error, 'conflict_hold_release_failed') }); } catch { /* best effort */ }

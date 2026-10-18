@@ -21,7 +21,7 @@ export async function readOpenSyncIssues(store: Store, scope: SyncScope): Promis
     let after = 0;
     for (;;) {
       const rows = await store.listQueue(scope, status, after, 1_000);
-      queue.push(...rows.filter(row => status !== 'blocked' || row.recovery?.code === 'conflict_pending'));
+      queue.push(...rows.filter(row => row.recovery?.code !== 'recaptured' && (status !== 'blocked' || row.recovery?.code === 'conflict_pending')));
       if (rows.length < 1_000) break;
       after = rows.at(-1)!.sequence;
     }

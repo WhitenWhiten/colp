@@ -1,3 +1,4 @@
+import type { RecaptureQueueRow } from './queue-recapture.js';
 import { rejectExcludedBootstrapUpload } from './bootstrap/upload-rejection.js';
 import { sendBootstrapCreateBatch } from './outbound-push-batch.js';
 import { createPushWorkBudget, recordPushBatchDecision, MAX_PUSH_DRAIN_OPERATIONS as MAX_DRAIN_OPERATIONS } from './push-work-budget.js';
@@ -52,6 +53,7 @@ export type DrainOutcome = { readonly outcome: 'idle' | 'contended' | 'terminal'
    */
   readonly attention?: number };
 interface WorkerOptions {
+  readonly recaptureHeld?: RecaptureQueueRow;
   readonly scope: SyncScope; readonly store: ReturnType<typeof createSyncStateStore>;
   readonly endpoints: () => Promise<SyncEndpoints>; readonly sessions: PushSessionController;
   readonly fetch?: typeof fetch; readonly now?: () => number; readonly random?: () => number;
@@ -121,8 +123,8 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       try { await options.store.putScopeDiagnostic(options.scope,
         { kind: 'queue_realign', code: reasonCode(error, 'realign_failed') }); } catch { /* best effort */ }
     }
-    // Changes held behind a conflict or item that is now settled rejoin the lane in their own slots.
-    repair.attention += await releaseSettledQueueHolds(options.store, options.scope);
+    // Settled dependencies are re-captured from the browser as fresh tail operations.
+    repair.attention += await releaseSettledQueueHolds(options.store, options.scope, options.recaptureHeld);
     let last: DrainOutcome = { outcome: 'idle' }; let diagnosed = false;
     const deadline = now() + (options.drainBudgetMilliseconds ?? 20_000);
     try { for (let count = 0; count < MAX_DRAIN_OPERATIONS; count += 1) {

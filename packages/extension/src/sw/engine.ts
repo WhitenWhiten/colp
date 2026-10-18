@@ -1,3 +1,4 @@
+import { createQueueRecapture } from '../queue-recapture.js';
 import { repairOwnCreateFromNative } from '../bookmark-own-create-repair.js';
 import { recoverLocalSaveFreeze } from '../local-save-freeze-recovery.js';
 import { assertBootstrapUploadAllowed } from '../bootstrap/upload-boundary.js';
@@ -131,6 +132,7 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
     } });
   const worker = createOutboundPushWorker({ scope, store: syncState, endpoints, sessions, fetch: effects.fetch,
     origin: extensionOrigin(), assertUploadAllowed: assertBootstrapBoundary,
+    recaptureHeld: createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission }),
     dispatch: (queue,send) => withSubscriptionRead(async()=>{await assertSubscriptionUploadAllowed(syncState,scope,queue);await assertBootstrapBoundary(queue);return send();}),
     dispatchBatch: (rows, send) => withSubscriptionRead(async () => {
       for (const row of rows) { await assertSubscriptionUploadAllowed(syncState, scope, row); await assertBootstrapBoundary(row); }

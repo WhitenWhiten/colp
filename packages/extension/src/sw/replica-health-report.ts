@@ -101,6 +101,7 @@ export function projectReplicaHealth(input: {
 /** Uploads the server refused, held for a conflict, or set aside for another problem, one issue each. */
 export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): ReplicaHealthIssue[] {
   return rows.flatMap((row) => {
+    if (row.recovery?.code === 'recaptured') return [];
     const conflict = row.status === 'blocked' && row.recovery?.code === 'conflict_pending';
     if (row.status !== 'rejected' && row.status !== 'set_aside' && !conflict) return [];
     const fallback = row.status === 'set_aside' ? 'set_aside' : 'push_rejected';

@@ -52,43 +52,20 @@ describe('held (set_aside) queue rows', () => {
     store.close();
   });
 
-  test('a released row rejoins the lane in its own slot, so the server lane never sees a hole', async () => {
-    const { store } = await seed([
-      row(1, 'terminal'),
-      row(2, 'set_aside', { recovery: { code: 'conflict_hold' } }),
-      row(3, 'set_aside', { recovery: { code: 'conflict_hold' } }),
-      row(4, 'pending'),
-    ]);
-    const queued = await store.allocateSequenceAndEnqueue(scope, {
-      opId: 'op-next', batchId: 'batch-next', idempotencyKey: 'key-next', digest: 'sha256:next',
-      endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: null,
-      operationRevision: 'local-next', status: 'pending', retry: { attempt: 0, notBefore: 0 },
-      payload: payload('op-next', 5) }, { allowUnstamped: true });
-    assert.equal(queued.sequence, 5);
-    const released = await store.releaseSetAsideQueue(scope, [3, 2]);
-    assert.deepEqual(released.map((item) => [item.sequence, item.opId]), [[2, 'op-2'], [3, 'op-3']]);
-    const rows = await store.listQueue(scope);
-    assert.deepEqual(rows.map((item) => [item.sequence, item.opId, item.status]), [
-      [1, 'op-1', 'terminal'], [2, 'op-2', 'pending'], [3, 'op-3', 'pending'],
-      [4, 'op-4', 'pending'], [5, 'op-next', 'pending'],
-    ]);
-    // Never sent, so its bytes and identity stand; only the hold is cleared.
-    assert.equal(rows[1]!.digest, 'sha256:op-2');
-    assert.equal(rows[1]!.idempotencyKey, 'idempotency-2');
-    assert.equal(rows[1]!.recovery, undefined);
-    // The lane claims it next; a second release is a no-op and allocation continues.
-    const lease = await store.acquireLease(scope, 'owner-2', 70_000, 60_000);
-    assert.equal(lease.outcome, 'acquired');
-    assert.equal((await store.claimNextQueue(scope, 'owner-2', (lease as { fence: number }).fence, 70_000))?.opId, 'op-2');
-    assert.deepEqual(await store.releaseSetAsideQueue(scope, [2, 3]), []);
-    const after = await store.allocateSequenceAndEnqueue(scope, {
-      opId: 'op-last', batchId: 'batch-last', idempotencyKey: 'key-last', digest: 'sha256:last',
-      endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: null,
-      operationRevision: 'local-last', status: 'pending', retry: { attempt: 0, notBefore: 0 },
-      payload: payload('op-last', 6) }, { allowUnstamped: true });
-    assert.equal(after.sequence, 6);
-    assert.deepEqual(await store.auditIntegrity(), { outcome: 'valid' });
-    store.close();
+  test('release requires recapture and archives old bytes while fresh operations join the tail', async () => {
+    const { store } = await seed([row(1, 'terminal'), row(2, 'set_aside', { recovery: { code: 'conflict_hold' } }),
+      row(3, 'pending')]);
+    await assert.rejects(store.releaseSetAsideQueue(scope, [2]), /recapture_required/);
+    const [fresh] = await store.releaseSetAsideQueue(scope, [2], async () => ({ operations: [{
+      ...payload('fresh-id', 1), occurredAt: '2026-10-17T00:00:00Z',
+      payload: { base: { title: 'Before' }, value: { title: 'Current native title' } } }] }));
+    assert.equal(fresh!.sequence, 4); assert.equal(fresh!.opId, 'fresh-id');
+    assert.notEqual(fresh!.digest, 'sha256:op-2'); assert.equal(fresh!.idempotencyKey, 'fresh-id');
+    const old = (await store.getQueueByOpId(scope, 'op-2'))!;
+    assert.equal(old.status, 'rejected'); assert.equal(old.recovery?.code, 'recaptured');
+    assert.equal(old.digest, 'sha256:op-2'); assert.equal(old.idempotencyKey, 'idempotency-2');
+    assert.deepEqual(await store.releaseSetAsideQueue(scope, [2]), []);
+    assert.deepEqual(await store.auditIntegrity(), { outcome: 'valid' }); store.close();
   });
 
   test('only a pending row that was never sent can be held', async () => {

@@ -1,9 +1,10 @@
+import { createQueueRecapture } from '../queue-recapture.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { scheduleSyncEngineWake } from './engine.js';
 import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaHealthReport,
   type ReplicaCommandRunner } from './replica-health-report.js';
-import { extensionOrigin, syncState, workCoordinator } from './runtime.js';
+import { extensionOrigin, hasBookmarkPermission, syncState, workCoordinator } from './runtime.js';
 import { replicaRebuilder } from './scope-rebuild.js';
 import { createRuntimeAuth, loadConfig, restoredSyncScope } from './scope.js';
 
@@ -61,7 +62,8 @@ function commandRunner(scope: SyncScope): ReplicaCommandRunner {
     async issue(_action, issue) {
       const row = issue.opId ? await syncState.getQueueByOpId(scope, issue.opId) : null;
       if (row?.status !== 'set_aside') return { outcome: 'failed', code: 'issue_gone' };
-      await syncState.releaseSetAsideQueue(scope, [row.sequence]);
+      await workCoordinator.run('engine', () => syncState.releaseSetAsideQueue(scope, [row.sequence],
+        createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission })));
       await scheduleSyncEngineWake('manual');
       return { outcome: 'done' };
     },

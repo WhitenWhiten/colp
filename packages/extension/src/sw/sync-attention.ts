@@ -68,7 +68,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
 async function queueFacts(store: SyncAttentionStore, scope: SyncScope) {
   const live: Array<{ readonly status?: string; readonly recovery?: { readonly code?: string } }> = [];
   try {
-    for (const status of LIVE_STATUSES) live.push(...await store.listQueue(scope, status, 0, QUEUE_PAGE));
+    for (const status of LIVE_STATUSES) live.push(...(await store.listQueue(scope, status, 0, QUEUE_PAGE)).filter(row => row.recovery?.code !== 'recaptured'));
   } catch {
     return { queueProjection: 'idle' as const, conflictPending: false, rejectedPending: false };
   }
