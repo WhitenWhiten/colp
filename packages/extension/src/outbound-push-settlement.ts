@@ -58,7 +58,11 @@ export async function settlePushResult(input: {
   input.settlementFault ? { fault: input.settlementFault } : undefined);
   if (successfulCreate) {
     try { await input.bindSpecialRoleMount(queue, parsed.result.targetId!, parsed.result.revision!); }
-    catch { /* Applied already; bind races must not downgrade the receipt to unknown. */ }
+    catch (error) {
+      // The receipt stays consumed; persist binding failure for startup recovery.
+      await input.store.putScopeDiagnostic(input.scope, { kind: 'mount_receipt_binding',
+        code: reasonCode(error, 'mount_receipt_binding_failed') });
+    }
   }
   try { await input.onTerminal?.(queue); } catch { /* startup recovery resumes the durable event inbox */ }
   return 'terminal';

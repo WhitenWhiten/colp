@@ -117,8 +117,7 @@ function planMounts(indexed: readonly IndexedNode[], selected: ReadonlySet<strin
     const role = folderRoleForBrowserRoot(item.rootKind, item.node.managed);
     if (role === 'managed-bookmarks') continue;
     if (item.isSpecialRoot && role !== 'custom') {
-      // A custom coverage root retains its browser ancestors; this is not Collection-root placement.
-    mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false,
+      mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false,
         rootRole: role as SpecialFolderRole });
       continue;
     }

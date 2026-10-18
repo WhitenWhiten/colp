@@ -18,7 +18,7 @@ import { ordinaryPullEventAllowed, publishSupersededPullMappings, readPullApplyA
 import { assertPullApplierGate } from './pull-page-stager.js';
 import { freezePullApply, withPullFreeze } from './pull-recovery-freeze.js';
 import { bindMountMappings, boundNativeId, isNonChromeNativeId, isRecoveryPlaceholder,
-  isVirtualNativeId, mayMutateNative, persistMountBinding, planCreated, planRestored,
+  bindStructureMapping, isVirtualNativeId, mayMutateNative, persistMountBinding, planCreated, planRestored,
   unmountedNativeId } from './pull-mount-apply.js';
 import { materializeRestoredNode } from './pull-restore-apply.js';
 import { advancedSelfProjectionIsProven } from './pull-local-projection-evidence.js';
@@ -280,9 +280,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     } else if (effect.kind === 'node_created') {
       const plan = await planCreated(options.store, options.scope, event);
       if (plan.kind === 'bind_structure') {
-        mappings.push({ ...mappingFor(effect.node, plan.mapping.nativeId, plan.mapping.parentNativeId ?? null,
-          effect.placement.parentId, effect.nodeChildrenRevision, plan.mapping.rootNativeId),
-          ...(plan.mapping.rootRole ? { rootRole: plan.mapping.rootRole } : {}) });
+        mappings.push(bindStructureMapping(effect.node, plan.mapping, effect.placement.parentId, effect.nodeChildrenRevision));
       } else if (plan.kind === 'bind_mount') {
         await persistMountBinding(options.store, options.scope, plan.mount, effect.node.id);
         mappings.push(await bindMountMappings(effect.node, plan.mount, effect.placement.parentId,
@@ -598,6 +596,5 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const fallback = digest({ kind: 'create', nativeId: '', details: { node: (details as { readonly node: unknown }).node } });
     return options.store.observeApplyIntentEvent(options.scope, fallback, { eventDigest: fallback, nativeId: event.nativeId });
   }
-
   return Object.freeze({ preflight, preflightMapping, resume, observe });
 }

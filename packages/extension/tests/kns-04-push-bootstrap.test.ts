@@ -85,16 +85,27 @@ describe('KNS-04 push receipts, mount bind and bootstrap snapshot', () => {
       batchId: JSON.parse(String(init?.body)).batchId, results: [{ opId: queued.opId, sequence: 1,
         status: 'applied', targetId: 'server-mount-bar', revision: 'server-mount-r1', cursor: 'cursor-1',
         warnings: [] }], serverCursor: 'cursor-1' }) });
-    assert.equal((await worker.drain()).outcome, 'terminal');
+    const contradictory = prior.colpId === 'local-root-uuid';
+    assert.equal((await worker.drain()).outcome, contradictory ? 'recovery' : 'terminal');
     const exported = await store.exportScope(scope);
     assert.equal(exported.queue[0]?.status, 'terminal');
     assert.equal(exported.queue[0]?.recovery?.code, undefined);
     assert.equal(exported.receipts.length, 1);
     assert.equal(exported.receipts[0]?.kind, 'terminal');
     assert.equal(await store.getMappingByColpId(scope, 'pending-op-mount-bar'), null);
-    assert.equal((await store.getMappingByNativeId(scope, prior.nativeId))?.colpId, prior.colpId);
-    assert.equal((await store.getMappingByColpId(scope, prior.colpId))?.nativeId, prior.nativeId);
-    assert.equal((await store.listMountBindings(scope))[0]?.remoteMountNodeId, 'server-mount-bar');
+    if (prior.nativeId.startsWith('recovery:')) {
+      // A receipt for this authored special root proves the native identity;
+      // promote the snapshot placeholder while retaining its canonical ID.
+      assert.equal(await store.getMappingByNativeId(scope, prior.nativeId), null);
+      assert.equal((await store.getMappingByColpId(scope, prior.colpId))?.nativeId, 'root-selected');
+      assert.equal((await store.getMappingByNativeId(scope, 'root-selected'))?.colpId, prior.colpId);
+    } else {
+      assert.equal((await store.getMappingByNativeId(scope, prior.nativeId))?.colpId, prior.colpId);
+      assert.equal((await store.getMappingByColpId(scope, prior.colpId))?.nativeId, prior.nativeId);
+    }
+    assert.equal((await store.listMountBindings(scope))[0]?.remoteMountNodeId, contradictory ? null : 'server-mount-bar');
+    assert.equal((await store.getEngineState(scope))?.recoveryFrozen === true, contradictory);
+    if (contradictory) assert.equal((await store.getEngineState(scope))?.lastError, 'recovery_identity_unproven');
   });
 
   test('bindMountMapping twice is a no-op', async () => {
@@ -160,7 +171,8 @@ describe('KNS-04 push receipts, mount bind and bootstrap snapshot', () => {
     assert.deepEqual(exported.queue.map((row) => row.status), ['terminal', 'terminal']);
     assert.equal(exported.receipts.length, 2);
     assert.equal(exported.queue.some((row) => row.recovery?.code === 'constraint'), false);
-    assert.equal((await store.getMappingByColpId(scope, 'server-mount-bar'))?.nativeId, 'recovery:mount-bar');
+    assert.equal((await store.getMappingByColpId(scope, 'server-mount-bar'))?.nativeId, 'root-selected');
+    assert.equal(await store.getMappingByNativeId(scope, 'recovery:mount-bar'), null);
     assert.equal((await store.listMountBindings(scope))[0]?.remoteMountNodeId, 'server-mount-bar');
     assertWireHasNoPendingIdentity(exported.queue);
   });

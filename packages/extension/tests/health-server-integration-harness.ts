@@ -1,3 +1,8 @@
+import { handleAttentionDecide } from '../src/sw/first-run-attention.js';
+import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
+import type { StoredSession } from '../src/types.js';
+import type { SyncEndpoints } from '../src/manifest-client.js';
+import type { RemoteNodeFact } from '../src/bootstrap/matcher.js';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
@@ -30,8 +35,8 @@ export async function healthServerFixture(scope: SyncScope, input: ConfirmInput)
       parentNativeId: mount.nativeRootId, parentColpId: folder.nodeId, projection: { revision: remote.revision,
         digest: 'sha256:local', content: { title: local.title, url: local.url! } } });
   }
-  const run = await createBootstrapCoordinator({ store, scope }).confirm(input);
-  await freezeScopeRecovery(store, scope, 'recovery_identity_unproven');
+  const coordinator = createBootstrapCoordinator({ store, scope });
+  const run = await coordinator.confirm(input);
   const rebuilder = createReplicaRebuilder({ store, credentials, journal: storage, currentScope: async () => current,
     resetRuntime() {}, ensureScope: async () => {
       const binding = (await credentials.loadBinding())!;
@@ -44,5 +49,21 @@ export async function healthServerFixture(scope: SyncScope, input: ConfirmInput)
     replicaProof: async () => replicaProof, fetch: fetcher,
     commands: { replica: () => runReplicaRebuildCommand(request => rebuilder.handle(request), scope),
       issue: async () => ({ outcome: 'failed', code: 'action_unavailable' }) } });
-  return { store, run, report };
+  return { store, run, report, async resolve(fetcher: typeof fetch, session: StoredSession, accessToken: string) {
+    for (const item of run.run.attention!.items) {
+      const result = await handleAttentionDecide(store, scope, run.run.runId, item.itemId, 'completed', {
+        decision: 'keep_local', evidenceDigest: item.evidenceDigest, input });
+      if (!result.ok) throw new Error(result.error);
+    }
+    const base = `${scope.serverOrigin}/private-entry`;
+    const endpoints: SyncEndpoints = { syncSessions: `${base}/sessions`, syncSnapshot: `${base}/snapshot`,
+      syncPush: `${base}/canonical-update`, syncPull: `${base}/pull`, syncAck: `${base}/ack`,
+      syncConflict: `${base}/conflicts/{conflictId}`, syncEffectPages: `${base}/effects/{effectId}/{pageNumber}`,
+      effectPageAuthority: scope.serverOrigin, syncRetire: `${base}/retire` };
+    const outcome = await createOutboundPushWorker({ scope, store, endpoints: async () => endpoints, origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
+      sessions: { get: async () => ({ credential: { accessToken }, session }) }, fetch: fetcher }).drain();
+    const queued = await store.listQueue(scope);
+    if (queued.some(row => row.status !== 'terminal' || row.recovery)) throw new Error(JSON.stringify({ outcome, rows: queued.map(row => ({ status: row.status, recovery: row.recovery, retry: row.retry })), engine: await store.getEngineState(scope) }));
+  }, async rematch(remote: readonly RemoteNodeFact[]) { return coordinator.advance(run.run.runId, { ...input, remoteFacts: remote }); },
+    remoteFacts: input.remoteFacts!, freeze: () => freezeScopeRecovery(store, scope, 'recovery_identity_unproven') };
 }

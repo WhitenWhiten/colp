@@ -176,7 +176,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
     return { credential, replica: { ...replica,
       leaseGeneration: currentFence.rows[0]!.lease_generation,
       lifecycleRevision: currentFence.rows[0]!.lifecycle_revision,
-    }, issuer, session: issued.session, collectionId };
+    }, issuer, session: issued.session, envelope: issued.envelope, collectionId };
   }
 
   async function startPush(value: Awaited<ReturnType<typeof syncContext>>,
@@ -950,6 +950,26 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       const listed = await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${replicaId}/issues`, headers: { cookie: owner.cookie } });
       assert.equal(listed.statusCode, 200); assert.equal(listed.json().total, 4);
       assert.ok(listed.json().items.every((item: { code: string }) => item.code === 'local_merge_difference'));
+      await startPush(context);
+      const pushApp = syncApps.at(-1)!;
+      await local.resolve(async (_url, init) => {
+        const response = await pushApp.inject({ method: 'POST', url: '/private-entry/canonical-update',
+          headers: init?.headers as Record<string, string>, payload: String(init?.body) });
+        assert.equal(response.statusCode, 200, response.body);
+        return new Response(response.body, { status: response.statusCode, headers: { 'Content-Type': 'application/json' } });
+      }, { sessionId: context.envelope.sessionId, expiresAt: context.envelope.expiresAt, scope: 'collection',
+        collection: { collectionId: owned.collectionId, serverRevision: context.envelope.collectionRevision, serverCursor: context.envelope.collectionCursor },
+        replicaLease: { ...context.envelope.replicaLease, state: 'active' }, snapshotRequired: context.envelope.snapshotRequired,
+        maxBatchOperations: context.envelope.maxBatchOperations, credentialAuthorityDigest: 'a'.repeat(64) }, AUTHORIZATION.slice('Bearer '.length));
+      const landed = await runtime.pool.query('select id,title,url,parent_id,resource_revision from nodes where id = any($1::text[])', [nodes.map(node => node.id)]);
+      assert.ok(landed.rows.every(row => row.title.startsWith('Device ')));
+      await local.rematch(local.remoteFacts.map(fact => { const node = landed.rows.find(row => row.id === fact.nodeId);
+        return node ? { ...fact, title: node.title, url: node.url, parentId: node.parent_id, revision: node.resource_revision } : fact; }));
+      await local.report(post, context.session.sessionId);
+      const resolved = await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${replicaId}/issues`, headers: { cookie: owner.cookie } });
+      assert.equal(resolved.json().total, 0); assert.deepEqual(resolved.json().items, []);
+      // A separate explicit repair remains archive-backed and reports actual execution.
+      await local.freeze(); await local.report(post, context.session.sessionId);
       const command = await api.inject({ method: 'POST', url: `/api/v1/sync/replicas/${replicaId}/commands`,
         headers: mutation(owner, randomUUID(), 'application/json'), payload: { action: 'rebuild' } });
       assert.equal(command.statusCode, 200, command.body);
@@ -961,7 +981,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       const archive = await local.store.exportArchive(scope);
       assert.equal(archive.reason, 'user_replica_rebuild'); assert.match(JSON.stringify(archive), /Device 0/);
       const retained = await runtime.pool.query('select id,title from nodes where id = any($1::text[]) order by title', [nodes.map(node => node.id)]);
-      assert.equal(retained.rows.length, 4); assert.equal(retained.rows[0].title, 'Cloud 0 base');
+      assert.equal(retained.rows.length, 4); assert.equal(retained.rows[0].title, 'Device 0');
     } finally { local?.store.close(); await health.close(); await api.close(); }
   }, 120_000);
 

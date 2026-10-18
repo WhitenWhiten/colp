@@ -1,3 +1,4 @@
+import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { mountResolveOpIdMatches } from './bootstrap/matcher.js';
 import { isSpecialMountRole } from './pull-mount-apply.js';
 import type { JsonObject, MountBindingRecord, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -43,12 +44,21 @@ export async function bindAuthoredMountReceipt(store: ReturnType<typeof createSy
   const node = inner.node as JsonObject;
   if (node?.kind !== 'folder') return;
   const parent = typeof inner.parentId === 'string' ? await store.getMappingByColpId(scope, inner.parentId) : null;
-  await store.bindResolvedMountMapping(scope, { nativeId: mount.nativeRootId, colpId: targetId, rootNativeId: mount.nativeRootId,
+  const promoted = await store.bindResolvedMountMapping(scope, { nativeId: mount.nativeRootId, colpId: targetId, rootNativeId: mount.nativeRootId,
     mountId: mount.mountId, nodeKind: 'folder', ...(mount.rootRole ? { rootRole: mount.rootRole } : {}),
     ...(typeof inner.parentId === 'string' ? { parentColpId: inner.parentId } : {}),
     ...(parent && usableNativeRoot(parent.nativeId) ? { parentNativeId: parent.nativeId } : {}),
     projection: { revision, childrenRevision: revision, digest: 'sha256:mount-receipt',
       content: { title: typeof node.title === 'string' ? node.title : '', ...(role ? { folderRole: role } : {}) } } });
+  if (!promoted) {
+    const identity = await store.getMappingByNativeId(scope, mount.nativeRootId);
+    if (identity?.colpId !== targetId) {
+      // The server receipt consumed its sequence but cannot overwrite a proven
+      // independent identity. Preserve both records and expose the contradiction.
+      await freezeScopeRecovery(store, scope, 'recovery_identity_unproven');
+      return;
+    }
+  }
   const { scopeKey: _key, ...binding } = mount;
   await store.putMountBinding(scope, { ...binding, remoteMountNodeId: targetId, status: 'active' });
 }

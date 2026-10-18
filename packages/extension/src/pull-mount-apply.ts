@@ -185,3 +185,9 @@ function mountMatchesMapping(item: MountBindingRecord, mapping: MappingInput, ro
   if (isSpecialMountRole(role) && item.rootRole === role) return true;
   return false;
 }
+
+/** Structural ancestors keep their known native identity without granting subtree coverage. */
+export function bindStructureMapping(node: PullNode, mapping: MappingInput, parentColpId: string, childrenRevision: string | null): MappingInput {
+  return { ...mappingFor(node, mapping.nativeId, mapping.parentNativeId ?? null, parentColpId, childrenRevision, mapping.rootNativeId),
+    ...(mapping.rootRole ? { rootRole: mapping.rootRole } : {}) };
+}

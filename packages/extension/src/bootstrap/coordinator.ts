@@ -393,6 +393,7 @@ export function createBootstrapCoordinator(options: {
       const result = (receipt?.result?.results as JsonObject[] | undefined)?.find(row => row.opId === op?.opId);
       if (op && result?.targetId === remoteId && typeof result.revision === 'string' && ['applied', 'rebased'].includes(String(result.status))) {
         await bindAuthoredMountReceipt(store, scope, op, remoteId, result.revision);
+        if ((await store.getEngineState(scope))?.recoveryFrozen) return;
       }
       await store.putMountBinding(scope, { ...binding, remoteMountNodeId: remoteId, status: 'active' });
     }
@@ -418,7 +419,8 @@ export function createBootstrapCoordinator(options: {
     const byRoot = new Map(existing.map((row) => [row.nativeRootId, row]));
     const records: Omit<MountBindingRecord, 'scopeKey'>[] = mounts.map((mount) => {
       const prior = byRoot.get(mount.nativeRootId);
-      return {
+      const { scopeKey: _scopeKey, rootRole: _role, customSourceKey: _source, ...previous } = prior ?? {} as Partial<MountBindingRecord>;
+      return { ...previous,
         mountId: prior?.mountId ?? `mount:${mount.nativeRootId}`, nativeRootId: mount.nativeRootId,
         remoteMountNodeId: mount.remoteMountNodeId ?? prior?.remoteMountNodeId ?? null,
         boundaryVersion, materialized: prior?.materialized ?? false, status: prior?.status ?? 'pending',
