@@ -500,7 +500,11 @@ describe('KNS-04 push receipts, mount bind and bootstrap snapshot', () => {
     assert.equal((await store.getEngineState(scope))?.recoveryFrozen, undefined);
   });
 
-  test('empty collection root snapshot still freezes on ghost native Chrome ids', async () => {
+  // A mapped native id Chrome cannot find is no longer a permanent replica
+  // freeze (sync resilience task 3): the projector refuses to invent identity,
+  // creates nothing, and surfaces the retryable read failure for the engine's
+  // bounded retry, while the mapping stays for the next fresh read.
+  test('empty collection root snapshot refuses to invent identity for ghost native Chrome ids', async () => {
     const store = createSyncStateStore({ indexedDB });
     await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: 10_000 },
       checkpoint: { serverRevision: 'r', cursor: 'c' }, selectedRoots: [], rootStatus: 'ready', firstRun: 'running' });
@@ -523,13 +527,14 @@ describe('KNS-04 push receipts, mount bind and bootstrap snapshot', () => {
         removeTree: () => Promise.reject(new Error('chrome_should_not_run')),
         get: async () => [], getChildren: async () => [],
       },
-    }), /recovery_identity_unproven/);
+    }), /bookmark_lookup_empty/);
     assert.equal(created, 0);
-    assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
-    assert.equal((await store.getEngineState(scope))?.lastError, 'recovery_identity_unproven');
+    assert.notEqual((await store.getEngineState(scope))?.lastError, 'recovery_identity_unproven');
+    assert.equal((await store.getScope(scope))?.lifecycle, 'active');
+    assert.equal((await store.getMappingByNativeId(scope, '99'))?.colpId, 'ghost');
   });
 
-  test('nonempty virtual snapshot still freezes on ghost native Chrome ids', async () => {
+  test('nonempty virtual snapshot refuses to invent identity for ghost native Chrome ids', async () => {
     const store = createSyncStateStore({ indexedDB });
     await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: 10_000 },
       checkpoint: { serverRevision: 'r', cursor: 'c' }, selectedRoots: [], rootStatus: 'ready', firstRun: 'running' });
@@ -560,9 +565,10 @@ describe('KNS-04 push receipts, mount bind and bootstrap snapshot', () => {
         removeTree: () => Promise.reject(new Error('chrome_should_not_run')),
         get: async () => [], getChildren: async () => [],
       },
-    }), /recovery_identity_unproven/);
+    }), /bookmark_lookup_empty/);
     assert.equal(created, 0);
-    assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
+    assert.notEqual((await store.getEngineState(scope))?.lastError, 'recovery_identity_unproven');
+    assert.equal((await store.getMappingByNativeId(scope, '99'))?.colpId, 'ghost');
     assert.equal((await store.listMountBindings(scope))[0]?.remoteMountNodeId, null);
   });
 

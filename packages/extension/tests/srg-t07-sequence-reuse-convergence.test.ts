@@ -277,7 +277,9 @@ describe('F001 sequence_reuse / op_id_reused convergence channel', () => {
     const fixture = await setup();
     const store = { ...fixture.store,
       async listQueue(input: typeof scope, status?: QueueOperation['status'], afterSequence?: number, limit?: number) {
-        if (status === 'rejected') throw new Error('repair_list_failed');
+        // Only the repair scan's own page read fails (it pages by 200); the open-issue
+        // ceiling check at drain start reads rejected rows too and must keep working.
+        if (status === 'rejected' && limit === 200) throw new Error('repair_list_failed');
         return fixture.store.listQueue(input, status, afterSequence, limit);
       } };
     const worker = createOutboundPushWorker({ ...fixture.options, store,

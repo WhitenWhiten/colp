@@ -168,7 +168,7 @@ describe('A-07 confirm park: inbound Pull/Ack stops, Push continues', () => {
       remoteDeletePolicy(SYNC_CENTER, { pendingCount: 1 })));
     assert.equal(view.pause.show, true);
     assert.equal(view.pause.nativeWait, true);
-    assert.match(view.pause.copy, /Incoming sync from Know-N is paused/);
+    assert.match(view.pause.copy, /Items awaiting a decision and their related changes are held/);
     assert.equal(view.terminal.show, false);
   });
 });
