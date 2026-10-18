@@ -33,7 +33,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
   const fetcher = options.fetch ?? fetch; const now = options.now ?? Date.now; const random = options.random ?? Math.random;
   const requestTimeoutMilliseconds = options.requestTimeoutMilliseconds ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const responseReadOptions = { timeoutMilliseconds: requestTimeoutMilliseconds };
-  const guardedWake = guardSyncWake(options, now, wakeOnce, transition, digest);
+  const guardedWake = guardSyncWake(options, now, wakeOnce, transition);
   let wakeTail: Promise<void> = Promise.resolve();
   // SR-14: the Push peer refreshes placement before rebasing a retried
   // create/move. Memoizing the attempt for one wake lets a single Pull answer

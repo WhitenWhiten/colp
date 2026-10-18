@@ -77,9 +77,12 @@ export async function setup(overrides: {
   const clock = { now: 1_000 }; let crashAt: string | undefined;
   let recovered = false; let projectCalls = 0; let activeSessionId = 'session-engine';
   let activeSnapshotRequired = overrides.snapshotRequired === true; let activeCursor = 'cursor-0';
+  let activeServerRevision = 'revision-0';
   const sessionForces: boolean[] = [];
   const sessionFailures: unknown[] = [];
-  const forcedSessions: Array<{ sessionId?: string; state: 'active' | 'recovery_required'; snapshotRequired: boolean; cursor: string }> = [];
+  /** `serverRevision` is the collection head the Session reports; other devices move it between wakes. */
+  const forcedSessions: Array<{ sessionId?: string; state: 'active' | 'recovery_required'; snapshotRequired: boolean;
+    cursor: string; serverRevision?: string }> = [];
   const push = { calls: 0, outcomes: [] as string[], async drain() { this.calls += 1; order.push('push');
     return { outcome: this.outcomes.shift() ?? 'idle' } as any; } };
   // A-12/SR-16: the engine harness now runs the production projector by default and can run
@@ -177,12 +180,13 @@ export async function setup(overrides: {
         activeSessionId = classified?.sessionId ?? 'session-renewed';
         activeSnapshotRequired = classified?.snapshotRequired ?? false;
         activeCursor = classified?.cursor ?? 'cursor-recovered';
+        if (classified?.serverRevision) activeServerRevision = classified.serverRevision;
       }
       return { credential: { accessToken: 'access-token' },
         session: { ...session(activeSnapshotRequired), sessionId: activeSessionId,
           snapshotRequired: activeSnapshotRequired,
           replicaLease: { ...session().replicaLease, state: classified?.state ?? 'active' },
-          collection: { ...session().collection, serverCursor: activeCursor } } }; } },
+          collection: { ...session().collection, serverCursor: activeCursor, serverRevision: activeServerRevision } } }; } },
     pullApplier, pushWorker: push, now: () => clock.now, random: () => 0.5, id: () => 'durable-id',
     schedule: (delay: number) => scheduled.push(delay),     snapshotProjector: async (plans: any[], mode?: { readonly recoveryOnly?: boolean }) => {
       projectCalls += 1;

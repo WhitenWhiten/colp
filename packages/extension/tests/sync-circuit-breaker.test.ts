@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { advanceSyncCircuit, CIRCUIT_WINDOW_MS } from '../src/sync-circuit-breaker.js';
+import { advanceSyncCircuit, CIRCUIT_WINDOW_MS, sameSyncProgress, syncProgress } from '../src/sync-circuit-breaker.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { sendReplicaHealthReport } from '../src/sw/replica-health-report.js';
 import { ack, emptyPullPage, json, problem, scope, setup } from './durable-sync-engine-harness.js';
@@ -55,6 +55,24 @@ test('handled Pull authority denials count even when a renewed Session rotates i
   f.store.close();
 });
 
+test('denials still count while other devices move the collection head between wakes', async () => {
+  const f = await setup();
+  for (let i = 0; i < 5; i++) {
+    // Each renewed Session rebases the local checkpoint onto a newer collection revision, as it
+    // does whenever another browser or the web edits the library between two denials.
+    if (i > 0) f.forcedSessions.push({ state: 'active', snapshotRequired: false, cursor: `renewed-${i}`,
+      serverRevision: `head-${i}` });
+    f.pullResponses.push(problem(410, 'stale_replica', {}));
+    const state = await f.reopen().wake('manual');
+    f.clock.now = Math.max(f.clock.now + 1_000, state!.notBefore);
+  }
+  const stopped = (await f.store.getEngineState(scope))!;
+  assert.equal(stopped.phase, 'error', 'a denial loop with no acked page or pushed op is not progress');
+  assert.equal(stopped.lastError, 'stale_replica');
+  assert.equal(stopped.circuitBreaker?.failures[0]?.attempts.length, 5);
+  f.store.close();
+});
+
 test('unknown external failures have a finite bound and manual Retry probes immediately', async () => {
   const f = await setup();
   for (let i = 0; i < 5; i++) {
@@ -85,4 +103,23 @@ test('per-code windows reset on progress or expiry; cooldown grows to thirty min
   for (const code of ['network_unavailable', 'rate_limited', 'server_unavailable', 'concurrent_local_mutation']) {
     assert.equal(advanceSyncCircuit(undefined, code, 'p1', 1), undefined);
   }
+});
+
+test('progress names committed work and the push head; a rebased cursor matches what came before it', () => {
+  const page = syncProgress({ cursorEvidence: { pullPageId: 'page-1', pageDigest: 'sha256:x' }, headOpId: null });
+  const rebased = syncProgress({ cursorEvidence: { sessionAuthority: true }, headOpId: null });
+  const nextPage = syncProgress({ cursorEvidence: { pullPageId: 'page-2', pageDigest: 'sha256:y' }, headOpId: null });
+  const pushed = syncProgress({ cursorEvidence: { sessionAuthority: true }, headOpId: 'op-2' });
+  assert.equal(sameSyncProgress(page, rebased), true, 'a Session rebase only drops evidence');
+  assert.equal(sameSyncProgress(rebased, rebased), true);
+  assert.equal(sameSyncProgress(page, nextPage), false, 'a committed page is progress');
+  assert.equal(sameSyncProgress(rebased, page), false, 'evidence after a rebase is progress');
+  assert.equal(sameSyncProgress(rebased, pushed), false, 'a moved push head is progress');
+  assert.equal(sameSyncProgress('p1', 'p2'), false);
+  // The window remembers the progress it opened on, so later real progress still resets it.
+  const opened = advanceSyncCircuit(undefined, 'stale_replica', page, 1)!;
+  const continued = advanceSyncCircuit(opened, 'stale_replica', rebased, 2)!;
+  assert.equal(continued.progress, page);
+  assert.equal(continued.failures[0]?.attempts.length, 2);
+  assert.equal(advanceSyncCircuit(continued, 'stale_replica', nextPage, 3)?.failures[0]?.attempts.length, 1);
 });

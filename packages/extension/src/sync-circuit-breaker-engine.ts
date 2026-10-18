@@ -1,7 +1,7 @@
 import { refreshesReplicaIntegrity } from './sync-failure-class.js';
 import type { EngineOptions } from './durable-sync-engine-types.js';
 import type { DurableSyncEngineState } from './sync-state-store.js';
-import { advanceSyncCircuit, circuitIsStopped } from './sync-circuit-breaker.js';
+import { advanceSyncCircuit, circuitIsStopped, syncProgress } from './sync-circuit-breaker.js';
 
 type WakeReason = 'startup' | 'alarm' | 'online' | 'manual';
 type Transition = (phase: DurableSyncEngineState['phase'], patch: Partial<DurableSyncEngineState>
@@ -9,7 +9,7 @@ type Transition = (phase: DurableSyncEngineState['phase'], patch: Partial<Durabl
 
 export function guardSyncWake(options: EngineOptions, now: () => number,
   wakeOnce: (reason: WakeReason, confirmedOnline: boolean) => Promise<DurableSyncEngineState | null>,
-  transition: Transition, digest: (value: unknown) => string) {
+  transition: Transition) {
   return async (reason: WakeReason, confirmedOnline: boolean) => {
     try {
       const prior = await options.store.getEngineState(options.scope);
@@ -24,10 +24,10 @@ export function guardSyncWake(options: EngineOptions, now: () => number,
       if (!result || result.phase === 'retired' || result.revision === prior?.revision) return result;
       const current = await options.store.getEngineState(options.scope);
       if (!current) return result;
-      const scope = await options.store.getScope(options.scope);
+      const cursor = await options.store.getCursor(options.scope);
       const head = await options.store.firstLaneQueue(options.scope);
-      // Renewing an opaque Session cursor alone is not logical server progress.
-      const progress = digest([scope?.checkpoint?.serverRevision ?? null, head?.opId ?? null]);
+      // Only work this replica committed counts as progress (see `syncProgress`).
+      const progress = syncProgress({ cursorEvidence: cursor?.evidence ?? null, headOpId: head?.opId ?? null });
       const breaker = current.lastError === undefined ? undefined
         : advanceSyncCircuit(prior?.circuitBreaker, current.lastError, progress, now());
       if (breaker === undefined && prior?.circuitBreaker === undefined) return result;
