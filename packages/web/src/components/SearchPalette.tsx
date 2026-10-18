@@ -9,6 +9,7 @@ import { SEARCH_PAGE_TITLE, SITE_SEARCH_PLACEHOLDER } from '../lib/searchCopy'
 import { useSearchKeyboard } from '../lib/useSearchKeyboard'
 import { searchResultHref, useProductSearch } from '../lib/useProductSearch'
 import { loginPath } from '../lib/chrome'
+import { knownLibraryId } from '../lib/useLibrary'
 
 type Props = { open: boolean; onClose: () => void }
 
@@ -113,7 +114,7 @@ export function SearchPalette({ open, onClose }: Props) {
             <button key={`${result.resourceType}:${result.resourceId}`} type="button"
               data-index={index} className={`result-row search-result${index === kb.active ? ' is-active' : ''}`}
               {...kb.optionProps(index)} onClick={() => go(index)}>
-              <SearchResultRow result={result} query={query} />
+              <SearchResultRow result={result} query={query} libraryId={knownLibraryId()} />
               <span className="meta" aria-hidden>↵</span>
             </button>
           ))}

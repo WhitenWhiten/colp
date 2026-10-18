@@ -14,6 +14,7 @@ vi.mock('../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api')>()
   return { ...actual, isLive: (flag: string) => flag === 'search' ? mocks.live : actual.isLive(flag as never), productClient: { ...actual.productClient, searchResources: mocks.search, loadEditorSnapshot: mocks.snapshot } }
 })
+vi.mock('../lib/useLibrary', () => ({ useLibrary: () => ({ library: { id: 'lib-1' }, state: 'ready', message: '', reload: vi.fn() }) }))
 const makePage = (items: SearchPage['items'], nextCursor: string | null = null): SearchPage => ({
   query: 'systems', types: ['collection', 'node', 'annotation'], items,
   page: { returnedCount: items.length, hasMore: nextCursor !== null, nextCursor },
@@ -44,7 +45,7 @@ describe('Search page', () => {
     const activeId = document.querySelector('input[aria-label="Search query"]')?.getAttribute('aria-activedescendant')
     expect(activeId).not.toBeNull()
     expect(activeId && document.getElementById(activeId)?.getAttribute('data-search-result-id')).toBe('n2')
-    expect(pageMetaContent('meta[name="description"]')).toBe('Search collections, bookmarks, and annotations on COLP Server.')
+    expect(pageMetaContent('meta[name="description"]')).toBe('Search bookmarks, folders, and notes on COLP Server.')
     expect(canonicalHref()).toBeNull()
     expect(pageMetaContent('meta[property="og:url"]')).toBeNull()
     expect(pageMetaContent('meta[property="og:title"]')).toBe(document.title)
@@ -52,6 +53,28 @@ describe('Search page', () => {
     const nodeHit = document.querySelector('[data-search-result-id="n2"]')
     expect(nodeHit?.querySelector('[data-testid="search-result-kind"]')?.textContent).toBe('Bookmark')
     expect(nodeHit?.querySelector('[data-testid="search-result-kind"]')?.textContent).not.toBe('node')
+  })
+
+  it('names the library root All bookmarks and starts trails there', async () => {
+    mocks.snapshot.mockResolvedValue({
+      collection: { id: 'lib-1', title: 'Bookmarks', library: true },
+      root: { id: 'root-1' },
+      nodes: [{ id: 'bar', kind: 'folder', parentId: 'root-1', title: 'Bookmarks bar' }],
+    } as unknown as EditorSnapshot)
+    mocks.search.mockResolvedValue(makePage([
+      { resourceType: 'collection', resourceId: 'lib-1', title: 'Bookmarks', snippet: 'Bookmarks', rank: 0.9 },
+      { resourceType: 'node', resourceId: 'n1', collectionId: 'lib-1', nodeKind: 'bookmark', title: 'Systems paper', urlHost: 'paper.test', snippet: '', rank: 0.8 },
+    ]))
+    render()
+    await flushDebounce()
+    const root = document.querySelector('[data-search-result-id="lib-1"]')
+    expect(root?.querySelector('strong')?.textContent).toBe('All bookmarks')
+    expect(root?.querySelector('[data-testid="search-result-kind"]')?.textContent).toBe('Library')
+    expect(root?.querySelector('[data-search-snippet]')).toBeNull()
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    // Host, then the trail: it starts at All bookmarks, not the stored "Bookmarks".
+    expect(document.querySelector('[data-search-result-id="n1"] [data-testid="search-result-meta"]')?.lastElementChild?.textContent)
+      .toBe('All bookmarks')
   })
 
   it('keeps the results when a route round trip remounts the same query', async () => {
@@ -91,10 +114,10 @@ describe('Search page', () => {
       { q: 'systems', types: ['annotation'] satisfies SearchResourceType[], limit: 20 },
       expect.anything(),
     )
-    expect(typeOption('Annotations').getAttribute('aria-checked')).toBe('true')
-    act(() => typeOption('Collections').click())
+    expect(typeOption('Notes').getAttribute('aria-checked')).toBe('true')
+    act(() => typeOption('Bookmarks and folders').click())
     await flushDebounce()
-    expect(currentSearch).toContain('types=collection')
+    expect(currentSearch).toContain('types=node')
     act(() => typeOption('All').click())
     await flushDebounce()
     expect(currentSearch).not.toContain('types=')
@@ -105,7 +128,7 @@ describe('Search page', () => {
     mocks.search.mockResolvedValueOnce(makePage([{ resourceType: 'collection', resourceId: 'c1', title: 'Old', snippet: 'Old', rank: 0.9 }], 'old-cursor'))
       .mockResolvedValueOnce({ ...makePage([]), types: ['annotation'] })
     render(); await flushDebounce()
-    act(() => typeOption('Annotations').click())
+    act(() => typeOption('Notes').click())
     expect(document.body.textContent).not.toContain('Old')
     await flushDebounce()
     expect(mocks.search).toHaveBeenLastCalledWith({ q: 'systems', types: ['annotation'] satisfies SearchResourceType[], limit: 20 }, expect.anything())

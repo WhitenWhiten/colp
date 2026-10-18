@@ -8,6 +8,11 @@ type LibraryState = { library: LibraryCollection | null; state: 'loading' | 'rea
 const EMPTY: LibraryState = { library: null, state: 'loading', message: 'Loading your library' }
 const CACHE_KEY = 'account-library'
 
+/** The library id this page already knows, without asking the server (null until a page loaded it). */
+export function knownLibraryId(): string | null {
+  return readRouteCache<LibraryState>(CACHE_KEY)?.library?.id ?? null
+}
+
 /** The account's one library. The identity fence also covers a mounted account switch. */
 export function useLibrary() {
   const [identity, setIdentity] = useState(privateSessionIdentity)

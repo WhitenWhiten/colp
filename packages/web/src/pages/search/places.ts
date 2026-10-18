@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { productClient, type EditorSnapshot, type SearchResult } from '../../api'
 import { readDeskCache } from '../library-desk/data'
+import { rootTitle } from '../../lib/libraryTree'
 import { readRouteCache, writeRouteCache } from '../../lib/routeCache'
 
 /**
@@ -42,7 +43,8 @@ export function placeIndexFromSnapshot(snapshot: EditorSnapshot): PlaceIndex {
   for (const node of snapshot.nodes) {
     nodes[node.id] = { kind: node.kind === 'folder' ? 'folder' : 'bookmark', parentId: node.parentId, title: node.title }
   }
-  return { title: snapshot.collection.title, rootId: snapshot.root.id, nodes }
+  // Trails start where the library starts: "All bookmarks", never the stored title.
+  return { title: rootTitle(snapshot.collection), rootId: snapshot.root.id, nodes }
 }
 
 function trailTo(index: PlaceIndex, parentId: string): string[] {

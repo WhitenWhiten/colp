@@ -13,12 +13,14 @@ import { SEARCH_PAGE_TITLE, SITE_SEARCH_PLACEHOLDER, searchKindLabel } from '../
 import { useSearchKeyboard } from '../lib/useSearchKeyboard'
 import { searchFolderHref, searchResultHref, useProductSearch } from '../lib/useProductSearch'
 import { productName } from '../lib/edition'
+import { useLibrary } from '../lib/useLibrary'
 import { plural } from '../lib/plural'
 import { compactTrail, useSearchPlaces, type SearchPlace } from './search/places'
 
+/* One library per account: folders are nodes, so there is no collection
+   filter; a collection hit is the library's root and shows under All. */
 const filters: { label: string; value?: SearchResourceType }[] = [
-  { label: 'All' }, { label: 'Collections', value: 'collection' }, { label: 'Bookmarks', value: 'node' },
-  { label: 'Annotations', value: 'annotation' },
+  { label: 'All' }, { label: 'Bookmarks and folders', value: 'node' }, { label: 'Notes', value: 'annotation' },
 ]
 
 /* A folder hit opens the folder on the desk; the resource page is for
@@ -56,6 +58,7 @@ export function Search() {
   const navigate = useNavigate()
   const search = useProductSearch({ query, types: filter ? [filter] : undefined, limit: 20 })
   const placeOf = useSearchPlaces(search.items)
+  const libraryId = useLibrary().library?.id ?? null
 
   /* R10-21: same combobox/listbox keyboard model as the ⌘K palette — the
      input keeps focus, arrows move aria-activedescendant, Enter opens. */
@@ -120,10 +123,10 @@ export function Search() {
         <PageHead
           eyebrow="Library"
           title={SEARCH_PAGE_TITLE}
-          lede="Titles, links, folders, and notes across your collections."
+          lede="Titles, links, folders, and notes in your library."
           documentTitle="Search"
           meta={{
-            description: `Search collections, bookmarks, and annotations on ${productName()}.`,
+            description: `Search bookmarks, folders, and notes on ${productName()}.`,
             canonicalPath: null,
             robots: 'noindex',
           }}
@@ -204,6 +207,7 @@ export function Search() {
                   result={result}
                   query={query}
                   nodeKind={place?.kind}
+                  libraryId={libraryId}
                   meta={placeMeta(result, place)}
                 />
               </Link>
