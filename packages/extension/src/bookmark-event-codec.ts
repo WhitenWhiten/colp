@@ -63,9 +63,7 @@ export function resolveCommittedTokens(value: JsonValue, resolved: ReadonlyMap<s
     }
     return value;
   }
-  if (Array.isArray(value)) return value.map((item) => resolveCommittedTokens(item, resolved));
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value)
-    .map(([key, child]) => [key, resolveCommittedTokens(child, resolved)]));
+
   return value;
 }
 export function assertOperationCandidate(operation: JsonObject) {

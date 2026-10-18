@@ -1,3 +1,4 @@
+import { rebindIdentity, rebindMappingIdentity, rebindOperationIdentity } from '../queue-identity-rebind.js';
 import { reasonCode } from '../push-error-code.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import type { RecaptureQueueRow } from '../queue-recapture.js';
@@ -12,7 +13,7 @@ import { validateQueueRecord } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
-import { SyncStateError, type LeaseRecord, type QueueOperation, type SyncScope, type JsonObject, type MappingInput, type UnknownRecord } from './types.js';
+import { SyncStateError, type LeaseRecord, type QueueOperation, type SyncScope, type MappingInput, type UnknownRecord } from './types.js';
 
 /** Rows that own no server sequence: refused history and held work. A gap realign parks them after live work. */
 export function parkedOutOfLane(row: QueueOperation): boolean {
@@ -174,7 +175,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
           }
         }
         for (const operation of capture.operations) {
-          const payload = replaceTokens(operation, replacements) as JsonObject;
+          const payload = rebindOperationIdentity(operation, replacements);
           const opId = boundedString(payload.opId, 'opId');
           if (opId === row.opId) throw new SyncStateError('recapture_identity_reused');
           const fresh = stampColpQueueRecord(input, key, { opId, batchId: opId, idempotencyKey: opId,
@@ -203,15 +204,15 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
         const rows = await cursorPage<QueueOperation>(queue, scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
         for (const row of rows) {
           if (!['pending', 'set_aside'].includes(row.status) || row.attempt) continue;
-          const payload = replaceTokens(row.payload, replacements) as JsonObject;
+          const payload = rebindOperationIdentity(row.payload, replacements);
           if (JSON.stringify(payload) === JSON.stringify(row.payload)) continue;
           queue.put(validateQueueRecord({ ...row, payload,
-            baseRevision: replaceTokens(row.baseRevision, replacements), digest: recapturedOperationDigest(payload),
+            baseRevision: rebindIdentity(row.baseRevision, replacements), digest: recapturedOperationDigest(payload),
             idempotencyKey: `${row.opId}.recaptured` }, ctx.maxRecordBytes));
         }
         const mappings = tx.objectStore(STORES.mappings);
         const rows2 = await cursorPage<MappingInput>(mappings, scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
-        for (const row of rows2) mappings.put(replaceTokens(row, replacements));
+        for (const row of rows2) mappings.put(rebindMappingIdentity(row, replacements));
       }
       sequences.put({ scopeKey: key, next }); metadata.put({ key: ordinalKey, next: ordinal });
     });
@@ -228,12 +229,4 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
   }
 
   return { conflictResolutionExemptions, setAsideQueue, releaseSetAsideQueue, releaseSettledHolds, setAsideClaimedPush, firstLaneQueue };
-}
-
-function replaceTokens(value: unknown, replacements: ReadonlyMap<string, string>): unknown {
-  if (typeof value === 'string') return replacements.get(value) ?? value;
-  if (Array.isArray(value)) return value.map(item => replaceTokens(item, replacements));
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value)
-    .map(([key, item]) => [key, replaceTokens(item, replacements)]));
-  return value;
 }
