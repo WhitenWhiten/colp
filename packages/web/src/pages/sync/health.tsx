@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ProductApiError, productClient, type SyncReplicaCommandView, type SyncReplicaIssue, type SyncReplicaIssuesView,
   type SyncReplicaView,
 } from '../../api'
+import { CopyField } from '../../components/CopyField'
 import { useToast } from '../../components/AppToast'
 import { useConfirm } from '../../components/ConfirmModal'
 import type { StatusTone } from '../../components/StatusBadge'
@@ -69,6 +70,11 @@ export function issueSummary(issue: SyncReplicaIssue): string {
     case 'record_too_large': return 'Too large for this browser to store'
     case 'bounded_string_invalid': return 'A field is too long for this browser to store'
     case 'native_result_unknown': return 'Waiting for a decision in the browser'
+    case 'local_merge_difference': return 'Review this local merge difference in the extension’s Sync → Folders list. It is not a server conflict.'
+    case 'duplicate_candidate': return 'Review possible duplicates in the extension’s Sync → Folders list.'
+    case 'dependency_pending': case 'dependency_parked': return 'Waiting for an earlier operation; the browser checks its dependency automatically'
+    case 'sequence_blocked': return 'An earlier deferred operation holds this upload sequence. Exact retries are bounded; Retry checks again without changing its identity.'
+    case 'resource_id_unavailable': return 'The server consumed this operation but refused its resource identity. The change has not been applied.'
     case 'waiting_dependency': return 'Waiting for another change to finish'
     // A sent change the server keeps unsettled; the browser's later uploads wait behind it.
     case 'push_deferred': return 'The server keeps deferring this change; later uploads from that browser wait behind it'
@@ -121,7 +127,8 @@ export function commandNote(command: SyncReplicaCommandView, browser: string): s
   switch (command.state) {
     case 'pending': return `${label} sent. It runs when ${browser} next checks in, usually within five minutes while it’s open.`
     case 'delivered': return `${label} sent. Waiting for ${browser} to report back.`
-    case 'done': if (command.resultCode === 'retry_scheduled') return `Retry was scheduled on ${browser}. Check its sync status for the result.`
+    case 'done': if (command.resultCode === 'exact_retry_requested' || command.resultCode === 'recapture_completed' || command.resultCode === 'retry_completed') return `The browser processed ${label.toLowerCase()}. Upload and download convergence must be checked in its latest report.`
+      if (command.resultCode === 'retry_scheduled') return `Retry was scheduled on ${browser}. Check its sync status for the result.`
       return command.action === 'rebuild'
       ? `Sync was reset ${formatRelative(command.completedAt ?? command.createdAt)}. Open the extension on that browser to choose which folders sync.`
       : `${label} ran ${formatRelative(command.completedAt ?? command.createdAt)}.`
@@ -145,24 +152,34 @@ const RESET_WARNING = 'That browser keeps its bookmarks, and so does your librar
 function useReplicaCommand(replica: SyncReplicaView, onSent: () => void) {
   const { success, error } = useToast()
   const [busy, setBusy] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const generation = useRef(0)
+  const invalidate = useCallback(() => { generation.current++ }, [])
+  useEffect(() => { invalidate(); setBusy(null); setFeedback(null); return invalidate }, [replica.id, invalidate])
   const send = async (action: Action, issueId?: string) => {
     const key = `${action}:${issueId ?? ''}`
-    setBusy(key)
+    const ticket = ++generation.current
+    setBusy(key); setFeedback(null)
     try {
       await productClient.sendSyncReplicaCommand(replica.id, { action, ...(issueId ? { issueId } : {}) }, {
         intentId: `sync-command:${replica.id}:${key}:${crypto.randomUUID()}`, maxRetries: 1,
       })
+      if (ticket !== generation.current) return
+      setFeedback(`Request delivered to the server; waiting for ${replica.name} to execute it and report its result.`)
       success(`Sent to ${replica.name}. It runs the next time that browser checks in.`)
       onSent()
     } catch (caught) {
+      if (ticket !== generation.current) return
       const apiError = caught instanceof ProductApiError ? caught : null
-      error(apiError?.isPreconditionFailed
+      const message = apiError?.isPreconditionFailed
         ? 'That browser no longer offers this. Refresh to see what it reported last.'
         : apiError?.status === 429 ? 'That browser already has requests waiting. Try again after it checks in.'
-          : 'Couldn’t send this to the browser. Try again.')
-    } finally { setBusy(null) }
+          : 'Couldn’t send this to the browser. Try again.'
+      setFeedback(message); error(message)
+      if (apiError?.isPreconditionFailed) onSent()
+    } finally { if (ticket === generation.current) setBusy(null) }
   }
-  return { busy, send }
+  return { busy, send, feedback }
 }
 
 type IssuesState = { readonly phase: 'closed' } | { readonly phase: 'loading' }
@@ -170,16 +187,27 @@ type IssuesState = { readonly phase: 'closed' } | { readonly phase: 'loading' }
 
 export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView; onChanged(): void }) {
   const [issues, setIssues] = useState<IssuesState>({ phase: 'closed' })
+  const [expanded, setExpanded] = useState(false)
+  const requestGeneration = useRef(0)
+  const invalidateRequests = useCallback(() => { requestGeneration.current++ }, [])
   const confirm = useConfirm()
   const command = useReplicaCommand(replica, onChanged)
-  if (replica.status === 'retired') return null
   const health = replica.health
   const count = health?.issueCount ?? 0
-  const load = async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const ticket = ++requestGeneration.current
     setIssues({ phase: 'loading' })
-    try { setIssues({ phase: 'loaded', view: await productClient.listSyncReplicaIssues(replica.id) }) }
-    catch { setIssues({ phase: 'failed' }) }
-  }
+    try {
+      const view = await productClient.listSyncReplicaIssues(replica.id, { signal })
+      if (ticket === requestGeneration.current && !signal?.aborted) setIssues({ phase: 'loaded', view })
+    } catch { if (ticket === requestGeneration.current && !signal?.aborted) setIssues({ phase: 'failed' }) }
+  }, [replica.id])
+  useEffect(() => {
+    const controller = new AbortController()
+    if (expanded) void load(controller.signal)
+    return () => { controller.abort(); invalidateRequests() }
+  }, [load, expanded, health?.reportedAt, invalidateRequests])
+  if (replica.status === 'retired') return null
   const notes: string[] = []
   const latest = latestCommand(replica, null)
   // An open request takes the place of its button.
@@ -198,16 +226,17 @@ export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView
   if (notSyncing(replica) && health?.state !== 'stopped') notes.push(activityNote(replica))
   // A reset browser's own report already says what came of the reset.
   if (latest && (health?.code !== 'replica_rebuilt' || latest.action !== 'rebuild' || latest.state !== 'done')) notes.push(commandNote(latest, replica.name))
-  if (notes.length === 0) return null
   const reset = async () => {
     if (await confirm({ title: `Reset sync on ${replica.name}?`, body: RESET_WARNING, confirmLabel: 'Reset sync' })) {
       await command.send('rebuild')
     }
   }
-  const tone = health?.state === 'stopped' ? 'is-blocked' : 'is-stale'
-  return <div className={`replica-message ${tone}`} role="status">
+  const tone = health?.state === 'stopped' ? 'is-blocked' : notes.length > 0 ? 'is-stale' : ''
+  return <div className={`replica-message ${tone}`} role={notes.length > 0 ? 'status' : undefined}>
     {notes.map((note) => <p key={note}>{note}</p>)}
     {health && <p className="replica-reported">Reported {formatRelative(health.reportedAt)}.</p>}
+    {command.feedback && <p role="alert">{command.feedback}</p>}
+    {health && Date.now() - Date.parse(health.reportedAt) > 15 * 60_000 && <p>This browser’s report is over 15 minutes old. Open the extension to refresh its status before relying on it.</p>}
     {offered.length > 0 && (
       <div className="replica-actions">
         {offered.includes('retry') && <button type="button" className="btn btn-secondary btn-sm" disabled={command.busy !== null}
@@ -216,35 +245,63 @@ export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView
           onClick={() => void reset()}>{command.busy === 'rebuild:' ? 'Sending…' : 'Reset sync'}</button>}
       </div>
     )}
-    {count > 0 && health?.state !== 'paused' && (issues.phase === 'closed' || issues.phase === 'failed') && (
+    {(issues.phase === 'closed' || issues.phase === 'failed') && (
       <div className="replica-actions">
         {issues.phase === 'failed' && <span>Couldn’t load the items.</span>}
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => void load()}>
-          {issues.phase === 'failed' ? 'Try again' : `Show ${plural(count, 'item')}`}
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => { if (!expanded) setExpanded(true); else void load() }}>
+          {issues.phase === 'failed' ? 'Try again' : count > 0 && health?.state !== 'paused' ? `Show ${plural(count, 'item')}` : 'Show diagnostics'}
         </button>
       </div>
     )}
     {issues.phase === 'loading' && <p>Loading items…</p>}
-    {issues.phase === 'loaded' && <ReplicaIssueList view={issues.view} replica={replica}
-      busy={command.busy} onRetry={(issueId) => void command.send('retry', issueId)} />}
+    {issues.phase === 'loaded' && <>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => void load()}>Refresh diagnostics</button>
+      {health?.state !== 'paused' && <ReplicaIssueList view={issues.view} replica={replica} busy={command.busy}
+        onRetry={(issueId) => void command.send('retry', issueId)} />}
+      <AckWarnings view={issues.view} />
+      <CopyField label="sync diagnostics" multiline value={JSON.stringify({ health: health ?? null, ...issues.view,
+        ...(health?.state === 'paused' ? { items: [] } : {}) }, null, 2)} />
+    </>}
   </div>
 }
 
 function ReplicaIssueList({ view, replica, busy, onRetry }: {
   view: SyncReplicaIssuesView; replica: SyncReplicaView; busy: string | null; onRetry(issueId: string): void
 }) {
-  if (view.items.length === 0) return <p>This browser has nothing set aside any more.</p>
+  if (view.items.length === 0) return <p>{view.total > 0
+    ? `This browser reports ${plural(view.total, 'issue')}, but their details were omitted from its bounded report. Open the extension to inspect them.`
+    : 'This browser has nothing set aside any more.'}</p>
   const more = view.total - view.items.length
-  return <ul className="replica-issues" aria-label="Items this browser couldn’t sync">
+  const stale = Boolean(replica.health?.reportedAt && view.reportedAt !== replica.health.reportedAt)
+  return <>
+    {stale && <p>This item list predates the latest browser report. Refresh diagnostics before acting.</p>}
+    <ul className="replica-issues" aria-label="Items this browser couldn’t sync">
     {view.items.map((issue) => (
       <li key={issue.issueId}>
         <strong>{issue.title ?? (issue.nodeId ? 'A bookmark in your library' : 'A bookmark on that browser')}</strong>
         <span>{issueSummary(issue)}{issue.count > 1 ? ` (${issue.count} times)` : ''}</span>
-        <IssueCommand issue={issue} replica={replica} busy={busy} onRetry={onRetry} />
+        <span>{issue.direction === 'push' ? 'Upload' : issue.direction === 'pull' ? 'Download' : 'Local merge or capture'} ·
+          First seen {formatRelative(issue.firstSeenAt)} · Last seen {formatRelative(issue.lastSeenAt)}</span>
+        <CopyField label="error code" value={issue.code} />
+        <details><summary>Diagnostic identifiers</summary><code>{JSON.stringify({ issueId: issue.issueId,
+          nodeId: issue.nodeId, opId: issue.opId, actions: issue.actions })}</code></details>
+        <IssueCommand issue={issue} replica={replica} busy={stale ? 'stale' : busy} onRetry={onRetry} />
       </li>
     ))}
     {more > 0 && <li><span>and {plural(more, 'more item')}</span></li>}
-  </ul>
+  </ul></>
+}
+
+function AckWarnings({ view }: { view: SyncReplicaIssuesView }) {
+  return <section aria-label="Latest acknowledgement warnings">
+    <p>Latest acknowledgement warnings{view.ackWarningsAt ? ` · ${formatRelative(view.ackWarningsAt)}` : ''}.
+      These describe the latest acknowledgement and are separate from current open issues; they are not a cumulative history.</p>
+    {view.ackWarnings.length === 0 ? <p>No warnings in the latest acknowledgement.</p> : <ul>
+      {[...new Map(view.ackWarnings.map(warning => [JSON.stringify(warning), warning])).values()].map(warning =>
+        <li key={JSON.stringify(warning)}><span>{warning.message}</span><CopyField label="warning code" value={warning.code} />
+          {warning.path && <code>{warning.path}</code>}</li>)}
+    </ul>}
+  </section>
 }
 
 function IssueCommand({ issue, replica, busy, onRetry }: {

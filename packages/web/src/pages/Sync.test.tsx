@@ -118,9 +118,9 @@ describe('Sync Center authoritative workflow', () => {
     const cards = [...document.querySelectorAll('[aria-label="Connected browsers"] > li')]
     expect(cards.map((card) => card.textContent?.includes('Not syncing'))).toEqual([true, true, false])
     expect(cards[2]?.textContent).toContain('Active')
-    expect(cards[0]?.querySelector('[role=status]')?.textContent)
+    expect(cards[0]?.querySelector('[role=status] p')?.textContent)
       .toBe('It connected just now, but changes from 3 h ago haven’t reached it. Open the extension on that browser to see why.')
-    expect(cards[1]?.querySelector('[role=status]')?.textContent)
+    expect(cards[1]?.querySelector('[role=status] p')?.textContent)
       .toBe('Changes from 5 h ago are waiting, and it was last seen 2 h ago. If that browser is open and online, open the extension on it to see why.')
     // Ordinary lag is not a problem worth a note.
     expect(cards[2]?.querySelector('[role=status]')).toBeNull()
@@ -156,18 +156,18 @@ describe('Sync Center authoritative workflow', () => {
     // A stop the web does not know yet still says the code; the stop outranks the silence note.
     expect(note(3)).toContain('it reported “brand_new_code”.')
     expect(note(3)).not.toContain('are waiting')
-    // Paused names no items; a stop with nothing set aside offers no list.
-    expect(cards()[2]?.querySelector('button')?.textContent).not.toMatch(/Show/)
+    // Paused hides item names while keeping latest Ack diagnostics reachable.
+    expect(cards()[2]?.querySelector('button')?.textContent).toBe('Show diagnostics')
     expect(cards()[3]?.textContent).not.toContain('Show 0')
     const show = [...cards()[0]!.querySelectorAll('button')].find((button) => button.textContent === 'Show 3 items')!
     act(() => show.click())
     await waitForDom(() => note(0).includes('Couldn’t load the items.'))
     act(() => [...cards()[0]!.querySelectorAll('button')].find((button) => button.textContent === 'Try again')!.click())
     await waitForDom(() => note(0).includes('Recipes'))
-    expect(mocks.listSyncReplicaIssues).toHaveBeenCalledWith('replica-1')
+    expect(mocks.listSyncReplicaIssues).toHaveBeenCalledWith('replica-1', expect.any(Object))
     const items = [...cards()[0]!.querySelectorAll('[aria-label="Items this browser couldn’t sync"] li')].map((item) => item.textContent)
-    expect(items).toEqual(['RecipesWaiting for a conflict to be resolved',
-      'A bookmark on that browserThe server didn’t accept this change (2 times)', 'and 1 more item'])
+    expect(items[0]).toContain('RecipesWaiting for a conflict to be resolved'); expect(items[0]).toContain('conflict_pending')
+    expect(items[1]).toContain('The server didn’t accept this change (2 times)'); expect(items[2]).toBe('and 1 more item')
   })
 
   it('asks a stopped browser to retry or reset from here, and shows what came of it', async () => {
@@ -230,6 +230,7 @@ describe('Sync Center authoritative workflow', () => {
 
   it('offers a confirmed reset for a syncing browser with a Pull issue', async () => {
     const base = status().replicas[0]!
+    const reportedAt = new Date().toISOString()
     mocks.getSyncStatus.mockResolvedValue(status({ replicas: [{ ...base, health: { state: 'degraded', code: null,
       since: base.lastSeenAt, reportedAt: new Date().toISOString(), issueCount: 1, actions: ['rebuild'], commands: [] } }] }))
     mocks.sendSyncReplicaCommand.mockResolvedValue({ commandId: 'repair', replicaId: base.id, action: 'rebuild',
@@ -246,9 +247,10 @@ describe('Sync Center authoritative workflow', () => {
 
   it('retries one held item from the list of what a browser set aside', async () => {
     const base = status().replicas[0]!
+    const reportedAt = new Date().toISOString()
     mocks.getSyncStatus.mockResolvedValue(status({ replicas: [{ ...base, health: { state: 'degraded', code: null,
-      since: base.lastSeenAt, reportedAt: new Date().toISOString(), issueCount: 2, actions: [], commands: [] } }] }))
-    mocks.listSyncReplicaIssues.mockResolvedValue({ replicaId: 'replica-1', reportedAt: base.lastSeenAt, total: 2,
+      since: base.lastSeenAt, reportedAt, issueCount: 2, actions: [], commands: [] } }] }))
+    mocks.listSyncReplicaIssues.mockResolvedValue({ replicaId: 'replica-1', reportedAt, total: 2,
       ackWarnings: [], ackWarningsAt: null, items: [
         { issueId: 'held', code: 'create_placement_unproven', direction: 'push', title: 'Recipes', count: 1,
           firstSeenAt: base.lastSeenAt, lastSeenAt: base.lastSeenAt, actions: ['retry'] },
@@ -261,9 +263,9 @@ describe('Sync Center authoritative workflow', () => {
     await waitForDom(() => (document.body.textContent ?? '').includes('Recipes'))
     const items = [...document.querySelectorAll('[aria-label="Items this browser couldn’t sync"] li')]
     // Only the held save offers a retry; the change waiting for it follows it.
-    expect(items.map((item) => item.querySelector('button')?.getAttribute('aria-label') ?? null))
+    expect(items.map((item) => item.querySelector('button[aria-label^="Try again:"]')?.getAttribute('aria-label') ?? null))
       .toEqual(['Try again: Recipes', null])
-    act(() => items[0]!.querySelector('button')!.click())
+    act(() => (items[0]!.querySelector('button[aria-label^="Try again:"]') as HTMLButtonElement)!.click())
     await waitForDom(() => mocks.sendSyncReplicaCommand.mock.calls.length === 1)
     expect(mocks.sendSyncReplicaCommand.mock.calls[0]!.slice(0, 2)).toEqual(['replica-1', { action: 'retry', issueId: 'held' }])
   })

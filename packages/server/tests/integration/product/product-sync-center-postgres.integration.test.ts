@@ -1,3 +1,4 @@
+import { healthServerFixture } from '../../../../extension/tests/health-server-integration-harness.js';
 import { verifySyncResilienceCase } from '../../../../conformance/src/sync-resilience.mjs';
 import { truncateFixtureTables } from '../../support/postgres-test-runtime.js';
 import assert from 'node:assert/strict';
@@ -905,6 +906,63 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       // Commands, like reports, renew nothing.
       assert.deepEqual(await authority(), before);
     } finally { await health.close(); await api.close(); }
+  }, 120_000);
+
+  test('real extension reports merge issues, recovers revision and executes an owner repair', async () => {
+    const api = productApp(); const health = Fastify({ logger: false });
+    let local: Awaited<ReturnType<typeof healthServerFixture>> | undefined;
+    try {
+      const owner = await login(`health-loop-${randomUUID()}`);
+      const owned = await createCollectionAndNode(api, owner, 'Health loop');
+      const folderResponse = await api.inject({ method: 'POST', url: `/api/v1/collections/${owned.collectionId}/nodes`,
+        headers: mutation(owner, randomUUID(), 'application/json'), payload: { parentId: owned.rootId, afterId: null, beforeId: null,
+          node: { kind: 'folder', title: 'Container', description: null, tags: [], visibility: 'inherit' } } });
+      assert.equal(folderResponse.statusCode, 201, folderResponse.body);
+      const folder = folderResponse.json().node as { id: string; revision: string };
+      const nodes = [];
+      for (let i = 0; i < 4; i++) nodes.push(await createNode(api, owner, owned.collectionId, folder.id, `Cloud ${i}`));
+      const context = await syncContext(owner, owned.collectionId, 'Health loop');
+      const replicaId = context.replica.replicaId;
+      registerExtensionReplicaHealthRoutes(health, { allowedOrigins: [EXTENSION_ORIGIN],
+        recorder: createPostgresReplicaHealthRecorder(runtime.db), credentialVerifier: { verify: async () => context.credential } });
+      const scope = { environment: 'production' as const, serverId: PRODUCT_ORIGIN, serverOrigin: PRODUCT_ORIGIN,
+        accountId: owner.identitySubject, browserProfileId: context.replica.binding.browserProfileId!, collectionId: owned.collectionId,
+        replicaId, generation: Number(context.replica.leaseGeneration) };
+      local = await healthServerFixture(scope, { confirmationId: 'merge-loop', confirmationVersion: '1', treeDigest: 'sha256:tree',
+        rootNodeId: owned.rootId, mounts: [{ nativeRootId: 'container', customSourceKey: 'integration-container', remoteMountNodeId: folder.id }],
+        localFacts: nodes.map((node, i) => ({ nativeId: `native-${i}`, sourceRefColpId: node.id, mountNativeRootId: 'container',
+          parentNativeId: 'container', kind: 'bookmark', title: `Device ${i}`, url: 'https://example.test/redacted-marker' })),
+        remoteFacts: [{ nodeId: owned.rootId, parentId: null, kind: 'folder', folderRole: 'root', title: '', revision: 'root-r1' },
+          { nodeId: folder.id, parentId: owned.rootId, kind: 'folder', title: 'Container', revision: folder.revision },
+          ...nodes.map((node, i) => ({ nodeId: node.id, parentId: folder.id, kind: 'bookmark' as const, title: `Cloud ${i} base`,
+            url: 'https://example.test/redacted-marker', revision: node.revision }))] });
+      assert.equal(local.run.run.attention?.items.length, 4);
+      const post: typeof fetch = async (_url, init) => {
+        const response = await health.inject({ method: 'POST', url: EXTENSION_REPLICA_HEALTH_PATH,
+          headers: init?.headers as Record<string, string>, payload: String(init?.body) });
+        assert.equal(response.statusCode, 200, response.body);
+        return new Response(response.body, { status: response.statusCode, headers: { 'Content-Type': 'application/json' } });
+      };
+      await post('', { headers: { authorization: 'Bearer extension-health-test', origin: EXTENSION_ORIGIN, 'content-type': 'application/json',
+        'known-sync-replica-proof': context.session.sessionId }, body: JSON.stringify({ replicaId, revision: 10000000, state: 'syncing',
+          since: new Date().toISOString(), issues: { total: 0, items: [] }, actions: [] }) });
+      await local.report(post, context.session.sessionId); await local.report(post, context.session.sessionId);
+      const listed = await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${replicaId}/issues`, headers: { cookie: owner.cookie } });
+      assert.equal(listed.statusCode, 200); assert.equal(listed.json().total, 4);
+      assert.ok(listed.json().items.every((item: { code: string }) => item.code === 'local_merge_difference'));
+      const command = await api.inject({ method: 'POST', url: `/api/v1/sync/replicas/${replicaId}/commands`,
+        headers: mutation(owner, randomUUID(), 'application/json'), payload: { action: 'rebuild' } });
+      assert.equal(command.statusCode, 200, command.body);
+      await local.report(post, context.session.sessionId);
+      const status = (await api.inject({ method: 'GET', url: '/api/v1/sync/status', headers: { cookie: owner.cookie } })).json();
+      const reported = status.replicas.find((row: { id: string }) => row.id === replicaId).health;
+      assert.equal(reported.code, 'replica_rebuilt'); assert.equal(reported.issueCount, 0);
+      assert.equal(reported.commands.find((row: { commandId: string }) => row.commandId === command.json().commandId).state, 'done');
+      const archive = await local.store.exportArchive(scope);
+      assert.equal(archive.reason, 'user_replica_rebuild'); assert.match(JSON.stringify(archive), /Device 0/);
+      const retained = await runtime.pool.query('select id,title from nodes where id = any($1::text[]) order by title', [nodes.map(node => node.id)]);
+      assert.equal(retained.rows.length, 4); assert.equal(retained.rows[0].title, 'Cloud 0 base');
+    } finally { local?.store.close(); await health.close(); await api.close(); }
   }, 120_000);
 
   test('uses the production owner/open Conflict keyset index', async () => {

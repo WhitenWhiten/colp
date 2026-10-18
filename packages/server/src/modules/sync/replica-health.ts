@@ -39,7 +39,7 @@ export interface ReplicaHealthIssue {
 
 export interface ReplicaHealthReport {
   readonly replicaId: string;
-  /** Client-chosen and increasing; the reporting device's clock in milliseconds. */
+  /** Client-chosen monotonic revision, advanced past the server receipt high-water mark. */
   readonly revision: number;
   readonly state: ReplicaHealthState;
   readonly code?: string;
