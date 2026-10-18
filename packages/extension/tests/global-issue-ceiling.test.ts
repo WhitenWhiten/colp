@@ -16,14 +16,16 @@ installKns05IndexedDb();
 for (const direction of ['local', 'push', 'mixed'] as const) test(`global ceiling catches ${direction} issues on restart without another Pull issue`, async () => {
   const f = await setup({ useRealPullApplier: true });
   try {
+    const heldSequences: number[] = [];
     for (let i = 0; i < 201; i++) {
       if (direction === 'local' || direction === 'mixed' && i % 2 === 0) {
         await f.store.recordLocalIssue(scope, { nativeId: `native-${i}`, code: 'recovery_identity_unproven', now: i });
       } else {
         const row = await f.enqueue(`issue-${i}`);
-        await f.store.setAsideQueue(scope, [row.sequence], 'create_placement_unproven');
+        heldSequences.push(row.sequence);
       }
     }
+    if (heldSequences.length) await f.store.setAsideQueue(scope, heldSequences, 'create_placement_unproven');
     if (direction !== 'push') for (let i = 0; i < 5; i++) await f.store.recordLocalIssue(scope, { nativeId: 'native-0', code: 'recovery_identity_unproven', now: 300 + i });
     assert.equal((await readOpenSyncIssues(f.store, scope)).total, 201);
     f.store.close(); await f.reopen().wake('startup');

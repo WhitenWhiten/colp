@@ -156,9 +156,10 @@ export function planRecoveryOverlay(input: {
     const index = pending.findIndex((node) => !node.parentColpId || placed.has(node.parentColpId));
     if (index < 0) break;
     const [node] = pending.splice(index, 1) as [RecoveryOverlayNode];
-    const protectedPrior = input.issueProtectedIds?.has(node.colpId) ? byColp.get(node.colpId) : undefined;
-    if (protectedPrior) {
-      targetMappings.push(protectedPrior); assigned.add(protectedPrior.nativeId); placed.add(node.colpId); continue;
+    if (input.issueProtectedIds?.has(node.colpId)) {
+      const retained = byColp.get(node.colpId) ?? node.mapping;
+      targetMappings.push(retained); if (!virtualNativeId(retained.nativeId)) assigned.add(retained.nativeId);
+      placed.add(node.colpId); continue;
     }
     if (node.mapping.quarantine) { targetMappings.push(node.mapping); placed.add(node.colpId); continue; }
     const parentMapping = node.parentColpId

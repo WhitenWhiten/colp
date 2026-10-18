@@ -222,10 +222,12 @@ export function validateRecoveryPage(key: string, input: RecoveryPageInput, maxB
           || original.nodeKind !== undefined && original.nodeKind !== String(item.kind).toLowerCase()) {
         throw new SyncStateError('snapshot_identity_conflict');
       }
+      const authority = original.projection.childrenRevision == null ? {}
+        : { snapshotChildrenRevision: boundedString(original.projection.childrenRevision, 'snapshotChildrenRevision') };
       let mapping;
       try {
         mapping = validateMapping(key, original, maxBytes);
-        validateRecord({ scopeKey: key, snapshotId: value.snapshotId, page: value.page, ...structural, mapping }, maxBytes);
+        validateRecord({ scopeKey: key, snapshotId: value.snapshotId, page: value.page, ...structural, ...authority, mapping }, maxBytes);
       } catch (error) {
         if (!(error instanceof SyncStateError) || classifySyncFailure(error.code, { nodeId: colpId })?.class !== 'item') throw error;
         // Retain the real graph and authority identity, with an explicit NOT APPLIED sidecar.
@@ -237,7 +239,7 @@ export function validateRecoveryPage(key: string, input: RecoveryPageInput, maxB
           projection: { revision: original.projection.revision, digest: payloadDigest,
             ...(original.projection.childrenRevision === undefined ? {} : { childrenRevision: original.projection.childrenRevision }) } }, maxBytes);
       }
-      return { ...structural, mapping }; }) };
+      return { ...structural, ...authority, mapping }; }) };
   const { nodes, ...header } = record; validateRecord(header, maxBytes);
   for (const node of nodes) validateRecord({ scopeKey: key, snapshotId: record.snapshotId, page: record.page, ...node }, maxBytes);
   return record; }

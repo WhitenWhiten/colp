@@ -81,7 +81,7 @@ export function snapshotV02PagesFromStaging(input: {
   };
   readonly nodes: ReadonlyArray<{
     readonly page: number; readonly colpId: string; readonly parentId: string | null;
-    readonly kind: 'Folder' | 'Bookmark' | 'Separator';
+    readonly kind: 'Folder' | 'Bookmark' | 'Separator'; readonly snapshotChildrenRevision?: string;
     readonly mapping: { readonly projection: { readonly childrenRevision?: string } };
   }>;
 }): SnapshotV02Page[] {
@@ -99,7 +99,7 @@ export function snapshotV02PagesFromStaging(input: {
       collectionId: input.collectionId, syncCursor: input.header.syncCursor,
       pageSequence: page + 1,
       parentRevisions: nodes.flatMap((node) => {
-        const revision = node.mapping.projection.childrenRevision;
+        const revision = node.snapshotChildrenRevision ?? node.mapping.projection.childrenRevision;
         if ((node.kind !== 'Folder' && node.parentId !== null) || !revision) return [];
         return [{ parentId: node.colpId, childrenRevision: revision }];
       }),

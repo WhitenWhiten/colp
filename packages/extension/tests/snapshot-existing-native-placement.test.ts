@@ -157,3 +157,20 @@ test('does not suppress a user move callback whose destination differs from the 
     assert.equal((await fixture.store.listBookmarkEventsByStatus(scope, 'pending', 0, 100)).length, 1);
   } finally { await fixture.store.close(); }
 });
+
+test('an unproven local placement stays one issue across Snapshot cutover and the next worker wake', async () => {
+  const { fixture } = await fixtureFor();
+  try {
+    fixture.chromeNodes.set('6', { id: '6', parentId: '1', title: 'Unmapped local folder' });
+    fixture.chromeNodes.set('4', { ...fixture.chromeNodes.get('4')!, parentId: '6' });
+    fixture.snapshotResponses.pop();
+    const incoming = snapshot(); incoming.nodes.find(node => node.id === 'folder-c')!.title = 'Independent remote folder';
+    fixture.snapshotResponses.push(json(200, incoming));
+    await fixture.engine.wake('manual');
+    assert.equal((await fixture.store.listLocalIssues(scope))[0]?.nativeId, '4');
+    assert.equal(fixture.chromeNodes.get('4')?.parentId, '6');
+    assert.equal(fixture.chromeNodes.get('5')?.title, 'Independent remote folder');
+    fixture.clock.now += 30_000; await fixture.reopen().wake('startup');
+    assert.equal((await fixture.store.getEngineState(scope))?.recoveryFrozen, false);
+  } finally { fixture.store.close(); }
+});

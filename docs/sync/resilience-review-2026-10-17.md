@@ -1,5 +1,21 @@
 # Sync resilience review remediation — 2026-10-17
 
+Current status (2026-10-18): all eight second-review tasks are implemented and
+individually committed from the clean `f3612b9d` baseline. The final cross-review
+follow-up and current verification receipt are at the end of this document.
+The first-review material below is retained as history, not current acceptance.
+
+| Second-review task | Commit | Main production change |
+|---|---|---|
+| 1 | `2155b7de` | Original authority/scope fences through command delivery, preview and confirm. |
+| 2 | `540d7823` | Snapshot retains all unresolved issue closures, identities and anti-upload evidence. |
+| 3 | `bdd3913b` | Concrete identity/placement issues isolate locally; old freezes require fresh evidence and CAS. |
+| 4 | `aa1daf09` | Durable deletion decisions permit independent later Pull pages and Ack. |
+| 5 | `ad735ca7` | Real authoritative effects cross only the conflicts they resolve; release freshly recaptures. |
+| 6 | `4c60c6a0` | Subjectful codec isolation at Snapshot and ingress boundaries, with explicit bounded quarantine. |
+| 7 | `2dac77d0` | Unified open-fact ceiling (>200), accurate stop reason and started-native recovery. |
+| 8 | `6a9ec450` | Browser/live-server Retry/Rebuild closure and production-fed conformance. |
+
 Baseline: `1c50c49502a453436e2fe1653e6abbf56630f828`; clean worktree on entry.
 Reviewed implementation: `ea61d74b` through `1c50c495` (H1–H4, C0–C4, P1, P2).
 The eight supplied reproductions all failed before repair. Their scenarios are
@@ -169,8 +185,8 @@ Rebuild preview now carries a digest of the complete scope and authority generat
 confirm checks it against freshly inspected facts. Remote Rebuild also compares
 preview with the original scope. The reporter rereads actions inside the engine
 lane, whose captured authority/scope is checked after network and queue waits.
-Retry and issue recapture use the same fence; scheduled Retry reports
-`retry_scheduled`, without claiming synchronization success. Interrupted Rebuild
+Retry and issue recapture use the same fence. Task 8 below completes the engine
+pass as `retry_completed`; legacy `retry_scheduled` remains scheduling-only. Interrupted Rebuild
 retains the existing archive/outbox delivery path.
 
 Before: all six initial permanent target/action tests failed (wrong replica was
@@ -354,3 +370,97 @@ web Sync/result semantics passed 24 tests. Extension typecheck, web production
 build/typecheck, changed-file lint, i18n, source-size and diff checks passed.
 All test HTTP servers, browsers/profiles and disposable PostgreSQL containers
 closed. No development server was started and nothing was pushed remotely.
+
+### Final cross-review follow-up (commit containing this section)
+
+Cross-review found and repaired five additional connection failures. Each new
+behavior regression was observed failing before its repair:
+
+- Pending Rebuild resume adopted the current generation instead of verifying the
+  journal's original or precisely registered replacement generation. It now also
+  rechecks the journal's authority fence before retirement. A response explicitly
+  naming another replica is rejected before result settlement or command execution.
+  Both permanent target tests failed by executing/adopting the wrong authority.
+- A real native create interrupted after Chrome mutation, before evidence commit,
+  has no live mapping. Snapshot previously created a second copy. Protection now
+  combines complete old/incoming graphs; staging, projection, finalize and commit
+  keep the original wait and identity, create only the independent node, and do not
+  synthesize successful native evidence. The regression counted two creates where
+  only one independent create was permitted (and three after full cutover).
+- A deletion parked immediately before page completion could survive Snapshot but
+  later delete only Chrome, leaving its mapping behind. Snapshot now marks the old
+  page as accounted by this cutover, retaining pending event/decision/native facts.
+  Detached decision publication removes the mapping without changing the newer
+  cursor. The real Pull + interrupted completion + Snapshot + user Apply test
+  failed with the old mapping still present before repair.
+- Retaining an issue-held local placement exposed a second graph interpretation:
+  independent work was overprotected, then a following wake rejected the preserved
+  mapping as snapshot_graph_incomplete. Canonical Snapshot graph structure and
+  parent revisions are now retained separately from local protected placement.
+  Validation allows only issue-backed retention with matching native identity and
+  projection digest; full remote graph, kind and cycle checks remain mandatory.
+  Held intents retain their records while independent work can own projection.
+  The real-engine regression failed first on independent folder content, then on
+  the next startup freeze; both now pass.
+
+The final identity regression additionally combines observed absence or ambiguous
+lookup, a real independent Pull effect, actual native content capture/queue commit,
+then the real Push worker reaching dispatch. Restoring the exact pre-task-3
+production identity-freeze branch made both composed regressions fail with
+recovery_identity_unproven; restoring the fix passed all 8 identity tests.
+Its deliberately failing transport
+proves upload admission and retained attempt evidence; it does not claim successful
+server application. The separate browser/live-server scenario proves actual
+independent upload completion. No success mock or final-state injection is used
+to certify either boundary. The Pure-Push ceiling fixture uses one production
+batch transaction for 201 holds, avoiding quadratic test setup without weakening
+any count/threshold/restart assertions.
+
+Final verification commands (relative to packages/extension unless stated):
+
+```sh
+npx vitest run tests/replica-command-target.test.ts tests/replica-rebuild.test.ts tests/replica-health-outbox.test.ts tests/replica-health-report.test.ts tests/snapshot-issue-preservation.test.ts tests/snapshot-existing-native-placement.test.ts tests/snapshot-existing-native-content.test.ts tests/snapshot-codec-isolation.test.ts tests/recovery-store.test.ts tests/recovery-overlay.test.ts tests/recovery-projection-executor.test.ts tests/recovery-projection-siblings.test.ts tests/local-projection-recovery.test.ts tests/identity-item-recovery.test.ts tests/local-save-freeze-recovery.test.ts tests/remote-delete-page-progress.test.ts tests/remote-delete-policy.test.ts tests/srg-t02-native-executor.test.ts tests/issue-anchor-dependency.test.ts tests/issue-dependency-closure.test.ts tests/push-conflict-hold.test.ts tests/queue-native-recapture.test.ts tests/pull-mutation-failure-boundary.test.ts tests/global-issue-ceiling.test.ts tests/codec-subject-emission.test.ts tests/local-codec-isolation.test.ts tests/unified-sync-issues.test.ts tests/sync-failure-class.test.ts tests/durable-sync-engine-bootstrap.test.ts tests/durable-sync-engine.test.ts
+npx vitest run tests/identity-item-recovery.test.ts
+npm run build -- --config config/e2e-fixture.json
+node ../server/scripts/with-postgres.mjs -- node scripts/with-xvfb.mjs npx playwright test e2e/mv3-sync-resilience.spec.ts
+npm run build
+npm run build:development
+node scripts/verify-release-artifact.mjs dist/production
+npm run typecheck
+npm run check:source-size
+npm run check:i18n
+# packages/web:
+npx vitest run src/pages/Sync.test.tsx src/pages/sync/health-reasons.test.ts
+# packages/conformance:
+node --test test/sync-resilience.test.mjs
+```
+
+Receipt: 30 relevant extension files passed 299 tests. The strengthened identity
+suite subsequently passed all 8 tests (one additional absence/ambiguity case).
+The final xvfb Chromium + TLS Fastify/Better Auth + disposable PostgreSQL run
+passed both live-server tests, **2 passed (1.0m)**. Web tests passed 24; conformance
+runner passed 17. Extension typecheck and changed-file ESLint passed. Default
+production and development builds passed; release artifact scan passed (36 files,
+no source maps/secrets/test fixture inclusion). All 665 production source files
+pass source-size with zero exceptions; i18n and git diff checks passed. The task-8
+web production build/typecheck also passed. Only relevant tests were run.
+
+Evidence-based goals:
+
+| Goal | Judgment and evidence |
+|---|---|
+| G1 visibility | Met for reviewed paths: shared open facts feed Status/health/Sync center; two-page pending deletion, quarantine warnings, ceiling reason and real command results are asserted. |
+| G2 local isolation | Met for concrete reviewed subjects: independent Pull, capture/Push dispatch, live upload and Snapshot siblings continue; self-resolution crosses only its own conflict. |
+| G3 usable exit | Met within v1: decision Keep/Delete/Restore, fresh recapture and Retry run the real executors; browser Rebuild archives/rotates and requires reviewed setup. Old identity gates have evidence/CAS recovery. |
+| G4 data protection | Met for reviewed recovery boundaries: issues/mappings/exclusions survive ordinary Snapshot/restart; ambiguous or started native calls retain evidence; commands fence target/authority; stream/graph integrity still fails closed. |
+
+Limits: this certifies the named scenarios and real paths, not every fault timing
+or all browsers. Rebuild retains v1 semantics: archive unsynchronized data and
+enter setup for a new replica; it does not silently re-import the archive or claim
+sync restoration. Retry completion means its checked engine pass finished, not
+that all open issues were solved. Reporting requires connectivity. Permissions,
+unknown native outcomes and genuine replica/stream corruption retain their
+specific recovery/stop semantics. No remote push was performed. The test-created
+HTTP servers, browsers/profiles and disposable databases were closed; existing
+user services were left untouched. The supplied original reproduction directory
+was preserved. The external plan is updated directly, without creating a Git repo.

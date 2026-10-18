@@ -5,7 +5,7 @@ import { projectNativeWaits, type NativeWaitStore } from './native-wait.js';
 import type { LocalIssueRecord, MappingInput, PullIssueRecord, QueueOperation, SyncScope,
   createSyncStateStore } from './sync-state-store.js';
 
-type Store = Partial<Pick<ReturnType<typeof createSyncStateStore>,
+export type SyncIssueStore = Partial<Pick<ReturnType<typeof createSyncStateStore>,
   'listRemoteDeleteDecisions' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'> & NativeWaitStore>;
 export interface OpenSyncIssues {
   readonly queue: readonly QueueOperation[];
@@ -19,7 +19,7 @@ export interface OpenSyncIssues {
   readonly total: number;
 }
 
-export async function readOpenSyncIssues(store: Store, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string> } = {}): Promise<OpenSyncIssues> {
+export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string> } = {}): Promise<OpenSyncIssues> {
   const queue: QueueOperation[] = [];
   if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
     let after = 0;
@@ -95,4 +95,9 @@ export function issueProtectionIds(mappings: readonly MappingInput[], roots: Rea
     }
   }
   return protectedIds;
+}
+
+/** Both old placement and the complete incoming graph prove protection; each fills the other's missing ancestors. */
+export function snapshotIssueProtectionIds(live: readonly MappingInput[], staged: readonly MappingInput[], roots: ReadonlySet<string>): Set<string> {
+  return new Set([...issueProtectionIds([...staged, ...live], roots), ...issueProtectionIds([...live, ...staged], roots)]);
 }

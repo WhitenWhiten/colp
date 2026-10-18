@@ -251,13 +251,15 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
     return 'unsupported';
   }
   if (sent.status !== 200) return failed();
+  const document = await sent.json().catch(() => undefined) as { replicaId?: unknown } | undefined;
+  if (document?.replicaId !== undefined && document.replicaId !== deps.scope.replicaId) return failed();
   // An accepted report carried these results; the server keeps them whatever its revision.
   const sentIds = new Set(results.map((result) => result.commandId));
   let commands = (record.commands ?? []).map((entry) => sentIds.has(entry.commandId) ? { ...entry, reported: true as const } : entry);
   const save = (list: readonly CommandRecord[]) => deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: {
     replicaId: deps.scope.replicaId, digest, sentAt: now, revision, observed, commands: kept(list) } satisfies SentRecord });
   await save(commands);
-  const delivered = deliveredCommands(await sent.json().catch(() => undefined));
+  const delivered = deliveredCommands(document);
   let ran = false; let replaced = false;
   for (const command of delivered) {
     const seen = commands.find((entry) => entry.commandId === command.commandId);

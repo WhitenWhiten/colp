@@ -91,3 +91,68 @@ test('local issue protects descendants and ancestors without protecting independ
     assert.ok(await f.store.getMappingByColpId(scope, 'leaf'));
   } finally { f.store.close(); }
 });
+
+test('Snapshot retains an unresolved real native-create wait without creating a second copy', async () => {
+  const { setupT02, reopenT02, t02Scope } = await import('./srg-t02-native-harness.js');
+  const { projectNativeWaits } = await import('../src/native-wait.js');
+  const f = await setupT02('after_create_before_evidence');
+  try {
+    const event: any = f.createEvent();
+    await f.applier.stage(f.page([event])); await assert.rejects(f.applier.resume(), /worker_crash/u);
+    f.disableCrash(); const resumed = await reopenT02(f);
+    await resumed.applier.resume().catch((error: Error) => { if (!/native_result_unknown|recovery_required/u.test(error.message)) throw error; });
+    const waits = await projectNativeWaits(resumed.store, t02Scope); assert.equal(waits.length, 1);
+    const parent = (await resumed.store.listMappings(t02Scope)).find(row => row.nativeId === 'native-root')!;
+    const { scopeKey: _key, ...root } = parent;
+    const created = { nativeId: `recovery:${event.effect.node.id}`, colpId: event.effect.node.id,
+      rootNativeId: 'native-root', parentColpId: root.colpId, nodeKind: 'bookmark' as const,
+      projection: { revision: event.effect.node.revision, digest: event.effect.effectDigest,
+        content: { title: event.effect.node.title, url: event.effect.node.url } } };
+    const independent = { ...created, colpId: 'independent-node', nativeId: 'recovery:independent-node',
+      projection: { ...created.projection, content: { title: 'Independent', url: 'https://independent.test/' } } };
+    const staged = [root, created, independent];
+    await resumed.store.stageRecoveryPage(t02Scope, { snapshotId: 'wait-snapshot', revision: 'new', syncCursor: 'wait-cursor',
+      identityDigest: 'sha256:wait', rootNodeId: root.colpId, page: 0, pageDigest: 'sha256:page', previousPageDigest: null,
+      nextCursor: null, complete: true, nodes: staged.map((mapping, i) => ({ colpId: mapping.colpId,
+        parentId: mapping.parentColpId ?? null, position: String(i), kind: mapping.nodeKind === 'bookmark' ? 'Bookmark' : 'Folder',
+        payloadDigest: mapping.projection.digest, mapping })) });
+    const before = f.api.calls.filter(call => call.kind === 'create').length;
+    const projected = await recoverVerifiedOrFreeze({ scope: t02Scope, store: resumed.store, api: resumed.api,
+      staged, freezeUnprovenIdentity: true });
+    assert.equal(f.api.calls.filter(call => call.kind === 'create').length, before + 1);
+    assert.equal(f.api.all().filter(node => node.title === 'Remote').length, 1);
+    await resumed.store.finalizeRecoveryMappings(t02Scope, 'wait-snapshot', projected);
+    await resumed.store.commitRecovery(t02Scope, 'wait-snapshot');
+    assert.equal((await projectNativeWaits(resumed.store, t02Scope)).length, 1);
+    assert.ok(projected.some(row => row.colpId === created.colpId));
+  } finally { f.store.close(); }
+});
+
+test('Snapshot accounts a deletion parked just before worker interruption, then its decision publishes without cursor rewind', async () => {
+  const { createPullApplier } = await import('../src/pull-applier.js');
+  const f = await setup(); let interrupt = true;
+  try {
+    const store = { ...f.store, completePullPage: async (...args: Parameters<typeof f.store.completePullPage>) => {
+      if (interrupt) { interrupt = false; throw new Error('worker_crash'); }
+      return f.store.completePullPage(...args);
+    } };
+    const applier = createPullApplier({ ...f.options, store });
+    await f.store.setRemoteDeletePolicy(scope, { policy: 'confirm', expectedCasVersion: 0, now: 1 });
+    await applier.stage(f.page([f.mutationEvent('delete')], 'cursor-delete'));
+    await assert.rejects(applier.resume(), /worker_crash/u);
+    const staged = await snapshot(f, false);
+    const projected = await recoverVerifiedOrFreeze({ scope, store: f.store, api: f.api, staged, freezeUnprovenIdentity: true });
+    await f.store.finalizeRecoveryMappings(scope, 'snapshot-new', projected);
+    await f.store.commitRecovery(scope, 'snapshot-new'); f.store.close();
+    const decision = (await f.store.listRemoteDeleteDecisions(scope, ['pending']))[0]!;
+    assert.ok(await f.store.getPullEvent(scope, decision.eventId));
+    await f.store.decideRemoteDelete(scope, { decisionId: decision.decisionId, action: 'apply',
+      expectedCasVersion: decision.casVersion, deleteRevision: decision.deleteRevision,
+      generation: scope.generation, now: 2, permissionGranted: true });
+    await f.applier.resume();
+    assert.equal(f.api.getNode('native-node'), undefined);
+    assert.equal(await f.store.getMappingByColpId(scope, 'node-1'), null);
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-recovered');
+    assert.equal((await f.store.getPullEvent(scope, decision.eventId))?.state, 'page_complete');
+  } finally { f.store.close(); }
+});

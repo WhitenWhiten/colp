@@ -151,7 +151,8 @@ export interface RecoveryHeader { readonly scopeKey: string; readonly snapshotId
   readonly complete: boolean; readonly materializationVersion?: string }
 export interface RecoveryNodeRecord { readonly scopeKey: string; readonly snapshotId: string; readonly page: number;
   readonly colpId: string; readonly parentId: string | null; readonly position: string;
-  readonly kind: 'Folder' | 'Bookmark' | 'Separator'; readonly payloadDigest: string; readonly mapping: MappingInput }
+  readonly kind: 'Folder' | 'Bookmark' | 'Separator'; readonly payloadDigest: string; readonly mapping: MappingInput;
+  readonly snapshotChildrenRevision?: string }
 export type SyncEnginePhase = 'idle' | 'session' | 'bootstrap' | 'pulling' | 'applying' | 'acking' | 'pushing'
   | 'sleeping' | 'offline' | 'recovery' | 'retired' | 'error';
 export interface DurableSyncEngineState {

@@ -1,5 +1,5 @@
 import type { EngineOptions } from './durable-sync-engine-types.js';
-import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
+import { leftoverVirtualChildrenNeedReproject, unprotectedProjectionIntents } from './recovery-guard.js';
 
 // The owner is the claiming engine revision, scoped by the durable record's key
 // (including replica/profile/generation). Protocol recovery writes omit it.
@@ -9,7 +9,7 @@ export async function resumeLocalProjection(options: Pick<EngineOptions, 'store'
   const now = options.now ?? Date.now;
   const initial = await store.getEngineState(scope);
   if (!initial || initial.recoveryFrozen && initial.localProjectionOwner === undefined) return;
-  const pending = async () => (await store.listProjectionIntents(scope)).some((intent) => intent.state !== 'terminal');
+  const pending = async () => (await unprotectedProjectionIntents(store, scope)).length > 0;
   const needsProjection = await leftoverVirtualChildrenNeedReproject(store, scope) || await pending();
   if (!needsProjection && initial.localProjectionOwner === undefined) return;
   if (!await eligible()) return;

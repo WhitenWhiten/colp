@@ -59,3 +59,25 @@ test('delayed health response binds real Rebuild and reports rejection under A',
       currentAfter: (await b.deps.currentScope()).replicaId, commandId: 'for-a', originalRebuilds: a.registrations, currentRebuilds: b.registrations, reports: bodies }), []);
   } finally { a.store.close(); b.store.close(); }
 });
+
+test('a pending Rebuild journal cannot adopt a changed generation on restart', async () => {
+  const f = await setup({ degraded: true });
+  try {
+    f.setOffline(true); await f.rebuilder.handle(f.request);
+    const resumed = createReplicaRebuilder({ ...f.deps, currentScope: async () => ({ ...f.scope, generation: 2 }) });
+    await assert.rejects(resumed.resume(), /stale_ref/u);
+    assert.equal(f.registrations, 0);
+  } finally { f.store.close(); }
+});
+
+test('a health response explicitly naming another replica cannot authorize a Rebuild', async () => {
+  const f = await setup({ degraded: true });
+  try {
+    await sendReplicaHealthReport({ scope: f.scope, store: f.store, storage: f.journal,
+      mode: async () => 'enabled', credential: async () => ({ accessToken: 'token', subject: f.scope.accountId, serverOrigin: f.scope.serverOrigin }),
+      now: () => 2000, origin: 'chrome-extension://fixture',
+      commands: { replica: () => runReplicaRebuildCommand(request => f.rebuilder.handle(request), f.scope), issue: async () => ({ outcome: 'failed' }) },
+      fetch: async () => Response.json({ replicaId: 'different-replica', accepted: true, commands: [{ commandId: 'misbound', action: 'rebuild' }] }) });
+    assert.equal(f.registrations, 0);
+  } finally { f.store.close(); }
+});

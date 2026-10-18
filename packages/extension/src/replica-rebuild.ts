@@ -78,12 +78,14 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
   async function resume(): Promise<boolean> {
     const plan = await pending(); if (!plan) return false;
     const current = await deps.currentScope();
-    const expected = { ...plan.scope, replicaId: current.replicaId, generation: current.generation };
-    if (digestJson({ ...current }) !== digestJson(expected)) throw new Error('stale_ref');
+    const expected = current.replicaId === plan.nextBinding.replicaId
+      ? { ...plan.scope, replicaId: plan.nextBinding.replicaId, generation: Number(plan.nextBinding.generation) } : plan.scope;
+    if (digestJson({ ...current }) !== digestJson({ ...expected })) throw new Error('stale_ref');
     const binding = await deps.credentials.loadBinding();
     if (binding?.replicaId !== plan.scope.replicaId && binding?.replicaId !== plan.nextBinding.replicaId) {
       throw new Error('stale_ref');
     }
+    await deps.credentials.fence.assertWritable(plan.authorityGeneration);
     if (await deps.store.getScope(plan.scope)) {
       await deps.store.retireScope(plan.scope, { retiredAt: Date.now(), reason: 'user_replica_rebuild' });
     } else {

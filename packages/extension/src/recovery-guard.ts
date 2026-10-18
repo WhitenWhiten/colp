@@ -1,3 +1,4 @@
+import { readOpenSyncIssues, issueProtectionIds } from './sync-issues.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
@@ -84,7 +85,8 @@ export async function leftoverVirtualChildrenNeedReproject(store: Pick<Store, 'l
   const [live, mounts] = await Promise.all([store.listMappings(scope), store.listMountBindings(scope)]);
   // A remote-only subtree has no Chrome parent. It is durable sidecar state,
   // not pending native work. Account for mounts bound after Snapshot cutover.
-  return hasProjectableVirtualChildren(bindSnapshotMappings(live, live, mounts));
+  return hasProjectableVirtualChildren(bindSnapshotMappings(live, live, mounts),
+    issueProtectionIds(live, (await readOpenSyncIssues(store, scope)).roots));
 }
 
 function stripScopeKey(mapping: MappingInput): MappingInput {
@@ -156,4 +158,11 @@ export async function readNativeIdentity(live: readonly MappingInput[], api: Pic
     return { state: 'unreadable', message: looked.message };
   }
   return subjects.length ? { state: 'unproven', subjects } : { state: 'proven' };
+}
+
+/** Issue-held native work keeps its original recovery record without claiming ownership of the whole scope. */
+export async function unprotectedProjectionIntents(store: Pick<Store, 'listMappings' | 'listProjectionIntents'>, scope: SyncScope) {
+  const [mappings, intents, issues] = await Promise.all([store.listMappings(scope), store.listProjectionIntents(scope), readOpenSyncIssues(store, scope)]);
+  const protectedIds = issueProtectionIds(mappings, issues.roots);
+  return intents.filter(intent => intent.state !== 'terminal' && !protectedIds.has(intent.colpId) && !issues.roots.has(intent.colpId));
 }

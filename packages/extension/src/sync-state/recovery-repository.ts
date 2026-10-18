@@ -241,7 +241,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
    * except terminal queue rows: those are stamped `echoApplied` so a discarded
    * own-echo cannot resurrect a historical title as overlay.
    */
-  async function discardPreRecoveryPullState(tx: IDBTransaction, key: string): Promise<void> {
+  async function discardPreRecoveryPullState(tx: IDBTransaction, key: string, snapshotId: string): Promise<void> {
     const rows = (name: string) => cursorPage<UnknownRecord>(tx.objectStore(name), scopeRowsRange(key),
       Number.MAX_SAFE_INTEGER);
     const [pages, events, intents] = await Promise.all([
@@ -256,9 +256,14 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       || intent.nativeResult === 'waiting_dependency' || intent.waitReason === 'native_result_unknown');
     const retainedEvents = new Set([...unresolved.map(intent => intent.eventId), ...events.filter(event => remoteDeleteDeferral(event)).map(event => String(event.eventId))]);
     const retainedPages = new Set(events.filter(event => retainedEvents.has(String(event.eventId))).map(event => event.pageId));
+    const decisionPages = new Set(events.filter(event => remoteDeleteDeferral(event)).map(event => event.pageId));
     for (const name of [STORES.pullPages, STORES.pullEvents, STORES.effectPages, STORES.intents]) {
       if (name === STORES.pullPages && retainedPages.size) {
-        for (const page of pages) if (!retainedPages.has(page.pageId)) tx.objectStore(name).delete([key, String(page.pageId)]);
+        for (const page of pages) {
+          if (!retainedPages.has(page.pageId)) tx.objectStore(name).delete([key, String(page.pageId)]);
+          else if (decisionPages.has(page.pageId)) tx.objectStore(name).put({ ...page, state: 'page_complete',
+            snapshotAccountedBy: snapshotId, completedAt: Date.now() });
+        }
       } else if (name === STORES.intents) {
         for (const intent of intents) if (!unresolved.includes(intent)) tx.objectStore(name).delete([key, String(intent.intentId)]);
       } else if (name === STORES.pullEvents) {
@@ -413,7 +418,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       }
       await deleteByIndexRange(nodes, IDBKeyRange.bound([key, snapshotId, 0],
         [key, snapshotId, Number.MAX_SAFE_INTEGER, '\uffff']));
-      await discardPreRecoveryPullState(tx, key);
+      await discardPreRecoveryPullState(tx, key, snapshotId);
       tx.objectStore(STORES.recovery).delete([key, snapshotId]);
     }); durableCache.set(key, { recovery: snapshotId });
   }
