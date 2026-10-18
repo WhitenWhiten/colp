@@ -6,6 +6,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Added
 
+- The Sync center tells when a browser stops taking in changes, without any report from the browser. `GET /api/v1/sync/status` adds optional `activity` (`current`, `behind`, `stalled`, `silent`; `null` when retired) and `behindSince` to each replica, from the oldest Sync stream change past its acknowledged checkpoint. A browser that has missed changes for an hour shows as Not syncing, with whether it still connects.
 - Profile avatar uploads work without object storage: when no `AVATAR_R2_*` bucket is configured, avatar images are stored in PostgreSQL (`avatar_object_bytes`) and included in database backups. Apply migration `202611010100_avatar_object_bytes` before deploying. A plain-HTTP origin answers `POST /api/v1/me/avatar` with `503` and says avatars need HTTPS, instead of failing as an invalid avatar URL.
 
 ### Changed

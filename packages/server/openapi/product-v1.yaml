@@ -24318,6 +24318,17 @@ components:
         acknowledgedCommitOrdinal: { type: [ string, 'null' ], pattern: '^(0|[1-9][0-9]*)$' }
         lifecycleRevision: { $ref: '#/components/schemas/Revision' }
         etag: { $ref: '#/components/schemas/EntityTag' }
+        activity:
+          description: >-
+            Inferred by the server alone. behind is ordinary lag; stalled still
+            connects but has taken in no change for an hour; silent has missed
+            changes for an hour and has not connected for an hour. Null when retired.
+          type: [ string, 'null' ]
+          enum: [ current, behind, stalled, silent, null ]
+        behindSince:
+          description: When the oldest Sync stream change this replica has not acknowledged was committed.
+          type: [ string, 'null' ]
+          format: date-time
     SyncStatusView:
       type: object
       additionalProperties: false

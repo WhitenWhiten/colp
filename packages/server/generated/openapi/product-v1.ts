@@ -7386,6 +7386,16 @@ export interface components {
             acknowledgedCommitOrdinal: string | null;
             lifecycleRevision: components["schemas"]["Revision"];
             etag: components["schemas"]["EntityTag"];
+            /**
+             * @description Inferred by the server alone. behind is ordinary lag; stalled still connects but has taken in no change for an hour; silent has missed changes for an hour and has not connected for an hour. Null when retired.
+             * @enum {string|null}
+             */
+            activity?: "current" | "behind" | "stalled" | "silent" | null;
+            /**
+             * Format: date-time
+             * @description When the oldest Sync stream change this replica has not acknowledged was committed.
+             */
+            behindSince?: string | null;
         };
         SyncStatusView: {
             devices: components["schemas"]["SyncDeviceView"][];

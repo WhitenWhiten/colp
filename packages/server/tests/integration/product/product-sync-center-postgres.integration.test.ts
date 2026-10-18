@@ -602,6 +602,63 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
     } finally { await api.close(); }
   }, 120_000);
 
+  test('infers from the Sync stream whether each live replica is taking in changes', async () => {
+    const api = productApp();
+    try {
+      const owner = await login(`p3-activity-owner-${randomUUID()}`);
+      const owned = await createCollectionAndNode(api, owner, 'Activity sync');
+      const current = await syncContext(owner, owned.collectionId, 'Current');
+      const lagging = await syncContext(owner, owned.collectionId, 'Lagging');
+      const retired = await syncContext(owner, owned.collectionId, 'Retired');
+      // A conflicted Push is a Sync stream row that every replica of the collection must take in.
+      const push = await (await startPush(current)).push({ idempotencyKey: `p3-activity-push-${randomUUID()}`,
+        request: syncNodeUpdatePushRequest({ sessionId: current.session.sessionId,
+          replicaId: current.replica.replicaId, collectionId: owned.collectionId,
+          targetId: owned.node.id, baseRevision: owned.node.revision, opId: `p3-activity-${randomUUID()}`,
+          base: { title: 'Activity stale base' }, value: { title: 'Activity incoming title' } }) });
+      assert.equal(syncResult(push.body).results[0]?.status, 'conflicted');
+      const conflict = (await runtime.pool.query<{ commit_ordinal: string; created_at: Date }>(
+        'select commit_ordinal::text,created_at from sync_conflicts where collection_id=$1', [owned.collectionId])).rows;
+      assert.equal(conflict.length, 1);
+      const checkpoint = (replicaId: string, ordinal: bigint) => runtime.pool.query(`update sync_replicas
+        set checkpoint_cursor='p3-activity',checkpoint_commit_ordinal=$2,checkpoint_stream_kind=1,
+          checkpoint_stable_id='p3-activity' where replica_id=$1`, [replicaId, ordinal.toString()]);
+      await checkpoint(current.replica.replicaId, BigInt(conflict[0]!.commit_ordinal));
+      await checkpoint(lagging.replica.replicaId, BigInt(conflict[0]!.commit_ordinal) - 1n);
+      const retire = await api.inject({ method: 'DELETE', url: `/api/v1/sync/replicas/${retired.replica.replicaId}`,
+        headers: { ...mutation(owner, randomUUID()), 'if-match': `"${retired.replica.lifecycleRevision}"` } });
+      assert.equal(retire.statusCode, 200, retire.body);
+
+      const read = async () => {
+        const response = await api.inject({ method: 'GET', url: '/api/v1/sync/status', headers: { cookie: owner.cookie } });
+        assert.equal(response.statusCode, 200, response.body);
+        return new Map((response.json() as { replicas: Array<{ id: string; activity: string | null;
+          behindSince: string | null }> }).replicas.map((row) => [row.id, [row.activity, row.behindSince]]));
+      };
+      const conflictAt = (await runtime.pool.query<{ created_at: Date }>(
+        'select created_at from sync_conflicts where collection_id=$1', [owned.collectionId])).rows[0]!.created_at;
+      assert.deepEqual(await read(), new Map([
+        [current.replica.replicaId, ['current', null]],
+        [lagging.replica.replicaId, ['behind', conflictAt.toISOString()]],
+        [retired.replica.replicaId, [null, null]],
+      ]));
+      // Missed for two hours while still connecting: stuck, not offline. Conflicts are
+      // immutable by trigger, so age this one on a connection that skips triggers.
+      const aging = await runtime.pool.connect();
+      try {
+        await aging.query('set session_replication_role=replica');
+        await aging.query(`update sync_conflicts set created_at=created_at - interval '2 hours'
+          where collection_id=$1`, [owned.collectionId]);
+      } finally { await aging.query('reset session_replication_role'); aging.release(); }
+      const agedAt = new Date(conflictAt.getTime() - 2 * 3_600_000).toISOString();
+      assert.deepEqual((await read()).get(lagging.replica.replicaId), ['stalled', agedAt]);
+      await runtime.pool.query(`update sync_replicas set last_seen_at=clock_timestamp() - interval '2 hours'
+        where replica_id=$1`, [lagging.replica.replicaId]);
+      assert.deepEqual((await read()).get(lagging.replica.replicaId), ['silent', agedAt]);
+      assert.deepEqual((await read()).get(current.replica.replicaId), ['current', null]);
+    } finally { await api.close(); }
+  }, 120_000);
+
   test('uses the production owner/open Conflict keyset index', async () => {
     await runtime.pool.query('set enable_seqscan=off');
     try {

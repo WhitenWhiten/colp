@@ -1,7 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { Kysely } from 'kysely';
-import type { ProductConflictPage, ProductConflictResolutionView, ProductReplicaRetirementView,
-  ProductSyncCenterPorts, ProductSyncCenterUnitOfWork, ProductSyncCommandOutcome } from '../../modules/sync/index.js';
+import { sql, type Kysely } from 'kysely';
+import { productReplicaActivity, type ProductConflictPage, type ProductConflictResolutionView,
+  type ProductReplicaRetirementView, type ProductSyncCenterPorts, type ProductSyncCenterUnitOfWork,
+  type ProductSyncCommandOutcome } from '../../modules/sync/index.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import { lockCollectionReplicaGate } from '../database/lock-order.js';
 import type { DatabaseSchema } from '../database/runtime.js';
@@ -84,14 +85,19 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
         .where('replica.account_id', '=', accountId)
         .groupBy('ack.replica_id').execute();
       const lastAck = new Map(ackRows.map((row) => [row.replica_id, row.last_ack_at]));
+      const { now, behindSince } = await readReplicaBehindSince(transaction, accountId);
       return Object.freeze({ devices: devices.map((device) => Object.freeze({ id: device.device_id, name: device.device_name })),
         replicas: replicas.map((replica) => { const revision = BigInt(replica.lifecycle_revision).toString();
-          const ack = lastAck.get(replica.replica_id); return Object.freeze({ id: replica.replica_id,
+          const ack = lastAck.get(replica.replica_id); const behind = behindSince.get(replica.replica_id) ?? null;
+          const activity = productReplicaActivity({ status: replica.status, behindSince: behind,
+            lastSeenAt: replica.last_seen_at, now });
+          return Object.freeze({ id: replica.replica_id,
             deviceId: replica.device_id, name: replica.replica_name, collectionId: replica.collection_id, kind: replica.kind,
             status: replica.status, leaseExpiresAt: replica.lease_expires_at.toISOString(), lastSeenAt: replica.last_seen_at.toISOString(),
             lastAckAt: ack instanceof Date ? ack.toISOString() : null,
             acknowledgedCommitOrdinal: replica.checkpoint_commit_ordinal === null ? null : BigInt(replica.checkpoint_commit_ordinal).toString(),
-            lifecycleRevision: revision, etag: `"${revision}"` }); }) });
+            lifecycleRevision: revision, etag: `"${revision}"`,
+            activity, behindSince: activity === null || behind === null ? null : behind.toISOString() }); }) });
     },
     async getConflicts({ accountId, limit, cursor }) {
       const after = cursor === undefined ? undefined : decodeCursor(cursor, accountId, options.cursorSecret);
@@ -163,6 +169,47 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
     }),
   };
+}
+
+/**
+ * For each live replica, when the oldest Sync stream row past its checkpoint
+ * was committed. The three sources mirror the stream cut in
+ * `readSyncPullStreamCut` (sync-operation-payload-reader.ts): wire operations
+ * that are not conflicted, conflicts, and resolved conflict dismissals. Commits
+ * that never enter the stream (sidecar writes) cannot make a replica behind.
+ */
+async function readReplicaBehindSince(transaction: DatabaseTransaction, accountId: string) {
+  const result = await sql<{ replica_id: string; behind_since: Date | null; now: Date }>`
+    SELECT replica.replica_id, clock_timestamp() AS now, (
+      SELECT MIN(missed.created_at) FROM (
+        (SELECT operation.created_at FROM operations AS operation
+          WHERE operation.collection_id = replica.collection_id
+            AND operation.commit_ordinal > COALESCE(replica.checkpoint_commit_ordinal, 0)
+            AND operation.sync_wire_present AND operation.operation_type <> 'sync.conflict.dismissed'
+            AND NOT EXISTS (SELECT 1 FROM sync_conflicts AS operation_conflict
+              WHERE operation_conflict.collection_id = operation.collection_id
+                AND operation_conflict.operation_id = operation.operation_id)
+          ORDER BY operation.commit_ordinal LIMIT 1)
+        UNION ALL
+        (SELECT conflict.created_at FROM sync_conflicts AS conflict
+          WHERE conflict.collection_id = replica.collection_id
+            AND conflict.commit_ordinal > COALESCE(replica.checkpoint_commit_ordinal, 0)
+          ORDER BY conflict.commit_ordinal LIMIT 1)
+        UNION ALL
+        (SELECT resolution.created_at FROM operations AS resolution
+          JOIN sync_conflicts AS conflict ON conflict.collection_id = resolution.collection_id
+            AND conflict.resolved_by_operation_id = resolution.operation_id
+          WHERE resolution.collection_id = replica.collection_id
+            AND resolution.operation_type = 'sync.conflict.dismissed' AND conflict.status = 'resolved'
+            AND resolution.commit_ordinal > COALESCE(replica.checkpoint_commit_ordinal, 0)
+          ORDER BY resolution.commit_ordinal LIMIT 1)
+      ) AS missed
+    ) AS behind_since
+    FROM sync_replicas AS replica
+    WHERE replica.account_id = ${accountId} AND replica.status <> 'retired'`.execute(transaction);
+  const now = result.rows[0]?.now ?? new Date();
+  return { now, behindSince: new Map(result.rows.flatMap((row) =>
+    row.behind_since instanceof Date ? [[row.replica_id, row.behind_since] as const] : [])) };
 }
 
 async function command<T>(transaction: DatabaseTransaction,

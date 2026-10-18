@@ -30,6 +30,7 @@ function unitOfWork(calls: Array<Record<string, unknown>>): ProductSyncCenterUni
       id: 'replica-a', deviceId: 'device-a', name: 'Work', collectionId: 'collection-a', kind: 'browser_extension',
       status: 'active', leaseExpiresAt: '2026-08-01T00:00:00.000Z', lastSeenAt: '2026-07-28T00:00:00.000Z',
       lastAckAt: null, acknowledgedCommitOrdinal: null, lifecycleRevision: '3', etag: '"3"',
+      activity: 'stalled', behindSince: '2026-07-27T22:00:00.000Z',
     }] }; },
     async getConflicts(input) { calls.push({ kind: 'conflicts', ...input }); return { items: [{
       id: 'conflict-a', collectionId: 'collection-a', targetId: 'node-a', type: 'concurrent_field_update',

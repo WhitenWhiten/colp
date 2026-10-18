@@ -1,9 +1,30 @@
 export type ProductReplicaStatus = 'active' | 'expired' | 'recovery_required' | 'retired';
+/**
+ * What the server can tell on its own about a replica taking in changes,
+ * without any report from the client: `behind` is ordinary lag; `stalled`
+ * still connects but has not taken in a change for an hour; `silent` has
+ * missed changes for an hour and has not connected for an hour either.
+ */
+export type ProductReplicaActivity = 'current' | 'behind' | 'stalled' | 'silent';
+export const REPLICA_ACTIVITY_STALE_MS = 60 * 60_000;
 export interface ProductSyncDeviceView { readonly id: string; readonly name: string }
 export interface ProductSyncReplicaView { readonly id: string; readonly deviceId: string; readonly name: string;
   readonly collectionId: string; readonly kind: string; readonly status: ProductReplicaStatus;
   readonly leaseExpiresAt: string; readonly lastSeenAt: string; readonly lastAckAt: string | null;
-  readonly acknowledgedCommitOrdinal: string | null; readonly lifecycleRevision: string; readonly etag: string }
+  readonly acknowledgedCommitOrdinal: string | null; readonly lifecycleRevision: string; readonly etag: string;
+  /** Null for a retired replica. */
+  readonly activity: ProductReplicaActivity | null;
+  /** When the oldest Sync stream change this replica has not acknowledged was committed. */
+  readonly behindSince: string | null }
+
+export function productReplicaActivity(input: { readonly status: ProductReplicaStatus;
+  readonly behindSince: Date | null; readonly lastSeenAt: Date; readonly now: Date }): ProductReplicaActivity | null {
+  if (input.status === 'retired') return null;
+  if (!input.behindSince) return 'current';
+  const now = input.now.getTime();
+  if (now - input.behindSince.getTime() < REPLICA_ACTIVITY_STALE_MS) return 'behind';
+  return now - input.lastSeenAt.getTime() < REPLICA_ACTIVITY_STALE_MS ? 'stalled' : 'silent';
+}
 export interface ProductSyncStatusView { readonly devices: readonly ProductSyncDeviceView[];
   readonly replicas: readonly ProductSyncReplicaView[] }
 export interface ProductConflictSummary { readonly id: string; readonly collectionId: string; readonly targetId: string;

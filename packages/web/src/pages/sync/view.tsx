@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { isLive } from '../../api'
+import { isLive, type SyncReplicaView } from '../../api'
 import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { Icon } from '../../components/Icon'
 import { PageHead } from '../../components/PageHead'
@@ -119,7 +119,9 @@ export function SyncView({ data, mutations, trashBatch }: {
                         <strong>{replica.name}</strong>
                         <span>{deviceNames.get(replica.deviceId) ?? 'Unknown device'} · {REPLICA_KIND_LABELS[replica.kind]}</span>
                       </div>
-                      <StatusBadge tone={REPLICA_STATE_TONE[replica.status]} className="replica-state">{STATUS_LABELS[replica.status]}</StatusBadge>
+                      {notSyncing(replica)
+                        ? <StatusBadge tone="warning" className="replica-state">Not syncing</StatusBadge>
+                        : <StatusBadge tone={REPLICA_STATE_TONE[replica.status]} className="replica-state">{STATUS_LABELS[replica.status]}</StatusBadge>}
                     </div>
                     <dl className="replica-facts">
                       <div>
@@ -135,6 +137,7 @@ export function SyncView({ data, mutations, trashBatch }: {
                         <dd title={formatInstant(replica.lastSeenAt)}>{formatRelative(replica.lastSeenAt)}</dd>
                       </div>
                     </dl>
+                    {notSyncing(replica) && <p className="replica-message is-stale" role="status">{activityNote(replica)}</p>}
                     <ReplicaRetireControls replica={replica} draft={retireDrafts[replica.id] ?? EMPTY_RETIRE}
                       disabled={refreshing} onStart={() => startRetire(replica)}
                       onConfirm={() => void submitRetire(replica)} onReplay={() => void submitRetire(replica, true)}
@@ -207,4 +210,17 @@ export function SyncView({ data, mutations, trashBatch }: {
         </>}
     </PageShell>
   )
+}
+
+/** The server's own inference: the browser has missed changes for an hour. */
+function notSyncing(replica: SyncReplicaView): boolean {
+  return replica.activity === 'stalled' || replica.activity === 'silent'
+}
+
+function activityNote(replica: SyncReplicaView): string {
+  const behind = replica.behindSince ? formatRelative(replica.behindSince) : 'a while ago'
+  const seen = formatRelative(replica.lastSeenAt)
+  return replica.activity === 'stalled'
+    ? `It connected ${seen}, but changes from ${behind} haven’t reached it. Open the extension on that browser to see why.`
+    : `Changes from ${behind} are waiting, and it was last seen ${seen}. If that browser is open and online, open the extension on it to see why.`
 }

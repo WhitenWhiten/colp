@@ -104,6 +104,26 @@ describe('Sync Center authoritative workflow', () => {
     expect(document.body.textContent).not.toContain('sync reset')
   })
 
+  it('flags a browser the server sees missing changes, with the reason in plain words', async () => {
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
+    const base = status().replicas[0]!
+    mocks.getSyncStatus.mockResolvedValue(status({ replicas: [
+      { ...base, activity: 'stalled', behindSince: hoursAgo(3), lastSeenAt: hoursAgo(0) },
+      { ...base, id: 'replica-2', name: 'Laptop profile', activity: 'silent', behindSince: hoursAgo(5), lastSeenAt: hoursAgo(2) },
+      { ...base, id: 'replica-3', name: 'Phone profile', activity: 'behind', behindSince: hoursAgo(0) },
+    ] }))
+    render(); await waitForDom(domFinishedLoading)
+    const cards = [...document.querySelectorAll('[aria-label="Connected browsers"] > li')]
+    expect(cards.map((card) => card.textContent?.includes('Not syncing'))).toEqual([true, true, false])
+    expect(cards[2]?.textContent).toContain('Active')
+    expect(cards[0]?.querySelector('[role=status]')?.textContent)
+      .toBe('It connected just now, but changes from 3 h ago haven’t reached it. Open the extension on that browser to see why.')
+    expect(cards[1]?.querySelector('[role=status]')?.textContent)
+      .toBe('Changes from 5 h ago are waiting, and it was last seen 2 h ago. If that browser is open and online, open the extension on it to see why.')
+    // Ordinary lag is not a problem worth a note.
+    expect(cards[2]?.querySelector('[role=status]')).toBeNull()
+  })
+
   it('announces initial loading and exposes a retryable Product read error', async () => {
     let rejectStatus: ((error: unknown) => void) | undefined
     // Mount #1's read is superseded (and aborted) by StrictMode; the *live*
