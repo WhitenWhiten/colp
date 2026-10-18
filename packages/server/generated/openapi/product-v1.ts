@@ -3096,6 +3096,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync/replicas/{replicaId}/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                replicaId: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        /** List what an owned Replica last reported it could not sync */
+        get: operations["listSyncReplicaIssues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/trash": {
         parameters: {
             query?: never;
@@ -7396,6 +7415,48 @@ export interface components {
              * @description When the oldest Sync stream change this replica has not acknowledged was committed.
              */
             behindSince?: string | null;
+            /** @description The Replica's own last report; null when it never reported or is retired. */
+            health?: components["schemas"]["SyncReplicaHealthView"] | null;
+        };
+        SyncReplicaHealthView: {
+            /** @enum {string} */
+            state: "syncing" | "degraded" | "stopped" | "paused";
+            code: string | null;
+            /** Format: date-time */
+            since: string;
+            /** Format: date-time */
+            reportedAt: string;
+            issueCount: number;
+        };
+        SyncReplicaIssue: {
+            issueId: components["schemas"]["OpaqueId"];
+            code: string;
+            /** @enum {string} */
+            direction: "push" | "pull" | "local";
+            nodeId?: components["schemas"]["OpaqueId"];
+            opId?: components["schemas"]["OpaqueId"];
+            title?: string;
+            count: number;
+            /** Format: date-time */
+            firstSeenAt: string;
+            /** Format: date-time */
+            lastSeenAt: string;
+            actions: ("retry" | "use_server" | "keep_local" | "discard_local" | "delete" | "keep" | "resume" | "rebuild")[];
+        };
+        SyncReplicaAckWarning: {
+            code: string;
+            message: string;
+            path?: string;
+        };
+        SyncReplicaIssuesView: {
+            replicaId: components["schemas"]["OpaqueId"];
+            /** Format: date-time */
+            reportedAt: string | null;
+            total: number;
+            items: components["schemas"]["SyncReplicaIssue"][];
+            ackWarnings: components["schemas"]["SyncReplicaAckWarning"][];
+            /** Format: date-time */
+            ackWarningsAt: string | null;
         };
         SyncStatusView: {
             devices: components["schemas"]["SyncDeviceView"][];
@@ -20757,6 +20818,35 @@ export interface operations {
             410: components["responses"]["Gone"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listSyncReplicaIssues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                replicaId: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The items the Replica set aside in its last health report, and the warnings of its latest successful Ack. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncReplicaIssuesView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ServiceUnavailable"];
         };

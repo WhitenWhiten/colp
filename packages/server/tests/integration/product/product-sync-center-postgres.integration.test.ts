@@ -709,6 +709,21 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       assert.deepEqual([first.health_state, first.health_code, first.health_revision, first.issue_total],
         ['stopped', 'create_placement_unproven', '200', 3]);
       assert.deepEqual((first.issues as Array<{ title?: string }>).map((issue) => issue.title), ['Recipes', undefined]);
+      // The owner reads it back: the state on the device card, the items on demand.
+      const healthOf = async (client: ProductClient) => new Map((await api.inject({ method: 'GET', url: '/api/v1/sync/status',
+        headers: { cookie: client.cookie } })).json().replicas.map((row: { id: string; health: unknown }) => [row.id, row.health]));
+      assert.deepEqual((await healthOf(owner)).get(reporting.replica.replicaId), { state: 'stopped',
+        code: 'create_placement_unproven', since: '2026-10-17T10:00:00.000Z',
+        reportedAt: (await runtime.pool.query('select health_reported_at from sync_replica_reports where replica_id=$1',
+          [reporting.replica.replicaId])).rows[0].health_reported_at.toISOString(), issueCount: 3 });
+      assert.equal((await healthOf(owner)).get(retiring.replica.replicaId), null);
+      const listed = await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${reporting.replica.replicaId}/issues`,
+        headers: { cookie: owner.cookie } });
+      assert.equal(listed.statusCode, 200, listed.body);
+      assert.deepEqual([listed.json().total, listed.json().items.map((item: { issueId: string }) => item.issueId)],
+        [3, ['issue-a', 'issue-b']]);
+      assert.equal((await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${reporting.replica.replicaId}/issues`,
+        headers: { cookie: outsider.cookie } })).statusCode, 404);
 
       // An older revision, delivered late, never replaces the newer report.
       const late = await post('Bearer owner-health', report(reporting.replica.replicaId, 100, 'syncing'));
@@ -740,6 +755,12 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       await recorder.recordAckWarnings({ replicaId: reporting.replica.replicaId, warnings: [] });
       const both = await stored(reporting.replica.replicaId);
       assert.deepEqual([both.health_state, both.ack_warnings], ['syncing', []]);
+      const foreignIssues = await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${foreign.replica.replicaId}/issues`,
+        headers: { cookie: outsider.cookie } });
+      assert.deepEqual([foreignIssues.json().reportedAt, foreignIssues.json().items, foreignIssues.json().ackWarnings],
+        [null, [], [{ code: 'separator_omitted', message: 'Separators are not materialized.' }]]);
+      // Ack warnings alone are not a health report.
+      assert.equal((await healthOf(outsider)).get(foreign.replica.replicaId), null);
     } finally { await health.close(); await api.close(); }
   }, 120_000);
 

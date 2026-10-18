@@ -90,6 +90,7 @@ export const productClient = Object.freeze({
   removeCollectionMember: generatedClient.removeCollectionMember,
   searchResources: searchPublicClient.searchResources,
   getSyncStatus: syncClient.getSyncStatus,
+  listSyncReplicaIssues: syncClient.listSyncReplicaIssues,
   loadSyncConflicts: syncClient.loadSyncConflicts,
   resolveSyncConflict: syncClient.resolveSyncConflict,
   retireSyncReplica: syncClient.retireSyncReplica,

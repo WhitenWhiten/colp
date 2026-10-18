@@ -9762,6 +9762,41 @@ paths:
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
+  /api/v1/sync/replicas/{replicaId}/issues:
+    parameters:
+      [
+        {
+            name: replicaId,
+            in: path,
+            required: true,
+            schema: { $ref: '#/components/schemas/OpaqueId' }
+          }
+      ]
+    get:
+      tags: [ SyncCenter ]
+      operationId: listSyncReplicaIssues
+      summary: List what an owned Replica last reported it could not sync
+      security: [ { cookieAuth: [] } ]
+      responses:
+        '200':
+          description: >-
+            The items the Replica set aside in its last health report, and the
+            warnings of its latest successful Ack.
+          headers:
+            {
+              Cache-Control: { $ref: '#/components/headers/PrivateNoStore' },
+              X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            }
+          content:
+            {
+              application/json: { schema: { $ref: '#/components/schemas/SyncReplicaIssuesView' } }
+            }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
   /api/v1/sync/trash:
     get:
       tags: [ SyncCenter ]
@@ -24329,6 +24364,57 @@ components:
           description: When the oldest Sync stream change this replica has not acknowledged was committed.
           type: [ string, 'null' ]
           format: date-time
+        health:
+          description: The Replica's own last report; null when it never reported or is retired.
+          anyOf: [ { $ref: '#/components/schemas/SyncReplicaHealthView' }, { type: 'null' } ]
+    SyncReplicaHealthView:
+      type: object
+      additionalProperties: false
+      required: [ state, code, since, reportedAt, issueCount ]
+      properties:
+        state: { type: string, enum: [ syncing, degraded, stopped, paused ] }
+        code: { type: [ string, 'null' ], pattern: '^[a-z][a-z0-9_]{0,63}$' }
+        since: { type: string, format: date-time }
+        reportedAt: { type: string, format: date-time }
+        issueCount: { type: integer, minimum: 0, maximum: 100000 }
+    SyncReplicaIssue:
+      type: object
+      additionalProperties: false
+      required: [ issueId, code, direction, count, firstSeenAt, lastSeenAt, actions ]
+      properties:
+        issueId: { $ref: '#/components/schemas/OpaqueId' }
+        code: { type: string, pattern: '^[a-z][a-z0-9_]{0,63}$' }
+        direction: { type: string, enum: [ push, pull, local ] }
+        nodeId: { $ref: '#/components/schemas/OpaqueId' }
+        opId: { $ref: '#/components/schemas/OpaqueId' }
+        title: { type: string, minLength: 1, maxLength: 256 }
+        count: { type: integer, minimum: 1, maximum: 1000000 }
+        firstSeenAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
+        actions:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items: { type: string, enum: [ retry, use_server, keep_local, discard_local, delete, keep, resume, rebuild ] }
+    SyncReplicaAckWarning:
+      type: object
+      additionalProperties: false
+      required: [ code, message ]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 64 }
+        message: { type: string, maxLength: 256 }
+        path: { type: string, maxLength: 256 }
+    SyncReplicaIssuesView:
+      type: object
+      additionalProperties: false
+      required: [ replicaId, reportedAt, total, items, ackWarnings, ackWarningsAt ]
+      properties:
+        replicaId: { $ref: '#/components/schemas/OpaqueId' }
+        reportedAt: { type: [ string, 'null' ], format: date-time }
+        total: { type: integer, minimum: 0, maximum: 100000 }
+        items: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/SyncReplicaIssue' } }
+        ackWarnings: { type: array, maxItems: 128, items: { $ref: '#/components/schemas/SyncReplicaAckWarning' } }
+        ackWarningsAt: { type: [ string, 'null' ], format: date-time }
     SyncStatusView:
       type: object
       additionalProperties: false

@@ -15,7 +15,15 @@ export interface ProductSyncReplicaView { readonly id: string; readonly deviceId
   /** Null for a retired replica. */
   readonly activity: ProductReplicaActivity | null;
   /** When the oldest Sync stream change this replica has not acknowledged was committed. */
-  readonly behindSince: string | null }
+  readonly behindSince: string | null;
+  /** The replica's own last report; null when it never reported or is retired. */
+  readonly health: ProductReplicaHealthView | null }
+/** What a browser last said about its own sync (replica-health.ts). */
+export interface ProductReplicaHealthView { readonly state: import('./replica-health.js').ReplicaHealthState;
+  readonly code: string | null; readonly since: string; readonly reportedAt: string; readonly issueCount: number }
+export interface ProductReplicaIssuesView { readonly replicaId: string; readonly reportedAt: string | null;
+  readonly total: number; readonly items: readonly import('./replica-health.js').ReplicaHealthIssue[];
+  readonly ackWarnings: readonly import('./replica-health.js').ReplicaAckWarning[]; readonly ackWarningsAt: string | null }
 
 export function productReplicaActivity(input: { readonly status: ProductReplicaStatus;
   readonly behindSince: Date | null; readonly lastSeenAt: Date; readonly now: Date }): ProductReplicaActivity | null {
@@ -45,6 +53,8 @@ export interface ProductReplicaRetirementView { readonly replicaId: string; read
 export interface ProductSyncCenterPorts {
   getStatus(input: { readonly accountId: string }): Promise<ProductSyncStatusView>;
   getConflicts(input: { readonly accountId: string; readonly limit: number; readonly cursor?: string }): Promise<ProductConflictPage>;
+  /** Throws `resource_not_found` for a replica the account does not own. */
+  getReplicaIssues(input: { readonly accountId: string; readonly replicaId: string }): Promise<ProductReplicaIssuesView>;
   resolveConflict(input: { readonly accountId: string; readonly subjectId: string; readonly conflictId: string;
     readonly expectedRevision: string; readonly commandId: string; readonly fingerprint: string;
     readonly resolution: 'server'|'incoming'|'custom'|'both'; readonly value?: unknown }): Promise<ProductSyncCommandOutcome<ProductConflictResolutionView>>;

@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   retireSyncReplica: vi.fn(), abandonSyncConflictIntent: vi.fn(), abandonSyncReplicaIntent: vi.fn(),
   loadSyncTrash: vi.fn(), getSyncTrashItem: vi.fn(), restoreSyncTrashItem: vi.fn(),
   restoreSyncTrashBatch: vi.fn(), restoreSyncTrashSubtree: vi.fn(), emptySyncTrash: vi.fn(),
-  abandonSyncTrashIntent: vi.fn(), toast: vi.fn(), getLibrary: vi.fn(),
+  abandonSyncTrashIntent: vi.fn(), toast: vi.fn(), getLibrary: vi.fn(), listSyncReplicaIssues: vi.fn(),
 }))
 
 vi.mock('../api', async (importOriginal) => {
@@ -26,7 +26,7 @@ vi.mock('../api', async (importOriginal) => {
     restoreSyncTrashItem: mocks.restoreSyncTrashItem, restoreSyncTrashBatch: mocks.restoreSyncTrashBatch,
     restoreSyncTrashSubtree: mocks.restoreSyncTrashSubtree, emptySyncTrash: mocks.emptySyncTrash,
     abandonSyncTrashIntent: mocks.abandonSyncTrashIntent,
-    getLibrary: mocks.getLibrary,
+    getLibrary: mocks.getLibrary, listSyncReplicaIssues: mocks.listSyncReplicaIssues,
   } }
 })
 vi.mock('../components/AppToast', () => ({
@@ -122,6 +122,50 @@ describe('Sync Center authoritative workflow', () => {
       .toBe('Changes from 5 h ago are waiting, and it was last seen 2 h ago. If that browser is open and online, open the extension on it to see why.')
     // Ordinary lag is not a problem worth a note.
     expect(cards[2]?.querySelector('[role=status]')).toBeNull()
+  })
+
+  it('says why a browser stopped, and lists what it set aside on request', async () => {
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
+    const base = status().replicas[0]!
+    const report = (state: 'stopped' | 'degraded' | 'paused', issueCount: number, code: string | null = null) =>
+      ({ state, code, since: hoursAgo(2), reportedAt: hoursAgo(0), issueCount })
+    mocks.getSyncStatus.mockResolvedValue(status({ replicas: [
+      { ...base, health: report('stopped', 3, 'create_placement_unproven') },
+      { ...base, id: 'replica-2', name: 'Laptop profile', health: report('degraded', 1) },
+      { ...base, id: 'replica-3', name: 'Phone profile', health: report('paused', 4) },
+      { ...base, id: 'replica-4', name: 'Tablet profile', health: report('stopped', 0, 'brand_new_code'),
+        activity: 'silent', behindSince: hoursAgo(5), lastSeenAt: hoursAgo(3) },
+    ] }))
+    mocks.listSyncReplicaIssues.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({
+      replicaId: 'replica-1', reportedAt: hoursAgo(0), total: 3, ackWarnings: [], ackWarningsAt: null, items: [
+        { issueId: 'a', code: 'conflict_pending', direction: 'push', nodeId: 'node-1', title: 'Recipes', count: 1,
+          firstSeenAt: hoursAgo(1), lastSeenAt: hoursAgo(1), actions: [] },
+        { issueId: 'b', code: 'invalid_node_constraints', direction: 'push', count: 2,
+          firstSeenAt: hoursAgo(1), lastSeenAt: hoursAgo(1), actions: [] },
+      ] })
+    render(); await waitForDom(domFinishedLoading)
+    const cards = () => [...document.querySelectorAll('[aria-label="Connected browsers"] > li')]
+    const badge = (card: Element) => card.querySelector('[data-testid="replica-state"]')?.textContent
+    expect(cards().map(badge)).toEqual(['Stopped', 'Needs attention', 'Paused', 'Stopped'])
+    const note = (index: number) => cards()[index]?.querySelector('[role=status]')?.textContent ?? ''
+    expect(note(0)).toContain('Sync on this browser has stopped: it can’t tell where a saved bookmark belongs. Open the extension on that browser to fix it.')
+    expect(note(1)).toContain('1 item on this browser couldn’t sync. Everything else keeps syncing.')
+    expect(note(2)).toContain('Sync is paused on this browser.')
+    // A stop the web does not know yet still says the code; the stop outranks the silence note.
+    expect(note(3)).toContain('it reported “brand_new_code”.')
+    expect(note(3)).not.toContain('are waiting')
+    // Paused names no items; a stop with nothing set aside offers no list.
+    expect(cards()[2]?.querySelector('button')?.textContent).not.toMatch(/Show/)
+    expect(cards()[3]?.textContent).not.toContain('Show 0')
+    const show = [...cards()[0]!.querySelectorAll('button')].find((button) => button.textContent === 'Show 3 items')!
+    act(() => show.click())
+    await waitForDom(() => note(0).includes('Couldn’t load the items.'))
+    act(() => [...cards()[0]!.querySelectorAll('button')].find((button) => button.textContent === 'Try again')!.click())
+    await waitForDom(() => note(0).includes('Recipes'))
+    expect(mocks.listSyncReplicaIssues).toHaveBeenCalledWith('replica-1')
+    const items = [...cards()[0]!.querySelectorAll('[aria-label="Items this browser couldn’t sync"] li')].map((item) => item.textContent)
+    expect(items).toEqual(['RecipesWaiting for a conflict to be resolved',
+      'A bookmark on that browserThe server didn’t accept this change (2 times)', 'and 1 more item'])
   })
 
   it('announces initial loading and exposes a retryable Product read error', async () => {

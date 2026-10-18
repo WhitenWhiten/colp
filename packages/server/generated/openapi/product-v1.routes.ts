@@ -1652,6 +1652,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
   },
   {
     "method": "GET",
+    "path": "/api/v1/sync/replicas/{replicaId}/issues",
+    "operationId": "listSyncReplicaIssues"
+  },
+  {
+    "method": "GET",
     "path": "/api/v1/sync/status",
     "operationId": "getSyncStatus"
   },

@@ -31,7 +31,15 @@ function unitOfWork(calls: Array<Record<string, unknown>>): ProductSyncCenterUni
       status: 'active', leaseExpiresAt: '2026-08-01T00:00:00.000Z', lastSeenAt: '2026-07-28T00:00:00.000Z',
       lastAckAt: null, acknowledgedCommitOrdinal: null, lifecycleRevision: '3', etag: '"3"',
       activity: 'stalled', behindSince: '2026-07-27T22:00:00.000Z',
+      health: { state: 'stopped', code: 'create_placement_unproven', since: '2026-07-27T22:00:00.000Z',
+        reportedAt: '2026-07-28T00:00:00.000Z', issueCount: 1 },
     }] }; },
+    async getReplicaIssues(input) { calls.push({ kind: 'issues', ...input });
+      if (input.replicaId !== 'replica-a') throw Object.assign(new Error('missing'), { code: 'resource_not_found' });
+      return { replicaId: input.replicaId, reportedAt: '2026-07-28T00:00:00.000Z', total: 1, items: [{
+        issueId: 'issue-a', code: 'conflict_pending', direction: 'push', nodeId: 'node-a', title: 'Recipes', count: 1,
+        firstSeenAt: '2026-07-27T22:00:00.000Z', lastSeenAt: '2026-07-27T22:00:00.000Z', actions: [] }],
+      ackWarnings: [], ackWarningsAt: null }; },
     async getConflicts(input) { calls.push({ kind: 'conflicts', ...input }); return { items: [{
       id: 'conflict-a', collectionId: 'collection-a', targetId: 'node-a', type: 'concurrent_field_update',
       field: '/title', status: 'open', allowedResolutions: ['server', 'incoming'], revision: 'conflict-r1',
@@ -66,6 +74,23 @@ describe('P3-36 Product Sync Center HTTP', () => {
       for (const forbidden of ['token', 'sessionId', 'cursor', 'browserProfileId', 'nativeId', 'url', 'principalId', 'base', 'currentSecret', 'incomingSecret']) {
         assert.equal(status.body.includes(forbidden), false); assert.equal(conflicts.body.includes(forbidden), false);
       }
+    } finally { await app.close(); }
+  });
+
+  test('lists what an owned replica reported it could not sync, and nothing for another', async () => {
+    const auth = await identity(); const calls: Array<Record<string, unknown>> = []; const app = buildApiApp({ config: config(), identityUnitOfWork: auth.unitOfWork, browserSessionAuthority: auth.factory.authority,
+      productSyncCenterUnitOfWork: unitOfWork(calls) });
+    try {
+      const issues = await app.inject({ method: 'GET', url: '/api/v1/sync/replicas/replica-a/issues', headers: headers(auth.client.cookie) });
+      assert.equal(issues.statusCode, 200, issues.body);
+      assert.equal(issues.headers['cache-control'], 'private, no-store');
+      assert.equal(issues.json().items[0].title, 'Recipes');
+      assert.deepEqual(calls, [{ kind: 'issues', accountId: auth.client.accountId, replicaId: 'replica-a' }]);
+      const missing = await app.inject({ method: 'GET', url: '/api/v1/sync/replicas/replica-b/issues', headers: headers(auth.client.cookie) });
+      assert.equal(missing.statusCode, 404); assert.equal(missing.json().error.code, 'resource_not_found');
+      assert.equal((await app.inject({ method: 'GET', url: '/api/v1/sync/replicas/replica-a/issues' })).statusCode, 401);
+      assert.equal((await app.inject({ method: 'GET', url: '/api/v1/sync/replicas/replica-a/issues?all=1',
+        headers: headers(auth.client.cookie) })).statusCode, 400);
     } finally { await app.close(); }
   });
 

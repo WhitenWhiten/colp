@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import { productReplicaActivity, type ProductConflictPage, type ProductConflictResolutionView,
+  type ProductReplicaHealthView, type ProductReplicaIssuesView,
   type ProductReplicaRetirementView, type ProductSyncCenterPorts, type ProductSyncCenterUnitOfWork,
   type ProductSyncCommandOutcome } from '../../modules/sync/index.js';
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
@@ -86,6 +87,10 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
         .groupBy('ack.replica_id').execute();
       const lastAck = new Map(ackRows.map((row) => [row.replica_id, row.last_ack_at]));
       const { now, behindSince } = await readReplicaBehindSince(transaction, accountId);
+      const reports = new Map((await transaction.selectFrom('sync_replica_reports')
+        .select(['replica_id', 'health_state', 'health_code', 'health_since', 'health_reported_at', 'issue_total'])
+        .where('account_id', '=', accountId).where('health_state', 'is not', null).execute())
+        .map((row) => [row.replica_id, row]));
       return Object.freeze({ devices: devices.map((device) => Object.freeze({ id: device.device_id, name: device.device_name })),
         replicas: replicas.map((replica) => { const revision = BigInt(replica.lifecycle_revision).toString();
           const ack = lastAck.get(replica.replica_id); const behind = behindSince.get(replica.replica_id) ?? null;
@@ -97,7 +102,21 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
             lastAckAt: ack instanceof Date ? ack.toISOString() : null,
             acknowledgedCommitOrdinal: replica.checkpoint_commit_ordinal === null ? null : BigInt(replica.checkpoint_commit_ordinal).toString(),
             lifecycleRevision: revision, etag: `"${revision}"`,
-            activity, behindSince: activity === null || behind === null ? null : behind.toISOString() }); }) });
+            activity, behindSince: activity === null || behind === null ? null : behind.toISOString(),
+            health: replica.status === 'retired' ? null : healthView(reports.get(replica.replica_id)) }); }) });
+    },
+    async getReplicaIssues({ accountId, replicaId }) {
+      const replica = await transaction.selectFrom('sync_replicas').select('replica_id')
+        .where('replica_id', '=', replicaId).where('account_id', '=', accountId).executeTakeFirst();
+      if (!replica) throw notFound();
+      const report = await transaction.selectFrom('sync_replica_reports')
+        .select(['health_reported_at', 'issue_total', 'issues', 'ack_warnings', 'ack_warnings_at'])
+        .where('replica_id', '=', replicaId).executeTakeFirst();
+      return Object.freeze({ replicaId, reportedAt: report?.health_reported_at?.toISOString() ?? null,
+        total: report?.issue_total ?? 0,
+        items: Object.freeze([...(report?.issues ?? [])] as ProductReplicaIssuesView['items']),
+        ackWarnings: Object.freeze([...(report?.ack_warnings ?? [])] as ProductReplicaIssuesView['ackWarnings']),
+        ackWarningsAt: report?.ack_warnings_at?.toISOString() ?? null });
     },
     async getConflicts({ accountId, limit, cursor }) {
       const after = cursor === undefined ? undefined : decodeCursor(cursor, accountId, options.cursorSecret);
@@ -169,6 +188,13 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
     }),
   };
+}
+
+function healthView(row: { readonly health_state: ProductReplicaHealthView['state'] | null; readonly health_code: string | null;
+  readonly health_since: Date | null; readonly health_reported_at: Date | null; readonly issue_total: number | null } | undefined) {
+  if (!row?.health_state || !row.health_since || !row.health_reported_at) return null;
+  return Object.freeze({ state: row.health_state, code: row.health_code, since: row.health_since.toISOString(),
+    reportedAt: row.health_reported_at.toISOString(), issueCount: row.issue_total ?? 0 }) satisfies ProductReplicaHealthView;
 }
 
 /**

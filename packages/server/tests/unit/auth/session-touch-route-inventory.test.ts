@@ -489,6 +489,7 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/me/shared-collections',
   '/api/v1/session',
   '/api/v1/sync/conflicts',
+  '/api/v1/sync/replicas/:replicaId/issues',
   '/api/v1/sync/status',
   '/api/v1/sync/trash',
   '/api/v1/sync/trash/:deletionId',

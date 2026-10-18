@@ -13,6 +13,7 @@ import { registerProductSyncTrashRoutes } from './product-sync-trash-routes.js';
 
 const STATUS = '/api/v1/sync/status'; const CONFLICTS = '/api/v1/sync/conflicts';
 const RESOLUTION = '/api/v1/sync/conflicts/:conflictId/resolution'; const REPLICA = '/api/v1/sync/replicas/:replicaId';
+const ISSUES = '/api/v1/sync/replicas/:replicaId/issues';
 const OPAQUE = /^[A-Za-z0-9._~-]{1,128}$/u; const STRONG = /^"([A-Za-z0-9._~-]{1,128})"$/u;
 export interface ProductSyncCenterRoutesDeps { readonly config: AppConfig; readonly identityUnitOfWork: IdentityUnitOfWork;
   readonly unitOfWork: ProductSyncCenterUnitOfWork }
@@ -34,6 +35,14 @@ export function registerProductSyncCenterRoutes(app: FastifyInstance, deps: Prod
       ports.getConflicts({ accountId: account.id, limit, ...(query.cursor ? { cursor: query.cursor } : {}) })));
     } catch (error) { if (code(error) === 'invalid_cursor') throw new ProductHttpError({ statusCode: 400, code: 'invalid_cursor',
       message: 'The Sync Conflict cursor is invalid.', recovery: 'restart_from_first_page' }); throw error; }
+  });
+  app.get(ISSUES, { config: { ...productRouteMetadata('GET', ISSUES), productTransport: { allowedQuery: [],
+    duplicateQueryErrorCode: 'invalid_query' as const, cacheControl: 'private-no-store' as const } } }, async (request, reply) => {
+    const { account } = await requireSessionActor(request, deps.identityUnitOfWork, { touch: false });
+    const replicaId = pathId(request, 'replicaId');
+    try { return reply.code(200).type('application/json; charset=utf-8').send(await deps.unitOfWork.execute((ports) =>
+      ports.getReplicaIssues({ accountId: account.id, replicaId })));
+    } catch (error) { throw mapMutationError(error); }
   });
   app.post(RESOLUTION, { config: { ...productRouteMetadata('POST', RESOLUTION), productTransport: { allowedQuery: [],
     acceptedMediaTypes: ['application/json'], bodyLimitBytes: 16_384, cacheControl: 'private-no-store' as const } } }, async (request, reply) => {

@@ -14,6 +14,7 @@ import type {
   ProductSyncReplicaRetirementView,
   SyncConflictPage,
   SyncConflictSummary,
+  SyncReplicaIssuesView,
   SyncStatusView,
   SyncTrashDetail,
   SyncTrashEmptyRequest,
@@ -78,6 +79,10 @@ export function createProductSyncClient(
 
   async function getSyncStatus(options?: ReadOptions): Promise<SyncStatusView> {
     return authRetryRead(() => transport.getSyncStatus(options?.signal), options)
+  }
+
+  async function listSyncReplicaIssues(replicaId: string, options?: ReadOptions): Promise<SyncReplicaIssuesView> {
+    return authRetryRead(() => transport.listSyncReplicaIssues(replicaId, options?.signal), options)
   }
 
   async function getSyncConflictPage(
@@ -196,6 +201,7 @@ export function createProductSyncClient(
   function abandonSyncTrashIntent(intentId: string): void { clearCommandId(intentId) }
   return {
     getSyncStatus,
+    listSyncReplicaIssues,
     loadSyncConflicts,
     resolveSyncConflict,
     retireSyncReplica,

@@ -10,6 +10,7 @@ describe('P3-36 Product Sync Center generated contract', () => {
     for (const file of artifacts) { const source = readFileSync(new URL(file, root), 'utf8');
       for (const path of ['/api/v1/sync/status', '/api/v1/sync/conflicts',
         '/api/v1/sync/conflicts/{conflictId}/resolution', '/api/v1/sync/replicas/{replicaId}',
+        '/api/v1/sync/replicas/{replicaId}/issues',
         '/api/v1/sync/trash', '/api/v1/sync/trash/empty', '/api/v1/sync/trash/restore-batch',
         '/api/v1/sync/trash/{deletionId}', '/api/v1/sync/trash/{deletionId}/restore',
         '/api/v1/sync/trash/{deletionId}/restore-subtree']) {
@@ -19,7 +20,7 @@ describe('P3-36 Product Sync Center generated contract', () => {
     }
     assert.deepEqual(PRODUCT_ROUTE_MANIFEST.filter((route) => route.path.startsWith('/api/v1/sync/')).map((route) =>
       `${route.method} ${route.path}`), ['GET /api/v1/sync/conflicts', 'POST /api/v1/sync/conflicts/{conflictId}/resolution',
-      'DELETE /api/v1/sync/replicas/{replicaId}', 'GET /api/v1/sync/status',
+      'DELETE /api/v1/sync/replicas/{replicaId}', 'GET /api/v1/sync/replicas/{replicaId}/issues', 'GET /api/v1/sync/status',
       'GET /api/v1/sync/trash', 'POST /api/v1/sync/trash/empty', 'POST /api/v1/sync/trash/restore-batch',
       'GET /api/v1/sync/trash/{deletionId}', 'POST /api/v1/sync/trash/{deletionId}/restore',
       'POST /api/v1/sync/trash/{deletionId}/restore-subtree']);
