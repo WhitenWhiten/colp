@@ -180,11 +180,17 @@ export function createOutboundPushWorker(options: WorkerOptions) {
           authority.session.maxBatchOperations ?? 1, batchLimit);
       }
       const started = now();
+      let endpoint: string;
+      try { endpoint = (await options.endpoints()).syncPush; }
+      catch (error) {
+        return { outcome: await persistUnknown(bound, lease.fence, reasonCode(error, 'push_dispatch_failed')),
+          sequence: queue.sequence };
+      }
       const batch = (!options.dispatch || options.dispatchBatch) && await sendBootstrapCreateBatch({
         first: bound, fresh: !queue.attempt && queue.retry.attempt === 0,
         limit: batchLimit,
         store: options.store, scope: options.scope, ownerId, fence: lease.fence, now,
-        ...authority, endpoint: (await options.endpoints()).syncPush, fetch: fetcher,
+        ...authority, endpoint, fetch: fetcher,
         origin: options.origin, timeoutMs: requestTimeout, dispatch: options.dispatchBatch,
         beforeDispatch: options.beforeDispatch, onNetworkResponse,
         barrier: () => pushRecoveryBarrierActive(options.store, options.scope, options.allowRecoveryFrozenPush),
@@ -283,18 +289,29 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       let response: Response;
       try {
         if (!acceptedResponse) await options.beforeDispatch?.(queue);
-        const send = async () => withinDeadline(fetcher((await options.endpoints()).syncPush, { method: 'POST', redirect: 'error',
-          credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json',
-            ...colpCredentialHeaders(authority.credential.accessToken),
-            'Content-Type': attempt.mediaType, 'Idempotency-Key': attempt.idempotencyKey,
-            ...(options.origin ? { Origin: options.origin } : {}) }, body }));
+        const send = async () => {
+          const endpoint = (await options.endpoints()).syncPush;
+          const request: RequestInit = { method: 'POST', redirect: 'error',
+            credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json',
+              ...colpCredentialHeaders(authority.credential.accessToken),
+              'Content-Type': attempt.mediaType, 'Idempotency-Key': attempt.idempotencyKey,
+              ...(options.origin ? { Origin: options.origin } : {}) }, body };
+          try { return await withinDeadline(fetcher(endpoint, request)); }
+          catch (error) {
+            // Only fetch/timeout owns network failures; local hooks and endpoint
+            // discovery cannot be classified as network errors by this fallback.
+            const transport = error instanceof TypeError || error instanceof DOMException
+              && ['AbortError', 'NetworkError', 'TimeoutError'].includes(error.name);
+            throw new Error(reasonCode(error, transport ? 'push_network_failed' : 'push_dispatch_failed'), { cause: error });
+          }
+        };
         response = acceptedResponse ?? await (options.dispatch ? options.dispatch(queue,send) : send());
       } catch (error) {
         clearTimeout(timeout);
         if (reasonCode(error, '') === 'bootstrap_upload_excluded') return rejectExcluded(queue, fence, error);
         if (await stopDeniedMetadataAttempt({ error, store: options.store, scope: options.scope,
           queue, ownerId, fence, now })) return 'recovery';
-        return persistUnknown(queue, fence, reasonCode(error, 'push_network_failed'));
+        return persistUnknown(queue, fence, reasonCode(error, 'push_dispatch_failed'));
       }
       try {
         await onNetworkResponse?.();
