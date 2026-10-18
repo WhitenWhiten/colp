@@ -56,8 +56,9 @@ function validateQueueRecordValue(input: unknown, maxBytes: number): QueueOperat
   validateRecord(record, maxBytes); return record;
 }
 export function validateQueueRecovery(input: unknown): NonNullable<QueueOperation['recovery']> {
-  const value = strictObject(input, ['code', 'expectedSequence'], 'queue recovery', ['expectedSequence']);
-  return { code: boundedString(value.code, 'recovery code'),
+  const value = strictObject(input, ['code', 'expectedSequence', 'resultStatus'], 'queue recovery', ['expectedSequence', 'resultStatus']);
+  if (value.resultStatus !== undefined && value.resultStatus !== 'rejected') throw new SyncStateError('recovery_invalid');
+  return { ...(value.resultStatus === 'rejected' ? { resultStatus: 'rejected' as const } : {}), code: boundedString(value.code, 'recovery code'),
     ...(value.expectedSequence === undefined ? {} : { expectedSequence: safeInteger(value.expectedSequence,
       'expectedSequence', 1) }) };
 }

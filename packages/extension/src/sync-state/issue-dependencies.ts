@@ -7,7 +7,7 @@ import { cursorPage, scopeRowsRange, requestValue } from './idb.js';
 import { STORES, INDEXES } from './schema.js';
 import type { IntentRecord, MappingInput, UnknownRecord, BookmarkEventRecord } from './types.js';
 
-export const ISSUE_DEPENDENCY_STORES = [STORES.mappings, STORES.diagnostics, STORES.intents, STORES.pullEvents, STORES.bookmarkEvents, STORES.pullPages, STORES.remoteDeleteDecisions] as const;
+export const ISSUE_DEPENDENCY_STORES = [STORES.receipts, STORES.mappings, STORES.diagnostics, STORES.intents, STORES.pullEvents, STORES.bookmarkEvents, STORES.pullPages, STORES.remoteDeleteDecisions] as const;
 export async function transactionIssueDependencies(queue: IDBObjectStore, key: string, excludeEventId?: string) {
   const tx = queue.transaction;
   const mappings = await requestValue<MappingInput[]>(tx.objectStore(STORES.mappings).getAll(scopeRowsRange(key)));

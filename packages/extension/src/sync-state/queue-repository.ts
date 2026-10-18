@@ -1,3 +1,4 @@
+import { withReceiptOutcome } from './open-issue-facts.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
 import { firstLaneQueueRow, holdable, holdIfWaiting, holdWaitingRows } from './queue-hold.js';
@@ -123,7 +124,12 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     if (afterSequence === Number.MAX_SAFE_INTEGER) return [];
     const range = status ? IDBKeyRange.bound([key, status, afterSequence + 1], [key, status, Number.MAX_SAFE_INTEGER])
       : IDBKeyRange.bound([key, afterSequence + 1], [key, Number.MAX_SAFE_INTEGER]);
-    const values = await cursorPage<QueueOperation>(source, range, limit); await completion;
+    const values = await cursorPage<QueueOperation>(source, range, limit);
+    for (let i = 0; i < values.length; i++) if (values[i]!.status === 'terminal') {
+      const receipt = await requestValue(tx.objectStore(STORES.receipts).index(INDEXES.queueBySequence).get([key, values[i]!.sequence]));
+      values[i] = withReceiptOutcome(values[i]!, receipt as never);
+    }
+    await completion;
     return values.map((value) => clone(validateQueueRecord(value, maxRecordBytes)));
   }
 
@@ -135,7 +141,9 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   async function getQueueByOpId(input: SyncScope, opId: string): Promise<QueueOperation | null> {
     const key = scopeKey(validateScope(input)); boundedString(opId, 'opId');
     const db = await open(); const tx = db.transaction([STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readonly'); const completion = transactionDone(tx);
-    const value = await requestValue(tx.objectStore(STORES.queue).index(INDEXES.queueByOpId).get([key, opId]));
+    let value = await requestValue<QueueOperation | undefined>(tx.objectStore(STORES.queue).index(INDEXES.queueByOpId).get([key, opId]));
+    if (value?.status === 'terminal') value = withReceiptOutcome(value,
+      await requestValue(tx.objectStore(STORES.receipts).index(INDEXES.queueBySequence).get([key, value.sequence])));
     await completion; return value ? clone(validateQueueRecord(value, maxRecordBytes)) : null;
   }
 
@@ -161,7 +169,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       if (prior && !sameReceipt(prior, receipt)) throw new SyncStateError('receipt_id_reuse');
       if (!prior) receipts.add(receipt);
       inject(faults.fault, 'after_receipt', tx);
-      queue.put({ ...queued, status: receipt.kind });
+      queue.put(withReceiptOutcome({ ...queued, status: receipt.kind }, receipt));
       await settleImportNode(tx, key, queued.opId, receipt.kind, receipt.result);
     }); } catch (error) { throw constraintError(error); }
     if (faults.fault === 'unknown_commit') throw new SyncStateError('commit_outcome_unknown');
@@ -185,7 +193,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       const prior = await requestValue(receipts.get([key, receipt.receiptId])) as typeof receipt | undefined;
       if (prior && !sameReceipt(prior, receipt)) throw new SyncStateError('receipt_id_reuse');
       if (!prior) receipts.add(receipt);
-      queue.put({ ...queued, status: receipt.kind });
+      queue.put(withReceiptOutcome({ ...queued, status: receipt.kind }, receipt));
       await settleImportNode(tx, key, queued.opId, receipt.kind, receipt.result);
     }); } catch (error) { throw constraintError(error); }
     durableCache.set(key, { receiptId: receipt.receiptId, sequence, fence });
@@ -476,12 +484,12 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
             await rebindProjectionInTransaction(tx, key, queued, settlement.authoritativeProjection, maxRecordBytes);
           }
           queue.put(validateQueueRecord({ ...queued, status: settlement.outcome,
-            ...(settlement.outcome === 'blocked' ? { recovery: settlement.recovery } : { recovery: undefined }),
+            ...(settlement.outcome === 'blocked' ? { recovery: settlement.recovery } : { recovery: withReceiptOutcome({ ...queued, status: settlement.outcome }, receipt).recovery }),
             retry: { attempt: settlement.retry?.attempt ?? queued.retry.attempt,
               notBefore: settlement.retry?.notBefore ?? queued.retry.notBefore } }, maxRecordBytes));
           // A conflicted result consumed its sequence: later changes of the same
           // bookmark wait for the resolution; everything else keeps the lane.
-          if (settlement.outcome === 'blocked') await holdWaitingRows(queue, key, maxRecordBytes, sequence);
+          if (settlement.outcome === 'blocked' || withReceiptOutcome({ ...queued, status: settlement.outcome }, receipt).recovery) await holdWaitingRows(queue, key, maxRecordBytes, sequence);
           await settleImportNode(tx, key, queued.opId, settlement.outcome, receipt.result);
           await persistPushPullHint(tx, key, receipt.result, maxRecordBytes);
           return;
@@ -541,7 +549,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       if (action.authoritativeCreate) {
         await rebindCreateInTransaction(tx, key, queued, action.authoritativeCreate, maxRecordBytes);
       }
-      queue.put(validateQueueRecord({ ...queued, status: 'terminal', recovery: undefined,
+      queue.put(validateQueueRecord({ ...queued, status: 'terminal', recovery: withReceiptOutcome({ ...queued, status: 'terminal' }, receipt).recovery,
         retry: { attempt: queued.retry.attempt, notBefore: queued.retry.notBefore } }, maxRecordBytes));
       await settleImportNode(tx, key, queued.opId, 'terminal', receipt.result);
     });

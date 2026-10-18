@@ -30,17 +30,17 @@ export function hasRecoverableQueueWork(rows: readonly { readonly status?: strin
  * that never seems to finish.
  */
 export function hasConflictBarrier(rows: readonly { readonly status?: string;
-  readonly recovery?: { readonly code?: string } }[]): boolean {
+  readonly recovery?: { readonly code?: string; readonly resultStatus?: string } }[]): boolean {
   return rows.some((row) => (row.status === 'blocked' && row.recovery?.code === 'conflict_pending')
     || (row.status === 'set_aside' && row.recovery?.code === 'conflict_hold'));
 }
 
-export function hasRejectedBarrier(rows: readonly { readonly status?: string; readonly recovery?: { readonly code?: string } }[]): boolean {
-  return rows.some((row) => row.status === 'rejected' && isOpenQueueIssue(row));
+export function hasRejectedBarrier(rows: readonly { readonly status?: string; readonly recovery?: { readonly code?: string; readonly resultStatus?: string } }[]): boolean {
+  return rows.some((row) => (row.status === 'rejected' || row.recovery?.resultStatus === 'rejected') && isOpenQueueIssue(row));
 }
 
 export function queueStatusProjection(rows: readonly { readonly status?: string;
-  readonly recovery?: { readonly code?: string } }[]): 'idle' | 'syncing' | 'conflict' | 'rejected' {
+  readonly recovery?: { readonly code?: string; readonly resultStatus?: string } }[]): 'idle' | 'syncing' | 'conflict' | 'rejected' {
   if (hasConflictBarrier(rows)) return 'conflict';
   if (hasRecoverableQueueWork(rows)) return 'syncing';
   if (hasRejectedBarrier(rows)) return 'rejected';

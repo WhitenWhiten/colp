@@ -48,13 +48,13 @@ export function blockedPullIssue(page: UnknownRecord, events: readonly UnknownRe
 }
 
 /** Recaptured bytes are audit history; server rejections, held work and conflicts remain open. */
-export function isOpenQueueIssue(row: { readonly status?: string; readonly recovery?: { readonly code?: string } }): boolean {
-  return (row.status === 'rejected' && row.recovery?.code !== 'recaptured') || row.status === 'set_aside'
+export function isOpenQueueIssue(row: { readonly status?: string; readonly recovery?: { readonly code?: string; readonly resultStatus?: string } }): boolean {
+  return (row.status === 'terminal' && row.recovery?.resultStatus === 'rejected') || (row.status === 'rejected' && row.recovery?.code !== 'recaptured') || row.status === 'set_aside'
     || (row.status === 'blocked' && row.recovery?.code === 'conflict_pending');
 }
 
 export function addQueueIssueRoots(roots: Set<string>, rows: readonly { readonly status?: string;
-  readonly recovery?: { readonly code?: string }; readonly opId: string; readonly payload: { readonly targetId?: unknown; readonly type?: unknown } }[]): void {
+  readonly recovery?: { readonly code?: string; readonly resultStatus?: string }; readonly opId: string; readonly payload: { readonly targetId?: unknown; readonly type?: unknown } }[]): void {
   for (const row of rows.filter(isOpenQueueIssue)) {
     if (typeof row.payload.targetId === 'string') roots.add(row.payload.targetId);
     if (row.payload.type === 'create_node') roots.add(`pending-${row.opId}`);
@@ -64,4 +64,15 @@ export function addQueueIssueRoots(roots: Set<string>, rows: readonly { readonly
 /** Directed waits protect their prerequisite through its own facts, never through the dependent. */
 export function ingressProtectsNode(issue: LocalIssueRecord): boolean {
   return !issue.dependencyOpId && !issue.dependencyEventId;
+}
+
+/** A consumed sequence is independent of business success. Old receipts project identically. */
+export function withReceiptOutcome<T extends { readonly status: string; readonly opId: string; readonly recovery?: unknown }>(row: T,
+  receipt: { readonly kind?: string; readonly opId?: string; readonly result?: { readonly results?: unknown } } | undefined): T {
+  if (row.status !== 'terminal' || receipt?.kind !== 'terminal' || receipt.opId !== row.opId) return row;
+  const results = receipt.result?.results;
+  const result = Array.isArray(results) ? results.find(item => item?.opId === row.opId && item.status === 'rejected') : undefined;
+  if (!result) return row;
+  const code = typeof result.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(result.code) ? result.code : 'push_rejected';
+  return { ...row, recovery: { code, resultStatus: 'rejected' } };
 }

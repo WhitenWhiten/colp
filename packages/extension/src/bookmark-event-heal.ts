@@ -215,13 +215,13 @@ export function createBookmarkEventHealer(input: {
   async function blockerIsRejected(dependency: EventDependency): Promise<boolean> {
     if (dependency.opId) {
       const queued = await input.store.getQueueByOpId(input.scope, dependency.opId);
-      if (queued?.status === 'rejected') return true;
+      if ((queued?.status === 'rejected' || queued?.recovery?.resultStatus === 'rejected')) return true;
     }
     const mapping = await input.store.getMappingByNativeId(input.scope, dependency.nativeId);
     const token = mapping?.colpId.startsWith('pending-') ? mapping.colpId.slice('pending-'.length) : undefined;
     if (!token) return false;
     const queued = await input.store.getQueueByOpId(input.scope, token);
-    return queued?.status === 'rejected';
+    return (queued?.status === 'rejected' || queued?.recovery?.resultStatus === 'rejected');
   }
 
   async function seedIdentity(nativeId: string): Promise<LocalIdentity | null> {

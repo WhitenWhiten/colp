@@ -1,4 +1,4 @@
-import { isOpenQueueIssue } from './open-issue-facts.js';
+import { isOpenQueueIssue, withReceiptOutcome } from './open-issue-facts.js';
 import { dependsOnIssue, issueAncestry } from '../sync-issues.js';
 import { transactionIssueDependencies } from './issue-dependencies.js';
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
@@ -41,13 +41,20 @@ export async function firstLaneQueueRow(queue: IDBObjectStore, receipts: IDBObje
 /** Rows later changes of their bookmark wait for: open conflicts, rejections and held rows, in sequence order. */
 export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordBytes: number): Promise<QueueOperation[]> {
   const rows: unknown[] = [];
-  for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
+  for (const status of ['blocked', 'rejected', 'set_aside', 'terminal'] as const) {
     await iterateCursor(queue.index(INDEXES.queueByStatusSequence),
       IDBKeyRange.bound([key, status, 1], [key, status, Number.MAX_SAFE_INTEGER]), (value) => {
-        if (isOpenQueueIssue(value as QueueOperation)) rows.push(value);
+        rows.push(value);
       });
   }
-  return rows.map((value) => validateQueueRecord(value, maxRecordBytes)).sort((left, right) => left.sequence - right.sequence);
+  const projected: QueueOperation[] = [];
+  for (const value of rows) {
+    const row = validateQueueRecord(value, maxRecordBytes);
+    const receipt = row.status === 'terminal' ? await requestValue(queue.transaction.objectStore(STORES.receipts)
+      .index(INDEXES.queueBySequence).get([key, row.sequence])) : undefined;
+    const issue = withReceiptOutcome(row, receipt as never); if (isOpenQueueIssue(issue)) projected.push(issue);
+  }
+  return projected.sort((left, right) => left.sequence - right.sequence);
 }
 
 /**

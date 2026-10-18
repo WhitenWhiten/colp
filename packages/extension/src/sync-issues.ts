@@ -21,7 +21,7 @@ export interface OpenSyncIssues {
 
 export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string> } = {}): Promise<OpenSyncIssues> {
   const queue: QueueOperation[] = [];
-  if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
+  if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside', 'terminal'] as const) {
     let after = 0;
     for (;;) {
       const rows = await store.listQueue(scope, status, after, 1_000);

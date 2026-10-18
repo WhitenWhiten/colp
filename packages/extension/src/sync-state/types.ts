@@ -73,7 +73,7 @@ export interface QueueOperation {
     | 'set_aside';
   readonly retry: { readonly attempt: number; readonly notBefore: number; readonly ownerId?: string;
     readonly fence?: number; readonly claimExpiresAt?: number };
-  readonly recovery?: { readonly code: string; readonly expectedSequence?: number };
+  readonly recovery?: { readonly code: string; readonly expectedSequence?: number; readonly resultStatus?: 'rejected' };
   /** Set when the authoritative Pull echo for this opId has been applied. Survives pull-history prune. */
   readonly echoApplied?: true;
   readonly attempt?: { readonly sessionId: string; readonly batchId: string; readonly idempotencyKey: string;
