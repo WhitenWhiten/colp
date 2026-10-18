@@ -14,6 +14,7 @@ import { validateMapping, validateMappingRecord } from './mapping-repository.js'
 import { sameAckIntent } from './engine-validate.js';
 import { cursorIsConfirmed } from './cursor-confirmation.js';
 import { validateAckIntent, validateRecoveryPage, samePullEventRecord } from './pull-validate.js';
+import { pullIssueRange } from './pull-issue-repository.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
 /**
@@ -247,6 +248,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     // Effect-page download ledgers are keyed by effect, so range them by this scope's ids.
     await deleteByIndexRange(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope),
       IDBKeyRange.bound([key, `effect-download:${key}:`], [key, `effect-download:${key}:\uffff`]));
+    await deleteByIndexRange(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope), pullIssueRange(key));
     if (pages.length + events.length + intents.length === 0) return;
     tx.objectStore(STORES.diagnostics).put({ id: `recovery-cutover:${key}`, scopeKey: key,
       kind: 'recovery_pre_apply_state_discarded', code: 'recovery_snapshot_cutover',

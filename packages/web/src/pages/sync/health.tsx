@@ -48,6 +48,9 @@ export function issueSummary(issue: SyncReplicaIssue): string {
   switch (issue.code) {
     case 'conflict_pending': return 'Waiting for a conflict to be resolved'
     case 'conflict_hold': return 'Waiting for a conflict on this bookmark to be resolved'
+    case 'parent_set_aside': return 'Its folder couldn’t be added to this browser'
+    case 'record_too_large': return 'Too large for this browser to store'
+    case 'bounded_string_invalid': return 'A field is too long for this browser to store'
     case 'native_result_unknown': return 'Waiting for a decision in the browser'
     case 'waiting_dependency': return 'Waiting for another change to finish'
   }

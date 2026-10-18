@@ -1,3 +1,4 @@
+import { setAsidePullItem } from './pull-item-set-aside.js';
 import { createPullBookmarkEvidence, readOptional } from './pull-bookmark-evidence.js';
 import { createExpectation, executePullNativeCreate, recoverCreatedNative } from './pull-create-evidence.js';
 import { applyRemoteDeletion } from './pull-delete-apply.js';
@@ -76,6 +77,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (!ordinaryPullEventAllowed(authority, raw)) { await recoverSupersededPullEvent(options, authority, raw); continue; }
       const event = raw.payload as unknown as Extract<SyncPullEventV02, { kind: 'operation' }>;
       if (raw.state === 'staged') {
+        if (await setAsidePullItem(options, String(raw.eventId), event, now())) continue;
         if (await interceptStagedRemoteDelete(options, api, String(raw.eventId), String(raw.pageId), event, now) === 'skip') continue;
         options.crash?.('before_intent'); await prepare(raw.eventId as string, event);
       }

@@ -5,11 +5,12 @@ import type { AuthoritativePullEffect, Operation, SyncPullEventV02 } from '@know
 export const pullFixtures = Object.freeze({
   createEvent(input: { kind: 'Folder' | 'Bookmark' | 'Separator'; sequence: number; collectionId: string;
     parentId: string; replicaId?: string; afterId?: string; beforeId?: string; folderRole?: string;
-    extensions?: Record<string, unknown>; opId?: string }) {
+    extensions?: Record<string, unknown>; opId?: string; title?: string }) {
     const kind = input.kind.toLowerCase(); const operation: any = baseOperation('create_node', input);
     if (input.opId) operation.opId = input.opId;
-    const folderTitle = input.folderRole === 'recovered' ? 'Recovered' : 'Remote';
-    operation.payload = { parentId: input.parentId, node: kind === 'bookmark' ? { kind, title: 'Remote', url: 'https://example.test/' }
+    const folderTitle = input.title ?? (input.folderRole === 'recovered' ? 'Recovered' : 'Remote');
+    operation.payload = { parentId: input.parentId, node: kind === 'bookmark'
+      ? { kind, title: input.title ?? 'Remote', url: 'https://example.test/' }
       : kind === 'folder' ? { kind, title: folderTitle } : { kind } };
     const node = { ...fullNode(kind, `node-created-${input.sequence}`, input.collectionId, input.parentId, folderTitle),
       position: `p${input.sequence}`, ...(input.folderRole ? { folderRole: input.folderRole } : {}),

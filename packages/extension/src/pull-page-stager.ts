@@ -103,7 +103,9 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
     }
     const seenCursors = new Set<string>();
     const seenOperations = new Set<string>(); const seenEffects = new Set<string>(); const seenConflicts = new Map<string, 'open' | 'resolved'>();
-    const stagedCreates = new Set<string>();
+    // Nodes created earlier in this page have no mapping yet; neither do nodes
+    // set aside earlier. Events about either stage normally and are decided at apply.
+    const stagedCreates = new Set<string>((await options.store.listPullIssues(options.scope)).map((issue) => issue.nodeId));
     if (byteLength({ response, effectPages: suppliedPages })
         > sessionTransportBudget(options.session).effectAggregateBytes) throw new Error('pull_page_invalid');
     const effectPages: AuthoritativeEffectPage[] = suppliedPages.map((page) => plainJson(page) as unknown as AuthoritativeEffectPage);
