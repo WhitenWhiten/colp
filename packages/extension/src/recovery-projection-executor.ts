@@ -1,3 +1,4 @@
+import { SnapshotItemPreconditionError } from './snapshot-item-precondition.js';
 import { readOpenSyncIssues, issueProtectionIds } from './sync-issues.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import type { PullBookmarkApi } from './pull-applier.js';
@@ -92,7 +93,7 @@ type RecoveryStore = RecoveryContentStore & Pick<ReturnType<typeof createSyncSta
   | 'settleProjectionIntent' | 'exportScope' | 'putMapping' | 'getMappingByColpId' | 'deleteMapping'
   | 'getApplyIntent' | 'createApplyIntent' | 'findApplyIntent' | 'listApplyIntents'
   | 'persistApplyIntentFacts' | 'listLocalSyncExclusions' | 'getPullEvent'
-  | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'
+  | 'recordLocalIssue' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'
   | 'putLocalSyncExclusion' | 'markPullBrowserCallStarted' | 'recordPullApiEvidence' | 'getMappingByNativeId'>;
 
 export async function recoverSnapshotProjection(input: {
@@ -251,6 +252,13 @@ export async function executeProjectionIntents(input: {
       });
       observed = await perform(input.api, activeIntent, mappings, snapshotMappings, occupancy, input);
     } catch (error) {
+      if (error instanceof SnapshotItemPreconditionError && error.subject?.nativeId) {
+        await input.store.recordLocalIssue(input.scope, { code: error.code, nativeId: error.subject.nativeId, now: Date.now() });
+        const prior = liveMappings.find(row => row.colpId === intent.colpId);
+        if (prior) mappings.set(intent.colpId, prior);
+        await input.store.settleProjectionIntent(input.scope, intent.intentId, { state: 'pending' });
+        continue;
+      }
       // Never swallow a native update/move/delete failure. Persist a durable
       // retryable state so a subsequent worker can resume from this intent
       // without guessing whether Chrome applied the side effect.
@@ -314,8 +322,10 @@ function prepareMoveIntent(
 export async function collectNativeFacts(api: PullBookmarkApi, rootNativeId: string): Promise<NativeFact[]> {
   const facts: NativeFact[] = [];
   const visit = async (nativeId: string, parentNativeId: string | undefined) => {
-    const nodes = await api.get(nativeId);
-    const node = nodes[0];
+    const looked = await lookupBookmark(id => api.get(id), nativeId);
+    if (looked.class === 'not_found') return;
+    if (looked.class !== 'present') throw new Error(looked.message);
+    const node = looked.nodes[0];
     if (!node) return;
     const siblings = parentNativeId ? await api.getChildren(parentNativeId) : [];
     const index = siblings.findIndex((item) => item.id === nativeId);

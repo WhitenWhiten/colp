@@ -1,3 +1,6 @@
+import { readNativeIdentity } from './recovery-guard.js';
+import { digestJson } from './bookmark-event-codec.js';
+import type { JsonObject } from './sync-state-store.js';
 import { lookupBookmark, type BookmarkNode } from './bookmark-api-error.js';
 import { BOOKMARK_CREATE_PLACEMENT_KEY_PREFIX, parseBookmarkCreatePlacementRecord } from './bookmark-create-placement.js';
 import type { StorageArea } from './credential-store.js';
@@ -51,4 +54,25 @@ export async function recoverLocalSaveFreeze(input: {
   await input.assertCurrent();
   return input.store.resumeLocalPlacementRecovery(input.scope, { engineRevision: proof.engine.revision,
     nativeId: proof.nativeId, mappingDigest: proof.mappingDigest, now: (input.now ?? Date.now)() });
+}
+
+/** Localize an old mapped-identity freeze only after fresh native reads identify its subjects. */
+export async function recoverMappedIdentityFreeze(input: {
+  readonly scope: SyncScope; readonly store: Pick<ReturnType<typeof createSyncStateStore>,
+    'getEngineState' | 'listMappings' | 'recordLocalIssue' | 'resumeMappedIdentityRecovery'>;
+  readonly api: { get(id: string): Promise<readonly BookmarkNode[]> }; readonly assertCurrent: () => Promise<void>;
+}): Promise<boolean> {
+  const engine = await input.store.getEngineState(input.scope);
+  if (!engine?.recoveryFrozen || engine.lastError !== 'recovery_identity_unproven') return false;
+  await input.assertCurrent();
+  const mappings = await input.store.listMappings(input.scope);
+  const identity = await readNativeIdentity(mappings, input.api, new Map());
+  if (identity.state === 'unreadable') throw new Error(identity.message);
+  if (identity.state !== 'unproven') return false;
+  for (const row of identity.subjects) await input.store.recordLocalIssue(input.scope, {
+    nativeId: row.nativeId, code: 'recovery_identity_unproven', now: Date.now(),
+  });
+  await input.assertCurrent();
+  return input.store.resumeMappedIdentityRecovery(input.scope, { engineRevision: engine.revision,
+    mappingDigest: digestJson(mappings as unknown as JsonObject[]), nativeIds: identity.subjects.map(row => row.nativeId), now: Date.now() });
 }

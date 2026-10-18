@@ -171,23 +171,18 @@ describe('SR-02 follow-up: a failed identity read is not an unproven identity', 
     assert.notEqual(engine?.lastError, 'recovery_identity_unproven');
   });
 
-  test('an explicit not_found still freezes as recovery_identity_unproven', async () => {
+  test('an explicit not_found records its subject without freezing the scope', async () => {
     const { fixture, run } = await driveIdentityRead(chromeApi({
-      get: async () => { throw new Error(CHROME_BOOKMARK_NOT_FOUND); },
+      get: async () => { throw new Error(CHROME_BOOKMARK_NOT_FOUND); }, getChildren: async () => [],
     }));
-    await assert.rejects(run, /recovery_identity_unproven/u);
-    assert.equal((await fixture.store.getScope(engineScope))?.lifecycle, 'recovery_required');
-    assert.equal((await fixture.store.getScope(engineScope))?.metadata?.recoveryCode, 'recovery_identity_unproven');
-    const engine = await fixture.store.getEngineState(engineScope);
-    assert.equal(engine?.recoveryFrozen, true);
-    assert.equal(engine?.lastError, 'recovery_identity_unproven');
+    await run();
+    assert.notEqual((await fixture.store.getEngineState(engineScope))?.recoveryFrozen, true);
+    assert.equal((await fixture.store.listLocalIssues(engineScope))[0]?.nativeId, 'native-root');
   });
 
-  test('a completed read that reports no node is still an unproven identity', async () => {
-    // The pre-B3-1 lenient double answered `[]` instead of rejecting; that answer *is* a completed
-    // read with nothing behind the mapping, so the identity freeze it produced stays.
+  test('an empty API result remains a read failure, not verified absence', async () => {
     const { fixture, run } = await driveIdentityRead(chromeApi({ get: async () => [] }));
-    await assert.rejects(run, /recovery_identity_unproven/u);
-    assert.equal((await fixture.store.getEngineState(engineScope))?.lastError, 'recovery_identity_unproven');
+    await assert.rejects(run, /bookmark_lookup_empty/u);
+    assert.equal((await fixture.store.listLocalIssues(engineScope)).length, 0);
   });
 });

@@ -1,3 +1,4 @@
+import { SnapshotItemPreconditionError } from './snapshot-item-precondition.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { virtualNativeId } from './projection-native-occupancy.js';

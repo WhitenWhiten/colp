@@ -81,5 +81,30 @@ export function createLocalPlacementRecoveryRepository(ctx: SyncStoreRuntime) {
     });
     return resumed;
   }
-  return { getLocalPlacementRecovery, resumeLocalPlacementRecovery };
+  async function resumeMappedIdentityRecovery(input: SyncScope, proof: {
+    readonly engineRevision: number; readonly mappingDigest: string; readonly nativeIds: readonly string[]; readonly now: number;
+  }): Promise<boolean> {
+    ctx.assertWritable(); const key = scopeKey(validateScope(input)); let resumed = false;
+    await runTransaction(await ctx.writableDatabase(), TABLES, 'readwrite', async tx => {
+      const scope = await requestValue<ScopeRecord | undefined>(tx.objectStore(STORES.scopes).get(key));
+      const engine = await requestValue<DurableSyncEngineState | undefined>(tx.objectStore(STORES.engine).get(key));
+      if (!scope || !engine?.recoveryFrozen || engine.revision !== proof.engineRevision || engine.lastError !== ERROR
+          || engine.localProjectionOwner !== undefined
+          || scope.metadata?.recoveryCode !== undefined && scope.metadata.recoveryCode !== ERROR) return;
+      const mappings = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.mappings).getAll(scopeRowsRange(key)));
+      if (!proof.nativeIds.length || digestJson(mappings as JsonObject[]) !== proof.mappingDigest) return;
+      for (const nativeId of proof.nativeIds) {
+        if (!mappings.some(row => row.nativeId === nativeId)
+            || !await requestValue(tx.objectStore(STORES.diagnostics).get(`local-issue:${key}:${ERROR}:${nativeId}`))) return;
+      }
+      const { recoveryCode: _code, ...metadata } = scope.metadata ?? {};
+      tx.objectStore(STORES.scopes).put(validateScopeRecord({ ...scope, metadata }, ctx.maxRecordBytes));
+      const { lastError: _error, ...prior } = engine;
+      tx.objectStore(STORES.engine).put(validateEngineState({ ...prior, revision: engine.revision + 1,
+        phase: 'recovery', recoveryFrozen: true, authorityRefreshRequired: true, updatedAt: proof.now, notBefore: 0 }));
+      resumed = true;
+    });
+    return resumed;
+  }
+  return { getLocalPlacementRecovery, resumeLocalPlacementRecovery, resumeMappedIdentityRecovery };
 }

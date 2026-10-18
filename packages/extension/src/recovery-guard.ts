@@ -50,9 +50,8 @@ export async function recoverVerifiedOrFreeze(input: {
       .map(intent => [intent.nativeId!, intent.colpId]));
     for (const mapping of live) if (localDeletes.has(mapping.colpId)) deleting.set(mapping.nativeId, mapping.colpId);
     const identity = await readNativeIdentity(live, input.api, deleting);
-    if (identity.state === 'unproven') {
-      await freezeScopeRecovery(input.store, input.scope, 'recovery_identity_unproven');
-      throw new SyncFailureError('recovery_identity_unproven');
+    if (identity.state === 'unproven') for (const mapping of identity.subjects) {
+      await input.store.recordLocalIssue(input.scope, { code: 'recovery_identity_unproven', nativeId: mapping.nativeId, now: Date.now() });
     }
     // SR-02: a read that never completed proves nothing about identity. Surfacing the raw API
     // message hands a genuine permission / managed / transient fault to the existing
@@ -135,35 +134,25 @@ function matchStagedMount(mounts: readonly MountBindingRecord[], mapping: Mappin
   return mounts.find((mount) => mount.remoteMountNodeId === mapping.colpId);
 }
 
-/**
- * SR-02: what a live mapping's native read actually told us. `hasUnprovenNativeIdentity` used to
- * answer this with a boolean fed by `.catch(() => [])`, so a failed read was indistinguishable from
- * an observed absence and a real fault froze the scope as `recovery_identity_unproven`.
- *
- * - `proven`: every live mapping read back its node;
- * - `unproven`: absence was *observed* - `not_found`, or a completed read that reported no node;
- * - `unreadable`: the read failed (`permission_denied` / `managed_not_writable` / `other_failure`),
- *   which is evidence about the API, never about identity.
- */
+/** Fresh reads distinguish a concrete missing/ambiguous identity from API access failures. */
 type NativeIdentityRead =
   | { readonly state: 'proven' }
-  | { readonly state: 'unproven' }
+  | { readonly state: 'unproven'; readonly subjects: readonly MappingInput[] }
   | { readonly state: 'unreadable'; readonly message: string };
 
-async function readNativeIdentity(live: readonly MappingInput[], api: PullBookmarkApi,
+export async function readNativeIdentity(live: readonly MappingInput[], api: Pick<PullBookmarkApi, 'get'>,
   deleting: ReadonlyMap<string, string>): Promise<NativeIdentityRead> {
+  const subjects: MappingInput[] = [];
   for (const mapping of live) {
     if (virtualNativeId(mapping.nativeId)) continue;
     const looked = await lookupBookmark((nativeId) => api.get(nativeId), mapping.nativeId);
-    if (looked.class === 'present') continue;
-    if (looked.class === 'not_found' && deleting.get(mapping.nativeId) === mapping.colpId) continue;
-    // `not_found` is verified absence. `bookmark_lookup_empty` is how the seam reports a read that
-    // completed and answered `[]` - the pre-B3-1 lenient contract, but still an observed absence
-    // rather than a failure, so the identity freeze it produced stays.
-    if (looked.class === 'not_found' || looked.message === 'bookmark_lookup_empty') {
-      return { state: 'unproven' };
+    if (looked.class === 'present') {
+      if (looked.nodes.length !== 1 || looked.nodes[0]?.id !== mapping.nativeId) subjects.push(mapping);
+      continue;
     }
+    if (looked.class === 'not_found' && deleting.get(mapping.nativeId) === mapping.colpId) continue;
+    if (looked.class === 'not_found') { subjects.push(mapping); continue; }
     return { state: 'unreadable', message: looked.message };
   }
-  return { state: 'proven' };
+  return subjects.length ? { state: 'unproven', subjects } : { state: 'proven' };
 }

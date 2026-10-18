@@ -109,7 +109,7 @@ test('local projection resumes nonterminal intent even after all child mappings 
   assert.equal([...fixture.chromeNodes.values()].filter((node) => node.title === 'Child').length, 1);
 });
 
-test('projector identity failure takes ownership away from local projection', async () => {
+test('an empty native read retains local projection recovery without inventing an identity failure', async () => {
   const fixture = await interrupted('after_local_projection');
   const intents = await fixture.store.listProjectionIntents(scope);
   await fixture.store.settleProjectionIntent(scope, intents[0]!.intentId, { state: 'executing' });
@@ -117,15 +117,15 @@ test('projector identity failure takes ownership away from local projection', as
   await fixture.reopen().wake('startup');
   const state = (await fixture.store.getEngineState(scope))!;
   assert.equal(state.recoveryFrozen, true);
-  assert.equal(state.authorityRefreshRequired, true);
-  assert.equal(state.lastError, 'recovery_identity_unproven');
-  assert.equal(state.localProjectionOwner, undefined);
+  assert.equal(state.authorityRefreshRequired, false);
+  assert.equal(state.lastError, 'bookmark_lookup_empty');
+  assert.ok(state.localProjectionOwner);
   const sessionCalls = fixture.sessionForces.length;
   fixture.clock.now += 60_000;
   await fixture.reopen().wake('startup');
-  assert.equal((await fixture.store.getEngineState(scope))?.lastError, 'recovery_identity_unproven');
+  assert.equal((await fixture.store.getEngineState(scope))?.lastError, 'bookmark_lookup_empty');
   assert.equal((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
-  assert.equal(fixture.sessionForces.length, sessionCalls);
+  assert.ok(fixture.sessionForces.length > sessionCalls);
 });
 
 test('refreshing transport authority cannot clear an unproven deletion identity', async () => {

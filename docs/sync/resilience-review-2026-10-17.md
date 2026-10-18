@@ -199,3 +199,28 @@ independent siblings and an already executing delete intent. The six affected
 Snapshot/delete/Rebuild suites passed 64 tests; the final issue-helper check passed
 11 tests. Typecheck and changed-file ESLint passed. Explicit Rebuild still archives
 old evidence and creates a clean new replica (pull-issue-rebuild tests).
+
+### Task 3 — localize mapped identity and placement failures
+
+Root cause: recovery and reconciliation emitted subjectless identity freezes and
+the engine's old gate could never re-enter recovery. Fresh native reads now record
+concrete local subjects for observed absence or ambiguous ID responses. Permission,
+managed and transient/empty API reads retain their own failure semantics. Shared
+issue closure holds dependent work; reconciliation cannot infer a delete for an
+identity already under protection. Pre-native Snapshot content/placement identity
+checks carry subjects and retain retryable intents while independent projection
+continues. Unknown/started native calls keep their original recovery path.
+
+Old mapped-identity freezes can hand back to authority recovery only after fresh
+reads identify missing/ambiguous subjects and an IDB transaction checks the engine
+revision, complete mapping digest and durable issue facts. Other corruption codes
+and unknown projection owners are not released. The previous local-save receipt
+migration remains intact.
+
+Before: the new real-module regression threw recovery_identity_unproven before
+independent Pull could run. After: eight affected suites passed 86 tests, including
+concrete missing/ambiguous identities, real independent Pull, worker reopen, old
+freeze wake, permission rejection, existing placement/native recovery and classifier
+checks. Typecheck and changed-file lint passed. Existing tests that expected the
+old permanent identity freeze were corrected; empty API reads now retain the
+projection owner and can retry instead of falsely asserting identity loss.

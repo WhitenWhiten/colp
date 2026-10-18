@@ -1,6 +1,6 @@
 import { createQueueRecapture } from '../queue-recapture.js';
 import { repairOwnCreateFromNative } from '../bookmark-own-create-repair.js';
-import { recoverLocalSaveFreeze } from '../local-save-freeze-recovery.js';
+import { recoverLocalSaveFreeze, recoverMappedIdentityFreeze } from '../local-save-freeze-recovery.js';
 import { assertBootstrapUploadAllowed } from '../bootstrap/upload-boundary.js';
 import { withSubscriptionRead } from '../bookmark-subscriptions/barrier.js';
 import { assertSubscriptionUploadAllowed } from '../bookmark-subscriptions/personal-boundary.js';
@@ -95,6 +95,8 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   });
   const frozenBeforeWake = (await syncState.getEngineState(scope))?.recoveryFrozen === true;
   if (permissionGranted && frozenBeforeWake) {
+    await recoverMappedIdentityFreeze({ scope, store: syncState, api: chrome.bookmarks,
+      assertCurrent: async () => { await store.assertWritable(context.generation); } });
     await recoverLocalSaveFreeze({ scope, store: syncState, storage: chrome.storage.local, api: chrome.bookmarks,
       assertCurrent: async () => { await store.assertWritable(context.generation); } }).catch(() => undefined);
   }

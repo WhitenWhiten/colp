@@ -254,9 +254,9 @@ describe('KNS-10 scope detach, deletion journal and recovery', () => {
     const unknownChrome = countingChrome([{ id: '1', title: 'Root' }]);
     await assert.rejects(() => recoverVerifiedOrFreeze({
       scope, store: unknown, staged: [], api: unknownChrome.api, freezeUnprovenIdentity: true,
-    }), /recovery_identity_unproven/);
+    }), /bookmark_lookup_empty/);
     assert.equal(unknownChrome.destructive, 0);
-    assert.equal((await unknown.getEngineState(scope))?.lastError, 'recovery_identity_unproven');
+    assert.notEqual((await unknown.getEngineState(scope))?.lastError, 'recovery_identity_unproven');
   });
 
   test('detached mount Pull delete does not mutate Chrome or drop mapping', async () => {

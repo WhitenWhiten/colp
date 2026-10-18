@@ -4,9 +4,9 @@ import {
   authoritativeColpId, classifyObservedNative, identityFromMapping, type FirstRunPhase, type NodeIdentity,
 } from './bookmark-node-identity.js';
 import { virtualNativeId } from './projection-native-occupancy.js';
-import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { resolveIngressBoundary } from './bookmark-event-ingress.js';
 import { nativeIsLocallyExcluded } from './remote-delete-exclusion.js';
+import { readOpenSyncIssues, dependsOnIssue, issueAncestry } from './sync-issues.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import type { BookmarkEventNode } from './bookmark-event-codec.js';
 import type { BookmarkEventRecord, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -60,8 +60,11 @@ export async function reconcileBookmarkTree(host: ReconcileHost): Promise<void> 
   const missing = mappings.filter((mapping) => selectedNative.includes(mapping.rootNativeId)
     && !selectedNative.includes(mapping.nativeId) && !privateNative.has(mapping.nativeId)
     && !seen.has(mapping.nativeId) && !virtualNativeId(mapping.nativeId));
+  const openIssues = await readOpenSyncIssues(host.store, host.scope);
+  const parents = issueAncestry(mappings);
   const missingIds = new Set(missing.map((mapping) => mapping.nativeId));
   for (const mapping of missing) {
+    if (dependsOnIssue([mapping.colpId], openIssues.roots, parents)) continue;
     if (mapping.parentNativeId && missingIds.has(mapping.parentNativeId)) continue;
     const mappingParentChain = mappingParentNativeChain(mapping, mappings);
     if (await nativeIsLocallyExcluded(host.store, host.scope, mapping.nativeId, mappingParentChain)) continue;
@@ -109,7 +112,8 @@ async function recoverObservedNative(host: ReconcileHost, input: {
     await host.created(nativeId, input.node); return host.identityFor(nativeId);
   }
   if (classified.kind === 'needs_attention') {
-    await freezeScopeRecovery(host.store, host.scope, 'recovery_identity_unproven');
+    await host.store.recordLocalIssue(host.scope, { code: 'recovery_identity_unproven', nativeId,
+      title: input.node.title, now: Date.now() });
   }
   return null;
 }

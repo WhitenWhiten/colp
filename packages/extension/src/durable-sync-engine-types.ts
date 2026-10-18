@@ -29,6 +29,7 @@ export interface EngineOptions {
   readonly fetch?: typeof fetch; readonly requestTimeoutMilliseconds?: number;
   readonly now?: () => number; readonly random?: () => number;
   readonly schedule?: (delayMilliseconds: number) => void;
+  readonly recoverIdentityFreeze?: () => Promise<boolean>;
   readonly snapshotProjector: (staged: readonly MappingInput[]) => Promise<readonly MappingInput[]>;
   readonly boundary?: (point: 'before_pull' | 'after_pull' | 'after_pull_apply' | 'before_ack' | 'after_ack'
     | 'before_snapshot_page' | 'after_snapshot_page') => void | Promise<void>;

@@ -1,3 +1,4 @@
+import { SnapshotItemPreconditionError } from './snapshot-item-precondition.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import { durableEventDetails, digestJson } from './bookmark-event-codec.js';
 import { withinPrivateNativeBoundary } from './native-private-boundary.js';
@@ -60,7 +61,7 @@ export async function applySnapshotPlacement(input: {
   await assertPlacementBoundary(store, scope, api, prior, remoteParent, mounts);
 
   const looked = await lookupBookmark(id => api.get(id), prior.nativeId);
-  if (looked.class === 'not_found') throw new SyncFailureError('snapshot_placement_target_missing');
+  if (looked.class === 'not_found') throw new SnapshotItemPreconditionError('snapshot_placement_target_missing', { nodeId: prior.colpId, nativeId: prior.nativeId });
   if (looked.class !== 'present') throw new Error(looked.message);
   const currentParentId = looked.nodes[0]?.parentId;
   const currentIndex = looked.nodes[0]?.index;
@@ -71,12 +72,12 @@ export async function applySnapshotPlacement(input: {
   if (currentParentId !== prior.parentNativeId && currentParentId !== undefined) {
     const localParent = await store.getMappingByNativeId(scope, currentParentId);
     if (!localParent || virtualNativeId(localParent.nativeId)) {
-      throw new SyncFailureError('snapshot_placement_local_identity_unproven');
+      throw new SnapshotItemPreconditionError('snapshot_placement_local_identity_unproven', { nodeId: prior.colpId, nativeId: prior.nativeId });
     }
     await assertPlacementBoundary(store, scope, api, prior, localParent, mounts);
     if (!pendingLocal) await stageLocalMove(store, scope, prior, localParent);
   } else if (pendingLocal && currentParentId === undefined) {
-    throw new SyncFailureError('snapshot_placement_local_identity_unproven');
+    throw new SnapshotItemPreconditionError('snapshot_placement_local_identity_unproven', { nodeId: prior.colpId, nativeId: prior.nativeId });
   }
 
   await api.move(prior.nativeId, {

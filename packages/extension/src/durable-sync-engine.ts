@@ -67,8 +67,10 @@ export function createDurableSyncEngine(options: EngineOptions) {
     let current = await state();
     if (scope.lifecycle === 'retired') return transition('retired', { recoveryFrozen: true });
     if (current.phase === 'error' && !circuitIsStopped(current) && reason !== 'manual' && reason !== 'startup') return current;
+    if (current.recoveryFrozen && holdsUnprovenIdentity(current.lastError) && await options.recoverIdentityFreeze?.()) current = await state();
     // A server-capped payload_too_large is terminal: refreshing authority reproduces the same 413.
-    const recoveryCode = typeof scope.metadata?.recoveryCode === 'string' ? scope.metadata.recoveryCode : undefined;
+    const recoveryScope = await options.store.getScope(options.scope);
+    const recoveryCode = typeof recoveryScope?.metadata?.recoveryCode === 'string' ? recoveryScope.metadata.recoveryCode : undefined;
     if (current.recoveryFrozen && (holdsUnprovenIdentity(current.lastError)
         || current.lastError === 'payload_too_large' || needsReplicaRebuild(current.lastError)
         || recoveryCode === 'payload_too_large' || holdsUnprovenIdentity(recoveryCode) || needsReplicaRebuild(recoveryCode))) {
