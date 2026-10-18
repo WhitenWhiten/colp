@@ -27,6 +27,7 @@
     "i18n:write": "node scripts/i18n-catalog.mjs --write",
     "test": "vitest run --dir tests && node scripts/test-local-first.mjs",
     "test:local-first-lifecycle": "node scripts/test-local-first.mjs",
+    "test:sync-model": "vitest run model-tests && tsc -p model-tests/tsconfig.json",
     "test:sync-real-stack": "vitest run tests/effect-page-download.test.ts tests/pull-applier.test.ts tests/pull-applier.contract.test.ts tests/recovery-store.test.ts tests/recovery-projection-executor.test.ts tests/recovery-overlay.test.ts tests/recovery-projection-siblings.test.ts tests/authority-fence.test.ts",
     "test:sync-budget-contract": "vitest run tests/transport-budget.test.ts",
     "test:coverage:sync": "vitest run --config vitest.sync-coverage.config.ts --coverage && node scripts/check-sync-coverage-ratchet.mjs",

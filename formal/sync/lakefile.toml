@@ -1,0 +1,14 @@
+name = "colp_sync_model"
+version = "0.1.0"
+defaultTargets = ["ColpSync", "sync_check", "sync_export"]
+
+[[lean_lib]]
+name = "ColpSync"
+
+[[lean_exe]]
+name = "sync_check"
+root = "Main"
+
+[[lean_exe]]
+name = "sync_export"
+root = "Export"

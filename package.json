@@ -10,6 +10,8 @@
     "scan:secrets": "node scripts/scan-tracked-secrets.mjs",
     "example:publication": "node packages/node/examples/publication-server.mjs",
     "conformance": "node packages/conformance/bin/colp-conformance.mjs",
-    "conformance:sync-resilience": "node packages/conformance/bin/colp-sync-resilience.mjs"
+    "conformance:sync-resilience": "node packages/conformance/bin/colp-sync-resilience.mjs",
+    "model:sync": "cd formal/sync && lake build && lake exe sync_check && lake env lean Audit.lean",
+    "model:sync:implementation": "npm run model:sync && npm --prefix packages/extension run test:sync-model"
   }
 }

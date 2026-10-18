@@ -1,0 +1,29 @@
+import ColpSync
+
+#print axioms ColpSync.Pull.run_safe
+#print axioms ColpSync.Pull.ack_requires_accounted_page
+#print axioms ColpSync.Command.command_executes_at_most_once
+#print axioms ColpSync.Health.revision_never_rewinds
+#print axioms ColpSync.Health.repeated_preflight_failures
+#print axioms ColpSync.Health.pending_upload_never_sent_in_failed_cycles
+#print axioms ColpSync.Push.retry_forever_can_block_independent_tail
+#print axioms ColpSync.Cursor.detached_write_ordinal_monotone
+#print axioms ColpSync.Cursor.connected_chain_shortcut
+#print axioms ColpSync.Ledger.run_ack_safe
+#print axioms ColpSync.Ledger.detached_completion_preserves_cursor
+#print axioms ColpSync.Ledger.stale_generation_cannot_settle
+#print axioms ColpSync.Ledger.missing_identity_cannot_settle
+#print axioms ColpSync.Ledger.pruning_retains_unresolved
+#print axioms ColpSync.Ledger.unresolved_debt_survives_arbitrary_progress
+#print axioms ColpSync.Authority.stale_rebase_is_atomic_noop
+#print axioms ColpSync.Authority.pending_work_blocks_rebase
+#print axioms ColpSync.Authority.stale_finish_is_atomic_noop
+#print axioms ColpSync.Authority.same_revision_can_still_require_handoff_refusal
+#print axioms ColpSync.Recovery.trace_preserves_unknown
+#print axioms ColpSync.Recovery.activation_requires_completed_bootstrap
+#print axioms ColpSync.Recovery.fresh_completion_breaks_pending_freeze_policy
+#print axioms ColpSync.Recovery.crash_changes_freeze_outcome
+#print axioms ColpSync.AckFence.stale_rejection_rolls_back
+#print axioms ColpSync.AckFence.discarded_intent_cannot_be_completed
+#print axioms ColpSync.AckFence.activation_requires_receipt
+#print axioms ColpSync.AckFence.old_receipt_cannot_resurrect_rejected_ack

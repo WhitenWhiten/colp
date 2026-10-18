@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["./*.ts", "../src/chrome.d.ts", "../src/bookmark-subscriptions/chrome-external.d.ts"],
+  "exclude": []
+}
