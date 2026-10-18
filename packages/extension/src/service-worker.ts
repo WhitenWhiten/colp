@@ -49,6 +49,7 @@ import { FOLDERS_FIRST_ALARM, installNativeFoldersFirst, installNativeFoldersFir
 import { installWorkerMetadataWake } from './sw/metadata-sync-wake.js';
 import { bindLibraryOnStartup } from './sw/library.js';
 import { handleSyncEngineRequest, scheduleSyncEngineWake } from './sw/engine.js';
+import { REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES, reportReplicaHealth } from './sw/replica-health.js';
 import { handleSyncStateEvidence } from './sw/evidence.js';
 import { clearFaviconForCurrentScope, drainFaviconSidecarsForCurrentScope, readFaviconPolicyForCurrentScope, resolveFaviconSaveContext, resolveLocalSaveContext } from './sw/favicon.js';
 import { handleFirstRunRequest, handleScopeCommand } from './sw/first-run.js';
@@ -124,6 +125,7 @@ void purgeLegacyLocalAuthority(chrome.storage.local).catch(() => undefined);
 // Registered on every worker boot as well as at install: the alarm is
 // idempotent, and re-creating it repairs a registration the platform dropped.
 ensureBookmarkReconcileAlarm();
+void ensurePeriodicAlarm(chrome, REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES);
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'update') void retireClassificationConfirmations().catch(() => undefined);
   return onExtensionInstalled(details);
@@ -140,6 +142,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === CAPTURE_ALARM) void flushCaptureFeedback().catch(() => undefined);
   if (alarm.name === CAPTURE_ALARM) void flushCaptureReports().catch(() => undefined);
   if (alarm.name === 'known-sync-engine') scheduleSyncEngineWake('alarm');
+  if (alarm.name === REPLICA_HEALTH_ALARM) void reportReplicaHealth();
   if (alarm.name === FAVICON_SIDECAR_ALARM) void drainFaviconSidecarsForCurrentScope();
   if (alarm.name === BOOKMARK_RECOVERY_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
   if (alarm.name === BOOKMARK_RECONCILE_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');

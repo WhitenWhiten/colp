@@ -4,6 +4,10 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+### Added
+
+- The extension tells the server's Sync center how its sync stands: syncing, degraded (some items set aside), stopped (with the reason code) or paused. It reports after every sync pass when something changed and at least every 15 minutes, through `POST /colp/v0.1/sync/replica-health`. A stopped engine still reports, and the report is the only request it makes: it needs no Sync Session and renews nothing. While paused it names no bookmarks; after a deliberate disconnect it reports nothing. A server without the route is asked again after six hours.
+
 ### Changed
 
 - The source moved from the private Know-N repository into `packages/extension` of the COLP repository. It builds from this repository alone: Know-N's design tokens, styles, icon paths and wordmark are copied into `design/`, the capture metrics into `src/capture/statistics.ts`, and the API types come from `packages/server`. Browser tests run against COLP Server by default.

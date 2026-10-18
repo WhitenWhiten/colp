@@ -35,6 +35,7 @@ import { resumeRunningBootstrap } from './first-run.js';
 import { hasBookmarkPermission, extensionOrigin, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAuthority, restoredSyncScope } from './scope.js';
 import { createSyncAlarmScheduler } from '../sync-alarm.js';
+import { reportReplicaHealth } from './replica-health.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
@@ -54,6 +55,9 @@ export function scheduleSyncEngineWake(reason: 'startup' | 'alarm' | 'online' | 
   const operation = workCoordinator.run('engine', async (context) => {
     try { await runSyncEngine(reason, connectivityRestored, context); }
     finally {
+      // Every pass, including one a stopped engine returns from at once, tells
+      // the Sync center where this browser stands.
+      void reportReplicaHealth();
       if (reason === 'online' && connectivityRestored) {
         sw.confirmedOnlineWakePending = false;
         sw.coalescedOnlineWake = undefined;
