@@ -94,7 +94,7 @@ test('local issue protects descendants and ancestors without protecting independ
 
 test('Snapshot retains an unresolved real native-create wait without creating a second copy', async () => {
   const { setupT02, reopenT02, t02Scope } = await import('./srg-t02-native-harness.js');
-  const { projectNativeWaits } = await import('../src/native-wait.js');
+  const { projectNativeWaits, confirmNativeWait } = await import('../src/native-wait.js');
   const f = await setupT02('after_create_before_evidence');
   try {
     const event: any = f.createEvent();
@@ -125,6 +125,19 @@ test('Snapshot retains an unresolved real native-create wait without creating a 
     await resumed.store.commitRecovery(t02Scope, 'wait-snapshot');
     assert.equal((await projectNativeWaits(resumed.store, t02Scope)).length, 1);
     assert.ok(projected.some(row => row.colpId === created.colpId));
+    await resumed.store.prunePullHistory(t02Scope, 1, { maxEvents: 1, maxBytes: 1 });
+    resumed.store.close();
+    const [wait] = await projectNativeWaits(resumed.store, t02Scope); assert.ok(wait);
+    const rootBefore = await resumed.store.getMappingByColpId(t02Scope, root.colpId);
+    const nativeId = f.api.calls.find(call => call.kind === 'create')!.nativeId!;
+    assert.equal((await confirmNativeWait({ scope: t02Scope, store: resumed.store, api: resumed.api,
+      waitRef: wait.waitRef, intentId: wait.intentId, generation: t02Scope.generation, action: 'bind', nativeId })).ok, true);
+    await resumed.applier.resume();
+    assert.equal((await resumed.store.getCursor(t02Scope))?.cursor, 'wait-cursor');
+    assert.deepEqual(await resumed.store.getMappingByColpId(t02Scope, root.colpId), rootBefore);
+    assert.equal(f.api.calls.filter(call => call.kind === 'create').length, before + 1);
+    assert.equal((await projectNativeWaits(resumed.store, t02Scope)).length, 0);
+
   } finally { f.store.close(); }
 });
 

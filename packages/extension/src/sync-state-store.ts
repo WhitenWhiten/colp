@@ -1,3 +1,4 @@
+import { createPullNativeDeferralRepository } from './sync-state/pull-native-deferral-repository.js';
 import { createQueueBatchRepository } from './sync-state/queue-batch-repository.js';
 import { createLocalPlacementRecoveryRepository } from './sync-state/local-placement-recovery-repository.js';
 import { createNativeMutationRepository } from './sync-state/native-mutation-repository.js';
@@ -59,7 +60,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
   const batch = createBatchRepository(ctx);
   const facts = createScopeFactsRepository(ctx);
   return Object.freeze({
-    ...createLocalPlacementRecoveryRepository(ctx),
+    ...createLocalPlacementRecoveryRepository(ctx), ...createPullNativeDeferralRepository(ctx),
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
     ...createNativeMutationRepository(ctx),
     ...createQueueBatchRepository(ctx), ...createPullIssueRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),
@@ -101,7 +102,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     completeClaimedQueueWithReceipt: queue.completeClaimedQueueWithReceipt,
     publishCursor: queue.publishCursor, createApplyIntent: pull.createApplyIntent,
     findApplyIntent: pull.findApplyIntent, getApplyIntent: pull.getApplyIntent,
-    listApplyIntents: intentFacts.listApplyIntents, persistApplyIntentFacts: intentFacts.persistApplyIntentFacts,
+    listNativeWaitIntents: intentFacts.listNativeWaitIntents, listApplyIntents: intentFacts.listApplyIntents, persistApplyIntentFacts: intentFacts.persistApplyIntentFacts,
     hasActiveApplyIntentForNativeTarget: pull.hasActiveApplyIntentForNativeTarget,
     commitApplyIntent: pull.commitApplyIntent,
     stagePullPage: pull.stagePullPage, listPullEvents: pull.listPullEvents,

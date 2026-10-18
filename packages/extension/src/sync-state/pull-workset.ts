@@ -1,3 +1,4 @@
+import { pullDeferral } from '../pull-deferral.js';
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
 import { markQueuePullEchoApplied } from './pull-queue-echo.js';
 import { pullEventCallFact } from './recovery-repository.js';
@@ -215,6 +216,11 @@ export async function pruneCompletedPullPages(tx: IDBTransaction, key: string, l
     const page = value as UnknownRecord;
     if (page.state === 'page_complete' && page.completedAt !== undefined) completed.push(page);
   });
+  const retainedIntents = new Set<string>();
+  await iterateCursor(events, scopeRowsRange(key), value => {
+    const event = value as UnknownRecord; const binding = pullDeferral(event);
+    if (event.state !== 'page_complete' && binding?.kind === 'native_result') retainedIntents.add(binding.id);
+  });
   const stats: CompletedPageStat[] = [];
   for (const page of completed) {
     const pageId = String(page.pageId); const own: UnknownRecord[] = [];
@@ -225,6 +231,7 @@ export async function pruneCompletedPullPages(tx: IDBTransaction, key: string, l
     let bytes = storedBytes(page) + (effectBytes.get(pageId) ?? 0);
     for (const event of own) {
       bytes += storedBytes(event);
+      if (typeof event.intentId === 'string' && retainedIntents.has(event.intentId)) protectedPage = true;
       if (String(event.state) !== 'page_complete') { protectedPage = true; continue; }
       if (protectedPage || typeof event.intentId !== 'string') continue;
       const intent = await requestValue(intents.get([key, event.intentId])) as IntentRecord | undefined;

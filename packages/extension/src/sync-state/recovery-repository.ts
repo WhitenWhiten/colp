@@ -1,4 +1,4 @@
-import { remoteDeleteDeferral } from '../remote-delete-pending-facts.js';
+import { pullDeferral } from '../pull-deferral.js';
 import { issueProtectionIds } from '../sync-issues.js';
 import { transactionIssueDependencies, ISSUE_DEPENDENCY_STORES } from './issue-dependencies.js';
 import { putPullIssueFact } from './pull-issue-repository.js';
@@ -252,11 +252,13 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
         nodeId, code: issue.code, eventId: `snapshot-retained:${issue.pageId}`, now: issue.at,
       });
     }
-    const unresolved = intents.filter(intent => intent.nativeResult === 'result_unknown'
+    const deferredIntents = new Set(events.filter(event => event.state !== 'page_complete').map(event => pullDeferral(event))
+      .filter(binding => binding?.kind === 'native_result').map(binding => binding!.id));
+    const unresolved = intents.filter(intent => deferredIntents.has(String(intent.intentId)) || intent.nativeResult === 'result_unknown'
       || intent.nativeResult === 'waiting_dependency' || intent.waitReason === 'native_result_unknown');
-    const retainedEvents = new Set([...unresolved.map(intent => intent.eventId), ...events.filter(event => remoteDeleteDeferral(event)).map(event => String(event.eventId))]);
+    const retainedEvents = new Set([...unresolved.map(intent => intent.eventId), ...events.filter(event => pullDeferral(event)).map(event => String(event.eventId))]);
     const retainedPages = new Set(events.filter(event => retainedEvents.has(String(event.eventId))).map(event => event.pageId));
-    const decisionPages = new Set(events.filter(event => remoteDeleteDeferral(event)).map(event => event.pageId));
+    const decisionPages = retainedPages;
     for (const name of [STORES.pullPages, STORES.pullEvents, STORES.effectPages, STORES.intents]) {
       if (name === STORES.pullPages && retainedPages.size) {
         for (const page of pages) {

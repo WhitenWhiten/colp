@@ -17,7 +17,7 @@ export type NativeWaitStore = Pick<ReturnType<typeof createSyncStateStore>,
   | 'listMountBindings' | 'getMappingByColpId' | 'putMapping' | 'listMappings'
   | 'listProjectionIntents' | 'listLocalSyncExclusions' | 'createApplyIntent'
   | 'findApplyIntent' | 'getPullEvent' | 'markPullBrowserCallStarted' | 'recordPullApiEvidence'
-  | 'getMappingByNativeId'>;
+  | 'getMappingByNativeId'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listNativeWaitIntents'>>;
 
 export type ConfirmNativeWaitAction = 'bind' | 'keep_local_and_create' | 'cancel';
 
@@ -48,7 +48,7 @@ export type ConfirmNativeWaitResult =
  * durable intent facts retain the user decision and any real API receipt.
  */
 export async function projectNativeWaits(store: Store, scope: SyncScope): Promise<readonly NativeWaitProjection[]> {
-  const intents = await store.listApplyIntents(scope);
+  const intents = await (store.listNativeWaitIntents?.(scope) ?? store.listApplyIntents(scope));
   const waits: NativeWaitProjection[] = [];
   for (const intent of intents) {
     const event = intent.eventId ? await store.getPullEvent(scope, intent.eventId) : undefined;

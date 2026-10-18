@@ -34,7 +34,9 @@ export function honestChrome(): HonestChrome {
     async create(input) {
       const id = `created-${calls.length}`;
       const node: HonestChromeNode = {
-        id, parentId: input.parentId, index: input.index, title: input.title, url: input.url,
+        id, parentId: input.parentId, title: input.title,
+        ...(input.index === undefined ? {} : { index: input.index }),
+        ...(input.url === undefined ? {} : { url: input.url }),
       };
       nodes.set(id, node);
       calls.push({ kind: 'create', nativeId: id });

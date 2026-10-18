@@ -62,6 +62,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
   async function resumeApply(mode: { readonly recoveryOnly?: boolean }): Promise<void> {
     assertPullApplierGate(options);
     if (await kns09Paused('pull')) throw new SyncFailureError('sync_paused');
+    await options.store.resumeNativeWaitDependents(options.scope);
     await settleParkedRemoteDeletes(options, now);
     await options.store.resumeRemoteDeleteDependents(options.scope);
     const authority = await readPullApplyAuthority(options);
@@ -77,7 +78,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
           && ['staged', 'intent_prepared'].includes(String(raw.state))) continue;
       const decisionId = remoteDeleteDeferral(raw);
       const decision = decisionId ? await options.store.getRemoteDeleteDecision(options.scope, decisionId) : undefined;
-      const detached = remoteDeleteDeferralMatches(raw, decision ?? undefined, options.scope.generation)
+      const detached = (remoteDeleteDeferralMatches(raw, decision ?? undefined, options.scope.generation)
+        || await options.store.isPullDeferral(options.scope, String(raw.eventId)))
         && authority.lifecycle === 'active' && !authority.frozen;
       if (!ordinaryPullEventAllowed(authority, raw) && !detached) { await recoverSupersededPullEvent(options, authority, raw); continue; }
       const event = raw.payload as unknown as Extract<SyncPullEventV02, { kind: 'operation' }>;

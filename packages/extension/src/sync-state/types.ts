@@ -119,7 +119,7 @@ export type RemoteDeleteAction = 'apply' | 'restore' | 'keep_local';
 export interface NativeWaitDecision {
   readonly action: 'bind' | 'keep_local_and_create' | 'cancel'; readonly waitRef: string;
 }
-export interface IntentRecord { readonly scopeKey: string; readonly intentId: string; readonly correlationId: string;
+export interface IntentRecord { readonly scopeKey: string; readonly intentId: string; readonly correlationId: string; readonly suspendedCorrelationId?: string;
   readonly operationId: string; readonly expected: { readonly kind: string; readonly nativeId: string };
   readonly expiresAt: number; readonly state?: PullApplyState; readonly eventId?: string; readonly effectId?: string;
   readonly preStateDigest?: string; readonly expectedPostState?: JsonObject; readonly nativeTargetId?: string | null;

@@ -4,7 +4,7 @@ import {
 } from './types.js';
 import { boundedString, clone } from './codec.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
-import { STORES } from './schema.js';
+import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { validateIntent } from './pull-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
@@ -94,17 +94,35 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
       }
       if (patch.repairJobId === null) delete next.repairJobId;
       else if (patch.repairJobId !== undefined) next.repairJobId = patch.repairJobId;
+      if (patch.eventState === 'awaiting_confirmation' && next.nativeResult === 'result_unknown') {
+        // A parked invocation no longer owns event correlation for independent
+        // creates with identical content. Preserve its original evidence key.
+        next.suspendedCorrelationId ??= intent.correlationId;
+        next.correlationId = `native-wait:${id}`;
+      }
       const record = validateIntent(key, next, ctx.maxRecordBytes);
       intents.put(record); saved = record;
       if (patch.eventState !== undefined && intent.eventId) {
         const events = tx.objectStore(STORES.pullEvents);
         const event = await requestValue(events.get([key, intent.eventId])) as Record<string, unknown> | undefined;
-        if (event) events.put({ ...event, state: patch.eventState });
+        if (event) events.put({ ...event, state: patch.eventState,
+          ...(patch.eventState === 'awaiting_confirmation' && record.nativeResult === 'result_unknown'
+            ? { deferredNativeIntentId: id } : {}) });
       }
     });
     if (!saved) throw new SyncStateError('intent_not_found');
     return saved;
   }
 
-  return { listApplyIntents, persistApplyIntentFacts };
+  async function listNativeWaitIntents(input: SyncScope): Promise<IntentRecord[]> {
+    const key = scopeKey(validateScope(input)); const db = await open();
+    const tx = db.transaction(STORES.intents, 'readonly'); const done = transactionDone(tx);
+    const intents = tx.objectStore(STORES.intents); const rows = new Map<string, IntentRecord>();
+    for (const result of ['result_unknown', 'waiting_dependency']) {
+      for (const intent of await requestValue<IntentRecord[]>(intents.index(INDEXES.intentByNativeResult).getAll(IDBKeyRange.bound([key, result], [key, result, []])))) rows.set(intent.intentId, intent);
+    }
+    for (const intent of await requestValue<IntentRecord[]>(intents.index(INDEXES.intentByWaitReason).getAll(IDBKeyRange.bound([key, 'native_result_unknown'], [key, 'native_result_unknown', []])))) rows.set(intent.intentId, intent);
+    await done; return clone([...rows.values()]);
+  }
+  return { listApplyIntents, listNativeWaitIntents, persistApplyIntentFacts };
 }

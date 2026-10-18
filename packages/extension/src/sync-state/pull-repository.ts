@@ -1,5 +1,4 @@
-import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from '../remote-delete-pending-facts.js';
-import type { RemoteDeleteDecisionRecord } from './remote-delete-repository.js';
+import { validatedPullDeferral } from '../pull-deferral.js';
 import { createProjectionRepository } from './projection-repository.js';
 import { mergeRemoteObservation } from './remote-observation.js';
 import { classifyDurablePullCursorWrite, pullPageDiagnosticRow, type PullCursorWriteClass } from '../pull-ack-boundary.js';
@@ -133,15 +132,16 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   async function hasPullEventsAwaitingConfirmation(input: SyncScope): Promise<boolean> {
     // SYNC-F011: existence only. The state index returns on the first row.
     const key = scopeKey(validateScope(input));
-    const db = await open(); const tx = db.transaction([STORES.pullEvents, STORES.remoteDeleteDecisions], 'readonly');
+    const db = await open(); const tx = db.transaction([STORES.pullEvents, STORES.remoteDeleteDecisions, STORES.intents], 'readonly');
     const done = transactionDone(tx);
-    const events = await cursorPage<UnknownRecord>(tx.objectStore(STORES.pullEvents).index(INDEXES.pullEventByState),
-      IDBKeyRange.bound([key, 'awaiting_confirmation'], [key, 'awaiting_confirmation', []]), Number.MAX_SAFE_INTEGER);
-    let blocking = false;
-    for (const event of events) {
-      const id = remoteDeleteDeferral(event);
-      const decision = id ? await requestValue<RemoteDeleteDecisionRecord | undefined>(tx.objectStore(STORES.remoteDeleteDecisions).get([key, id])) : undefined;
-      if (!remoteDeleteDeferralMatches(event, decision, input.generation)) { blocking = true; break; }
+    let blocking = false; let after: string | undefined;
+    for (;;) {
+      const [event] = await cursorPage<UnknownRecord>(tx.objectStore(STORES.pullEvents).index(INDEXES.pullEventByState),
+        IDBKeyRange.bound(after === undefined ? [key, 'awaiting_confirmation'] : [key, 'awaiting_confirmation', after],
+          [key, 'awaiting_confirmation', []], after !== undefined), 1);
+      if (!event) break;
+      if (!await validatedPullDeferral(tx, key, event, input.generation)) { blocking = true; break; }
+      after = String(event.eventId);
     }
     await done; return blocking;
   }
@@ -382,9 +382,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
         pageEventsRange(key, pageId), Number.MAX_SAFE_INTEGER);
       const deferred = new Set<string>();
       for (const event of allPageEvents) {
-        const id = remoteDeleteDeferral(event);
-        const decision = id ? await requestValue<RemoteDeleteDecisionRecord | undefined>(tx.objectStore(STORES.remoteDeleteDecisions).get([key, id])) : undefined;
-        if (remoteDeleteDeferralMatches(event, decision, input.generation)) deferred.add(String(event.eventId));
+        if (await validatedPullDeferral(tx, key, event, input.generation)) deferred.add(String(event.eventId));
       }
       const pageEvents = detachedEventId ? allPageEvents.filter(event => event.eventId === detachedEventId)
         : allPageEvents.filter(event => event.state !== 'awaiting_confirmation' || !deferred.has(String(event.eventId)));

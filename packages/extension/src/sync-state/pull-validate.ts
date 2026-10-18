@@ -21,16 +21,17 @@ const REPLAY_STATES = new Set(['unknown', 'not_started', 'started', 'awaiting_re
 const LIVE_WORK = new Set(['create', 'restore', 'move', 'delete', 'rejoin', 'unknown']);
 
 export function validateIntent(key: string, input: Record<string, unknown>, maxBytes: number) { const value = strictObject(clone(input),
-  ['intentId', 'correlationId', 'operationId', 'expected', 'expiresAt', 'state', 'eventId', 'effectId',
+  ['intentId', 'correlationId', 'suspendedCorrelationId', 'operationId', 'expected', 'expiresAt', 'state', 'eventId', 'effectId',
     'preStateDigest', 'expectedPostState', 'nativeTargetId', 'nativeParentId', 'anchors', 'apiPhase',
     'nativeEventEvidence', 'apiResultEvidence', 'generation', 'nativeResult', 'waitReason',
     'nativeResultConfirmation', 'repairJobId', 'replayState', 'commandId', 'colpId', 'substep', 'liveWorkKind', 'nativeWaitDecision'],
-  'intent', ['state', 'eventId', 'effectId', 'preStateDigest',
+  'intent', ['suspendedCorrelationId', 'state', 'eventId', 'effectId', 'preStateDigest',
     'expectedPostState', 'nativeTargetId', 'nativeParentId', 'anchors', 'apiPhase', 'nativeEventEvidence',
     'apiResultEvidence', 'generation', 'nativeResult', 'waitReason', 'nativeResultConfirmation', 'repairJobId',
     'replayState', 'commandId', 'colpId', 'substep', 'liveWorkKind', 'nativeWaitDecision']);
   const expected = strictObject(value.expected,
   ['kind', 'nativeId'], 'expected mutation'); const record = { scopeKey: key, intentId: boundedString(value.intentId, 'intentId'),
+    ...(value.suspendedCorrelationId === undefined ? {} : { suspendedCorrelationId: boundedString(value.suspendedCorrelationId, 'suspendedCorrelationId') }),
     correlationId: boundedString(value.correlationId, 'correlationId'), operationId: boundedString(value.operationId, 'operationId'),
     expected: { kind: boundedString(expected.kind, 'kind'), nativeId: boundedString(expected.nativeId, 'nativeId') },
     expiresAt: safeInteger(value.expiresAt, 'expiresAt'),

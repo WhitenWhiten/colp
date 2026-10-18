@@ -1,3 +1,5 @@
+import { pullDeferral } from './pull-deferral.js';
+import { projectNativeWaits } from './native-wait.js';
 import { setsAsidePullItem, syncFailureCode, classifySyncFailure } from './sync-failure-class.js';
 import { readOpenSyncIssues, issueAncestry, dependsOnIssue } from './sync-issues.js';
 import type { SyncPullEventV02, Warning } from '@know-n/colp/types';
@@ -62,6 +64,22 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     const pendingDelete = issues.deletes.find(row => row.restoreOpId !== event.operation.opId && dependsOnIssue(targets, new Set([row.targetId]), issueAncestry(mappings)));
     if (pendingDelete) {
       await options.store.deferPullForRemoteDelete(options.scope, eventId, pendingDelete.decisionId);
+      return true;
+    }
+  }
+  // Native waits defer their actual closure instead of creating permanent
+  // item failures. Once the original invocation is confirmed, replay resumes.
+  const nativeWaits = await projectNativeWaits(options.store, options.scope);
+  const deferredEvents = await options.store.listPullEvents(options.scope, ['awaiting_confirmation']);
+  for (const wait of nativeWaits) {
+    const roots = new Set([wait.colpId]);
+    for (const deferred of deferredEvents) {
+      const binding = pullDeferral(deferred);
+      const effect = (deferred.payload as unknown as OpEvent)?.effect;
+      if (binding?.kind === 'native_result' && binding.id === wait.intentId && effect && 'node' in effect) roots.add(effect.node.id);
+    }
+    if (dependsOnIssue([...targets, ...subject.deleted ?? []], roots, issueAncestry(mappings, issues.queue))) {
+      await options.store.deferPullForNativeWait(options.scope, eventId, wait.intentId);
       return true;
     }
   }
