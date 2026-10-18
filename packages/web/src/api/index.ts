@@ -72,6 +72,8 @@ export type {
   SyncReplicaHealthView,
   SyncReplicaIssue,
   SyncReplicaIssuesView,
+  SyncReplicaCommandRequest,
+  SyncReplicaCommandView,
   SyncStatusView,
   SyncConflictSafeSummary,
   SyncConflictSummary,

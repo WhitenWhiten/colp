@@ -1545,6 +1545,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync/replicas/{replicaId}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                replicaId: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask an owned Replica to carry out an action it offered
+         * @description Queues an action for the Replica to carry out the next time it reports its health. The action must be one the Replica's last report offered, for itself or for the named issue. A command names no data and expires after seven days; an open command for the same action and issue is returned instead of a second one.
+         */
+        post: operations["sendSyncReplicaCommand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync/trash": {
         parameters: {
             query?: never;
@@ -2313,6 +2335,35 @@ export interface components {
             /** Format: date-time */
             reportedAt: string;
             issueCount: number;
+            /** @description What the Sync center may ask of the whole Replica now, from its last report. */
+            actions: ("retry" | "resume" | "rebuild")[];
+            /** @description Commands of the last seven days, newest first. */
+            commands: components["schemas"]["SyncReplicaCommandView"][];
+        };
+        SyncReplicaCommandRequest: {
+            /** @enum {string} */
+            action: "retry" | "use_server" | "keep_local" | "discard_local" | "delete" | "keep" | "resume" | "rebuild";
+            /** @description The reported issue the action is about; omitted for an action about the whole Replica. */
+            issueId?: components["schemas"]["OpaqueId"];
+        };
+        SyncReplicaCommandView: {
+            commandId: components["schemas"]["OpaqueId"];
+            replicaId: components["schemas"]["OpaqueId"];
+            /** @enum {string} */
+            action: "retry" | "use_server" | "keep_local" | "discard_local" | "delete" | "keep" | "resume" | "rebuild";
+            issueId: string | null;
+            /**
+             * @description pending until the Replica next reports, delivered until it reports the result, then done or failed; expired after seven days without one.
+             * @enum {string}
+             */
+            state: "pending" | "delivered" | "done" | "failed" | "expired";
+            resultCode: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            completedAt: string | null;
+            /** Format: date-time */
+            expiresAt: string;
         };
         SyncReplicaIssue: {
             issueId: components["schemas"]["OpaqueId"];
@@ -9754,6 +9805,52 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["AuthenticationRequired"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    sendSyncReplicaCommand: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
+                Origin: components["parameters"]["Origin"];
+                /** @description Session-bound CSRF token returned by getSession. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                /** @description Stable ID for one user intent. Reuse only for an exact retry of that intent. Full replay results are retained for at least 30 days. */
+                "Known-Command-Id": components["parameters"]["CommandId"];
+            };
+            path: {
+                replicaId: components["schemas"]["OpaqueId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncReplicaCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description Command queued, already open, or exactly replayed. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncReplicaCommandView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["AuthenticationRequired"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["MutationConflict"];
+            410: components["responses"]["Gone"];
+            412: components["responses"]["PreconditionFailed"];
+            422: components["responses"]["InvalidDocument"];
+            429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ServiceUnavailable"];
         };

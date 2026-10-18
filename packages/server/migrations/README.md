@@ -7,6 +7,16 @@ Migrations follow expand/contract deployment order: add backward-compatible stru
 deploy readers and writers, validate/backfill, then remove obsolete structures in a later
 release. A migration must not make the currently deployed reader unable to start.
 
+## Sync replica commands
+
+Apply `202611010300_sync_replica_commands` before deploying the API. The additive
+table keeps what the owner asked a browser to do from the Sync center (retry,
+rebuild) and the result the browser reported. A command names an action and at
+most one reported issue, never data, and expires after seven days. The added
+`sync_replica_reports.health_actions` column keeps what the browser last offered
+for itself. Previous binaries ignore both; dropping them only loses commands not
+yet carried out.
+
 ## Sync replica reports
 
 Apply `202611010200_sync_replica_reports` before deploying the API. The additive

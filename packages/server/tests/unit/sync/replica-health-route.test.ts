@@ -43,6 +43,19 @@ test('a replica report is a closed, bounded document', () => {
     assert.throws(() => parseReplicaHealthReport(invalid), (error: unknown) =>
       error instanceof ReplicaHealthError && error.code === 'invalid_document', JSON.stringify(invalid).slice(0, 120));
   }
+  // Whole-replica actions and command results are bounded and closed too.
+  const result = { commandId: 'cmd_1', outcome: 'done' };
+  for (const invalid of [report({ actions: ['use_server'] }), report({ actions: ['retry', 'retry'] }),
+    report({ commandResults: [{ ...result, outcome: 'maybe' }] }), report({ commandResults: [result, result] }),
+    report({ commandResults: [{ ...result, code: 'Not A Code' }] }), report({ commandResults: [{ ...result, data: 1 }] }),
+    report({ commandResults: Array.from({ length: 17 }, (_, index) => ({ ...result, commandId: `cmd_${index}` })) })]) {
+    assert.throws(() => parseReplicaHealthReport(invalid), ReplicaHealthError, JSON.stringify(invalid).slice(0, 120));
+  }
+  const withResults = parseReplicaHealthReport(report({ actions: ['retry', 'rebuild'],
+    commandResults: [result, { commandId: 'cmd_2', outcome: 'failed', code: 'rebuild_not_required' }] }));
+  assert.deepEqual(withResults.actions, ['retry', 'rebuild']);
+  assert.deepEqual(withResults.commandResults[1], { commandId: 'cmd_2', outcome: 'failed', code: 'rebuild_not_required' });
+  assert.deepEqual(parseReplicaHealthReport(report()).actions, []);
   // A stop needs a reason; other states may omit it.
   assert.equal(parseReplicaHealthReport(report({ state: 'syncing', code: undefined })).code, undefined);
   // Display text that looks like a URL, credential or native id is dropped, not stored.
@@ -78,11 +91,13 @@ test('the route needs the extension origin and a Sync credential, and maps recor
   let next: ReplicaHealthError | undefined;
   const { post, calls, credential } = await harness(async ({ report: input }) => {
     if (next) throw next;
-    return { accepted: true, revision: input.revision };
+    return { accepted: true, revision: input.revision, commands: [{ commandId: 'cmd_1', action: 'retry' }] };
   });
   const accepted = await post(report());
   assert.equal(accepted.statusCode, 200, accepted.body);
-  assert.deepEqual(accepted.json(), { replicaId: 'replica-1', revision: 1_760_000_000_000, accepted: true });
+  // The response hands over what the owner asked of this browser.
+  assert.deepEqual(accepted.json(), { replicaId: 'replica-1', revision: 1_760_000_000_000, accepted: true,
+    commands: [{ commandId: 'cmd_1', action: 'retry' }] });
   assert.equal(calls[0]!.credential, credential);
   assert.equal((await post(report(), { origin: 'https://evil.example.test' })).statusCode, 403);
   assert.equal((await post(report(), { authorization: 'Bearer other' })).statusCode, 401);

@@ -704,7 +704,8 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
             lastSeenAt: '2026-10-17T10:00:00.000Z', actions: [] },
         ] } }));
       assert.equal(stopped.statusCode, 200, stopped.body);
-      assert.deepEqual(stopped.json(), { replicaId: reporting.replica.replicaId, revision: 200, accepted: true });
+      assert.deepEqual(stopped.json(), { replicaId: reporting.replica.replicaId, revision: 200, accepted: true,
+        commands: [] });
       const first = await stored(reporting.replica.replicaId);
       assert.deepEqual([first.health_state, first.health_code, first.health_revision, first.issue_total],
         ['stopped', 'create_placement_unproven', '200', 3]);
@@ -715,7 +716,8 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       assert.deepEqual((await healthOf(owner)).get(reporting.replica.replicaId), { state: 'stopped',
         code: 'create_placement_unproven', since: '2026-10-17T10:00:00.000Z',
         reportedAt: (await runtime.pool.query('select health_reported_at from sync_replica_reports where replica_id=$1',
-          [reporting.replica.replicaId])).rows[0].health_reported_at.toISOString(), issueCount: 3 });
+          [reporting.replica.replicaId])).rows[0].health_reported_at.toISOString(), issueCount: 3,
+        actions: [], commands: [] });
       assert.equal((await healthOf(owner)).get(retiring.replica.replicaId), null);
       const listed = await api.inject({ method: 'GET', url: `/api/v1/sync/replicas/${reporting.replica.replicaId}/issues`,
         headers: { cookie: owner.cookie } });
@@ -727,7 +729,8 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
 
       // An older revision, delivered late, never replaces the newer report.
       const late = await post('Bearer owner-health', report(reporting.replica.replicaId, 100, 'syncing'));
-      assert.deepEqual(late.json(), { replicaId: reporting.replica.replicaId, revision: 200, accepted: false });
+      assert.deepEqual(late.json(), { replicaId: reporting.replica.replicaId, revision: 200, accepted: false,
+        commands: [] });
       assert.equal((await stored(reporting.replica.replicaId)).health_state, 'stopped');
       const resumed = await post('Bearer owner-health', report(reporting.replica.replicaId, 300, 'syncing'));
       assert.equal(resumed.json().accepted, true);
@@ -761,6 +764,94 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
         [null, [], [{ code: 'separator_omitted', message: 'Separators are not materialized.' }]]);
       // Ack warnings alone are not a health report.
       assert.equal((await healthOf(outsider)).get(foreign.replica.replicaId), null);
+    } finally { await health.close(); await api.close(); }
+  }, 120_000);
+
+  test('carries an owner command to the browser in a health response and records its result', async () => {
+    const api = productApp();
+    const health = Fastify({ logger: false });
+    try {
+      const owner = await login(`p3-command-owner-${randomUUID()}`);
+      const outsider = await login(`p3-command-outsider-${randomUUID()}`);
+      const owned = await createCollectionAndNode(api, owner, 'Command sync');
+      const reporting = await syncContext(owner, owned.collectionId, 'Commanded');
+      const replicaId = reporting.replica.replicaId;
+      registerExtensionReplicaHealthRoutes(health, {
+        credentialVerifier: { async verify({ authorization }) {
+          if (authorization !== 'Bearer owner-command') throw new Error('invalid credential');
+          return reporting.credential;
+        } },
+        recorder: createPostgresReplicaHealthRecorder(runtime.db), allowedOrigins: [EXTENSION_ORIGIN],
+      });
+      const report = async (revision: number, extra: Record<string, unknown> = {}) => {
+        const response = await health.inject({ method: 'POST', url: EXTENSION_REPLICA_HEALTH_PATH,
+          headers: { authorization: 'Bearer owner-command', origin: EXTENSION_ORIGIN, 'content-type': 'application/json' },
+          payload: { replicaId, revision, state: 'stopped', code: 'create_placement_unproven',
+            since: '2026-10-17T10:00:00.000Z', actions: ['retry', 'rebuild'], issues: { total: 1, items: [
+              { issueId: 'issue-a', code: 'create_placement_unproven', direction: 'push', count: 1,
+                firstSeenAt: '2026-10-17T10:00:00.000Z', lastSeenAt: '2026-10-17T10:00:00.000Z', actions: ['retry'] }] },
+            ...extra } });
+        assert.equal(response.statusCode, 200, response.body);
+        return response.json() as { accepted: boolean; commands: Array<{ commandId: string; action: string; issueId?: string }> };
+      };
+      const send = (client: ProductClient, body: Record<string, unknown>, commandId: string = randomUUID()) => api.inject({
+        method: 'POST', url: `/api/v1/sync/replicas/${replicaId}/commands`,
+        headers: mutation(client, commandId, 'application/json'), payload: body });
+      const commandsOf = async () => ((await api.inject({ method: 'GET', url: '/api/v1/sync/status',
+        headers: { cookie: owner.cookie } })).json().replicas.find((row: { id: string }) => row.id === replicaId).health
+        .commands as Array<{ commandId: string; action: string; issueId: string | null; state: string;
+          resultCode: string | null; completedAt: string | null }>);
+      const authority = async () => (await runtime.pool.query(`select lease_expires_at,last_seen_at,checkpoint_cursor,
+        lifecycle_revision::text,status from sync_replicas where replica_id=$1`, [replicaId])).rows[0];
+
+      // Nothing is on offer before the browser reports.
+      const early = await send(owner, { action: 'retry' });
+      assert.equal(early.statusCode, 412, early.body); assert.equal(early.json().error.code, 'precondition_failed');
+      await report(100);
+      const before = await authority();
+      const retryId = randomUUID();
+      const retry = await send(owner, { action: 'retry' }, retryId);
+      assert.equal(retry.statusCode, 200, retry.body);
+      assert.deepEqual([retry.json().action, retry.json().issueId, retry.json().state], ['retry', null, 'pending']);
+      // The same request replays exactly; a second press while it is open returns the same command.
+      assert.equal((await send(owner, { action: 'retry' }, retryId)).body, retry.body);
+      assert.equal((await send(owner, { action: 'retry' })).json().commandId, retry.json().commandId);
+      const item = await send(owner, { action: 'retry', issueId: 'issue-a' });
+      assert.equal(item.statusCode, 200, item.body);
+      // Only what the report offered, and only for its owner.
+      assert.equal((await send(owner, { action: 'resume' })).statusCode, 412);
+      assert.equal((await send(owner, { action: 'retry', issueId: 'issue-z' })).statusCode, 412);
+      assert.equal((await send(owner, { action: 'discard_local', issueId: 'issue-a' })).statusCode, 412);
+      assert.equal((await send(outsider, { action: 'retry' })).statusCode, 404);
+
+      // The next report receives both, oldest first, and keeps receiving them until it reports a result.
+      const delivered = await report(200);
+      assert.deepEqual(delivered.commands, [{ commandId: retry.json().commandId, action: 'retry' },
+        { commandId: item.json().commandId, action: 'retry', issueId: 'issue-a' }]);
+      assert.deepEqual((await commandsOf()).map((command) => command.state), ['delivered', 'delivered']);
+      assert.equal((await report(300)).commands.length, 2);
+      const settled = await report(400, { commandResults: [{ commandId: retry.json().commandId, outcome: 'done' },
+        { commandId: item.json().commandId, outcome: 'failed', code: 'create_placement_unproven' }] });
+      assert.deepEqual(settled.commands, []);
+      const shown = await commandsOf();
+      assert.deepEqual(shown.map((command) => [command.commandId, command.state, command.resultCode]), [
+        [item.json().commandId, 'failed', 'create_placement_unproven'], [retry.json().commandId, 'done', null]]);
+      assert.equal(shown.every((command) => typeof command.completedAt === 'string'), true);
+      // A result is final: a repeated or late report cannot change it.
+      await report(350, { commandResults: [{ commandId: item.json().commandId, outcome: 'done' }] });
+      assert.equal((await commandsOf())[0]!.state, 'failed');
+
+      // A command nobody carries out within seven days expires instead of running late.
+      const rebuild = await send(owner, { action: 'rebuild' });
+      assert.equal(rebuild.statusCode, 200, rebuild.body);
+      await runtime.pool.query(`update sync_replica_commands set created_at = now() - interval '6 days',
+        expires_at = now() - interval '1 minute' where command_id = $1`, [rebuild.json().commandId]);
+      assert.equal((await commandsOf()).find((command) => command.action === 'rebuild')?.state, 'expired');
+      assert.deepEqual((await report(500)).commands, []);
+      assert.equal((await runtime.pool.query('select state from sync_replica_commands where command_id=$1',
+        [rebuild.json().commandId])).rows[0].state, 'expired');
+      // Commands, like reports, renew nothing.
+      assert.deepEqual(await authority(), before);
     } finally { await health.close(); await api.close(); }
   }, 120_000);
 

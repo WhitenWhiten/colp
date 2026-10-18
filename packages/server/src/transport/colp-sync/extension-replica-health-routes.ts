@@ -10,7 +10,9 @@ import type { SyncTransportSecurity } from './sync-transport-security.js';
 /**
  * Extension-only, like `/colp/v0.1/sync/library`: the browser reports its own
  * sync health to the Sync center. It needs no Session, so a stopped engine can
- * still say why it stopped, and it renews nothing.
+ * still say why it stopped, and it renews nothing. The response hands over what
+ * the owner asked of this browser from the Sync center; the browser reports each
+ * result in a later report.
  */
 export const EXTENSION_REPLICA_HEALTH_PATH = '/colp/v0.1/sync/replica-health';
 
@@ -66,7 +68,8 @@ export function registerExtensionReplicaHealthRoutes(
       const report = parseReplicaHealthReport(request.body);
       const result = await dependencies.recorder.record({ credential, report });
       return reply.code(200).type('application/json; charset=utf-8')
-        .send({ replicaId: report.replicaId, revision: result.revision, accepted: result.accepted });
+        .send({ replicaId: report.replicaId, revision: result.revision, accepted: result.accepted,
+          commands: result.commands });
     } catch (error: unknown) {
       if (error instanceof ReplicaHealthError) return send(reply, STATUS[error.code], error.code, error.message);
       if (error instanceof ExtensionAuthError || /authorization|credential|token|bearer/iu.test(

@@ -5,6 +5,8 @@ import type {
   ProductSyncConflictResolutionView,
   ProductSyncReplicaRetirementView,
   SyncConflictPage,
+  SyncReplicaCommandRequest,
+  SyncReplicaCommandView,
   SyncReplicaIssuesView,
   SyncStatusView,
   SyncTrashDetail,
@@ -47,6 +49,13 @@ export function createSyncTransport(http: ProductTransportHttp) {
     async listSyncReplicaIssues(replicaId: string, signal?: AbortSignal) {
       return request<SyncReplicaIssuesView>({
         method: 'GET', path: `/api/v1/sync/replicas/${encodeURIComponent(replicaId)}/issues`, signal,
+      })
+    },
+
+    async sendSyncReplicaCommand(replicaId: string, body: SyncReplicaCommandRequest, opts: MutationCallOptions) {
+      return request<SyncReplicaCommandView>({
+        method: 'POST', path: `/api/v1/sync/replicas/${encodeURIComponent(replicaId)}/commands`,
+        headers: mutationHeaders(opts), body, contentType: 'application/json', signal: opts.signal,
       })
     },
 

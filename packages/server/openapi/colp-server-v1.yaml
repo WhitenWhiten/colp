@@ -6486,6 +6486,70 @@ paths:
           $ref: "#/components/responses/InternalError"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/sync/replicas/{replicaId}/commands:
+    parameters:
+      - name: replicaId
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/OpaqueId"
+    post:
+      tags:
+        - SyncCenter
+      operationId: sendSyncReplicaCommand
+      summary: Ask an owned Replica to carry out an action it offered
+      description: >-
+        Queues an action for the Replica to carry out the next time it reports
+        its health. The action must be one the Replica's last report offered,
+        for itself or for the named issue. A command names no data and expires
+        after seven days; an open command for the same action and issue is
+        returned instead of a second one.
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Origin"
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CommandId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncReplicaCommandRequest"
+      responses:
+        "200":
+          description: Command queued, already open, or exactly replayed.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/PrivateNoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncReplicaCommandView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AuthenticationRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/MutationConflict"
+        "410":
+          $ref: "#/components/responses/Gone"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "422":
+          $ref: "#/components/responses/InvalidDocument"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/sync/trash:
     get:
       tags:
@@ -9349,6 +9413,8 @@ components:
         - since
         - reportedAt
         - issueCount
+        - actions
+        - commands
       properties:
         state:
           type: string
@@ -9372,6 +9438,105 @@ components:
           type: integer
           minimum: 0
           maximum: 100000
+        actions:
+          description: What the Sync center may ask of the whole Replica now, from its last report.
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - retry
+              - resume
+              - rebuild
+        commands:
+          description: Commands of the last seven days, newest first.
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/SyncReplicaCommandView"
+    SyncReplicaCommandRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - retry
+            - use_server
+            - keep_local
+            - discard_local
+            - delete
+            - keep
+            - resume
+            - rebuild
+        issueId:
+          description: The reported issue the action is about; omitted for an action about the whole Replica.
+          allOf:
+            - $ref: "#/components/schemas/OpaqueId"
+    SyncReplicaCommandView:
+      type: object
+      additionalProperties: false
+      required:
+        - commandId
+        - replicaId
+        - action
+        - issueId
+        - state
+        - resultCode
+        - createdAt
+        - completedAt
+        - expiresAt
+      properties:
+        commandId:
+          $ref: "#/components/schemas/OpaqueId"
+        replicaId:
+          $ref: "#/components/schemas/OpaqueId"
+        action:
+          type: string
+          enum:
+            - retry
+            - use_server
+            - keep_local
+            - discard_local
+            - delete
+            - keep
+            - resume
+            - rebuild
+        issueId:
+          type:
+            - string
+            - "null"
+          pattern: ^[A-Za-z0-9._~-]{1,128}$
+        state:
+          description: >-
+            pending until the Replica next reports, delivered until it reports
+            the result, then done or failed; expired after seven days without one.
+          type: string
+          enum:
+            - pending
+            - delivered
+            - done
+            - failed
+            - expired
+        resultCode:
+          type:
+            - string
+            - "null"
+          pattern: ^[a-z][a-z0-9_]{0,63}$
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
     SyncReplicaIssue:
       type: object
       additionalProperties: false

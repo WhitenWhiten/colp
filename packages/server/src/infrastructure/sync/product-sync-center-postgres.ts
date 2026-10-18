@@ -1,6 +1,7 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
-import { productReplicaActivity, type ProductConflictPage, type ProductConflictResolutionView,
+import { PRODUCT_REPLICA_COMMANDS_SHOWN, productReplicaActivity, REPLICA_COMMAND_TTL_MS, REPLICA_COMMANDS_OPEN_MAX,
+  type ProductConflictPage, type ProductConflictResolutionView, type ProductReplicaCommandView,
   type ProductReplicaHealthView, type ProductReplicaIssuesView,
   type ProductReplicaRetirementView, type ProductSyncCenterPorts, type ProductSyncCenterUnitOfWork,
   type ProductSyncCommandOutcome } from '../../modules/sync/index.js';
@@ -88,9 +89,11 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       const lastAck = new Map(ackRows.map((row) => [row.replica_id, row.last_ack_at]));
       const { now, behindSince } = await readReplicaBehindSince(transaction, accountId);
       const reports = new Map((await transaction.selectFrom('sync_replica_reports')
-        .select(['replica_id', 'health_state', 'health_code', 'health_since', 'health_reported_at', 'issue_total'])
+        .select(['replica_id', 'health_state', 'health_code', 'health_since', 'health_reported_at', 'issue_total',
+          'health_actions'])
         .where('account_id', '=', accountId).where('health_state', 'is not', null).execute())
         .map((row) => [row.replica_id, row]));
+      const commands = await readRecentCommands(transaction, accountId, now);
       return Object.freeze({ devices: devices.map((device) => Object.freeze({ id: device.device_id, name: device.device_name })),
         replicas: replicas.map((replica) => { const revision = BigInt(replica.lifecycle_revision).toString();
           const ack = lastAck.get(replica.replica_id); const behind = behindSince.get(replica.replica_id) ?? null;
@@ -103,7 +106,8 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
             acknowledgedCommitOrdinal: replica.checkpoint_commit_ordinal === null ? null : BigInt(replica.checkpoint_commit_ordinal).toString(),
             lifecycleRevision: revision, etag: `"${revision}"`,
             activity, behindSince: activity === null || behind === null ? null : behind.toISOString(),
-            health: replica.status === 'retired' ? null : healthView(reports.get(replica.replica_id)) }); }) });
+            health: replica.status === 'retired' ? null
+              : healthView(reports.get(replica.replica_id), commands.get(replica.replica_id) ?? []) }); }) });
     },
     async getReplicaIssues({ accountId, replicaId }) {
       const replica = await transaction.selectFrom('sync_replicas').select('replica_id')
@@ -182,6 +186,36 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       return { replicaId: input.replicaId, status: 'retired', lifecycleRevision: revision,
         etag: `"${revision}"`, retiredAt: retiredAt.toISOString() } satisfies ProductReplicaRetirementView;
     }),
+    sendReplicaCommand: (input) => command(transaction, { principalId: input.accountId,
+      commandScope: `sync-replica-command:${input.replicaId}`, commandId: input.commandId }, input.fingerprint, async () => {
+      const replica = await transaction.selectFrom('sync_replicas').select('status')
+        // Serializes commands for one replica without blocking the Sync rows that reference it.
+        .where('replica_id', '=', input.replicaId).where('account_id', '=', input.accountId).forNoKeyUpdate().executeTakeFirst();
+      if (!replica) throw notFound();
+      const report = await transaction.selectFrom('sync_replica_reports').select(['health_state', 'health_actions', 'issues'])
+        .where('replica_id', '=', input.replicaId).executeTakeFirst();
+      // The browser decides what it can do; the Sync center only asks for what it offered.
+      const issues = (report?.issues ?? []) as ProductReplicaIssuesView['items'];
+      const offered = replica.status !== 'retired' && report?.health_state != null && (input.issueId === undefined
+        ? report.health_actions.includes(input.action)
+        : issues.some((issue) => issue.issueId === input.issueId && issue.actions.includes(input.action)));
+      if (!offered) throw Object.assign(new Error('Replica action not offered'), { code: 'replica_action_unavailable' });
+      const now = (await sql<{ now: Date }>`SELECT clock_timestamp() AS now`.execute(transaction)).rows[0]!.now;
+      const open = await transaction.selectFrom('sync_replica_commands').selectAll()
+        .where('replica_id', '=', input.replicaId).where('state', 'in', ['pending', 'delivered'])
+        .where('expires_at', '>', now).orderBy('created_at').execute();
+      const same = open.find((row) => row.action === input.action && row.issue_id === (input.issueId ?? null));
+      if (same) return commandView(same, now);
+      if (open.length >= REPLICA_COMMANDS_OPEN_MAX) {
+        throw Object.assign(new Error('Too many open replica commands'), { code: 'replica_commands_full' });
+      }
+      const created = await transaction.insertInto('sync_replica_commands').values({
+        command_id: `cmd_${randomUUID()}`, replica_id: input.replicaId, account_id: input.accountId,
+        action: input.action, issue_id: input.issueId ?? null, state: 'pending', created_at: now,
+        expires_at: new Date(now.getTime() + REPLICA_COMMAND_TTL_MS),
+      }).returningAll().executeTakeFirstOrThrow();
+      return commandView(created, now);
+    }),
     ...productSyncTrashPorts(transaction, {
       cursorSecret: options.cursorSecret,
       reportSourceInvalidation: options.reportSourceInvalidation,
@@ -191,10 +225,39 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
 }
 
 function healthView(row: { readonly health_state: ProductReplicaHealthView['state'] | null; readonly health_code: string | null;
-  readonly health_since: Date | null; readonly health_reported_at: Date | null; readonly issue_total: number | null } | undefined) {
+  readonly health_since: Date | null; readonly health_reported_at: Date | null; readonly issue_total: number | null;
+  readonly health_actions: string[] } | undefined, commands: readonly ProductReplicaCommandView[]) {
   if (!row?.health_state || !row.health_since || !row.health_reported_at) return null;
   return Object.freeze({ state: row.health_state, code: row.health_code, since: row.health_since.toISOString(),
-    reportedAt: row.health_reported_at.toISOString(), issueCount: row.issue_total ?? 0 }) satisfies ProductReplicaHealthView;
+    reportedAt: row.health_reported_at.toISOString(), issueCount: row.issue_total ?? 0,
+    actions: Object.freeze([...row.health_actions] as ProductReplicaHealthView['actions']),
+    commands: Object.freeze([...commands]) }) satisfies ProductReplicaHealthView;
+}
+
+type CommandRow = { readonly command_id: string; readonly replica_id: string; readonly action: ProductReplicaCommandView['action'];
+  readonly issue_id: string | null; readonly state: ProductReplicaCommandView['state']; readonly result_code: string | null;
+  readonly created_at: Date; readonly completed_at: Date | null; readonly expires_at: Date };
+
+/** An open command past its expiry reads as expired before the next report records it. */
+function commandView(row: CommandRow, now: Date): ProductReplicaCommandView {
+  const lapsed = (row.state === 'pending' || row.state === 'delivered') && row.expires_at <= now;
+  return Object.freeze({ commandId: row.command_id, replicaId: row.replica_id, action: row.action, issueId: row.issue_id,
+    state: lapsed ? 'expired' : row.state, resultCode: row.result_code, createdAt: row.created_at.toISOString(),
+    completedAt: lapsed ? row.expires_at.toISOString() : row.completed_at?.toISOString() ?? null,
+    expiresAt: row.expires_at.toISOString() });
+}
+
+async function readRecentCommands(transaction: DatabaseTransaction, accountId: string, now: Date) {
+  const rows = await transaction.selectFrom('sync_replica_commands').selectAll()
+    .where('account_id', '=', accountId).where('created_at', '>', new Date(now.getTime() - REPLICA_COMMAND_TTL_MS))
+    .orderBy('created_at', 'desc').orderBy('command_id', 'desc').execute();
+  const byReplica = new Map<string, ProductReplicaCommandView[]>();
+  for (const row of rows) {
+    const list = byReplica.get(row.replica_id) ?? [];
+    if (list.length < PRODUCT_REPLICA_COMMANDS_SHOWN) list.push(commandView(row, now));
+    byReplica.set(row.replica_id, list);
+  }
+  return byReplica;
 }
 
 /**

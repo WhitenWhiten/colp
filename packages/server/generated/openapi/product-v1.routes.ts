@@ -1651,6 +1651,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "retireSyncReplica"
   },
   {
+    "method": "POST",
+    "path": "/api/v1/sync/replicas/{replicaId}/commands",
+    "operationId": "sendSyncReplicaCommand"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/sync/replicas/{replicaId}/issues",
     "operationId": "listSyncReplicaIssues"

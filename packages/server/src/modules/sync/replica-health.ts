@@ -13,8 +13,16 @@ export type ReplicaIssueDirection = (typeof REPLICA_ISSUE_DIRECTIONS)[number];
 export const REPLICA_ISSUE_ACTIONS = ['retry', 'use_server', 'keep_local', 'discard_local',
   'delete', 'keep', 'resume', 'rebuild'] as const;
 export type ReplicaIssueAction = (typeof REPLICA_ISSUE_ACTIONS)[number];
+/** Actions about the whole replica rather than one issue. */
+export const REPLICA_ACTIONS = ['retry', 'resume', 'rebuild'] as const satisfies readonly ReplicaIssueAction[];
 export const REPLICA_HEALTH_MAX_ITEMS = 50;
 export const REPLICA_HEALTH_MAX_BODY_BYTES = 32_768;
+/** Results one report may carry, and commands one response may deliver. */
+export const REPLICA_COMMAND_RESULTS_MAX = 16;
+export const REPLICA_COMMANDS_DELIVERED_MAX = 8;
+/** Commands not yet carried out, per replica; a ninth waits for one of them to finish. */
+export const REPLICA_COMMANDS_OPEN_MAX = 8;
+export const REPLICA_COMMAND_TTL_MS = 7 * 24 * 60 * 60_000;
 
 export interface ReplicaHealthIssue {
   readonly issueId: string;
@@ -38,7 +46,24 @@ export interface ReplicaHealthReport {
   readonly code?: string;
   readonly since: string;
   readonly issues: { readonly total: number; readonly items: readonly ReplicaHealthIssue[] };
+  /** What the Sync center may ask of the whole replica now. */
+  readonly actions: readonly ReplicaIssueAction[];
+  /** Outcomes of commands the replica carried out since its last accepted report. */
+  readonly commandResults: readonly ReplicaCommandResult[];
   readonly extensionVersion?: string;
+}
+
+export type ReplicaCommandState = 'pending' | 'delivered' | 'done' | 'failed' | 'expired';
+/** What a replica is asked to do: an action and at most one issue it reported, never data. */
+export interface ReplicaCommand {
+  readonly commandId: string;
+  readonly action: ReplicaIssueAction;
+  readonly issueId?: string;
+}
+export interface ReplicaCommandResult {
+  readonly commandId: string;
+  readonly outcome: 'done' | 'failed';
+  readonly code?: string;
 }
 
 export interface ReplicaAckWarning { readonly code: string; readonly message: string; readonly path?: string }
@@ -54,8 +79,12 @@ export class ReplicaHealthError extends Error {
 
 export interface ReplicaHealthRecorder {
   /** Stores the report unless a newer revision is already stored. */
+  /**
+   * Stores the report unless a newer revision is already stored, settles the
+   * commands it reports on either way, and hands over the commands still open.
+   */
   record(input: { readonly credential: VerifiedExtensionCredential; readonly report: ReplicaHealthReport }):
-    Promise<{ readonly accepted: boolean; readonly revision: number }>;
+    Promise<{ readonly accepted: boolean; readonly revision: number; readonly commands: readonly ReplicaCommand[] }>;
   /** Keeps the latest Ack warnings of a replica; an empty list clears them. */
   recordAckWarnings(input: { readonly replicaId: string; readonly warnings: readonly ReplicaAckWarning[] }): Promise<void>;
 }
@@ -68,7 +97,8 @@ export const REPLICA_REPORT_UNSAFE_TEXT
   = /(?:https?:\/\/|javascript:|chrome:|authorization|bearer|token=|secret|native[_ -]?id)/iu;
 
 export function parseReplicaHealthReport(value: unknown): ReplicaHealthReport {
-  const document = object(value, ['replicaId', 'revision', 'state', 'code', 'since', 'issues', 'extensionVersion']);
+  const document = object(value, ['replicaId', 'revision', 'state', 'code', 'since', 'issues', 'actions',
+    'commandResults', 'extensionVersion']);
   const state = oneOf(document.state, REPLICA_HEALTH_STATES);
   const code = document.code === undefined ? undefined : pattern(document.code, CODE);
   if (state === 'stopped' && code === undefined) throw invalid();
@@ -77,12 +107,18 @@ export function parseReplicaHealthReport(value: unknown): ReplicaHealthReport {
   const items = issues.items.map(parseIssue);
   const total = integer(issues.total, items.length, 100_000);
   if (new Set(items.map((item) => item.issueId)).size !== items.length) throw invalid();
+  const actions = document.actions === undefined ? [] : actionList(document.actions, REPLICA_ACTIONS);
+  const results = document.commandResults === undefined ? [] : document.commandResults;
+  if (!Array.isArray(results) || results.length > REPLICA_COMMAND_RESULTS_MAX) throw invalid();
+  const commandResults = results.map(parseCommandResult);
+  if (new Set(commandResults.map((result) => result.commandId)).size !== commandResults.length) throw invalid();
   return Object.freeze({
     replicaId: pattern(document.replicaId, OPAQUE),
     revision: integer(document.revision, 1, Number.MAX_SAFE_INTEGER),
     state, ...(code === undefined ? {} : { code }),
     since: instant(document.since),
     issues: Object.freeze({ total, items: Object.freeze(items) }),
+    actions, commandResults: Object.freeze(commandResults),
     ...(document.extensionVersion === undefined ? {} : { extensionVersion: pattern(document.extensionVersion, VERSION) }),
   });
 }
@@ -90,9 +126,7 @@ export function parseReplicaHealthReport(value: unknown): ReplicaHealthReport {
 function parseIssue(value: unknown): ReplicaHealthIssue {
   const issue = object(value, ['issueId', 'code', 'direction', 'nodeId', 'opId', 'title', 'count',
     'firstSeenAt', 'lastSeenAt', 'actions']);
-  if (!Array.isArray(issue.actions) || issue.actions.length > REPLICA_ISSUE_ACTIONS.length) throw invalid();
-  const actions = issue.actions.map((action) => oneOf(action, REPLICA_ISSUE_ACTIONS));
-  if (new Set(actions).size !== actions.length) throw invalid();
+  const actions = actionList(issue.actions, REPLICA_ISSUE_ACTIONS);
   if (issue.title !== undefined && (typeof issue.title !== 'string' || issue.title.length > 256)) throw invalid();
   const title = typeof issue.title === 'string' && issue.title.trim().length > 0
     && !REPLICA_REPORT_UNSAFE_TEXT.test(issue.title) ? issue.title : undefined;
@@ -104,8 +138,33 @@ function parseIssue(value: unknown): ReplicaHealthIssue {
     ...(title === undefined ? {} : { title }),
     count: integer(issue.count, 1, 1_000_000),
     firstSeenAt: instant(issue.firstSeenAt), lastSeenAt: instant(issue.lastSeenAt),
-    actions: Object.freeze(actions),
+    actions,
   });
+}
+
+function parseCommandResult(value: unknown): ReplicaCommandResult {
+  const result = object(value, ['commandId', 'outcome', 'code']);
+  const outcome = oneOf(result.outcome, ['done', 'failed'] as const);
+  return Object.freeze({ commandId: pattern(result.commandId, OPAQUE), outcome,
+    ...(result.code === undefined ? {} : { code: pattern(result.code, CODE) }) });
+}
+
+/** Parses a command a person asks for; an issue-less command must be about the whole replica. */
+export function parseReplicaCommandRequest(value: unknown): { readonly action: ReplicaIssueAction; readonly issueId?: string } {
+  const body = object(value, ['action', 'issueId']);
+  const action = oneOf(body.action, REPLICA_ISSUE_ACTIONS);
+  if (body.issueId === undefined) {
+    if (!(REPLICA_ACTIONS as readonly string[]).includes(action)) throw invalid();
+    return Object.freeze({ action });
+  }
+  return Object.freeze({ action, issueId: pattern(body.issueId, OPAQUE) });
+}
+
+function actionList<T extends ReplicaIssueAction>(value: unknown, allowed: readonly T[]): readonly T[] {
+  if (!Array.isArray(value) || value.length > allowed.length) throw invalid();
+  const actions = value.map((action) => oneOf(action, allowed));
+  if (new Set(actions).size !== actions.length) throw invalid();
+  return Object.freeze(actions);
 }
 
 function object(value: unknown, keys: readonly string[]): Record<string, unknown> {

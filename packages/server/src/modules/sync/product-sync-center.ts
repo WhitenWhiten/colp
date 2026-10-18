@@ -20,7 +20,17 @@ export interface ProductSyncReplicaView { readonly id: string; readonly deviceId
   readonly health: ProductReplicaHealthView | null }
 /** What a browser last said about its own sync (replica-health.ts). */
 export interface ProductReplicaHealthView { readonly state: import('./replica-health.js').ReplicaHealthState;
-  readonly code: string | null; readonly since: string; readonly reportedAt: string; readonly issueCount: number }
+  readonly code: string | null; readonly since: string; readonly reportedAt: string; readonly issueCount: number;
+  /** What the Sync center may ask of the whole browser now, from its last report. */
+  readonly actions: readonly import('./replica-health.js').ReplicaIssueAction[];
+  /** Commands of the last seven days, newest first. */
+  readonly commands: readonly ProductReplicaCommandView[] }
+/** One thing the owner asked a browser to do, and what came of it. */
+export interface ProductReplicaCommandView { readonly commandId: string; readonly replicaId: string;
+  readonly action: import('./replica-health.js').ReplicaIssueAction; readonly issueId: string | null;
+  readonly state: import('./replica-health.js').ReplicaCommandState; readonly resultCode: string | null;
+  readonly createdAt: string; readonly completedAt: string | null; readonly expiresAt: string }
+export const PRODUCT_REPLICA_COMMANDS_SHOWN = 10;
 export interface ProductReplicaIssuesView { readonly replicaId: string; readonly reportedAt: string | null;
   readonly total: number; readonly items: readonly import('./replica-health.js').ReplicaHealthIssue[];
   readonly ackWarnings: readonly import('./replica-health.js').ReplicaAckWarning[]; readonly ackWarningsAt: string | null }
@@ -60,6 +70,15 @@ export interface ProductSyncCenterPorts {
     readonly resolution: 'server'|'incoming'|'custom'|'both'; readonly value?: unknown }): Promise<ProductSyncCommandOutcome<ProductConflictResolutionView>>;
   retireReplica(input: { readonly accountId: string; readonly replicaId: string; readonly expectedLifecycleRevision: string;
     readonly commandId: string; readonly fingerprint: string }): Promise<ProductSyncCommandOutcome<ProductReplicaRetirementView>>;
+  /**
+   * Queues an action for the browser to carry out the next time it reports.
+   * Throws `resource_not_found` for a replica the account does not own and
+   * `replica_action_unavailable` when its last report does not offer the action; an
+   * open command for the same action and issue is returned instead of a second.
+   */
+  sendReplicaCommand(input: { readonly accountId: string; readonly replicaId: string;
+    readonly action: import('./replica-health.js').ReplicaIssueAction; readonly issueId?: string;
+    readonly commandId: string; readonly fingerprint: string }): Promise<ProductSyncCommandOutcome<ProductReplicaCommandView>>;
   listTrash(input: { readonly accountId: string; readonly subjectId: string; readonly collectionId: string;
     readonly limit: number; readonly cursor?: string }): Promise<import('./product-sync-trash.js').ProductSyncTrashPage>;
   getTrashDetail(input: { readonly accountId: string; readonly subjectId: string; readonly deletionId: string }):

@@ -200,4 +200,25 @@ describe('Product Sync transport and command intent', () => {
     const replay = fetchImpl.mock.calls[1]?.[1]?.headers as Headers
     expect(replay.get('Known-Command-Id')).toBe(first.get('Known-Command-Id'))
   })
+
+  it('posts one replica command body and reuses Known-Command-Id on replay', async () => {
+    const intent = 'sync-command:replica-1:retry::intent-1'
+    clearCommandId(intent)
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({
+      commandId: 'cmd-1', replicaId: 'replica-1', action: 'retry', issueId: 'issue-1', state: 'pending', resultCode: null,
+      createdAt: '2026-07-28T00:00:00.000Z', completedAt: null, expiresAt: '2026-08-04T00:00:00.000Z',
+    }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    const transport = createProductTransport({ baseUrl: 'https://api.example.test', fetchImpl })
+    const body = { action: 'retry' as const, issueId: 'issue-1' }
+    const options = { commandIntentId: intent, csrfToken: 'csrf-token' }
+    await transport.sendSyncReplicaCommand('replica-1', body, options)
+    await transport.sendSyncReplicaCommand('replica-1', body, options)
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toBe('https://api.example.test/api/v1/sync/replicas/replica-1/commands')
+    expect(fetchImpl.mock.calls[0]?.[1]).toEqual(expect.objectContaining({ method: 'POST', credentials: 'include' }))
+    expect(fetchImpl.mock.calls[0]?.[1]?.body).toBe(JSON.stringify(body))
+    const first = fetchImpl.mock.calls[0]?.[1]?.headers as Headers
+    const replay = fetchImpl.mock.calls[1]?.[1]?.headers as Headers
+    expect(first.get('Known-Command-Id')).toMatch(/^[0-9a-f-]{36}$/u)
+    expect(replay.get('Known-Command-Id')).toBe(first.get('Known-Command-Id'))
+  })
 })

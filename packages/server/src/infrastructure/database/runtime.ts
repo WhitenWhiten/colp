@@ -79,6 +79,7 @@ export interface DatabaseSchema extends AutomationDatabaseSchema, BookmarkSubscr
   sync_replica_generations: SyncReplicaGenerationTable;
   sync_replicas: SyncReplicaTable;
   sync_replica_reports: SyncReplicaReportTable;
+  sync_replica_commands: SyncReplicaCommandTable;
   sync_extension_credentials: SyncExtensionCredentialTable;
   sync_sessions: SyncSessionTable;
   sync_session_scopes: SyncSessionScopeTable;
@@ -992,6 +993,21 @@ export interface SyncReplicaTable {
   wire_json: Record<string, unknown>;
 }
 
+/** What the owner asked a replica to do from the Sync center (202611010300_sync_replica_commands). */
+export interface SyncReplicaCommandTable {
+  command_id: string;
+  replica_id: string;
+  account_id: string;
+  action: 'retry' | 'use_server' | 'keep_local' | 'discard_local' | 'delete' | 'keep' | 'resume' | 'rebuild';
+  issue_id: string | null;
+  state: 'pending' | 'delivered' | 'done' | 'failed' | 'expired';
+  result_code: string | null;
+  created_at: Date;
+  delivered_at: Date | null;
+  completed_at: Date | null;
+  expires_at: Date;
+}
+
 /** What a replica last reported about itself (202611010200_sync_replica_reports). */
 export interface SyncReplicaReportTable {
   replica_id: string;
@@ -1003,6 +1019,8 @@ export interface SyncReplicaReportTable {
   health_reported_at: Date | null;
   issue_total: number | null;
   issues: unknown[] | null;
+  /** Defaults to an empty array (202611010300). */
+  health_actions: Generated<string[]>;
   extension_version: string | null;
   ack_warnings: unknown[] | null;
   ack_warnings_at: Date | null;

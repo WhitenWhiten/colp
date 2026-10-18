@@ -54,6 +54,8 @@ import type {
   ProductSyncConflictResolution,
   ProductSyncConflictResolutionView,
   ProductSyncReplicaRetirementView,
+  SyncReplicaCommandRequest,
+  SyncReplicaCommandView,
   SyncReplicaIssuesView,
   SyncTrashDetail,
   SyncTrashEmptyRequest,
@@ -218,6 +220,7 @@ export type ProductTransport = {
   listSyncConflicts: (params?: SyncConflictListParams) => Promise<SyncConflictPage>
   resolveSyncConflict: (conflictId: string, body: ProductSyncConflictResolution, opts: MutationCallOptions) => Promise<ProductSyncConflictResolutionView>
   listSyncReplicaIssues: (replicaId: string, signal?: AbortSignal) => Promise<SyncReplicaIssuesView>
+  sendSyncReplicaCommand: (replicaId: string, body: SyncReplicaCommandRequest, opts: MutationCallOptions) => Promise<SyncReplicaCommandView>
   retireSyncReplica: (replicaId: string, opts: MutationCallOptions) => Promise<ProductSyncReplicaRetirementView>
   listSyncTrash: (params: SyncTrashListParams) => Promise<SyncTrashPage>
   getSyncTrashItem: (deletionId: string, signal?: AbortSignal) => Promise<SyncTrashDetail>

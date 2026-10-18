@@ -32,7 +32,7 @@ function unitOfWork(calls: Array<Record<string, unknown>>): ProductSyncCenterUni
       lastAckAt: null, acknowledgedCommitOrdinal: null, lifecycleRevision: '3', etag: '"3"',
       activity: 'stalled', behindSince: '2026-07-27T22:00:00.000Z',
       health: { state: 'stopped', code: 'create_placement_unproven', since: '2026-07-27T22:00:00.000Z',
-        reportedAt: '2026-07-28T00:00:00.000Z', issueCount: 1 },
+        reportedAt: '2026-07-28T00:00:00.000Z', issueCount: 1, actions: ['retry'], commands: [] },
     }] }; },
     async getReplicaIssues(input) { calls.push({ kind: 'issues', ...input });
       if (input.replicaId !== 'replica-a') throw Object.assign(new Error('missing'), { code: 'resource_not_found' });
@@ -49,6 +49,13 @@ function unitOfWork(calls: Array<Record<string, unknown>>): ProductSyncCenterUni
       status: 'resolved', revision: 'conflict-r2', etag: '"conflict-r2"', resolvedAt: '2026-07-28T01:00:00.000Z' } }; },
     async retireReplica(input) { calls.push({ kind: 'retire', ...input }); return { kind: 'committed', result: { replicaId: input.replicaId,
       status: 'retired', lifecycleRevision: '4', etag: '"4"', retiredAt: '2026-07-28T01:00:00.000Z' } }; },
+    async sendReplicaCommand(input) { calls.push({ kind: 'command', ...input });
+      if (input.replicaId !== 'replica-a') throw Object.assign(new Error('missing'), { code: 'resource_not_found' });
+      if (input.action === 'rebuild') throw Object.assign(new Error('not offered'), { code: 'replica_action_unavailable' });
+      if (input.action === 'resume') throw Object.assign(new Error('full'), { code: 'replica_commands_full' });
+      return { kind: 'committed', result: { commandId: 'cmd_a', replicaId: input.replicaId, action: input.action,
+        issueId: input.issueId ?? null, state: 'pending', resultCode: null, createdAt: '2026-07-28T01:00:00.000Z',
+        completedAt: null, expiresAt: '2026-08-04T01:00:00.000Z' } }; },
     async listTrash() { throw new Error('unexpected listTrash'); },
     async getTrashDetail() { throw new Error('unexpected getTrashDetail'); },
     async restoreTrash() { throw new Error('unexpected restoreTrash'); },
@@ -109,6 +116,40 @@ describe('P3-36 Product Sync Center HTTP', () => {
       assert.equal(retired.statusCode, 200);
       assert.equal(calls[0]!.commandId, commandId); assert.equal(calls[0]!.expectedRevision, 'conflict-r1');
       assert.equal(calls[1]!.expectedLifecycleRevision, '3');
+    } finally { await app.close(); }
+  });
+
+  test('queues an action an owned replica offered, bound to its command id and body', async () => {
+    const auth = await identity(); const calls: Array<Record<string, unknown>> = []; const app = buildApiApp({ config: config(), identityUnitOfWork: auth.unitOfWork, browserSessionAuthority: auth.factory.authority,
+      productSyncCenterUnitOfWork: unitOfWork(calls) });
+    const send = (replicaId: string, payload: unknown, extra: Record<string, string> = {}) => app.inject({ method: 'POST',
+      url: `/api/v1/sync/replicas/${replicaId}/commands`, payload: payload as Record<string, unknown>,
+      headers: headers(auth.client.cookie, { origin: ORIGIN, 'x-csrf-token': auth.client.csrfToken,
+        'known-command-id': randomUUID(), 'content-type': 'application/json', ...extra }) });
+    try {
+      const queued = await send('replica-a', { action: 'retry' });
+      assert.equal(queued.statusCode, 200, queued.body);
+      assert.equal(queued.headers['cache-control'], 'private, no-store');
+      assert.deepEqual(queued.json(), { action: 'retry', commandId: 'cmd_a', completedAt: null, createdAt: '2026-07-28T01:00:00.000Z',
+        expiresAt: '2026-08-04T01:00:00.000Z', issueId: null, replicaId: 'replica-a', resultCode: null, state: 'pending' });
+      assert.equal((await send('replica-a', { action: 'retry', issueId: 'issue-a' })).statusCode, 200);
+      assert.deepEqual(calls.map((call) => [call.accountId === auth.client.accountId, call.action, call.issueId]),
+        [[true, 'retry', undefined], [true, 'retry', 'issue-a']]);
+      // Two bodies, two fingerprints: the receipt binds the command id to exactly one request.
+      assert.notEqual(calls[0]!.fingerprint, calls[1]!.fingerprint);
+      // An issue-level action needs its issue; data, unknown actions and extra fields are refused.
+      for (const invalid of [{ action: 'discard_local' }, { action: 'format_disk' }, { action: 'retry', value: 'x' },
+        { action: 'retry', issueId: 'has space' }, []]) {
+        const refused = await send('replica-a', invalid);
+        assert.equal(refused.statusCode, 422, JSON.stringify(invalid)); assert.equal(refused.json().error.code, 'invalid_document');
+      }
+      const unavailable = await send('replica-a', { action: 'rebuild' });
+      assert.equal(unavailable.statusCode, 412); assert.equal(unavailable.json().error.code, 'precondition_failed');
+      const full = await send('replica-a', { action: 'resume' });
+      assert.equal(full.statusCode, 429); assert.equal(full.json().error.code, 'rate_limited');
+      assert.equal((await send('replica-b', { action: 'retry' })).statusCode, 404);
+      assert.equal((await send('replica-a', { action: 'retry' }, { origin: 'https://attacker.example.test' })).statusCode, 403);
+      assert.equal(calls.length, 5);
     } finally { await app.close(); }
   });
 

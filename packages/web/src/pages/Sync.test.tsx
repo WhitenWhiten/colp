@@ -3,7 +3,7 @@ import { act } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../api/errors'
-import type { SyncConflictSummary, SyncStatusView } from '../api/types'
+import type { SyncConflictSummary, SyncReplicaCommandView, SyncStatusView } from '../api/types'
 import { Sync } from './Sync'
 import { cleanup, domFinishedLoading, findButtonByName, mountTree, waitForDom } from '../test/render'
 
@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   loadSyncTrash: vi.fn(), getSyncTrashItem: vi.fn(), restoreSyncTrashItem: vi.fn(),
   restoreSyncTrashBatch: vi.fn(), restoreSyncTrashSubtree: vi.fn(), emptySyncTrash: vi.fn(),
   abandonSyncTrashIntent: vi.fn(), toast: vi.fn(), getLibrary: vi.fn(), listSyncReplicaIssues: vi.fn(),
+  sendSyncReplicaCommand: vi.fn(),
 }))
 
 vi.mock('../api', async (importOriginal) => {
@@ -27,6 +28,7 @@ vi.mock('../api', async (importOriginal) => {
     restoreSyncTrashSubtree: mocks.restoreSyncTrashSubtree, emptySyncTrash: mocks.emptySyncTrash,
     abandonSyncTrashIntent: mocks.abandonSyncTrashIntent,
     getLibrary: mocks.getLibrary, listSyncReplicaIssues: mocks.listSyncReplicaIssues,
+    sendSyncReplicaCommand: mocks.sendSyncReplicaCommand,
   } }
 })
 vi.mock('../components/AppToast', () => ({
@@ -128,7 +130,7 @@ describe('Sync Center authoritative workflow', () => {
     const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
     const base = status().replicas[0]!
     const report = (state: 'stopped' | 'degraded' | 'paused', issueCount: number, code: string | null = null) =>
-      ({ state, code, since: hoursAgo(2), reportedAt: hoursAgo(0), issueCount })
+      ({ state, code, since: hoursAgo(2), reportedAt: hoursAgo(0), issueCount, actions: [], commands: [] })
     mocks.getSyncStatus.mockResolvedValue(status({ replicas: [
       { ...base, health: report('stopped', 3, 'create_placement_unproven') },
       { ...base, id: 'replica-2', name: 'Laptop profile', health: report('degraded', 1) },
@@ -166,6 +168,88 @@ describe('Sync Center authoritative workflow', () => {
     const items = [...cards()[0]!.querySelectorAll('[aria-label="Items this browser couldn’t sync"] li')].map((item) => item.textContent)
     expect(items).toEqual(['RecipesWaiting for a conflict to be resolved',
       'A bookmark on that browserThe server didn’t accept this change (2 times)', 'and 1 more item'])
+  })
+
+  it('asks a stopped browser to retry or reset from here, and shows what came of it', async () => {
+    const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
+    const base = status().replicas[0]!
+    const command = (action: 'retry' | 'rebuild', state: SyncReplicaCommandView['state'], extra: Partial<SyncReplicaCommandView> = {}) => ({
+      commandId: `cmd-${action}-${state}`, replicaId: 'replica-1', action, issueId: null, state, resultCode: null,
+      createdAt: minutesAgo(3), completedAt: state === 'done' || state === 'failed' ? minutesAgo(1) : null,
+      expiresAt: minutesAgo(-7 * 24 * 60), ...extra }) satisfies SyncReplicaCommandView
+    const stopped = (commands: SyncReplicaCommandView[] = [], code = 'recovery_identity_unproven') => status({ replicas: [{
+      ...base, health: { state: 'stopped', code, since: minutesAgo(60), reportedAt: minutesAgo(0), issueCount: 1,
+        actions: ['retry', 'rebuild'], commands } }] })
+    mocks.getSyncStatus.mockResolvedValue(stopped())
+    mocks.sendSyncReplicaCommand.mockResolvedValue(command('retry', 'pending'))
+    render(); await waitForDom(domFinishedLoading)
+    const card = () => document.querySelector('[aria-label="Connected browsers"] > li')!
+    const note = () => card().querySelector('[role=status]')?.textContent ?? ''
+    expect(note()).toContain('Try the options below, or open the extension on that browser.')
+    const statusReads = mocks.getSyncStatus.mock.calls.length
+    act(() => byButton('Retry').click())
+    await waitForDom(() => mocks.toast.mock.calls.length > 0)
+    expect(mocks.sendSyncReplicaCommand).toHaveBeenCalledWith('replica-1', { action: 'retry' },
+      expect.objectContaining({ maxRetries: 1, intentId: expect.stringMatching(/^sync-command:replica-1:retry::/u) }))
+    expect(mocks.toast).toHaveBeenCalledWith('Sent to Chrome profile. It runs the next time that browser checks in.')
+    await waitForDom(() => mocks.getSyncStatus.mock.calls.length > statusReads)
+
+    // Reset is destructive on that browser, so it asks first; cancelling sends nothing.
+    act(() => byButton('Reset sync').click()); await confirmModal('Cancel')
+    expect(mocks.sendSyncReplicaCommand).toHaveBeenCalledTimes(1)
+    act(() => byButton('Reset sync').click()); await confirmModal('Reset sync')
+    await waitForDom(() => mocks.sendSyncReplicaCommand.mock.calls.length === 2)
+    expect(mocks.sendSyncReplicaCommand.mock.calls[1]!.slice(0, 2)).toEqual(['replica-1', { action: 'rebuild' }])
+
+    // An open request replaces its button and says it is waiting for the browser.
+    mocks.getSyncStatus.mockResolvedValue(stopped([command('rebuild', 'pending'), command('retry', 'done')]))
+    act(() => byButton('Refresh').click())
+    await waitForDom(() => note().includes('Reset sync sent.'))
+    expect(note()).toContain('It runs when Chrome profile next checks in, usually within five minutes while it’s open.')
+    expect([...card().querySelectorAll('button')].map((button) => button.textContent)).not.toContain('Reset sync')
+    expect(byButton('Retry').disabled).toBe(false)
+    mocks.getSyncStatus.mockResolvedValue(stopped([command('retry', 'failed', { resultCode: 'action_unavailable' })]))
+    act(() => byButton('Refresh').click())
+    await waitForDom(() => note().includes('Retry didn’t work: that browser no longer offered it.'))
+    // After a reset the old entry says so once, and its buttons are gone with its offers.
+    mocks.getSyncStatus.mockResolvedValue(status({ replicas: [{ ...base, health: { state: 'stopped', code: 'replica_rebuilt',
+      since: minutesAgo(1), reportedAt: minutesAgo(1), issueCount: 0, actions: [], commands: [command('rebuild', 'done')] } }] }))
+    act(() => byButton('Refresh').click())
+    await waitForDom(() => note().includes('Sync on this browser was reset.'))
+    expect(note()).not.toContain('Sync was reset 1 min ago')
+    expect([...card().querySelectorAll('button')].map((button) => button.textContent)).not.toContain('Retry')
+
+    // A browser that stopped offering it answers 412; the owner hears so.
+    mocks.getSyncStatus.mockResolvedValue(stopped())
+    act(() => byButton('Refresh').click()); await waitForDom(() => note().includes('Try the options below'))
+    mocks.sendSyncReplicaCommand.mockRejectedValueOnce(new ProductApiError({ status: 412, code: 'precondition_failed',
+      message: 'stale', recovery: 'refresh_and_retry' }))
+    act(() => byButton('Retry').click())
+    await waitForDom(() => mocks.toast.mock.calls.some(([message]) => String(message).startsWith('That browser no longer offers this.')))
+  })
+
+  it('retries one held item from the list of what a browser set aside', async () => {
+    const base = status().replicas[0]!
+    mocks.getSyncStatus.mockResolvedValue(status({ replicas: [{ ...base, health: { state: 'degraded', code: null,
+      since: base.lastSeenAt, reportedAt: new Date().toISOString(), issueCount: 2, actions: [], commands: [] } }] }))
+    mocks.listSyncReplicaIssues.mockResolvedValue({ replicaId: 'replica-1', reportedAt: base.lastSeenAt, total: 2,
+      ackWarnings: [], ackWarningsAt: null, items: [
+        { issueId: 'held', code: 'create_placement_unproven', direction: 'push', title: 'Recipes', count: 1,
+          firstSeenAt: base.lastSeenAt, lastSeenAt: base.lastSeenAt, actions: ['retry'] },
+        { issueId: 'waiting', code: 'dependency_hold', direction: 'push', title: 'Soup', count: 1,
+          firstSeenAt: base.lastSeenAt, lastSeenAt: base.lastSeenAt, actions: [] }] })
+    mocks.sendSyncReplicaCommand.mockResolvedValue({ commandId: 'cmd-1', replicaId: 'replica-1', action: 'retry',
+      issueId: 'held', state: 'pending', resultCode: null, createdAt: base.lastSeenAt, completedAt: null, expiresAt: base.leaseExpiresAt })
+    render(); await waitForDom(domFinishedLoading)
+    act(() => byButton('Show 2 items').click())
+    await waitForDom(() => (document.body.textContent ?? '').includes('Recipes'))
+    const items = [...document.querySelectorAll('[aria-label="Items this browser couldn’t sync"] li')]
+    // Only the held save offers a retry; the change waiting for it follows it.
+    expect(items.map((item) => item.querySelector('button')?.getAttribute('aria-label') ?? null))
+      .toEqual(['Try again: Recipes', null])
+    act(() => items[0]!.querySelector('button')!.click())
+    await waitForDom(() => mocks.sendSyncReplicaCommand.mock.calls.length === 1)
+    expect(mocks.sendSyncReplicaCommand.mock.calls[0]!.slice(0, 2)).toEqual(['replica-1', { action: 'retry', issueId: 'held' }])
   })
 
   it('announces initial loading and exposes a retryable Product read error', async () => {

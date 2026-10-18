@@ -2,7 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../../bootstrap/config.js';
 import { canonicalCommandFingerprint, canonicalJson } from '../../modules/commands/index.js';
 import type { IdentityUnitOfWork } from '../../modules/identity/index.js';
-import type { ProductSyncCenterUnitOfWork, ProductSyncCommandOutcome } from '../../modules/sync/index.js';
+import { parseReplicaCommandRequest, type ProductSyncCenterUnitOfWork,
+  type ProductSyncCommandOutcome } from '../../modules/sync/index.js';
 import { readKnownCommandId } from './collection-route-helpers.js';
 import { sendProductCommandReceiptOutcome } from '../product-command-mapping.js';
 import { ProductHttpError } from '../product-error.js';
@@ -13,7 +14,7 @@ import { registerProductSyncTrashRoutes } from './product-sync-trash-routes.js';
 
 const STATUS = '/api/v1/sync/status'; const CONFLICTS = '/api/v1/sync/conflicts';
 const RESOLUTION = '/api/v1/sync/conflicts/:conflictId/resolution'; const REPLICA = '/api/v1/sync/replicas/:replicaId';
-const ISSUES = '/api/v1/sync/replicas/:replicaId/issues';
+const ISSUES = '/api/v1/sync/replicas/:replicaId/issues'; const COMMANDS = '/api/v1/sync/replicas/:replicaId/commands';
 const OPAQUE = /^[A-Za-z0-9._~-]{1,128}$/u; const STRONG = /^"([A-Za-z0-9._~-]{1,128})"$/u;
 export interface ProductSyncCenterRoutesDeps { readonly config: AppConfig; readonly identityUnitOfWork: IdentityUnitOfWork;
   readonly unitOfWork: ProductSyncCenterUnitOfWork }
@@ -63,6 +64,17 @@ export function registerProductSyncCenterRoutes(app: FastifyInstance, deps: Prod
     try { return sendOutcome(reply, await deps.unitOfWork.execute((ports) => ports.retireReplica({ accountId: account.id,
       replicaId, expectedLifecycleRevision, commandId, fingerprint }))); } catch (error) { throw mapMutationError(error); }
   });
+  app.post(COMMANDS, { config: { ...productRouteMetadata('POST', COMMANDS), productTransport: { allowedQuery: [],
+    acceptedMediaTypes: ['application/json'], bodyLimitBytes: 1_024, cacheControl: 'private-no-store' as const } } }, async (request, reply) => {
+    const { account } = await mutationActor(request, deps); const replicaId = pathId(request, 'replicaId');
+    const commandId = readKnownCommandId(request); let body: ReturnType<typeof parseReplicaCommandRequest>;
+    try { body = parseReplicaCommandRequest(request.body); } catch { throw new ProductHttpError({ statusCode: 422,
+      code: 'invalid_document', message: 'The replica command document is invalid.' }); }
+    const fingerprint = canonicalCommandFingerprint({ method: 'POST', route: `/api/v1/sync/replicas/${replicaId}/commands`,
+      resource: replicaId, mediaType: 'application/json', body });
+    try { return sendOutcome(reply, await deps.unitOfWork.execute((ports) => ports.sendReplicaCommand({ accountId: account.id,
+      replicaId, ...body, commandId, fingerprint }))); } catch (error) { throw mapMutationError(error); }
+  });
   registerProductSyncTrashRoutes(app, deps);
 }
 
@@ -100,6 +112,10 @@ function mapMutationError(error: unknown): unknown { const value = code(error);
   if (value === 'unsupported_operation') return new ProductHttpError({ statusCode: 422, code: 'invalid_document',
     message: 'This resolution is not allowed for the Conflict.', recovery: 'user_action' });
   if (value === 'invalid_document') return invalidDocument();
+  if (value === 'replica_action_unavailable') return new ProductHttpError({ statusCode: 412, code: 'precondition_failed',
+    message: 'That browser no longer offers this action.', recovery: 'refresh_and_retry', precondition: 'resource' });
+  if (value === 'replica_commands_full') return new ProductHttpError({ statusCode: 429, code: 'rate_limited',
+    message: 'This browser already has commands waiting. Try again after it checks in.', recovery: 'user_action' });
   if (value === 'idempotency_key_reused') return new ProductHttpError({ statusCode: 409, code: 'command_id_reused',
     message: 'This command id was already used with a different request.', recovery: 'user_action' });
   if (value === 'idempotency_in_progress') return new ProductHttpError({ statusCode: 409, code: 'command_in_progress',

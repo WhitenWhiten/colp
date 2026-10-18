@@ -14,6 +14,8 @@ import type {
   ProductSyncReplicaRetirementView,
   SyncConflictPage,
   SyncConflictSummary,
+  SyncReplicaCommandRequest,
+  SyncReplicaCommandView,
   SyncReplicaIssuesView,
   SyncStatusView,
   SyncTrashDetail,
@@ -131,6 +133,17 @@ export function createProductSyncClient(
     )
   }
 
+  async function sendSyncReplicaCommand(
+    replicaId: string, body: SyncReplicaCommandRequest, options: MutationOptions,
+  ): Promise<SyncReplicaCommandView> {
+    return mutationCall(
+      (csrf, commandIntentId) => transport.sendSyncReplicaCommand(replicaId, body, {
+        commandIntentId, csrfToken: csrf, signal: options.signal,
+      }),
+      syncMutationOptions(options),
+    )
+  }
+
   async function getSyncTrashPage(
     params: { collectionId: string; limit?: number; cursor?: string }, options?: ReadOptions,
   ): Promise<SyncTrashPage> {
@@ -205,6 +218,7 @@ export function createProductSyncClient(
     loadSyncConflicts,
     resolveSyncConflict,
     retireSyncReplica,
+    sendSyncReplicaCommand,
     loadSyncTrash,
     getSyncTrashItem,
     restoreSyncTrashItem,
