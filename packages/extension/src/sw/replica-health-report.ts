@@ -188,6 +188,7 @@ export interface ReplicaHealthReporterDeps {
   readonly fetch: typeof fetch;
   readonly storage: Pick<StorageArea, 'get' | 'set'>;
   readonly origin: string;
+  readonly replicaProof?: (scope: SyncScope) => Promise<string | undefined>;
   readonly extensionVersion?: string;
   readonly now: () => number;
   /** Carries out what the Sync center asks; without one, commands are left for a later report. */
@@ -300,10 +301,11 @@ async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknow
   if (credential.subject !== deps.scope.accountId || credential.serverOrigin.replace(/\/$/u, '') !== deps.scope.serverOrigin.replace(/\/$/u, '')) {
     throw new Error('health_authority_mismatch');
   }
+  const proof = await deps.replicaProof?.(deps.scope);
   return deps.fetch(`${credential.serverOrigin.replace(/\/$/u, '')}${REPLICA_HEALTH_PATH}`, {
     method: 'POST', redirect: 'error', cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(10_000),
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Origin: deps.origin,
-      ...colpCredentialHeaders(credential.accessToken) },
+      ...colpCredentialHeaders(credential.accessToken), ...(proof ? { 'Known-Sync-Replica-Proof': proof } : {}) },
     body: JSON.stringify(fitReplicaHealthBody(body)),
   });
 }

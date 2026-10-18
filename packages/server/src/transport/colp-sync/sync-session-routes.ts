@@ -149,6 +149,7 @@ export function registerSyncSessionRoutes(
         if (subjectOutcome.kind === 'failed') throw new SyncSessionHttpError('service_unavailable');
         const issued = await dependencies.application.issue({
           credential,
+          replicaProof: typeof request.headers['known-sync-replica-proof'] === 'string' ? request.headers['known-sync-replica-proof'] : undefined,
           idempotencyKey: admission.idempotencyKey,
           requestFingerprint: createHash('sha256')
             .update(canonicalJson(document), 'utf8').digest('base64url'),

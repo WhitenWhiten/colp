@@ -290,7 +290,7 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
   if (effectiveForce || before?.accessToken !== credential.accessToken || !session || !sessionMatchesCredential
       || !sessionMatchesCollection || syncSessionNeedsRenewal(session)) {
     const prior = session;
-    try { session = await createSyncSession({ endpoints: await endpoints(), credential, request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1),
+    try { session = await createSyncSession({ endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1),
       origin: extensionOrigin(), signal: context.signal, fetch: credential.subject && target
         ? personalSyncFetch({ serverOrigin: credential.serverOrigin, accountId: credential.subject, collectionId: target }) : undefined });
       sw.sessionRetryNotBefore = 0; }
@@ -301,7 +301,7 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
       }
       if (!prior) { await clearSessionIfGeneration(context.generation); throw error; }
       try { session = await retryStaleReplicaSession(prior, error, async () => createSyncSession({
-        endpoints: await endpoints(), credential, request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1), origin: extensionOrigin(),
+        endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1), origin: extensionOrigin(),
         signal: context.signal, fetch: credential.subject && target
           ? personalSyncFetch({ serverOrigin: credential.serverOrigin, accountId: credential.subject, collectionId: target }) : undefined,
       })); }
@@ -367,3 +367,10 @@ export function scheduleSessionFreshen(): void {
 export async function stateAfterFailure(error: unknown) { const config = await loadConfig(); const code = safeError(error);
   return { status: code === 'offline' ? 'offline' as const : code.includes('policy') || code.includes('managed_')
     ? 'policy_blocked' as const : 'error' as const, environment: config.environment, serverOrigin: config.serverOrigin, errorCode: code }; }
+
+async function loadBoundReplicaReportProof() {
+  const [credential, binding] = await Promise.all([store.loadCredential(), store.loadBinding()]);
+  if (!credential?.subject || !binding) return undefined;
+  return store.loadReplicaReportProof({ serverOrigin: credential.serverOrigin, accountId: credential.subject,
+    replicaId: binding.replicaId, browserProfileId: binding.browserProfileId, generation: Number(binding.generation) });
+}

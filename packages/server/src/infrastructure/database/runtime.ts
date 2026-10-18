@@ -75,6 +75,7 @@ export interface DatabaseSchema extends AutomationDatabaseSchema, BookmarkSubscr
   notifications: NotificationTable;
   notification_deliveries: NotificationDeliveryTable;
   sync_devices: SyncDeviceTable;
+  sync_replica_report_authorities: SyncReplicaReportAuthorityTable;
   sync_replica_id_ledger: SyncReplicaIdLedgerTable;
   sync_replica_generations: SyncReplicaGenerationTable;
   sync_replicas: SyncReplicaTable;
@@ -1752,4 +1753,10 @@ export interface AttachmentsTable {
   deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface SyncReplicaReportAuthorityTable {
+  proof_digest: string; replica_id: string; account_id: string; device_id: string;
+  browser_profile_id: string; browser_generation: string; credential_issuer: string;
+  oauth_client_id: string; account_security_epoch: bigint; created_at: Date;
 }

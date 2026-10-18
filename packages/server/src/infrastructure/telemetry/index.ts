@@ -107,6 +107,7 @@ export interface Tracer { startSpan(name: string): { end(): void }; }
 export class NoopTracer implements Tracer { startSpan(_name: string) { return { end() {} }; } }
 const REDACTED_LOG_PATHS = [
   'req.headers.authorization', 'req.headers.cookie',
+  'req.headers[\"known-sync-replica-proof\"]', 'req.raw.headers[\"known-sync-replica-proof\"]',
   'req.raw.headers.authorization', 'req.raw.headers.cookie',
   'authorization', 'cookie', 'databaseUrl', 'password', 'token', 'secret',
   'secretKeys', 'fingerprintKey', 'secret_envelope', '*.secretKeys', '*.fingerprintKey', '*.secret_envelope',
@@ -144,6 +145,7 @@ const SENSITIVE_HEADER_NAMES = new Set([
   'authorization',
   'cookie',
   'set-cookie',
+  'known-sync-replica-proof',
   'x-csrf-token',
   'x-xsrf-token',
   'csrf-token',
@@ -192,7 +194,7 @@ export function redactSensitiveText(value: unknown): string {
   const text = serializeErrorChain(value);
   return text
     .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 [REDACTED]')
-    .replace(/\b(authorization|cookie|set-cookie|x-csrf-token|x-xsrf-token|csrf-token)\s*[:=]\s*[^\r\n]+/gi, '$1=[REDACTED]')
+    .replace(/\b(authorization|cookie|set-cookie|x-csrf-token|x-xsrf-token|csrf-token|known-sync-replica-proof)\s*[:=]\s*[^\r\n]+/gi, '$1=[REDACTED]')
     .replace(/(?<![A-Za-z0-9])(password|passwd|token|secret|api[_-]?key|session[_-]?token|refresh[_-]?token)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]')
     // camelCase composite keys (C2): ...Secret / ...Token / ...Key /
     // ...Password / ...Passwd as the FINAL word component of the key name

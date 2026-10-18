@@ -1,3 +1,4 @@
+import { hasReplicaReportAuthority } from './replica-report-authority.js';
 import type {
   SyncSessionRequest, SyncSessionRequestV02, SyncSessionResult, SyncSessionResultV02,
 } from '@know-n/colp/types';
@@ -134,6 +135,17 @@ async function issueInUnitOfWork(
           .executeTakeFirst();
       }
       if (!replica) throw new SyncSessionHttpError('resource_not_found');
+      // A second account credential cannot mint a new device proof for someone
+      // else's existing replica. Same credential continuity supports old clients;
+      // refreshed credentials carry their saved installation proof.
+      const prior = await db.selectFrom('sync_sessions').select('session_id')
+        .where('replica_id', '=', replica.replica_id).executeTakeFirst();
+      const sameCredential = await db.selectFrom('sync_sessions').select('session_id')
+        .where('replica_id', '=', replica.replica_id).where('credential_issuer', '=', input.credential.issuer)
+        .where('credential_id', '=', input.credential.credentialId).executeTakeFirst();
+      if (prior && !sameCredential && !await hasReplicaReportAuthority(db, input.credential, replica.replica_id, input.replicaProof)) {
+        throw new SyncSessionHttpError('resource_not_found');
+      }
       const binding = request.replica.binding;
       if (!binding
           || replica.kind !== request.replica.kind

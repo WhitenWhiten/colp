@@ -114,6 +114,23 @@ describeWithPostgres('P3-08 Sync Session real HTTP/PostgreSQL black box', () => 
     await isolated?.close();
   });
 
+  test('another credential cannot acquire a device proof through existing-replica Session issuance; refresh uses possession', async () => {
+    const original = await start();
+    const initial = await client(original.origin).create({ idempotencyKey: 'proof-original', request: wireRequest() });
+    const rotated = await mintVerifiedExtensionCredentialFixture({ issuer: ISSUER, audience: 'known-api',
+      clientId: 'known-extension', subject: 'http-oidc', credentialId: 'another-device-credential' });
+    const otherStart = createSyncSessionHttpTestServer(isolated, rotated, apps);
+    const other = await otherStart();
+    const before = await sideEffectSnapshot();
+    const denied = await postWire(other.origin, 'proof-forged', wireRequest());
+    assert.equal(denied.status, 404, JSON.stringify(denied.body));
+    assert.deepEqual(await sideEffectSnapshot(), before);
+    const accepted = await fetch(`${other.origin}/private-entry/session-negotiation`, { method: 'POST', headers: {
+      authorization: `Bearer ${TOKEN}`, origin: ORIGIN, 'content-type': 'application/json', 'idempotency-key': 'proof-refreshed',
+      'known-sync-replica-proof': initial.body.sessionId }, body: JSON.stringify(wireRequest()) });
+    assert.equal(accepted.status, 201, await accepted.text());
+  });
+
   test('negotiates batching for an existing installation and keeps older client declarations valid', async () => {
     const server = await start({ maxBatchOperations: 50, registerUnknownGenerationOneReplica: true });
     const base = wireRequest();

@@ -1,3 +1,4 @@
+import { hasReplicaReportAuthority } from './replica-report-authority.js';
 import { sql, type Kysely } from 'kysely';
 import { REPLICA_COMMANDS_DELIVERED_MAX, ReplicaHealthError, type ReplicaCommand,
   type ReplicaHealthRecorder } from '../../modules/sync/index.js';
@@ -6,27 +7,30 @@ import { isJoseSyncCredentialRevoked } from './postgres/sync-jose-credential-rev
 
 /**
  * Replica reports are display facts. Authority is the verified Sync credential
- * alone: a stopped extension may hold no live Session, and its credential may
+ * plus durable installation possession: a stopped extension may hold no live Session, and its credential may
  * have rotated since its last Session, so neither is required. The credential's
- * active account must own the named, unretired replica.
+ * active account must own the named, unretired replica. The proof binds the
+ * device/profile/generation and account security epoch, independently of token expiry.
  */
 export function createPostgresReplicaHealthRecorder(db: Kysely<DatabaseSchema>): ReplicaHealthRecorder {
   const recorder: ReplicaHealthRecorder = {
-    async record({ credential, report }) {
+    async record({ credential, report, replicaProof }) {
+      return db.transaction().execute(async (db) => {
       if (!credential.scopes.includes('known.sync')) throw new ReplicaHealthError('invalid_token');
       const account = await db.selectFrom('account_identities as identity')
         .innerJoin('accounts as account', 'account.id', 'identity.account_id')
         .select(['account.id as account_id', 'account.status'])
         .where('identity.issuer', '=', credential.issuer)
-        .where('identity.subject', '=', credential.subject).executeTakeFirst();
+        .where('identity.subject', '=', credential.subject).forUpdate('account').executeTakeFirst();
       if (!account || account.status !== 'active' || await isJoseSyncCredentialRevoked(db, {
         issuer: credential.issuer, subject: credential.subject, tokenId: credential.credentialId,
         tokenDigest: credential.credentialDigest,
         issuedAtSeconds: Math.floor(credential.credentialIssuedAt.getTime() / 1_000), clockSkewSeconds: 0,
       })) throw new ReplicaHealthError('invalid_token');
       const replica = await db.selectFrom('sync_replicas').select(['account_id', 'status'])
-        .where('replica_id', '=', report.replicaId).executeTakeFirst();
+        .where('replica_id', '=', report.replicaId).forUpdate().executeTakeFirst();
       if (!replica || replica.account_id !== account.account_id) throw new ReplicaHealthError('resource_not_found');
+      if (!await hasReplicaReportAuthority(db, credential, report.replicaId, replicaProof)) throw new ReplicaHealthError('resource_not_found');
       if (replica.status === 'retired') throw new ReplicaHealthError('replica_retired');
       const issues = JSON.stringify(report.issues.items);
       const stored = await sql<{ health_revision: string }>`
@@ -48,6 +52,7 @@ export function createPostgresReplicaHealthRecorder(db: Kysely<DatabaseSchema>):
       const current = await db.selectFrom('sync_replica_reports').select('health_revision')
         .where('replica_id', '=', report.replicaId).executeTakeFirst();
       return { accepted: false, revision: Number(current?.health_revision ?? report.revision), commands };
+      });
     },
     async recordAckWarnings({ replicaId, warnings }) {
       await sql`
@@ -70,7 +75,7 @@ export function createPostgresReplicaHealthRecorder(db: Kysely<DatabaseSchema>):
 async function settleAndDeliverCommands(db: Kysely<DatabaseSchema>, replicaId: string,
   results: readonly { readonly commandId: string; readonly outcome: 'done' | 'failed'; readonly code?: string }[],
 ): Promise<ReplicaCommand[]> {
-  return db.transaction().execute(async (transaction) => {
+  const apply = async (transaction: Kysely<DatabaseSchema>) => {
     for (const result of results) {
       await transaction.updateTable('sync_replica_commands')
         .set({ state: result.outcome, result_code: result.code ?? null, completed_at: sql<Date>`clock_timestamp()` })
@@ -91,5 +96,6 @@ async function settleAndDeliverCommands(db: Kysely<DatabaseSchema>, replicaId: s
       .where('command_id', 'in', open.map((row) => row.command_id)).execute();
     return open.map((row) => Object.freeze({ commandId: row.command_id, action: row.action,
       ...(row.issue_id === null ? {} : { issueId: row.issue_id }) }));
-  });
+  };
+  return db.isTransaction ? apply(db) : db.transaction().execute(apply);
 }

@@ -661,7 +661,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
     } finally { await api.close(); }
   }, 120_000);
 
-  test('stores replica health reports by credential alone, newest revision wins, and renews nothing', async () => {
+  test('stores replica health reports with installation possession proof, newest revision wins, and renews nothing', async () => {
     const api = productApp();
     const health = Fastify({ logger: false });
     try {
@@ -682,9 +682,10 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
         } },
         recorder, allowedOrigins: [EXTENSION_ORIGIN],
       });
-      const post = (authorization: string, body: Record<string, unknown>) => health.inject({ method: 'POST',
+      const post = (authorization: string, body: Record<string, unknown>, proof = body.replicaId === retiring.replica.replicaId
+        ? retiring.session.sessionId : authorization === 'Bearer outsider-health' ? foreign.session.sessionId : reporting.session.sessionId) => health.inject({ method: 'POST',
         url: EXTENSION_REPLICA_HEALTH_PATH, payload: body,
-        headers: { authorization, origin: EXTENSION_ORIGIN, 'content-type': 'application/json' } });
+        headers: { authorization, origin: EXTENSION_ORIGIN, 'content-type': 'application/json', 'known-sync-replica-proof': proof } });
       const report = (replicaId: string, revision: number, state: string, extra: Record<string, unknown> = {}) => ({
         replicaId, revision, state, since: '2026-10-17T10:00:00.000Z', issues: { total: 0, items: [] }, ...extra });
       const authority = async (replicaId: string) => (await runtime.pool.query(`select lease_expires_at,last_seen_at,
@@ -739,6 +740,18 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       // A report is a display fact: no lease, cursor or lifecycle moves.
       assert.deepEqual(await authority(reporting.replica.replicaId), before);
 
+      // A valid credential and proof for another device on the SAME account
+      // cannot report, take commands or settle results for this installation.
+      credentials.set('Bearer other-device', retiring.credential);
+      assert.equal((await post('Bearer other-device', report(reporting.replica.replicaId, 400, 'syncing'),
+        retiring.session.sessionId)).statusCode, 404);
+      assert.equal((await post('Bearer owner-health', report(reporting.replica.replicaId, 400, 'syncing'), '')).statusCode, 404);
+      const rotated = await mintVerifiedExtensionCredentialFixture({ issuer: EXTENSION_ISSUER, audience: 'known-api',
+        clientId: 'known-extension', subject: owner.identitySubject, credentialId: `health-refresh-${randomUUID()}` });
+      credentials.set('Bearer refreshed-health', rotated);
+      assert.equal((await post('Bearer refreshed-health', report(reporting.replica.replicaId, 401, 'syncing'),
+        reporting.session.sessionId)).statusCode, 200, 'refresh does not need a new Sync Session');
+      assert.deepEqual(await authority(reporting.replica.replicaId), before);
       // Only the credential's own account may report, and never for a retired replica.
       assert.equal((await post('Bearer outsider-health', report(reporting.replica.replicaId, 400, 'syncing'))).statusCode, 404);
       assert.equal((await post('Bearer owner-health', report(foreign.replica.replicaId, 400, 'syncing'))).statusCode, 404);
@@ -764,6 +777,14 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
         [null, [], [{ code: 'separator_omitted', message: 'Separators are not materialized.' }]]);
       // Ack warnings alone are not a health report.
       assert.equal((await healthOf(outsider)).get(foreign.replica.replicaId), null);
+      await runtime.pool.query('update sync_extension_credentials set revoked_at=now() where credential_id=$1', [reporting.credential.credentialId]);
+      assert.equal((await post('Bearer owner-health', report(reporting.replica.replicaId, 800, 'syncing'))).statusCode, 401);
+      // Expired Session authority does not expire an installation's reporting proof.
+      await runtime.pool.query("update sync_sessions set status='terminated', termination_reason='lease_expired', terminated_at=now() where session_id=$1", [reporting.session.sessionId]);
+      assert.equal((await post('Bearer refreshed-health', report(reporting.replica.replicaId, 801, 'syncing'), reporting.session.sessionId)).statusCode, 200);
+      await runtime.pool.query('update accounts set security_epoch=security_epoch+1, security_epoch_bumped_at=now() where id=$1', [owner.accountId]);
+      assert.equal((await post('Bearer refreshed-health', report(reporting.replica.replicaId, 802, 'syncing'), reporting.session.sessionId)).statusCode, 401);
+
     } finally { await health.close(); await api.close(); }
   }, 120_000);
 
@@ -785,7 +806,8 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       });
       const report = async (revision: number, extra: Record<string, unknown> = {}) => {
         const response = await health.inject({ method: 'POST', url: EXTENSION_REPLICA_HEALTH_PATH,
-          headers: { authorization: 'Bearer owner-command', origin: EXTENSION_ORIGIN, 'content-type': 'application/json' },
+          headers: { authorization: 'Bearer owner-command', origin: EXTENSION_ORIGIN, 'content-type': 'application/json',
+            'known-sync-replica-proof': reporting.session.sessionId },
           payload: { replicaId, revision, state: 'stopped', code: 'create_placement_unproven',
             since: '2026-10-17T10:00:00.000Z', actions: ['retry', 'rebuild'], issues: { total: 1, items: [
               { issueId: 'issue-a', code: 'create_placement_unproven', direction: 'push', count: 1,
@@ -825,6 +847,14 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       assert.equal((await send(outsider, { action: 'retry' })).statusCode, 404);
 
       // The next report receives both, oldest first, and keeps receiving them until it reports a result.
+      const intruder = await syncContext(owner, owned.collectionId, 'Second installation');
+      const forged = await health.inject({ method: 'POST', url: EXTENSION_REPLICA_HEALTH_PATH,
+        headers: { authorization: 'Bearer owner-command', origin: EXTENSION_ORIGIN, 'content-type': 'application/json',
+          'known-sync-replica-proof': intruder.session.sessionId },
+        payload: { replicaId, revision: 199, state: 'syncing', since: new Date().toISOString(), issues: { total: 0, items: [] },
+          commandResults: [{ commandId: retry.json().commandId, outcome: 'done' }] } });
+      assert.equal(forged.statusCode, 404, forged.body);
+      assert.ok((await commandsOf()).every(command => command.state === 'pending'));
       const delivered = await report(200);
       assert.deepEqual(delivered.commands, [{ commandId: retry.json().commandId, action: 'retry' },
         { commandId: item.json().commandId, action: 'retry', issueId: 'issue-a' }]);

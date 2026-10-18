@@ -540,6 +540,14 @@ export class TransactionSessionStore implements SyncSessionStore {
       capability_digest: authority.capabilityDigest,
       binding_json: bindingJson,
     }).execute();
+    await this.transaction.insertInto('sync_replica_report_authorities').values({
+      proof_digest: createHash('sha256').update(session.sessionId, 'utf8').digest('hex'),
+      replica_id: authority.replica.replica_id, account_id: authority.accountId,
+      device_id: authority.replica.device_id, browser_profile_id: authority.replica.browser_profile_id,
+      browser_generation: authority.replica.browser_generation, credential_issuer: authority.credential.issuer,
+      oauth_client_id: authority.credential.clientId, account_security_epoch: authority.accountSecurityEpoch,
+      created_at: authority.issuedAt,
+    }).execute();
     await authority.faultInjector.afterPhase?.('session');
     await this.transaction.insertInto('sync_session_scopes').values(
       session.authorizationScopes.map((scope) => ({

@@ -67,7 +67,7 @@ export function registerExtensionReplicaHealthRoutes(
       if (!await admitted(reply, await admission.admitSubject({ purpose: 'pull',
         subjectKey: syncAdmissionSubjectKey({ credential }) }))) return reply;
       const report = parseReplicaHealthReport(request.body);
-      const result = await dependencies.recorder.record({ credential, report });
+      const result = await dependencies.recorder.record({ credential, report, replicaProof: readHeader(request, 'known-sync-replica-proof') });
       return reply.code(200).type('application/json; charset=utf-8')
         .send({ replicaId: report.replicaId, revision: result.revision, accepted: result.accepted,
           commands: result.commands });

@@ -5,7 +5,7 @@ import type { SyncScope } from '../sync-state-store.js';
 import { scheduleSyncEngineWake } from './engine.js';
 import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaHealthReport,
   type ReplicaCommandRunner } from './replica-health-report.js';
-import { extensionOrigin, hasBookmarkPermission, syncState, workCoordinator } from './runtime.js';
+import { extensionOrigin, hasBookmarkPermission, store, syncState, workCoordinator } from './runtime.js';
 import { replicaRebuilder } from './scope-rebuild.js';
 import { createRuntimeAuth, loadConfig, restoredSyncScope } from './scope.js';
 
@@ -32,6 +32,7 @@ async function send(force: boolean) {
     rebuildPending: () => replicaRebuilder().hasPending(),
     // A credential refresh at most; never a Sync Session, which renews lease and cursors.
     credential: async () => createRuntimeAuth(await loadConfig()).ensureFreshCredential(),
+    replicaProof: scope => store.loadReplicaReportProof(scope),
     fetch: (input, init) => fetch(input, init),
     storage: chrome.storage.local, origin: extensionOrigin(),
     extensionVersion: chrome.runtime.getManifest().version, now: Date.now,

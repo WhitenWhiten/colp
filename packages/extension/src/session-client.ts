@@ -63,7 +63,7 @@ export function shouldForceSessionRefresh(requested: boolean, observedSessionId:
 }
 
 export async function createSyncSession(input: { readonly endpoints: SyncEndpoints; readonly credential: StoredCredential;
-  readonly request: unknown; readonly origin?: string; readonly fetch?: typeof fetch;
+  readonly request: unknown; readonly replicaProof?: string; readonly origin?: string; readonly fetch?: typeof fetch;
   readonly signal?: AbortSignal }): Promise<StoredSession> {
   const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS);
   const signal = input.signal ? mergeAbortSignals(input.signal, timeout.signal) : timeout.signal;
@@ -71,6 +71,7 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
     cache: 'no-store', credentials: 'omit', signal,
     headers: { Accept: 'application/json', ...colpCredentialHeaders(input.credential.accessToken),
       'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(),
+      ...(input.replicaProof ? { 'Known-Sync-Replica-Proof': input.replicaProof } : {}),
       ...(input.origin ? { Origin: input.origin } : {}) }, body: JSON.stringify(input.request) })
     .finally(() => clearTimeout(timer));
   if (response.status !== 201 || !/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) {

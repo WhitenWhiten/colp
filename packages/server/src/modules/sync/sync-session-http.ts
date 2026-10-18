@@ -7,6 +7,7 @@ import type { VerifiedExtensionCredential } from '../identity/index.js';
 
 export interface SyncSessionHttpApplicationInput {
   readonly credential: VerifiedExtensionCredential;
+  readonly replicaProof?: string;
   readonly idempotencyKey: string;
   readonly requestFingerprint: string;
   readonly origin: string;
