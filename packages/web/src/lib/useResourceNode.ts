@@ -10,6 +10,7 @@ import { useAuth } from '../auth/AuthContext'
 import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { readRouteCache, writeRouteCache } from './routeCache'
 import { hostForUrl, safeExternalUrl } from './publicCollectionTree'
+import { rootTitle } from './libraryTree'
 import type { CollectionKind } from '../api'
 
 export type ResourceWorkspaceQuery = {
@@ -39,6 +40,8 @@ export type ResourceNodeLoad =
       status: 'ready'
       node: ResolvedResourceNode
       collectionTitle: string
+      /** The folder the bookmark is filed in; null at the collection's root. */
+      folder: { id: string; title: string } | null
       collectionId: string
       collectionKind: CollectionKind
       publicationSlug: string | null
@@ -87,10 +90,16 @@ export function resourceDetailPath(
  */
 export function resourceBackPath(
   query: { collectionId?: string | null; slug?: string | null },
-  ready?: { publicationSlug: string | null },
+  ready?: { publicationSlug: string | null; folder?: { id: string } | null },
 ): string {
   const collectionId = query.collectionId?.trim()
-  if (collectionId) return `/library/${encodeURIComponent(collectionId)}`
+  if (collectionId) {
+    // Back to the folder the bookmark is filed in, not the library's root.
+    const folderId = ready?.folder?.id
+    return folderId
+      ? `/library/${encodeURIComponent(collectionId)}?folder=${encodeURIComponent(folderId)}`
+      : `/library/${encodeURIComponent(collectionId)}`
+  }
   const slug = ready?.publicationSlug ?? query.slug?.trim() ?? ''
   if (slug) return `/c/${slug}`
   return '/library'
@@ -209,16 +218,20 @@ function fromEditor(snapshot: EditorSnapshot, nodeId: string, allowContainers: b
     ?? (snapshot.root.id === nodeId ? snapshot.root : undefined)
   if (!found) return { status: 'unavailable' }
   if (found.kind !== 'bookmark' && !allowContainers) return { status: 'folder', title: found.title }
-  const bookmarks = snapshot.nodes.filter((node) => node.kind === 'bookmark')
+  // Previous and next walk the bookmark's own folder: positions only order
+  // siblings, so mixing folders paired bookmarks that are not neighbours.
+  const siblings = snapshot.nodes.filter((node) => node.kind === 'bookmark' && node.parentId === found.parentId)
+  const parent = snapshot.nodes.find((node) => node.id === found.parentId && node.kind === 'folder')
   return {
     status: 'ready',
     // Editor snapshots are private projections: never hotlink the CDN.
     node: toResolved(found.id === snapshot.collection.rootNodeId ? { ...found, kind: 'root' } : found, false),
-    collectionTitle: snapshot.collection.title,
+    collectionTitle: rootTitle(snapshot.collection),
+    folder: parent ? { id: parent.id, title: parent.title } : null,
     collectionId: snapshot.collection.id,
     collectionKind: snapshot.collection.kind,
     publicationSlug: snapshot.collection.publicationSlug,
-    ...neighbors(bookmarks, nodeId, false),
+    ...neighbors(siblings, nodeId, false),
   }
 }
 
@@ -226,16 +239,18 @@ function fromPublic(snapshot: PublicCollectionSnapshot, nodeId: string, allowCon
   const found = snapshot.nodes.find((node) => node.id === nodeId)
   if (!found) return { status: 'unavailable' }
   if (found.kind !== 'bookmark' && !allowContainers) return { status: 'folder', title: found.title }
-  const bookmarks = snapshot.nodes.filter((node) => node.kind === 'bookmark')
+  const siblings = snapshot.nodes.filter((node) => node.kind === 'bookmark' && node.parentId === found.parentId)
+  const parent = snapshot.nodes.find((node) => node.id === found.parentId && node.kind === 'folder')
   const cdnAllowed = false
   return {
     status: 'ready',
     node: toResolved(found.id === snapshot.collection.rootNodeId ? { ...found, kind: 'root' } : found, cdnAllowed),
     collectionTitle: snapshot.collection.title,
+    folder: parent ? { id: parent.id, title: parent.title } : null,
     collectionId: snapshot.collection.id,
     collectionKind: snapshot.collection.kind,
     publicationSlug: snapshot.collection.slug,
-    ...neighbors(bookmarks, nodeId, cdnAllowed),
+    ...neighbors(siblings, nodeId, cdnAllowed),
   }
 }
 

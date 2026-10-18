@@ -224,7 +224,7 @@ function ResourceDetailContent() {
   /* Loading and failure shells keep the same back control as the ready page —
      a dead end with no way back reads as broken, not quiet. */
   const shellBackHref = graphReturn ?? resourceBackPath(workspaceQuery)
-  const shellBackLabel = graphReturn ? 'Back to graph' : workspaceQuery.collectionId?.trim() || workspaceQuery.slug?.trim()
+  const shellBackLabel = graphReturn ? 'Back to graph' : workspaceQuery.slug?.trim() && !workspaceQuery.collectionId?.trim()
     ? 'Back to the collection'
     : 'Back to library'
   const shellTrail = (
@@ -312,7 +312,10 @@ function ResourceDetailContent() {
   const kindLabel = node.kind === 'root' ? 'Collection' : node.kind === 'folder' ? 'Folder' : 'Bookmark'
   const hostLabel = !isContainer && node.host !== '-' ? node.host : ''
 
-  const backLabel = graphReturn ? 'Back to graph' : resolved.collectionTitle
+  // In the library a bookmark lives in a folder: name that, not the root.
+  const inLibrary = Boolean(workspaceQuery.collectionId?.trim())
+  const placeTitle = (inLibrary ? resolved.folder?.title : null) ?? resolved.collectionTitle
+  const backLabel = graphReturn ? 'Back to graph' : placeTitle
   const showSignIn = !allowWrite && (annotationsEnabled || relationsEnabled)
 
   return (
@@ -322,7 +325,7 @@ function ResourceDetailContent() {
           <Link to={backHref} className="trail-back" tabIndex={-1} aria-hidden>
             <Icon name="arrow-left" />
           </Link>
-          <Link to={backHref} title={resolved.collectionTitle}>{backLabel}</Link>
+          <Link to={backHref} title={placeTitle}>{backLabel}</Link>
         </nav>
 
         <div className="resource-layout">
@@ -551,8 +554,8 @@ function ResourceDetailContent() {
             {/* Where it lives: the collection, its board and graph, and the
                 way through it — previous / next ride the same card. */}
             <section className="resource-context">
-              <h2 className="section-label">From the collection</h2>
-              <Link to={backHref} className="resource-context-title">{resolved.collectionTitle}</Link>
+              <h2 className="section-label">{inLibrary ? 'Filed in' : 'From the collection'}</h2>
+              <Link to={backHref} className="resource-context-title">{placeTitle}</Link>
               {publicationSlug ? (
                 <p className="resource-context-links">
                   <Link to={`/c/${publicationSlug}`}>View on board</Link>
@@ -560,7 +563,7 @@ function ResourceDetailContent() {
                 </p>
               ) : null}
               {(resolved.previous || resolved.next) && (
-                <nav className="resource-neighbors" aria-label="More bookmarks in this collection">
+                <nav className="resource-neighbors" aria-label={inLibrary ? 'More bookmarks in this folder' : 'More bookmarks in this collection'}>
                   {resolved.previous ? (
                     <Link className="resource-neighbor" to={resourceDetailPath(resolved.previous.id, workspaceQuery)}>
                       <Icon name="arrow-left" className="resource-neighbor-glyph" />

@@ -19,7 +19,7 @@ import { clearRouteCache } from './routeCache'
 import { ProductApiError } from '../api/errors'
 import type { EditorSnapshot, PublicCollectionSnapshot } from '../api/types'
 import hookSource from './useResourceNode.ts?raw'
-import { resourcePrimaryTarget, useResourceNode } from './useResourceNode'
+import { resourceBackPath, resourcePrimaryTarget, useResourceNode } from './useResourceNode'
 import { cleanup, domFinishedLoading, mountTree, settled, waitForDom } from '../test/render'
 
 const mocks = vi.hoisted(() => ({
@@ -145,6 +145,8 @@ function Harness() {
           <span data-testid="host">{load.node.host}</span>
           <span data-testid="slug">{load.publicationSlug}</span>
           <span data-testid="next">{load.next?.id ?? ''}</span>
+          <span data-testid="folder">{load.folder?.title ?? ''}</span>
+          <span data-testid="collection-title">{load.collectionTitle}</span>
         </>
       )}
       {load.status === 'folder' && <p>{load.title}</p>}
@@ -181,6 +183,27 @@ describe('useResourceNode', () => {
   }
 
   describe('resource resolution behaviour', () => {
+    it('places a library bookmark in its folder and walks only that folder', async () => {
+      const base = editor()
+      const elsewhere = { ...base.nodes[2]!, id: 'nd-elsewhere', parentId: base.root.id, position: 'bb', title: 'Root-level bookmark' }
+      mocks.loadEditorSnapshot.mockResolvedValue({
+        ...base,
+        collection: { ...base.collection, library: true, title: 'Bookmarks' },
+        nodes: [...base.nodes, elsewhere],
+      } as EditorSnapshot)
+      render(`/r/${NODE_ID}?collectionId=col-u01-01&subjectType=node`)
+      await waitForDom(domFinishedLoading)
+      expect(document.querySelector('[data-testid="folder"]')?.textContent).toBe('Videos')
+      // The library root is All bookmarks, never its stored title.
+      expect(document.querySelector('[data-testid="collection-title"]')?.textContent).toBe('All bookmarks')
+      // A root-level bookmark positioned between the two is not a neighbour.
+      expect(document.querySelector('[data-testid="next"]')?.textContent).toBe(NEXT_ID)
+      expect(resourceBackPath({ collectionId: 'col-u01-01' }, { publicationSlug: null, folder: { id: FOLDER_ID } }))
+        .toBe(`/library/col-u01-01?folder=${FOLDER_ID}`)
+      expect(resourceBackPath({ collectionId: 'col-u01-01' }, { publicationSlug: null, folder: null }))
+        .toBe('/library/col-u01-01')
+    })
+
     it('loads a bookmark from the editor snapshot by OpaqueId', async () => {
       render(`/r/${NODE_ID}?collectionId=col-u01-01&subjectType=node`)
       await waitForDom(domFinishedLoading)
