@@ -1,3 +1,4 @@
+import { snapshotSyncIssues, issueId } from '../sync-issue-snapshot.js';
 import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 /**
  * S7 / B2 (SR-09 · SR-11 · SR-13): the read-only service-worker side of the
@@ -7,9 +8,7 @@ import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
  * channel are the scope's `metadata.recoveryCode` (the code the terminal freeze
  * actually recorded, see `freezeScopeRecovery`) and a queue projection computed
  * from live rows; both come from the same pure helpers the public engine state
- * uses (`queueStatusProjection`/`hasConflictBarrier`/`hasRejectedBarrier`), so
- * the aggregate can never disagree with `known.sync.engine.status` about what
- * the queue is doing. No engine wake, no write, no user gesture.
+ * uses (`queueStatusProjection`/`hasConflictBarrier`/`hasRejectedBarrier`), to keep queue semantics shared with the engine. No engine wake, no write, no user gesture.
  */
 import { hasConflictBarrier, hasRejectedBarrier, queueStatusProjection, stalledUploadHead } from '../engine-public-stability.js';
 import type { NativeWaitStore } from '../native-wait.js';
@@ -51,14 +50,14 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
     const waits = open.waits;
     const { stalled, ...queue } = await queueFacts(deps.store, scope, open);
-    const issues = [...open.pull.map(row => ({ direction: 'pull' as const, code: row.code,
-      ...(row.title ? { title: row.title } : {}) })),
-      // A sent upload the server keeps unsettled holds the lane; it is reported, not set aside.
-      ...(stalled ? [{ direction: 'push' as const, code: stalled.code }] : []),
-      ...open.deletes.map(row => ({ direction: 'pull' as const, code: 'remote_delete_confirmation_required', title: row.title })),
-      ...open.local.map(row => ({ direction: 'local' as const, code: row.code, ...(row.title ? { title: row.title } : {}) })),
-      ...open.replica.map(row => ({ direction: 'pull' as const, code: row.code })),
-      ...open.queue.map(row => ({ direction: 'push' as const, code: row.recovery?.code ?? 'push_rejected' }))];
+    const issues = snapshotSyncIssues(open).map(issue => {
+      const local = open.local.find(row => issue.direction === 'local' && row.code === issue.code
+        && issueId(['local', row.code, row.nativeId]) === issue.issueId);
+      return { ...issue, ...(local ? { eventId: local.eventId, dependencyOpId: local.dependencyOpId,
+        dependencyEventId: local.dependencyEventId, rootCause: local.rootCause, attempts: local.attempts,
+        recovery: local.recovery } : {}) };
+    });
+    if (stalled) issues.push({ direction: 'push', code: stalled.code } as typeof issues[number]);
     return { ok: true, attention: {
       ...(engine?.phase ? { phase: engine.phase } : {}),
       recoveryFrozen: engine?.recoveryFrozen === true,

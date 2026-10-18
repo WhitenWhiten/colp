@@ -1,3 +1,4 @@
+import { reasonCode } from './push-error-code.js';
 import type { EventDependency } from './bookmark-event-heal.js';
 import type { BookmarkEventParkMarker, BookmarkEventParkState } from './sync-state/types.js';
 import type { BookmarkEventRecord, JsonObject, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -19,9 +20,7 @@ import type { BookmarkEventRecord, JsonObject, SyncScope, createSyncStateStore }
 export const MAX_PREPARE_FAILURES = 5;
 export const PARK_MARKER_PREFIX = 'park:';
 export function bookmarkEventErrorCode(error: unknown): string {
-  if (!(error instanceof Error)) return '';
-  const code = (error as { readonly code?: unknown }).code;
-  return typeof code === 'string' ? code : error.message;
+  return reasonCode(error, '');
 }
 type ParkStore = Pick<ReturnType<typeof createSyncStateStore>,
   'pruneParkDiagnostics' | 'putIngressDiagnostic' | 'putScopeDiagnostic'>;

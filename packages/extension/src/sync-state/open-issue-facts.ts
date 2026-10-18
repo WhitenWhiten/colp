@@ -7,14 +7,23 @@ export function openIngressIssue(diagnostic: UnknownRecord, event: BookmarkEvent
   if (diagnostic.kind !== 'ingress' || park?.state !== 'parked' || !event || event.status !== 'pending') return undefined;
   const time = typeof park.at === 'string' ? Date.parse(park.at) : Number(park.at);
   const at = Number.isFinite(time) ? time : 0;
-  return { nativeId: event.nativeId, code: String(park.code), count: 1, firstSeenAt: at, lastSeenAt: at };
+  const context: Partial<LocalIssueRecord> = Object.fromEntries(
+    ['dependencyOpId', 'dependencyEventId', 'dependencyNativeId'].flatMap(key =>
+      typeof park[key] === 'string' ? [[key, park[key]]] : []));
+  const title = typeof event.details.title === 'string' ? event.details.title.slice(0, 200) : undefined;
+  return { ...context, nativeId: event.nativeId, eventId: event.eventId,
+    code: typeof park.code === 'string' ? park.code : 'ingress_parked',
+    ...(title ? { title } : {}), attempts: Number.isSafeInteger(park.attempts) ? Number(park.attempts) : 1,
+    ...(typeof park.reason === 'string' ? { rootCause: park.reason } : {}),
+    recovery: ['dependency_pending', 'dependency_parked'].includes(String(park.code)) ? 'automatic' : 'decision',
+    count: 1, firstSeenAt: at, lastSeenAt: at };
 }
 
 /** One local issue per code/native subject; repeated parked events are evidence counts. */
 export function mergeLocalIssues(rows: readonly LocalIssueRecord[]): LocalIssueRecord[] {
   const merged = new Map<string, LocalIssueRecord>();
   for (const row of rows) {
-    const id = JSON.stringify([row.code, row.nativeId]); const previous = merged.get(id);
+    const id = JSON.stringify([row.code, row.nativeId, row.eventId]); const previous = merged.get(id);
     merged.set(id, previous ? { ...previous, count: previous.count + row.count,
       firstSeenAt: Math.min(previous.firstSeenAt, row.firstSeenAt), lastSeenAt: Math.max(previous.lastSeenAt, row.lastSeenAt) } : row);
   }

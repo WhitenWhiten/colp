@@ -444,9 +444,17 @@ export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebu
   | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision'
   | 'create_ambiguous' | 'create_evidence_missing'
   | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling' | 'sync_issue_ceiling';
+/** Browser-local diagnostics. Native identities stay on this device. */
+export interface SyncIssueDiagnostic {
+  readonly direction: 'pull' | 'push' | 'local'; readonly code: string; readonly title?: string;
+  readonly issueId?: string; readonly nodeId?: string; readonly opId?: string; readonly eventId?: string;
+  readonly count?: number; readonly firstSeenAt?: string | number; readonly lastSeenAt?: string | number;
+  readonly dependencyOpId?: string; readonly dependencyEventId?: string;
+  readonly rootCause?: string; readonly attempts?: number; readonly recovery?: 'automatic' | 'decision';
+}
 export interface PublicSyncAttention {
   readonly issueCount?: number;
-  readonly issues?: readonly { readonly direction: 'pull' | 'push' | 'local'; readonly code: string; readonly title?: string }[];
+  readonly issues?: readonly SyncIssueDiagnostic[];
   readonly rebuildAvailable?: boolean;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;

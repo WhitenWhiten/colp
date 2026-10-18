@@ -158,17 +158,15 @@ export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode): strin
   return t('sync_syncDeviceHasStopped5', 'Sync on this device has stopped: this device cannot verify local bookmarks match cloud items.');
 }
 
-/**
- * Clipboard payload. It carries exactly the two durable codes plus the phase:
- * those are what a Sync Center rebuild needs, and nothing here is a native id
- * or a bookmark title.
- */
+/** Copy the displayed structured issue snapshot even when the engine has no error. */
 export function terminalFreezeReport(input: SyncAttentionInput, syncCenterHref?: string): string {
   const code = syncAttentionTerminalCode(input.lastError, input.recoveryCode);
   return [input.retryAutomatic === false || code ? 'Know-N sync diagnostics (sync on this device has stopped)'
     : 'Know-N sync diagnostics (recovery)',
     `recoveryCode: ${input.recoveryCode ?? '(not recorded)'}`,
     `lastError: ${input.lastError ?? '(not recorded)'}`,
+    `issueCount: ${input.issueCount ?? input.issues?.length ?? 0}`,
+    ...(input.issues ?? []).map(issue => `issue: ${JSON.stringify(issue)}`),
     `enginePhase: ${input.phase ?? '(unknown)'}`,
     `automaticRetry: ${input.retryAutomatic ?? '(unknown)'}`,
     `retryAt: ${input.retryAt ?? '(not scheduled)'}`,

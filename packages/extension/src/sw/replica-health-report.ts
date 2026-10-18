@@ -1,17 +1,16 @@
 import { readHealthReceipt } from './replica-health-receipt.js';
-import { isOpenQueueIssue } from '../sync-state/open-issue-facts.js';
-import { DEPENDENT_HOLDS } from '../sync-state/queue-hold.js';
+import { snapshotSyncIssues, issueId, serverNodeId, titleOf, instant, type ReplicaHealthIssue } from '../sync-issue-snapshot.js';
+export { replicaIssuesFromQueue, replicaIssuesFromPull, replicaIssuesFromLocal, replicaIssuesFromWaits, type ReplicaHealthIssue } from '../sync-issue-snapshot.js';
 import { readOpenSyncIssues } from '../sync-issues.js';
 import { createHealthDelivery } from './replica-health-delivery.js';
-import { REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_MAX_ITEMS, REPLICA_COMMAND_RESULTS_MAX,
-  REPLICA_HEALTH_TITLE_MAX } from '../generated/replica-health-limits.js';
+import { REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_MAX_ITEMS, REPLICA_COMMAND_RESULTS_MAX } from '../generated/replica-health-limits.js';
 /**
  * The browser's own account of its sync, sent to the server's Sync center.
  *
  * A stopped engine makes no Session, Pull, Push or Ack request, so before this
  * report the server could not tell a stuck browser from an idle one. The report
  * is computed from the same read-only aggregate as the Status tab
- * (`handleSyncAttentionRequest`), so the two can never disagree. Sending it is
+ * (`handleSyncAttentionRequest`), using a shared issue snapshot. Sending it is
  * the only request a stopped engine makes: it needs no Session and renews
  * nothing on the server.
  *
@@ -23,10 +22,9 @@ import { REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_MAX_ITEMS, REPLICA_COMMAN
 import { colpCredentialHeaders } from '../auth-client.js';
 import { digestJson } from '../bookmark-event-codec.js';
 import type { StorageArea } from '../credential-store.js';
-import type { NativeWaitProjection } from '../native-create-executor.js';
 import type { PersonalSyncMode } from '../personal-sync-policy.js';
-import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } from '../sync-state-store.js';
-import { refreshesReplicaIntegrity, classifySyncFailure, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
+import type { QueueOperation, SyncScope } from '../sync-state-store.js';
+import { refreshesReplicaIntegrity, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, readStalledUpload, type SyncAttentionStore } from './sync-attention.js';
 
@@ -46,8 +44,6 @@ const UNSUPPORTED_RETRY_MS = 6 * 60 * 60_000;
 const FAILED_RETRY_MS = 60_000;
 const OPAQUE = /^[A-Za-z0-9._~-]{1,128}$/u;
 const CODE = /^[a-z][a-z0-9_]{0,63}$/u;
-/** Identities that exist before the server has the node (see sync-progress.ts). */
-const PROVISIONAL = /^(?:pending-|local-|mount:)/u;
 
 export type ReplicaHealthState = 'syncing' | 'degraded' | 'stopped' | 'paused';
 /** What this browser can do when the Sync center asks: for itself, or for one issue. */
@@ -63,18 +59,6 @@ export interface ReplicaCommandRunner {
   run?<T>(work: () => Promise<T>): Promise<T>;
   replica(action: ReplicaAction): Promise<ReplicaCommandOutcome>;
   issue(action: 'retry', issue: ReplicaHealthIssue): Promise<ReplicaCommandOutcome>;
-}
-export interface ReplicaHealthIssue {
-  readonly issueId: string;
-  readonly code: string;
-  readonly direction: 'push' | 'pull' | 'local';
-  readonly nodeId?: string;
-  readonly opId?: string;
-  readonly title?: string;
-  readonly count: number;
-  readonly firstSeenAt: string;
-  readonly lastSeenAt: string;
-  readonly actions: readonly 'retry'[];
 }
 export interface ReplicaHealthProjection {
   readonly state: ReplicaHealthState;
@@ -105,63 +89,6 @@ export function projectReplicaHealth(input: {
     return { state: 'stopped', code: code ?? 'sync_stopped', issues, actions };
   }
   return { state: total > 0 ? 'degraded' : 'syncing', issues, actions: total > 0 ? ['rebuild'] : [] };
-}
-
-/** Uploads the server refused, held for a conflict, or set aside for another problem, one issue each. */
-export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): ReplicaHealthIssue[] {
-  return rows.flatMap((row) => {
-    if (!isOpenQueueIssue(row)) return [];
-    const conflict = row.status === 'blocked' && row.recovery?.code === 'conflict_pending';
-    const fallback = row.status === 'set_aside' ? 'set_aside' : 'push_rejected';
-    const code = conflict ? 'conflict_pending' : CODE.test(row.recovery?.code ?? '') ? row.recovery!.code : fallback;
-    const at = instant(row.payload.occurredAt);
-    const nodeId = serverNodeId(row.payload.targetId);
-    const title = titleOf(row.payload);
-    // A change held for a decision about its own placement or identity, or for a local failure
-    // the classifier has no entry for, goes through the same checks again from a fresh capture.
-    // A change waiting on another one is released by that one, and a record that cannot be
-    // stored or a rebuild-class problem is not cured by capturing it again.
-    const policy = classifySyncFailure(code);
-    const retry = row.status === 'set_aside' && OPAQUE.test(row.opId)
-      && (policy?.exit === 'decide' || policy === undefined && !DEPENDENT_HOLDS.has(code));
-    return [{ issueId: issueId(['push', code, row.opId]), code, direction: 'push' as const,
-      ...(nodeId ? { nodeId } : {}), ...(OPAQUE.test(row.opId) ? { opId: row.opId } : {}),
-      ...(title ? { title } : {}), count: 1, firstSeenAt: at, lastSeenAt: at, actions: retry ? ['retry' as const] : [] }];
-  });
-}
-
-/** Remote nodes this browser set aside while taking in changes, one issue each. */
-export function replicaIssuesFromPull(rows: readonly PullIssueRecord[]): ReplicaHealthIssue[] {
-  return rows.flatMap((row) => {
-    const nodeId = serverNodeId(row.nodeId);
-    if (!nodeId || !CODE.test(row.code)) return [];
-    const title = typeof row.title === 'string' ? bounded(row.title) : undefined;
-    return [{ issueId: issueId(['pull', 'node', nodeId]), code: row.code, direction: 'pull' as const, nodeId,
-      ...(title ? { title } : {}), count: Math.max(1, row.count), firstSeenAt: new Date(row.firstSeenAt).toISOString(),
-      lastSeenAt: new Date(row.lastSeenAt).toISOString(), actions: [] }];
-  });
-}
-
-/** Browser changes that could not be tied to the library. Browser ids never leave the browser. */
-export function replicaIssuesFromLocal(rows: readonly LocalIssueRecord[]): ReplicaHealthIssue[] {
-  return rows.flatMap((row) => {
-    if (!CODE.test(row.code)) return [];
-    const title = typeof row.title === 'string' ? bounded(row.title) : undefined;
-    return [{ issueId: issueId(['local', row.code, row.nativeId]), code: row.code, direction: 'local' as const,
-      ...(title ? { title } : {}), count: Math.max(1, row.count), firstSeenAt: new Date(row.firstSeenAt).toISOString(),
-      lastSeenAt: new Date(row.lastSeenAt).toISOString(), actions: [] }];
-  });
-}
-
-/** Cloud changes waiting for the user's decision about the browser's result. */
-export function replicaIssuesFromWaits(waits: readonly NativeWaitProjection[]): ReplicaHealthIssue[] {
-  return waits.map((wait) => {
-    const nodeId = serverNodeId(wait.colpId);
-    const title = typeof wait.title === 'string' ? bounded(wait.title) : undefined;
-    const at = new Date(0).toISOString();
-    return { issueId: issueId(['pull', wait.waitReason, wait.intentId]), code: wait.waitReason, direction: 'pull' as const,
-      ...(nodeId ? { nodeId } : {}), ...(title ? { title } : {}), count: 1, firstSeenAt: at, lastSeenAt: at, actions: [] };
-  });
 }
 
 interface SentRecord {
@@ -320,13 +247,7 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
   if (response.ok !== true) throw new Error('scope_unavailable');
-  const issues = [...replicaIssuesFromQueue(open.queue), ...replicaIssuesFromPull(open.pull),
-    ...replicaIssuesFromLocal(open.local), ...replicaIssuesFromWaits(open.waits),
-    ...open.deletes.map(row => ({ issueId: issueId(['delete', row.decisionId]), direction: 'pull' as const,
-      code: 'remote_delete_confirmation_required', nodeId: row.targetId, title: bounded(row.title), count: 1,
-      firstSeenAt: new Date(row.updatedAt).toISOString(), lastSeenAt: new Date(row.updatedAt).toISOString(), actions: [] })) ,
-    ...open.replica.map(issue => ({ issueId: issueId(['replica', issue.pageId]), direction: 'pull' as const,
-      code: issue.code, count: 1, firstSeenAt: new Date(issue.at).toISOString(), lastSeenAt: new Date(issue.at).toISOString(), actions: [] }))];
+  const issues = snapshotSyncIssues(open);
   const stalled = await readStalledUpload(deps.store, deps.scope);
   if (stalled) issues.push(stalledUploadIssue(stalled.row, stalled.code, deps.now()));
   const mode = await deps.mode();
@@ -392,32 +313,6 @@ function kept(commands: readonly CommandRecord[]): CommandRecord[] {
     list = list.filter((_, position) => position !== index);
   }
   return list;
-}
-
-function issueId(parts: readonly string[]): string { return digestJson([...parts]).slice('sha256:'.length, 'sha256:'.length + 32); }
-function serverNodeId(value: unknown): string | undefined {
-  return typeof value === 'string' && OPAQUE.test(value) && !PROVISIONAL.test(value) ? value : undefined;
-}
-function instant(value: unknown): string {
-  const time = typeof value === 'string' ? Date.parse(value) : Number.NaN;
-  return new Date(Number.isNaN(time) ? 0 : time).toISOString();
-}
-function bounded(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? undefined : trimmed.length > REPLICA_HEALTH_TITLE_MAX ? `${trimmed.slice(0, REPLICA_HEALTH_TITLE_MAX - 1)}…` : trimmed;
-}
-/** The title a create or edit carried, when the operation has one. */
-function titleOf(operation: QueueOperation['payload']): string | undefined {
-  const payload = operation.payload;
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
-  const record = payload as Record<string, unknown>;
-  for (const candidate of [record.node, record.value, record]) {
-    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
-      const title = (candidate as Record<string, unknown>).title;
-      if (typeof title === 'string') return bounded(title);
-    }
-  }
-  return undefined;
 }
 
 /** Bound the final wire JSON, reserving all state/actions/results before the issue prefix. */

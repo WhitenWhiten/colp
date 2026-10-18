@@ -23,6 +23,13 @@ export interface PullIssueRecord {
 
 /** A browser bookmark change that could not be tied to the library and was not synced. */
 export interface LocalIssueRecord {
+  readonly eventId?: string;
+  readonly dependencyOpId?: string;
+  readonly dependencyEventId?: string;
+  readonly dependencyNativeId?: string;
+  readonly rootCause?: string;
+  readonly attempts?: number;
+  readonly recovery?: 'automatic' | 'decision';
   readonly nativeId: string;
   readonly code: string;
   readonly title?: string;
