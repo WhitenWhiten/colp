@@ -6287,6 +6287,9 @@
   "sync_titleCannotRepresentedEmpty": {
     "message": "Title cannot be represented (empty or too long)"
   },
+  "sync_tooManyItemsSetAside": {
+    "message": "Sync on this device has stopped: it set aside too many items to keep syncing safely. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
+  },
   "sync_urlCannotRepresentedMissing": {
     "message": "URL cannot be synced (invalid format, disallowed scheme, or too long)"
   },

@@ -33,8 +33,14 @@ const FORMER = {
   pullsOnWake: ['network_unavailable', 'position_context_stale', 'revision_conflict'],
 } as const;
 
+/** Codes classified after the lists were replaced; each states its behaviour here. */
+const ADDED: Readonly<Record<string, { readonly freezes: boolean; readonly rebuild: boolean }>> = {
+  pull_issue_ceiling: { freezes: true, rebuild: true },
+};
+
 describe('sync failure classifier', () => {
-  const codes = [...new Set([...Object.values(FORMER).flat(), ...Object.keys(SYNC_FAILURE_TABLE)])];
+  const codes = [...new Set([...Object.values(FORMER).flat(), ...Object.keys(SYNC_FAILURE_TABLE)])]
+    .filter((code) => !(code in ADDED));
 
   test.each(codes)('%s keeps the behaviour of the lists it replaced', (code) => {
     assert.equal(freezesPullApply(code), (FORMER.freeze as readonly string[]).includes(code), 'freezes Pull');
@@ -44,6 +50,11 @@ describe('sync failure classifier', () => {
       (FORMER.rebuild as readonly string[]).includes(code) || code === 'payload_too_large', 'rebuild exit');
     assert.equal(persistentLocalSyncFailure(code), (FORMER.persistent as readonly string[]).includes(code), 'stop');
     assert.equal(holdsInboundPull(code), !(FORMER.pullsOnWake as readonly string[]).includes(code), 'inbound Pull');
+  });
+
+  test.each(Object.entries(ADDED))('%s, added later, behaves as stated', (code, expected) => {
+    assert.equal(freezesPullApply(code), expected.freezes);
+    assert.equal(needsReplicaRebuild(code), expected.rebuild);
   });
 
   test('every code the extension records as a stop, a freeze or a terminal reason is classified', () => {

@@ -31,6 +31,8 @@ export interface LocalIssueRecord {
 /** The title is often the problem itself (too long to store), so the row keeps only its start. */
 export const PULL_ISSUE_TITLE_MAX = 200;
 const prefix = (key: string) => `pull-issue:${key}:`;
+/** States an event can fail in before its browser call changed anything. */
+const SET_ASIDE_STATES = new Set(['staged', 'intent_prepared', 'browser_call_started']);
 const localPrefix = (key: string) => `local-issue:${key}:`;
 
 /**
@@ -46,8 +48,10 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
   }
 
   /**
-   * Commits a staged event without touching the browser and records its node.
-   * With `resolveNodeIds` (a delete of set-aside nodes) those rows close instead.
+   * Commits an event without touching the browser and records its node. The
+   * event is staged, or failed before its browser call changed anything; its
+   * apply intent, if any, settles with it. With `resolveNodeIds` (a delete of
+   * set-aside nodes) those rows close instead.
    */
   async function setAsidePullEvent(input: SyncScope, eventId: string, issue: {
     readonly code: string; readonly nodeId: string; readonly title?: string;
@@ -58,11 +62,17 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
     const now = safeInteger(issue.now, 'now');
     const title = issue.title?.trim() ? issue.title.trim().slice(0, PULL_ISSUE_TITLE_MAX) : undefined;
     const resolved = issue.resolveNodeIds?.map((id) => boundedString(id, 'nodeId'));
-    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.pullEvents, STORES.diagnostics], 'readwrite',
-      async (tx) => {
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.pullEvents, STORES.intents,
+      STORES.diagnostics], 'readwrite', async (tx) => {
         await requireActiveScope(tx, key); const events = tx.objectStore(STORES.pullEvents);
         const event = await requestValue(events.get([key, boundedString(eventId, 'eventId')])) as UnknownRecord | undefined;
-        if (!event || event.state !== 'staged') throw new SyncStateError('pull_event_state_invalid');
+        if (!event || !SET_ASIDE_STATES.has(String(event.state))) throw new SyncStateError('pull_event_state_invalid');
+        if (typeof event.intentId === 'string') {
+          const intents = tx.objectStore(STORES.intents);
+          const intent = await requestValue(intents.get([key, event.intentId])) as UnknownRecord | undefined;
+          if (intent) intents.put({ ...intent, state: 'authority_committed', apiPhase: 'authority_committed',
+            apiResultEvidence: { setAside: code } });
+        }
         const committed = { ...event, state: 'authority_committed', pendingMappings: [], pendingObservations: [],
           pendingDeleteNativeIds: [], apiResultEvidence: { setAside: code, nodeId, ...(resolved ? { resolved: true } : {}) } };
         events.put(committed); putPullTerminalFacts(tx, key, committed);

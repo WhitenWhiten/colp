@@ -8175,6 +8175,10 @@
     "message": "此设备上的同步已停止，因为此设备上缺少部分书签。你在 Know-N 中的书签是安全的。请重置此设备上的同步以继续。",
     "description": "Sync on this device has stopped because some bookmarks on this device are missing. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
   },
+  "sync_tooManyItemsSetAside": {
+    "message": "此设备上的同步已停止：它搁置的项目过多，无法继续安全同步。你在 Know-N 中的书签是安全的。请重置此设备上的同步以继续。",
+    "description": "Sync on this device has stopped: it set aside too many items to keep syncing safely. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
+  },
   "sync_syncDeviceHasStopped4": {
     "message": "此设备上的同步已停止：此设备无法确认要删除的书签与云端项目一致。",
     "description": "Sync on this device has stopped: this device cannot verify the bookmark to delete matches the cloud item."

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
+import { setAsidePullItem } from '../src/pull-item-set-aside.js';
+import type { PullApplierOptions } from '../src/pull-applier-types.js';
 import { replicaIssuesFromPull } from '../src/sw/replica-health-report.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 import { installKns05IndexedDb, scope, setup } from './kns-05-pull-harness.js';
@@ -54,5 +56,44 @@ describe('C2 a remote record this browser cannot store is one item, not a stop',
     assert.equal((await fixture.store.getCursor(scope))?.cursor, 'cursor-3');
     assert.deepEqual((await fixture.store.listPullIssues(scope)).map((issue) => issue.nodeId), ['node-created-94']);
     assert.equal(fixture.api.calls.filter((call) => call.kind === 'delete').length, 0);
+  });
+
+  test('an update whose browser bookmark is gone is set aside in the middle of a page that still applies', async () => {
+    const fixture = await setup();
+    await fixture.api.remove('native-node');
+    await fixture.applier.stage(fixture.page([create(91), pullFixtures.mutationEvent({ kind: 'update', sequence: 92,
+      collectionId: scope.collectionId, targetId: 'node-1', parentId: 'root-colp' }), create(93)], 'cursor-1'));
+    await fixture.applier.resume();
+    assert.equal(fixture.api.calls.filter((call) => call.kind === 'create').length, 2);
+    assert.equal((await fixture.store.getCursor(scope))?.cursor, 'cursor-1');
+    assert.deepEqual((await fixture.store.listPullIssues(scope)).map((issue) => [issue.nodeId, issue.code]),
+      [['node-1', 'pull_apply_target_missing']]);
+  });
+
+  test('a remote delete leaves a bookmark with a change held on this browser in place', async () => {
+    const fixture = await setup();
+    const held = await fixture.store.allocateSequenceAndEnqueue(scope, { opId: 'local-edit', batchId: 'local-edit',
+      idempotencyKey: 'local-edit', digest: 'sha256:local-edit', endpointIdentity: 'syncPush',
+      mediaType: 'application/json', baseRevision: 'revision-old', operationRevision: 'local-edit', status: 'pending',
+      retry: { attempt: 0, notBefore: 0 }, payload: { type: 'update_node_content', targetId: 'node-1',
+        payload: { base: { title: 'node-1' }, value: { title: 'Held edit' } } } }, { allowUnstamped: true });
+    await fixture.store.setAsideQueue(scope, [held.sequence], 'recovery_identity_unproven');
+    await fixture.applier.stage(fixture.page([pullFixtures.mutationEvent({ kind: 'delete', sequence: 94,
+      collectionId: scope.collectionId, targetId: 'node-1', parentId: 'root-colp' })], 'cursor-1'));
+    await fixture.applier.resume();
+    // G4: nothing set aside is deleted automatically; the page still completes.
+    assert.ok(fixture.api.getNode('native-node'));
+    assert.equal(fixture.api.calls.some((call) => call.kind === 'delete'), false);
+    assert.equal((await fixture.store.getCursor(scope))?.cursor, 'cursor-1');
+    assert.equal((await fixture.store.getQueueByOpId(scope, 'local-edit'))?.status, 'set_aside');
+  });
+
+  test('past the ceiling of open items the replica stops instead of diverging further', async () => {
+    const full = Array.from({ length: 200 }, (_, index) => ({ nodeId: `held-${index}`, code: 'record_too_large',
+      eventId: `event-${index}`, count: 1, firstSeenAt: 0, lastSeenAt: 0 }));
+    const options = { scope, store: { listPullIssues: async () => full,
+      setAsidePullEvent: async () => { throw new Error('must not set aside past the ceiling'); } } };
+    await assert.rejects(() => setAsidePullItem(options as unknown as PullApplierOptions, 'event-new',
+      create(95, { parentId: 'held-1' }) as never, 0), /pull_issue_ceiling/);
   });
 });

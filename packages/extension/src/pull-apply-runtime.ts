@@ -1,4 +1,4 @@
-import { setAsidePullItem } from './pull-item-set-aside.js';
+import { setAsideFailedPullItem, setAsidePullItem } from './pull-item-set-aside.js';
 import { createPullBookmarkEvidence, readOptional } from './pull-bookmark-evidence.js';
 import { createExpectation, executePullNativeCreate, recoverCreatedNative } from './pull-create-evidence.js';
 import { applyRemoteDeletion } from './pull-delete-apply.js';
@@ -76,6 +76,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (raw.state === 'authority_committed') continue;
       if (!ordinaryPullEventAllowed(authority, raw)) { await recoverSupersededPullEvent(options, authority, raw); continue; }
       const event = raw.payload as unknown as Extract<SyncPullEventV02, { kind: 'operation' }>;
+      try {
       if (raw.state === 'staged') {
         if (await setAsidePullItem(options, String(raw.eventId), event, now())) continue;
         if (await interceptStagedRemoteDelete(options, api, String(raw.eventId), String(raw.pageId), event, now) === 'skip') continue;
@@ -99,6 +100,10 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         await recoverPostState(raw.eventId as string, event);
       }
       else await callAndCommit(raw.eventId as string, event);
+      } catch (error) {
+        // B5: a failure about this event's own node sets that node aside; the page goes on.
+        if (!await setAsideFailedPullItem(options, raw, event, error, now())) throw error;
+      }
     }
     await publishSupersededPullMappings(options, authority);
     const stagedPages = await options.store.listPullPages(options.scope, ['staged']);

@@ -110,7 +110,9 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
         > sessionTransportBudget(options.session).effectAggregateBytes) throw new Error('pull_page_invalid');
     const effectPages: AuthoritativeEffectPage[] = suppliedPages.map((page) => plainJson(page) as unknown as AuthoritativeEffectPage);
     const stagedEvents: PullPageInput['events'][number][] = [];
-    for (const candidate of pull.events) {
+    const tolerated: Array<{ readonly position: number; readonly ids: readonly string[]; readonly error: unknown }> = [];
+    const createdAt = new Map<string, number>();
+    for (const [position, candidate] of pull.events.entries()) {
       const event = validatePullEvent(candidate);
       if (seenCursors.has(event.cursor)) throw new Error('pull_event_duplicate'); seenCursors.add(event.cursor);
       if (event.kind === 'conflict') {
@@ -147,11 +149,15 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
       if (event.effect.kind === 'subtree_deleted' && 'effectRef' in event.effect && event.effect.effectRef) {
         validateEffectPages(pages, { ...event.effect.effectRef, effectId: event.effect.effectId });
         for (const member of pages.flatMap((page) => page.members)) {
-          await runtime.preflightMapping(member, stagedCreates, 'member');
+          const error = await itemPreflight(() => runtime.preflightMapping(member, stagedCreates, 'member'));
+          if (error !== undefined) tolerated.push({ position, ids: [member], error });
         }
       } else if (pages.length) throw new Error('unexpected_effect_page');
-      await runtime.preflight(event, stagedCreates);
-      if (event.effect.kind === 'node_created' || event.effect.kind === 'node_restored') stagedCreates.add(event.effect.node.id);
+      const error = await itemPreflight(() => runtime.preflight(event, stagedCreates));
+      if (error !== undefined) tolerated.push({ position, ids: dependencyIds(event), error });
+      if (event.effect.kind === 'node_created' || event.effect.kind === 'node_restored') {
+        stagedCreates.add(event.effect.node.id); createdAt.set(event.effect.node.id, position);
+      }
       const localEvent = event.effect.kind === 'subtree_deleted' && 'effectRef' in event.effect && event.effect.effectRef
         ? { ...event, verifiedMembers: pages.flatMap((page) => page.members) } : event;
       stagedEvents.push({ eventId, cursor: event.cursor, operationId: event.operation.opId,
@@ -159,6 +165,9 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
         operationDigest: event.effect.operationDigest, kind: event.effect.kind,
         payload: plainJson(localEvent) });
     }
+    // SYNC-F016: a node the page creates only after an event that needs it is a broken page, not an item.
+    const misordered = tolerated.find((item) => item.ids.some((id) => (createdAt.get(id) ?? -1) > item.position));
+    if (misordered) throw misordered.error;
     const [cursorRow, scopeRow, leftoverPages] = await Promise.all([
       options.store.getCursor(options.scope), options.store.getScope(options.scope),
       options.store.listPullPages(options.scope, ['staged'])]);
@@ -189,4 +198,28 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
   }
 
   return Object.freeze({ pull, stage });
+}
+
+/**
+ * B5: an event about a node this browser has no mapping for is one item, not
+ * a broken page. It stages, and applying it, which requires the same mappings,
+ * sets that node aside. Every other preflight failure still refuses the page:
+ * an anchor in the wrong folder is checked only here. Returns the tolerated failure.
+ */
+async function itemPreflight(check: () => Promise<unknown>): Promise<unknown> {
+  try { await check(); return undefined; } catch (error) {
+    const code = error instanceof Error ? error.message : '';
+    if (!code.startsWith('preflight_') || !code.endsWith('_mapping_missing')) throw error;
+    return error;
+  }
+}
+
+/** The nodes an event needs to exist already: its target, its folder and its neighbours. */
+function dependencyIds(event: PullOperationEvent): string[] {
+  const effect = event.effect as { readonly node?: { readonly id?: unknown };
+    readonly placement?: { readonly parentId?: unknown; readonly afterId?: unknown; readonly beforeId?: unknown };
+    readonly tombstone?: { readonly targetId?: unknown }; readonly rootTombstone?: { readonly targetId?: unknown } };
+  return [effect.node?.id, effect.placement?.parentId, effect.placement?.afterId, effect.placement?.beforeId,
+    effect.tombstone?.targetId, effect.rootTombstone?.targetId]
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
 }

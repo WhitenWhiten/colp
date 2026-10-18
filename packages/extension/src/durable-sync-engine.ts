@@ -21,6 +21,7 @@ import { mayUnfreezeForCompletedBootstrapAck, pendingNativeOrPullFacts } from '.
 import { recoverSnapshot } from './durable-sync-engine-recovery.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { releaseSettledQueueHolds } from './outbound-push-settlement.js';
+import { pullAckWarnings } from './pull-item-set-aside.js';
 const DEFAULT_PULL_LIMIT = 100; const MAX_PULL_PAGES_PER_WAKE = 20; const MAX_NETWORK_BACKOFF_MS = 30_000;
 // SYNC-F003: clamp the advisory pull cadence to the backend max (86_400s).
 const MAX_RECOMMENDED_PULL_AFTER_SECONDS = 86_400;
@@ -415,7 +416,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
   }
 
   async function ackIntent(kind: AckIntentRecord['kind'], sessionId: string, cursor: string) {
-    return options.store.beginAckIntent(options.scope, ackEnvelope(kind, sessionId, cursor));
+    const warnings = kind === 'pull' ? await pullAckWarnings(options.store, options.scope) : [];
+    return options.store.beginAckIntent(options.scope, ackEnvelope(kind, sessionId, cursor, undefined, warnings));
   }
 
   async function projectRecovery(snapshotId: string) {
@@ -565,10 +567,10 @@ export function createDurableSyncEngine(options: EngineOptions) {
 }
 
 function ackEnvelope(kind: AckIntentRecord['kind'], sessionId: string, cursor: string,
-  recoveryCapability?: string) {
-  const document: SyncAckRequest = { sessionId, cursor, warnings: [],
+  recoveryCapability?: string, warnings: SyncAckRequest['warnings'] = []) {
+  const document: SyncAckRequest = { sessionId, cursor, warnings: [...warnings],
     ...(recoveryCapability === undefined ? {} : { recoveryCapability }) }; const body = canonicalJson(document);
-  const intentId = `ack-${digest([kind, sessionId, cursor])}`;
+  const intentId = `ack-${digest(warnings.length ? [kind, sessionId, cursor, warnings] : [kind, sessionId, cursor])}`;
   return { intentId, kind, sessionId, cursor, idempotencyKey: intentId, endpointIdentity: 'syncAck' as const,
     mediaType: 'application/json' as const, body, bodyDigest: digestBytes(body) };
 }

@@ -351,7 +351,7 @@ describe('A-06 tombstoned-parent / 422 rejection never freezes the replica (real
   });
 });
 
-test('review: missing target must not repeat the same get after authority refresh', async () => {
+test('review: an update whose browser bookmark is gone is set aside once and never read again', async () => {
   const f = await setupA06();
   await f.store.putMountBinding(scope, { mountId: 'review-mount', nativeRootId: 'native-root',
     remoteMountNodeId: 'root-colp', boundaryVersion: '1', materialized: true, status: 'active', rootRole: 'bookmarks-bar' });
@@ -365,15 +365,17 @@ test('review: missing target must not repeat the same get after authority refres
   const event = reviewPullFixtures.mutationEvent({ kind: 'update', sequence: 1,
     collectionId: scope.collectionId, parentId: 'root-colp', targetId: 'node-1' });
   f.pullResponses.push(json(200, reviewPullFixtures.page({ events: [event], nextCursor: 'cursor-1', collectionRevision: 'revision-1' })));
+  f.ackResponses.push(json(200, ackBody('cursor-1')));
   await f.engine.wake('manual');
-  assert.equal((await f.store.getEngineState(scope))?.lastError, 'pull_apply_target_missing');
+  // P1: the one node is set aside and reported; the page completes and acks instead of freezing.
+  assert.deepEqual((await f.store.listPullIssues(scope)).map((issue) => [issue.nodeId, issue.code]),
+    [['node-1', 'pull_apply_target_missing']]);
+  assert.equal((await f.store.listPullEvents(scope))[0]?.state, 'page_complete');
+  assert.equal((await f.store.getEngineState(scope))?.lastAckedCursor, 'cursor-1');
+  assert.notEqual((await f.store.getEngineState(scope))?.recoveryFrozen, true);
   const first = missingReads;
-  for (let i = 0; i < 3; i++) {
-    f.clock.now = (await f.store.getEngineState(scope))!.notBefore + 1;
-    await f.engine.wake('manual');
-  }
-  assert.equal((await f.store.getEngineState(scope))?.lastError, 'pull_apply_target_missing');
-  assert.equal((await f.store.listPullEvents(scope))[0]?.state, 'staged');
-  assert.equal(f.pullRequests.length, 1);
-  assert.equal(missingReads, first, 'engine wakes must not replay the unrecoverable native read');
+  f.pullResponses.push(json(200, reviewPullFixtures.page({ events: [], nextCursor: 'cursor-1', collectionRevision: 'revision-1' })));
+  f.clock.now += 60_000;
+  await f.engine.wake('manual');
+  assert.equal(missingReads, first, 'a later wake must not replay the unrecoverable native read');
 });

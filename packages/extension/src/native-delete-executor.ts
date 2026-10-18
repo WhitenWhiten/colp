@@ -17,7 +17,7 @@ import type {
 } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
-  'getApplyIntent' | 'persistApplyIntentFacts' | 'getMappingByNativeId' | 'getLocalSyncExclusion'>;
+  'getApplyIntent' | 'persistApplyIntentFacts' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue'>;
 
 export type DeleteMemberResult = 'not_started' | 'applied' | 'absent' | 'retained' | 'protected' | 'failed';
 
@@ -73,10 +73,18 @@ export async function executeRemoteDeleteMembers(input: {
     return summarize(frozen.members, results);
   }
   const order = await orderMembers(input.api, frozen.members, results);
+  const held = await heldTargets(input.store, input.scope);
   for (const row of order) {
     const prior = results[row.colpId];
     if (prior && TERMINAL.has(prior)) continue;
     if (isNonChromeNativeId(row.nativeId)) { results[row.colpId] = 'absent'; continue; }
+    // G4: a bookmark with a change set aside on this browser is never deleted for
+    // the server; it stays in place, outside sync, and its folder stays with it.
+    if (held.has(row.colpId)) {
+      results[row.colpId] = 'retained';
+      await writeResults(input, frozen.members, results);
+      continue;
+    }
     const mapping = mappingByNative.get(row.nativeId);
     if (isProtectedNativeRoot(row.nativeId, input.mounts)
       || (mapping !== undefined && !mayMutateNative(mapping, input.mounts))) {
@@ -329,4 +337,15 @@ function readDeleteAnchors(anchors: JsonObject | undefined): {
     }
   }
   return { members, results };
+}
+
+/** Library nodes with a change held out of the push lane (`set_aside`). */
+async function heldTargets(store: Pick<Store, 'listQueue'>, scope: SyncScope): Promise<Set<string>> {
+  const held = new Set<string>(); let after = 0;
+  for (;;) {
+    const rows = await store.listQueue(scope, 'set_aside', after, 1_000);
+    for (const row of rows) if (typeof row.payload.targetId === 'string') held.add(row.payload.targetId);
+    if (rows.length < 1_000) return held;
+    after = rows.at(-1)!.sequence;
+  }
 }

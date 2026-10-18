@@ -51,12 +51,17 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
       assert.equal((await fixture.store.exportScope(scope)).pullPages.length, 0);
     });
 
-  test('freezes unknown mapping with zero Chrome mutation', async () => {
+  test('sets an update of an unknown node aside with zero Chrome mutation', async () => {
     const fixture = await setup(undefined, true);
-    await assert.rejects(() => fixture.applier.stage(fixture.page([fixture.mutationEvent('update')])),
-      /preflight_target_mapping_missing/);
+    await fixture.applier.stage(fixture.page([fixture.mutationEvent('update')]));
+    await fixture.applier.resume();
     assert.equal(fixture.api.calls.length, 0);
-    assert.equal((await fixture.store.exportScope(scope)).scope?.lifecycle, 'recovery_required');
+    // B5: one node this browser cannot place is one item; the cursor moves on.
+    assert.deepEqual((await fixture.store.listPullIssues(scope)).map((issue) => [issue.nodeId, issue.code]),
+      [['node-1', 'target_mapping_missing']]);
+    const exported = await fixture.store.exportScope(scope);
+    assert.equal(exported.scope?.lifecycle, 'active');
+    assert.equal(exported.cursor?.cursor, 'cursor-next');
   });
 
   test('binds a special mount node without creating a browser system folder', async () => {

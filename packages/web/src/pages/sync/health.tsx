@@ -33,6 +33,7 @@ const STOP_REASONS: Readonly<Record<string, string>> = {
   payload_too_large: 'an item is too large to sync.',
   target_unavailable: 'the library it syncs with isn’t available.',
   replica_rebuild_pending: 'its copy of your library is being rebuilt.',
+  pull_issue_ceiling: 'it set aside too many items to keep syncing safely.',
 }
 
 /** The reason a browser gave for stopping, in plain words; the code only when it is new to us. */

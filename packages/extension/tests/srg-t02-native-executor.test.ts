@@ -142,14 +142,15 @@ describe('T-02 native create executor (SRG-05 / C-02 / C-03)', () => {
     assert.equal(state?.recoveryFrozen, true);
   });
 
-  test('N-07: mixed page with known missing deps preflights zero mutation; mid-flight revoke keeps shadow', async () => {
+  test('N-07: a create under a missing folder is set aside while the rest applies; mid-flight revoke keeps shadow', async () => {
     const missing = await setupT02();
     const good = missing.createEvent('Bookmark', 1);
     const bad = pullFixtures.createEvent({
       kind: 'Bookmark', sequence: 2, collectionId: t02Scope.collectionId, parentId: 'missing-folder',
     });
-    await assert.rejects(() => missing.applier.stage(missing.page([good, bad])), /preflight_|mapping_missing/);
-    assert.equal(missing.api.calls.filter((call) => call.kind === 'create').length, 0);
+    await missing.applier.stage(missing.page([good, bad])); await missing.applier.resume();
+    assert.equal(missing.api.calls.filter((call) => call.kind === 'create').length, 1);
+    assert.deepEqual((await missing.store.listPullIssues(t02Scope)).map((issue) => issue.code), ['parent_mapping_missing']);
 
     const mid = await setupT02();
     let creates = 0;

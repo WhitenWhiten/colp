@@ -339,12 +339,14 @@ describe('P3-32 durable Pull authority', () => {
     await assert.rejects(() => fixture.applier.stage(fixture.page([event])), /anchor_parent_mismatch/);
   });
 
-  test('fails closed when a mapped after-anchor disappeared from Chrome', async () => {
+  test('sets a create aside, unplaced, when its mapped after-anchor disappeared from Chrome', async () => {
     const fixture = await setup(); await fixture.api.remove('native-node');
     const event = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 1, collectionId: scope.collectionId,
       parentId: 'root-colp', afterId: 'node-1' });
-    await fixture.applier.stage(fixture.page([event]));
-    await assert.rejects(() => fixture.applier.resume(), /anchor_mapping_missing/);
+    await fixture.applier.stage(fixture.page([event])); await fixture.applier.resume();
+    assert.equal(fixture.api.calls.some((call) => call.kind === 'create'), false);
+    assert.deepEqual((await fixture.store.listPullIssues(scope)).map((issue) => [issue.nodeId, issue.code]),
+      [['node-created-1', 'anchor_mapping_missing']]);
   });
 
   test('advances canonical root content without renaming the selected native mount folder', async () => {
@@ -563,7 +565,7 @@ describe('P3-32 durable Pull authority', () => {
       assert.ok(fixture.api.calls.filter((call) => call.kind === 'create').length <= 1);
     });
 
-  test('applies inline and paged subtree deletion exactly, and blocks missing mappings', async () => {
+  test('applies inline and paged subtree deletion exactly, and sets a delete with unknown members aside', async () => {
     const fixture = await setup();
     await fixture.applier.stage(fixture.page([fixture.subtreeEvent(false)])); await fixture.applier.resume();
     const deleted = fixture.api.calls.filter((call) => call.kind === 'delete').map((call) => call.nativeId);
@@ -575,7 +577,10 @@ describe('P3-32 durable Pull authority', () => {
     assert.equal(await paged.store.getMappingByNativeId(scope, 'native-child'), null);
     indexedDB = new IDBFactory();
     const missing = await setup(undefined, true);
-    await assert.rejects(() => missing.applier.stage(missing.page([missing.subtreeEvent(true)])), /mapping_missing/);
+    await missing.applier.stage(missing.page([missing.subtreeEvent(true)])); await missing.applier.resume();
+    // G4: a delete this browser cannot map deletes nothing here; it is one reported item.
+    assert.equal(missing.api.calls.some((call) => call.kind === 'delete'), false);
+    assert.equal((await missing.store.listPullIssues(scope)).length, 1);
   });
 });
 

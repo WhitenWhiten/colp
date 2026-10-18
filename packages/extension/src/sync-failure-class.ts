@@ -32,12 +32,18 @@ export interface SyncFailureEntry {
   readonly freezesPull?: true;
   /** While it is the last error, a wake may still take in changes. */
   readonly pullsOnWake?: true;
+  /**
+   * Thrown while one Pull event applies, before the browser was changed for
+   * it, it sets that event's node aside instead of stopping the page (B5).
+   */
+  readonly setsAsidePull?: true;
 }
 
 const entry = (failureClass: SyncFailureClass, exit: SyncFailureExit,
   flags: Omit<SyncFailureEntry, 'class' | 'exit'> = {}): SyncFailureEntry =>
   Object.freeze({ class: failureClass, exit, ...flags });
 const FREEZES = { freezesPull: true } as const;
+const SETS_ASIDE = { freezesPull: true, setsAsidePull: true } as const;
 
 export const SYNC_FAILURE_TABLE: Readonly<Record<string, SyncFailureEntry>> = Object.freeze({
   network_unavailable: entry('transient', 'retry', { pullsOnWake: true }),
@@ -64,12 +70,12 @@ export const SYNC_FAILURE_TABLE: Readonly<Record<string, SyncFailureEntry>> = Ob
   create_placement_parent_deleted: entry('item', 'decide'),
   create_placement_unproven: entry('item', 'decide'),
   remote_delete_confirmation_required: entry('item', 'confirm', FREEZES),
-  pull_apply_target_missing: entry('item', 'rebuild', FREEZES),
+  pull_apply_target_missing: entry('item', 'rebuild', SETS_ASIDE),
   pull_apply_evidence_missing: entry('item', 'rebuild', FREEZES),
-  anchor_mapping_missing: entry('item', 'rebuild', FREEZES),
+  anchor_mapping_missing: entry('item', 'rebuild', SETS_ASIDE),
   create_ambiguous: entry('item', 'rebuild', FREEZES),
   create_evidence_missing: entry('item', 'rebuild', FREEZES),
-  anchor_parent_mismatch: entry('item', 'refresh', FREEZES),
+  anchor_parent_mismatch: entry('item', 'refresh', SETS_ASIDE),
   unmounted_restore_repair: entry('item', 'refresh', FREEZES),
   // Codec failures. With a subject they are set aside where they happen;
   // one that still reaches the engine has none, and retrying cannot help.
@@ -94,6 +100,8 @@ export const SYNC_FAILURE_TABLE: Readonly<Record<string, SyncFailureEntry>> = Ob
   mapping_identity_collision: entry('replica', 'rebuild', FREEZES),
   legacy_resolution_sequence_collision: entry('replica', 'rebuild', FREEZES),
   payload_too_large: entry('replica', 'rebuild'),
+  // B6: more open Pull issues than this browser may hold; divergence must never be unbounded.
+  pull_issue_ceiling: entry('replica', 'rebuild', FREEZES),
   snapshot_projection_incomplete: entry('replica', 'stop'),
   // Looks like a setting rather than a failure; kept on the rebuild exit until reviewed.
   metadata_sync_disabled: entry('replica', 'rebuild'),
@@ -105,7 +113,7 @@ const FAMILIES: readonly (readonly [(code: string) => boolean, SyncFailureEntry]
   [(code) => code.endsWith('_sync_cursor_expired'), SYNC_FAILURE_TABLE.sync_cursor_expired!],
   // A page that names a node this browser has no mapping for, while staging or applying.
   [(code) => code.startsWith('preflight_'), entry('item', 'refresh', FREEZES)],
-  [(code) => code.startsWith('mapping_missing') || code.endsWith('_mapping_missing'), entry('item', 'refresh', FREEZES)],
+  [(code) => code.startsWith('mapping_missing') || code.endsWith('_mapping_missing'), entry('item', 'refresh', SETS_ASIDE)],
 ];
 
 /** The entry for a code; undefined for a code nobody classified, which gets bounded retries. */
@@ -132,6 +140,11 @@ export function needsReplicaRebuild(code: string | undefined): boolean {
 /** Retrying cannot change the result, so the engine stops instead of backing off. */
 export function persistentLocalSyncFailure(code: string | undefined): boolean {
   return classifySyncFailure(code)?.exit === 'stop';
+}
+
+/** With a subject and before the browser changed, this Pull failure sets one node aside. */
+export function setsAsidePullItem(code: string): boolean {
+  return classifySyncFailure(code)?.setsAsidePull === true;
 }
 
 /** Any recorded failure holds the inbound Pull of a wake, except the few that end by themselves. */
