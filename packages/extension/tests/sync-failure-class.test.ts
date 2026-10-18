@@ -36,6 +36,8 @@ const FORMER = {
 /** Codes classified after the lists were replaced; each states its behaviour here. */
 const ADDED: Readonly<Record<string, { readonly freezes: boolean; readonly rebuild: boolean }>> = {
   pull_issue_ceiling: { freezes: true, rebuild: true },
+  preflight_target_mapping_missing: { freezes: true, rebuild: false },
+  preflight_member_mapping_missing: { freezes: true, rebuild: false },
 };
 
 describe('sync failure classifier', () => {

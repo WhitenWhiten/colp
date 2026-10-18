@@ -37,6 +37,8 @@ export interface SyncFailureEntry {
    * it, it sets that event's node aside instead of stopping the page (B5).
    */
   readonly setsAsidePull?: true;
+  /** Missing local evidence may stage as an item; structural page failures never do. */
+  readonly stagesAsItem?: true;
 }
 
 const entry = (failureClass: SyncFailureClass, exit: SyncFailureExit,
@@ -72,11 +74,14 @@ export const SYNC_FAILURE_TABLE: Readonly<Record<string, SyncFailureEntry>> = Ob
   remote_delete_confirmation_required: entry('item', 'confirm', FREEZES),
   pull_apply_target_missing: entry('item', 'rebuild', SETS_ASIDE),
   pull_apply_evidence_missing: entry('item', 'rebuild', FREEZES),
-  anchor_mapping_missing: entry('item', 'rebuild', SETS_ASIDE),
+  anchor_mapping_missing: entry('item', 'rebuild', { ...SETS_ASIDE, stagesAsItem: true }),
   create_ambiguous: entry('item', 'rebuild', FREEZES),
   create_evidence_missing: entry('item', 'rebuild', FREEZES),
   anchor_parent_mismatch: entry('item', 'refresh', SETS_ASIDE),
   unmounted_restore_repair: entry('item', 'refresh', FREEZES),
+  preflight_parent_mapping_missing: entry('item', 'refresh', { ...SETS_ASIDE, stagesAsItem: true }),
+  preflight_target_mapping_missing: entry('item', 'refresh', { ...SETS_ASIDE, stagesAsItem: true }),
+  preflight_member_mapping_missing: entry('item', 'refresh', { ...SETS_ASIDE, stagesAsItem: true }),
   // Codec failures. With a subject they are set aside where they happen;
   // one that still reaches the engine has none, and retrying cannot help.
   bounded_string_invalid: entry('item', 'stop'),

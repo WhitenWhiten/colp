@@ -1,3 +1,4 @@
+import { classifySyncFailure } from './sync-failure-class.js';
 import type { AuthoritativeEffectPage, SyncPullEventV02, SyncPullV02 } from '@know-n/colp/types';
 import type { JsonObject, PullPageInput } from './sync-state-store.js';
 import type { PullApplierOptions, PullCursorAuthority } from './pull-applier-types.js';
@@ -204,12 +205,12 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
  * B5: an event about a node this browser has no mapping for is one item, not
  * a broken page. It stages, and applying it, which requires the same mappings,
  * sets that node aside. Every other preflight failure still refuses the page:
- * an anchor in the wrong folder is checked only here. Returns the tolerated failure.
+ * structural anchor mismatches remain page failures. Returns the tolerated failure.
  */
 async function itemPreflight(check: () => Promise<unknown>): Promise<unknown> {
   try { await check(); return undefined; } catch (error) {
     const code = error instanceof Error ? error.message : '';
-    if (!code.startsWith('preflight_') || !code.endsWith('_mapping_missing')) throw error;
+    if (classifySyncFailure(code)?.stagesAsItem !== true) throw error;
     return error;
   }
 }
