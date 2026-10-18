@@ -6,6 +6,7 @@ import type { PublicSyncProgress } from './types.js';
 const PREPARING_PHASES = new Set(['confirmed', 'scanning', 'matching']);
 
 export interface SyncProgressFacts {
+  readonly retryAutomatic?: boolean;
   readonly firstRun: 'none' | 'deferred' | 'running' | 'completed';
   /** Phase of the newest bootstrap run, if any. */
   readonly runPhase?: string;
@@ -41,6 +42,7 @@ export function projectSyncProgress(facts: SyncProgressFacts): PublicSyncProgres
   const preparing = facts.runPhase !== undefined && PREPARING_PHASES.has(facts.runPhase);
   const left = bookmarks.total - bookmarks.synced + folders.total - folders.synced;
   return {
+    ...(facts.retryAutomatic === false ? { retryAutomatic: false } : {}),
     stage: preparing ? 'preparing' : left > 0 || facts.liveWork || facts.unsettled
       || facts.firstRun === 'running' || facts.runPhase === 'syncing' ? 'syncing' : 'done',
     firstSync: facts.firstRun === 'running',

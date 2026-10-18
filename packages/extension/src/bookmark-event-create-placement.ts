@@ -13,6 +13,13 @@ export async function resolveCreatePlacement(input: {
   if (!input.resolve) return { invalid: false };
   const result = await input.resolve(input.nativeId, input.node);
   if (!result) return { invalid: false };
+  // Local saves also reserve placement for crash recovery, without claiming a
+  // cloud collection. If that bookmark later enters the sync boundary, capture
+  // its current native placement normally and leave its local receipt intact.
+  const candidates = result.state === 'ready' ? [result.intent] : result.candidates;
+  if (candidates.length > 0 && candidates.every(intent => intent.collectionId === undefined)) {
+    return { invalid: false };
+  }
   if (result.state === 'unproven') {
     await placementAttention(input.store, input.scope, input.nativeId, result.candidates);
     return { invalid: true };

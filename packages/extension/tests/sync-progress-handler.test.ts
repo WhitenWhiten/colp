@@ -15,6 +15,7 @@ const f = vi.hoisted(() => ({
   tree: [] as unknown[],
   extraMappings: [] as Array<{ nativeId: string; colpId: string; projection?: { revision: string } }>,
   captures: false, acknowledgement: false, frozen: false, aligned: true,
+  lastError: undefined as string | undefined,
 }));
 
 vi.mock('../src/sw/scope.js', () => ({
@@ -38,7 +39,8 @@ vi.mock('../src/sw/runtime.js', () => ({
       ...f.extraMappings, { nativeId: 'bar', colpId: 'colp-bar' }, { nativeId: 'a', colpId: 'colp-a' }, { nativeId: 'private', colpId: 'colp-private' },
     ],
     listQueue: async (_scope: unknown, status: string) => (f.queue.includes(status) ? [{ status }] : []),
-    getEngineState: async () => ({ recoveryFrozen: f.frozen, lastPublishedCursor: 'cursor', lastAckedCursor: f.aligned ? 'cursor' : 'previous' }),
+    getEngineState: async () => ({ recoveryFrozen: f.frozen, lastError: f.lastError,
+      lastPublishedCursor: 'cursor', lastAckedCursor: f.aligned ? 'cursor' : 'previous' }),
     listBookmarkEventsByStatus: async () => f.captures ? [{ status: 'pending' }] : [],
     listAckIntents: async () => f.acknowledgement ? [{ state: 'pending' }] : [],
   },
@@ -50,7 +52,7 @@ function bookmark(id: string): ChromeBookmarkNode { return { id, title: id, url:
 
 beforeEach(() => {
   Object.assign(f, { permission: true, connected: true, firstRun: 'running', queue: ['pending'], extraMappings: [],
-    captures: false, acknowledgement: false, frozen: false, aligned: true });
+    captures: false, acknowledgement: false, frozen: false, aligned: true, lastError: undefined });
   f.tree = [{ id: '0', title: '', children: [
     { id: 'bar', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [
       bookmark('a'), bookmark('b'),
@@ -62,6 +64,13 @@ beforeEach(() => {
 });
 
 describe('handleSyncProgressRequest', () => {
+  test('the progress response itself carries the terminal stop even without the separate status request', async () => {
+    f.frozen = true; f.lastError = 'recovery_identity_unproven'; f.firstRun = 'completed'; f.queue = [];
+    const response = await handleSyncProgressRequest();
+    assert.ok(response.ok && response.progress);
+    assert.equal(response.progress.retryAutomatic, false);
+    assert.equal(response.progress.stage, 'syncing');
+  });
   test('counts the selected boundary minus exclusions and private roots', async () => {
     const response = await handleSyncProgressRequest();
     assert.deepEqual(response, { ok: true, progress: {

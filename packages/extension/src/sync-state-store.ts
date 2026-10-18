@@ -1,4 +1,5 @@
 import { createQueueBatchRepository } from './sync-state/queue-batch-repository.js';
+import { createLocalPlacementRecoveryRepository } from './sync-state/local-placement-recovery-repository.js';
 import { createNativeMutationRepository } from './sync-state/native-mutation-repository.js';
 import { createClassificationRepository } from './sync-state/classification-repository.js';
 export {
@@ -55,6 +56,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
   const batch = createBatchRepository(ctx);
   const facts = createScopeFactsRepository(ctx);
   return Object.freeze({
+    ...createLocalPlacementRecoveryRepository(ctx),
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
     ...createNativeMutationRepository(ctx),
     ...createQueueBatchRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),

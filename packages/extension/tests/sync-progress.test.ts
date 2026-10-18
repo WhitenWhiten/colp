@@ -78,6 +78,15 @@ describe('projectSyncProgress', () => {
 });
 
 describe('describeSyncProgress', () => {
+  test.each(['syncing', 'preparing'] as const)('stopped %s progress cannot promise retries when status is unavailable', stage => {
+    const view = describeSyncProgress(progress({ stage, firstSync: false, liveWork: false, retryAutomatic: false }));
+    assert.equal(view.title, 'Action required');
+    assert.equal(view.short, 'Action required');
+    assert.equal(view.indeterminate, false);
+    assert.match(view.note!, /Sync on this device has stopped/);
+    assert.doesNotMatch(view.note!, /checks again on its own/);
+    assert.deepEqual(view.guidance, []);
+  });
   test('shows counts, a value, and what is safe to do while the first sync runs', () => {
     const view = describeSyncProgress(progress());
     assert.equal(view.show, true);

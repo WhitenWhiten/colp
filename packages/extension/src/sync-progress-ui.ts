@@ -43,6 +43,9 @@ function guidance(): string[] {
 
 /** Why a count is not going down, in the user's words. Nothing when it is moving. */
 function stallNote(progress: PublicSyncProgress, status: SyncStatus | undefined): string | undefined {
+  if (progress.retryAutomatic === false) {
+    return t('syncProgress_stopped', 'Sync on this device has stopped. Open Status to review the problem.');
+  }
   switch (status?.kind) {
     case 'paused': return t('syncProgress_paused', 'Nothing syncs until you resume. Changes you make meanwhile sync after that.');
     case 'waiting-network': return t('syncProgress_waitingNetwork', 'Waiting for the network. Sync continues when you’re back online.');
@@ -65,7 +68,8 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
   const { bookmarks, folders } = progress;
   const total = bookmarks.total + folders.total; const synced = bookmarks.synced + folders.synced;
   const paused = status?.kind === 'paused' && progress.stage !== 'done';
-  const blocked = status?.kind === 'action-required' || status?.kind === 'review-conflicts';
+  const blocked = progress.retryAutomatic === false || status?.kind === 'action-required' || status?.kind === 'review-conflicts';
+  const blockedTitle = t('sync_actionRequired', 'Action required');
   const pausedTitle = progress.firstSync
     ? t('syncProgress_firstPausedTitle', 'First sync paused') : t('syncProgress_pausedTitle', 'Sync paused');
   if (progress.stage === 'preparing' && paused) {
@@ -74,6 +78,9 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
       short: t('syncProgress_pausedTitle', 'Sync paused'), note: stallNote(progress, status)!, guidance: [] };
   }
   if (progress.stage === 'preparing') {
+    if (blocked) return { show: true, indeterminate: false, value: 0, done: false, paused,
+      title: blockedTitle, detail: stallNote(progress, status)!, short: blockedTitle,
+      note: stallNote(progress, status)!, guidance: [] };
     return { show: true, indeterminate: true, value: 0, done: false, paused,
       title: progress.firstSync ? t('syncProgress_preparingTitle', 'Preparing your first sync')
         : t('syncProgress_preparingMoreTitle', 'Preparing bookmark sync'),
@@ -89,7 +96,7 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
     ? tn('syncProgress_foldersSynced', folders.total, '$2 of $3 folder', '$2 of $3 folders', count(folders.synced), count(folders.total))
     : '';
   const detail = folderLine ? `${bookmarkLine} · ${folderLine}` : bookmarkLine;
-  if (progress.stage === 'done') {
+  if (progress.stage === 'done' && !blocked) {
     if (!options.showDone) return HIDDEN;
     return { show: true, indeterminate: false, value: 1, done: true, paused,
       title: t('syncProgress_doneTitle', 'Sync complete'),
@@ -98,10 +105,10 @@ export function describeSyncProgress(progress: PublicSyncProgress | null | undef
   }
   const note = stallNote(progress, status);
   return { show: true, indeterminate: false, value: total > 0 ? Math.min(1, synced / total) : 0, done: false, paused,
-    title: paused ? pausedTitle
+    title: blocked ? blockedTitle : paused ? pausedTitle
       : progress.firstSync ? t('syncProgress_firstTitle', 'First sync in progress') : t('syncProgress_title', 'Syncing bookmarks'),
     detail,
-    short: paused ? t('syncProgress_pausedShort', 'Paused at $1 of $2', count(synced), count(total))
+    short: blocked ? blockedTitle : paused ? t('syncProgress_pausedShort', 'Paused at $1 of $2', count(synced), count(total))
       : t('syncProgress_short', 'Syncing $1 of $2', count(synced), count(total)),
     // "While it runs" advice is for a sync that runs.
     ...(note ? { note } : {}), guidance: paused || blocked ? [] : guidance() };

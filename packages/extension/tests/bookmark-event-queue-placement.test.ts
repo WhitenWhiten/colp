@@ -3,7 +3,8 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { test } from 'vitest';
 import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
-import type { BookmarkCreatePlacementRecord } from '../src/bookmark-create-placement.js';
+import { createBookmarkCreatePlacementStore, type BookmarkCreatePlacementRecord } from '../src/bookmark-create-placement.js';
+import { MemoryStorageArea } from '../src/credential-store.js';
 import { bookmark, folder, fixture, scope } from './bookmark-event-queue-harness.js';
 
 const intent: BookmarkCreatePlacementRecord = {
@@ -59,6 +60,55 @@ test('ordinary native create without a reservation keeps the existing ingress pa
   assert.equal((await queue.created(node.id, node)).outcome, 'staged');
   const event = (await store.listBookmarkEvents(scope))[0]!;
   assert.equal((event.details.context as Record<string, unknown>).placement, undefined);
+});
+
+test.each(['bound', 'attention'] as const)('a %s local-only reservation cannot freeze native ingress', async state => {
+  const { store, api } = await fixture(new IDBFactory(), { autoFlush: false });
+  const placements = createBookmarkCreatePlacementStore({ storage: new MemoryStorageArea() });
+  const reservation = await placements.reserve({ mode: 'top',
+    targetParentNativeId: state === 'bound' ? 'root-unselected' : 'root-selected',
+    batchId: intent.batchId, batchOrder: 0, batchSize: 1,
+    title: intent.title, url: intent.url, expectedIndex: 0 });
+  const node = bookmark('native-local-save', 'root-selected', 0, intent.title, intent.url);
+  await placements.bind(reservation.intentId, node.id);
+  if (state === 'attention') await placements.markAttention(reservation.intentId);
+  api.put(node);
+  const queue = createBookmarkEventQueue({ scope, store, api, autoFlush: false,
+    resolveCreatePlacement: async (nativeId, value) => placements.consumeForCreated({
+      id: nativeId, parentId: value.parentId, index: value.index, title: value.title, url: value.url }),
+    completeCreatePlacement: (intentId, nativeId) => placements.complete(intentId, nativeId) });
+  try {
+    const captured = state === 'bound'
+      ? await queue.moved(node.id, { parentId: node.parentId, index: node.index,
+        oldParentId: 'root-unselected', oldIndex: 0 })
+      : await queue.created(node.id, node);
+    assert.equal(captured.outcome, 'staged');
+    const event = (await store.listBookmarkEvents(scope))[0]!;
+    assert.equal(event.kind, 'create');
+    assert.equal((event.details.context as Record<string, unknown>).placement, undefined);
+    assert.notEqual((await store.getEngineState(scope))?.recoveryFrozen, true);
+    assert.equal((await store.getScope(scope))?.lifecycle, 'active');
+    // Capture recovery still owns the local reservation and its exact native receipt.
+    assert.equal((await placements.get(reservation.intentId))?.state, state);
+    await queue.flush();
+    assert.equal((await store.listQueue(scope))[0]?.payload.type, 'create_node');
+  } finally { store.close(); }
+});
+
+test('a reservation explicitly bound to another collection still freezes native ingress', async () => {
+  const { store, api } = await fixture(new IDBFactory(), { autoFlush: false });
+  const node = bookmark(intent.nativeId!, 'root-selected', 0, intent.title, intent.url);
+  api.put(node);
+  const attention: string[] = [];
+  const queue = createBookmarkEventQueue({ scope, store, api, autoFlush: false,
+    resolveCreatePlacement: async () => ({ state: 'ready', intent: { ...intent, collectionId: 'other-collection' } }),
+    markCreatePlacementAttention: async id => { attention.push(id); } });
+  try {
+    assert.equal((await queue.created(node.id, node)).outcome, 'identity_unproven');
+    assert.deepEqual(attention, [intent.intentId]);
+    assert.equal((await store.listBookmarkEvents(scope)).length, 0);
+    assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
+  } finally { store.close(); }
 });
 
 test.each(['empty_title', 'missed_create'])('a move into an unmapped selected folder never deletes the bookmark (%s)', async (reason) => {

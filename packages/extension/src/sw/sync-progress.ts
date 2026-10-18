@@ -2,6 +2,7 @@ import { personalTreeApi } from '../bookmark-subscriptions/personal-boundary.js'
 import { scanBoundary } from '../bookmark-boundary.js';
 import { createChromeBookmarkTreeAdapter } from '../chrome-bookmark-tree.js';
 import { projectSyncProgress } from '../sync-progress.js';
+import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { SyncProgressResponse } from '../types.js';
 import { hasBookmarkPermission, syncState } from './runtime.js';
@@ -47,6 +48,9 @@ export async function handleSyncProgressRequest(): Promise<SyncProgressResponse>
     || acknowledgements.some(row => row.state === 'pending')
     || Boolean(engine?.lastPublishedCursor && engine.lastPublishedCursor !== engine.lastAckedCursor);
   return { ok: true, progress: projectSyncProgress({
+    ...(engine?.phase === 'error' || syncAttentionTerminalCode(engine?.lastError,
+      typeof recorded?.metadata?.recoveryCode === 'string' ? recorded.metadata.recoveryCode : undefined)
+      ? { retryAutomatic: false } : {}),
     firstRun, ...(run ? { runPhase: run.phase } : {}), roots: tree.roots, classifications: scan.classifications,
     // Provisional identities exist before a create has a server receipt.
     mappedNativeIds: new Set(mappings.filter((row) => !/^(pending-|local-|mount:)/u.test(row.colpId)

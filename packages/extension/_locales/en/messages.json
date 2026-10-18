@@ -5825,6 +5825,9 @@
   "syncProgress_short": {
     "message": "Syncing $1 of $2"
   },
+  "syncProgress_stopped": {
+    "message": "Sync on this device has stopped. Open Status to review the problem."
+  },
   "syncProgress_title": {
     "message": "Syncing bookmarks"
   },

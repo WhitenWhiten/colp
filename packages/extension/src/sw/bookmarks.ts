@@ -136,13 +136,8 @@ export async function currentBookmarkEventQueue(captureOnly = false) {
       resolveCreatePlacement: async (nativeId, node) => {
         if (typeof node.url !== 'string' || typeof node.parentId !== 'string' || typeof node.index !== 'number') return undefined;
         const store = placementStore();
-        const consumed = await store.consumeForCreated({ id: nativeId, parentId: node.parentId,
+        return store.consumeForCreated({ id: nativeId, parentId: node.parentId,
           index: node.index, title: node.title, url: node.url });
-        if (consumed?.state === 'ready' && consumed.intent.collectionId !== scope.collectionId) {
-          await store.markAttention(consumed.intent.intentId);
-          return { state: 'unproven', candidates: [consumed.intent] };
-        }
-        return consumed;
       },
       completeCreatePlacement: (intentId, nativeId) => placementStore().complete(intentId, nativeId),
       markCreatePlacementAttention: intentId => placementStore().markAttention(intentId),

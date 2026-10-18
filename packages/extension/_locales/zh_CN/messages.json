@@ -7607,6 +7607,10 @@
     "message": "还有一些书签尚未上传。同步会自动再次检查。",
     "description": "Some bookmarks haven’t been uploaded yet. Sync checks again on its own."
   },
+  "syncProgress_stopped": {
+    "message": "此设备上的同步已停止。请打开状态查看问题。",
+    "description": "Sync on this device has stopped. Open Status to review the problem."
+  },
   "syncProgress_paused": {
     "message": "恢复之前不会同步任何内容。期间做的更改会在恢复后同步。",
     "description": "Nothing syncs until you resume. Changes you make meanwhile sync after that."
