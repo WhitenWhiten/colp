@@ -69,12 +69,13 @@ export function projectReplicaHealth(input: {
   return total > 0 ? { state: 'degraded', issues } : { state: 'syncing', issues };
 }
 
-/** Uploads the server refused, and uploads held for a conflict, one issue each. */
+/** Uploads the server refused, held for a conflict, or set aside for another problem, one issue each. */
 export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): ReplicaHealthIssue[] {
   return rows.flatMap((row) => {
     const conflict = row.status === 'blocked' && row.recovery?.code === 'conflict_pending';
-    if (row.status !== 'rejected' && !conflict) return [];
-    const code = conflict ? 'conflict_pending' : CODE.test(row.recovery?.code ?? '') ? row.recovery!.code : 'push_rejected';
+    if (row.status !== 'rejected' && row.status !== 'set_aside' && !conflict) return [];
+    const fallback = row.status === 'set_aside' ? 'set_aside' : 'push_rejected';
+    const code = conflict ? 'conflict_pending' : CODE.test(row.recovery?.code ?? '') ? row.recovery!.code : fallback;
     const at = instant(row.payload.occurredAt);
     const nodeId = serverNodeId(row.payload.targetId);
     const title = titleOf(row.payload);
@@ -132,7 +133,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
   if (response.ok !== true) return 'failed';
   const rows: QueueOperation[] = [];
-  for (const status of ['blocked', 'rejected'] as const) {
+  for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
     rows.push(...await deps.store.listQueue(deps.scope, status, 0, 1_000).catch(() => []));
   }
   const waits = await projectNativeWaits(deps.store, deps.scope).catch(() => []);

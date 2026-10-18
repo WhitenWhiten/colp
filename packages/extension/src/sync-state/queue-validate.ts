@@ -22,7 +22,12 @@ export function validateQueueRecord(input: unknown, maxBytes: number): QueueOper
     'echoApplied', 'payload'],
   'queue record', ['recovery', 'attempt', 'echoApplied']);
   if (value.endpointIdentity !== 'syncPush'
-      || !['pending', 'claimed', 'deferred', 'terminal', 'gap', 'blocked', 'unknown', 'rejected'].includes(String(value.status))) {
+      || !['pending', 'claimed', 'deferred', 'terminal', 'gap', 'blocked', 'unknown', 'rejected', 'set_aside']
+        .includes(String(value.status))) {
+    throw new SyncStateError('queue_state_invalid');
+  }
+  // A held row was never sent: it carries why it is held and no attempt.
+  if (value.status === 'set_aside' && (value.recovery === undefined || value.attempt !== undefined)) {
     throw new SyncStateError('queue_state_invalid');
   }
   const retry = strictObject(value.retry, ['attempt', 'notBefore', 'ownerId', 'fence', 'claimExpiresAt'], 'retry',

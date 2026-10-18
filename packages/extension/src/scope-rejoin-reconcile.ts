@@ -28,7 +28,7 @@ export async function applyRejoinObservations(input: {
   const observations = new Map((await store.listRemoteObservations(scope))
     .filter(row => observationValidForPause(row, mount.pauseBaseline)).map(row => [row.colpId, row]));
   const protectedDeletions = await protectedRejoinDeletions(input, mappings);
-  const liveQueue = new Set(['pending', 'claimed', 'deferred', 'unknown', 'gap', 'blocked']);
+  const liveQueue = new Set(['pending', 'claimed', 'deferred', 'unknown', 'gap', 'blocked', 'set_aside']);
   const pendingTargets = new Set((await store.listQueue(scope)).flatMap((row) =>
     liveQueue.has(row.status) && typeof row.payload.targetId === 'string' ? [row.payload.targetId] : []));
   const optimistic = (mapping: MappingInput) => mapping.projection.revision.startsWith('local-')

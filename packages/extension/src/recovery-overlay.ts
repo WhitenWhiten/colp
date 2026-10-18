@@ -66,7 +66,7 @@ export interface RecoveryOverlayPlan {
   readonly protectedColpIds: readonly string[];
 }
 
-const ACTIVE = new Set(['pending', 'claimed', 'deferred', 'blocked', 'unknown', 'gap']);
+const ACTIVE = new Set(['pending', 'claimed', 'deferred', 'blocked', 'unknown', 'gap', 'set_aside']);
 
 /** Typed outstanding-operation targets. Never falls back to a nested payload.targetId heuristic. */
 export function extractOutstandingTarget(

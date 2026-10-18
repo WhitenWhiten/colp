@@ -14,8 +14,9 @@ function validEpochMilliseconds(value: number | undefined): value is number {
   return value !== undefined && Number.isSafeInteger(value) && value >= 0;
 }
 
+/** Work the push lane can still drain. Held (`set_aside`) rows wait for their problem to clear. */
 export function hasRecoverableQueueWork(rows: readonly { readonly status?: string }[]): boolean {
-  return rows.some((row) => row.status !== 'terminal' && row.status !== 'rejected');
+  return rows.some((row) => row.status !== 'terminal' && row.status !== 'rejected' && row.status !== 'set_aside');
 }
 
 /**

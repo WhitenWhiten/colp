@@ -315,8 +315,9 @@ export async function collectNativeFacts(api: PullBookmarkApi, rootNativeId: str
 async function listOutstanding(
   store: RecoveryStore, scope: SyncScope,
 ): Promise<QueueOperation[]> {
-  const live: Array<'pending' | 'claimed' | 'deferred' | 'gap' | 'blocked' | 'unknown'> = [
-    'pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown',
+  // Held rows are still this browser's intent; recovery must not overwrite their targets.
+  const live: Array<'pending' | 'claimed' | 'deferred' | 'gap' | 'blocked' | 'unknown' | 'set_aside'> = [
+    'pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside',
   ];
   const heads = await Promise.all(live.map(async (status) => {
     const rows: QueueOperation[] = [];

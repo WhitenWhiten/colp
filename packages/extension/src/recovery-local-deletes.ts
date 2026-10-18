@@ -1,7 +1,7 @@
 import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>, 'listQueue' | 'listBookmarkEventsByStatus'>;
-const STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected'] as const;
+const STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected', 'set_aside'] as const;
 
 /** A local removal remains authoritative while it is an inbox draft, queued,
  * or rejected for user review. A Snapshot is not permission to undo that edit. */

@@ -34,6 +34,7 @@ import { createMappingRepository } from './sync-state/mapping-repository.js';
 import { createMountRepository } from './sync-state/mount-repository.js';
 import { createPullRepository } from './sync-state/pull-repository.js';
 import { createQueueRepository } from './sync-state/queue-repository.js';
+import { createQueueSetAsideRepository } from './sync-state/queue-set-aside-repository.js';
 import { createRecoveryRepository } from './sync-state/recovery-repository.js';
 import { createSyncStoreRuntime } from './sync-state/runtime.js';
 import { createScopeRepository } from './sync-state/scope-repository.js';
@@ -129,7 +130,8 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     rejectBootstrapAckAndRequireAuthorityRefresh: engine.rejectBootstrapAckAndRequireAuthorityRefresh,
     discardPullAckIntent: engine.discardPullAckIntent,
     acquireLease: queue.acquireLease, renewLease: queue.renewLease, claimQueue: queue.claimQueue, claimNextQueue: queue.claimNextQueue,
-    realignQueueAfterGap: queue.realignQueueAfterGap, bindPushAttempt: queue.bindPushAttempt,
+    realignQueueAfterGap: queue.realignQueueAfterGap,
+    ...createQueueSetAsideRepository(ctx), bindPushAttempt: queue.bindPushAttempt,
     rebaseClaimedPush: queue.rebaseClaimedPush, settleClaimedPush: queue.settleClaimedPush,
     repairSequenceReuseRow: queue.repairSequenceReuseRow,
     retireScope: scope.retireScope, cleanupAccount: scope.cleanupAccount, exportScope: scope.exportScope,

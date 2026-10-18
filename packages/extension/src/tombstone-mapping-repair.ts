@@ -22,7 +22,7 @@ type Store = Pick<ReturnType<typeof createSyncStateStore>,
 
 /** Statuses a live create row can still be re-anchored from; terminal/rejected are settled history. */
 const REBASABLE_QUEUE_STATUSES: readonly QueueOperation['status'][] = [
-  'pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown',
+  'pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside',
 ];
 const QUEUE_SCAN_LIMIT = 1_000;
 

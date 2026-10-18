@@ -28,7 +28,7 @@ export async function localProjectionIsQuiet(store:ReturnType<typeof createSyncS
   if(!engine||engine.recoveryFrozen||engine.authorityRefreshRequired||engine.lastError||!['sleeping','idle'].includes(engine.phase)
     ||!engine.lastAckedCursor||engine.lastAckedCursor!==engine.lastPublishedCursor)return false;
   if((await store.listBookmarkEventsByStatus(scope,'pending',0,1)).length||(await store.listProjectionIntents(scope)).some(intent=>intent.state!=='terminal'))return false;
-  for(const status of ['pending','claimed','deferred','gap','blocked','unknown','rejected'] as const)if((await store.listQueue(scope,status,0,1)).length)return false;
+  for(const status of ['pending','claimed','deferred','gap','blocked','unknown','rejected','set_aside'] as const)if((await store.listQueue(scope,status,0,1)).length)return false;
   if((await store.listImportPlans(scope)).some(plan=>plan.state!=='complete'))return false;
   return true;
 }

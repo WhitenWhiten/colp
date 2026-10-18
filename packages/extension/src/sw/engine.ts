@@ -305,7 +305,7 @@ async function markImportEngineRecovery(scope: SyncScope, code: string) {
   const plan = plans.filter((item) => item.state === 'active').sort((a, b) => b.updatedAt - a.updatedAt)[0];
   if (!plan) return; const nodes = await syncState.listImportNodes(scope, plan.planId);
   const queue: QueueOperation[] = [];
-  for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown'] as const) {
+  for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside'] as const) {
     let after = 0;
     while (true) {
       const page = await syncState.listQueue(scope, status, after, 1_000);
@@ -392,7 +392,7 @@ async function projectSnapshotNode(scope: SyncScope, context: AuthorityContext,
 }
 
 /** The statuses `pendingDurableWorkFacts` scans; a page of each, ordered by sequence. */
-const LIVE_QUEUE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected'] as const;
+const LIVE_QUEUE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected', 'set_aside'] as const;
 
 async function pendingDurableWorkFacts(scope: SyncScope) {
   let hasPendingWork = Boolean(await syncState.getPendingAckIntent(scope));
@@ -415,7 +415,7 @@ async function pendingDurableWorkFacts(scope: SyncScope) {
     // rejected row grow without bound, which is the opposite of what a backlog
     // metric is for.
     for (const row of rows) {
-      if (row.status === 'rejected') continue;
+      if (row.status === 'rejected' || row.status === 'set_aside') continue;
       const occurredAt = Date.parse(String(row.payload.occurredAt));
       if (!Number.isFinite(occurredAt)) continue;
       oldestLiveOccurredAt = oldestLiveOccurredAt === null ? occurredAt : Math.min(oldestLiveOccurredAt, occurredAt);

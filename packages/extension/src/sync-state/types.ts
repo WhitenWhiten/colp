@@ -63,7 +63,14 @@ export interface QueueOperation {
   readonly scopeKey: string; readonly sequence: number; readonly opId: string; readonly batchId: string;
   readonly idempotencyKey: string; readonly digest: string; readonly endpointIdentity: 'syncPush';
   readonly mediaType: string; readonly baseRevision: string | null; readonly operationRevision: string;
-  readonly status: 'pending' | 'claimed' | 'deferred' | 'terminal' | 'gap' | 'blocked' | 'unknown' | 'rejected';
+  /**
+   * `set_aside`: held out of the push lane because of one item's problem; never
+   * sent, so it owns no server sequence. It is outstanding local work, not
+   * settled history, and is released to the tail of the lane when the problem
+   * clears (`releaseSetAsideQueue`).
+   */
+  readonly status: 'pending' | 'claimed' | 'deferred' | 'terminal' | 'gap' | 'blocked' | 'unknown' | 'rejected'
+    | 'set_aside';
   readonly retry: { readonly attempt: number; readonly notBefore: number; readonly ownerId?: string;
     readonly fence?: number; readonly claimExpiresAt?: number };
   readonly recovery?: { readonly code: string; readonly expectedSequence?: number };

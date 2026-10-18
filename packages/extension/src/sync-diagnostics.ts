@@ -12,7 +12,7 @@ export async function collectSyncDiagnostics(store: Store, scope: SyncScope) {
   ]);
   const run = [...runs].sort((a, b) => b.updatedAt - a.updatedAt)[0];
   let pendingUploads = 0;
-  for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown'] as const) {
+  for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside'] as const) {
     let after = 0;
     for (;;) {
       const rows = await store.listQueue(scope, status, after, 1_000);

@@ -12,7 +12,7 @@ export type ColpSessionTransportSlice = {
   readonly bootstrapMode: BootstrapMode;
 };
 
-const NONTERMINAL_QUEUE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown'] as const;
+const NONTERMINAL_QUEUE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside'] as const;
 
 export function resolveSessionMountBinding(input: {
   readonly browserProfileId: string;

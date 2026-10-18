@@ -7,6 +7,7 @@ All notable changes to the Know-N browser extension are documented here. The for
 ### Added
 
 - The extension tells the server's Sync center how its sync stands: syncing, degraded (some items set aside), stopped (with the reason code) or paused. It reports after every sync pass when something changed and at least every 15 minutes, through `POST /colp/v0.1/sync/replica-health`. A stopped engine still reports, and the report is the only request it makes: it needs no Sync Session and renews nothing. While paused it names no bookmarks; after a deliberate disconnect it reports nothing. A server without the route is asked again after six hours.
+- Sync can hold one change aside without stopping the rest. A held change (`set_aside`) keeps its reason, is reported to the Sync center like a refused one, and never stalls the changes behind it: the push lane skips it and the next sequence realign moves it after the surviving work. Only a change that was never sent can be held. Releasing it returns it to the end of the lane, in its original order, with a fresh sequence and idempotency key.
 
 ### Changed
 

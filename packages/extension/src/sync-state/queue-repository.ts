@@ -1,4 +1,5 @@
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
+import { parkedOutOfLane } from './queue-set-aside-repository.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt,
   firstLiveQueueRow } from './queue-live-work.js';
 import {
@@ -369,7 +370,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       }
       const hole = expected < head.sequence
         ? above.filter((row) => row.sequence < head.sequence) : [];
-      if (expected < head.sequence && (hole.length === 0 || hole.some((row) => row.status !== 'rejected'))) return;
+      if (expected < head.sequence && (hole.length === 0 || hole.some((row) => !parkedOutOfLane(row)))) return;
       let affected = above;
       if (expected > head.sequence) {
         // Rows between the local head and the lane were never accepted there.
@@ -381,8 +382,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
         affected = [...below.filter((row) => row.status !== 'terminal'), ...above];
         mode = 'renumber_up';
       } else mode = 'renumber_down';
-      const active = affected.filter((row) => row.status !== 'rejected');
-      const parked = affected.filter((row) => row.status === 'rejected');
+      const active = affected.filter((row) => !parkedOutOfLane(row));
+      const parked = affected.filter(parkedOutOfLane);
       for (const row of affected) queue.delete([key, row.sequence]);
       let next = expected;
       const renumber = (row: QueueOperation, reset: boolean) => {

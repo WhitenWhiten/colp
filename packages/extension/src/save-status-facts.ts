@@ -1,7 +1,7 @@
 import { mappingLooksAuthoritative, type SaveStatusFacts, type SaveStatusPaint } from './save-status.js';
 import type { BookmarkEventRecord, QueueOperation, SyncScope } from './sync-state/types.js';
 
-const LIVE_QUEUE = new Set(['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown']);
+const LIVE_QUEUE = new Set(['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside']);
 
 export interface SaveStatusStore {
   getScope(scope: SyncScope): Promise<{ readonly firstRun?: string } | null>;
@@ -39,6 +39,7 @@ export async function collectSaveStatusFacts(input: {
   }
   const relatedConflict = queueRows.some((row) => row.status === 'blocked' && row.recovery?.code === 'conflict_pending');
   const relatedRejected = queueRows.some((row) => row.status === 'rejected');
+  const relatedHeld = queueRows.some((row) => row.status === 'set_aside');
   const relatedReuseUnknown = queueRows.some((row) => row.status === 'unknown'
     && (row.recovery?.code === 'sequence_reuse' || row.recovery?.code === 'op_id_reused'));
   const relatedLive = queueRows.some((row) => LIVE_QUEUE.has(row.status));
@@ -62,7 +63,7 @@ export async function collectSaveStatusFacts(input: {
     : [];
   const nativeWait = applyWaits.some((intent) => intent.nativeParentId === input.nativeId
     || intent.apiResultEvidence?.nativeId === input.nativeId);
-  const needsAttention = relatedConflict || relatedRejected || relatedReuseUnknown
+  const needsAttention = relatedConflict || relatedRejected || relatedHeld || relatedReuseUnknown
     || relatedIntents.some((intent) => intent.state === 'recovery' || intent.state === 'ambiguous')
     || latestRun?.phase === 'needs_attention'
     || engine?.phase === 'recovery' || engine?.phase === 'error' || nativeWait;

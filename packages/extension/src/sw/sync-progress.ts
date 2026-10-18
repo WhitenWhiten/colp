@@ -8,8 +8,8 @@ import type { SyncProgressResponse } from '../types.js';
 import { hasBookmarkPermission, syncState } from './runtime.js';
 import { currentSyncScope } from './scope.js';
 
-/** Queue rows that still have to reach the server. `rejected` is settled history. */
-const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'unknown', 'gap', 'blocked'] as const;
+/** Queue rows that still have to reach the server, held ones included. `rejected` is settled history. */
+const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'unknown', 'gap', 'blocked', 'set_aside'] as const;
 
 /**
  * `known.sync.progress.get`: read-only, parameterless, like the attention

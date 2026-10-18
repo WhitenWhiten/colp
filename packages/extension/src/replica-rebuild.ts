@@ -57,7 +57,7 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     const state = await deps.store.getEngineState(scope);
     if (!state?.recoveryFrozen) throw new Error('rebuild_not_required');
     let queuedOperations = 0;
-    for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown'] as const) {
+    for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside'] as const) {
       let after = 0;
       for (;;) {
         const rows = await deps.store.listQueue(scope, status, after, 1_000); queuedOperations += rows.length;

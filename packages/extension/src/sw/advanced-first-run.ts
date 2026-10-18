@@ -512,7 +512,7 @@ async function privateNativeIdsFor(scope: SyncScope): Promise<string[]> {
 
 async function advancedWorkBusy(scope: SyncScope): Promise<boolean> {
   if ((await syncState.listAdvancedPlans(scope)).some((plan) => plan.state !== 'completed')) return true;
-  const statuses = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected'] as const;
+  const statuses = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected', 'set_aside'] as const;
   const liveQueue = await Promise.all(statuses.map((status) => syncState.listQueue(scope, status, 0, 1)));
   if (liveQueue.some((page) => page.length > 0)) return true;
   const [events, intents, recovery, imports, acks, engine, recorded] = await Promise.all([
