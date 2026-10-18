@@ -84,7 +84,7 @@ export function SearchPalette({ open, onClose }: Props) {
               className="search-empty"
               icon="search"
               title={SEARCH_PAGE_TITLE}
-              description="Type to search available collections, bookmarks, and annotations."
+              description="Type to search your bookmarks, folders, and notes."
             />
           )}
           {query.trim() && search.state === 'loading' && <LoadingState className="search-palette-status" label="Searching…" />}

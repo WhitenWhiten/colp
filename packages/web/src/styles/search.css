@@ -105,7 +105,9 @@
    win over the shared .result-row base in the same layer. */
 button.search-result {
   width: 100%;
-  grid-template-columns: minmax(4.25rem, auto) minmax(0, 1fr) auto;
+  /* A fixed kind rail: each row is its own grid, so an auto column sized
+     to its own chip started "Folder" titles left of "Bookmark" ones. */
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
   gap: var(--hair-20) var(--hair-70);
   align-items: center;
   padding: var(--hair-55) var(--hair-70);
@@ -113,6 +115,10 @@ button.search-result {
   border-radius: var(--radius);
   text-align: left;
   transition: background var(--duration-fast) var(--ease-quart);
+}
+
+button.search-result > .chip--kind {
+  justify-self: start;
 }
 
 button.search-result:hover {
@@ -275,7 +281,7 @@ a.search-product-result.is-active {
   }
 
   button.search-result {
-    grid-template-columns: minmax(4.25rem, auto) minmax(0, 1fr);
+    grid-template-columns: 5.5rem minmax(0, 1fr);
   }
 
   .search-result .meta {
