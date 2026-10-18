@@ -313,7 +313,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
         throw new Error(response.ok ? 'report_expired' : response.error);
       }
       if (observation.attention?.reportId !== reportId) return;
-      renderAttentionItems(attentionList, response.items, itemId => { void decideAttention(itemId); });
+      renderAttentionItems(attentionList, response.items, (itemId, decision, evidence) => { void decideAttention(itemId, decision, evidence); });
       renderAttentionNavigation(attentionList, cursor, response.nextCursor, page => { void openAttention(page); });
       setAttentionConflictLink(conflictLink, response.conflictHref);
       if ('attention' in response && response.attention) {
@@ -327,9 +327,9 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     }
   }
 
-  async function decideAttention(itemId: string): Promise<void> {
+  async function decideAttention(itemId: string, decision: 'keep_both' | 'keep_local' = 'keep_both', evidenceDigest?: string): Promise<void> {
     if (!observation.attention) { await openAttention(); return; }
-    const response = await firstRunMessage({ kind: 'known.firstRun.attention.decide', reportId: observation.attention.reportId, itemId, decision: 'keep_both',
+    const response = await firstRunMessage({ kind: 'known.firstRun.attention.decide', reportId: observation.attention.reportId, itemId, decision, ...(evidenceDigest ? { evidenceDigest } : {}),
     });
     if (!response.ok) { say(confirmFailureCopy(response)); return; }
     if ('attention' in response && response.attention) observation = observeFirstRunResponse(response, observation);

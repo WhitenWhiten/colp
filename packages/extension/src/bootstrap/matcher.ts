@@ -48,6 +48,7 @@ export interface DuplicateCandidate {
   readonly nodeIds: readonly string[]; readonly parents: readonly string[];
 }
 export interface MatchConflict {
+  readonly evidenceDigest?: string;
   readonly kind: 'title' | 'url' | 'parent'; readonly localNativeId: string; readonly remoteNodeId: string;
 }
 export interface PlannedOperation {
@@ -97,14 +98,16 @@ export function matchLocalRemote(input: {
     if (!local || !remote) return;
     consumedL.add(nativeId); consumedR.add(nodeId); matched.push({ nativeId, nodeId });
     mappingByNative.set(nativeId, nodeId);
-    if (local.title !== remote.title) conflicts.push({ kind: 'title', localNativeId: nativeId, remoteNodeId: nodeId });
+    const evidenceDigest = digest({ nativeId, nodeId, local: { title: local.title, url: local.url ?? null, parent: local.parentNativeId },
+      remote: { title: remote.title, url: remote.url ?? null, parent: remote.parentId, revision: remote.revision } });
+    if (!mountsByRoot.has(nativeId) && local.title !== remote.title) conflicts.push({ kind: 'title', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest });
     if ((local.url ?? '') !== (remote.url ?? '')) {
-      conflicts.push({ kind: 'url', localNativeId: nativeId, remoteNodeId: nodeId });
+      conflicts.push({ kind: 'url', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest });
     }
     const localParent = mappedParent(local, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot);
     // A mount root's browser container and Collection parent are independent.
     if (!mountsByRoot.has(local.nativeId) && localParent && remote.parentId && localParent !== remote.parentId) {
-      conflicts.push({ kind: 'parent', localNativeId: nativeId, remoteNodeId: nodeId });
+      conflicts.push({ kind: 'parent', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest });
     }
   };
   for (const mapping of input.mappings) pair(mapping.nativeId, mapping.colpId);

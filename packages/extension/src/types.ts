@@ -214,7 +214,7 @@ export type FirstRunAttentionGetRequest = {
 };
 export type FirstRunAttentionDecideRequest = {
   readonly kind: 'known.firstRun.attention.decide'; readonly reportId: string; readonly itemId: string;
-  readonly decision: 'keep_both';
+  readonly decision: 'keep_both' | 'keep_local'; readonly evidenceDigest?: string;
 };
 export type FirstRunRequest =
   | FirstRunPreviewRequest
@@ -228,8 +228,9 @@ export type PublicAttentionSummary = {
   readonly pendingCount: number;
 };
 export type PublicAttentionItem = {
+  readonly evidenceDigest?: string; readonly resolutionPending?: boolean; readonly resolutionError?: string;
   readonly label?: string;
-  readonly itemId: string; readonly kind: 'duplicate_candidate' | 'conflict';
+  readonly itemId: string; readonly kind: 'duplicate_candidate' | 'local_difference' | 'conflict';
   readonly locationCount: number; readonly decision: 'open' | 'keep_both';
 };
 

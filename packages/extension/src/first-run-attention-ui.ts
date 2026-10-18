@@ -4,7 +4,7 @@ import type { PublicAttentionItem } from './types.js';
 import { t } from './i18n.js';
 
 export function renderAttentionItems(
-  list: HTMLElement, items: readonly PublicAttentionItem[], onKeepBoth: (itemId: string) => void,
+  list: HTMLElement, items: readonly PublicAttentionItem[], onKeepBoth: (itemId: string, decision?: 'keep_both' | 'keep_local', evidenceDigest?: string) => void,
 ): void {
   list.replaceChildren();
   for (const item of items) {
@@ -19,6 +19,15 @@ export function renderAttentionItems(
       keep.textContent = FIRST_RUN_KEEP_BOTH;
       keep.addEventListener('click', () => onKeepBoth(item.itemId));
       row.append(keep);
+    }
+    if (item.kind !== 'duplicate_candidate' && item.decision === 'open') {
+      const action = document.createElement('button'); action.type = 'button'; action.className = 'btn btn-secondary btn-sm';
+      action.textContent = item.resolutionPending ? t('firstRun_mergeResolutionPending', 'Upload submitted; waiting for convergence')
+        : t('firstRun_uploadLocalVersion', 'Upload this device’s version');
+      action.disabled = item.resolutionPending === true || !item.evidenceDigest;
+      action.addEventListener('click', () => onKeepBoth(item.itemId, 'keep_local', item.evidenceDigest));
+      row.append(action);
+      if (item.resolutionError) { const failure = document.createElement('span'); failure.textContent = item.resolutionError; row.append(failure); }
     }
     list.append(row);
   }

@@ -17,8 +17,12 @@ export async function assertBootstrapUploadAllowed(input: {
   readonly store: Store; readonly scope: SyncScope; readonly queue: QueueOperation;
   readonly parentOf: (nativeId: string) => Promise<string | undefined>;
 }): Promise<void> {
-  const nativeId = input.queue.opId.startsWith('b3.') ? plannedCreateNativeId(input.queue.opId) : undefined;
-  if (!nativeId) return;
+  const nativeId = input.queue.opId.startsWith('b3.') ? plannedCreateNativeId(input.queue.opId)
+    ?? (typeof input.queue.payload.targetId === 'string' ? (await input.store.getMappingByColpId(input.scope, input.queue.payload.targetId))?.nativeId : undefined) : undefined;
+  if (!nativeId) {
+    if (input.queue.opId.startsWith('b3.') && input.queue.payload.type !== 'create_node') throw new Error('bootstrap_boundary_unavailable');
+    return;
+  }
   const { store, scope } = input;
   const [recorded, mounts, runs] = await Promise.all([
     store.getScope(scope), store.listMountBindings(scope), store.listBootstrapRuns(scope),

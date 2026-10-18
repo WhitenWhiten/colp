@@ -182,7 +182,7 @@ export function createBootstrapCoordinator(options: {
     }
     const loaded = await remoteFromStore(run, input);
     run = loaded.run;
-    const remote = loaded.fromRecovery ? loaded.remote : (input.remoteFacts ?? loaded.remote);
+    const remote = input.remoteFacts ?? loaded.remote;
     const rootNodeId = input.rootNodeId ?? loaded.rootNodeId
       ?? remote.find((row) => row.folderRole === 'root')?.nodeId ?? null;
     if (!readOnly) {

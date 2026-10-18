@@ -479,6 +479,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 function firstRunNeedsEngine(message: FirstRunRequest, response: FirstRunOrScopeResponse): boolean {
   if (!response.ok) return false;
   return message.kind === 'known.firstRun.confirm'
+    || message.kind === 'known.firstRun.attention.decide'
     || (message.kind === 'known.firstRun.status' && 'firstRun' in response && response.firstRun === 'running');
 }
 

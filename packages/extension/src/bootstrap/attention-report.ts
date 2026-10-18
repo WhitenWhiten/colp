@@ -6,8 +6,10 @@ const PAGE_SIZE = 20;
 
 export interface AttentionItemRecord {
   readonly itemId: string;
+  readonly evidenceDigest?: string;
+  readonly resolutionOpIds?: readonly string[];
   readonly nodeRefs?: readonly string[];
-  readonly kind: 'duplicate_candidate' | 'conflict';
+  readonly kind: 'duplicate_candidate' | 'local_difference' | 'conflict';
   readonly locationCount: number;
   readonly decision: 'open' | 'keep_both';
 }
@@ -53,7 +55,9 @@ export function buildAttentionReport(
         kind: 'conflict', localNativeId: conflict.localNativeId, remoteNodeId: conflict.remoteNodeId,
       });
       items.push({
-        itemId, nodeRefs: [conflict.localNativeId, conflict.remoteNodeId], kind: 'conflict', locationCount: 2,
+        itemId, nodeRefs: [conflict.localNativeId, conflict.remoteNodeId], kind: 'local_difference', locationCount: 2,
+        evidenceDigest: conflict.evidenceDigest,
+        ...(priorById.get(itemId)?.resolutionOpIds ? { resolutionOpIds: priorById.get(itemId)!.resolutionOpIds } : {}),
         decision: priorById.get(itemId)?.decision === 'keep_both' ? 'keep_both' : 'open',
       });
     }
@@ -61,7 +65,7 @@ export function buildAttentionReport(
   const unique = [...new Map(items.map(item => [item.itemId, item])).values()];
   return {
     reportId: run.runId, version: ATTENTION_REPORT_VERSION,
-    candidateCount: unique.filter(item => item.kind === 'duplicate_candidate').length, conflictCount: unique.filter(item => item.kind === 'conflict').length,
+    candidateCount: unique.filter(item => item.kind === 'duplicate_candidate').length, conflictCount: unique.filter(item => item.kind !== 'duplicate_candidate').length,
     localOnlyCount: report.localOnly.length, remoteOnlyCount: report.remoteOnly.length,
     matchedCount: report.matched.length, items: unique, createdAt: prior?.createdAt ?? now,
   };
@@ -71,7 +75,7 @@ export function publicAttentionSummary(attention: AttentionReportRecord): Public
   return {
     reportId: attention.reportId,
     candidateCount: uniqueAttentionItems(attention).filter(item => item.kind === 'duplicate_candidate').length,
-    conflictCount: uniqueAttentionItems(attention).filter(item => item.kind === 'conflict').length,
+    conflictCount: uniqueAttentionItems(attention).filter(item => item.kind !== 'duplicate_candidate').length,
     pendingCount: uniqueAttentionItems(attention).filter((item) => item.decision === 'open').length,
   };
 }
@@ -91,7 +95,7 @@ export function decideAttentionItem(
   attention: AttentionReportRecord, itemId: string, decision: 'keep_both',
 ): AttentionReportRecord | null {
   const selected = attention.items.find(item => item.itemId === itemId);
-  if (!selected || selected.kind === 'conflict') return null;
+  if (!selected || selected.kind !== 'duplicate_candidate') return null;
   if (selected.decision === decision) return attention;
   const items = attention.items.map((item) => {
     if (item.itemId !== itemId || item.decision === decision) return item;

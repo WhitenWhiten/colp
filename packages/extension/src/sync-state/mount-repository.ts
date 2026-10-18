@@ -447,14 +447,16 @@ function validateAttention(input: unknown): BootstrapRunRecord['attention'] {
   const items = value.items.map((item) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw new SyncStateError('bootstrap_attention_invalid');
     const row = item as Record<string, unknown>;
-    if (typeof row.itemId !== 'string' || (row.kind !== 'duplicate_candidate' && row.kind !== 'conflict')
+    if (typeof row.itemId !== 'string' || (row.kind !== 'duplicate_candidate' && row.kind !== 'conflict' && row.kind !== 'local_difference')
         || (row.decision !== 'open' && row.decision !== 'keep_both')) {
       throw new SyncStateError('bootstrap_attention_invalid');
     }
     return {
       itemId: boundedString(row.itemId, 'itemId'),
+      ...(typeof row.evidenceDigest === 'string' ? { evidenceDigest: boundedString(row.evidenceDigest, 'evidenceDigest') } : {}),
+      ...(Array.isArray(row.resolutionOpIds) ? { resolutionOpIds: row.resolutionOpIds.map(id => boundedString(id, 'opId')) } : {}),
       ...(Array.isArray(row.nodeRefs) ? { nodeRefs: row.nodeRefs.map(ref => boundedString(ref, 'nodeRef')) } : {}),
-      kind: row.kind as 'duplicate_candidate' | 'conflict',
+      kind: row.kind as 'duplicate_candidate' | 'local_difference' | 'conflict',
       locationCount: safeInteger(row.locationCount, 'locationCount', 1),
       decision: row.decision as 'open' | 'keep_both',
     };

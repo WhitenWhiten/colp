@@ -256,15 +256,15 @@ export function popupFirstRunStatus(input: {
 }
 
 export function attentionStatusCopy(summary: PublicAttentionSummary): string {
-  const prefix = summary.conflictCount > 0 ? FIRST_RUN_REVIEW_CONFLICTS : FIRST_RUN_ACTION_REQUIRED;
-  const countParts = [summary.candidateCount ? tn('firstRun_duplicates', summary.candidateCount, '$1 duplicate', '$1 duplicates') : '', summary.conflictCount ? tn('firstRun_conflicts', summary.conflictCount, '$1 conflict', '$1 conflicts') : ''].filter(Boolean);
+  const prefix = FIRST_RUN_ACTION_REQUIRED;
+  const countParts = [summary.candidateCount ? tn('firstRun_duplicates', summary.candidateCount, '$1 duplicate', '$1 duplicates') : '', summary.conflictCount ? tn('firstRun_localDifferences', summary.conflictCount, '$1 local difference', '$1 local differences') : ''].filter(Boolean);
   const waiting = tn('firstRun_itemsWaiting', summary.pendingCount, '$1 item waiting', '$1 items waiting');
   return countParts.length ? t('firstRun_attentionStatusDetail', '$1: $2 ($3).', prefix, waiting, listCopy(countParts)) : t('firstRun_attentionStatus', '$1: $2.', prefix, waiting);
 }
 
-export function attentionItemCopy(item: { readonly kind: 'duplicate_candidate' | 'conflict';
+export function attentionItemCopy(item: { readonly kind: 'duplicate_candidate' | 'local_difference' | 'conflict';
   readonly locationCount: number; readonly decision: 'open' | 'keep_both' }): string {
-  const label = item.kind === 'duplicate_candidate' ? t('firstRun_duplicateCandidate', 'Duplicate candidate') : t('firstRun_contentConflict', 'Content conflict');
+  const label = item.kind === 'duplicate_candidate' ? t('firstRun_duplicateCandidate', 'Duplicate candidate') : t('firstRun_localMergeDifference', 'Local merge difference');
   return `${label} · ${item.decision === 'keep_both' ? t('firstRun_bothKept', 'both kept') : tn('firstRun_places', item.locationCount, '$1 place', '$1 places')}`;
 }
 

@@ -411,7 +411,7 @@ function snapshotFactSteps(remoteFacts: readonly RemoteNodeFact[], plan: Advance
     nativeId: nativeByRemote.get(fact.nodeId) ?? null }));
 }
 
-async function readSnapshotAuthority(scope: SyncScope): Promise<{
+export async function readSnapshotAuthority(scope: SyncScope): Promise<{
   readonly credential: StoredCredential; readonly session: StoredSession; readonly snapshot: CompleteRemoteSnapshot;
 }> {
   const config = await loadConfig();

@@ -263,9 +263,10 @@ export function validFirstRunRequest(value: unknown): value is FirstRunRequest {
       && (request.cursor === undefined || boundedId(request.cursor, 32));
   }
   if (request.kind === 'known.firstRun.attention.decide') {
-    return Object.keys(request).length === 4
+    return Object.keys(request).every(key => ['kind', 'reportId', 'itemId', 'decision', 'evidenceDigest'].includes(key))
       && boundedId(request.reportId) && boundedId(request.itemId)
-      && request.decision === 'keep_both';
+      && (request.decision === 'keep_both' || request.decision === 'keep_local'
+        && typeof request.evidenceDigest === 'string' && /^sha256:[a-f0-9]{64}$/u.test(request.evidenceDigest));
   }
   if (request.kind === 'known.firstRun.preview') {
     const keys = Object.keys(request);

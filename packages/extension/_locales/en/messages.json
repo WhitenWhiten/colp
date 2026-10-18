@@ -2972,9 +2972,6 @@
   "firstRun_connectingLibrary": {
     "message": "Connecting to your bookmark library…"
   },
-  "firstRun_contentConflict": {
-    "message": "Content conflict"
-  },
   "firstRun_couldNotReadFolder": {
     "message": "Could not read folder counts. Refresh and try again."
   },
@@ -3029,6 +3026,15 @@
   "firstRun_knowNWins": {
     "message": "Know-N wins"
   },
+  "firstRun_localDifferences_one": {
+    "message": "$1 local difference"
+  },
+  "firstRun_localDifferences_other": {
+    "message": "$1 local differences"
+  },
+  "firstRun_localMergeDifference": {
+    "message": "Local merge difference"
+  },
   "firstRun_localOnlyItems_one": {
     "message": "$1 item only on this device"
   },
@@ -3046,6 +3052,9 @@
   },
   "firstRun_mergeLibrary": {
     "message": "Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies."
+  },
+  "firstRun_mergeResolutionPending": {
+    "message": "Upload submitted; waiting for convergence"
   },
   "firstRun_modeNeedsReviewConfirm": {
     "message": "This mode needs you to review and confirm the change list first."
@@ -3127,6 +3136,9 @@
   },
   "firstRun_untitledItem": {
     "message": "Untitled item"
+  },
+  "firstRun_uploadLocalVersion": {
+    "message": "Upload this device’s version"
   },
   "firstRun_viewItemsNeedAttention": {
     "message": "View items that need attention"

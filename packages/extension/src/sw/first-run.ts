@@ -17,11 +17,11 @@ import type { FirstRunOrScopeResponse, FirstRunRequest, ScopeCommandRequest } fr
 import { handleAttentionDecide, handleAttentionGet, latestBootstrapRun, withAttention } from './first-run-attention.js';
 import { persistFirstRunBrowserRoots } from './first-run-browser-roots.js';
 import { resolveLibraryRootId } from './library.js';
-import { hasBookmarkPermission, rootScopeKey, sw, syncState } from './runtime.js';
+import { hasBookmarkPermission, rootScopeKey, store, workCoordinator, sw, syncState } from './runtime.js';
 import { currentSyncScope, restoredSyncScope, retireLegacyScopeForRemount } from './scope.js';
 import { readRootFolders, sameDiscovered } from './roots.js';
 import { nativeChromeFacts } from './native-chrome.js';
-import { advancedFirstRunStatus, handleAdvancedFirstRunConfirm, handleAdvancedFirstRunPreview } from './advanced-first-run.js';
+import { readSnapshotAuthority, advancedFirstRunStatus, handleAdvancedFirstRunConfirm, handleAdvancedFirstRunPreview } from './advanced-first-run.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
@@ -145,7 +145,10 @@ export async function resumeRunningBootstrap(scope: SyncScope): Promise<boolean>
   const priorOpIds = new Set(await listAllQueueOpIds(scope));
   let added = false;
   for (const run of candidates) {
-    const input = await resumeConfirmInput(scope, run);
+    let input = await resumeConfirmInput(scope, run);
+    if (run.attention?.items.some(item => item.resolutionOpIds?.length)) {
+      input = { ...input, remoteFacts: (await readSnapshotAuthority(scope)).snapshot.remoteFacts };
+    }
     const view = await createBootstrapCoordinator({ store: syncState, scope,
       retireLegacy: async () => { await retireLegacyScopeForRemount(); } }).advance(run.runId, input);
     if (bootstrapRunInFlight(run.phase)) await persistConfirmedPreviewRoots(scope, input.previewId
@@ -248,6 +251,21 @@ async function handleAttentionMessage(message: Extract<FirstRunRequest,
   if (message.kind === 'known.firstRun.attention.get') {
     try { await resumeRunningBootstrap(scope); } catch (error) { return { ok: false, error: reasonCode(error, 'bootstrap_status_unavailable') }; }
     return handleAttentionGet(syncState, scope, message.reportId, message.cursor, firstRun);
+  }
+  if (message.decision === 'keep_local') {
+    try { return await workCoordinator.run('engine', async context => {
+      const assertCurrent = async () => {
+        await store.fence.assertWritable(context.generation);
+        if (rootScopeKey(await currentSyncScope()) !== rootScopeKey(scope)) throw new Error('stale_ref');
+      };
+      const run = (await syncState.listBootstrapRuns(scope)).find(row => row.runId === message.reportId);
+      if (!run) return { ok: false, error: 'bootstrap_confirmation_stale' };
+      const authority = await readSnapshotAuthority(scope);
+      const input = { ...await resumeConfirmInput(scope, run), remoteFacts: authority.snapshot.remoteFacts };
+      return handleAttentionDecide(syncState, scope, message.reportId, message.itemId, firstRun,
+        { decision: 'keep_local', evidenceDigest: message.evidenceDigest, input, assertCurrent });
+    });
+    } catch (error) { return { ok: false, error: reasonCode(error, 'merge_resolution_failed') }; }
   }
   return handleAttentionDecide(syncState, scope, message.reportId, message.itemId, firstRun);
 }

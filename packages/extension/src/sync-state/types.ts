@@ -248,8 +248,10 @@ export interface BootstrapRunRecord {
   readonly attention?: BootstrapAttentionReport;
 }
 export interface BootstrapAttentionItem {
+  readonly evidenceDigest?: string;
+  readonly resolutionOpIds?: readonly string[];
   readonly nodeRefs?: readonly string[];
-  readonly itemId: string; readonly kind: 'duplicate_candidate' | 'conflict';
+  readonly itemId: string; readonly kind: 'duplicate_candidate' | 'local_difference' | 'conflict';
   readonly locationCount: number; readonly decision: 'open' | 'keep_both';
 }
 export interface BootstrapAttentionReport {

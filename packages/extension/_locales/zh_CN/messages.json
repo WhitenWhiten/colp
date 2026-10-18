@@ -8394,5 +8394,23 @@
   "sync_itemsNeedAttention_other": {
     "message": "$1 项需要处理。",
     "description": "$1 items need attention."
+  },
+  "firstRun_attentionRequestFailed": {
+    "message": "无法加载待处理列表（$1）。请点击“查看需要处理的项目”重试，或重新加载此页面。"
+  },
+  "firstRun_localMergeDifference": {
+    "message": "本地合并差异"
+  },
+  "firstRun_localDifferences_one": {
+    "message": "$1 个本地差异"
+  },
+  "firstRun_localDifferences_other": {
+    "message": "$1 个本地差异"
+  },
+  "firstRun_mergeResolutionPending": {
+    "message": "已提交上传，等待数据收敛"
+  },
+  "firstRun_uploadLocalVersion": {
+    "message": "上传此设备的版本"
   }
 }
