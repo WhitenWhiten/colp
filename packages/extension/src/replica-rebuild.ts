@@ -1,5 +1,5 @@
 import { digestJson } from './bookmark-event-codec.js';
-import { readOpenSyncIssues } from './sync-issues.js';
+import { readReplicaRepairCapability } from './replica-repair-capability.js';
 import type { StorageArea, createCredentialStore } from './credential-store.js';
 import type { StoredAuthBinding } from './types.js';
 import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -22,7 +22,7 @@ interface RebuildJournal {
 export interface ReplicaRebuildDeps {
   readonly store: Pick<ReturnType<typeof createSyncStateStore>, 'getScope' | 'getEngineState' | 'listQueue'
     | 'retireScope' | 'exportArchive'> & Partial<Pick<ReturnType<typeof createSyncStateStore>,
-      'listPullIssues' | 'listLocalIssues' | 'listApplyIntents' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+      'getQueueReceipt' | 'listPullIssues' | 'listLocalIssues' | 'listApplyIntents' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
   readonly credentials: ReturnType<typeof createCredentialStore>;
   readonly journal: StorageArea;
   currentScope(): Promise<SyncScope>;
@@ -60,18 +60,9 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     const credential = await deps.credentials.loadCredential();
     if (credential?.subject !== scope.accountId || credential.serverOrigin !== scope.serverOrigin) throw new Error('account_switch');
     const authority = await deps.credentials.fence.assertWritable();
-    const state = await deps.store.getEngineState(scope);
-    if (!state?.recoveryFrozen && (await readOpenSyncIssues(deps.store, scope)).total === 0) {
-      throw new Error('rebuild_not_required');
-    }
-    let queuedOperations = 0;
-    for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside'] as const) {
-      let after = 0;
-      for (;;) {
-        const rows = await deps.store.listQueue(scope, status, after, 1_000); queuedOperations += rows.length;
-        if (rows.length < 1_000) break; after = rows.at(-1)!.sequence;
-      }
-    }
+    const capability = await readReplicaRepairCapability(deps.store, scope);
+    if (!capability.rebuildAvailable) throw new Error(capability.reason ?? 'action_unavailable');
+    const { state, queuedOperations } = capability;
     return { scope, preview: { replicaId: scope.replicaId, generation: scope.generation,
       revision: state?.revision ?? 0, queuedOperations, scope, targetFence: digestJson({ scope: { ...scope }, authority: authority.generation }) } };
   }

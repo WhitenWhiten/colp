@@ -1,3 +1,4 @@
+import { readReplicaRepairCapability } from '../replica-repair-capability.js';
 import { snapshotSyncIssues, issueId } from '../sync-issue-snapshot.js';
 import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 /**
@@ -48,6 +49,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const lastError = engine?.lastError;
     const terminalCode = syncAttentionTerminalCode(lastError, recoveryCode);
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
+    const capability = await readReplicaRepairCapability(deps.store, scope, open);
     const waits = open.waits;
     const { stalled, ...queue } = await queueFacts(deps.store, scope, open);
     const issues = snapshotSyncIssues(open).map(issue => {
@@ -64,7 +66,9 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       retryAutomatic: engine?.phase !== 'error' && terminalCode === undefined,
       ...(engine?.notBefore ? { retryAt: engine.notBefore } : {}),
       ...queue,
-      issueCount: open.total + (stalled ? 1 : 0), issues, rebuildAvailable: engine?.recoveryFrozen === true || open.total > 0,
+      issueCount: open.total + (stalled ? 1 : 0), issues, rebuildAvailable: capability.rebuildAvailable,
+      ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
+      retryAvailable: Boolean(stalled) || open.queue.some(row => row.recovery?.code === 'sequence_blocked'),
       nativeWaitPending: waits.length > 0,
       waitCount: waits.length,
       ...(lastError ? { lastError } : {}),

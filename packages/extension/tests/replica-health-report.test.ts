@@ -44,7 +44,7 @@ describe('replica health projection', () => {
       { state: 'syncing', issues: { total: 0, items: [] }, actions: [] });
     assert.equal(projectReplicaHealth({ attention: calm, issues }).state, 'degraded');
     assert.deepEqual(projectReplicaHealth({ attention: { ...calm, terminal: true, retryAutomatic: false,
-      terminalCode: 'create_placement_unproven' }, issues }), { state: 'stopped', code: 'create_placement_unproven',
+      terminalCode: 'create_placement_unproven', rebuildAvailable: true }, issues }), { state: 'stopped', code: 'create_placement_unproven',
       issues: { total: 2, items: issues }, actions: ['retry', 'rebuild'] });
     assert.deepEqual(projectReplicaHealth({ attention: { ...calm, retryAutomatic: false, phase: 'error',
       lastError: 'record_too_large' }, issues: [] }).code, 'record_too_large');
@@ -56,7 +56,7 @@ describe('replica health projection', () => {
 
   test('a stop offers only what can end it, and only a change held for a decision offers its own retry', () => {
     const stopped = (code: string, recoveryFrozen: boolean) => projectReplicaHealth({ attention: { ...calm,
-      recoveryFrozen, terminal: true, retryAutomatic: false, terminalCode: code as never }, issues: [] }).actions;
+      recoveryFrozen, rebuildAvailable: recoveryFrozen, terminal: true, retryAutomatic: false, terminalCode: code as never }, issues: [] }).actions;
     // A retry is a manual wake; Rebuild needs the same frozen engine as the extension's Reset button.
     assert.deepEqual(stopped('recovery_identity_unproven', true), ['retry', 'rebuild']);
     assert.deepEqual(stopped('pull_apply_target_missing', true), ['rebuild']);

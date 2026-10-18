@@ -456,6 +456,8 @@ export interface PublicSyncAttention {
   readonly issueCount?: number;
   readonly issues?: readonly SyncIssueDiagnostic[];
   readonly rebuildAvailable?: boolean;
+  readonly rebuildUnavailableReason?: string;
+  readonly retryAvailable?: boolean;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
   readonly phase?: PublicSyncEngineState['phase'];
