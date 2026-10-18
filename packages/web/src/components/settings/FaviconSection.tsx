@@ -145,7 +145,7 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
       {state.kind === 'ready' && (
         <>
           <fieldset className="option-group" disabled={busy}>
-            <legend className="settings-toggle-label">Default for new bookmarks</legend>
+            <legend>Default for new bookmarks</legend>
             <label className="option-row">
               <input
                 type="radio"
@@ -188,8 +188,8 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
           </fieldset>
 
           <div className="field">
-            <label className="settings-toggle-label" htmlFor="favicon-provider-template">Online provider template</label>
-            <div className="row">
+            <label htmlFor="favicon-provider-template">Online provider template</label>
+            <div className="row favicon-provider-row">
               <input
                 id="favicon-provider-template"
                 className="input"

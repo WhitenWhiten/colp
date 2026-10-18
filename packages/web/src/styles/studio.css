@@ -324,6 +324,22 @@
   font-size: var(--text-md);
 }
 
+/* A group's legend inside a section reads like the field labels around it
+   (.field label): the section heading is the only larger line. */
+.settings-section .option-group legend {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-2);
+}
+
+/* The provider template is a long URL: the field takes the row and the
+   Save button keeps its own width beside it. */
+.favicon-provider-row > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Trailing action of a settings column: end of the column, not its start, so
    it reads as the step after the last field rather than a stray control
    under the first one. `width` because `.btn` is inline-flex and a
