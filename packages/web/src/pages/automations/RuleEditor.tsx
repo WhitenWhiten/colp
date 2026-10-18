@@ -634,9 +634,16 @@ export function RuleEditor() {
                       ))}
                     </ul>
                   )}
+                  {/* Plain words here; the IDs an agent task needs live under Advanced. */}
                   <p className="field-hint">
-                    {definition.tasks.length > 0 ? null : 'No agent tasks. A connected agent can also summarize or tag what this rule files. '}
-                    Agent tasks require a prepared worker, binding set and execution policy. Enter the definition and configuration IDs under Advanced.
+                    {definition.tasks.length > 0 ? (
+                      <>An agent worker does these after the bookmark is filed; filing never waits for it. Its setup is under Advanced.</>
+                    ) : (
+                      <>
+                        A rule can also ask an agent to summarize or tag what it files. That needs a worker
+                        paired on <Link to="/agents">Agents</Link>; a rule that only files bookmarks needs none.
+                      </>
+                    )}
                   </p>
                 </li>
               )}
