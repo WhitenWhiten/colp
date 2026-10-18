@@ -1,97 +1,98 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import ts from 'typescript';
 import { describe, test } from 'vitest';
-import {
-  SYNC_FAILURE_TABLE, classifySyncFailure, freezesPullApply, holdsInboundPull, holdsUnprovenIdentity,
-  needsReplicaRebuild, persistentLocalSyncFailure,
-} from '../src/sync-failure-class.js';
+import { SYNC_FAILURE_TABLE, classifySyncFailure, freezesPullApply, holdsInboundPull, holdsUnprovenIdentity,
+  needsReplicaRebuild, persistentLocalSyncFailure, setsAsidePullItem, SyncFailureError,
+  PULL_MAPPING_FAILURE, PULL_PREFLIGHT_FAILURE } from '../src/sync-failure-class.js';
 
-/**
- * The five lists the classifier replaced, as they were. The derived behaviour
- * must not move for any code they named; the table is where a new code is
- * classified on purpose.
- */
-const FORMER = {
-  freeze: ['pull_page_invalid', 'effect_page_invalid', 'pull_event_duplicate', 'pull_effect_binding_invalid',
-    'pull_effect_kind_invalid', 'pull_cursor_chain_invalid', 'pull_source_binding_invalid', 'unexpected_effect_page',
-    'anchor_parent_mismatch', 'snapshot_expired', 'sync_cursor_expired', 'effect_page_transport_unavailable',
-    'effect_page_failed', 'snapshot_page_missing', 'deletion_identity_unproven', 'recovery_identity_unproven',
-    'remote_delete_confirmation_required', 'need_authority', 'unmounted_restore_repair', 'mapping_identity_collision',
-    'create_ambiguous', 'create_evidence_missing', 'pull_page_reuse', 'recovery_required',
-    'recovery_capability_premature', 'recovery_capability_invalid', 'recovery_authority_invalid', 'pull_event_conflict',
-    'pull_apply_target_missing', 'pull_apply_evidence_missing', 'legacy_resolution_sequence_collision',
-    'snapshot_409_sync_cursor_expired', 'preflight_parent_mapping_missing', 'mapping_missing_parent',
-    'anchor_mapping_missing', 'target_mapping_missing'],
-  unprovenIdentity: ['recovery_identity_unproven', 'deletion_identity_unproven', 'create_placement_parent_deleted',
-    'create_placement_unproven'],
-  rebuild: ['pull_apply_target_missing', 'pull_apply_evidence_missing', 'anchor_mapping_missing',
-    'legacy_resolution_sequence_collision', 'metadata_sync_disabled', 'mapping_identity_collision', 'create_ambiguous',
-    'create_evidence_missing'],
-  persistent: ['bounded_string_invalid', 'secret_field_forbidden', 'i_json_invalid', 'record_too_large',
-    'snapshot_projection_incomplete', 'operation_schema_invalid'],
-  pullsOnWake: ['network_unavailable', 'position_context_stale', 'revision_conflict'],
-} as const;
-
-/** Codes classified after the lists were replaced; each states its behaviour here. */
-const ADDED: Readonly<Record<string, { readonly freezes: boolean; readonly rebuild: boolean }>> = {
-  pull_issue_ceiling: { freezes: true, rebuild: true },
-  preflight_target_mapping_missing: { freezes: true, rebuild: false },
-  preflight_member_mapping_missing: { freezes: true, rebuild: false },
-};
-
-describe('sync failure classifier', () => {
-  const codes = [...new Set([...Object.values(FORMER).flat(), ...Object.keys(SYNC_FAILURE_TABLE)])]
-    .filter((code) => !(code in ADDED));
-
-  test.each(codes)('%s keeps the behaviour of the lists it replaced', (code) => {
-    assert.equal(freezesPullApply(code), (FORMER.freeze as readonly string[]).includes(code), 'freezes Pull');
-    assert.equal(holdsUnprovenIdentity(code), (FORMER.unprovenIdentity as readonly string[]).includes(code), 'identity gate');
-    // payload_too_large always had its own terminal check next to the rebuild exit.
-    assert.equal(needsReplicaRebuild(code),
-      (FORMER.rebuild as readonly string[]).includes(code) || code === 'payload_too_large', 'rebuild exit');
-    assert.equal(persistentLocalSyncFailure(code), (FORMER.persistent as readonly string[]).includes(code), 'stop');
-    assert.equal(holdsInboundPull(code), !(FORMER.pullsOnWake as readonly string[]).includes(code), 'inbound Pull');
-  });
-
-  test.each(Object.entries(ADDED))('%s, added later, behaves as stated', (code, expected) => {
-    assert.equal(freezesPullApply(code), expected.freezes);
-    assert.equal(needsReplicaRebuild(code), expected.rebuild);
-  });
-
-  test('every code the extension records as a stop, a freeze or a terminal reason is classified', () => {
-    const recorded = new Set<string>();
-    for (const file of sourceFiles(join(import.meta.dirname, '../src'))) {
-      const text = readFileSync(file, 'utf8');
-      for (const match of text.matchAll(/freezeScopeRecovery\([^;]*?'([a-z][a-z0-9_]*)'/gsu)) recorded.add(match[1]!);
+describe('registered sync failure policies', () => {
+  test('all static error emissions at sync and durable-store boundaries have an explicit policy', () => {
+    const root = join(import.meta.dirname, '../src');
+    const files = readdirSync(root).filter(name => /^(?:pull-|effect-page|durable-sync-engine|outbound-push|snapshot|recovery|native-)/u.test(name)
+      && name.endsWith('.ts')).map(name => join(root, name));
+    files.push(...readdirSync(join(root, 'sync-state')).filter(name => name.endsWith('.ts')).map(name => join(root, 'sync-state', name)));
+    const emitted = new Set<string>(); const unregistered: string[] = []; const untyped: string[] = [];
+    for (const file of files) {
+      const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+      const visit = (node: ts.Node) => {
+        if (ts.isNewExpression(node) && ['Error', 'SyncStateError', 'SyncFailureError'].includes(node.expression.getText(source))) {
+          const code = node.arguments?.[0];
+          // Parse syntax nodes, including returned errors and non-freeze paths.
+          // Dynamic browser/server messages are external inputs, not a closed local code registry.
+          if (code && ts.isStringLiteralLike(code) && /^[a-z][a-z0-9_:-]*$/u.test(code.text)) {
+            emitted.add(code.text);
+            if (!classifySyncFailure(code.text)) unregistered.push(`${file}:${code.text}`);
+            if (node.expression.getText(source) === 'Error') untyped.push(`${file}:${code.text}`);
+          }
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
     }
-    const types = readFileSync(join(import.meta.dirname, '../src/types.ts'), 'utf8');
-    const terminal = /export type SyncAttentionTerminalCode = ([^;]+);/u.exec(types)?.[1] ?? '';
-    for (const match of terminal.matchAll(/'([a-z][a-z0-9_]*)'/gu)) recorded.add(match[1]!);
-    recorded.delete('replica_rebuild_pending');
-    assert.ok(recorded.size > 10);
-    assert.deepEqual([...recorded].filter((code) => classifySyncFailure(code) === undefined), []);
+    assert.ok(emitted.size > 250, 'audit all local sync/store error constructors, not selected freeze calls');
+    assert.deepEqual(unregistered, []); assert.deepEqual(untyped, []);
   });
 
-  test('a code nobody classified has no entry, so it gets bounded retries instead of a silent class', () => {
+  test('all finite Pull mapping roles use registered codes with the same staging/apply policy', () => {
+    for (const code of Object.values(PULL_MAPPING_FAILURE)) {
+      assert.equal(setsAsidePullItem(code, { nodeId: 'node' }), true);
+    }
+    for (const code of Object.values(PULL_PREFLIGHT_FAILURE)) {
+      const policy = classifySyncFailure(code, { nodeId: 'node' });
+      assert.equal(policy?.class, 'item'); assert.equal(policy?.stagesAsItem, true); assert.equal(policy?.setsAsidePull, true);
+    }
+    for (const code of ['preflight_integrity_corrupt', 'not_really_mapping_missing', 'mapping_missing_everything']) {
+      assert.equal(classifySyncFailure(code), undefined, 'no string-prefix item privilege');
+    }
+  });
+
+  test('a failure has item scope only with a concrete subject and a safe apply boundary', () => {
+    const code = 'anchor_mapping_missing';
+    assert.equal(classifySyncFailure(code)?.class, 'replica');
+    assert.equal(classifySyncFailure(code, {})?.class, 'replica');
+    assert.equal(classifySyncFailure(code, { nodeId: 'node' })?.class, 'item');
+    assert.equal(setsAsidePullItem(code, { nodeId: 'node' }), true);
+    assert.equal(setsAsidePullItem('pull_page_invalid', { nodeId: 'node' }), false);
+    assert.equal(classifySyncFailure('record_too_large', { opId: 'op' })?.class, 'item');
+    assert.equal(classifySyncFailure('record_too_large')?.class, 'replica');
+    assert.equal(new SyncFailureError('anchor_mapping_missing', { nodeId: 'node' }).code, code);
+  });
+
+  test('integrity failures are never item failures and keep the page fail-closed', () => {
+    for (const code of ['pull_page_invalid', 'pull_event_duplicate', 'pull_effect_binding_invalid',
+      'pull_cursor_chain_invalid', 'pull_source_binding_invalid', 'unexpected_effect_page']) {
+      assert.equal(classifySyncFailure(code, { nodeId: 'node' })?.class, 'replica');
+      assert.equal(freezesPullApply(code), true);
+      assert.equal(setsAsidePullItem(code, { nodeId: 'node' }), false);
+    }
+    assert.equal(classifySyncFailure('anchor_parent_mismatch')?.stagesAsItem, undefined);
+    assert.equal(classifySyncFailure('snapshot_409_sync_cursor_expired')?.class, 'authority');
+    assert.equal(classifySyncFailure('arbitrary_sync_cursor_expired'), undefined);
+  });
+
+  test('engine gates and repair exits derive from the registered policy', () => {
+    assert.equal(holdsUnprovenIdentity('recovery_identity_unproven'), true);
+    assert.equal(needsReplicaRebuild('pull_issue_ceiling'), true);
+    assert.equal(persistentLocalSyncFailure('record_too_large'), true);
+    assert.equal(holdsInboundPull('network_unavailable'), false);
+    assert.equal(holdsInboundPull(undefined), false);
+    assert.equal(classifySyncFailure('engine_revision_stale')?.class, 'transient');
+  });
+
+  test('unrecognized external codes retain an unknown classification; this does not assert a retry bound', () => {
     assert.equal(classifySyncFailure('brand_new_failure'), undefined);
     assert.equal(freezesPullApply('brand_new_failure'), false);
     assert.equal(holdsInboundPull('brand_new_failure'), true);
-    assert.equal(holdsInboundPull(undefined), false);
+    // The P3 circuit breaker remains unimplemented. Actual retry and recovery
+    // boundaries are exercised by engine and mutation-recovery integration tests.
   });
 
-  test('every class and exit in the table is one the engine knows', () => {
+  test('every registered entry uses supported classes and exits', () => {
     for (const [code, value] of Object.entries(SYNC_FAILURE_TABLE)) {
       assert.ok(['transient', 'authority', 'item', 'replica'].includes(value.class), code);
       assert.ok(['retry', 'refresh', 'decide', 'confirm', 'rebuild', 'stop'].includes(value.exit), code);
     }
   });
 });
-
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory).flatMap((name) => {
-    const path = join(directory, name);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return path.endsWith('.ts') ? [path] : [];
-  });
-}

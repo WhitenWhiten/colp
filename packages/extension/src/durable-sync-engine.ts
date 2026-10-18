@@ -1,3 +1,4 @@
+import { SyncFailureError, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
 import { recordRecoveryDiagnostic } from './recovery-diagnostic.js';
 import { readEngineSessionAuthority } from './sync-session-handoff.js';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -10,7 +11,6 @@ import type { StoredCredential, StoredSession } from './types.js';
 import type { EngineOptions, PlacementRefreshOutcome } from './durable-sync-engine-types.js';
 import { httpFailure, pullApplyAckState, retryAfterMilliseconds, stableError,
   responseProblemCode } from './durable-sync-engine-errors.js';
-import { holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
 import { colpCredentialHeaders } from './auth-client.js';
 import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
 import { resumeLocalProjection } from './local-projection-recovery.js';
@@ -188,7 +188,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
       });
       if (classification !== 'active') return await recover(authority, classification);
       if (await options.store.hasRecoveryStaging(options.scope) || current.phase === 'bootstrap') {
-        throw new Error('session_authority_invalid');
+        throw new SyncFailureError('session_authority_invalid');
       }
       await reprojectLeftover();
       const queue = await firstOutstanding();
@@ -323,7 +323,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
         throw httpFailure(response, consumedProblemCode ?? await responseProblemCode(response, 'pull_failed', requestTimeoutMilliseconds), now());
       }
       const document = await readBoundedJson(response, sessionTransportBudget(authority.session).pullResponseBytes, 'pull_invalid', responseReadOptions);
-      if (!syncPullV02(document)) throw new Error('pull_invalid');
+      if (!syncPullV02(document)) throw new SyncFailureError('pull_invalid');
       const page = document as SyncPullV02; await transition('applying', { sessionId: authority.session.sessionId });
       await options.pullApplier.stage(page, {
         reissued: response.headers.get('Known-Sync-Cursor-Reissued') === 'true',
@@ -331,7 +331,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
       const published = (await options.store.getCursor(options.scope))?.cursor;
       const ack = pullApplyAckState(published, page.nextCursor,
         await options.store.hasPullEventsAwaitingConfirmation(options.scope));
-      if (ack === 'not_durable') throw new Error('pull_cursor_not_durable');
+      if (ack === 'not_durable') throw new SyncFailureError('pull_cursor_not_durable');
       if (ack === 'parked') {
         await transition('sleeping', { sessionId: authority.session.sessionId, notBefore: now() + 30_000,
           networkBackoffCount: 0 }); return 'complete';
@@ -478,7 +478,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
     const document = await readBoundedJson(response, 128 * 1024, 'ack_invalid', responseReadOptions);
     if (!syncAckResult(document)
         || (document as SyncAckResult).ackedCursor !== intent.cursor
-        || (document as SyncAckResult).replicaId !== options.scope.replicaId) throw new Error('ack_invalid');
+        || (document as SyncAckResult).replicaId !== options.scope.replicaId) throw new SyncFailureError('ack_invalid');
     await options.store.completeAckIntent(options.scope, intent.intentId, document as unknown as JsonObject);
     await transition('sleeping', { sessionId: authority.session.sessionId, lastPublishedCursor: intent.cursor,
       lastAckedCursor: intent.cursor, networkBackoffCount: 0 }); return 'complete' as const;
@@ -489,7 +489,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
     const refreshState = await transition('bootstrap', { recoveryFrozen: true, authorityRefreshRequired: true, notBefore: 0 });
     const authority = await sessionAuthority(true);
     if (authority.session.replicaLease.state !== 'active' || authority.session.snapshotRequired) {
-      throw new Error('recovery_authority_not_activated');
+      throw new SyncFailureError('recovery_authority_not_activated');
     }
     const checkpoint = { cursor: authority.session.collection.serverCursor,
       serverRevision: authority.session.collection.serverRevision };
@@ -514,7 +514,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
     options.schedule?.(Math.max(1_000, next.notBefore - now())); return next; }
   async function offline(error: unknown) { const prior = await state();
     const code = stableError(error);
-    if (persistentLocalSyncFailure(code)) return transition('error', { lastError: code, notBefore: 0 });
+    if (persistentLocalSyncFailure(code)) return transition('error', { lastError: code, notBefore: 0, clearConnectivityConfirmation: true });
     const backoffCount = (prior.networkBackoffCount ?? 0) + 1;
     const retryAfter = retryAfterMilliseconds(error); const delay = retryAfter ?? Math.min(MAX_NETWORK_BACKOFF_MS,
       Math.max(1_000, Math.floor(Math.min(MAX_NETWORK_BACKOFF_MS, 1_000 * 2 ** Math.min(8,
@@ -587,7 +587,7 @@ function canonicalJson(value: unknown): string { if (Array.isArray(value)) retur
   if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>)
     .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
     .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  const encoded = JSON.stringify(value); if (encoded === undefined) throw new Error('canonical_json_invalid'); return encoded; }
+  const encoded = JSON.stringify(value); if (encoded === undefined) throw new SyncFailureError('canonical_json_invalid'); return encoded; }
 function jsonContentType(response: Response) { return /^application\/json(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? ''); }
 function recoveryCapability(cursor: string | undefined) { return cursor?.startsWith('src1.') === true; }
 function recoveryCapabilityOf(cursor: { readonly evidence?: unknown } | null | undefined) {

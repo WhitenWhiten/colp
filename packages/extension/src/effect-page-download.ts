@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { canonicalAuthoritativeEffectPageDigest, expandAuthoritativeEffectPageUrl } from '@know-n/colp/sync/canonical';
 import { readBoundedJson } from './json-response.js';
 import { authoritativeEffectPage } from './generated/pull-effect-validators.js';
@@ -55,11 +56,11 @@ async function downloadOne(
     effectId: ref.effectId, pageCount: ref.pageCount, nextPageNumber: 1, lastDigest: null,
     remainingBytes, remainingMembers: ref.memberCount, retryNotBefore: 0, pages: [],
   };
-  if (record.pageCount !== ref.pageCount) throw new Error('effect_page_invalid');
+  if (record.pageCount !== ref.pageCount) throw new SyncFailureError('effect_page_invalid');
   while (record.nextPageNumber <= ref.pageCount) {
-    if (record.remainingBytes <= 0) throw new Error('pull_page_invalid');
+    if (record.remainingBytes <= 0) throw new SyncFailureError('pull_page_invalid');
     const raw = expandAuthoritativeEffectPageUrl(input.template, ref.effectId, record.nextPageNumber);
-    if (new URL(raw).origin !== input.authority) throw new Error('effect_endpoint_binding_invalid');
+    if (new URL(raw).origin !== input.authority) throw new SyncFailureError('effect_endpoint_binding_invalid');
     // Browser `fetch` is a branded global function. Calling it as
     // `input.fetch(...)` supplies the options object as `this`, which Chromium
     // rejects with "Illegal invocation". Detach the implementation first so
@@ -78,11 +79,11 @@ async function downloadOne(
         await input.store.putEffectDownload(input.scope, { ...record, retryNotBefore: input.now() + retryAfterMilliseconds });
         throw new EffectPageRateLimitedError(retryAfterMilliseconds);
       }
-      if (!response.ok) throw new Error('effect_page_failed');
+      if (!response.ok) throw new SyncFailureError('effect_page_failed');
       rawPage = await readBoundedJson(response, record.remainingBytes, 'effect_page_invalid',
         { signal: controller.signal, timeoutMilliseconds });
     } finally { clearTimeout(timeout); }
-    if (!authoritativeEffectPage(rawPage)) throw new Error('effect_page_invalid');
+    if (!authoritativeEffectPage(rawPage)) throw new SyncFailureError('effect_page_invalid');
     const page = rawPage as {
       readonly effectId: string; readonly pageNumber: number; readonly pageCount: number;
       readonly previousPageDigest: string | null; readonly pageDigest: string;
@@ -91,7 +92,7 @@ async function downloadOne(
     if (page.effectId !== ref.effectId || page.pageNumber !== record.nextPageNumber
         || page.pageCount !== ref.pageCount || page.previousPageDigest !== record.lastDigest
         || page.pageDigest !== canonicalAuthoritativeEffectPageDigest(page as unknown as Record<string, unknown>)) {
-      throw new Error('effect_page_invalid');
+      throw new SyncFailureError('effect_page_invalid');
     }
     record = {
       ...record,

@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import type { JsonObject, IntentRecord, MappingInput, RemoteObservationRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 import type { PullApplierOptions, PullBookmarkApi, PullNode } from './pull-applier-types.js';
@@ -24,10 +25,10 @@ export async function materializeRestoredNode(input: {
 }): Promise<{ readonly mappings: MappingInput[]; readonly deleteNativeIds: readonly string[];
   readonly observations: readonly Omit<RemoteObservationRecord, 'scopeKey'>[] }> {
   const effect = input.event.effect;
-  if (effect.kind !== 'node_restored') throw new Error('pull_effect_kind_invalid');
+  if (effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
   const observations = [restoredObservation(input.event, input.now())];
   const plan = await planRestored(input.store, input.scope, effect.placement.parentId);
-  if (plan.kind === 'need_authority') throw new Error('need_authority');
+  if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
   if (plan.kind === 'skip_unmounted') {
     const mapping = mappingFor(effect.node, unmountedNativeId(effect.node.id), unmountedNativeId(effect.placement.parentId),
       effect.placement.parentId, null, unmountedNativeId(effect.placement.parentId));
@@ -36,9 +37,9 @@ export async function materializeRestoredNode(input: {
   }
   const mounts = await input.store.listMountBindings(input.scope);
   const recorded = await currentPullMapping(input.store, input.scope, effect.placement.parentId);
-  if (!recorded) throw new Error('need_authority');
+  if (!recorded) throw new SyncFailureError('need_authority');
   const parentNativeId = boundNativeId(recorded, mounts);
-  if (isNonChromeNativeId(parentNativeId)) throw new Error('need_authority');
+  if (isNonChromeNativeId(parentNativeId)) throw new SyncFailureError('need_authority');
   const parent = stripScope(parentNativeId === recorded.nativeId ? recorded
     : { ...recorded, nativeId: parentNativeId, rootNativeId: parentNativeId });
   const rest = await restoreParentRevision(effect.parentRevision, parent, [], input.parentRevisionMapping);
@@ -53,7 +54,7 @@ export async function materializeRestoredNode(input: {
 
 function restoredObservation(event: OpEvent, observedAt: number): Omit<RemoteObservationRecord, 'scopeKey'> {
   const effect = event.effect;
-  if (effect.kind !== 'node_restored') throw new Error('pull_effect_kind_invalid');
+  if (effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
   return {
     colpId: effect.node.id, remoteRevision: effect.node.revision, cursor: event.cursor, kind: 'content',
     payload: { ...nodeContent(effect.node), parentId: effect.placement.parentId,
@@ -112,10 +113,10 @@ type RestorePhase = { readonly kind: 'not_called' } | { readonly kind: 'unknown'
 async function restoredChromeId(input: RestoreCall, parentNativeId: string, node: JsonObject): Promise<string> {
   const phase = await restorePhase(input, parentNativeId, node);
   if (phase.kind === 'applied') {
-    if (!phase.nativeId) throw new Error('native_result_unknown');
+    if (!phase.nativeId) throw new SyncFailureError('native_result_unknown');
     return phase.nativeId;
   }
-  if (phase.kind === 'unknown') throw new Error('native_result_unknown');
+  if (phase.kind === 'unknown') throw new SyncFailureError('native_result_unknown');
   if (phase.kind === 'failed') {
     if (isPermissionFailure(phase.code)) await input.store.setBrowserRootStatus(input.scope, 'permission_required');
     throw new Error(phase.code);
@@ -189,7 +190,7 @@ function evidencedNativeId(intent: IntentRecord): string | undefined {
 /** No anchor is index 0. A named anchor that cannot be read is a failure, never 0. */
 async function restoreIndex(input: RestoreCall): Promise<number> {
   const effect = input.event.effect;
-  if (effect.kind !== 'node_restored') throw new Error('pull_effect_kind_invalid');
+  if (effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
   if (!effect.placement.afterId && !effect.placement.beforeId) return 0;
   return input.nativeIndex(effect.placement.afterId, effect.placement.beforeId);
 }
@@ -262,14 +263,14 @@ function isWorkerCrash(error: unknown): boolean {
 
 function inputNode(input: RestoreCall): PullNode {
   const effect = input.event.effect;
-  if (effect.kind !== 'node_restored') throw new Error('pull_effect_kind_invalid');
+  if (effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
   return effect.node;
 }
 
 async function createRestoredNative(input: RestoreCall, parentNativeId: string, node: PullNode, index: number): Promise<string> {
   const phase = await restorePhase(input, parentNativeId, nodeCreate(node));
   if (phase.kind === 'applied') {
-    if (!phase.nativeId) throw new Error('native_result_unknown');
+    if (!phase.nativeId) throw new SyncFailureError('native_result_unknown');
     return phase.nativeId;
   }
   if (phase.kind !== 'not_called') {

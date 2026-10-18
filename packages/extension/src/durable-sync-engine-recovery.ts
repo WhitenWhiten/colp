@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import type { SnapshotNode } from '@know-n/colp/types';
 import { readBoundedJson } from './json-response.js';
 import { syncSnapshotV02 } from './generated/pull-effect-validators.js';
@@ -69,7 +70,7 @@ async function recoverSnapshotPages(
   classification: Exclude<SessionAuthority, 'active'>,
 ): Promise<import('./sync-state-store.js').DurableSyncEngineState> {
   const { options, now } = runtime;
-  if (!authority.session.snapshotRequired) throw new Error('recovery_authority_invalid');
+  if (!authority.session.snapshotRequired) throw new SyncFailureError('recovery_authority_invalid');
   const recoveryAuthority = classification === 'recovery';
   await runtime.transition('bootstrap', { sessionId: authority.session.sessionId, recoveryFrozen: true,
     authorityRefreshRequired: false });
@@ -105,7 +106,7 @@ async function recoverSnapshotPages(
           // budget is inexpressible; surface payload_too_large so the engine
           // freezes terminally instead of retrying forever.
           if (pageLimit <= 1) {
-            throw Object.assign(new Error('payload_too_large'), { code: 'payload_too_large' });
+            throw Object.assign(new SyncFailureError('payload_too_large'), { code: 'payload_too_large' });
           }
           pageLimit = Math.max(1, Math.floor(pageLimit / 2));
           await discardExpiredRecoveryStaging(options.store, options.scope, 'payload_too_large');
@@ -139,10 +140,10 @@ async function recoverSnapshotPages(
       }
       const document = await readBoundedJson(response, sessionTransportBudget(authority.session).snapshotPageBytes,
         'snapshot_invalid', { timeoutMilliseconds: options.requestTimeoutMilliseconds });
-      if (!syncSnapshotV02(document)) throw new Error('snapshot_invalid');
+      if (!syncSnapshotV02(document)) throw new SyncFailureError('snapshot_invalid');
       const snapshot = document as DurableSyncSnapshot;
       if (recoveryAuthority && snapshot.page.hasMore && snapshot.recoveryCapability !== undefined) {
-        throw new Error('recovery_capability_premature');
+        throw new SyncFailureError('recovery_capability_premature');
       }
       const version = readSnapshotMaterializationVersion(snapshot);
       exported = await options.store.exportScope(options.scope);
@@ -152,10 +153,10 @@ async function recoverSnapshotPages(
         continue;
       }
       if (failedSnapshotByStore.get(options.store) === snapshot.snapshotId) {
-        throw new Error('snapshot_graph_incomplete');
+        throw new SyncFailureError('snapshot_graph_incomplete');
       }
       if (!snapshot.complete || snapshot.collection.id !== options.scope.collectionId
-          || snapshot.page.sequence !== pageNumber + 1) throw new Error('snapshot_chain_invalid');
+          || snapshot.page.sequence !== pageNumber + 1) throw new SyncFailureError('snapshot_chain_invalid');
       const rootId = snapshot.collection.rootNodeId;
       if (snapshot.collection.revision !== snapshot.revision
           || snapshot.annotations.length !== 0 || snapshot.attachments.length !== 0
@@ -164,7 +165,7 @@ async function recoverSnapshotPages(
             || (node.id === rootId) !== (node.kind === 'root' && node.parentId === null)
             || (node.parentId === null) !== (node.id === rootId)
             || (node.id === rootId ? node.position != null : typeof node.position !== 'string'))) {
-        throw new Error('snapshot_semantic_invalid');
+        throw new SyncFailureError('snapshot_semantic_invalid');
       }
       const stagedPages = exported.recovery
         ? snapshotV02PagesFromStaging({
@@ -183,18 +184,18 @@ async function recoverSnapshotPages(
       }
       const pageIds = new Set(snapshot.nodes.map((node) => node.id));
       if (pageIds.size !== snapshot.nodes.length || snapshot.nodes.some((node) => node.parentId !== null
-          && !stagedIds.has(node.parentId) && !pageIds.has(node.parentId))) throw new Error('snapshot_graph_incomplete');
+          && !stagedIds.has(node.parentId) && !pageIds.has(node.parentId))) throw new SyncFailureError('snapshot_graph_incomplete');
       const mappings = snapshot.nodes.map((node): MappingInput => {
         const parentAuthority = snapshot.parentRevisions.find((item) => item.parentId === node.id);
         if ((node.kind === 'folder' || node.kind === 'root') && !parentAuthority) {
-          throw new Error('snapshot_parent_authority_missing');
+          throw new SyncFailureError('snapshot_parent_authority_missing');
         }
         return snapshotMapping(node, parentAuthority?.childrenRevision ?? null, runtime.digest);
       });
       const mappingById = new Map(mappings.map((mapping) => [mapping.colpId, mapping]));
       const pageDigest = runtime.digest(document); const complete = !snapshot.page.hasMore;
       if (complete && recoveryAuthority && !recoveryCapability(snapshot.recoveryCapability)) {
-        throw new Error('recovery_capability_invalid');
+        throw new SyncFailureError('recovery_capability_invalid');
       }
       await options.store.stageRecoveryPage(options.scope, { snapshotId: snapshot.snapshotId,
         sessionId: authority.session.sessionId,
@@ -213,18 +214,18 @@ async function recoverSnapshotPages(
         await assertCompleteSnapshotStaging(options.store, options.scope, snapshot.collection.rootNodeId);
         await commitPreparedRecovery(runtime, authority, snapshot.snapshotId, snapshot.syncCursor,
           snapshot.recoveryCapability); break; }
-      if (!snapshot.page.nextCursor) throw new Error('snapshot_chain_invalid');
+      if (!snapshot.page.nextCursor) throw new SyncFailureError('snapshot_chain_invalid');
       pageCursor = snapshot.page.nextCursor; previousDigest = pageDigest; pageNumber += 1;
     }
   }
   exported = await options.store.exportScope(options.scope); const ackedCursor = exported.cursor?.cursor;
-  if (!ackedCursor) throw new Error('snapshot_cutover_missing');
+  if (!ackedCursor) throw new SyncFailureError('snapshot_cutover_missing');
   const capability = recoveryCapabilityOf(exported.cursor) ?? ackedCursor;
   const intent = await options.store.getPendingAckIntent(options.scope);
   const durableIntent = intent ?? exported.ackIntents.find((item: AckIntentRecord) => item.kind === 'bootstrap'
     && item.cursor === ackedCursor && item.state === 'complete');
   if (!durableIntent || durableIntent.kind !== 'bootstrap' || durableIntent.cursor !== ackedCursor) {
-    throw new Error('bootstrap_ack_intent_missing');
+    throw new SyncFailureError('bootstrap_ack_intent_missing');
   }
   if (await runtime.sendAck(durableIntent, authority) === 'recovery') return runtime.state();
   const active = await runtime.renewBootstrapAuthority(capability);
@@ -284,7 +285,7 @@ function recoveryCapabilityOf(cursor: { readonly evidence?: unknown } | null | u
     ? evidence.capability : undefined;
 }
 function httpOrSnapshotFailure(response: Response, now: number) {
-  const error = new Error('rate_limited') as Error & { retryAfterMilliseconds?: number };
+  const error = new SyncFailureError('rate_limited') as Error & { retryAfterMilliseconds?: number };
   const value = response.headers.get('Retry-After'); let delay = 0;
   if (value && /^\d+$/u.test(value)) delay = Number(value) * 1_000;
   else if (value) { const date = Date.parse(value); if (Number.isFinite(date)) delay = Math.max(0, date - now); }

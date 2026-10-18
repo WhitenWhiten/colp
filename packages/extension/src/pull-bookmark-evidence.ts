@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 /**
  * SR-02: the honest Chrome-bookmark read seam for Pull apply.
  *
@@ -44,7 +45,7 @@ export function createPullBookmarkEvidence(options: PullApplierOptions, api: Pul
   async function targetMissingError(colpId: string, nativeId: string, role?: 'parent'): Promise<Error> {
     await options.store.putScopeDiagnostic(options.scope, { kind: 'pull_apply_target_missing', code: 'not_found',
       details: { colpId, nativeId, ...(role ? { role } : {}) } });
-    return new Error('pull_apply_target_missing');
+    return new SyncFailureError('pull_apply_target_missing');
   }
 
   /**
@@ -55,7 +56,7 @@ export function createPullBookmarkEvidence(options: PullApplierOptions, api: Pul
   async function parentChildren(colpId: string, parentNativeId: string): Promise<readonly BookmarkNode[]> {
     const looked = await lookupChildren(parentNativeId);
     if (looked.class === 'not_found') throw await targetMissingError(colpId, parentNativeId, 'parent');
-    if (looked.class !== 'present') throw new Error('pull_apply_evidence_missing');
+    if (looked.class !== 'present') throw new SyncFailureError('pull_apply_evidence_missing');
     return looked.nodes;
   }
 
@@ -68,10 +69,10 @@ export function createPullBookmarkEvidence(options: PullApplierOptions, api: Pul
   async function anchorIndex(colpId: string, offset: (index: number) => number): Promise<number> {
     const anchor = await requirePullMapping(options, colpId, 'anchor');
     const looked = await lookup(anchor.nativeId);
-    if (looked.class === 'not_found') throw new Error('anchor_mapping_missing');
+    if (looked.class === 'not_found') throw new SyncFailureError('anchor_mapping_missing');
     if (looked.class !== 'present') throw new Error(looked.message);
     const node = looked.nodes[0];
-    if (!node || node.index === undefined) throw new Error('anchor_mapping_missing');
+    if (!node || node.index === undefined) throw new SyncFailureError('anchor_mapping_missing');
     return offset(node.index);
   }
 

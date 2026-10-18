@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 /**
  * Dest copies are new natives via T-02. Source IDs stay excluded and must not
  * be reused as dest identity.
@@ -47,16 +48,16 @@ export async function materializeIndependentSubtree(input: {
   const intent = await input.store.getApplyIntent(input.scope, `intent:${input.eventId}`);
   const plan = planFromAnchors(intent?.anchors, built);
   await persistIndependentPlan(input.store, input.scope, input.eventId, plan, input.now);
-  if (input.permissionGranted === false) throw new Error('permission_revoked');
+  if (input.permissionGranted === false) throw new SyncFailureError('permission_revoked');
   const destByColp = new Map<string, string>([[input.parent.colpId, input.parent.nativeId]]);
   const destMappings: MappingInput[] = [];
   const observations: Omit<RemoteObservationRecord, 'scopeKey'>[] = [];
   const byColp = new Map(input.subtree.map((row) => [row.colpId, row]));
   for (const node of plan.nodes) {
     const parentNativeId = node.parentColpId ? destByColp.get(node.parentColpId) : input.parent.nativeId;
-    if (!parentNativeId || isNonChromeNativeId(parentNativeId)) throw new Error('range_dependency_pending');
+    if (!parentNativeId || isNonChromeNativeId(parentNativeId)) throw new SyncFailureError('range_dependency_pending');
     const created = await createDestNative(input, node, parentNativeId);
-    if (created === node.sourceNativeId) throw new Error('native_result_unknown');
+    if (created === node.sourceNativeId) throw new SyncFailureError('native_result_unknown');
     destByColp.set(node.colpId, created);
     destMappings.push(destMapping(input, node, created, parentNativeId, byColp.get(node.colpId)));
     if (node.colpId !== effect.node.id) {
@@ -69,7 +70,7 @@ export async function materializeIndependentSubtree(input: {
     }
   }
   const rootNative = destByColp.get(effect.node.id);
-  if (!rootNative) throw new Error('native_result_unknown');
+  if (!rootNative) throw new SyncFailureError('native_result_unknown');
   const revisions = await Promise.all(effect.parentRevisions.map(input.parentRevisionMapping));
   const deleteNativeIds = input.subtree.filter((row) => !isNonChromeNativeId(row.nativeId)).map((row) => row.nativeId);
   return {

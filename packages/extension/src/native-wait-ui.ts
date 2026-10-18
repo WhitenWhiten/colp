@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { sharedManagerMenu } from './bookmark-manager-menu.js';
 import { localized, t, tn } from './i18n.js';
 import { createIcon } from './icons.js';
@@ -192,7 +193,7 @@ export function bindNativeWaitSettings(): void {
 function renderWait(wait: PublicNativeWait, template: HTMLTemplateElement, feedback: HTMLElement,
   decide: (action: NativeWaitConfirmAction, nativeId?: string) => Promise<void>): HTMLElement {
   const row = template.content.firstElementChild?.cloneNode(true) as HTMLElement | null;
-  if (!row) throw new Error('native_wait_template_invalid');
+  if (!row) throw new SyncFailureError('native_wait_template_invalid');
   row.dataset.syncItem = wait.intentId; row.dataset.syncNode = wait.colpId;
   const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('bookmark', 16));
   row.prepend(tile);

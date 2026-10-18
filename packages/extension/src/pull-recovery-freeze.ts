@@ -1,5 +1,5 @@
+import { SyncFailureError, freezesPullApply } from './sync-failure-class.js';
 import { recordKns09Stop } from './kns-09-release.js';
-import { freezesPullApply } from './sync-failure-class.js';
 import type { PullApplierOptions } from './pull-applier-types.js';
 import { inheritFrozenEngineFacts } from './sync-state/engine-transition.js';
 import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -83,7 +83,7 @@ export function shouldFreezePullApply(error: unknown): boolean {
 export async function freezeScopeRecovery(store: FreezeStore, scope: SyncScope, code: string,
   now: () => number = Date.now): Promise<void> {
   const current = await store.getScope(scope);
-  if (!current) throw new Error('scope_not_found');
+  if (!current) throw new SyncFailureError('scope_not_found');
   // A blocked page already persisted the specific reason, so keep that first, more
   // precise recoveryCode instead of overwriting it with the generic escalation; the
   // scope write is skipped once it is already recovery_required (`recovery_required

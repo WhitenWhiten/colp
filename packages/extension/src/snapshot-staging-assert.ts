@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 type RecoveryNode = {
@@ -26,12 +27,12 @@ export async function assertCompleteSnapshotStaging(
         || node.mapping.parentColpId !== (node.parentId ?? undefined)
         || node.mapping.nodeKind !== node.kind.toLowerCase()
         || (node.mapping.nodeKind === 'folder' && node.mapping.projection.childrenRevision == null))) {
-    throw new Error('snapshot_graph_incomplete');
+    throw new SyncFailureError('snapshot_graph_incomplete');
   }
   for (const node of nodes) {
     const ancestors = new Set<string>([node.colpId]); let parentId = node.parentId;
     while (parentId !== null) {
-      if (ancestors.has(parentId)) throw new Error('snapshot_graph_incomplete');
+      if (ancestors.has(parentId)) throw new SyncFailureError('snapshot_graph_incomplete');
       ancestors.add(parentId); parentId = byId.get(parentId)?.parentId ?? null;
     }
   }

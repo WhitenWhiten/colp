@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { recordKns09Stop } from './kns-09-release.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import { digest } from './pull-codec.js';
@@ -14,7 +15,7 @@ export type { NativeCreateOutcome };
 export function createExpectation(effect: Event['effect'], parentNativeId: string, index: number,
   children: readonly { readonly id: string }[]) {
   if (effect.kind !== 'node_created' && effect.kind !== 'node_restored' && effect.kind !== 'node_moved') {
-    throw new Error('pull_effect_kind_invalid');
+    throw new SyncFailureError('pull_effect_kind_invalid');
   }
   const node = nodeCreate(effect.node);
   return { eventKind: 'create' as const, nativeId: '', parentNativeId,
@@ -78,7 +79,7 @@ function createColpId(event: Event): string {
   if (effect.kind === 'node_created' || effect.kind === 'node_restored' || effect.kind === 'node_moved') {
     return effect.node.id;
   }
-  throw new Error('pull_effect_kind_invalid');
+  throw new SyncFailureError('pull_effect_kind_invalid');
 }
 
 function expectedChrome(event: Event): { readonly title?: string; readonly url?: string } {

@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 /**
  * Per-member remote delete. Completed members replay; missing parents do not
  * prove descendants absent. Permission/managed stay failed, never absent.
@@ -110,9 +111,9 @@ export async function executeRemoteDeleteMembers(input: {
     // Persist the complete local preimage before any destructive Chrome call.
     // Uncaptured changes stay native and follow the existing retained/exclusion path.
     const current = looked.class === 'present' ? looked.nodes[0] : undefined;
-    if (!current) throw new Error('native_call_failed');
+    if (!current) throw new SyncFailureError('native_call_failed');
     const intent = await input.store.getApplyIntent(input.scope, input.intentId);
-    if (!intent) throw new Error('intent_not_found');
+    if (!intent) throw new SyncFailureError('intent_not_found');
     const priorImages = intent.anchors?.deletePreimages;
     await patchIntent(input, { anchors: { ...intent.anchors,
       deletePreimages: { ...(priorImages && typeof priorImages === 'object' && !Array.isArray(priorImages)
@@ -142,7 +143,7 @@ export async function executeRemoteDeleteMembers(input: {
     }
     if (fresh.class !== 'present') throw deleteFailure(fresh);
     const latest = fresh.nodes[0];
-    if (!latest) throw new Error('native_call_failed');
+    if (!latest) throw new SyncFailureError('native_call_failed');
     if (latest.title !== current.title || latest.url !== current.url || latest.parentId !== current.parentId) {
       results[row.colpId] = 'retained';
       await writeResults(input, frozen.members, results);
@@ -202,7 +203,7 @@ function classifyLookup(looked: BookmarkLookup): 'present' | 'absent' | 'failed'
 async function removeMember(api: PullBookmarkApi, node: BookmarkNode | undefined):
   Promise<void> {
   if (node?.unmodifiable) throw new Error("Can't modify a managed bookmark.");
-  if (!node) throw new Error('native_call_failed');
+  if (!node) throw new SyncFailureError('native_call_failed');
   await api.remove(node.id);
 }
 
@@ -211,7 +212,7 @@ function deleteFailure(looked: BookmarkLookup): Error {
     || looked.class === 'other_failure') {
     return new Error(looked.message);
   }
-  return new Error('native_call_failed');
+  return new SyncFailureError('native_call_failed');
 }
 
 async function shouldRetain(input: {
@@ -290,7 +291,7 @@ async function patchIntent(input: {
   readonly store: Store; readonly scope: SyncScope; readonly intentId: string;
 }, facts: ApplyIntentFactsPatch): Promise<void> {
   const intent = await input.store.getApplyIntent(input.scope, input.intentId);
-  if (!intent) throw new Error('intent_not_found');
+  if (!intent) throw new SyncFailureError('intent_not_found');
   await input.store.persistApplyIntentFacts(input.scope, input.intentId, { ...facts,
     ...(facts.anchors ? { anchors: { ...intent.anchors, ...facts.anchors } } : {}),
   });

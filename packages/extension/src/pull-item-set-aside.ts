@@ -1,9 +1,9 @@
+import { SyncFailureError, setsAsidePullItem, syncFailureCode, classifySyncFailure } from './sync-failure-class.js';
 import { readOpenSyncIssues, issueAncestry, dependsOnIssue } from './sync-issues.js';
 import type { SyncPullEventV02, Warning } from '@know-n/colp/types';
 import type { PullApplierOptions, PullNode } from './pull-applier-types.js';
 import { mappingFor } from './pull-projection.js';
 import { remoteDeleteMemberIds } from './remote-delete-policy.js';
-import { setsAsidePullItem } from './sync-failure-class.js';
 import { SyncStateError, type PullIssueRecord, type SyncScope, type createSyncStateStore } from './sync-state-store.js';
 
 type OpEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
@@ -80,7 +80,7 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
       subject.parentId ?? null, null, `probe:${node.id}`));
     return false;
   } catch (error) {
-    if (!(error instanceof SyncStateError) || !ITEM_CODEC_CODES.has(error.code)) throw error;
+    if (!(error instanceof SyncStateError) || classifySyncFailure(error.code, { nodeId: node.id })?.class !== 'item') throw error;
     assertBelowCeiling(open);
     await options.store.setAsidePullEvent(options.scope, eventId, { code: error.code, nodeId: node.id, now,
       ...(title ? { title } : {}) });
@@ -99,9 +99,9 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
 export async function setAsideFailedPullItem(options: PullApplierOptions,
   entered: { readonly eventId?: unknown; readonly state?: unknown }, event: OpEvent, error: unknown,
   now: number): Promise<boolean> {
-  const code = error instanceof Error ? error.message : '';
+  const code = syncFailureCode(error);
   const subject = subjectOf(event); const eventId = String(entered.eventId);
-  if (!subject || !setsAsidePullItem(code) || !['staged', 'intent_prepared'].includes(String(entered.state))) return false;
+  if (!subject || !setsAsidePullItem(code, { nodeId: subject.nodeId, eventId }) || !['staged', 'intent_prepared'].includes(String(entered.state))) return false;
   const current = await options.store.getPullEvent(options.scope, eventId);
   if (!current || !['staged', 'intent_prepared'].includes(String(current.state))) return false;
   assertBelowCeiling(await openIssues(options));
@@ -139,5 +139,5 @@ async function openIssues(options: PullApplierOptions): Promise<Map<string, Pull
 }
 
 function assertBelowCeiling(open: ReadonlyMap<string, PullIssueRecord>): void {
-  if (open.size >= PULL_ISSUE_CEILING) throw new Error('pull_issue_ceiling');
+  if (open.size >= PULL_ISSUE_CEILING) throw new SyncFailureError('pull_issue_ceiling');
 }

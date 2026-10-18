@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { readBoundedJson } from './json-response.js';
@@ -57,15 +58,15 @@ export async function persistSnapshotOpenConflicts(input: {
     const parsed = parsePage(body, input.snapshotId, offset);
     conflictCount = parsed.conflictCount;
     for (const conflict of parsed.conflicts) {
-      if (conflicts.some((prior) => prior.id === conflict.id)) throw new Error('snapshot_conflict_page_invalid');
+      if (conflicts.some((prior) => prior.id === conflict.id)) throw new SyncFailureError('snapshot_conflict_page_invalid');
       conflicts.push(conflict);
       await input.persist(conflict);
     }
     if (parsed.nextOffset === null) break;
-    if (parsed.nextOffset <= offset) throw new Error('snapshot_conflict_page_invalid');
+    if (parsed.nextOffset <= offset) throw new SyncFailureError('snapshot_conflict_page_invalid');
     offset = parsed.nextOffset;
   }
-  if (conflicts.length !== conflictCount) throw new Error('snapshot_conflict_page_invalid');
+  if (conflicts.length !== conflictCount) throw new SyncFailureError('snapshot_conflict_page_invalid');
   const conflictDigest = snapshotOpenConflictDigest(conflicts);
   if (conflictCount > 0) {
     const url = new URL(input.snapshotUrl);
@@ -82,7 +83,7 @@ export async function persistSnapshotOpenConflicts(input: {
       input.timeoutMilliseconds === undefined ? {} : { timeoutMilliseconds: input.timeoutMilliseconds });
     if (!body || typeof body !== 'object' || Array.isArray(body)
         || (body as { readonly confirmed?: unknown }).confirmed !== true) {
-      throw new Error('snapshot_conflict_confirm_invalid');
+      throw new SyncFailureError('snapshot_conflict_confirm_invalid');
     }
   }
   return { conflictCount, conflictDigest };
@@ -98,33 +99,33 @@ function conflictHeaders(headers: Readonly<Record<string, string>>): Record<stri
 
 function parsePage(value: unknown, snapshotId: string, offset: number): {
   readonly conflictCount: number; readonly conflicts: readonly SnapshotOpenConflict[]; readonly nextOffset: number | null } {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('snapshot_conflict_page_invalid');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new SyncFailureError('snapshot_conflict_page_invalid');
   const page = value as Record<string, unknown>;
   if (page.snapshotId !== snapshotId || page.offset !== offset || !Array.isArray(page.conflicts)
       || typeof page.conflictCount !== 'number' || !Number.isSafeInteger(page.conflictCount) || page.conflictCount < 0) {
-    throw new Error('snapshot_conflict_page_invalid');
+    throw new SyncFailureError('snapshot_conflict_page_invalid');
   }
   const nextOffset = page.nextOffset === null ? null : page.nextOffset;
   if (nextOffset !== null && (typeof nextOffset !== 'number' || !Number.isSafeInteger(nextOffset))) {
-    throw new Error('snapshot_conflict_page_invalid');
+    throw new SyncFailureError('snapshot_conflict_page_invalid');
   }
   return { conflictCount: page.conflictCount, conflicts: page.conflicts.map(parseConflict), nextOffset };
 }
 
 function parseConflict(value: unknown): SnapshotOpenConflict {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('snapshot_conflict_page_invalid');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new SyncFailureError('snapshot_conflict_page_invalid');
   const conflict = value as Record<string, unknown>;
   if (Object.keys(conflict).some((key) => PRIVATE_KEYS.has(key) || ![
     'id', 'collectionId', 'targetId', 'type', 'field', 'incomingOpId', 'createdAt', 'status',
     'allowedResolutions', 'revision',
-  ].includes(key))) throw new Error('snapshot_conflict_page_invalid');
+  ].includes(key))) throw new SyncFailureError('snapshot_conflict_page_invalid');
   if (typeof conflict.id !== 'string' || typeof conflict.collectionId !== 'string'
       || typeof conflict.targetId !== 'string' || typeof conflict.type !== 'string'
       || typeof conflict.createdAt !== 'string' || conflict.status !== 'open'
       || typeof conflict.revision !== 'string' || !Array.isArray(conflict.allowedResolutions)
       || conflict.allowedResolutions.length < 1
       || conflict.allowedResolutions.some((item) => typeof item !== 'string')) {
-    throw new Error('snapshot_conflict_page_invalid');
+    throw new SyncFailureError('snapshot_conflict_page_invalid');
   }
   return {
     id: conflict.id, collectionId: conflict.collectionId, targetId: conflict.targetId, type: conflict.type,

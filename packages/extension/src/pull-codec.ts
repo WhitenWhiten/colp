@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import type { AuthoritativeEffectPage, SyncPullEventV02 } from '@know-n/colp/types';
@@ -16,7 +17,7 @@ export function stable(value: unknown): string {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
   }
   const encoded = JSON.stringify(value);
-  if (encoded === undefined) throw new Error('i_json_invalid');
+  if (encoded === undefined) throw new SyncFailureError('i_json_invalid');
   return encoded;
 }
 
@@ -36,13 +37,13 @@ export function assertUniqueEvents(events: readonly SyncPullEventV02[]) {
   const cursors = new Set<string>(); const operations = new Set<string>(); const effects = new Set<string>();
   const conflicts = new Set<string>();
   for (const event of events) {
-    if (cursors.has(event.cursor)) throw new Error('pull_event_duplicate'); cursors.add(event.cursor);
+    if (cursors.has(event.cursor)) throw new SyncFailureError('pull_event_duplicate'); cursors.add(event.cursor);
     if (event.kind === 'conflict') {
-      if (conflicts.has(event.conflict.id)) throw new Error('pull_event_duplicate');
+      if (conflicts.has(event.conflict.id)) throw new SyncFailureError('pull_event_duplicate');
       conflicts.add(event.conflict.id); continue;
     }
     if (operations.has(event.operation.opId) || effects.has(event.effect.effectId)) {
-      throw new Error('pull_event_duplicate');
+      throw new SyncFailureError('pull_event_duplicate');
     }
     operations.add(event.operation.opId); effects.add(event.effect.effectId);
   }
@@ -55,18 +56,18 @@ export function validatePullEvent(candidate: SyncPullEventV02): SyncPullEventV02
       || effect.sequence !== operation.sequence || effect.collectionId !== operation.collectionId
       || effect.operationDigest !== canonicalOperationDigest(operation)
       || effect.effectDigest !== canonicalAuthoritativeEffectDigest(effect as unknown as Record<string, unknown>)) {
-    throw new Error('pull_effect_binding_invalid');
+    throw new SyncFailureError('pull_effect_binding_invalid');
   }
   if (effect.kind === 'node_created') {
     if (operation.type !== 'create_node' || effect.node.collectionId !== operation.collectionId
         || effect.placement.parentId !== operation.payload.parentId || effect.node.parentId !== effect.placement.parentId
         || effect.node.position !== effect.placement.position || effect.parentRevision.parentId !== effect.placement.parentId
         || (effect.node.kind === 'folder') !== (effect.nodeChildrenRevision !== null)) {
-      throw new Error('pull_effect_binding_invalid');
+      throw new SyncFailureError('pull_effect_binding_invalid');
     }
   } else if (effect.kind === 'node_content_updated') {
     if (operation.type !== 'update_node_content' || effect.node.id !== operation.targetId
-        || effect.node.collectionId !== operation.collectionId) throw new Error('pull_effect_binding_invalid');
+        || effect.node.collectionId !== operation.collectionId) throw new SyncFailureError('pull_effect_binding_invalid');
   } else if (effect.kind === 'node_moved') {
     const target = effect.parentRevisions.at(-1);
     if (operation.type !== 'move_node' || effect.node.id !== operation.targetId
@@ -74,13 +75,13 @@ export function validatePullEvent(candidate: SyncPullEventV02): SyncPullEventV02
         || effect.node.parentId !== effect.placement.parentId || effect.node.position !== effect.placement.position
         || target?.parentId !== operation.payload.newParentId
         || (effect.parentRevisions.length === 2 && effect.parentRevisions[0]?.parentId === target.parentId)) {
-      throw new Error('pull_effect_binding_invalid');
+      throw new SyncFailureError('pull_effect_binding_invalid');
     }
   } else if (effect.kind === 'node_deleted') {
     if (operation.type !== 'delete_node' || effect.deletion.targetId !== operation.targetId
         || effect.deletion.collectionId !== operation.collectionId || effect.deletion.operationId !== operation.opId
         || effect.deletion.scope !== 'single' || effect.deletion.affectedCount !== 1
-        || stable(effect.deletion) !== stable(effect.tombstone)) throw new Error('pull_effect_binding_invalid');
+        || stable(effect.deletion) !== stable(effect.tombstone)) throw new SyncFailureError('pull_effect_binding_invalid');
   } else if (effect.kind === 'node_restored') {
     if (operation.type !== 'restore_node' || effect.node.id !== operation.targetId
         || effect.node.collectionId !== operation.collectionId
@@ -92,23 +93,23 @@ export function validatePullEvent(candidate: SyncPullEventV02): SyncPullEventV02
         || effect.placement.parentId !== effect.node.parentId
         || effect.node.position !== effect.placement.position
         || effect.parentRevision.parentId !== effect.placement.parentId) {
-      throw new Error('pull_effect_binding_invalid');
+      throw new SyncFailureError('pull_effect_binding_invalid');
     }
   } else if (effect.kind === 'subtree_deleted') {
     if (operation.type !== 'delete_subtree' || effect.rootTombstone.targetId !== operation.targetId
         || effect.rootTombstone.collectionId !== operation.collectionId || effect.rootTombstone.operationId !== operation.opId
         || effect.rootTombstone.scope !== 'subtree' || effect.rootTombstone.affectedCount !== effect.memberCount) {
-      throw new Error('pull_effect_binding_invalid');
+      throw new SyncFailureError('pull_effect_binding_invalid');
     }
     if ('members' in effect && effect.members
         && (effect.members.length !== effect.memberCount
           || canonicalAuthoritativeMemberDigest(effect.members) !== effect.memberDigest)) {
-      throw new Error('pull_effect_binding_invalid');
+      throw new SyncFailureError('pull_effect_binding_invalid');
     }
     if ('effectRef' in effect && effect.effectRef
         && (effect.effectRef.memberCount !== effect.memberCount
-          || effect.effectRef.memberDigest !== effect.memberDigest)) throw new Error('pull_effect_binding_invalid');
-  } else throw new Error('pull_effect_kind_invalid');
+          || effect.effectRef.memberDigest !== effect.memberDigest)) throw new SyncFailureError('pull_effect_binding_invalid');
+  } else throw new SyncFailureError('pull_effect_kind_invalid');
   return candidate;
 }
 
@@ -116,7 +117,7 @@ export function validateEffectPages(pages: readonly AuthoritativeEffectPage[], r
   readonly effectId: string; readonly pageCount: number; readonly memberCount: number;
   readonly memberDigest: string; readonly firstPageDigest: string;
 }) {
-  if (pages.length !== reference.pageCount) throw new Error('effect_page_invalid');
+  if (pages.length !== reference.pageCount) throw new SyncFailureError('effect_page_invalid');
   let previous: string | null = null; const members: string[] = [];
   for (let index = 0; index < pages.length; index += 1) {
     const page = pages[index]!;
@@ -124,11 +125,11 @@ export function validateEffectPages(pages: readonly AuthoritativeEffectPage[], r
         || page.pageCount !== reference.pageCount || page.previousPageDigest !== previous
         || page.memberCount !== page.members.length
         || page.pageDigest !== canonicalAuthoritativeEffectPageDigest(page as unknown as Record<string, unknown>)) {
-      throw new Error('effect_page_invalid');
+      throw new SyncFailureError('effect_page_invalid');
     }
-    if (index === 0 && page.pageDigest !== reference.firstPageDigest) throw new Error('effect_page_invalid');
+    if (index === 0 && page.pageDigest !== reference.firstPageDigest) throw new SyncFailureError('effect_page_invalid');
     previous = page.pageDigest; members.push(...page.members);
   }
   if (members.length !== reference.memberCount || new Set(members).size !== members.length
-      || canonicalAuthoritativeMemberDigest(members) !== reference.memberDigest) throw new Error('effect_page_invalid');
+      || canonicalAuthoritativeMemberDigest(members) !== reference.memberDigest) throw new SyncFailureError('effect_page_invalid');
 }

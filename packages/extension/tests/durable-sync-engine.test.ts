@@ -303,13 +303,15 @@ describe('P3-33 durable extension sync lifecycle', () => {
       ['rate limit', new Response(JSON.stringify({ code: 'rate_limited' }), { status: 429,
         headers: { 'Content-Type': 'application/problem+json', 'Retry-After': '17' } }), 'sleeping', 'rate_limited'],
       ['authentication', problem(401, 'credential_revoked', {}), 'offline', 'credential_revoked'],
-      ['protocol', json(200, { malformed: true }), 'offline', 'pull_invalid'],
+      ['protocol', json(200, { malformed: true }), 'error', 'pull_invalid'],
     ] as const) {
       const fixture = await setup(); fixture.pullResponses.push(networkFailure('offline'), response);
       await fixture.engine.wake('alarm'); fixture.store.close(); await fixture.reopen().wake('startup');
       const state = (await fixture.store.getEngineState(scope))!;
       assert.equal(fixture.pullRequests.length, 2, label); assert.equal(state.phase, expectedPhase, label);
-      assert.equal(state.lastError, expectedError, label); assert.ok(state.notBefore > fixture.clock.now, label);
+      assert.equal(state.lastError, expectedError, label);
+      if (expectedPhase === 'error') assert.equal(state.notBefore, 0, 'corrupt protocol data is a reported stop');
+      else assert.ok(state.notBefore > fixture.clock.now, label);
       assert.equal(state.connectivityConfirmationRevision, undefined, label);
       if (label === 'rate limit') assert.ok(state.notBefore >= fixture.clock.now + 17_000);
     }

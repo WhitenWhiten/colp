@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { virtualNativeId } from './projection-native-occupancy.js';
 import { nativeContent } from './pull-projection.js';
@@ -39,7 +40,7 @@ export async function applySnapshotContent(input: {
 }): Promise<MappingInput> {
   const { store, scope, incoming, intent, api } = input;
   const stored = await store.getMappingByColpId(scope, incoming.colpId);
-  if (!stored || stored.nativeId !== incoming.nativeId) throw new Error('snapshot_content_baseline_missing');
+  if (!stored || stored.nativeId !== incoming.nativeId) throw new SyncFailureError('snapshot_content_baseline_missing');
   // Locally authored content mappings can carry only the native parent. Keep
   // that placement identity when retaining the old content authority.
   const parent = !stored.parentColpId && stored.parentNativeId
@@ -64,7 +65,7 @@ export async function applySnapshotContent(input: {
     incomingMapping: desired, effectDigest: digest(desired), eventId, now: Date.now,
     mounts: await store.listMountBindings(scope),
     lookup: id => lookupBookmark(key => api.get(key), id),
-    targetMissingError: async () => new Error('snapshot_content_target_missing'),
+    targetMissingError: async () => new SyncFailureError('snapshot_content_target_missing'),
     queuedLocal: await pendingLocalContentFields(store, scope, prior, resolvedOperations),
     observationCursor: input.cursor });
   if (result.rangeExit) await store.putRemoteObservation(scope, result.rangeExit.observation);

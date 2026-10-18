@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { reasonCode } from './push-error-code.js';
 import { colpCredentialHeaders } from './auth-client.js';
 import { readBoundedJson } from './json-response.js';
@@ -55,17 +56,17 @@ export async function sendBootstrapCreateBatch(input: {
   try {
     for (let index = 1; index < rows.length; index += 1) {
       rows[index] = await input.prepare(rows[index]!);
-      if (!batchableBootstrapCreate(rows[index]!)) throw new Error('push_batch_placement_changed');
+      if (!batchableBootstrapCreate(rows[index]!)) throw new SyncFailureError('push_batch_placement_changed');
     }
-    if (await input.barrier()) throw new Error('push_batch_recovery_barrier');
+    if (await input.barrier()) throw new SyncFailureError('push_batch_recovery_barrier');
     const batchId = `${input.session.sessionId}.${crypto.randomUUID()}`;
     const body = JSON.stringify({ sessionId: input.session.sessionId, batchId, atomic: false,
       operations: rows.map((row) => row.payload) });
-    if (new TextEncoder().encode(body).length > REQUEST_BYTES) throw new Error('push_batch_byte_limit');
+    if (new TextEncoder().encode(body).length > REQUEST_BYTES) throw new SyncFailureError('push_batch_byte_limit');
     // Persisted singleton attempts are the recovery authority. Never attribute
     // a batch Problem to an individual operation: a prefix may have committed.
     const timeout = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => {
-      controller.abort(); reject(new Error('push_batch_timeout'));
+      controller.abort(); reject(new SyncFailureError('push_batch_timeout'));
     }, input.timeoutMs); });
     const idempotencyKey = `batch.${crypto.randomUUID()}`;
     const send = () => { controller.signal.throwIfAborted(); return input.fetch(input.endpoint, { method: 'POST', redirect: 'error', credentials: 'omit',
@@ -74,19 +75,19 @@ export async function sendBootstrapCreateBatch(input: {
         ...(input.origin ? { Origin: input.origin } : {}) }, body }); };
     const dispatch = async () => {
       for (const row of rows) await input.beforeDispatch?.(row);
-      if (await input.barrier()) throw new Error('push_batch_recovery_barrier');
+      if (await input.barrier()) throw new SyncFailureError('push_batch_recovery_barrier');
       return input.dispatch ? input.dispatch(rows, send) : send();
     };
     const response = await Promise.race([dispatch(), timeout]);
     retryAfter = response.headers.get('Retry-After'); await input.onNetworkResponse?.();
     if (response.status !== 200 || !/^application\/json(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? '')) {
-      throw new Error('push_batch_response_unknown');
+      throw new SyncFailureError('push_batch_response_unknown');
     }
     const value = await Promise.race([readBoundedJson(response, RESPONSE_BYTES, 'push_batch_response_invalid'), timeout]);
     const document = value as { batchId?: unknown; results?: unknown; serverCursor?: unknown } | null;
     if (!document || !Array.isArray(document.results) || document.results.length !== rows.length
         || Object.keys(document).some((key) => !['batchId', 'results', 'serverCursor'].includes(key))) {
-      throw new Error('push_batch_response_invalid');
+      throw new SyncFailureError('push_batch_response_invalid');
     }
     const results = document.results;
     // Validate every identity/status before publishing any local receipt.

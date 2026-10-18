@@ -214,7 +214,7 @@ describe('replica health report', () => {
     h.fixture.store.close();
   });
 
-  test('a rebuild replaces the replica, whose last report says so and carries the result', async () => {
+  test('encodes a final Rebuild wire marker from a replacement runner result (transport unit)', async () => {
     const h = await harness();
     await freezeScopeRecovery(h.fixture.store, scope, 'pull_apply_target_missing', () => h.fixture.clock.now);
     const runner: ReplicaCommandRunner = {

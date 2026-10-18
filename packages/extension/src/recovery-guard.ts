@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import type { PullBookmarkApi } from './pull-applier.js';
@@ -20,13 +21,13 @@ export async function recoverVerifiedOrFreeze(input: {
 }): Promise<readonly MappingInput[]> {
   if (input.staleCursor) {
     await freezeScopeRecovery(input.store, input.scope, 'sync_cursor_expired');
-    throw new Error('sync_cursor_expired');
+    throw new SyncFailureError('sync_cursor_expired');
   }
   const exported = await input.store.exportScope(input.scope);
   const header = exported.recovery as { complete?: boolean; syncCursor?: string } | null | undefined;
   if (input.missingPage || header?.complete === false) {
     await freezeScopeRecovery(input.store, input.scope, 'snapshot_page_missing');
-    throw new Error('snapshot_page_missing');
+    throw new SyncFailureError('snapshot_page_missing');
   }
   const live = (await input.store.listMappings(input.scope)).map(stripScopeKey);
   const localDeletes = await pendingLocalDeletionIds(input.store, input.scope, [...live, ...input.staged]);
@@ -51,7 +52,7 @@ export async function recoverVerifiedOrFreeze(input: {
     const identity = await readNativeIdentity(live, input.api, deleting);
     if (identity.state === 'unproven') {
       await freezeScopeRecovery(input.store, input.scope, 'recovery_identity_unproven');
-      throw new Error('recovery_identity_unproven');
+      throw new SyncFailureError('recovery_identity_unproven');
     }
     // SR-02: a read that never completed proves nothing about identity. Surfacing the raw API
     // message hands a genuine permission / managed / transient fault to the existing

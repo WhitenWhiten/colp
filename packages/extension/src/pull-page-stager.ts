@@ -1,4 +1,4 @@
-import { classifySyncFailure } from './sync-failure-class.js';
+import { SyncFailureError, classifySyncFailure } from './sync-failure-class.js';
 import type { AuthoritativeEffectPage, SyncPullEventV02, SyncPullV02 } from '@know-n/colp/types';
 import type { JsonObject, PullPageInput } from './sync-state-store.js';
 import type { PullApplierOptions, PullCursorAuthority } from './pull-applier-types.js';
@@ -25,7 +25,7 @@ export function assertPullApplierGate(options: PullApplierOptions): void {
       || options.session.conversionPolicy?.separator !== 'preserve_remote'
       || !options.effectPageTemplate.includes('{effectId}') || !options.effectPageTemplate.includes('{pageNumber}')
       || new URL(options.effectPageTemplate.replace('{effectId}', 'probe').replace('{pageNumber}', '1')).origin
-        !== options.effectPageAuthority) throw new Error('pull_effect_gate_closed');
+        !== options.effectPageAuthority) throw new SyncFailureError('pull_effect_gate_closed');
 }
 
 export function createPullPageStager(options: PullApplierOptions, now: () => number,
@@ -33,8 +33,8 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
   async function pull(cursor: string): Promise<void> { await withPullFreeze(options, () => pullValidated(cursor)); }
 
   async function pullValidated(cursor: string): Promise<void> {
-    assertPullApplierGate(options); if (!options.endpoints || !options.credential) throw new Error('pull_transport_unavailable');
-    if (options.endpoints.syncEffectPages !== options.effectPageTemplate) throw new Error('effect_endpoint_binding_invalid');
+    assertPullApplierGate(options); if (!options.endpoints || !options.credential) throw new SyncFailureError('pull_transport_unavailable');
+    if (options.endpoints.syncEffectPages !== options.effectPageTemplate) throw new SyncFailureError('effect_endpoint_binding_invalid');
     const endpoint = new URL(options.endpoints.syncPull); endpoint.searchParams.set('sessionId', options.session.sessionId);
     endpoint.searchParams.set('cursor', cursor);
     const headers = { Accept: 'application/json', ...colpCredentialHeaders(options.credential.accessToken), ...(options.origin ? { Origin: options.origin } : {}),
@@ -42,15 +42,15 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
     const response = await (options.fetch ?? fetch)(endpoint, {
       redirect: 'error', cache: 'no-store', credentials: 'omit', headers,
     });
-    if (!response.ok) throw new Error('pull_failed');
+    if (!response.ok) throw new SyncFailureError('pull_failed');
     const pullBytes = sessionTransportBudget(options.session).pullResponseBytes;
     const body = await readBoundedJson(response, pullBytes, 'pull_page_invalid') as Record<string, unknown>;
-    if (!syncPullV02(body) || !Array.isArray(body.events)) throw new Error('pull_page_invalid');
+    if (!syncPullV02(body) || !Array.isArray(body.events)) throw new SyncFailureError('pull_page_invalid');
     const validatedEvents = body.events.map((candidate) => validatePullEvent(candidate as SyncPullEventV02));
     assertUniqueEvents(validatedEvents);
     if (validatedEvents.some((candidate) => candidate.kind === 'operation'
       && (candidate.operation.collectionId !== options.scope.collectionId
-        || candidate.effect.collectionId !== options.scope.collectionId))) throw new Error('pull_source_binding_invalid');
+        || candidate.effect.collectionId !== options.scope.collectionId))) throw new SyncFailureError('pull_source_binding_invalid');
     const refs = validatedEvents.flatMap((candidate) => candidate.kind !== 'operation'
       || candidate.effect.kind !== 'subtree_deleted' || !('effectRef' in candidate.effect) || !candidate.effect.effectRef
       ? [] : [{ effectId: candidate.effect.effectId, pageCount: candidate.effect.effectRef.pageCount,
@@ -72,18 +72,18 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
 
   async function stageValidated(raw: unknown, cursorAuthority: PullCursorAuthority = {}): Promise<void> {
     assertPullApplierGate(options);
-    if (!record(raw)) throw new Error('pull_page_invalid');
+    if (!record(raw)) throw new SyncFailureError('pull_page_invalid');
     let suppliedPages = Array.isArray(raw.effectPages) ? raw.effectPages : [];
     const response = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== 'effectPages'));
     if (!syncPullV02(response) || byteLength(response) > sessionTransportBudget(options.session).pullResponseBytes) {
-      throw new Error('pull_page_invalid');
+      throw new SyncFailureError('pull_page_invalid');
     }
     const pull = response as unknown as SyncPullV02;
     const pageRefs = pull.events.flatMap((candidate) => candidate.kind === 'operation'
       && candidate.effect.kind === 'subtree_deleted' && 'effectRef' in candidate.effect && candidate.effect.effectRef
       ? [{ effectId: candidate.effect.effectId, pageCount: candidate.effect.effectRef.pageCount }] : []);
     if (pageRefs.length && suppliedPages.length === 0) {
-      if (!options.endpoints || !options.credential) throw new Error('effect_page_transport_unavailable');
+      if (!options.endpoints || !options.credential) throw new SyncFailureError('effect_page_transport_unavailable');
       const headers = { Accept: 'application/json',
         ...colpCredentialHeaders(options.credential.accessToken), ...(options.origin ? { Origin: options.origin } : {}),
         'Known-Sync-Session': options.session.sessionId,
@@ -108,20 +108,20 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
     // set aside earlier. Events about either stage normally and are decided at apply.
     const stagedCreates = new Set<string>((await options.store.listPullIssues(options.scope)).map((issue) => issue.nodeId));
     if (byteLength({ response, effectPages: suppliedPages })
-        > sessionTransportBudget(options.session).effectAggregateBytes) throw new Error('pull_page_invalid');
+        > sessionTransportBudget(options.session).effectAggregateBytes) throw new SyncFailureError('pull_page_invalid');
     const effectPages: AuthoritativeEffectPage[] = suppliedPages.map((page) => plainJson(page) as unknown as AuthoritativeEffectPage);
     const stagedEvents: PullPageInput['events'][number][] = [];
     const tolerated: Array<{ readonly position: number; readonly ids: readonly string[]; readonly error: unknown }> = [];
     const createdAt = new Map<string, number>();
     for (const [position, candidate] of pull.events.entries()) {
       const event = validatePullEvent(candidate);
-      if (seenCursors.has(event.cursor)) throw new Error('pull_event_duplicate'); seenCursors.add(event.cursor);
+      if (seenCursors.has(event.cursor)) throw new SyncFailureError('pull_event_duplicate'); seenCursors.add(event.cursor);
       if (event.kind === 'conflict') {
         const prior = seenConflicts.get(event.conflict.id);
         // A dismiss publishes the resolution at a later commit, so both states
         // can occur on one page. Repeated states and backwards transitions fail.
         if (prior !== undefined && (prior !== 'open' || event.conflict.status !== 'resolved')) {
-          throw new Error('pull_event_duplicate');
+          throw new SyncFailureError('pull_event_duplicate');
         }
         seenConflicts.set(event.conflict.id, event.conflict.status); const conflictDigest = digest(event.conflict);
         stagedEvents.push({ eventId: `${event.cursor}:conflict:${event.conflict.id}`, cursor: event.cursor,
@@ -130,11 +130,11 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
           payload: event as unknown as JsonObject, initialState: 'authority_committed' }); continue; }
       const eventId = `${event.cursor}:${event.operation.opId}`;
       if (seenOperations.has(event.operation.opId) || seenEffects.has(event.effect.effectId)) {
-        throw new Error('pull_event_duplicate');
+        throw new SyncFailureError('pull_event_duplicate');
       }
       seenOperations.add(event.operation.opId); seenEffects.add(event.effect.effectId);
       if (event.operation.collectionId !== options.scope.collectionId || event.effect.collectionId !== options.scope.collectionId) {
-        throw new Error('pull_source_binding_invalid');
+        throw new SyncFailureError('pull_source_binding_invalid');
       }
       if (event.operation.replicaId === options.scope.replicaId
           && event.operation.source?.adapterProfile === 'known-conflict-resolution') {
@@ -143,7 +143,7 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
             && queued.status !== 'terminal' && queued.status !== 'rejected') {
           // Old deployments allocated server resolutions from this browser's
           // lane. Preserve the unexecuted intent and expose the rebuild exit.
-          throw new Error('legacy_resolution_sequence_collision');
+          throw new SyncFailureError('legacy_resolution_sequence_collision');
         }
       }
       const pages = effectPages.filter((page) => page.effectId === event.effect.effectId);
@@ -153,7 +153,7 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
           const error = await itemPreflight(() => runtime.preflightMapping(member, stagedCreates, 'member'));
           if (error !== undefined) tolerated.push({ position, ids: [member], error });
         }
-      } else if (pages.length) throw new Error('unexpected_effect_page');
+      } else if (pages.length) throw new SyncFailureError('unexpected_effect_page');
       const error = await itemPreflight(() => runtime.preflight(event, stagedCreates));
       if (error !== undefined) tolerated.push({ position, ids: dependencyIds(event), error });
       if (event.effect.kind === 'node_created' || event.effect.kind === 'node_restored') {
@@ -173,12 +173,12 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
       options.store.getCursor(options.scope), options.store.getScope(options.scope),
       options.store.listPullPages(options.scope, ['staged'])]);
     const previousCursor = cursorRow?.cursor ?? scopeRow?.checkpoint?.cursor;
-    if (!previousCursor) throw new Error('pull_cursor_missing');
-    if (leftoverPages.some((page) => page.previousCursor === previousCursor)) throw new Error('pull_page_pending');
+    if (!previousCursor) throw new SyncFailureError('pull_cursor_missing');
+    if (leftoverPages.some((page) => page.previousCursor === previousCursor)) throw new SyncFailureError('pull_page_pending');
     const cursorChanged = pull.nextCursor !== previousCursor;
     if ((pull.events.length === 0 && cursorChanged !== (cursorAuthority.reissued === true))
         || (pull.events.length > 0 && pull.events.at(-1)?.cursor !== pull.nextCursor)) {
-      throw new Error('pull_cursor_chain_invalid');
+      throw new SyncFailureError('pull_cursor_chain_invalid');
     }
     const pageId = digest({ previousCursor, nextCursor: pull.nextCursor, events: stagedEvents.map((event) => event.eventId) });
     const localSequenceFloor = pull.events.reduce((floor, event) => event.kind === 'operation'

@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { withinPrivateNativeBoundary } from './native-private-boundary.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { recordKns09Stop } from './kns-09-release.js';
@@ -37,7 +38,7 @@ export async function applyRemoteDeletion(input: {
 }): Promise<RemoteDeletionApply> {
   const { event, mounts, api, requireMapping, store, scope } = input;
   const effect = event.effect;
-  if (effect.kind !== 'node_deleted' && effect.kind !== 'subtree_deleted') throw new Error('pull_effect_kind_invalid');
+  if (effect.kind !== 'node_deleted' && effect.kind !== 'subtree_deleted') throw new SyncFailureError('pull_effect_kind_invalid');
   const ids = remoteDeleteMemberIds(event);
   // Missing members have no proven native identity; process their mapped
   // siblings without inventing a native target from a remote id.
@@ -46,7 +47,7 @@ export async function applyRemoteDeletion(input: {
       rootNativeId: unmountedNativeId(id), projection: { revision: 'deleted', digest: effect.effectDigest } }));
   const rootId = effect.kind === 'node_deleted' ? effect.tombstone.targetId : effect.rootTombstone.targetId;
   const root = mappings.find((row) => row.colpId === rootId);
-  if (!root) throw new Error('mapping_missing:subtree_root');
+  if (!root) throw new SyncFailureError('mapping_missing:subtree_root');
   if (!isNonChromeNativeId(root.nativeId) && await withinPrivateNativeBoundary({ store, scope, mapping: root,
     privateRoots: (await store.getScope(scope))?.privateRoots ?? [], lookup: id => lookupBookmark(native => api.get(native), id) })) {
     const revision = effect.kind === 'node_deleted' ? effect.tombstone.deleteRevision : effect.rootTombstone.deleteRevision;
@@ -61,7 +62,7 @@ export async function applyRemoteDeletion(input: {
       && (await store.getRemoteDeletePolicy(scope)).policy !== 'sync') {
     const decision = await store.getRemoteDeleteDecision(scope, remoteDeleteDecisionId(`${event.cursor}:${event.operation.opId}`));
     if (decision?.state !== 'applying') {
-      recordKns09Stop('unconfirmedDelete', scope); throw new Error('remote_delete_confirmation_required');
+      recordKns09Stop('unconfirmedDelete', scope); throw new SyncFailureError('remote_delete_confirmation_required');
     }
   }
   const members: DeleteMember[] = mappings.map((row) => ({ colpId: row.colpId, nativeId: row.nativeId }));

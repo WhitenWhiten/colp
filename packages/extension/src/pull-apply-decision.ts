@@ -1,3 +1,4 @@
+import { SyncFailureError, PULL_MAPPING_FAILURE, PULL_PREFLIGHT_FAILURE } from './sync-failure-class.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import type { MappingInput } from './sync-state-store.js';
 import type { PullApplierOptions } from './pull-applier-types.js';
@@ -14,7 +15,7 @@ type MappingRole = 'anchor' | 'deletion' | 'parent' | 'parent_revision' | 'targe
 export async function requirePullMapping(options: PullApplierOptions, colpId: string, role: MappingRole) {
   const value = await currentPullMapping(options.store, options.scope, colpId);
   if (value) return role === 'parent' ? mountedPullMapping(options, value) : value;
-  throw new Error(`${role}_mapping_missing`);
+  throw new SyncFailureError(PULL_MAPPING_FAILURE[role], { nodeId: colpId });
 }
 
 /** Intent correlation, Chrome calls and replay must use the same bound parent. */
@@ -27,7 +28,7 @@ export async function mountedPullMapping(options: PullApplierOptions, mapping: M
 export async function preflightPullMapping(options: PullApplierOptions, colpId: string,
   stagedCreates: ReadonlySet<string>, role: 'member' | 'parent' | 'target') {
   const mapping = await options.store.getMappingByColpId(options.scope, colpId);
-  if (!mapping && !stagedCreates.has(colpId)) throw new Error(`preflight_${role}_mapping_missing`);
+  if (!mapping && !stagedCreates.has(colpId)) throw new SyncFailureError(PULL_PREFLIGHT_FAILURE[role], { nodeId: colpId });
   return mapping && role === 'parent' ? mountedPullMapping(options, mapping) : mapping;
 }
 
@@ -35,7 +36,7 @@ export async function requirePullAnchor(options: PullApplierOptions, colpId: str
   nativeParentId: string, stagedCreates: ReadonlySet<string>) {
   if (!colpId || stagedCreates.has(colpId)) return;
   const anchor = await requirePullMapping(options, colpId, 'anchor');
-  if (anchor.parentNativeId !== nativeParentId) throw new Error('anchor_parent_mismatch');
+  if (anchor.parentNativeId !== nativeParentId) throw new SyncFailureError('anchor_parent_mismatch');
 }
 
 export async function preflightPullDependencies(options: PullApplierOptions, event: OpEvent,
@@ -48,7 +49,7 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
     const plan = await planRestored(options.store, options.scope, effect.placement.parentId);
     if (plan.kind === 'skip_unmounted') return;
     if (plan.kind === 'need_authority') {
-      if (!stagedCreates.has(effect.placement.parentId)) throw new Error('need_authority');
+      if (!stagedCreates.has(effect.placement.parentId)) throw new SyncFailureError('need_authority');
       return;
     }
     let parent: Awaited<ReturnType<typeof preflightPullMapping>> | null = null;
@@ -62,7 +63,7 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
   }
   if (effect.kind === 'node_created') {
     const plan = await planCreated(options.store, options.scope, event);
-    if (plan.kind === 'need_authority') throw new Error('need_authority');
+    if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
     if (plan.kind === 'skip_unmounted' || plan.kind === 'bind_mount' || plan.kind === 'recovered_folder') return;
     const parent = await preflightPullMapping(options, effect.placement.parentId, stagedCreates, 'parent');
     const own = event.operation.replicaId === options.scope.replicaId
@@ -94,7 +95,7 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
           permissionConfirmed: (await options.store.getScope(options.scope))?.rootStatus !== 'permission_required',
           pendingLocalOperations: await queueHasPendingTarget(options.store, options.scope, target.colpId),
         });
-        if (plan.action === 'await_dependency') throw new Error('range_dependency_pending');
+        if (plan.action === 'await_dependency') throw new SyncFailureError('range_dependency_pending');
       }
     }
     return;
@@ -121,4 +122,4 @@ export async function commitMissingTerminalSelfDeletion(options: PullApplierOpti
   apiResultEvidence: { operationId: event.operation.opId, recovery: 'self_echo' } });
 }
 
-function unreachableDeletion(): never { throw new Error('pull_effect_kind_invalid'); }
+function unreachableDeletion(): never { throw new SyncFailureError('pull_effect_kind_invalid'); }

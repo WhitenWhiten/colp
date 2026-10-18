@@ -1,9 +1,10 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import type { JsonObject, MappingInput } from './sync-state-store.js';
 import type { PullNode } from './pull-applier-types.js';
 import { digest, plainJson } from './pull-codec.js';
 
 export function nodeContent(node: PullNode): JsonObject {
-  if (node.kind === 'root' || node.kind === 'alias') throw new Error('pull_node_kind_invalid');
+  if (node.kind === 'root' || node.kind === 'alias') throw new SyncFailureError('pull_node_kind_invalid');
   return node.kind === 'separator' ? {} : node.kind === 'bookmark'
     ? { title: node.title, url: node.url ?? '' } : { title: node.title };
 }
@@ -27,20 +28,20 @@ export function nativeContent(content: JsonObject): JsonObject {
 }
 
 export function nodeCreate(node: PullNode): JsonObject {
-  if (node.kind === 'root' || node.kind === 'alias') throw new Error('pull_node_kind_invalid');
+  if (node.kind === 'root' || node.kind === 'alias') throw new SyncFailureError('pull_node_kind_invalid');
   return { kind: node.kind, ...nodeContent(node) };
 }
 
 export function chromeCreate(node: PullNode) {
   if (node.kind === 'root' || node.kind === 'alias' || node.kind === 'separator') {
-    throw new Error('pull_node_kind_invalid');
+    throw new SyncFailureError('pull_node_kind_invalid');
   }
   return node.kind === 'bookmark' ? { title: node.title, url: node.url ?? '' } : { title: node.title };
 }
 
 export function mappingFor(node: PullNode, nativeId: string, parentNativeId: string | null,
   parentColpId: string | null, childrenRevision: string | null, rootNativeId: string): MappingInput {
-  if (node.kind === 'root' || node.kind === 'alias') throw new Error('pull_node_kind_invalid');
+  if (node.kind === 'root' || node.kind === 'alias') throw new SyncFailureError('pull_node_kind_invalid');
   return { nativeId, colpId: node.id, rootNativeId,
     nodeKind: node.kind, ...(parentNativeId ? { parentNativeId } : {}), ...(parentColpId ? { parentColpId } : {}),
     projection: { revision: node.revision, resourceRevision: node.revision, childrenRevision,

@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import type { PullBookmarkApi } from './pull-applier.js';
 import { isSpecialMountRole } from './pull-mount-apply.js';
 import { lookupBookmark } from './bookmark-api-error.js';
@@ -71,7 +72,7 @@ async function tripProjectionApplyBarrier(): Promise<void> {
     return;
   }
   projectionApplyBarrier = undefined;
-  throw new Error('projection_apply_barrier');
+  throw new SyncFailureError('projection_apply_barrier');
 }
 
 export class ProjectionAmbiguousError extends Error {
@@ -105,7 +106,7 @@ export async function recoverSnapshotProjection(input: {
   const live = allLive.filter(row => !deleted.has(row.colpId));
   const retainedDeletes = retainedDeletionMappings(allLive, input.staged, deleted);
   const selected = live.find((mapping) => scopeRecord?.selectedRoots.includes(mapping.colpId));
-  if (!selected) throw new Error('snapshot_root_mapping_missing');
+  if (!selected) throw new SyncFailureError('snapshot_root_mapping_missing');
   const existing = await input.store.listProjectionIntents(input.scope);
   const pending = existing.filter((item) => item.state !== 'terminal');
   if (pending.length === 0) {
@@ -211,7 +212,7 @@ export async function executeProjectionIntents(input: {
       }
       continue;
     }
-    if (intent.generation !== input.scope.generation) throw new Error('projection_generation_fenced');
+    if (intent.generation !== input.scope.generation) throw new SyncFailureError('projection_generation_fenced');
     await input.store.settleProjectionIntent(input.scope, intent.intentId, { state: 'executing' });
     let observed: string | undefined | 'ambiguous';
     let activeIntent = intent;
@@ -272,7 +273,7 @@ function prepareCreateIntent(
   if (intent.kind !== 'create' || intent.parentNativeId || !intent.parentColpId) return intent;
   const parentNativeId = mappings.get(intent.parentColpId)?.nativeId;
   if (!parentNativeId || virtualNativeId(parentNativeId)) {
-    throw new Error('snapshot_parent_mapping_missing');
+    throw new SyncFailureError('snapshot_parent_mapping_missing');
   }
   return {
     ...intent,
@@ -287,7 +288,7 @@ function prepareMoveIntent(
 ): ProjectionIntentRecord {
   if (intent.kind !== 'move' || intent.parentNativeId || !intent.parentColpId) return intent;
   const parentNativeId = mappings.get(intent.parentColpId)?.nativeId;
-  if (!parentNativeId || virtualNativeId(parentNativeId)) throw new Error('snapshot_parent_mapping_missing');
+  if (!parentNativeId || virtualNativeId(parentNativeId)) throw new SyncFailureError('snapshot_parent_mapping_missing');
   return { ...intent, parentNativeId };
 }
 
@@ -395,7 +396,7 @@ async function perform(
   if (intent.kind === 'create') {
     const parentNativeId = intent.parentNativeId
       ?? (intent.parentColpId ? mappings.get(intent.parentColpId)?.nativeId : undefined);
-    if (!parentNativeId || virtualNativeId(parentNativeId)) throw new Error('snapshot_parent_mapping_missing');
+    if (!parentNativeId || virtualNativeId(parentNativeId)) throw new SyncFailureError('snapshot_parent_mapping_missing');
     const children = await api.getChildren(parentNativeId);
     const resolution = resolveCreateIdentity({ intent, children, occupancy });
     if (resolution.action === 'ambiguous') return 'ambiguous';
@@ -425,14 +426,14 @@ async function perform(
   }
   if (intent.kind === 'update' && intent.nativeId) {
     const incoming = snapshotMappings.get(intent.colpId) ?? mappings.get(intent.colpId);
-    if (!incoming) throw new Error('snapshot_content_baseline_missing');
+    if (!incoming) throw new SyncFailureError('snapshot_content_baseline_missing');
     mappings.set(intent.colpId, await applySnapshotContent({ store: ctx.store, scope: ctx.scope, api,
       incoming, intent, cursor: ctx.snapshotCursor }));
     return intent.nativeId;
   }
   if (intent.kind === 'move' && intent.nativeId) {
     const incoming = snapshotMappings.get(intent.colpId) ?? mappings.get(intent.colpId);
-    if (!incoming) throw new Error('snapshot_placement_baseline_missing');
+    if (!incoming) throw new SyncFailureError('snapshot_placement_baseline_missing');
     mappings.set(intent.colpId, await applySnapshotPlacement({
       store: ctx.store, scope: ctx.scope, api, incoming, intent,
     }));

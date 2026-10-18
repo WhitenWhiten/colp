@@ -1,3 +1,4 @@
+import { SyncFailureError } from '../sync-failure-class.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import type { JsonObject, SyncScope } from './types.js';
 import { boundedString, clone, validateRecord } from './codec.js';
@@ -47,7 +48,7 @@ export function createReorderRepository(ctx: SyncStoreRuntime) {
     const pending = await Promise.all(rows.map(async row => {
       const moves = await requestValue<(PendingReorder['moves'][number] & { ordinal: number })[]>(
         index.getAll(range(key, movePrefix(key, row.parentNativeId))));
-      if (moves.length !== row.moveCount) throw new Error('reorder_incomplete');
+      if (moves.length !== row.moveCount) throw new SyncFailureError('reorder_incomplete');
       return { ...row, moves: moves.sort((a, b) => a.ordinal - b.ordinal) };
     }));
     await done; return clone(pending);

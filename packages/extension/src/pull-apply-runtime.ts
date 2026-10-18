@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { setAsideFailedPullItem, setAsidePullItem } from './pull-item-set-aside.js';
 import { createPullBookmarkEvidence, readOptional } from './pull-bookmark-evidence.js';
 import { createExpectation, executePullNativeCreate, recoverCreatedNative } from './pull-create-evidence.js';
@@ -63,14 +64,14 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
 
   async function resumeApply(): Promise<void> {
     assertPullApplierGate(options);
-    if (await kns09Paused('pull')) throw new Error('sync_paused');
+    if (await kns09Paused('pull')) throw new SyncFailureError('sync_paused');
     await settleParkedRemoteDeletes(options, now);
     const authority = await readPullApplyAuthority(options);
     const events = await options.store.listPullEvents(options.scope,
       ['staged', 'intent_prepared', 'browser_call_started', 'native_event_observed', 'authority_committed']);
     if (events.some(event => event.state !== 'authority_committed')
       && (authority.lifecycle === 'recovery_required' || (authority.frozen && authority.lifecycle !== 'active'))) {
-      throw new Error('recovery_required');
+      throw new SyncFailureError('recovery_required');
     }
     for (const raw of events) {
       if (raw.state === 'authority_committed') continue;
@@ -163,7 +164,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       const plan = planRemoteMove({ event, mapping, parent, mounts, generation: options.scope.generation,
         permissionConfirmed: (await options.store.getScope(options.scope))?.rootStatus !== 'permission_required',
         pendingLocalOperations: await queueHasPendingTarget(options.store, options.scope, mapping.colpId) });
-      if (plan.action === 'await_dependency') throw new Error('range_dependency_pending');
+      if (plan.action === 'await_dependency') throw new SyncFailureError('range_dependency_pending');
       const index = plan.chromeMutation
         ? await nativeIndex(effect.placement.afterId, effect.placement.beforeId) : 0;
       if (plan.action === 'materialize_independent') {
@@ -196,10 +197,10 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
 
   async function expectedCreateLike(event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
     const effect = event.effect;
-    if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') throw new Error('pull_effect_kind_invalid');
+    if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
     if (effect.kind === 'node_created') {
       const plan = await planCreated(options.store, options.scope, event);
-      if (plan.kind === 'need_authority') throw new Error('need_authority');
+      if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
       if (plan.kind === 'skip_unmounted') {
         return { eventKind: 'sidecar' as const, nativeId: unmountedNativeId(effect.node.id),
           parentNativeId: unmountedNativeId(effect.placement.parentId), details: { effectDigest: effect.effectDigest },
@@ -217,7 +218,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       }
     } else {
       const plan = await planRestored(options.store, options.scope, effect.placement.parentId);
-      if (plan.kind === 'need_authority') throw new Error('need_authority');
+      if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
       if (plan.kind === 'skip_unmounted') {
         return { eventKind: 'sidecar' as const, nativeId: unmountedNativeId(effect.node.id),
           parentNativeId: unmountedNativeId(effect.placement.parentId), details: { effectDigest: effect.effectDigest },
@@ -278,7 +279,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         mappings.push(await bindMountMappings(effect.node, plan.mount, effect.placement.parentId,
           effect.nodeChildrenRevision));
       } else if (plan.kind === 'need_authority') {
-        throw new Error('need_authority');
+        throw new SyncFailureError('need_authority');
       } else if (plan.kind === 'skip_unmounted') {
         mappings.push(mappingFor(effect.node, unmountedNativeId(effect.node.id),
           unmountedNativeId(effect.placement.parentId), effect.placement.parentId, effect.nodeChildrenRevision,
@@ -302,7 +303,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
           && event.operation.replicaId === options.scope.replicaId) {
         mappings.push(await selfCreateProjection(event, existing, await requireMapping(effect.placement.parentId, 'parent')));
       } else if (effect.node.kind === 'separator' && options.session.conversionPolicy?.separator !== 'native') {
-        if (options.session.conversionPolicy?.separator !== 'preserve_remote') throw new Error('separator_conversion_blocked');
+        if (options.session.conversionPolicy?.separator !== 'preserve_remote') throw new SyncFailureError('separator_conversion_blocked');
         const parent = await requireMapping(effect.placement.parentId, 'parent');
         mappings.push(mappingFor(effect.node, `sidecar:${effect.node.id}`, parent.nativeId, parent.colpId,
           effect.nodeChildrenRevision, parent.rootNativeId));
@@ -318,7 +319,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         const occupied = await options.store.getMappingByNativeId(options.scope, outcome.nativeId);
         if (occupied && occupied.colpId !== effect.node.id) {
           recordKns09Stop('mappingIdentityCollision', options.scope);
-          await enterRecoveryRequired('mapping_identity_collision'); throw new Error('recovery_required');
+          await enterRecoveryRequired('mapping_identity_collision'); throw new SyncFailureError('recovery_required');
         }
         mappings.push(mappingFor(effect.node, outcome.nativeId, parentNative, parent.colpId,
           effect.nodeChildrenRevision, parentRoot));
@@ -377,7 +378,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       deleteNativeIds.push(...applied.deleteNativeIds); observations.push(...applied.observations);
       mappings.push(...applied.mappings);
       if (applied.rangeExit) rangeExit = applied.rangeExit;
-    } else throw new Error('pull_effect_kind_invalid');
+    } else throw new SyncFailureError('pull_effect_kind_invalid');
     const live = await options.store.getPullEvent(options.scope, eventId);
     if (live?.state === 'intent_prepared') {
       await options.store.markPullBrowserCallStarted(options.scope, eventId);
@@ -398,7 +399,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
   async function selfCreateProjection(event: Extract<SyncPullEventV02, { kind: 'operation' }>,
     existing: MappingInput, parent: MappingInput): Promise<MappingInput> {
     const effect = event.effect;
-    if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') throw new Error('pull_effect_kind_invalid');
+    if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
     const expectedNode = chromeCreate(effect.node);
     // Verification read, not an existence expectation: a vanished native must reach the existing
     // `native === undefined` branch (which then proves or refuses the self projection), while a
@@ -423,7 +424,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       advanced = !exact && await advancedSelfProjectionIsProven(options.store, options.scope,
         existing, native, parent.nativeId, event.operation.sequence);
     }
-    if (!exact && !advanced) { await enterRecoveryRequired('create_ambiguous'); throw new Error('recovery_required'); }
+    if (!exact && !advanced) { await enterRecoveryRequired('create_ambiguous'); throw new SyncFailureError('recovery_required'); }
     const { scopeKey: _scopeKey, ...currentMapping } = existing as MappingInput & { readonly scopeKey?: string };
     return advanced ? currentMapping : mappingFor(effect.node, existing.nativeId, parent.nativeId, parent.colpId,
       effect.kind === 'node_created' ? effect.nodeChildrenRevision : null, parent.rootNativeId);
@@ -488,11 +489,11 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
 
   async function recoverObservedCreate(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
     const effect = event.effect; if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') {
-      throw new Error('pull_effect_kind_invalid'); }
+      throw new SyncFailureError('pull_effect_kind_invalid'); }
     const intent = await options.store.getApplyIntent(options.scope, `intent:${eventId}`);
     const nativeId = intent?.nativeEventEvidence?.nativeId
         ?? intent?.apiResultEvidence?.nativeId;
-    if (typeof nativeId !== 'string') { await enterRecoveryRequired('create_evidence_missing'); throw new Error('recovery_required'); }
+    if (typeof nativeId !== 'string') { await enterRecoveryRequired('create_evidence_missing'); throw new SyncFailureError('recovery_required'); }
     const parent = await requireMapping(effect.placement.parentId, 'parent').catch((error: unknown) => {
       if (effect.kind === 'node_restored') return null;
       throw error;
@@ -502,7 +503,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const live = readOptional(parent ? await lookup(nativeId) : undefined);
     if (!parent || !live || live.parentId !== parent.nativeId) {
       if (effect.kind === 'node_restored') { await callAndCommit(eventId, event); return; }
-      await enterRecoveryRequired('create_evidence_missing'); throw new Error('recovery_required');
+      await enterRecoveryRequired('create_evidence_missing'); throw new SyncFailureError('recovery_required');
     }
     await options.store.recordPullApiEvidence(options.scope, eventId, { operationId: event.operation.opId,
       resultDigest: digest({ nativeId }) });

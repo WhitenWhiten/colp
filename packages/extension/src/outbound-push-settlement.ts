@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import type { RecaptureQueueRow } from './queue-recapture.js';
 import { reasonCode } from './push-error-code.js';
 import type { ParsedPushResult } from './sync-push-wire.js';
@@ -33,7 +34,7 @@ export async function settlePushResult(input: {
   const successfulCreate = queue.payload.type === 'create_node'
     && (parsed.result.status === 'applied' || parsed.result.status === 'rebased');
   if (successfulCreate && (typeof parsed.result.targetId !== 'string'
-      || typeof parsed.result.revision !== 'string')) throw new Error('authoritative_create_result_invalid');
+      || typeof parsed.result.revision !== 'string')) throw new SyncFailureError('authoritative_create_result_invalid');
   const create = successfulCreate
     ? await input.authoritativeCreate(queue, parsed.result.targetId!, parsed.result.revision!) : undefined;
   const mergedTransform = queue.payload.type === 'update_node_content'

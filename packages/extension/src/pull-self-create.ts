@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { canonicalOperationDigest } from '@know-n/colp/sync/canonical';
 import type { Operation, SyncPullEventV02 } from '@know-n/colp/types';
 import { plannedCreateNativeId } from './bookmark-event-codec.js';
@@ -18,15 +19,15 @@ export async function provisionalSelfCreateMapping(options: PullApplierOptions,
   if (!queued || queued.payload.type !== 'create_node') return null;
   if (queued.sequence !== event.operation.sequence
       || canonicalOperationDigest(queued.payload as unknown as Operation) !== event.effect.operationDigest) {
-    throw new Error('pull_source_binding_invalid');
+    throw new SyncFailureError('pull_source_binding_invalid');
   }
   const current = await options.store.getMappingByNativeId(options.scope, nativeId);
   if (current && current.colpId !== event.effect.node.id && !current.colpId.startsWith('pending-')) {
-    throw new Error('mapping_identity_collision');
+    throw new SyncFailureError('mapping_identity_collision');
   }
   const canonical = await options.store.getMappingByColpId(options.scope, event.effect.node.id);
   if (canonical && canonical.nativeId !== nativeId && !virtualNativeId(canonical.nativeId)) {
-    throw new Error('mapping_identity_collision');
+    throw new SyncFailureError('mapping_identity_collision');
   }
   return mappingFor(event.effect.node, nativeId, parent.nativeId, parent.colpId,
     event.effect.nodeChildrenRevision, parent.rootNativeId);

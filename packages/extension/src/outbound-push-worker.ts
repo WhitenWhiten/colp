@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import type { RecaptureQueueRow } from './queue-recapture.js';
 import { rejectExcludedBootstrapUpload } from './bootstrap/upload-rejection.js';
 import { sendBootstrapCreateBatch } from './outbound-push-batch.js';
@@ -190,7 +191,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
           await options.assertUploadAllowed?.(row);
           await options.boundary?.('before_attempt_persist', row);
           const rebased = await rebasePlacement(row, lease.fence);
-          if (typeof rebased === 'string') throw new Error('push_batch_placement_changed');
+          if (typeof rebased === 'string') throw new SyncFailureError('push_batch_placement_changed');
           const prepared = await ensureAttempt(rebased, authority.session, lease.fence);
           await options.boundary?.('after_attempt_persist', prepared); return prepared;
         },
@@ -576,7 +577,7 @@ function canonicalJson(value: unknown): string { if (Array.isArray(value)) retur
   if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>)
     .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
     .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  const encoded = JSON.stringify(value); if (encoded === undefined) throw new Error('push_request_invalid'); return encoded; }
+  const encoded = JSON.stringify(value); if (encoded === undefined) throw new SyncFailureError('push_request_invalid'); return encoded; }
 function digestJson(value: unknown) { return bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value)))); }
 function digestBytes(value: string) { return bytesToHex(sha256(new TextEncoder().encode(value))); }
 function jsonContentType(response: Response) { return /^application\/json(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? ''); }

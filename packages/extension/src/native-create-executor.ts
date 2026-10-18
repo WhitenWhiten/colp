@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 /**
  * C-02 native create: persist started, Chrome, then receipt. Callers never
  * treat a missing nativeId as permission to create again.
@@ -168,7 +169,7 @@ async function ensureIntent(input: NativeCreateInput): Promise<IntentRecord> {
     throw error;
   }
   const created = await input.store.getApplyIntent(input.scope, input.intentId);
-  if (!created) throw new Error('intent_not_found');
+  if (!created) throw new SyncFailureError('intent_not_found');
   return created;
 }
 

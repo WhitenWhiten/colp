@@ -1,3 +1,4 @@
+import { SyncFailureError } from '../sync-failure-class.js';
 import type { AttentionReportRecord, AttentionItemRecord } from '../bootstrap/attention-report.js';
 import { requestValue } from './idb.js';
 import { validateRecord } from './codec.js';
@@ -22,6 +23,6 @@ export async function loadAttentionPages(tx: IDBTransaction, key: string, report
   const pages = await Promise.all(Array.from({ length: report.pageCount }, (_, page) =>
     requestValue(tx.objectStore(STORES.diagnostics).get(pageId(key, report.reportId, page))) as
       Promise<{ items: AttentionItemRecord[] } | undefined>));
-  if (pages.some(page => !page)) throw new Error('attention_page_missing');
+  if (pages.some(page => !page)) throw new SyncFailureError('attention_page_missing');
   return { ...report, items: pages.flatMap(page => page!.items) };
 }

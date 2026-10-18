@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import { lookupBookmarkChildren, type BookmarkNode } from './bookmark-api-error.js';
 import { digest } from './pull-codec.js';
@@ -162,7 +163,7 @@ export async function applyPlannedMove(input: {
   readonly crash?: (boundary: string) => void;
   readonly permissionGranted?: boolean;
 }): Promise<PlannedMoveApply> {
-  if (input.plan.action === 'await_dependency') throw new Error('range_dependency_pending');
+  if (input.plan.action === 'await_dependency') throw new SyncFailureError('range_dependency_pending');
   const effect = input.event.effect as MoveEffect;
   const revisions = await Promise.all(effect.parentRevisions.map(input.parentRevisionMapping));
   if (input.plan.action === 'native_move' && input.plan.chromeMutation) {
@@ -233,7 +234,7 @@ async function refuseDriftedChromeMove(input: {
   if (boundaryDrifted(input.plan, input.mapping, input.parent, mounts, {
     generation: input.scope.generation,
     permissionConfirmed: (await input.store.getScope(input.scope))?.rootStatus !== 'permission_required',
-  })) throw new Error('range_dependency_pending');
+  })) throw new SyncFailureError('range_dependency_pending');
 }
 
 function verifiedSubtree(root: MappingInput, mappings: readonly MappingInput[]): MappingInput[] {

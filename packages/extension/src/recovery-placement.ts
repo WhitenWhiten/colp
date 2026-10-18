@@ -1,3 +1,4 @@
+import { SyncFailureError } from './sync-failure-class.js';
 import { durableEventDetails, digestJson } from './bookmark-event-codec.js';
 import { withinPrivateNativeBoundary } from './native-private-boundary.js';
 import { isNonChromeNativeId } from './pull-mount-apply.js';
@@ -44,22 +45,22 @@ export async function applySnapshotPlacement(input: {
 }): Promise<MappingInput> {
   const { store, scope, api, incoming, intent } = input;
   const prior = await store.getMappingByColpId(scope, incoming.colpId);
-  if (!prior || prior.nativeId !== incoming.nativeId) throw new Error('snapshot_placement_baseline_missing');
+  if (!prior || prior.nativeId !== incoming.nativeId) throw new SyncFailureError('snapshot_placement_baseline_missing');
   const parentColpId = intent.parentColpId ?? incoming.parentColpId;
   if (!parentColpId) {
-    throw new Error('snapshot_placement_parent_missing');
+    throw new SyncFailureError('snapshot_placement_parent_missing');
   }
   const remoteParent = await store.getMappingByColpId(scope, parentColpId);
   const parentNativeId = intent.parentNativeId ?? remoteParent?.nativeId;
   if (!remoteParent || !parentNativeId || virtualNativeId(parentNativeId)
       || remoteParent.nativeId !== parentNativeId) {
-    throw new Error('snapshot_placement_parent_missing');
+    throw new SyncFailureError('snapshot_placement_parent_missing');
   }
   const mounts = await store.listMountBindings(scope);
   await assertPlacementBoundary(store, scope, api, prior, remoteParent, mounts);
 
   const looked = await lookupBookmark(id => api.get(id), prior.nativeId);
-  if (looked.class === 'not_found') throw new Error('snapshot_placement_target_missing');
+  if (looked.class === 'not_found') throw new SyncFailureError('snapshot_placement_target_missing');
   if (looked.class !== 'present') throw new Error(looked.message);
   const currentParentId = looked.nodes[0]?.parentId;
   const currentIndex = looked.nodes[0]?.index;
@@ -70,12 +71,12 @@ export async function applySnapshotPlacement(input: {
   if (currentParentId !== prior.parentNativeId && currentParentId !== undefined) {
     const localParent = await store.getMappingByNativeId(scope, currentParentId);
     if (!localParent || virtualNativeId(localParent.nativeId)) {
-      throw new Error('snapshot_placement_local_identity_unproven');
+      throw new SyncFailureError('snapshot_placement_local_identity_unproven');
     }
     await assertPlacementBoundary(store, scope, api, prior, localParent, mounts);
     if (!pendingLocal) await stageLocalMove(store, scope, prior, localParent);
   } else if (pendingLocal && currentParentId === undefined) {
-    throw new Error('snapshot_placement_local_identity_unproven');
+    throw new SyncFailureError('snapshot_placement_local_identity_unproven');
   }
 
   await api.move(prior.nativeId, {
@@ -98,22 +99,22 @@ async function assertPlacementBoundary(
   if (isNonChromeNativeId(source.nativeId) || isNonChromeNativeId(destination.nativeId)
       || mappingMountActivity(source, mounts) !== 'active'
       || mappingMountActivity(destination, mounts) !== 'active') {
-    throw new Error('snapshot_placement_boundary');
+    throw new SyncFailureError('snapshot_placement_boundary');
   }
   if (mounts.length > 0) {
     const sourceMount = mountFor(source, mounts); const destinationMount = mountFor(destination, mounts);
     if (!sourceMount || !destinationMount || sourceMount.status !== 'active'
         || destinationMount.status !== 'active' || sourceMount.mountId !== destinationMount.mountId) {
-      throw new Error('snapshot_placement_boundary');
+      throw new SyncFailureError('snapshot_placement_boundary');
     }
   }
-  if (source.rootNativeId !== destination.rootNativeId) throw new Error('snapshot_placement_boundary');
+  if (source.rootNativeId !== destination.rootNativeId) throw new SyncFailureError('snapshot_placement_boundary');
   const privateRoots = (await store.getScope(scope))?.privateRoots ?? [];
   if (privateRoots.length === 0) return;
   const lookup = (id: string) => lookupBookmark(key => api.get(key), id);
   if (await withinPrivateNativeBoundary({ store, scope, mapping: source, privateRoots, lookup })
       || await withinPrivateNativeBoundary({ store, scope, mapping: destination, privateRoots, lookup })) {
-    throw new Error('snapshot_placement_boundary');
+    throw new SyncFailureError('snapshot_placement_boundary');
   }
 }
 
@@ -138,7 +139,7 @@ async function stageLocalMove(
   const source = mapping.parentColpId ? await store.getMappingByColpId(scope, mapping.parentColpId)
     : mapping.parentNativeId ? await store.getMappingByNativeId(scope, mapping.parentNativeId) : null;
   if (!source || !source.projection.childrenRevision || !destination.projection.childrenRevision) {
-    throw new Error('snapshot_placement_children_fence_missing');
+    throw new SyncFailureError('snapshot_placement_children_fence_missing');
   }
   const eventId = `snapshot-placement:${mapping.colpId}:${mapping.projection.revision}:${destination.colpId}`;
   const operation: JsonObject = {
