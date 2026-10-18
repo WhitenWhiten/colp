@@ -1,10 +1,13 @@
-import { useMemo, useRef } from 'react'
-import type { EditorSnapshot } from '../../api'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { productClient, type EditorSnapshot } from '../../api'
+import { BookmarkIcon } from '../../components/BookmarkIcon'
+import { Icon } from '../../components/Icon'
 import { Modal } from '../../components/Modal'
 import { TagInput } from '../../components/TagInput'
 import { importFolderOptions } from '../../lib/bookmarkImport'
+import { providerFaviconSrc } from '../../lib/bookmarkIcon'
 import { countTags } from '../../lib/libraryTags'
-import { rootTitle } from '../../lib/libraryTree'
+import { hostInitial, rootTitle } from '../../lib/libraryTree'
 import { NODE_DESCRIPTION_MAX } from './nodeEditDrawer'
 import type { ComposeKind, LibraryDeskMutations } from './mutations'
 
@@ -16,6 +19,40 @@ function siteName(raw: string): string {
   } catch {
     return ''
   }
+}
+
+/**
+ * The account's provider template while Settings › Favicon fetches icons
+ * online (new bookmarks default to online, or every icon is forced online);
+ * null otherwise. The server sends these hosts to that provider anyway, so
+ * the preview asks it for nothing the account has not already chosen to.
+ */
+function useOnlineFaviconTemplate(enabled: boolean): string | null {
+  const [template, setTemplate] = useState<string | null>(null)
+  useEffect(() => {
+    if (!enabled) return
+    const controller = new AbortController()
+    productClient.getMyFaviconPolicy({ signal: controller.signal, maxRetries: 0 })
+      .then((policy) => {
+        if (controller.signal.aborted) return
+        setTemplate(policy.newDefault === 'online' || policy.forceAllOnline ? policy.providerTemplate : null)
+      })
+      // Favicon settings off on this server, or unreadable: letters only.
+      .catch(() => { if (!controller.signal.aborted) setTemplate(null) })
+    return () => controller.abort()
+  }, [enabled])
+  return template
+}
+
+/** `value` once it has stopped changing for `ms`, so typing a URL does not
+    ask the icon provider about every partial host. */
+function useSettled<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms)
+    return () => clearTimeout(timer)
+  }, [value, ms])
+  return settled
 }
 
 /**
@@ -77,6 +114,18 @@ export function ComposeDialog({ snap, mutations }: {
   // A shared collection's root takes items; the library root holds only the browser folders.
   const rootOption = snap && !snap.collection.library ? { id: snap.root.id, title: rootTitle(snap.collection) } : null
   const site = siteName(createUrl)
+  const onlineTemplate = useOnlineFaviconTemplate(compose === 'bookmark')
+  const settledUrl = useSettled(createUrl.trim(), 400)
+  const iconSrc = onlineTemplate && site && siteName(settledUrl) === site
+    ? providerFaviconSrc(onlineTemplate, settledUrl)
+    : null
+  // What the new row will show: the provider's icon, else the site's letter.
+  const letter = site
+    ? <span className="library-host-letter">{hostInitial(site)}</span>
+    : <Icon name="link" />
+  const mark = iconSrc
+    ? <BookmarkIcon icon={{ kind: 'cdn', src: iconSrc }} className="library-host-favicon" letter={letter} />
+    : letter
   const close = () => { if (!busy) setCompose(null) }
 
   return (
@@ -98,21 +147,24 @@ export function ComposeDialog({ snap, mutations }: {
         {isBookmark && (
           <div className="field">
             <label htmlFor="lc-url">URL</label>
-            <input
-              id="lc-url"
-              inputMode="url"
-              autoComplete="url"
-              spellCheck={false}
-              value={createUrl}
-              onChange={(event) => {
-                setCreateUrl(event.target.value)
-                setCreateUrlError(null)
-              }}
-              disabled={busy}
-              maxLength={4096}
-              aria-invalid={createUrlError ? true : undefined}
-              aria-describedby={createUrlError ? 'lc-url-error' : undefined}
-            />
+            <div className="library-compose-url">
+              <span className="library-compose-icon" aria-hidden data-testid="library-compose-icon">{mark}</span>
+              <input
+                id="lc-url"
+                inputMode="url"
+                autoComplete="url"
+                spellCheck={false}
+                value={createUrl}
+                onChange={(event) => {
+                  setCreateUrl(event.target.value)
+                  setCreateUrlError(null)
+                }}
+                disabled={busy}
+                maxLength={4096}
+                aria-invalid={createUrlError ? true : undefined}
+                aria-describedby={createUrlError ? 'lc-url-error' : undefined}
+              />
+            </div>
             {createUrlError && (
               <p id="lc-url-error" className="field-error" role="alert">{createUrlError}</p>
             )}

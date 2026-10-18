@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 import { hostLetter } from '../components/DomainMark'
-import { bookmarkIconSrc, type BookmarkIconInput } from './bookmarkIcon'
+import { bookmarkIconSrc, providerFaviconSrc, type BookmarkIconInput } from './bookmarkIcon'
 import { hostInitial } from './libraryTree'
 
 const OBJECT_ID = '01234567-89ab-4cde-8f01-23456789abcd'
@@ -156,5 +156,30 @@ describe('CDN hostname key vs letter keys', () => {
     })
     expect(cdn).toEqual({ kind: 'cdn', src: WWW_GITHUB_CDN })
     expect(cdn).not.toEqual({ kind: 'letter' })
+  })
+})
+
+describe('providerFaviconSrc', () => {
+  it('fills the account template with the page host, as the server does', () => {
+    expect(providerFaviconSrc('https://favicone.com/{hostname}', 'https://www.GitHub.com/x?y=1'))
+      .toBe('https://favicone.com/www.github.com')
+    expect(providerFaviconSrc('https://icons.example/{hostname}?size=32', 'http://news.ycombinator.com/'))
+      .toBe('https://icons.example/news.ycombinator.com?size=32')
+  })
+
+  it('has no icon for partial, private or non-web addresses', () => {
+    const template = 'https://favicone.com/{hostname}'
+    expect(providerFaviconSrc(template, 'https://exa')).toBeNull()
+    expect(providerFaviconSrc(template, 'https://')).toBeNull()
+    expect(providerFaviconSrc(template, 'https://192.168.1.4/admin')).toBeNull()
+    expect(providerFaviconSrc(template, 'https://nas.local/')).toBeNull()
+    expect(providerFaviconSrc(template, 'ftp://files.example.com/')).toBeNull()
+  })
+
+  it('refuses a template the server would refuse', () => {
+    expect(providerFaviconSrc('http://favicone.com/{hostname}', 'https://github.com')).toBeNull()
+    expect(providerFaviconSrc('https://favicone.com/', 'https://github.com')).toBeNull()
+    expect(providerFaviconSrc('https://{hostname}/{hostname}', 'https://github.com')).toBeNull()
+    expect(providerFaviconSrc('https://user:pw@favicone.com/{hostname}', 'https://github.com')).toBeNull()
   })
 })

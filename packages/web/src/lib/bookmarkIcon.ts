@@ -108,3 +108,31 @@ export function bookmarkIconSrc(input: BookmarkIconInput = {}): BookmarkIconSrc 
   }
   return { kind: 'letter' }
 }
+
+/**
+ * The icon the account's online favicon provider serves for a page, resolved
+ * the way the server resolves it: one {hostname} marker, an https result, and
+ * no literal-IP or reserved hosts on either side. A host without a dot (a URL
+ * still being typed) has no icon yet.
+ */
+export function providerFaviconSrc(template: string, pageUrl: string): string | null {
+  if (template.length === 0 || template.length > 2048 || template.split('{hostname}').length !== 2) return null
+  let page: URL
+  try {
+    page = new URL(pageUrl)
+  } catch {
+    return null
+  }
+  if (page.protocol !== 'http:' && page.protocol !== 'https:') return null
+  const hostname = page.hostname.toLowerCase()
+  if (!hostname.includes('.') || isLiteralIpHostname(hostname) || isReservedHotlinkHost(hostname)) return null
+  let target: URL
+  try {
+    target = new URL(template.replace('{hostname}', hostname))
+  } catch {
+    return null
+  }
+  if (target.protocol !== 'https:' || target.username !== '' || target.password !== '' || target.hash !== '') return null
+  if (isLiteralIpHostname(target.hostname) || isReservedHotlinkHost(target.hostname)) return null
+  return target.toString()
+}

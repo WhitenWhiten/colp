@@ -46,6 +46,7 @@ vi.mock('../../api', async (importOriginal) => {
       loadAnnotations: mocks.loadAnnotations,
       loadPublicCollectionSnapshot: mocks.loadPublicCollectionSnapshot,
       createCollectionNode: mocks.createCollectionNode,
+      getMyFaviconPolicy: mocks.getMyFaviconPolicy,
       moveCollectionNode: mocks.moveCollectionNode,
       deleteCollectionNode: mocks.deleteCollectionNode,
       getMyLibraryOrder: mocks.getMyLibraryOrder,
@@ -535,6 +536,35 @@ describe('LibraryDesk', () => {
       expect.anything(),
     )
     expect(mocks.success).toHaveBeenCalledWith('Folder created')
+  })
+
+  it('previews the site icon from the online provider while typing the URL', async () => {
+    mocks.getMyFaviconPolicy.mockResolvedValue({
+      revision: '2', newDefault: 'online', providerTemplate: 'https://favicone.com/{hostname}',
+      fillMissing: false, forceAllOnline: false, updatedAt: '2026-07-22T00:00:00.000Z', etag: '"policy-2"',
+    })
+    mount()
+    await waitForDom(domFinishedLoading)
+    openBookmarkCompose()
+    const icon = () => document.querySelector('[data-testid="library-compose-icon"]')
+    // Nothing typed yet: a link glyph, no request to the provider.
+    expect(icon()?.querySelector('img')).toBeNull()
+    setControlValue(document.getElementById('lc-url') as HTMLInputElement, 'https://www.github.com/anthropics')
+    await waitForDom(() => icon()?.querySelector('img') != null)
+    expect(icon()?.querySelector('img')?.getAttribute('src')).toBe('https://favicone.com/www.github.com')
+    expect(icon()?.querySelector('img')?.getAttribute('referrerpolicy')).toBe('no-referrer')
+  })
+
+  it('shows the site letter when icons are not fetched online', async () => {
+    mount()
+    await waitForDom(domFinishedLoading)
+    openBookmarkCompose()
+    setControlValue(document.getElementById('lc-url') as HTMLInputElement, 'https://www.github.com/anthropics')
+    await waitForDom(() => mocks.getMyFaviconPolicy.mock.calls.length > 0)
+    await new Promise((resolve) => setTimeout(resolve, 450))
+    const icon = document.querySelector('[data-testid="library-compose-icon"]')
+    expect(icon?.querySelector('img')).toBeNull()
+    expect(icon?.textContent).toBe('G')
   })
 
   it('starts the library root compose in its first folder and lists folders by path', async () => {

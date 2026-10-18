@@ -917,6 +917,27 @@ button.library-bookmark-tag:hover {
   width: min(100%, 32rem);
 }
 
+/* The URL field leads with the icon the new row will show: the online
+   provider's favicon, else the site's letter, else a link glyph. */
+.library-compose-url {
+  position: relative;
+}
+
+.library-compose-icon {
+  position: absolute;
+  inset-block: 0;
+  left: var(--space-3);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.library-compose-url input {
+  width: 100%;
+  padding-left: calc(var(--space-3) + 1.35rem + var(--space-2));
+}
+
 /* The shared folder layer (FolderEntries), fitted to the desk column — the
    public page centers the same rows at board width. */
 .library-folder-layer {

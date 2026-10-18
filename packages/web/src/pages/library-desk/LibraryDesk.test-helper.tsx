@@ -314,6 +314,10 @@ export function setUpLibraryDesk() {
   resetBookmarkAnnotationsCacheForTests()
   mocks.getBookmarkFaviconSource.mockResolvedValue({ sourceMode: 'inherit', effectiveMode: 'capture', revision: '1', etag: '"favicon-source:1:1"', iconUrl: null, directUrl: null, status: 'missing' })
   mocks.loadAnnotations.mockResolvedValue([])
+  mocks.getMyFaviconPolicy.mockResolvedValue({
+    revision: '1', newDefault: 'capture', providerTemplate: 'https://favicone.com/{hostname}',
+    fillMissing: false, forceAllOnline: false, updatedAt: '2026-07-22T00:00:00.000Z', etag: '"policy-1"',
+  })
   mocks.loadPublicCollectionSnapshot.mockResolvedValue({
     collection: {
       id: 'col-f',
