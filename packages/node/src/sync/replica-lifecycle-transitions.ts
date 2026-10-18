@@ -6,6 +6,7 @@
  */
 
 import { requirePromise } from './internal-guards.js';
+import { compareExactRfc3339Instants as compareInstants, type ExactRfc3339Instant } from '../shared/exact-instant.js';
 import {
   exactLifecycleObject as exactObject,
   lifecycleInstant as instant,
@@ -203,7 +204,7 @@ export interface FreshReplicaLease {
 
 export interface AuthoritativeInstant {
   readonly wire: string;
-  readonly order: number;
+  readonly order: ExactRfc3339Instant;
 }
 
 /** Initial active checkpoint for a successful `register` command. */
@@ -282,7 +283,7 @@ export function buildFreshActiveLeaseCheckpoint(
   if (command.leaseId === checkpoint.leaseId || command.generation === checkpoint.generation) {
     throw new TypeError('A resumed Replica requires a fresh lease ID and lease generation.');
   }
-  if (instant(command.leaseExpiresAt, 'Lease expiry').order <= now.order) {
+  if (compareInstants(instant(command.leaseExpiresAt, 'Lease expiry').order, now.order) <= 0) {
     throw new TypeError('Fresh lease expiry must be later than authoritative time.');
   }
   return Object.freeze({
@@ -354,8 +355,8 @@ export async function applyRenewReplicaCommand(
   }
   const expiry = instant(command.leaseExpiresAt, 'Renewed lease expiry');
   if (
-    expiry.order <= ctx.now.order
-    || expiry.order <= instant(ctx.checkpoint.leaseExpiresAt, 'Current lease expiry').order
+    compareInstants(expiry.order, ctx.now.order) <= 0
+    || compareInstants(expiry.order, instant(ctx.checkpoint.leaseExpiresAt, 'Current lease expiry').order) <= 0
   ) {
     // Renewal must strictly extend the lease beyond authoritative time.
     return replicaLifecycleDenied('invalid_lease_expiry', ctx.checkpoint);
@@ -497,7 +498,7 @@ async function activateFromAcknowledgement(
 > {
   // Checked before the retention decision so a lapsed request adds no recovery
   // transition. The coordinator may already have persisted automatic expiry.
-  if (instant(command.leaseExpiresAt, 'Lease expiry').order <= ctx.now.order) {
+  if (compareInstants(instant(command.leaseExpiresAt, 'Lease expiry').order, ctx.now.order) <= 0) {
     return { state: 'invalid_lease' };
   }
   const window = immutableWindow(

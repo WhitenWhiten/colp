@@ -20,6 +20,7 @@ import {
   readCompactSyncPushBatchBinding, type CompactSyncPushBatchBinding,
 } from './compact-push-batch-binding.js';
 import { immutableRequest as immutablePushRequest } from './push-transaction-guards.js';
+import { immutableRequest as immutableSequenceRequest } from './sequence-validation.js';
 import {
   coordinatePushTransaction,
   type PurePushPreflight,
@@ -521,13 +522,16 @@ export async function coordinateSessionBoundSequence<
 >(
   gate: SessionBoundVerifyInput,
   unitOfWork: SequenceCoordinatorUnitOfWork<Result, Transaction>,
-  request: SequenceOperationRequest,
+  candidateRequest: SequenceOperationRequest,
   evaluate: (
     context: SequenceEvaluationContext<Result>,
     transaction: Transaction,
   ) => Promise<SequenceEvaluation<Result>>,
   ownershipVerifier?: PushReplicaOwnershipVerifier,
 ): Promise<{ readonly session: VerifiedSyncSession; readonly result: SequenceCoordinatorResult<Result> }> {
+  // Authorization and execution must use the same detached request, including
+  // when the host's Session or Replica ownership lookup suspends this call.
+  const request = immutableSequenceRequest(candidateRequest);
   const session = await resolveVerifiedSession(gate);
   assertSessionScope(session, 'sync:push');
   if (session.sessionScope !== 'collection' || session.collectionId === null

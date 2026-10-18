@@ -1,4 +1,5 @@
 import { requirePromise } from './internal-guards.js';
+import { compareExactRfc3339Instants as compareInstants } from '../shared/exact-instant.js';
 import {
   applyAcknowledgeReplicaCommand,
   applyCompleteRecoveryReplicaCommand,
@@ -9,8 +10,7 @@ import {
   buildRegisteredReplicaCheckpoint,
   buildRetiredReplicaCheckpoint,
   denyUnlessAuthorizedRequest,
-  replicaLifecycleCommitted,
-  replicaLifecycleDenied,
+  replicaLifecycleCommitted, replicaLifecycleDenied,
   type ReplicaCheckpoint,
 } from './replica-lifecycle-transitions.js';
 import {
@@ -362,7 +362,7 @@ function immutableCheckpoint(value: unknown, key: ReplicaLifecycleKey): DurableR
   }
   const lastSeenAt = instant(candidate.lastSeenAt, 'Replica lastSeenAt').wire;
   const leaseExpiresAt = instant(candidate.leaseExpiresAt, 'Replica leaseExpiresAt').wire;
-  if (instant(leaseExpiresAt, 'Replica leaseExpiresAt').order <= instant(lastSeenAt, 'Replica lastSeenAt').order) {
+  if (compareInstants(instant(leaseExpiresAt, 'Replica leaseExpiresAt').order, instant(lastSeenAt, 'Replica lastSeenAt').order) <= 0) {
     throw new TypeError('Replica leaseExpiresAt must be later than lastSeenAt.');
   }
   return Object.freeze({
@@ -432,7 +432,7 @@ export function evaluateReplicaSyncBehavior(
   const leaseExpiresAt = instant(candidate.leaseExpiresAt, 'Replica lease expiry').order;
   if (candidate.lifecycle === 'retired') return Object.freeze({ allowed: false, code: 'replica_retired' });
   if (candidate.lifecycle === 'active') {
-    if (now >= leaseExpiresAt) {
+    if (compareInstants(now, leaseExpiresAt) >= 0) {
       return Object.freeze({ allowed: false, code: 'stale_replica' });
     }
     return new Set<ReplicaSyncBehavior>(['establish_session', 'pull', 'push', 'ack', 'renew']).has(behavior)
@@ -516,7 +516,7 @@ async function runReplicaLifecycleTransition<
       if (command.type !== 'register') return (callbackResult = replicaLifecycleDenied('replica_not_found'));
       const authDenial = denyUnlessAuthorizedRequest(command);
       if (authDenial !== undefined) return (callbackResult = authDenial);
-      if (instant(command.leaseExpiresAt, 'Lease expiry').order <= now.order) {
+      if (compareInstants(instant(command.leaseExpiresAt, 'Lease expiry').order, now.order) <= 0) {
         return (callbackResult = replicaLifecycleDenied('invalid_lease_expiry'));
       }
       const registered = await saveAndVerify(
@@ -542,7 +542,7 @@ async function runReplicaLifecycleTransition<
     }
 
     // Auto-expire an active lease that has elapsed under authoritative time.
-    if (checkpoint.lifecycle === 'active' && now.order >= instant(checkpoint.leaseExpiresAt, 'Replica lease expiry').order) {
+    if (checkpoint.lifecycle === 'active' && compareInstants(now.order, instant(checkpoint.leaseExpiresAt, 'Replica lease expiry').order) >= 0) {
       checkpoint = await saveAndVerify(transaction, key, buildExpiredReplicaCheckpoint(checkpoint));
     }
 

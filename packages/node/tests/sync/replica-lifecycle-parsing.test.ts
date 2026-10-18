@@ -23,7 +23,7 @@ describe('replica lifecycle shared parsing', () => {
     expect(lifecycleNonEmpty('replica-1', 'Replica ID')).toBe('replica-1');
     expect(lifecycleInstant('2026-07-22T00:00:00Z', 'Instant')).toEqual({
       wire: '2026-07-22T00:00:00Z',
-      order: Date.parse('2026-07-22T00:00:00Z'),
+      order: { wholeSecond: Date.parse('2026-07-22T00:00:00Z'), fraction: '' },
     });
     expect(lifecycleOrdinal('42', 'Ordinal')).toEqual({ wire: '42', order: 42n });
   });

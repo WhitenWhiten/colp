@@ -296,6 +296,21 @@ describe(`SYNC-0006 durable Tombstone purge coordinator ${evidence}`, () => {
   });
 
   it.each([
+    ['2026-07-18T01:00:00.0001Z', 'blocked'],
+    ['2026-07-18T01:00:00.0009Z', 'purged'],
+    ['2026-07-18T09:00:00.000900+08:00', 'purged'],
+  ] as const)(`never purges before an exact submillisecond deadline at %s ${evidence}`, async (clock, state) => {
+    const storedCandidate = candidate({ tombstone: tombstone({ purgeAfter: '2026-07-18T01:00:00.0009Z' }) });
+    const handle = new DurablePurgeHandle(new SharedDurablePurgeBackend(initialState({ candidate: storedCandidate })));
+    handle.backend.authoritativeTime = clock;
+    await expect(purge(handle)).resolves.toMatchObject({
+      state, ...(state === 'blocked' ? { reason: 'retention_not_elapsed' } : {}),
+    });
+    expect(writeTrace(handle).length).toBe(state === 'blocked' ? 0 : 5);
+    expect(handle.backend.state.tombstone === undefined).toBe(state === 'purged');
+  });
+
+  it.each([
     ['before', '2026-07-18T00:59:59.999Z', 'blocked'],
     ['exactly at', '2026-07-18T01:00:00.000Z', 'purged'],
     ['exactly at with an offset', '2026-07-18T09:00:00.000+08:00', 'purged'],

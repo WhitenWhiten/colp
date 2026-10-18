@@ -1,4 +1,5 @@
 import { isRfc3339DateTime } from '../shared/date-time.js';
+import { parseExactRfc3339Instant, type ExactRfc3339Instant } from '../shared/exact-instant.js';
 import type { ReplicaLifecycleSystemCommand } from './replica-lifecycle.js';
 
 /**
@@ -45,13 +46,13 @@ export function lifecycleNonEmpty(value: unknown, label: string): string {
 export function lifecycleInstant(
   value: unknown,
   label: string,
-): { readonly wire: string; readonly order: number } {
+): { readonly wire: string; readonly order: ExactRfc3339Instant } {
   const wire = lifecycleNonEmpty(value, label);
   if (!isRfc3339DateTime(wire) || /-00:00$/iu.test(wire)) {
     throw new TypeError(`${label} must be an RFC 3339 date-time with a known offset.`);
   }
-  const order = Date.parse(wire);
-  if (!Number.isFinite(order)) throw new TypeError(`${label} must be a representable instant.`);
+  const order = parseExactRfc3339Instant(wire);
+  if (order === undefined) throw new TypeError(`${label} must be a representable instant.`);
   return Object.freeze({ wire, order });
 }
 

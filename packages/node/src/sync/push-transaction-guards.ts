@@ -216,3 +216,24 @@ export function immutableStoredReceipt(
   }
   return receipt;
 }
+
+/** Field-for-field equality for validated receipt and result data. */
+export function samePushData(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right)
+      && left.length === right.length
+      && left.every((entry, index) => samePushData(entry, right[index]));
+  }
+  const leftRecord = left as Readonly<Record<string, unknown>>;
+  const rightRecord = right as Readonly<Record<string, unknown>>;
+  const leftKeys = Object.keys(leftRecord);
+  const rightKeys = Object.keys(rightRecord);
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (const key of leftKeys) {
+    if (!Object.hasOwn(rightRecord, key)) return false;
+    if (!samePushData(leftRecord[key], rightRecord[key])) return false;
+  }
+  return true;
+}

@@ -1,6 +1,7 @@
 import { requirePromise, nonEmptyString } from './internal-guards.js';
 import type { SyncTombstone } from '../types/generated.js';
 import { isRfc3339DateTime } from '../shared/date-time.js';
+import { compareExactRfc3339Instants, parseExactRfc3339Instant, type ExactRfc3339Instant } from '../shared/exact-instant.js';
 import type { ReplicaLifecycle } from './index.js';
 import { immutableJsonData, immutableJsonSnapshot } from '../shared/immutable-json.js';
 import { lifecycleOrdinal as canonicalOrdinal } from './replica-lifecycle-parsing.js';
@@ -322,10 +323,10 @@ function immutableBoundary(value: unknown, collectionId: string): TombstonePurge
   });
 }
 
-function authoritativeInstant(value: unknown, label: string): number {
+function authoritativeInstant(value: unknown, label: string): ExactRfc3339Instant {
   const wire = rfc3339DateTime(value, label);
-  const instant = Date.parse(wire);
-  if (!Number.isFinite(instant)) throw new TypeError(`${label} must be a representable date-time.`);
+  const instant = parseExactRfc3339Instant(wire);
+  if (instant === undefined) throw new TypeError(`${label} must be a representable date-time.`);
   return instant;
 }
 
@@ -404,7 +405,7 @@ export async function coordinateTombstonePurge<
       'Tombstone purge boundary load',
     ), request.collectionId);
 
-    if (now < authoritativeInstant(candidate.tombstone.purgeAfter, 'Sync Tombstone purgeAfter')) {
+    if (compareExactRfc3339Instants(now, authoritativeInstant(candidate.tombstone.purgeAfter, 'Sync Tombstone purgeAfter')) < 0) {
       callbackResult = blocked('retention_not_elapsed');
       return callbackResult;
     }

@@ -27,6 +27,20 @@ const now = '2026-07-18T01:00:00Z';
 const future = '2026-07-18T02:00:00Z';
 const key = Object.freeze({ replicaId: 'replica-1', collectionId: 'collection-1' });
 
+it.each([
+  ['2026-07-18T01:00:00.0001Z', true, 'active'],
+  ['2026-07-18T01:00:00.0009Z', false, 'expired'],
+] as const)('keeps behavior checks and durable expiry exact at %s', async (clock, allowed, lifecycle) => {
+  const leaseExpiresAt = '2026-07-18T01:00:00.0009Z';
+  const backend = new SharedDurableBackend(checkpoint({ leaseExpiresAt }));
+  backend.authoritativeTime = clock;
+  expect(evaluateReplicaSyncBehavior({ lifecycle: 'active', leaseExpiresAt }, 'push', clock).allowed)
+    .toBe(allowed);
+  const handle = new DurableLifecycleHandle(backend);
+  await coordinateReplicaDueExpiry(handle, key);
+  expect(backend.state.replicas.get(key.replicaId)?.lifecycle).toBe(lifecycle);
+});
+
 interface DurableState {
   replicas: Map<string, DurableReplicaCheckpoint>;
   acks: Map<string, ReplicaSnapshotAck>;

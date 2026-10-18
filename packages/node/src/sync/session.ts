@@ -1,4 +1,5 @@
 import { isRfc3339DateTime } from '../shared/date-time.js';
+import { compareExactRfc3339Instants, parseExactRfc3339Instant } from '../shared/exact-instant.js';
 import { principalTypes, samePrincipal, scopeNames } from '../shared/protocol-vocabulary.js';
 import type { PrincipalRef, ScopeName } from '../types/index.js';
 import {
@@ -505,15 +506,15 @@ export async function verifySyncSessionContext(
       ? 'scope_reduced'
       : undefined;
   if (reason === undefined && session.expiresAt !== undefined) {
-    const expiresMs = Date.parse(session.expiresAt);
-    const nowMs = Date.parse(input.terminatedAt);
-    if (!Number.isFinite(expiresMs)) {
+    const expiry = parseExactRfc3339Instant(session.expiresAt);
+    const now = parseExactRfc3339Instant(input.terminatedAt);
+    if (expiry === undefined) {
       throw new TypeError('Stored Sync Session expiresAt is not a representable instant.');
     }
-    if (!Number.isFinite(nowMs)) {
+    if (now === undefined) {
       throw new TypeError('Sync Session terminatedAt must be a representable instant for lease checks.');
     }
-    if (nowMs >= expiresMs) {
+    if (compareExactRfc3339Instants(now, expiry) >= 0) {
       reason = 'lease_expired';
     }
   }

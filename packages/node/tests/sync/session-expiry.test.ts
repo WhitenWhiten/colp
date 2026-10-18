@@ -120,6 +120,20 @@ function verification(
 }
 
 describe('SYNC-V-011 Session expiresAt hardening', () => {
+  it.each([
+    ['2026-07-18T01:00:00.0001Z', 'active'],
+    ['2026-07-18T01:00:00.0009Z', 'terminated'],
+    ['2026-07-18T09:00:00.000900+08:00', 'terminated'],
+    ['2026-07-18T01:00:00.00091Z', 'terminated'],
+  ] as const)('compares submillisecond lease expiry exactly at %s', async (terminatedAt, state) => {
+    const store = new DurableMemorySessionStore();
+    const input = collectionInput({ expiresAt: '2026-07-18T01:00:00.0009Z' });
+    await createSyncSession(store, input);
+    const result = await verifySyncSessionContext(store, verification(input, { terminatedAt }));
+    expect(result.state).toBe(state);
+    await expect(store.load(input.sessionId)).resolves.toMatchObject({ status: state });
+  });
+
   it('verifies an active Session with a future expiresAt', async () => {
     const store = new DurableMemorySessionStore();
     const input = collectionInput({ expiresAt: futureExpiry });

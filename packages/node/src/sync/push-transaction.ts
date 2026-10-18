@@ -24,6 +24,7 @@ import {
   immutablePlan,
   immutableRequest,
   immutableStoredReceipt,
+  samePushData as sameData,
 } from './push-transaction-guards.js';
 import {
   appendSyncOperationReuseAudit,
@@ -456,7 +457,6 @@ async function inspectPushOperation<
   reevaluateDeferred: boolean,
   admission: PushSequenceAdmission = { enforce: false },
 ): Promise<PushInspection> {
-  const laneState = await assertPushSequenceAdmission(transaction, item, admission);
   const attempted = claimForItem(item);
   const byOperationIdRaw = await requirePromise(
     transaction.receipts.findByOperationId(item.operation.opId),
@@ -471,8 +471,22 @@ async function inspectPushOperation<
     'Push replay receipt Sequence load',
   );
   if (byOperationIdRaw === undefined && bySequenceRaw === undefined) {
+    // Lifetime identity survives receipt retention. Resolve it before lane
+    // admission so a gap cannot hide reuse or turn a consumed retry into a
+    // generic storage error. No ID reservation or preflight happens here.
+    const retainedClaim = await loadSyncOperationClaim(transaction.operationClaims, attempted.operationId);
+    if (retainedClaim !== undefined) {
+      if (retainedClaim.digest !== attempted.digest) {
+        return denyPushReuse(transaction, 'op_id_reused', attempted, retainedClaim);
+      }
+      throw new SyncOperationReceiptUnavailableError(
+        'Lifetime Operation claim exists without a complete indexed Push receipt.',
+        retainedClaim,
+      );
+    }
+    const laneState = await assertPushSequenceAdmission(transaction, item, admission);
     if (laneState !== undefined && item.operation.sequence < laneState.nextSequence) {
-      throw new PushSequenceStateUnavailableError(
+      throw new SyncOperationReceiptUnavailableError(
         'Push lane state has advanced beyond a missing consumed receipt.',
       );
     }
@@ -516,6 +530,9 @@ async function inspectPushOperation<
     if (!sameData(bySequence, receiptFor(item, result))) {
       throw new TypeError('Push exact-replay receipt does not match the attempted identity.');
     }
+    // Identity denials above take precedence over admission. An exact replay
+    // still checks the configured lane port and its continuity contract.
+    await assertPushSequenceAdmission(transaction, item, admission);
     if (bySequence.status === 'deferred' && reevaluateDeferred) {
       return Object.freeze({ kind: 'reevaluate' as const, previousDeferredReceipt: bySequence });
     }
@@ -688,26 +705,6 @@ async function commitOperation<
     : Object.freeze({ result, cursor });
 }
 
-function sameData(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true;
-  if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) return false;
-  if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) && Array.isArray(right)
-      && left.length === right.length
-      && left.every((entry, index) => sameData(entry, right[index]));
-  }
-  const leftRecord = left as Readonly<Record<string, unknown>>;
-  const rightRecord = right as Readonly<Record<string, unknown>>;
-  const leftKeys = Object.keys(leftRecord);
-  const rightKeys = Object.keys(rightRecord);
-  if (leftKeys.length !== rightKeys.length) return false;
-  for (const key of leftKeys) {
-    if (!Object.hasOwn(rightRecord, key)) return false;
-    if (!sameData(leftRecord[key], rightRecord[key])) return false;
-  }
-  return true;
-}
-
 async function executeExactlyOnce<Value, Transaction>(
   execute: (
     work: (transaction: Transaction) => Promise<Value>,
@@ -814,14 +811,15 @@ function committedReuseError(denial: PushReuseDenial): SyncOperationReuseError {
  * a callback, and resolve execute only after commit is known (see {@link SyncUnitOfWork.execute}).
  *
  * **Composition:** this coordinator does not call
- * `verifySyncSessionContext`, does not bind `batchId` to a Session, and does
- * not enforce Sequence lane continuity (`sequence_gap` / `sequence_blocked`).
+ * `verifySyncSessionContext` and does not bind `batchId` to a Session. Lane
+ * continuity (`sequence_gap` / `sequence_blocked`) is enforced when the unit
+ * of work declares `pushSequenceContinuity: true`; production Session-bound
+ * Push requires that capability and its transactional lane store.
  * It is an alternative top-level opId reservation owner to
  * `coordinateSequenceOperation` and MUST NOT nest that coordinator in preflight
  * or transaction callbacks. Prefer `coordinateSessionBoundPush` when a Session
- * gate and session-bound `batchId` are required (or bind `batchId` at the HTTP
- * layer). Hosts that need lane continuity must use Sequence as the sole owner
- * for that path instead.
+ * gate and session-bound `batchId` are required. Choose either Sequence or
+ * Push as the sole owner for a write path; do not compose them by nesting.
  */
 export async function coordinatePushTransaction<
   Conflict extends PushConflictRecord,

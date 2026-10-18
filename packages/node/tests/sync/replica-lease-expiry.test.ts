@@ -29,6 +29,7 @@ interface State {
 
 class DurableLifecycle implements ReplicaLifecycleUnitOfWork {
   state: State = { replica: undefined, acks: new Map() };
+  authoritativeTime = now;
   window: ReplicaRetentionWindow = {
     collectionId: 'collection-1',
     earliestPull: { cursor: 'c-0', commitOrdinal: '0' },
@@ -46,7 +47,7 @@ class DurableLifecycle implements ReplicaLifecycleUnitOfWork {
     const transaction: ReplicaLifecycleTransaction = {
       loadReplica: async () => structuredClone(draft.replica),
       saveReplica: async (checkpoint) => { pending.push(`replica:${checkpoint.lifecycle}`); draft.replica = structuredClone(checkpoint); },
-      readAuthoritativeTime: async () => now,
+      readAuthoritativeTime: async () => this.authoritativeTime,
       loadRetentionWindow: async () => structuredClone(this.window),
       loadAuthoritativeSnapshot: async (id) => (id === this.snapshot.snapshotId ? structuredClone(this.snapshot) : undefined),
       saveSnapshotAck: async (ack) => { pending.push('ack'); draft.acks.set(ack.replicaId, structuredClone(ack)); },
@@ -81,6 +82,35 @@ async function replica(lifecycle: DurableLifecycle, command: ReplicaAuthenticate
 const fresh = { leaseId: 'lease-2', generation: 'g2', succeeded: true } as const;
 
 describe('Replica lease expiry against authoritative time', () => {
+  it.each(['register', 'resume', 'complete_recovery'] as const)(
+    'preserves a valid submillisecond fresh lease through %s', async (type) => {
+      const lifecycle = new DurableLifecycle();
+      lifecycle.authoritativeTime = '2026-07-18T02:00:00.0001Z';
+      const leaseExpiresAt = '2026-07-18T02:00:00.0009Z';
+      if (type !== 'register') lifecycle.seed({ lifecycle: type === 'resume' ? 'expired' : 'recovery_required' });
+      const command: ReplicaAuthenticatedLifecycleCommandInput = type === 'register'
+        ? { type, collectionId: key.collectionId, ...fresh, leaseExpiresAt }
+        : type === 'complete_recovery'
+          ? { type, snapshotId: lifecycle.snapshot.snapshotId, ...fresh, leaseExpiresAt }
+          : { type, ...fresh, leaseExpiresAt };
+      expect(await replica(lifecycle, command)).toMatchObject({ state: 'committed', checkpoint: {
+        lifecycle: 'active', lastSeenAt: lifecycle.authoritativeTime, leaseExpiresAt,
+      } });
+      expect(lifecycle.state.replica?.leaseExpiresAt).toBe(leaseExpiresAt);
+      expect(lifecycle.state.acks.size).toBe(type === 'complete_recovery' ? 1 : 0);
+    },
+  );
+
+  it('renews an unexpired lease by a submillisecond amount without early automatic expiry', async () => {
+    const lifecycle = new DurableLifecycle();
+    lifecycle.authoritativeTime = '2026-07-18T02:00:00.0001Z';
+    lifecycle.seed({ leaseExpiresAt: '2026-07-18T02:00:00.0005Z' });
+    const leaseExpiresAt = '2026-07-18T02:00:00.0009Z';
+    expect(await replica(lifecycle, { type: 'renew', succeeded: true, leaseExpiresAt }))
+      .toMatchObject({ state: 'committed', checkpoint: { lifecycle: 'active', leaseExpiresAt } });
+    expect(lifecycle.writes).toEqual(['replica:active']);
+  });
+
   it.each([
     ['equal to authoritative time', now],
     ['already elapsed', '2026-07-18T01:59:59Z'],
