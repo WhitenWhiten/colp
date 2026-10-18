@@ -86,12 +86,7 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
         const committed = { ...event, state: 'authority_committed', pendingMappings: [], pendingObservations: [],
           pendingDeleteNativeIds: [], apiResultEvidence: { setAside: code, nodeId } };
         events.put(committed); putPullTerminalFacts(tx, key, committed);
-        const rows = tx.objectStore(STORES.diagnostics); const id = `${prefix(key)}${nodeId}`;
-        const prior = await requestValue(rows.get(id)) as PullIssueRecord | undefined;
-        const shown = prior?.title ?? title;
-        rows.put({ id, scopeKey: key, kind: 'pull_issue', nodeId, code: prior?.code ?? code, eventId,
-          ...(shown ? { title: shown } : {}),
-          count: (prior?.count ?? 0) + 1, firstSeenAt: prior?.firstSeenAt ?? now, lastSeenAt: now });
+        await putPullIssueFact(tx, key, { code, nodeId, eventId, ...(title ? { title } : {}), now });
       });
   }
 
@@ -156,11 +151,23 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
   return { probeMappingRecord, setAsidePullEvent, listPullIssues, recordLocalIssue, listLocalIssues, listOpenIngressIssues };
 }
 
-/** Recovery cutover rebuilds the replica from a Snapshot, so every Pull issue is decided again. */
+/** Automatic recovery retains unresolved evidence; only proved resolution or explicit repair closes it. */
 export function pullIssueRange(key: string): IDBKeyRange {
   return IDBKeyRange.bound([key, prefix(key)], [key, `${prefix(key)}\uffff`]);
 }
 
 export function localIssueRange(key: string): IDBKeyRange {
   return IDBKeyRange.bound([key, localPrefix(key)], [key, `${localPrefix(key)}\uffff`]);
+}
+
+/** A bounded issue fact, shared by Pull application and Snapshot recovery transactions. */
+export async function putPullIssueFact(tx: IDBTransaction, key: string, issue: {
+  readonly code: string; readonly nodeId: string; readonly eventId: string; readonly title?: string; readonly now: number;
+}): Promise<void> {
+  const rows = tx.objectStore(STORES.diagnostics); const id = `${prefix(key)}${issue.nodeId}`;
+  const prior = await requestValue(rows.get(id)) as PullIssueRecord | undefined;
+  const title = prior?.title ?? issue.title?.slice(0, PULL_ISSUE_TITLE_MAX);
+  rows.put({ id, scopeKey: key, kind: 'pull_issue', nodeId: issue.nodeId, code: prior?.code ?? issue.code,
+    eventId: issue.eventId, ...(title ? { title } : {}), count: (prior?.count ?? 0) + 1,
+    firstSeenAt: prior?.firstSeenAt ?? issue.now, lastSeenAt: issue.now });
 }

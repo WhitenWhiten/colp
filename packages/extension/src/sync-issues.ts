@@ -1,4 +1,4 @@
-import { mergeLocalIssues, blockedPullIssue, isOpenQueueIssue, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
+import { mergeLocalIssues, blockedPullIssue, isOpenQueueIssue, addQueueIssueRoots, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
 /** One interpretation of durable open issues, shared by sync and repair consumers. */
 import { projectNativeWaits, type NativeWaitStore } from './native-wait.js';
 import type { LocalIssueRecord, MappingInput, PullIssueRecord, QueueOperation, SyncScope,
@@ -38,10 +38,7 @@ export async function readOpenSyncIssues(store: Store, scope: SyncScope): Promis
   }
   const waits = store.listApplyIntents ? await projectNativeWaits(store as NativeWaitStore, scope) : [];
   const roots = new Set([...pull.map(row => row.nodeId), ...replica.flatMap(issue => issue.nodeIds)]);
-  for (const row of queue) {
-    if (typeof row.payload.targetId === 'string') roots.add(row.payload.targetId);
-    if (row.payload.type === 'create_node') roots.add(`pending-${row.opId}`);
-  }
+  addQueueIssueRoots(roots, queue);
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
   const nativeRoots = new Set(local.map(row => row.nativeId));
   if (nativeRoots.size && store.listMappings) for (const row of await store.listMappings(scope)) {
@@ -80,4 +77,18 @@ export function dependsOnIssue(targets: readonly string[], roots: ReadonlySet<st
     }
   }
   return false;
+}
+
+/** Preserve the issue closure and only its required ancestors; independent siblings stay eligible. */
+export function issueProtectionIds(mappings: readonly MappingInput[], roots: ReadonlySet<string>): Set<string> {
+  const parents = issueAncestry(mappings);
+  const protectedIds = new Set<string>();
+  for (const mapping of mappings) if (dependsOnIssue([mapping.colpId], roots, parents)) protectedIds.add(mapping.colpId);
+  for (const id of [...protectedIds]) {
+    let parent = parents.get(id); const seen = new Set<string>();
+    for (let depth = 0; parent && depth < 256 && !seen.has(parent); depth++) {
+      seen.add(parent); protectedIds.add(parent); parent = parents.get(parent);
+    }
+  }
+  return protectedIds;
 }

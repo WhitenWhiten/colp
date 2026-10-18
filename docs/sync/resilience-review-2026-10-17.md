@@ -179,3 +179,23 @@ replica-health-report, replica-rebuild, replica-health-outbox and pull-issue-reb
 passed. Includes full target changes, authority change, delayed real Rebuild,
 redelivery, archive-based restart and response-loss delivery. Extension typecheck
 and changed-source/test ESLint passed. No service started.
+
+### Task 2 — Snapshot preserves unresolved evidence
+
+Root causes: overlay protection only read live queue targets; virtual projection
+omitted protected identities absent from Snapshot; cutover deleted all Pull/local
+issues. Shared bounded issue closure now protects descendants and required
+ancestors in projection and transactional mapping cutover, including rejected
+uploads and ingress/native waits. Missing Snapshot identities retain mappings and
+anti-upload exclusions. Unresolved native wait evidence survives cutover; blocked
+page subjects become durable Pull issues before obsolete page bookkeeping retires.
+Resumed delete intents reread protection and retain their original recovery state.
+Finalize allows extra identities only when existing issue evidence proves protection.
+
+Before: both supplied Snapshot reproductions failed against production modules.
+After: six permanent real-Pull/Snapshot regressions pass, including ordinary and
+virtual cutover, IDB reopen before projection/commit, local folder descendants,
+independent siblings and an already executing delete intent. The six affected
+Snapshot/delete/Rebuild suites passed 64 tests; the final issue-helper check passed
+11 tests. Typecheck and changed-file ESLint passed. Explicit Rebuild still archives
+old evidence and creates a clean new replica (pull-issue-rebuild tests).

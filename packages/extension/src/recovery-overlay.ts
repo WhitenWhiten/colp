@@ -108,8 +108,9 @@ export function planRecoveryOverlay(input: {
   readonly nativeFacts: readonly NativeFact[];
   readonly selectedRootNativeId: string;
   readonly allowTitleUrlIdentityGuess?: boolean;
+  readonly issueProtectedIds?: ReadonlySet<string>;
 }): RecoveryOverlayPlan {
-  const protectedIds = protectedColpIds(input.outstanding);
+  const protectedIds = new Set([...protectedColpIds(input.outstanding), ...input.issueProtectedIds ?? []]);
   const snapshotIds = new Set(input.snapshot.map((node) => node.colpId));
   const byColp = new Map(input.mappings.map((mapping) => [mapping.colpId, mapping]));
   const nativeById = new Map(input.nativeFacts.map((fact) => [fact.nativeId, fact]));
@@ -155,6 +156,10 @@ export function planRecoveryOverlay(input: {
     const index = pending.findIndex((node) => !node.parentColpId || placed.has(node.parentColpId));
     if (index < 0) break;
     const [node] = pending.splice(index, 1) as [RecoveryOverlayNode];
+    const protectedPrior = input.issueProtectedIds?.has(node.colpId) ? byColp.get(node.colpId) : undefined;
+    if (protectedPrior) {
+      targetMappings.push(protectedPrior); assigned.add(protectedPrior.nativeId); placed.add(node.colpId); continue;
+    }
     const parentMapping = node.parentColpId
       ? targetMappings.find((item) => item.colpId === node.parentColpId) : undefined;
     const prior = byColp.get(node.colpId);

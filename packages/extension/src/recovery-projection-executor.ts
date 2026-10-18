@@ -1,3 +1,4 @@
+import { readOpenSyncIssues, issueProtectionIds } from './sync-issues.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import type { PullBookmarkApi } from './pull-applier.js';
 import { isSpecialMountRole } from './pull-mount-apply.js';
@@ -91,7 +92,8 @@ type RecoveryStore = RecoveryContentStore & Pick<ReturnType<typeof createSyncSta
   | 'settleProjectionIntent' | 'exportScope' | 'putMapping' | 'getMappingByColpId' | 'deleteMapping'
   | 'getApplyIntent' | 'createApplyIntent' | 'findApplyIntent' | 'listApplyIntents'
   | 'persistApplyIntentFacts' | 'listLocalSyncExclusions' | 'getPullEvent'
-  | 'markPullBrowserCallStarted' | 'recordPullApiEvidence' | 'getMappingByNativeId'>;
+  | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'
+  | 'putLocalSyncExclusion' | 'markPullBrowserCallStarted' | 'recordPullApiEvidence' | 'getMappingByNativeId'>;
 
 export async function recoverSnapshotProjection(input: {
   readonly scope: SyncScope;
@@ -101,7 +103,7 @@ export async function recoverSnapshotProjection(input: {
   readonly allowTitleUrlIdentityGuess?: boolean;
 }): Promise<readonly MappingInput[]> {
   const scopeRecord = await input.store.getScope(input.scope);
-  const allLive = await input.store.listMappings(input.scope);
+  const allLive = (await input.store.listMappings(input.scope)).map(({ scopeKey: _key, ...row }) => row);
   const deleted = await pendingLocalDeletionIds(input.store, input.scope, [...allLive, ...input.staged]);
   const live = allLive.filter(row => !deleted.has(row.colpId));
   const retainedDeletes = retainedDeletionMappings(allLive, input.staged, deleted);
@@ -117,6 +119,7 @@ export async function recoverSnapshotProjection(input: {
     const plan = planRecoveryOverlay({
       snapshot, mappings: live, outstanding, nativeFacts, selectedRootNativeId: selected.nativeId,
       allowTitleUrlIdentityGuess: input.allowTitleUrlIdentityGuess,
+      issueProtectedIds: await protectedSnapshotIds(input.store, input.scope, live),
     });
     await input.store.replaceProjectionIntents(input.scope, plan.intents.map((intent) => ({
       ...intent, generation: input.scope.generation, state: 'pending' as const,
@@ -138,9 +141,15 @@ export async function projectVirtualSnapshotChildren(input: {
   readonly bound: readonly MappingInput[];
   readonly snapshotCursor?: string;
 }): Promise<readonly MappingInput[]> {
-  const allLive = await input.store.listMappings(input.scope);
+  const allLive = (await input.store.listMappings(input.scope)).map(({ scopeKey: _key, ...row }) => row);
   const deleted = await pendingLocalDeletionIds(input.store, input.scope, [...allLive, ...input.bound]);
-  const seed = inheritBoundNativeParents([...input.bound.filter(row => !deleted.has(row.colpId)),
+  const protectedIds = await protectedSnapshotIds(input.store, input.scope, allLive);
+  const bound = new Map(input.bound.map(row => [row.colpId, row]));
+  for (const row of allLive) if (protectedIds.has(row.colpId)) {
+    const { scopeKey: _key, ...mapping } = row as MappingInput & { scopeKey?: string };
+    bound.set(row.colpId, mapping);
+  }
+  const seed = inheritBoundNativeParents([...[...bound.values()].filter(row => !deleted.has(row.colpId)),
     ...retainedDeletionMappings(allLive, input.bound, deleted)]);
   const existing = await input.store.listProjectionIntents(input.scope);
   const pending = existing.filter((item) => item.state !== 'terminal');
@@ -148,6 +157,7 @@ export async function projectVirtualSnapshotChildren(input: {
     const live = await input.store.listMappings(input.scope);
     const intents = [...planVirtualChildCreates(seed),
       ...planSnapshotPlacementUpdates(seed, live), ...planSnapshotContentUpdates(seed, live)]
+      .filter(intent => !protectedIds.has(intent.colpId))
       .map((intent, index) => ({ ...intent, order: index + 1 }));
     if (intents.length === 0) return seed;
     await input.store.replaceProjectionIntents(input.scope, intents.map((intent) => ({
@@ -187,6 +197,15 @@ export async function executeProjectionIntents(input: {
   const liveMappings = await input.store.listMappings(input.scope);
   const deleted = await pendingLocalDeletionIds(input.store, input.scope, [...liveMappings, ...input.seedMappings]);
   for (const intent of intents) {
+    const protectedIds = await protectedSnapshotIds(input.store, input.scope, liveMappings);
+    if (intent.state !== 'terminal' && protectedIds.has(intent.colpId)) {
+      // Never discard a call that might have started. Resolve it through its existing evidence path.
+      if (intent.state === 'pending' || intent.kind === 'delete') {
+        const prior = liveMappings.find(row => row.colpId === intent.colpId);
+        if (prior) mappings.set(prior.colpId, prior);
+        continue;
+      }
+    }
     if (deleted.has(intent.colpId)) {
       // Retain the old identity for the removal draft's later queue commit.
       // A pre-pause projection intent must not recreate or update this native.
@@ -521,4 +540,8 @@ function inheritBoundNativeParents(mappings: readonly MappingInput[]): MappingIn
   }
   for (const mapping of pending) ordered.push(byColp.get(mapping.colpId) ?? mapping);
   return ordered;
+}
+
+async function protectedSnapshotIds(store: RecoveryStore, scope: SyncScope, mappings: readonly MappingInput[]) {
+  return issueProtectionIds(mappings, (await readOpenSyncIssues(store, scope)).roots);
 }

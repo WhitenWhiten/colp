@@ -43,3 +43,11 @@ export function isOpenQueueIssue(row: { readonly status?: string; readonly recov
   return (row.status === 'rejected' && row.recovery?.code !== 'recaptured') || row.status === 'set_aside'
     || (row.status === 'blocked' && row.recovery?.code === 'conflict_pending');
 }
+
+export function addQueueIssueRoots(roots: Set<string>, rows: readonly { readonly status?: string;
+  readonly recovery?: { readonly code?: string }; readonly opId: string; readonly payload: { readonly targetId?: unknown; readonly type?: unknown } }[]): void {
+  for (const row of rows.filter(isOpenQueueIssue)) {
+    if (typeof row.payload.targetId === 'string') roots.add(row.payload.targetId);
+    if (row.payload.type === 'create_node') roots.add(`pending-${row.opId}`);
+  }
+}

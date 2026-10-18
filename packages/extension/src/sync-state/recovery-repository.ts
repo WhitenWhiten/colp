@@ -1,3 +1,7 @@
+import { issueProtectionIds } from '../sync-issues.js';
+import { transactionIssueDependencies, ISSUE_DEPENDENCY_STORES } from './issue-dependencies.js';
+import { putPullIssueFact } from './pull-issue-repository.js';
+import { addQueueIssueRoots, blockedPullIssue } from './open-issue-facts.js';
 import { extractOutstandingTarget } from '../recovery-overlay.js';
 import { markQueuePullEchoApplied } from './pull-queue-echo.js';
 import {
@@ -14,7 +18,6 @@ import { validateMapping, validateMappingRecord } from './mapping-repository.js'
 import { sameAckIntent } from './engine-validate.js';
 import { cursorIsConfirmed } from './cursor-confirmation.js';
 import { validateAckIntent, validateRecoveryPage, samePullEventRecord } from './pull-validate.js';
-import { localIssueRange, pullIssueRange } from './pull-issue-repository.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
 /**
@@ -242,14 +245,30 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       Number.MAX_SAFE_INTEGER);
     const [pages, events, intents] = await Promise.all([
       rows(STORES.pullPages), rows(STORES.pullEvents), rows(STORES.intents)]);
+    for (const page of pages) {
+      const issue = blockedPullIssue(page, events.filter(event => event.pageId === page.pageId));
+      if (issue) for (const nodeId of issue.nodeIds) await putPullIssueFact(tx, key, {
+        nodeId, code: issue.code, eventId: `snapshot-retained:${issue.pageId}`, now: issue.at,
+      });
+    }
+    const unresolved = intents.filter(intent => intent.nativeResult === 'result_unknown'
+      || intent.nativeResult === 'waiting_dependency' || intent.waitReason === 'native_result_unknown');
+    const retainedEvents = new Set(unresolved.map(intent => intent.eventId));
     for (const name of [STORES.pullPages, STORES.pullEvents, STORES.effectPages, STORES.intents]) {
-      await deleteScopeRows(tx.objectStore(name), key);
+      if (name === STORES.intents) {
+        for (const intent of intents) if (!unresolved.includes(intent)) tx.objectStore(name).delete([key, String(intent.intentId)]);
+      } else if (name === STORES.pullEvents) {
+        for (const event of events) if (!retainedEvents.has(String(event.eventId))) tx.objectStore(name).delete([key, String(event.eventId)]);
+      } else if (name === STORES.effectPages && unresolved.length) {
+        await iterateCursor(tx.objectStore(name), scopeRowsRange(key), (value, cursor) => {
+          if (!retainedEvents.has(String((value as UnknownRecord).eventId))) cursor.delete();
+        });
+      } else await deleteScopeRows(tx.objectStore(name), key);
     }
     // Effect-page download ledgers are keyed by effect, so range them by this scope's ids.
     await deleteByIndexRange(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope),
       IDBKeyRange.bound([key, `effect-download:${key}:`], [key, `effect-download:${key}:\uffff`]));
-    await deleteByIndexRange(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope), pullIssueRange(key));
-    await deleteByIndexRange(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope), localIssueRange(key));
+
     if (pages.length + events.length + intents.length === 0) return;
     tx.objectStore(STORES.diagnostics).put({ id: `recovery-cutover:${key}`, scopeKey: key,
       kind: 'recovery_pre_apply_state_discarded', code: 'recovery_snapshot_cutover',
@@ -308,7 +327,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const scope = validateScope(input); const key = scopeKey(scope); boundedString(snapshotId, 'snapshotId');
     const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.mappings, STORES.queue, STORES.bookmarkEvents,
       STORES.cursors, STORES.recovery, STORES.recoveryNodes, STORES.ackIntents, STORES.pullPages, STORES.pullEvents,
-      STORES.effectPages, STORES.intents, STORES.diagnostics], 'readwrite', async (tx) => {
+      STORES.effectPages, STORES.intents, STORES.diagnostics, STORES.localSyncExclusions], 'readwrite', async (tx) => {
       const scopes = tx.objectStore(STORES.scopes); const current = await requireActiveScope(tx, key);
       const header = await requestValue(tx.objectStore(STORES.recovery).get([key, snapshotId])) as RecoveryHeader | undefined;
       if (!header?.complete || header.nextCursor !== null) throw new SyncStateError('recovery_incomplete');
@@ -321,7 +340,10 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       const privateMappings = (current.privateRoots ?? []).map((colpId) => priorByColpId.get(colpId));
       if (privateMappings.some((mapping) => !mapping)) throw new SyncStateError('snapshot_root_mapping_missing');
       const queued = await cursorPage<QueueOperation>(tx.objectStore(STORES.queue), scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
-      const locallyAdvanced = new Set<string>();
+      const issueRoots = (await transactionIssueDependencies(tx.objectStore(STORES.queue), key)).roots;
+      addQueueIssueRoots(issueRoots, queued);
+      const issueProtected = issueProtectionIds(priorMappings, issueRoots);
+      const locallyAdvanced = new Set<string>(issueProtected);
       for (const item of queued) {
         const target = extractOutstandingTarget(item);
         if (target) for (const colpId of target.colpIds) locallyAdvanced.add(colpId);
@@ -354,6 +376,11 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
         if (!locallyAdvanced.has(mapping.colpId) || projectedByColpId.has(mapping.colpId)
             || projectedByNativeId.has(mapping.nativeId)) continue;
         mappings.put(mapping);
+        if (issueProtected.has(mapping.colpId) && !/^(?:recovery:|sidecar:)/u.test(mapping.nativeId)) {
+          tx.objectStore(STORES.localSyncExclusions).put({ scopeKey: key, nativeId: mapping.nativeId,
+            decisionId: `snapshot-issue:${snapshotId}`, rootNativeId: mapping.rootNativeId,
+            generation: scope.generation, priorColpId: mapping.colpId });
+        }
         projectedByNativeId.set(mapping.nativeId, mapping.colpId);
         projectedByColpId.add(mapping.colpId);
       }
@@ -464,7 +491,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       throw new SyncStateError('snapshot_node_duplicate');
     }
     const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.recovery,
-      STORES.recoveryNodes], 'readwrite', async (tx) => {
+      STORES.recoveryNodes, STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const header = await requestValue(
         tx.objectStore(STORES.recovery).get([key, snapshotId])) as RecoveryHeader | undefined;
       if (!header?.complete || header.nextCursor !== null) throw new SyncStateError('recovery_incomplete');
@@ -472,7 +499,13 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
         nodes.index(INDEXES.recoveryByPage), IDBKeyRange.bound([key, snapshotId, 0],
           [key, snapshotId, Number.MAX_SAFE_INTEGER]), Number.MAX_SAFE_INTEGER);
       const byColpId = new Map(mappings.map((mapping) => [mapping.colpId, mapping]));
-      if (staged.length !== mappings.length || staged.some((node) => !byColpId.has(node.colpId))) {
+      const roots = (await transactionIssueDependencies(tx.objectStore(STORES.queue), key)).roots;
+      const priorMappings = await requestValue<MappingInput[]>(tx.objectStore(STORES.mappings).getAll(scopeRowsRange(key)));
+      addQueueIssueRoots(roots, await requestValue<QueueOperation[]>(tx.objectStore(STORES.queue).getAll(scopeRowsRange(key))));
+      const protectedIds = issueProtectionIds(priorMappings, roots);
+      const stagedIds = new Set(staged.map(node => node.colpId));
+      if (staged.some((node) => !byColpId.has(node.colpId))
+          || mappings.some(row => !stagedIds.has(row.colpId) && !protectedIds.has(row.colpId))) {
         throw new SyncStateError('snapshot_projection_incomplete');
       }
       for (const node of staged) nodes.put({ ...node, mapping: byColpId.get(node.colpId)! });
