@@ -60,3 +60,8 @@ export function addQueueIssueRoots(roots: Set<string>, rows: readonly { readonly
     if (row.payload.type === 'create_node') roots.add(`pending-${row.opId}`);
   }
 }
+
+/** Directed waits protect their prerequisite through its own facts, never through the dependent. */
+export function ingressProtectsNode(issue: LocalIssueRecord): boolean {
+  return !issue.dependencyOpId && !issue.dependencyEventId;
+}

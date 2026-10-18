@@ -71,7 +71,19 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
    * A change still waiting for an open conflict, a held item, or an earlier
    * change that stays held keeps waiting.
    */
-  function releaseSettledHolds(input: SyncScope, recapture: RecaptureQueueRow): Promise<QueueOperation[]> {
+  async function releaseSettledHolds(input: SyncScope, recapture: RecaptureQueueRow): Promise<QueueOperation[]> {
+    // Repair historical reverse holds without recapturing optimistic identity or changing wire bytes.
+    const key = scopeKey(validateScope(input));
+    await runTransaction(await ctx.writableDatabase(), [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.queue], 'readwrite', async tx => {
+      await requireActiveScope(tx, key); const queue = tx.objectStore(STORES.queue);
+      const graph = await transactionIssueDependencies(queue, key);
+      const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
+      for (const row of holders) {
+        if (row.recovery?.code !== 'dependency_hold' || row.attempt || !graph.prerequisiteOpIds.has(row.opId)
+            || heldBy(row, holders.filter(other => other.sequence < row.sequence), graph)) continue;
+        queue.put(validateQueueRecord({ ...row, status: 'pending', recovery: undefined }, ctx.maxRecordBytes));
+      }
+    });
     return releaseRecaptured(input, async (queue, key) => {
       const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
       const dependent = (row: QueueOperation) => row.status === 'set_aside' && DEPENDENT_HOLDS.has(row.recovery?.code ?? '');

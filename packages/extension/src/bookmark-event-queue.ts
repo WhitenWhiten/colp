@@ -353,7 +353,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
             ? await healer.dependencyStamp(dependency, blockerParkState(markers, dependency)).catch(() => undefined)
             : undefined;
           // Isolated until its recorded dependency evidence actually moves.
-          if (stamp === undefined || stamp === marker.dependencyStamp) {
+          if (marker.code !== 'dependency_pending' && (stamp === undefined || stamp === marker.dependencyStamp)) {
             if (placementPinsDomain(marker.state, marker.code)) pin(event);
             continue;
           }
@@ -423,7 +423,8 @@ export function createBookmarkEventQueue(options: QueueOptions) {
       && await healer.blockerIsRejected(dependency).catch(() => false);
     const previous = markers.get(event.eventId);
     const attempts = (previous?.state === 'open' ? previous.attempts : 0) + 1;
-    if (!rejected && blockerState !== 'parked' && attempts < MAX_PREPARE_FAILURES) {
+    if (!rejected && blockerState !== 'parked'
+        && (blocked.reason === 'dependency_pending' || attempts < MAX_PREPARE_FAILURES)) {
       await quarantine.track(event, { attempts, reason: blocked.reason, dependency }).catch(() => undefined);
       return true;
     }

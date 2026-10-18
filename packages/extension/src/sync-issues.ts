@@ -1,5 +1,5 @@
 import { OPEN_REMOTE_DELETE_STATES } from './remote-delete-pending-facts.js';
-import { mergeLocalIssues, blockedPullIssue, isOpenQueueIssue, addQueueIssueRoots, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
+import { mergeLocalIssues, ingressProtectsNode, blockedPullIssue, isOpenQueueIssue, addQueueIssueRoots, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
 /** One interpretation of durable open issues, shared by sync and repair consumers. */
 import { projectNativeWaits, type NativeWaitStore } from './native-wait.js';
 import type { LocalIssueRecord, MappingInput, PullIssueRecord, QueueOperation, SyncScope,
@@ -45,7 +45,7 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
   for (const decision of deletes) roots.add(decision.targetId);
   addQueueIssueRoots(roots, queue);
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
-  const nativeRoots = new Set([...local.map(row => row.nativeId), ...deletes.flatMap(row => row.nativeIds)]);
+  const nativeRoots = new Set([...local.filter(ingressProtectsNode).map(row => row.nativeId), ...deletes.flatMap(row => row.nativeIds)]);
   if (nativeRoots.size && store.listMappings) for (const row of await store.listMappings(scope)) {
     if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
   }

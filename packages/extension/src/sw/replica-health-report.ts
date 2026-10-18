@@ -23,7 +23,7 @@ import { colpCredentialHeaders } from '../auth-client.js';
 import { digestJson } from '../bookmark-event-codec.js';
 import type { StorageArea } from '../credential-store.js';
 import type { PersonalSyncMode } from '../personal-sync-policy.js';
-import type { QueueOperation, SyncScope } from '../sync-state-store.js';
+import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } from '../sync-state-store.js';
 import { refreshesReplicaIntegrity, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, readStalledUpload, type SyncAttentionStore } from './sync-attention.js';
