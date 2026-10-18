@@ -56,6 +56,14 @@ vi.mock('../../api', async (importOriginal) => {
   }
 })
 
+function setTextAreaValue(control: HTMLTextAreaElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+  act(() => {
+    setter?.call(control, value)
+    control.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
 describe('LibraryDesk', () => {
   beforeEach(() => { setUpLibraryDesk(); window.__KNOWN_FLAGS__ = { collaborators: true } })
   afterEach(tearDownLibraryDesk)
@@ -474,6 +482,59 @@ describe('LibraryDesk', () => {
       expect.anything(),
     )
     expect(mocks.success).toHaveBeenCalledWith('Bookmark created')
+  })
+
+  it('saves a new bookmark with its description and tags', async () => {
+    mocks.createCollectionNode.mockResolvedValue({})
+    mount()
+    await waitForDom(domFinishedLoading)
+    openBookmarkCompose()
+    setControlValue(document.getElementById('lc-url') as HTMLInputElement, 'https://added.example')
+    setTextAreaValue(document.getElementById('lc-description') as HTMLTextAreaElement, '  A page worth keeping  ')
+    // A tag still being typed counts, in the spelling the library already uses.
+    setControlValue(document.getElementById('lc-tags') as HTMLInputElement, 'Research')
+    await act(async () => {
+      document.querySelector<HTMLFormElement>('[data-testid="library-compose"]')?.requestSubmit()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.createCollectionNode).toHaveBeenCalledWith(
+      'col-1',
+      expect.objectContaining({
+        node: expect.objectContaining({ kind: 'bookmark', description: 'A page worth keeping', tags: ['research'] }),
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('gives a new folder a description', async () => {
+    mocks.createCollectionNode.mockResolvedValue({})
+    mount()
+    await waitForDom(domFinishedLoading)
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="More collection actions"]')?.click()
+    })
+    act(() => {
+      document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]').forEach((button) => {
+        if (button.textContent === 'New folder') button.click()
+      })
+    })
+    expect(document.getElementById('lc-tags')).toBeNull()
+    setControlValue(document.getElementById('lc-title') as HTMLInputElement, 'Papers')
+    setTextAreaValue(document.getElementById('lc-description') as HTMLTextAreaElement, 'Things to read slowly')
+    await act(async () => {
+      document.querySelector<HTMLFormElement>('[data-testid="library-compose"]')?.requestSubmit()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.createCollectionNode).toHaveBeenCalledWith(
+      'col-1',
+      expect.objectContaining({
+        node: expect.objectContaining({ kind: 'folder', title: 'Papers', description: 'Things to read slowly' }),
+      }),
+      expect.anything(),
+    )
+    expect(mocks.success).toHaveBeenCalledWith('Folder created')
   })
 
   it('starts the library root compose in its first folder and lists folders by path', async () => {

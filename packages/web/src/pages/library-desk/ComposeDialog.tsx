@@ -1,8 +1,11 @@
 import { useMemo, useRef } from 'react'
 import type { EditorSnapshot } from '../../api'
 import { Modal } from '../../components/Modal'
+import { TagInput } from '../../components/TagInput'
 import { importFolderOptions } from '../../lib/bookmarkImport'
+import { countTags } from '../../lib/libraryTags'
 import { rootTitle } from '../../lib/libraryTree'
+import { NODE_DESCRIPTION_MAX } from './nodeEditDrawer'
 import type { ComposeKind, LibraryDeskMutations } from './mutations'
 
 /** The host an empty bookmark title falls back to (onCreate does the same). */
@@ -37,6 +40,12 @@ export function ComposeDialog({ snap, mutations }: {
     setCreateUrlError,
     createTitleError,
     setCreateTitleError,
+    createDescription,
+    setCreateDescription,
+    createTags,
+    setCreateTags,
+    createTagDraft,
+    setCreateTagDraft,
     createParentId,
     setCreateParentId,
     createParentError,
@@ -60,6 +69,11 @@ export function ComposeDialog({ snap, mutations }: {
       return { id: option.id, path: trail.join(' › ') }
     })
   }, [snap])
+  // The tags already in use, offered while typing so one tag keeps one spelling.
+  const tagVocabulary = useMemo(
+    () => countTags((snap?.nodes ?? []).filter((node) => node.kind === 'bookmark')),
+    [snap],
+  )
   // A shared collection's root takes items; the library root holds only the browser folders.
   const rootOption = snap && !snap.collection.library ? { id: snap.root.id, title: rootTitle(snap.collection) } : null
   const site = siteName(createUrl)
@@ -124,6 +138,32 @@ export function ComposeDialog({ snap, mutations }: {
             <p id="lc-title-error" className="field-error" role="alert">{createTitleError}</p>
           )}
         </div>
+        <div className="field">
+          <label htmlFor="lc-description">Description</label>
+          <textarea
+            id="lc-description"
+            rows={2}
+            maxLength={NODE_DESCRIPTION_MAX}
+            placeholder={isBookmark ? 'What this link is, in one line…' : 'What goes in this folder…'}
+            value={createDescription}
+            onChange={(event) => setCreateDescription(event.target.value)}
+            disabled={busy}
+          />
+        </div>
+        {isBookmark && (
+          <div className="field">
+            <label htmlFor="lc-tags">Tags</label>
+            <TagInput
+              id="lc-tags"
+              tags={createTags}
+              onTagsChange={setCreateTags}
+              draft={createTagDraft}
+              onDraftChange={setCreateTagDraft}
+              vocabulary={tagVocabulary}
+              disabled={busy}
+            />
+          </div>
+        )}
         <div className="field">
           <label htmlFor="lc-parent">In folder</label>
           <select

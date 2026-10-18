@@ -10,7 +10,8 @@ import type { ToastAction } from '../../components/AppToast'
 import type { DestinationPick } from '../../components/CollectionDestinationPicker'
 import { useConfirm } from '../../components/ConfirmModal'
 import { childFolders, rootTitle, type BookmarkNode, type FolderNode } from '../../lib/libraryTree'
-import { retag } from '../../lib/libraryTags'
+import { addTags } from '../../components/TagInput'
+import { countTags, retag } from '../../lib/libraryTags'
 import { plural } from '../../lib/plural'
 import type { TreeEntry } from './data'
 import { libraryDeleteRequest } from './LibraryOverlays'
@@ -131,6 +132,9 @@ export function useLibraryDeskMutations(options: {
   const [compose, setCompose] = useState<ComposeKind | null>(null)
   const [busy, setBusy] = useState(false)
   const [createTitle, setCreateTitle] = useState('')
+  const [createDescription, setCreateDescription] = useState('')
+  const [createTags, setCreateTags] = useState<string[]>([])
+  const [createTagDraft, setCreateTagDraft] = useState('')
   const [createParentId, setCreateParentId] = useState('')
   const [createUrl, setCreateUrl] = useState('https://')
   const [createUrlError, setCreateUrlError] = useState<string | null>(null)
@@ -140,6 +144,9 @@ export function useLibraryDeskMutations(options: {
   const resetCompose = useCallback(() => {
     setCompose(null)
     setCreateTitle('')
+    setCreateDescription('')
+    setCreateTags([])
+    setCreateTagDraft('')
     setCreateUrl('https://')
     setCreateUrlError(null)
     setCreateTitleError(null)
@@ -157,6 +164,9 @@ export function useLibraryDeskMutations(options: {
         ? childFolders(snap.root.id, snap.nodes)[0]?.id ?? ''
         : snap?.root.id ?? '')
     setCreateTitle('')
+    setCreateDescription('')
+    setCreateTags([])
+    setCreateTagDraft('')
     setCreateUrl('https://')
     setCreateUrlError(null)
     setCreateTitleError(null)
@@ -202,6 +212,13 @@ export function useLibraryDeskMutations(options: {
       document.getElementById('lc-parent')?.focus()
       return
     }
+    const description = createDescription.trim() || null
+    // A tag still being typed when the dialog is submitted is part of it.
+    const tags = addTags(
+      createTags,
+      [createTagDraft],
+      countTags(snap.nodes.filter((node) => node.kind === 'bookmark')),
+    )
     setBusy(true)
     try {
       const intentId = productClient.mutationIntentKey(
@@ -216,8 +233,8 @@ export function useLibraryDeskMutations(options: {
           beforeId: null,
           node:
             compose === 'folder'
-              ? { kind: 'folder', title, description: null, tags: [], visibility: 'inherit' }
-              : { kind: 'bookmark', title, url: rawUrl, description: null, tags: [], visibility: 'inherit' },
+              ? { kind: 'folder', title, description, tags: [], visibility: 'inherit' }
+              : { kind: 'bookmark', title, url: rawUrl, description, tags, visibility: 'inherit' },
         },
         { intentId },
       )
@@ -590,6 +607,12 @@ export function useLibraryDeskMutations(options: {
     setCompose,
     busy,
     createTitle,
+    createDescription,
+    setCreateDescription,
+    createTags,
+    setCreateTags,
+    createTagDraft,
+    setCreateTagDraft,
     createParentId, setCreateParentId,
     setCreateTitle,
     createUrl,
