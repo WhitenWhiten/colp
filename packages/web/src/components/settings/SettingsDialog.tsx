@@ -135,11 +135,12 @@ export function SettingsDialog() {
         </aside>
         <div className="settings-dialog-body">
           <AuthStatusRegion />
-          {isOpen && user && <FaviconJobProgress key={user.accountId} startedJobId={faviconJobId} onJobStarted={setFaviconJobId}
+          {/* Siblings remount per account; the prefixes keep their keys apart. */}
+          {isOpen && user && <FaviconJobProgress key={`progress:${user.accountId}`} startedJobId={faviconJobId} onJobStarted={setFaviconJobId}
             onDetails={section === 'favicon' ? undefined : () => selectSection('favicon')} />}
           {section === 'profile' && <ProfileSection onDirtyChange={(value) => { dirtyRef.current = value }} />}
           {section === 'bookmarks' && <BookmarkPreferencesSection />}
-          {section === 'favicon' && user && <FaviconSection key={user.accountId} onJobStarted={setFaviconJobId} onDirtyChange={(value) => { dirtyRef.current = value }} />}
+          {section === 'favicon' && user && <FaviconSection key={`favicon:${user.accountId}`} onJobStarted={setFaviconJobId} onDirtyChange={(value) => { dirtyRef.current = value }} />}
           {section === 'security' && (
             <div className="stack gap-1" data-testid="settings-security">
               <div className="settings-section-head">
