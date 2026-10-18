@@ -1,5 +1,10 @@
 # Sync resilience review remediation — 2026-10-17
 
+Current acceptance update (2026-10-18, third review): baseline `4299910e` had five
+remaining production gaps. They are repaired in five ordered commits plus the
+focused cross-check `02567012`. The **Third-review completion** at the end records
+current evidence and limits; earlier completion claims are historical.
+
 Current status (2026-10-18): all eight second-review tasks are implemented and
 individually committed from the clean `f3612b9d` baseline. The final cross-review
 follow-up and current verification receipt are at the end of this document.
@@ -464,3 +469,98 @@ specific recovery/stop semantics. No remote push was performed. The test-created
 HTTP servers, browsers/profiles and disposable databases were closed; existing
 user services were left untouched. The supplied original reproduction directory
 was preserved. The external plan is updated directly, without creating a Git repo.
+
+
+## Third-review completion — five resilience gaps (2026-10-18)
+
+This receipt supersedes the earlier broad “G2 met” judgment for baseline `4299910e`.
+That baseline still had all six counterexamples described in
+`/tmp/colp-sync-review-20261018-4d8f_okz/reproduction.log`. The five source tests and
+`reproduce.sh` were read and preserved. Acceptance now uses permanent repository
+tests, with no runtime dependency on those temporary files.
+
+Work began at `4299910edf172b6dc37d146dd36b4aa3a3fe92ff` with an empty worktree.
+All five repairs were implemented, checked and committed in the requested order
+in `/home/whiten/known/colp`, before starting the next repair. Other work concurrently
+committed web changes in this same worktree; those changes were preserved and are
+not attributed to this remediation.
+
+| Item | Production repair and commit | Permanent acceptance |
+|---|---|---|
+| 1 — settled conflict holds were unreachable | `ed26398e`: after Pull the engine also schedules the real Push worker for an empty lane with held uploads. The worker supplies fresh native recapture; the settled-release API requires that capability. Old history remains, and fresh operations get new identities, sequences, digests and idempotency keys. | `push-conflict-hold.test.ts`: real engine + worker + applier + IDB; engine itself pulls the resolution; close/reopen, no unrelated edit or manual recovery drain; another conflict remains held, an independent local issue prevents self-release, unrelated Pull still applies. Existing fresh-capture/strict-sequence tests remain. Initial item check: 5 files / 93 tests passed. |
+| 2 — one unknown Chrome result stopped later pages | `a67bc9ad`: typed native-result versus remote-delete deferrals retain original event/page/intent/generation and native evidence. Only verified durable bindings permit page accounting; unknown calls remain unknown. Dependents defer under the original intent and resume after confirmation. Parked invocation correlation no longer blocks an independent identical create. Pruning and Snapshot preserve the evidence chain. | `native-wait-page-progress.test.ts`: Chrome mutation then interruption before evidence, IDB reopen, same-page and later-page work/Ack, descendant and grandchild/anchor/delete protection, no automatic duplicate create, Status/health, confirmation through real engine wakes. `snapshot-issue-preservation.test.ts`: ordinary Snapshot and pruning retain the original wait. Initial item check: 8 files / 56 tests passed. |
+| 3 — repeated corrupt Snapshot retried forever and reported syncing | `2d2ed8c5`: replica integrity refresh remains fail-closed, counts across worker restarts, stops automatic probes after five failures, and offers explicit Retry/Rebuild. An ordinary active Session cannot bypass an unresolved integrity failure. A valid Snapshot clears the freeze, counter and old recovery code. Status and health retain the cause; Sync center explains Snapshot integrity failures. | `snapshot-integrity-stop.test.ts`: repeated real-engine malformed responses, durable bound, startup/online/alarm after a day do not probe, health still sends while stopped, explicit valid recovery succeeds. Existing authority cooldown, transient and normal Snapshot tests pass. Initial item check: 45 extension tests, 3 web reason tests; additional Status checks passed. |
+| 4 — identity replacement rewrote user text | `f5ee7a12`: schema-specific rebinding for operation target/base/dependencies and create/move/restore/reorder identity fields, plus explicit mapping identity/revision fields. User content and native IDs are retained; sent attempts remain immutable. The related ingress token resolver now accepts scalar identities rather than recursively rewriting data. | `queue-recapture-content.test.ts`, `queue-identity-rebind.test.ts`, `queue-native-recapture.test.ts`: independent and related text equal to old identities, mapping content/digest retention, correct references and queue digest, unchanged sent attempt, actual IDB constraint abort rolls back queue/mappings/evidence/sequence allocation. Item check: 6 files / 27 tests passed. |
+| 5 — malformed HTTP 200 consumed command results | `50b3b22f`: ordinary and final reports share bounded strict receipt validation (16 KiB, 10 s default body deadline), required replica/revision/accepted/command fields and valid command structures. Accepted reports must echo the submitted revision; `accepted=false` requires a current revision at least as new, and still receipts command results per server semantics. Unconfirmed final reports no longer expire. | `replica-health-receipt.test.ts`: malformed/empty/truncated/HTML, missing fields, wrong target/revision, illegal fields/commands, oversized and stalled body; ordinary results survive restart and valid stale-revision settlement. Actual Rebuild rotates the replica; invalid final receipts survive reporter/IDB restart and nine days; identical final body retransmits until valid receipt; no duplicate command execution. Existing account isolation/fresh credential/archive recovery tests pass. Item check: 7 files / 57 tests passed. |
+
+### Focused cross-check and follow-up
+
+`02567012` fixes an associated failure observed in a new regression: confirming an
+old native create after a newer Snapshot overwrote the newer mapping revision with
+the old event revision. Confirmation now retains mapping metadata and the original
+create identity, then uses current Snapshot authority and the existing native
+content/placement barriers. Parent baselines and the advanced cursor do not rewind.
+A crash after the native content update is recovered by verifying its post-state;
+the test proves one create and one update, including reopen.
+
+The follow-up also enrolls legacy persisted unknown waits using their real
+intent/event/generation facts, preserves a durable issue when the user declines
+placement (closing a prompt does not establish an unknown call's result), and
+corrects English/Chinese Status copy to describe only related items as held.
+The engine conflict tests now fetch the actual resolution within the wake and
+exercise the unrelated/conflict/independent-issue paths. No authority-committed
+success state is injected to certify these paths.
+
+### Final focused verification
+
+From `packages/extension`, the final command was:
+
+```sh
+npx vitest run tests/push-conflict-hold.test.ts tests/push-item-hold.test.ts tests/queue-native-recapture.test.ts tests/queue-recapture-content.test.ts tests/queue-identity-rebind.test.ts tests/sync-state-store-set-aside.test.ts tests/bookmark-event-resolve.test.ts tests/native-wait-page-progress.test.ts tests/srg-t02-native-executor.test.ts tests/sw-native-wait-routing.test.ts tests/native-wait-ui.test.ts tests/native-wait-view.test.ts tests/remote-delete-page-progress.test.ts tests/pull-workset-reads.test.ts tests/pull-history-prune.test.ts tests/pull-mutation-failure-boundary.test.ts tests/snapshot-issue-preservation.test.ts tests/snapshot-existing-native-content.test.ts tests/snapshot-existing-native-placement.test.ts tests/recovery-store.test.ts tests/snapshot-integrity-stop.test.ts tests/sync-circuit-breaker.test.ts tests/sync-failure-class.test.ts tests/sync-attention-ui.test.ts tests/replica-health-receipt.test.ts tests/replica-health-report.test.ts tests/replica-health-outbox.test.ts tests/replica-health-byte-budget.test.ts tests/replica-command-target.test.ts tests/durable-sync-engine.test.ts tests/durable-sync-engine-bootstrap.test.ts tests/global-issue-ceiling.test.ts
+npm run typecheck
+npm run check:source-size
+npm run check:i18n
+```
+
+Result: **32 files / 277 tests passed**; extension typecheck passed; source-size
+checked **670 production files with zero exceptions**; i18n catalog and Chinese
+translations current. Changed extension TypeScript files passed ESLint, including
+the new modules and strengthened tests. `git diff --check` passed.
+
+From `packages/web`:
+
+```sh
+npx vitest run src/pages/Sync.test.tsx src/pages/sync/health-reasons.test.ts
+npm run typecheck
+npx eslint src/pages/sync/health.tsx src/pages/sync/health-reasons.test.ts
+```
+
+Result: **2 files / 25 tests passed**; typecheck and changed-file lint passed.
+These are related module/IDB/native API substitute tests; no browser E2E or live
+server/database test was run for this receipt. Historical browser receipts above
+remain historical and are not claimed as rerun evidence.
+
+### Current boundaries and remaining limits
+
+- The five named gaps have production repairs and permanent behavior tests. No
+  known item-specific global Pull barrier remains in these reviewed paths: native
+  waits, deletion decisions, bad content and conflict closures hold their actual
+  dependencies while independent work proceeds. Declining an uncertain placement
+  preserves an item issue and evidence, with the existing v1 repair exit.
+- Push can skip unsent held work, but an **already-sent operation with an unknown
+  server result** retains its exact attempt and sequence until settlement. That
+  ordered-lane barrier is required by protocol identity/sequence safety; the
+  client does not pretend the call was not sent or allocate around it.
+- Genuine stream/Snapshot/graph corruption remains a global fail-closed stop.
+  Integrity refresh is bounded and requires an explicit probe after tripping;
+  unrecoverable local integrity/identity damage and the >200 open-fact ceiling
+  retain their documented stop/repair semantics. Invalid deferral authority is
+  not accepted as proof that advancing a page is safe.
+- This receipt certifies the named crash boundaries and composed production paths,
+  not every fault timing or browser. Reports still require network/authentication.
+  Rebuild archives unsynchronized evidence and enters setup for a new replica;
+  it does not silently restore sync or re-import the archive. Explicit “Keep both”
+  authorizes a fresh native create; unknown results are never recreated automatically.
+- No temporary service, browser or external database was started by this task.
+  Existing services and concurrent work were preserved. The supplied reproduction
+  directory is unchanged. No remote push was performed.
