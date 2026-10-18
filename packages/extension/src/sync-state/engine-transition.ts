@@ -17,6 +17,7 @@ import type { DurableSyncEngineState } from './types.js';
  * `lastError` is absent for the same reason - every write here records its own reason.
  */
 const INHERITED_ENGINE_FACTS = [
+  'circuitBreaker',
   'lastPublishedCursor',
   'lastAckedCursor',
   'lastPushServerCursor',
@@ -37,6 +38,7 @@ export type InheritedEngineFacts = {
 export function inheritEngineFacts(prior: DurableSyncEngineState | null | undefined): InheritedEngineFacts {
   if (!prior) return {};
   return {
+    ...(prior.circuitBreaker === undefined ? {} : { circuitBreaker: prior.circuitBreaker }),
     ...(prior.lastPublishedCursor === undefined ? {} : { lastPublishedCursor: prior.lastPublishedCursor }),
     ...(prior.lastAckedCursor === undefined ? {} : { lastAckedCursor: prior.lastAckedCursor }),
     ...(prior.lastPushServerCursor === undefined ? {} : { lastPushServerCursor: prior.lastPushServerCursor }),

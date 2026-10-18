@@ -171,6 +171,7 @@ export interface DurableSyncEngineState {
   // never starts near 1s and never resets on success. This field is bumped
   // only by offline()/recovery network failures and cleared at the first
   // successful pull/ack/sleep after a streak.
+  readonly circuitBreaker?: import('../sync-circuit-breaker.js').SyncCircuitBreaker;
   readonly networkBackoffCount?: number;
   readonly lastError?: string;
 }

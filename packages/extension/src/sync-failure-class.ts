@@ -48,6 +48,7 @@ const FREEZES = { freezesPull: true } as const;
 const SETS_ASIDE = { freezesPull: true, setsAsidePull: true } as const;
 
 export const SYNC_FAILURE_TABLE = Object.freeze({
+  server_unavailable: entry('transient', 'retry'),
   network_unavailable: entry('transient', 'retry', { pullsOnWake: true }),
   position_context_stale: entry('transient', 'retry', { pullsOnWake: true }),
   revision_conflict: entry('transient', 'retry', { pullsOnWake: true }),
@@ -367,7 +368,7 @@ export class SyncFailureError extends Error {
   constructor(readonly code: SyncFailureCode, readonly subject?: SyncFailureSubject) { super(code); this.name = 'SyncFailureError'; }
 }
 
-/** Unknown external codes retain existing retry behavior; P3's bounded breaker is not implemented. */
+/** Unknown external codes are bounded by the engine's durable circuit breaker. */
 export function classifySyncFailure(code: string | undefined, subject?: SyncFailureSubject): SyncFailureEntry | undefined {
   if (code === undefined) return undefined;
   // Snapshot HTTP expiry is an explicit transport wrapper, not an arbitrary suffix match.

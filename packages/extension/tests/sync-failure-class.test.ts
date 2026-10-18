@@ -81,11 +81,11 @@ describe('registered sync failure policies', () => {
     assert.equal(classifySyncFailure('engine_revision_stale')?.class, 'transient');
   });
 
-  test('unrecognized external codes retain an unknown classification; this does not assert a retry bound', () => {
+  test('unrecognized external codes retain an unknown classification for the engine breaker', () => {
     assert.equal(classifySyncFailure('brand_new_failure'), undefined);
     assert.equal(freezesPullApply('brand_new_failure'), false);
     assert.equal(holdsInboundPull('brand_new_failure'), true);
-    // The P3 circuit breaker remains unimplemented. Actual retry and recovery
+    // The engine's circuit breaker owns retry accounting. Classification
     // boundaries are exercised by engine and mutation-recovery integration tests.
   });
 

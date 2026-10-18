@@ -9,6 +9,7 @@ export function pullApplyAckState(publishedCursor: string | undefined, nextCurso
 }
 
 export async function snapshotFailure(response: Response, timeoutMilliseconds?: number) {
+  if (response.status >= 500) return 'server_unavailable';
   const type = response.headers.get('Content-Type') ?? '';
   if (!/^application\/problem\+json(?:\s*;|$)/iu.test(type)) return `snapshot_http_${response.status}`;
   return `snapshot_${response.status}_${await responseProblemCode(response, 'invalid_problem', timeoutMilliseconds)}`;
@@ -51,7 +52,7 @@ export function retryAfterMilliseconds(error: unknown) { const value = error && 
     ? Number(value) : undefined; }
 
 export function httpFailure(response: Response, fallback: string, now: number) {
-  const error = new Error(response.status === 429 ? 'rate_limited' : fallback) as Error
+  const error = new Error(response.status === 429 ? 'rate_limited' : response.status >= 500 ? 'server_unavailable' : fallback) as Error
     & { retryAfterMilliseconds?: number };
   if (response.status === 429) {
     const value = response.headers.get('Retry-After'); let delay = 0;
@@ -60,4 +61,12 @@ export function httpFailure(response: Response, fallback: string, now: number) {
     error.retryAfterMilliseconds = Math.min(MAX_BACKOFF_MS, Math.max(1_000, delay));
   }
   return error;
+}
+
+export function recoveryCapability(cursor: string | undefined) { return cursor?.startsWith('src1.') === true; }
+export function recoveryCapabilityOf(cursor: { readonly evidence?: unknown } | null | undefined) {
+  const evidence = cursor?.evidence && typeof cursor.evidence === 'object'
+    ? cursor.evidence as { readonly capability?: unknown } : {};
+  return typeof evidence.capability === 'string' && evidence.capability.length > 0
+    ? evidence.capability : undefined;
 }

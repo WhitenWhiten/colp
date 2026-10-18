@@ -1,3 +1,5 @@
+import { guardSyncWake } from './sync-circuit-breaker-engine.js';
+import { circuitIsStopped } from './sync-circuit-breaker.js';
 import { SyncFailureError, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
 import { recordRecoveryDiagnostic } from './recovery-diagnostic.js';
 import { readEngineSessionAuthority } from './sync-session-handoff.js';
@@ -10,7 +12,7 @@ import type { AckIntentRecord, DurableSyncEngineState, JsonObject, MappingInput 
 import type { StoredCredential, StoredSession } from './types.js';
 import type { EngineOptions, PlacementRefreshOutcome } from './durable-sync-engine-types.js';
 import { httpFailure, pullApplyAckState, retryAfterMilliseconds, stableError,
-  responseProblemCode } from './durable-sync-engine-errors.js';
+  recoveryCapability, recoveryCapabilityOf, responseProblemCode } from './durable-sync-engine-errors.js';
 import { colpCredentialHeaders } from './auth-client.js';
 import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
 import { resumeLocalProjection } from './local-projection-recovery.js';
@@ -32,6 +34,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
   const fetcher = options.fetch ?? fetch; const now = options.now ?? Date.now; const random = options.random ?? Math.random;
   const requestTimeoutMilliseconds = options.requestTimeoutMilliseconds ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const responseReadOptions = { timeoutMilliseconds: requestTimeoutMilliseconds };
+  const guardedWake = guardSyncWake(options, now, wakeOnce, transition, digest);
   let wakeTail: Promise<void> = Promise.resolve();
   // SR-14: the Push peer refreshes placement before rebasing a retried
   // create/move. Memoizing the attempt for one wake lets a single Pull answer
@@ -48,7 +51,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
     let storeWakes = connectivityWakes.get(options.store);
     const existing = coalesceConnectivityWake ? storeWakes?.get(wakeKey) : undefined;
     if (existing) return existing;
-    const result = wakeTail.then(() => wakeOnce(reason, confirmedOnline), () => wakeOnce(reason, confirmedOnline));
+    const result = wakeTail.then(() => guardedWake(reason, confirmedOnline), () => guardedWake(reason, confirmedOnline));
     wakeTail = result.then(() => undefined, () => undefined);
     if (coalesceConnectivityWake) {
       storeWakes ??= new Map(); connectivityWakes.set(options.store, storeWakes); storeWakes.set(wakeKey, result);
@@ -63,7 +66,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
     const scope = await options.store.getScope(options.scope); if (!scope) return null;
     let current = await state();
     if (scope.lifecycle === 'retired') return transition('retired', { recoveryFrozen: true });
-    if (current.phase === 'error' && reason !== 'manual' && reason !== 'startup') return current;
+    if (current.phase === 'error' && !circuitIsStopped(current) && reason !== 'manual' && reason !== 'startup') return current;
     // A server-capped payload_too_large is terminal: refreshing authority reproduces the same 413.
     const recoveryCode = typeof scope.metadata?.recoveryCode === 'string' ? scope.metadata.recoveryCode : undefined;
     if (current.recoveryFrozen && (holdsUnprovenIdentity(current.lastError)
@@ -530,6 +533,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
     const prior = await state(); return options.store.transitionEngine(options.scope, { phase, updatedAt: now(),
       recoveryFrozen: patch.recoveryFrozen ?? prior.recoveryFrozen, notBefore: patch.notBefore ?? prior.notBefore,
       authorityRefreshRequired: patch.authorityRefreshRequired ?? prior.authorityRefreshRequired,
+      ...(('circuitBreaker' in patch ? patch.circuitBreaker : prior.circuitBreaker) === undefined ? {}
+        : { circuitBreaker: 'circuitBreaker' in patch ? patch.circuitBreaker : prior.circuitBreaker }),
       ...(patch.recoveryFrozen === undefined && prior.localProjectionOwner !== undefined
         ? { localProjectionOwner: prior.localProjectionOwner } : {}),
       ...(!patch.clearConnectivityConfirmation && prior.connectivityConfirmationRevision !== undefined
@@ -589,12 +594,5 @@ function canonicalJson(value: unknown): string { if (Array.isArray(value)) retur
     .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
   const encoded = JSON.stringify(value); if (encoded === undefined) throw new SyncFailureError('canonical_json_invalid'); return encoded; }
 function jsonContentType(response: Response) { return /^application\/json(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? ''); }
-function recoveryCapability(cursor: string | undefined) { return cursor?.startsWith('src1.') === true; }
-function recoveryCapabilityOf(cursor: { readonly evidence?: unknown } | null | undefined) {
-  const evidence = cursor?.evidence && typeof cursor.evidence === 'object'
-    ? cursor.evidence as { readonly capability?: unknown } : {};
-  return typeof evidence.capability === 'string' && evidence.capability.length > 0
-    ? evidence.capability : undefined;
-}
 function problemContentType(response: Response) { return /^application\/problem\+json(?:\s*;|$)/iu.test(
   response.headers.get('Content-Type') ?? ''); }

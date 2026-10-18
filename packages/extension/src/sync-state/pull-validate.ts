@@ -222,10 +222,10 @@ export function validateEngineState(input: unknown): DurableSyncEngineState {
   const value = strictObject(clone(input), ['scopeKey', 'phase', 'revision', 'updatedAt', 'sessionId', 'recoveryFrozen',
     'authorityRefreshRequired', 'notBefore', 'connectivityConfirmationRevision', 'lastPublishedCursor',
     'lastAckedCursor', 'lastPushServerCursor', 'lastPushOutcomeHint', 'networkBackoffCount', 'lastError',
-    'expectedRevision', 'localProjectionOwner'],
+    'expectedRevision', 'localProjectionOwner', 'circuitBreaker'],
   'engine state', ['sessionId', 'authorityRefreshRequired', 'connectivityConfirmationRevision',
     'lastPublishedCursor', 'lastAckedCursor', 'lastPushServerCursor', 'lastPushOutcomeHint', 'networkBackoffCount',
-    'lastError', 'expectedRevision', 'localProjectionOwner']);
+    'lastError', 'expectedRevision', 'localProjectionOwner', 'circuitBreaker']);
   if (!['idle', 'session', 'bootstrap', 'pulling', 'applying', 'acking', 'pushing', 'sleeping', 'offline',
     'recovery', 'retired', 'error'].includes(String(value.phase)) || typeof value.recoveryFrozen !== 'boolean') {
     throw new SyncStateError('engine_state_invalid');
@@ -245,6 +245,7 @@ export function validateEngineState(input: unknown): DurableSyncEngineState {
       lastPushServerCursor: boundedString(value.lastPushServerCursor, 'lastPushServerCursor') }),
     ...(value.lastPushOutcomeHint === undefined ? {} : { lastPushOutcomeHint: boundedString(value.lastPushOutcomeHint,
       'lastPushOutcomeHint') }),
+    ...(value.circuitBreaker === undefined ? {} : { circuitBreaker: validateCircuitBreaker(value.circuitBreaker) }),
     ...(value.networkBackoffCount === undefined ? {} : { networkBackoffCount: safeInteger(
       value.networkBackoffCount, 'networkBackoffCount', 0) }),
     ...(value.lastError === undefined ? {} : {
@@ -304,4 +305,21 @@ export function validateAckIntent(input: unknown): AckIntentRecord {
     mediaType: 'application/json', body, bodyDigest,
     state: value.state as AckIntentRecord['state'], ...(value.result === undefined ? {} : {
       result: validateJson(value.result, 'ack result') as JsonObject }) };
+}
+
+function validateCircuitBreaker(input: unknown): NonNullable<DurableSyncEngineState['circuitBreaker']> {
+  const value = strictObject(input, ['progress', 'failures', 'trips', 'retryAt'], 'circuit breaker', ['retryAt']);
+  if (!Array.isArray(value.failures) || value.failures.length > 512) throw new SyncStateError('engine_state_invalid');
+  const failures = value.failures.map(input => {
+    const row = strictObject(input, ['code', 'attempts'], 'circuit failure');
+    if (!Array.isArray(row.attempts) || row.attempts.length < 1 || row.attempts.length > 5) {
+      throw new SyncStateError('engine_state_invalid');
+    }
+    return { code: boundedString(row.code, 'code', 128),
+      attempts: row.attempts.map(at => safeInteger(at, 'attempt time')) };
+  });
+  if (new Set(failures.map(row => row.code)).size !== failures.length) throw new SyncStateError('engine_state_invalid');
+  return { progress: boundedString(value.progress, 'progress', 128), failures,
+    trips: safeInteger(value.trips, 'trips'),
+    ...(value.retryAt === undefined ? {} : { retryAt: safeInteger(value.retryAt, 'retryAt') }) };
 }

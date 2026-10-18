@@ -96,3 +96,24 @@ The requested task document at
 `/home/whiten/known/colp-server/15-sync-resilience-2026-10-17.md` is outside any Git
 repository. It was updated directly; its changes are not part of this repository's
 commits. No repository was created there.
+
+## P3 — bounded automatic recovery (2026-10-17)
+
+The engine now persists a per-code, sliding thirty-minute denial window across
+worker restarts. Five authority denials without logical server-revision or queue-head
+progress stop the engine and report the original reason through the existing health
+channel. Session cursor capability rotation alone does not reset the counter.
+Unknown external codes share a bounded counter so rotating unknown names cannot
+hide a loop. Network, 429 and 5xx failures remain transient.
+
+Stopped engines continue health reporting. Automatic probes start after one minute
+and double to a thirty-minute ceiling; startup/online wakes cannot bypass that
+deadline. Explicit Retry probes immediately. A successful pass or actual progress
+clears the breaker; permanent local/integrity stops retain their existing exits.
+Writes retain compare-and-swap protection and recovery writes inherit the ledger.
+
+Targeted validation: 105 tests in six engine, health, classifier and CAS files;
+extension typecheck, changed-source ESLint and development build. The source-size
+check still reports pre-existing overruns in outbound-push-worker.ts (601),
+pull-apply-runtime.ts (601) and bookmark-event-repository.ts (610 vs 609); none was
+changed by P3. No browser E2E or temporary service was needed.
