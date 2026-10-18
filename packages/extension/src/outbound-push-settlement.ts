@@ -63,14 +63,15 @@ export async function settlePushResult(input: {
 }
 
 /**
- * Returns the changes held for a settled conflict to the push lane. A failed
- * pass keeps them held for the next drain, but is journaled and counted as
- * attention so a stuck hold is distinguishable from "nothing to release".
+ * Returns the changes held behind a conflict or a held item that is now
+ * settled to the push lane. A failed pass keeps them held for the next drain,
+ * but is journaled and counted as attention so a stuck hold is
+ * distinguishable from "nothing to release".
  */
-export async function releaseSettledConflictHolds(store: ReturnType<typeof createSyncStateStore>,
+export async function releaseSettledQueueHolds(store: ReturnType<typeof createSyncStateStore>,
   scope: SyncScope): Promise<number> {
   try {
-    await store.releaseConflictHolds(scope); return 0;
+    await store.releaseSettledHolds(scope); return 0;
   } catch (error) {
     try { await store.putScopeDiagnostic(scope, { kind: 'conflict_hold_release',
       code: reasonCode(error, 'conflict_hold_release_failed') }); } catch { /* best effort */ }

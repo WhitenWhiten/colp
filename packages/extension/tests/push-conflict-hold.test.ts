@@ -57,7 +57,7 @@ describe('C1 a conflict holds only its own bookmark', () => {
     assert.deepEqual(await statuses(store), [['op-x1', 'blocked'], ['op-y', 'blocked'],
       ['op-y2', 'set_aside'], ['op-x2', 'set_aside']]);
     await resolve(store, 'op-x1', 'conflict-op-x1');
-    assert.deepEqual((await store.releaseConflictHolds(scope)).map((row) => row.opId), ['op-x2']);
+    assert.deepEqual((await store.releaseSettledHolds(scope)).map((row) => row.opId), ['op-x2']);
     assert.equal((await store.getQueueByOpId(scope, 'op-y2'))?.status, 'set_aside');
     store.close();
   });

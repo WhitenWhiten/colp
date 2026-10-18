@@ -14,7 +14,7 @@ import type { StorageArea } from '../credential-store.js';
 import type { NativeWaitProjection } from '../native-create-executor.js';
 import { projectNativeWaits } from '../native-wait.js';
 import type { PersonalSyncMode } from '../personal-sync-policy.js';
-import type { PullIssueRecord, QueueOperation, SyncScope } from '../sync-state-store.js';
+import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } from '../sync-state-store.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, type SyncAttentionStore } from './sync-attention.js';
 
@@ -97,6 +97,17 @@ export function replicaIssuesFromPull(rows: readonly PullIssueRecord[]): Replica
   });
 }
 
+/** Browser changes that could not be tied to the library. Browser ids never leave the browser. */
+export function replicaIssuesFromLocal(rows: readonly LocalIssueRecord[]): ReplicaHealthIssue[] {
+  return rows.flatMap((row) => {
+    if (!CODE.test(row.code)) return [];
+    const title = typeof row.title === 'string' ? bounded(row.title) : undefined;
+    return [{ issueId: issueId(['local', row.code, row.nativeId]), code: row.code, direction: 'local' as const,
+      ...(title ? { title } : {}), count: Math.max(1, row.count), firstSeenAt: new Date(row.firstSeenAt).toISOString(),
+      lastSeenAt: new Date(row.lastSeenAt).toISOString(), actions: [] }];
+  });
+}
+
 /** Cloud changes waiting for the user's decision about the browser's result. */
 export function replicaIssuesFromWaits(waits: readonly NativeWaitProjection[]): ReplicaHealthIssue[] {
   return waits.map((wait) => {
@@ -122,7 +133,10 @@ interface SentRecord {
 
 export interface ReplicaHealthReporterDeps {
   readonly scope: SyncScope;
-  readonly store: SyncAttentionStore & { readonly listPullIssues?: (scope: SyncScope) => Promise<PullIssueRecord[]> };
+  readonly store: SyncAttentionStore & {
+    readonly listPullIssues?: (scope: SyncScope) => Promise<PullIssueRecord[]>;
+    readonly listLocalIssues?: (scope: SyncScope) => Promise<LocalIssueRecord[]>;
+  };
   readonly mode: () => Promise<PersonalSyncMode | undefined>;
   readonly rebuildPending?: () => Promise<boolean>;
   readonly credential: () => Promise<{ readonly accessToken: string; readonly serverOrigin: string }>;
@@ -150,8 +164,9 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   }
   const waits = await projectNativeWaits(deps.store, deps.scope).catch(() => []);
   const pulled = await deps.store.listPullIssues?.(deps.scope).catch(() => []) ?? [];
+  const local = await deps.store.listLocalIssues?.(deps.scope).catch(() => []) ?? [];
   const issues = [...replicaIssuesFromQueue(rows.sort((left, right) => left.sequence - right.sequence)),
-    ...replicaIssuesFromPull(pulled), ...replicaIssuesFromWaits(waits)];
+    ...replicaIssuesFromPull(pulled), ...replicaIssuesFromLocal(local), ...replicaIssuesFromWaits(waits)];
   const projection = projectReplicaHealth({ ...(mode ? { mode } : {}), attention: response.attention, issues });
   // Times are display facts: a report that only moved a clock is not a change.
   const digest = digestJson({ state: projection.state, code: projection.code ?? null, total: projection.issues.total,

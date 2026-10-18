@@ -58,7 +58,7 @@ describe('P3-31 outbound Push 409 refresh and rebase', () => {
     assert.notEqual(idempotency[0], idempotency[1]);
   });
 
-  test('stale create with unproven refreshed order freezes instead of replaying the old anchor', async () => {
+  test('stale create with unproven refreshed order is set aside instead of replaying the old anchor', async () => {
     const fixture = await setup({ createPlacement: 'top' });
     let sends = 0;
     const worker = createOutboundPushWorker({ ...fixture.options, refreshPlacement: async () => {
@@ -70,12 +70,14 @@ describe('P3-31 outbound Push 409 refresh and rebase', () => {
       return problem(409, 'position_context_stale', { retryable: true }); } });
     assert.equal((await worker.drain()).outcome, 'unknown');
     fixture.clock.now = (await fixture.store.listQueue(scope))[0]!.retry.notBefore;
-    assert.equal((await worker.drain()).outcome, 'recovery');
+    assert.equal((await worker.drain()).outcome, 'terminal');
     assert.equal(sends, 1);
     const row = (await fixture.store.listQueue(scope))[0]!;
-    assert.equal(row.status, 'unknown');
+    assert.equal(row.status, 'set_aside');
     assert.equal(row.recovery?.code, 'create_placement_unproven');
-    assert.equal((await fixture.store.getScope(scope))?.lifecycle, 'recovery_required');
+    assert.equal(row.attempt, undefined);
+    assert.equal((await fixture.store.getScope(scope))?.lifecycle, 'active');
+    assert.notEqual((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
   });
 
   test('409 position_context_stale retryable true retries with the real recovery code', async () => {

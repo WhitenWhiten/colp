@@ -1,11 +1,11 @@
 import { boundedString, clone, safeInteger } from './codec.js';
 import { requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
-import { conflictHolders, firstLaneQueueRow, heldBy } from './queue-conflict-hold.js';
+import { asHeld, DEPENDENT_HOLDS, firstLaneQueueRow, heldBy, holdWaitingRows, laneHolders } from './queue-hold.js';
 import { validateQueueRecord } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
-import { SyncStateError, type QueueOperation, type SyncScope } from './types.js';
+import { SyncStateError, type LeaseRecord, type QueueOperation, type SyncScope } from './types.js';
 
 /** Rows that own no server sequence: refused history and held work. A gap realign parks them after live work. */
 export function parkedOutOfLane(row: QueueOperation): boolean {
@@ -20,6 +20,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
    * sent, claimed or awaits a receipt may already own its server sequence. A
    * held row keeps its slot until the next gap realign parks it after the
    * surviving work, exactly as for rejected rows, so it never stalls them.
+   * Later changes of the same bookmark are held with it.
    */
   async function setAsideQueue(input: SyncScope, sequences: readonly number[], code: string): Promise<QueueOperation[]> {
     ctx.assertWritable(); const key = scopeKey(validateScope(input)); boundedString(code, 'recovery code');
@@ -34,10 +35,10 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
         const row = validateQueueRecord(value, ctx.maxRecordBytes);
         if (row.status === 'set_aside') { held.push(row); continue; }
         if (row.status !== 'pending' || row.attempt !== undefined) throw new SyncStateError('set_aside_refused');
-        const updated = validateQueueRecord({ ...row, status: 'set_aside', recovery: { code },
-          retry: { attempt: row.retry.attempt, notBefore: 0 } }, ctx.maxRecordBytes);
+        const updated = asHeld(row, code, ctx.maxRecordBytes);
         queue.put(updated); held.push(updated);
       }
+      if (held.length > 0) await holdWaitingRows(queue, key, ctx.maxRecordBytes, held[0]!.sequence);
     });
     return held.map((row) => clone(row));
   }
@@ -63,20 +64,45 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
   }
 
   /**
-   * Releases the changes held for conflicts that are no longer open: the
-   * resolution arrived through Pull and settled the conflicted row. A change
-   * still waiting for an open conflict, or for an earlier change that stays
-   * held, keeps waiting.
+   * Releases the changes held only for something that is now settled: the
+   * conflict's resolution arrived through Pull, or the held item was released.
+   * A change still waiting for an open conflict, a held item, or an earlier
+   * change that stays held keeps waiting.
    */
-  function releaseConflictHolds(input: SyncScope): Promise<QueueOperation[]> {
+  function releaseSettledHolds(input: SyncScope): Promise<QueueOperation[]> {
     return releaseInPlace(input, async (queue, key) => {
-      const holders = await conflictHolders(queue, key, ctx.maxRecordBytes);
-      const kept = holders.filter((row) => row.status === 'blocked'); const released: QueueOperation[] = [];
+      const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
+      const dependent = (row: QueueOperation) => row.status === 'set_aside' && DEPENDENT_HOLDS.has(row.recovery?.code ?? '');
+      const kept = holders.filter((row) => !dependent(row)); const released: QueueOperation[] = [];
       for (const row of holders) {
-        if (row.status !== 'set_aside') continue;
+        if (!dependent(row)) continue;
         if (heldBy(row, kept)) kept.push(row); else released.push(row);
       }
       return released;
+    });
+  }
+
+  /**
+   * Sets aside a claimed change the push worker cannot send as it is, because
+   * its placement or identity cannot be proven. It has no attempt, so it owns
+   * no server sequence; the changes waiting for it are held with it, and the
+   * rest of the lane keeps going.
+   */
+  async function setAsideClaimedPush(input: SyncScope, sequence: number, ownerId: string, fence: number,
+    code: string): Promise<void> {
+    ctx.assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(sequence, 'sequence', 1);
+    boundedString(ownerId, 'ownerId'); safeInteger(fence, 'fence', 1); boundedString(code, 'recovery code');
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.leases, STORES.queue], 'readwrite', async (tx) => {
+      await requireActiveScope(tx, key);
+      const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
+      const queue = tx.objectStore(STORES.queue);
+      const value = await requestValue(queue.index(INDEXES.queueBySequence).get([key, sequence]));
+      const row = value ? validateQueueRecord(value, ctx.maxRecordBytes) : null;
+      if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || !row || row.status !== 'claimed'
+          || row.retry.ownerId !== ownerId || row.retry.fence !== fence) throw new SyncStateError('stale_fence');
+      if (row.attempt !== undefined) throw new SyncStateError('set_aside_refused');
+      queue.put(asHeld(row, code, ctx.maxRecordBytes));
+      await holdWaitingRows(queue, key, ctx.maxRecordBytes, sequence);
     });
   }
 
@@ -104,5 +130,5 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
     await completion; return row ? clone(row) : null;
   }
 
-  return { setAsideQueue, releaseSetAsideQueue, releaseConflictHolds, firstLaneQueue };
+  return { setAsideQueue, releaseSetAsideQueue, releaseSettledHolds, setAsideClaimedPush, firstLaneQueue };
 }

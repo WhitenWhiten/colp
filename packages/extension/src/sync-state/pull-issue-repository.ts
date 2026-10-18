@@ -18,9 +18,20 @@ export interface PullIssueRecord {
   readonly lastSeenAt: number;
 }
 
+/** A browser bookmark change that could not be tied to the library and was not synced. */
+export interface LocalIssueRecord {
+  readonly nativeId: string;
+  readonly code: string;
+  readonly title?: string;
+  readonly count: number;
+  readonly firstSeenAt: number;
+  readonly lastSeenAt: number;
+}
+
 /** The title is often the problem itself (too long to store), so the row keeps only its start. */
 export const PULL_ISSUE_TITLE_MAX = 200;
 const prefix = (key: string) => `pull-issue:${key}:`;
+const localPrefix = (key: string) => `local-issue:${key}:`;
 
 /**
  * B7: an item a Pull page cannot store is set aside, not a reason to stop the
@@ -76,10 +87,47 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
       firstSeenAt: Number(row.firstSeenAt), lastSeenAt: Number(row.lastSeenAt) }));
   }
 
-  return { probeMappingRecord, setAsidePullEvent, listPullIssues };
+  /**
+   * Records a browser change that cannot be tied to the library, such as a
+   * deletion of a bookmark with no mapping. Nothing is uploaded for it and
+   * nothing else stops; the row only reports it.
+   */
+  async function recordLocalIssue(input: SyncScope, issue: {
+    readonly code: string; readonly nativeId: string; readonly title?: string; readonly now: number;
+  }): Promise<void> {
+    ctx.assertWritable(); const key = scopeKey(validateScope(input));
+    const code = boundedString(issue.code, 'recovery code'); const nativeId = boundedString(issue.nativeId, 'nativeId');
+    const now = safeInteger(issue.now, 'now');
+    const title = issue.title?.trim() ? issue.title.trim().slice(0, PULL_ISSUE_TITLE_MAX) : undefined;
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.diagnostics], 'readwrite', async (tx) => {
+      await requireActiveScope(tx, key); const rows = tx.objectStore(STORES.diagnostics);
+      const id = `${localPrefix(key)}${code}:${nativeId}`;
+      const prior = await requestValue(rows.get(id)) as LocalIssueRecord | undefined;
+      const shown = prior?.title ?? title;
+      rows.put({ id, scopeKey: key, kind: 'local_issue', nativeId, code, ...(shown ? { title: shown } : {}),
+        count: (prior?.count ?? 0) + 1, firstSeenAt: prior?.firstSeenAt ?? now, lastSeenAt: now });
+    });
+  }
+
+  async function listLocalIssues(input: SyncScope): Promise<LocalIssueRecord[]> {
+    const key = scopeKey(validateScope(input)); const db = await ctx.open();
+    const tx = db.transaction(STORES.diagnostics, 'readonly'); const completion = transactionDone(tx);
+    const rows = await cursorPage<UnknownRecord>(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope),
+      localIssueRange(key), Number.MAX_SAFE_INTEGER);
+    await completion;
+    return rows.map((row) => clone({ nativeId: String(row.nativeId), code: String(row.code),
+      ...(typeof row.title === 'string' ? { title: row.title } : {}), count: Number(row.count),
+      firstSeenAt: Number(row.firstSeenAt), lastSeenAt: Number(row.lastSeenAt) }));
+  }
+
+  return { probeMappingRecord, setAsidePullEvent, listPullIssues, recordLocalIssue, listLocalIssues };
 }
 
 /** Recovery cutover rebuilds the replica from a Snapshot, so every Pull issue is decided again. */
 export function pullIssueRange(key: string): IDBKeyRange {
-  return IDBKeyRange.bound([key, prefix(key)], [key, `${prefix(key)}￿`]);
+  return IDBKeyRange.bound([key, prefix(key)], [key, `${prefix(key)}\uffff`]);
+}
+
+export function localIssueRange(key: string): IDBKeyRange {
+  return IDBKeyRange.bound([key, localPrefix(key)], [key, `${localPrefix(key)}\uffff`]);
 }

@@ -6,7 +6,7 @@ export {
   DATABASE_NAME, DATABASE_VERSION, LARGE_QUEUE_CONTRACT_SIZE,
 } from './sync-state/schema.js';
 export { SyncStateError } from './sync-state/types.js';
-export type { PullIssueRecord } from './sync-state/pull-issue-repository.js';
+export type { LocalIssueRecord, PullIssueRecord } from './sync-state/pull-issue-repository.js';
 export type {
   Environment, Lifecycle, SyncScope, ScopeRecord, QueueOperation, JsonValue, JsonObject,
   ReceiptInput, PushSettlement, PullApplyState, NativeCallResult, PersistedNativeCallResult,

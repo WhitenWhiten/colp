@@ -18,7 +18,7 @@ import { adoptBlockedPagesAtChainHead } from './recovery-repository.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { planPullMappingWrites } from './pull-mapping-writes.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
-import { settleResolvedConflictQueue } from './queue-conflict-hold.js';
+import { settleResolvedConflictQueue } from './queue-hold.js';
 import { markQueuePullEchoApplied } from './pull-queue-echo.js';
 import { hasQueueRevisionForTarget } from './queue-live-work.js';
 import { sameEffectPageRecord, samePullEventRecord, uniqueExclusions, validateCursor,

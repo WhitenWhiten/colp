@@ -11,7 +11,7 @@ import {
 import { boundedString, clone, replaceLocalToken, safeInteger, strictObject, validateJson, validateRecord } from './codec.js';
 import { constraintError, inject } from './errors.js';
 import { cursorPage, iterateCursor, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
-import { holdIfWaiting } from './queue-conflict-hold.js';
+import { holdIfWaiting } from './queue-hold.js';
 import { INDEXES, PARKED_DIAGNOSTIC, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { validateMapping } from './mapping-repository.js';
@@ -295,7 +295,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
         status: 'pending', retry: { attempt: 0, notBefore: 0 },
         payload: operation }, maxRecordBytes);
       sequences.put({ scopeKey: key, next: sequence + 1 }); inject(faults.fault, 'after_sequence', tx);
-      committed = await holdIfWaiting(queue, key, { ...queueInput, scopeKey: key, sequence }, maxRecordBytes);
+      committed = await holdIfWaiting(queue, key, { ...queueInput, scopeKey: key, sequence }, maxRecordBytes, validatedEvent.details.hold);
       queue.add(committed); inject(faults.fault, 'after_queue', tx);
       const mappings = tx.objectStore(STORES.mappings);
       const mapping = mappingTemplate ? validateMapping(key,

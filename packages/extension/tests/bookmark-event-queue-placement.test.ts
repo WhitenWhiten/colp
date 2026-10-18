@@ -39,17 +39,29 @@ test('ready reservation survives event staging and never enters the wire payload
     (event.details.context as Record<string, unknown>).placement);
 });
 
-test('unproven reservation freezes recovery and stages no event', async () => {
+test('an unproven reservation holds that one save and lets later saves queue', async () => {
   const { store, api } = await fixture(new IDBFactory(), { autoFlush: false });
   const node = bookmark('native-ambiguous', 'root-selected', 0, intent.title, intent.url);
   api.put(node);
   const queue = createBookmarkEventQueue({ scope, store, api, autoFlush: false,
-    resolveCreatePlacement: async () => ({ state: 'unproven', candidates: [intent] }) });
-  assert.equal((await queue.created(node.id, node)).outcome, 'identity_unproven');
-  assert.equal((await store.listBookmarkEvents(scope)).length, 0);
-  assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
+    resolveCreatePlacement: async (nativeId) => nativeId === node.id
+      ? { state: 'unproven', candidates: [intent] } : undefined });
+  assert.equal((await queue.created(node.id, node)).outcome, 'staged');
+  // Captured where the browser put it, without the reservation it cannot be tied to.
+  const event = (await store.listBookmarkEvents(scope))[0]!;
+  assert.equal((event.details.context as Record<string, unknown>).placement, undefined);
+  const later = bookmark('native-later', 'root-selected', 1, 'Later', 'https://example.test/later');
+  api.put(later);
+  assert.equal((await queue.created(later.id, later)).outcome, 'staged');
+  await queue.flush();
+  const rows = await store.listQueue(scope);
+  assert.deepEqual(rows.map((row) => [row.status, row.recovery?.code]),
+    [['set_aside', 'recovery_identity_unproven'], ['pending', undefined]]);
+  // The later save sits after the held one in the browser; it is placed by its folder instead of waiting.
+  assert.equal((rows[1]!.payload.payload as Record<string, unknown>).afterId, undefined);
+  assert.notEqual((await store.getEngineState(scope))?.recoveryFrozen, true);
+  assert.equal((await store.getScope(scope))?.metadata?.recoveryCode, undefined);
   assert.equal((await store.listIngressDiagnostics(scope)).some((row) => row.code === 'identity_unproven'), false);
-  assert.equal((await store.getScope(scope))?.metadata?.recoveryCode, 'recovery_identity_unproven');
 });
 
 test('ordinary native create without a reservation keeps the existing ingress path', async () => {
@@ -95,7 +107,7 @@ test.each(['bound', 'attention'] as const)('a %s local-only reservation cannot f
   } finally { store.close(); }
 });
 
-test('a reservation explicitly bound to another collection still freezes native ingress', async () => {
+test('a reservation explicitly bound to another collection holds that save without freezing ingress', async () => {
   const { store, api } = await fixture(new IDBFactory(), { autoFlush: false });
   const node = bookmark(intent.nativeId!, 'root-selected', 0, intent.title, intent.url);
   api.put(node);
@@ -104,10 +116,12 @@ test('a reservation explicitly bound to another collection still freezes native 
     resolveCreatePlacement: async () => ({ state: 'ready', intent: { ...intent, collectionId: 'other-collection' } }),
     markCreatePlacementAttention: async id => { attention.push(id); } });
   try {
-    assert.equal((await queue.created(node.id, node)).outcome, 'identity_unproven');
+    assert.equal((await queue.created(node.id, node)).outcome, 'staged');
     assert.deepEqual(attention, [intent.intentId]);
-    assert.equal((await store.listBookmarkEvents(scope)).length, 0);
-    assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
+    await queue.flush();
+    assert.deepEqual((await store.listQueue(scope)).map((row) => [row.status, row.recovery?.code]),
+      [['set_aside', 'recovery_identity_unproven']]);
+    assert.notEqual((await store.getEngineState(scope))?.recoveryFrozen, true);
   } finally { store.close(); }
 });
 

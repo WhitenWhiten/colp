@@ -74,17 +74,25 @@ describe('FR-F1-BOUNDARY-DELETE', () => {
     assert.equal(records[0]!.payload.targetId, 'mapped-colp');
   });
 
-  test('in-scope identity-unknown still fail-closed and is reentrant', async () => {
-    const { store, queue } = await fixture(indexedDB);
+  test('an in-scope delete with no identity guesses nothing and is one reported item, counted on repeat', async () => {
+    const { store, queue, api } = await fixture(indexedDB);
     const first = await queue.removed('ghost', { parentId: 'root-selected', index: 0 });
     const second = await queue.removed('ghost', { parentId: 'root-selected', index: 0 });
-    assert.equal(first.outcome, 'identity_unproven');
-    assert.equal(second.outcome, 'identity_unproven');
-    assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
+    assert.equal(first.outcome, 'filtered');
+    assert.equal(second.outcome, 'filtered');
     assert.equal((await store.listQueue(scope)).length, 0);
+    assert.deepEqual((await store.listLocalIssues(scope)).map((issue) => [issue.nativeId, issue.code, issue.count]),
+      [['ghost', 'deletion_identity_unproven', 2]]);
+    // Nothing stops: the next save still queues.
+    assert.notEqual((await store.getEngineState(scope))?.recoveryFrozen, true);
+    const node = bookmark('legal-new', 'folder-parent', 0, 'Legal', 'https://example.test/legal');
+    api.put(node);
+    assert.equal((await queue.created(node.id, node)).outcome, 'staged');
+    await queue.flush();
+    assert.equal((await store.listQueue(scope)).some((row) => row.payload.type === 'create_node'), true);
   });
 
-  test('unknown ancestor walk fails closed instead of swallowing as out of scope', async () => {
+  test('an unknown ancestor walk is not swallowed as out of scope: it is reported, not deleted', async () => {
     const { store, api } = await fixture(indexedDB);
     const rejecting = { ...api, async get(id: string) {
       if (id === 'gone-parent') throw new Error('Can not find bookmark for id.');
@@ -92,9 +100,13 @@ describe('FR-F1-BOUNDARY-DELETE', () => {
     } };
     const queue = createBookmarkEventQueue({ scope, store, api: rejecting, now: () => '2026-07-27T00:00:00Z',
       uuid: deterministicIds(), autoFlush: false });
-    const result = await queue.removed('mystery', { parentId: 'gone-parent', index: 0 });
-    assert.equal(result.outcome, 'identity_unproven');
-    assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
+    const result = await queue.removed('mystery', { parentId: 'gone-parent', index: 0,
+      node: bookmark('mystery', 'gone-parent', 0, 'Mystery', 'https://example.test/mystery') });
+    assert.equal(result.outcome, 'filtered');
+    assert.equal((await store.listQueue(scope)).length, 0);
+    assert.deepEqual((await store.listLocalIssues(scope)).map((issue) => [issue.code, issue.title]),
+      [['deletion_identity_unproven', 'Mystery']]);
+    assert.notEqual((await store.getEngineState(scope))?.recoveryFrozen, true);
   });
 
   test('out-of-scope delete does not block the next in-scope create', async () => {

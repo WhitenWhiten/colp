@@ -175,10 +175,18 @@ export function createBookmarkEventHealer(input: {
     for (const key of ['afterNativeId', 'beforeNativeId'] as const) {
       if (typeof context[key] !== 'string') continue;
       const anchor = await trusted(context[key], beforeOrdinal);
+      // A neighbour held as an item will not settle soon: place by the other
+      // neighbour, or by the folder alone, rather than wait for it.
+      if ('blocked' in anchor && await anchorHeld(anchor.blocked)) continue;
       if ('blocked' in anchor) return { blocked: anchor.blocked };
       return { wire: { [key === 'afterNativeId' ? 'afterId' : 'beforeId']: anchor.identity.colpId } };
     }
     return { wire: {} };
+  }
+
+  async function anchorHeld(dependency: EventDependency): Promise<boolean> {
+    if (!dependency.opId) return false;
+    return (await input.store.getQueueByOpId(input.scope, dependency.opId))?.status === 'set_aside';
   }
 
   /**

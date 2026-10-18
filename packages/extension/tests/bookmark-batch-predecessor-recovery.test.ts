@@ -6,7 +6,7 @@ import type { BookmarkEventRecord, JsonObject } from '../src/sync-state-store.js
 import { setup, scope, operation, problem, resetIndexedDb } from './outbound-push-worker-harness.js';
 
 for (const mutation of ['move', 'delete', 'pending'] as const) {
-  test(`batch predecessor ${mutation} enters durable recovery instead of waiting forever`, async () => {
+  test(`a save whose batch predecessor ${mutation} is set aside, and the later save still uploads`, async () => {
     resetIndexedDb();
     const fixture = await setup({ createPlacement: 'bottom' });
     const { store } = fixture;
@@ -55,15 +55,19 @@ for (const mutation of ['move', 'delete', 'pending'] as const) {
         }
       }
       fixture.clock.now = (await store.listQueue(scope))[0]!.retry.notBefore;
-      assert.equal((await worker.drain()).outcome, 'recovery', JSON.stringify(await store.listQueue(scope)));
+      // The save that cannot be placed waits as one item; the later save is sent instead of waiting behind it.
+      assert.equal((await worker.drain()).outcome, 'unknown', JSON.stringify(await store.listQueue(scope)));
       const rows = await store.listQueue(scope);
-      assert.equal(rows[0]?.recovery?.code, 'create_placement_unproven');
-      assert.equal(rows[1]?.status, 'pending');
-      assert.equal((await store.getScope(scope))?.lifecycle, 'recovery_required');
-      assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
-      assert.equal((await worker.drain()).outcome, 'recovery');
-      assert.equal((await store.listQueue(scope))[0]?.retry.attempt, rows[0]?.retry.attempt);
-      assert.equal(sends, 1);
+      assert.deepEqual([rows[0]?.status, rows[0]?.recovery?.code], ['set_aside', 'create_placement_unproven']);
+      assert.equal(rows[1]?.opId, 'later-op');
+      assert.equal(sends, 2);
+      assert.equal((await store.getScope(scope))?.lifecycle, 'active');
+      assert.notEqual((await store.getEngineState(scope))?.recoveryFrozen, true);
+      // The held save is never retried on its own.
+      fixture.clock.now = rows[1]!.retry.notBefore;
+      await worker.drain();
+      const held = (await store.listQueue(scope))[0]!;
+      assert.deepEqual([held.status, held.retry.attempt], ['set_aside', rows[0]?.retry.attempt]);
     } finally { store.close(); }
   });
 }

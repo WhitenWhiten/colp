@@ -1,5 +1,5 @@
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
-import { firstLaneQueueRow, holdable, holdIfWaiting, holdWaitingRows } from './queue-conflict-hold.js';
+import { firstLaneQueueRow, holdable, holdIfWaiting, holdWaitingRows } from './queue-hold.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt } from './queue-live-work.js';
 import {
   SyncStateError, type DurableSyncEngineState, type FaultOptions, type JsonObject, type LeaseRecord, type LeaseResult,

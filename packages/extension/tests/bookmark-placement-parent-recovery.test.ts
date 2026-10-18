@@ -10,29 +10,30 @@ import { installOutboundPushIndexedDb, json, problem, scope, setup } from './out
 installOutboundPushIndexedDb();
 
 for (const mode of ['top', 'bottom'] as const) {
-  test(`${mode} save with deleted parent parks unchanged even when a writable recovery destination exists`, async () => {
+  test(`${mode} save with deleted parent is set aside unchanged even when a writable recovery destination exists`, async () => {
     const fixture = await setup({ createPlacement: mode });
     await markDeletedParent(fixture);
     let sends = 0;
     const worker = createOutboundPushWorker({ ...fixture.options, fetch: async () => {
       sends += 1; throw new Error('unexpected_upload');
     } });
-    assert.equal((await worker.drain()).outcome, 'recovery');
-    assert.equal((await worker.drain()).outcome, 'recovery');
+    assert.equal((await worker.drain()).outcome, 'terminal');
+    assert.equal((await worker.drain()).outcome, 'idle');
     assert.equal(sends, 0);
     const row = (await fixture.store.listQueue(scope))[0]!;
-    assert.equal(row.status, 'unknown');
+    assert.equal(row.status, 'set_aside');
+    assert.equal(row.recovery?.code, 'create_placement_parent_deleted');
     assert.equal(row.attempt, undefined);
     assert.deepEqual(row.payload, fixture.queued.payload);
     assert.equal(row.opId, fixture.queued.opId);
     assert.equal(row.sequence, fixture.queued.sequence);
     assert.equal(row.idempotencyKey, fixture.queued.idempotencyKey);
-    assert.equal((await fixture.store.getScope(scope))?.metadata?.recoveryCode, 'create_placement_parent_deleted');
-    assert.equal((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
+    assert.equal((await fixture.store.getScope(scope))?.metadata?.recoveryCode, undefined);
+    assert.notEqual((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
   });
 }
 
-test('an unreadable refreshed native folder freezes instead of using stale reorder metadata', async () => {
+test('an unreadable refreshed native folder sets the save aside instead of using stale reorder metadata', async () => {
   const fixture = await setup({ createPlacement: 'top' });
   let sends = 0;
   const worker = createOutboundPushWorker({ ...fixture.options,
@@ -40,12 +41,13 @@ test('an unreadable refreshed native folder freezes instead of using stale reord
     fetch: async () => { sends += 1; return problem(409, 'position_context_stale', { retryable: true }); } });
   assert.equal((await worker.drain()).outcome, 'unknown');
   fixture.clock.now = (await fixture.store.listQueue(scope))[0]!.retry.notBefore;
-  assert.equal((await worker.drain()).outcome, 'recovery');
+  assert.equal((await worker.drain()).outcome, 'terminal');
   assert.equal(sends, 1);
-  assert.equal((await fixture.store.getEngineState(scope))?.lastError, 'create_placement_unproven');
+  assert.equal((await fixture.store.listQueue(scope))[0]?.recovery?.code, 'create_placement_unproven');
+  assert.notEqual((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
 });
 
-test('definitive missing-parent refusal refreshes once and parks the save before any changed request', async () => {
+test('definitive missing-parent refusal refreshes once and sets the save aside before any changed request', async () => {
   const fixture = await setup({ createPlacement: 'top' });
   let sends = 0; let refreshes = 0;
   const worker = createOutboundPushWorker({ ...fixture.options, refreshPlacement: async () => {
@@ -55,9 +57,10 @@ test('definitive missing-parent refusal refreshes once and parks the save before
   const refused = (await fixture.store.listQueue(scope))[0]!;
   assert.equal(refused.attempt, undefined);
   fixture.clock.now = refused.retry.notBefore;
-  assert.equal((await worker.drain()).outcome, 'recovery');
+  assert.equal((await worker.drain()).outcome, 'terminal');
   assert.equal(refreshes, 1); assert.equal(sends, 1);
-  assert.equal((await fixture.store.getEngineState(scope))?.lastError, 'create_placement_parent_deleted');
+  const held = (await fixture.store.listQueue(scope))[0]!;
+  assert.deepEqual([held.status, held.recovery?.code], ['set_aside', 'create_placement_parent_deleted']);
 });
 
 test('an unexplained repeated 404 cannot loop the placement refresh indefinitely', async () => {

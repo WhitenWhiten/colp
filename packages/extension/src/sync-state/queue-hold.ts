@@ -7,6 +7,10 @@ import { SyncStateError, type QueueOperation, type UnknownRecord } from './types
 
 /** Why a change waits out of the lane: an earlier change to the same bookmark is in conflict. */
 export const CONFLICT_HOLD = 'conflict_hold';
+/** Why a change waits out of the lane: an earlier change to the same bookmark is set aside. */
+export const DEPENDENCY_HOLD = 'dependency_hold';
+/** Holds that end on their own when what they wait for is settled; any other hold waits for a decision. */
+export const DEPENDENT_HOLDS: ReadonlySet<string> = new Set([CONFLICT_HOLD, DEPENDENCY_HOLD]);
 
 /**
  * 03-sync §6: a `conflicted` result is terminal and consumes its sequence, so
@@ -31,26 +35,26 @@ export async function firstLaneQueueRow(queue: IDBObjectStore, receipts: IDBObje
   return row;
 }
 
-/** Open conflicts and the changes already held for them, in sequence order. */
-export async function conflictHolders(queue: IDBObjectStore, key: string, maxRecordBytes: number): Promise<QueueOperation[]> {
+/** Rows later changes of their bookmark wait for: open conflicts and every held row, in sequence order. */
+export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordBytes: number): Promise<QueueOperation[]> {
   const rows: unknown[] = [];
-  for (const [status, code] of [['blocked', 'conflict_pending'], ['set_aside', CONFLICT_HOLD]] as const) {
+  for (const status of ['blocked', 'set_aside'] as const) {
     await iterateCursor(queue.index(INDEXES.queueByStatusSequence),
       IDBKeyRange.bound([key, status, 1], [key, status, Number.MAX_SAFE_INTEGER]), (value) => {
-        if ((value as QueueOperation).recovery?.code === code) rows.push(value);
+        if (status === 'set_aside' || (value as QueueOperation).recovery?.code === 'conflict_pending') rows.push(value);
       });
   }
   return rows.map((value) => validateQueueRecord(value, maxRecordBytes)).sort((left, right) => left.sequence - right.sequence);
 }
 
 /**
- * A later change waits for a holder when it rewrites the same bookmark, or
- * places work inside a create the holder still owns. Siblings, children of an
- * existing folder and unrelated bookmarks keep syncing.
+ * The holder a later change waits for: one that rewrites the same bookmark,
+ * or a create the change places work inside. Siblings, children of an existing
+ * folder and unrelated bookmarks keep syncing.
  */
-export function heldBy(row: QueueOperation, holders: readonly QueueOperation[]): boolean {
+export function heldBy(row: QueueOperation, holders: readonly QueueOperation[]): QueueOperation | undefined {
   const target = row.payload.targetId; const parents = enqueueParentIds(row.payload);
-  return holders.some((holder) => holder.opId !== row.opId
+  return holders.find((holder) => holder.opId !== row.opId
     && ((typeof target === 'string' && (target === holder.payload.targetId || target === `pending-${holder.opId}`))
       || parents.includes(`pending-${holder.opId}`)));
 }
@@ -60,17 +64,29 @@ export function holdable(row: QueueOperation): boolean {
   return row.status === 'pending' && row.attempt === undefined;
 }
 
-export function asConflictHold(row: QueueOperation, maxRecordBytes: number): QueueOperation {
-  return validateQueueRecord({ ...row, status: 'set_aside', recovery: { code: CONFLICT_HOLD },
+export function asHeld(row: QueueOperation, code: string, maxRecordBytes: number): QueueOperation {
+  return validateQueueRecord({ ...row, status: 'set_aside', recovery: { code },
     retry: { attempt: row.retry.attempt, notBefore: 0 } }, maxRecordBytes);
 }
 
-/** Validates a change about to be queued; one for a bookmark in conflict waits with it instead of joining the lane. */
-export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: unknown,
-  maxRecordBytes: number): Promise<QueueOperation> {
+/** A change waits as long as its holder: behind a conflict, or behind an item that is set aside. */
+function dependentHold(holder: QueueOperation): string {
+  return holder.status === 'blocked' || holder.recovery?.code === CONFLICT_HOLD ? CONFLICT_HOLD : DEPENDENCY_HOLD;
+}
+
+/**
+ * Validates a change about to be queued. One the browser already knows it
+ * cannot sync is held as that item (`hold`); one for a bookmark that is in
+ * conflict or held waits with it instead of joining the lane.
+ */
+export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: unknown, maxRecordBytes: number,
+  hold?: unknown): Promise<QueueOperation> {
   const row = validateQueueRecord(input, maxRecordBytes);
-  return holdable(row) && heldBy(row, await conflictHolders(queue, key, maxRecordBytes))
-    ? asConflictHold(row, maxRecordBytes) : row;
+  if (!holdable(row)) return row;
+  const code = hold && typeof hold === 'object' ? (hold as { readonly code?: unknown }).code : undefined;
+  if (typeof code === 'string' && code.length > 0) return asHeld(row, code, maxRecordBytes);
+  const holder = heldBy(row, await laneHolders(queue, key, maxRecordBytes));
+  return holder ? asHeld(row, dependentHold(holder), maxRecordBytes) : row;
 }
 
 /**
@@ -80,15 +96,16 @@ export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: u
  */
 export async function holdWaitingRows(queue: IDBObjectStore, key: string, maxRecordBytes: number,
   afterSequence: number): Promise<number> {
-  const holders = await conflictHolders(queue, key, maxRecordBytes);
+  const holders = await laneHolders(queue, key, maxRecordBytes);
   if (holders.length === 0) return 0;
   const pending = await cursorPage<unknown>(queue.index(INDEXES.queueByStatusSequence),
     IDBKeyRange.bound([key, 'pending', afterSequence + 1], [key, 'pending', Number.MAX_SAFE_INTEGER]), Number.MAX_SAFE_INTEGER);
   let held = 0;
   for (const value of pending) {
     const row = validateQueueRecord(value, maxRecordBytes);
-    if (!holdable(row) || !heldBy(row, holders)) continue;
-    const updated = asConflictHold(row, maxRecordBytes);
+    const holder = holdable(row) ? heldBy(row, holders) : undefined;
+    if (!holder) continue;
+    const updated = asHeld(row, dependentHold(holder), maxRecordBytes);
     queue.put(updated); holders.push(updated); held += 1;
   }
   return held;

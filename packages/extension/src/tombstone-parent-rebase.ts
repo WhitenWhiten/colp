@@ -13,7 +13,7 @@
  * unmounted, pending or recovery-placeholder parent can neither be chosen as an
  * anchor nor be mistaken for a tombstone.
  */
-import { freezeDeletedSaveParent } from './create-placement-rebase.js';
+import { setAsideDeletedSaveParent } from './create-placement-rebase.js';
 import { UNMOUNTED_PREFIX } from './pull-mount-apply.js';
 import { isWritableActiveScope } from './scope-transition.js';
 import type { PlacementRefreshOutcome } from './durable-sync-engine-types.js';
@@ -24,7 +24,7 @@ import type {
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'getRemoteObservation' | 'getMappingByColpId' | 'getLocalSyncExclusion' | 'listMountBindings' | 'listMappings'
   | 'settleClaimedPush' | 'putScopeDiagnostic' | 'rebaseClaimedPush' | 'listBookmarkEvents'
-  | 'getMappingByNativeId' | 'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine'>;
+  | 'getMappingByNativeId' | 'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine' | 'setAsideClaimedPush'>;
 
 export interface TombstonedCreateRebaseInput {
   readonly store: Store; readonly scope: SyncScope; readonly queue: QueueOperation;
@@ -60,7 +60,7 @@ Promise<QueueOperation | 'terminal' | 'recovery'> {
   // the local mirror first, exactly like the retried move path does.
   if (queue.retry.attempt > 0 && await input.refreshPlacement?.() === 'recovery') return 'recovery';
   if (!await parentIsTombstoned(store, scope, parentId)) return queue;
-  if (await freezeDeletedSaveParent(store, scope, queue)) return 'recovery';
+  if (await setAsideDeletedSaveParent({ store, scope, queue, ownerId, fence })) return 'terminal';
   const anchor = await createRebaseAnchor(store, scope, parentId);
   if (!anchor) {
     await store.settleClaimedPush(scope, queue.sequence, ownerId, fence,

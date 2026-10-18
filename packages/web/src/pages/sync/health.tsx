@@ -48,7 +48,12 @@ export function issueSummary(issue: SyncReplicaIssue): string {
   switch (issue.code) {
     case 'conflict_pending': return 'Waiting for a conflict to be resolved'
     case 'conflict_hold': return 'Waiting for a conflict on this bookmark to be resolved'
+    case 'dependency_hold': return 'Waiting for an earlier change to it that couldn’t sync'
     case 'parent_set_aside': return 'Its folder couldn’t be added to this browser'
+    case 'create_placement_parent_deleted': return 'Its folder was deleted before it synced'
+    case 'create_placement_unproven': return 'Its place in the folder couldn’t be confirmed'
+    case 'recovery_identity_unproven': return 'It couldn’t be matched with one saved bookmark'
+    case 'deletion_identity_unproven': return 'Deleted on that browser, but it couldn’t be matched, so nothing else was deleted'
     case 'record_too_large': return 'Too large for this browser to store'
     case 'bounded_string_invalid': return 'A field is too long for this browser to store'
     case 'native_result_unknown': return 'Waiting for a decision in the browser'

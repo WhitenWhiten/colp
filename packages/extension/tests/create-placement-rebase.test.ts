@@ -4,7 +4,7 @@ import { test } from 'vitest';
 import { BookmarkApiError } from '../src/bookmark-api-error.js';
 import { planCreatePlacement, type PlacementIntent } from '../src/create-placement-rebase.js';
 import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
-import { describeSyncAttention } from '../src/sync-attention-ui.js';
+import { replicaIssuesFromQueue } from '../src/sw/replica-health-report.js';
 import type { BookmarkEventRecord, MappingInput } from '../src/sync-state-store.js';
 import { json, problem, resetIndexedDb, scope, setup } from './outbound-push-worker-harness.js';
 
@@ -147,7 +147,7 @@ test('an exact network attempt still retries its saved bytes when bookmark permi
   } finally { fixture.store.close(); }
 });
 
-test('a native parent that is really gone still reports placement repair and is not created again', async () => {
+test('a native parent that is really gone sets the save aside as one item and does not create it again', async () => {
   resetIndexedDb();
   const fixture = await setup({ createPlacement: 'top' });
   try {
@@ -157,19 +157,17 @@ test('a native parent that is really gone still reports placement repair and is 
       fetch: async () => { sends += 1; return problem(409, 'position_context_stale', { retryable: true }); } });
     assert.equal((await worker.drain()).outcome, 'unknown');
     fixture.clock.now = (await fixture.store.listQueue(scope))[0]!.retry.notBefore;
-    assert.equal((await worker.drain()).outcome, 'recovery');
-    assert.equal((await worker.drain()).outcome, 'recovery');
+    assert.equal((await worker.drain()).outcome, 'terminal');
+    assert.equal((await worker.drain()).outcome, 'idle');
     assert.equal(sends, 1);
-    const engine = await fixture.store.getEngineState(scope);
-    assert.equal(engine?.recoveryFrozen, true);
-    assert.equal(engine?.lastError, 'create_placement_parent_deleted');
-    const view = describeSyncAttention({ recoveryFrozen: true, lastError: engine?.lastError, recoveryCode: engine?.lastError });
-    assert.equal(view.terminal.show, true);
-    assert.match(view.terminal.copy, /save location needs review/);
+    assert.notEqual((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
+    // The save is one item for the Sync center, with the reason the old freeze gave.
+    const rows = await fixture.store.listQueue(scope);
+    assert.deepEqual(replicaIssuesFromQueue(rows).map((issue) => issue.code), ['create_placement_parent_deleted']);
   } finally { fixture.store.close(); }
 });
 
-test('an unknown native child read freezes placement repair instead of creating the bookmark again', async () => {
+test('an unknown native child read sets the save aside instead of creating the bookmark again', async () => {
   resetIndexedDb();
   const fixture = await setup({ createPlacement: 'top' });
   try {
@@ -179,10 +177,10 @@ test('an unknown native child read freezes placement repair instead of creating 
       fetch: async () => { sends += 1; return problem(409, 'position_context_stale', { retryable: true }); } });
     assert.equal((await worker.drain()).outcome, 'unknown');
     fixture.clock.now = (await fixture.store.listQueue(scope))[0]!.retry.notBefore;
-    assert.equal((await worker.drain()).outcome, 'recovery');
-    assert.equal((await worker.drain()).outcome, 'recovery');
+    assert.equal((await worker.drain()).outcome, 'terminal');
+    assert.equal((await worker.drain()).outcome, 'idle');
     assert.equal(sends, 1);
-    assert.equal((await fixture.store.getEngineState(scope))?.lastError, 'create_placement_unproven');
-    assert.notEqual((await fixture.store.listQueue(scope))[0]?.recovery?.code, 'permission_required');
+    assert.notEqual((await fixture.store.getEngineState(scope))?.recoveryFrozen, true);
+    assert.equal((await fixture.store.listQueue(scope))[0]?.recovery?.code, 'create_placement_unproven');
   } finally { fixture.store.close(); }
 });

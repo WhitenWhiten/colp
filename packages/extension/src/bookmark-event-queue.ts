@@ -21,7 +21,6 @@ import { classifyRemovalScope, deletionNodeKind, deletionOperationType, removalN
 import { reconcileBookmarkTree } from './bookmark-event-reconcile.js';
 import { captureMissingNativeRemovals } from './bookmark-removal-reconcile.js';
 import { journalSubtreeNativeIds, persistRemovalJournal } from './deletion-journal.js';
-import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { capturePendingSubtreeDeletion } from './subtree-observation.js';
 import { resolveEventIdentityTokens } from './bookmark-event-resolve.js';
 import { createProjectionSuppression, projectionSuppresses, type ProjectionChangeFields } from './recovery-overlay.js';
@@ -116,13 +115,13 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     const parentId = parent && !parent.colpId.startsWith('pending-') ? parent.colpId : INBOX_PARENT_WIRE_PLACEHOLDER;
     const placementResolution = await resolveCreatePlacement({ resolve: options.resolveCreatePlacement, complete: options.completeCreatePlacement,
       markAttention: options.markCreatePlacementAttention, store: options.store, scope: options.scope, nativeId, node: rawNode, parentNativeId });
-    if (placementResolution.invalid) return { outcome: 'identity_unproven' };
     const relative = await captureStep('relative_placement_failed', () =>
       placement(parentNativeId, nativeId, rawNode.index ?? 0, 'create-history'));
     const staged = await captureStep('bookmark_event_stage_failed', () => stage('create', nativeId,
       { operation: { type: 'create_node', baseRevision: null, dependencies: [], payload: { parentId, ...relative.wire, node } },
         context: { parentNativeId, index: rawNode.index ?? 0, ...(relative.afterNativeId ? { afterNativeId: relative.afterNativeId } : {}),
           ...(relative.beforeNativeId ? { beforeNativeId: relative.beforeNativeId } : {}), ...(placementResolution.context ? { placement: placementResolution.context } : {}) },
+        ...(placementResolution.hold ? { hold: { code: placementResolution.hold } } : {}),
         mapping: { nativeId, colpId, rootNativeId, nodeKind, parentNativeId,
           projection: { revision: `local-${eventId}`, digest: digestJson(content), content } } }, eventId));
     await completeCreatePlacement({ complete: options.completeCreatePlacement,
@@ -188,6 +187,12 @@ export function createBookmarkEventQueue(options: QueueOptions) {
           ...(identity.content ? { content: identity.content } : {}) } } }, eventId);
   }
 
+  async function unmatchedDeletion(nativeId: string, node: BookmarkEventNode | null | undefined): Promise<CaptureResult> {
+    await options.store.recordLocalIssue(options.scope, { code: 'deletion_identity_unproven', nativeId, now: Date.parse(now()),
+      ...(typeof node?.title === 'string' ? { title: node.title } : {}) });
+    return { outcome: 'filtered' };
+  }
+
   async function removed(nativeId: string, removal: { readonly parentId: string; readonly index: number;
     readonly node?: BookmarkEventNode | null }): Promise<CaptureResult> {
     if (await nativeIsLocallyExcluded(options.store, options.scope, nativeId,
@@ -213,15 +218,11 @@ export function createBookmarkEventQueue(options: QueueOptions) {
       detachedNative, mapping,
     });
     if (scopeClass.kind === 'out_of_scope') return { outcome: 'filtered' };
-    if (scopeClass.kind === 'unknown') {
-      await freezeScopeRecovery(options.store, options.scope, 'deletion_identity_unproven');
-      return { outcome: 'identity_unproven' };
-    }
+    // A removed bookmark with no mapping cannot be tied to the library: nothing
+    // is deleted anywhere else, and it is reported as one item, not a stop.
+    if (scopeClass.kind === 'unknown') return unmatchedDeletion(nativeId, removal.node);
     await persistRemovalJournal(options.store, options.scope, { nativeId, removal, mappings });
-    if (!identity) {
-      await freezeScopeRecovery(options.store, options.scope, 'deletion_identity_unproven');
-      return { outcome: 'identity_unproven' };
-    }
+    if (!identity) return unmatchedDeletion(nativeId, removal.node);
     const privacy = await privacyFor(nativeId, false, identity,
       removal.parentId, isManagedBookmarkNode(removal.node ?? {}));
     if (!privacy.allowOperationCandidate) return { outcome: 'filtered' };

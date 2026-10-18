@@ -104,17 +104,18 @@ describe('KNS-10 scope detach, deletion journal and recovery', () => {
     assert.equal((await store.getMountBinding(scope, 'mount-bar'))?.status, 'active');
   });
 
-  test('missing onRemoved payload without identity journals and freezes without a guessed delete', async () => {
+  test('missing onRemoved payload without identity journals and reports it without a guessed delete', async () => {
     const { queue, store } = await eventFixture();
     const outcome = await queue.removed('ghost', { parentId: 'root-selected', index: 0 });
-    assert.equal(outcome.outcome, 'identity_unproven');
+    assert.equal(outcome.outcome, 'filtered');
     const journal = await store.listDeletionJournal(scope, 'ghost');
     assert.equal(journal.length, 1);
     assert.equal(journal[0]!.parentNativeId, 'root-selected');
     assert.doesNotMatch(JSON.stringify(journal), /"title"|"url"/);
     assert.equal((await store.listQueue(scope)).length, 0);
-    assert.equal((await store.getEngineState(scope))?.recoveryFrozen, true);
-    assert.equal((await store.getEngineState(scope))?.lastError, 'deletion_identity_unproven');
+    // One item for the Sync center, not a stop.
+    assert.deepEqual((await store.listLocalIssues(scope)).map((issue) => issue.code), ['deletion_identity_unproven']);
+    assert.notEqual((await store.getEngineState(scope))?.recoveryFrozen, true);
   });
 
   test('parent deleted first reconstructs the subtree from mappings and does not guess titles', async () => {

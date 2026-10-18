@@ -1,13 +1,12 @@
 import { BookmarkApiError, classifyBookmarkApiFailure } from './bookmark-api-error.js';
 import { BOOKMARK_EVENT_MAX_PAGES, findProcessedBookmarkEvent } from './bookmark-event-pages.js';
-import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import type {
   BookmarkEventRecord, JsonObject, MappingInput, QueueOperation, SyncScope, createSyncStateStore,
 } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'listBookmarkEvents' | 'listMappings' | 'getMappingByNativeId' | 'rebaseClaimedPush' | 'putScopeDiagnostic'
-  | 'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine'>;
+  | 'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine' | 'setAsideClaimedPush'>;
 
 type PlacementReadStore = Store & Pick<ReturnType<typeof createSyncStateStore>,
   'settleClaimedPush' | 'setBrowserRootStatus'>;
@@ -29,15 +28,17 @@ export async function savedCreatePlacement(store: Pick<Store, 'listBookmarkEvent
     (after, limit) => store.listBookmarkEvents(scope, after, limit), opId, 'create'));
 }
 
-/** A save's original folder is part of its intent; a recovery folder cannot satisfy it. */
-export async function freezeDeletedSaveParent(store: Store, scope: SyncScope,
-  queue: QueueOperation): Promise<boolean> {
-  const intent = await savedCreatePlacement(store, scope, queue.opId);
+/**
+ * A save's original folder is part of its intent; a recovery folder cannot
+ * satisfy it. The save is set aside as one item and later saves keep uploading.
+ */
+export async function setAsideDeletedSaveParent(input: {
+  readonly store: Store; readonly scope: SyncScope; readonly queue: QueueOperation;
+  readonly ownerId: string; readonly fence: number;
+}): Promise<boolean> {
+  const intent = await savedCreatePlacement(input.store, input.scope, input.queue.opId);
   if (!intent) return false;
-  const code = 'create_placement_parent_deleted';
-  await store.putScopeDiagnostic(scope, { kind: 'placement_refresh', code,
-    details: { opId: queue.opId, parentNativeId: intent.targetParentNativeId, position: intent.mode } });
-  await freezeScopeRecovery(store, scope, code);
+  await setAsideCreatePlacement(input, intent, 'create_placement_parent_deleted');
   return true;
 }
 
@@ -47,7 +48,7 @@ export async function rebaseStaleCreatePlacement(input: {
   readonly digestJson: (value: unknown) => string;
   readonly readChildrenOrder?: ((parentNativeId: string) => Promise<readonly string[]>) | undefined;
   readonly defer: (code: string) => Promise<'unknown'>;
-}): Promise<QueueOperation | 'unknown' | 'recovery'> {
+}): Promise<QueueOperation | 'unknown' | 'terminal'> {
   if (input.queue.payload.type !== 'create_node' || input.queue.retry.attempt === 0) return input.queue;
   const event = await findProcessedBookmarkEvent(
     (after, limit) => input.store.listBookmarkEvents(input.scope, after, limit), input.queue.opId, 'create');
@@ -57,12 +58,12 @@ export async function rebaseStaleCreatePlacement(input: {
   // Permission loss is a pause. It does not prove the saved folder is gone, and it must not
   // retire the attempt or upload the create again as if the native read never happened.
   if (read.kind === 'permission_required') return pauseStaleCreateForPermission(input);
-  if (read.kind === 'absent') return freezeCreatePlacement(input, intent, 'create_placement_parent_deleted');
-  if (read.kind === 'unknown') return freezeCreatePlacement(input, intent, 'create_placement_unproven');
+  if (read.kind === 'absent') return setAsideCreatePlacement(input, intent, 'create_placement_parent_deleted');
+  if (read.kind === 'unknown') return setAsideCreatePlacement(input, intent, 'create_placement_unproven');
   const plan = await planCreatePlacement(input.store, input.scope, event, intent,
     read.kind === 'order' ? read.ids : undefined);
   if (plan.kind === 'pending' && input.queue.retry.attempt < MAX_PREDECESSOR_WAIT_ATTEMPTS) return input.defer(plan.code);
-  if (plan.kind !== 'ready') return freezeCreatePlacement(input, intent, 'create_placement_unproven');
+  if (plan.kind !== 'ready') return setAsideCreatePlacement(input, intent, 'create_placement_unproven');
   const inner = asRecord(input.queue.payload.payload);
   if (!inner) return input.queue;
   const nextInner: Record<string, unknown> = { ...inner, parentId: plan.parentId };
@@ -164,14 +165,20 @@ async function pauseStaleCreateForPermission(input: {
   return 'unknown';
 }
 
-async function freezeCreatePlacement(input: {
+/**
+ * One save whose place cannot be proven is one item: it is set aside (it was
+ * never accepted, so it owns no server sequence), the changes that depend on
+ * it wait with it, and every other save keeps uploading.
+ */
+async function setAsideCreatePlacement(input: {
   readonly store: Store; readonly scope: SyncScope; readonly queue: QueueOperation;
-}, intent: PlacementIntent, code: 'create_placement_unproven' | 'create_placement_parent_deleted'): Promise<'recovery'> {
+  readonly ownerId: string; readonly fence: number;
+}, intent: PlacementIntent, code: 'create_placement_unproven' | 'create_placement_parent_deleted'): Promise<'terminal'> {
   await input.store.putScopeDiagnostic(input.scope, { kind: 'placement_refresh', code,
     details: { opId: input.queue.opId, parentNativeId: intent.targetParentNativeId,
       ...(code === 'create_placement_parent_deleted' ? { position: intent.mode } : {}) } }).catch(() => undefined);
-  await freezeScopeRecovery(input.store, input.scope, code);
-  return 'recovery';
+  await input.store.setAsideClaimedPush(input.scope, input.queue.sequence, input.ownerId, input.fence, code);
+  return 'terminal';
 }
 
 async function listEvents(store: Store, scope: SyncScope): Promise<BookmarkEventRecord[] | null> {

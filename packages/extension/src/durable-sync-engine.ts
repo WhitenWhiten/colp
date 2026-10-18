@@ -19,7 +19,7 @@ import { sessionTransportBudget } from './colp-transport-budget-browser.js';
 import { mayUnfreezeForCompletedBootstrapAck, pendingNativeOrPullFacts } from './bootstrap-ack-unfreeze.js';
 import { recoverSnapshot } from './durable-sync-engine-recovery.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
-import { releaseSettledConflictHolds } from './outbound-push-settlement.js';
+import { releaseSettledQueueHolds } from './outbound-push-settlement.js';
 const DEFAULT_PULL_LIMIT = 100; const MAX_PULL_PAGES_PER_WAKE = 20; const MAX_NETWORK_BACKOFF_MS = 30_000;
 // SYNC-F003: clamp the advisory pull cadence to the backend max (86_400s).
 const MAX_RECOMMENDED_PULL_AFTER_SECONDS = 86_400;
@@ -241,8 +241,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
       const pulled = await pull(authority);
       if (pulled === 'recovery') return state();
       if (pulled === 'offline') return options.store.getEngineState(options.scope);
-      // The Pull may have settled a conflict; the changes held for it rejoin the lane now.
-      await releaseSettledConflictHolds(options.store, options.scope);
+      // The Pull may have settled a conflict; the changes held behind it rejoin the lane now.
+      await releaseSettledQueueHolds(options.store, options.scope);
       const afterPull = await firstOutstanding();
       if (afterPull && !afterPull.attempt) {
         await transition('pushing', { sessionId: authority.session.sessionId });
