@@ -1,3 +1,7 @@
+import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync';
+import { validateOperation, digestJson } from '../src/bookmark-event-codec.js';
+import { createPullApplier } from '../src/pull-applier.js';
+import { pullFixtures } from './pull-effect-fixtures.js';
 import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import { createQueueRecapture } from '../src/queue-recapture.js';
 import { honestChrome } from './kns-05-pull-harness.js';
@@ -84,6 +88,38 @@ describe('C1 a conflict holds only its own bookmark', () => {
   });
 });
 
+for (const mode of ['open-first', 'resolved-after'] as const) test(`real resolution applies with conflict facts on separate pages: ${mode}`, async () => {
+  const { store, worker } = await fixture();
+  try {
+    await update(store, 'op-x1', 'node-x'); await update(store, 'op-y', 'node-y'); await update(store, 'op-x2', 'node-x');
+    await worker.drain(); await worker.drain();
+    const old = (await store.getQueueByOpId(scope, 'op-x2'))!;
+    await resolve(store, 'op-x1', 'conflict-op-x1', mode);
+    const native = browsers.get(store)!;
+    await native.update('native-x', { title: 'Changed after resolution' });
+    const [fresh] = await store.releaseSettledHolds(scope, captures.get(store));
+    assert.ok(fresh); assert.notEqual(fresh.opId, old.opId); assert.ok(fresh.sequence > old.sequence);
+    assert.notEqual(fresh.digest, old.digest); assert.notEqual(fresh.idempotencyKey, old.idempotencyKey);
+    assert.equal((fresh.payload.payload as any).value.title, 'Changed after resolution');
+    assert.equal((await store.getQueueByOpId(scope, old.opId))?.recovery?.code, 'recaptured');
+    assert.equal((await store.getRemoteObservation(scope, 'node-x'))?.remoteRevision, 'revision-node-x');
+    assert.equal(fresh.baseRevision, 'revision-node-x');
+    assert.equal((fresh.payload.payload as any).base.title, 'Remote update');
+  } finally { store.close(); }
+});
+
+test('the resolution exemption does not cross a separate local issue on the same target', async () => {
+  const { store, worker } = await fixture();
+  try {
+    await update(store, 'op-x1', 'node-x'); await update(store, 'op-x2', 'node-x'); await worker.drain();
+    await store.recordLocalIssue(scope, { nativeId: 'native-x', code: 'recovery_identity_unproven', now: 20000 });
+    await resolve(store, 'op-x1', 'conflict-op-x1', 'independent-issue');
+    assert.equal((await store.listPullIssues(scope))[0]?.code, 'parent_set_aside');
+    assert.equal((await store.releaseSettledHolds(scope, captures.get(store))).length, 0);
+    assert.equal(browsers.get(store)!.getNode('native-x')?.title, 'Current native title');
+  } finally { store.close(); }
+});
+
 async function fixture(input: { readonly conflicts?: readonly string[] } = {}) {
   const store = createSyncStateStore({ indexedDB: new IDBFactory() });
   await store.registerScope({ ...scope, lifecycle: 'active',
@@ -132,7 +168,7 @@ async function update(store: ReturnType<typeof createSyncStateStore>, opId: stri
   const queued = await store.allocateSequenceAndEnqueue(scope, { opId, batchId: opId, idempotencyKey: opId, digest: `sha256:${opId}`,
     endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: String(payload.baseRevision),
     operationRevision: `local-${opId}`, status: 'pending', retry: { attempt: 0, notBefore: 0 }, payload },
-  { validateOperation: () => true, digestOperation: (operation) => `sha256:${String(operation.opId)}-${String(operation.sequence)}` });
+  { validateOperation, digestOperation: digestJson });
   const event = await store.stageBookmarkEvent(scope, { eventId: `event-${opId}`, dedupeKey: `event-${opId}`,
     occurredAt: '2026-10-17T00:00:00Z', kind: 'change', nativeId: `native-${targetId.slice(-1)}`, details: {} });
   const tx = (await store.open()).transaction('bookmark_events', 'readwrite');
@@ -145,14 +181,36 @@ async function statuses(store: ReturnType<typeof createSyncStateStore>) {
   return (await store.listQueue(scope)).map((row) => [row.opId, row.status]);
 }
 
-async function resolve(store: ReturnType<typeof createSyncStateStore>, opId: string, conflictId: string) {
-  const previous = (await store.getCursor(scope))?.cursor ?? 'cursor-0';
+async function resolve(store: ReturnType<typeof createSyncStateStore>, opId: string, conflictId: string, mode: 'ordinary' | 'open-first' | 'resolved-after' | 'independent-issue' = 'ordinary') {
   const next = `cursor-resolved-${opId}`;
-  await store.stagePullPage(scope, { pageId: `page-${opId}`, previousCursor: previous, nextCursor: next,
-    collectionRevision: `revision-${opId}`, pageDigest: `sha256:page-${opId}`, effectPages: [], events: [{
-      eventId: `event-${opId}`, cursor: next, operationId: `resolution-${opId}`, effectId: `effect-${opId}`,
-      effectDigest: 'sha256:resolved', operationDigest: 'sha256:resolved', kind: 'node_content_updated',
-      initialState: 'authority_committed' as const,
-      payload: { kind: 'conflict', conflict: { id: conflictId, incomingOpId: opId, status: 'resolved' } } }] });
-  await store.completePullPage(scope, `page-${opId}`);
+  const row = (await store.getQueueByOpId(scope, opId))!;
+  const event: any = pullFixtures.mutationEvent({ kind: 'update', sequence: 40 + row.sequence,
+    collectionId: scope.collectionId, targetId: String(row.payload.targetId), parentId: 'root' });
+  event.operation.source = { adapterProfile: 'known-conflict-resolution' };
+  event.operation.dependencies = [opId];
+  event.effect.operationDigest = canonicalOperationDigest(event.operation);
+  event.effect.effectDigest = canonicalAuthoritativeEffectDigest(event.effect);
+  const applier = createPullApplier({ scope, store, api: browsers.get(store)!,
+    session: { acceptedProtocolVersion: '0.2', sessionId: 'session-push', collectionId: scope.collectionId,
+      conversionPolicy: { separator: 'preserve_remote' } },
+    effectPageTemplate: endpoints.syncEffectPages, effectPageAuthority: scope.serverOrigin });
+  const conflict = { id: conflictId, collectionId: scope.collectionId, targetId: String(row.payload.targetId),
+    type: 'update_update', incomingOpId: opId, createdAt: '2026-10-17T00:00:00Z',
+    allowedResolutions: ['server', 'incoming'], revision: 'conflict-r1', status: 'open' };
+  if (mode === 'open-first') {
+    await applier.stage(pullFixtures.page({ events: [{ kind: 'conflict', cursor: 'cursor-open', conflict }],
+      nextCursor: 'cursor-open', collectionRevision: 'before-resolution' }));
+    await applier.resume();
+    assert.equal((await store.getQueueByOpId(scope, opId))?.status, 'blocked');
+    assert.equal((await store.releaseSettledHolds(scope, captures.get(store))).length, 0);
+    store.close();
+  }
+  await applier.stage(pullFixtures.page({ events: [event], nextCursor: next, collectionRevision: `revision-${opId}` }));
+  await applier.resume();
+  if (mode === 'resolved-after') {
+    await applier.stage(pullFixtures.page({ events: [{ kind: 'conflict', cursor: 'cursor-fact', conflict: { ...conflict, status: 'resolved' } }],
+      nextCursor: 'cursor-fact', collectionRevision: 'after-resolution' }));
+    await applier.resume();
+  }
+  if (mode !== 'independent-issue') assert.deepEqual(await store.listPullIssues(scope), [], 'the real resolution effect must not set itself aside');
 }

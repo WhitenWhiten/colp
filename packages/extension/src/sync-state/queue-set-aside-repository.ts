@@ -7,12 +7,12 @@ import { cursorPage, scopeRowsRange } from './idb.js';
 import { stampColpQueueRecord } from './queue-target.js';
 import { boundedString, clone, safeInteger } from './codec.js';
 import { requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
-import { asHeld, DEPENDENT_HOLDS, firstLaneQueueRow, heldBy, holdWaitingRows, laneHolders } from './queue-hold.js';
+import { asHeld, CONFLICT_HOLD, validatedConflictResolutionRows, DEPENDENT_HOLDS, firstLaneQueueRow, heldBy, holdWaitingRows, laneHolders } from './queue-hold.js';
 import { validateQueueRecord } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
-import { SyncStateError, type LeaseRecord, type QueueOperation, type SyncScope, type JsonObject, type MappingInput } from './types.js';
+import { SyncStateError, type LeaseRecord, type QueueOperation, type SyncScope, type JsonObject, type MappingInput, type UnknownRecord } from './types.js';
 
 /** Rows that own no server sequence: refused history and held work. A gap realign parks them after live work. */
 export function parkedOutOfLane(row: QueueOperation): boolean {
@@ -82,6 +82,22 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
       }
       return released;
     }, recapture, true);
+  }
+
+  async function conflictResolutionExemptions(input: SyncScope, event: UnknownRecord): Promise<string[]> {
+    const key = scopeKey(validateScope(input)); const db = await ctx.open();
+    const tx = db.transaction([STORES.queue, STORES.receipts, ...ISSUE_DEPENDENCY_STORES], 'readonly');
+    const done = transactionDone(tx); const queue = tx.objectStore(STORES.queue);
+    const resolved = await validatedConflictResolutionRows(tx, key, event, ctx.maxRecordBytes);
+    const exempt = new Set(resolved.map(row => row.opId));
+    if (exempt.size) {
+      const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
+      const graph = await transactionIssueDependencies(queue, key);
+      const independent = holders.filter(row => !exempt.has(row.opId) && row.recovery?.code !== CONFLICT_HOLD);
+      for (const row of holders) if (row.recovery?.code === CONFLICT_HOLD
+          && heldBy(row, resolved, graph) && !heldBy(row, independent, graph)) exempt.add(row.opId);
+    }
+    await done; return [...exempt];
   }
 
   /**
@@ -211,7 +227,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
     await completion; return row ? clone(row) : null;
   }
 
-  return { setAsideQueue, releaseSetAsideQueue, releaseSettledHolds, setAsideClaimedPush, firstLaneQueue };
+  return { conflictResolutionExemptions, setAsideQueue, releaseSetAsideQueue, releaseSettledHolds, setAsideClaimedPush, firstLaneQueue };
 }
 
 function replaceTokens(value: unknown, replacements: ReadonlyMap<string, string>): unknown {

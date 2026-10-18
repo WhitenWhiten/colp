@@ -247,3 +247,22 @@ unrelated create, related restore hold, both Acks, accurate Status/health, decis
 execution, deferred restore convergence, pruning and worker/IDB restart. Existing
 same-page tests now require the advanced cursor. Ten affected suites passed 44
 tests; typecheck and changed-file lint passed. No service started.
+
+### Task 5 — authoritative conflict effects can resolve their own holds
+
+Root cause: the Pull dependency check treated the conflict and all its derived
+holds as unrelated open problems. It therefore set the resolution effect aside
+before applying it; the old fixture bypassed that stage with authority_committed.
+Receipt-validated resolution bindings now identify only the consumed conflicts
+and derived conflict holds the effect supersedes. The ordinary issue projection
+still includes independent local/Pull/upload/deletion problems. The same receipt
+validation is used at settlement, including already-terminal redelivery.
+
+Replaced push-conflict-hold's synthetic completion with real Push worker, real
+Pull stager/applier and IndexedDB. Both original scenarios failed with
+parent_set_aside before the fix. All five scenarios now pass, including separate
+open-fact/effect pages, later resolved facts, IDB reopen and an independent local
+issue on the same target. Release rereads native state and authors new opId,
+sequence, digest and idempotency identity; old bytes remain recaptured history.
+The retained authoritative content observation supplies the new upload base.
+Five affected suites passed 20 tests; typecheck and changed-file lint passed.

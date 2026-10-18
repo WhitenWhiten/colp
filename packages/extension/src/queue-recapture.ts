@@ -97,7 +97,9 @@ export function createQueueRecapture(input: { store: ReturnType<typeof createSyn
       operations.push(fresh('create_node', { parentId: parent.colpId, ...placement,
         node: nodeCreate(node) }, null));
     } else {
-      const revision = mapping.projection.resourceRevision ?? mapping.projection.revision;
+      const observation = await store.getRemoteObservation(scope, mapping.colpId);
+      const remoteContent = observation?.kind === 'content' && observation.payload.deleted !== true ? observation : undefined;
+      const revision = remoteContent?.remoteRevision ?? mapping.projection.resourceRevision ?? mapping.projection.revision;
       if (revision.startsWith('local-')) throw new Error('recovery_identity_unproven');
       if (row.payload.type === 'move_node') {
         const inner = row.payload.payload as JsonObject;
@@ -110,7 +112,7 @@ export function createQueueRecapture(input: { store: ReturnType<typeof createSyn
       }
       if (bookmarkKind(node) !== 'separator') {
         const old = row.payload.payload as JsonObject;
-        const base = row.baseRevision === revision && old.base && typeof old.base === 'object' ? old.base : mapping.projection.content;
+        const base = remoteContent?.payload ?? (row.baseRevision === revision && old.base && typeof old.base === 'object' ? old.base : mapping.projection.content);
         operations.push(fresh('update_node_content', { base: base ?? {}, value: nodeContent(node) }, revision, mapping.colpId));
       }
     }

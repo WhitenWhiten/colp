@@ -19,13 +19,13 @@ export interface OpenSyncIssues {
   readonly total: number;
 }
 
-export async function readOpenSyncIssues(store: Store, scope: SyncScope, excludeDeleteEventId?: string, resolvingRestoreOpId?: string): Promise<OpenSyncIssues> {
+export async function readOpenSyncIssues(store: Store, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string> } = {}): Promise<OpenSyncIssues> {
   const queue: QueueOperation[] = [];
   if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
     let after = 0;
     for (;;) {
       const rows = await store.listQueue(scope, status, after, 1_000);
-      queue.push(...rows.filter(isOpenQueueIssue));
+      queue.push(...rows.filter(row => isOpenQueueIssue(row) && !options.excludeQueueOpIds?.has(row.opId)));
       if (rows.length < 1_000) break;
       after = rows.at(-1)!.sequence;
     }
@@ -39,7 +39,7 @@ export async function readOpenSyncIssues(store: Store, scope: SyncScope, exclude
     if (issue) replica.push(issue);
   }
   const waits = store.listApplyIntents ? await projectNativeWaits(store as NativeWaitStore, scope) : [];
-  const deletes = (await store.listRemoteDeleteDecisions?.(scope, OPEN_REMOTE_DELETE_STATES) ?? []).filter(row => row.eventId !== excludeDeleteEventId && !(row.state === 'restoring' && row.restoreOpId === resolvingRestoreOpId));
+  const deletes = (await store.listRemoteDeleteDecisions?.(scope, OPEN_REMOTE_DELETE_STATES) ?? []).filter(row => row.eventId !== options.excludeDeleteEventId && !(row.state === 'restoring' && row.restoreOpId === options.resolvingRestoreOpId));
   const roots = new Set([...pull.map(row => row.nodeId), ...replica.flatMap(issue => issue.nodeIds)]);
   for (const decision of deletes) roots.add(decision.targetId);
   addQueueIssueRoots(roots, queue);

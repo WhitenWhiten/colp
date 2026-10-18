@@ -129,14 +129,14 @@ export async function holdWaitingRows(queue: IDBObjectStore, key: string, maxRec
   return held;
 }
 
-export async function settleResolvedConflictQueue(tx: IDBTransaction, key: string, event: UnknownRecord, maxBytes: number) {
+export async function validatedConflictResolutionRows(tx: IDBTransaction, key: string, event: UnknownRecord, maxBytes: number) {
   const bindings = conflictResolutionBindings(event);
   const queueStore = tx.objectStore(STORES.queue);
+  const resolved: QueueOperation[] = [];
   for (const binding of bindings) {
     const raw = await requestValue(queueStore.index(INDEXES.queueByOpId).get([key, binding.opId]));
     if (!raw) continue;
     const queued = validateQueueRecord(raw, maxBytes);
-    if (queued.status === 'terminal' && queued.echoApplied === true) continue;
     if (queued.status !== 'terminal' && (queued.status !== 'blocked' || queued.recovery?.code !== 'conflict_pending')) {
       throw new SyncStateError('conflict_resolution_binding_invalid');
     }
@@ -149,6 +149,13 @@ export async function settleResolvedConflictQueue(tx: IDBTransaction, key: strin
       && (binding.conflictId === undefined || (candidate as UnknownRecord).conflictId === binding.conflictId)
       && ['conflicted', 'conflict'].includes(String((candidate as UnknownRecord).status)));
     if (!matched) throw new SyncStateError('conflict_resolution_binding_invalid');
-    queueStore.put(validateQueueRecord({ ...queued, status: 'terminal', echoApplied: true, recovery: undefined }, maxBytes));
+    resolved.push(queued);
+  }
+  return resolved;
+}
+
+export async function settleResolvedConflictQueue(tx: IDBTransaction, key: string, event: UnknownRecord, maxBytes: number) {
+  for (const row of await validatedConflictResolutionRows(tx, key, event, maxBytes)) {
+    tx.objectStore(STORES.queue).put(validateQueueRecord({ ...row, status: 'terminal', echoApplied: true, recovery: undefined }, maxBytes));
   }
 }

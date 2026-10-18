@@ -78,7 +78,7 @@ export async function executeRemoteDeleteMembers(input: {
   }
   const order = await orderMembers(input.api, frozen.members, results);
   const intent = await input.store.getApplyIntent(input.scope, input.intentId);
-  const issues = await readOpenSyncIssues(input.store, input.scope, intent?.eventId);
+  const issues = await readOpenSyncIssues(input.store, input.scope, { excludeDeleteEventId: intent?.eventId });
   const privateRoots = (await input.store.getScope(input.scope))?.privateRoots ?? [];
   const ancestry = issueAncestry([...await input.store.listMappings(input.scope), ...input.mappings], issues.queue);
   for (const row of order) {
