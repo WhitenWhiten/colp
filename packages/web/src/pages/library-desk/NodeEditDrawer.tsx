@@ -158,7 +158,7 @@ export function NodeEditDrawer({
           id="nd-desc"
           rows={2}
           maxLength={NODE_DESCRIPTION_MAX}
-          placeholder="What this link is, in one line…"
+          placeholder={isBookmark ? 'What this link is, in one line…' : 'What goes in this folder…'}
           value={drawer.description}
           disabled={!canEdit}
           onChange={(event) => drawer.setDescription(event.target.value)}
