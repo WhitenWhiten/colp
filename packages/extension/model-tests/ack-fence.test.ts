@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { pendingNativeOrPullFacts } from '../src/native-repair.js';
 import { t02Scope as scope } from '../tests/srg-t02-native-harness.js';
-import { setupRecoveryWait } from './recovery-fixture.js';
+import { setupRecoveryWait } from '../tests/bootstrap-recovery-harness.js';
 import { vectors } from './model-vectors.js';
 
 for (const trace of vectors.ackFenceTraces) test(`Lean/bootstrap Ack transaction: ${trace.name}`, async () => {
-  const r = await setupRecoveryWait(true);
+  const r = await setupRecoveryWait({ interruptAfterAck: true });
   try {
     await assert.rejects(r.engine().wake('startup'), /worker_crash/u);
     const intent = (await r.fixture.store.getPendingAckIntent(scope))!;

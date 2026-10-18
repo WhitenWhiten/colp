@@ -2,6 +2,32 @@ import Std
 
 namespace ColpSync.Recovery
 
+/-- Facts for resuming the original confirmed invocation on a completed,
+Snapshot-accounted page while the bootstrap local-work hold remains frozen. -/
+structure NativeResumeFacts where
+  active : Bool
+  refresh : Bool
+  snapshot : Bool
+  generation : Bool
+  event : Bool
+  binding : Bool
+  started : Bool
+  applied : Bool
+  confirmation : Bool
+  nativeId : Bool
+  deriving Repr
+
+def allowNativeResume (f : NativeResumeFacts) : Bool :=
+  f.active && !f.refresh && f.snapshot && f.generation && f.event && f.binding &&
+    f.started && f.applied && f.confirmation && f.nativeId
+
+theorem native_resume_requires_proven_identity (f : NativeResumeFacts)
+    (h : allowNativeResume f = true) : f.applied = true ∧ f.confirmation = true ∧ f.nativeId = true := by
+  simp_all [allowNativeResume, Bool.and_eq_true]
+
+theorem native_resume_rejects_wrong_generation (f : NativeResumeFacts) (h : f.generation = false) :
+    allowNativeResume f = false := by simp [allowNativeResume, h]
+
 /-- A complete staged Snapshot and one retained unknown native invocation.
 0=no published cursor, 1=Snapshot cut, 2=active Session cursor. -/
 structure State where
@@ -20,8 +46,9 @@ inductive Action where
   | finishFresh | finishResumed | crash
   deriving BEq, DecidableEq, Repr
 
-/-- Literal control-flow distinction: recoverSnapshotPages clears the freeze;
-the pending-bootstrap branch in wakeOnce recomputes it from pending facts. -/
+/-- Both bootstrap completion paths use the same post-activation policy. -/
+def finishBootstrap (s : State) : State := { s with frozen := s.nativeUnknown, refresh := false }
+
 def step (s : State) : Action → State
   | .cutover => if s.staged then { s with
       cursor := 1
@@ -33,8 +60,7 @@ def step (s : State) : Action → State
   | .receiveAck => if s.pending && decide (s.requests > 0) then { s with pending := false, complete := true } else s
   | .prepareActivation => { s with frozen := true, refresh := true }
   | .activate => if s.complete then { s with cursor := 2 } else s
-  | .finishFresh => if s.complete && s.cursor == 2 then { s with frozen := false, refresh := false } else s
-  | .finishResumed => if s.complete && s.cursor == 2 then { s with frozen := s.nativeUnknown } else s
+  | .finishFresh | .finishResumed => if s.complete && s.cursor == 2 then finishBootstrap s else s
   | .crash => s
 
 def run (as : List Action) : State := as.foldl step {}
@@ -68,14 +94,30 @@ theorem trace_preserves_unknown (as : List Action) : (run as).nativeUnknown = tr
     | cons a rest ih => intro s; exact (ih (step s a)).trans (all_steps_preserve_unknown s a)
   exact go as {}
 
-/-- Current implementation counterexample, not a theorem of the intended policy. -/
-theorem fresh_completion_breaks_pending_freeze_policy :
+theorem fresh_completion_retains_native_wait :
     (run fresh).complete = true ∧ (run fresh).cursor = 2 ∧
-    (run fresh).nativeUnknown = true ∧ (run fresh).frozen = false := by decide
+    (run fresh).nativeUnknown = true ∧ (run fresh).frozen = true ∧
+    (run fresh).refresh = false := by decide
 
-theorem crash_changes_freeze_outcome :
+theorem restart_preserves_completion_policy :
     (run fresh).cursor = (run resumed).cursor ∧
     (run fresh).nativeUnknown = (run resumed).nativeUnknown ∧
-    (run fresh).frozen ≠ (run resumed).frozen := by decide
+    (run fresh).frozen = (run resumed).frozen ∧
+    (run fresh).refresh = (run resumed).refresh := by decide
+
+theorem completion_paths_agree (s : State) : step s .finishFresh = step s .finishResumed := rfl
+
+def FreezeSafe (s : State) : Prop := s.nativeUnknown = true → s.frozen = true
+
+theorem step_freeze_safe (s : State) (a : Action) (h : FreezeSafe s) : FreezeSafe (step s a) := by
+  cases a <;> simp_all [FreezeSafe, step, finishBootstrap] <;> split <;> simp_all
+
+theorem run_freeze_safe (as : List Action) : FreezeSafe (run as) := by
+  have go : ∀ (as : List Action) (s : State), FreezeSafe s → FreezeSafe (as.foldl step s) := by
+    intro as
+    induction as with
+    | nil => simp
+    | cons a rest ih => intro s h; exact ih (step s a) (step_freeze_safe s a h)
+  exact go as {} (by simp [FreezeSafe])
 
 end ColpSync.Recovery

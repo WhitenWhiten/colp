@@ -1,10 +1,11 @@
 # Session / Snapshot / Ack 交接：第三轮切片
 
-本轮继续以 `ef94b519` 的生产实现为依据，不修改生产行为。
+建模基线为 `ef94b519`，修复前的模型、反例和实现见证已保存在提交 `aab68b3f`。
+当前已修复 G2，并把原反例改为模型证明和实现回归。
 `npm run model:sync:implementation` 同时运行 Lean 和真实客户端模块的对照。
 新增三个小模型分别对应不同事务边界，尚未证明它们组合成全局状态机后的 refinement。
 
-## G2：bootstrap 完成的冻结结果取决于 Ack 中断时机
+## G2（已修复）：bootstrap 完成的冻结结果取决于 Ack 中断时机
 
 已使用真实 `createDurableSyncEngine` 复现：
 
@@ -12,6 +13,8 @@
 2. 重开 IDB，通过实际 applier 恢复为未知 native 调用，保留原始 intent/event。
 3. 准备完整 Snapshot staging，包含该条目；用实际 projector、cutover 和 bootstrap Ack 恢复。
 4. 比较不中断，以及服务端已返回 Ack 响应、客户端还没保存回执时中断并重启的两条路径。
+
+以下为修复前的复现结果：
 
 | 最终事实 | 直接完成 | Ack 响应后中断再恢复 |
 |---|---|---|
@@ -24,29 +27,38 @@
 | `authorityRefreshRequired` | false | true |
 | Ack HTTP 请求数 | 1 | 2，原始请求字节相同 |
 
-[recoverSnapshotPages](../../packages/extension/src/durable-sync-engine-recovery.ts)
-完成激活后直接写 `recoveryFrozen=false`。
-[wakeOnce 的 pending-bootstrap 分支](../../packages/extension/src/durable-sync-engine.ts)
-则使用 [mayUnfreezeForCompletedBootstrapAck](../../packages/extension/src/bootstrap-ack-unfreeze.ts)
-检查实际待处理工作，因未知 native 而保持冻结。后者还保留了激活前设置的 authority refresh 标志。
+修复前，[recoverSnapshotPages](../../packages/extension/src/durable-sync-engine-recovery.ts)
+完成激活后直接解除冻结，而 [wakeOnce 的 pending-bootstrap 分支](../../packages/extension/src/durable-sync-engine.ts)
+会检查实际待处理工作并保持冻结，同时遗漏清除已经完成的 authority refresh 标志。
 
 这确认了**相同未决事实、相同已确认远端边界，却因一次可恢复中断得到不同控制状态**。
 与仓库已有的“bootstrap Ack 不证明 pending Pull 或未知 native 已结算”规则不一致。
-这份证据没有证明数据丢失，也没有证明独立条目必须全部被冻结；需要先统一恢复完成时
-对未决 native 的阻塞粒度，再让两条路径使用同一政策。全局冻结过多和过早解除冻结都应由
-后续组合模型检验其实际影响。本轮保留当前行为作为反例，未做生产修复。
+这份证据没有证明数据丢失。当前三个 bootstrap 完成出口统一使用
+[readCompletedBootstrapState](../../packages/extension/src/bootstrap-ack-unfreeze.ts)：
+激活成功后清除 authority refresh；只要 native 或 Pull 仍未决，就保留本地工作冻结。
+没有待处理工作时，两条路径都会解除冻结。
 
-[Recovery.lean](ColpSync/Recovery.lean) 显式保留这两条分支，Lean 检查：
+保持冻结又暴露了原确认恢复路径的循环依赖：已确认的旧 native 事件属于完成的 Snapshot 页，
+冻结会阻止其执行，而其未完成又使冻结不能解除。修复还加入受限的恢复入口：
+仅当事件属于当前 Snapshot、scope active、无待刷新 authority、generation/intent/event/延期绑定均匹配，
+且原调用已开始、native 结果有可信身份依据时，允许它在冻结中完成。
+`readPullApplyWorkset` 从 live event 索引找到这些页面和 intent，不扫描整个完成历史。
+未知调用、新调用、其他 Snapshot、错误 generation 或缺少身份依据均不能经过该入口。
+
+[Recovery.lean](ColpSync/Recovery.lean) 保留两条控制路径，统一完成政策，Lean 检查：
 
 - cutover、Ack receipt 和 Session 激活都不把未知 native 变成已知。
 - 没有完成的 bootstrap Ack 就不能激活恢复游标。
-- 合法 fresh 轨迹可以在未知调用仍存在时解除冻结。
-- fresh/resumed 轨迹最终达到同一 cursor 和未知事实，冻结标志却不同。
+- 任意长度模型轨迹中，未知 native 存在时不会解除冻结。
+- fresh/resumed 对任意同一输入状态的完成转换相同；最终冻结和 refresh 标志一致。
+- 冻结中的 native 恢复必须有可信身份依据且 generation 匹配。
 
 [recovery-witness.test.ts](../../packages/extension/model-tests/recovery-witness.test.ts)
-从 Lean 导出的期望检查两条真实引擎路径，共 15 个状态检查点。
+从 Lean 导出的期望检查正常/中断 × native 未决/已结算四条真实引擎路径，共 30 个状态检查点。
 检查点覆盖 cutover 后发送 Ack 之前、响应返回但回执未落盘、重启、回执已落盘、激活前后及最终状态。
-同时检查未知调用未重建、原 Ack 请求精确重试。
+同时检查未知调用未重建、原 Ack 请求精确重试；之后仅进行用户身份确认并唤醒引擎，
+由真实引擎完成旧事件、发布/Ack 当前页并解除冻结，无需重新创建 native 或重复刷新 authority。
+新增恢复入口还按 Lean 导出的 1,024 组布尔前提与生产 guard 对照。
 
 ## Session 迁移：CAS 与本地工作是不同维度
 
@@ -95,9 +107,9 @@
 
 ## 验证范围
 
-本轮共 5 个专用测试文件、21 个测试通过；相关现有交接、bootstrap 过期、Snapshot 保留测试
-另有 3 个文件、23 个测试通过。Lean 构建和公理审计通过，无 `sorryAx`；专用 typecheck、
-改动文件 ESLint、`git diff --check` 通过。
+第三轮建模时共 5 个专用测试文件、21 个测试通过；相关现有交接、bootstrap 过期、Snapshot 保留测试
+另有 3 个文件、23 个测试通过。修复后扩展为 24 个专用测试，最终验证记录见 [README](README.md)。
+Lean 构建和公理审计无 `sorryAx`；专用 typecheck、改动文件 ESLint、`git diff --check` 也在修复后复核。
 
 这里使用真实引擎、IDB repository、applier、Snapshot projector、cutover、确认和激活模块。
 底层 IDB 是 fake-indexeddb，Chrome API、Session 提供者及 HTTP 服务端是替身；

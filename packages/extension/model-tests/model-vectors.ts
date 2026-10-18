@@ -32,7 +32,9 @@ interface Vectors {
   }> }>;
   unfreezeCases: Array<{ pendingIncompletePull: boolean; nativeResultUnknown: boolean; expected: boolean }>;
   sessionCases: Array<{ lease: string; snapshot: boolean; refresh: boolean; bootstrapped: boolean; expected: string }>;
-  recoveryBranches: Array<{ interrupted: boolean; checkpoints: Array<{ point: string; observed: unknown }> }>;
+  recoveryBranches: Array<{ interrupted: boolean; nativeUnknown: boolean; checkpoints: Array<{ point: string; observed: unknown }> }>;
+  nativeResumeCases: Array<{ active: boolean; refresh: boolean; snapshot: boolean; generation: boolean;
+    event: boolean; binding: boolean; started: boolean; applied: boolean; confirmation: boolean; nativeId: boolean; expected: boolean }>;
   ackFenceTraces: Array<{ name: string; initial: unknown; checkpoints: Array<{
     action: { kind: 'reject'; expected: number } | { kind: 'revisionRace' | 'lateReceipt' | 'activate' | 'crash' };
     expected: unknown; outcome: string;
@@ -53,5 +55,6 @@ assert.equal(vectors.traces.length, 4);
 assert.equal(vectors.authorityTraces.length, 6);
 assert.equal(vectors.unfreezeCases.length, 4);
 assert.equal(vectors.sessionCases.length, 40);
-assert.equal(vectors.recoveryBranches.length, 2);
+assert.equal(vectors.recoveryBranches.length, 4);
+assert.equal(vectors.nativeResumeCases.length, 1024);
 assert.equal(vectors.ackFenceTraces.length, 3);

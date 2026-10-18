@@ -6,7 +6,7 @@
 **它不是 TypeScript 实现正确性的证明，也不是完整同步系统的形式化。**
 第二轮已增加游标判断的实现对照和多页延期账本。
 第三轮已增加 Session 迁移、Snapshot 恢复与 bootstrap Ack 失效切片，
-并复现了恢复结果对 Ack 中断时机敏感的问题，见 [交接模型与反例](HANDOFF.md)。
+并复现了恢复结果对 Ack 中断时机敏感的问题，现已修复，见 [交接模型与回归](HANDOFF.md)。
 关于距离“1:1”还有哪些工作，见 [实现对应与 refinement 路线](REFINEMENT.md)。
 
 ## 运行
@@ -53,7 +53,7 @@ npx vitest run tests/sync-formal-model-witnesses.test.ts
 | [Cursor.lean](ColpSync/Cursor.lean) | [pull-ack-boundary.ts](../../packages/extension/src/pull-ack-boundary.ts) | spc2 格式/base36/元组顺序、整页 Ack 分类、游标写入分支；保留实现中的直接放行条件 |
 | [Ledger.lean](ColpSync/Ledger.lean) | [延期完成](../../packages/extension/src/pull-page-completion.ts)、[确认](../../packages/extension/src/native-wait.ts)、[剪枝](../../packages/extension/src/sync-state/pull-workset.ts) | 任意多页、每页一个相关条目、generation/身份依据、延期确认、回执、重启、保留未解决证据 |
 | [Authority.lean](ColpSync/Authority.lean) | [Session 迁移](../../packages/extension/src/sync-session-handoff.ts)、[原子 rebase](../../packages/extension/src/sync-state/recovery-repository.ts) | 引擎 revision 与本地工作分离；freeze/rebase/finalize 的 CAS；已确认游标、待处理 Ack 和页面的事务内重查 |
-| [Recovery.lean](ColpSync/Recovery.lean) | [Snapshot 恢复](../../packages/extension/src/durable-sync-engine-recovery.ts)、[重启后的 pending Ack 分支](../../packages/extension/src/durable-sync-engine.ts) | 快照 cutover、响应丢失、原请求重试、bootstrap receipt、Session 激活、保留未知 native、两条路径的不同冻结结果 |
+| [Recovery.lean](ColpSync/Recovery.lean) | [Snapshot 恢复](../../packages/extension/src/durable-sync-engine-recovery.ts)、[重启后的 pending Ack 分支](../../packages/extension/src/durable-sync-engine.ts) | 快照 cutover、响应丢失、原请求重试、bootstrap receipt、Session 激活、两条路径统一的冻结政策及可信 native 恢复入口 |
 | [AckFence.lean](ColpSync/AckFence.lean) | [bootstrap 拒绝事务](../../packages/extension/src/sync-state/engine-repository.ts)、[恢复激活](../../packages/extension/src/sync-state/recovery-repository.ts) | revision 竞争、删除/冻结的原子回滚、旧 receipt、已完成 receipt、禁止无 bootstrap receipt 激活 |
 
 `held` 表示条目和 durable issue 已在同一事务记录；`deferred` 表示延期关系已通过
@@ -219,6 +219,26 @@ Snapshot 覆盖旧 native wait 的竞争、双副本与依赖闭包、>200 issue
 没有运行真实服务端、数据库或浏览器；本轮的 Scope/Session 和 HTTP 回执为测试替身，
 Snapshot 使用已完成的真实 staging，投影、cutover、Ack、激活和原 native wait 均经实际模块处理。
 
-新问题 G2：同样的快照、Ack、active cursor 和未知 native 调用，直接恢复结束为
+第三轮复现的 G2（已修复）：同样的快照、Ack、active cursor 和未知 native 调用，直接恢复曾结束为
 `recoveryFrozen=false`，而 Ack 响应返回后、回执落盘前中断再恢复结束为 `true`。
-这种路径依赖及其边界详见 [HANDOFF.md](HANDOFF.md)。
+修复前证据保存在提交 `aab68b3f`；修复及回归详见 [HANDOFF.md](HANDOFF.md)。
+
+## G2 修复验证
+
+三个 bootstrap 完成出口现在统一保留未决 native/Pull 的本地冻结，并在 Session 激活成功后
+清除 authority refresh。当前 Snapshot 的原调用只有在 generation、事件/intent 绑定和可信 native
+身份全部满足时才能在冻结中继续完成；普通新工作不会通过该入口。
+
+- 修复前先运行回归断言，分别确认 fresh 路径过早解冻和 resumed 路径遗漏清除 refresh。
+- `npm run model:sync:implementation` 通过，当前 **24 个专用测试**：四条恢复组合共 30 个检查点，
+  并检查确认后由真实引擎完成旧事件、解除冻结，保持游标且不重复 native create。
+- 新入口的 **1,024** 组布尔前提与 Lean 对照通过；模型证明两条完成路径一致、
+  任意长度模型轨迹在 native 未知时保持冻结，以及恢复入口必须有身份依据和正确 generation。
+- 默认单元测试 [bootstrap-native-wait-completion.test.ts](../../packages/extension/tests/bootstrap-native-wait-completion.test.ts)
+  的两条正常/中断回归也通过；它们不需要 Lean。另有 **13 个相关文件、206 个测试**通过，
+  包含 bootstrap、Session 交接、Snapshot 保留、native wait、Pull 应用、workset、剪枝和局部投影恢复。
+- extension 及专用 typecheck、改动文件 ESLint、生产源文件大小检查和 `git diff --check` 通过。
+
+修复前的模型与实现见证保存在 `aab68b3f`，当前证明及回归检查修复后的行为。
+G1 的前置异常上报问题仍是已记录的独立缺口，不在这次 G2 修复范围内。
+验证未启动真实服务端、PostgreSQL 或浏览器。

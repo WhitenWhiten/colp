@@ -19,7 +19,7 @@ import { resumeLocalProjection } from './local-projection-recovery.js';
 import { assertCompleteSnapshotStaging } from './snapshot-staging-assert.js';
 import { classifySessionAuthority, type SessionAuthority } from './session-client.js';
 import { sessionTransportBudget } from './colp-transport-budget-browser.js';
-import { mayUnfreezeForCompletedBootstrapAck, pendingNativeOrPullFacts } from './bootstrap-ack-unfreeze.js';
+import { mayUnfreezeForCompletedBootstrapAck, pendingNativeOrPullFacts, readCompletedBootstrapState } from './bootstrap-ack-unfreeze.js';
 import { recoverSnapshot } from './durable-sync-engine-recovery.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import { pullAckWarnings } from './pull-item-set-aside.js';
@@ -163,7 +163,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
             const cursor = await options.store.getCursor(options.scope);
             const active = await renewBootstrapAuthority(recoveryCapabilityOf(cursor) ?? pendingAck.cursor);
             return transition('sleeping', { sessionId: active.session.sessionId,
-              recoveryFrozen: !mayUnfreezeForCompletedBootstrapAck(await pendingNativeOrPullFacts(options.store, options.scope)),
+              ...await readCompletedBootstrapState(options.store, options.scope),
               notBefore: now() + 1_000, lastPublishedCursor: pendingAck.cursor, lastAckedCursor: pendingAck.cursor });
           }
           return sleep(authority.session);
@@ -178,7 +178,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
           const active = current.authorityRefreshRequired
             ? await renewBootstrapAuthority(recoveryCapabilityOf(cursor) ?? completedBootstrap.cursor)
             : await sessionAuthority();
-          await transition('sleeping', { sessionId: active.session.sessionId, recoveryFrozen: false,
+          await transition('sleeping', { sessionId: active.session.sessionId,
+            ...await readCompletedBootstrapState(options.store, options.scope),
             notBefore: now() + 1_000, lastPublishedCursor: completedBootstrap.cursor,
             lastAckedCursor: completedBootstrap.cursor });
           await reprojectLeftover();

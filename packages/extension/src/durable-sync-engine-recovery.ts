@@ -1,4 +1,5 @@
 import { pullAckWarnings } from './pull-item-set-aside.js';
+import { readCompletedBootstrapState } from './bootstrap-ack-unfreeze.js';
 import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import type { SnapshotNode, Warning } from '@know-n/colp/types';
@@ -231,8 +232,9 @@ async function recoverSnapshotPages(
   }
   if (await runtime.sendAck(durableIntent, authority) === 'recovery') return runtime.state();
   const active = await runtime.renewBootstrapAuthority(capability);
-  await runtime.transition('sleeping', { sessionId: active.session.sessionId, recoveryFrozen: false, notBefore: now() + 1_000,
-    authorityRefreshRequired: false, lastPublishedCursor: capability, lastAckedCursor: capability }); options.schedule?.(1_000);
+  await runtime.transition('sleeping', { sessionId: active.session.sessionId,
+    ...await readCompletedBootstrapState(options.store, options.scope), notBefore: now() + 1_000,
+    lastPublishedCursor: capability, lastAckedCursor: capability }); options.schedule?.(1_000);
   return runtime.state();
 }
 

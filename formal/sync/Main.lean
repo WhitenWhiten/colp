@@ -63,5 +63,6 @@ def main : IO Unit := do
   let fresh := Recovery.run Recovery.fresh
   let resumed := Recovery.run Recovery.resumed
   require (fresh.cursor == resumed.cursor && fresh.nativeUnknown && resumed.nativeUnknown &&
-    !fresh.frozen && resumed.frozen) "Bootstrap path-dependence witness changed; recheck implementation"
-  IO.println "COUNTEREXAMPLE Recovery: fresh completion unfreezes an unknown native call; interrupted/retried completion remains frozen."
+    fresh.frozen && resumed.frozen && !fresh.refresh && !resumed.refresh)
+    "Bootstrap completion must preserve the native hold and clear settled authority refresh"
+  IO.println "PASS Recovery: fresh and interrupted completion retain unknown native holds and clear completed authority refresh."

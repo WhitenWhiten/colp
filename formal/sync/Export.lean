@@ -94,4 +94,5 @@ def main : IO Unit := IO.println (Json.mkObj [
   ("unfreezeCases", array AuthorityExport.unfreezeCases),
   ("sessionCases", array AuthorityExport.sessionCases),
   ("recoveryBranches", array RecoveryExport.branches),
+  ("nativeResumeCases", array RecoveryExport.nativeResumeCases),
   ("ackFenceTraces", array AckFenceExport.traces)]).compress

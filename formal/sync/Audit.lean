@@ -21,8 +21,12 @@ import ColpSync
 #print axioms ColpSync.Authority.same_revision_can_still_require_handoff_refusal
 #print axioms ColpSync.Recovery.trace_preserves_unknown
 #print axioms ColpSync.Recovery.activation_requires_completed_bootstrap
-#print axioms ColpSync.Recovery.fresh_completion_breaks_pending_freeze_policy
-#print axioms ColpSync.Recovery.crash_changes_freeze_outcome
+#print axioms ColpSync.Recovery.fresh_completion_retains_native_wait
+#print axioms ColpSync.Recovery.restart_preserves_completion_policy
+#print axioms ColpSync.Recovery.completion_paths_agree
+#print axioms ColpSync.Recovery.run_freeze_safe
+#print axioms ColpSync.Recovery.native_resume_requires_proven_identity
+#print axioms ColpSync.Recovery.native_resume_rejects_wrong_generation
 #print axioms ColpSync.AckFence.stale_rejection_rolls_back
 #print axioms ColpSync.AckFence.discarded_intent_cannot_be_completed
 #print axioms ColpSync.AckFence.activation_requires_receipt

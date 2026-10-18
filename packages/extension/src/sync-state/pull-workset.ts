@@ -120,6 +120,20 @@ export async function readPullApplyWorkset(db: IDBDatabase, key: string): Promis
     for (const state of ['staged', 'blocked']) {
       pages.push(...await cursorPage<UnknownRecord>(pageIndex, stateRange(key, state), Number.MAX_SAFE_INTEGER));
     }
+    // Snapshot-accounted pages are completed history, but a confirmed native
+    // invocation on one still needs its exact page/intent authority to finish.
+    // Discover them from live event indexes instead of scanning completed history.
+    const pageIds = new Set(pages.map(page => String(page.pageId)));
+    for (const state of ['browser_call_started', 'native_event_observed']) {
+      const live = await cursorPage<UnknownRecord>(tx.objectStore(STORES.pullEvents).index(INDEXES.pullEventByState),
+        stateRange(key, state), Number.MAX_SAFE_INTEGER);
+      for (const event of live) {
+        if (pullDeferral(event)?.kind !== 'native_result' || pageIds.has(String(event.pageId))) continue;
+        const page = await requestValue(tx.objectStore(STORES.pullPages).get([key, String(event.pageId)])) as UnknownRecord | undefined;
+        if (page?.state !== 'page_complete' || typeof page.snapshotAccountedBy !== 'string') continue;
+        pages.push(page); pageIds.add(String(page.pageId));
+      }
+    }
     const stamps: UnknownRecord[] = [];
     const intents = new Map<string, IntentRecord>();
     const requested = new Set<string>();

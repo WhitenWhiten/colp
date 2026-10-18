@@ -8,6 +8,8 @@ import type { UnknownRecord } from './sync-state/types.js';
 export interface PullApplyAuthority {
   readonly lifecycle: string | undefined;
   readonly frozen: boolean;
+  readonly authorityRefreshRequired?: boolean;
+  readonly snapshotId?: string;
   readonly generation: number;
   readonly attached: ReadonlySet<string>;
   readonly pages: readonly UnknownRecord[];
@@ -24,12 +26,16 @@ export async function readPullApplyAuthority(options: PullApplierOptions): Promi
   const leaseGeneration = scopeRow?.lease.generation;
   const stamps = pullPageAuthorityStamps(records);
   const cursor = cursorRow?.cursor ?? scopeRow?.checkpoint?.cursor ?? '';
+  const evidence = cursorRow?.evidence && typeof cursorRow.evidence === 'object'
+    ? cursorRow.evidence as UnknownRecord : {};
   const attached = pullPagesOnAuthorityChain(pages, cursor, (page) => {
     const stamp = stamps.get(String(page.pageId));
     if (stamp?.authorityGeneration !== undefined && stamp.authorityGeneration !== generation) return false;
     return !(stamp?.leaseGeneration !== undefined && stamp.leaseGeneration !== leaseGeneration);
   });
-  return { lifecycle: scopeRow?.lifecycle, frozen: engine?.recoveryFrozen === true, generation, attached,
+  return { lifecycle: scopeRow?.lifecycle, frozen: engine?.recoveryFrozen === true,
+    authorityRefreshRequired: engine?.authorityRefreshRequired === true,
+    ...(typeof evidence.snapshotId === 'string' ? { snapshotId: evidence.snapshotId } : {}), generation, attached,
     pages, intents: new Map(intents.map((intent) => [intent.intentId, intent])) };
 }
 
@@ -45,7 +51,20 @@ export function ordinaryPullEventAllowed(authority: PullApplyAuthority, event: U
   const intent = typeof event.intentId === 'string' ? authority.intents.get(event.intentId) : undefined;
   if (intent && typeof intent.generation === 'number' && intent.generation !== authority.generation) return false;
   if (authority.lifecycle === 'recovery_required' || authority.lifecycle === 'retired') return false;
-  if (authority.frozen && !authority.attached.has(String(page.pageId))) return false;
+  if (authority.frozen && !authority.attached.has(String(page.pageId))) {
+    // Snapshot cutover retained this exact unknown invocation. Once its native
+    // identity is confirmed, finish that recovery without admitting new work or
+    // waiting for the freeze that this very event must release.
+    const confirmation = intent?.nativeResultConfirmation;
+    return authority.lifecycle === 'active' && authority.authorityRefreshRequired === false && page.state === 'page_complete'
+      && typeof authority.snapshotId === 'string' && page.snapshotAccountedBy === authority.snapshotId
+      && intent?.generation === authority.generation && intent.eventId === event.eventId
+      && event.deferredNativeIntentId === intent.intentId
+      && (event.state === 'browser_call_started' || event.state === 'native_event_observed')
+      && intent.nativeResult === 'applied_with_evidence'
+      && (confirmation?.kind === 'candidate_event' || confirmation?.kind === 'api_return')
+      && typeof confirmation.nativeId === 'string' && confirmation.nativeId.length > 0;
+  }
   return true;
 }
 

@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { createDurableSyncEngine } from '../src/durable-sync-engine.js';
 import { recoverVerifiedOrFreeze } from '../src/recovery-guard.js';
-import { projectNativeWaits } from '../src/native-wait.js';
+import { confirmNativeWait, projectNativeWaits } from '../src/native-wait.js';
 import type { StoredSession } from '../src/types.js';
-import { setupT02, reopenT02, t02Scope as scope } from '../tests/srg-t02-native-harness.js';
+import { setupT02, reopenT02, t02Scope as scope } from './srg-t02-native-harness.js';
 
-export async function setupRecoveryWait(interruptAfterAck = false) {
+export async function setupRecoveryWait(options: { interruptAfterAck?: boolean; settleBeforeRecovery?: boolean } = {}) {
   let f = await setupT02('after_create_before_evidence');
   try {
     const event = f.createEvent('Bookmark', 1);
@@ -18,6 +18,15 @@ export async function setupRecoveryWait(interruptAfterAck = false) {
     f = await reopenT02(f);
     await assert.rejects(f.applier.resume(), /native_result_unknown/u);
     assert.equal((await projectNativeWaits(f.store, scope)).length, 1);
+    const confirmNative = async () => {
+      const [wait] = await projectNativeWaits(f.store, scope);
+      const nativeId = f.api.calls.find(call => call.kind === 'create')?.nativeId;
+      assert.ok(wait && nativeId);
+      assert.equal((await confirmNativeWait({ scope, store: f.store, api: f.api,
+        waitRef: wait.waitRef, intentId: wait.intentId, generation: scope.generation, action: 'bind', nativeId })).ok, true);
+    };
+    const resolveNative = async () => { await confirmNative(); await f.applier.resume(); };
+    if (options.settleBeforeRecovery) await resolveNative();
     const { scopeKey: _scopeKey, ...root } = (await f.store.getMappingByColpId(scope, 'root-colp'))!;
     const child = { nativeId: `recovery:${node.id}`, colpId: node.id,
       rootNativeId: 'native-root', parentColpId: root.colpId, nodeKind: 'bookmark' as const,
@@ -34,7 +43,8 @@ export async function setupRecoveryWait(interruptAfterAck = false) {
     await f.store.transitionEngine(scope, { phase: 'recovery', recoveryFrozen: true,
       authorityRefreshRequired: true, lastError: 'sync_cursor_expired', updatedAt: 1000, notBefore: 0 });
     let active = false;
-    let interrupt = interruptAfterAck;
+    const clock = { now: 1000 };
+    let interrupt = options.interruptAfterAck === true;
     const acks: string[] = [];
     const checkpoints: Array<{ point: string; observed: unknown }> = [];
     const observe = async () => {
@@ -54,7 +64,7 @@ export async function setupRecoveryWait(interruptAfterAck = false) {
       async rebaseRecoveryCursor(...args) {
         await f.store.rebaseRecoveryCursor(...args); await capture('activated');
       },
-    }, now: () => 1000,
+    }, now: () => clock.now,
       endpoints: async () => ({ syncPull: 'https://known.example/pull', syncSnapshot: 'https://known.example/snapshot',
         syncAck: 'https://known.example/ack' }),
       sessions: { get: async () => {
@@ -77,6 +87,7 @@ export async function setupRecoveryWait(interruptAfterAck = false) {
         if (point === 'after_ack' && interrupt) { interrupt = false; throw new Error('worker_crash'); }
       },
       fetch: async (url, init) => {
+        if (String(url).includes('/pull')) return Response.json(f.page([], 'active-cut'));
         if (String(url).includes('/snapshot/conflicts')) return Response.json({ snapshotId: 'handoff-snapshot',
           offset: 0, conflictCount: 0, conflicts: [], nextOffset: null });
         assert.ok(String(url).endsWith('/ack'), `unexpected request: ${String(url)}`);
@@ -84,7 +95,7 @@ export async function setupRecoveryWait(interruptAfterAck = false) {
         return Response.json({ replicaId: scope.replicaId, ackedCursor: body.cursor, ackedAt: '2026-10-18T00:00:00Z' });
       },
     });
-    return { get fixture() { return f; }, acks, checkpoints, capture, engine: makeEngine,
+    return { get fixture() { return f; }, acks, checkpoints, capture, confirmNative, resolveNative, clock, engine: makeEngine,
       async restart() { f = await reopenT02(f); await capture('restart'); return makeEngine(); } };
   } catch (error) { f.store.close(); throw error; }
 }
