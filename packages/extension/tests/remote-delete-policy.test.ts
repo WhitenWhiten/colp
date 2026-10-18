@@ -65,13 +65,13 @@ describe('P1-02 device remote-delete policy', () => {
     assert.ok(fixture.api.calls.some((call) => call.kind === 'create'));
     assert.ok(await fixture.store.getMappingByNativeId(scope, 'native-node'));
     const exported = await fixture.store.exportScope(scope);
-    assert.equal(exported.cursor?.cursor ?? exported.scope?.checkpoint?.cursor, 'cursor-old');
+    assert.equal(exported.cursor?.cursor ?? exported.scope?.checkpoint?.cursor, 'cursor-next');
     const pending = await fixture.store.listRemoteDeleteDecisions(scope, ['pending']);
     assert.equal(pending.length, 1);
     assert.equal(pending[0]?.targetId, 'node-1');
     const events = await fixture.store.listPullEvents(scope);
     assert.ok(events.some((event) => event.state === 'awaiting_confirmation'));
-    assert.ok(events.some((event) => event.state === 'authority_committed'));
+    assert.ok(events.some((event) => event.state === 'page_complete'));
   });
 
   test('apply decision Chrome-deletes once and is idempotent so the page can Ack', async () => {
@@ -180,7 +180,7 @@ describe('P1-02 device remote-delete policy', () => {
     await createPullApplier({ ...fixture.options, store: reopened }).resume();
     assert.equal((await reopened.listRemoteDeleteDecisions(scope, ['pending']))[0]?.nativeIds.length,
       before.nativeIds.length);
-    assert.equal((await reopened.exportScope(scope)).cursor?.cursor ?? 'cursor-old', 'cursor-old');
+    assert.equal((await reopened.exportScope(scope)).cursor?.cursor ?? 'cursor-old', 'cursor-next');
   });
 
   test('revoked permission and generation fence do not Chrome-delete', async () => {

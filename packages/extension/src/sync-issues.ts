@@ -1,3 +1,4 @@
+import { OPEN_REMOTE_DELETE_STATES } from './remote-delete-pending-facts.js';
 import { mergeLocalIssues, blockedPullIssue, isOpenQueueIssue, addQueueIssueRoots, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
 /** One interpretation of durable open issues, shared by sync and repair consumers. */
 import { projectNativeWaits, type NativeWaitStore } from './native-wait.js';
@@ -5,19 +6,20 @@ import type { LocalIssueRecord, MappingInput, PullIssueRecord, QueueOperation, S
   createSyncStateStore } from './sync-state-store.js';
 
 type Store = Partial<Pick<ReturnType<typeof createSyncStateStore>,
-  'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'> & NativeWaitStore>;
+  'listRemoteDeleteDecisions' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'> & NativeWaitStore>;
 export interface OpenSyncIssues {
   readonly queue: readonly QueueOperation[];
   readonly pull: readonly PullIssueRecord[];
   readonly local: readonly LocalIssueRecord[];
   readonly replica: readonly BlockedPullIssue[];
   readonly waits: Awaited<ReturnType<typeof projectNativeWaits>>;
+  readonly deletes: Awaited<ReturnType<ReturnType<typeof createSyncStateStore>['listRemoteDeleteDecisions']>>;
   readonly roots: ReadonlySet<string>;
   readonly nativeRoots: ReadonlySet<string>;
   readonly total: number;
 }
 
-export async function readOpenSyncIssues(store: Store, scope: SyncScope): Promise<OpenSyncIssues> {
+export async function readOpenSyncIssues(store: Store, scope: SyncScope, excludeDeleteEventId?: string, resolvingRestoreOpId?: string): Promise<OpenSyncIssues> {
   const queue: QueueOperation[] = [];
   if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
     let after = 0;
@@ -37,15 +39,17 @@ export async function readOpenSyncIssues(store: Store, scope: SyncScope): Promis
     if (issue) replica.push(issue);
   }
   const waits = store.listApplyIntents ? await projectNativeWaits(store as NativeWaitStore, scope) : [];
+  const deletes = (await store.listRemoteDeleteDecisions?.(scope, OPEN_REMOTE_DELETE_STATES) ?? []).filter(row => row.eventId !== excludeDeleteEventId && !(row.state === 'restoring' && row.restoreOpId === resolvingRestoreOpId));
   const roots = new Set([...pull.map(row => row.nodeId), ...replica.flatMap(issue => issue.nodeIds)]);
+  for (const decision of deletes) roots.add(decision.targetId);
   addQueueIssueRoots(roots, queue);
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
-  const nativeRoots = new Set(local.map(row => row.nativeId));
+  const nativeRoots = new Set([...local.map(row => row.nativeId), ...deletes.flatMap(row => row.nativeIds)]);
   if (nativeRoots.size && store.listMappings) for (const row of await store.listMappings(scope)) {
     if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
   }
-  return { queue, pull, local, waits, replica, roots, nativeRoots,
-    total: queue.length + pull.length + local.length + waits.length + replica.length };
+  return { queue, pull, local, waits, replica, deletes, roots, nativeRoots,
+    total: deletes.length + queue.length + pull.length + local.length + waits.length + replica.length };
 }
 
 /** Parent edges include existing mappings and never-confirmed creates. */

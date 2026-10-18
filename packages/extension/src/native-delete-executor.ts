@@ -21,7 +21,7 @@ import type {
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'getApplyIntent' | 'persistApplyIntentFacts' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings'
-  | 'listApplyIntents' | 'getPullEvent' | 'getScope' | 'getMappingByColpId'>;
+  | 'listRemoteDeleteDecisions' | 'listApplyIntents' | 'getPullEvent' | 'getScope' | 'getMappingByColpId'>;
 
 export type DeleteMemberResult = 'not_started' | 'applied' | 'absent' | 'retained' | 'protected' | 'failed';
 
@@ -77,7 +77,8 @@ export async function executeRemoteDeleteMembers(input: {
     return summarize(frozen.members, results);
   }
   const order = await orderMembers(input.api, frozen.members, results);
-  const issues = await readOpenSyncIssues(input.store, input.scope);
+  const intent = await input.store.getApplyIntent(input.scope, input.intentId);
+  const issues = await readOpenSyncIssues(input.store, input.scope, intent?.eventId);
   const privateRoots = (await input.store.getScope(input.scope))?.privateRoots ?? [];
   const ancestry = issueAncestry([...await input.store.listMappings(input.scope), ...input.mappings], issues.queue);
   for (const row of order) {

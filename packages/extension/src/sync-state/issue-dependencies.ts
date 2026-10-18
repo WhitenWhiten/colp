@@ -1,3 +1,4 @@
+import { OPEN_REMOTE_DELETE_STATES } from '../remote-delete-pending-facts.js';
 import { openIngressIssue, blockedPullIssue } from './open-issue-facts.js';
 /** Transaction-local view of the same durable issue roots used by Pull and delete protection. */
 import { issueAncestry } from '../sync-issues.js';
@@ -6,7 +7,7 @@ import { cursorPage, scopeRowsRange, requestValue } from './idb.js';
 import { STORES, INDEXES } from './schema.js';
 import type { IntentRecord, MappingInput, UnknownRecord, BookmarkEventRecord } from './types.js';
 
-export const ISSUE_DEPENDENCY_STORES = [STORES.mappings, STORES.diagnostics, STORES.intents, STORES.pullEvents, STORES.bookmarkEvents, STORES.pullPages] as const;
+export const ISSUE_DEPENDENCY_STORES = [STORES.mappings, STORES.diagnostics, STORES.intents, STORES.pullEvents, STORES.bookmarkEvents, STORES.pullPages, STORES.remoteDeleteDecisions] as const;
 export async function transactionIssueDependencies(queue: IDBObjectStore, key: string, excludeEventId?: string) {
   const tx = queue.transaction;
   const mappings = await requestValue<MappingInput[]>(tx.objectStore(STORES.mappings).getAll(scopeRowsRange(key)));
@@ -37,6 +38,9 @@ export async function transactionIssueDependencies(queue: IDBObjectStore, key: s
       IDBKeyRange.bound([key, page.pageId], [key, page.pageId, []]), Number.MAX_SAFE_INTEGER);
     const issue = blockedPullIssue(page, events); for (const id of issue?.nodeIds ?? []) roots.add(id);
   }
+  const independentRoots = new Set(roots);
+  const decisions = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.remoteDeleteDecisions).getAll(scopeRowsRange(key)));
+  for (const decision of decisions) if ((OPEN_REMOTE_DELETE_STATES as readonly string[]).includes(String(decision.state))) roots.add(String(decision.targetId));
   const byNative = new Map(mappings.map(row => [row.nativeId, row.colpId]));
   const operationParents = new Map<string, string[]>();
   const events = await requestValue<BookmarkEventRecord[]>(tx.objectStore(STORES.bookmarkEvents).getAll(scopeRowsRange(key)));
@@ -48,5 +52,5 @@ export async function transactionIssueDependencies(queue: IDBObjectStore, key: s
       .filter((id): id is string => typeof id === 'string').map(id => byNative.get(id) ?? id);
     operationParents.set(event.opId, parents);
   }
-  return { roots, parents: issueAncestry(mappings), operationParents };
+  return { roots, independentRoots, decisions, parents: issueAncestry(mappings), operationParents };
 }

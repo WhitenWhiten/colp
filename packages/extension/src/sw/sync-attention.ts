@@ -53,6 +53,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const queue = await queueFacts(deps.store, scope, open);
     const issues = [...open.pull.map(row => ({ direction: 'pull' as const, code: row.code,
       ...(row.title ? { title: row.title } : {}) })),
+      ...open.deletes.map(row => ({ direction: 'pull' as const, code: 'remote_delete_confirmation_required', title: row.title })),
       ...open.local.map(row => ({ direction: 'local' as const, code: row.code, ...(row.title ? { title: row.title } : {}) })),
       ...open.replica.map(row => ({ direction: 'pull' as const, code: row.code })),
       ...open.queue.map(row => ({ direction: 'push' as const, code: row.recovery?.code ?? 'push_rejected' }))];

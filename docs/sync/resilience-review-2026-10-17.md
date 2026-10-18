@@ -224,3 +224,26 @@ freeze wake, permission rejection, existing placement/native recovery and classi
 checks. Typecheck and changed-file lint passed. Existing tests that expected the
 old permanent identity freeze were corrected; empty API reads now retain the
 projection owner and can retry instead of falsely asserting identity loss.
+
+### Task 4 — pending remote deletion is independent of Pull progress
+
+Root cause: awaiting_confirmation was both the decision ledger and a global page/
+engine barrier; health never projected remote-delete decisions. Validated remote
+deletes and their dependent events now retain separate durable deferral bindings.
+Page completion accounts for those facts without claiming native application;
+subsequent pages and Ack continue. Deferred events retain their page/effect/native
+identity evidence across pruning, Snapshot and restart. User decisions resume the
+original native executor; detached completion publishes its mapping facts without
+rewinding cursors or stale parent baselines. Restore's own bound operation can
+cross its decision hold, while independent issues still protect the target.
+
+The same open decision facts feed Status, health, Snapshot/deletion and queue
+protection. Local Keep/Delete/Restore controls retain their CAS/generation checks;
+health shows remote_delete_confirmation_required and a repair exit.
+
+Before: supplied real-engine regression requested only one page and reported
+syncing/zero issues. After: two permanent real-engine/two-page regressions prove
+unrelated create, related restore hold, both Acks, accurate Status/health, decision
+execution, deferred restore convergence, pruning and worker/IDB restart. Existing
+same-page tests now require the advanced cursor. Ten affected suites passed 44
+tests; typecheck and changed-file lint passed. No service started.

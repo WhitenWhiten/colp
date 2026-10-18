@@ -1,3 +1,4 @@
+import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from '../remote-delete-pending-facts.js';
 import { isRemoteDeletePolicy, remoteDeleteRestoreOpId } from '../remote-delete-policy.js';
 import { boundedString, clone, safeInteger, strictObject, validateJson, validateRecord } from './codec.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
@@ -130,7 +131,7 @@ export function createRemoteDeleteRepository(ctx: SyncStoreRuntime) {
               || result.deleteRevision !== input.decision.deleteRevision) {
             throw new SyncStateError('remote_delete_decision_conflict');
           }
-          if (event.state === 'staged') events.put({ ...event, state: 'awaiting_confirmation' });
+          if (event.state === 'staged') events.put({ ...event, state: 'awaiting_confirmation', deferredRemoteDeleteId: result.decisionId });
           return;
         }
         if (event.state !== 'staged' && event.state !== 'awaiting_confirmation') {
@@ -141,7 +142,7 @@ export function createRemoteDeleteRepository(ctx: SyncStoreRuntime) {
           nativeIds: [...input.decision.nativeIds],
         }, key, ctx.maxRecordBytes);
         decisions.add(result);
-        events.put({ ...event, state: 'awaiting_confirmation' });
+        events.put({ ...event, state: 'awaiting_confirmation', deferredRemoteDeleteId: result.decisionId });
       });
     return clone(result);
   }
@@ -227,10 +228,38 @@ export function createRemoteDeleteRepository(ctx: SyncStoreRuntime) {
     return clone(result);
   }
 
+  async function deferPullForRemoteDelete(scope: SyncScope, eventId: string, decisionId: string): Promise<void> {
+    ctx.assertWritable(); const key = keyFor(scope);
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.pullEvents, STORES.remoteDeleteDecisions], 'readwrite', async tx => {
+      await requireActiveScope(tx, key);
+      const event = await requestValue<UnknownRecord | undefined>(tx.objectStore(STORES.pullEvents).get([key, eventId]));
+      const decision = await requestValue<RemoteDeleteDecisionRecord | undefined>(tx.objectStore(STORES.remoteDeleteDecisions).get([key, decisionId]));
+      if (!event || event.state !== 'staged' || event.intentId || decision?.generation !== scope.generation) throw new SyncStateError('pull_event_state_invalid');
+      tx.objectStore(STORES.pullEvents).put({ ...event, state: 'awaiting_confirmation',
+        deferredRemoteDeleteId: decisionId });
+    });
+  }
+
+  async function resumeRemoteDeleteDependents(scope: SyncScope): Promise<void> {
+    ctx.assertWritable(); const key = keyFor(scope);
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.pullEvents, STORES.remoteDeleteDecisions], 'readwrite', async tx => {
+      await requireActiveScope(tx, key);
+      const events = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.pullEvents).getAll(scopeRowsRange(key)));
+      for (const event of events) {
+        const id = remoteDeleteDeferral(event); if (!id || event.state !== 'awaiting_confirmation') continue;
+        const decision = await requestValue<RemoteDeleteDecisionRecord | undefined>(tx.objectStore(STORES.remoteDeleteDecisions).get([key, id]));
+        if (remoteDeleteDeferralMatches(event, decision, scope.generation) && decision!.eventId !== event.eventId
+            && ['applied', 'keep_local', 'restored'].includes(decision!.state)) {
+          tx.objectStore(STORES.pullEvents).put({ ...event, state: 'staged' });
+        }
+      }
+    });
+  }
+
   return {
     getRemoteDeletePolicy, setRemoteDeletePolicy, getRemoteDeleteDecision, listRemoteDeleteDecisions,
     getLocalSyncExclusion, listLocalSyncExclusions, parkRemoteDelete, decideRemoteDelete, settleRemoteDelete,
-    putLocalSyncExclusion,
+    putLocalSyncExclusion, deferPullForRemoteDelete, resumeRemoteDeleteDependents,
   };
 
   async function putLocalSyncExclusion(scope: SyncScope, row: Omit<LocalSyncExclusionRecord, 'scopeKey'>):

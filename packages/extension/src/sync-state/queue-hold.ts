@@ -69,7 +69,10 @@ export function heldBy(row: QueueOperation, holders: readonly QueueOperation[], 
   const holder = holders.find(holder => holder.opId !== row.opId && affected(
     new Set([String(holder.payload.targetId ?? `pending-${holder.opId}`)])));
   if (holder) return holder;
-  return affected(graph.roots)
+  const roots = new Set(graph.independentRoots);
+  for (const decision of graph.decisions) if (decision.restoreOpId !== row.opId
+      && ['pending', 'applying', 'restoring', 'rejected'].includes(String(decision.state))) roots.add(String(decision.targetId));
+  return affected(roots)
     ? { ...row, opId: `external-issue:${row.opId}`, status: 'set_aside' } : undefined;
 }
 

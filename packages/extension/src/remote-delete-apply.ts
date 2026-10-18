@@ -12,11 +12,12 @@ import type { LocalSyncExclusionRecord, RemoteDeleteDecisionRecord } from './syn
 type Store = PullApplierOptions['store'];
 
 export async function settleParkedRemoteDeletes(options: PullApplierOptions, now: () => number): Promise<void> {
-  const restoring = await options.store.listRemoteDeleteDecisions(options.scope, ['restoring']);
+  const restoring = await options.store.listRemoteDeleteDecisions(options.scope, ['restoring', 'pending']);
   for (const decision of restoring) {
     const raw = await options.store.getPullEvent(options.scope, decision.eventId);
     if (!raw?.payload) continue;
-    await settleRestoreIfReady(options, decision, raw.payload as OpEvent, now);
+    if (decision.state === 'pending' && decision.action === 'keep_local') await resolveKeepLocal(options.store, options.scope, raw.payload as OpEvent, decision, now);
+    else if (decision.state === 'restoring') await settleRestoreIfReady(options, decision, raw.payload as OpEvent, now);
   }
 }
 

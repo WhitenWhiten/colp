@@ -1,3 +1,4 @@
+import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from './remote-delete-pending-facts.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import { setAsideFailedPullItem, setAsidePullItem } from './pull-item-set-aside.js';
 import { createPullBookmarkEvidence, readOptional } from './pull-bookmark-evidence.js';
@@ -66,6 +67,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     assertPullApplierGate(options);
     if (await kns09Paused('pull')) throw new SyncFailureError('sync_paused');
     await settleParkedRemoteDeletes(options, now);
+    await options.store.resumeRemoteDeleteDependents(options.scope);
     const authority = await readPullApplyAuthority(options);
     const events = await options.store.listPullEvents(options.scope,
       ['staged', 'intent_prepared', 'browser_call_started', 'native_event_observed', 'authority_committed']);
@@ -75,7 +77,11 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     }
     for (const raw of events) {
       if (raw.state === 'authority_committed') continue;
-      if (!ordinaryPullEventAllowed(authority, raw)) { await recoverSupersededPullEvent(options, authority, raw); continue; }
+      const decisionId = remoteDeleteDeferral(raw);
+      const decision = decisionId ? await options.store.getRemoteDeleteDecision(options.scope, decisionId) : undefined;
+      const detached = remoteDeleteDeferralMatches(raw, decision ?? undefined, options.scope.generation)
+        && authority.lifecycle === 'active' && !authority.frozen;
+      if (!ordinaryPullEventAllowed(authority, raw) && !detached) { await recoverSupersededPullEvent(options, authority, raw); continue; }
       const event = raw.payload as unknown as Extract<SyncPullEventV02, { kind: 'operation' }>;
       try {
       if (raw.state === 'staged') {
@@ -107,13 +113,18 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       }
     }
     await publishSupersededPullMappings(options, authority);
+    for (const raw of await options.store.listPullEvents(options.scope, ['authority_committed'])) {
+      if (!remoteDeleteDeferral(raw)) continue;
+      const page = (await options.store.listPullPages(options.scope, ['page_complete'])).find(page => page.pageId === raw.pageId);
+      if (page) await options.store.completeDetachedPullEvent(options.scope, String(raw.pageId), String(raw.eventId));
+    }
     const stagedPages = await options.store.listPullPages(options.scope, ['staged']);
     if (stagedPages.length === 0) return;
     for (const page of stagedPages) {
       if (supersededPullPage(authority, page)) continue;
       const pageEvents = await options.store.listPullEventsByPage(options.scope, String(page.pageId));
       if (pageEvents.length === Number(page.eventCount)
-        && pageEvents.every((event) => event.state === 'authority_committed')) {
+        && pageEvents.every((event) => event.state === 'authority_committed' || event.state === 'awaiting_confirmation' && remoteDeleteDeferral(event))) {
         await options.assertCurrent?.();
         await options.store.completePullPage(options.scope, String(page.pageId));
       }

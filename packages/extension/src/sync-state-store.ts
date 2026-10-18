@@ -116,7 +116,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     observeApplyIntentPostState: pull.observeApplyIntentPostState,
     observeApplyIntentChangeFields: pull.observeApplyIntentChangeFields,
     recordPullApiEvidence: pull.recordPullApiEvidence, commitPullEvent: pull.commitPullEvent,
-    completePullPage: pull.completePullPage,
+    completePullPage: pull.completePullPage, completeDetachedPullEvent: pull.completeDetachedPullEvent,
     stageRecoveryPage: recovery.stageRecoveryPage, discardRecoveryStaging: recovery.discardRecoveryStaging,
     finalizeRecoveryMappings: recovery.finalizeRecoveryMappings, commitRecovery: recovery.commitRecovery,
     rebaseRecoveryCursor: recovery.rebaseRecoveryCursor,

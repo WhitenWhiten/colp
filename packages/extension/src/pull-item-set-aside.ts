@@ -49,9 +49,18 @@ function subjectOf(event: OpEvent): Subject | null {
 export async function setAsidePullItem(options: PullApplierOptions, eventId: string, event: OpEvent,
   now: number): Promise<boolean> {
   const subject = subjectOf(event); if (!subject) return false;
-  const issues = await readOpenSyncIssues(options.store, options.scope);
+  const issues = await readOpenSyncIssues(options.store, options.scope, undefined, event.operation.opId);
   const open = new Map(issues.pull.map(issue => [issue.nodeId, issue]));
   const node = subject.node; const title = typeof node?.title === 'string' ? node.title : undefined;
+  const mappings = await options.store.listMappings(options.scope);
+  const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : [])];
+  if (!subject.deleted) {
+    const pendingDelete = issues.deletes.find(row => row.restoreOpId !== event.operation.opId && dependsOnIssue(targets, new Set([row.targetId]), issueAncestry(mappings)));
+    if (pendingDelete) {
+      await options.store.deferPullForRemoteDelete(options.scope, eventId, pendingDelete.decisionId);
+      return true;
+    }
+  }
   const self = open.get(subject.nodeId);
   if (self) {
     // Mapped deletes must reach the member executor: it retains issue nodes and

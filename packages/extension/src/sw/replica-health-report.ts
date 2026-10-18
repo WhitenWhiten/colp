@@ -309,6 +309,9 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   if (response.ok !== true) throw new Error('scope_unavailable');
   const issues = [...replicaIssuesFromQueue(open.queue), ...replicaIssuesFromPull(open.pull),
     ...replicaIssuesFromLocal(open.local), ...replicaIssuesFromWaits(open.waits),
+    ...open.deletes.map(row => ({ issueId: issueId(['delete', row.decisionId]), direction: 'pull' as const,
+      code: 'remote_delete_confirmation_required', nodeId: row.targetId, title: bounded(row.title), count: 1,
+      firstSeenAt: new Date(row.updatedAt).toISOString(), lastSeenAt: new Date(row.updatedAt).toISOString(), actions: [] })) ,
     ...open.replica.map(issue => ({ issueId: issueId(['replica', issue.pageId]), direction: 'pull' as const,
       code: issue.code, count: 1, firstSeenAt: new Date(issue.at).toISOString(), lastSeenAt: new Date(issue.at).toISOString(), actions: [] }))];
   const mode = await deps.mode();

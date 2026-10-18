@@ -1,3 +1,4 @@
+import { remoteDeleteDeferral } from '../remote-delete-pending-facts.js';
 import { issueProtectionIds } from '../sync-issues.js';
 import { transactionIssueDependencies, ISSUE_DEPENDENCY_STORES } from './issue-dependencies.js';
 import { putPullIssueFact } from './pull-issue-repository.js';
@@ -253,13 +254,16 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     }
     const unresolved = intents.filter(intent => intent.nativeResult === 'result_unknown'
       || intent.nativeResult === 'waiting_dependency' || intent.waitReason === 'native_result_unknown');
-    const retainedEvents = new Set(unresolved.map(intent => intent.eventId));
+    const retainedEvents = new Set([...unresolved.map(intent => intent.eventId), ...events.filter(event => remoteDeleteDeferral(event)).map(event => String(event.eventId))]);
+    const retainedPages = new Set(events.filter(event => retainedEvents.has(String(event.eventId))).map(event => event.pageId));
     for (const name of [STORES.pullPages, STORES.pullEvents, STORES.effectPages, STORES.intents]) {
-      if (name === STORES.intents) {
+      if (name === STORES.pullPages && retainedPages.size) {
+        for (const page of pages) if (!retainedPages.has(page.pageId)) tx.objectStore(name).delete([key, String(page.pageId)]);
+      } else if (name === STORES.intents) {
         for (const intent of intents) if (!unresolved.includes(intent)) tx.objectStore(name).delete([key, String(intent.intentId)]);
       } else if (name === STORES.pullEvents) {
         for (const event of events) if (!retainedEvents.has(String(event.eventId))) tx.objectStore(name).delete([key, String(event.eventId)]);
-      } else if (name === STORES.effectPages && unresolved.length) {
+      } else if (name === STORES.effectPages && retainedEvents.size) {
         await iterateCursor(tx.objectStore(name), scopeRowsRange(key), (value, cursor) => {
           if (!retainedEvents.has(String((value as UnknownRecord).eventId))) cursor.delete();
         });
@@ -327,7 +331,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const scope = validateScope(input); const key = scopeKey(scope); boundedString(snapshotId, 'snapshotId');
     const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.mappings, STORES.queue, STORES.bookmarkEvents,
       STORES.cursors, STORES.recovery, STORES.recoveryNodes, STORES.ackIntents, STORES.pullPages, STORES.pullEvents,
-      STORES.effectPages, STORES.intents, STORES.diagnostics, STORES.localSyncExclusions], 'readwrite', async (tx) => {
+      STORES.effectPages, STORES.intents, STORES.diagnostics, STORES.localSyncExclusions, STORES.remoteDeleteDecisions], 'readwrite', async (tx) => {
       const scopes = tx.objectStore(STORES.scopes); const current = await requireActiveScope(tx, key);
       const header = await requestValue(tx.objectStore(STORES.recovery).get([key, snapshotId])) as RecoveryHeader | undefined;
       if (!header?.complete || header.nextCursor !== null) throw new SyncStateError('recovery_incomplete');

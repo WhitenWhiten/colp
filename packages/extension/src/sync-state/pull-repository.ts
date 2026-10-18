@@ -1,3 +1,5 @@
+import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from '../remote-delete-pending-facts.js';
+import type { RemoteDeleteDecisionRecord } from './remote-delete-repository.js';
 import { createProjectionRepository } from './projection-repository.js';
 import { mergeRemoteObservation } from './remote-observation.js';
 import { classifyDurablePullCursorWrite, pullPageDiagnosticRow, type PullCursorWriteClass } from '../pull-ack-boundary.js';
@@ -131,7 +133,17 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   async function hasPullEventsAwaitingConfirmation(input: SyncScope): Promise<boolean> {
     // SYNC-F011: existence only. The state index returns on the first row.
     const key = scopeKey(validateScope(input));
-    return probePullState(await open(), key, 'awaiting_confirmation');
+    const db = await open(); const tx = db.transaction([STORES.pullEvents, STORES.remoteDeleteDecisions], 'readonly');
+    const done = transactionDone(tx);
+    const events = await cursorPage<UnknownRecord>(tx.objectStore(STORES.pullEvents).index(INDEXES.pullEventByState),
+      IDBKeyRange.bound([key, 'awaiting_confirmation'], [key, 'awaiting_confirmation', []]), Number.MAX_SAFE_INTEGER);
+    let blocking = false;
+    for (const event of events) {
+      const id = remoteDeleteDeferral(event);
+      const decision = id ? await requestValue<RemoteDeleteDecisionRecord | undefined>(tx.objectStore(STORES.remoteDeleteDecisions).get([key, id])) : undefined;
+      if (!remoteDeleteDeferralMatches(event, decision, input.generation)) { blocking = true; break; }
+    }
+    await done; return blocking;
   }
 
   async function getPullEvent(input: SyncScope, eventId: string) {
@@ -357,18 +369,27 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     });
   }
 
-  async function completePullPage(input: SyncScope, pageId: string): Promise<void> {
+  async function completePullPage(input: SyncScope, pageId: string, detachedEventId?: string): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const db = await writableDatabase();
     let blocked: 'concurrent_local_mutation' | 'mapping_identity_conflict' | PullCursorWriteClass | undefined;
     await runTransaction(db, [STORES.scopes, STORES.cursors, STORES.pullPages, STORES.pullEvents, STORES.intents,
       STORES.mappings, STORES.queue, STORES.receipts, STORES.remoteObservations, STORES.localSyncExclusions,
-      STORES.scopeCommandPlans, STORES.mounts, STORES.diagnostics], 'readwrite', async (tx) => {
+      STORES.scopeCommandPlans, STORES.mounts, STORES.diagnostics, STORES.remoteDeleteDecisions], 'readwrite', async (tx) => {
       const scopes = tx.objectStore(STORES.scopes); const current = await requireActiveScope(tx, key);
       const pages = tx.objectStore(STORES.pullPages); const page = await requestValue(pages.get([key, pageId])) as UnknownRecord | undefined;
-      if (!page || page.state !== 'staged') throw new SyncStateError('pull_page_state_invalid');
-      const pageEvents = await cursorPage<UnknownRecord>(tx.objectStore(STORES.pullEvents).index(INDEXES.pullEventByPage),
+      if (!page || page.state !== (detachedEventId ? 'page_complete' : 'staged')) throw new SyncStateError('pull_page_state_invalid');
+      const allPageEvents = await cursorPage<UnknownRecord>(tx.objectStore(STORES.pullEvents).index(INDEXES.pullEventByPage),
         pageEventsRange(key, pageId), Number.MAX_SAFE_INTEGER);
-      if (pageEvents.length !== page.eventCount || pageEvents.some((event) => event.state !== 'authority_committed')) {
+      const deferred = new Set<string>();
+      for (const event of allPageEvents) {
+        const id = remoteDeleteDeferral(event);
+        const decision = id ? await requestValue<RemoteDeleteDecisionRecord | undefined>(tx.objectStore(STORES.remoteDeleteDecisions).get([key, id])) : undefined;
+        if (remoteDeleteDeferralMatches(event, decision, input.generation)) deferred.add(String(event.eventId));
+      }
+      const pageEvents = detachedEventId ? allPageEvents.filter(event => event.eventId === detachedEventId)
+        : allPageEvents.filter(event => event.state !== 'awaiting_confirmation' || !deferred.has(String(event.eventId)));
+      if ((detachedEventId ? pageEvents.length !== 1 || !deferred.has(detachedEventId) : allPageEvents.length !== page.eventCount)
+          || pageEvents.some((event) => event.state !== 'authority_committed')) {
         throw new SyncStateError('pull_page_incomplete');
       }
       // F008: never publish a cursor behind the durable/recovery authority.
@@ -376,12 +397,18 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
       const publishedCursor = cursorRow?.cursor ?? current.checkpoint?.cursor ?? null;
       const cursorWrite = classifyDurablePullCursorWrite({ publishedCursor, previousCursor: String(page.previousCursor),
         nextCursor: String(page.nextCursor) });
-      if (cursorWrite !== 'allow') blocked = cursorWrite;
+      if (!detachedEventId && cursorWrite !== 'allow') blocked = cursorWrite;
       const mappings = tx.objectStore(STORES.mappings);
       const projectionState = new Map<string, string | null>();
       const preservedMappings = new Set<string>();
+      if (detachedEventId) for (const event of pageEvents) {
+        const payload = event.payload as UnknownRecord; const effect = payload.effect as UnknownRecord;
+        const target = (effect.node as UnknownRecord | undefined)?.id
+          ?? (effect.tombstone as UnknownRecord | undefined)?.targetId ?? (effect.rootTombstone as UnknownRecord | undefined)?.targetId;
+        for (const mapping of event.pendingMappings as MappingInput[] ?? []) if (mapping.colpId !== target) preservedMappings.add(mapping.nativeId);
+      }
       const queue = tx.objectStore(STORES.queue);
-      for (const event of pageEvents) { if (!event.intentId) continue;
+      for (const event of pageEvents) { if (!event.intentId || detachedEventId) continue;
         const intent = await requestValue(tx.objectStore(STORES.intents).get([key, event.intentId as string])) as IntentRecord | undefined;
         if (intent && !['create', 'sidecar'].includes(intent.expected.kind) && intent.nativeTargetId && intent.preStateDigest) {
           if (!projectionState.has(intent.nativeTargetId)) { const currentMapping = await requestValue(
@@ -448,6 +475,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
           tx.objectStore(STORES.mounts).put(validateMountBinding(key, row, maxRecordBytes));
         }
       }
+      if (detachedEventId) return;
       pages.put({ ...page, state: 'page_complete', completedAt: Date.now() });
       tx.objectStore(STORES.cursors).put({ scopeKey: key, cursor: page.nextCursor, checkpoint: page.collectionRevision,
         evidence: { pullPageId: page.pageId, pageDigest: page.pageDigest } });
@@ -533,7 +561,8 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     listPullPages, loadPullApplyWorkset, prunePullHistory, pullOperationsCovered, getCursor,
     preparePullIntent, markPullBrowserCallStarted, observeApplyIntentEvent,
     observeApplyIntentPostState, observeApplyIntentChangeFields,
-    recordPullApiEvidence, commitPullEvent, completePullPage, commitApplyIntent,
+    recordPullApiEvidence, commitPullEvent, completePullPage,
+    completeDetachedPullEvent: (scope: SyncScope, pageId: string, eventId: string) => completePullPage(scope, pageId, eventId), commitApplyIntent,
     putEffectDownload, getEffectDownload, clearEffectDownload, putScopeDiagnostic,
     ...createProjectionRepository(ctx) };
 }
