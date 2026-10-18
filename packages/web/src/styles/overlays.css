@@ -244,6 +244,22 @@
   }
 }
 
+/* The library's editor drawer docks to the right edge with Save in its
+   bottom corner, where toasts land. While it is open they sit beside it;
+   on the full-screen phone sheet (below 720px) they rise above its foot. */
+body:has(.node-drawer:not(.is-closing)) .toast {
+  right: calc(min(26rem, 100vw) + var(--space-4));
+  max-width: min(28rem, calc(100vw - min(26rem, 100vw) - var(--space-4) - var(--gutter)));
+}
+
+@media (max-width: 719px) {
+  body:has(.node-drawer:not(.is-closing)) .toast {
+    right: max(var(--gutter), var(--safe-right));
+    bottom: calc(var(--safe-bottom) + var(--space-4) + var(--space-8));
+    max-width: min(28rem, calc(100vw - 2 * var(--gutter)));
+  }
+}
+
 /* R15-16: forced colors drop the shadow and the icon tones, so the toast
    keeps a plain text pair and a solid edge. */
 @media (forced-colors: active) {
