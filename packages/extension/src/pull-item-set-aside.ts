@@ -52,9 +52,11 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
   const node = subject.node; const title = typeof node?.title === 'string' ? node.title : undefined;
   const self = open.get(subject.nodeId);
   if (self) {
-    const resolveNodeIds = subject.deleted ? [...new Set(subject.deleted)].filter((id) => open.has(id)) : undefined;
-    await options.store.setAsidePullEvent(options.scope, eventId, { code: self.code, nodeId: self.nodeId, now,
-      ...(resolveNodeIds ? { resolveNodeIds } : {}) });
+    // Mapped deletes must reach the member executor: it retains issue nodes and
+    // their ancestors while deleting independent members. Unmapped issues keep
+    // their evidence until repair, even after the remote tombstone.
+    if (subject.deleted && await options.store.getMappingByColpId(options.scope, subject.nodeId)) return false;
+    await options.store.setAsidePullEvent(options.scope, eventId, { code: self.code, nodeId: self.nodeId, now });
     return true;
   }
   if (subject.parentId !== undefined && open.has(subject.parentId)) {

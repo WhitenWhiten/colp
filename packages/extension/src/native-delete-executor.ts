@@ -5,6 +5,7 @@
 import {
   lookupBookmark, lookupBookmarkChildren, type BookmarkLookup, type BookmarkNode,
 } from './bookmark-api-error.js';
+import { readOpenSyncIssues, issueAncestry, dependsOnIssue } from './sync-issues.js';
 import { nativeContent } from './pull-projection.js';
 import { unqueuedNativeContentFields } from './pull-native-content-barrier.js';
 import { classifyNativeCallFacts } from './native-call-result.js';
@@ -17,7 +18,8 @@ import type {
 } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
-  'getApplyIntent' | 'persistApplyIntentFacts' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue'>;
+  'getApplyIntent' | 'persistApplyIntentFacts' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings'
+  | 'listApplyIntents' | 'getPullEvent'>;
 
 export type DeleteMemberResult = 'not_started' | 'applied' | 'absent' | 'retained' | 'protected' | 'failed';
 
@@ -73,14 +75,15 @@ export async function executeRemoteDeleteMembers(input: {
     return summarize(frozen.members, results);
   }
   const order = await orderMembers(input.api, frozen.members, results);
-  const held = await heldTargets(input.store, input.scope);
+  const issues = await readOpenSyncIssues(input.store, input.scope);
+  const ancestry = issueAncestry(await input.store.listMappings(input.scope), issues.queue);
   for (const row of order) {
     const prior = results[row.colpId];
     if (prior && TERMINAL.has(prior)) continue;
     if (isNonChromeNativeId(row.nativeId)) { results[row.colpId] = 'absent'; continue; }
     // G4: a bookmark with a change set aside on this browser is never deleted for
     // the server; it stays in place, outside sync, and its folder stays with it.
-    if (held.has(row.colpId)) {
+    if (issues.nativeRoots.has(row.nativeId) || dependsOnIssue([row.colpId], issues.roots, ancestry)) {
       results[row.colpId] = 'retained';
       await writeResults(input, frozen.members, results);
       continue;
@@ -339,13 +342,3 @@ function readDeleteAnchors(anchors: JsonObject | undefined): {
   return { members, results };
 }
 
-/** Library nodes with a change held out of the push lane (`set_aside`). */
-async function heldTargets(store: Pick<Store, 'listQueue'>, scope: SyncScope): Promise<Set<string>> {
-  const held = new Set<string>(); let after = 0;
-  for (;;) {
-    const rows = await store.listQueue(scope, 'set_aside', after, 1_000);
-    for (const row of rows) if (typeof row.payload.targetId === 'string') held.add(row.payload.targetId);
-    if (rows.length < 1_000) return held;
-    after = rows.at(-1)!.sequence;
-  }
-}

@@ -39,7 +39,11 @@ export async function applyRemoteDeletion(input: {
   const effect = event.effect;
   if (effect.kind !== 'node_deleted' && effect.kind !== 'subtree_deleted') throw new Error('pull_effect_kind_invalid');
   const ids = remoteDeleteMemberIds(event);
-  const mappings = await Promise.all(ids.map((id) => requireMapping(id, 'deletion')));
+  // Missing members have no proven native identity; process their mapped
+  // siblings without inventing a native target from a remote id.
+  const mappings = await Promise.all(ids.map(async (id): Promise<MappingInput> =>
+    await store.getMappingByColpId(scope, id) ?? { colpId: id, nativeId: unmountedNativeId(id),
+      rootNativeId: unmountedNativeId(id), projection: { revision: 'deleted', digest: effect.effectDigest } }));
   const rootId = effect.kind === 'node_deleted' ? effect.tombstone.targetId : effect.rootTombstone.targetId;
   const root = mappings.find((row) => row.colpId === rootId);
   if (!root) throw new Error('mapping_missing:subtree_root');

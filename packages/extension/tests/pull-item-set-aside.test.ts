@@ -35,7 +35,7 @@ describe('C2 a remote record this browser cannot store is one item, not a stop',
       [['pull', 'record_too_large', 'node-created-92']]);
   });
 
-  test('later changes about a set-aside folder wait with it, and its deletion closes it', async () => {
+  test('later changes about a set-aside folder wait with it, and deletion preserves its repair evidence', async () => {
     const fixture = await setup();
     await fixture.applier.stage(fixture.page([create(92, { kind: 'Folder', title: LONG })], 'cursor-1'));
     await fixture.applier.resume();
@@ -48,13 +48,13 @@ describe('C2 a remote record this browser cannot store is one item, not a stop',
     assert.deepEqual((await fixture.store.listPullIssues(scope)).map((issue) => [issue.nodeId, issue.code, issue.count]),
       [['node-created-92', 'record_too_large', 2], ['node-created-94', 'parent_set_aside', 1]]);
     assert.ok(await fixture.store.getMappingByColpId(scope, 'node-created-96'));
-    // Deleting the folder on the server leaves nothing to take in.
+    // A tombstone must not erase an unresolved issue and its repair path.
     await fixture.applier.stage(fixture.page([pullFixtures.mutationEvent({ kind: 'delete', sequence: 97,
       collectionId: scope.collectionId, targetId: 'node-created-92', parentId: 'root-colp', targetKind: 'folder' })],
     'cursor-3'));
     await fixture.applier.resume();
     assert.equal((await fixture.store.getCursor(scope))?.cursor, 'cursor-3');
-    assert.deepEqual((await fixture.store.listPullIssues(scope)).map((issue) => issue.nodeId), ['node-created-94']);
+    assert.deepEqual((await fixture.store.listPullIssues(scope)).map((issue) => issue.nodeId), ['node-created-92', 'node-created-94']);
     assert.equal(fixture.api.calls.filter((call) => call.kind === 'delete').length, 0);
   });
 
