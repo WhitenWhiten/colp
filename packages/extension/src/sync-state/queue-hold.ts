@@ -52,7 +52,7 @@ export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordB
     const row = validateQueueRecord(value, maxRecordBytes);
     const receipt = row.status === 'terminal' ? await requestValue(queue.transaction.objectStore(STORES.receipts)
       .index(INDEXES.queueBySequence).get([key, row.sequence])) : undefined;
-    const issue = withReceiptOutcome(row, receipt as never); if (isOpenQueueIssue(issue)) projected.push(issue);
+    const issue = withReceiptOutcome(row, receipt as never); if (isOpenQueueIssue(issue) && issue.recovery?.code !== 'sequence_blocked') projected.push(issue);
   }
   return projected.sort((left, right) => left.sequence - right.sequence);
 }

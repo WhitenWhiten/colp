@@ -50,12 +50,12 @@ export function blockedPullIssue(page: UnknownRecord, events: readonly UnknownRe
 /** Recaptured bytes are audit history; server rejections, held work and conflicts remain open. */
 export function isOpenQueueIssue(row: { readonly status?: string; readonly recovery?: { readonly code?: string; readonly resultStatus?: string } }): boolean {
   return (row.status === 'terminal' && row.recovery?.resultStatus === 'rejected') || (row.status === 'rejected' && row.recovery?.code !== 'recaptured') || row.status === 'set_aside'
-    || (row.status === 'blocked' && row.recovery?.code === 'conflict_pending');
+    || (row.status === 'blocked' && ['conflict_pending', 'sequence_blocked'].includes(row.recovery?.code ?? ''));
 }
 
 export function addQueueIssueRoots(roots: Set<string>, rows: readonly { readonly status?: string;
   readonly recovery?: { readonly code?: string; readonly resultStatus?: string }; readonly opId: string; readonly payload: { readonly targetId?: unknown; readonly type?: unknown } }[]): void {
-  for (const row of rows.filter(isOpenQueueIssue)) {
+  for (const row of rows.filter(row => isOpenQueueIssue(row) && row.recovery?.code !== 'sequence_blocked')) {
     if (typeof row.payload.targetId === 'string') roots.add(row.payload.targetId);
     if (row.payload.type === 'create_node') roots.add(`pending-${row.opId}`);
   }
@@ -76,3 +76,6 @@ export function withReceiptOutcome<T extends { readonly status: string; readonly
   const code = typeof result.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(result.code) ? result.code : 'push_rejected';
   return { ...row, recovery: { code, resultStatus: 'rejected' } };
 }
+
+/** Exact retries never bypass the lane; stop automatic requests after this many refusals. */
+export const MAX_SEQUENCE_BLOCKED_RETRIES = 8;

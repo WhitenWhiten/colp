@@ -289,23 +289,23 @@ test('deferred receipt persists across restart, holds sequence order, then conve
 });
 
 for (const [fault, status] of [['sequence_blocked_once', 'blocked']] as const) {
-  test(`${status} is a durable barrier across alarm, online wake, startup, and browser restart`, async () => {
+  test(`${status} preserves exact bytes until a bounded retry across browser restart`, async () => {
     const stack = await startRealStack(); const profile = await mkdtemp(resolve(tmpdir(), `known-p3-31-${status}-`));
     let context = await launchPersistentContext(profile, stack.browserHostResolverRules);
     try {
       let page = await extensionPage(context); await login(page, stack.extensionBinding);
       await evidence(page, 'seedOutboundPushEvidence'); stack.setPushFault(fault); await evidence(page, 'duplicateAlarm');
       await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe(status);
-      const before = await stack.observations() as any;
-      await Promise.all([evidence(page, 'duplicateAlarm'), evidence(page, 'wakeOutboundPushEvidence')]);
-      await context.setOffline(true); await context.setOffline(false);
+      const before = await evidence<any>(page, 'exportOutboundPushEvidence');
       await terminateExtensionWorker(context, page); await context.close();
       context = await launchPersistentContext(profile, stack.browserHostResolverRules);
       page = await extensionPage(context); await evidence(page, 'wakeOutboundPushEvidence');
-      const after = await stack.observations() as any; const local = await evidence<any>(page, 'exportOutboundPushEvidence');
-      expect(local.queue[0].status).toBe(status); expect(local.queue[0].recovery.code).toBe(`sequence_${status}`);
-      expect(after.pushRequests).toHaveLength(before.pushRequests.length);
-      expect(after.serverMutationCount).toBe(0); expect(after.sequenceReceipts).toHaveLength(0);
+      await waitForTerminalCount(page, 1);
+      const local = await evidence<any>(page, 'exportOutboundPushEvidence'); const after = await stack.observations() as any;
+      expect(local.queue[0].opId).toBe(before.queue[0].opId);
+      expect(local.queue[0].sequence).toBe(before.queue[0].sequence);
+      expectAuthenticatedRestartReplay(before.queue[0], local.queue[0], after);
+      expect(after.serverMutationCount).toBe(1); expect(after.sequenceReceipts).toHaveLength(1);
     } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
   });
 }
@@ -316,8 +316,7 @@ for (const [fault, status] of [['sequence_blocked_once', 'blocked']] as const) {
  * documents the barrier as healable: `realignQueueAfterGap` clears it and replays the retained
  * attempt as-is (`src/sync-state/queue-repository.ts:305-317`). The old shared body asserted the row
  * stayed `gap` after several wakes, which that realign makes impossible - the row healed into
- * `terminal` before the assertion could see it. A barrier that survives every wake is the
- * `sequence_blocked` case; a gap is durable *evidence* that heals exactly once, and that is what
+ * `terminal` before the assertion could see it. A blocked sequence retries only its retained exact attempt; a gap is durable *evidence* that heals exactly once, and that is what
  * this asserts.
  */
 test('sequence_gap stands as durable evidence with the lane slot, then heals exactly once', async () => {

@@ -1,3 +1,4 @@
+import { MAX_SEQUENCE_BLOCKED_RETRIES } from './sync-state/open-issue-facts.js';
 import { startPushLeaseRenewal } from './push-lease-renewal.js';
 import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
@@ -354,7 +355,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
             // A gap may be healable from the expectedSequence evidence, but
             // realign runs at drain start: schedule that next drain instead
             // of leaving the barrier to a distant alarm.
-            if (outcome === 'gap') options.schedule?.(delay);
+            if (outcome === 'gap' || queue.retry.attempt + 1 < MAX_SEQUENCE_BLOCKED_RETRIES) options.schedule?.(delay);
             return outcome;
           }
           if (problem.code === 'revision_conflict' && problem.conflictId

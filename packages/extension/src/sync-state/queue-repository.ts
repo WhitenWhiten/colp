@@ -1,4 +1,4 @@
-import { withReceiptOutcome } from './open-issue-facts.js';
+import { withReceiptOutcome, MAX_SEQUENCE_BLOCKED_RETRIES } from './open-issue-facts.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
 import { firstLaneQueueRow, holdable, holdIfWaiting, holdWaitingRows } from './queue-hold.js';
@@ -286,7 +286,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       if (first && holdable(first) && await holdWaitingRows(queue, key, maxRecordBytes, first.sequence - 1) > 0) {
         first = await firstLaneQueueRow(queue, receipts, key, maxRecordBytes);
       }
-      if (!first || first.retry.notBefore > now || first.status === 'gap' || first.status === 'blocked') return;
+      if (!first || first.retry.notBefore > now || first.status === 'gap' || (first.status === 'blocked'
+          && (first.recovery?.code !== 'sequence_blocked' || !first.attempt || first.retry.attempt >= MAX_SEQUENCE_BLOCKED_RETRIES))) return;
       if ((await unavailableImportOpIds(tx, key)).has(first.opId)) return;
       if (first.status === 'claimed' && first.retry.ownerId === ownerId && first.retry.fence === fence
           && (first.retry.claimExpiresAt ?? Number.MAX_SAFE_INTEGER) > now) return;
@@ -555,10 +556,21 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     });
   }
 
+  /** Manual exact retry: retain the attempt, sequence, digest and idempotency identity. */
+  async function retrySequenceBlocked(input: SyncScope, opId: string): Promise<void> {
+    const key = scopeKey(validateScope(input));
+    await runTransaction(await writableDatabase(), [STORES.scopes, STORES.queue], 'readwrite', async tx => {
+      await requireActiveScope(tx, key); const queue = tx.objectStore(STORES.queue);
+      const row = await requestValue<QueueOperation | undefined>(queue.index(INDEXES.queueByOpId).get([key, opId]));
+      if (!row || row.status !== 'blocked' || row.recovery?.code !== 'sequence_blocked' || !row.attempt) throw new SyncStateError('action_unavailable');
+      queue.put(validateQueueRecord({ ...row, retry: { attempt: 0, notBefore: 0 } }, maxRecordBytes));
+    });
+  }
+
   return { allocateSequenceAndEnqueue, advanceSequenceFloor, listQueue, listQueueByTarget, getQueueByOpId, getQueueReceipt,
     completeQueueWithReceipt, completeClaimedQueueWithReceipt, publishCursor,
     acquireLease, renewLease, claimQueue, claimNextQueue, realignQueueAfterGap, bindPushAttempt, rebaseClaimedPush,
-    settleClaimedPush, repairSequenceReuseRow };
+    settleClaimedPush, repairSequenceReuseRow, retrySequenceBlocked };
 }
 
 /**

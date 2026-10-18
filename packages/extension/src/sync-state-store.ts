@@ -137,6 +137,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     ...createQueueSetAsideRepository(ctx), bindPushAttempt: queue.bindPushAttempt,
     rebaseClaimedPush: queue.rebaseClaimedPush, settleClaimedPush: queue.settleClaimedPush,
     repairSequenceReuseRow: queue.repairSequenceReuseRow,
+    retrySequenceBlocked: queue.retrySequenceBlocked,
     retireScope: scope.retireScope, cleanupAccount: scope.cleanupAccount, exportScope: scope.exportScope,
     exportArchive: scope.exportArchive, peekDurableCache: scope.peekDurableCache,
     importPreformalBinding: scope.importPreformalBinding, seedLegacyForMigration: scope.seedLegacyForMigration,

@@ -36,7 +36,7 @@ export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): Replica
     // A change waiting on another one is released by that one, and a record that cannot be
     // stored or a rebuild-class problem is not cured by capturing it again.
     const policy = classifySyncFailure(code);
-    const retry = row.status === 'set_aside' && OPAQUE.test(row.opId)
+    const retry = row.status === 'blocked' && code === 'sequence_blocked' || row.status === 'set_aside' && OPAQUE.test(row.opId)
       && (policy?.exit === 'decide' || policy === undefined && !DEPENDENT_HOLDS.has(code));
     return [{ issueId: issueId(['push', code, row.opId]), code, direction: 'push' as const,
       ...(nodeId ? { nodeId } : {}), ...(OPAQUE.test(row.opId) ? { opId: row.opId } : {}),

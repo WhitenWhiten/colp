@@ -71,6 +71,10 @@ function commandRunner(scope: SyncScope, assertCurrent: () => Promise<void>): Re
     },
     async issue(_action, issue) {
       const row = issue.opId ? await syncState.getQueueByOpId(scope, issue.opId) : null;
+      if (row?.status === 'blocked' && row.recovery?.code === 'sequence_blocked') {
+        await assertCurrent(); await syncState.retrySequenceBlocked(scope, row.opId);
+        await retry(); return { outcome: 'done', code: 'exact_retry_requested' };
+      }
       if (row?.status !== 'set_aside') return { outcome: 'failed', code: 'issue_gone' };
       await assertCurrent();
       await syncState.releaseSetAsideQueue(scope, [row.sequence],
