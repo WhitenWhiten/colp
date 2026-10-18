@@ -314,3 +314,43 @@ projection passed its targeted test. Extension/web typechecks and changed-file
 lint passed. Relevant responsibilities were extracted from large engine/Push/Pull/
 ingress files: all 665 production files pass source-size checks, with zero remaining
 grandfathered oversize exceptions. No temporary service started.
+
+### Task 8 — real browser/server acceptance and executable conformance
+
+Added `mv3-sync-resilience.spec.ts`. It uses Chromium under xvfb, real native
+bookmark events, the production first-run UI (no fabricated mappings), real TLS
+Fastify routes, Better Auth, PostgreSQL command/health storage, and the built web
+Sync center. The only injected failures are an authority denial, a dropped HTTP
+response after server settlement, and a held command response; no success response
+or final client state is fabricated. The evidence entrypoint only forces the real
+health scheduler to report immediately.
+
+Final browser command (from packages/extension):
+`node ../server/scripts/with-postgres.mjs -- node scripts/with-xvfb.mjs npx playwright test e2e/mv3-sync-resilience.spec.ts`
+Result: **2 passed, 54.6 s**. Web Retry → extension execution → server receipt →
+Sync-center result survives a lost response and browser/profile restart. Pending
+delete → unrelated upload continues. Placement anchored to the pending deletion
+stays held. A delayed web Rebuild rejects the locally replaced target and reports
+failure under the archived original replica, without resetting the replacement.
+A subsequent normal web Rebuild archives, rotates and displays setup-required;
+bookmarks remain native and setup is chosen/reviewed through the actual UI.
+
+The live test exposed a real missed dependency: a create anchored after a
+pending-deletion sibling repeatedly received position_context_stale. Anchors now
+participate in the shared queue/Pull dependency check. Its permanent capture test
+failed pending vs set_aside before repair. Another permanent test proved that a
+local Rebuild during HTTP wait previously lost the stale command's result; its
+actual archive now enables final delivery. Retry now completes its checked engine
+pass in the serialized command context; its result says retry_completed. Legacy
+retry_scheduled UI explicitly describes scheduling only. A rejected command remains
+visible alongside an independent local reset. Snapshot Ack now warns about its
+explicitly quarantined, unapplied subjects.
+
+Conformance adds SYNC-0038–0043, each fed by actual permanent production-module
+regressions. SYNC-0032 now requires the real authoritative effect receipt instead
+of a synthetic precommitted conflict fact. The runner's separate malformed/
+regression tests passed 17 cases. Twelve extension fixture suites passed 57 tests;
+web Sync/result semantics passed 24 tests. Extension typecheck, web production
+build/typecheck, changed-file lint, i18n, source-size and diff checks passed.
+All test HTTP servers, browsers/profiles and disposable PostgreSQL containers
+closed. No development server was started and nothing was pushed remotely.

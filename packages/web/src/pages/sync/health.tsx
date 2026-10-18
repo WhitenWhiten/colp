@@ -54,6 +54,7 @@ export function stopReason(code: string | null | undefined): string {
 
 export function issueSummary(issue: SyncReplicaIssue): string {
   switch (issue.code) {
+    case 'remote_delete_confirmation_required': return 'Waiting for a deletion decision in the extension: delete, restore, or keep on this browser'
     case 'conflict_pending': return 'Waiting for a conflict to be resolved'
     case 'conflict_hold': return 'Waiting for a conflict on this bookmark to be resolved'
     case 'dependency_hold': return 'Waiting for an earlier change to it that couldn’t sync'
@@ -88,6 +89,8 @@ function activityNote(replica: SyncReplicaView): string {
 type Action = SyncReplicaCommandView['action']
 const ACTION_LABELS: Partial<Record<Action, string>> = { retry: 'Retry', rebuild: 'Reset sync' }
 const RESULT_REASONS: Readonly<Record<string, string>> = {
+  stale_ref: 'that browser switched libraries, accounts, or sync copies before it ran',
+  authority_fenced: 'that browser changed its sign-in before it ran',
   action_unavailable: 'that browser no longer offered it',
   issue_gone: 'the item had already cleared',
   command_interrupted: 'the browser stopped before it finished',
@@ -106,7 +109,8 @@ export function commandNote(command: SyncReplicaCommandView, browser: string): s
   switch (command.state) {
     case 'pending': return `${label} sent. It runs when ${browser} next checks in, usually within five minutes while it’s open.`
     case 'delivered': return `${label} sent. Waiting for ${browser} to report back.`
-    case 'done': return command.action === 'rebuild'
+    case 'done': if (command.resultCode === 'retry_scheduled') return `Retry was scheduled on ${browser}. Check its sync status for the result.`
+      return command.action === 'rebuild'
       ? `Sync was reset ${formatRelative(command.completedAt ?? command.createdAt)}. Open the extension on that browser to choose which folders sync.`
       : `${label} ran ${formatRelative(command.completedAt ?? command.createdAt)}.`
     case 'failed': return `${label} didn’t work${reason ? `: ${reason}` : ''}.`
@@ -181,7 +185,7 @@ export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView
   }
   if (notSyncing(replica) && health?.state !== 'stopped') notes.push(activityNote(replica))
   // A reset browser's own report already says what came of the reset.
-  if (latest && health?.code !== 'replica_rebuilt') notes.push(commandNote(latest, replica.name))
+  if (latest && (health?.code !== 'replica_rebuilt' || latest.action !== 'rebuild' || latest.state !== 'done')) notes.push(commandNote(latest, replica.name))
   if (notes.length === 0) return null
   const reset = async () => {
     if (await confirm({ title: `Reset sync on ${replica.name}?`, body: RESET_WARNING, confirmLabel: 'Reset sync' })) {

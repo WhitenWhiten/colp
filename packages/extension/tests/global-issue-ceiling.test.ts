@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { sendReplicaHealthReport } from '../src/sw/replica-health-report.js';
 import { terminalFreezeReasonCopy } from '../src/sync-attention-ui.js';
@@ -40,6 +41,8 @@ for (const direction of ['local', 'push', 'mixed'] as const) test(`global ceilin
         fetch: async (_url, init) => { health = JSON.parse(String(init?.body)); return Response.json({ accepted: true, commands: [] }); } });
       assert.equal(health.state, 'stopped'); assert.equal(health.code, 'sync_issue_ceiling');
       assert.equal(health.issues.total, 201); assert.deepEqual(health.actions, ['rebuild']);
+      assert.deepEqual(verifySyncResilienceCase('SYNC-0043', { total: (await readOpenSyncIssues(f.store, scope)).total,
+        issues: await f.store.listLocalIssues(scope), state, pullRequests: f.pullRequests, health }), []);
     }
     assert.equal((await readOpenSyncIssues(f.store, scope)).total, 201);
   } finally { f.store.close(); }

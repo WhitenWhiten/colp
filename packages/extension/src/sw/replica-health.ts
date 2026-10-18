@@ -3,7 +3,8 @@ import { runReplicaRebuildCommand } from '../replica-rebuild.js';
 import { createQueueRecapture } from '../queue-recapture.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import type { SyncScope } from '../sync-state-store.js';
-import { scheduleSyncEngineWake } from './engine.js';
+import { runSyncEngine } from './engine.js';
+import type { AuthorityContext } from '../authority-fence.js';
 import { REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS, sendReplicaHealthReport,
   type ReplicaCommandRunner } from './replica-health-report.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState, workCoordinator } from './runtime.js';
@@ -55,10 +56,17 @@ async function send(force: boolean) {
  * every placement and identity check again.
  */
 function commandRunner(scope: SyncScope, assertCurrent: () => Promise<void>): ReplicaCommandRunner {
+  let execution: AuthorityContext | undefined;
+  const retry = async () => {
+    await assertCurrent(); if (!execution) throw new Error('command_context_missing');
+    await runSyncEngine('manual', false, execution);
+  };
   return {
-    run: work => workCoordinator.run('engine', async () => { await assertCurrent(); return work(); }),
+    run: work => workCoordinator.run('engine', async context => {
+      await assertCurrent(); execution = context; try { return await work(); } finally { execution = undefined; }
+    }),
     async replica(action) {
-      if (action === 'retry') { void scheduleSyncEngineWake('manual', 0, false, assertCurrent); return { outcome: 'done', code: 'retry_scheduled' }; }
+      if (action === 'retry') { await retry(); return { outcome: 'done', code: 'retry_completed' }; }
       return runReplicaRebuildCommand(async request => { await assertCurrent(); return replicaRebuilder().handle(request); }, scope);
     },
     async issue(_action, issue) {
@@ -67,8 +75,7 @@ function commandRunner(scope: SyncScope, assertCurrent: () => Promise<void>): Re
       await assertCurrent();
       await syncState.releaseSetAsideQueue(scope, [row.sequence],
         createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission }));
-      void scheduleSyncEngineWake('manual', 0, false, assertCurrent);
-      return { outcome: 'done' };
+      await retry(); return { outcome: 'done', code: 'recapture_completed' };
     },
   };
 }

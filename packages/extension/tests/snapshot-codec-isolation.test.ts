@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { setup, scope, json, nonemptyMountSnapshot, ack } from './durable-sync-engine-harness.js';
@@ -29,6 +30,9 @@ for (const field of ['title', 'description'] as const) for (const restart of [fa
       assert.ok(mapping.quarantine); assert.match(mapping.nativeId, /^sidecar:quarantine:/u);
       assert.equal(mapping.projection.content, undefined, 'no invented content baseline');
       assert.ok(mapping.quarantine.payloadDigest);
+      assert.deepEqual(verifySyncResilienceCase('SYNC-0042', { issues, mapping, graph: await f.store.listMappings(scope),
+        nativeTitles: [...f.chromeNodes.values()].map(node => node.title), storedBytes: JSON.stringify(await f.store.exportScope(scope)).length,
+        originalBytes: JSON.stringify(snapshot).length, state, ackWarnings: JSON.parse(f.ackRequests[0]!.body).warnings }), []);
       assert.ok(![...f.chromeNodes.values()].some(node => node.title === 'Blocked descendant'));
       assert.ok([...f.chromeNodes.values()].some(node => node.title === 'Independent'));
       assert.ok((await readOpenSyncIssues(f.store, scope)).roots.has('child-a'));

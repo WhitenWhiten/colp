@@ -484,7 +484,7 @@ After validating the complete page and all effect pages, a client MAY set aside 
 individual event it cannot apply locally. Before advancing the cursor, it MUST
 persist the event, its subject, reason, dependency closure, and repair evidence as
 explicitly **not applied**. Later events on the same Node, existing descendants or
-placement under it MUST be held with it. Independent siblings MUST continue. A
+placement under it, or placement anchored to it, MUST be held with it. Independent siblings MUST continue. A
 missing or cyclic ancestry chain cannot prove independence.
 
 A client MUST NOT classify a page-integrity failure as an item failure. Invalid
@@ -500,8 +500,23 @@ Nodes MUST be excluded from automatic re-upload or re-identification after a
 remote tombstone. Repair or a confirmed replica rebuild is an explicit exit.
 
 A client using set-aside MUST bound unresolved divergence and report it. The
-reference client stops before adding item 201 and uses the shared open-issue
-projection for Pull admission; this does not certify a separate Push-only ceiling.
+reference client persists the crossing item's evidence and stops admission when
+more than 200 issues are open in a scope. The total includes Push, Pull, local,
+native waits and deletion decisions; resolved and recaptured history is excluded.
+Checks apply on entry/restart and between work units, without requiring another
+Pull issue. Already-started native mutations retain their limited recovery path.
+
+Automatic Snapshot MUST preserve unresolved issue evidence, identity and upload
+protection. An unstoreable Snapshot node MAY be retained as a bounded, explicitly
+not-applied remote identity sidecar with its original digest and structural edges.
+Its dependent graph MUST remain held; independent nodes MAY project. Snapshot
+completion or Ack MUST NOT imply that quarantined content was applied or repaired.
+
+A pending deletion decision MAY be accounted for independently of page completion.
+The client MUST retain the validated event, decision binding, fixed native member
+identities and recovery evidence. Unrelated pages and Ack MAY advance; targets,
+descendants and placement anchors MUST remain held until the decision settles.
+Resumed completion MUST NOT rewind a cursor or overwrite newer parent authority.
 
 <a id="colp-section-9"></a>
 
@@ -659,7 +674,10 @@ product route and UI are outside COLP. Commands expire after seven days and have
 `pending | delivered | done | failed | expired` lifecycle. Implementations MAY
 support a subset of the action vocabulary. Only actions currently offered by the
 replica/issue may execute, and the client MUST recheck that precondition at
-execution time. v1 implements Retry and Rebuild; it does not claim single-Node
+execution time, after queue or network waits. Execution, preview and confirmation
+MUST remain bound to the original server, account, Collection, replica, generation
+and authorization fence; a changed target MUST reject the stale command.
+v1 implements Retry and Rebuild; it does not claim single-Node
 refresh or automatic archive re-import. A destructive action requires explicit
 owner confirmation, and Rebuild preserves unsent evidence before rotating.
 
@@ -670,6 +688,16 @@ or reported failed. The next report carries `commandResults` entries
 after response loss until accepted, without crossing account/replica boundaries.
 The server MUST verify installation authority before delivery or settlement, reject
 undelivered/foreign results, and MUST NOT rewrite a terminal outcome on replay.
+Scheduling Retry, completing its execution and restoring healthy sync are distinct
+facts. Results MUST identify what actually completed; health describes whether sync
+recovered. Rebuild v1 archives unsent evidence and opens new-replica setup; it does
+not certify re-import or successful synchronization of the replacement.
+
+The optional resilience adapter suite includes SYNC-0038–0043 for command target
+fences, Snapshot evidence retention, identity isolation, deletion page progress,
+codec quarantine and the global issue ceiling. Its production fixtures and protocol
+anchors are cataloged in `sync-resilience-cases.json`; verifier fixtures alone do
+not certify a browser or server deployment.
 
 <a id="colp-section-10"></a>
 

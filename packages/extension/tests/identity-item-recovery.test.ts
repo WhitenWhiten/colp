@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { test } from 'vitest';
@@ -22,6 +23,10 @@ test('one observed missing native is an issue while independent real Pull still 
     assert.equal(f.api.getNode('native-child')?.title, 'Remote update');
     assert.equal(f.api.getNode('native-node'), undefined);
     assert.ok((await readOpenSyncIssues(f.store, scope)).roots.has('node-1'));
+    assert.deepEqual(verifySyncResilienceCase('SYNC-0040', { localIssues: await f.store.listLocalIssues(scope),
+      missingNative: 'native-node', missingNode: 'node-1', roots: [...(await readOpenSyncIssues(f.store, scope)).roots],
+      mapping: await f.store.getMappingByColpId(scope, 'node-1'), lifecycle: (await f.store.getScope(scope))?.lifecycle,
+      nativeUpdates: f.api.all() }), []);
   } finally { f.store.close(); }
 });
 

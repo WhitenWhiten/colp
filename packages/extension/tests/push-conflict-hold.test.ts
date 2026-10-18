@@ -62,6 +62,7 @@ describe('C1 a conflict holds only its own bookmark', () => {
     assert.equal((await store.getQueueByOpId(scope, 'op-x3'))?.status, 'rejected');
     const events = (await store.exportScope(scope)).bookmarkEvents;
     assert.deepEqual(verifySyncResilienceCase('SYNC-0032', { results,
+      resolutionEffect: (await store.listPullEvents(scope)).find(event => (event.payload as any)?.operation?.source?.adapterProfile === 'known-conflict-resolution'),
       held: waiting.map(row => ({ opId: row.opId, targetId: row.payload.targetId, status: row.status })),
       recaptured: fresh.map(row => ({ opId: row.opId, targetId: row.payload.targetId, sequence: row.sequence,
         originalOpId: events.find(event => event.opId === row.opId)?.details?.recapturedFrom,

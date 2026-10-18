@@ -1,3 +1,4 @@
+import { reportReplicaHealth } from './replica-health.js';
 import type { AuthoritativePullEffect, Operation, StrictNode } from '@know-n/colp/types';
 import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync/canonical';
 import { createBookmarkImportCoordinator } from '../bookmark-import-plan.js';
@@ -109,6 +110,7 @@ export async function handleSyncStateEvidence(message: SyncStateEvidenceRequest)
         return { ok: true, value: null };
       case 'configureDurableEngineEvidence': return { ok: true,
         value: await configureDurableEngineEvidence(String(outboundArgs[0])) };
+      case 'reportReplicaHealthEvidence': await reportReplicaHealth(true); return { ok: true, value: null };
       case 'wakeDurableEngineEvidence': await scheduleSyncEngineWake('manual'); return { ok: true, value: null };
       case 'syncEngineState': { const authority = await currentSyncStatusAuthority();
         return { ok: true, value: await publicSyncEngineState(authority.scope, authority.credential,

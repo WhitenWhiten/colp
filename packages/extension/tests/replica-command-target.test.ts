@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { setup } from './replica-rebuild-harness.js';
@@ -54,5 +55,7 @@ test('delayed health response binds real Rebuild and reports rejection under A',
     await sendReplicaHealthReport({ ...deps, force: true });
     assert.equal(a.registrations, 0); assert.equal(b.registrations, 0);
     assert.deepEqual(bodies[1].commandResults, [{ commandId: 'for-a', outcome: 'failed', code: 'stale_ref' }]);
+    assert.deepEqual(verifySyncResilienceCase('SYNC-0038', { originalReplica: a.scope.replicaId, currentBefore: b.scope.replicaId,
+      currentAfter: (await b.deps.currentScope()).replicaId, commandId: 'for-a', originalRebuilds: a.registrations, currentRebuilds: b.registrations, reports: bodies }), []);
   } finally { a.store.close(); b.store.close(); }
 });

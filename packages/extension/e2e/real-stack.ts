@@ -1,3 +1,5 @@
+import { registerExtensionReplicaHealthRoutes } from '../../server/src/transport/colp-sync/extension-replica-health-routes.js';
+import { createPostgresReplicaHealthRecorder } from '../../server/src/infrastructure/sync/replica-health-postgres.js';
 import { createPostgresLibraryCollectionUnitOfWork } from '../../server/src/infrastructure/collections/library-collection-postgres.js';
 import { bootstrapCanonicalOwnedCollection, generateRevisionToken } from '../../server/src/modules/collections/index.js';
 import type { createBookmarkSubscriptionProductFixture } from './bookmark-subscription-product-stack.js';
@@ -186,6 +188,15 @@ export interface RealStack {
     Promise<{ readonly results: ReadonlyArray<{ readonly deletionId: string; readonly outcome: string; readonly nodeId?: string }> }>;
   restoreProductTrashSubtree(deletionId: string, expectedRevision: string):
     Promise<{ readonly results: ReadonlyArray<{ readonly deletionId: string; readonly outcome: string; readonly nodeId?: string; readonly parentId?: string }> }>;
+  resilience?: {
+    setPullDenial(value: boolean): void;
+    loseResultResponse(): void;
+    delayCommandResponse(): void;
+    commandResponseWaiting(): boolean;
+    releaseCommandResponse(): void;
+    deleteNode(nodeId: string): Promise<void>;
+    reports(): Promise<unknown[]>;
+  };
   close(): Promise<void>;
 }
 
@@ -317,6 +328,24 @@ export async function startRealStack(options: {readonly classification?:boolean;
     key: await readFile(keyPath),
     cert: await readFile(certificatePath),
   } }) as FastifyInstance;
+  let denyPull = false; let loseHealthResult = false; let holdHealth = false;
+  let healthWaiting = false; let releaseHealth: (() => void) | undefined;
+  app.addHook('onRequest', async (request, reply) => {
+    if (denyPull && request.url.startsWith('/v1/pull')) return reply.code(409).type('application/problem+json').send({
+      type: 'about:blank', title: 'Injected authority denial', status: 409, code: 'need_authority' });
+  });
+  app.addHook('onSend', async (request, _reply, payload) => {
+    if (!request.url.startsWith('/colp/v0.1/sync/replica-health')) return payload;
+    const body = request.body as { commandResults?: unknown[] } | undefined;
+    if (loseHealthResult && body?.commandResults?.length) {
+      loseHealthResult = false; request.raw.socket.destroy(); return payload;
+    }
+    if (holdHealth && typeof payload === 'string' && (JSON.parse(payload) as { commands?: unknown[] }).commands?.length) {
+      holdHealth = false; healthWaiting = true;
+      await new Promise<void>(resolve => { releaseHealth = resolve; }); healthWaiting = false;
+    }
+    return payload;
+  });
   const classificationProduct=options.classification ? (await loadClassificationProductStack()).mountClassificationProductFixture(app,isolated.runtime,browserSessionAuthority,EXTENSION_ORIGIN,options.syntheticCapture) : undefined;
   // Preferences use the real Product cookie/CSRF authority and PostgreSQL
   // storage, independently of whether this scenario enables classification.
@@ -358,7 +387,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
       reply.header('Access-Control-Allow-Headers',
         betterAuthOrigin
           ? 'Authorization, Content-Type, Cookie, Origin, X-CSRF-Token, X-Known-Auth-Intent'
-          : 'Authorization, Content-Type, Cookie, Origin, Idempotency-Key, If-Match, If-None-Match, X-CSRF-Token, Known-Command-Id, Known-Subscription-Exit-Preview, Known-Sync-Session, Collection-Protocol-Version');
+          : 'Authorization, Content-Type, Cookie, Origin, Idempotency-Key, If-Match, If-None-Match, X-CSRF-Token, Known-Command-Id, Known-Subscription-Exit-Preview, Known-Sync-Session, Known-Sync-Replica-Proof, Collection-Protocol-Version');
       reply.header('Access-Control-Expose-Headers', 'ETag, Known-Bookmark-Session, Known-Subscription-Session, Retry-After');
       reply.header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
     }
@@ -494,6 +523,8 @@ export async function startRealStack(options: {readonly classification?:boolean;
   app.get('/.well-known/collection-protocol', async () => manifest());
   app.get('/__test/health', async () => ({ ok: true, engine: 'postgresql' }));
 
+  registerExtensionReplicaHealthRoutes(app, { credentialVerifier,
+    recorder: createPostgresReplicaHealthRecorder(isolated.runtime.db), allowedOrigins: [EXTENSION_ORIGIN] });
   registerSyncSessionRoutes(app, {
     path: '/v1/session',
     allowedOrigins: [EXTENSION_ORIGIN],
@@ -693,6 +724,17 @@ export async function startRealStack(options: {readonly classification?:boolean;
   }
 
   return {
+    resilience: {
+      setPullDenial(value) { denyPull = value; }, loseResultResponse() { loseHealthResult = true; },
+      delayCommandResponse() { holdHealth = true; }, commandResponseWaiting() { return healthWaiting; },
+      releaseCommandResponse() { releaseHealth?.(); releaseHealth = undefined; },
+      async deleteNode(nodeId) {
+        const row = await isolated.runtime.db.selectFrom('nodes').select('resource_revision').where('id', '=', nodeId).executeTakeFirstOrThrow();
+        await auxiliaryPush(await getAuxiliaryAuthority(), { type: 'delete_node', targetId: nodeId,
+          baseRevision: row.resource_revision, payload: { reason: 'resilience_acceptance' } });
+      },
+      async reports() { return (await isolated.runtime.db.selectFrom('sync_replica_reports').selectAll().execute()) as unknown[]; },
+    },
     subscriptionProduct,
     classificationProduct,
     browserHostResolverRules,
@@ -1039,7 +1081,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
       if (outcome.kind !== 'committed') throw new Error(`product_trash_subtree_${outcome.kind}`);
       return { results: outcome.result.results };
     },
-    async close() {
+    async close() { releaseHealth?.();
       await app.close();
       pullCursorKeys.destroy();
       await isolated.close();

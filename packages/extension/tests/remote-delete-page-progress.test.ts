@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { test } from 'vitest';
@@ -46,6 +47,8 @@ for (const restart of [false, true]) test(`pending delete preserves two-page Pul
       fetch: async (_url, init) => { health = JSON.parse(String(init?.body)); return Response.json({ accepted: true, commands: [] }); } });
     assert.equal(health.state, 'degraded'); assert.equal(health.issues.total, 1);
     assert.equal(health.issues.items[0].code, 'remote_delete_confirmation_required');
+    const pagesBefore = await f.store.listPullPages(scope);
+    const relatedBefore = (await f.store.listPullEvents(scope)).find(row => row.operationId === 'op-3');
     const decision = (await f.store.listRemoteDeleteDecisions(scope, ['pending']))[0]!;
     if (restart) f.store.close();
     await f.store.prunePullHistory(scope, 1, { maxEvents: 1, maxBytes: 1 });
@@ -60,5 +63,9 @@ for (const restart of [false, true]) test(`pending delete preserves two-page Pul
     assert.ok(restored); assert.equal(f.chromeNodes.get(restored.nativeId)?.title, 'Restored remotely');
     assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-2');
     assert.equal((await f.store.listRemoteDeleteDecisions(scope, ['applied'])).length, 1);
+    assert.deepEqual(verifySyncResilienceCase('SYNC-0041', { pages: pagesBefore, ackCursors: f.ackRequests.map(row => JSON.parse(row.body).cursor),
+      relatedBefore, independentMapping: await f.store.getMappingByColpId(scope, 'node-created-2'), health,
+      decisionAfter: await f.store.getRemoteDeleteDecision(scope, decision.decisionId), restoredTitle: f.chromeNodes.get(restored.nativeId)?.title,
+      cursorAfter: (await f.store.getCursor(scope))?.cursor }), []);
   } finally { f.store.close(); }
 });

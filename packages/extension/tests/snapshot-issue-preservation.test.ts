@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { test } from 'vitest';
@@ -45,7 +46,13 @@ for (const virtual of [false, true]) for (const restart of [false, true]) {
       assert.deepEqual(await f.store.listPullIssues(scope), before);
       assert.ok((await readOpenSyncIssues(f.store, scope)).roots.has('node-1'));
       assert.ok((await f.store.getLocalSyncExclusion(scope, 'native-node')));
-      if (!virtual) assert.equal(f.api.getNode('native-child'), undefined, 'independent removal continues');
+      if (!virtual) {
+        assert.equal(f.api.getNode('native-child'), undefined, 'independent removal continues');
+        assert.deepEqual(verifySyncResilienceCase('SYNC-0039', { issuesBefore: before, issuesAfter: await f.store.listPullIssues(scope),
+          nativeSubject: 'native-node', mapping: await f.store.getMappingByColpId(scope, 'node-1'),
+          survivors: f.api.all().map(node => node.id), exclusions: (await f.store.listLocalSyncExclusions(scope)).map(row => row.nativeId),
+          independent: ['native-child'], previousCursor: 'cursor-held', cursor: (await f.store.getCursor(scope))?.cursor }), []);
+      }
     } finally { f.store.close(); }
   });
 }

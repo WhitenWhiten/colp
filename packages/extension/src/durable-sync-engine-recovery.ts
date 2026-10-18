@@ -1,6 +1,7 @@
+import { pullAckWarnings } from './pull-item-set-aside.js';
 import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
-import type { SnapshotNode } from '@know-n/colp/types';
+import type { SnapshotNode, Warning } from '@know-n/colp/types';
 import { readBoundedJson } from './json-response.js';
 import { syncSnapshotV02 } from './generated/pull-effect-validators.js';
 import type { AckIntentRecord, JsonObject, MappingInput } from './sync-state-store.js';
@@ -35,7 +36,7 @@ export interface SnapshotRecoveryRuntime {
     readonly session: StoredSession }): Promise<'complete' | 'recovery' | 'discarded'>;
   renewBootstrapAuthority(capability: string): Promise<{ readonly credential: { readonly accessToken: string };
     readonly session: StoredSession }>;
-  ackEnvelope(kind: AckIntentRecord['kind'], sessionId: string, cursor: string, recoveryCapability?: string):
+  ackEnvelope(kind: AckIntentRecord['kind'], sessionId: string, cursor: string, recoveryCapability?: string, warnings?: readonly Warning[]):
     Omit<AckIntentRecord, 'scopeKey' | 'state'>;
   digest(value: unknown): string;
   state(): Promise<import('./sync-state-store.js').DurableSyncEngineState>;
@@ -255,7 +256,8 @@ async function commitPreparedRecovery(runtime: SnapshotRecoveryRuntime,
   if (await enforceSyncIssueCeiling(runtime.options.store, runtime.options.scope, runtime.now())) throw new SyncFailureError('sync_issue_ceiling');
   await runtime.projectRecovery(snapshotId);
   await runtime.options.store.commitRecovery(runtime.options.scope, snapshotId,
-    runtime.ackEnvelope('bootstrap', authority.session.sessionId, syncCursor, capability));
+    runtime.ackEnvelope('bootstrap', authority.session.sessionId, syncCursor, capability,
+      await pullAckWarnings(runtime.options.store, runtime.options.scope)));
 }
 
 function snapshotMapping(node: SnapshotNode, childrenRevision: string | null, digest: (value: unknown) => string): MappingInput {

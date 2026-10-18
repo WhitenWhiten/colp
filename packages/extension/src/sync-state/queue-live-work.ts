@@ -162,3 +162,11 @@ export async function hasQueueRevisionForTarget(
     });
   return found;
 }
+
+/** Placement anchors are dependencies too, including a sibling waiting for a deletion decision. */
+export function enqueueDependencyIds(operation: JsonObject): string[] {
+  const payload = operation.payload;
+  const anchors = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? [payload.afterId, payload.beforeId] : [];
+  return [...enqueueParentIds(operation), ...anchors.filter((id): id is string => typeof id === 'string' && id.length > 0)];
+}

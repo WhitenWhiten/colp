@@ -76,3 +76,23 @@ test('restart after rotation but before saving the runner return recovers done f
       [{ commandId: 'real-reset', outcome: 'done' }]);
   } finally { f.store.close(); }
 });
+
+test('local Rebuild during a health wait delivers the stale command rejection under the archived replica', async () => {
+  const f = await setup({ degraded: true }); const reports: any[] = [];
+  try {
+    await sendReplicaHealthReport({ scope: f.scope, store: f.store, mode: async () => 'enabled',
+      credential: async () => ({ accessToken: 'token', subject: f.scope.accountId, serverOrigin: f.scope.serverOrigin }),
+      assertCommandCurrent: async () => { if ((await f.deps.currentScope()).replicaId !== f.scope.replicaId) throw new Error('stale_ref'); },
+      commands: { replica: () => runReplicaRebuildCommand(request => f.rebuilder.handle(request), f.scope), issue: async () => ({ outcome: 'failed' }) },
+      storage: f.journal, origin: 'chrome-extension://fixture', now: () => 2000,
+      fetch: async (_url, init) => {
+        reports.push(JSON.parse(String(init?.body)));
+        if (reports.length === 1) await runReplicaRebuildCommand(request => f.rebuilder.handle(request), f.scope);
+        return Response.json({ replicaId: f.scope.replicaId, accepted: true,
+          commands: reports.length === 1 ? [{ commandId: 'late-reset', action: 'rebuild' }] : [] });
+      } });
+    assert.equal(f.registrations, 1);
+    assert.equal(reports.at(-1).replicaId, f.scope.replicaId);
+    assert.deepEqual(reports.at(-1).commandResults, [{ commandId: 'late-reset', outcome: 'failed', code: 'stale_ref' }]);
+  } finally { f.store.close(); }
+});

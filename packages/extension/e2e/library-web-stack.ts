@@ -1,3 +1,5 @@
+import { registerProductSyncCenterRoutes } from '../../server/src/transport/product/product-sync-center-routes.js';
+import { createPostgresProductSyncCenterUnitOfWork } from '../../server/src/infrastructure/sync/product-sync-center-postgres.js';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import type { FastifyInstance } from '../../server/node_modules/fastify/fastify.js';
@@ -26,6 +28,9 @@ import { createFixedWindowRateLimiter, createMemorySearchRateLimiter } from '../
 /** The real web bundle and real Product routes share the isolated extension server. */
 export async function mountLibraryWebFixture(app: FastifyInstance, runtime: DatabaseRuntime, config: AppConfig,
   identityUnitOfWork: IdentityUnitOfWork): Promise<void> {
+  registerProductSyncCenterRoutes(app, { config, identityUnitOfWork,
+    unitOfWork: createPostgresProductSyncCenterUnitOfWork(runtime.db, { cursorSecret: 'resilience-e2e-sync-center-cursor-secret',
+      conflictPayloadKeyring: { active: { key: Buffer.alloc(32, 31), keyVersion: 1 }, retained: [] } }) });
   const editor = createProductEditorCursorSigner({ current: config.productEditorCursor.current });
   const annotation = createProductAnnotationCursorSigner({ current: config.productEditorCursor.current });
   const cursors = createPublicationCursorKeyring({ active: { id: 'web-library', secret: Buffer.alloc(32, 29).toString('base64') }, retained: [] });
@@ -54,7 +59,7 @@ export async function mountLibraryWebFixture(app: FastifyInstance, runtime: Data
     const path = resolve(file.parentPath, file.name), relative = path.slice(directory.length + 1);
     app.get('/' + relative, async (_request, reply) => reply.type(mime[extname(file.name)] ?? 'application/octet-stream').send(await readFile(path)));
   }
-  for (const path of ['/', '/login', '/library', '/library/:id', '/c/:slug']) {
+  for (const path of ['/', '/login', '/sync', '/library', '/library/:id', '/c/:slug']) {
     app.get(path, async (_request, reply) => reply.type('text/html; charset=utf-8').send(await readFile(resolve(directory, 'index.html'))));
   }
 }

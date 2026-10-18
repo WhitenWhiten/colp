@@ -277,7 +277,8 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
       outcome: outcome.outcome, ...(outcome.code ? { code: outcome.code } : {}) } : entry);
     await save(commands);
   }
-  if (replaced) {
+  const locallyRebuilt = !replaced && (await deps.store.exportArchive?.(deps.scope).catch(() => undefined))?.reason === 'user_replica_rebuild';
+  if (replaced || locallyRebuilt) {
     // This replica is gone; its last word says so and carries the results.
     const final = unreported(commands);
     await delivery.stageFinal({ replicaId: deps.scope.replicaId, revision: revision + 1, state: 'stopped',

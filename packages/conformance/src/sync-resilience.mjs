@@ -1,3 +1,4 @@
+import { REVIEW_CHECKS, verifyReviewCase } from './sync-resilience-review-checks.mjs';
 import { isDeepStrictEqual } from 'node:util';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import { Report } from './report.mjs';
@@ -9,6 +10,7 @@ export const SYNC_RESILIENCE_CHECKS = Object.freeze([
   ['SYNC-0035', 'Subtree deletion preserves protected members, ancestors and repair evidence'],
   ['SYNC-0036', 'Health is bounded, installation-authorized and changes no Sync authority'],
   ['SYNC-0037', 'Commands execute at most once and report durable outcomes'],
+  ...REVIEW_CHECKS,
 ].map(([id, title]) => Object.freeze({ id, title, level: 'MUST' })));
 const checks = new Map(SYNC_RESILIENCE_CHECKS.map(check => [check.id, check]));
 let validators;
@@ -25,6 +27,9 @@ export function verifySyncResilienceCase(id, observed) {
     if (!observed || typeof observed !== 'object' || Array.isArray(observed)) throw new TypeError('missing observation');
     const o = observed;
     if (id === 'SYNC-0032') {
+      require(o.resolutionEffect?.effectId && o.resolutionEffect.state === 'page_complete'
+        && !o.resolutionEffect.apiResultEvidence?.setAside && o.resolutionEffect.apiResultEvidence?.effectDigest,
+      'resolution did not traverse actual native effect application');
       const conflict = o.results.find(row => row.status === 'conflicted');
       require(conflict?.sequence >= 1, 'missing consumed conflict receipt');
       const independent = o.results.filter(row => row.status === 'applied' && row.targetId !== conflict?.targetId);
@@ -86,7 +91,7 @@ export function verifySyncResilienceCase(id, observed) {
         && validators.validate('syncReplicaHealthReport', report).valid), 'result did not survive response loss');
       require(o.refused.some(result => result.outcome === 'failed'
         && ['action_unavailable', 'issue_gone'].includes(result.code)), 'stale or unavailable action was executed');
-    }
+    } else verifyReviewCase(id, o, require);
   } catch {
     errors.push('missing or malformed scenario observations');
   }

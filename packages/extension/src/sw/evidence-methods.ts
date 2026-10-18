@@ -46,6 +46,7 @@ export const SYNC_STATE_EVIDENCE_METHODS: readonly string[] = Object.freeze([
   'stagePullCreateEvidence',
   'syncEngineState',
   'wakeDurableEngineEvidence',
+  'reportReplicaHealthEvidence',
   'wakeOutboundPushEvidence',
 ]);
 

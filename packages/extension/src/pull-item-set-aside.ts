@@ -24,12 +24,13 @@ const ACK_WARNING_BYTES = 1_536;
 const OPAQUE = /^[A-Za-z0-9._~-]{1,128}$/u;
 
 interface Subject { readonly nodeId: string; readonly parentId?: string; readonly node?: PullNode;
-  readonly deleted?: readonly string[] }
+  readonly deleted?: readonly string[]; readonly anchors?: readonly string[] }
 
 function subjectOf(event: OpEvent): Subject | null {
   const effect = event.effect;
   if (effect.kind === 'node_created' || effect.kind === 'node_restored' || effect.kind === 'node_moved') {
-    return { nodeId: effect.node.id, parentId: effect.placement.parentId, node: effect.node };
+    return { nodeId: effect.node.id, parentId: effect.placement.parentId, node: effect.node,
+      anchors: [effect.placement.afterId, effect.placement.beforeId].filter((id): id is string => typeof id === 'string') };
   }
   if (effect.kind === 'node_content_updated') return { nodeId: effect.node.id, parentId: effect.node.parentId ?? undefined, node: effect.node };
   if (effect.kind === 'node_deleted') return { nodeId: effect.tombstone.targetId, deleted: remoteDeleteMemberIds(event) };
@@ -56,7 +57,7 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
   const open = new Map(issues.pull.map(issue => [issue.nodeId, issue]));
   const node = subject.node; const title = typeof node?.title === 'string' ? node.title : undefined;
   const mappings = await options.store.listMappings(options.scope);
-  const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : [])];
+  const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : []), ...subject.anchors ?? []];
   if (!subject.deleted) {
     const pendingDelete = issues.deletes.find(row => row.restoreOpId !== event.operation.opId && dependsOnIssue(targets, new Set([row.targetId]), issueAncestry(mappings)));
     if (pendingDelete) {
@@ -76,7 +77,7 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
   }
   if (!subject.deleted) {
     const mappings = await options.store.listMappings(options.scope);
-    const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : [])];
+    const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : []), ...subject.anchors ?? []];
     if (dependsOnIssue(targets, issues.roots, issueAncestry(mappings, issues.queue))) {
       // A target or ancestor has an unresolved issue; keep the native state and dependency evidence.
       await options.store.setAsidePullEvent(options.scope, eventId, { code: 'parent_set_aside', nodeId: subject.nodeId,

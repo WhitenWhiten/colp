@@ -3,7 +3,7 @@ import { dependsOnIssue, issueAncestry } from '../sync-issues.js';
 import { transactionIssueDependencies } from './issue-dependencies.js';
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
 import { cursorPage, iterateCursor, requestValue } from './idb.js';
-import { enqueueParentIds, firstLiveQueueRow } from './queue-live-work.js';
+import { enqueueDependencyIds, firstLiveQueueRow } from './queue-live-work.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import { INDEXES, STORES } from './schema.js';
 import { SyncStateError, type QueueOperation, type UnknownRecord } from './types.js';
@@ -56,10 +56,11 @@ export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordB
  * and unrelated bookmarks keep syncing.
  */
 export function heldBy(row: QueueOperation, holders: readonly QueueOperation[], graph?: Awaited<ReturnType<typeof transactionIssueDependencies>>): QueueOperation | undefined {
-  const target = row.payload.targetId; const parents = enqueueParentIds(row.payload);
+  const target = row.payload.targetId; const parents = enqueueDependencyIds(row.payload);
   const direct = holders.find((holder) => holder.opId !== row.opId
     && ((typeof target === 'string' && (target === holder.payload.targetId || target === `pending-${holder.opId}`))
-      || parents.includes(`pending-${holder.opId}`)));
+      || parents.includes(`pending-${holder.opId}`)
+      || typeof holder.payload.targetId === 'string' && parents.includes(holder.payload.targetId)));
   if (direct || !graph) return direct;
   const targets = [...(typeof target === 'string' ? [target] : []), ...parents, ...(graph.operationParents.get(row.opId) ?? [])];
   const parentMap = new Map([...graph.parents, ...issueAncestry([], holders)]);
