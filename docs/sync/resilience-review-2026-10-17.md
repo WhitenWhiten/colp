@@ -266,3 +266,24 @@ issue on the same target. Release rereads native state and authors new opId,
 sequence, digest and idempotency identity; old bytes remain recaptured history.
 The retained authoritative content observation supplies the new upload base.
 Five affected suites passed 20 tests; typecheck and changed-file lint passed.
+
+### Task 6 — subjectful codec isolation across Snapshot and local ingress
+
+Root cause: Snapshot validated the entire record without an item handler; ingress
+could fail before creating durable event evidence. Mapping, queue and ingress codec
+emissions now carry actual subjects. Snapshot validates stream/graph identities
+before isolating content failures. It retains a bounded, explicitly quarantined
+remote identity sidecar with the original payload digest and graph edges, never a
+claimed native identity or invented content baseline. Atomic staging creates the
+Pull issue; dependent projection remains blocked while independent branches apply.
+Ordinary Snapshot does not clear that issue. Local pre-write codec isolation saves
+its native subject, evidence digest and anti-upload exclusion atomically.
+
+Before: real-engine Snapshot regression entered error; restoring the old ingress
+module made the permanent 8-KiB codec-boundary regression fail record_too_large.
+After: 110 tests in ten affected suites passed. Dedicated tests cover large title
+and description, blocked descendants, independent native projection, staging crash/
+IDB reopen, another real engine recovery of the same bad content, bounded evidence,
+actual mapping/queue/ingress emissions, and graph-integrity rejection. Typecheck
+and changed-file ESLint passed. Existing started native mutation recovery is
+preserved; only failures proved to precede a native call are isolated.

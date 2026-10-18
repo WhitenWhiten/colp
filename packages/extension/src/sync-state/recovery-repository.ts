@@ -285,7 +285,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     if (new Set(page.nodes.map((node) => node.colpId)).size !== page.nodes.length) {
       throw new SyncStateError('snapshot_node_duplicate');
     }
-    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.recovery, STORES.recoveryNodes],
+    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.recovery, STORES.recoveryNodes, STORES.diagnostics],
       'readwrite', async (tx) => {
         await requireActiveScope(tx, key); const recovery = tx.objectStore(STORES.recovery);
         const headerKey = [key, page.snapshotId]; const prior = await requestValue(recovery.get(headerKey)) as RecoveryHeader | undefined;
@@ -322,7 +322,11 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
         }
         await deleteByIndexRange(nodes.index(INDEXES.recoveryByPage), IDBKeyRange.bound(
           [key, page.snapshotId, page.page, ''], [key, page.snapshotId, page.page, '\uffff']));
-        for (const node of page.nodes) nodes.put({ ...node, scopeKey: key, snapshotId: page.snapshotId, page: page.page });
+        for (const node of page.nodes) {
+          nodes.put({ ...node, scopeKey: key, snapshotId: page.snapshotId, page: page.page });
+          if (node.mapping.quarantine) await putPullIssueFact(tx, key, { nodeId: node.colpId,
+            code: node.mapping.quarantine.code, eventId: `snapshot:${page.snapshotId}:${node.colpId}`, now: Date.now() });
+        }
       });
   }
 

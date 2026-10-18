@@ -495,7 +495,7 @@ function planVirtualChildCreates(seed: readonly MappingInput[]): ProjectionInten
   const intents: ProjectionIntent[] = [];
   let order = 0;
   for (const mapping of seed) {
-    if (!projectableVirtualNative(mapping.nativeId) || skipVirtualChromeCreate(mapping)) continue;
+    if (mapping.quarantine || !projectableVirtualNative(mapping.nativeId) || skipVirtualChromeCreate(mapping)) continue;
     const parent = mapping.parentColpId ? byColp.get(mapping.parentColpId) : undefined;
     if (!parent || (virtualNativeId(parent.nativeId) && !creatable.has(parent.colpId))) continue;
     creatable.add(mapping.colpId);

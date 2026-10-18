@@ -8,7 +8,7 @@ import type { EventIdentity } from './bookmark-event-heal.js';
 import type { ProjectionChangeFields } from './recovery-overlay.js';
 import type { JsonObject, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
-type Result = { readonly outcome: 'staged' | 'duplicate' | 'filtered' | 'apply_intent_reserved' | 'identity_unproven'; readonly eventId?: string };
+type Result = { readonly outcome: 'staged' | 'duplicate' | 'filtered' | 'apply_intent_reserved' | 'identity_unproven' | 'set_aside'; readonly eventId?: string };
 export function createBookmarkContentCapture(options: {
   readonly scope: SyncScope; readonly store: ReturnType<typeof createSyncStateStore>; readonly api: BookmarkEventApi;
   readonly identityFor: (nativeId: string) => Promise<EventIdentity | null>;

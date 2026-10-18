@@ -193,6 +193,8 @@ export interface LegacyState extends SyncScope { readonly nextSequence: number; 
 export interface MappingInput { readonly nativeId: string; readonly colpId: string; readonly rootNativeId: string;
   readonly nodeKind?: 'folder' | 'bookmark' | 'separator'; readonly parentNativeId?: string; readonly parentColpId?: string;
   readonly mountId?: string; readonly rootRole?: ColpFolderRole;
+  /** Remote identity only: no native application or content baseline is claimed. */
+  readonly quarantine?: { readonly code: string; readonly snapshotId: string; readonly payloadDigest: string };
   readonly projection: { readonly revision: string; readonly resourceRevision?: string;
     readonly childrenRevision?: string | null; readonly digest: string; readonly contentDigest?: string;
     readonly childrenOrder?: readonly string[];

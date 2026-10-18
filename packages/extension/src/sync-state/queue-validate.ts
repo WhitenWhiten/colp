@@ -1,7 +1,11 @@
+import { withCodecSubject, codecRecordSubject } from './codec-subject.js';
 import { SyncStateError, type JsonObject, type PushSettlement, type QueueOperation, type ReceiptInput } from './types.js';
 import { boundedString, clone, safeInteger, strictObject, validateJson, validateRecord } from './codec.js';
 
 export function validateQueueInput(scopeKeyValue: string, input: unknown, maxBytes: number): Omit<QueueOperation, 'sequence' | 'scopeKey'> {
+  return withCodecSubject(codecRecordSubject(input), () => validateQueueInputValue(scopeKeyValue, input, maxBytes));
+}
+function validateQueueInputValue(scopeKeyValue: string, input: unknown, maxBytes: number): Omit<QueueOperation, 'sequence' | 'scopeKey'> {
   const value = strictObject(clone(input), ['opId', 'batchId', 'idempotencyKey', 'digest', 'endpointIdentity', 'mediaType',
     'baseRevision', 'operationRevision', 'status', 'retry', 'payload'], 'queue operation');
   if (value.endpointIdentity !== 'syncPush' || value.status !== 'pending') throw new SyncStateError('queue_state_invalid');
@@ -17,6 +21,9 @@ export function validateQueueInput(scopeKeyValue: string, input: unknown, maxByt
 }
 
 export function validateQueueRecord(input: unknown, maxBytes: number): QueueOperation {
+  return withCodecSubject(codecRecordSubject(input), () => validateQueueRecordValue(input, maxBytes));
+}
+function validateQueueRecordValue(input: unknown, maxBytes: number): QueueOperation {
   const value = strictObject(clone(input), ['scopeKey', 'sequence', 'opId', 'batchId', 'idempotencyKey', 'digest',
     'endpointIdentity', 'mediaType', 'baseRevision', 'operationRevision', 'status', 'retry', 'recovery', 'attempt',
     'echoApplied', 'payload'],

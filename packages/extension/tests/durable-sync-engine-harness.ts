@@ -79,7 +79,7 @@ export async function setup(overrides: {
   let activeSnapshotRequired = overrides.snapshotRequired === true; let activeCursor = 'cursor-0';
   const sessionForces: boolean[] = [];
   const sessionFailures: unknown[] = [];
-  const forcedSessions: Array<{ sessionId?: string; state: 'active'; snapshotRequired: boolean; cursor: string }> = [];
+  const forcedSessions: Array<{ sessionId?: string; state: 'active' | 'recovery_required'; snapshotRequired: boolean; cursor: string }> = [];
   const push = { calls: 0, outcomes: [] as string[], async drain() { this.calls += 1; order.push('push');
     return { outcome: this.outcomes.shift() ?? 'idle' } as any; } };
   // A-12/SR-16: the engine harness now runs the production projector by default and can run

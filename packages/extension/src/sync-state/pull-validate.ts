@@ -1,3 +1,4 @@
+import { classifySyncFailure } from '../sync-failure-class.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { createProjectionSuppression, type ProjectionIntentRecord } from '../recovery-overlay.js';
@@ -187,10 +188,11 @@ export function validateImportNode(scopeKeyValue: string, input: unknown, maxByt
     node: validateJson(value.node, 'import node payload') as JsonObject };
   validateRecord(record, maxBytes); return record;
 }
-export function validateRecoveryPage(key: string, input: RecoveryPageInput, maxBytes: number) { const value = strictObject(clone(input),
+export function validateRecoveryPage(key: string, input: RecoveryPageInput, maxBytes: number) {
+  const raw = clone(input); const value: UnknownRecord = { ...strictObject({ ...raw, nodes: [] },
   ['snapshotId', 'sessionId', 'revision', 'syncCursor', 'capability', 'identityDigest', 'rootNodeId', 'page', 'pageDigest',
     'previousPageDigest', 'nextCursor', 'complete', 'nodes', 'materializationVersion'], 'recovery page',
-  ['sessionId', 'capability', 'materializationVersion']);
+  ['sessionId', 'capability', 'materializationVersion']), nodes: raw.nodes };
   if (!Array.isArray(value.nodes) || typeof value.complete !== 'boolean') throw new SyncStateError('recovery_page_invalid');
   const record = { scopeKey: key, snapshotId: boundedString(value.snapshotId, 'snapshotId'),
     sessionId: value.sessionId === undefined ? null : boundedString(value.sessionId, 'sessionId'),
@@ -206,15 +208,36 @@ export function validateRecoveryPage(key: string, input: RecoveryPageInput, maxB
     pageDigest: boundedString(value.pageDigest, 'pageDigest'),
     previousPageDigest: value.previousPageDigest === null ? null : boundedString(value.previousPageDigest, 'previousPageDigest'),
     nextCursor: value.nextCursor === null ? null : boundedString(value.nextCursor, 'nextCursor'), complete: value.complete,
-    nodes: value.nodes.map((node: unknown) => { const item = strictObject(node,
-      ['colpId', 'parentId', 'position', 'kind', 'payloadDigest', 'mapping'], 'recovery node', ['mapping']);
+    nodes: value.nodes.map((node: unknown) => {
+      const source = node as UnknownRecord;
+      const item: UnknownRecord = { ...strictObject({ ...source, mapping: undefined },
+      ['colpId', 'parentId', 'position', 'kind', 'payloadDigest', 'mapping'], 'recovery node', ['mapping']), mapping: source.mapping };
       if (!['Folder', 'Bookmark', 'Separator'].includes(String(item.kind))) throw new SyncStateError('node_kind_invalid');
       const colpId = boundedString(item.colpId, 'colpId'); const payloadDigest = boundedString(item.payloadDigest, 'payloadDigest');
-      return { colpId: boundedString(item.colpId, 'colpId'), parentId: item.parentId === null ? null : boundedString(item.parentId, 'parentId'),
-        position: boundedString(item.position, 'position'), kind: item.kind, payloadDigest,
-        mapping: validateMapping(key, item.mapping === undefined ? { nativeId: `recovery:${colpId}`, colpId,
-          rootNativeId: 'recovery', projection: { revision: boundedString(value.revision, 'revision'), digest: payloadDigest } }
-          : item.mapping as MappingInput, maxBytes) }; }) };
+      const structural = { colpId, parentId: item.parentId === null ? null : boundedString(item.parentId, 'parentId'),
+        position: boundedString(item.position, 'position'), kind: item.kind, payloadDigest };
+      const original = item.mapping === undefined ? { nativeId: `recovery:${colpId}`, colpId,
+        rootNativeId: 'recovery', projection: { revision: String(value.revision), digest: payloadDigest } } : item.mapping as MappingInput;
+      if (original.colpId !== colpId || original.parentColpId !== undefined && original.parentColpId !== structural.parentId
+          || original.nodeKind !== undefined && original.nodeKind !== String(item.kind).toLowerCase()) {
+        throw new SyncStateError('snapshot_identity_conflict');
+      }
+      let mapping;
+      try {
+        mapping = validateMapping(key, original, maxBytes);
+        validateRecord({ scopeKey: key, snapshotId: value.snapshotId, page: value.page, ...structural, mapping }, maxBytes);
+      } catch (error) {
+        if (!(error instanceof SyncStateError) || classifySyncFailure(error.code, { nodeId: colpId })?.class !== 'item') throw error;
+        // Retain the real graph and authority identity, with an explicit NOT APPLIED sidecar.
+        // No browser id or sanitized content is asserted as a successful projection.
+        mapping = validateMapping(key, { nativeId: `sidecar:quarantine:${colpId}`, colpId,
+          rootNativeId: 'sidecar:quarantine', nodeKind: original.nodeKind,
+          ...(structural.parentId ? { parentColpId: structural.parentId } : {}),
+          quarantine: { code: error.code, snapshotId: String(value.snapshotId), payloadDigest },
+          projection: { revision: original.projection.revision, digest: payloadDigest,
+            ...(original.projection.childrenRevision === undefined ? {} : { childrenRevision: original.projection.childrenRevision }) } }, maxBytes);
+      }
+      return { ...structural, mapping }; }) };
   const { nodes, ...header } = record; validateRecord(header, maxBytes);
   for (const node of nodes) validateRecord({ scopeKey: key, snapshotId: record.snapshotId, page: record.page, ...node }, maxBytes);
   return record; }

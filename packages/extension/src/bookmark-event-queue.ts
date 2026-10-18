@@ -1,3 +1,4 @@
+import { classifySyncFailure, syncFailureCode } from './sync-failure-class.js';
 import { createBookmarkPlacement } from './bookmark-event-placement.js';
 import { hasRunningBootstrap } from './bootstrap/run-identity.js';
 import { folderSyncCoverage } from './bookmark-sync-range.js';
@@ -60,7 +61,7 @@ interface QueueOptions {
   readonly resolveCreatePlacement?: (nativeId: string, node: BookmarkEventNode) => Promise<CreatePlacementConsumeResult | undefined>;
   readonly completeCreatePlacement?: (intentId: string, nativeId?: string) => Promise<void>; readonly markCreatePlacementAttention?: (intentId: string) => Promise<void>;
 }
-type CaptureResult = { readonly outcome: 'staged' | 'duplicate' | 'filtered' | 'apply_intent_reserved' | 'identity_unproven'; readonly eventId?: string };
+type CaptureResult = { readonly outcome: 'staged' | 'duplicate' | 'filtered' | 'apply_intent_reserved' | 'identity_unproven' | 'set_aside'; readonly eventId?: string };
 
 export function createBookmarkEventQueue(options: QueueOptions) {
   const now = options.now ?? (() => new Date().toISOString());
@@ -298,8 +299,19 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     const occurredAt = now(); assertOperationCandidate(asObject(details.operation, 'operation'));
     const dedupeKey = digestJson({ kind, nativeId, exactCorrelation: exactCorrelation ?? null,
       operation: details.operation as JsonValue });
-    const result = await options.store.stageBookmarkEvent(options.scope, { eventId, dedupeKey, occurredAt,
-      kind, nativeId, details: durableEventDetails(details) });
+    let result;
+    try {
+      result = await options.store.stageBookmarkEvent(options.scope, { eventId, dedupeKey, occurredAt,
+        kind, nativeId, details: durableEventDetails(details) });
+    } catch (error) {
+      const code = syncFailureCode(error);
+      if (classifySyncFailure(code, { nativeId, eventId })?.class !== 'item') throw error;
+      const mapping = details.mapping as JsonObject | undefined;
+      await options.store.recordLocalIssue(options.scope, { code, nativeId, now: Date.parse(occurredAt),
+        quarantine: { rootNativeId: typeof mapping?.rootNativeId === 'string' ? mapping.rootNativeId : nativeId,
+          evidenceDigest: dedupeKey } });
+      return { outcome: 'set_aside' };
+    }
     if (options.autoFlush !== false && flushAfter) await flush();
     return { outcome: result.outcome, eventId: result.event.eventId };
   }

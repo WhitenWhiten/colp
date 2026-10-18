@@ -103,6 +103,7 @@ function bindSnapshotMappings(staged: readonly MappingInput[], live: readonly Ma
   const liveByColp = new Map(live.map((mapping) => [mapping.colpId, mapping]));
   const projected: MappingInput[] = [];
   for (const mapping of staged) {
+    if (mapping.quarantine) { projected.push(mapping); continue; }
     const mount = matchStagedMount(mounts, mapping);
     const liveHit = liveByColp.get(mapping.colpId);
     const nativeRoot = mount && mount.status !== 'detached' ? mount.nativeRootId

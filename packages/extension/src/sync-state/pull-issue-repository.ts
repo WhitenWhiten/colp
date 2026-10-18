@@ -108,18 +108,22 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
    */
   async function recordLocalIssue(input: SyncScope, issue: {
     readonly code: string; readonly nativeId: string; readonly title?: string; readonly now: number;
+    readonly quarantine?: { readonly rootNativeId: string; readonly evidenceDigest: string };
   }): Promise<void> {
     ctx.assertWritable(); const key = scopeKey(validateScope(input));
     const code = boundedString(issue.code, 'recovery code'); const nativeId = boundedString(issue.nativeId, 'nativeId');
     const now = safeInteger(issue.now, 'now');
     const title = issue.title?.trim() ? issue.title.trim().slice(0, PULL_ISSUE_TITLE_MAX) : undefined;
-    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.diagnostics], 'readwrite', async (tx) => {
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.diagnostics, STORES.localSyncExclusions], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const rows = tx.objectStore(STORES.diagnostics);
       const id = `${localPrefix(key)}${code}:${nativeId}`;
       const prior = await requestValue(rows.get(id)) as LocalIssueRecord | undefined;
       const shown = prior?.title ?? title;
       rows.put({ id, scopeKey: key, kind: 'local_issue', nativeId, code, ...(shown ? { title: shown } : {}),
-        count: (prior?.count ?? 0) + 1, firstSeenAt: prior?.firstSeenAt ?? now, lastSeenAt: now });
+        count: (prior?.count ?? 0) + 1, firstSeenAt: prior?.firstSeenAt ?? now, lastSeenAt: now,
+        ...(issue.quarantine ? { evidenceDigest: boundedString(issue.quarantine.evidenceDigest, 'evidenceDigest') } : {}) });
+      if (issue.quarantine) tx.objectStore(STORES.localSyncExclusions).put({ scopeKey: key, nativeId,
+        decisionId: id, rootNativeId: boundedString(issue.quarantine.rootNativeId, 'rootNativeId'), generation: input.generation });
     });
   }
 

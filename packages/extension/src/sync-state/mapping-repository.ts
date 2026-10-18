@@ -1,3 +1,4 @@
+import { withCodecSubject } from './codec-subject.js';
 import { digestJson } from '../bookmark-event-codec.js';
 import { bootstrapOpId } from '../bootstrap/run-identity.js';
 import { normalizeBookmarkProjection } from '../bookmark-projection-metadata.js';
@@ -14,9 +15,12 @@ import { normalizeBoundaries, scopeKey, validateDiscovered, validateScope, valid
 import { validateQueueRecord } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
-export function validateMapping(key: string, input: MappingInput, maxBytes: number) { const value = strictObject(clone(input),
-  ['nativeId', 'colpId', 'rootNativeId', 'nodeKind', 'parentNativeId', 'parentColpId', 'mountId', 'rootRole', 'projection'], 'mapping',
-  ['nodeKind', 'parentNativeId', 'parentColpId', 'mountId', 'rootRole']); const projection = normalizeBookmarkProjection(strictObject(value.projection,
+export function validateMapping(key: string, input: MappingInput, maxBytes: number) {
+  return withCodecSubject({ nodeId: input.colpId, nativeId: input.nativeId }, () => validateMappingInput(key, input, maxBytes));
+}
+function validateMappingInput(key: string, input: MappingInput, maxBytes: number) { const value = strictObject(clone(input),
+  ['nativeId', 'colpId', 'rootNativeId', 'nodeKind', 'parentNativeId', 'parentColpId', 'mountId', 'rootRole', 'quarantine', 'projection'], 'mapping',
+  ['nodeKind', 'parentNativeId', 'parentColpId', 'mountId', 'rootRole', 'quarantine']); const projection = normalizeBookmarkProjection(strictObject(value.projection,
   ['revision', 'resourceRevision', 'childrenRevision', 'digest', 'contentDigest', 'content', 'childrenOrder'], 'projection',
   ['revision', 'resourceRevision', 'childrenRevision', 'contentDigest', 'content', 'childrenOrder']));
   const resourceRevision = projection.resourceRevision ?? projection.revision;
@@ -28,6 +32,7 @@ export function validateMapping(key: string, input: MappingInput, maxBytes: numb
     ...(value.parentColpId === undefined ? {} : { parentColpId: boundedString(value.parentColpId, 'parentColpId') }),
     ...(value.mountId === undefined ? {} : { mountId: boundedString(value.mountId, 'mountId') }),
     ...(value.rootRole === undefined ? {} : { rootRole: validateRootRole(value.rootRole) }),
+    ...(value.quarantine === undefined ? {} : { quarantine: validateQuarantine(value.quarantine) }),
     projection: { revision: boundedString(resourceRevision, 'resourceRevision'),
       resourceRevision: boundedString(resourceRevision, 'resourceRevision'),
       ...(projection.childrenRevision === undefined ? {} : { childrenRevision: projection.childrenRevision === null ? null
@@ -38,8 +43,8 @@ export function validateMapping(key: string, input: MappingInput, maxBytes: numb
   validateRecord(record, maxBytes); return record; }
 export function validateMappingRecord(key: string, input: unknown, maxBytes: number) {
   const value = strictObject(clone(input), ['scopeKey', 'nativeId', 'colpId', 'rootNativeId', 'nodeKind', 'parentNativeId',
-    'parentColpId', 'mountId', 'rootRole', 'projection'], 'mapping record',
-    ['nodeKind', 'parentNativeId', 'parentColpId', 'mountId', 'rootRole']);
+    'parentColpId', 'mountId', 'rootRole', 'quarantine', 'projection'], 'mapping record',
+    ['nodeKind', 'parentNativeId', 'parentColpId', 'mountId', 'rootRole', 'quarantine']);
   if (value.scopeKey !== key) throw new SyncStateError('mapping_scope_invalid');
   return validateMapping(key, { nativeId: String(value.nativeId), colpId: String(value.colpId),
     rootNativeId: String(value.rootNativeId),
@@ -48,6 +53,7 @@ export function validateMappingRecord(key: string, input: unknown, maxBytes: num
     ...(value.parentColpId === undefined ? {} : { parentColpId: String(value.parentColpId) }),
     ...(value.mountId === undefined ? {} : { mountId: String(value.mountId) }),
     ...(value.rootRole === undefined ? {} : { rootRole: validateRootRole(value.rootRole) }),
+    ...(value.quarantine === undefined ? {} : { quarantine: validateQuarantine(value.quarantine) }),
     projection: value.projection as MappingInput['projection'] }, maxBytes);
 }
 export function validateNodeKind(value: unknown): NonNullable<MappingInput['nodeKind']> {
@@ -455,4 +461,10 @@ export function createMappingRepository(ctx: SyncStoreRuntime) {
 
   return { putMapping, deleteMapping, listMappings, getMappingByNativeId, getMappingByColpId, bindMountMapping, bindResolvedMountMapping,
     rebindProvisionalBookmarkIdentity, configureBrowserRoots, reconcileBrowserRoots, setBrowserRootStatus };
+}
+
+function validateQuarantine(input: unknown) {
+  const row = strictObject(input, ['code', 'snapshotId', 'payloadDigest'], 'quarantine');
+  return { code: boundedString(row.code, 'code'), snapshotId: boundedString(row.snapshotId, 'snapshotId'),
+    payloadDigest: boundedString(row.payloadDigest, 'payloadDigest') };
 }

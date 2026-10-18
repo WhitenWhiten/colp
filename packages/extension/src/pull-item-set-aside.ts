@@ -49,7 +49,8 @@ function subjectOf(event: OpEvent): Subject | null {
 export async function setAsidePullItem(options: PullApplierOptions, eventId: string, event: OpEvent,
   now: number): Promise<boolean> {
   const subject = subjectOf(event); if (!subject) return false;
-    const excluded = new Set(await options.store.conflictResolutionExemptions(options.scope, { payload: event }));
+    const excluded = new Set(event.operation.source?.adapterProfile === 'known-conflict-resolution'
+    ? await options.store.conflictResolutionExemptions(options.scope, { payload: event }) : []);
   const issues = await readOpenSyncIssues(options.store, options.scope,
     { resolvingRestoreOpId: event.operation.opId, excludeQueueOpIds: excluded });
   const open = new Map(issues.pull.map(issue => [issue.nodeId, issue]));

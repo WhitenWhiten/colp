@@ -1,3 +1,4 @@
+import { withCodecSubject, codecRecordSubject } from './codec-subject.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { claimIngressDiagnosticSource } from './ingress-diagnostic-source.js';
 import { bootstrapCreateIdentity } from './bootstrap-create-identity.js';
@@ -46,6 +47,9 @@ import type { SyncStoreRuntime } from './runtime.js';
  */
 export const INGRESS_DIAGNOSTIC_SCAN_LIMIT = 20_000;
 export function validateBookmarkEventInput(input: unknown, maxBytes: number): BookmarkEventInput {
+  return withCodecSubject(codecRecordSubject(input), () => validateBookmarkEventInputValue(input, maxBytes));
+}
+function validateBookmarkEventInputValue(input: unknown, maxBytes: number): BookmarkEventInput {
   const value = strictObject(clone(input), ['eventId', 'dedupeKey', 'occurredAt', 'kind', 'nativeId', 'details'],
     'bookmark event');
   if (!['create', 'change', 'move', 'remove'].includes(String(value.kind))) throw new SyncStateError('bookmark_event_kind_invalid');

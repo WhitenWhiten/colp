@@ -160,6 +160,7 @@ export function planRecoveryOverlay(input: {
     if (protectedPrior) {
       targetMappings.push(protectedPrior); assigned.add(protectedPrior.nativeId); placed.add(node.colpId); continue;
     }
+    if (node.mapping.quarantine) { targetMappings.push(node.mapping); placed.add(node.colpId); continue; }
     const parentMapping = node.parentColpId
       ? targetMappings.find((item) => item.colpId === node.parentColpId) : undefined;
     const prior = byColp.get(node.colpId);

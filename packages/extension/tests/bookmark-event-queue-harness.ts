@@ -7,8 +7,8 @@ export const scope: SyncScope = Object.freeze({ environment: 'production', serve
   collectionId: 'collection-a', replicaId: 'replica-a', generation: 1 });
 
 export async function fixture(indexedDB: IDBFactory, options: { mappedNode?: boolean; mappedSubtree?: boolean;
-  autoFlush?: boolean; fault?: 'after_sequence' | 'after_queue' | 'after_event' } = {}) {
-  const store = createSyncStateStore({ indexedDB });
+  autoFlush?: boolean; maxRecordBytes?: number; fault?: 'after_sequence' | 'after_queue' | 'after_event' } = {}) {
+  const store = createSyncStateStore({ indexedDB, ...(options.maxRecordBytes ? { maxRecordBytes: options.maxRecordBytes } : {}) });
   await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: 10_000 },
     checkpoint: { serverRevision: 'collection-revision-3', cursor: 'cursor-3' }, selectedRoots: [], rootStatus: 'ready' });
   await store.configureBrowserRoots(scope, { discovered: [
