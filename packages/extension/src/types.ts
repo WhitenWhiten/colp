@@ -375,7 +375,11 @@ export interface PublicRangePreview {
   readonly bookmarkCount: number;
   readonly folderCount: number;
   readonly skippedCount: number;
+  /** Newly covered folders, including descendants, rather than newly selected mount roots. */
   readonly addedCount: number;
+  readonly addedBookmarkCount: number;
+  readonly additions: readonly { readonly ref: string; readonly title: string; readonly path: string;
+    readonly bookmarkCount: number }[];
   readonly removedCount: number;
   readonly shiftCount: number;
   readonly expiresAt: number;

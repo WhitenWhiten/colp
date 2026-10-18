@@ -180,7 +180,7 @@ test('range preview sends whole-browser roots and explicit exclusions in their r
 
 test.each(['done', 'syncing', 'failed'] as const)('confirming a range immediately reports %s without waiting for the idle poll', async outcome => {
   const preview: PublicRangePreview = { previewId: 'range', treeDigest: 'tree', boundaryVersion: '2',
-    bookmarkCount: 12, folderCount: 5, addedCount: 1, removedCount: 0, shiftCount: 0,
+    bookmarkCount: 12, folderCount: 5, addedCount: 1, addedBookmarkCount: 12, additions: [], removedCount: 0, shiftCount: 0,
     skippedCount: 0, expiresAt: Date.now() + 60_000, shifts: [], removals: [], warnings: [] };
   let stage = 'done';
   let finish!: (response: unknown) => void;

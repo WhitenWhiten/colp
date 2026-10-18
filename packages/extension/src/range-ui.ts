@@ -16,6 +16,7 @@ export function bindRangeAdjustment(host: {
   const panel = required('range-preview');
   const totals = required('range-preview-totals');
   const warnings = required('range-preview-warnings');
+  const addList = required('range-add-list');
   const shiftList = required('range-shift-list');
   const removeList = required('range-remove-list');
   const remoteLabel = required('range-remote-delete-label');
@@ -104,10 +105,23 @@ export function bindRangeAdjustment(host: {
     panel.hidden = false;
     setReviewing(true);
     const total = t('sync_willSyncIn', 'Will sync $1 in $2.', tn('common_bookmarks', value.bookmarkCount, '$1 bookmark', '$1 bookmarks'), tn('common_folders', value.folderCount, '$1 folder', '$1 folders'));
-    const changes = [value.addedCount ? t('sync_rangeAdded', '$1 added', value.addedCount) : '', value.removedCount ? t('sync_rangeRemoved', '$1 no longer synced', value.removedCount) : '', value.shiftCount ? t('sync_rangeMoved', '$1 moved', value.shiftCount) : ''].filter(Boolean);
+    const added = value.addedCount || value.addedBookmarkCount ? t('sync_rangeAddedItems', '$1 and $2 will start syncing',
+      tn('common_folders', value.addedCount, '$1 folder', '$1 folders'),
+      tn('common_bookmarks', value.addedBookmarkCount, '$1 bookmark', '$1 bookmarks')) : '';
+    const changes = [added, value.removedCount ? t('sync_rangeRemoved', '$1 no longer synced', value.removedCount) : '', value.shiftCount ? t('sync_rangeMoved', '$1 moved', value.shiftCount) : ''].filter(Boolean);
     totals.textContent = changes.length ? t('sync_rangeTotalsChanges', '$1 $2.', total, listCopy(changes)) : total;
     warnings.textContent = value.warnings.some((row) => row.code === 'nested_normalized')
       ? t('sync_someSelectedFoldersWere', 'Some folders you picked are inside other picked folders. Only the outer folders are listed.') : '';
+    addList.replaceChildren();
+    addList.hidden = value.additions.length === 0;
+    for (const row of value.additions) {
+      const item = document.createElement('li');
+      const copy = document.createElement('span');
+      copy.textContent = t('sync_rangeAddedFolder', '$1: $2 directly in this folder.', row.path || row.title || t('sync_folder', 'Folder'),
+        tn('common_bookmarks', row.bookmarkCount, '$1 bookmark', '$1 bookmarks'));
+      item.append(copy);
+      addList.append(item);
+    }
     paintRows(shiftList, value.shifts, true);
     paintRows(removeList, value.removals, false);
     remoteDelete.checked = false;

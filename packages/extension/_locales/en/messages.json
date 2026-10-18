@@ -6185,8 +6185,14 @@
   "sync_previewAlreadyConfirmed": {
     "message": "This preview was already confirmed."
   },
-  "sync_rangeAdded": {
-    "message": "$1 added"
+  "sync_rangeAddedFolder": {
+    "message": "$1: $2 directly in this folder."
+  },
+  "sync_rangeAddedFolders": {
+    "message": "Folders that will start syncing"
+  },
+  "sync_rangeAddedItems": {
+    "message": "$1 and $2 will start syncing"
   },
   "sync_rangeMoved": {
     "message": "$1 moved"

@@ -13,6 +13,7 @@ import type {
 } from './sync-state-store.js';
 import { detectRangeShifts, keepShiftedMount, preserveShiftMappings, type RangeShiftCandidate } from './scope-range-shift.js';
 import { countRemoteMountDescendants } from './scope-remote-count.js';
+import { rangePreviewChanges, type RangePreviewChanges } from './range-preview-changes.js';
 
 type Store = ReturnType<typeof createSyncStateStore>;
 
@@ -79,6 +80,7 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   readonly now?: () => number;
 }): Promise<{
   readonly preview: ScopePreviewRecord; readonly scan: BoundaryScan; readonly diff: RangeDiff;
+  readonly changes: RangePreviewChanges;
 }> {
   const scan = scanBoundary({
     roots: input.roots, selectedNativeIds: input.selectedNativeIds,
@@ -89,6 +91,10 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   const mappings = await store.listMappings(scope);
   const discovered = input.discovered ?? discoveredFromRoots(input.roots);
   const previousPrivate = new Set((recorded?.privateRoots ?? []).map(id => mappings.find(row => row.colpId === id)?.nativeId).filter((id): id is string => Boolean(id)));
+  const previousScan = scanBoundary({ roots: input.roots,
+    selectedNativeIds: liveMounts.filter(mount => mount.status !== 'detached' && !mount.pendingShift).map(mount => mount.nativeRootId),
+    privateNativeIds: [...previousPrivate] });
+  const changes = rangePreviewChanges(input.roots, previousScan, scan);
   const mountDiff = diffLiveRange({
     liveMounts, mappings, selectedNativeIds: scan.selectedNativeIds, discovered,
     excludedNativeIds: [...scan.excludedNativeIds, ...(input.privateNativeIds ?? [])], previousExcludedNativeIds: [...previousPrivate],
@@ -126,7 +132,7 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
     privateNativeIds: input.privateNativeIds ?? [], shiftNativeIds: diff.shiftNativeIds,
     ...(remoteDeleteEvidence.length ? { remoteDeleteEvidence } : {}),
   });
-  return { preview, scan, diff };
+  return { preview, scan, diff, changes };
 }
 
 export function previewRejection(preview: ScopePreviewRecord | null, input: {

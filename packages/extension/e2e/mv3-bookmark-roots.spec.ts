@@ -250,6 +250,47 @@ test('stale folder tokens fail closed after the native tree changes', async () =
   } finally { await context.close(); }
 });
 
+test('expanding first-sync coverage from 12/28 to 28/28 lists the added folders and bookmarks', async ({}, testInfo) => {
+  test.setTimeout(120_000);
+  const context = await launch();
+  try {
+    const page = await openOptions(context); await connect(page);
+    const roots = await specialRoots(page);
+    await page.evaluate(async barId => {
+      for (let group = 0; group < 2; group += 1) {
+        const parent = await chrome.bookmarks.create({ parentId: barId, title: `Previously synced ${group}` });
+        for (let child = 0; child < 4 + group; child += 1) {
+          await chrome.bookmarks.create({ parentId: parent.id, title: `Already covered ${group}-${child}` });
+        }
+        await chrome.bookmarks.create({ parentId: parent.id, title: `Existing bookmark ${group}`, url: `https://example.test/old/${group}` });
+      }
+      for (let index = 0; index < 15; index += 1) {
+        const title = `New coverage ${index}${index === 14 ? ' DeepFolderName'.repeat(10) : ''}`;
+        const folder = await chrome.bookmarks.create({ parentId: barId, title });
+        await chrome.bookmarks.create({ parentId: folder.id, title: `New bookmark ${index}`, url: `https://example.test/new/${index}` });
+      }
+      await chrome.bookmarks.create({ parentId: barId, title: 'Loose new bookmark', url: 'https://example.test/new/loose' });
+    }, roots.barId);
+    await finishFirstRun(page, ['Previously synced 0', 'Previously synced 1', roots.otherTitle]);
+    await expect(page.locator('#folder-count')).toHaveText('12 of 28 folders sync');
+    await page.locator('#tree-select-level').click();
+    await expect(page.locator('#folder-count')).toHaveText('28 of 28 folders sync');
+    await page.locator('#save-roots').click();
+    await expect(page.locator('#range-preview-totals')).toContainText('Will sync 18 bookmarks in 28 folders.');
+    await expect(page.locator('#range-preview-totals')).toContainText('16 folders and 16 bookmarks will start syncing');
+    await expect(page.locator('#range-add-list > li')).toHaveCount(16);
+    await expect(page.locator('#range-add-list')).toContainText(`${roots.barTitle} / New coverage 0: 1 bookmark directly in this folder.`);
+    await expect(page.locator('#range-add-list')).not.toContainText('Previously synced');
+    await expect(page.locator('#range-remove-list')).toBeHidden();
+    await page.screenshot({ path: testInfo.outputPath('range-expansion-review.png'), fullPage: true });
+    await page.setViewportSize({ width: 360, height: 700 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await page.locator('#range-cancel').click();
+    await page.reload(); await showOptionsPane(page, 'folders');
+    await expect(page.locator('#folder-count')).toHaveText('12 of 28 folders sync');
+  } finally { await context.close(); }
+});
+
 async function openOptions(context: BrowserContext): Promise<Page> {
   return (await openExtensionOptions(context)).page;
 }
@@ -258,7 +299,7 @@ async function connect(page: Page, grantBookmarks = true, binding = profileBindi
   await page.evaluate((value) => chrome.storage.local.set({ 'known.auth.binding.v1': value }), binding);
   await signInExtension(page);
   await showOptionsPane(page, 'folders');
-  await expect(page.getByRole('heading', { name: 'Folders that sync' })).toBeVisible();
+  await expect(page.locator('#folder-card')).toBeVisible();
   if (grantBookmarks && !await permissionState(page)) {
     await grantBookmarkPermission(page); await expectPermission(page, true);
   }

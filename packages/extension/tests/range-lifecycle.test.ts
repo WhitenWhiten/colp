@@ -114,6 +114,57 @@ async function confirm() {
   return response;
 }
 
+test('expanding three first-sync folders from 12/28 to 28/28 reviews only the newly covered items', async () => {
+  const bookmarks = (parentId: string, count: number): ChromeBookmarkNode[] => Array.from({ length: count }, (_, index) => ({
+    id: `${parentId}-bookmark-${index}`, parentId, title: `Bookmark ${index}`, url: `https://example.test/${parentId}/${index}`,
+  }));
+  const selected = ['synced-a', 'synced-b', '2'];
+  const groups: ChromeBookmarkNode[] = selected.slice(0, 2).map((id, group) => ({ id, parentId: '1', title: id,
+    children: [...bookmarks(id, 450), ...Array.from({ length: 4 + group }, (_, index) => ({
+      id: `${id}-child-${index}`, parentId: id, title: `${id} child ${index}`, children: [],
+    }))] }));
+  const added: ChromeBookmarkNode[] = Array.from({ length: 15 }, (_, index) => ({
+    id: `new-${index}`, parentId: '1', title: `New folder ${index}`, children: [],
+  }));
+  raw = [{ id: '0', title: '', children: [
+    { id: '1', parentId: '0', title: 'Bookmarks bar', folderType: 'bookmarks-bar',
+      children: [...groups, ...added, ...bookmarks('1', 1226)] },
+    { id: '2', parentId: '0', title: 'Other bookmarks', folderType: 'other', children: [] },
+  ] }];
+  for (const id of selected) {
+    await syncState.putMapping(scope, { nativeId: id, colpId: `remote-${id}`, rootNativeId: id,
+      mountId: `mount-${id}`, nodeKind: 'folder', projection: { revision: `r-${id}`, digest: `sha256:${id}` } });
+    await syncState.putMountBinding(scope, { mountId: `mount-${id}`, nativeRootId: id,
+      remoteMountNodeId: `remote-${id}`, boundaryVersion: '0', materialized: false,
+      status: 'active', ...(id === '2' ? { rootRole: 'other-bookmarks' as const } : { customSourceKey: `folder:${id}` }) });
+  }
+  await syncState.configureBrowserRoots(scope, { discovered: (await readRootFolders()).discovered,
+    selectedNativeIds: selected, privateNativeIds: [], status: 'ready' });
+  const before = await syncState.exportScope(scope);
+  const ui = await screen();
+  expect(element('folder-count').textContent).toBe('12 of 28 folders sync');
+  element('tree-select-level').click();
+  expect(element('folder-count').textContent).toBe('28 of 28 folders sync');
+  await ui.review();
+  const response = await vi.mocked(chrome.runtime.sendMessage).mock.results.at(-1)!.value as RootResponse;
+  if (!response.ok || !('preview' in response)) throw new Error('range_preview_missing');
+  expect(response.preview).toMatchObject({ folderCount: 28, bookmarkCount: 2126, addedCount: 16, addedBookmarkCount: 1226 });
+  expect((await syncState.getScopePreview(scope, response.preview.previewId))?.addedNativeIds).toEqual(['1']);
+  expect(response.preview.additions).toHaveLength(16);
+  expect(response.preview.additions.map(row => row.title)).toEqual(['Bookmarks bar', ...added.map(row => row.title)]);
+  expect(response.preview.additions.find(row => row.title === 'Bookmarks bar')?.bookmarkCount).toBe(1226);
+  expect(response.preview.additions.filter(row => row.title !== 'Bookmarks bar').every(row => row.bookmarkCount === 0)).toBe(true);
+  expect(JSON.stringify(response.preview.additions)).not.toMatch(/nativeId|synced-[abc]/u);
+  expect(element('range-preview-totals').textContent).toContain('Will sync 2126 bookmarks in 28 folders.');
+  expect(element('range-preview-totals').textContent).toContain('16 folders and 1226 bookmarks will start syncing');
+  expect(element('range-add-list').children).toHaveLength(16);
+  expect(element('range-add-list').textContent).toContain('Bookmarks bar / New folder 0');
+  expect(element('range-add-list').textContent).not.toContain('synced-a');
+  const after = await syncState.exportScope(scope);
+  expect(after.scope).toEqual(before.scope); expect(after.mountBindings).toEqual(before.mountBindings);
+  expect(after.mappings).toEqual(before.mappings); expect(after.queue).toEqual(before.queue);
+});
+
 test('existing subfolder sync → Sync all → review → confirm → reload preserves identity and captures later edits', async () => {
   await seed();
   const ui = await screen();
@@ -160,6 +211,9 @@ test('excluding and restoring an existing subfolder under a selected parent resu
   expect((await syncState.getMountBinding(scope, 'mount-10'))?.status).toBe('detached');
   checkbox('Novels').click(); await ui.review();
   expect(element('range-remove-list').hidden).toBe(true);
+  expect(element('range-preview-totals').textContent).toContain('1 folder and 1 bookmark will start syncing');
+  expect(element('range-add-list').children).toHaveLength(1);
+  expect(element('range-add-list').textContent).toContain('Bookmarks bar / Novels');
   expect(await confirm()).toMatchObject({ ok: true });
   expect((await syncState.getMountBinding(scope, 'mount-10'))?.status).toBe('active');
   expect((await syncState.getMappingByNativeId(scope, '11'))?.colpId).toBe('remote-11');
@@ -199,6 +253,8 @@ test('reopening an unchanged private browser-root selection produces no repeated
   await ui.review();
   expect(element('range-remove-list').hidden).toBe(true);
   expect(element('range-shift-list').hidden).toBe(true);
+  expect(element('range-add-list').hidden).toBe(true);
+  expect(element('range-preview-totals').textContent).not.toContain('will start syncing');
 });
 
 async function confirmationRequest(): Promise<Extract<RootRequest, { kind: 'known.roots.confirm' }>> {

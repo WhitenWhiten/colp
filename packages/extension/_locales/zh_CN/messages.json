@@ -8091,9 +8091,17 @@
     "message": "此预览已确认过。",
     "description": "This preview was already confirmed."
   },
-  "sync_rangeAdded": {
-    "message": "新增 $1 个",
-    "description": "$1 added"
+  "sync_rangeAddedFolder": {
+    "message": "$1：本文件夹内有 $2。",
+    "description": "$1: $2 directly in this folder."
+  },
+  "sync_rangeAddedFolders": {
+    "message": "新增同步的文件夹",
+    "description": "Folders that will start syncing"
+  },
+  "sync_rangeAddedItems": {
+    "message": "新增同步 $1、$2",
+    "description": "$1 and $2 will start syncing"
   },
   "sync_rangeMoved": {
     "message": "移动 $1 个",

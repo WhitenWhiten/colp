@@ -19,6 +19,7 @@ import { scheduleSyncEngineWake } from './engine.js';
 import { hasBookmarkPermission, rootScopeKey, sw, syncState } from './runtime.js';
 import { currentSyncScope } from './scope.js';
 import { readRootFolders, sameDiscovered } from './roots.js';
+import type { RangePreviewChanges } from '../range-preview-changes.js';
 
 type PreviewRequest = Extract<RootRequest, { readonly kind: 'known.roots.preview' }>;
 type ConfirmRequest = Extract<RootRequest, { readonly kind: 'known.roots.confirm' }>;
@@ -50,8 +51,8 @@ export async function handleRangePreview(message: PreviewRequest): Promise<RootR
     }
     throw error;
   }
-  const { preview, scan, diff } = previewResult;
-  return { ok: true, preview: publicPreview(preview, scan.warnings, diff, tree.roots) };
+  const { preview, scan, diff, changes } = previewResult;
+  return { ok: true, preview: publicPreview(preview, scan.warnings, diff, tree.roots, changes) };
 }
 
 export type RangeConfirmResult = { readonly ok: true } | Extract<RootResponse, { readonly ok: false }>;
@@ -163,7 +164,7 @@ function publicPreview(preview: ScopePreviewRecord, warnings: readonly { readonl
   diff: { readonly addedNativeIds: readonly string[]; readonly removedNativeIds: readonly string[];
     readonly shiftNativeIds: readonly string[] },
   roots: readonly { readonly nativeId: string; readonly title: string; readonly kind: string;
-    readonly children: readonly unknown[] }[]): PublicRangePreview {
+    readonly children: readonly unknown[] }[], changes: RangePreviewChanges): PublicRangePreview {
   const byNative = indexFolders(roots);
   const counts = new Map((preview.remoteDeleteEvidence ?? []).map((row) => [row.nativeRootId, row.affectedCount]));
   const row = (nativeId: string): PublicRangeChangeRow | undefined => {
@@ -180,7 +181,11 @@ function publicPreview(preview: ScopePreviewRecord, warnings: readonly { readonl
   return {
     previewId: preview.previewId, boundaryVersion: preview.boundaryVersion, treeDigest: preview.treeDigest,
     bookmarkCount: preview.bookmarkCount, folderCount: preview.folderCount, skippedCount: preview.skippedCount,
-    addedCount: diff.addedNativeIds.length, removedCount: diff.removedNativeIds.length,
+    addedCount: changes.addedFolders.length, addedBookmarkCount: changes.addedBookmarkCount,
+    additions: changes.addedFolders.flatMap(folder => {
+      const ref = refForNative(folder.nativeId);
+      return ref ? [{ ref, title: folder.title, path: folder.path, bookmarkCount: folder.bookmarkCount }] : [];
+    }), removedCount: diff.removedNativeIds.length,
     shiftCount: diff.shiftNativeIds.length, expiresAt: preview.expiresAt, warnings,
     shifts: diff.shiftNativeIds.map(row).filter((item): item is PublicRangeChangeRow => Boolean(item)),
     removals: diff.removedNativeIds.map(row).filter((item): item is PublicRangeChangeRow => Boolean(item)),
