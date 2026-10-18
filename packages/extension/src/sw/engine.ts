@@ -177,8 +177,8 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   const engine = createDurableSyncEngine({ scope, store: syncState, endpoints, sessions, fetch: effects.fetch,
     origin: extensionOrigin(),
     pullApplier: { stage: (page, cursorAuthority) => effects.run(() => applier().stage(page, cursorAuthority)),
-      resume: () => effects.run(() => applier().resume()) }, pushWorker: worker,
-    schedule: (delay) => scheduleSyncEngineWake('alarm', delay), snapshotProjector: (staged) => projectSnapshotNode(scope, context, staged) });
+      resume: (mode) => effects.run(() => applier().resume(mode)) }, pushWorker: worker,
+    schedule: (delay) => scheduleSyncEngineWake('alarm', delay), snapshotProjector: (staged, mode) => projectSnapshotNode(scope, context, staged, mode) });
   placementRefresh = () => engine.refreshPlacement();
   const bootstrapComplete = advanced && !frozenBeforeWake
     && (await syncState.listAckIntents(scope)).some((intent) => intent.kind === 'bootstrap' && intent.state === 'complete'
@@ -381,14 +381,14 @@ async function pauseBookmarkSyncForPermissionLoss(): Promise<void> {
 installBookmarkPermissionRemovedListener();
 
 async function projectSnapshotNode(scope: SyncScope, context: AuthorityContext,
-  staged: readonly MappingInput[]): Promise<readonly MappingInput[]> {
+  staged: readonly MappingInput[], mode?: { readonly recoveryOnly?: boolean }): Promise<readonly MappingInput[]> {
   const { assertCurrent, api } = syncEffects(scope, context);
   await assertCurrent();
-  const advanced = await projectAdvancedSnapshot(syncState, scope, staged);
+  const advanced = mode?.recoveryOnly ? undefined : await projectAdvancedSnapshot(syncState, scope, staged);
   await assertCurrent();
   if (advanced) return advanced;
   const projected = await recoverVerifiedOrFreeze({
-    scope, store: syncState, staged, freezeUnprovenIdentity: true,
+    scope, store: syncState, staged, freezeUnprovenIdentity: true, recoveryOnly: mode?.recoveryOnly,
     api,
   });
   await assertCurrent();

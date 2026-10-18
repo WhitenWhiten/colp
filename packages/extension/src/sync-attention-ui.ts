@@ -146,7 +146,7 @@ export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode): strin
   if (code === 'payload_too_large') {
     return t('sync_syncDeviceHasStopped2', 'Sync on this device has stopped: the transfer size exceeds supported limits. Retrying will not change the result.');
   }
-  if (code === 'pull_issue_ceiling') {
+  if (code === 'pull_issue_ceiling' || code === 'sync_issue_ceiling') {
     return t('sync_tooManyItemsSetAside', 'Sync on this device has stopped: it set aside too many items to keep syncing safely. Your bookmarks in Know-N are safe. Reset sync on this device to continue.');
   }
   if (needsReplicaRebuild(code)) {

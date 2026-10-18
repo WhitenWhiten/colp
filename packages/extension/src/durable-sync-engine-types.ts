@@ -24,13 +24,13 @@ export interface EngineOptions {
   readonly sessions: { get(forceRefresh?: boolean): Promise<{ readonly credential: Pick<StoredCredential, 'accessToken'>;
     readonly session: StoredSession }> };
   readonly pullApplier: { stage(page: SyncPullV02, cursorAuthority?: { readonly reissued?: boolean }): Promise<void>;
-    resume(): Promise<void> };
+    resume(mode?: { readonly recoveryOnly?: boolean }): Promise<void> };
   readonly pushWorker: { drain(onNetworkResponse?: () => void | Promise<void>): Promise<DrainOutcome> };
   readonly fetch?: typeof fetch; readonly requestTimeoutMilliseconds?: number;
   readonly now?: () => number; readonly random?: () => number;
   readonly schedule?: (delayMilliseconds: number) => void;
   readonly recoverIdentityFreeze?: () => Promise<boolean>;
-  readonly snapshotProjector: (staged: readonly MappingInput[]) => Promise<readonly MappingInput[]>;
+  readonly snapshotProjector: (staged: readonly MappingInput[], mode?: { readonly recoveryOnly?: boolean }) => Promise<readonly MappingInput[]>;
   readonly boundary?: (point: 'before_pull' | 'after_pull' | 'after_pull_apply' | 'before_ack' | 'after_ack'
     | 'before_snapshot_page' | 'after_snapshot_page') => void | Promise<void>;
 }

@@ -439,7 +439,7 @@ export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebu
   | 'anchor_mapping_missing' | 'payload_too_large' | 'recovery_identity_unproven'
   | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision'
   | 'create_ambiguous' | 'create_evidence_missing'
-  | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling';
+  | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling' | 'sync_issue_ceiling';
 export interface PublicSyncAttention {
   readonly issueCount?: number;
   readonly issues?: readonly { readonly direction: 'pull' | 'push' | 'local'; readonly code: string; readonly title?: string }[];

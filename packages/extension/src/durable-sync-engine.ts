@@ -1,19 +1,19 @@
+import { ackEnvelope, headers, digest, jsonContentType, problemContentType } from './sync-engine-wire.js';
+import { recoverAtSyncIssueCeiling } from './sync-issue-ceiling-recovery.js';
+import { enforceSyncIssueCeiling, SYNC_ISSUE_CEILING_CODE } from './sync-issue-ceiling.js';
 import { guardSyncWake } from './sync-circuit-breaker-engine.js';
 import { circuitIsStopped } from './sync-circuit-breaker.js';
 import { SyncFailureError, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
 import { recordRecoveryDiagnostic } from './recovery-diagnostic.js';
 import { readEngineSessionAuthority } from './sync-session-handoff.js';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { bytesToHex } from '@noble/hashes/utils.js';
-import type { SyncAckRequest, SyncAckResult, SyncPullV02 } from '@know-n/colp/types';
+import type { SyncAckResult, SyncPullV02 } from '@know-n/colp/types';
 import { readBoundedJson } from './json-response.js';
 import { syncAckResult, syncPullV02 } from './generated/pull-effect-validators.js';
 import type { AckIntentRecord, DurableSyncEngineState, JsonObject, MappingInput } from './sync-state-store.js';
-import type { StoredCredential, StoredSession } from './types.js';
+import type { StoredSession } from './types.js';
 import type { EngineOptions, PlacementRefreshOutcome } from './durable-sync-engine-types.js';
 import { httpFailure, pullApplyAckState, retryAfterMilliseconds, stableError,
   recoveryCapability, recoveryCapabilityOf, responseProblemCode } from './durable-sync-engine-errors.js';
-import { colpCredentialHeaders } from './auth-client.js';
 import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
 import { resumeLocalProjection } from './local-projection-recovery.js';
 import { assertCompleteSnapshotStaging } from './snapshot-staging-assert.js';
@@ -66,7 +66,9 @@ export function createDurableSyncEngine(options: EngineOptions) {
     const scope = await options.store.getScope(options.scope); if (!scope) return null;
     let current = await state();
     if (scope.lifecycle === 'retired') return transition('retired', { recoveryFrozen: true });
-    if (current.phase === 'error' && !circuitIsStopped(current) && reason !== 'manual' && reason !== 'startup') return current;
+    if (await recoverAtSyncIssueCeiling(options, sessionAuthority, now)) return state();
+    current = await state();
+    if (current.phase === 'error'  && !circuitIsStopped(current) && reason !== 'manual' && reason !== 'startup') return current;
     if (current.recoveryFrozen && holdsUnprovenIdentity(current.lastError) && await options.recoverIdentityFreeze?.()) current = await state();
     // A server-capped payload_too_large is terminal: refreshing authority reproduces the same 413.
     const recoveryScope = await options.store.getScope(options.scope);
@@ -248,6 +250,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
       const pulled = await pull(authority);
       if (pulled === 'recovery') return state();
       if (pulled === 'offline') return options.store.getEngineState(options.scope);
+      if (await enforceSyncIssueCeiling(options.store, options.scope, now())) return state();
       // The Pull may have settled a conflict; the changes held behind it rejoin the lane now.
       await releaseSettledQueueHolds(options.store, options.scope);
       const afterPull = await firstOutstanding();
@@ -283,6 +286,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
       if (held.authorityRefreshRequired || (held.recoveryFrozen && heldScope?.lifecycle === 'recovery_required')) return 'recovery';
       const endpoints = await options.endpoints();
       await options.pullApplier.resume();
+      if (await enforceSyncIssueCeiling(options.store, options.scope, now())) return 'complete';
       if (await options.store.hasPullEventsAwaitingConfirmation(options.scope)) {
         await transition('sleeping', { sessionId: authority.session.sessionId, notBefore: now() + 30_000,
       networkBackoffCount: 0 }); return 'complete';
@@ -334,6 +338,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
         reissued: response.headers.get('Known-Sync-Cursor-Reissued') === 'true',
       }); await options.pullApplier.resume(); await options.boundary?.('after_pull_apply');
       const published = (await options.store.getCursor(options.scope))?.cursor;
+      if (published !== page.nextCursor && await enforceSyncIssueCeiling(options.store, options.scope, now())) return 'complete';
       const ack = pullApplyAckState(published, page.nextCursor,
         await options.store.hasPullEventsAwaitingConfirmation(options.scope));
       if (ack === 'not_durable') throw new SyncFailureError('pull_cursor_not_durable');
@@ -350,6 +355,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
             authorityRefreshRequired: true, lastError: 'pull_ack_discarded' }); return 'recovery';
         }
       }
+      if (await enforceSyncIssueCeiling(options.store, options.scope, now())) return 'complete';
       if (page.hasMore) continue;
       // An active Session can resume Pull while a leftover native/page fact keeps
       // recovery frozen. Once that work and its Ack settle, the current cursor no
@@ -519,6 +525,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
     options.schedule?.(Math.max(1_000, next.notBefore - now())); return next; }
   async function offline(error: unknown) { const prior = await state();
     const code = stableError(error);
+    if (code === SYNC_ISSUE_CEILING_CODE) { await enforceSyncIssueCeiling(options.store, options.scope, now()); return state(); }
     if (persistentLocalSyncFailure(code)) return transition('error', { lastError: code, notBefore: 0, clearConnectivityConfirmation: true });
     const backoffCount = (prior.networkBackoffCount ?? 0) + 1;
     const retryAfter = retryAfterMilliseconds(error); const delay = retryAfter ?? Math.min(MAX_NETWORK_BACKOFF_MS,
@@ -573,28 +580,3 @@ export function createDurableSyncEngine(options: EngineOptions) {
   return Object.freeze({ wake, state, refreshPlacement });
 }
 
-function ackEnvelope(kind: AckIntentRecord['kind'], sessionId: string, cursor: string,
-  recoveryCapability?: string, warnings: SyncAckRequest['warnings'] = []) {
-  const document: SyncAckRequest = { sessionId, cursor, warnings: [...warnings],
-    ...(recoveryCapability === undefined ? {} : { recoveryCapability }) }; const body = canonicalJson(document);
-  const intentId = `ack-${digest(warnings.length ? [kind, sessionId, cursor, warnings] : [kind, sessionId, cursor])}`;
-  return { intentId, kind, sessionId, cursor, idempotencyKey: intentId, endpointIdentity: 'syncAck' as const,
-    mediaType: 'application/json' as const, body, bodyDigest: digestBytes(body) };
-}
-
-function headers(authority: { readonly credential: Pick<StoredCredential, 'accessToken'>; readonly session: StoredSession },
-  origin?: string) {
-  return { Accept: 'application/json', ...colpCredentialHeaders(authority.credential.accessToken),
-    'Known-Sync-Session': authority.session.sessionId, 'Collection-Protocol-Version': '0.2',
-    ...(origin ? { Origin: origin } : {}) };
-}
-function digest(value: unknown) { return digestBytes(canonicalJson(value)); }
-function digestBytes(value: string) { return bytesToHex(sha256(new TextEncoder().encode(value))); }
-function canonicalJson(value: unknown): string { if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  const encoded = JSON.stringify(value); if (encoded === undefined) throw new SyncFailureError('canonical_json_invalid'); return encoded; }
-function jsonContentType(response: Response) { return /^application\/json(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? ''); }
-function problemContentType(response: Response) { return /^application\/problem\+json(?:\s*;|$)/iu.test(
-  response.headers.get('Content-Type') ?? ''); }

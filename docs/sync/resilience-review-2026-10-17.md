@@ -287,3 +287,30 @@ IDB reopen, another real engine recovery of the same bad content, bounded eviden
 actual mapping/queue/ingress emissions, and graph-integrity rejection. Typecheck
 and changed-file ESLint passed. Existing started native mutation recovery is
 preserved; only failures proved to precede a native call are isolated.
+
+### Task 7 — unified global open-issue ceiling
+
+The admission limit is now strictly more than 200 open facts from the common
+projection, including Push-only, local-only, Pull, waits, decisions and mixtures.
+Engine entry/restart, Push admission/settlement, Pull event/page completion and
+Snapshot projection check the same total. The crossing item is persisted first;
+no extra Pull issue is needed to trigger the stop. Repeated subjects and resolved/
+recaptured history follow the common ledger semantics. Health and Status report
+sync_issue_ceiling with an accurate explanation and the existing v1 Rebuild exit.
+
+A ceiling stop preserves projection ownership and pending native evidence. A
+limited recovery pass may finish only already-started native calls and publish
+already-accounted facts; it cannot admit the next staged mutation. Existing
+integrity stops retain their stronger original reason. Dropping below the limit
+removes only this admission stop, retaining Snapshot/native recovery work.
+
+Before: all three new local/Push/mixed restart cases failed without the ceiling.
+After: the review run passed 155 tests in ten relevant files; subsequent fact/
+health/native-recovery checks passed 96 tests and final native-boundary checks
+passed 14 tests. Includes exactly 200 vs 201, repeated subjects, 201 real Pull
+issues, pure Push/local/mixed, Status/health, restart, closed recapture history and
+a real interrupted Chrome call with the next mutation still staged. Web reason
+projection passed its targeted test. Extension/web typechecks and changed-file
+lint passed. Relevant responsibilities were extracted from large engine/Push/Pull/
+ingress files: all 665 production files pass source-size checks, with zero remaining
+grandfathered oversize exceptions. No temporary service started.

@@ -121,12 +121,12 @@ export async function setup(overrides: {
   // `order` stays the observable seam every engine fixture asserts on; the work behind it is
   // whichever applier this setup selected.
   const recordingApplier = (applier: { stage: (page: SyncPullV02,
-    cursorAuthority?: { readonly reissued?: boolean }) => Promise<void>; resume: () => Promise<void> }) => ({
+    cursorAuthority?: { readonly reissued?: boolean }) => Promise<void>; resume: (mode?: { readonly recoveryOnly?: boolean }) => Promise<void> }) => ({
     async stage(page: SyncPullV02, cursorAuthority: { readonly reissued?: boolean } = {}) {
       pullCursorAuthorities.push(cursorAuthority); order.push(`stage:${page.nextCursor}`);
       return applier.stage(page, cursorAuthority);
     },
-    async resume() { order.push('resume'); return applier.resume(); },
+    async resume(mode?: { readonly recoveryOnly?: boolean }) { order.push('resume'); return applier.resume(mode); },
   });
   /**
    * A-12/SR-16: the **Ack-only** Pull applier, named so no fixture can mistake it for the real
@@ -162,7 +162,7 @@ export async function setup(overrides: {
   const pullApplier = overrides.useRealPullApplier
     // Same shape as `src/sw/engine.ts:116-117`: a fresh applier bound to the live Session per call.
     ? recordingApplier({ stage: (page, cursorAuthority) => realPullApplier().stage(page, cursorAuthority),
-      resume: () => realPullApplier().resume() })
+      resume: mode => realPullApplier().resume(mode) })
     : recordingApplier(ackOnlyPullApplier());
   const options: any = { scope, store, origin: 'chrome-extension://known-extension',
     requestTimeoutMilliseconds: overrides.requestTimeoutMilliseconds,
@@ -184,14 +184,14 @@ export async function setup(overrides: {
           replicaLease: { ...session().replicaLease, state: classified?.state ?? 'active' },
           collection: { ...session().collection, serverCursor: activeCursor } } }; } },
     pullApplier, pushWorker: push, now: () => clock.now, random: () => 0.5, id: () => 'durable-id',
-    schedule: (delay: number) => scheduled.push(delay),     snapshotProjector: async (plans: any[]) => {
+    schedule: (delay: number) => scheduled.push(delay),     snapshotProjector: async (plans: any[], mode?: { readonly recoveryOnly?: boolean }) => {
       projectCalls += 1;
       if (crashAt === 'before_local_projection') { crashAt = undefined; throw new Error('worker_crash'); }
       // A-12/SR-16: production identity verification is the default; the synthetic stand-in
       // below is reachable only through its explicitly named opt-in.
       if (overrides.useStandInProjector !== true) {
         const result = await recoverVerifiedOrFreeze({
-          scope, store, staged: plans, freezeUnprovenIdentity: true,
+          scope, store, staged: plans, freezeUnprovenIdentity: true, recoveryOnly: mode?.recoveryOnly,
           api: {
             create: async (input) => {
               const id = allocateChromeId();

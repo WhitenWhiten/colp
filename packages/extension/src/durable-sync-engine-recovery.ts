@@ -1,3 +1,4 @@
+import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import type { SnapshotNode } from '@know-n/colp/types';
 import { readBoundedJson } from './json-response.js';
@@ -251,6 +252,7 @@ async function commitPreparedRecovery(runtime: SnapshotRecoveryRuntime,
       });
     },
   });
+  if (await enforceSyncIssueCeiling(runtime.options.store, runtime.options.scope, runtime.now())) throw new SyncFailureError('sync_issue_ceiling');
   await runtime.projectRecovery(snapshotId);
   await runtime.options.store.commitRecovery(runtime.options.scope, snapshotId,
     runtime.ackEnvelope('bootstrap', authority.session.sessionId, syncCursor, capability));

@@ -3,7 +3,5 @@
   "excludeFileNames": [
     "favicon-helper-api.ts"
   ],
-  "grandfathered": {
-    "src/sync-state/bookmark-event-repository.ts": 609
-  }
+  "grandfathered": {}
 }

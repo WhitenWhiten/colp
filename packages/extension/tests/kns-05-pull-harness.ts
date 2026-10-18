@@ -58,8 +58,8 @@ export async function nativeOrUndefined(api: PullBookmarkApi, id: string): Promi
 }
 
 export async function setup(crash?: string, omitNodeMappings = false,
-  chrome: { readonly lenient?: boolean } = {}) {
-  const store = createSyncStateStore({ indexedDB }); await store.registerScope({ ...scope, lifecycle: 'active',
+  chrome: { readonly lenient?: boolean; readonly maxRecordBytes?: number } = {}) {
+  const store = createSyncStateStore({ indexedDB, ...(chrome.maxRecordBytes ? { maxRecordBytes: chrome.maxRecordBytes } : {}) }); await store.registerScope({ ...scope, lifecycle: 'active',
     lease: { leaseId: 'lease-kns05', expiresAt: Date.parse('2099-01-01T00:00:00Z') },
     checkpoint: { serverRevision: 'revision-old', cursor: 'cursor-old' }, selectedRoots: ['root-colp'],
     rootStatus: 'ready' });

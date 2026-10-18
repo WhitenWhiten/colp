@@ -1,3 +1,4 @@
+import { readOpenSyncIssues } from '../src/sync-issues.js';
 import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync';
 import { validateOperation, digestJson } from '../src/bookmark-event-codec.js';
 import { createPullApplier } from '../src/pull-applier.js';
@@ -67,6 +68,7 @@ describe('C1 a conflict holds only its own bookmark', () => {
         title: (row.payload.payload as any).value.title })), currentNativeTitle: 'Current native title',
     }), []);
     assert.equal(hasConflictBarrier(await store.listQueue(scope)), false);
+    assert.equal((await readOpenSyncIssues(store, scope)).total, 0, 'resolved and recaptured history is closed');
     assert.deepEqual(await store.auditIntegrity(), { outcome: 'valid' });
     store.close();
   });

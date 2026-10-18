@@ -1,3 +1,5 @@
+import { startPushLeaseRenewal } from './push-lease-renewal.js';
+import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import type { RecaptureQueueRow } from './queue-recapture.js';
 import { rejectExcludedBootstrapUpload } from './bootstrap/upload-rejection.js';
@@ -87,8 +89,10 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       persistUnknown(queue, fence, reason, retryAfter ?? null) });
 
   async function drain(onNetworkResponse?: () => void | Promise<void>): Promise<DrainOutcome> {
+    if (await enforceSyncIssueCeiling(options.store, options.scope, now())) return { outcome: 'recovery' };
     const repair: { attention: number } = { attention: 0 };
     const outcome = await runDrain(repair, onNetworkResponse);
+    if (await enforceSyncIssueCeiling(options.store, options.scope, now())) return { outcome: 'recovery' };
     return repair.attention > 0 ? { ...outcome, attention: repair.attention } : outcome;
   }
 
@@ -99,16 +103,8 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       options.schedule?.(Math.max(1_000, (lease.expiresAt ?? initial + leaseDuration) - now()));
       return { outcome: 'contended' };
     }
-    // Keep the fencing lease alive while a request (or a long drain) is in flight.
-    // Without this, the 30s default lease can expire during a 15s request plus
-    // retries, allowing another worker to claim the same row concurrently.
-    const renewalPeriod = Math.max(1_000, Math.floor(leaseDuration / 3));
-    let renewal: ReturnType<typeof setInterval> | undefined;
-    let renewalFailure: unknown;
-    renewal = setInterval(() => {
-      void options.store.renewLease(options.scope, ownerId, lease.fence, now(), leaseDuration)
-        .catch((error) => { renewalFailure ??= error; });
-    }, renewalPeriod);
+    const renewal = startPushLeaseRenewal({ store: options.store, scope: options.scope, ownerId,
+      fence: lease.fence, duration: leaseDuration, now });
     // A 'gap' head whose hole is entirely rejected history is realigned onto
     // the server's expectedSequence evidence before claiming, so surviving
     // local edits converge instead of stalling behind refused operations.
@@ -129,8 +125,9 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     let last: DrainOutcome = { outcome: 'idle' }; let diagnosed = false;
     const deadline = now() + (options.drainBudgetMilliseconds ?? 20_000);
     try { for (let count = 0; count < MAX_DRAIN_OPERATIONS; count += 1) {
+      if (await enforceSyncIssueCeiling(options.store, options.scope, now())) return { outcome: 'recovery' };
       if (count > 0 && now() >= deadline) break;
-      if (renewalFailure) throw renewalFailure;
+      renewal.assertCurrent();
       if (await pushRecoveryBarrierActive(options.store, options.scope,
         options.allowRecoveryFrozenPush)) return { outcome: 'recovery' };
       const queue = await options.store.claimNextQueue(options.scope, ownerId, lease.fence, now());
@@ -209,7 +206,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       if (outcome !== 'terminal') return last;
     }
     options.schedule?.(boundedBackoff(1, random)); return last;
-    } finally { if (renewal) clearInterval(renewal); }
+    } finally { renewal.close(); }
   }
 
   /**

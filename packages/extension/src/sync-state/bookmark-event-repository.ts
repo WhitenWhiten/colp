@@ -1,4 +1,5 @@
-import { withCodecSubject, codecRecordSubject } from './codec-subject.js';
+import { validateBookmarkEventInput, validateBookmarkEventRecord } from './bookmark-event-validation.js';
+export { validateBookmarkEventInput, validateBookmarkEventRecord } from './bookmark-event-validation.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { claimIngressDiagnosticSource } from './ingress-diagnostic-source.js';
 import { bootstrapCreateIdentity } from './bootstrap-create-identity.js';
@@ -46,34 +47,6 @@ import type { SyncStoreRuntime } from './runtime.js';
  * Exported so the storage tests pin the boundary.
  */
 export const INGRESS_DIAGNOSTIC_SCAN_LIMIT = 20_000;
-export function validateBookmarkEventInput(input: unknown, maxBytes: number): BookmarkEventInput {
-  return withCodecSubject(codecRecordSubject(input), () => validateBookmarkEventInputValue(input, maxBytes));
-}
-function validateBookmarkEventInputValue(input: unknown, maxBytes: number): BookmarkEventInput {
-  const value = strictObject(clone(input), ['eventId', 'dedupeKey', 'occurredAt', 'kind', 'nativeId', 'details'],
-    'bookmark event');
-  if (!['create', 'change', 'move', 'remove'].includes(String(value.kind))) throw new SyncStateError('bookmark_event_kind_invalid');
-  const record: BookmarkEventInput = { eventId: boundedString(value.eventId, 'eventId'),
-    dedupeKey: boundedString(value.dedupeKey, 'dedupeKey'),
-    occurredAt: boundedString(value.occurredAt, 'occurredAt'), kind: value.kind as BookmarkEventInput['kind'],
-    nativeId: boundedString(value.nativeId, 'nativeId'), details: validateJson(value.details, 'event.details') as JsonObject };
-  validateRecord(record, maxBytes); return record;
-}
-export function validateBookmarkEventRecord(input: unknown, maxBytes: number): BookmarkEventRecord {
-  const value = strictObject(clone(input), ['scopeKey', 'ordinal', 'status', 'eventId', 'dedupeKey', 'opId',
-    'occurredAt', 'kind', 'nativeId', 'details'], 'bookmark event record');
-  if (!['pending', 'processed'].includes(String(value.status))) throw new SyncStateError('bookmark_event_status_invalid');
-  const event = validateBookmarkEventInput(Object.fromEntries(['eventId', 'dedupeKey', 'occurredAt', 'kind',
-    'nativeId', 'details'].map((field) => [field, value[field]])), maxBytes);
-  const status = value.status as BookmarkEventRecord['status'];
-  const opId = value.opId === null ? null : boundedString(value.opId, 'opId');
-  if ((status === 'pending' && opId !== null) || (status === 'processed' && opId === null)) {
-    throw new SyncStateError('bookmark_event_operation_state_invalid');
-  }
-  const record: BookmarkEventRecord = { ...event, scopeKey: boundedString(value.scopeKey, 'scopeKey', 16_384),
-    ordinal: safeInteger(value.ordinal, 'bookmark event ordinal', 1), status, opId };
-  validateRecord(record, maxBytes); return record;
-}
 export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
   const maxRecordBytes = ctx.maxRecordBytes;
   const durableCache = ctx.durableCache;

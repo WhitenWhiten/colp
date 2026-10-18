@@ -13,7 +13,7 @@ export function createPullApplier(options: PullApplierOptions) {
   return Object.freeze({
     pull: stager.pull,
     stage: async (...args: Parameters<typeof stager.stage>) => { await options.assertCurrent?.(); return stager.stage(...args); },
-    resume: async () => { await options.assertCurrent?.(); return runtime.resume(); },
+    resume: async (mode: { readonly recoveryOnly?: boolean } = {}) => { await options.assertCurrent?.(); return runtime.resume(mode); },
     observe: runtime.observe,
   });
 }

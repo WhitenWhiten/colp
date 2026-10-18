@@ -39,6 +39,7 @@ const STOP_REASONS: Readonly<Record<string, string>> = {
   target_unavailable: 'the library it syncs with isn’t available.',
   replica_rebuild_pending: 'its copy of your library is being rebuilt.',
   pull_issue_ceiling: 'it set aside too many items to keep syncing safely.',
+  sync_issue_ceiling: 'it has too many unresolved items to keep syncing safely.',
   replica_rebuilt: 'its sync was reset.',
 }
 

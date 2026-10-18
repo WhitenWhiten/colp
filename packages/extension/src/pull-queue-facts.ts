@@ -1,3 +1,4 @@
+import type { SyncPullEventV02 } from '@know-n/colp/types';
 import type { JsonObject, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
@@ -49,4 +50,13 @@ function overlayChangedFields(fields: Record<string, string>, payload: unknown) 
 }
 function object(value: unknown): JsonObject | undefined {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : undefined;
+}
+
+/** A resolution supersedes only the local operations named by the authoritative effect. */
+export async function pendingLocalContentForEvent(store: Store, scope: SyncScope,
+  mapping: { readonly colpId: string; readonly nativeId: string }, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
+  const resolved = event.operation.source?.adapterProfile === 'known-conflict-resolution'
+    ? [...event.operation.dependencies ?? []] : [];
+  if (event.operation.replicaId === scope.replicaId) resolved.push(event.operation.opId);
+  return pendingLocalContentFields(store, scope, mapping, resolved);
 }

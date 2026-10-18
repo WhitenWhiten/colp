@@ -111,6 +111,7 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   payload_too_large: entry('replica', 'rebuild'),
   // B6: more open Pull issues than this browser may hold; divergence must never be unbounded.
   pull_issue_ceiling: entry('replica', 'rebuild', FREEZES),
+  sync_issue_ceiling: entry('replica', 'rebuild'),
   snapshot_projection_incomplete: entry('replica', 'stop'),
   // A queued operation contradicts current consent; rebuilding archives it before setup.
   metadata_sync_disabled: entry('replica', 'rebuild'),

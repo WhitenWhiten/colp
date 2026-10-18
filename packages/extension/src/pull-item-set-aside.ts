@@ -1,4 +1,4 @@
-import { SyncFailureError, setsAsidePullItem, syncFailureCode, classifySyncFailure } from './sync-failure-class.js';
+import { setsAsidePullItem, syncFailureCode, classifySyncFailure } from './sync-failure-class.js';
 import { readOpenSyncIssues, issueAncestry, dependsOnIssue } from './sync-issues.js';
 import type { SyncPullEventV02, Warning } from '@know-n/colp/types';
 import type { PullApplierOptions, PullNode } from './pull-applier-types.js';
@@ -17,7 +17,7 @@ export const ITEM_CODEC_CODES: ReadonlySet<string> = new Set(['bounded_string_in
   'i_json_invalid', 'record_too_large']);
 
 /** B6: past this many open Pull issues the replica stops; divergence is never silent or unbounded. */
-export const PULL_ISSUE_CEILING = 200;
+export { OPEN_SYNC_ISSUE_CEILING as PULL_ISSUE_CEILING } from './sync-issue-ceiling.js';
 /** The server's default Ack warning budget (`SYNC_ACK_MAX_WARNINGS`, `SYNC_ACK_MAX_WARNING_BYTES`). */
 const ACK_WARNING_LIMIT = 8;
 const ACK_WARNING_BYTES = 1_536;
@@ -78,7 +78,6 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     const mappings = await options.store.listMappings(options.scope);
     const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : [])];
     if (dependsOnIssue(targets, issues.roots, issueAncestry(mappings, issues.queue))) {
-      assertBelowCeiling(issues.total);
       // A target or ancestor has an unresolved issue; keep the native state and dependency evidence.
       await options.store.setAsidePullEvent(options.scope, eventId, { code: 'parent_set_aside', nodeId: subject.nodeId,
         now, ...(title ? { title } : {}) });
@@ -92,7 +91,6 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     return false;
   } catch (error) {
     if (!(error instanceof SyncStateError) || classifySyncFailure(error.code, { nodeId: node.id })?.class !== 'item') throw error;
-    assertBelowCeiling(issues.total);
     await options.store.setAsidePullEvent(options.scope, eventId, { code: error.code, nodeId: node.id, now,
       ...(title ? { title } : {}) });
     return true;
@@ -115,7 +113,6 @@ export async function setAsideFailedPullItem(options: PullApplierOptions,
   if (!subject || !setsAsidePullItem(code, { nodeId: subject.nodeId, eventId }) || !['staged', 'intent_prepared'].includes(String(entered.state))) return false;
   const current = await options.store.getPullEvent(options.scope, eventId);
   if (!current || !['staged', 'intent_prepared'].includes(String(current.state))) return false;
-  assertBelowCeiling((await readOpenSyncIssues(options.store, options.scope)).total);
   const title = typeof subject.node?.title === 'string' ? subject.node.title : undefined;
   await options.store.setAsidePullEvent(options.scope, eventId, { code, nodeId: subject.nodeId, now,
     ...(title ? { title } : {}) });
@@ -145,6 +142,3 @@ export async function pullAckWarnings(store: Pick<ReturnType<typeof createSyncSt
   return warnings;
 }
 
-function assertBelowCeiling(count: number): void {
-  if (count >= PULL_ISSUE_CEILING) throw new SyncFailureError('pull_issue_ceiling');
-}

@@ -1,3 +1,5 @@
+import { finishReadyPullPages } from './pull-page-completion.js';
+import { exceedsSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from './remote-delete-pending-facts.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import { setAsideFailedPullItem, setAsidePullItem } from './pull-item-set-aside.js';
@@ -11,7 +13,7 @@ import { SyncStateError } from './sync-state/types.js';
 import { digest } from './pull-codec.js';
 import { chromeCreate, mappingFor, nativeContent, nodeContent } from './pull-projection.js';
 import { ordinaryPullEventAllowed, publishSupersededPullMappings, readPullApplyAuthority,
-  recoverSupersededPullEvent, supersededPullPage } from './pull-authority-apply.js';
+  recoverSupersededPullEvent } from './pull-authority-apply.js';
 import { assertPullApplierGate } from './pull-page-stager.js';
 import { freezePullApply, withPullFreeze } from './pull-recovery-freeze.js';
 import { bindMountMappings, boundNativeId, isNonChromeNativeId, isRecoveryPlaceholder,
@@ -29,7 +31,7 @@ import {
   rangeActionOf, rangePlanFromAnchors, resolvePersistedMovePlan, type PlannedMoveApply,
 } from './pull-range-move.js';
 import {
-  pendingLocalContentFields,
+  pendingLocalContentForEvent,
   queueHasPendingTarget,
 } from './pull-queue-facts.js';
 import { applyRemoteNodeContentUpdate } from './pull-native-content-barrier.js';
@@ -51,19 +53,13 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     role: 'member' | 'parent' | 'target') {
     return preflightPullMapping(options, colpId, stagedCreates, role);
   }
-  async function resume(): Promise<void> { await withPullFreeze(options, resumeApply); }
+  async function resume(mode: { readonly recoveryOnly?: boolean } = {}): Promise<void> { await withPullFreeze(options, () => resumeApply(mode)); }
 
   // SR-02 read seam: classification, diagnostics and anchor indexing live in
   // `pull-bookmark-evidence.ts` so this file never reads Chrome state unclassified.
   const { lookup, targetMissingError, parentChildren, nativeIndex } = createPullBookmarkEvidence(options, api);
-  async function localContent(event: Extract<SyncPullEventV02, { kind: 'operation' }>, mapping: MappingInput) {
-    const resolved = event.operation.source?.adapterProfile === 'known-conflict-resolution'
-      ? [...(event.operation.dependencies ?? [])] : [];
-    if (event.operation.replicaId === options.scope.replicaId) resolved.push(event.operation.opId);
-    return pendingLocalContentFields(options.store, options.scope, mapping, resolved);
-  }
 
-  async function resumeApply(): Promise<void> {
+  async function resumeApply(mode: { readonly recoveryOnly?: boolean }): Promise<void> {
     assertPullApplierGate(options);
     if (await kns09Paused('pull')) throw new SyncFailureError('sync_paused');
     await settleParkedRemoteDeletes(options, now);
@@ -77,6 +73,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     }
     for (const raw of events) {
       if (raw.state === 'authority_committed') continue;
+      if ((mode.recoveryOnly || await exceedsSyncIssueCeiling(options.store, options.scope))
+          && ['staged', 'intent_prepared'].includes(String(raw.state))) continue;
       const decisionId = remoteDeleteDeferral(raw);
       const decision = decisionId ? await options.store.getRemoteDeleteDecision(options.scope, decisionId) : undefined;
       const detached = remoteDeleteDeferralMatches(raw, decision ?? undefined, options.scope.generation)
@@ -113,22 +111,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       }
     }
     await publishSupersededPullMappings(options, authority);
-    for (const raw of await options.store.listPullEvents(options.scope, ['authority_committed'])) {
-      if (!remoteDeleteDeferral(raw)) continue;
-      const page = (await options.store.listPullPages(options.scope, ['page_complete'])).find(page => page.pageId === raw.pageId);
-      if (page) await options.store.completeDetachedPullEvent(options.scope, String(raw.pageId), String(raw.eventId));
-    }
-    const stagedPages = await options.store.listPullPages(options.scope, ['staged']);
-    if (stagedPages.length === 0) return;
-    for (const page of stagedPages) {
-      if (supersededPullPage(authority, page)) continue;
-      const pageEvents = await options.store.listPullEventsByPage(options.scope, String(page.pageId));
-      if (pageEvents.length === Number(page.eventCount)
-        && pageEvents.every((event) => event.state === 'authority_committed' || event.state === 'awaiting_confirmation' && remoteDeleteDeferral(event))) {
-        await options.assertCurrent?.();
-        await options.store.completePullPage(options.scope, String(page.pageId));
-      }
-    }
+    await finishReadyPullPages(options, authority, now());
   }
 
   async function prepare(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
@@ -170,7 +153,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       const looked = await lookup(mapping.nativeId);
       if (looked.class === 'not_found') throw await targetMissingError(effect.node.id, mapping.nativeId);
       if (looked.class !== 'present') throw new Error(looked.message);
-      const current = looked.nodes[0]; const finalContent = { ...nodeContent(effect.node), ...await localContent(event, mapping) };
+      const current = looked.nodes[0]; const finalContent = { ...nodeContent(effect.node), ...await pendingLocalContentForEvent(options.store, options.scope, mapping, event) };
       const details = Object.fromEntries(Object.entries(finalContent).filter(([key, value]) => current?.[key as 'title' | 'url'] !== value));
       return { eventKind: 'change', nativeId: mapping.nativeId, details, correlationDetails: finalContent, anchors: {},
         preStateDigest: mapping.projection.digest };
@@ -347,7 +330,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       const applied = await applyRemoteNodeContentUpdate({
         store: options.store, scope: options.scope, api, mapping, node: effect.node,
         effectDigest: effect.effectDigest, eventId, mounts, now, lookup, targetMissingError,
-        queuedLocal: await localContent(event, mapping),
+        queuedLocal: await pendingLocalContentForEvent(options.store, options.scope, mapping, event),
       });
       mappings.push(applied.mapping);
       if (applied.rangeExit) rangeExit = applied.rangeExit;
@@ -538,7 +521,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (looked.class === 'not_found') throw await targetMissingError(effect.node.id, mapping.nativeId);
       if (looked.class !== 'present') throw new Error(looked.message);
       const current = looked.nodes[0]; const content = nodeContent(effect.node);
-      if (Object.keys(await localContent(event, mapping)).length) { await callAndCommit(eventId, event); return; }
+      if (Object.keys(await pendingLocalContentForEvent(options.store, options.scope, mapping, event)).length) { await callAndCommit(eventId, event); return; }
       if (current && current.title === content.title
           && (content.url === undefined || current.url === content.url)) {
         await options.store.recordPullApiEvidence(options.scope, eventId, { operationId: event.operation.opId,

@@ -101,7 +101,7 @@ export async function recoverSnapshotProjection(input: {
   readonly store: RecoveryStore;
   readonly staged: readonly MappingInput[];
   readonly api: PullBookmarkApi;
-  readonly allowTitleUrlIdentityGuess?: boolean;
+  readonly allowTitleUrlIdentityGuess?: boolean; readonly recoveryOnly?: boolean;
 }): Promise<readonly MappingInput[]> {
   const scopeRecord = await input.store.getScope(input.scope);
   const allLive = (await input.store.listMappings(input.scope)).map(({ scopeKey: _key, ...row }) => row);
@@ -112,6 +112,7 @@ export async function recoverSnapshotProjection(input: {
   if (!selected) throw new SyncFailureError('snapshot_root_mapping_missing');
   const existing = await input.store.listProjectionIntents(input.scope);
   const pending = existing.filter((item) => item.state !== 'terminal');
+  if (pending.length === 0 && input.recoveryOnly) return input.staged;
   if (pending.length === 0) {
     const outstanding = await listOutstanding(input.store, input.scope);
     const nativeFacts = await collectNativeFacts(input.api, selected.nativeId);
@@ -140,7 +141,7 @@ export async function projectVirtualSnapshotChildren(input: {
   readonly store: RecoveryStore;
   readonly api: PullBookmarkApi;
   readonly bound: readonly MappingInput[];
-  readonly snapshotCursor?: string;
+  readonly snapshotCursor?: string; readonly recoveryOnly?: boolean;
 }): Promise<readonly MappingInput[]> {
   const allLive = (await input.store.listMappings(input.scope)).map(({ scopeKey: _key, ...row }) => row);
   const deleted = await pendingLocalDeletionIds(input.store, input.scope, [...allLive, ...input.bound]);
@@ -154,6 +155,7 @@ export async function projectVirtualSnapshotChildren(input: {
     ...retainedDeletionMappings(allLive, input.bound, deleted)]);
   const existing = await input.store.listProjectionIntents(input.scope);
   const pending = existing.filter((item) => item.state !== 'terminal');
+  if (pending.length === 0 && input.recoveryOnly) return seed;
   if (pending.length === 0) {
     const live = await input.store.listMappings(input.scope);
     const intents = [...planVirtualChildCreates(seed),
@@ -169,9 +171,9 @@ export async function projectVirtualSnapshotChildren(input: {
   if (!native) return seed;
   const projected = inheritBoundNativeParents(await executeProjectionIntents({
     scope: input.scope, store: input.store, api: input.api, selectedRootNativeId: native,
-    seedMappings: seed, snapshotCursor: input.snapshotCursor,
+    seedMappings: seed, snapshotCursor: input.snapshotCursor, recoveryOnly: input.recoveryOnly,
   }));
-  for (const mapping of projected) {
+  for (const mapping of input.recoveryOnly ? [] : projected) {
     if (mapping.colpId.startsWith('pending-') || mapping.nativeId.startsWith('pending-')) continue;
     const { scopeKey: _scopeKey, ...row } = mapping as MappingInput & { readonly scopeKey?: string };
     await input.store.putMapping(input.scope, row);
@@ -186,7 +188,7 @@ export async function executeProjectionIntents(input: {
   readonly selectedRootNativeId: string;
   readonly seedMappings: readonly MappingInput[];
   readonly persistMappings?: boolean;
-  readonly snapshotCursor?: string;
+  readonly snapshotCursor?: string; readonly recoveryOnly?: boolean;
 }): Promise<readonly MappingInput[]> {
   const mappings = new Map(input.seedMappings.map((mapping) => [mapping.colpId, mapping]));
   // Keep the verified Snapshot target immutable while a placement intent holds
@@ -198,6 +200,7 @@ export async function executeProjectionIntents(input: {
   const liveMappings = await input.store.listMappings(input.scope);
   const deleted = await pendingLocalDeletionIds(input.store, input.scope, [...liveMappings, ...input.seedMappings]);
   for (const intent of intents) {
+    if (input.recoveryOnly && !['executing', 'recovery'].includes(intent.state)) continue;
     const protectedIds = await protectedSnapshotIds(input.store, input.scope, liveMappings);
     if (intent.state !== 'terminal' && protectedIds.has(intent.colpId)) {
       // Never discard a call that might have started. Resolve it through its existing evidence path.
@@ -287,7 +290,7 @@ export async function executeProjectionIntents(input: {
       throw error;
     }
   }
-  if (persist) {
+  if (persist && !input.recoveryOnly) {
     for (const mapping of mappings.values()) await persistProjectionMapping(input.store, input.scope, mapping);
   }
   return [...mappings.values()];

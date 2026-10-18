@@ -17,7 +17,7 @@ type Store = Parameters<typeof recoverSnapshotProjection>[0]['store']
 export async function recoverVerifiedOrFreeze(input: {
   readonly scope: SyncScope; readonly store: Store; readonly staged: readonly MappingInput[];
   readonly api: PullBookmarkApi; readonly staleCursor?: boolean; readonly missingPage?: boolean;
-  readonly freezeUnprovenIdentity?: boolean;
+  readonly freezeUnprovenIdentity?: boolean; readonly recoveryOnly?: boolean;
 }): Promise<readonly MappingInput[]> {
   if (input.staleCursor) {
     await freezeScopeRecovery(input.store, input.scope, 'sync_cursor_expired');
@@ -70,12 +70,12 @@ export async function recoverVerifiedOrFreeze(input: {
       await input.store.putMountBinding(input.scope, { ...binding, remoteMountNodeId: mapping.colpId });
     }
     return projectVirtualSnapshotChildren({
-      scope: input.scope, store: input.store, api: input.api, bound, snapshotCursor: header?.syncCursor,
+      scope: input.scope, store: input.store, api: input.api, bound, snapshotCursor: header?.syncCursor, recoveryOnly: input.recoveryOnly,
     });
   }
   return recoverSnapshotProjection({
     scope: input.scope, store: input.store, staged, api: input.api,
-    allowTitleUrlIdentityGuess: false,
+    allowTitleUrlIdentityGuess: false, recoveryOnly: input.recoveryOnly,
   });
 }
 
