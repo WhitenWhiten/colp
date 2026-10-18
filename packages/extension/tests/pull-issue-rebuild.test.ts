@@ -29,7 +29,7 @@ test('a health-delivered web Rebuild uses the real rebuilder and reports the act
   const f = await setup({ degraded: true }); const reports: any[] = [];
   try {
     await sendReplicaHealthReport({ scope: f.scope, store: f.store, mode: async () => 'enabled',
-      credential: async () => ({ accessToken: 'token', serverOrigin: f.scope.serverOrigin }),
+      credential: async () => ({ accessToken: 'token', serverOrigin: f.scope.serverOrigin, subject: f.scope.accountId }),
       storage: f.journal, origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop', now: () => 2000,
       commands: { replica: () => runReplicaRebuildCommand(request => f.rebuilder.handle(request)),
         issue: async () => ({ outcome: 'failed' }) },

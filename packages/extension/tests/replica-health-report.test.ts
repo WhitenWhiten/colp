@@ -12,7 +12,7 @@ import {
 import { scope, setup } from './durable-sync-engine-harness.js';
 
 const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
-const SERVER = 'https://colp.example';
+const SERVER = scope.serverOrigin;
 const calm: PublicSyncAttention = { recoveryFrozen: false, retryAutomatic: true, queueProjection: 'idle',
   conflictPending: false, rejectedPending: false, nativeWaitPending: false, waitCount: 0, terminal: false };
 
@@ -80,7 +80,7 @@ describe('replica health report', () => {
     let mode: 'enabled' | 'paused' | 'disconnected' = 'enabled';
     const storage = new MemoryStorageArea();
     const deps = (): ReplicaHealthReporterDeps => ({ scope, store: fixture.store, mode: async () => mode,
-      credential: async () => ({ accessToken: 'access-token', serverOrigin: SERVER }),
+      credential: async () => ({ accessToken: 'access-token', serverOrigin: SERVER, subject: scope.accountId }),
       fetch: async (input, init) => { requests.push({ url: String(input), init: init ?? {} }); return respond(); },
       storage, origin: ORIGIN, extensionVersion: '0.2.0', now: () => clock.now });
     const bodies = () => requests.map((request) => JSON.parse(String(request.init.body)) as Record<string, unknown>);
@@ -199,7 +199,8 @@ describe('replica health report', () => {
     // A command seen but never finished (the worker stopped mid-way) is reported failed, never run again.
     const record = (await h.storage.get('known.sync.health.v1'))['known.sync.health.v1'] as Record<string, unknown>;
     await h.storage.set({ 'known.sync.health.v1': { ...record,
-      commands: [...(record.commands as unknown[]), { commandId: 'cmd_5' }] } });
+      records: Object.fromEntries(Object.entries(record.records as Record<string, any>).map(([key, entry]) => [key, { ...entry,
+        value: { ...entry.value, commands: [...entry.value.commands, { commandId: 'cmd_5' }] } }])) } });
     delivered = [{ commandId: 'cmd_5', action: 'retry' }];
     assert.equal(await sendReplicaHealthReport(deps(true)), 'ran');
     assert.deepEqual(ran, ['retry', 'retry:op-save']);

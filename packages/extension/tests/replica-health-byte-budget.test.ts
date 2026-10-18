@@ -42,7 +42,7 @@ test('review: fifty legal Unicode item titles must fit the server health body bu
     await sendReplicaHealthReport({ scope, store: { ...f.store, listPullIssues: async () =>
       Array.from({ length: 50 }, (_, n) => ({ nodeId: `node-${n}`, code: 'record_too_large', eventId: `event-${n}`,
         title: '中'.repeat(200), count: 1, firstSeenAt: 1, lastSeenAt: 1 })) },
-      mode: async () => 'enabled', credential: async () => ({ accessToken: 'token', serverOrigin: scope.serverOrigin }),
+      mode: async () => 'enabled', credential: async () => ({ accessToken: 'token', serverOrigin: scope.serverOrigin, subject: scope.accountId }),
       storage: new MemoryStorageArea(), origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop', now: () => 1000,
       fetch: async (_url, init) => { body = String(init?.body); return new Response('{}', { status: 200 }); } });
     assert.ok(Buffer.byteLength(body, 'utf8') <= 32_768, `actual bytes: ${Buffer.byteLength(body, 'utf8')}`);

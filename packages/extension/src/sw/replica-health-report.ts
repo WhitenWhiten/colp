@@ -1,3 +1,4 @@
+import { createHealthDelivery } from './replica-health-delivery.js';
 import { REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_MAX_ITEMS, REPLICA_COMMAND_RESULTS_MAX,
   REPLICA_HEALTH_TITLE_MAX } from '../generated/replica-health-limits.js';
 /**
@@ -168,6 +169,7 @@ interface SentRecord {
 }
 interface CommandRecord {
   readonly commandId: string;
+  readonly action?: string;
   readonly outcome?: 'done' | 'failed';
   readonly code?: string;
   readonly reported?: true;
@@ -178,10 +180,11 @@ export interface ReplicaHealthReporterDeps {
   readonly store: SyncAttentionStore & {
     readonly listPullIssues?: (scope: SyncScope) => Promise<PullIssueRecord[]>;
     readonly listLocalIssues?: (scope: SyncScope) => Promise<LocalIssueRecord[]>;
+    readonly exportArchive?: (scope: SyncScope) => Promise<{ readonly reason?: unknown }>;
   };
   readonly mode: () => Promise<PersonalSyncMode | undefined>;
   readonly rebuildPending?: () => Promise<boolean>;
-  readonly credential: () => Promise<{ readonly accessToken: string; readonly serverOrigin: string }>;
+  readonly credential: () => Promise<{ readonly accessToken: string; readonly serverOrigin: string; readonly subject?: string }>;
   readonly fetch: typeof fetch;
   readonly storage: Pick<StorageArea, 'get' | 'set'>;
   readonly origin: string;
@@ -200,6 +203,9 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   const mode = await deps.mode();
   // A deliberate disconnect is not a sync problem; the browser says nothing.
   if (mode === 'disconnected') return 'disconnected';
+  const delivery = await createHealthDelivery({ scope: deps.scope, storage: deps.storage, now: deps.now,
+    post: (body, scope) => post({ ...deps, scope }, body), archive: deps.store.exportArchive });
+  deps = { ...deps, storage: delivery.storage };
   const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store,
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
   if (response.ok !== true) return 'failed';
@@ -271,7 +277,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
       await save(commands); ran = true; continue;
     }
     if (replaced || !deps.commands) continue;
-    commands = [...commands, { commandId: command.commandId }]; await save(commands);
+    commands = [...commands, { commandId: command.commandId, action: command.action }]; await save(commands);
     const outcome = await carryOut(command, projection, deps.commands);
     replaced ||= outcome.replaced === true; ran = true;
     commands = commands.map((entry) => entry.commandId === command.commandId ? { commandId: entry.commandId,
@@ -281,10 +287,9 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   if (replaced) {
     // This replica is gone; its last word says so and carries the results.
     const final = unreported(commands);
-    const farewell = await post(deps, { replicaId: deps.scope.replicaId, revision: revision + 1, state: 'stopped',
+    await delivery.stageFinal({ replicaId: deps.scope.replicaId, revision: revision + 1, state: 'stopped',
       code: 'replica_rebuilt', since: new Date(deps.now()).toISOString(), issues: { total: 0, items: [] },
-      actions: [], commandResults: final }).catch(() => undefined);
-    if (farewell?.status === 200) await save(commands.map((entry) => entry.outcome ? { ...entry, reported: true as const } : entry));
+      actions: [], commandResults: final });
     return 'sent';
   }
   return ran ? 'ran' : 'sent';
@@ -292,6 +297,9 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
 
 async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknown>): Promise<Response> {
   const credential = await deps.credential();
+  if (credential.subject !== deps.scope.accountId || credential.serverOrigin.replace(/\/$/u, '') !== deps.scope.serverOrigin.replace(/\/$/u, '')) {
+    throw new Error('health_authority_mismatch');
+  }
   return deps.fetch(`${credential.serverOrigin.replace(/\/$/u, '')}${REPLICA_HEALTH_PATH}`, {
     method: 'POST', redirect: 'error', cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(10_000),
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Origin: deps.origin,
@@ -340,7 +348,8 @@ function kept(commands: readonly CommandRecord[]): CommandRecord[] {
   let list = [...commands];
   while (list.length > MAX_COMMANDS_KEPT) {
     const index = list.findIndex((entry) => entry.reported);
-    list = list.filter((_, position) => position !== (index >= 0 ? index : 0));
+    if (index < 0) break;
+    list = list.filter((_, position) => position !== index);
   }
   return list;
 }
