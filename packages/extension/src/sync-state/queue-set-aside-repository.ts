@@ -70,7 +70,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
    * A change still waiting for an open conflict, a held item, or an earlier
    * change that stays held keeps waiting.
    */
-  function releaseSettledHolds(input: SyncScope, recapture?: RecaptureQueueRow): Promise<QueueOperation[]> {
+  function releaseSettledHolds(input: SyncScope, recapture: RecaptureQueueRow): Promise<QueueOperation[]> {
     return releaseRecaptured(input, async (queue, key) => {
       const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
       const dependent = (row: QueueOperation) => row.status === 'set_aside' && DEPENDENT_HOLDS.has(row.recovery?.code ?? '');

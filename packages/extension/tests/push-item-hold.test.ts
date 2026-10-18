@@ -40,10 +40,10 @@ test('a save set aside for its deleted folder holds only what depends on it, and
   assert.deepEqual(replicaIssuesFromQueue(rows).map((issue) => issue.code),
     ['create_placement_parent_deleted', 'dependency_hold', 'dependency_hold']);
   // Nothing releases the dependants while the save they wait for is held.
-  assert.deepEqual(await store.releaseSettledHolds(scope), []);
+  assert.deepEqual(await store.releaseSettledHolds(scope, async () => { throw new Error('unexpected_recapture'); }), []);
   // A decision cannot clear identity/placement proof and replay the old bytes.
   await assert.rejects(store.releaseSetAsideQueue(scope, [rows[0]!.sequence]), /recapture_required/);
-  assert.deepEqual(await store.releaseSettledHolds(scope), []);
+  assert.deepEqual(await store.releaseSettledHolds(scope, async () => { throw new Error('unexpected_recapture'); }), []);
   store.close();
 
   async function enqueue(opId: string, payload: JsonObject) {

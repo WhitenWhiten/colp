@@ -71,7 +71,7 @@ export async function settlePushResult(input: {
  * distinguishable from "nothing to release".
  */
 export async function releaseSettledQueueHolds(store: ReturnType<typeof createSyncStateStore>,
-  scope: SyncScope, recapture?: RecaptureQueueRow): Promise<number> {
+  scope: SyncScope, recapture: RecaptureQueueRow): Promise<number> {
   try {
     await store.releaseSettledHolds(scope, recapture); return 0;
   } catch (error) {

@@ -1,3 +1,4 @@
+import { createDurableSyncEngine } from '../src/durable-sync-engine.js';
 import { readOpenSyncIssues } from '../src/sync-issues.js';
 import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync';
 import { validateOperation, digestJson } from '../src/bookmark-event-codec.js';
@@ -83,7 +84,7 @@ describe('C1 a conflict holds only its own bookmark', () => {
     assert.deepEqual(await statuses(store), [['op-x1', 'blocked'], ['op-y', 'blocked'],
       ['op-y2', 'set_aside'], ['op-x2', 'set_aside']]);
     await resolve(store, 'op-x1', 'conflict-op-x1');
-    const released = await store.releaseSettledHolds(scope, captures.get(store));
+    const released = await store.releaseSettledHolds(scope, captures.get(store)!);
     assert.equal(released.length, 1); assert.equal(released[0]!.payload.targetId, 'node-x');
     assert.notEqual(released[0]!.opId, 'op-x2');
     assert.equal((await store.getQueueByOpId(scope, 'op-y2'))?.status, 'set_aside');
@@ -100,7 +101,7 @@ for (const mode of ['open-first', 'resolved-after'] as const) test(`real resolut
     await resolve(store, 'op-x1', 'conflict-op-x1', mode);
     const native = browsers.get(store)!;
     await native.update('native-x', { title: 'Changed after resolution' });
-    const [fresh] = await store.releaseSettledHolds(scope, captures.get(store));
+    const [fresh] = await store.releaseSettledHolds(scope, captures.get(store)!);
     assert.ok(fresh); assert.notEqual(fresh.opId, old.opId); assert.ok(fresh.sequence > old.sequence);
     assert.notEqual(fresh.digest, old.digest); assert.notEqual(fresh.idempotencyKey, old.idempotencyKey);
     assert.equal((fresh.payload.payload as any).value.title, 'Changed after resolution');
@@ -118,7 +119,7 @@ test('the resolution exemption does not cross a separate local issue on the same
     await store.recordLocalIssue(scope, { nativeId: 'native-x', code: 'recovery_identity_unproven', now: 20000 });
     await resolve(store, 'op-x1', 'conflict-op-x1', 'independent-issue');
     assert.equal((await store.listPullIssues(scope))[0]?.code, 'parent_set_aside');
-    assert.equal((await store.releaseSettledHolds(scope, captures.get(store))).length, 0);
+    assert.equal((await store.releaseSettledHolds(scope, captures.get(store)!)).length, 0);
     assert.equal(browsers.get(store)!.getNode('native-x')?.title, 'Current native title');
   } finally { store.close(); }
 });
@@ -153,14 +154,14 @@ async function fixture(input: { readonly conflicts?: readonly string[] } = {}) {
   const sessions: PushSessionController = { async get() { return {
     credential: { accessToken: 'access-token-push' }, session: { sessionId: 'session-push',
       expiresAt: '2099-01-01T00:00:00Z', scope: 'collection', snapshotRequired: false,
-      credentialAuthorityDigest: 'a'.repeat(64),
+      acceptedProtocolVersion: '0.2', credentialAuthorityDigest: 'a'.repeat(64),
       collection: { collectionId: scope.collectionId, serverCursor: 'cursor-0', serverRevision: 'revision-0' },
       replicaLease: { leaseId: 'lease-server', generation: '1', state: 'active', expiresAt: '2099-01-01T00:00:00Z' } } }; } };
   const recaptureHeld = createQueueRecapture({ store, scope, api, permission: async () => true });
   captures.set(store, recaptureHeld); browsers.set(store, api);
   const worker = createOutboundPushWorker({ scope, store, recaptureHeld, endpoints: async () => endpoints, sessions, fetch,
     now: () => 10_000, random: () => 0, ownerId: () => 'owner-push', schedule: () => undefined });
-  return { store, worker, sent, results };
+  return { store, worker, sent, results, sessions };
 }
 
 async function update(store: ReturnType<typeof createSyncStateStore>, opId: string, targetId: string) {
@@ -205,7 +206,7 @@ async function resolve(store: ReturnType<typeof createSyncStateStore>, opId: str
       nextCursor: 'cursor-open', collectionRevision: 'before-resolution' }));
     await applier.resume();
     assert.equal((await store.getQueueByOpId(scope, opId))?.status, 'blocked');
-    assert.equal((await store.releaseSettledHolds(scope, captures.get(store))).length, 0);
+    assert.equal((await store.releaseSettledHolds(scope, captures.get(store)!)).length, 0);
     store.close();
   }
   await applier.stage(pullFixtures.page({ events: [event], nextCursor: next, collectionRevision: `revision-${opId}` }));
@@ -217,3 +218,36 @@ async function resolve(store: ReturnType<typeof createSyncStateStore>, opId: str
   }
   if (mode !== 'independent-issue') assert.deepEqual(await store.listPullIssues(scope), [], 'the real resolution effect must not set itself aside');
 }
+
+test('a resolved conflict with no live queue must resume held uploads via the real engine', async () => {
+  const f = await fixture();
+  try {
+    await update(f.store, 'op-x1', 'node-x'); await update(f.store, 'op-x2', 'node-x');
+    await f.worker.drain();
+    await resolve(f.store, 'op-x1', 'conflict-op-x1');
+    assert.equal(await f.store.firstLaneQueue(scope), null);
+    f.store.close(); // reopen through the real worker/engine after resolution
+    let drains = 0; let clock = 10000;
+    const applier = createPullApplier({ scope, store: f.store, api: browsers.get(f.store)!,
+      session: { acceptedProtocolVersion: '0.2', sessionId: 'session-push', collectionId: scope.collectionId, conversionPolicy: { separator: 'preserve_remote' } },
+      effectPageTemplate: endpoints.syncEffectPages, effectPageAuthority: scope.serverOrigin });
+    const engine = createDurableSyncEngine({ scope, store: f.store, sessions: f.sessions,
+      endpoints: async () => endpoints, now: () => clock,
+      pushWorker: { drain: async (...args) => { drains++; return f.worker.drain(...args); } },
+      pullApplier: applier, snapshotProjector: async () => { throw new Error('unexpected_snapshot'); },
+      fetch: async (url, init) => {
+        if (String(url).includes('/pull')) {
+          const cursor = (await f.store.getCursor(scope))!.cursor!;
+          return json(200, pullFixtures.page({ events: [], nextCursor: cursor, collectionRevision: 'revision-op-x1' }));
+        }
+        const body = JSON.parse(String(init?.body));
+        return json(200, { replicaId: scope.replicaId, ackedCursor: body.cursor, ackedAt: '2026-10-18T00:00:00Z' });
+      } });
+    for (let n = 0; n < 3; n++) { await engine.wake('manual'); clock += 30000; }
+    const row = await f.store.getQueueByOpId(scope, 'op-x2');
+    assert.ok(drains > 0);
+    assert.equal(row?.recovery?.code, 'recaptured', 'resolution schedules recapture with an empty lane');
+    assert.ok(f.sent.some(sent => sent.opId !== 'op-x1'));
+    assert.equal((await f.store.listQueue(scope)).filter(row => row.status === 'set_aside').length, 0);
+  } finally { f.store.close(); }
+});

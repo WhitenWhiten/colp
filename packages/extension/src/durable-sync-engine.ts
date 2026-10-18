@@ -22,7 +22,6 @@ import { sessionTransportBudget } from './colp-transport-budget-browser.js';
 import { mayUnfreezeForCompletedBootstrapAck, pendingNativeOrPullFacts } from './bootstrap-ack-unfreeze.js';
 import { recoverSnapshot } from './durable-sync-engine-recovery.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
-import { releaseSettledQueueHolds } from './outbound-push-settlement.js';
 import { pullAckWarnings } from './pull-item-set-aside.js';
 const DEFAULT_PULL_LIMIT = 100; const MAX_PULL_PAGES_PER_WAKE = 20; const MAX_NETWORK_BACKOFF_MS = 30_000;
 // SYNC-F003: clamp the advisory pull cadence to the backend max (86_400s).
@@ -251,10 +250,11 @@ export function createDurableSyncEngine(options: EngineOptions) {
       if (pulled === 'recovery') return state();
       if (pulled === 'offline') return options.store.getEngineState(options.scope);
       if (await enforceSyncIssueCeiling(options.store, options.scope, now())) return state();
-      // The Pull may have settled a conflict; the changes held behind it rejoin the lane now.
-      await releaseSettledQueueHolds(options.store, options.scope);
+      // The worker owns fresh native recapture. A settled hold is outside the
+      // live lane, so this recovery pass must also run when that lane is empty.
       const afterPull = await firstOutstanding();
-      if (afterPull && !afterPull.attempt) {
+      const heldUploads = await options.store.listQueue(options.scope, 'set_aside', 0, 1);
+      if (afterPull && !afterPull.attempt || heldUploads.length > 0) {
         await transition('pushing', { sessionId: authority.session.sessionId });
         const outcome = await options.pushWorker.drain(confirmConnectivityResponse);
         if (outcome.outcome === 'recovery') return state();

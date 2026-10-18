@@ -121,7 +121,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         { kind: 'queue_realign', code: reasonCode(error, 'realign_failed') }); } catch { /* best effort */ }
     }
     // Settled dependencies are re-captured from the browser as fresh tail operations.
-    repair.attention += await releaseSettledQueueHolds(options.store, options.scope, options.recaptureHeld);
+    if (options.recaptureHeld) repair.attention += await releaseSettledQueueHolds(options.store, options.scope, options.recaptureHeld);
     let last: DrainOutcome = { outcome: 'idle' }; let diagnosed = false;
     const deadline = now() + (options.drainBudgetMilliseconds ?? 20_000);
     try { for (let count = 0; count < MAX_DRAIN_OPERATIONS; count += 1) {
