@@ -23,6 +23,11 @@ export async function mockOwnerLibrary(page: Page): Promise<void> {
     account: { id: 'acc-1', email: 'owner@colp.test' },
     profile: { id: 'prof-1', handle: 'owner', displayName: 'Owner', avatarUrl: null },
   }))
+  // The account's one library is col-1, so the desk loads no other tree.
+  await page.route('**/api/v1/me/library', (route) => json(route, {
+    id: collection.id, title: collection.title, rootNodeId: collection.rootNodeId, library: true,
+    bookmarksBarId: 'bar-1', otherBookmarksId: 'other-1',
+  }))
   await page.route('**/api/v1/collections', (route) => json(route, {
     items: [{ collection, capabilities, bookmarkCount: 1 }],
     page: { returnedCount: 1, hasMore: false, nextCursor: null },
