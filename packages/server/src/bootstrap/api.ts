@@ -513,6 +513,7 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
       syncEffectPageRoutes: syncRuntime.effectPages,
       syncAckRoutes: syncRuntime.ack,
       syncRetireRoutes: syncRuntime.retire,
+      extensionReplicaHealthRoutes: syncRuntime.health,
       extensionCollectionRoutes: {
         libraryCollectionUnitOfWork: ports.libraryCollectionUnitOfWork,
         credentialVerifier: syncRuntime.session.credentialVerifier,

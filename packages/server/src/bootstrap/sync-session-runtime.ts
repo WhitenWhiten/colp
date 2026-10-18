@@ -13,6 +13,7 @@ import {
   createPostgresSyncAckApplication,
   createPostgresSyncRecoveryApplication,
   createPostgresReplicaRetirementApplication,
+  createPostgresReplicaHealthRecorder,
   isJoseSyncCredentialRevoked,
   createSyncRecoveryCapabilityKeyring,
   createSyncPullCursorKeyring,
@@ -184,6 +185,7 @@ export function createSyncSessionRuntime(
     maxLeaseLifetimeSeconds: config.ack.maxLeaseLifetimeSeconds,
   });
   const retirement = createPostgresReplicaRetirementApplication(database.db);
+  const replicaReports = createPostgresReplicaHealthRecorder(database.db);
   const recoveryTelemetry = overrides.telemetryLogger
     ? createSyncServerTelemetry({ metrics, logger: overrides.telemetryLogger }) : undefined;
   const effectPageAuthority = overrides.effectPageOrigin;
@@ -313,6 +315,7 @@ export function createSyncSessionRuntime(
       allowedOrigins: config.allowedOrigins, rateLimit: config.ack.rateLimit,
       maxBodyBytes: config.ack.maxBodyBytes, maxWarnings: config.ack.maxWarnings,
       maxWarningBytes: config.ack.maxWarningBytes,
+      warnings: replicaReports,
       allowInsecureLoopback: config.allowInsecureLoopback,
       trustedIngress,
     }),
@@ -324,6 +327,11 @@ export function createSyncSessionRuntime(
       rateLimit: config.retire.rateLimit,
       allowInsecureLoopback: config.allowInsecureLoopback,
       trustedIngress,
+    }),
+    health: Object.freeze({
+      credentialVerifier,
+      recorder: replicaReports,
+      allowedOrigins: config.allowedOrigins,
     }),
     destroy: () => {
       destroySyncSessionRuntimeKeys(pullCursorKeys, pullLineageKeys);

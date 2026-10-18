@@ -21,6 +21,7 @@ async function start(options: {
   readonly maxBodyBytes?: number;
   readonly maxWarnings?: number;
   readonly maxWarningBytes?: number;
+  readonly warnings?: Parameters<typeof registerSyncAckRoutes>[1]['warnings'];
 } = {}) {
   const calls: SyncAckApplicationInput[] = [];
   const app = Fastify({ logger: false });
@@ -30,6 +31,7 @@ async function start(options: {
     maxBodyBytes: options.maxBodyBytes ?? 16_384,
     maxWarnings: options.maxWarnings ?? 8,
     maxWarningBytes: options.maxWarningBytes ?? 2_048,
+    ...(options.warnings ? { warnings: options.warnings } : {}),
     credentialVerifier: { async verify({ authorization }) {
       if (authorization !== AUTHORIZATION) throw new Error('denied');
       return mintVerifiedExtensionCredentialFixture({ issuer: 'https://issuer.example', audience: 'known-api',
@@ -84,6 +86,24 @@ test('authenticates before parsing attacker JSON and returns strict private sync
   assert.equal(createValidatorRegistry().validate('syncAckResult', body).valid, true);
   assert.deepEqual(body, { replicaId: 'ack-replica', ackedCursor: 'ack-cursor',
     ackedAt: '2026-07-26T12:00:00.000Z' });
+});
+
+test('keeps the replica\'s latest Ack warnings after the Ack, and never fails the Ack over them', async () => {
+  const recorded: unknown[] = []; let fail = false;
+  const server = await start({ warnings: { async recordAckWarnings(input) {
+    recorded.push(input); if (fail) throw new Error('reports unavailable');
+  } } });
+  const warnings = [{ code: 'separator_omitted', message: 'Separators stay on the server.' }];
+  const body = JSON.stringify({ sessionId: 'ack-session', cursor: 'ack-cursor', warnings });
+  assert.equal((await ack(server.origin, { body })).status, 200);
+  assert.deepEqual(recorded, [{ replicaId: 'ack-replica', warnings }]);
+  fail = true;
+  assert.equal((await ack(server.origin, { key: 'ack-key-2', body })).status, 200);
+  // A denied Ack records nothing.
+  const denied = await start({ acknowledge: async () => { throw new SyncAckError('stale_replica'); },
+    warnings: { async recordAckWarnings(input) { recorded.push(input); } } });
+  assert.notEqual((await ack(denied.origin, { body })).status, 200);
+  assert.equal(recorded.length, 2);
 });
 
 test('requires raw singleton auth/origin/content-type/idempotency headers', async () => {

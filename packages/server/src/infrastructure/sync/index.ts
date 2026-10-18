@@ -20,6 +20,7 @@ export {
   type JoseSyncCredentialRevocationQuery,
 } from './postgres/sync-jose-credential-revocation-postgres.js';
 export * from './sync-retire-postgres.js';
+export * from './replica-health-postgres.js';
 export * from './product-sync-center-postgres.js';
 export * from './sync-operations-telemetry-postgres.js';
 export { defaultProductionServerBudget, defaultServerTransportBudget } from './sync-transport-budget.js';

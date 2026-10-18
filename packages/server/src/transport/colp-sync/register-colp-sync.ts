@@ -14,6 +14,7 @@ import { registerSyncEffectPageRoutes } from './sync-effect-page-routes.js';
 import { registerSyncAckRoutes } from './sync-ack-routes.js';
 import { registerSyncRetireRoutes } from './sync-retire-routes.js';
 import { registerExtensionCollectionRoutes } from './extension-collection-routes.js';
+import { registerExtensionReplicaHealthRoutes } from './extension-replica-health-routes.js';
 import { registerSyncFaviconHelperRoutes } from './sync-favicon-helper-routes.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 import type { SyncAdmissionPolicy } from '../../infrastructure/rate-limit/index.js';
@@ -105,6 +106,7 @@ export function registerColpSync(app: FastifyInstance, deps: AppDependencies): v
     syncAckRoutes,
     syncRetireRoutes,
     extensionCollectionRoutes,
+    extensionReplicaHealthRoutes,
   } = deps;
   if ((config.syncSession || extensionCollectionRoutes) && config.syncRateLimit.shared.enabled && syncColpRateLimiter === undefined) {
     throw new Error(
@@ -222,6 +224,10 @@ export function registerColpSync(app: FastifyInstance, deps: AppDependencies): v
   });
   if (extensionCollectionRoutes) registerExtensionCollectionRoutes(app, {
     ...withAdmission(extensionCollectionRoutes, syncAdmissionPolicy),
+    transportSecurity: extensionTransportSecurity,
+  });
+  if (extensionReplicaHealthRoutes) registerExtensionReplicaHealthRoutes(app, {
+    ...withAdmission(extensionReplicaHealthRoutes, syncAdmissionPolicy),
     transportSecurity: extensionTransportSecurity,
   });
   // FO-04: the four extension favicon helper operations under /colp/v0.1/sync.

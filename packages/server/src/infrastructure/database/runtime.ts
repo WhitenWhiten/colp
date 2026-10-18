@@ -78,6 +78,7 @@ export interface DatabaseSchema extends AutomationDatabaseSchema, BookmarkSubscr
   sync_replica_id_ledger: SyncReplicaIdLedgerTable;
   sync_replica_generations: SyncReplicaGenerationTable;
   sync_replicas: SyncReplicaTable;
+  sync_replica_reports: SyncReplicaReportTable;
   sync_extension_credentials: SyncExtensionCredentialTable;
   sync_sessions: SyncSessionTable;
   sync_session_scopes: SyncSessionScopeTable;
@@ -989,6 +990,22 @@ export interface SyncReplicaTable {
   retired_at: Date | null;
   lifecycle_revision: Generated<bigint>;
   wire_json: Record<string, unknown>;
+}
+
+/** What a replica last reported about itself (202611010200_sync_replica_reports). */
+export interface SyncReplicaReportTable {
+  replica_id: string;
+  account_id: string;
+  health_state: 'syncing' | 'degraded' | 'stopped' | 'paused' | null;
+  health_code: string | null;
+  health_since: Date | null;
+  health_revision: bigint | null;
+  health_reported_at: Date | null;
+  issue_total: number | null;
+  issues: unknown[] | null;
+  extension_version: string | null;
+  ack_warnings: unknown[] | null;
+  ack_warnings_at: Date | null;
 }
 
 export interface SyncPullCursorEvidenceTable {

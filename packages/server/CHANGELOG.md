@@ -6,6 +6,7 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ### Added
 
+- Browsers report their own sync health to the server. `POST /colp/v0.1/sync/replica-health` (extension origin, Sync credential, no Session) stores a replica's state (`syncing`, `degraded`, `stopped`, `paused`), its reason code and up to 50 set-aside issues; an older revision never replaces a newer one, and a report renews no lease and moves no cursor. Issue titles that look like a URL, credential or browser id are dropped. Successful Acks also keep the replica's latest `warnings`, which were validated and discarded before. Apply migration `202611010200_sync_replica_reports` before deploying.
 - The Sync center tells when a browser stops taking in changes, without any report from the browser. `GET /api/v1/sync/status` adds optional `activity` (`current`, `behind`, `stalled`, `silent`; `null` when retired) and `behindSince` to each replica, from the oldest Sync stream change past its acknowledged checkpoint. A browser that has missed changes for an hour shows as Not syncing, with whether it still connects.
 - Profile avatar uploads work without object storage: when no `AVATAR_R2_*` bucket is configured, avatar images are stored in PostgreSQL (`avatar_object_bytes`) and included in database backups. Apply migration `202611010100_avatar_object_bytes` before deploying. A plain-HTTP origin answers `POST /api/v1/me/avatar` with `503` and says avatars need HTTPS, instead of failing as an invalid avatar URL.
 

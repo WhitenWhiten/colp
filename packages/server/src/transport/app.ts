@@ -126,6 +126,7 @@ import { registerSyncEffectPageRoutes, type SyncEffectPageRouteDependencies } fr
 import { registerSyncAckRoutes, type SyncAckRouteDependencies } from './colp-sync/sync-ack-routes.js';
 import { registerSyncRetireRoutes, type SyncRetireRouteDependencies } from './colp-sync/sync-retire-routes.js';
 import { EXTENSION_LIBRARY_PATH, EXTENSION_COLLECTIONS_PATH, registerExtensionCollectionRoutes, type ExtensionCollectionRouteDependencies } from './colp-sync/extension-collection-routes.js';
+import { EXTENSION_REPLICA_HEALTH_PATH } from './colp-sync/extension-replica-health-routes.js';
 import { registerSearchRoutes, type SearchProductQuery } from './product/search-routes.js';
 import { registerMcpProtectedResourceRoutes } from './mcp/mcp-protected-resource-routes.js';
 import { registerMcpReadRoutes, type McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
@@ -235,6 +236,7 @@ export function buildApiApp(input: AppDependencies) {
   syncAckRoutes,
   syncRetireRoutes,
   extensionCollectionRoutes,
+  extensionReplicaHealthRoutes,
   productSyncCenterUnitOfWork,
   syncConflictsCapabilityReadiness,
   followRateLimiter,
@@ -457,9 +459,11 @@ export function buildApiApp(input: AppDependencies) {
       && config.betterAuth.enabled
       && requestPath.startsWith(config.betterAuth.basePath)
       && config.betterAuth.trustedOrigins.includes(origin);
-    const collectionsOrigin = (requestPath === EXTENSION_COLLECTIONS_PATH || requestPath === EXTENSION_LIBRARY_PATH)
+    const collectionsOrigin = ((requestPath === EXTENSION_COLLECTIONS_PATH || requestPath === EXTENSION_LIBRARY_PATH)
       && typeof origin === 'string'
-      && extensionCollectionRoutes?.allowedOrigins.includes(origin.replace(/\/$/u, '')) === true;
+      && extensionCollectionRoutes?.allowedOrigins.includes(origin.replace(/\/$/u, '')) === true)
+      || (requestPath === EXTENSION_REPLICA_HEALTH_PATH && typeof origin === 'string'
+        && extensionReplicaHealthRoutes?.allowedOrigins.includes(origin.replace(/\/$/u, '')) === true);
     const syncOrigin = (requestPath === syncSessionRoutes?.path || requestPath === syncSnapshotRoutes?.path
       || requestPath === syncPushRoutes?.path
       || requestPath === syncPullRoutes?.path

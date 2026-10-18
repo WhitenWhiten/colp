@@ -6,7 +6,7 @@ import { endpointContracts } from '@know-n/colp/semantic';
 import { createPublicationProblemDescriptor, parseIJson } from '@know-n/colp/server';
 import type { SyncAckRequest } from '@know-n/colp/types';
 import type { ExtensionCredentialEvidencePort, VerifiedExtensionCredential } from '../../modules/identity/index.js';
-import { SyncAckError, type SyncAckApplication } from '../../modules/sync/index.js';
+import { SyncAckError, type ReplicaHealthRecorder, type SyncAckApplication } from '../../modules/sync/index.js';
 import { DatabaseOperationError } from '../../infrastructure/database/errors.js';
 import {
   resolveSyncAdmissionPolicy,
@@ -28,6 +28,8 @@ export interface SyncAckRouteDependencies {
   readonly maxBodyBytes: number;
   readonly maxWarnings: number;
   readonly maxWarningBytes: number;
+  /** Keeps the replica's latest Ack warnings for the Sync center; best effort after the Ack commits. */
+  readonly warnings?: Pick<ReplicaHealthRecorder, 'recordAckWarnings'>;
   readonly allowInsecureLoopback?: boolean;
   /** Explicit TRUSTED_INGRESS allowlist (FIX-M-008): forwarded TLS evidence is accepted only from allowlisted socket peers. */
   readonly trustedIngress?: readonly string[];
@@ -136,6 +138,8 @@ export function registerSyncAckRoutes(app: FastifyInstance, dependencies: SyncAc
         if (!validators.validate('syncAckResult', result).valid || result.ackedCursor !== ack.cursor) {
           throw new SyncAckHttpError('internal_error');
         }
+        await dependencies.warnings?.recordAckWarnings({ replicaId: result.replicaId, warnings: ack.warnings })
+          .catch(() => request.log.warn({ event: 'sync_ack_warnings_unrecorded' }, 'sync Ack warnings not recorded'));
         return reply.code(200).header('Cache-Control', 'private, no-store').type('application/json').send(result);
       } catch (error) {
         const normalized = normalizeError(error);

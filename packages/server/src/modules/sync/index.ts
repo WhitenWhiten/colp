@@ -19,6 +19,7 @@ export * from './application/sync-pull.js';
 export * from './application/sync-ack.js';
 export * from './domain/sync-recovery-capability.js';
 export * from './sync-retire.js';
+export * from './replica-health.js';
 export * from './product-sync-center.js';
 export * from './product-sync-trash.js';
 export * from './sync-profile-claim-gate.js';

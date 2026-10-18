@@ -85,6 +85,10 @@ describe('Sync session runtime composition', () => {
     assert.equal(runtime.pull.path, config.pull.path);
     assert.equal(runtime.ack.path, config.ack.path);
     assert.equal(runtime.retire.path, config.retire.path);
+    // Health reports use the same credential authority and origins as Ack, and Ack keeps warnings.
+    assert.equal(runtime.health.credentialVerifier, runtime.ack.credentialVerifier);
+    assert.deepEqual(runtime.health.allowedOrigins, config.allowedOrigins);
+    assert.equal(runtime.ack.warnings, runtime.health.recorder);
     assert.equal(runtime.pull.snapshotUrl, 'https://known.example/api/v1/sync/snapshot');
     assert.deepEqual(runtime.session.trustedIngress, ['127.0.0.1']);
     // The injected structured logger reaches the push route so unexpected

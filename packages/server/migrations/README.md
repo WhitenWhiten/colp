@@ -7,6 +7,14 @@ Migrations follow expand/contract deployment order: add backward-compatible stru
 deploy readers and writers, validate/backfill, then remove obsolete structures in a later
 release. A migration must not make the currently deployed reader unable to start.
 
+## Sync replica reports
+
+Apply `202611010200_sync_replica_reports` before deploying the API. The additive
+table keeps what each replica last reported about itself: the extension's health
+report (state, reason, set-aside issues) and the latest Ack `warnings`. Neither
+touches lease, cursor or lifecycle authority. Previous binaries ignore the table;
+dropping it only loses the reports until each browser reports again.
+
 ## Avatar object bytes
 
 Apply `202611010100_avatar_object_bytes` before deploying the API. The additive

@@ -64,6 +64,7 @@ import type { SyncEffectPageRouteDependencies } from './colp-sync/sync-effect-pa
 import type { SyncAckRouteDependencies } from './colp-sync/sync-ack-routes.js';
 import type { SyncRetireRouteDependencies } from './colp-sync/sync-retire-routes.js';
 import type { ExtensionCollectionRouteDependencies } from './colp-sync/extension-collection-routes.js';
+import type { ExtensionReplicaHealthRouteDependencies } from './colp-sync/extension-replica-health-routes.js';
 import type { SearchProductQuery } from './product/search-routes.js';
 import type { ProductSyncCenterUnitOfWork, SyncConflictKeyringReadiness } from '../modules/sync/index.js';
 import type {
@@ -263,6 +264,8 @@ export interface AppDependencies {
   readonly syncRetireRoutes?: SyncRetireRouteDependencies;
   /** Extension-only "my collections" list surface (bearer + T10 owned-collections query). */
   readonly extensionCollectionRoutes?: ExtensionCollectionRouteDependencies;
+  /** Extension-only replica health reports for the Sync center (bearer, no Session). */
+  readonly extensionReplicaHealthRoutes?: ExtensionReplicaHealthRouteDependencies;
   readonly productSyncCenterUnitOfWork?: ProductSyncCenterUnitOfWork;
   /** FIX-M-011 (SYNC-R06): versioned Conflict keyring gate (/ready/features/sync-conflicts). */
   readonly syncConflictsCapabilityReadiness?: () => Promise<SyncConflictKeyringReadiness>;

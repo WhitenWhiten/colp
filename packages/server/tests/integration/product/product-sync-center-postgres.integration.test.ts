@@ -10,6 +10,7 @@ import { createPostgresIdentityUnitOfWork } from '../../../src/infrastructure/id
 import { createPostgresCanonicalMutationUnitOfWork, createPostgresCollectionsUnitOfWork } from '../../../src/infrastructure/collections/index.js';
 import {
   createPostgresProductSyncCenterUnitOfWork,
+  createPostgresReplicaHealthRecorder,
   createPostgresReplicaLifecycleService,
   createPostgresReplicaStore,
   createPostgresSyncConflictKeyringReadiness,
@@ -21,6 +22,7 @@ import {
 import { createPostgresBetterAuthTestFactory, issueTestSession } from '../../support/better-auth-test-factory.js';
 import { buildApiApp } from '../../../src/transport/app.js';
 import { registerSyncPushRoutes } from '../../../src/transport/colp-sync/sync-push-routes.js';
+import { EXTENSION_REPLICA_HEALTH_PATH, registerExtensionReplicaHealthRoutes } from '../../../src/transport/colp-sync/extension-replica-health-routes.js';
 import { syncNodeDeletePushRequest } from '../../fixtures/phase3/sync-node-delete.js';
 import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-update.js';
 import { mintVerifiedExtensionCredentialFixture } from '../../support/extension-credential.js';
@@ -657,6 +659,88 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       assert.deepEqual((await read()).get(lagging.replica.replicaId), ['silent', agedAt]);
       assert.deepEqual((await read()).get(current.replica.replicaId), ['current', null]);
     } finally { await api.close(); }
+  }, 120_000);
+
+  test('stores replica health reports by credential alone, newest revision wins, and renews nothing', async () => {
+    const api = productApp();
+    const health = Fastify({ logger: false });
+    try {
+      const owner = await login(`p3-health-owner-${randomUUID()}`);
+      const outsider = await login(`p3-health-outsider-${randomUUID()}`);
+      const owned = await createCollectionAndNode(api, owner, 'Health sync');
+      const other = await createCollectionAndNode(api, outsider, 'Other health sync');
+      const reporting = await syncContext(owner, owned.collectionId, 'Reporting');
+      const retiring = await syncContext(owner, owned.collectionId, 'Retiring');
+      const foreign = await syncContext(outsider, other.collectionId, 'Foreign');
+      const credentials = new Map([['Bearer owner-health', reporting.credential], ['Bearer outsider-health', foreign.credential]]);
+      const recorder = createPostgresReplicaHealthRecorder(runtime.db);
+      registerExtensionReplicaHealthRoutes(health, {
+        credentialVerifier: { async verify({ authorization }) {
+          const credential = credentials.get(authorization ?? '');
+          if (!credential) throw new Error('invalid credential');
+          return credential;
+        } },
+        recorder, allowedOrigins: [EXTENSION_ORIGIN],
+      });
+      const post = (authorization: string, body: Record<string, unknown>) => health.inject({ method: 'POST',
+        url: EXTENSION_REPLICA_HEALTH_PATH, payload: body,
+        headers: { authorization, origin: EXTENSION_ORIGIN, 'content-type': 'application/json' } });
+      const report = (replicaId: string, revision: number, state: string, extra: Record<string, unknown> = {}) => ({
+        replicaId, revision, state, since: '2026-10-17T10:00:00.000Z', issues: { total: 0, items: [] }, ...extra });
+      const authority = async (replicaId: string) => (await runtime.pool.query(`select lease_expires_at,last_seen_at,
+        checkpoint_cursor,checkpoint_commit_ordinal::text,lifecycle_revision::text,status,lease_generation::text
+        from sync_replicas where replica_id=$1`, [replicaId])).rows[0];
+      const stored = async (replicaId: string) => (await runtime.pool.query(`select health_state,health_code,
+        health_revision::text,issue_total,issues,ack_warnings from sync_replica_reports where replica_id=$1`,
+      [replicaId])).rows[0];
+      const before = await authority(reporting.replica.replicaId);
+
+      const stopped = await post('Bearer owner-health', report(reporting.replica.replicaId, 200, 'stopped', {
+        code: 'create_placement_unproven', issues: { total: 3, items: [
+          { issueId: 'issue-a', code: 'create_placement_unproven', direction: 'local', title: 'Recipes', count: 2,
+            firstSeenAt: '2026-10-17T10:00:00.000Z', lastSeenAt: '2026-10-17T10:05:00.000Z', actions: ['retry'] },
+          { issueId: 'issue-b', code: 'record_invalid', direction: 'pull', nodeId: owned.node.id,
+            title: 'My secret list', count: 1, firstSeenAt: '2026-10-17T10:00:00.000Z',
+            lastSeenAt: '2026-10-17T10:00:00.000Z', actions: [] },
+        ] } }));
+      assert.equal(stopped.statusCode, 200, stopped.body);
+      assert.deepEqual(stopped.json(), { replicaId: reporting.replica.replicaId, revision: 200, accepted: true });
+      const first = await stored(reporting.replica.replicaId);
+      assert.deepEqual([first.health_state, first.health_code, first.health_revision, first.issue_total],
+        ['stopped', 'create_placement_unproven', '200', 3]);
+      assert.deepEqual((first.issues as Array<{ title?: string }>).map((issue) => issue.title), ['Recipes', undefined]);
+
+      // An older revision, delivered late, never replaces the newer report.
+      const late = await post('Bearer owner-health', report(reporting.replica.replicaId, 100, 'syncing'));
+      assert.deepEqual(late.json(), { replicaId: reporting.replica.replicaId, revision: 200, accepted: false });
+      assert.equal((await stored(reporting.replica.replicaId)).health_state, 'stopped');
+      const resumed = await post('Bearer owner-health', report(reporting.replica.replicaId, 300, 'syncing'));
+      assert.equal(resumed.json().accepted, true);
+      assert.deepEqual([(await stored(reporting.replica.replicaId)).health_state,
+        (await stored(reporting.replica.replicaId)).health_code], ['syncing', null]);
+      // A report is a display fact: no lease, cursor or lifecycle moves.
+      assert.deepEqual(await authority(reporting.replica.replicaId), before);
+
+      // Only the credential's own account may report, and never for a retired replica.
+      assert.equal((await post('Bearer outsider-health', report(reporting.replica.replicaId, 400, 'syncing'))).statusCode, 404);
+      assert.equal((await post('Bearer owner-health', report(foreign.replica.replicaId, 400, 'syncing'))).statusCode, 404);
+      assert.equal((await post('Bearer nobody', report(reporting.replica.replicaId, 400, 'syncing'))).statusCode, 401);
+      const retire = await api.inject({ method: 'DELETE', url: `/api/v1/sync/replicas/${retiring.replica.replicaId}`,
+        headers: { ...mutation(owner, randomUUID()), 'if-match': `"${retiring.replica.lifecycleRevision}"` } });
+      assert.equal(retire.statusCode, 200, retire.body);
+      assert.equal((await post('Bearer owner-health', report(retiring.replica.replicaId, 400, 'syncing'))).statusCode, 410);
+      assert.equal(await stored(retiring.replica.replicaId), undefined);
+
+      // Ack warnings are kept apart from health; an empty list clears them.
+      await recorder.recordAckWarnings({ replicaId: foreign.replica.replicaId,
+        warnings: [{ code: 'separator_omitted', message: 'Separators are not materialized.' }] });
+      const warned = await stored(foreign.replica.replicaId);
+      assert.equal(warned.health_state, null);
+      assert.deepEqual(warned.ack_warnings, [{ code: 'separator_omitted', message: 'Separators are not materialized.' }]);
+      await recorder.recordAckWarnings({ replicaId: reporting.replica.replicaId, warnings: [] });
+      const both = await stored(reporting.replica.replicaId);
+      assert.deepEqual([both.health_state, both.ack_warnings], ['syncing', []]);
+    } finally { await health.close(); await api.close(); }
   }, 120_000);
 
   test('uses the production owner/open Conflict keyset index', async () => {
