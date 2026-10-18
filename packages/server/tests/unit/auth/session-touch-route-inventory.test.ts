@@ -480,6 +480,7 @@ const SESSION_GATED_GET_GOLD = [
   '/api/v1/me/agents/:id/audit',
   '/api/v1/me/bookmark-preferences',
   '/api/v1/me/collaboration-invites',
+  '/api/v1/me/favicon-jobs',
   '/api/v1/me/favicon-jobs/:jobId',
   '/api/v1/me/favicon-policy',
   '/api/v1/me/library',
