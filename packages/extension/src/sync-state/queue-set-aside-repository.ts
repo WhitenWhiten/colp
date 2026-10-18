@@ -1,3 +1,4 @@
+import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import type { RecaptureQueueRow } from '../queue-recapture.js';
 import { recapturedOperationDigest } from '../queue-recapture.js';
 import { validateOperation } from '../bookmark-event-codec.js';
@@ -31,7 +32,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
     ctx.assertWritable(); const key = scopeKey(validateScope(input)); boundedString(code, 'recovery code');
     for (const sequence of sequences) safeInteger(sequence, 'sequence', 1);
     const db = await ctx.writableDatabase(); const held: QueueOperation[] = [];
-    await runTransaction(db, [STORES.scopes, STORES.queue], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.queue], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const queue = tx.objectStore(STORES.queue);
       for (const sequence of [...new Set(sequences)].sort((left, right) => left - right)) {
@@ -72,10 +73,11 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
     return releaseRecaptured(input, async (queue, key) => {
       const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
       const dependent = (row: QueueOperation) => row.status === 'set_aside' && DEPENDENT_HOLDS.has(row.recovery?.code ?? '');
+      const graph = await transactionIssueDependencies(queue, key);
       const kept = holders.filter((row) => !dependent(row)); const released: QueueOperation[] = [];
       for (const row of holders) {
         if (!dependent(row)) continue;
-        if (heldBy(row, kept)) kept.push(row); else released.push(row);
+        if (heldBy(row, kept, graph)) kept.push(row); else released.push(row);
       }
       return released;
     }, recapture);
@@ -91,7 +93,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
     code: string): Promise<void> {
     ctx.assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(sequence, 'sequence', 1);
     boundedString(ownerId, 'ownerId'); safeInteger(fence, 'fence', 1); boundedString(code, 'recovery code');
-    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.leases, STORES.queue], 'readwrite', async (tx) => {
+    await runTransaction(await ctx.writableDatabase(), [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       const queue = tx.objectStore(STORES.queue);
@@ -109,14 +111,14 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
     pick: (queue: IDBObjectStore, key: string) => Promise<QueueOperation[]>,
     recapture?: RecaptureQueueRow): Promise<QueueOperation[]> {
     ctx.assertWritable(); const key = scopeKey(validateScope(input)); const db = await ctx.writableDatabase();
-    const read = db.transaction(STORES.queue, 'readonly'); const completion = transactionDone(read);
+    const read = db.transaction([STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readonly'); const completion = transactionDone(read);
     const picked = await pick(read.objectStore(STORES.queue), key); await completion;
     if (picked.length === 0) return [];
     if (!recapture) throw new SyncStateError('recapture_required');
     const plans: { row: QueueOperation; capture: Awaited<ReturnType<RecaptureQueueRow>> }[] = [];
     for (const row of picked) plans.push({ row, capture: await recapture(row) });
     const released: QueueOperation[] = [];
-    await runTransaction(db, [STORES.scopes, STORES.queue, STORES.sequences, STORES.mappings,
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.queue, STORES.sequences, STORES.mappings,
       STORES.bookmarkEvents, STORES.metadata], 'readwrite', async tx => {
       await requireActiveScope(tx, key); const queue = tx.objectStore(STORES.queue);
       const sequences = tx.objectStore(STORES.sequences);

@@ -1,3 +1,4 @@
+import { readOpenSyncIssues, issueAncestry, dependsOnIssue } from './sync-issues.js';
 import type { SyncPullEventV02, Warning } from '@know-n/colp/types';
 import type { PullApplierOptions, PullNode } from './pull-applier-types.js';
 import { mappingFor } from './pull-projection.js';
@@ -30,7 +31,7 @@ function subjectOf(event: OpEvent): Subject | null {
   if (effect.kind === 'node_created' || effect.kind === 'node_restored' || effect.kind === 'node_moved') {
     return { nodeId: effect.node.id, parentId: effect.placement.parentId, node: effect.node };
   }
-  if (effect.kind === 'node_content_updated') return { nodeId: effect.node.id, node: effect.node };
+  if (effect.kind === 'node_content_updated') return { nodeId: effect.node.id, parentId: effect.node.parentId ?? undefined, node: effect.node };
   if (effect.kind === 'node_deleted') return { nodeId: effect.tombstone.targetId, deleted: remoteDeleteMemberIds(event) };
   if (effect.kind === 'subtree_deleted') {
     return { nodeId: effect.rootTombstone.targetId, deleted: [effect.rootTombstone.targetId, ...remoteDeleteMemberIds(event)] };
@@ -59,12 +60,19 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     await options.store.setAsidePullEvent(options.scope, eventId, { code: self.code, nodeId: self.nodeId, now });
     return true;
   }
-  if (subject.parentId !== undefined && open.has(subject.parentId)) {
+  if (!subject.deleted) {
+    const issues = await readOpenSyncIssues(options.store, options.scope);
+    const mappings = await options.store.listMappings(options.scope);
+    const nativeRoots = new Set(mappings.filter(row => issues.nativeRoots.has(row.nativeId)).map(row => row.colpId));
+    const roots = new Set([...issues.roots, ...nativeRoots]);
+    const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : [])];
+    if (dependsOnIssue(targets, roots, issueAncestry(mappings, issues.queue))) {
     assertBelowCeiling(open);
     // Its folder is not in this browser, so it has nowhere to go; it waits as its own item.
     await options.store.setAsidePullEvent(options.scope, eventId, { code: 'parent_set_aside', nodeId: subject.nodeId,
       now, ...(title ? { title } : {}) });
     return true;
+    }
   }
   if (!node || (node.kind !== 'bookmark' && node.kind !== 'folder')) return false;
   try {

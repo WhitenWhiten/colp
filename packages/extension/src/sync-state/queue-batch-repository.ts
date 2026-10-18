@@ -1,3 +1,4 @@
+import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import type { SyncStoreRuntime } from './runtime.js';
 import { SyncStateError, type LeaseRecord, type QueueOperation, type SyncScope } from './types.js';
 import { clone, safeInteger } from './codec.js';
@@ -14,7 +15,7 @@ export function createQueueBatchRepository(ctx: SyncStoreRuntime) {
     const key = scopeKey(validateScope(input)); safeInteger(limit, 'limit', 1);
     if (limit > 49) throw new SyncStateError('limit_exceeded');
     const db = await ctx.writableDatabase(); const claimed: QueueOperation[] = [];
-    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.importPlans,
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.importPlans,
       STORES.importNodes], 'readwrite', async (tx) => {
         await requireActiveScope(tx, key);
         const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
@@ -28,13 +29,14 @@ export function createQueueBatchRepository(ctx: SyncStoreRuntime) {
         const unavailable = await unavailableImportOpIds(tx, key);
         // A change waiting for a conflict or a held item is never batched; the next single claim holds it.
         const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
+        const graph = await transactionIssueDependencies(queue, key);
         const rows = await cursorPage<QueueOperation>(queue.index(INDEXES.queueBySequence),
           IDBKeyRange.bound([key, sequence + 1], [key, Number.MAX_SAFE_INTEGER]), limit);
         for (const raw of rows) {
           const row = validateQueueRecord(raw, ctx.maxRecordBytes);
           if (row.sequence !== sequence + claimed.length + 1 || row.status !== 'pending'
               || row.attempt || row.retry.attempt !== 0 || row.retry.notBefore > now
-              || unavailable.has(row.opId) || heldBy(row, holders) || !eligible(row)) break;
+              || unavailable.has(row.opId) || heldBy(row, holders, graph) || !eligible(row)) break;
           const updated = validateQueueRecord({ ...row, status: 'claimed', retry: { ...row.retry,
             ownerId, fence, claimExpiresAt: lease.expiresAt } }, ctx.maxRecordBytes);
           queue.put(updated); claimed.push(updated);

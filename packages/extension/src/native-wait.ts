@@ -1,3 +1,4 @@
+import { projectUnresolvedNativeWait } from './native-wait-open.js';
 /**
  * Unified native-result wait. User choice is confirmation CAS, never a
  * forged Chrome API receipt.
@@ -50,10 +51,8 @@ export async function projectNativeWaits(store: Store, scope: SyncScope): Promis
   const intents = await store.listApplyIntents(scope);
   const waits: NativeWaitProjection[] = [];
   for (const intent of intents) {
-    if (intent.nativeWaitDecision?.action === 'cancel') continue;
-    if (intent.nativeResult !== 'result_unknown' && intent.waitReason !== 'native_result_unknown'
-        && intent.nativeResult !== 'waiting_dependency') continue;
-    if (!await awaitsConfirmation(store, scope, intent)) continue;
+    const event = intent.eventId ? await store.getPullEvent(scope, intent.eventId) : undefined;
+    if (!projectUnresolvedNativeWait(intent, event?.state)) continue;
     const waitRef = intent.nativeResultConfirmation?.code ?? `nwr:${intent.intentId}`;
     const info = await resolveIntentNodeInfo(store, scope, intent);
     waits.push({
@@ -81,12 +80,6 @@ async function resolveIntentNodeInfo(store: Store, scope: SyncScope, intent: Int
     }
   } catch { /* best effort */ }
   return {};
-}
-
-async function awaitsConfirmation(store: Store, scope: SyncScope, intent: IntentRecord): Promise<boolean> {
-  if (!intent.eventId) return true;
-  const event = await store.getPullEvent(scope, intent.eventId);
-  return !event || String(event.state) === 'awaiting_confirmation';
 }
 
 export async function confirmNativeWait(input: ConfirmNativeWaitInput): Promise<ConfirmNativeWaitResult> {

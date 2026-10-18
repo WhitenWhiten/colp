@@ -1,3 +1,4 @@
+import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
 import { firstLaneQueueRow, holdable, holdIfWaiting, holdWaitingRows } from './queue-hold.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt } from './queue-live-work.js';
@@ -58,7 +59,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     if (provisional && (operation.payload.type !== 'create_node' || provisional.colpId !== `pending-${operation.opId}`
         || provisional.projection.revision !== `local-${operation.opId}`)) throw new SyncStateError('provisional_mapping_binding_invalid');
     const db = await writableDatabase(); let committed!: QueueOperation;
-    try { await runTransaction(db, [STORES.scopes, STORES.sequences, STORES.queue, STORES.engine, STORES.mappings, STORES.deletionJournal], 'readwrite', async (tx) => {
+    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.sequences, STORES.queue, STORES.engine, STORES.mappings, STORES.deletionJournal], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const queue = tx.objectStore(STORES.queue);
       const engine = await requestValue(tx.objectStore(STORES.engine).get(key)) as DurableSyncEngineState | undefined;
       if (engine?.recoveryFrozen) throw new SyncStateError('queue_recovery_frozen');
@@ -105,7 +106,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   async function advanceSequenceFloor(input: SyncScope, nextSequence: number): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(nextSequence, 'nextSequence', 1);
     const db = await writableDatabase();
-    await runTransaction(db, [STORES.scopes, STORES.sequences], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.sequences], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const sequences = tx.objectStore(STORES.sequences);
       const counter = await requestValue(sequences.get(key)) as { scopeKey: string; next: number } | undefined;
@@ -116,7 +117,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
 
   async function listQueue(input: SyncScope, status?: QueueOperation['status'], afterSequence = 0, limit = 100): Promise<QueueOperation[]> {
     const key = scopeKey(validateScope(input)); safeInteger(afterSequence, 'afterSequence'); boundedLimit(limit);
-    const db = await open(); const tx = db.transaction(STORES.queue, 'readonly'); const store = tx.objectStore(STORES.queue);
+    const db = await open(); const tx = db.transaction([STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readonly'); const store = tx.objectStore(STORES.queue);
     const completion = transactionDone(tx);
     const source = status ? store.index(INDEXES.queueByStatusSequence) : store.index(INDEXES.queueBySequence);
     if (afterSequence === Number.MAX_SAFE_INTEGER) return [];
@@ -133,7 +134,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
 
   async function getQueueByOpId(input: SyncScope, opId: string): Promise<QueueOperation | null> {
     const key = scopeKey(validateScope(input)); boundedString(opId, 'opId');
-    const db = await open(); const tx = db.transaction(STORES.queue, 'readonly'); const completion = transactionDone(tx);
+    const db = await open(); const tx = db.transaction([STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readonly'); const completion = transactionDone(tx);
     const value = await requestValue(tx.objectStore(STORES.queue).index(INDEXES.queueByOpId).get([key, opId]));
     await completion; return value ? clone(validateQueueRecord(value, maxRecordBytes)) : null;
   }
@@ -149,7 +150,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     faults: FaultOptions = {}): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(sequence, 'sequence', 1);
     const receipt = validateReceipt(key, sequence, receiptInput, maxRecordBytes); const db = await writableDatabase();
-    try { await runTransaction(db, [STORES.scopes, STORES.queue, STORES.receipts, STORES.importPlans, STORES.importNodes],
+    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.queue, STORES.receipts, STORES.importPlans, STORES.importNodes],
       'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const queue = tx.objectStore(STORES.queue);
       const queued = await requestValue(queue.index(INDEXES.queueBySequence).get([key, sequence])) as QueueOperation | undefined;
@@ -172,7 +173,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(sequence, 'sequence', 1);
     boundedString(ownerId, 'ownerId'); safeInteger(fence, 'fence', 1);
     const receipt = validateReceipt(key, sequence, receiptInput, maxRecordBytes); const db = await writableDatabase();
-    try { await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.receipts,
+    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts,
       STORES.importPlans, STORES.importNodes], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       const queue = tx.objectStore(STORES.queue); const queued = await requestValue(
@@ -193,7 +194,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   async function publishCursor(input: SyncScope, cursorInput: { readonly cursor: string; readonly checkpoint: string;
     readonly evidence: { readonly receiptId: string; readonly operationDigest: string } }, faults: FaultOptions = {}): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const cursor = validateCursor(key, cursorInput, maxRecordBytes);
-    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.receipts, STORES.cursors], 'readwrite', async (tx) => {
+    const db = await writableDatabase(); await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.receipts, STORES.cursors], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const receipt = await requestValue(tx.objectStore(STORES.receipts).get([key, cursor.evidence.receiptId]));
       if (!receipt || (receipt as { operationDigest: string }).operationDigest !== cursor.evidence.operationDigest) {
@@ -206,7 +207,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   async function acquireLease(input: SyncScope, ownerId: string, now: number, duration: number) {
     assertWritable(); const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId');
     safeInteger(now, 'now'); safeInteger(duration, 'duration', 1); const db = await writableDatabase(); let result: LeaseResult | undefined;
-    await runTransaction(db, [STORES.scopes, STORES.leases], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const leases = tx.objectStore(STORES.leases);
       const prior = await requestValue(leases.get(key)) as LeaseRecord | undefined;
       if (prior && prior.expiresAt > now && prior.ownerId !== ownerId) {
@@ -223,7 +224,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId');
     safeInteger(fence, 'fence', 1); safeInteger(now, 'now'); safeInteger(duration, 'duration', 1);
     const db = await writableDatabase(); let renewed = false; let expiresAt = 0;
-    await runTransaction(db, [STORES.scopes, STORES.leases], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const leases = tx.objectStore(STORES.leases);
       const lease = await requestValue(leases.get(key)) as LeaseRecord | undefined;
@@ -240,7 +241,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId'); safeInteger(fence, 'fence', 1);
     safeInteger(now, 'now'); boundedLimit(limit);
     const db = await writableDatabase(); const claimed: QueueOperation[] = [];
-    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.importPlans, STORES.importNodes], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.importPlans, STORES.importNodes], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || lease.expiresAt <= now) throw new SyncStateError('stale_fence');
       const unavailableImports = await unavailableImportOpIds(tx, key);
@@ -257,7 +258,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId');
     safeInteger(fence, 'fence', 1); safeInteger(now, 'now'); const db = await writableDatabase();
     let claimed: QueueOperation | null = null;
-    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.importPlans,
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.importPlans,
       STORES.importNodes], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || lease.expiresAt <= now) {
@@ -319,7 +320,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     if (typeof digestOperation !== 'function') throw new SyncStateError('operation_validator_missing');
     const db = await writableDatabase();
     let mode: 'renumber_down' | 'renumber_up' | 'resume_at_expected' | undefined;
-    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.sequences], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.sequences], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       if (!lease || lease.ownerId !== ownerId || lease.fence !== fence || lease.expiresAt <= now) {
@@ -392,7 +393,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(sequence, 'sequence', 1);
     boundedString(ownerId, 'ownerId'); safeInteger(fence, 'fence', 1); const attempt = validatePushAttempt(attemptInput);
     const db = await writableDatabase(); let bound!: QueueOperation;
-    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       const queue = tx.objectStore(STORES.queue); const value = await requestValue(
         queue.index(INDEXES.queueBySequence).get([key, sequence]));
@@ -418,7 +419,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     const payload = validateJson(patch.payload, 'payload') as JsonObject;
     const baseRevision = patch.baseRevision === null ? null : boundedString(patch.baseRevision, 'baseRevision');
     const db = await writableDatabase(); let bound!: QueueOperation;
-    await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
       const queue = tx.objectStore(STORES.queue); const value = await requestValue(
         queue.index(INDEXES.queueBySequence).get([key, sequence]));
@@ -437,7 +438,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(sequence, 'sequence', 1);
     boundedString(ownerId, 'ownerId'); safeInteger(fence, 'fence', 1);
     const settlement = validatePushSettlement(settlementInput, maxRecordBytes); const db = await writableDatabase();
-    try { await runTransaction(db, [STORES.scopes, STORES.leases, STORES.queue, STORES.receipts,
+    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts,
       STORES.mappings, STORES.mounts, STORES.bookmarkEvents, STORES.importPlans, STORES.importNodes, STORES.engine, STORES.bootstrapRuns],
     'readwrite', async (tx) => {
         await requireActiveScope(tx, key); const lease = await requestValue(tx.objectStore(STORES.leases).get(key)) as LeaseRecord | undefined;
@@ -503,7 +504,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   ): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(sequence, 'sequence', 1);
     const db = await writableDatabase();
-    await runTransaction(db, [STORES.scopes, STORES.queue, STORES.receipts, STORES.mappings,
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.queue, STORES.receipts, STORES.mappings,
       STORES.bookmarkEvents, STORES.importPlans, STORES.importNodes, STORES.engine, STORES.bootstrapRuns], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const queue = tx.objectStore(STORES.queue);

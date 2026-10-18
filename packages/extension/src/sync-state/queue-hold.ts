@@ -1,3 +1,5 @@
+import { dependsOnIssue, issueAncestry } from '../sync-issues.js';
+import { transactionIssueDependencies } from './issue-dependencies.js';
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
 import { cursorPage, iterateCursor, requestValue } from './idb.js';
 import { enqueueParentIds, firstLiveQueueRow } from './queue-live-work.js';
@@ -49,14 +51,25 @@ export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordB
 
 /**
  * The holder a later change waits for: one that rewrites the same bookmark,
- * or a create the change places work inside. Siblings, children of an existing
- * folder and unrelated bookmarks keep syncing.
+ * or a create the change places work inside. Existing descendants and destination parents share the closure. Siblings
+ * and unrelated bookmarks keep syncing.
  */
-export function heldBy(row: QueueOperation, holders: readonly QueueOperation[]): QueueOperation | undefined {
+export function heldBy(row: QueueOperation, holders: readonly QueueOperation[], graph?: Awaited<ReturnType<typeof transactionIssueDependencies>>): QueueOperation | undefined {
   const target = row.payload.targetId; const parents = enqueueParentIds(row.payload);
-  return holders.find((holder) => holder.opId !== row.opId
+  const direct = holders.find((holder) => holder.opId !== row.opId
     && ((typeof target === 'string' && (target === holder.payload.targetId || target === `pending-${holder.opId}`))
       || parents.includes(`pending-${holder.opId}`)));
+  if (direct || !graph) return direct;
+  const targets = [...(typeof target === 'string' ? [target] : []), ...parents, ...(graph.operationParents.get(row.opId) ?? [])];
+  const parentMap = new Map([...graph.parents, ...issueAncestry([], holders)]);
+  const deleting = row.payload.type === 'delete_node' || row.payload.type === 'delete_subtree';
+  const affected = (roots: ReadonlySet<string>) => dependsOnIssue(targets, roots, parentMap)
+    || (deleting && typeof target === 'string' && dependsOnIssue([...roots], new Set([target]), parentMap));
+  const holder = holders.find(holder => holder.opId !== row.opId && affected(
+    new Set([String(holder.payload.targetId ?? `pending-${holder.opId}`)])));
+  if (holder) return holder;
+  return affected(graph.roots)
+    ? { ...row, opId: `external-issue:${row.opId}`, status: 'set_aside' } : undefined;
 }
 
 /** Only a change that was never sent can leave the lane. */
@@ -85,7 +98,7 @@ export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: u
   if (!holdable(row)) return row;
   const code = hold && typeof hold === 'object' ? (hold as { readonly code?: unknown }).code : undefined;
   if (typeof code === 'string' && code.length > 0) return asHeld(row, code, maxRecordBytes);
-  const holder = heldBy(row, await laneHolders(queue, key, maxRecordBytes));
+  const holder = heldBy(row, await laneHolders(queue, key, maxRecordBytes), await transactionIssueDependencies(queue, key));
   return holder ? asHeld(row, dependentHold(holder), maxRecordBytes) : row;
 }
 
@@ -97,13 +110,14 @@ export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: u
 export async function holdWaitingRows(queue: IDBObjectStore, key: string, maxRecordBytes: number,
   afterSequence: number): Promise<number> {
   const holders = await laneHolders(queue, key, maxRecordBytes);
-  if (holders.length === 0) return 0;
+  const graph = await transactionIssueDependencies(queue, key);
+  if (holders.length === 0 && graph.roots.size === 0) return 0;
   const pending = await cursorPage<unknown>(queue.index(INDEXES.queueByStatusSequence),
     IDBKeyRange.bound([key, 'pending', afterSequence + 1], [key, 'pending', Number.MAX_SAFE_INTEGER]), Number.MAX_SAFE_INTEGER);
   let held = 0;
   for (const value of pending) {
     const row = validateQueueRecord(value, maxRecordBytes);
-    const holder = holdable(row) ? heldBy(row, holders) : undefined;
+    const holder = holdable(row) ? heldBy(row, holders, graph) : undefined;
     if (!holder) continue;
     const updated = asHeld(row, dependentHold(holder), maxRecordBytes);
     queue.put(updated); holders.push(updated); held += 1;

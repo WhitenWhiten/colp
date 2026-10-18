@@ -35,7 +35,11 @@ export async function readOpenSyncIssues(store: Store, scope: SyncScope): Promis
     if (row.payload.type === 'create_node') roots.add(`pending-${row.opId}`);
   }
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
-  return { queue, pull, local, waits, roots, nativeRoots: new Set(local.map(row => row.nativeId)),
+  const nativeRoots = new Set(local.map(row => row.nativeId));
+  if (nativeRoots.size && store.listMappings) for (const row of await store.listMappings(scope)) {
+    if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
+  }
+  return { queue, pull, local, waits, roots, nativeRoots,
     total: queue.length + pull.length + local.length + waits.length };
 }
 

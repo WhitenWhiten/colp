@@ -91,7 +91,7 @@ describe('C2 a remote record this browser cannot store is one item, not a stop',
   test('past the ceiling of open items the replica stops instead of diverging further', async () => {
     const full = Array.from({ length: 200 }, (_, index) => ({ nodeId: `held-${index}`, code: 'record_too_large',
       eventId: `event-${index}`, count: 1, firstSeenAt: 0, lastSeenAt: 0 }));
-    const options = { scope, store: { listPullIssues: async () => full,
+    const options = { scope, store: { listPullIssues: async () => full, listMappings: async () => [],
       setAsidePullEvent: async () => { throw new Error('must not set aside past the ceiling'); } } };
     await assert.rejects(() => setAsidePullItem(options as unknown as PullApplierOptions, 'event-new',
       create(95, { parentId: 'held-1' }) as never, 0), /pull_issue_ceiling/);

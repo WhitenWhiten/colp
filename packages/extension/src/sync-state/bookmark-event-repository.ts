@@ -1,3 +1,4 @@
+import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { claimIngressDiagnosticSource } from './ingress-diagnostic-source.js';
 import { bootstrapCreateIdentity } from './bootstrap-create-identity.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt,
@@ -82,7 +83,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
     readonly outcome: 'staged' | 'duplicate'; readonly event: BookmarkEventRecord }> {
     assertWritable(); const key = scopeKey(validateScope(input)); const event = validateBookmarkEventInput(eventInput, maxRecordBytes);
     const db = await writableDatabase(); let result!: { outcome: 'staged' | 'duplicate'; event: BookmarkEventRecord };
-    try { await runTransaction(db, [STORES.scopes, STORES.metadata, STORES.bookmarkEvents], 'readwrite', async (tx) => {
+    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.metadata, STORES.bookmarkEvents], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const events = tx.objectStore(STORES.bookmarkEvents);
       const duplicate = await requestValue(events.index(INDEXES.eventByDedupe).get([key, event.dedupeKey])) as
         BookmarkEventRecord | undefined;
@@ -238,7 +239,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
     const hold: { current?: { readonly eventId: string; readonly nativeId: string;
       readonly blocker: QueueOperation } } = {};
     // Atomic authority order: durable_sequences -> outbound_queue -> bookmark_events -> native_mappings.
-    try { await runTransaction(db, [STORES.scopes, STORES.sequences, STORES.queue, STORES.bookmarkEvents,
+    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.sequences, STORES.queue, STORES.bookmarkEvents,
       STORES.mappings, STORES.engine, STORES.bootstrapRuns, STORES.receipts, STORES.remoteObservations], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const events = tx.objectStore(STORES.bookmarkEvents);
       const event = await requestValue(events.get([key, eventId])) as BookmarkEventRecord | undefined;
@@ -346,7 +347,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
     const park = diagnostic.park === undefined ? undefined : validateBookmarkEventPark(diagnostic.park);
     const id = `ingress:${key}:${code}`;
     const db = await writableDatabase();
-    await runTransaction(db, [STORES.scopes, STORES.diagnostics], 'readwrite', async (tx) => {
+    await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.diagnostics], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const diagnostics = tx.objectStore(STORES.diagnostics);
       if (!await claimIngressDiagnosticSource(tx, key, code, options.sourceId)) return;
