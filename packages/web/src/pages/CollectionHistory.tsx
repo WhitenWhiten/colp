@@ -268,7 +268,7 @@ export function CollectionHistory() {
     return (
       <PageShell variant="grid" data-testid="collection-history-flag-off">
         <EmptyState
-          icon="folder"
+          icon="refresh"
           titleAs="h1"
           title="Collection history is not available yet"
           description={libraryFeatureUnavailable('collection version history')}
@@ -296,8 +296,9 @@ export function CollectionHistory() {
         variant="workbench"
         breadcrumb={
           <Breadcrumb
+            // The library's root already is the Library: name it once.
             items={[
-              { label: 'Library', to: '/library' },
+              ...(library ? [] : [{ label: 'Library', to: '/library' }]),
               { label: title, to: `/library/${collectionId}` },
               { label: 'History' },
             ]}
@@ -326,21 +327,21 @@ export function CollectionHistory() {
       {route.status === 'auth' ? (
         <RouteState
           kind="auth"
-          icon="folder"
+          icon="refresh"
           title="Sign in to see this collection's history"
           description="You need to be signed in to view collection history."
         />
       ) : route.status === 'unavailable' ? (
         <RouteState
           kind="unavailable"
-          icon="folder"
+          icon="refresh"
           title="Collection history is not available yet"
           feature="collection version history"
         />
       ) : error ? (
         <RouteState
           kind="error"
-          icon="folder"
+          icon="alert"
           title="Couldn't load collection history"
           description={error}
           onRetry={() => {
@@ -354,7 +355,7 @@ export function CollectionHistory() {
            of an empty two-column shell with a second empty state beside it. */
         <EmptyState
           data-testid="history-empty-versions"
-          icon="folder"
+          icon="refresh"
           title="No versions yet"
           description={`Save a version to keep a restorable copy of ${library ? 'your library' : 'this collection'} as it is now.`}
           action={(
@@ -398,7 +399,7 @@ export function CollectionHistory() {
               <EmptyState
                 data-testid="history-empty-detail"
                 className="empty-state--compact"
-                icon="folder"
+                icon="refresh"
                 title="No version selected"
                 description="Select a version to see what changed since then."
               />

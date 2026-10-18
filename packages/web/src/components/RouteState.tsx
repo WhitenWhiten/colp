@@ -7,7 +7,7 @@ import { EmptyState, LoadingState } from './EmptyState'
 import { productName } from '../lib/edition'
 import { busyRetryWhen } from '../lib/sessionCopy'
 
-type RouteStateIcon = 'alert' | 'book' | 'search' | 'collection' | 'link' | 'folder' | 'bell' | 'compass'
+type RouteStateIcon = 'alert' | 'book' | 'search' | 'collection' | 'link' | 'folder' | 'bell' | 'compass' | 'refresh'
 
 type RouteStateProps = {
   kind: RouteFailureKind | 'loading'
