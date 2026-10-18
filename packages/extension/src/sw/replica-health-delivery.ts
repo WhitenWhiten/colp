@@ -4,7 +4,7 @@ import type { StorageArea } from '../credential-store.js';
 
 export const HEALTH_STORAGE_KEY = 'known.sync.health.v1';
 const RETENTION_MS = 8 * 24 * 60 * 60_000;
-interface FinalReport { readonly body: Record<string, unknown>; readonly createdAt: number; readonly confirmedAt?: number }
+interface FinalReport { readonly body: Record<string, unknown>; readonly createdAt: number; readonly confirmedAt?: number; readonly retryAt?: number }
 interface Entry { readonly scope: SyncScope; readonly value: Record<string, unknown>; readonly final?: FinalReport; readonly updatedAt: number }
 interface Journal { readonly version: 2; readonly records: Record<string, Entry> }
 const identity = (scope: SyncScope) => JSON.stringify([scope.serverOrigin, scope.serverId, scope.accountId,
@@ -43,12 +43,15 @@ export async function createHealthDelivery(input: { scope: SyncScope; storage: P
   const flush = async () => {
     for (const [entryKey, entry] of Object.entries(journal.records)) {
       if (!sameOwner(entry.scope, input.scope)) continue;
-      if (entry.final && !entry.final.confirmedAt) {
+      if (entry.final && !entry.final.confirmedAt && (entry.final.retryAt ?? 0) <= input.now()) {
         const sent = await input.post(entry.final.body, entry.scope).catch(() => undefined);
         const receipt = sent ? await readHealthReceipt(sent, entry.final.body,
           { timeoutMilliseconds: input.receiptTimeoutMilliseconds ?? 10_000 }).catch(() => undefined) : undefined;
         if (receipt) {
-          (entry as { final?: FinalReport }).final = { ...entry.final, confirmedAt: input.now() };
+          if (!receipt.accepted && receipt.revision >= Number.MAX_SAFE_INTEGER) throw new Error('health_revision_exhausted');
+          (entry as { final?: FinalReport }).final = receipt.accepted
+            ? { ...entry.final, confirmedAt: input.now() }
+            : { ...entry.final, body: { ...entry.final.body, revision: receipt.revision + 1 }, retryAt: input.now() + 60_000 };
           const delivered = new Set((entry.final.body.commandResults as { commandId: string }[] | undefined)?.map(result => result.commandId));
           const commands = entry.value.commands as { commandId: string; reported?: boolean }[] | undefined;
           if (commands) entry.value.commands = commands.map(command => delivered.has(command.commandId) ? { ...command, reported: true } : command);

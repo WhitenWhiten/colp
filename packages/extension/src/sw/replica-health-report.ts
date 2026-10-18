@@ -169,12 +169,15 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
     if (results.length === 0 && record.digest === digest && now - (record.sentAt ?? 0) < heartbeat) return 'unchanged';
   }
   const revision = Math.max(now, (record.revision ?? 0) + 1);
+  if (!Number.isSafeInteger(revision)) throw new Error('health_revision_exhausted');
+  // Reserve before sending: a lost response or clock rollback cannot reuse the local revision.
+  await deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, observed, revision } });
   const body = { replicaId: deps.scope.replicaId, revision, state: projection.state,
     ...(projection.code ? { code: projection.code } : {}), since: new Date(observed.since).toISOString(),
     issues: projection.issues, actions: projection.actions, ...(results.length > 0 ? { commandResults: results } : {}),
     ...(deps.extensionVersion ? { extensionVersion: deps.extensionVersion } : {}) };
   const failed = async (): Promise<'failed'> => {
-    await deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, observed,
+    await deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, observed, revision,
       failed: { digest, retryAt: now + FAILED_RETRY_MS } } });
     return 'failed';
   };
@@ -194,7 +197,9 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   const sentIds = new Set(results.map((result) => result.commandId));
   let commands = (record.commands ?? []).map((entry) => sentIds.has(entry.commandId) ? { ...entry, reported: true as const } : entry);
   const save = (list: readonly CommandRecord[]) => deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: {
-    replicaId: deps.scope.replicaId, digest, sentAt: now, revision, observed, commands: kept(list) } satisfies SentRecord });
+    replicaId: deps.scope.replicaId,
+    ...(document.accepted ? { digest, sentAt: now } : { failed: { digest, retryAt: now + FAILED_RETRY_MS } }),
+    revision: Math.max(revision, document.revision), observed, commands: kept(list) } satisfies SentRecord });
   await save(commands);
   const delivered = deliveredCommands(document);
   let ran = false; let replaced = false;
@@ -220,7 +225,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   if (replaced || locallyRebuilt) {
     // This replica is gone; its last word says so and carries the results.
     const final = unreported(commands);
-    await delivery.stageFinal({ replicaId: deps.scope.replicaId, revision: revision + 1, state: 'stopped',
+    await delivery.stageFinal({ replicaId: deps.scope.replicaId, revision: Math.max(revision, document.revision) + 1, state: 'stopped',
       code: 'replica_rebuilt', since: new Date(deps.now()).toISOString(), issues: { total: 0, items: [] },
       actions: [], commandResults: final });
     return 'sent';
