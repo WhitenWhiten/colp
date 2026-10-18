@@ -13,6 +13,7 @@ import { automationAjvPlugin } from './automation-ajv-plugin.mjs';
 const classificationLocal=process.env.KNOWN_EXTENSION_CLASSIFICATION_LOCAL!=='false';
 const environment = process.argv[2] ?? 'production';
 if (!['development', 'staging', 'production'].includes(environment)) throw new Error('Expected development, staging or production');
+await promisify(execFile)(process.execPath, [resolve(import.meta.dirname, '../../../scripts/generate-replica-health-limits.mjs'), '--check']);
 const root = resolve(import.meta.dirname, '..'); const output = resolve(root, 'dist', environment);
 await promisify(execFile)(process.execPath, [resolve(root, 'scripts/generate-bookmark-operation-validators.mjs'), '--check']);
 await promisify(execFile)(process.execPath, [resolve(root, 'scripts/generate-automation-validators.mjs'), '--check']);

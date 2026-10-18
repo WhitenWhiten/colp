@@ -1,3 +1,5 @@
+import { REPLICA_HEALTH_MAX_ITEMS, REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_TITLE_MAX, REPLICA_COMMAND_RESULTS_MAX } from './generated/replica-health-limits.js';
+export { REPLICA_HEALTH_MAX_ITEMS, REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_COMMAND_RESULTS_MAX } from './generated/replica-health-limits.js';
 import type { VerifiedExtensionCredential } from '../identity/index.js';
 
 /**
@@ -15,10 +17,7 @@ export const REPLICA_ISSUE_ACTIONS = ['retry', 'use_server', 'keep_local', 'disc
 export type ReplicaIssueAction = (typeof REPLICA_ISSUE_ACTIONS)[number];
 /** Actions about the whole replica rather than one issue. */
 export const REPLICA_ACTIONS = ['retry', 'resume', 'rebuild'] as const satisfies readonly ReplicaIssueAction[];
-export const REPLICA_HEALTH_MAX_ITEMS = 50;
-export const REPLICA_HEALTH_MAX_BODY_BYTES = 32_768;
 /** Results one report may carry, and commands one response may deliver. */
-export const REPLICA_COMMAND_RESULTS_MAX = 16;
 export const REPLICA_COMMANDS_DELIVERED_MAX = 8;
 /** Commands not yet carried out, per replica; a ninth waits for one of them to finish. */
 export const REPLICA_COMMANDS_OPEN_MAX = 8;
@@ -97,6 +96,7 @@ export const REPLICA_REPORT_UNSAFE_TEXT
   = /(?:https?:\/\/|javascript:|chrome:|authorization|bearer|token=|secret|native[_ -]?id)/iu;
 
 export function parseReplicaHealthReport(value: unknown): ReplicaHealthReport {
+  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > REPLICA_HEALTH_MAX_BODY_BYTES) throw invalid();
   const document = object(value, ['replicaId', 'revision', 'state', 'code', 'since', 'issues', 'actions',
     'commandResults', 'extensionVersion']);
   const state = oneOf(document.state, REPLICA_HEALTH_STATES);
@@ -127,7 +127,7 @@ function parseIssue(value: unknown): ReplicaHealthIssue {
   const issue = object(value, ['issueId', 'code', 'direction', 'nodeId', 'opId', 'title', 'count',
     'firstSeenAt', 'lastSeenAt', 'actions']);
   const actions = actionList(issue.actions, REPLICA_ISSUE_ACTIONS);
-  if (issue.title !== undefined && (typeof issue.title !== 'string' || issue.title.length > 256)) throw invalid();
+  if (issue.title !== undefined && (typeof issue.title !== 'string' || issue.title.length > REPLICA_HEALTH_TITLE_MAX)) throw invalid();
   const title = typeof issue.title === 'string' && issue.title.trim().length > 0
     && !REPLICA_REPORT_UNSAFE_TEXT.test(issue.title) ? issue.title : undefined;
   return Object.freeze({

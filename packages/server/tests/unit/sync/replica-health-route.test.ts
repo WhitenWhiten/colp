@@ -111,3 +111,14 @@ test('the route needs the extension origin and a Sync credential, and maps recor
   }
   assert.equal(calls.length, 4);
 });
+
+test('the route enforces the shared UTF-8 budget even without the product transport plugin', async () => {
+  const { post, calls } = await harness(async ({ report }) => ({ accepted: true, revision: report.revision, commands: [] }));
+  const item = report().issues.items[0]!;
+  const oversized = report({ issues: { total: 50, items: Array.from({ length: 50 }, (_, n) => ({
+    ...item, issueId: `issue-${n}`, nodeId: 'n'.repeat(128), opId: 'o'.repeat(128), title: '中'.repeat(200) })) } });
+  assert.ok(Buffer.byteLength(JSON.stringify(oversized)) > 32768);
+  assert.equal((await post(oversized)).statusCode, 413);
+  assert.throws(() => parseReplicaHealthReport(oversized), ReplicaHealthError);
+  assert.equal(calls.length, 0);
+});

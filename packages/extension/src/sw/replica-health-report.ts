@@ -1,3 +1,5 @@
+import { REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_MAX_ITEMS, REPLICA_COMMAND_RESULTS_MAX,
+  REPLICA_HEALTH_TITLE_MAX } from '../generated/replica-health-limits.js';
 /**
  * The browser's own account of its sync, sent to the server's Sync center.
  *
@@ -32,8 +34,8 @@ export const REPLICA_HEALTH_HEARTBEAT_MS = 15 * 60_000;
 export const REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS = 5 * 60_000;
 /** Commands remembered so a redelivered one never runs twice; the server expires them after seven days. */
 const MAX_COMMANDS_KEPT = 32;
-const MAX_RESULTS_SENT = 16;
-const MAX_ITEMS = 50;
+const MAX_RESULTS_SENT = REPLICA_COMMAND_RESULTS_MAX;
+const MAX_ITEMS = REPLICA_HEALTH_MAX_ITEMS;
 /** A server without the route answers 404; ask again later instead of on every pass. */
 const UNSUPPORTED_RETRY_MS = 6 * 60 * 60_000;
 /** A failed send is retried on a later pass, not on every engine wake. */
@@ -294,7 +296,7 @@ async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknow
     method: 'POST', redirect: 'error', cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(10_000),
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Origin: deps.origin,
       ...colpCredentialHeaders(credential.accessToken) },
-    body: JSON.stringify(body),
+    body: JSON.stringify(fitReplicaHealthBody(body)),
   });
 }
 
@@ -353,7 +355,7 @@ function instant(value: unknown): string {
 }
 function bounded(value: string): string | undefined {
   const trimmed = value.trim();
-  return trimmed.length === 0 ? undefined : trimmed.length > 256 ? `${trimmed.slice(0, 255)}…` : trimmed;
+  return trimmed.length === 0 ? undefined : trimmed.length > REPLICA_HEALTH_TITLE_MAX ? `${trimmed.slice(0, REPLICA_HEALTH_TITLE_MAX - 1)}…` : trimmed;
 }
 /** The title a create or edit carried, when the operation has one. */
 function titleOf(operation: QueueOperation['payload']): string | undefined {
@@ -367,4 +369,17 @@ function titleOf(operation: QueueOperation['payload']): string | undefined {
     }
   }
   return undefined;
+}
+
+/** Bound the final wire JSON, reserving all state/actions/results before the issue prefix. */
+export function fitReplicaHealthBody<T extends Record<string, unknown>>(body: T): T {
+  const issues = body.issues as { total: number; items: readonly unknown[] };
+  const fitted = { ...body, issues: { total: issues.total, items: [] as unknown[] } };
+  const bytes = () => new TextEncoder().encode(JSON.stringify(fitted)).byteLength;
+  if (bytes() > REPLICA_HEALTH_MAX_BODY_BYTES) throw new Error('health_required_fields_too_large');
+  for (const item of issues.items.slice(0, MAX_ITEMS)) {
+    fitted.issues.items.push(item);
+    if (bytes() > REPLICA_HEALTH_MAX_BODY_BYTES) { fitted.issues.items.pop(); break; }
+  }
+  return fitted as T;
 }

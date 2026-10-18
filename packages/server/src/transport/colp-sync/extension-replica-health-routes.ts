@@ -46,6 +46,7 @@ export function registerExtensionReplicaHealthRoutes(
     return false;
   };
   app.post(EXTENSION_REPLICA_HEALTH_PATH, {
+    bodyLimit: REPLICA_HEALTH_MAX_BODY_BYTES,
     onRequest: async (request, reply) => {
       await admitted(reply, await admission.admitPreAuth({ purpose: 'pull', clientKey: request.ip }));
     },
