@@ -19,6 +19,14 @@ for (const historical of [false, true]) test(`consumed rejection remains visible
       return json(200, { batchId: body.batchId, results: [{ opId: f.queued.opId, sequence: 1,
         status: 'rejected', code: 'resource_id_unavailable', warnings: [] }], serverCursor: 'sync-unchanged' });
     } }).drain();
+    if (historical) {
+      const db = await f.store.open(); const key = (await f.store.getScope(scope))!.scopeKey;
+      const tx = db.transaction(['outbound_queue', 'diagnostics', 'schema_metadata'], 'readwrite');
+      tx.objectStore('outbound_queue').put({ ...f.queued, status: 'terminal' });
+      tx.objectStore('diagnostics').delete(`push-rejection:${key}:${f.queued.opId}`);
+      tx.objectStore('schema_metadata').delete(`consumed-rejections-v1:${key}`);
+      await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+    }
     f.store.close();
     expect((await f.store.getQueueReceipt(scope, 1))?.kind).toBe('terminal');
     const rows = await readOpenSyncIssues(f.store, scope);

@@ -3,21 +3,7 @@ import type { EventDependency } from './bookmark-event-heal.js';
 import type { BookmarkEventParkMarker, BookmarkEventParkState } from './sync-state/types.js';
 import type { BookmarkEventRecord, JsonObject, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
-/**
- * F003: durable quarantine bookkeeping for poison inbox events.
- *
- * A pending event that cannot be prepared is *skipped* (never a `break`), and
- * after `MAX_PREPARE_FAILURES` consecutive failed rounds — or immediately when
- * its dependency is already a permanently refused operation or a parked event —
- * it is marked `parked`. A parked event is not prepared at all, so it cannot
- * hold back the events behind it; its row is never deleted or rewritten, so no
- * data is lost and the reason/attempt count stay observable.
- *
- * The marker lives on the event's ingress diagnostic row; quarantined events
- * remain unchanged. The diagnostic id is derived from the event id, so the
- * marker upserts in place and stays bounded to one row per quarantined event.
- */
-export const MAX_PREPARE_FAILURES = 5;
+/** Persist automatic waits and deterministic quarantine separately; one marker per retained event. */
 export const PARK_MARKER_PREFIX = 'park:';
 export function bookmarkEventErrorCode(error: unknown): string {
   return reasonCode(error, '');

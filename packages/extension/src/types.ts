@@ -452,7 +452,7 @@ export interface SyncIssueDiagnostic {
   readonly reportId?: string; readonly itemId?: string;
   readonly issueId?: string; readonly nodeId?: string; readonly opId?: string; readonly eventId?: string;
   readonly count?: number; readonly firstSeenAt?: string | number; readonly lastSeenAt?: string | number;
-  readonly dependencyOpId?: string; readonly dependencyEventId?: string;
+  readonly dependencyOpId?: string; readonly dependencyEventId?: string; readonly dependencySequence?: number;
   readonly rootCause?: string; readonly attempts?: number; readonly recovery?: 'automatic' | 'decision';
 }
 export interface PublicSyncAttention {

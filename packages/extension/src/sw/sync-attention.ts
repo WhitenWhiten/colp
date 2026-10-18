@@ -1,16 +1,8 @@
 import { readReplicaRepairCapability } from '../replica-repair-capability.js';
-import { snapshotSyncIssues, issueId } from '../sync-issue-snapshot.js';
+import { snapshotSyncIssues, localIssueId } from '../sync-issue-snapshot.js';
 import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
-/**
- * S7 / B2 (SR-09 · SR-11 · SR-13): the read-only service-worker side of the
- * popup/settings attention exits.
- *
- * Everything here is a read. The two facts the UI cannot get from an existing
- * channel are the scope's `metadata.recoveryCode` (the code the terminal freeze
- * actually recorded, see `freezeScopeRecovery`) and a queue projection computed
- * from live rows; both come from the same pure helpers the public engine state
- * uses (`queueStatusProjection`/`hasConflictBarrier`/`hasRejectedBarrier`), to keep queue semantics shared with the engine. No engine wake, no write, no user gesture.
- */
+/** Shared attention facts and action capabilities. Reading may restore derived issue
+ * projections from historical receipts; it never wakes the engine or touches native data. */
 import { hasConflictBarrier, hasRejectedBarrier, queueStatusProjection, stalledUploadHead } from '../engine-public-stability.js';
 import type { NativeWaitStore } from '../native-wait.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
@@ -18,7 +10,7 @@ import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -35,7 +27,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
   if (await deps.rebuildPending?.()) return { ok: true, attention: {
     recoveryFrozen: true, queueProjection: 'idle', conflictPending: false, rejectedPending: false,
     nativeWaitPending: false, waitCount: 0, terminal: true, terminalCode: 'replica_rebuild_pending', phase: 'recovery',
-    lastError: 'replica_rebuild_pending',
+    lastError: 'replica_rebuild_pending', rebuildAvailable: true,
   } };
   let scope: SyncScope;
   try { scope = await deps.scope(); } catch { return { ok: false, error: 'not_connected' }; }
@@ -54,9 +46,10 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const { stalled, ...queue } = await queueFacts(deps.store, scope, open);
     const issues = snapshotSyncIssues(open).map(issue => {
       const local = open.local.find(row => issue.direction === 'local' && row.code === issue.code
-        && issueId(['local', row.code, row.nativeId]) === issue.issueId);
+        && localIssueId(row) === issue.issueId);
+      const operation = open.queue.find(row => row.opId === issue.opId);
       const merge = open.bootstrap.find(row => row.issueId === issue.issueId);
-      return { ...issue, ...(merge ? { reportId: merge.reportId, itemId: merge.itemId, recovery: 'decision' as const } : {}), ...(local ? { eventId: local.eventId, dependencyOpId: local.dependencyOpId,
+      return { ...issue, ...(operation?.recovery?.expectedSequence ? { dependencySequence: operation.recovery.expectedSequence } : {}), ...(merge ? { reportId: merge.reportId, itemId: merge.itemId, recovery: 'decision' as const } : {}), ...(local ? { eventId: local.eventId, dependencyOpId: local.dependencyOpId,
         dependencyEventId: local.dependencyEventId, rootCause: local.rootCause, attempts: local.attempts,
         recovery: local.recovery } : {}) };
     });
@@ -69,7 +62,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
       ...queue,
       issueCount: open.total + (stalled ? 1 : 0), issues, rebuildAvailable: capability.rebuildAvailable,
       ...(capability.reason ? { rebuildUnavailableReason: capability.reason } : {}),
-      retryAvailable: Boolean(stalled) || open.queue.some(row => row.recovery?.code === 'sequence_blocked'),
+      retryAvailable: Boolean(stalled) || open.queue.some(row => row.recovery?.code === 'sequence_blocked' && row.attempt !== undefined),
       nativeWaitPending: waits.length > 0,
       waitCount: waits.length,
       ...(lastError ? { lastError } : {}),

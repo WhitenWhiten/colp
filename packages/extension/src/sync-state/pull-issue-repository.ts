@@ -153,14 +153,35 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
 
   async function listOpenIngressIssues(input: SyncScope): Promise<LocalIssueRecord[]> {
     const key = scopeKey(validateScope(input)); const db = await ctx.open();
-    const tx = db.transaction([STORES.diagnostics, STORES.bookmarkEvents], 'readonly'); const done = transactionDone(tx);
+    const tx = db.transaction([STORES.diagnostics, STORES.bookmarkEvents, STORES.queue, STORES.receipts], 'readonly'); const done = transactionDone(tx);
     const rows = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope)
       .getAll(IDBKeyRange.bound([key, `ingress:${key}:`], [key, `ingress:${key}:\uffff`])));
     const issues: LocalIssueRecord[] = [];
     for (const row of rows) {
       const park = row.park as UnknownRecord | undefined; if (typeof park?.eventId !== 'string') continue;
       const event = await requestValue<BookmarkEventRecord | undefined>(tx.objectStore(STORES.bookmarkEvents).get([key, park.eventId]));
-      const issue = openIngressIssue(row, event); if (issue) issues.push(issue);
+      const issue = openIngressIssue(row, event);
+      if (!issue) continue;
+      const seen = new Set<string>(); let current = issue; let rootCause = issue.rootCause;
+      for (let depth = 0; depth < 64; depth++) {
+        const token = current.dependencyOpId ?? current.dependencyEventId;
+        if (!token) break;
+        if (seen.has(token)) { rootCause = 'dependency_cycle'; break; }
+        seen.add(token);
+        if (current.dependencyOpId) {
+          const queued = await requestValue<UnknownRecord | undefined>(tx.objectStore(STORES.queue).index(INDEXES.queueByOpId).get([key, token]));
+          rootCause = typeof (queued?.recovery as UnknownRecord | undefined)?.code === 'string'
+            ? String((queued!.recovery as UnknownRecord).code) : `upload_${queued?.status ?? 'missing'}`;
+          break;
+        }
+        const blocker = await requestValue<BookmarkEventRecord | undefined>(tx.objectStore(STORES.bookmarkEvents).get([key, token]));
+        if (blocker?.opId) { current = { ...current, dependencyOpId: blocker.opId }; continue; }
+        const diagnostic = rows.find(row => (row.park as UnknownRecord | undefined)?.eventId === token);
+        const next = diagnostic ? openIngressIssue(diagnostic, blocker) : undefined;
+        rootCause = next?.code ?? `event_${blocker?.status ?? 'missing'}`;
+        if (!next) break; current = next;
+      }
+      issues.push({ ...issue, ...(rootCause ? { rootCause } : {}) });
     }
     await done; return mergeLocalIssues(issues);
   }

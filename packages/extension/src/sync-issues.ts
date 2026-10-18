@@ -7,7 +7,7 @@ import type { LocalIssueRecord, MappingInput, PullIssueRecord, QueueOperation, S
   createSyncStateStore } from './sync-state-store.js';
 
 export type SyncIssueStore = Partial<Pick<ReturnType<typeof createSyncStateStore>,
-  'listBootstrapRuns' | 'listRemoteDeleteDecisions' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'> & NativeWaitStore>;
+  'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listRemoteDeleteDecisions' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'> & NativeWaitStore>;
 export interface OpenSyncIssues {
   readonly bootstrap: readonly BootstrapDisplayIssue[];
   readonly operationalTotal: number;
@@ -24,7 +24,7 @@ export interface OpenSyncIssues {
 
 export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string> } = {}): Promise<OpenSyncIssues> {
   const queue: QueueOperation[] = [];
-  if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside', 'terminal'] as const) {
+  if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside', ...(store.listConsumedQueueIssues ? [] : ['terminal' as const])] as const) {
     let after = 0;
     for (;;) {
       const rows = await store.listQueue(scope, status, after, 1_000);
@@ -33,6 +33,7 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
       after = rows.at(-1)!.sequence;
     }
   }
+  if (store.listConsumedQueueIssues) queue.push(...(await store.listConsumedQueueIssues(scope)).filter(row => !options.excludeQueueOpIds?.has(row.opId)));
   const pull = (await store.listPullIssues?.(scope) ?? []).filter(issue => !issue.conflictOpIds?.length
     || !issue.conflictOpIds.every(opId => options.excludeQueueOpIds?.has(opId)));
   const local = mergeLocalIssues([...(await store.listLocalIssues?.(scope) ?? []),

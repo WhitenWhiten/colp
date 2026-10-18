@@ -94,6 +94,8 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     listQueueByTarget: queue.listQueueByTarget,
     getQueueByOpId: queue.getQueueByOpId,
     getQueueReceipt: queue.getQueueReceipt,
+    listConsumedQueueIssues: queue.listConsumedQueueIssues,
+    adoptConsumedRejections: queue.adoptConsumedRejections,
     commitImportPlan: engine.commitImportPlan, listImportPlans: engine.listImportPlans,
     listImportNodes: engine.listImportNodes, setImportPlanState: engine.setImportPlanState,
     setImportNodeRecovery: engine.setImportNodeRecovery, retryImportNode: engine.retryImportNode,

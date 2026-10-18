@@ -36,11 +36,11 @@ export function replicaIssuesFromQueue(rows: readonly QueueOperation[]): Replica
     // A change waiting on another one is released by that one, and a record that cannot be
     // stored or a rebuild-class problem is not cured by capturing it again.
     const policy = classifySyncFailure(code);
-    const retry = row.status === 'blocked' && code === 'sequence_blocked' || row.status === 'set_aside' && OPAQUE.test(row.opId)
+    const retry = row.status === 'blocked' && code === 'sequence_blocked' && row.attempt !== undefined || row.status === 'set_aside' && OPAQUE.test(row.opId)
       && (policy?.exit === 'decide' || policy === undefined && !DEPENDENT_HOLDS.has(code));
     return [{ issueId: issueId(['push', code, row.opId]), code, direction: 'push' as const,
       ...(nodeId ? { nodeId } : {}), ...(OPAQUE.test(row.opId) ? { opId: row.opId } : {}),
-      ...(title ? { title } : {}), count: 1, firstSeenAt: at, lastSeenAt: at, actions: retry ? ['retry' as const] : [] }];
+      ...(title ? { title } : {}), count: Math.max(1, row.retry.attempt), firstSeenAt: at, lastSeenAt: row.attempt?.startedAt ? safeTime(row.attempt.startedAt) : at, actions: retry ? ['retry' as const] : [] }];
   });
 }
 
@@ -61,7 +61,7 @@ export function replicaIssuesFromLocal(rows: readonly LocalIssueRecord[]): Repli
   return rows.flatMap((row) => {
     if (!CODE.test(row.code)) return [];
     const title = typeof row.title === 'string' ? bounded(row.title) : undefined;
-    return [{ issueId: issueId(['local', row.code, row.nativeId]), code: row.code, direction: 'local' as const,
+    return [{ issueId: localIssueId(row), code: row.code, direction: 'local' as const,
       ...(title ? { title } : {}), count: Math.max(1, row.count), firstSeenAt: safeTime(row.firstSeenAt),
       lastSeenAt: safeTime(row.lastSeenAt), actions: [] }];
   });
@@ -120,3 +120,7 @@ export function snapshotSyncIssues(open: OpenSyncIssues): ReplicaHealthIssue[] {
 }
 
 function safeTime(value: number): string { return new Date(Number.isFinite(value) && Math.abs(value) <= 8.64e15 ? value : 0).toISOString(); }
+
+export function localIssueId(row: LocalIssueRecord): string {
+  return issueId(['local', row.code, row.nativeId, ...(row.eventId ? [row.eventId] : [])]);
+}

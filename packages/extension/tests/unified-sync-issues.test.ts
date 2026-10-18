@@ -14,7 +14,7 @@ test('durably parked native work is one shared issue for protection, health and 
   try {
     const event = await f.store.stageBookmarkEvent(scope, { eventId: 'parked-event', dedupeKey: 'parked-event',
       kind: 'change', nativeId: 'native-node', occurredAt: '2026-10-17T00:00:00Z', details: {} });
-    const marker = { eventId: event.event.eventId, state: 'parked' as const, code: 'content_unavailable', attempts: 5,
+    const marker = { eventId: event.event.eventId, state: 'parked' as const, code: 'operation_schema_invalid', attempts: 5,
       at: '2026-10-17T00:00:00Z' };
     await f.store.putIngressDiagnostic(scope, { code: 'park:parked-event', park: marker });
     const open = await readOpenSyncIssues(f.store, scope);
@@ -29,7 +29,7 @@ test('durably parked native work is one shared issue for protection, health and 
       credential: async () => ({ accessToken: 'token', subject: scope.accountId, serverOrigin: scope.serverOrigin }),
       fetch: async (_url, init) => { report = JSON.parse(String(init?.body)); return Response.json({}); } });
     assert.equal(report.issues.total, open.total); assert.equal(report.state, 'degraded');
-    assert.deepEqual(report.issues.items.map((issue: any) => issue.code), ['content_unavailable']);
+    assert.deepEqual(report.issues.items.map((issue: any) => issue.code), ['operation_schema_invalid']);
     assert.deepEqual(report.actions, ['rebuild']);
     await f.applier.stage(f.page([pullFixtures.mutationEvent({ kind: 'delete', sequence: 91,
       collectionId: scope.collectionId, targetId: 'node-1', parentId: 'root-colp' })], 'cursor-1'));

@@ -1,3 +1,6 @@
+import { createPullApplier } from '../src/pull-applier.js';
+import { honestChrome } from './kns-05-pull-harness.js';
+import { pullFixtures } from './pull-effect-fixtures.js';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
@@ -24,10 +27,10 @@ function authority() {
 }
 
 /** The exact drain path a permanently refused operation takes in production. */
-function rejectingPushWorker(store: ReturnType<typeof createSyncStateStore>, response: () => Response) {
+function rejectingPushWorker(store: ReturnType<typeof createSyncStateStore>, response: (body: string) => Response, now = 1000) {
   return createOutboundPushWorker({ scope, store, endpoints: async () => endpoints,
-    sessions: { async get() { return authority(); } }, now: () => 1_000, random: () => 0,
-    ownerId: () => 'owner-t02', schedule: () => undefined, fetch: async () => response() });
+    sessions: { async get() { return authority(); } }, now: () => now, random: () => 0,
+    ownerId: () => 'owner-t02', schedule: () => undefined, fetch: async (_url, init) => response(String(init?.body)) });
 }
 
 async function markers(store: ReturnType<typeof createSyncStateStore>) {
@@ -95,34 +98,32 @@ describe('T-02 F003 poison inbox events', () => {
       && (row as { code?: string }).code === 'dependency_rejected'));
   });
 
-  test('a quarantined event returns to the inbox and commits once its dependency identity converges', async () => {
+  test('a historical parked create dependency recovers through exact Push settlement after restart', async () => {
     const f = await fixture(new IDBFactory());
-    f.api.put(folder('folder-new', 'root-selected', 0, 'New folder'));
-    await f.queue.created('folder-new', f.api.node('folder-new'));
-    await f.queue.flush();
-    f.api.put(bookmark('child', 'folder-new', 0, 'Child', 'https://example.test/child'));
-    await f.queue.created('child', f.api.node('child'));
-    await f.queue.flush();
-    await rejectingPushWorker(f.store, () => problem(422, 'invalid_document', { retryable: false })).drain();
-    await f.queue.flush();
-    const child = (await f.store.listBookmarkEvents(scope)).find((event) => event.nativeId === 'child')!;
-    assert.equal((await markers(f.store)).find((park) => park.eventId === child.eventId)!.state, 'parked');
-
-    // The create converges through authority (apply receipt / pull echo rebind).
-    const parentRow = (await f.store.listQueue(scope)).find((row) => row.status === 'rejected')!;
-    await f.store.rebindProvisionalBookmarkIdentity(scope, 'folder-new', parentRow.opId,
-      'server-folder-new', 'server-folder-r1');
-    await f.queue.flush();
-    const revived = (await markers(f.store)).find((park) => park.eventId === child.eventId)!;
-    assert.equal(revived.state, 'open', 'a converged dependency reopens the event');
-    assert.equal((await f.store.listBookmarkEvents(scope)).find((event) => event.eventId === child.eventId)?.status,
-      'processed');
-    const created = (await f.store.listQueue(scope)).find((row) => row.payload.type === 'create_node'
-      && (row.payload.payload as { node?: { title?: string } }).node?.title === 'Child')!;
-    assert.equal((created.payload.payload as { parentId?: string }).parentId, 'server-folder-new');
+    try {
+      f.api.put(folder('folder-new', 'root-selected', 0, 'New folder'));
+      await f.queue.created('folder-new', f.api.node('folder-new')); await f.queue.flush();
+      const parent = (await f.store.listQueue(scope))[0]!;
+      f.api.put(bookmark('child', 'folder-new', 0, 'Child', 'https://example.test/child'));
+      await f.queue.created('child', f.api.node('child')); await f.queue.flush();
+      const child = (await f.store.listBookmarkEventsByStatus(scope, 'pending'))[0]!;
+      await rejectingPushWorker(f.store, body => { const request = JSON.parse(body); return Response.json({ batchId: request.batchId,
+        results: [{ opId: parent.opId, sequence: parent.sequence, status: 'deferred', code: 'pending_parent', retryAfterSeconds: 1, warnings: [] }], serverCursor: 'sync-unchanged' }); }).drain();
+      await f.store.putIngressDiagnostic(scope, { code: `park:${child.eventId}`, park: { eventId: child.eventId,
+        code: 'dependency_pending', state: 'parked', attempts: 5, at: '2026-07-27T00:00:00Z',
+        dependencyNativeId: 'folder-new', dependencyOpId: parent.opId } });
+      f.store.close();
+      await rejectingPushWorker(f.store, body => { const request = JSON.parse(body); return Response.json({ batchId: request.batchId,
+        results: [{ opId: parent.opId, sequence: parent.sequence, status: 'applied', targetId: 'server-folder-new',
+          revision: 'parent-r1', cursor: 'c1', warnings: [] }], serverCursor: 'c1' }); }, 100000).drain();
+      await f.queue.flush();
+      assert.equal((await f.store.getBookmarkEvent(scope, child.eventId))?.status, 'processed');
+      const created = (await f.store.listQueue(scope)).find(row => (row.payload.payload as any).node?.title === 'Child')!;
+      assert.equal((created.payload.payload as any).parentId, 'server-folder-new');
+    } finally { f.store.close(); }
   });
 
-  test('an event whose dependency fence never arrives parks after the bounded window and returns with the fence', async () => {
+  test('a missing children fence stays automatic across flushes and resumes after a real Pull receipt', async () => {
     const f = await fixture(new IDBFactory(), { mappedNode: true });
     await f.store.putMapping(scope, { nativeId: 'folder-fresh', colpId: 'folder-fresh-colp',
       rootNativeId: 'root-selected', nodeKind: 'folder', parentNativeId: 'root-selected',
@@ -144,26 +145,35 @@ describe('T-02 F003 poison inbox events', () => {
       const queued = (await f.store.listQueue(scope)).find((row) =>
         ((row.payload.payload as { node?: { title?: string } }).node?.title) === `Later ${round}`);
       assert.ok(queued, `later-${round} must reach the queue`);
-      await f.store.rebindProvisionalBookmarkIdentity(scope, `later-${round}`, queued.opId,
-        `server-later-${round}`, `server-later-r${round}`);
+      await rejectingPushWorker(f.store, body => { const request = JSON.parse(body); const op = request.operations[0];
+        return Response.json({ batchId: request.batchId, results: [{ opId: op.opId, sequence: op.sequence,
+          status: 'applied', targetId: `server-later-${round}`, revision: `server-later-r${round}`, cursor: `c-${round}`, warnings: [] }], serverCursor: `c-${round}` });
+      }).drain();
     }
     const move = (await f.store.listBookmarkEvents(scope)).find((event) => event.kind === 'move')!;
     const parked = (await markers(f.store)).find((park) => park.eventId === move.eventId)!;
-    assert.equal(parked.state, 'parked');
+    assert.equal(parked.state, 'open');
     assert.equal(parked.code, 'children_fence_missing');
-    assert.equal(parked.attempts, 5);
+    assert.equal(parked.attempts, 10);
     assert.equal(parked.dependencyNativeId, 'folder-fresh');
     assert.equal((await f.store.listQueue(scope)).filter((row) => row.payload.type === 'create_node').length, 5);
 
     // The folder confirmation echo delivers the real children fence.
-    await mapping(f.store, 'folder-fresh', 'folder-fresh-colp', 'root-selected', 'server-folder-r2',
-      { title: 'Fresh' }, 'root-selected');
+    const api = honestChrome();
+    for (const id of ['0', 'root-selected', 'root-private', 'root-unselected', 'folder-parent', 'folder-fresh', 'mapped']) api.seed(f.api.node(id));
+    const applier = createPullApplier({ scope, store: f.store, api, effectPageTemplate: 'https://known.example/effects/{effectId}/pages/{pageNumber}',
+      effectPageAuthority: 'https://known.example', session: { acceptedProtocolVersion: '0.2',
+      sessionId: 'fence-pull', collectionId: scope.collectionId, conversionPolicy: { separator: 'preserve_remote' } } });
+    await applier.stage(pullFixtures.page({ events: [pullFixtures.createEvent({ kind: 'Bookmark', sequence: 99,
+      collectionId: scope.collectionId, parentId: 'folder-fresh-colp' })], nextCursor: 'cursor-fence', collectionRevision: 'r-fence' }));
+    await applier.resume();
+    for (const node of api.all()) f.api.put(node);
     await f.queue.flush();
     assert.equal((await markers(f.store)).find((park) => park.eventId === move.eventId)!.state, 'open');
     const moved = (await f.store.listQueue(scope)).filter((row) => row.payload.type === 'move_node');
     assert.equal(moved.length, 1);
     assert.equal((moved[0]!.payload.payload as { baseTargetParentRevision?: string }).baseTargetParentRevision,
-      'children-server-folder-r2');
+      'children-99');
   });
 
   test('a corrupt durable draft is quarantined as deterministic poison instead of aborting the flush', async () => {

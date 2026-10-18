@@ -4,7 +4,10 @@ import type { LocalIssueRecord } from './pull-issue-repository.js';
 /** A historical diagnostic is not an open issue once its source event completed or reopened. */
 export function openIngressIssue(diagnostic: UnknownRecord, event: BookmarkEventRecord | undefined): LocalIssueRecord | undefined {
   const park = diagnostic.park as UnknownRecord | undefined;
-  if (diagnostic.kind !== 'ingress' || park?.state !== 'parked' || !event || event.status !== 'pending') return undefined;
+  if (diagnostic.kind !== 'ingress' || !park || !event || event.status !== 'pending') return undefined;
+  const automatic = isAutomaticIngressWaitCode(String(park.code));
+  const elapsed = Date.parse(String(park.at)) - Date.parse(event.occurredAt);
+  if (park.state !== 'parked' && !(park.state === 'open' && automatic && elapsed >= 5 * 60_000)) return undefined;
   const time = typeof park.at === 'string' ? Date.parse(park.at) : Number(park.at);
   const at = Number.isFinite(time) ? time : 0;
   const context: Partial<LocalIssueRecord> = Object.fromEntries(
@@ -15,11 +18,11 @@ export function openIngressIssue(diagnostic: UnknownRecord, event: BookmarkEvent
     code: typeof park.code === 'string' ? park.code : 'ingress_parked',
     ...(title ? { title } : {}), attempts: Number.isSafeInteger(park.attempts) ? Number(park.attempts) : 1,
     ...(typeof park.reason === 'string' ? { rootCause: park.reason } : {}),
-    recovery: ['dependency_pending', 'dependency_parked'].includes(String(park.code)) ? 'automatic' : 'decision',
-    count: 1, firstSeenAt: at, lastSeenAt: at };
+    recovery: automatic ? 'automatic' : 'decision',
+    count: 1, firstSeenAt: Number.isFinite(Date.parse(event.occurredAt)) ? Date.parse(event.occurredAt) : at, lastSeenAt: at };
 }
 
-/** One local issue per code/native subject; repeated parked events are evidence counts. */
+/** Repeated evidence merges only for the same retained event and subject. */
 export function mergeLocalIssues(rows: readonly LocalIssueRecord[]): LocalIssueRecord[] {
   const merged = new Map<string, LocalIssueRecord>();
   for (const row of rows) {
@@ -63,7 +66,7 @@ export function addQueueIssueRoots(roots: Set<string>, rows: readonly { readonly
 
 /** Directed waits protect their prerequisite through its own facts, never through the dependent. */
 export function ingressProtectsNode(issue: LocalIssueRecord): boolean {
-  return !issue.dependencyOpId && !issue.dependencyEventId;
+  return issue.recovery !== 'automatic' && !issue.dependencyOpId && !issue.dependencyEventId;
 }
 
 /** A consumed sequence is independent of business success. Old receipts project identically. */
@@ -72,10 +75,16 @@ export function withReceiptOutcome<T extends { readonly status: string; readonly
   if (row.status !== 'terminal' || receipt?.kind !== 'terminal' || receipt.opId !== row.opId) return row;
   const results = receipt.result?.results;
   const result = Array.isArray(results) ? results.find(item => item?.opId === row.opId && item.status === 'rejected') : undefined;
-  if (!result) return row;
+  if (!result) return { ...row, recovery: undefined };
   const code = typeof result.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(result.code) ? result.code : 'push_rejected';
   return { ...row, recovery: { code, resultStatus: 'rejected' } };
 }
 
 /** Exact retries never bypass the lane; stop automatic requests after this many refusals. */
 export const MAX_SEQUENCE_BLOCKED_RETRIES = 8;
+
+/** Missing authority is retried; flush counts are not evidence of permanent failure. */
+export function isAutomaticIngressWaitCode(code: string): boolean {
+  return ['dependency_pending', 'dependency_missing', 'children_fence_missing', 'content_unavailable',
+    'exact_retry_pending', 'move_predecessor_pending'].includes(code);
+}

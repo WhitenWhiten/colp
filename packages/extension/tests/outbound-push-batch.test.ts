@@ -1,3 +1,5 @@
+import { readOpenSyncIssues } from '../src/sync-issues.js';
+import { snapshotSyncIssues } from '../src/sync-issue-snapshot.js';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
@@ -125,4 +127,25 @@ describe('first-sync transport batches', () => {
     assert.equal((await createOutboundPushWorker({ ...f.options, fetch: fetcher }).drain()).outcome, 'terminal');
     assert.equal((await f.store.listMappings(scope)).length, 4); f.store.close();
   });
+});
+
+test('a mixed bootstrap batch consumes rejected sequences, exposes the failure, and continues independent creates', async () => {
+  const f = await fixture(6, 3); const requests: number[][] = [];
+  try {
+    const worker = () => createOutboundPushWorker({ ...f.options, fetch: async (_url, init) => {
+      const body = String(init?.body); const operations = JSON.parse(body).operations;
+      requests.push(operations.map((op: JsonObject) => op.sequence));
+      const document = await success(body).json();
+      if (operations[0].sequence === 1) document.results[0] = { opId: operations[0].opId, sequence: 1,
+        status: 'rejected', code: 'resource_id_unavailable', warnings: [] };
+      return json(200, document);
+    } });
+    await worker().drain(); f.store.close(); await worker().drain();
+    assert.deepEqual(requests, [[1, 2, 3], [4, 5, 6]]);
+    assert.equal((await f.store.listQueue(scope, 'terminal')).length, 6);
+    assert.equal((await f.store.listMappings(scope)).length, 5);
+    assert.equal((await f.store.getQueueReceipt(scope, 1))?.kind, 'terminal');
+    const issues = snapshotSyncIssues(await readOpenSyncIssues(f.store, scope));
+    assert.equal(issues.length, 1); assert.equal(issues[0]?.code, 'resource_id_unavailable');
+  } finally { f.store.close(); }
 });

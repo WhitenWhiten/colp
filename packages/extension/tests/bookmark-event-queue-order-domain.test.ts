@@ -3,7 +3,6 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, test } from 'vitest';
 import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
-import { MAX_PREPARE_FAILURES } from '../src/bookmark-event-quarantine.js';
 import type { QueueOperation } from '../src/sync-state-store.js';
 import { bookmark, fixture, folder, mapping, scope } from './bookmark-event-queue-harness.js';
 import { endpoints, problem } from './outbound-push-worker-harness.js';
@@ -84,13 +83,13 @@ describe('N-3 placement order domain', () => {
     assert.deepEqual((await store.listBookmarkEvents(scope)).filter((event) => event.kind === 'move')
       .map((event) => event.status), ['pending', 'pending', 'pending']);
 
-    for (let round = 1; round < MAX_PREPARE_FAILURES - 1; round += 1) await queue.flush();
+    for (let round = 1; round < 4; round += 1) await queue.flush();
     api.put(bookmark('node-z2', 'folder-other', 0, 'Z2', 'https://example.test/node-z2'));
     assert.equal((await queue.created('node-z2', api.node('node-z2'))).outcome, 'staged');
     await queue.flush();
     const blocked = (await store.listBookmarkEvents(scope)).find((event) => event.nativeId === 'node-x')!;
     assert.equal((await parked(store, blocked.eventId))?.code, 'children_fence_missing');
-    assert.equal((await parked(store, blocked.eventId))?.state, 'parked');
+    assert.equal((await parked(store, blocked.eventId))?.state, 'open');
     assert.deepEqual((await store.listBookmarkEvents(scope)).filter((event) => event.kind === 'move')
       .map((event) => event.status), ['pending', 'pending', 'pending']);
     assert.deepEqual((await store.listQueue(scope)).map((row) => (body(row).node as { title?: string } | undefined)?.title),

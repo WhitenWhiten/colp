@@ -281,7 +281,7 @@ export interface BookmarkEventRecord extends BookmarkEventInput { readonly scope
   readonly status: 'pending' | 'processed'; readonly opId: string | null }
 /**
  * F003: a pending inbox event that cannot be prepared (its dependency was
- * permanently refused, its fence never arrives, or its durable draft is not a
+ * permanently refused, or its durable draft is not a
  * protocol operation) is quarantined instead of blocking the events behind it.
  * The event row itself is preserved unchanged; the quarantine is a durable,
  * bounded marker keyed by the event id, carrying the reason and the number of

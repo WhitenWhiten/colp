@@ -1,3 +1,4 @@
+import { createQueueIssueRepository, putConsumedRejection } from './queue-issue-repository.js';
 import { withReceiptOutcome, MAX_SEQUENCE_BLOCKED_RETRIES } from './open-issue-facts.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
@@ -34,6 +35,7 @@ function boundedLimit(limit?: number): void {
 
 export function createQueueRepository(ctx: SyncStoreRuntime) {
   const maxRecordBytes = ctx.maxRecordBytes;
+  const businessIssues = createQueueIssueRepository(ctx);
   const durableCache = ctx.durableCache;
   const open = () => ctx.open();
   const writableDatabase = () => ctx.writableDatabase();
@@ -48,7 +50,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       readonly allowUnstamped?: boolean;
       readonly provisionalCreateMapping?: MappingInput;
     } = {}): Promise<QueueOperation> {
-    assertWritable(); const key = scopeKey(validateScope(input));
+    assertWritable(); await businessIssues.adoptConsumedRejections(input);
+    const key = scopeKey(validateScope(input));
     const stampValidate = typeof faults.validateOperation === 'function' ? faults.validateOperation : undefined;
     const stampDigest = typeof faults.digestOperation === 'function' ? faults.digestOperation : undefined;
     if (!stampValidate !== !stampDigest || (!stampValidate && faults.allowUnstamped !== true)) {
@@ -169,7 +172,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       if (prior && !sameReceipt(prior, receipt)) throw new SyncStateError('receipt_id_reuse');
       if (!prior) receipts.add(receipt);
       inject(faults.fault, 'after_receipt', tx);
-      queue.put(withReceiptOutcome({ ...queued, status: receipt.kind }, receipt));
+      const settled = withReceiptOutcome({ ...queued, status: receipt.kind }, receipt);
+      queue.put(settled); putConsumedRejection(tx, settled);
       await settleImportNode(tx, key, queued.opId, receipt.kind, receipt.result);
     }); } catch (error) { throw constraintError(error); }
     if (faults.fault === 'unknown_commit') throw new SyncStateError('commit_outcome_unknown');
@@ -193,7 +197,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       const prior = await requestValue(receipts.get([key, receipt.receiptId])) as typeof receipt | undefined;
       if (prior && !sameReceipt(prior, receipt)) throw new SyncStateError('receipt_id_reuse');
       if (!prior) receipts.add(receipt);
-      queue.put(withReceiptOutcome({ ...queued, status: receipt.kind }, receipt));
+      const settled = withReceiptOutcome({ ...queued, status: receipt.kind }, receipt);
+      queue.put(settled); putConsumedRejection(tx, settled);
       await settleImportNode(tx, key, queued.opId, receipt.kind, receipt.result);
     }); } catch (error) { throw constraintError(error); }
     durableCache.set(key, { receiptId: receipt.receiptId, sequence, fence });
@@ -263,7 +268,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   }
 
   async function claimNextQueue(input: SyncScope, ownerId: string, fence: number, now: number): Promise<QueueOperation | null> {
-    assertWritable(); const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId');
+    assertWritable(); await businessIssues.adoptConsumedRejections(input);
+    const key = scopeKey(validateScope(input)); boundedString(ownerId, 'ownerId');
     safeInteger(fence, 'fence', 1); safeInteger(now, 'now'); const db = await writableDatabase();
     let claimed: QueueOperation | null = null;
     await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.leases, STORES.queue, STORES.receipts, STORES.importPlans,
@@ -488,6 +494,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
             ...(settlement.outcome === 'blocked' ? { recovery: settlement.recovery } : { recovery: withReceiptOutcome({ ...queued, status: settlement.outcome }, receipt).recovery }),
             retry: { attempt: settlement.retry?.attempt ?? queued.retry.attempt,
               notBefore: settlement.retry?.notBefore ?? queued.retry.notBefore } }, maxRecordBytes));
+          putConsumedRejection(tx, withReceiptOutcome({ ...queued, status: settlement.outcome }, receipt));
           // A conflicted result consumed its sequence: later changes of the same
           // bookmark wait for the resolution; everything else keeps the lane.
           if (settlement.outcome === 'blocked' || withReceiptOutcome({ ...queued, status: settlement.outcome }, receipt).recovery) await holdWaitingRows(queue, key, maxRecordBytes, sequence);
@@ -552,25 +559,15 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       }
       queue.put(validateQueueRecord({ ...queued, status: 'terminal', recovery: withReceiptOutcome({ ...queued, status: 'terminal' }, receipt).recovery,
         retry: { attempt: queued.retry.attempt, notBefore: queued.retry.notBefore } }, maxRecordBytes));
+      putConsumedRejection(tx, withReceiptOutcome({ ...queued, status: 'terminal' }, receipt));
       await settleImportNode(tx, key, queued.opId, 'terminal', receipt.result);
     });
   }
 
-  /** Manual exact retry: retain the attempt, sequence, digest and idempotency identity. */
-  async function retrySequenceBlocked(input: SyncScope, opId: string): Promise<void> {
-    const key = scopeKey(validateScope(input));
-    await runTransaction(await writableDatabase(), [STORES.scopes, STORES.queue], 'readwrite', async tx => {
-      await requireActiveScope(tx, key); const queue = tx.objectStore(STORES.queue);
-      const row = await requestValue<QueueOperation | undefined>(queue.index(INDEXES.queueByOpId).get([key, opId]));
-      if (!row || row.status !== 'blocked' || row.recovery?.code !== 'sequence_blocked' || !row.attempt) throw new SyncStateError('action_unavailable');
-      queue.put(validateQueueRecord({ ...row, retry: { attempt: 0, notBefore: 0 } }, maxRecordBytes));
-    });
-  }
-
-  return { allocateSequenceAndEnqueue, advanceSequenceFloor, listQueue, listQueueByTarget, getQueueByOpId, getQueueReceipt,
+  return { ...businessIssues, allocateSequenceAndEnqueue, advanceSequenceFloor, listQueue, listQueueByTarget, getQueueByOpId, getQueueReceipt,
     completeQueueWithReceipt, completeClaimedQueueWithReceipt, publishCursor,
     acquireLease, renewLease, claimQueue, claimNextQueue, realignQueueAfterGap, bindPushAttempt, rebaseClaimedPush,
-    settleClaimedPush, repairSequenceReuseRow, retrySequenceBlocked };
+    settleClaimedPush, repairSequenceReuseRow };
 }
 
 /**

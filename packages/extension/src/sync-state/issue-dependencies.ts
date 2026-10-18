@@ -31,6 +31,10 @@ export async function transactionIssueDependencies(queue: IDBObjectStore, key: s
     const event = await requestValue<BookmarkEventRecord | undefined>(tx.objectStore(STORES.bookmarkEvents).get([key, park.eventId]));
     const issue = openIngressIssue(diagnostic, event);
     if (event?.status === 'pending' && typeof park.dependencyOpId === 'string') prerequisiteOpIds.add(park.dependencyOpId);
+    if (event?.status === 'pending' && typeof park.dependencyEventId === 'string') {
+      const predecessor = await requestValue<BookmarkEventRecord | undefined>(tx.objectStore(STORES.bookmarkEvents).get([key, park.dependencyEventId]));
+      if (predecessor?.opId) prerequisiteOpIds.add(predecessor.opId);
+    }
     if (issue && ingressProtectsNode(issue)) nativeRoots.add(issue.nativeId);
   }
   for (const mapping of mappings) if (nativeRoots.has(mapping.nativeId)) roots.add(mapping.colpId);

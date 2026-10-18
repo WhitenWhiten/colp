@@ -1,3 +1,4 @@
+import { isAutomaticIngressWaitCode } from './sync-state/open-issue-facts.js';
 import { classifySyncFailure, syncFailureCode } from './sync-failure-class.js';
 import { createBookmarkPlacement } from './bookmark-event-placement.js';
 import { hasRunningBootstrap } from './bootstrap/run-identity.js';
@@ -30,7 +31,7 @@ import { completeCreatePlacement, resolveCreatePlacement } from './bookmark-even
 import { createBookmarkEventHealer, type EventDependency, type EventIdentity as LocalIdentity,
   type PrepareOutcome } from './bookmark-event-heal.js';
 import { blockerParkState, createBookmarkEventQuarantine, markerDependency,
-  MAX_PREPARE_FAILURES, bookmarkEventErrorCode } from './bookmark-event-quarantine.js';
+  bookmarkEventErrorCode } from './bookmark-event-quarantine.js';
 import type { BookmarkEventParkMarker } from './sync-state/types.js';
 import type { BookmarkEventRecord, JsonObject, JsonValue, MappingInput, SyncScope,
   createSyncStateStore } from './sync-state-store.js';
@@ -353,7 +354,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
             ? await healer.dependencyStamp(dependency, blockerParkState(markers, dependency)).catch(() => undefined)
             : undefined;
           // Isolated until its recorded dependency evidence actually moves.
-          if (marker.code !== 'dependency_pending' && (stamp === undefined || stamp === marker.dependencyStamp)) {
+          if (!isAutomaticIngressWaitCode(marker.code) && (stamp === undefined || stamp === marker.dependencyStamp)) {
             if (placementPinsDomain(marker.state, marker.code)) pin(event);
             continue;
           }
@@ -409,24 +410,18 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     flushPromise = settled.catch(() => undefined); return settled;
   }
 
-  /**
-   * A blocked event stays pending and is skipped this round. Its failure count
-   * is durable, and the bounded window isolates it once its dependency is
-   * already permanently refused, already parked, or has not converged across
-   * `MAX_PREPARE_FAILURES` distinct rounds.
-   */
+  /** Live authority waits remain automatic; deterministic refusal/poison parks its dependents. */
   async function holdBlocked(event: BookmarkEventRecord, blocked: Extract<PrepareOutcome,
   { readonly kind: 'blocked' }>, markers: Map<string, BookmarkEventParkMarker>): Promise<boolean> {
     const dependency = blocked.dependency;
     const blockerState = blockerParkState(markers, dependency);
     const rejected = blockerState !== 'parked'
-      && await healer.blockerIsRejected(dependency).catch(() => false);
+      && await healer.blockerIsRejected(dependency);
     const previous = markers.get(event.eventId);
     const attempts = (previous?.state === 'open' ? previous.attempts : 0) + 1;
-    if (!rejected && blockerState !== 'parked'
-        && (blocked.reason === 'dependency_pending' || attempts < MAX_PREPARE_FAILURES)) {
-      await quarantine.track(event, { attempts, reason: blocked.reason, dependency }).catch(() => undefined);
-      return true;
+    if (!rejected && blockerState !== 'parked') {
+      try { await quarantine.track(event, { attempts, reason: blocked.reason, dependency }); return true; }
+      catch { return false; }
     }
     const code = rejected ? 'dependency_rejected'
       : blockerState === 'parked' ? 'dependency_parked' : blocked.reason;

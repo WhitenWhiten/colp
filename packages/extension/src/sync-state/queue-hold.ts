@@ -1,4 +1,5 @@
-import { isOpenQueueIssue, withReceiptOutcome } from './open-issue-facts.js';
+import { consumedRejectionRows } from './queue-issue-repository.js';
+import { isOpenQueueIssue } from './open-issue-facts.js';
 import { dependsOnIssue, issueAncestry } from '../sync-issues.js';
 import { transactionIssueDependencies } from './issue-dependencies.js';
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
@@ -41,19 +42,15 @@ export async function firstLaneQueueRow(queue: IDBObjectStore, receipts: IDBObje
 /** Rows later changes of their bookmark wait for: open conflicts, rejections and held rows, in sequence order. */
 export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordBytes: number): Promise<QueueOperation[]> {
   const rows: unknown[] = [];
-  for (const status of ['blocked', 'rejected', 'set_aside', 'terminal'] as const) {
+  for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
     await iterateCursor(queue.index(INDEXES.queueByStatusSequence),
       IDBKeyRange.bound([key, status, 1], [key, status, Number.MAX_SAFE_INTEGER]), (value) => {
         rows.push(value);
       });
   }
-  const projected: QueueOperation[] = [];
-  for (const value of rows) {
-    const row = validateQueueRecord(value, maxRecordBytes);
-    const receipt = row.status === 'terminal' ? await requestValue(queue.transaction.objectStore(STORES.receipts)
-      .index(INDEXES.queueBySequence).get([key, row.sequence])) : undefined;
-    const issue = withReceiptOutcome(row, receipt as never); if (isOpenQueueIssue(issue) && issue.recovery?.code !== 'sequence_blocked') projected.push(issue);
-  }
+  const projected = rows.map(value => validateQueueRecord(value, maxRecordBytes))
+    .filter(row => isOpenQueueIssue(row) && row.recovery?.code !== 'sequence_blocked');
+  projected.push(...await consumedRejectionRows(queue.transaction, key, maxRecordBytes));
   return projected.sort((left, right) => left.sequence - right.sequence);
 }
 
