@@ -448,6 +448,7 @@ export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebu
 /** Browser-local diagnostics. Native identities stay on this device. */
 export interface SyncIssueDiagnostic {
   readonly direction: 'pull' | 'push' | 'local'; readonly code: string; readonly title?: string;
+  readonly reportId?: string; readonly itemId?: string;
   readonly issueId?: string; readonly nodeId?: string; readonly opId?: string; readonly eventId?: string;
   readonly count?: number; readonly firstSeenAt?: string | number; readonly lastSeenAt?: string | number;
   readonly dependencyOpId?: string; readonly dependencyEventId?: string;

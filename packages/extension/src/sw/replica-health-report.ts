@@ -115,6 +115,7 @@ interface CommandRecord {
 export interface ReplicaHealthReporterDeps {
   readonly scope: SyncScope;
   readonly store: SyncAttentionStore & {
+    readonly listBootstrapRuns: NonNullable<SyncAttentionStore['listBootstrapRuns']>;
     readonly listPullIssues?: (scope: SyncScope) => Promise<PullIssueRecord[]>;
     readonly listLocalIssues?: (scope: SyncScope) => Promise<LocalIssueRecord[]>;
     readonly exportArchive?: (scope: SyncScope) => Promise<{ readonly reason?: unknown }>;
@@ -248,6 +249,7 @@ async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknow
 }
 
 async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaHealthProjection> {
+  if (!deps.store.listBootstrapRuns) throw new Error('bootstrap_state_unavailable');
   const open = await readOpenSyncIssues(deps.store, deps.scope);
   const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });

@@ -6,7 +6,7 @@ export const OPEN_SYNC_ISSUE_CEILING = 200;
 export const SYNC_ISSUE_CEILING_CODE = 'sync_issue_ceiling';
 type Store = ReturnType<typeof createSyncStateStore>;
 export async function exceedsSyncIssueCeiling(store: Store, scope: SyncScope): Promise<boolean> {
-  return (await readOpenSyncIssues(store, scope)).total > OPEN_SYNC_ISSUE_CEILING;
+  return (await readOpenSyncIssues(store, scope)).operationalTotal > OPEN_SYNC_ISSUE_CEILING;
 }
 
 /** Admission stop, not stream corruption: never retire pages or erase native recovery ownership. */

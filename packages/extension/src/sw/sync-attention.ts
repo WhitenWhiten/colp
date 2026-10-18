@@ -18,7 +18,7 @@ import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -55,7 +55,8 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const issues = snapshotSyncIssues(open).map(issue => {
       const local = open.local.find(row => issue.direction === 'local' && row.code === issue.code
         && issueId(['local', row.code, row.nativeId]) === issue.issueId);
-      return { ...issue, ...(local ? { eventId: local.eventId, dependencyOpId: local.dependencyOpId,
+      const merge = open.bootstrap.find(row => row.issueId === issue.issueId);
+      return { ...issue, ...(merge ? { reportId: merge.reportId, itemId: merge.itemId, recovery: 'decision' as const } : {}), ...(local ? { eventId: local.eventId, dependencyOpId: local.dependencyOpId,
         dependencyEventId: local.dependencyEventId, rootCause: local.rootCause, attempts: local.attempts,
         recovery: local.recovery } : {}) };
     });

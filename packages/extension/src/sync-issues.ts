@@ -1,3 +1,4 @@
+import { openBootstrapAttention, type BootstrapDisplayIssue } from './bootstrap/open-attention.js';
 import { OPEN_REMOTE_DELETE_STATES } from './remote-delete-pending-facts.js';
 import { mergeLocalIssues, ingressProtectsNode, blockedPullIssue, isOpenQueueIssue, addQueueIssueRoots, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
 /** One interpretation of durable open issues, shared by sync and repair consumers. */
@@ -6,8 +7,10 @@ import type { LocalIssueRecord, MappingInput, PullIssueRecord, QueueOperation, S
   createSyncStateStore } from './sync-state-store.js';
 
 export type SyncIssueStore = Partial<Pick<ReturnType<typeof createSyncStateStore>,
-  'listRemoteDeleteDecisions' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'> & NativeWaitStore>;
+  'listBootstrapRuns' | 'listRemoteDeleteDecisions' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'> & NativeWaitStore>;
 export interface OpenSyncIssues {
+  readonly bootstrap: readonly BootstrapDisplayIssue[];
+  readonly operationalTotal: number;
   readonly queue: readonly QueueOperation[];
   readonly pull: readonly PullIssueRecord[];
   readonly local: readonly LocalIssueRecord[];
@@ -49,8 +52,10 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
   if (nativeRoots.size && store.listMappings) for (const row of await store.listMappings(scope)) {
     if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
   }
-  return { queue, pull, local, waits, replica, deletes, roots, nativeRoots,
-    total: deletes.length + queue.length + pull.length + local.length + waits.length + replica.length };
+  const bootstrap = store.listBootstrapRuns ? openBootstrapAttention(await store.listBootstrapRuns(scope), await store.listMappings?.(scope) ?? []) : [];
+  const operationalTotal = deletes.length + queue.length + pull.length + local.length + waits.length + replica.length;
+  return { queue, pull, local, waits, replica, deletes, roots, nativeRoots, bootstrap, operationalTotal,
+    total: operationalTotal + bootstrap.length };
 }
 
 /** Parent edges include existing mappings and never-confirmed creates. */

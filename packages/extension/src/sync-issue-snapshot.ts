@@ -109,6 +109,9 @@ export function titleOf(operation: QueueOperation['payload']): string | undefine
 export function snapshotSyncIssues(open: OpenSyncIssues): ReplicaHealthIssue[] {
   return [...replicaIssuesFromQueue(open.queue), ...replicaIssuesFromPull(open.pull),
     ...replicaIssuesFromLocal(open.local), ...replicaIssuesFromWaits(open.waits),
+    ...open.bootstrap.map(row => ({ issueId: row.issueId, direction: 'local' as const, code: row.code,
+      ...(row.nodeId && serverNodeId(row.nodeId) ? { nodeId: row.nodeId } : {}), ...(row.title ? { title: row.title } : {}),
+      count: 1, firstSeenAt: safeTime(row.at), lastSeenAt: safeTime(row.at), actions: [] })),
     ...open.deletes.map(row => ({ issueId: issueId(['delete', row.decisionId]), direction: 'pull' as const,
       code: 'remote_delete_confirmation_required', nodeId: row.targetId, title: bounded(row.title), count: 1,
       firstSeenAt: new Date(row.updatedAt).toISOString(), lastSeenAt: new Date(row.updatedAt).toISOString(), actions: [] })),

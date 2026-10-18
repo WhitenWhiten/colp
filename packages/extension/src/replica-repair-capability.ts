@@ -22,7 +22,7 @@ export async function readReplicaRepairCapability(store: Store, scope: SyncScope
     const receipt = await store.getQueueReceipt?.(scope, row.sequence);
     if (receipt?.kind !== 'terminal' || receipt.opId !== row.opId) { unsettled = true; break; }
   }
-  const required = state?.recoveryFrozen === true || issues.total > 0;
+  const required = state?.recoveryFrozen === true || issues.operationalTotal > 0;
   return { state, queuedOperations: live.length, rebuildAvailable: required && !unsettled,
     reason: unsettled ? 'upload_outcome_unsettled' : required ? undefined : 'rebuild_not_required' };
 }
