@@ -1,44 +1,4 @@
 {
-  "auth_copyResetCommand": {
-    "message": "复制密码重置命令",
-    "description": "Copy the password reset command"
-  },
-  "auth_enterPassword": {
-    "message": "请输入密码。",
-    "description": "Enter your password."
-  },
-  "auth_enterSignInCode": {
-    "message": "请输入邮件中的 6 位登录验证码。",
-    "description": "Enter the 6-digit code from the email."
-  },
-  "auth_enterUsernameOrEmail": {
-    "message": "请输入用户名或邮箱。",
-    "description": "Enter your username or email."
-  },
-  "auth_forgotYourPassword": {
-    "message": "忘记密码？",
-    "description": "Forgot your password?"
-  },
-  "auth_selfHostedResetHelp": {
-    "message": "此服务器不发送邮件，密码要在服务器上重置。运行服务器的人可以设置新密码：",
-    "description": "This server sends no email, so passwords are reset where it runs. Whoever runs it can set a new one:"
-  },
-  "auth_showPassword": {
-    "message": "显示密码",
-    "description": "Show password"
-  },
-  "common_copied": {
-    "message": "已复制",
-    "description": "Copied"
-  },
-  "common_copy": {
-    "message": "复制",
-    "description": "Copy"
-  },
-  "common_selectAndCopy": {
-    "message": "请选中后手动复制",
-    "description": "Select and copy"
-  },
   "extensionName": {
     "message": "Know-N",
     "description": "Know-N"
@@ -87,6 +47,10 @@
     "message": "$1 秒",
     "description": "$1s"
   },
+  "auth_copyResetCommand": {
+    "message": "复制密码重置命令",
+    "description": "Copy the password reset command"
+  },
   "auth_couldNotRestoreSession": {
     "message": "无法恢复会话，请重试。",
     "description": "Could not restore the session. Please try again."
@@ -106,6 +70,22 @@
   "auth_emailPasswordIncorrect": {
     "message": "用户名、邮箱或密码不正确。",
     "description": "Username, email or password is incorrect."
+  },
+  "auth_enterPassword": {
+    "message": "请输入密码。",
+    "description": "Enter your password."
+  },
+  "auth_enterSignInCode": {
+    "message": "请输入邮件中的 6 位登录验证码。",
+    "description": "Enter the 6-digit code from the email."
+  },
+  "auth_enterUsernameOrEmail": {
+    "message": "请输入用户名或邮箱。",
+    "description": "Enter your username or email."
+  },
+  "auth_forgotYourPassword": {
+    "message": "忘记密码？",
+    "description": "Forgot your password?"
   },
   "auth_ifAccountExistsSign": {
     "message": "如果 $1 对应的账号存在，登录验证码已发送。",
@@ -131,6 +111,10 @@
     "message": "托管设置与此版本冲突。",
     "description": "Managed settings conflict with this build."
   },
+  "auth_selfHostedResetHelp": {
+    "message": "此服务器不发送邮件，密码要在服务器上重置。运行服务器的人可以设置新密码：",
+    "description": "This server sends no email, so passwords are reset where it runs. Whoever runs it can set a new one:"
+  },
   "auth_serverConfigurationCouldNot": {
     "message": "无法验证服务器配置。",
     "description": "The server configuration could not be verified."
@@ -138,6 +122,10 @@
   "auth_serverConfigurationFailed": {
     "message": "请检查服务器地址并允许访问，然后再登录。",
     "description": "Check the server address and allow access before signing in."
+  },
+  "auth_showPassword": {
+    "message": "显示密码",
+    "description": "Show password"
   },
   "auth_signFailedTryAgain": {
     "message": "登录失败。请重试，或在 Know-N 网站上登录。",
@@ -2719,6 +2707,14 @@
     "message": "控制设置冲突",
     "description": "Control conflict"
   },
+  "common_copied": {
+    "message": "已复制",
+    "description": "Copied"
+  },
+  "common_copy": {
+    "message": "复制",
+    "description": "Copy"
+  },
   "common_copyDiagnostics": {
     "message": "复制诊断信息",
     "description": "Copy diagnostics"
@@ -3511,6 +3507,10 @@
     "message": "全选",
     "description": "Select all"
   },
+  "common_selectAndCopy": {
+    "message": "请选中后手动复制",
+    "description": "Select and copy"
+  },
   "common_sendCode": {
     "message": "发送验证码",
     "description": "Send code"
@@ -3847,6 +3847,14 @@
     "message": "$1。",
     "description": "$1."
   },
+  "firstRun_attentionReportScope": {
+    "message": "此列表仅统计当前合并任务。“状态”还会列出其他当前同步问题。",
+    "description": "This list covers the current merge. Status also includes other current sync problems."
+  },
+  "firstRun_attentionRequestFailed": {
+    "message": "无法加载待处理列表（$1）。请点击“查看需要处理的项目”重试，或重新加载此页面。",
+    "description": "Could not load the review list ($1). Click View items needing attention to try again, or reload this page."
+  },
   "firstRun_attentionStatus": {
     "message": "$1：$2。",
     "description": "$1: $2."
@@ -3906,10 +3914,6 @@
   "firstRun_connectingLibrary": {
     "message": "正在连接你的书签库…",
     "description": "Connecting to your bookmark library…"
-  },
-  "firstRun_contentConflict": {
-    "message": "内容冲突",
-    "description": "Content conflict"
   },
   "firstRun_couldNotReadFolder": {
     "message": "无法读取文件夹数量，请刷新后重试。",
@@ -3971,6 +3975,22 @@
     "message": "以 Know-N 为准",
     "description": "Know-N wins"
   },
+  "firstRun_libraryRootFolder": {
+    "message": "收藏库根目录",
+    "description": "Library root"
+  },
+  "firstRun_localDifferences_one": {
+    "message": "$1 个本地差异",
+    "description": "$1 local difference"
+  },
+  "firstRun_localDifferences_other": {
+    "message": "$1 个本地差异",
+    "description": "$1 local differences"
+  },
+  "firstRun_localMergeDifference": {
+    "message": "本地合并差异",
+    "description": "Local merge difference"
+  },
   "firstRun_localOnlyItems_other": {
     "message": "$1 个项目仅在此设备上",
     "description": "$1 items only on this device"
@@ -3983,9 +4003,17 @@
     "message": "$1 个已匹配的项目",
     "description": "$1 matched items"
   },
+  "firstRun_mergeFolderComparison": {
+    "message": "此设备的目录：$1；云端目录：$2。",
+    "description": "Device folder: $1; cloud folder: $2."
+  },
   "firstRun_mergeLibrary": {
     "message": "将此浏览器和书签库中的书签合并。保留现有书签，未匹配的项目作为独立副本保留。",
     "description": "Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies."
+  },
+  "firstRun_mergeResolutionPending": {
+    "message": "已提交上传，等待数据收敛",
+    "description": "Upload submitted; waiting for convergence"
   },
   "firstRun_modeNeedsReviewConfirm": {
     "message": "此模式需要你先查看并确认更改列表。",
@@ -4086,6 +4114,10 @@
   "firstRun_untitledItem": {
     "message": "无标题项目",
     "description": "Untitled item"
+  },
+  "firstRun_uploadLocalVersion": {
+    "message": "上传此设备的版本和目录",
+    "description": "Upload this device’s version and folder"
   },
   "firstRun_viewItemsNeedAttention": {
     "message": "查看需要处理的项目",
@@ -7651,10 +7683,6 @@
     "message": "还有一些书签尚未上传。同步会自动再次检查。",
     "description": "Some bookmarks haven’t been uploaded yet. Sync checks again on its own."
   },
-  "syncProgress_stopped": {
-    "message": "此设备上的同步已停止。请打开状态查看问题。",
-    "description": "Sync on this device has stopped. Open Status to review the problem."
-  },
   "syncProgress_paused": {
     "message": "恢复之前不会同步任何内容。期间做的更改会在恢复后同步。",
     "description": "Nothing syncs until you resume. Changes you make meanwhile sync after that."
@@ -7702,6 +7730,10 @@
   "syncProgress_short": {
     "message": "正在同步 $1/$2",
     "description": "Syncing $1 of $2"
+  },
+  "syncProgress_stopped": {
+    "message": "此设备上的同步已停止。请打开状态查看问题。",
+    "description": "Sync on this device has stopped. Open Status to review the problem."
   },
   "syncProgress_title": {
     "message": "正在同步书签",
@@ -7947,6 +7979,22 @@
     "message": "$1 类问题",
     "description": "$1 kinds of issues"
   },
+  "sync_itemsNeedAttention_one": {
+    "message": "$1 项需要处理。",
+    "description": "$1 item needs attention."
+  },
+  "sync_itemsNeedAttention_other": {
+    "message": "$1 项需要处理。",
+    "description": "$1 items need attention."
+  },
+  "sync_itemsRecoveringAutomatically_one": {
+    "message": "$1 个项目正在等待自动恢复。",
+    "description": "$1 item is waiting for automatic recovery."
+  },
+  "sync_itemsRecoveringAutomatically_other": {
+    "message": "$1 个项目正在等待自动恢复。",
+    "description": "$1 items are waiting for automatic recovery."
+  },
   "sync_keepBoth": {
     "message": "两者都保留",
     "description": "Keep both"
@@ -8131,9 +8179,17 @@
     "message": "你的书签会保留在此设备和 Know-N 中。$1之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
     "description": "Your bookmarks stay on this device and in Know-N. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
+  "sync_rebuildNoLongerAvailable": {
+    "message": "同步状态已变化。请刷新“状态”查看当前可用的操作（$1）。",
+    "description": "Sync state changed. Refresh Status to review the available actions ($1)."
+  },
   "sync_rebuildSetAside_other": {
     "message": "$1 项尚未同步的更改将被搁置，不会再重试。",
     "description": "$1 changes that have not synced yet will be set aside and not retried."
+  },
+  "sync_rebuildUnsettled": {
+    "message": "前一项更改的执行结果未知（$1）。请先在“状态”中处理，再重置同步。",
+    "description": "A previous change has an unknown result ($1). Resolve it in Status before resetting sync."
   },
   "sync_recordedIssues": {
     "message": "已记录 $1 · $2",
@@ -8227,10 +8283,6 @@
     "message": "此设备上的同步已停止，因为此设备上缺少部分书签。你在 Know-N 中的书签是安全的。请重置此设备上的同步以继续。",
     "description": "Sync on this device has stopped because some bookmarks on this device are missing. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
   },
-  "sync_tooManyItemsSetAside": {
-    "message": "此设备上的同步已停止：它搁置的项目过多，无法继续安全同步。你在 Know-N 中的书签是安全的。请重置此设备上的同步以继续。",
-    "description": "Sync on this device has stopped: it set aside too many items to keep syncing safely. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
-  },
   "sync_syncDeviceHasStopped4": {
     "message": "此设备上的同步已停止：此设备无法确认要删除的书签与云端项目一致。",
     "description": "Sync on this device has stopped: this device cannot verify the bookmark to delete matches the cloud item."
@@ -8286,6 +8338,10 @@
   "sync_titleCannotRepresentedEmpty": {
     "message": "标题无法表示（为空或过长）",
     "description": "Title cannot be represented (empty or too long)"
+  },
+  "sync_tooManyItemsSetAside": {
+    "message": "此设备上的同步已停止：它搁置的项目过多，无法继续安全同步。你在 Know-N 中的书签是安全的。请重置此设备上的同步以继续。",
+    "description": "Sync on this device has stopped: it set aside too many items to keep syncing safely. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
   },
   "sync_urlCannotRepresentedMissing": {
     "message": "此网址无法同步（格式无效、不允许的协议或过长）",
@@ -8386,34 +8442,5 @@
   "welcome_title": {
     "message": "欢迎使用 Know-N",
     "description": "Welcome to Know-N"
-  },
-  "sync_itemsNeedAttention_one": {
-    "message": "$1 项需要处理。",
-    "description": "$1 item needs attention."
-  },
-  "sync_itemsNeedAttention_other": {
-    "message": "$1 项需要处理。",
-    "description": "$1 items need attention."
-  },
-  "firstRun_attentionRequestFailed": {
-    "message": "无法加载待处理列表（$1）。请点击“查看需要处理的项目”重试，或重新加载此页面。"
-  },
-  "firstRun_localMergeDifference": {
-    "message": "本地合并差异"
-  },
-  "firstRun_localDifferences_one": {
-    "message": "$1 个本地差异"
-  },
-  "firstRun_localDifferences_other": {
-    "message": "$1 个本地差异"
-  },
-  "firstRun_mergeResolutionPending": {
-    "message": "已提交上传，等待数据收敛"
-  },
-  "firstRun_uploadLocalVersion": {
-    "message": "上传此设备的版本和目录"
-  },
-  "firstRun_mergeFolderComparison": {
-    "message": "此设备的目录：$1；云端目录：$2。"
   }
 }

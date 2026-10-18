@@ -43,7 +43,7 @@ export async function createHealthDelivery(input: { scope: SyncScope; storage: P
   const flush = async () => {
     for (const [entryKey, entry] of Object.entries(journal.records)) {
       if (!sameOwner(entry.scope, input.scope)) continue;
-      if (entry.final && !entry.final.confirmedAt && (entry.final.retryAt ?? 0) <= input.now()) {
+      if (entry.final && entry.final.confirmedAt === undefined && ((entry.final.retryAt ?? 0) <= input.now() || input.now() < Number(entry.final.retryAt) - 60_000)) {
         const sent = await input.post(entry.final.body, entry.scope).catch(() => undefined);
         const receipt = sent ? await readHealthReceipt(sent, entry.final.body,
           { timeoutMilliseconds: input.receiptTimeoutMilliseconds ?? 10_000 }).catch(() => undefined) : undefined;
@@ -60,7 +60,7 @@ export async function createHealthDelivery(input: { scope: SyncScope; storage: P
       }
       // Keep deduplication evidence through the server's seven-day command TTL.
       const pending = (entry.value.commands as { reported?: boolean }[] | undefined)?.some(command => !command.reported);
-      if (entryKey !== key && !pending && (!entry.final || entry.final.confirmedAt) && input.now() - entry.updatedAt > RETENTION_MS) {
+      if (entryKey !== key && !pending && (!entry.final || entry.final.confirmedAt !== undefined) && input.now() - entry.updatedAt > RETENTION_MS) {
         delete journal.records[entryKey]; await persist();
       }
     }

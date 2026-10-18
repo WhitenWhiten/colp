@@ -39,7 +39,8 @@ export async function handleAttentionGet(store: Store, scope: SyncScope, reportI
     }));
     const parentLabels = await Promise.all(parentRefs.map(async ref => {
       const mapping = await store.getMappingByNativeId(scope, ref) ?? await store.getMappingByColpId(scope, ref);
-      if (typeof mapping?.projection.content?.title === 'string') return mapping.projection.content.title;
+      if (mapping?.projection.content?.folderRole === 'root') return t('firstRun_libraryRootFolder', 'Library root');
+      if (typeof mapping?.projection.content?.title === 'string') return mapping.projection.content.title || t('firstRun_libraryRootFolder', 'Library root');
       try { return (await chrome.bookmarks.get(ref))[0]?.title ?? '?'; } catch { return '?'; }
     }));
     const operations = await Promise.all((item.resolutionOpIds ?? []).map(id => store.getQueueByOpId(scope, id)));

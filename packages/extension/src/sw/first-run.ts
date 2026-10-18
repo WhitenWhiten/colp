@@ -14,7 +14,7 @@ import { detachScopeMount, executeRemoteDelete, rejoinScopeMount } from '../scop
 import { collectNativeIds } from '../scope-reconcile.js';
 import type { BootstrapRunRecord, MountBindingRecord, ScopePreviewRecord, SyncScope } from '../sync-state-store.js';
 import type { FirstRunOrScopeResponse, FirstRunRequest, ScopeCommandRequest } from '../types.js';
-import { handleAttentionDecide, handleAttentionGet, latestBootstrapRun, withAttention } from './first-run-attention.js';
+import { handleAttentionDecide, handleAttentionGet, latestBootstrapRun, withAttention, attentionSummaryOf } from './first-run-attention.js';
 import { persistFirstRunBrowserRoots } from './first-run-browser-roots.js';
 import { resolveLibraryRootId } from './library.js';
 import { hasBookmarkPermission, rootScopeKey, store, workCoordinator, sw, syncState } from './runtime.js';
@@ -25,6 +25,7 @@ import { readSnapshotAuthority, advancedFirstRunStatus, handleAdvancedFirstRunCo
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
+let lastAttentionStatusRead: { scopeKey: string; at: number } | undefined;
 
 export async function handleFirstRunRequest(message: FirstRunRequest): Promise<FirstRunOrScopeResponse> {
   if (message.kind === 'known.firstRun.preview') return handleFirstRunPreview(message);
@@ -125,9 +126,16 @@ async function handleFirstRunStatus(): Promise<FirstRunOrScopeResponse> {
   if (advanced) return advanced;
   const coordinator = createBootstrapCoordinator({ store: syncState, scope });
   const snapshot = await coordinator.status();
-  if ((snapshot.phase === 'needs_attention' || snapshot.retryReason === 'queue_recovery_frozen' || snapshot.retryReason === 'snapshot_pending')
-      && (snapshot.phase === 'needs_attention' || snapshot.firstRun === 'running' || bootstrapRunInFlight(snapshot.phase))) {
-    try { await resumeRunningBootstrap(scope); } catch (error) { return { ok: false, error: reasonCode(error, 'bootstrap_status_unavailable') }; }
+  const needsAttention = snapshot.phase === 'needs_attention' || (attentionSummaryOf(snapshot)?.pendingCount ?? 0) > 0;
+  if ((needsAttention || snapshot.retryReason === 'queue_recovery_frozen' || snapshot.retryReason === 'snapshot_pending')
+      && (needsAttention || snapshot.firstRun === 'running' || bootstrapRunInFlight(snapshot.phase))) {
+    const key = rootScopeKey(scope);
+    const due = !needsAttention || lastAttentionStatusRead?.scopeKey !== key
+      || Date.now() < lastAttentionStatusRead.at || Date.now() - lastAttentionStatusRead.at >= 8000;
+    if (due) {
+      try { await resumeRunningBootstrap(scope); lastAttentionStatusRead = { scopeKey: key, at: Date.now() }; }
+      catch (error) { return { ok: false, error: reasonCode(error, 'bootstrap_status_unavailable') }; }
+    }
   }
   const next = await coordinator.status();
   if (next.retryReason === 'bootstrap_upload_rejected') return { ok: false, error: next.retryReason };
@@ -140,20 +148,23 @@ export async function resumeRunningBootstrap(scope: SyncScope): Promise<boolean>
   if (await kns09Paused('coordinator')) return false;
   if ((await syncState.getEngineState(scope))?.recoveryFrozen === true) return false;
   const runs = [...await syncState.listBootstrapRuns(scope)].sort((left, right) => right.updatedAt - left.updatedAt);
-  const candidates = runs.filter(row => bootstrapRunInFlight(row.phase) || row.phase === 'needs_attention');
+  const candidates = runs.filter(row => bootstrapRunInFlight(row.phase) || row.phase === 'needs_attention'
+    || (attentionSummaryOf(row)?.pendingCount ?? 0) > 0);
   if (!candidates.length) return false;
   const priorOpIds = new Set(await listAllQueueOpIds(scope));
   let added = false;
   for (const run of candidates) {
     let input = await resumeConfirmInput(scope, run);
     if (run.attention?.items.some(item => item.resolutionOpIds?.length)) {
+      const operations = await Promise.all(run.attention.items.flatMap(item => item.resolutionOpIds ?? []).map(id => syncState.getQueueByOpId(scope, id)));
+      if (operations.some(row => row && !['terminal', 'rejected'].includes(row.status))) continue;
       input = { ...input, remoteFacts: (await readSnapshotAuthority(scope)).snapshot.remoteFacts };
     }
     const view = await createBootstrapCoordinator({ store: syncState, scope,
       retireLegacy: async () => { await retireLegacyScopeForRemount(); } }).advance(run.runId, input);
     if (bootstrapRunInFlight(run.phase)) await persistConfirmedPreviewRoots(scope, input.previewId
       ? await syncState.getScopePreview(scope, input.previewId) : null);
-    added ||= view.queuedOpIds.some(opId => !priorOpIds.has(opId));
+    added ||= view.queuedOpIds.some((opId) => !priorOpIds.has(opId));
   }
   return added;
 }

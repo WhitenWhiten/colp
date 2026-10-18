@@ -43,3 +43,23 @@ test('a stale final report receipts command results but must republish its final
   expect(bodies[1].revision).toBe(10000001); expect(bodies[1].commandResults).toEqual(bodies[0].commandResults);
   await createHealthDelivery(options); expect(bodies).toHaveLength(2);
 });
+
+test('automatic reports remain live when the clock rolls back after an accepted or failed report', async () => {
+  const f = await setup(); let now = 100000; let fail = false; let revision = 0; const sent: number[] = [];
+  try {
+    const deps = { scope, store: f.store, storage: new MemoryStorageArea(), origin: 'chrome-extension://test',
+      mode: async () => 'enabled' as const, now: () => now,
+      credential: async () => ({ accessToken: 'test', subject: scope.accountId, serverOrigin: scope.serverOrigin }),
+      fetch: async (_url: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)); sent.push(body.revision);
+        if (fail) throw new Error('lost');
+        const accepted = body.revision > revision; if (accepted) revision = body.revision;
+        return json(200, { replicaId: scope.replicaId, revision, accepted, commands: [] }); } };
+    await sendReplicaHealthReport(deps); now = 10;
+    expect(await sendReplicaHealthReport(deps)).toBe('sent');
+    now = 200000; fail = true;
+    await sendReplicaHealthReport({ ...deps, force: true }); now = 20; fail = false;
+    expect(await sendReplicaHealthReport(deps)).toBe('sent');
+    expect(sent).toEqual([100000, 100001, 200000, 200001]);
+  } finally { f.store.close(); }
+});

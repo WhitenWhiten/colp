@@ -63,12 +63,15 @@ for (const legacy of [false, true]) test(`unknown native result defers without b
     assert.equal((await f.store.listPullIssues(scope)).length, 0);
     const status = await handleSyncAttentionRequest({ scope: async () => scope, store: f.store });
     assert.ok(status.ok && (status.attention.issueCount ?? 0) > 0);
+    assert.ok(status.ok && status.attention.rebuildAvailable === false);
+    assert.ok(status.ok && status.attention.rebuildUnavailableReason === 'native_outcome_unsettled');
     let health: any;
     await sendReplicaHealthReport({ scope, store: f.store, storage: new MemoryStorageArea(), origin: 'chrome-extension://test',
       now: () => clock, mode: async () => 'enabled',
       credential: async () => ({ accessToken: 'token', subject: scope.accountId, serverOrigin: scope.serverOrigin }),
       fetch: async (_url, init) => { health = JSON.parse(String(init?.body)); return json(200, {}); } });
     assert.equal(health.state, 'degraded');
+    assert.ok(!health.actions.includes('rebuild'), 'unknown native side effects must be settled through the actual wait decision');
     assert.ok(health.issues.items.some((issue: any) => issue.code === 'native_result_unknown'));
     await f.store.prunePullHistory(scope, 1, { maxEvents: 1, maxBytes: 1 });
     f = await reopenT02(f);

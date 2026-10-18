@@ -259,7 +259,8 @@ export function attentionStatusCopy(summary: PublicAttentionSummary): string {
   const prefix = FIRST_RUN_ACTION_REQUIRED;
   const countParts = [summary.candidateCount ? tn('firstRun_duplicates', summary.candidateCount, '$1 duplicate', '$1 duplicates') : '', summary.conflictCount ? tn('firstRun_localDifferences', summary.conflictCount, '$1 local difference', '$1 local differences') : ''].filter(Boolean);
   const waiting = tn('firstRun_itemsWaiting', summary.pendingCount, '$1 item waiting', '$1 items waiting');
-  return countParts.length ? t('firstRun_attentionStatusDetail', '$1: $2 ($3).', prefix, waiting, listCopy(countParts)) : t('firstRun_attentionStatus', '$1: $2.', prefix, waiting);
+  const detail = countParts.length ? t('firstRun_attentionStatusDetail', '$1: $2 ($3).', prefix, waiting, listCopy(countParts)) : t('firstRun_attentionStatus', '$1: $2.', prefix, waiting);
+  return `${detail} ${t('firstRun_attentionReportScope', 'This list covers the current merge. Status also includes other current sync problems.')}`;
 }
 
 export function attentionItemCopy(item: { readonly kind: 'duplicate_candidate' | 'local_difference' | 'conflict';

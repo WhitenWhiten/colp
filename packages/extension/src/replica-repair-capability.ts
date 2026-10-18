@@ -18,11 +18,12 @@ export async function readReplicaRepairCapability(store: Store, scope: SyncScope
   }
   let unsettled = false;
   for (const row of live) {
-    if (row.status === 'set_aside' || !row.attempt && row.status !== 'claimed') continue;
+    if (row.status === 'set_aside' || row.status === 'pending' && !row.attempt) continue;
     const receipt = await store.getQueueReceipt?.(scope, row.sequence);
     if (receipt?.kind !== 'terminal' || receipt.opId !== row.opId) { unsettled = true; break; }
   }
-  const required = state?.recoveryFrozen === true || issues.operationalTotal > 0;
-  return { state, queuedOperations: live.length, rebuildAvailable: required && !unsettled,
-    reason: unsettled ? 'upload_outcome_unsettled' : required ? undefined : 'rebuild_not_required' };
+  const nativeUnknown = issues.waits.some(wait => wait.waitReason === 'native_result_unknown');
+  const required = state?.recoveryFrozen === true || issues.operationalTotal - issues.local.filter(issue => issue.recovery === 'automatic').length > 0;
+  return { state, queuedOperations: live.length, rebuildAvailable: required && !unsettled && !nativeUnknown,
+    reason: nativeUnknown ? 'native_outcome_unsettled' : unsettled ? 'upload_outcome_unsettled' : required ? undefined : 'rebuild_not_required' };
 }

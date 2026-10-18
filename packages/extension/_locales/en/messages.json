@@ -2921,6 +2921,9 @@
   "firstRun_advancedSummary": {
     "message": "$1."
   },
+  "firstRun_attentionReportScope": {
+    "message": "This list covers the current merge. Status also includes other current sync problems."
+  },
   "firstRun_attentionRequestFailed": {
     "message": "Could not load the review list ($1). Click View items needing attention to try again, or reload this page."
   },
@@ -3025,6 +3028,9 @@
   },
   "firstRun_knowNWins": {
     "message": "Know-N wins"
+  },
+  "firstRun_libraryRootFolder": {
+    "message": "Library root"
   },
   "firstRun_localDifferences_one": {
     "message": "$1 local difference"
@@ -6095,6 +6101,12 @@
   "sync_itemsNeedAttention_other": {
     "message": "$1 items need attention."
   },
+  "sync_itemsRecoveringAutomatically_one": {
+    "message": "$1 item is waiting for automatic recovery."
+  },
+  "sync_itemsRecoveringAutomatically_other": {
+    "message": "$1 items are waiting for automatic recovery."
+  },
   "sync_keepBoth": {
     "message": "Keep both"
   },
@@ -6233,11 +6245,17 @@
   "sync_rebuildConfirmSetAside": {
     "message": "Your bookmarks stay on this device and in Know-N. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
+  "sync_rebuildNoLongerAvailable": {
+    "message": "Sync state changed. Refresh Status to review the available actions ($1)."
+  },
   "sync_rebuildSetAside_one": {
     "message": "$1 change that has not synced yet will be set aside and not retried."
   },
   "sync_rebuildSetAside_other": {
     "message": "$1 changes that have not synced yet will be set aside and not retried."
+  },
+  "sync_rebuildUnsettled": {
+    "message": "A previous change has an unknown result ($1). Resolve it in Status before resetting sync."
   },
   "sync_recordedIssues": {
     "message": "Recorded $1 · $2"

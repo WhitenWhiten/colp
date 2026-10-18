@@ -147,7 +147,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       void hydrate().then(() => {
         if (!firstRunOnboardingActive(observation.firstRun)) return;
         host.showPane('folders');
-      });
+      }).catch(() => { say(t('firstRun_initializationFailed', 'Sync setup could not load. Reload this page to try again. Your bookmarks and draft are kept.')); });
     },
     onPermissionResult(granted) {
       if (!rangeActive) return;
@@ -179,8 +179,8 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
           applyFolderSelection(host.rootTree, restoreDraftSelection(next, draft),
             restoreDraftSelection(next, { ...draft, selected: draft.excluded ?? [] }));
         }
-        void refreshPreview();
-      });
+        return refreshPreview();
+      }).catch(() => { say(t('firstRun_initializationFailed', 'Sync setup could not load. Reload this page to try again. Your bookmarks and draft are kept.')); });
     } else void refreshPreview();
   }
 
@@ -321,6 +321,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
         say(attentionStatusCopy(response.attention));
       }
     } catch (failure) {
+      if (ticket !== attentionRequest) return;
       attentionFailed = true;
       say(t('firstRun_attentionRequestFailed', 'Could not load the review list ($1). Click View items needing attention to try again, or reload this page.',
         failure instanceof Error ? failure.message : 'extension_unavailable'));

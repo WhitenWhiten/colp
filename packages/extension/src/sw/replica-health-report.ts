@@ -98,7 +98,7 @@ interface SentRecord {
   readonly revision?: number;
   readonly unsupportedUntil?: number;
   /** The last unsent report and when it may be tried again. */
-  readonly failed?: { readonly digest: string; readonly retryAt: number };
+  readonly failed?: { readonly digest: string; readonly retryAt: number; readonly at?: number };
   /** When the current state began, kept even while a send keeps failing. */
   readonly observed?: { readonly state: ReplicaHealthState; readonly code?: string; readonly since: number };
   /** Every command seen, newest last; a result is sent until a report carrying it is accepted. */
@@ -157,19 +157,20 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   const stored = (await deps.storage.get(REPLICA_HEALTH_RECORD_KEY))[REPLICA_HEALTH_RECORD_KEY] as SentRecord | undefined;
   const record: SentRecord = stored?.replicaId === deps.scope.replicaId ? stored : { replicaId: deps.scope.replicaId };
   const same = record.observed?.state === projection.state && record.observed.code === projection.code;
-  const observed = same && record.observed ? record.observed
+  const observed = same && record.observed && Number.isFinite(record.observed.since) ? record.observed
     : { state: projection.state, ...(projection.code ? { code: projection.code } : {}), since: now };
   if (!same) await deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, observed } });
   const results = unreported(record.commands);
   if (!deps.force) {
     if ((record.unsupportedUntil ?? 0) > now) return 'unsupported';
-    if (record.failed?.digest === digest && record.failed.retryAt > now) return 'unchanged';
+    if (record.failed?.digest === digest && now >= (record.failed.at ?? record.failed.retryAt - FAILED_RETRY_MS) && record.failed.retryAt > now) return 'unchanged';
     // Unsent results make a report due even when nothing else changed.
     const heartbeat = projection.state === 'syncing' || projection.state === 'paused'
       ? REPLICA_HEALTH_HEARTBEAT_MS : REPLICA_HEALTH_ATTENTION_HEARTBEAT_MS;
-    if (results.length === 0 && record.digest === digest && now - (record.sentAt ?? 0) < heartbeat) return 'unchanged';
+    if (!record.failed && results.length === 0 && record.digest === digest && now >= (record.sentAt ?? 0) && now - (record.sentAt ?? 0) < heartbeat) return 'unchanged';
   }
-  const revision = Math.max(now, (record.revision ?? 0) + 1);
+  const floor = Number.isSafeInteger(record.revision) && record.revision! >= 0 ? record.revision! : 0;
+  const revision = Math.max(now, floor + 1);
   if (!Number.isSafeInteger(revision)) throw new Error('health_revision_exhausted');
   // Reserve before sending: a lost response or clock rollback cannot reuse the local revision.
   await deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, observed, revision } });
@@ -179,7 +180,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
     ...(deps.extensionVersion ? { extensionVersion: deps.extensionVersion } : {}) };
   const failed = async (): Promise<'failed'> => {
     await deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: { ...record, observed, revision,
-      failed: { digest, retryAt: now + FAILED_RETRY_MS } } });
+      failed: { digest, retryAt: now + FAILED_RETRY_MS, at: now } } });
     return 'failed';
   };
   let sent: Response;
@@ -199,7 +200,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   let commands = (record.commands ?? []).map((entry) => sentIds.has(entry.commandId) ? { ...entry, reported: true as const } : entry);
   const save = (list: readonly CommandRecord[]) => deps.storage.set({ [REPLICA_HEALTH_RECORD_KEY]: {
     replicaId: deps.scope.replicaId,
-    ...(document.accepted ? { digest, sentAt: now } : { failed: { digest, retryAt: now + FAILED_RETRY_MS } }),
+    ...(document.accepted ? { digest, sentAt: now } : { failed: { digest, retryAt: now + FAILED_RETRY_MS, at: now } }),
     revision: Math.max(revision, document.revision), observed, commands: kept(list) } satisfies SentRecord });
   await save(commands);
   const delivered = deliveredCommands(document);

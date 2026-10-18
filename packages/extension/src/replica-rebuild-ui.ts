@@ -1,3 +1,4 @@
+import { reasonCode } from './push-error-code.js';
 import { localized, t, tn } from './i18n.js';
 import type { ReplicaRebuildRequest, ReplicaRebuildResponse } from './replica-rebuild.js';
 
@@ -55,9 +56,13 @@ export function bindReplicaRebuildButton(hostId: string): void {
       const url = chrome.runtime.getURL('options.html#sync');
       if (location.pathname.endsWith('/options.html')) { location.href = url; location.reload(); }
       else await chrome.tabs.create({ url });
-    } catch {
+    } catch (error) {
       feedback.hidden = false;
-      feedback.textContent = t('sync_resetIsntFinishedYet', "Reset isn't finished yet. Try again.");
+      const code = reasonCode(error, 'rebuild_failed');
+      feedback.textContent = code === 'upload_outcome_unsettled' || code === 'native_outcome_unsettled'
+        ? t('sync_rebuildUnsettled', 'A previous change has an unknown result ($1). Resolve it in Status before resetting sync.', code)
+        : code === 'rebuild_not_required' || code === 'stale_ref'
+          ? t('sync_rebuildNoLongerAvailable', 'Sync state changed. Refresh Status to review the available actions ($1).', code) : t('sync_resetIsntFinishedYet', "Reset isn't finished yet. Try again.");
     } finally { button.disabled = false; }
   }
 }

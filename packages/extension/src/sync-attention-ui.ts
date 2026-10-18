@@ -53,6 +53,7 @@ export interface SyncAttentionInput {
   readonly issueCount?: number;
   readonly issues?: PublicSyncAttention['issues'];
   readonly rebuildAvailable?: boolean;
+  readonly rebuildUnavailableReason?: string;
   readonly waitCount?: number;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
@@ -168,6 +169,8 @@ export function terminalFreezeReport(input: SyncAttentionInput, syncCenterHref?:
     `issueCount: ${input.issueCount ?? input.issues?.length ?? 0}`,
     ...(input.issues ?? []).map(issue => `issue: ${JSON.stringify(issue)}`),
     `enginePhase: ${input.phase ?? '(unknown)'}`,
+    `rebuildAvailable: ${input.rebuildAvailable ?? '(unknown)'}`,
+    `rebuildUnavailableReason: ${input.rebuildUnavailableReason ?? '(none)'}`,
     `automaticRetry: ${input.retryAutomatic ?? '(unknown)'}`,
     `retryAt: ${input.retryAt ?? '(not scheduled)'}`,
     `terminalCode: ${code ?? '(not recorded)'}`,
@@ -190,9 +193,14 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
   const href = syncCenterHref(input.conflictHref);
   const conflict = (input.conflictPending === true || input.queueProjection === 'conflict') && href !== undefined;
   const recovery = code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
+  const automatic = input.issues?.filter(issue => issue.recovery === 'automatic').length ?? 0;
+  const decisions = Math.max(0, (input.issueCount ?? 0) - automatic);
+  const issueCopy = [decisions ? tn('sync_itemsNeedAttention', decisions, '$1 item needs attention.', '$1 items need attention.') : '',
+    automatic ? tn('sync_itemsRecoveringAutomatically', automatic, '$1 item is waiting for automatic recovery.', '$1 items are waiting for automatic recovery.') : '',
+    input.issues?.map(issue => [issue.title, issue.code].filter(Boolean).join(': ')).join('; ') ?? ''].filter(Boolean).join(' ');
   return {
     recovery: { show: recovery, copy: (input.issueCount ?? 0) > 0 ?
-      `${tn('sync_itemsNeedAttention', input.issueCount!, '$1 item needs attention.', '$1 items need attention.')} ${input.issues?.map(issue => [issue.title, issue.code].filter(Boolean).join(': ')).join('; ') ?? ''}` : recoveryFailureCopy(input), report: terminalFreezeReport(input, href) },
+      issueCopy : recoveryFailureCopy(input), report: terminalFreezeReport(input, href) },
     pause: { show: nativeWait || remoteDeletePending, nativeWait, remoteDeletePending,
       copy: inboundPauseCopy(input) },
     conflict: { show: conflict, ...(conflict && href ? { href } : {}), label: SYNC_ATTENTION_CONFLICT_LABEL },
@@ -227,7 +235,7 @@ export function syncAttentionInput(attention: PublicSyncAttention | undefined,
   policy: RemoteDeleteResponse | undefined): SyncAttentionInput {
   const ok = policy?.ok === true ? policy : undefined;
   return {
-    issueCount: attention?.issueCount, issues: attention?.issues, rebuildAvailable: attention?.rebuildAvailable,
+    issueCount: attention?.issueCount, issues: attention?.issues, rebuildAvailable: attention?.rebuildAvailable, rebuildUnavailableReason: attention?.rebuildUnavailableReason,
     waitCount: attention?.waitCount ?? 0,
     retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
     nativeWaitPending: attention?.nativeWaitPending === true,
@@ -319,6 +327,8 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
       ? facts : withNativeWaitFallback(facts, await readNativeWaitCount()));
     report = view.terminal.show ? view.terminal.report : view.recovery.report;
     paintSyncAttention(nodes, view);
+    const terminalRepair = document.getElementById(`${hostId}-rebuild`);
+    if (terminalRepair) terminalRepair.hidden = attention?.rebuildAvailable !== true;
     let repair = document.getElementById(`${hostId}-issue-repair`);
     if (!repair) {
       repair = document.createElement('div'); repair.id = `${hostId}-issue-repair`;

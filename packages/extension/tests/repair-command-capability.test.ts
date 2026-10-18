@@ -4,13 +4,14 @@ import { MemoryStorageArea } from '../src/credential-store.js';
 import { sendReplicaHealthReport } from '../src/sw/replica-health-report.js';
 import { runReplicaRebuildCommand } from '../src/replica-rebuild.js';
 
-for (const unsettled of [false, true]) test(`reporter executes only a repair supported by the real rebuilder (unsettled=${unsettled})`, async () => {
+for (const state of ['unsent', 'unknown', 'legacy_unknown'] as const) test(`reporter executes only a repair supported by the real rebuilder (state=${state})`, async () => {
+  const unsettled = state !== 'unsent';
   const f = await setup({ degraded: true }); let now = 10000; const bodies: any[] = [];
   try {
     if (unsettled) {
       const lease = await f.store.acquireLease(f.scope, 'repair', now, 60000);
       const row = (await f.store.claimNextQueue(f.scope, 'repair', lease.fence, now))!;
-      await f.store.bindPushAttempt(f.scope, row.sequence, 'repair', lease.fence, { sessionId: 's', batchId: row.batchId,
+      if (state !== 'legacy_unknown') await f.store.bindPushAttempt(f.scope, row.sequence, 'repair', lease.fence, { sessionId: 's', batchId: row.batchId,
         idempotencyKey: row.idempotencyKey, endpointIdentity: 'syncPush', mediaType: 'application/json',
         body: JSON.stringify({ sessionId: 's', batchId: row.batchId, atomic: false, operations: [row.payload] }), bodyDigest: 'sha256:attempt' });
       await f.store.settleClaimedPush(f.scope, row.sequence, 'repair', lease.fence, { outcome: 'unknown',
