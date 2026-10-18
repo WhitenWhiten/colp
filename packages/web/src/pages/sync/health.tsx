@@ -40,6 +40,9 @@ const STOP_REASONS: Readonly<Record<string, string>> = {
   replica_rebuild_pending: 'its copy of your library is being rebuilt.',
   pull_issue_ceiling: 'it set aside too many items to keep syncing safely.',
   sync_issue_ceiling: 'it has too many unresolved items to keep syncing safely.',
+  snapshot_invalid: 'the server’s Snapshot failed integrity checks. Retry after the source is repaired, or rebuild this browser’s copy.',
+  snapshot_graph_incomplete: 'the server’s Snapshot has an incomplete library graph.',
+  snapshot_chain_invalid: 'the server’s Snapshot pages do not form a valid chain.',
   replica_rebuilt: 'its sync was reset.',
 }
 

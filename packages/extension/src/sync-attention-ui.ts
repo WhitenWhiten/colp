@@ -23,7 +23,7 @@ import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
  * is produced by an exported pure function so the contract is testable without
  * a DOM.
  */
-import { holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
+import { refreshesReplicaIntegrity, holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
 import type {
   NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse, SyncAttentionTerminalCode,
 } from './types.js';
@@ -214,8 +214,11 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
 }
 
 export function recoveryFailureCopy(input: SyncAttentionInput): string {
-  if (input.retryAutomatic === false) return t('sync_recoveryStopped',
-    'Sync could not finish on this device. Retry sync or copy details to investigate.');
+  if (input.retryAutomatic === false) {
+    const copy = t('sync_recoveryStopped', 'Sync could not finish on this device. Retry sync or copy details to investigate.');
+    const code = input.lastError ?? input.recoveryCode;
+    return refreshesReplicaIntegrity(code) ? `${copy} (${code})` : copy;
+  }
   const copy = t('sync_recoveryRetrying', 'Sync is recovering on this device. It will retry automatically.');
   return input.retryAt && input.retryAt > Date.now()
     ? `${copy} ${t('sync_recoveryNextAttempt', 'Next attempt: $1.', formatMoment(input.retryAt, 'time'))}` : copy;

@@ -1,5 +1,5 @@
 import type { DurableSyncEngineState } from './sync-state-store.js';
-import { classifySyncFailure } from './sync-failure-class.js';
+import { classifySyncFailure, refreshesReplicaIntegrity } from './sync-failure-class.js';
 
 export const CIRCUIT_WINDOW_MS = 30 * 60_000;
 export const CIRCUIT_THRESHOLD = 5;
@@ -15,12 +15,13 @@ export interface SyncCircuitBreaker {
 export function advanceSyncCircuit(prior: SyncCircuitBreaker | undefined, code: string | undefined,
   progress: string, now: number): SyncCircuitBreaker | undefined {
   const policy = classifySyncFailure(code);
-  if (policy?.class === 'replica' || policy?.class === 'item') return undefined;
-  if (!code || policy && policy.class !== 'authority') return prior?.progress === progress ? prior : undefined;
-  const counterCode = policy ? code : 'unknown_external_failure';
+  const integrity = refreshesReplicaIntegrity(code);
+  if (policy?.class === 'replica' && !integrity || policy?.class === 'item') return undefined;
+  if (!code || policy && policy.class !== 'authority' && !integrity) return prior?.progress === progress ? prior : undefined;
+  const counterCode = integrity ? 'replica_integrity_refresh' : policy ? code : 'unknown_external_failure';
   const base = prior?.progress === progress ? prior : undefined;
   const failures = (base?.failures ?? []).map(row => ({ ...row,
-    attempts: row.attempts.filter(at => now >= at && now - at < CIRCUIT_WINDOW_MS) })).filter(row => row.attempts.length > 0);
+    attempts: row.attempts.filter(at => now >= at && (integrity || now - at < CIRCUIT_WINDOW_MS)) })).filter(row => row.attempts.length > 0);
   const previous = failures.find(row => row.code === counterCode);
   const attempts = [...(previous?.attempts ?? []), now].slice(-CIRCUIT_THRESHOLD);
   const trips = base?.trips ?? 0;

@@ -9,3 +9,8 @@ test('scheduling a retry does not claim its execution or sync recovery completed
   expect(commandNote({ action: 'retry', state: 'done', resultCode: 'retry_scheduled' } as never, 'Chrome'))
     .toBe('Retry was scheduled on Chrome. Check its sync status for the result.')
 })
+
+test('Snapshot integrity stops retain the actionable cause', () => {
+  expect(stopReason('snapshot_invalid')).toContain('failed integrity checks')
+  expect(stopReason('snapshot_invalid')).toContain('Retry')
+})

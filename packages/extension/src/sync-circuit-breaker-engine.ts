@@ -1,3 +1,4 @@
+import { refreshesReplicaIntegrity } from './sync-failure-class.js';
 import type { EngineOptions } from './durable-sync-engine-types.js';
 import type { DurableSyncEngineState } from './sync-state-store.js';
 import { advanceSyncCircuit, circuitIsStopped } from './sync-circuit-breaker.js';
@@ -12,6 +13,7 @@ export function guardSyncWake(options: EngineOptions, now: () => number,
   return async (reason: WakeReason, confirmedOnline: boolean) => {
     try {
       const prior = await options.store.getEngineState(options.scope);
+      if (circuitIsStopped(prior) && reason !== 'manual' && refreshesReplicaIntegrity(prior?.lastError)) return prior;
       if (circuitIsStopped(prior) && reason !== 'manual' && prior!.notBefore > now()) {
         options.schedule?.(prior!.notBefore - now()); return prior;
       }
@@ -32,9 +34,9 @@ export function guardSyncWake(options: EngineOptions, now: () => number,
       const stopped = breaker?.retryAt !== undefined;
       const next = await transition(stopped ? 'error' : current.phase, {
         expectedRevision: current.revision, circuitBreaker: breaker, lastError: current.lastError,
-        ...(stopped ? { notBefore: Math.max(current.notBefore, breaker.retryAt!), clearConnectivityConfirmation: true } : {}),
+        ...(stopped ? { notBefore: refreshesReplicaIntegrity(current.lastError) ? 0 : Math.max(current.notBefore, breaker.retryAt!), clearConnectivityConfirmation: true } : {}),
       });
-      if (stopped) options.schedule?.(Math.max(1_000, next.notBefore - now()));
+      if (stopped && !refreshesReplicaIntegrity(current.lastError)) options.schedule?.(Math.max(1_000, next.notBefore - now()));
       return next;
     } catch (error) {
       if (!(error instanceof Error) || error.message !== 'engine_revision_stale') throw error;

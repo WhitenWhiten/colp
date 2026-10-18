@@ -24,7 +24,7 @@ import type { StorageArea } from '../credential-store.js';
 import type { NativeWaitProjection } from '../native-create-executor.js';
 import type { PersonalSyncMode } from '../personal-sync-policy.js';
 import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } from '../sync-state-store.js';
-import { classifySyncFailure, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
+import { refreshesReplicaIntegrity, classifySyncFailure, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, type SyncAttentionStore } from './sync-attention.js';
 
@@ -93,7 +93,8 @@ export function projectReplicaHealth(input: {
   if (input.mode === 'paused') return { state: 'paused', issues: { total, items: [] }, actions: [] };
   const issues = { total, items: input.issues.slice(0, MAX_ITEMS) };
   if (input.mode === 'target-unavailable') return { state: 'stopped', code: 'target_unavailable', issues, actions: [] };
-  if (input.attention.retryAutomatic === false || input.attention.terminal) {
+  if (input.attention.retryAutomatic === false || input.attention.terminal
+      || input.attention.recoveryFrozen && refreshesReplicaIntegrity(input.attention.lastError ?? input.attention.recoveryCode)) {
     const code = [input.attention.terminalCode, input.attention.lastError].find((value) => value && CODE.test(value));
     // A retry is a manual wake; it cannot end a stop whose only way out is a rebuild or a fix.
     const actions: ReplicaAction[] = needsReplicaRebuild(code) || persistentLocalSyncFailure(code) ? [] : ['retry'];

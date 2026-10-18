@@ -402,7 +402,8 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       for (const mapping of privateMappings as Array<MappingInput & { readonly scopeKey: string }>) mappings.put(mapping);
       const selectedRoots = selectedNativeIds.map((nativeId) => projectedByNativeId.get(nativeId!));
       if (selectedRoots.some((colpId) => !colpId)) throw new SyncStateError('snapshot_root_mapping_missing');
-      scopes.put({ ...current, lifecycle: 'active', checkpoint: { serverRevision: header.revision,
+      const { recoveryCode: _repairedCode, ...metadata } = current.metadata ?? {};
+      scopes.put({ ...current, metadata, lifecycle: 'active', checkpoint: { serverRevision: header.revision,
         cursor: header.syncCursor }, selectedRoots: selectedRoots as string[] });
       tx.objectStore(STORES.cursors).put({ scopeKey: key, cursor: header.syncCursor,
         checkpoint: header.revision, evidence: { snapshotId, pageDigest: header.lastPageDigest,

@@ -425,3 +425,9 @@ export function setsAsidePullItem(code: string, subject: SyncFailureSubject): bo
 export function holdsInboundPull(code: string | undefined): boolean {
   return code !== undefined && classifySyncFailure(code)?.pullsOnWake !== true;
 }
+
+/** Refresh may repair integrity, but repeated failures require an explicit retry. */
+export function refreshesReplicaIntegrity(code: string | undefined): boolean {
+  const policy = classifySyncFailure(code);
+  return policy?.class === 'replica' && policy.exit === 'refresh';
+}

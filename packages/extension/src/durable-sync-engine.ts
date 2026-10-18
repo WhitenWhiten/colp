@@ -3,7 +3,7 @@ import { recoverAtSyncIssueCeiling } from './sync-issue-ceiling-recovery.js';
 import { enforceSyncIssueCeiling, SYNC_ISSUE_CEILING_CODE } from './sync-issue-ceiling.js';
 import { guardSyncWake } from './sync-circuit-breaker-engine.js';
 import { circuitIsStopped } from './sync-circuit-breaker.js';
-import { SyncFailureError, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
+import { SyncFailureError, refreshesReplicaIntegrity, holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
 import { recordRecoveryDiagnostic } from './recovery-diagnostic.js';
 import { readEngineSessionAuthority } from './sync-session-handoff.js';
 import type { SyncAckResult, SyncPullV02 } from '@know-n/colp/types';
@@ -138,6 +138,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
         const refreshedClassification = classifySessionAuthority(refreshedAuthority.session, {
           authorityRefreshRequired: true, bootstrapped: true,
         });
+        if (refreshesReplicaIntegrity(current.lastError) && refreshedClassification === 'active') throw new Error(current.lastError);
         if (refreshedClassification === 'recovery') return await recover(refreshedAuthority, refreshedClassification);
         await options.store.rebaseActiveSessionAuthority(options.scope, {
           cursor: refreshedAuthority.session.collection.serverCursor,
