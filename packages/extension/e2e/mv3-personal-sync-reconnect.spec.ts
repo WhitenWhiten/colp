@@ -24,9 +24,9 @@ for (const rebuilt of [false, true]) test(`a fresh profile can retry reconnect a
     await showOptionsPane(page, 'folders');
     await grantOptionalBookmarks(page, 'Allow bookmark access', 'Know-N reconnect');
     await showOptionsPane(page, 'sync-center');
-    await page.getByRole('button', { name: 'Disconnect personal sync', exact: true }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Disconnect personal sync', exact: true }).click();
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is disconnected');
+    await page.getByRole('button', { name: 'Disconnect sync', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Disconnect sync', exact: true }).click();
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is disconnected');
     // Model the local state left by resetting the server database. Responses and auth stay real.
     const oldReplica = rebuilt ? await page.evaluate(async () => {
       const stored = await chrome.storage.local.get(null);
@@ -41,21 +41,21 @@ for (const rebuilt of [false, true]) test(`a fresh profile can retry reconnect a
       return remembered.binding.replicaId;
     }) : undefined;
 
-    await page.getByRole('button', { name: 'Reconnect personal sync', exact: true }).click();
+    await page.getByRole('button', { name: 'Reconnect sync', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await context.setOffline(true);
-    await page.getByRole('dialog').getByRole('button', { name: 'Resume personal sync', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Resume sync', exact: true }).click();
     const toast = page.locator('.toast--error:not(.is-closing)');
     await expect(toast).toBeVisible();
     await expect(toast).toHaveAttribute('role', 'alert');
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is disconnected');
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is disconnected');
     await expect(page.locator('#personal-sync-feedback')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath('reconnect-error-toast.png'), fullPage: true });
 
     await context.setOffline(false);
-    await page.getByRole('button', { name: 'Reconnect personal sync', exact: true }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Resume personal sync', exact: true }).click();
-    await expect(page.locator('#personal-sync-status')).toHaveText(/^(Personal sync is enabled|Ready to sync\.)/u);
+    await page.getByRole('button', { name: 'Reconnect sync', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Resume sync', exact: true }).click();
+    await expect(page.locator('#personal-sync-status')).toHaveText(/^(Sync is on|Ready to sync\.)/u);
     await expect(toast).not.toBeVisible();
     await waitForLibraryBinding(page, libraryId);
     if (oldReplica) {

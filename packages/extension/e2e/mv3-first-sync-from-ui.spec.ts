@@ -97,7 +97,7 @@ test('a fresh browser merges both roots into one library, keeps exclusions local
     await expect.poll(async () => (await nodes()).map(node => node.title), { timeout: 45_000 }).toContain('Created after first sync');
     await expect.poll(async () => (await nodes()).map(node => node.url), { timeout: 45_000 }).toContain('https://example.test/later-folder');
     await showOptionsPane(page, 'sync-center');
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is enabled');
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is on');
     await expect(page.locator('#library-metadata-configure')).toBeVisible();
     await page.screenshot({ path: '/tmp/colp-e2-status-desktop.png', fullPage: true });
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
@@ -158,12 +158,12 @@ test('a directly selected subfolder survives reload and reconnect without duplic
       return flatten(await chrome.bookmarks.getTree());
     });
     await showOptionsPane(page, 'sync-center');
-    await page.getByRole('button', { name: 'Disconnect personal sync', exact: true }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Disconnect personal sync', exact: true }).click();
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is disconnected');
-    await page.getByRole('button', { name: 'Reconnect personal sync', exact: true }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Resume personal sync', exact: true }).click();
-    await expect(page.locator('#personal-sync-status')).toHaveText(/^(Personal sync is enabled|Ready to sync\.)/u);
+    await page.getByRole('button', { name: 'Disconnect sync', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Disconnect sync', exact: true }).click();
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is disconnected');
+    await page.getByRole('button', { name: 'Reconnect sync', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Resume sync', exact: true }).click();
+    await expect(page.locator('#personal-sync-status')).toHaveText(/^(Sync is on|Ready to sync\.)/u);
     await page.reload();
     await showOptionsPane(page, 'folders');
     await page.locator('#tree-clear-selection').click();

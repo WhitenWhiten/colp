@@ -10,7 +10,7 @@ import { grantOptionalBookmarks } from './bookmark-permission.js';
 const extension = resolve(import.meta.dirname, '../dist/production');
 // These scopes sync through the pre-bootstrapped fixture replica without a first sync in this browser,
 // which the card reports as ready to sync; either way the policy is enabled.
-const ENABLED = /^(Personal sync is enabled|Ready to sync\. Review your browser’s bookmarks to start the first sync\.)$/u;
+const ENABLED = /^(Sync is on|Ready to sync\. Review your browser’s bookmarks to start the first sync\.)$/u;
 const launch = (profile: string, rules: string) => chromium.launchPersistentContext(profile, {
   headless: false, channel: 'chromium', ignoreHTTPSErrors: true,
   args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`,
@@ -42,7 +42,7 @@ for (const nested of [false, true]) test(`paused local deletions survive browser
     const scope: SyncScope = { environment: record.environment, serverId: record.serverId, serverOrigin: record.serverOrigin,
       accountId: record.accountId, browserProfileId: record.browserProfileId, collectionId: record.collectionId,
       replicaId: record.replicaId, generation: record.generation };
-    await change(page, 'Pause personal sync');
+    await change(page, 'Pause sync');
     const nativeIds = nested ? [local.folder] : [local.folder, local.bookmark];
     const preview = await page.evaluate(nativeIds => chrome.runtime.sendMessage({ kind: 'known.batch.preview', operation: 'delete', nativeIds }), nativeIds) as { ok: boolean; preview: { digest: string } };
     expect(preview).toMatchObject({ ok: true });
@@ -60,7 +60,7 @@ for (const nested of [false, true]) test(`paused local deletions survive browser
     await stack.forceFixtureReplicaRecovery();
     await context.close(); context = await launch(profile, stack.browserHostResolverRules);
     page = (await openExtensionOptions(context)).page;
-    await change(page, 'Resume personal sync', 'Resume personal sync');
+    await change(page, 'Resume sync', 'Resume sync');
     await expect.poll(async () => (await stack.listDeletedCanonicalNodes()).map(row => row.id), { timeout: 60000 })
       .toEqual(expect.arrayContaining([canonical.folderId, canonical.bookmarkId])).catch(async error => {
         const debug = await evidence(page, 'exportScope', scope) as Record<string, unknown>;
@@ -95,7 +95,7 @@ test('offline logout preserves device facts and same-account reconnect requires 
     });
     expect(saved).toMatchObject({ ok: true });
     await expect.poll(() => page.evaluate(() => chrome.bookmarks.search({ url: 'https://example.test/logout-local' }).then(items => items.length))).toBe(1);
-    await change(page, 'Pause personal sync');
+    await change(page, 'Pause sync');
     await context.setOffline(true);
     const logout = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.auth.logout', userGesture: true }));
     expect(logout, JSON.stringify(logout)).toMatchObject({ ok: true, state: { status: 'signed_out' } });
@@ -110,13 +110,13 @@ test('offline logout preserves device facts and same-account reconnect requires 
     await page.locator('#login-submit').click();
     await expect(page.locator('body')).toHaveAttribute('data-state', 'connected');
     await showOptionsPane(page, 'sync-center');
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is paused');
-    await change(page, 'Resume personal sync', 'Resume personal sync');
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is paused');
+    await change(page, 'Resume sync', 'Resume sync');
     await expect(page.locator('#personal-sync-status')).toHaveText(ENABLED);
-    await change(page, 'Pause personal sync');
-    await change(page, 'Disconnect personal sync', 'Disconnect personal sync');
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is disconnected');
-    await change(page, 'Reconnect personal sync', 'Resume personal sync');
+    await change(page, 'Pause sync');
+    await change(page, 'Disconnect sync', 'Disconnect sync');
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is disconnected');
+    await change(page, 'Reconnect sync', 'Resume sync');
     await expect(page.locator('#personal-sync-status')).toHaveText(ENABLED);
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
@@ -150,8 +150,8 @@ test('Pause survives browser restart, reconciles edits on both sides, and discon
     });
     await evidence(page, 'drainBookmarkEventCaptureEvidence');
     await evidence(page, 'configureOutboundCanonicalFixture', local.root, null, local.folder, local.bookmark, canonical);
-    await change(page, 'Pause personal sync');
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is paused');
+    await change(page, 'Pause sync');
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is paused');
     const lease = await page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1'));
     const saved = await page.evaluate(parentId => chrome.bookmarks.create({ parentId, title: 'Saved while paused', url: 'https://example.test/lifecycle-paused' }), local.root);
     await stack.concurrentlyUpdateCanonicalBookmark(canonical);
@@ -159,21 +159,21 @@ test('Pause survives browser restart, reconciles edits on both sides, and discon
     await context.close(); context = await launch(profile, stack.browserHostResolverRules);
     page = (await openExtensionOptions(context)).page;
     await showOptionsPane(page, 'sync-center');
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is paused');
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is paused');
     expect(await page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1'))).toEqual(lease);
-    await change(page, 'Resume personal sync', 'Resume personal sync');
+    await change(page, 'Resume sync', 'Resume sync');
     await expect(page.locator('#personal-sync-status')).toHaveText(ENABLED);
     await expect.poll(async () => (await stack.observations()).canonicalNodes,
       { timeout: 45000 }).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Saved while paused' })]));
     await expect.poll(() => page.evaluate(id => chrome.bookmarks.get(id).then(nodes => nodes[0]!.title), local.bookmark),
       { timeout: 45000 }).toBe('Concurrent authority update');
-    await change(page, 'Pause personal sync');
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is paused');
-    await change(page, 'Disconnect personal sync', 'Disconnect personal sync');
-    await expect(page.locator('#personal-sync-status')).toHaveText('Personal sync is disconnected');
+    await change(page, 'Pause sync');
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is paused');
+    await change(page, 'Disconnect sync', 'Disconnect sync');
+    await expect(page.locator('#personal-sync-status')).toHaveText('Sync is disconnected');
     expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.auth.status' }))).toMatchObject({ ok: true, state: { status: 'connected' } });
     expect(await page.evaluate(id => chrome.bookmarks.get(id), saved.id)).toHaveLength(1);
-    await change(page, 'Reconnect personal sync', 'Resume personal sync');
+    await change(page, 'Reconnect sync', 'Resume sync');
     await expect(page.locator('#personal-sync-status')).toHaveText(ENABLED);
     await expect.poll(() => page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1').then(items => (items['known.auth.binding.v1'] as { replicaId?: string })?.replicaId))).not.toBe(stack.extensionBinding.replicaId);
     expect(await page.evaluate(() => chrome.bookmarks.search({ url: 'https://example.test/lifecycle-paused' }))).toHaveLength(1);

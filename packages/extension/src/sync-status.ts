@@ -17,7 +17,7 @@ export function projectSyncStatus(kind: SyncStatusKind): SyncStatus {
     'saved-locally': t('save_savedBrowser', 'Saved to this browser'),
     'local-only': t('sync_stayLocal', 'No Know-N sync'),
     'setup-required': t('sync_notSynced', 'Sync is off'),
-    paused: t('sync_personalPaused', 'Personal sync is paused'),
+    paused: t('sync_personalPaused', 'Sync is paused'),
     syncing: t('common_syncing', 'Syncing'), synced: t('common_synced', 'Synced'),
     'waiting-network': t('sync_waitingNetwork', 'Waiting for network'),
     retrying: t('sync_errorRetrying', 'Sync error, retrying'),

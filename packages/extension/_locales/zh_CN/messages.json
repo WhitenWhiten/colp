@@ -7989,7 +7989,7 @@
   },
   "sync_personalBoundary": {
     "message": "此浏览器的书签与你的书签库保持同步。暂停或断开都不会删除此浏览器中的书签。",
-    "description": "Personal sync is separate from sign-in, subscriptions, browser sync and your AI provider. Local bookmarks remain available."
+    "description": "This browser’s bookmarks stay in sync with your library. Pausing or disconnecting never removes bookmarks from this browser."
   },
   "sync_personalConnecting": {
     "message": "正在连接你的书签库…",
@@ -7997,7 +7997,7 @@
   },
   "sync_personalDisconnect": {
     "message": "断开同步",
-    "description": "Disconnect personal sync"
+    "description": "Disconnect sync"
   },
   "sync_personalDisconnectHint": {
     "message": "保留本机书签和元数据。$1 项队列更改将被归档且不会重试。订阅和登录会保留。",
@@ -8005,11 +8005,11 @@
   },
   "sync_personalDisconnected": {
     "message": "同步已断开",
-    "description": "Personal sync is disconnected"
+    "description": "Sync is disconnected"
   },
   "sync_personalEnabled": {
     "message": "同步已开启",
-    "description": "Personal sync is enabled"
+    "description": "Sync is on"
   },
   "sync_personalLibraryChangeFailed": {
     "message": "无法完成此更改。请检查连接后重新确认。在确认重新连接成功前，同步会保持停止。",
@@ -8021,27 +8021,27 @@
   },
   "sync_personalPause": {
     "message": "暂停同步",
-    "description": "Pause personal sync"
+    "description": "Pause sync"
   },
   "sync_personalPaused": {
     "message": "同步已暂停",
-    "description": "Personal sync is paused"
+    "description": "Sync is paused"
   },
   "sync_personalReconnect": {
     "message": "重新连接同步",
-    "description": "Reconnect personal sync"
+    "description": "Reconnect sync"
   },
   "sync_personalResume": {
     "message": "恢复同步",
-    "description": "Resume personal sync"
+    "description": "Resume sync"
   },
   "sync_personalResumeHint": {
     "message": "暂停期间此浏览器和书签库中的更改将被协调。断开后再次同步时，会重新选择文件夹并检查合并。",
-    "description": "Changes made while paused on this device and in Know-N will be reconciled. A disconnected connection starts with a fresh folder selection and merge review."
+    "description": "Changes made while paused, in this browser and in your library, are reconciled. After a disconnect, sync starts again with a fresh folder selection and a merge review."
   },
   "sync_personalResumeReview": {
     "message": "恢复前确认",
-    "description": "Review personal sync"
+    "description": "Review before resuming"
   },
   "sync_previewAlreadyConfirmed": {
     "message": "此预览已确认过。",

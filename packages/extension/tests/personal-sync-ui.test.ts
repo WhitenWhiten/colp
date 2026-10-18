@@ -30,6 +30,6 @@ test('a failed reconnect uses the shared accessible error toast outside the sett
   expect(toast.getAttribute('aria-live')).toBe('assertive');
   expect(toast.textContent).toContain('The change could not be completed.');
   expect(host.querySelector('.feedback')).toBeNull();
-  expect(document.querySelector('#personal-sync-status')!.textContent).toBe('Personal sync is disconnected');
+  expect(document.querySelector('#personal-sync-status')!.textContent).toBe('Sync is disconnected');
   await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>('#personal-sync-toggle')!.disabled).toBe(false));
 });

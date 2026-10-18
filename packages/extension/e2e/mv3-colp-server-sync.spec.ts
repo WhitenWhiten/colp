@@ -271,13 +271,13 @@ async function exerciseBrowserMutations(a: Page, b: Page, addedId: string): Prom
 
   await showOptionsPane(a, 'sync-center');
   await a.locator('#personal-sync-toggle').click();
-  await expect(a.locator('#personal-sync-status')).toHaveText('Personal sync is paused');
+  await expect(a.locator('#personal-sync-status')).toHaveText('Sync is paused');
   await addBookmark(a, 'I2 paused addition', 'https://example.test/i2/paused');
   expect(await findBookmarks(b, 'I2 paused addition')).toHaveLength(0);
   await a.locator('#personal-sync-toggle').click();
-  await a.getByRole('dialog', { name: 'Review personal sync', exact: true })
-    .getByRole('button', { name: 'Resume personal sync', exact: true }).click();
-  await expect(a.locator('#personal-sync-status')).toHaveText('Personal sync is enabled');
+  await a.getByRole('dialog', { name: 'Review before resuming', exact: true })
+    .getByRole('button', { name: 'Resume sync', exact: true }).click();
+  await expect(a.locator('#personal-sync-status')).toHaveText('Sync is on');
   await expect.poll(() => findBookmarks(b, 'I2 paused addition'), { timeout: 90_000 }).toHaveLength(1);
   for (const page of [a, b]) {
     expect(await findBookmarks(page, 'I2 edited in web')).toHaveLength(1);
