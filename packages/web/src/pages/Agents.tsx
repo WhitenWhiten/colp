@@ -335,7 +335,6 @@ export function Agents({
         as="header"
         layout="split"
         variant="workbench"
-        eyebrow="Connect"
         title="Agents"
         documentTitle="Agents"
         lede="Let AI agents read and organize your library over MCP. You approve what they change."

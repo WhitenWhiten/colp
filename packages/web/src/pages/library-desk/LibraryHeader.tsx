@@ -133,7 +133,8 @@ export function LibraryHeader({
         className={collection?.library && !lede ? 'library-desk-head library-desk-head--bare' : 'library-desk-head'}
         layout="split"
         variant="workbench"
-        eyebrow={heading === 'Library' ? undefined : 'Library'}
+        // A folder's trail already says where it is; only the root names the area.
+        eyebrow={heading === 'Library' || folderTrail ? undefined : 'Library'}
         breadcrumb={folderTrail}
         title={heading}
         afterTitle={selectedFolder?.shared ? onShareFolder ? (

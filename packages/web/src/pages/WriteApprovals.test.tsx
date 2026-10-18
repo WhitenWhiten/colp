@@ -245,8 +245,8 @@ describe('MCP-W08 Write approvals page', () => {
     expect(document.body.textContent).toContain(`${attack} Sort the bookmarks`)
     expect(document.body.textContent).toContain('Agent-provided reason:')
     expect(document.querySelector('h1')?.textContent).toBe('Approvals')
-    // The eyebrow names the area (Agents), not the page again.
-    expect(document.querySelector('header .eyebrow')?.textContent).toBe('Agents')
+    // Approvals is its own area in the top bar: the title names it, no eyebrow.
+    expect(document.querySelector('header .eyebrow')).toBeNull()
     expect(document.body.textContent).toContain(attack)
     expect(document.body.textContent).toContain(nodeTitle)
     const facts = document.querySelector('dl[aria-label="Approval facts"]')

@@ -53,7 +53,6 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
           breadcrumb={detailMode
             ? <Breadcrumb items={[{ label: 'Approvals', to: '/approvals' }, { label: 'Plan' }]} />
             : undefined}
-          eyebrow={detailMode ? undefined : 'Agents'}
           title={detailMode ? 'Approval' : 'Approvals'}
           documentTitle={detailMode ? 'Approval' : 'Approvals'}
           lede="Changes your agents proposed. Nothing in your library changes until you approve; moves from trusted agents land here already applied, with Undo."
