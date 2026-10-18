@@ -2921,6 +2921,9 @@
   "firstRun_advancedSummary": {
     "message": "$1."
   },
+  "firstRun_attentionRequestFailed": {
+    "message": "Could not load the review list ($1). Click View items needing attention to try again, or reload this page."
+  },
   "firstRun_attentionStatus": {
     "message": "$1: $2."
   },

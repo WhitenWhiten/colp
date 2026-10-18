@@ -98,6 +98,10 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   let paintedViewId: string | undefined;
   let statusPoll = 0;
   let statusPollStartedAt = 0;
+  let attentionCursor: string | undefined;
+  let attentionRequest = 0;
+  let attentionOpen = false;
+  let attentionFailed = false;
   let advancedMode: AdvancedUiMode = readAdvancedMode(advancedModeSelect.value);
 
   later.addEventListener('click', () => { void deferFirstRun(); });
@@ -119,6 +123,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     window.clearTimeout(previewTimer);
     previewTimer = window.setTimeout(() => { void refreshPreview(); }, PREVIEW_WAIT_MS);
   });
+  window.addEventListener('pagehide', clearStatusPoll, { once: true });
   void hydrate().catch(() => { say(t('firstRun_initializationFailed', 'Sync setup could not load. Reload this page to try again. Your bookmarks and draft are kept.')); });
 
   return {
@@ -261,8 +266,9 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     }
     const surface = projectFirstRunSurface(observation);
     if (surface === 'attention') {
-      clearStatusPoll();
-      showHandshakeCopy(observation.attention ? attentionStatusCopy(observation.attention) : FIRST_RUN_NEEDS_ATTENTION, 'warning');
+      startStatusPoll();
+      if (attentionOpen && JSON.stringify(previous.attention) !== JSON.stringify(observation.attention)) void openAttention();
+      if (!attentionFailed) showHandshakeCopy(observation.attention ? attentionStatusCopy(observation.attention) : FIRST_RUN_NEEDS_ATTENTION, 'warning');
       attentionHost.hidden = false;
       const conflictHref = response.ok && 'conflictHref' in response && typeof response.conflictHref === 'string'
         ? response.conflictHref
@@ -271,6 +277,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       return;
     }
     attentionHost.hidden = true;
+    attentionOpen = false; attentionRequest++; attentionList.replaceChildren();
     if (surface === 'hide') {
       clearStatusPoll();
       hideOnboardingChrome();
@@ -290,27 +297,42 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     }
   }
 
-  let attentionCursor: string | undefined;
   async function openAttention(cursor?: string): Promise<void> {
-    attentionCursor = cursor;
-    if (!observation.attention) return;
-    const response = await firstRunMessage({ kind: 'known.firstRun.attention.get', reportId: observation.attention.reportId, ...(cursor ? { cursor } : {}),
-    });
-    if (!response.ok || !('items' in response) || !response.items) return;
-    renderAttentionItems(attentionList, response.items, (itemId) => { void decideAttention(itemId); });
-    renderAttentionNavigation(attentionList, cursor, response.nextCursor, page => { void openAttention(page); });
-    setAttentionConflictLink(conflictLink, response.conflictHref);
-    if ('attention' in response && response.attention) {
-      observation = observeFirstRunResponse(response, observation);
-      say(attentionStatusCopy(response.attention));
+    attentionCursor = cursor; attentionOpen = true; attentionFailed = false;
+    const ticket = ++attentionRequest;
+    try {
+      if (!observation.attention) throw new Error('report_expired');
+      const reportId = observation.attention.reportId;
+      const response = await firstRunMessage({ kind: 'known.firstRun.attention.get', reportId,
+        ...(cursor ? { cursor } : {}) });
+      if (ticket !== attentionRequest) return;
+      if (!response.ok || !('items' in response) || !response.items) {
+        if (!response.ok && response.error !== 'extension_unavailable') {
+          applyStatusResponse(await firstRunMessage({ kind: 'known.firstRun.status' }), { pollIfSyncing: true });
+        }
+        throw new Error(response.ok ? 'report_expired' : response.error);
+      }
+      if (observation.attention?.reportId !== reportId) return;
+      renderAttentionItems(attentionList, response.items, itemId => { void decideAttention(itemId); });
+      renderAttentionNavigation(attentionList, cursor, response.nextCursor, page => { void openAttention(page); });
+      setAttentionConflictLink(conflictLink, response.conflictHref);
+      if ('attention' in response && response.attention) {
+        observation = observeFirstRunResponse(response, observation);
+        say(attentionStatusCopy(response.attention));
+      }
+    } catch (failure) {
+      attentionFailed = true;
+      say(t('firstRun_attentionRequestFailed', 'Could not load the review list ($1). Click View items needing attention to try again, or reload this page.',
+        failure instanceof Error ? failure.message : 'extension_unavailable'));
     }
   }
 
   async function decideAttention(itemId: string): Promise<void> {
-    if (!observation.attention) return;
+    if (!observation.attention) { await openAttention(); return; }
     const response = await firstRunMessage({ kind: 'known.firstRun.attention.decide', reportId: observation.attention.reportId, itemId, decision: 'keep_both',
     });
-    if (response.ok && 'attention' in response && response.attention) observation = observeFirstRunResponse(response, observation);
+    if (!response.ok) { say(confirmFailureCopy(response)); return; }
+    if ('attention' in response && response.attention) observation = observeFirstRunResponse(response, observation);
     await openAttention(attentionCursor);
   }
 
@@ -348,7 +370,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   }
 
   async function pollFirstRunStatus(): Promise<void> {
-    if (Date.now() - statusPollStartedAt >= STATUS_POLL_MAX_MS) {
+    if (projectFirstRunSurface(observation) !== 'attention' && Date.now() - statusPollStartedAt >= STATUS_POLL_MAX_MS) {
       clearStatusPoll();
       say('', 'info');
       error.replaceChildren();
@@ -529,7 +551,10 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
 }
 
 async function firstRunMessage(message: FirstRunRequest): Promise<FirstRunOrScopeResponse> {
-  try { return await chrome.runtime.sendMessage(message) as FirstRunOrScopeResponse; }
+  try {
+    const value: unknown = await chrome.runtime.sendMessage(message);
+    return value && typeof value === 'object' && 'ok' in value ? value as FirstRunOrScopeResponse : { ok: false, error: 'extension_unavailable' };
+  }
   catch { return { ok: false, error: 'extension_unavailable' }; }
 }
 
