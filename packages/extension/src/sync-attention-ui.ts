@@ -23,7 +23,7 @@ import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
  * is produced by an exported pure function so the contract is testable without
  * a DOM.
  */
-import { holdsUnprovenIdentity, needsReplicaRebuild } from './durable-sync-engine-errors.js';
+import { holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
 import type {
   NativeWaitResponse, PublicSyncAttention, RemoteDeleteResponse, SyncAttentionResponse, SyncAttentionTerminalCode,
 } from './types.js';

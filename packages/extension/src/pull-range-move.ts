@@ -299,7 +299,7 @@ async function unionChromeSubtree(context: {
  * one failure that legitimately means "nothing left to walk here" (the folder is already gone
  * locally); it leaves a diagnostic naming the folder so the narrowed extras can be reconciled
  * instead of silently shrinking the exit. `permission_denied` / `managed_not_writable` /
- * `other_failure` keep their raw message and surface, so the existing FREEZE/offline classification
+ * `other_failure` keep their raw message and surface, so the failure classifier (sync-failure-class.ts)
  * decides instead of a decision built on a half-read local fact set.
  */
 async function rangeChildren(context: {

@@ -8,8 +8,9 @@ import { syncAckResult, syncPullV02 } from './generated/pull-effect-validators.j
 import type { AckIntentRecord, DurableSyncEngineState, JsonObject, MappingInput } from './sync-state-store.js';
 import type { StoredCredential, StoredSession } from './types.js';
 import type { EngineOptions, PlacementRefreshOutcome } from './durable-sync-engine-types.js';
-import { holdsInboundPull, holdsUnprovenIdentity, httpFailure, pullApplyAckState, retryAfterMilliseconds,
-  stableError, persistentLocalSyncFailure, needsReplicaRebuild, responseProblemCode } from './durable-sync-engine-errors.js';
+import { httpFailure, pullApplyAckState, retryAfterMilliseconds, stableError,
+  responseProblemCode } from './durable-sync-engine-errors.js';
+import { holdsInboundPull, holdsUnprovenIdentity, needsReplicaRebuild, persistentLocalSyncFailure } from './sync-failure-class.js';
 import { colpCredentialHeaders } from './auth-client.js';
 import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
 import { resumeLocalProjection } from './local-projection-recovery.js';

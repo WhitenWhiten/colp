@@ -2,25 +2,6 @@ import { readBoundedJson } from './json-response.js';
 
 const MAX_BACKOFF_MS = 5 * 60_000;
 
-// A Session proves server authority, never an unknown Chrome/Node identity.
-export function holdsUnprovenIdentity(lastError: string | undefined) {
-  return lastError === 'recovery_identity_unproven' || lastError === 'deletion_identity_unproven'
-    || lastError === 'create_placement_parent_deleted' || lastError === 'create_placement_unproven';
-}
-
-/** Local projection damage cannot be cured by minting another active Session. */
-export function needsReplicaRebuild(code: string | undefined): boolean {
-  return code === 'pull_apply_target_missing' || code === 'pull_apply_evidence_missing'
-    || code === 'anchor_mapping_missing' || code === 'legacy_resolution_sequence_collision'
-    || code === 'metadata_sync_disabled' || code === 'mapping_identity_collision'
-    || code === 'create_ambiguous' || code === 'create_evidence_missing';
-}
-
-export function persistentLocalSyncFailure(code: string | undefined): boolean {
-  return code !== undefined && ['bounded_string_invalid', 'secret_field_forbidden', 'i_json_invalid',
-    'record_too_large', 'snapshot_projection_incomplete', 'operation_schema_invalid'].includes(code);
-}
-
 export function pullApplyAckState(publishedCursor: string | undefined, nextCursor: string, parked: boolean):
   'ack' | 'parked' | 'not_durable' {
   if (publishedCursor === nextCursor) return 'ack';
@@ -41,11 +22,6 @@ export async function responseProblemCode(response: Response, fallback: string, 
       ? (problem as { readonly code?: unknown }).code : undefined;
     return typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(code) ? code : fallback;
   } catch { return fallback; }
-}
-
-export function holdsInboundPull(lastError: string | undefined) {
-  return lastError !== undefined && lastError !== 'network_unavailable'
-    && lastError !== 'position_context_stale' && lastError !== 'revision_conflict';
 }
 
 export function stableError(error: unknown) { const code = error && typeof error === 'object' && 'code' in error

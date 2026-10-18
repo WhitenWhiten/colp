@@ -37,7 +37,7 @@ export function createPullBookmarkEvidence(options: PullApplierOptions, api: Pul
    * SR-02: remote authority names a native bookmark that no longer exists locally. That is a
    * local-projection / remote-authority divergence, not a retryable transport failure - the local
    * bookmark was deleted (or never materialised) while the server still carries the node.
-   * Record the divergence, then surface `pull_apply_target_missing`, which is in the FREEZE set:
+   * Record the divergence, then surface `pull_apply_target_missing`, which freezes the Pull:
    * the scope stops with an explicit rebuild action. A fresh active Session cannot repair a
    * missing Chrome identity and must never replay the same staged read indefinitely.
    */
@@ -61,7 +61,7 @@ export function createPullBookmarkEvidence(options: PullApplierOptions, api: Pul
 
   /**
    * SR-02: an anchor mapping whose native bookmark is gone cannot be resolved to an index.
-   * `anchor_mapping_missing` is in the FREEZE set and holds the page for explicit local
+   * `anchor_mapping_missing` freezes the Pull (sync-failure-class.ts) and holds the page for explicit local
    * replica rebuild instead of silently landing the child at index 0. Real API faults keep
    * their raw message and therefore the existing offline classification.
    */

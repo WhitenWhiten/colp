@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, test } from 'vitest';
-import { holdsUnprovenIdentity } from '../src/durable-sync-engine-errors.js';
+import { holdsUnprovenIdentity } from '../src/sync-failure-class.js';
 import { handleSyncAttentionRequest } from '../src/sw/sync-attention.js';
 import { validSyncAttentionRequest } from '../src/sw/messages.js';
 import {

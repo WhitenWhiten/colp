@@ -5,7 +5,7 @@ import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
 import { createSyncEffectAuthority } from '../src/sync-effect-authority.js';
 import { createMetadataSyncPolicyStore } from '../src/metadata-sync-policy.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
-import { needsReplicaRebuild } from '../src/durable-sync-engine-errors.js';
+import { needsReplicaRebuild } from '../src/sync-failure-class.js';
 import { terminalFreezeReasonCopy, syncAttentionTerminalCode } from '../src/sync-attention-ui.js';
 import { installOutboundPushIndexedDb, setup, scope, operation, json } from './outbound-push-worker-harness.js';
 installOutboundPushIndexedDb();

@@ -1,41 +1,8 @@
 import { recordKns09Stop } from './kns-09-release.js';
+import { freezesPullApply } from './sync-failure-class.js';
 import type { PullApplierOptions } from './pull-applier-types.js';
 import { inheritFrozenEngineFacts } from './sync-state/engine-transition.js';
 import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
-
-const FREEZE = new Set([
-  'pull_page_invalid', 'effect_page_invalid', 'pull_event_duplicate', 'pull_effect_binding_invalid',
-  'pull_effect_kind_invalid', 'pull_cursor_chain_invalid', 'pull_source_binding_invalid',
-  'unexpected_effect_page', 'anchor_parent_mismatch', 'snapshot_expired', 'sync_cursor_expired',
-  'effect_page_transport_unavailable', 'effect_page_failed', 'snapshot_page_missing',
-  'deletion_identity_unproven', 'recovery_identity_unproven', 'remote_delete_confirmation_required',
-  'need_authority', 'unmounted_restore_repair',
-  'mapping_identity_collision', 'create_ambiguous', 'create_evidence_missing',
-  // F005: a blocked page or a page identity collision is an authority conflict,
-  // not a retryable transport failure. Freezing hands the scope to recovery
-  // instead of re-pulling the same page with the same cursor forever.
-  'pull_page_reuse', 'recovery_required',
-  // F005 sibling: the server issued a recovery capability before the final
-  // Snapshot page. Only fresh Session authority can re-issue a valid chain.
-  'recovery_capability_premature',
-  // F005 sibling: the final Snapshot page carried no valid recovery capability, and
-  // the engine entered recovery without a Snapshot mandate. Retrying the same
-  // authority re-derives the same denial, so freeze until Session authority refreshes.
-  'recovery_capability_invalid', 'recovery_authority_invalid',
-  // B1: the server re-delivered an identity (eventId / effect page) whose durable
-  // bytes disagree. Accepting it would corrupt the page ledger; retrying the same
-  // cursor re-derives the same contradiction, so block and freeze instead.
-  'pull_event_conflict',
-  // Local projection damage has an explicit replica rebuild exit. Session refresh
-  // alone does not mandate a server Snapshot; the engine holds this code instead
-  // of repeatedly rebasing active authority and replaying the same failed read.
-  'pull_apply_target_missing',
-  // SR-02 sibling: the parent's children could not be read, so the create's pre-state
-  // digest has no honest evidence. Freezing is preferable to digesting an empty (never
-  // observed) child list. User-confirmed rebuilding establishes fresh local evidence.
-  'pull_apply_evidence_missing',
-  'legacy_resolution_sequence_collision',
-]);
 
 type FreezeStore = Pick<ReturnType<typeof createSyncStateStore>,
   'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine'>;
@@ -108,10 +75,9 @@ export async function discardExpiredRecoveryStaging(store: StagingStore, scope: 
   return true;
 }
 
+/** Which Pull failures freeze the scope is the classifier's `freezesPull`, not a list kept here. */
 export function shouldFreezePullApply(error: unknown): boolean {
-  const code = error instanceof Error ? error.message : '';
-  return FREEZE.has(code) || isCursorExpiryCode(code) || code.startsWith('preflight_')
-    || code.startsWith('mapping_missing') || code.endsWith('_mapping_missing');
+  return freezesPullApply(error instanceof Error ? error.message : '');
 }
 
 export async function freezeScopeRecovery(store: FreezeStore, scope: SyncScope, code: string,

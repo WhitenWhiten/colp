@@ -1,4 +1,4 @@
-import { holdsUnprovenIdentity, needsReplicaRebuild } from './durable-sync-engine-errors.js';
+import { holdsUnprovenIdentity, needsReplicaRebuild } from './sync-failure-class.js';
 import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>, 'getEngineState' | 'getScope' | 'listBootstrapRuns'

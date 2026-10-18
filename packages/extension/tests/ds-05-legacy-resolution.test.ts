@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { test } from 'vitest';
 import { canonicalOperationDigest, canonicalAuthoritativeEffectDigest } from '@know-n/colp/sync';
 import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
-import { needsReplicaRebuild } from '../src/durable-sync-engine-errors.js';
+import { needsReplicaRebuild } from '../src/sync-failure-class.js';
 import { seedMappedNode, setupT03, t03Scope } from './srg-t03-delete-harness.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 
