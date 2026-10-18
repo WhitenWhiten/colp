@@ -1,3 +1,4 @@
+import { readHealthReceipt } from './replica-health-receipt.js';
 import type { SyncScope } from '../sync-state-store.js';
 import type { StorageArea } from '../credential-store.js';
 
@@ -14,6 +15,7 @@ const sameOwner = (left: SyncScope, right: SyncScope) => left.serverOrigin === r
 /** Scope-separated reports and immutable final deliveries survive worker and replica replacement. */
 export async function createHealthDelivery(input: { scope: SyncScope; storage: Pick<StorageArea, 'get' | 'set'>;
   now: () => number; post: (body: Record<string, unknown>, scope: SyncScope) => Promise<Response>;
+  receiptTimeoutMilliseconds?: number;
   archive?: (scope: SyncScope) => Promise<{ readonly reason?: unknown }> }) {
   const loaded = (await input.storage.get(HEALTH_STORAGE_KEY))[HEALTH_STORAGE_KEY] as Journal | undefined;
   const journal: Journal = loaded?.version === 2 ? loaded : { version: 2, records: {} };
@@ -40,20 +42,22 @@ export async function createHealthDelivery(input: { scope: SyncScope; storage: P
   }
   const flush = async () => {
     for (const [entryKey, entry] of Object.entries(journal.records)) {
-      if (entryKey !== key && input.now() - entry.updatedAt > RETENTION_MS) {
-        delete journal.records[entryKey]; await persist(); continue;
-      }
       if (!sameOwner(entry.scope, input.scope)) continue;
       if (entry.final && !entry.final.confirmedAt) {
-        if (input.now() - entry.final.createdAt > RETENTION_MS) { delete journal.records[entryKey]; await persist(); continue; }
         const sent = await input.post(entry.final.body, entry.scope).catch(() => undefined);
-        if (sent?.status === 200) {
+        const receipt = sent ? await readHealthReceipt(sent, entry.final.body,
+          { timeoutMilliseconds: input.receiptTimeoutMilliseconds ?? 10_000 }).catch(() => undefined) : undefined;
+        if (receipt) {
           (entry as { final?: FinalReport }).final = { ...entry.final, confirmedAt: input.now() };
+          const delivered = new Set((entry.final.body.commandResults as { commandId: string }[] | undefined)?.map(result => result.commandId));
+          const commands = entry.value.commands as { commandId: string; reported?: boolean }[] | undefined;
+          if (commands) entry.value.commands = commands.map(command => delivered.has(command.commandId) ? { ...command, reported: true } : command);
           await persist();
         }
       }
       // Keep deduplication evidence through the server's seven-day command TTL.
-      if (entryKey !== key && (!entry.final || entry.final.confirmedAt) && input.now() - entry.updatedAt > RETENTION_MS) {
+      const pending = (entry.value.commands as { reported?: boolean }[] | undefined)?.some(command => !command.reported);
+      if (entryKey !== key && !pending && (!entry.final || entry.final.confirmedAt) && input.now() - entry.updatedAt > RETENTION_MS) {
         delete journal.records[entryKey]; await persist();
       }
     }

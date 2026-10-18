@@ -18,7 +18,7 @@ test('repeated malformed Snapshot with no progress must stop and report a reason
     await sendReplicaHealthReport({ scope, store: f.store, storage: new MemoryStorageArea(),
       mode: async () => 'enabled', origin: 'chrome-extension://known', now: () => f.clock.now,
       credential: async () => ({ accessToken: 'token', serverOrigin: scope.serverOrigin, subject: scope.accountId }),
-      fetch: async (_url, init) => { bodies.push(JSON.parse(String(init?.body))); return json(200, { replicaId: scope.replicaId, revision: bodies.at(-1).revision, accepted: true }); } });
+      fetch: async (_url, init) => { bodies.push(JSON.parse(String(init?.body))); return json(200, { replicaId: scope.replicaId, revision: bodies.at(-1).revision, accepted: true, commands: [] }); } });
     assert.equal(f.snapshotRequests.length, 5, 'automatic integrity recovery has a persistent bound');
     assert.equal(bodies[0].state, 'stopped');
     assert.equal(bodies[0].code, 'snapshot_invalid');

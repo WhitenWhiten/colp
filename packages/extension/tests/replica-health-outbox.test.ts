@@ -14,7 +14,7 @@ async function fixture() {
     fetch: async (_url, init) => {
       const body = JSON.parse(String(init?.body)); bodies.push(body); tokens.push((init!.headers as any).Authorization);
       if (body.code === 'replica_rebuilt' && failFinal) throw new Error('response lost');
-      return Response.json({ accepted: true, commands: bodies.length === 1 ? [{ commandId: 'real-reset', action: 'rebuild' }] : [] });
+      return Response.json({ replicaId: body.replicaId, revision: body.revision, accepted: true, commands: bodies.length === 1 ? [{ commandId: 'real-reset', action: 'rebuild' }] : [] });
     } });
   return { ...f, get registrations() { return f.registrations; }, reportDeps: deps, bodies, tokens, refresh() { token = 'refreshed-token'; failFinal = false; } };
 }
@@ -88,7 +88,7 @@ test('local Rebuild during a health wait delivers the stale command rejection un
       fetch: async (_url, init) => {
         reports.push(JSON.parse(String(init?.body)));
         if (reports.length === 1) await runReplicaRebuildCommand(request => f.rebuilder.handle(request), f.scope);
-        return Response.json({ replicaId: f.scope.replicaId, accepted: true,
+        return Response.json({ replicaId: f.scope.replicaId, revision: reports.at(-1).revision, accepted: true,
           commands: reports.length === 1 ? [{ commandId: 'late-reset', action: 'rebuild' }] : [] });
       } });
     assert.equal(f.registrations, 1);

@@ -75,19 +75,19 @@ describe('replica health report', () => {
   async function harness() {
     const fixture = await setup();
     const requests: Array<{ url: string; init: RequestInit }> = [];
-    let respond = () => new Response(JSON.stringify({ replicaId: scope.replicaId, revision: 1, accepted: true }),
+    let respond = (body: any) => new Response(JSON.stringify({ replicaId: body.replicaId, revision: body.revision, accepted: true, commands: [] }),
       { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
     const clock = { now: Date.parse('2026-10-17T12:00:00.000Z') };
     let mode: 'enabled' | 'paused' | 'disconnected' = 'enabled';
     const storage = new MemoryStorageArea();
     const deps = (): ReplicaHealthReporterDeps => ({ scope, store: fixture.store, mode: async () => mode,
       credential: async () => ({ accessToken: 'access-token', serverOrigin: SERVER, subject: scope.accountId }),
-      fetch: async (input, init) => { requests.push({ url: String(input), init: init ?? {} }); return respond(); },
+      fetch: async (input, init) => { requests.push({ url: String(input), init: init ?? {} }); return respond(JSON.parse(String(init?.body))); },
       storage, origin: ORIGIN, extensionVersion: '0.2.0', now: () => clock.now });
     const bodies = () => requests.map((request) => JSON.parse(String(request.init.body)) as Record<string, unknown>);
     return { fixture, requests, bodies, clock, deps, storage,
       setMode: (value: typeof mode) => { mode = value; },
-      setResponse: (value: () => Response) => { respond = value; } };
+      setResponse: (value: (body: any) => Response) => { respond = value; } };
   }
 
   test('a frozen engine makes no sync request; its only request is the report naming why it stopped', async () => {
@@ -169,7 +169,7 @@ describe('replica health report', () => {
     const deps = (force = false): ReplicaHealthReporterDeps => ({ ...h.deps(), commands: runner, force });
     let delivered: unknown[] = [];
     const deliveriesSeen: any[] = [];
-    h.setResponse(() => { deliveriesSeen.push(...delivered); return new Response(JSON.stringify({ replicaId: scope.replicaId, revision: 1, accepted: true,
+    h.setResponse((body) => { deliveriesSeen.push(...delivered); return new Response(JSON.stringify({ replicaId: body.replicaId, revision: body.revision, accepted: true,
       commands: delivered }), { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }); });
     assert.equal(await sendReplicaHealthReport(deps()), 'sent');
     const offered = h.bodies()[0]!;
@@ -229,7 +229,7 @@ describe('replica health report', () => {
       async issue() { throw new Error('unexpected'); },
     };
     let delivered: unknown[] = [{ commandId: 'cmd_rebuild', action: 'rebuild' }, { commandId: 'cmd_after', action: 'retry' }];
-    h.setResponse(() => new Response(JSON.stringify({ accepted: true, commands: delivered }),
+    h.setResponse((body) => new Response(JSON.stringify({ replicaId: body.replicaId, revision: body.revision, accepted: true, commands: delivered }),
       { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }));
     assert.equal(await sendReplicaHealthReport({ ...h.deps(), commands: runner }), 'sent');
     assert.deepEqual(h.bodies()[0]!.actions, ['rebuild']);

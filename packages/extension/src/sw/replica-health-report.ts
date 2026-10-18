@@ -1,3 +1,4 @@
+import { readHealthReceipt } from './replica-health-receipt.js';
 import { isOpenQueueIssue } from '../sync-state/open-issue-facts.js';
 import { readOpenSyncIssues } from '../sync-issues.js';
 import { createHealthDelivery } from './replica-health-delivery.js';
@@ -200,6 +201,7 @@ export interface ReplicaHealthReporterDeps {
   readonly assertCommandCurrent?: () => Promise<void>;
   /** Send even when nothing changed since the last report. */
   readonly force?: boolean;
+  readonly requestTimeoutMilliseconds?: number;
 }
 
 /** `ran`: the report was sent and commands were carried out; report again to send their results. */
@@ -210,7 +212,7 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   // A deliberate disconnect is not a sync problem; the browser says nothing.
   if (mode === 'disconnected') return 'disconnected';
   const delivery = await createHealthDelivery({ scope: deps.scope, storage: deps.storage, now: deps.now,
-    post: (body, scope) => post({ ...deps, scope }, body), archive: deps.store.exportArchive });
+    post: (body, scope) => post({ ...deps, scope }, body), receiptTimeoutMilliseconds: deps.requestTimeoutMilliseconds, archive: deps.store.exportArchive });
   deps = { ...deps, storage: delivery.storage };
   const projection = await readProjection(deps);
   // Times are display facts: a report that only moved a clock is not a change.
@@ -252,8 +254,9 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
     return 'unsupported';
   }
   if (sent.status !== 200) return failed();
-  const document = await sent.json().catch(() => undefined) as { replicaId?: unknown } | undefined;
-  if (document?.replicaId !== undefined && document.replicaId !== deps.scope.replicaId) return failed();
+  let document;
+  try { document = await readHealthReceipt(sent, body, { timeoutMilliseconds: deps.requestTimeoutMilliseconds ?? 10_000 }); }
+  catch { return failed(); }
   // An accepted report carried these results; the server keeps them whatever its revision.
   const sentIds = new Set(results.map((result) => result.commandId));
   let commands = (record.commands ?? []).map((entry) => sentIds.has(entry.commandId) ? { ...entry, reported: true as const } : entry);
@@ -299,7 +302,7 @@ async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknow
   }
   const proof = await deps.replicaProof?.(deps.scope);
   return deps.fetch(`${credential.serverOrigin.replace(/\/$/u, '')}${REPLICA_HEALTH_PATH}`, {
-    method: 'POST', redirect: 'error', cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(10_000),
+    method: 'POST', redirect: 'error', cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(deps.requestTimeoutMilliseconds ?? 10_000),
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Origin: deps.origin,
       ...colpCredentialHeaders(credential.accessToken), ...(proof ? { 'Known-Sync-Replica-Proof': proof } : {}) },
     body: JSON.stringify(fitReplicaHealthBody(body)),

@@ -26,7 +26,7 @@ test('idle-renewal denials stop after five across worker restarts, report, and r
     origin: 'chrome-extension://known', mode: async () => 'enabled', extensionVersion: '0.2.0', now: () => f.clock.now,
     credential: async () => ({ accessToken: 'token', serverOrigin: scope.serverOrigin, subject: scope.accountId }),
     fetch: async (_url, init) => { reports.push(JSON.parse(String(init?.body)));
-      return json(200, { accepted: true, replicaId: scope.replicaId, revision: f.clock.now }); },
+      return json(200, { accepted: true, replicaId: scope.replicaId, revision: reports.at(-1).revision, commands: [] }); },
   }), 'sent');
   assert.equal(reports[0].state, 'stopped');
   assert.equal(reports[0].code, 'recovery_capability_premature');

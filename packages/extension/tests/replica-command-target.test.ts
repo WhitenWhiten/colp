@@ -25,8 +25,8 @@ test('actions are read again after the network wait', async () => {
       credential: async () => ({ accessToken: 'token', subject: f.scope.accountId, serverOrigin: f.scope.serverOrigin }),
       mode: async () => 'enabled', now: () => 2000, origin: 'chrome-extension://fixture',
       commands: { replica: async () => { calls++; return { outcome: 'done' }; }, issue: async () => ({ outcome: 'failed' }) },
-      fetch: async () => { await f.store.retireScope(f.scope, { retiredAt: 2000, reason: 'user_replica_rebuild' });
-        return Response.json({ accepted: true, commands: [{ commandId: 'late', action: 'rebuild' }] }); } });
+      fetch: async (_url, init) => { const body = JSON.parse(String(init?.body)); await f.store.retireScope(f.scope, { retiredAt: 2000, reason: 'user_replica_rebuild' });
+        return Response.json({ replicaId: body.replicaId, revision: body.revision, accepted: true, commands: [{ commandId: 'late', action: 'rebuild' }] }); } });
     assert.equal(calls, 0);
   } finally { f.store.close(); }
 });
@@ -50,7 +50,7 @@ test('delayed health response binds real Rebuild and reports rejection under A',
       commands: { replica: () => runReplicaRebuildCommand(request => current.rebuilder.handle(request), a.scope),
         issue: async () => ({ outcome: 'failed' as const }) },
       fetch: async (_url: RequestInfo | URL, init?: RequestInit) => { bodies.push(JSON.parse(String(init?.body))); current = b;
-        return Response.json({ accepted: true, commands: [{ commandId: 'for-a', action: 'rebuild' }] }); } };
+        return Response.json({ replicaId: bodies.at(-1).replicaId, revision: bodies.at(-1).revision, accepted: true, commands: [{ commandId: 'for-a', action: 'rebuild' }] }); } };
     await sendReplicaHealthReport(deps);
     await sendReplicaHealthReport({ ...deps, force: true });
     assert.equal(a.registrations, 0); assert.equal(b.registrations, 0);
