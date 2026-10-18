@@ -6038,6 +6038,12 @@
   "sync_issueKinds_other": {
     "message": "$1 kinds of issues"
   },
+  "sync_itemsNeedAttention_one": {
+    "message": "$1 item needs attention."
+  },
+  "sync_itemsNeedAttention_other": {
+    "message": "$1 items need attention."
+  },
   "sync_keepBoth": {
     "message": "Keep both"
   },

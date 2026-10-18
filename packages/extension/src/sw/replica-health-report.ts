@@ -92,10 +92,10 @@ export function projectReplicaHealth(input: {
     // A retry is a manual wake; it cannot end a stop whose only way out is a rebuild or a fix.
     const actions: ReplicaAction[] = needsReplicaRebuild(code) || persistentLocalSyncFailure(code) ? [] : ['retry'];
     // The same precondition as the extension's own Reset button (replica-rebuild.ts).
-    if (input.attention.recoveryFrozen) actions.push('rebuild');
+    if (input.attention.recoveryFrozen || input.attention.rebuildAvailable || total > 0) actions.push('rebuild');
     return { state: 'stopped', code: code ?? 'sync_stopped', issues, actions };
   }
-  return { state: total > 0 ? 'degraded' : 'syncing', issues, actions: [] };
+  return { state: total > 0 ? 'degraded' : 'syncing', issues, actions: total > 0 ? ['rebuild'] : [] };
 }
 
 /** Uploads the server refused, held for a conflict, or set aside for another problem, one issue each. */

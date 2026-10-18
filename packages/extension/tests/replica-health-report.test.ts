@@ -44,7 +44,7 @@ describe('replica health projection', () => {
     assert.equal(projectReplicaHealth({ attention: calm, issues }).state, 'degraded');
     assert.deepEqual(projectReplicaHealth({ attention: { ...calm, terminal: true, retryAutomatic: false,
       terminalCode: 'create_placement_unproven' }, issues }), { state: 'stopped', code: 'create_placement_unproven',
-      issues: { total: 2, items: issues }, actions: ['retry'] });
+      issues: { total: 2, items: issues }, actions: ['retry', 'rebuild'] });
     assert.deepEqual(projectReplicaHealth({ attention: { ...calm, retryAutomatic: false, phase: 'error',
       lastError: 'record_too_large' }, issues: [] }).code, 'record_too_large');
     // Paused: nothing syncs, so no bookmark is named.

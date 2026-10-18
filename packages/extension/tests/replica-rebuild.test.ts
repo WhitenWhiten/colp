@@ -9,49 +9,7 @@ import { createReplicaRebuilder, REPLICA_REBUILD_JOURNAL, validReplicaRebuildReq
 import { replicaRebuildConfirmation } from '../src/replica-rebuild-ui.js';
 import { createSyncStateStore, type SyncScope } from '../src/sync-state-store.js';
 
-async function setup() {
-  const journal = new MemoryStorageArea(); const credentials = createCredentialStore(journal);
-  const auth = await credentials.fence.capture();
-  await credentials.saveCredential({ accessToken: 'rebuild-test', tokenType: 'Bearer', expiresAt: Date.now() + 100_000,
-    scope: ['known.sync'], issuer: 'https://known.example', audience: 'https://known.example',
-    clientId: 'extension', serverOrigin: 'https://known.example', subject: 'account-rebuild' });
-  const binding = await credentials.getOrCreateBinding(auth.generation);
-  const scope: SyncScope = { environment: 'production', serverId: 'server-rebuild', serverOrigin: 'https://known.example',
-    accountId: 'account-rebuild', browserProfileId: binding.browserProfileId, replicaId: binding.replicaId,
-    generation: 1, collectionId: 'collection-rebuild' };
-  const store = createSyncStateStore({ indexedDB: new IDBFactory() });
-  const registration = { ...scope, lifecycle: 'active' as const, lease: { leaseId: 'lease', expiresAt: Date.now() + 100_000 },
-    checkpoint: { cursor: 'cursor-0', serverRevision: 'r0' }, selectedRoots: ['root'], rootStatus: 'ready' as const };
-  await store.registerScope(registration);
-  await store.putMapping(scope, { nativeId: 'local-kept', colpId: 'root', rootNativeId: 'local-kept',
-    projection: { revision: 'r0', digest: 'sha256:root', content: { title: 'Keep me' } } });
-  await store.allocateSequenceAndEnqueue(scope, { opId: 'queued', batchId: 'batch', idempotencyKey: 'queued',
-    digest: 'sha256:queued', endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: null,
-    operationRevision: 'local-queued', status: 'pending', retry: { attempt: 0, notBefore: 0 }, payload: {} },
-  { allowUnstamped: true });
-  await store.putPendingReorder(scope, { parentNativeId: 'local-kept', version: 'v1', childIds: ['a', 'b'],
-    moves: [], retained: 2, unmapped: [], excluded: [], reserved: [] });
-  await store.transitionEngine(scope, { phase: 'recovery', recoveryFrozen: true, authorityRefreshRequired: true,
-    updatedAt: 1000, notBefore: 0, lastError: 'payload_too_large' });
-  let current = scope; let failRegistration = false; let registrations = 0;
-  const deps: ReplicaRebuildDeps = { store, credentials, journal, currentScope: async () => current,
-    resetRuntime() {}, async ensureScope() {
-      if (failRegistration) throw new Error('offline');
-      const next = (await credentials.loadBinding())!;
-      current = { ...scope, replicaId: next.replicaId, generation: Number(next.generation) };
-      if (!await store.getScope(current)) {
-        await store.registerScope({ ...registration, ...current, selectedRoots: [], firstRun: 'none' }); registrations++;
-      }
-      return current;
-    } };
-  const rebuilder = createReplicaRebuilder(deps);
-  const preview = await rebuilder.handle({ kind: 'known.scope.rebuild.preview' });
-  assert.ok(preview.ok && 'preview' in preview);
-  const request: ReplicaRebuildRequest = { kind: 'known.scope.rebuild.confirm', userGesture: true,
-    replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision };
-  return { scope, store, credentials, journal, deps, request, rebuilder, preview: preview.preview,
-    setOffline(value: boolean) { failRegistration = value; }, get registrations() { return registrations; } };
-}
+import { setup } from './replica-rebuild-harness.js';
 
 test('rebuild archives pending edits and reorder targets before opening a fresh setup scope', async () => {
   const f = await setup(); assert.equal(f.preview.queuedOperations, 1);

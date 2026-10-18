@@ -176,7 +176,7 @@ export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView
   } else if (health?.state === 'paused') {
     notes.push('Sync is paused on this browser. Nothing syncs until it’s resumed there.')
   } else if (health?.state === 'degraded') {
-    notes.push(`${plural(count, 'item')} on this browser couldn’t sync. Everything else keeps syncing.`)
+    notes.push(`${plural(count, 'item')} on this browser couldn’t sync. Everything else keeps syncing. ${offered.includes('rebuild') ? 'Reset sync below to repair this browser’s copy.' : ''}`)
   }
   if (notSyncing(replica) && health?.state !== 'stopped') notes.push(activityNote(replica))
   // A reset browser's own report already says what came of the reset.

@@ -1,3 +1,4 @@
+import { readOpenSyncIssues } from './sync-issues.js';
 import type { StorageArea, createCredentialStore } from './credential-store.js';
 import type { StoredAuthBinding } from './types.js';
 import type { SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -18,7 +19,8 @@ interface RebuildJournal {
 }
 export interface ReplicaRebuildDeps {
   readonly store: Pick<ReturnType<typeof createSyncStateStore>, 'getScope' | 'getEngineState' | 'listQueue'
-    | 'retireScope' | 'exportArchive'>;
+    | 'retireScope' | 'exportArchive'> & Partial<Pick<ReturnType<typeof createSyncStateStore>,
+      'listPullIssues' | 'listLocalIssues' | 'listApplyIntents'>>;
   readonly credentials: ReturnType<typeof createCredentialStore>;
   readonly journal: StorageArea;
   currentScope(): Promise<SyncScope>;
@@ -55,7 +57,9 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     const credential = await deps.credentials.loadCredential();
     if (credential?.subject !== scope.accountId) throw new Error('account_switch');
     const state = await deps.store.getEngineState(scope);
-    if (!state?.recoveryFrozen) throw new Error('rebuild_not_required');
+    if (!state?.recoveryFrozen && (await readOpenSyncIssues(deps.store, scope)).total === 0) {
+      throw new Error('rebuild_not_required');
+    }
     let queuedOperations = 0;
     for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside'] as const) {
       let after = 0;
@@ -65,7 +69,7 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
       }
     }
     return { scope, preview: { replicaId: scope.replicaId, generation: scope.generation,
-      revision: state.revision, queuedOperations } };
+      revision: state?.revision ?? 0, queuedOperations } };
   }
   async function resume(): Promise<boolean> {
     const plan = await pending(); if (!plan) return false;
@@ -112,4 +116,14 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     }
   }
   return { handle, resume, hasPending: async () => Boolean(await pending()) };
+}
+
+/** The same checked preview/confirm path serves a web command and local Status. */
+export async function runReplicaRebuildCommand(handle: (request: ReplicaRebuildRequest) => Promise<ReplicaRebuildResponse>) {
+  const preview = await handle({ kind: 'known.scope.rebuild.preview' });
+  if (!preview.ok) return { outcome: 'failed' as const, code: preview.code };
+  if (!('preview' in preview)) return { outcome: 'failed' as const, code: 'rebuild_failed' };
+  const result = await handle({ kind: 'known.scope.rebuild.confirm', userGesture: true,
+    replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision });
+  return result.ok ? { outcome: 'done' as const, replaced: true as const } : { outcome: 'failed' as const, code: result.code };
 }

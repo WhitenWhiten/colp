@@ -50,6 +50,9 @@ localized(() => {
 const REFRESH_MS = 8_000;
 
 export interface SyncAttentionInput {
+  readonly issueCount?: number;
+  readonly issues?: PublicSyncAttention['issues'];
+  readonly rebuildAvailable?: boolean;
   readonly waitCount?: number;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
@@ -188,9 +191,10 @@ export function describeSyncAttention(input: SyncAttentionInput): SyncAttentionV
   const code = syncAttentionTerminalCode(input.lastError, input.recoveryCode);
   const href = syncCenterHref(input.conflictHref);
   const conflict = (input.conflictPending === true || input.queueProjection === 'conflict') && href !== undefined;
-  const recovery = code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError));
+  const recovery = code === undefined && (input.recoveryFrozen === true || Boolean(input.lastError) || (input.issueCount ?? 0) > 0);
   return {
-    recovery: { show: recovery, copy: recoveryFailureCopy(input), report: terminalFreezeReport(input, href) },
+    recovery: { show: recovery, copy: (input.issueCount ?? 0) > 0 ?
+      `${tn('sync_itemsNeedAttention', input.issueCount!, '$1 item needs attention.', '$1 items need attention.')} ${input.issues?.map(issue => [issue.title, issue.code].filter(Boolean).join(': ')).join('; ') ?? ''}` : recoveryFailureCopy(input), report: terminalFreezeReport(input, href) },
     pause: { show: nativeWait || remoteDeletePending, nativeWait, remoteDeletePending,
       copy: inboundPauseCopy(input) },
     conflict: { show: conflict, ...(conflict && href ? { href } : {}), label: SYNC_ATTENTION_CONFLICT_LABEL },
@@ -222,6 +226,7 @@ export function syncAttentionInput(attention: PublicSyncAttention | undefined,
   policy: RemoteDeleteResponse | undefined): SyncAttentionInput {
   const ok = policy?.ok === true ? policy : undefined;
   return {
+    issueCount: attention?.issueCount, issues: attention?.issues, rebuildAvailable: attention?.rebuildAvailable,
     waitCount: attention?.waitCount ?? 0,
     retryAt: attention?.retryAt, retryAutomatic: attention?.retryAutomatic,
     nativeWaitPending: attention?.nativeWaitPending === true,
@@ -313,6 +318,15 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
       ? facts : withNativeWaitFallback(facts, await readNativeWaitCount()));
     report = view.terminal.show ? view.terminal.report : view.recovery.report;
     paintSyncAttention(nodes, view);
+    let repair = document.getElementById(`${hostId}-issue-repair`);
+    if (!repair) {
+      repair = document.createElement('div'); repair.id = `${hostId}-issue-repair`;
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-danger-ghost btn-sm';
+      button.id = `${repair.id}-rebuild`;
+      const feedback = document.createElement('p'); feedback.id = `${repair.id}-feedback`; feedback.hidden = true;
+      repair.append(button, feedback); nodes.host.append(repair); bindReplicaRebuildButton(repair.id);
+    }
+    repair.hidden = attention?.rebuildAvailable !== true || attention.recoveryFrozen === true;
   };
   void refresh();
   setInterval(() => {

@@ -1,3 +1,4 @@
+import { runReplicaRebuildCommand } from '../replica-rebuild.js';
 import { createQueueRecapture } from '../queue-recapture.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import type { SyncScope } from '../sync-state-store.js';
@@ -50,14 +51,7 @@ function commandRunner(scope: SyncScope): ReplicaCommandRunner {
   return {
     async replica(action) {
       if (action === 'retry') { await scheduleSyncEngineWake('manual'); return { outcome: 'done' }; }
-      const preview = await workCoordinator.run('engine', () => replicaRebuilder().handle({ kind: 'known.scope.rebuild.preview' }));
-      if (!preview.ok) return { outcome: 'failed', code: preview.code };
-      if (!('preview' in preview)) return { outcome: 'failed', code: 'rebuild_failed' };
-      // The owner confirmed in the Sync center; the browser keeps its bookmarks and asks for setup again.
-      const result = await workCoordinator.run('engine', () => replicaRebuilder().handle({
-        kind: 'known.scope.rebuild.confirm', userGesture: true, replicaId: preview.preview.replicaId,
-        generation: preview.preview.generation, revision: preview.preview.revision }));
-      return result.ok ? { outcome: 'done', replaced: true } : { outcome: 'failed', code: result.code };
+      return runReplicaRebuildCommand(request => workCoordinator.run('engine', () => replicaRebuilder().handle(request)));
     },
     async issue(_action, issue) {
       const row = issue.opId ? await syncState.getQueueByOpId(scope, issue.opId) : null;

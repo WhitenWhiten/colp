@@ -441,6 +441,9 @@ export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebu
   | 'create_ambiguous' | 'create_evidence_missing'
   | 'create_placement_parent_deleted' | 'create_placement_unproven' | 'pull_issue_ceiling';
 export interface PublicSyncAttention {
+  readonly issueCount?: number;
+  readonly issues?: readonly { readonly direction: 'pull' | 'push' | 'local'; readonly code: string; readonly title?: string }[];
+  readonly rebuildAvailable?: boolean;
   readonly retryAt?: number;
   readonly retryAutomatic?: boolean;
   readonly phase?: PublicSyncEngineState['phase'];

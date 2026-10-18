@@ -228,6 +228,22 @@ describe('Sync Center authoritative workflow', () => {
     await waitForDom(() => mocks.toast.mock.calls.some(([message]) => String(message).startsWith('That browser no longer offers this.')))
   })
 
+  it('offers a confirmed reset for a syncing browser with a Pull issue', async () => {
+    const base = status().replicas[0]!
+    mocks.getSyncStatus.mockResolvedValue(status({ replicas: [{ ...base, health: { state: 'degraded', code: null,
+      since: base.lastSeenAt, reportedAt: new Date().toISOString(), issueCount: 1, actions: ['rebuild'], commands: [] } }] }))
+    mocks.sendSyncReplicaCommand.mockResolvedValue({ commandId: 'repair', replicaId: base.id, action: 'rebuild',
+      issueId: null, state: 'pending', resultCode: null, createdAt: new Date().toISOString(), completedAt: null,
+      expiresAt: new Date(Date.now() + 100000).toISOString() })
+    render(); await waitForDom(domFinishedLoading)
+    expect(document.body.textContent).toContain('Reset sync below to repair this browser’s copy.')
+    act(() => byButton('Reset sync').click()); await confirmModal('Cancel')
+    expect(mocks.sendSyncReplicaCommand).not.toHaveBeenCalled()
+    act(() => byButton('Reset sync').click()); await confirmModal('Reset sync')
+    await waitForDom(() => mocks.sendSyncReplicaCommand.mock.calls.length === 1)
+    expect(mocks.sendSyncReplicaCommand.mock.calls[0]!.slice(0, 2)).toEqual(['replica-1', { action: 'rebuild' }])
+  })
+
   it('retries one held item from the list of what a browser set aside', async () => {
     const base = status().replicas[0]!
     mocks.getSyncStatus.mockResolvedValue(status({ replicas: [{ ...base, health: { state: 'degraded', code: null,

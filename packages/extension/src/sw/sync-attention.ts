@@ -1,3 +1,4 @@
+import { readOpenSyncIssues } from '../sync-issues.js';
 /**
  * S7 / B2 (SR-09 · SR-11 · SR-13): the read-only service-worker side of the
  * popup/settings attention exits.
@@ -17,7 +18,7 @@ import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, SyncScope } from '../sync-state-store.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listPullIssues' | 'listLocalIssues'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -48,12 +49,18 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const lastError = engine?.lastError;
     const terminalCode = syncAttentionTerminalCode(lastError, recoveryCode);
     const queue = await queueFacts(deps.store, scope);
+    const open = await readOpenSyncIssues(deps.store, scope);
+    const issues = [...open.pull.map(row => ({ direction: 'pull' as const, code: row.code,
+      ...(row.title ? { title: row.title } : {}) })),
+      ...open.local.map(row => ({ direction: 'local' as const, code: row.code, ...(row.title ? { title: row.title } : {}) })),
+      ...open.queue.map(row => ({ direction: 'push' as const, code: row.recovery?.code ?? 'push_rejected' }))];
     return { ok: true, attention: {
       ...(engine?.phase ? { phase: engine.phase } : {}),
       recoveryFrozen: engine?.recoveryFrozen === true,
       retryAutomatic: engine?.phase !== 'error' && terminalCode === undefined,
       ...(engine?.notBefore ? { retryAt: engine.notBefore } : {}),
       ...queue,
+      issueCount: open.total, issues, rebuildAvailable: engine?.recoveryFrozen === true || open.total > 0,
       nativeWaitPending: waits.length > 0,
       waitCount: waits.length,
       ...(lastError ? { lastError } : {}),
