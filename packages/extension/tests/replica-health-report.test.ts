@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
@@ -167,8 +168,9 @@ describe('replica health report', () => {
     };
     const deps = (force = false): ReplicaHealthReporterDeps => ({ ...h.deps(), commands: runner, force });
     let delivered: unknown[] = [];
-    h.setResponse(() => new Response(JSON.stringify({ replicaId: scope.replicaId, revision: 1, accepted: true,
-      commands: delivered }), { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }));
+    const deliveriesSeen: any[] = [];
+    h.setResponse(() => { deliveriesSeen.push(...delivered); return new Response(JSON.stringify({ replicaId: scope.replicaId, revision: 1, accepted: true,
+      commands: delivered }), { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }); });
     assert.equal(await sendReplicaHealthReport(deps()), 'sent');
     const offered = h.bodies()[0]!;
     assert.deepEqual(offered.actions, ['retry', 'rebuild']);
@@ -191,6 +193,11 @@ describe('replica health report', () => {
     delivered = [];
     assert.equal(await sendReplicaHealthReport(deps()), 'sent');
     assert.deepEqual(h.bodies()[3]!.commandResults, results);
+    assert.deepEqual(verifySyncResilienceCase('SYNC-0037', {
+      deliveries: deliveriesSeen.filter(command => command.commandId === 'cmd_1'),
+      executions: ran.filter(action => action === 'retry').map(() => 'cmd_1'),
+      resultReports: [h.bodies()[2], h.bodies()[3]], refused: results.filter(result => result.outcome === 'failed'),
+    }), []);
     h.clock.now += 1_000;
     assert.equal(await sendReplicaHealthReport(deps()), 'unchanged');
     assert.equal(await sendReplicaHealthReport(deps(true)), 'sent');

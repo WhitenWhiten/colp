@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { test } from 'vitest';
@@ -36,6 +37,8 @@ test('review: a subtree delete must retain a descendant with an open Pull issue'
   try {
     await apply(f, [create(91, 'root-colp', 'Folder'), create(92, id(91)), create(93, id(91))], 'cursor-1');
     const held = (await f.store.getMappingByColpId(scope, id(92)))!;
+    const ancestor = (await f.store.getMappingByColpId(scope, id(91)))!;
+    const sibling = (await f.store.getMappingByColpId(scope, id(93)))!;
     await apply(f, [update(94, id(92), id(91), true)], 'cursor-2');
     assert.equal((await f.store.listPullIssues(scope)).length, 1);
     await apply(f, [pullFixtures.subtreeEvent({ sequence: 95, targetId: id(91),
@@ -47,6 +50,13 @@ test('review: a subtree delete must retain a descendant with an open Pull issue'
     assert.equal((await f.store.listPullIssues(scope)).length, 1);
     assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-3');
     assert.equal(f.api.all().filter(node => node.title === 'Remote').length, 2, 'only folder and issue child remain');
+    assert.deepEqual(verifySyncResilienceCase('SYNC-0035', {
+      protected: [id(92)], ancestors: [id(91)], independent: [id(93)],
+      survivors: [ancestor, held, sibling].filter(mapping => f.api.getNode(mapping.nativeId)).map(mapping => mapping.colpId),
+      excluded: await f.store.getLocalSyncExclusion(scope, held.nativeId) ? [id(92)] : [],
+      retainedIssues: (await f.store.listPullIssues(scope)).map(issue => issue.nodeId),
+      cursor: (await f.store.getCursor(scope))?.cursor, previousCursor: 'cursor-2',
+    }), []);
   } finally { f.store.close(); }
 });
 

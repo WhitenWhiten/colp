@@ -153,6 +153,12 @@ const contractMarker = '  syncPull: SyncPull;';
 generatedSource = generatedSource.replace(contractMarker, [
   contractMarker,
   '  manifestV02: ManifestV02;',
+  '  syncReplicaHealthIssue: SyncReplicaHealthIssue;',
+  '  syncReplicaHealthReport: SyncReplicaHealthReport;',
+  '  syncReplicaHealthResult: SyncReplicaHealthResult;',
+  '  syncReplicaCommand: SyncReplicaCommand;',
+  '  syncReplicaCommandResult: SyncReplicaCommandResult;',
+  '  syncSetAsideWarning: SyncSetAsideWarning;',
   '  syncPullV02: SyncPullV02;',
   '  syncPullEventV02: SyncPullEventV02;',
   '  syncSnapshotV02: SyncSnapshotV02;',

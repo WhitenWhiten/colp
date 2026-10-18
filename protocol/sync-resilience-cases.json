@@ -1,0 +1,13 @@
+{
+  "suite": "sync-resilience",
+  "protocolVersion": "0.2",
+  "scope": "Optional client and deployment adapter evidence; separate from bundled reference-package Profile evidence",
+  "cases": [
+    { "id": "SYNC-0032", "source": "docs/03-sync.md#colp-section-6-1", "fixture": "packages/extension/tests/push-conflict-hold.test.ts" },
+    { "id": "SYNC-0033", "source": "docs/03-sync.md#colp-section-8-2", "fixture": "packages/extension/tests/durable-sync-engine-pull-set-aside.test.ts" },
+    { "id": "SYNC-0034", "source": "docs/03-sync.md#colp-section-8-1", "fixture": "packages/extension/tests/durable-sync-engine-pull-set-aside.test.ts" },
+    { "id": "SYNC-0035", "source": "docs/03-sync.md#colp-section-8-2", "fixture": "packages/extension/tests/sync-delete-issue-protection.test.ts" },
+    { "id": "SYNC-0036", "source": "docs/03-sync.md#colp-section-9-2", "fixture": "packages/server/tests/integration/product/product-sync-center-postgres.integration.test.ts" },
+    { "id": "SYNC-0037", "source": "docs/03-sync.md#colp-section-9-2", "fixture": "packages/extension/tests/replica-health-report.test.ts" }
+  ]
+}

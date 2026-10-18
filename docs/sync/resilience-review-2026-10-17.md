@@ -85,9 +85,9 @@ extension → server E2E completion is claimed. Actual IDB archives and replica
 switches are exercised across extension modules, and actual server authorization,
 command settlement and unchanged authority fields are tested in PostgreSQL.
 
-P3 (bounded circuit breaker) and P4 (protocol/conformance completion) remain
-unimplemented. Unknown external failures retain the existing retry path; no finite
-retry guarantee is claimed. Rebuild is v1: it archives unsent data and opens setup
+P3 (bounded circuit breaker) and P4 (protocol/conformance completion) are now
+implemented; the completion evidence follows below. Authority denials and unknown
+external failures use the durable breaker and automatic cooldown probes. Rebuild is v1: it archives unsent data and opens setup
 for a new replica; automatic re-import or v2 single-node repair is not implemented.
 The Pull-apply ceiling uses the shared issue total; a separate push-only global
 issue-ceiling trigger has not been added or certified by this review.
@@ -117,3 +117,44 @@ extension typecheck, changed-source ESLint and development build. The source-siz
 check still reports pre-existing overruns in outbound-push-worker.ts (601),
 pull-apply-runtime.ts (601) and bookmark-event-repository.ts (610 vs 609); none was
 changed by P3. No browser E2E or temporary service was needed.
+
+
+## P4 — protocol and executable conformance (2026-10-17)
+
+`03-sync.md` now specifies consumed-conflict isolation and fresh recapture, durable
+Pull not-applied records and Ack warnings, integrity fail-closed rules, protected
+subtree members, and five standard warning codes. The optional COLP 0.2
+`syncReplicaHealth` capability describes the existing POST report envelope and
+installation-possession authority, unchanged Sync authority, bounded issue totals,
+last-writer-wins reports, command expiry/deduplication and durable result delivery.
+This intentionally records the deployed POST/body-replicaId shape rather than
+introducing the proposal's second PUT route or a nonexistent client reportedAt.
+
+The versioned schema, generated schema modules/types and examples include the
+optional endpoint and closed report/command contracts. Older 0.1 schemas stay
+unchanged. The capability's schema definition does not claim that the current
+server advertises it: the deployed extension still uses its configured helper.
+
+The separate `colp-sync-resilience` CLI/API runs isolated adapter scenarios;
+`protocol/sync-resilience-cases.json` maps SYNC-0032–0037 to specification anchors
+and production fixtures. Existing extension/IndexedDB tests feed actual conflict,
+Pull/Ack, integrity, deletion and command observations into the same verifiers.
+The PostgreSQL health fixture verifies installation isolation, warning retention,
+last-writer-wins and unchanged lease/last-seen/cursor/checkpoint/lifecycle. Deliberate
+regression and malformed-observation cases prove that each verifier fails closed.
+Unsupported cases are explicit skips and make the CLI exit nonzero. This optional
+suite is separate from bundled reference-package Profile evidence; no existing
+Profile certificate or live-browser acceptance is silently expanded.
+
+Targeted validation passed 69 tests: 31 runner/report/CLI tests, 23 schema and
+backward-compatibility tests, 14 extension fixture tests, and one PostgreSQL health
+integration test (the six unrelated tests in its file were filtered out). Node,
+extension and server typechecks passed, as did changed extension test lint,
+protocol/generated-type consistency, the Node build and diff checks. Python
+example validation could not run because the system Python lacks `referencing`;
+the changed script was syntax-checked, and the new wire examples were validated
+by the Node schema suite. No Playwright or browser E2E ran. HTTP fixtures and the
+disposable PostgreSQL container closed normally.
+
+P2 browser/live-server acceptance and the separate Push-only issue-ceiling
+certification remain outside these two completion tasks.

@@ -25,7 +25,8 @@
     "node": ">=22"
   },
   "bin": {
-    "colp-conformance": "./bin/colp-conformance.mjs"
+    "colp-conformance": "./bin/colp-conformance.mjs",
+    "colp-sync-resilience": "./bin/colp-sync-resilience.mjs"
   },
   "exports": {
     ".": "./src/index.mjs"

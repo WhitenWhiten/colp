@@ -99,3 +99,43 @@ npm run pack:release -- /path/to/artifacts
 ```
 
 The command copies the shipped files and Apache-2.0 license into a temporary directory, replaces the local dependency with the exact matching `@know-n/colp` version, and packs a public package. Publish the accepted implementation tarball first, then the accepted runner tarball. Publish the tarball produced by this command; the source directory retains its development dependency.
+
+## Sync resilience adapters (COLP 0.2)
+
+The separate opt-in runner covers the six client/deployment cases in
+[`protocol/sync-resilience-cases.json`](../../protocol/sync-resilience-cases.json).
+The anonymous publication CLI keeps its existing read-only behavior. Sync
+scenarios may write data and must use disposable replicas and collections.
+
+```bash
+npm run conformance:sync-resilience -- --json /absolute/path/to/adapter.mjs
+# Installed package:
+colp-sync-resilience --json /absolute/path/to/adapter.mjs
+```
+
+The local adapter exports `async runScenario(caseId)` and optionally `async close()`.
+It creates a fresh isolated scenario and returns concrete observations in the
+following shapes. `undefined` means unsupported and produces SKIP. The CLI exits
+1 on either a failure or a skip, 2 on adapter/usage errors, and always calls
+`close()` after loading the adapter. No adapter code comes from a server response.
+A scenario exception fails that case without printing credentials from its error.
+The JavaScript API is `runSyncResilienceConformance(adapter, { cases?: ids })`;
+`verifySyncResilienceCase(id, observations)` can verify evidence inside an existing
+fixture. Unselected cases are explicitly skipped.
+
+| Case | Scenario and returned observations |
+|---|---|
+| SYNC-0032 | Conflict on X, later edit on Y, later edit on X; resolve and recapture X. Return `results: [{opId,targetId,sequence,status}]`, `held: [{opId,targetId,status}]`, `recaptured: [{originalOpId,opId,targetId,sequence,title}]`, `currentNativeTitle`. Results contain the actual consumed conflict receipt and independent applied receipt. |
+| SYNC-0033 | Three Pull events, middle event locally unappliable. Return three `events: [{nodeId,state: applied|not_applied}]` in page order, durable `issues: [{nodeId,eventId,code}]`, published `cursor`, `ackedCursor`, actual Ack `warnings`. |
+| SYNC-0034 | Tamper with a page/effect digest before staging. Return `failureCode`, `cursorBefore`, `cursorAfter`, complete native snapshots `nativeBefore`/`nativeAfter`, and `setAside` issues. No native change, cursor advance or item downgrade is allowed. |
+| SYNC-0035 | Delete a subtree with one protected child and one independent sibling. Return logical IDs in `protected`, `ancestors`, `independent`, `survivors`, `excluded`, `retainedIssues`, plus `previousCursor`/`cursor`. Protected native members and necessary ancestors survive; independent siblings delete. |
+| SYNC-0036 | Send new/older health reports and try another installation's proof. Persist Ack warnings. Return actual `report`, `response`, `olderResponse`, `foreignProofStatus`, `ackWarnings`, `storedWarnings`, `authorityBefore`/`authorityAfter`. Authority snapshots must include `leaseExpiresAt`, `lastSeenAt`, `cursor`, `checkpoint`, `lifecycle`. |
+| SYNC-0037 | Deliver the same permitted command twice, drop a result response, and try an unavailable action. Return actual `deliveries`, executed command IDs in `executions`, two `resultReports` carrying the retained result, and refused outcomes in `refused`. |
+
+These checks validate observations, not hardware attestation of an adapter. The
+repository fixtures drive production extension modules and IndexedDB, and the
+server fixture uses PostgreSQL and authenticated HTTP injection. The suite also
+feeds deliberately corrupted observations to each verifier to ensure violations
+fail. It does not certify browser/live-server end-to-end completion. The optional
+Manifest capability is defined by the new schema; an existing deployment using
+only the configured extension helper does not thereby advertise that capability.

@@ -33,7 +33,6 @@ export const CHECKS = Object.freeze([
   { id: 'PUB-0034', level: 'SHOULD', title: 'Paginated Snapshots send Link rel="next"' },
 ].map((check) => Object.freeze(check)));
 
-const byId = new Map(CHECKS.map((check) => [check.id, check]));
 const MAX_DETAILS = 5;
 // Strip terminal protocols (CSI/OSC and the short two-byte forms) and render
 // remaining control characters visibly. Report details include server-owned
@@ -54,10 +53,13 @@ export function sanitizeTerminalText(value) {
 }
 
 export class Report {
-  #observations = new Map(CHECKS.map((check) => [check.id, { passed: 0, failures: [], skipReason: undefined }]));
+  #observations;
+  #checks;
   #notes = [];
 
-  constructor(target) {
+  constructor(target, checks = CHECKS) {
+    this.#checks = checks;
+    this.#observations = new Map(checks.map(check => [check.id, { passed: 0, failures: [], skipReason: undefined }]));
     this.target = sanitizeTerminalText(target);
   }
 
@@ -91,7 +93,7 @@ export class Report {
   }
 
   finish(requestCount) {
-    const results = CHECKS.map((check) => {
+    const results = this.#checks.map((check) => {
       const { passed, failures, skipReason } = this.#observations.get(check.id);
       let status = 'pass';
       if (failures.length > 0) status = check.level.startsWith('MUST') ? 'fail' : 'warn';
@@ -108,7 +110,7 @@ export class Report {
   }
 
   #entry(id) {
-    if (!byId.has(id)) throw new TypeError(`Unknown conformance check ${id}`);
+    if (!this.#observations.has(id)) throw new TypeError(`Unknown conformance check ${id}`);
     return this.#observations.get(id);
   }
 }
@@ -116,7 +118,7 @@ export class Report {
 /** Renders a report as aligned plain text for a terminal. */
 export function formatReport(report) {
   const lines = [
-    'COLP conformance: core + publication (anonymous, read-only)',
+    `COLP conformance: ${sanitizeTerminalText(report.profile ?? 'core + publication (anonymous, read-only)')}`,
     `Target: ${sanitizeTerminalText(report.target)}`,
     '',
   ];

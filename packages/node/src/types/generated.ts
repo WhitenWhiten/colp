@@ -444,6 +444,12 @@ export interface ColpContracts {
   syncMirrorPlanOperation: SyncMirrorPlanOperation;
   syncPull: SyncPull;
   manifestV02: ManifestV02;
+  syncReplicaHealthIssue: SyncReplicaHealthIssue;
+  syncReplicaHealthReport: SyncReplicaHealthReport;
+  syncReplicaHealthResult: SyncReplicaHealthResult;
+  syncReplicaCommand: SyncReplicaCommand;
+  syncReplicaCommandResult: SyncReplicaCommandResult;
+  syncSetAsideWarning: SyncSetAsideWarning;
   syncPullV02: SyncPullV02;
   syncPullEventV02: SyncPullEventV02;
   syncSnapshotV02: SyncSnapshotV02;
@@ -1612,6 +1618,25 @@ export type ManifestV02 = Omit<Manifest, 'protocol'> & {
   protocol: 'https://know-n.com/colp/spec/0.2';
   protocolVersions: [string, string, ...string[]];
   syncEffectPages: HttpsUriTemplate;
+  /** Optional, Session-independent health/commands endpoint (§9.2). */
+  syncReplicaHealth?: HttpsUrl;
+};
+/** Optional COLP 0.2 replica health and command contracts (§9.2). */
+export type SyncReplicaIssueAction = 'retry' | 'use_server' | 'keep_local' | 'discard_local' | 'delete' | 'keep' | 'resume' | 'rebuild';
+export interface SyncReplicaHealthIssue {
+  issueId: OpaqueId; code: string; direction: 'push' | 'pull' | 'local'; nodeId?: OpaqueId; opId?: OpaqueId;
+  title?: string; count: number; firstSeenAt: string; lastSeenAt: string; actions: SyncReplicaIssueAction[];
+}
+export interface SyncReplicaCommand { commandId: OpaqueId; action: SyncReplicaIssueAction; issueId?: OpaqueId }
+export interface SyncReplicaCommandResult { commandId: OpaqueId; outcome: 'done' | 'failed'; code?: string }
+export type SyncReplicaHealthReport = {
+  replicaId: OpaqueId; revision: number; since: string;
+  issues: { total: number; items: SyncReplicaHealthIssue[] };
+  actions?: ('retry' | 'resume' | 'rebuild')[]; commandResults?: SyncReplicaCommandResult[]; extensionVersion?: string;
+} & ({ state: 'stopped'; code: string } | { state: 'syncing' | 'degraded' | 'paused'; code?: string });
+export interface SyncReplicaHealthResult { replicaId: OpaqueId; revision: number; accepted: boolean; commands: SyncReplicaCommand[] }
+export type SyncSetAsideWarning = Omit<Warning, 'code'> & {
+  code: 'apply_set_aside' | 'placement_unproven' | 'identity_unproven' | 'record_invalid' | 'delete_held';
 };
 export interface AuthoritativeEffectBinding {
   effectId: OpaqueId;

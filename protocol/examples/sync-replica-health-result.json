@@ -1,0 +1,11 @@
+{
+  "replicaId": "replica-browser-1",
+  "revision": 1760000000000,
+  "accepted": true,
+  "commands": [
+    {
+      "commandId": "command-2",
+      "action": "rebuild"
+    }
+  ]
+}

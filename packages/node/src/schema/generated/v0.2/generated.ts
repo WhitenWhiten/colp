@@ -4,6 +4,301 @@ const schema = {
   "$id": "https://know-n.com/colp/schema/0.2",
   "title": "The Collection Protocol 0.2 Authoritative Pull Effects",
   "$defs": {
+    "syncReplicaHealthEndpoint": {
+      "allOf": [
+        {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/httpsUrl"
+        },
+        {
+          "not": {
+            "pattern": "[?#{}]"
+          }
+        }
+      ]
+    },
+    "syncReplicaHealthIssue": {
+      "type": "object",
+      "properties": {
+        "issueId": {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "not": {
+            "pattern": "[^a-z0-9_]"
+          }
+        },
+        "direction": {
+          "enum": [
+            "push",
+            "pull",
+            "local"
+          ]
+        },
+        "nodeId": {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
+        },
+        "opId": {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "firstSeenAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "lastSeenAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "retry",
+              "use_server",
+              "keep_local",
+              "discard_local",
+              "delete",
+              "keep",
+              "resume",
+              "rebuild"
+            ]
+          },
+          "maxItems": 8,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "issueId",
+        "code",
+        "direction",
+        "count",
+        "firstSeenAt",
+        "lastSeenAt",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "syncReplicaCommand": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
+        },
+        "action": {
+          "enum": [
+            "retry",
+            "use_server",
+            "keep_local",
+            "discard_local",
+            "delete",
+            "keep",
+            "resume",
+            "rebuild"
+          ]
+        },
+        "issueId": {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
+        }
+      },
+      "required": [
+        "commandId",
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "syncReplicaCommandResult": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
+        },
+        "outcome": {
+          "enum": [
+            "done",
+            "failed"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "not": {
+            "pattern": "[^a-z0-9_]"
+          }
+        }
+      },
+      "required": [
+        "commandId",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "syncReplicaHealthReport": {
+      "type": "object",
+      "properties": {
+        "replicaId": {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "enum": [
+            "syncing",
+            "degraded",
+            "stopped",
+            "paused"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "not": {
+            "pattern": "[^a-z0-9_]"
+          }
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "issues": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/syncReplicaHealthIssue"
+              },
+              "maxItems": 50
+            }
+          },
+          "required": [
+            "total",
+            "items"
+          ],
+          "additionalProperties": false
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "retry",
+              "resume",
+              "rebuild"
+            ]
+          },
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "commandResults": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/syncReplicaCommandResult"
+          },
+          "maxItems": 16
+        },
+        "extensionVersion": {
+          "type": "string",
+          "pattern": "^[0-9A-Za-z.+-]{1,32}$",
+          "not": {
+            "pattern": "[^0-9A-Za-z.+-]"
+          }
+        }
+      },
+      "required": [
+        "replicaId",
+        "revision",
+        "state",
+        "since",
+        "issues"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "stopped"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "code"
+            ]
+          }
+        }
+      ]
+    },
+    "syncReplicaHealthResult": {
+      "type": "object",
+      "properties": {
+        "replicaId": {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/opaqueId"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/syncReplicaCommand"
+          },
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "replicaId",
+        "revision",
+        "accepted",
+        "commands"
+      ],
+      "additionalProperties": false
+    },
+    "syncSetAsideWarning": {
+      "allOf": [
+        {
+          "$ref": "https://know-n.com/colp/schema/0.1#/$defs/warning"
+        },
+        {
+          "properties": {
+            "code": {
+              "enum": [
+                "apply_set_aside",
+                "placement_unproven",
+                "identity_unproven",
+                "record_invalid",
+                "delete_held"
+              ]
+            }
+          }
+        }
+      ]
+    },
     "manifestV02": {
       "type": "object",
       "properties": {
@@ -55,6 +350,9 @@ const schema = {
         },
         "syncEffectPages": {
           "$ref": "https://know-n.com/colp/schema/0.1#/$defs/httpsUriTemplate"
+        },
+        "syncReplicaHealth": {
+          "$ref": "#/$defs/syncReplicaHealthEndpoint"
         }
       },
       "required": [

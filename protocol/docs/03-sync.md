@@ -274,6 +274,13 @@ Sequence receipt state machine:
 
 Only `rejected` and `deferred` results carry the required machine-readable `code`; only `deferred` MAY carry `retryAfterSeconds`. `applied` and `rebased` must not carry `conflictId`; `conflicted` must carry the persisted `conflictId` and a cursor. When the same sequence is retried, these fields must also stay identical field for field.
 
+A client MUST treat `conflicted` as a consumed sequence. It MUST NOT hold unrelated
+later operations behind that conflict. Only operations targeting the same Node, its
+existing descendants, or placement under an unconfirmed create may be held. The
+client MUST retain held evidence; release requires capturing current local state as
+a new operation at the tail, with a new operation ID, sequence, digest and idempotency
+key. It MUST NOT replay the old operation bytes after resolution.
+
 <a id="colp-section-6-2"></a>
 
 ### 6.2 Operation Types
@@ -469,11 +476,44 @@ An effect may contain the Node content needed for normal synchronization within 
 
 A COLP 0.2 Sync Snapshot uses `syncSnapshotV02` and provides `parentRevisions` for every root or folder that appears on the page. When the client has finished every Snapshot page, it must have the children revision of every node in the complete tree that can be a parent; `resourceRevision` and `childrenRevision` are independent authorities and cannot stand in for each other.
 
+<a id="colp-section-8-2"></a>
+
+### 8.2 Durable local set-aside
+
+After validating the complete page and all effect pages, a client MAY set aside an
+individual event it cannot apply locally. Before advancing the cursor, it MUST
+persist the event, its subject, reason, dependency closure, and repair evidence as
+explicitly **not applied**. Later events on the same Node, existing descendants or
+placement under it MUST be held with it. Independent siblings MUST continue. A
+missing or cyclic ancestry chain cannot prove independence.
+
+A client MUST NOT classify a page-integrity failure as an item failure. Invalid
+bindings, digests, ordering, page chains, counts, duplicate/conflicting event IDs,
+or exceeded transport budgets MUST fail closed before local mutation or cursor
+advance, as required by §8.1. A browser call that started, or whose result is
+uncertain, MUST retain its native recovery path; it cannot be declared unapplied.
+
+A remote delete MUST retain set-aside Nodes, their local evidence and necessary
+ancestors; it MAY delete independently proven members of the same subtree. A local
+delete of a set-aside Node or its necessary ancestor MUST be held. Retained native
+Nodes MUST be excluded from automatic re-upload or re-identification after a
+remote tombstone. Repair or a confirmed replica rebuild is an explicit exit.
+
+A client using set-aside MUST bound unresolved divergence and report it. The
+reference client stops before adding item 201 and uses the shared open-issue
+projection for Pull admission; this does not certify a separate Push-only ceiling.
+
 <a id="colp-section-9"></a>
 
 ## 9. Ack
 
-A client may acknowledge remote operations only after they have been written to the browser or local database and persisted:
+A client may acknowledge remote operations only after their application is durable
+in the browser or local database. Under §8.2, a durable not-applied record and its
+repair evidence also permit acknowledgment; Ack does not assert that such a Node
+was applied. Every open Pull issue MUST be represented by an Ack warning, subject
+to the negotiated warning budget. A bounded prefix is sent when the budget is
+full, and the health report carries the true total. Clients MUST retain unsent
+issue evidence. An Ack warning is a display fact and grants no mutation authority:
 
 ```json
 {
@@ -525,6 +565,111 @@ A Sync tombstone may be purged only when all of the following hold:
 4. The server has compacted the membership of each deleted ID into a non-resurrectable deletion or generation watermark. The watermark is not a wire tombstone and must be kept at least until the end of the `serverUuid` lifetime, or until a namespace migration proves that the old IDs will never be accepted again.
 
 The purge, `purgedThroughCursor`, the watermark, and the physical tombstone deletion must commit in one transaction. If any step fails, the purge boundary must not advance. A replica beyond the cursor or tombstone window returns `410 stale_replica`; a retired replica returns `410 replica_retired`.
+
+<a id="colp-section-9-1"></a>
+
+### 9.1 Set-aside warnings
+
+These standard warning codes extend the open `warning.code` vocabulary without
+changing the 0.1 warning schema:
+
+| Code | Meaning |
+|---|---|
+| `apply_set_aside` | An event was durably recorded but not applied locally |
+| `placement_unproven` | Local parent or placement cannot be proven |
+| `identity_unproven` | Local identity cannot be proven |
+| `record_invalid` | A subject's record cannot be encoded or stored locally |
+| `delete_held` | A delete retained a protected Node or subtree member |
+
+Warnings use the existing `code`, bounded `message`, optional `nodeId` and
+`path: /nodes/{nodeId}` fields. They MUST NOT contain browser-native IDs, URLs,
+credentials or secrets. A server MUST retain the latest accepted Ack warnings for
+the replica's authenticated owner to inspect; an empty list clears them. Warning
+storage failures MUST NOT undo an already committed Ack. Detailed local reasons
+may remain in the durable issue ledger; a standard warning need not expose them.
+
+<a id="colp-section-9-2"></a>
+
+### 9.2 Optional replica health and commands
+
+A COLP 0.2 Manifest MAY declare top-level `syncReplicaHealth`, an absolute HTTPS
+URL with no userinfo, query, fragment or URI-template variables. Its presence
+advertises the following capability; absence makes no health-capability claim.
+Clients MUST validate the endpoint against the configured server origin before
+sending credentials. Clients MUST NOT infer a general Sync Profile claim from
+this optional endpoint.
+
+The client sends `POST` with `Content-Type: application/json`, its sync credential
+and `Known-Sync-Replica-Proof`. A deployment requiring an extension Origin also
+validates that Origin. The body carries `replicaId`; the URL is discovered, never
+constructed from the replica ID. This matches the deployed helper transport
+rather than requiring a second PUT endpoint. Existing extensions may use their
+configured legacy helper when the optional capability is absent; that is not a
+claim that the server advertises this capability.
+
+```json
+{
+  "replicaId": "replica-browser-1",
+  "revision": 1760000000000,
+  "state": "stopped",
+  "code": "recovery_capability_premature",
+  "since": "2026-10-17T10:00:00.000Z",
+  "issues": { "total": 0, "items": [] },
+  "actions": ["retry"],
+  "extensionVersion": "0.2.0"
+}
+```
+
+The closed `syncReplicaHealthReport` schema defines the wire body. `revision` is
+an increasing positive safe integer, and `since` is an RFC 3339 instant.
+`state` is `syncing | degraded | stopped | paused`; `stopped` requires `code`.
+There is no client `reportedAt`: the server records reception time.
+`issues.total` is the true unresolved count and MUST be at least `items.length`.
+At most 50 unique items and 16 unique command results fit in a report; the exact
+UTF-8 JSON body MUST be at most 32768 bytes. Each item carries `issueId`, `code`,
+`direction: push|pull|local`, optional server `nodeId`/`opId`, `count`,
+`firstSeenAt`, `lastSeenAt`, `actions`, and an optional title of at most 256
+characters. Implementations MUST remove unsafe titles; no URL, native ID or secret
+is report data. Duplicate IDs, unknown fields or invalid bounds are rejected.
+
+A fresh credential MUST bind the account and current security epoch. Account
+ownership and a public replica ID alone MUST NOT authorize a report, command
+pickup or command-result settlement. The opaque server-issued installation proof
+MUST bind account, replica, device/profile/generation and credential authority.
+The proof survives token rotation and Session/lease expiry, but not revocation,
+account-epoch change, changed installation generation or replica retirement.
+Proofs are bearer credentials, MUST NOT appear in health JSON or product views,
+and MUST be redacted from logs. A Session identifier may serve as the proof only
+if the server verifies its retained installation binding separately from Session
+expiry. Reporting MUST NOT mint a Session, renew a lease, touch last-seen, move a
+cursor/checkpoint, or change replica lifecycle.
+
+Reports use last-writer-wins: only a greater `revision` replaces health state.
+Duplicate/older reports MUST NOT roll state back. The server MAY still settle
+already-delivered command results and redeliver open commands on such a report.
+The response is `200` with `replicaId`, stored `revision`, `accepted`, and at most
+8 commands. Admission is rate limited; clients obey `429` and `Retry-After`.
+An authenticated client SHOULD report on state changes and at least every fifteen
+minutes, including while stopped. A stopped engine's health report requires no
+live Session and is independent of its Sync request gate.
+
+Commands are `{ commandId, action, issueId? }`; they MUST NOT contain data or
+operation bytes. The owner's authenticated product session enqueues them; the
+product route and UI are outside COLP. Commands expire after seven days and have
+`pending | delivered | done | failed | expired` lifecycle. Implementations MAY
+support a subset of the action vocabulary. Only actions currently offered by the
+replica/issue may execute, and the client MUST recheck that precondition at
+execution time. v1 implements Retry and Rebuild; it does not claim single-Node
+refresh or automatic archive re-import. A destructive action requires explicit
+owner confirmation, and Rebuild preserves unsent evidence before rotating.
+
+The client durably deduplicates command IDs before execution. A redelivery MUST
+NOT execute twice; interrupted execution must be reconciled from durable evidence
+or reported failed. The next report carries `commandResults` entries
+`{ commandId, outcome: done|failed, code? }`. Results MUST be retained and retried
+after response loss until accepted, without crossing account/replica boundaries.
+The server MUST verify installation authority before delivery or settlement, reject
+undelivered/foreign results, and MUST NOT rewrite a terminal outcome on replay.
 
 <a id="colp-section-10"></a>
 

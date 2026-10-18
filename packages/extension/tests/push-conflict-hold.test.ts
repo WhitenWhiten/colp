@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../conformance/src/sync-resilience.mjs';
 import { createQueueRecapture } from '../src/queue-recapture.js';
 import { honestChrome } from './kns-05-pull-harness.js';
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ type Sent = { readonly opId: string; readonly sequence: number };
 
 describe('C1 a conflict holds only its own bookmark', () => {
   test('a later change to another bookmark syncs; later changes to the conflicted one wait, then follow the resolution', async () => {
-    const { store, worker, sent } = await fixture();
+    const { store, worker, sent, results } = await fixture();
     await update(store, 'op-x1', 'node-x'); await update(store, 'op-y', 'node-y'); await update(store, 'op-x2', 'node-x');
 
     // The server consumes sequence 1 as a conflict; the edit queued after it on
@@ -54,6 +55,13 @@ describe('C1 a conflict holds only its own bookmark', () => {
     }
     assert.equal((await store.getQueueByOpId(scope, 'op-x2'))?.status, 'rejected');
     assert.equal((await store.getQueueByOpId(scope, 'op-x3'))?.status, 'rejected');
+    const events = (await store.exportScope(scope)).bookmarkEvents;
+    assert.deepEqual(verifySyncResilienceCase('SYNC-0032', { results,
+      held: waiting.map(row => ({ opId: row.opId, targetId: row.payload.targetId, status: row.status })),
+      recaptured: fresh.map(row => ({ opId: row.opId, targetId: row.payload.targetId, sequence: row.sequence,
+        originalOpId: events.find(event => event.opId === row.opId)?.details?.recapturedFrom,
+        title: (row.payload.payload as any).value.title })), currentNativeTitle: 'Current native title',
+    }), []);
     assert.equal(hasConflictBarrier(await store.listQueue(scope)), false);
     assert.deepEqual(await store.auditIntegrity(), { outcome: 'valid' });
     store.close();
@@ -89,7 +97,7 @@ async function fixture(input: { readonly conflicts?: readonly string[] } = {}) {
     await store.putMapping(scope, { nativeId: `native-${node}`, colpId: `node-${node}`, rootNativeId: 'root-native',
       parentNativeId: 'root-native', parentColpId: 'root', nodeKind: 'bookmark', projection: { revision: `${node}-r1`, digest: `sha256:${node}`, content: { title: node } } });
   }
-  const conflicts = new Set(input.conflicts ?? ['op-x1']); const sent: Sent[] = []; let expected = 1;
+  const conflicts = new Set(input.conflicts ?? ['op-x1']); const sent: Sent[] = []; const results: any[] = []; let expected = 1;
   // A strict lane: one expected sequence; a conflict consumes its slot like any result.
   const fetch: typeof globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as { batchId: string; operations: Array<Sent & { targetId: string }> };
@@ -99,6 +107,7 @@ async function fixture(input: { readonly conflicts?: readonly string[] } = {}) {
     const cursor = `cursor-${operation.sequence}`;
     const result = conflicts.has(operation.opId) ? { status: 'conflicted', conflictId: `conflict-${operation.opId}` }
       : { status: 'applied', targetId: operation.targetId, revision: `revision-${operation.sequence}` };
+    results.push({ opId: operation.opId, targetId: operation.targetId, sequence: operation.sequence, status: result.status });
     return json(200, { batchId: body.batchId, results: [{ opId: operation.opId, sequence: operation.sequence,
       ...result, cursor, warnings: [] }], serverCursor: cursor });
   };
@@ -112,7 +121,7 @@ async function fixture(input: { readonly conflicts?: readonly string[] } = {}) {
   captures.set(store, recaptureHeld); browsers.set(store, api);
   const worker = createOutboundPushWorker({ scope, store, recaptureHeld, endpoints: async () => endpoints, sessions, fetch,
     now: () => 10_000, random: () => 0, ownerId: () => 'owner-push', schedule: () => undefined });
-  return { store, worker, sent };
+  return { store, worker, sent, results };
 }
 
 async function update(store: ReturnType<typeof createSyncStateStore>, opId: string, targetId: string) {

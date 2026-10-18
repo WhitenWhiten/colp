@@ -1,0 +1,31 @@
+{
+  "replicaId": "replica-browser-1",
+  "revision": 1760000000000,
+  "state": "degraded",
+  "since": "2026-10-17T10:00:00.000Z",
+  "issues": {
+    "total": 1,
+    "items": [
+      {
+        "issueId": "issue-1",
+        "code": "record_invalid",
+        "direction": "pull",
+        "nodeId": "node-1",
+        "count": 1,
+        "firstSeenAt": "2026-10-17T10:00:00.000Z",
+        "lastSeenAt": "2026-10-17T10:00:00.000Z",
+        "actions": []
+      }
+    ]
+  },
+  "actions": [
+    "rebuild"
+  ],
+  "commandResults": [
+    {
+      "commandId": "command-1",
+      "outcome": "done"
+    }
+  ],
+  "extensionVersion": "0.2.0"
+}

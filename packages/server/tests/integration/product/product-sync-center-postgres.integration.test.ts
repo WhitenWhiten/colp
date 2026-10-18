@@ -1,3 +1,4 @@
+import { verifySyncResilienceCase } from '../../../../conformance/src/sync-resilience.mjs';
 import { truncateFixtureTables } from '../../support/postgres-test-runtime.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -743,15 +744,30 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       // A valid credential and proof for another device on the SAME account
       // cannot report, take commands or settle results for this installation.
       credentials.set('Bearer other-device', retiring.credential);
-      assert.equal((await post('Bearer other-device', report(reporting.replica.replicaId, 400, 'syncing'),
-        retiring.session.sessionId)).statusCode, 404);
+      const foreignReport = await post('Bearer other-device', report(reporting.replica.replicaId, 400, 'syncing'),
+        retiring.session.sessionId);
+      assert.equal(foreignReport.statusCode, 404);
       assert.equal((await post('Bearer owner-health', report(reporting.replica.replicaId, 400, 'syncing'), '')).statusCode, 404);
       const rotated = await mintVerifiedExtensionCredentialFixture({ issuer: EXTENSION_ISSUER, audience: 'known-api',
         clientId: 'known-extension', subject: owner.identitySubject, credentialId: `health-refresh-${randomUUID()}` });
       credentials.set('Bearer refreshed-health', rotated);
-      assert.equal((await post('Bearer refreshed-health', report(reporting.replica.replicaId, 401, 'syncing'),
-        reporting.session.sessionId)).statusCode, 200, 'refresh does not need a new Sync Session');
+      const freshReport = report(reporting.replica.replicaId, 401, 'syncing');
+      const freshResponse = await post('Bearer refreshed-health', freshReport, reporting.session.sessionId);
+      assert.equal(freshResponse.statusCode, 200, 'refresh does not need a new Sync Session');
       assert.deepEqual(await authority(reporting.replica.replicaId), before);
+      const oldResponse = await post('Bearer refreshed-health', report(reporting.replica.replicaId, 399, 'syncing'),
+        reporting.session.sessionId);
+      const ackWarnings = [{ code: 'apply_set_aside', message: 'This browser set this node aside.', path: `/nodes/${owned.node.id}` }];
+      await recorder.recordAckWarnings({ replicaId: reporting.replica.replicaId, warnings: ackWarnings });
+      const authorityView = (row: Record<string, unknown>) => ({ leaseExpiresAt: row.lease_expires_at,
+        lastSeenAt: row.last_seen_at, cursor: row.checkpoint_cursor, checkpoint: row.checkpoint_commit_ordinal,
+        lifecycle: row.status });
+      assert.deepEqual(verifySyncResilienceCase('SYNC-0036', {
+        report: freshReport, response: freshResponse.json(), olderResponse: oldResponse.json(),
+        authorityBefore: authorityView(before), authorityAfter: authorityView(await authority(reporting.replica.replicaId)),
+        foreignProofStatus: foreignReport.statusCode, ackWarnings,
+        storedWarnings: (await stored(reporting.replica.replicaId)).ack_warnings,
+      }), []);
       // Only the credential's own account may report, and never for a retired replica.
       assert.equal((await post('Bearer outsider-health', report(reporting.replica.replicaId, 400, 'syncing'))).statusCode, 404);
       assert.equal((await post('Bearer owner-health', report(foreign.replica.replicaId, 400, 'syncing'))).statusCode, 404);

@@ -50,6 +50,8 @@ EXAMPLE_CONTRACTS = {
     "sync-update-operation.json": "operation",
 }
 EXAMPLE_CONTRACTS_V02 = {
+    "sync-replica-health.json": "syncReplicaHealthReport",
+    "sync-replica-health-result.json": "syncReplicaHealthResult",
     "sync-pull-v02.json": "syncPullV02",
 }
 EXPECTED_EXAMPLES = frozenset(EXAMPLE_CONTRACTS) | frozenset(EXAMPLE_CONTRACTS_V02)

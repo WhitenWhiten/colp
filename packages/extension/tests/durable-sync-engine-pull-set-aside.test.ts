@@ -1,3 +1,4 @@
+import { runSyncResilienceConformance } from '../../conformance/src/sync-resilience.mjs';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
@@ -27,5 +28,32 @@ describe('P1 a Pull event this browser cannot apply is one item, and the Ack say
     const body = JSON.parse(fixture.ackRequests[0]!.body) as { warnings: Array<Record<string, unknown>> };
     assert.deepEqual(body.warnings, [{ code: 'apply_set_aside', message: 'This browser set this node aside and did not apply it.',
       nodeId: 'node-created-12', path: '/nodes/node-created-12' }]);
+    const report = await runSyncResilienceConformance({ async runScenario() {
+      return { events: await Promise.all([11, 12, 13].map(async n => ({ nodeId: `node-created-${n}`,
+        state: await fixture.store.getMappingByColpId(scope, `node-created-${n}`) ? 'applied' : 'not_applied' }))),
+      issues: await fixture.store.listPullIssues(scope), cursor: exported.cursor?.cursor,
+      ackedCursor: exported.engine.lastAckedCursor, warnings: body.warnings };
+    } }, { cases: ['SYNC-0033'] });
+    assert.equal(report.summary.pass, 1); assert.equal(report.summary.fail, 0);
+    fixture.store.close();
   });
+});
+
+
+test('SYNC-0034: a corrupt effect cannot become an item or mutate the browser', async () => {
+  const f = await setup({ useRealPullApplier: true });
+  try {
+    const before = [...f.chromeNodes.values()].map(node => ({ ...node }));
+    const previous = (await f.store.getScope(scope))!.checkpoint!.cursor;
+    const bad: any = create(11, 'root-old');
+    bad.effect.effectDigest = 'sha-256=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:';
+    f.pullResponses.push(json(200, pullEventsPage([bad], 'cursor-1')));
+    await f.engine.wake('manual');
+    const report = await runSyncResilienceConformance({ async runScenario() {
+      return { failureCode: (await f.store.getEngineState(scope))?.lastError,
+        cursorBefore: previous, cursorAfter: (await f.store.getCursor(scope))?.cursor ?? previous,
+        nativeBefore: before, nativeAfter: [...f.chromeNodes.values()], setAside: await f.store.listPullIssues(scope) };
+    } }, { cases: ['SYNC-0034'] });
+    assert.equal(report.summary.pass, 1, JSON.stringify(report));
+  } finally { f.store.close(); }
 });
