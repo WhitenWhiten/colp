@@ -112,7 +112,7 @@ export function ProfileSection({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     <section className="settings-section">
       <div className="settings-section-head">
         <h3 className="settings-toggle-label">Profile</h3>
-        <p className="meta">Your picture and name in the account menu and on collections you share.</p>
+        <p className="meta">Your picture and name in the account menu and on folders you share.</p>
       </div>
       <form
         className="stack settings-form gap-4"

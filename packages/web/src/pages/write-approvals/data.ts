@@ -402,7 +402,7 @@ export function useWriteApprovals() {
     const result = await undoApproval(approval.planId, { force })
     if (!mounted.current || privateSessionIdentity() !== requestIdentity) return
     success(result.noop
-      ? 'The collection was already at the saved version.'
+      ? 'Your library was already at the saved version.'
       : 'Undid the policy-approved plan.')
     await load('refresh')
   }, [load, success, sessionIdentity])

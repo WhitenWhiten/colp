@@ -71,7 +71,7 @@ export function serverStatusTone(view: ServerAboutSnapshot | null): StatusTone {
 }
 
 const NEXT_STEPS: readonly { to: string; icon: IconName; title: string; body: string }[] = [
-  { to: '/extension', icon: 'browser', title: 'Connect a browser', body: 'Keep browser folders and a collection in sync, both ways.' },
+  { to: '/extension', icon: 'browser', title: 'Connect a browser', body: 'Keep a browser’s bookmarks and your library in sync, both ways.' },
   { to: '/agents', icon: 'terminal', title: 'Connect an agent', body: 'Let Claude Code or Codex read and tidy, with your approval.' },
   { to: '/import', icon: 'download', title: 'Import bookmarks', body: 'Bring in the bookmarks file any browser exports.' },
   { to: '/sync', icon: 'sync', title: 'Sync center', body: 'See every synced browser, conflicts, and recently deleted items.' },
@@ -111,7 +111,7 @@ export function SelfHostedAbout({
         <h1>About this server</h1>
         <p className="self-hosted-about-lede">
           COLP Server keeps your bookmarks on a machine you run. It speaks the Collection
-          Protocol, so the browser extension and your agents read and sync the same collections.
+          Protocol, so the browser extension and your agents read and sync the same library.
         </p>
         <StatusBadge tone={serverStatusTone(view)} className="self-hosted-about-status">
           <span data-testid="about-status">{describeServerStatus(view)}</span>
