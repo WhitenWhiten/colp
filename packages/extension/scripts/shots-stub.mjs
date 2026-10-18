@@ -6,6 +6,7 @@
 //
 // States come from `?shot=a,b,c` on the page URL (comma separated flags):
 //   signedout   signed-out account (also `signin` for the popup's sign-in card)
+//   selfhosted  the server is a COLP Server (https://colp.example.net): its manifest turns cloud features off
 //   firstrun    the first-run welcome instead of the normal options page
 //   own         the user's own AI provider key is configured
 //   error       every background call fails (options pages) and the credits endpoints return 500
@@ -45,6 +46,7 @@ export function installStub(messages) {
   const has = (...names) => names.some((name) => flags.includes(name));
   const isPopup = location.pathname.endsWith('/popup.html');
   const signedOut = has('signedout', 'signin', 'firstrun');
+  const origin = has('selfhosted') ? 'https://colp.example.net' : 'https://known.example';
   const errored = has('error'), conflict = has('conflict'), manual = has('manual');
   const longPath = has('longfolder');
   const iso = (ms) => new Date(ms).toISOString();
@@ -57,8 +59,9 @@ export function installStub(messages) {
     'known.onboarding.installed.v1': has('firstrun') ? 'installed' : 'seen',
     'known.auth.authority-generation.v1': { generation: 4 },
     'known.sync.collection.v1': (isPopup && signedOut) || has('nocollection') ? undefined : 'col-reading',
-    'known.auth.snapshot.v1': signedOut ? { status: 'signed_out', serverOrigin: 'https://known.example', updatedAt: now }
-      : { status: 'connected', serverOrigin: 'https://known.example', accountLabel: 'ada@example.com', updatedAt: now },
+    'known.auth.snapshot.v1': signedOut ? { status: 'signed_out', serverOrigin: origin, updatedAt: now }
+      : { status: 'connected', serverOrigin: origin, accountLabel: 'ada@example.com', updatedAt: now },
+    ...(has('selfhosted') ? { runtimeServerOrigin: origin } : {}),
     ...(has('own') ? { 'known.classification.local-enabled.v1': true, 'known.classification.local-key.v1': { version: 3, generation: 'g1', presetId: 'typesafe',
       endpoint: 'https://api.typesafe.ai/v1/systemone', model: 'jev-1.13.0', secret: 'sk-secret', disclosed: true } } : {}),
     ...(isPopup ? {
@@ -271,8 +274,8 @@ export function installStub(messages) {
     if (errored && !isPopup && !['known.auth.status', 'known.capture.navigation.get', 'known.capture.navigation.set'].includes(kind)) return { ok: false, error: 'unavailable' };
     switch (kind) {
       case 'known.auth.status':
-        if (signedOut) return { ok: true, state: { status: 'signed_out', environment: 'development', serverOrigin: 'https://known.example' } };
-        return { ok: true, state: { status: 'connected', environment: 'development', serverOrigin: 'https://known.example',
+        if (signedOut) return { ok: true, state: { status: 'signed_out', environment: 'development', serverOrigin: origin } };
+        return { ok: true, state: { status: 'connected', environment: 'development', serverOrigin: origin,
           accountLabel: 'ada@example.com', sessionExpiresAt: iso(now + 3600e3) } };
       case 'known.capture.control':
         return { ok: true, scopeKey: 'scope-1', mode: manual ? 'manual' : 'automatic', pending: false, state: manual ? 'manual' : 'automatic',
@@ -537,6 +540,7 @@ export function installStub(messages) {
     if (u.endsWith('/api/v1/session')) return json({ authenticated: true, csrfToken: 'csrf-token' });
     if (u.endsWith('/api/v1/auth/get-session')) return json({ user: { id: 'subject-example' } });
     if (u.endsWith('/api/v1/me')) return json({ account: { id: 'account-example' }, profile: { id: 'account-example' } });
+    if (has('selfhosted') && u.endsWith('/.well-known/collection-protocol')) return json({ mounts: [{ features: { cloud: false, edition: { version: '0.2.0' } } }] });
     return nativeFetch(url, init);
   };
 }

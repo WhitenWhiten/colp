@@ -1187,22 +1187,32 @@ label.set-row-title { cursor: pointer; }
 .identity-row { min-height: 5rem; }
 .identity-name { font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .identity-row .set-row-hint { font-size: var(--text-sm); }
+/* Signed out: the web's sign-in card (web auth.css .auth-card), on the page's
+   left edge under its head like every other group, at the web card's width. */
 .account-login { display: block; margin-bottom: var(--space-6); }
-.account-login > .set-card { max-width: 24rem; margin-inline: auto; padding: var(--space-5); }
-.account-login .auth-tabs { margin: 0 0 var(--space-4); }
-.account-login .auth-form { gap: var(--space-3); }
-.account-login .field { display: grid; gap: var(--hair-30); }
-.account-login .field > label { color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-medium); }
-.account-login .auth-otp-send { min-height: 2.125rem; }
-.account-login .auth-form > .btn { min-height: 2.35rem; }
-.account-login .auth-inline-link { min-height: 0; text-align: left; color: var(--muted); font-size: var(--text-xs); }
-.account-login .auth-inline-link a { color: var(--ink-2); font-weight: var(--weight-medium); text-decoration: underline; }
-.auth-divider { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-3) 0; color: var(--faint); font-size: var(--text-xs); }
+.account-login > .login-card {
+  width: min(100%, 26rem);
+  padding: var(--hair-200) var(--hair-160);
+  background-color: var(--surface);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-md), var(--inset-highlight);
+}
+.login-title { margin: 0 0 var(--hair-125); font-size: var(--text-xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-display); line-height: var(--leading-snug); }
+.account-login .auth-tabs { margin: 0 0 var(--hair-125); }
+.account-login .auth-form > .btn { margin-top: var(--hair-30); }
+.account-login .field > p { margin: 0; }
+.account-login .field-hint { font-size: var(--text-sm); }
+.account-login .field-hint[data-tone="warning"] { color: var(--warning); }
+.auth-divider { display: flex; align-items: center; gap: var(--space-2); margin: var(--hair-125) 0 var(--space-3); color: var(--faint); font-size: var(--text-xs); }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .account-login .auth-oauth-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin: 0; }
 .account-login .btn.auth-oauth-btn { display: inline-flex; gap: var(--hair-55); width: auto; height: auto; min-width: 0; min-height: 2.35rem; padding: 0 var(--hair-85); border-radius: var(--radius); }
-.account-login .auth-alt { margin: var(--space-3) 0 0; font-size: var(--text-xs); text-align: left; }
-.account-login .auth-alt a { color: var(--ink-2); font-weight: var(--weight-medium); }
+/* The card names the server's edition under its address, and clearing the
+   address disconnects it, so the Server version group waits for a sign-in. */
+#login-panel:not([hidden]) ~ #server-edition-group { display: none; }
+@media (max-width: 540px) {
+  .account-login > .login-card { padding: var(--space-5) var(--space-4); }
+}
 
 /* Credits sub-page. */
 .credits-card .set-group { margin-bottom: var(--space-4); }

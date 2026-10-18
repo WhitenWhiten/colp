@@ -721,43 +721,65 @@
             </div>
           </header>
 
+          <!-- The web's sign-in card (SelfHostedLogin). Know-N's own methods (email code,
+               providers, registration) stay hidden until the server's manifest says it hosts them. -->
           <div class="set-group account-login" id="login-panel" hidden>
-            <div class="set-card">
-              <div class="auth-tabs view-switch" role="tablist" aria-label="Sign-in method" data-i18n-aria-label="common_signInMethod">
+            <div class="set-card login-card">
+              <h2 class="login-title" data-i18n="common_signIn">Sign in</h2>
+              <div class="auth-tabs view-switch" id="login-tabs" role="tablist" aria-label="Sign-in method" data-i18n-aria-label="common_signInMethod" hidden>
                 <button type="button" role="tab" id="login-tab-password" class="auth-tab" aria-selected="true" data-i18n="common_password">Password</button>
-                <button type="button" role="tab" id="login-tab-otp" class="auth-tab" aria-selected="false" data-i18n="common_emailCode">Email code</button>
+                <button type="button" role="tab" id="login-tab-otp" class="auth-tab" aria-selected="false" hidden data-i18n="common_emailCode">Email code</button>
               </div>
               <form class="auth-form" id="login-form" novalidate>
                 <div class="field">
                   <label for="server-origin" data-i18n="common_server">Server</label>
                   <!-- D2 requests the host permission for this origin. -->
-                  <input id="server-origin" type="url" autocomplete="url" spellcheck="false" placeholder="https://colp.example.net">
+                  <input id="server-origin" type="url" autocomplete="url" spellcheck="false" placeholder="https://colp.example.net" aria-describedby="login-server-hint">
+                  <p class="field-hint" id="login-server-hint" hidden></p>
                 </div>
                 <div class="field">
                   <label for="login-email" data-i18n="auth_usernameOrEmail">Username or email</label>
-                  <input id="login-email" type="text" autocomplete="username" required>
+                  <input id="login-email" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="login-email-error">
+                  <p class="field-error" id="login-email-error" role="alert" hidden></p>
                 </div>
                 <div class="auth-secret-slot">
                   <div class="field" id="login-password-field" data-mode="password">
                     <label for="login-password" data-i18n="common_password">Password</label>
-                    <input id="login-password" type="password" autocomplete="current-password" required>
+                    <div class="auth-otp-row auth-password-row">
+                      <input id="login-password" type="password" autocomplete="current-password" required aria-describedby="login-password-error">
+                      <button type="button" id="login-password-toggle" class="btn btn-ghost auth-otp-send" aria-pressed="false" aria-label="Show password" data-i18n-aria-label="auth_showPassword">
+                        <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="eye"></svg><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="eye-off"></svg>
+                      </button>
+                    </div>
+                    <p class="field-error" id="login-password-error" role="alert" hidden></p>
                   </div>
                   <div class="field" id="login-otp-field" data-mode="otp" data-inactive aria-hidden="true">
                     <label for="login-otp-code" data-i18n="common_signInCode">Sign-in code</label>
                     <div class="auth-otp-row">
-                      <input id="login-otp-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+                      <input id="login-otp-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-describedby="login-otp-error">
                       <button type="button" id="login-send-otp" class="btn btn-secondary auth-otp-send" data-i18n="common_sendCode">Send code</button>
                     </div>
+                    <p class="field-error" id="login-otp-error" role="alert" hidden></p>
                   </div>
                 </div>
                 <button type="submit" id="login-submit" class="btn btn-primary" data-i18n="common_signIn">Sign in</button>
-                <p class="auth-inline-link">
+                <p class="auth-inline-link" hidden>
                   <a id="login-forgot" href="https://know-n.com/reset-password" rel="noreferrer" target="_blank" data-i18n="common_forgotPassword">Forgot password?</a>
                 </p>
               </form>
-              <p id="login-password-help" class="auth-inline-link" hidden data-i18n="auth_selfHostedPasswordHelp">Reset your password from the server terminal.</p>
-              <div class="auth-divider" id="login-social-divider" aria-hidden="true"><span data-i18n="shell_or">or</span></div>
-              <div class="auth-oauth-row" id="login-social">
+              <!-- A COLP Server sends no email: the reset is a command for whoever runs it. -->
+              <details class="auth-reset" id="login-password-help" hidden>
+                <summary data-i18n="auth_forgotYourPassword">Forgot your password?</summary>
+                <p data-i18n="auth_selfHostedResetHelp">This server sends no email, so passwords are reset where it runs. Whoever runs it can set a new one:</p>
+                <div class="command-block">
+                  <pre class="command-block-code"><code id="login-reset-command">docker compose exec server colp-server reset-password --username &lt;username&gt;</code></pre>
+                  <button type="button" class="command-block-copy" id="login-reset-copy" aria-label="Copy the password reset command" data-i18n-aria-label="auth_copyResetCommand">
+                    <svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="copy"></svg><svg width="16" height="16" aria-hidden="true" focusable="false" data-icon="check"></svg><span id="login-reset-copy-label" aria-live="polite" data-i18n="common_copy">Copy</span>
+                  </button>
+                </div>
+              </details>
+              <div class="auth-divider" id="login-social-divider" aria-hidden="true" hidden><span data-i18n="shell_or">or</span></div>
+              <div class="auth-oauth-row" id="login-social" hidden>
                 <button type="button" class="btn btn-secondary auth-oauth-btn" id="login-google" aria-label="Continue with Google" data-i18n-aria-label="popup_continueWithGoogle">
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-illustration><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg><span data-i18n="shell_google">Google</span>
                 </button>
@@ -765,7 +787,7 @@
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-icon="github"></svg><span data-i18n="shell_github">GitHub</span>
                 </button>
               </div>
-              <p class="auth-alt" id="login-registration"><span data-i18n="common_newHere">New here?</span> <a id="login-register" href="https://know-n.com/register" rel="noreferrer" target="_blank" data-i18n="popup_createAnAccount">Create an account</a></p>
+              <p class="auth-alt" id="login-registration" hidden><span data-i18n="common_newHere">New here?</span> <a id="login-register" href="https://know-n.com/register" rel="noreferrer" target="_blank" data-i18n="popup_createAnAccount">Create an account</a></p>
             </div>
           </div>
 

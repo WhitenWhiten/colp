@@ -1,4 +1,44 @@
 {
+  "auth_copyResetCommand": {
+    "message": "复制密码重置命令",
+    "description": "Copy the password reset command"
+  },
+  "auth_enterPassword": {
+    "message": "请输入密码。",
+    "description": "Enter your password."
+  },
+  "auth_enterSignInCode": {
+    "message": "请输入邮件中的 6 位登录验证码。",
+    "description": "Enter the 6-digit code from the email."
+  },
+  "auth_enterUsernameOrEmail": {
+    "message": "请输入用户名或邮箱。",
+    "description": "Enter your username or email."
+  },
+  "auth_forgotYourPassword": {
+    "message": "忘记密码？",
+    "description": "Forgot your password?"
+  },
+  "auth_selfHostedResetHelp": {
+    "message": "此服务器不发送邮件，密码要在服务器上重置。运行服务器的人可以设置新密码：",
+    "description": "This server sends no email, so passwords are reset where it runs. Whoever runs it can set a new one:"
+  },
+  "auth_showPassword": {
+    "message": "显示密码",
+    "description": "Show password"
+  },
+  "common_copied": {
+    "message": "已复制",
+    "description": "Copied"
+  },
+  "common_copy": {
+    "message": "复制",
+    "description": "Copy"
+  },
+  "common_selectAndCopy": {
+    "message": "请选中后手动复制",
+    "description": "Select and copy"
+  },
   "extensionName": {
     "message": "Know-N",
     "description": "Know-N"
@@ -90,10 +130,6 @@
   "auth_managedSettingsConflictBuild": {
     "message": "托管设置与此版本冲突。",
     "description": "Managed settings conflict with this build."
-  },
-  "auth_selfHostedPasswordHelp": {
-    "message": "请在服务器终端重置密码。",
-    "description": "Reset your password from the server terminal."
   },
   "auth_serverConfigurationCouldNot": {
     "message": "无法验证服务器配置。",
@@ -5302,6 +5338,14 @@
   "options_selectedFolderMissingReview": {
     "message": "所选文件夹已缺失。请查看列表并选择替代的文件夹。",
     "description": "A selected folder is missing. Review the list and choose a replacement."
+  },
+  "options_serverEdition": {
+    "message": "COLP Server $1",
+    "description": "COLP Server $1"
+  },
+  "options_serverEditionOlder": {
+    "message": "COLP Server $1 旧于本扩展支持的版本。请升级服务器。",
+    "description": "COLP Server $1 is older than the versions this extension supports. Upgrade the server."
   },
   "options_serverMinorOlder": {
     "message": "此服务器旧于本扩展支持的版本。请升级服务器。",

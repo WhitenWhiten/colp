@@ -1,23 +1,33 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, test, vi } from 'vitest';
 import { authErrorCopy } from '../src/auth-error-copy.js';
-import { bindLoginForm } from '../src/login-form.js';
+import { bindLoginForm, resetPasswordCommand } from '../src/login-form.js';
 
 function mountForm(): void {
   document.body.innerHTML = `
-    <form id="login-form">
+    <div id="login-tabs">
       <button id="login-tab-password" type="button">Password</button>
       <button id="login-tab-otp" type="button">Email code</button>
-      <input id="login-email">
-      <div id="login-password-field"><input id="login-password" type="password"></div>
-      <div id="login-otp-field"><input id="login-otp-code"><button id="login-send-otp" type="button"></button></div>
+    </div>
+    <form id="login-form">
+      <input id="login-email"><p id="login-email-error" hidden></p>
+      <div id="login-password-field"><input id="login-password" type="password">
+        <button id="login-password-toggle" type="button" aria-pressed="false"></button><p id="login-password-error" hidden></p></div>
+      <div id="login-otp-field"><input id="login-otp-code"><button id="login-send-otp" type="button"></button><p id="login-otp-error" hidden></p></div>
       <button id="login-submit" type="submit">Sign in</button>
       <button id="login-google" type="button"></button>
       <button id="login-github" type="button"></button>
     </form>
     <div id="login-social-divider"></div><div id="login-social"></div>
     <p><a id="login-forgot"></a></p><p id="login-registration"></p>
-    <p id="login-password-help" hidden></p>`;
+    <details id="login-password-help" hidden><code id="login-reset-command"></code></details>`;
+}
+
+function trustedClick(target: HTMLElement): void {
+  Object.defineProperty(navigator, 'userActivation', { configurable: true, value: { isActive: true } });
+  const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+  Object.defineProperty(click, 'isTrusted', { value: true });
+  target.dispatchEvent(click);
 }
 
 function type(id: string, value: string): void {
@@ -31,19 +41,45 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test('Sign in is available for any non-empty password; the server judges it', () => {
+test('Sign in stays pressable like the web: an empty field says so under itself, any password goes to the server', async () => {
   mountForm();
-  bindLoginForm({
-    signInPassword: vi.fn(async () => undefined),
-    sendOtp: vi.fn(async () => undefined),
-    signInOtp: vi.fn(async () => undefined),
-    startOAuth: vi.fn(async () => undefined),
-  });
+  const signInPassword = vi.fn(async () => undefined);
+  bindLoginForm({ signInPassword, sendOtp: vi.fn(async () => undefined), signInOtp: vi.fn(async () => undefined), startOAuth: vi.fn(async () => undefined) });
   const submit = document.getElementById('login-submit') as HTMLButtonElement;
-  type('login-email', 'reader@example.com');
-  expect(submit.disabled).toBe(true);
-  type('login-password', 'abc');
   expect(submit.disabled).toBe(false);
+  type('login-email', 'reader@example.com');
+  trustedClick(submit);
+  expect(signInPassword).not.toHaveBeenCalled();
+  expect(document.getElementById('login-password-error')!.hidden).toBe(false);
+  expect(document.getElementById('login-password-error')!.textContent).toBe('Enter your password.');
+  expect(document.getElementById('login-password')!.getAttribute('aria-invalid')).toBe('true');
+  expect(document.getElementById('login-email-error')!.hidden).toBe(true);
+  expect(document.activeElement?.id).toBe('login-password');
+  // The server decides whether a password is right; older accounts may have short ones.
+  type('login-password', 'abc');
+  expect(document.getElementById('login-password-error')!.hidden).toBe(true);
+  trustedClick(submit);
+  await vi.waitFor(() => expect(signInPassword).toHaveBeenCalledWith('reader@example.com', 'abc'));
+});
+
+test('the eye shows the password, and the reset command follows the username typed', () => {
+  mountForm();
+  bindLoginForm({ signInPassword: vi.fn(), sendOtp: vi.fn(), signInOtp: vi.fn(), startOAuth: vi.fn() });
+  const password = document.getElementById('login-password') as HTMLInputElement;
+  const reveal = document.getElementById('login-password-toggle')!;
+  reveal.click();
+  expect(password.type).toBe('text');
+  expect(reveal.getAttribute('aria-pressed')).toBe('true');
+  reveal.click();
+  expect(password.type).toBe('password');
+  const command = document.getElementById('login-reset-command')!;
+  expect(command.textContent).toBe('docker compose exec server colp-server reset-password --username <username>');
+  type('login-email', 'alice');
+  expect(command.textContent).toBe(resetPasswordCommand('alice'));
+  expect(command.textContent).toMatch(/--username alice$/u);
+  // An email is not a username: the placeholder stays.
+  type('login-email', 'alice@example.com');
+  expect(command.textContent).toMatch(/--username <username>$/u);
 });
 
 test('an unknown auth code reads as a sentence without the raw code', () => {
@@ -63,7 +99,7 @@ test('self-hosted mode resets OTP to password and hides unavailable sign-in meth
   expect((document.getElementById('login-email') as HTMLInputElement).type).toBe('text');
   expect(document.getElementById('login-tab-password')!.getAttribute('aria-selected')).toBe('true');
   expect((document.getElementById('login-submit') as HTMLButtonElement).disabled).toBe(false);
-  for (const id of ['login-tab-otp', 'login-social', 'login-social-divider', 'login-registration']) {
+  for (const id of ['login-tabs', 'login-tab-otp', 'login-social', 'login-social-divider', 'login-registration']) {
     expect(document.getElementById(id)!.hidden).toBe(true);
   }
   expect(document.getElementById('login-forgot')!.parentElement!.hidden).toBe(true);
@@ -71,6 +107,7 @@ test('self-hosted mode resets OTP to password and hides unavailable sign-in meth
   document.getElementById('login-tab-password')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
   expect(document.getElementById('login-tab-password')!.getAttribute('aria-selected')).toBe('true');
   form.setCloudEnabled(true);
+  expect(document.getElementById('login-tabs')!.hidden).toBe(false);
   expect(document.getElementById('login-social')!.hidden).toBe(false);
   expect(document.getElementById('login-password-help')!.hidden).toBe(true);
   document.getElementById('login-tab-otp')!.click();

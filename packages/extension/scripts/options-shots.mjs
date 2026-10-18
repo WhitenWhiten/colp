@@ -55,6 +55,11 @@ const STATES = [
   ['firstrun', 'options.html?shot=firstrun#bookmarks'],
   ['own-ai', 'options.html?shot=own#ai', open('#classification-local-advanced')],
   ['own-ai-closed', 'options.html?shot=own#ai'],
+  // Account against a COLP Server: no code sign-in, no providers, the reset command.
+  ['account-selfhosted-out', 'options.html?shot=signedout,selfhosted#account'],
+  ['account-selfhosted-reset', 'options.html?shot=signedout,selfhosted#account', open('#login-password-help')],
+  ['account-selfhosted-empty', 'options.html?shot=signedout,selfhosted#account', click('#login-submit')],
+  ['account-selfhosted-in', 'options.html?shot=selfhosted#account'],
   ['dialog-logout', 'options.html#account', click('#sign-out'), false],
   ['dialog-revoke', 'options.html#general', click('#permissions-revoke-bookmarks'), false],
   ['dialog-export-general', 'options.html#general', click('#general-export'), false],

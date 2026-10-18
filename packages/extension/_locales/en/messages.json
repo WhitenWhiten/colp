@@ -41,6 +41,9 @@
   "auth_cooldownSeconds": {
     "message": "$1s"
   },
+  "auth_copyResetCommand": {
+    "message": "Copy the password reset command"
+  },
   "auth_couldNotRestoreSession": {
     "message": "Could not restore the session. Please try again."
   },
@@ -55,6 +58,18 @@
   },
   "auth_emailPasswordIncorrect": {
     "message": "Username, email or password is incorrect."
+  },
+  "auth_enterPassword": {
+    "message": "Enter your password."
+  },
+  "auth_enterSignInCode": {
+    "message": "Enter the 6-digit code from the email."
+  },
+  "auth_enterUsernameOrEmail": {
+    "message": "Enter your username or email."
+  },
+  "auth_forgotYourPassword": {
+    "message": "Forgot your password?"
   },
   "auth_ifAccountExistsSign": {
     "message": "If an account exists for $1, a sign-in code was sent."
@@ -74,14 +89,17 @@
   "auth_managedSettingsConflictBuild": {
     "message": "Managed settings conflict with this build."
   },
-  "auth_selfHostedPasswordHelp": {
-    "message": "Reset your password from the server terminal."
+  "auth_selfHostedResetHelp": {
+    "message": "This server sends no email, so passwords are reset where it runs. Whoever runs it can set a new one:"
   },
   "auth_serverConfigurationCouldNot": {
     "message": "The server configuration could not be verified."
   },
   "auth_serverConfigurationFailed": {
     "message": "Check the server address and allow access before signing in."
+  },
+  "auth_showPassword": {
+    "message": "Show password"
   },
   "auth_signFailedTryAgain": {
     "message": "Sign-in failed. Try again, or sign in on the Know-N website."
@@ -2039,6 +2057,12 @@
   "common_controlConflict": {
     "message": "Control conflict"
   },
+  "common_copied": {
+    "message": "Copied"
+  },
+  "common_copy": {
+    "message": "Copy"
+  },
   "common_copyDiagnostics": {
     "message": "Copy diagnostics"
   },
@@ -2638,6 +2662,9 @@
   },
   "common_selectAll": {
     "message": "Select all"
+  },
+  "common_selectAndCopy": {
+    "message": "Select and copy"
   },
   "common_sendCode": {
     "message": "Send code"
@@ -4051,6 +4078,12 @@
   },
   "options_selectedFolderMissingReview": {
     "message": "A selected folder is missing. Review the list and choose a replacement."
+  },
+  "options_serverEdition": {
+    "message": "COLP Server $1"
+  },
+  "options_serverEditionOlder": {
+    "message": "COLP Server $1 is older than the versions this extension supports. Upgrade the server."
   },
   "options_serverMinorOlder": {
     "message": "This server is older than the versions this extension supports. Upgrade the server."

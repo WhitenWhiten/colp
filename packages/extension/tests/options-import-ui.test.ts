@@ -108,7 +108,9 @@ describe('P3-35 extension options import UI', () => {
     assert.doesNotMatch(css, /body:not\(\[data-state="connected"\]\)[^{]*\.account-card/);
     assert.doesNotMatch(css, /--weight-demibold|--weight-strong|--weight-heavy/);
     assert.doesNotMatch(css, /gradient|font-size:\s*(?:[4-9]\d|\d{3,})px/i);
-    assert.match(css, /\.account-login > \.set-card \{[^}]*max-width:\s*24rem/);
+    // The web sign-in card's width, on the page's left edge (not centred under a left-aligned head).
+    assert.match(css, /\.account-login > \.login-card \{[^}]*width:\s*min\(100%, 26rem\)/);
+    assert.doesNotMatch(css, /\.account-login > \.[\w-]+ \{[^}]*margin-inline:\s*auto/);
     assert.match(css, /@media \(max-width: 56rem\)/);
     assert.doesNotMatch(css, /\.auth-oauth-row \{ justify-content: flex-start/);
   });

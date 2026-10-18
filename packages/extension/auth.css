@@ -58,10 +58,18 @@
 .auth-inline-link a {
   color: var(--accent-ink);
   font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.auth-inline-link a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }
 
 .auth-secret-slot {
   display: grid;
+  /* Bounded, or the inactive field's input sizes the track past the card. */
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .auth-secret-slot > .field {
@@ -129,3 +137,159 @@
   height: 1.15rem;
   max-width: none;
 }
+
+/* Password show/hide (web PasswordField): the eye sits inside the input's
+   right edge, so Password keeps the width of the field above it. */
+.auth-password-row {
+  position: relative;
+}
+
+.auth-password-row input {
+  max-width: none;
+  padding-right: var(--space-8);
+}
+
+.auth-password-row .btn.auth-otp-send {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  min-width: 0;
+  min-height: 0;
+  padding-inline: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.auth-password-row .btn.auth-otp-send:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.auth-password-row .auth-otp-send svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.auth-password-row [aria-pressed="true"] [data-icon="eye"],
+.auth-password-row [aria-pressed="false"] [data-icon="eye-off"] {
+  display: none;
+}
+
+/* Empty-field checks sit under their control, as on the web. */
+.field-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+/* Forgot password on a COLP Server: it sends no mail, so the answer is a
+   command for whoever runs it (web auth-pages.css .auth-reset). */
+.auth-reset {
+  margin-top: var(--hair-90);
+  font-size: var(--text-sm);
+}
+
+.auth-reset > summary {
+  width: fit-content;
+  margin-inline-start: auto;
+  color: var(--accent-ink);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  list-style: none;
+}
+
+.auth-reset > summary::-webkit-details-marker {
+  display: none;
+}
+
+.auth-reset > summary:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.auth-reset[open] {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--hair-90);
+  border-top: 1px solid var(--line);
+}
+
+.auth-reset[open] > summary {
+  margin-inline-start: 0;
+  color: var(--ink);
+}
+
+.auth-reset > p {
+  margin: 0;
+  color: var(--muted);
+  line-height: var(--leading-copy);
+}
+
+/* A shell command to run elsewhere (web pages-shared.css .command-block):
+   monospace on the sunken surface, Copy in its own top-right column. */
+.command-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+
+.command-block-code {
+  min-width: 0;
+  margin: 0;
+  padding-block: var(--hair-40);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.command-block-word {
+  white-space: nowrap;
+}
+
+.command-block-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+
+.command-block-copy:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.command-block-copy[data-state="copied"] {
+  color: var(--success);
+}
+
+.command-block-copy svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.command-block-copy[data-state="copied"] [data-icon="copy"],
+.command-block-copy:not([data-state="copied"]) [data-icon="check"] {
+  display: none;
+}
+

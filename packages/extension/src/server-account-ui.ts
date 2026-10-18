@@ -43,6 +43,7 @@ export async function paintServerEdition(origin: string, fetcher?: typeof fetch)
   const notice = document.getElementById('server-edition-notice');
   if (!versionNode || !notice) return;
   const version = origin ? await fetchEditionVersion(origin, fetcher) : undefined;
+  paintSignInHint(version);
   if (!version) {
     versionNode.textContent = t('options_serverVersionUnavailable', 'Server version unavailable');
     notice.hidden = true;
@@ -57,4 +58,17 @@ export async function paintServerEdition(origin: string, fetcher?: typeof fetch)
   }
   notice.hidden = false;
   notice.textContent = t('options_serverMinorOlder', 'This server is older than the versions this extension supports. Upgrade the server.');
+}
+
+/** Signed out, the sign-in card names the COLP Server under its address; Know-N's own server has no edition. */
+function paintSignInHint(version: string | undefined): void {
+  const hint = document.getElementById('login-server-hint');
+  if (!hint) return;
+  hint.hidden = !version;
+  hint.removeAttribute('data-tone');
+  if (!version) { hint.textContent = ''; return; }
+  if (isOlderThanSupportedServerMinor(version)) {
+    hint.dataset.tone = 'warning';
+    hint.textContent = t('options_serverEditionOlder', 'COLP Server $1 is older than the versions this extension supports. Upgrade the server.', version);
+  } else hint.textContent = t('options_serverEdition', 'COLP Server $1', version);
 }

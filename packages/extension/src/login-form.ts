@@ -4,6 +4,14 @@ import { t } from './i18n.js';
 
 export const OTP_RESEND_COOLDOWN_SECONDS = 20;
 export const OTP_LENGTH = 6;
+/** Better Auth's username plugin default: letters, digits, `_` and `.`. */
+const USERNAME_SHAPE = /^[A-Za-z0-9_.]{1,30}$/u;
+
+/** The CLI reset for the name typed so far, or a placeholder; the web login shows the same command. */
+export function resetPasswordCommand(identifier: string): string {
+  const name = identifier.trim();
+  return `docker compose exec server colp-server reset-password --username ${USERNAME_SHAPE.test(name) ? name : '<username>'}`;
+}
 
 export type LoginMode = 'password' | 'otp';
 
@@ -27,6 +35,9 @@ export function bindLoginForm(handlers: LoginFormHandlers): { setCloudEnabled(en
   const otpField = required('login-otp-field');
   const google = required('login-google') as HTMLButtonElement;
   const github = required('login-github') as HTMLButtonElement;
+  const reveal = document.getElementById('login-password-toggle') as HTMLButtonElement | null;
+  const fieldErrors = new Map<HTMLInputElement, HTMLElement | null>([[email, document.getElementById('login-email-error')],
+    [password, document.getElementById('login-password-error')], [otp, document.getElementById('login-otp-error')]]);
 
   let mode: LoginMode = 'password';
   let busy: 'sign-in' | 'send-otp' | 'oauth' | null = null;
@@ -37,6 +48,8 @@ export function bindLoginForm(handlers: LoginFormHandlers): { setCloudEnabled(en
   const setMode = (next: LoginMode) => {
     if (next === 'otp' && !cloudEnabled) return;
     mode = next;
+    showPassword(false);
+    clearFieldErrors();
     email.type = next === 'otp' ? 'email' : 'text';
     email.autocomplete = next === 'otp' ? 'email' : 'username';
     tabPassword.setAttribute('aria-selected', next === 'password' ? 'true' : 'false');
@@ -71,12 +84,9 @@ export function bindLoginForm(handlers: LoginFormHandlers): { setCloudEnabled(en
     const canSend = mode === 'otp' && emailValue.length > 0 && cooldown === 0 && busy === null;
     sendOtp.disabled = !canSend;
     sendOtp.textContent = busy === 'send-otp' ? t('common_sending', 'Sending…') : cooldown > 0 ? t('auth_cooldownSeconds', '$1s', cooldown) : t('common_sendCode', 'Send code');
-    const canSignIn = busy === null && emailValue.length > 0 && (
-      // The server decides whether a password is right; older accounts may have short ones.
-      mode === 'password' ? password.value.length > 0
-        : new RegExp(`^\\d{${OTP_LENGTH}}$`, 'u').test(otp.value.trim())
-    );
-    submit.disabled = !canSignIn;
+    // Like the web, Sign in stays pressable; an empty field says so under itself.
+    submit.disabled = busy !== null;
+    if (reveal) reveal.disabled = busy !== null;
     submit.textContent = busy === 'sign-in' ? t('common_signingIn', 'Signing in…') : t('common_signIn', 'Sign in');
     google.disabled = busy !== null || !cloudEnabled;
     github.disabled = busy !== null || !cloudEnabled;
@@ -102,6 +112,28 @@ export function bindLoginForm(handlers: LoginFormHandlers): { setCloudEnabled(en
     markInvalid([]);
     dismissToast();
   };
+  const setFieldError = (input: HTMLInputElement, message: string | undefined) => {
+    const node = fieldErrors.get(input);
+    if (!node) return;
+    node.hidden = message === undefined;
+    node.textContent = message ?? '';
+  };
+  const clearFieldErrors = () => { for (const input of fieldErrors.keys()) setFieldError(input, undefined); };
+  /* Empty-field checks stay inline on the control, as on the web; the server
+     decides whether a password is right (older accounts may have short ones). */
+  const missingFields = (): [HTMLInputElement, string][] => {
+    const missing: [HTMLInputElement, string][] = [];
+    if (!email.value.trim()) missing.push([email, t('auth_enterUsernameOrEmail', 'Enter your username or email.')]);
+    if (mode === 'password' && !password.value) missing.push([password, t('auth_enterPassword', 'Enter your password.')]);
+    if (mode === 'otp' && !new RegExp(`^\\d{${OTP_LENGTH}}$`, 'u').test(otp.value.trim())) {
+      missing.push([otp, t('auth_enterSignInCode', 'Enter the 6-digit code from the email.')]);
+    }
+    return missing;
+  };
+  function showPassword(show: boolean): void {
+    password.type = show ? 'text' : 'password';
+    reveal?.setAttribute('aria-pressed', show ? 'true' : 'false');
+  }
 
   const startCooldown = () => {
     cooldown = OTP_RESEND_COOLDOWN_SECONDS;
@@ -166,7 +198,9 @@ export function bindLoginForm(handlers: LoginFormHandlers): { setCloudEnabled(en
   };
   tabPassword.addEventListener('keydown', onTabKeydown);
   tabOtp.addEventListener('keydown', onTabKeydown);
-  for (const input of [email, password, otp]) input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
+  for (const input of [email, password, otp]) input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); setFieldError(input, undefined); });
+  reveal?.addEventListener('click', () => { showPassword(password.type === 'password'); });
+  bindResetCommand(email);
   email.addEventListener('input', () => refresh());
   password.addEventListener('input', () => refresh());
   otp.addEventListener('input', () => {
@@ -187,6 +221,16 @@ export function bindLoginForm(handlers: LoginFormHandlers): { setCloudEnabled(en
   google.addEventListener('click', (event) => { if (cloudEnabled) void withBusy('oauth', () => handlers.startOAuth('google'), event); });
   github.addEventListener('click', (event) => { if (cloudEnabled) void withBusy('oauth', () => handlers.startOAuth('github'), event); });
   const submitSignIn = (event: Event) => {
+    if (busy !== null) return;
+    const missing = missingFields();
+    clearFieldErrors();
+    if (missing.length > 0) {
+      dismissToast();
+      markInvalid(missing.map(([input]) => input));
+      for (const [input, message] of missing) setFieldError(input, message);
+      missing[0]?.[0].focus();
+      return;
+    }
     if (mode === 'password') {
       void withBusy('sign-in', () => handlers.signInPassword(emailValue(), password.value), event);
     } else {
@@ -207,6 +251,7 @@ export function bindLoginForm(handlers: LoginFormHandlers): { setCloudEnabled(en
   return {
     setCloudEnabled(enabled) {
       cloudEnabled = enabled;
+      const tabs = document.getElementById('login-tabs'); if (tabs) tabs.hidden = !enabled;
       tabOtp.hidden = !enabled;
       google.hidden = !enabled; github.hidden = !enabled;
       for (const id of ['login-social-divider', 'login-social', 'login-registration']) {
@@ -231,6 +276,35 @@ export function setLoginProductLinks(origin: string): void {
     forgot.href = email.includes('@') ? `${base}/reset-password?email=${encodeURIComponent(email)}` : `${base}/reset-password`;
   }
   if (register) register.href = `${base}/register`;
+}
+
+/** The reset command follows the name typed so far; Copy works like the web's CommandBlock. */
+function bindResetCommand(identifier: HTMLInputElement): void {
+  const command = document.getElementById('login-reset-command');
+  const copy = document.getElementById('login-reset-copy') as HTMLButtonElement | null;
+  const label = document.getElementById('login-reset-copy-label');
+  if (!command) return;
+  // Lines wrap only between words: `colp-server` must not break at its hyphen.
+  const paint = () => command.replaceChildren(...resetPasswordCommand(identifier.value).split(' ').flatMap((word, at) => {
+    const span = document.createElement('span');
+    span.className = 'command-block-word';
+    span.textContent = word;
+    return at === 0 ? [span] : [' ', span];
+  }));
+  identifier.addEventListener('input', paint);
+  paint();
+  let timer: number | undefined;
+  copy?.addEventListener('click', () => {
+    void navigator.clipboard.writeText(resetPasswordCommand(identifier.value)).then(() => 'copied', () => 'failed').then((state) => {
+      copy.dataset.state = state;
+      if (label) label.textContent = state === 'copied' ? t('common_copied', 'Copied') : t('common_selectAndCopy', 'Select and copy');
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        delete copy.dataset.state;
+        if (label) label.textContent = t('common_copy', 'Copy');
+      }, 2_000);
+    });
+  });
 }
 
 function required(id: string): HTMLElement {

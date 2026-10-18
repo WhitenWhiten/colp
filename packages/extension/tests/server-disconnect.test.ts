@@ -125,7 +125,7 @@ describe('disconnect server', () => {
 
 describe('account edition notice', () => {
   test('shows the manifest version and a notice only when the minor is older', async () => {
-    document.body.innerHTML = '<p id="server-edition-version"></p><p id="server-edition-notice" hidden></p>';
+    document.body.innerHTML = '<p id="server-edition-version"></p><p id="server-edition-notice" hidden></p><p id="login-server-hint" hidden></p>';
     const manifest = (version: string) => async () => new Response(JSON.stringify({
       mounts: [{ features: { edition: { name: 'colp-server', version } } }],
     }), { status: 200 });
@@ -134,8 +134,18 @@ describe('account edition notice', () => {
     const notice = document.getElementById('server-edition-notice')!;
     assert.equal(notice.hidden, false);
     assert.match(notice.textContent ?? '', /older than the versions this extension supports/);
+    // Signed out, the sign-in card says the same under the Server field.
+    const hint = document.getElementById('login-server-hint')!;
+    assert.equal(hint.hidden, false);
+    assert.equal(hint.dataset.tone, 'warning');
+    assert.match(hint.textContent ?? '', /^COLP Server 0\.0\.4 is older than/);
     await paintServerEdition('https://colp.example.net', manifest('0.1.0') as typeof fetch);
     assert.equal(document.getElementById('server-edition-version')!.textContent, '0.1.0');
     assert.equal(document.getElementById('server-edition-notice')!.hidden, true);
+    assert.equal(hint.textContent, 'COLP Server 0.1.0');
+    assert.equal(hint.dataset.tone, undefined);
+    // Know-N's own server publishes no edition: no hint.
+    await paintServerEdition('https://know-n.com', (async () => new Response('{}', { status: 200 })) as typeof fetch);
+    assert.equal(hint.hidden, true);
   });
 });
