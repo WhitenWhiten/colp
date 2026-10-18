@@ -121,7 +121,7 @@ async function confirmRange(message: ConfirmRequest, scope: SyncScope): Promise<
       addedPending = true;
     }
   }
-  if (addedPending) {
+  if (addedPending || preview.boundary.selectedNativeIds.length > 0) {
     const started = await confirmAddRange(syncState, scope, {
       previewId: preview.previewId, confirmationId: message.confirmationId, treeDigest: preview.treeDigest,
       consumePreview: false,

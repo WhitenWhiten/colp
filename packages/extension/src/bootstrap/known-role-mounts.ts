@@ -9,10 +9,10 @@ export async function bindKnownRoleMounts(store: ReturnType<typeof createSyncSta
   for (const mount of await store.listMountBindings(scope)) {
     if (!mount.rootRole || mount.status === 'detached') continue;
     const existing = await store.getMappingByNativeId(scope, mount.nativeRootId);
-    if (existing && existing.projection.revision !== 'local-root') continue;
     const candidates = remote.filter(row => row.kind === 'folder' && row.folderRole === mount.rootRole && row.parentId === rootNodeId);
     if (candidates.length !== 1) continue;
     const fact = candidates[0]!;
+    if (existing && existing.projection.revision !== 'local-root' && existing.colpId !== fact.nodeId) continue;
     const content: JsonObject = { title: fact.title, folderRole: mount.rootRole,
       ...(fact.description !== undefined ? { description: fact.description } : {}), ...(fact.tags ? { tags: [...fact.tags] } : {}) };
     await store.bindResolvedMountMapping(scope, { nativeId: mount.nativeRootId, colpId: fact.nodeId,

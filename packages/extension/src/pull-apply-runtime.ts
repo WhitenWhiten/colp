@@ -208,6 +208,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
           parentNativeId: unmountedNativeId(effect.placement.parentId), details: { effectDigest: effect.effectDigest },
           anchors: {}, preStateDigest: digest(null) };
       }
+      if (plan.kind === 'bind_structure') return { eventKind: 'sidecar' as const, nativeId: plan.mapping.nativeId,
+        parentNativeId: plan.mapping.parentNativeId ?? plan.mapping.nativeId, details: { effectDigest: effect.effectDigest }, anchors: {}, preStateDigest: digest(null) };
       if (plan.kind === 'bind_mount') {
         return { eventKind: 'sidecar' as const, nativeId: plan.mount.nativeRootId, parentNativeId: plan.mount.nativeRootId,
           details: { effectDigest: effect.effectDigest }, anchors: {}, preStateDigest: digest(null) };
@@ -277,7 +279,11 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         ? { ...row, ...pauseBindingForMapping(restoredMapping, mounts) } : row));
     } else if (effect.kind === 'node_created') {
       const plan = await planCreated(options.store, options.scope, event);
-      if (plan.kind === 'bind_mount') {
+      if (plan.kind === 'bind_structure') {
+        mappings.push({ ...mappingFor(effect.node, plan.mapping.nativeId, plan.mapping.parentNativeId ?? null,
+          effect.placement.parentId, effect.nodeChildrenRevision, plan.mapping.rootNativeId),
+          ...(plan.mapping.rootRole ? { rootRole: plan.mapping.rootRole } : {}) });
+      } else if (plan.kind === 'bind_mount') {
         await persistMountBinding(options.store, options.scope, plan.mount, effect.node.id);
         mappings.push(await bindMountMappings(effect.node, plan.mount, effect.placement.parentId,
           effect.nodeChildrenRevision));

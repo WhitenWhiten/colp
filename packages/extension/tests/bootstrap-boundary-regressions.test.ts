@@ -47,7 +47,8 @@ describe('bootstrap privacy and representability match its preview', () => {
   test('reaches a nested selected mount through unselected ancestors', () => {
     const scan = scanBoundary({ roots, selectedNativeIds: ['2'] });
     assert.equal(scan.bookmarkCount, 1);
-    assert.deepEqual(localFactsFromRoots(roots, ['2']).map(row => row.nativeId), ['2', '3']);
+    assert.deepEqual(localFactsFromRoots(roots, ['2']).map(row => row.nativeId), ['1', '2', '3']);
+    assert.equal(localFactsFromRoots(roots, ['2'])[0]?.structureOnly, true, 'the unselected ancestor contributes only its structure');
     const excluded = scanBoundary({ roots, selectedNativeIds: ['2'], privateNativeIds: ['2'] });
     assert.equal(excluded.mounts.length, 0);
   });

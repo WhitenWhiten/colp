@@ -453,6 +453,7 @@ function validateAttention(input: unknown): BootstrapRunRecord['attention'] {
     }
     return {
       itemId: boundedString(row.itemId, 'itemId'),
+      ...(Array.isArray(row.parentRefs) ? { parentRefs: row.parentRefs.slice(0, 2).map(ref => boundedString(ref, 'parentRef')) } : {}),
       ...(typeof row.evidenceDigest === 'string' ? { evidenceDigest: boundedString(row.evidenceDigest, 'evidenceDigest') } : {}),
       ...(Array.isArray(row.resolutionOpIds) ? { resolutionOpIds: row.resolutionOpIds.map(id => boundedString(id, 'opId')) } : {}),
       ...(Array.isArray(row.nodeRefs) ? { nodeRefs: row.nodeRefs.map(ref => boundedString(ref, 'nodeRef')) } : {}),

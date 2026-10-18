@@ -25,7 +25,7 @@ const barRoot = {
     url: 'https://example.com/one', children: [] }],
 };
 
-test('resuming an expanded range preserves a custom mount under its independent Collection parent', () => {
+test('resuming an expanded range reports a legacy flattened mount for explicit ancestry repair', () => {
   const report = matchLocalRemote({ scopeKey: 'range', confirmationId: 'expand', rootNodeId: 'folder-root', bootstrapMode: 'merge',
     mounts: [{ nativeRootId: 'bar', remoteMountNodeId: 'remote-bar', rootRole: 'bookmarks-bar' },
       { nativeRootId: 'nested', remoteMountNodeId: 'remote-nested', customSourceKey: 'folder:nested' }],
@@ -36,7 +36,8 @@ test('resuming an expanded range preserves a custom mount under its independent 
       { nodeId: 'remote-leaf', parentId: 'remote-nested', kind: 'bookmark', title: 'Leaf', url: 'https://example.test/leaf', revision: 'r-leaf' }],
     mappings: [{ nativeId: 'nested', colpId: 'remote-nested' }, { nativeId: 'leaf', colpId: 'remote-leaf' }],
   });
-  expect(report.conflicts).toEqual([]); expect(report.planned).toEqual([]);
+  expect(report.conflicts).toEqual([expect.objectContaining({ kind: 'parent', localNativeId: 'nested', remoteNodeId: 'remote-nested' })]);
+  expect(report.planned).toEqual([]); // no automatic remote move of an existing node
 });
 
 test('R2: range bootstrap can resume after mount receipt when onboarding was completed', async () => {

@@ -84,9 +84,16 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     else if (inBoundary && item.node.kind === 'folder') folderCount += 1;
     else skippedCount += 1;
     if (inBoundary) {
-      digestNodes.push({ nativeId, kind: item.node.kind, title: item.node.title,
+      digestNodes.push({ nativeId, kind: item.node.kind, title: item.node.title, parentNativeId: item.ancestorNativeIds.at(-1) ?? null,
         url: item.node.url ?? null, children: item.node.children.map((child) => child.nativeId) });
     }
+  }
+  const ancestry = new Set(indexed.filter(item => selected.has(item.node.nativeId)
+    && ['special-root', 'ordinary-folder'].includes(classifications.get(item.node.nativeId) ?? ''))
+    .flatMap(item => item.ancestorNativeIds));
+  for (const item of indexed) if (ancestry.has(item.node.nativeId) && classifications.get(item.node.nativeId) === 'out-of-boundary') {
+    digestNodes.push({ nativeId: item.node.nativeId, kind: 'folder', title: item.node.title,
+      parentNativeId: item.ancestorNativeIds.at(-1) ?? null, children: [] });
   }
   const mounts = planMounts(indexed, selected, classifications, warnings, input.unsupportedRoles ?? []);
   const treeDigest = `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson({
@@ -110,7 +117,8 @@ function planMounts(indexed: readonly IndexedNode[], selected: ReadonlySet<strin
     const role = folderRoleForBrowserRoot(item.rootKind, item.node.managed);
     if (role === 'managed-bookmarks') continue;
     if (item.isSpecialRoot && role !== 'custom') {
-      mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false,
+      // A custom coverage root retains its browser ancestors; this is not Collection-root placement.
+    mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false,
         rootRole: role as SpecialFolderRole });
       continue;
     }
@@ -120,6 +128,7 @@ function planMounts(indexed: readonly IndexedNode[], selected: ReadonlySet<strin
         customSourceKey: customSourceKeyForFolder(item.node.nativeId) });
       continue;
     }
+    // A custom coverage root retains its browser ancestors; this is not Collection-root placement.
     mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false,
       customSourceKey: customSourceKeyForFolder(item.node.nativeId) });
   }

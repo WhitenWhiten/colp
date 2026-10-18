@@ -24,6 +24,7 @@ export function lastMatchIndexStats(): MatchIndexStats | null {
 export interface LocalNodeFact {
   readonly nativeId: string; readonly mountNativeRootId: string; readonly parentNativeId: string | null;
   readonly kind: BootstrapNodeKind; readonly title: string; readonly url?: string;
+  readonly structureOnly?: boolean; readonly folderRole?: SpecialFolderRole;
   readonly sourceRefColpId?: string;
   readonly managed?: boolean; readonly privateLocal?: boolean; readonly index?: number;
 }
@@ -48,6 +49,7 @@ export interface DuplicateCandidate {
   readonly nodeIds: readonly string[]; readonly parents: readonly string[];
 }
 export interface MatchConflict {
+  readonly localParentNativeId?: string; readonly remoteParentNodeId?: string;
   readonly evidenceDigest?: string;
   readonly kind: 'title' | 'url' | 'parent'; readonly localNativeId: string; readonly remoteNodeId: string;
 }
@@ -100,16 +102,24 @@ export function matchLocalRemote(input: {
     mappingByNative.set(nativeId, nodeId);
     const evidenceDigest = digest({ nativeId, nodeId, local: { title: local.title, url: local.url ?? null, parent: local.parentNativeId },
       remote: { title: remote.title, url: remote.url ?? null, parent: remote.parentId, revision: remote.revision } });
-    if (!mountsByRoot.has(nativeId) && local.title !== remote.title) conflicts.push({ kind: 'title', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest });
+    if (!local.folderRole && !mountsByRoot.get(nativeId)?.rootRole && local.title !== remote.title) conflicts.push({ kind: 'title', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest, ...(local.parentNativeId ? { localParentNativeId: local.parentNativeId } : {}),
+      ...(remote.parentId ? { remoteParentNodeId: remote.parentId } : {}) });
     if ((local.url ?? '') !== (remote.url ?? '')) {
-      conflicts.push({ kind: 'url', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest });
+      conflicts.push({ kind: 'url', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest, ...(local.parentNativeId ? { localParentNativeId: local.parentNativeId } : {}),
+      ...(remote.parentId ? { remoteParentNodeId: remote.parentId } : {}) });
     }
     const localParent = mappedParent(local, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot);
-    // A mount root's browser container and Collection parent are independent.
-    if (!mountsByRoot.has(local.nativeId) && localParent && remote.parentId && localParent !== remote.parentId) {
-      conflicts.push({ kind: 'parent', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest });
+    // True custom browser roots have independent containers. Ordinary selected folders preserve browser ancestry.
+    if (!local.folderRole && !mountsByRoot.get(local.nativeId)?.rootRole
+        && !(local.parentNativeId === null && mountsByRoot.has(local.nativeId)) && localParent && remote.parentId && localParent !== remote.parentId) {
+      conflicts.push({ kind: 'parent', localNativeId: nativeId, remoteNodeId: nodeId, evidenceDigest, ...(local.parentNativeId ? { localParentNativeId: local.parentNativeId } : {}),
+      ...(remote.parentId ? { remoteParentNodeId: remote.parentId } : {}) });
     }
   };
+  for (const local of input.local) if (local.folderRole) {
+    const candidates = input.remote.filter(row => row.folderRole === local.folderRole && row.parentId === input.rootNodeId);
+    if (candidates.length === 1) pair(local.nativeId, candidates[0]!.nodeId);
+  }
   for (const mapping of input.mappings) pair(mapping.nativeId, mapping.colpId);
   for (const row of input.local) {
     if (row.sourceRefColpId) pair(row.nativeId, row.sourceRefColpId);
@@ -169,22 +179,22 @@ export function matchLocalRemote(input: {
   if (!input.previewOnly && (input.bootstrapMode === 'merge'
       || (input.bootstrapMode !== 'download' && input.destructiveConfirmed))) {
     for (const mount of input.mounts) {
-      const created = planMountCreate(mount, input, mappingByNative, localById, consumedL);
+      const created = planMountCreate(mount, input, mappingByNative, localById, consumedL, remoteIndex, mountsByRoot);
       if (created) planned.push(created);
     }
     const mountNatives = new Set(input.mounts.map((mount) => mount.nativeRootId));
-    const remaining = input.local.filter((row) => !consumedL.has(row.nativeId) && row.kind !== 'separator'
+    const remaining = input.local.filter((row) => !consumedL.has(row.nativeId) && !authoritativeColp(mappingByNative.get(row.nativeId)) && row.kind !== 'separator'
       && !mountNatives.has(row.nativeId));
     remaining.sort((left, right) => depth(left, localById) - depth(right, localById)
       || Number(left.kind === 'bookmark') - Number(right.kind === 'bookmark')
       || left.nativeId.localeCompare(right.nativeId));
     for (const row of remaining) {
-      const parentId = mappedParent(row, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot);
+      const parentId = row.folderRole ? input.rootNodeId ?? undefined : mappedParent(row, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot);
       if (input.rootNodeId && parentId === input.rootNodeId && row.kind === 'bookmark') continue;
       planned.push({
         opId: opId(input.confirmationId, 'create', row.nativeId), type: 'create_node', nativeId: row.nativeId,
         ...(parentId ? { parentId } : {}),
-        node: { kind: row.kind, title: row.title, ...(row.url ? { url: row.url } : {}) }, reason: 'local-only',
+        node: { kind: row.kind, title: row.folderRole ?? row.title, ...(row.url ? { url: row.url } : {}), ...(row.folderRole ? { folderRole: row.folderRole } : {}) }, reason: 'local-only',
       });
     }
   }
@@ -254,7 +264,7 @@ function planMountCreate(mount: MountFact, input: {
   readonly confirmationId: string; readonly remote: readonly RemoteNodeFact[];
   readonly rootNodeId: string | null;
 }, mappingByNative: ReadonlyMap<string, string>, localById: ReadonlyMap<string, LocalNodeFact>,
-  consumedL: ReadonlySet<string>): PlannedOperation | undefined {
+  consumedL: ReadonlySet<string>, remoteIndex: ReturnType<typeof buildRemoteIndex>, mountsByRoot: ReadonlyMap<string, MountFact>): PlannedOperation | undefined {
   const key = mount.rootRole ?? mount.customSourceKey;
   if (!key || !input.rootNodeId || authoritativeColp(mount.remoteMountNodeId)) return undefined;
   if (authoritativeColp(mappingByNative.get(mount.nativeRootId))) return undefined;
@@ -263,10 +273,14 @@ function planMountCreate(mount: MountFact, input: {
   } else if (consumedL.has(mount.nativeRootId)) return undefined;
   const title = mount.rootRole ?? localById.get(mount.nativeRootId)?.title;
   if (title === undefined) return undefined;
+  const local = localById.get(mount.nativeRootId);
+  const parentId = mount.rootRole || !local?.parentNativeId ? input.rootNodeId
+    : mappedParent(local, mappingByNative, [...mountsByRoot.values()], input.rootNodeId, remoteIndex, mountsByRoot);
+  if (!parentId) return undefined;
   return {
     opId: opId(input.confirmationId, 'mount', key), type: 'create_node', nativeId: mount.nativeRootId,
-    parentId: input.rootNodeId,
-    node: { kind: 'folder', title, folderRole: mount.rootRole ?? 'custom' }, reason: 'mount-resolve',
+    parentId,
+    node: { kind: 'folder', title, ...(mount.rootRole ? { folderRole: mount.rootRole } : !local?.parentNativeId ? { folderRole: 'custom' } : {}) }, reason: 'mount-resolve',
   };
 }
 
@@ -344,6 +358,7 @@ function mappedParent(local: LocalNodeFact, mappingByNative: ReadonlyMap<string,
   mounts: readonly MountFact[], rootNodeId: string | null,
   remoteIndex: ReturnType<typeof buildRemoteIndex>,
   mountsByRoot: ReadonlyMap<string, MountFact>): string | undefined {
+  if (local.parentNativeId === null && local.folderRole) return rootNodeId ?? undefined;
   if (local.parentNativeId === null || local.parentNativeId === local.mountNativeRootId) {
     const bound = mountsByRoot.get(local.mountNativeRootId)?.remoteMountNodeId
       ?? mounts.find((item) => item.nativeRootId === local.mountNativeRootId)?.remoteMountNodeId;

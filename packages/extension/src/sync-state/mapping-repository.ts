@@ -124,6 +124,7 @@ async function insertCreateReceiptMapping(tx: IDBTransaction, key: string, queue
     nativeId: authority.nativeId, colpId: authority.targetId,
     rootNativeId: parent.rootNativeId ?? authority.nativeId,
     ...(nodeKind ? { nodeKind } : {}),
+    ...(facts.rootRole ? { rootRole: facts.rootRole } : {}),
     ...(parent.parentNativeId ? { parentNativeId: parent.parentNativeId } : {}),
     ...(facts.parentColpId ? { parentColpId: facts.parentColpId } : {}),
     projection: { revision: authority.revision, digest: 'sha256:create-receipt',
@@ -158,7 +159,7 @@ function liveMappedNativeId(nativeId: string | undefined) {
 }
 
 function createNodeFacts(queued: QueueOperation): {
-  readonly nodeKind?: MappingInput['nodeKind']; readonly content?: JsonObject; readonly parentColpId?: string
+  readonly nodeKind?: MappingInput['nodeKind']; readonly rootRole?: MappingInput['rootRole']; readonly content?: JsonObject; readonly parentColpId?: string
 } {
   if (queued.payload.type !== 'create_node') return {};
   const inner = queued.payload.payload;
@@ -175,8 +176,10 @@ function createNodeFacts(queued: QueueOperation): {
   const content: JsonObject = {
     ...(typeof record.title === 'string' ? { title: record.title } : {}),
     ...(typeof record.url === 'string' ? { url: record.url } : {}),
+    ...(typeof record.folderRole === 'string' ? { folderRole: record.folderRole } : {}),
   };
-  return { nodeKind, content: Object.keys(content).length > 0 ? content : undefined, parentColpId };
+  return { nodeKind, ...(['bookmarks-bar', 'other-bookmarks', 'mobile-bookmarks'].includes(String(record.folderRole))
+    ? { rootRole: record.folderRole as MappingInput['rootRole'] } : {}), content: Object.keys(content).length > 0 ? content : undefined, parentColpId };
 }
 export async function rebindProjectionInTransaction(tx: IDBTransaction, key: string, queued: QueueOperation,
   authority: { readonly targetId: string; readonly revision: string; readonly content?: JsonObject },

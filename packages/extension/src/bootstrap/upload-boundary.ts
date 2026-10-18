@@ -49,6 +49,17 @@ export async function assertBootstrapUploadAllowed(input: {
       id = parent;
     }
   }
+  if (!inRange && input.queue.payload.type === 'create_node') {
+    const inner = input.queue.payload.payload as { node?: { kind?: unknown } };
+    // Coverage never expands to an ancestor's siblings. Only its folder container may upload.
+    if (inner?.node?.kind === 'folder') for (const covered of selected) {
+      let ancestor: string | undefined = covered; const visited = new Set<string>();
+      for (let depth = 0; ancestor && depth < 256 && !visited.has(ancestor); depth++) {
+        if (ancestor === nativeId) { inRange = true; break; }
+        visited.add(ancestor); ancestor = await input.parentOf(ancestor);
+      }
+    }
+  }
   if (!inRange) throw new BootstrapUploadExcludedError('unselected_range');
 }
 

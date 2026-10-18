@@ -34,7 +34,7 @@ const bindingB = KNS08_BINDINGS[1];
 
 test.describe.configure({ timeout: 600_000 });
 
-test('first-run sync uploads selected ordinary folders as custom mounts', async () => {
+test('first-run sync preserves the ancestry of selected ordinary folders', async () => {
   const stack = await startRealStack();
   const dirs = await twinDirs();
   let context: BrowserContext | undefined;
@@ -59,6 +59,12 @@ test('first-run sync uploads selected ordinary folders as custom mounts', async 
     await waitFirstRunProductQuiet(page, stack, bindingA);
     const live = await liveCanonical(stack);
     expect(live.filter(node => String(node.title ?? '').endsWith(' bookmark'))).toHaveLength(2);
+    const bar = live.find(node => node.folder_role === 'bookmarks-bar')!;
+    for (const title of ['Selected ordinary folder A', 'Selected ordinary folder B']) {
+      const folder = live.find(node => node.title === title)!;
+      expect(folder.parent_id).toBe(bar.id);
+      expect(live.find(node => node.title === `${title} bookmark`)?.parent_id).toBe(folder.id);
+    }
     expect((await scopeFacts(page, stack, bindingA)).receiptCount).toBeGreaterThan(0);
   } finally {
     await closeAll(context);
@@ -103,6 +109,11 @@ test('existing folder sync expands to Sync all, stops on clear, and resumes with
     for (const title of ['Range novels bookmark', 'Range AI bookmark', 'Range extra bookmark']) {
       expect((await liveCanonical(stack)).filter(row => row.title === title)).toHaveLength(1);
     }
+    const expanded = await liveCanonical(stack);
+    const expandedBar = expanded.find(node => node.folder_role === 'bookmarks-bar')!;
+    for (const title of ['Range novels', 'Range AI']) expect(expanded.find(node => node.title === title)?.parent_id).toBe(expandedBar.id);
+    expect(expanded.find(node => node.title === 'Range extra bookmark')?.parent_id).toBe(expandedBar.id);
+    expect(expanded.filter(node => node.folder_role === 'bookmarks-bar')).toHaveLength(1);
     const after = await evidence<RangeExport>(page, 'exportOutboundPushEvidence');
     expect(after.mappings.filter(row => created.includes(row.nativeId)).map(({ nativeId, colpId }) => ({ nativeId, colpId }))).toEqual(identities);
     await page.evaluate(id => chrome.bookmarks.update(id, { title: 'Range edited while syncing' }), created[0]!);

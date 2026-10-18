@@ -6,6 +6,7 @@ const PAGE_SIZE = 20;
 
 export interface AttentionItemRecord {
   readonly itemId: string;
+  readonly parentRefs?: readonly string[];
   readonly evidenceDigest?: string;
   readonly resolutionOpIds?: readonly string[];
   readonly nodeRefs?: readonly string[];
@@ -56,6 +57,7 @@ export function buildAttentionReport(
       });
       items.push({
         itemId, nodeRefs: [conflict.localNativeId, conflict.remoteNodeId], kind: 'local_difference', locationCount: 2,
+        parentRefs: [conflict.localParentNativeId ?? '', conflict.remoteParentNodeId ?? ''].filter(Boolean),
         evidenceDigest: conflict.evidenceDigest,
         ...(priorById.get(itemId)?.resolutionOpIds ? { resolutionOpIds: priorById.get(itemId)!.resolutionOpIds } : {}),
         decision: priorById.get(itemId)?.decision === 'keep_both' ? 'keep_both' : 'open',

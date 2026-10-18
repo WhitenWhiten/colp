@@ -8411,6 +8411,9 @@
     "message": "已提交上传，等待数据收敛"
   },
   "firstRun_uploadLocalVersion": {
-    "message": "上传此设备的版本"
+    "message": "上传此设备的版本和目录"
+  },
+  "firstRun_mergeFolderComparison": {
+    "message": "此设备的目录：$1；云端目录：$2。"
   }
 }

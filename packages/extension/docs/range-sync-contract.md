@@ -10,6 +10,20 @@ written back as if Chrome applied them.
 Writable-active means confirmed, reconciled, writable, and not private-local/managed/pending/unknown.
 `status !== 'detached'` is not that test.
 
+Ordinary folder selection preserves the browser ancestor graph. Unselected ancestors are
+structure containers only: their siblings and other contents do not enter the range. A selected
+ordinary folder is a local coverage mount and a normal remote Folder; it is not a root-level
+`folderRole=custom` container. True custom browser roots retain independent Collection placement.
+Selecting all at once and expanding a partial selection produce the same parent graph and retain
+existing Node identities. Browser special roles remain unique.
+
+Existing flattened ordinary mounts are not moved automatically. Reconfirming the folder range
+rematches all mapped nodes and shows current device/cloud parent labels under local merge
+attention. Uploading the device version and folder is an explicit, snapshot-bound choice; the
+normal move operation, receipt and rematch close it. An independent remote move or concurrent
+edit invalidates stale evidence and must be reviewed again. No copy/delete/recreate migration is
+used. An unreadable browser tree preserves the previous report instead of treating it as empty.
+
 Range adjustment uses subtree coverage, including explicit exclusions, rather than equality
 between selected root IDs. Selecting a parent preserves its existing child mounts; clearing
 selection stops both ordinary and role mounts while retaining their bindings and bookmarks.

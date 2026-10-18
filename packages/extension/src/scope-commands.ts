@@ -244,8 +244,7 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
   const existing = await store.listMountBindings(scope);
   await mergePreviewMounts(store, scope, existing, preview);
   const mappings = provenMappings(await store.listMappings(scope), input.localFacts.map((row) => row.nativeId));
-  const provenNative = new Set(mappings.map((row) => row.nativeId));
-  const localFacts = input.localFacts.filter((row) => !provenNative.has(row.nativeId));
+  const localFacts = input.localFacts;
   const mounts = (await store.listMountBindings(scope)).map((mount) => ({
     nativeRootId: mount.nativeRootId, remoteMountNodeId: mount.remoteMountNodeId,
     ...(mount.rootRole ? { rootRole: mount.rootRole } : {}),

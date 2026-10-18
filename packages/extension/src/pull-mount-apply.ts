@@ -16,6 +16,7 @@ type OpEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
 export type CreatedPlan =
   | { readonly kind: 'chrome' }
   | { readonly kind: 'bind_mount'; readonly mount: MountBindingRecord }
+  | { readonly kind: 'bind_structure'; readonly mapping: MappingInput }
   | { readonly kind: 'skip_unmounted' }
   | { readonly kind: 'need_authority' }
   | { readonly kind: 'recovered_folder'; readonly mount: MountBindingRecord };
@@ -68,6 +69,11 @@ export async function planCreated(store: Store, scope: SyncScope, event: OpEvent
     const ownOpId = event.operation.replicaId === scope.replicaId ? operationOpId(event) : undefined;
     const match = matchMount(mounts, role, event.effect.node.id, ownOpId);
     if (match && match.status !== 'detached') return { kind: 'bind_mount', mount: match };
+    const existing = await mappingByColp(store, scope, event.effect.node.id);
+    const own = ownOpId ? await store.getQueueByOpId(scope, ownOpId) : null;
+    if (existing && !isNonChromeNativeId(existing.nativeId) && existing.nodeKind === 'folder'
+        && (isSpecialMountRole(role) && (existing.rootRole ?? existing.projection.content?.folderRole) === role
+          || own?.status === 'terminal' && own.payload.type === 'create_node')) return { kind: 'bind_structure', mapping: existing };
     if (mounts.length > 0) return { kind: 'skip_unmounted' };
   }
   if (role === 'recovered') {

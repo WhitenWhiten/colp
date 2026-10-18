@@ -19,7 +19,7 @@ import { readBoundedJson } from './json-response.js';
 import type { SyncEndpoints } from './manifest-client.js';
 import { parseColpProblem, parseSyncPushResult } from './sync-push-wire.js';
 import { persistMountBinding } from './pull-mount-apply.js';
-import { createNodeFolderRole, isAuthoredMountRole, matchMountByRole, usableNativeRoot } from './push-mount-role.js';
+import { bindAuthoredMountReceipt } from './push-mount-role.js';
 import { rebaseTombstonedCreate, retainValidPlacementAnchors } from './tombstone-parent-rebase.js';
 import { rebaseStaleCreatePlacement, savedCreatePlacement } from './create-placement-rebase.js';
 import { pushRecoveryBarrierActive, releaseClaimForRecovery } from './push-recovery-barrier.js';
@@ -514,19 +514,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     return { nativeId, targetId, revision };
   }
   async function bindSpecialRoleMount(queue: QueueOperation, targetId: string, revision: string) {
-    const role = createNodeFolderRole(queue); if (!isAuthoredMountRole(role)) return;
-    const mapping = await options.store.getMappingByColpId(options.scope, `pending-${queue.opId}`);
-    const mounts = await options.store.listMountBindings(options.scope);
-    const nativeRoot = usableNativeRoot(mapping?.nativeId) ?? usableNativeRoot(mapping?.rootNativeId);
-    const mount = (nativeRoot ? mounts.find((item) => item.nativeRootId === nativeRoot) : undefined)
-      ?? matchMountByRole(mounts, role, queue.opId);
-    if (!mount || mount.status === 'detached') return;
-    if (mount.remoteMountNodeId && mount.remoteMountNodeId !== targetId) return;
-    await persistMountBinding(options.store, options.scope, mount, targetId);
-    await options.store.bindMountMapping(options.scope, {
-      nativeId: mount.nativeRootId, colpId: targetId, mountId: mount.mountId,
-      ...(mount.rootRole ? { rootRole: mount.rootRole } : {}), revision,
-    });
+    await bindAuthoredMountReceipt(options.store, options.scope, queue, targetId, revision);
   }
   async function ensureAttempt(queue: QueueOperation, session: StoredSession, fence: number,
     replaceAfterAuthenticationDenial = false) {

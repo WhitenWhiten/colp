@@ -31,15 +31,20 @@ export async function handleAttentionGet(store: Store, scope: SyncScope, reportI
   const run = (await store.listBootstrapRuns(scope)).find((row) => row.runId === reportId);
   if (!run?.attention || run.attention.reportId !== reportId) return { ok: false, error: 'request_invalid' };
   const page = pageAttention(run.attention, cursor);
-  const items = await Promise.all(page.items.map(async ({ nodeRefs = [], ...item }) => {
+  const items = await Promise.all(page.items.map(async ({ nodeRefs = [], parentRefs = [], ...item }) => {
     const titles = await Promise.all(nodeRefs.map(async ref => {
       const mapping = await store.getMappingByNativeId(scope, ref) ?? await store.getMappingByColpId(scope, ref);
       if (typeof mapping?.projection.content?.title === 'string') return mapping.projection.content.title;
       try { return (await chrome.bookmarks.get(ref))[0]?.title; } catch { return undefined; }
     }));
+    const parentLabels = await Promise.all(parentRefs.map(async ref => {
+      const mapping = await store.getMappingByNativeId(scope, ref) ?? await store.getMappingByColpId(scope, ref);
+      if (typeof mapping?.projection.content?.title === 'string') return mapping.projection.content.title;
+      try { return (await chrome.bookmarks.get(ref))[0]?.title ?? '?'; } catch { return '?'; }
+    }));
     const operations = await Promise.all((item.resolutionOpIds ?? []).map(id => store.getQueueByOpId(scope, id)));
     const failed = operations.find(row => row?.status === 'rejected' || row?.recovery?.resultStatus === 'rejected');
-    return { ...item, ...(operations.length ? { resolutionPending: operations.some(row => row && !['terminal', 'rejected'].includes(row.status)) } : {}),
+    return { ...item, ...(parentLabels.length ? { parentLabels } : {}), ...(operations.length ? { resolutionPending: operations.some(row => row && !['terminal', 'rejected'].includes(row.status)) } : {}),
       ...(failed ? { resolutionError: failed.recovery?.code ?? 'push_rejected' } : {}), label: titles.filter(Boolean).join(' / ') || t('firstRun_bookmarkReview', 'Bookmark to review') };
   }));
   const base = withAttention(run.phase, firstRun, run);

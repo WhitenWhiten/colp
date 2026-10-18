@@ -1,6 +1,6 @@
 import { mountResolveOpIdMatches } from './bootstrap/matcher.js';
 import { isSpecialMountRole } from './pull-mount-apply.js';
-import type { JsonObject, MountBindingRecord, QueueOperation } from './sync-state-store.js';
+import type { JsonObject, MountBindingRecord, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 /** Which mount binding an authored folder create settles onto (push worker `bindSpecialRoleMount`). */
 export function createNodeFolderRole(queue: QueueOperation): string | undefined {
@@ -30,4 +30,25 @@ export function matchMountByRole(mounts: readonly MountBindingRecord[], role: st
     if (byOp) return byOp;
   }
   return undefined;
+}
+
+/** A mount receipt binds identity, never coverage outside that mount. Restarts use this same proof. */
+export async function bindAuthoredMountReceipt(store: ReturnType<typeof createSyncStateStore>, scope: SyncScope,
+  queue: QueueOperation, targetId: string, revision: string): Promise<void> {
+  const role = createNodeFolderRole(queue);
+  if (role !== undefined && !isAuthoredMountRole(role)) return;
+  const mount = matchMountByRole(await store.listMountBindings(scope), role ?? 'custom', queue.opId);
+  if (!mount || mount.status === 'detached' || mount.remoteMountNodeId && mount.remoteMountNodeId !== targetId) return;
+  const inner = queue.payload.payload as JsonObject;
+  const node = inner.node as JsonObject;
+  if (node?.kind !== 'folder') return;
+  const parent = typeof inner.parentId === 'string' ? await store.getMappingByColpId(scope, inner.parentId) : null;
+  await store.bindResolvedMountMapping(scope, { nativeId: mount.nativeRootId, colpId: targetId, rootNativeId: mount.nativeRootId,
+    mountId: mount.mountId, nodeKind: 'folder', ...(mount.rootRole ? { rootRole: mount.rootRole } : {}),
+    ...(typeof inner.parentId === 'string' ? { parentColpId: inner.parentId } : {}),
+    ...(parent && usableNativeRoot(parent.nativeId) ? { parentNativeId: parent.nativeId } : {}),
+    projection: { revision, childrenRevision: revision, digest: 'sha256:mount-receipt',
+      content: { title: typeof node.title === 'string' ? node.title : '', ...(role ? { folderRole: role } : {}) } } });
+  const { scopeKey: _key, ...binding } = mount;
+  await store.putMountBinding(scope, { ...binding, remoteMountNodeId: targetId, status: 'active' });
 }

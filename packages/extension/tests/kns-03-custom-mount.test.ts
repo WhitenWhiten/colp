@@ -1,3 +1,5 @@
+import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
+import { endpoints } from './outbound-push-worker-harness.js';
 /**
  * Owner: KNS-08 (QA). Formal id: FR-F4-CUSTOM-ONLY.
  * Run: npx vitest run tests/kns-03-custom-mount.test.ts
@@ -19,8 +21,9 @@ import { pullFixtures } from './pull-effect-fixtures.js';
 
 installKns03IndexedDb();
 
+// True custom roots have no browser ancestor to preserve. Ordinary subtree coverage is tested in range-topology-convergence.
 const research: LocalNodeFact = {
-  nativeId: 'custom-folder', mountNativeRootId: 'custom-folder', parentNativeId: 'root-unselected',
+  nativeId: 'custom-folder', mountNativeRootId: 'custom-folder', parentNativeId: null,
   kind: 'folder', title: 'Research',
 };
 const researchChild: LocalNodeFact = {
@@ -119,9 +122,9 @@ describe('FR-F4-CUSTOM-ONLY matcher', () => {
   });
 
   test('two same-titled custom folders are not collapsed', () => {
-    const left: LocalNodeFact = { nativeId: 'a', mountNativeRootId: 'a', parentNativeId: 'other',
+    const left: LocalNodeFact = { nativeId: 'a', mountNativeRootId: 'a', parentNativeId: null,
       kind: 'folder', title: 'Research' };
-    const right: LocalNodeFact = { nativeId: 'b', mountNativeRootId: 'b', parentNativeId: 'other',
+    const right: LocalNodeFact = { nativeId: 'b', mountNativeRootId: 'b', parentNativeId: null,
       kind: 'folder', title: 'Research' };
     const report = matchLocalRemote({
       scopeKey: 'scope-1', confirmationId: 'conf-dup', local: [left, right], remote: [root], mappings: [],
@@ -151,7 +154,7 @@ describe('FR-F4-CUSTOM-ONLY matcher', () => {
 });
 
 describe('FR-F4-CUSTOM-ONLY coordinator', () => {
-  test('AUDIT-05 selecting only an ordinary folder enqueues create_node', async () => {
+  test('an independent custom browser root enqueues create_node at the Collection root', async () => {
     const { store, coordinator } = await setup();
     await coordinator.confirm({
       confirmationId: 'audit-custom', confirmationVersion: '1', treeDigest: 'sha256:audit',
@@ -229,11 +232,15 @@ describe('FR-F4-CUSTOM-ONLY coordinator', () => {
     assert.equal(mid.some((row) => row.opId.includes('.create.papers')), true);
     assert.equal(mid.some((row) => row.opId.includes('.create.paper-1')), false);
     assert.notEqual(afterMount.run.phase, 'completed');
-    await store.putMapping(scope, {
-      nativeId: 'papers', colpId: 'papers-colp', rootNativeId: 'custom-folder', nodeKind: 'folder',
-      parentNativeId: 'custom-folder', parentColpId: 'mount-custom',
-      projection: { revision: 'rev-papers', digest: 'sha256:papers', content: { title: 'Papers' } },
-    });
+    await createOutboundPushWorker({ scope, store, endpoints: async () => endpoints, now: () => 1000, ownerId: () => 'papers',
+      sessions: { get: async () => ({ credential: { accessToken: 'test' }, session: { sessionId: 'papers',
+        expiresAt: '2099-01-01T00:00:00Z', scope: 'collection', snapshotRequired: false, credentialAuthorityDigest: 'a'.repeat(64),
+        collection: { collectionId: scope.collectionId, serverCursor: 'c0', serverRevision: 'r0' },
+        replicaLease: { leaseId: 'lease-1', generation: '1', state: 'active', expiresAt: '2099-01-01T00:00:00Z' } } }) },
+      fetch: async (_url, init) => { const body = JSON.parse(String(init?.body)); const op = body.operations[0];
+        return Response.json({ batchId: body.batchId, results: [{ opId: op.opId, sequence: op.sequence,
+          status: 'applied', targetId: 'papers-colp', revision: 'rev-papers', cursor: 'c1', warnings: [] }], serverCursor: 'c1' }); },
+    }).drain();
     const resumed = await coordinator.resume(input);
     assert.ok(resumed);
     const child = (await store.listQueue(scope)).find((row) => row.opId.includes('.create.paper-1'))!;
@@ -243,9 +250,9 @@ describe('FR-F4-CUSTOM-ONLY coordinator', () => {
 
   test('two custom receipts bind one-to-one without a wrapper native root', async () => {
     const { store, coordinator } = await setup();
-    const left: LocalNodeFact = { nativeId: 'a', mountNativeRootId: 'a', parentNativeId: 'other',
+    const left: LocalNodeFact = { nativeId: 'a', mountNativeRootId: 'a', parentNativeId: null,
       kind: 'folder', title: 'Research' };
-    const right: LocalNodeFact = { nativeId: 'b', mountNativeRootId: 'b', parentNativeId: 'other',
+    const right: LocalNodeFact = { nativeId: 'b', mountNativeRootId: 'b', parentNativeId: null,
       kind: 'folder', title: 'Research' };
     const input = customConfirm({
       confirmationId: 'conf-two', localFacts: [left, right],

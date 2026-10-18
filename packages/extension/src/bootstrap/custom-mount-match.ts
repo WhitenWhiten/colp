@@ -14,7 +14,7 @@ export function pairCustomMountRoots(input: {
   for (const mount of input.mounts) {
     if (mount.rootRole || !mount.customSourceKey || input.consumedLocal.has(mount.nativeRootId)) continue;
     const local = input.localById.get(mount.nativeRootId);
-    if (!local || local.kind !== 'folder' || local.managed || local.privateLocal) continue;
+    if (!local || local.parentNativeId !== null || local.kind !== 'folder' || local.managed || local.privateLocal) continue;
     const bucket = locals.get(local.title) ?? [];
     bucket.push(local.nativeId); locals.set(local.title, bucket);
   }

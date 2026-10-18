@@ -67,7 +67,7 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
   if (effect.kind === 'node_created') {
     const plan = await planCreated(options.store, options.scope, event);
     if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
-    if (plan.kind === 'skip_unmounted' || plan.kind === 'bind_mount' || plan.kind === 'recovered_folder') return;
+    if (plan.kind === 'skip_unmounted' || plan.kind === 'bind_structure' || plan.kind === 'bind_mount' || plan.kind === 'recovered_folder') return;
     const parent = await preflightPullMapping(options, effect.placement.parentId, stagedCreates, 'parent');
     const own = event.operation.replicaId === options.scope.replicaId
       ? await options.store.getQueueByOpId(options.scope, event.operation.opId) : null;

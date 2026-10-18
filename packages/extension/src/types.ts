@@ -228,6 +228,7 @@ export type PublicAttentionSummary = {
   readonly pendingCount: number;
 };
 export type PublicAttentionItem = {
+  readonly parentLabels?: readonly string[];
   readonly evidenceDigest?: string; readonly resolutionPending?: boolean; readonly resolutionError?: string;
   readonly label?: string;
   readonly itemId: string; readonly kind: 'duplicate_candidate' | 'local_difference' | 'conflict';

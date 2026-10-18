@@ -12,6 +12,11 @@ export function renderAttentionItems(
     const label = document.createElement('span');
     label.textContent = [item.label, attentionItemCopy(item)].filter(Boolean).join(' · ');
     row.append(label);
+    if (item.parentLabels?.length === 2 && item.parentLabels[0] !== item.parentLabels[1]) {
+      const placement = document.createElement('span');
+      placement.textContent = t('firstRun_mergeFolderComparison', 'Device folder: $1; cloud folder: $2.', item.parentLabels[0]!, item.parentLabels[1]!);
+      row.append(placement);
+    }
     if (item.decision === 'open' && item.kind === 'duplicate_candidate') {
       const keep = document.createElement('button');
       keep.type = 'button';
@@ -23,7 +28,7 @@ export function renderAttentionItems(
     if (item.kind !== 'duplicate_candidate' && item.decision === 'open') {
       const action = document.createElement('button'); action.type = 'button'; action.className = 'btn btn-secondary btn-sm';
       action.textContent = item.resolutionPending ? t('firstRun_mergeResolutionPending', 'Upload submitted; waiting for convergence')
-        : t('firstRun_uploadLocalVersion', 'Upload this device’s version');
+        : t('firstRun_uploadLocalVersion', 'Upload this device’s version and folder');
       action.disabled = item.resolutionPending === true || !item.evidenceDigest;
       action.addEventListener('click', () => onKeepBoth(item.itemId, 'keep_local', item.evidenceDigest));
       row.append(action);

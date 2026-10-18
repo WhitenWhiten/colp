@@ -248,6 +248,7 @@ export interface BootstrapRunRecord {
   readonly attention?: BootstrapAttentionReport;
 }
 export interface BootstrapAttentionItem {
+  readonly parentRefs?: readonly string[];
   readonly evidenceDigest?: string;
   readonly resolutionOpIds?: readonly string[];
   readonly nodeRefs?: readonly string[];

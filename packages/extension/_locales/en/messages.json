@@ -3050,6 +3050,9 @@
   "firstRun_matchedItems_other": {
     "message": "$1 matched items"
   },
+  "firstRun_mergeFolderComparison": {
+    "message": "Device folder: $1; cloud folder: $2."
+  },
   "firstRun_mergeLibrary": {
     "message": "Bookmarks on this browser and in your library are merged. Existing bookmarks are kept. Unmatched items remain as separate copies."
   },
@@ -3138,7 +3141,7 @@
     "message": "Untitled item"
   },
   "firstRun_uploadLocalVersion": {
-    "message": "Upload this device’s version"
+    "message": "Upload this device’s version and folder"
   },
   "firstRun_viewItemsNeedAttention": {
     "message": "View items that need attention"

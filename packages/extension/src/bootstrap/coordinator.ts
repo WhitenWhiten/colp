@@ -1,3 +1,4 @@
+import { bindAuthoredMountReceipt } from '../push-mount-role.js';
 import { filterBootstrapFacts } from './fact-boundary.js';
 import { bootstrapRunInFlight } from './run-identity.js';
 import { bindKnownRoleMounts } from './known-role-mounts.js';
@@ -230,6 +231,7 @@ export function createBootstrapCoordinator(options: {
       const mapping: MappingInput = {
         nativeId: row.nativeId, colpId: pair.nodeId, rootNativeId: row.mountNativeRootId, nodeKind: row.kind,
         ...(row.parentNativeId ? { parentNativeId: row.parentNativeId } : {}),
+        ...(row.folderRole ? { rootRole: row.folderRole } : {}),
         ...(fact.parentId && authoritativeColp(fact.parentId) ? { parentColpId: fact.parentId } : {}),
         ...(mount ? { mountId: mount.mountId } : {}),
         ...(mount?.rootRole && row.nativeId === row.mountNativeRootId ? { rootRole: mount.rootRole } : {}),
@@ -322,8 +324,9 @@ export function createBootstrapCoordinator(options: {
     const provisionalCreateMapping: MappingInput | undefined = op.reason === 'local-only' && op.nativeId && op.node && parent
       ? { nativeId: op.nativeId, colpId: `pending-${op.opId}`, nodeKind: op.node.kind,
         parentNativeId: parent.nativeId, parentColpId: parent.colpId, rootNativeId: parent.rootNativeId,
+        ...(op.node.folderRole && op.node.folderRole !== 'custom' ? { rootRole: op.node.folderRole as MappingInput['rootRole'] } : {}),
         projection: { revision: `local-${op.opId}`, digest: digestJson(op.node),
-          content: { title: op.node.title, ...(op.node.url ? { url: op.node.url } : {}) } } } : undefined;
+          content: { title: op.node.title, ...(op.node.url ? { url: op.node.url } : {}), ...(op.node.folderRole ? { folderRole: op.node.folderRole } : {}) } } } : undefined;
     return store.allocateSequenceAndEnqueue(scope, {
       opId: op.opId, batchId: op.opId, idempotencyKey: op.opId, digest: 'sha256:pending', endpointIdentity: 'syncPush',
       mediaType: 'application/json', baseRevision: op.type === 'create_node' ? null : 'revision-0',
@@ -384,6 +387,13 @@ export function createBootstrapCoordinator(options: {
         remoteId = mountRemoteFromReceipt(mount, mapping?.colpId, queued, receiptsByOpId, confirmationId);
       }
       if (!remoteId) continue;
+      const mountKey = mount.rootRole ?? mount.customSourceKey;
+      const op = mountKey ? queued.find(row => row.opId === bootstrapOpId(confirmationId, 'mount', mountKey)) : undefined;
+      const receipt = op?.status === 'terminal' ? await store.getQueueReceipt(scope, op.sequence) : undefined;
+      const result = (receipt?.result?.results as JsonObject[] | undefined)?.find(row => row.opId === op?.opId);
+      if (op && result?.targetId === remoteId && typeof result.revision === 'string' && ['applied', 'rebased'].includes(String(result.status))) {
+        await bindAuthoredMountReceipt(store, scope, op, remoteId, result.revision);
+      }
       await store.putMountBinding(scope, { ...binding, remoteMountNodeId: remoteId, status: 'active' });
     }
   }
