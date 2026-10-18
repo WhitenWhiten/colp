@@ -362,6 +362,10 @@ jobs:
       - name: Frozen package install
         run: npm ci
         working-directory: packages/server
+      # Product Sync Center integration tests execute the real extension store and workers.
+      - name: Frozen extension harness install
+        run: npm ci
+        working-directory: packages/extension
       - name: PostgreSQL integration suite (shard ${{ matrix.shard }}/6)
         run: node scripts/with-postgres.mjs --isolated-owner -- npm run test:integration:inner -- --shard=${{ matrix.shard }}/6
         working-directory: packages/server

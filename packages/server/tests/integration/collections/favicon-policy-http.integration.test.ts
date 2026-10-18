@@ -548,7 +548,15 @@ describeWithPostgres('FO-01 favicon policy and icon source Product HTTP', () => 
       const consumed = await api('GET', url, { cookie: owner.cookie });
       assert.equal(consumed.status, 200);
       assert.equal(assertIconSource(consumed.json).restorable, false);
-    } finally { await app.close(); }
+    } finally {
+      await app.close();
+      // This synthetic object has no bytes in the app's object store. Do not
+      // leave it eligible for later same-digest icon sharing in this collection.
+      for (const table of ['favicon_source_restores', 'bookmark_icons', 'bookmark_icon_sources']) {
+        await isolated.runtime.pool.query(`delete from ${table} where node_id = $1`, [node]);
+      }
+      await isolated.runtime.pool.query('delete from nodes where id = $1', [node]);
+    }
   });
 
   test('setBookmarkFaviconSource: inherit/none with CAS, node-revision fence, replay, uploaded cleanup', async () => {

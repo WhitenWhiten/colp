@@ -22,6 +22,9 @@ test('historical receipt adoption resumes across pages; claiming does not repeat
     tx.objectStore('schema_metadata').put({ key: `consumed-rejections-v1:${key}`, after: 1000, complete: false });
     await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
     f.store.close();
+    // Session refresh re-registers existing scopes; it must preserve unfinished adoption.
+    const { scopeKey: _scopeKey, ...registered } = (await f.store.getScope(scope))!;
+    await f.store.registerScope(registered);
     expect((await readOpenSyncIssues(f.store, scope)).queue.map(row => row.opId)).toEqual(['historical-1500']);
     const get = IDBIndex.prototype.get; let receiptReads = 0;
     const spy = vi.spyOn(IDBIndex.prototype, 'get').mockImplementation(function(this: IDBIndex, query) {

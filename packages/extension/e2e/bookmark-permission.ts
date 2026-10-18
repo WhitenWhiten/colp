@@ -12,12 +12,13 @@ export async function grantOptionalBookmarks(page: Page, buttonName: string | Lo
       await beforeAttempt?.();
       const activationTitle = `${titlePrefix} ${Date.now()} ${attempt}`;
       await page.evaluate((title) => { document.title = title; }, activationTitle);
+      const windows = process.platform === 'linux' ? await permissionWindowsX11(page, activationTitle) : [];
       const button = typeof buttonName === 'string' ? page.getByRole('button', { name: buttonName, exact: true }) : buttonName;
       const click = button.click({ timeout: 15_000 });
       const permissionInteraction = process.platform === 'win32'
         ? allowWindowsPermission(activationTitle)
         : process.platform === 'linux'
-          ? grantBookmarksPermissionX11(page, activationTitle, attempt)
+          ? grantBookmarksPermissionX11(page, windows, attempt)
           : pressPermissionKeys(page, attempt);
       const [clicked, interaction] = await Promise.allSettled([click, permissionInteraction]);
       if (clicked.status === 'rejected') throw clicked.reason;
@@ -40,23 +41,36 @@ export async function grantOptionalBookmarks(page: Page, buttonName: string | Lo
   } finally { await page.evaluate((title) => { document.title = title; }, originalTitle); }
 }
 
+async function permissionWindowsX11(page: Page, activationTitle: string): Promise<string[]> {
+  await page.bringToFront();
+  const escaped = activationTitle.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  let ids: string[] = [];
+  await expect.poll(async () => {
+    // Initial rendering can replace the document title. Resolve the native
+    // window before clicking: the permission flow may navigate or retitle it.
+    await page.evaluate((title) => { document.title = title; }, activationTitle);
+    try {
+      const windows = await execFileAsync('xdotool', ['search', '--name', `.*${escaped}.*`], { timeout: 3_000 });
+      ids = windows.stdout.trim().split(/\r?\n/u).filter(Boolean);
+    } catch { ids = []; }
+    return ids.length;
+  }, { timeout: 10_000, message: 'bookmarks_permission_window_missing' }).toBeGreaterThan(0);
+  return ids;
+}
+
 async function grantBookmarksPermissionX11(
   page: Page,
-  activationTitle: string,
+  ids: readonly string[],
   attempt: number,
 ): Promise<void> {
   // The Chromium extension-permission bubble only accepts keyboard input when its browser
   // window holds X focus; CDP key events do not reach it on every Linux configuration.
-  // Best-effort: raise the tab, activate the window by its unique title, then focus the
+  // Raise the tab, activate the window resolved before the click, then focus the
   // bubble's Allow button (Tab) and accept it (Return).
   try {
     await page.bringToFront();
     // Let the permission bubble appear before steering keyboard focus to it.
     await new Promise((resolve) => setTimeout(resolve, 900));
-    const escaped = activationTitle.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-    const windows = await execFileAsync('xdotool', ['search', '--name', `.*${escaped}.*`], { timeout: 3_000 });
-    const ids = windows.stdout.trim().split(/\r?\n/u).filter(Boolean);
-    if (!ids.length) throw new Error('bookmarks_permission_window_missing');
     for (const id of ids) {
       // windowfocus uses XSetInputFocus directly, so it works without a window manager.
       await execFileAsync('xdotool', ['windowfocus', '--sync', id], { timeout: 3_000 });
@@ -67,7 +81,6 @@ async function grantBookmarksPermissionX11(
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
   } catch (error) {
-    if (error instanceof Error && error.message === 'bookmarks_permission_window_missing') throw error;
     throw new Error('bookmarks_permission_x11_failed', { cause: error });
   }
 }

@@ -50,7 +50,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       readonly allowUnstamped?: boolean;
       readonly provisionalCreateMapping?: MappingInput;
     } = {}): Promise<QueueOperation> {
-    assertWritable(); await businessIssues.adoptConsumedRejections(input);
+    assertWritable();
     const key = scopeKey(validateScope(input));
     const stampValidate = typeof faults.validateOperation === 'function' ? faults.validateOperation : undefined;
     const stampDigest = typeof faults.digestOperation === 'function' ? faults.digestOperation : undefined;
@@ -58,6 +58,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       throw new SyncStateError('operation_validator_missing');
     }
     const operation = validateQueueInput(key, operationInput, maxRecordBytes);
+    await businessIssues.adoptConsumedRejections(input);
     const provisional = faults.provisionalCreateMapping
       ? validateMapping(key, faults.provisionalCreateMapping, maxRecordBytes) : undefined;
     if (provisional && (operation.payload.type !== 'create_node' || provisional.colpId !== `pending-${operation.opId}`

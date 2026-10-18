@@ -37,15 +37,15 @@ describe('Automations navigation', () => {
 
   it('stays out of the nav until the server says it has automations', () => {
     mountTree(<MemoryRouter><TopNav /></MemoryRouter>)
-    expect(primaryLabels()).toEqual(['Library', 'Agents', 'Approvals'])
+    expect(primaryLabels()).toEqual(['Library', 'Sync', 'Agents', 'Approvals'])
     act(() => publishAutomationUnavailable())
-    expect(primaryLabels()).toEqual(['Library', 'Agents', 'Approvals'])
+    expect(primaryLabels()).toEqual(['Library', 'Sync', 'Agents', 'Approvals'])
   })
 
   it('sits next to Agents and shows Paused on every page while everything is paused (AC-44)', () => {
     mountTree(<MemoryRouter><TopNav /><BottomNav /></MemoryRouter>)
     act(() => publishAutomationPause(pause(false)))
-    expect(primaryLabels()).toEqual(['Library', 'Automations', 'Agents', 'Approvals'])
+    expect(primaryLabels()).toEqual(['Library', 'Sync', 'Automations', 'Agents', 'Approvals'])
     expect(document.querySelector('[data-testid="automations-paused-flag"]')).toBeNull()
 
     act(() => publishAutomationPause(pause(true)))

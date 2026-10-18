@@ -10,7 +10,7 @@ import { pullFixtures } from './pull-effect-fixtures.js';
 installKns03IndexedDb();
 
 const folder: LocalNodeFact = { nativeId: 'local-ai', mountNativeRootId: 'local-ai',
-  parentNativeId: 'unselected-bar', kind: 'folder', title: 'AI' };
+  parentNativeId: null, kind: 'folder', title: 'AI' };
 const nested: LocalNodeFact = { nativeId: 'local-nested', mountNativeRootId: folder.nativeId,
   parentNativeId: folder.nativeId, kind: 'folder', title: 'Tools' };
 const child: LocalNodeFact = { nativeId: 'local-child', mountNativeRootId: folder.nativeId,

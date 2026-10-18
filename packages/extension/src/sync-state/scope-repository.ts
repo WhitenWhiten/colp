@@ -95,7 +95,7 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
   async function registerScope(input: Omit<ScopeRecord, 'scopeKey'>): Promise<ScopeRecord> {
     assertWritable(); let scope = validateScopeRecord(input, maxRecordBytes); const db = await writableDatabase();
     await runTransaction(db, [STORES.scopes, STORES.sequences, STORES.archives, STORES.cursors,
-      STORES.ackIntents, STORES.recovery, STORES.engine], 'readwrite', async (tx) => {
+      STORES.ackIntents, STORES.recovery, STORES.engine, STORES.metadata], 'readwrite', async (tx) => {
       const scopes = tx.objectStore(STORES.scopes); const existing = await requestValue(scopes.get(scope.scopeKey));
       const retired = await cursorPage(tx.objectStore(STORES.archives), scopeRowsRange(scope.scopeKey), 1);
       if (retired.length) throw new SyncStateError('scope_retired');
@@ -163,6 +163,11 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
           // generation handoff or an explicit cursor transaction advances it.
           scope = { ...scope, checkpoint: prior.checkpoint };
         }
+      }
+      if (!existing) {
+        // Fresh scopes cannot contain legacy receipts. New settlements write their
+        // rejection projections atomically; only pre-existing scopes need adoption.
+        tx.objectStore(STORES.metadata).put({ key: `consumed-rejections-v1:${scope.scopeKey}`, complete: true });
       }
       scopes.put(scope);
       if (!await requestValue(tx.objectStore(STORES.sequences).get(scope.scopeKey))) {
