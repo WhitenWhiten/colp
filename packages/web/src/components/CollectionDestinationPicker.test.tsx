@@ -271,10 +271,10 @@ describe('CollectionDestinationPicker', () => {
     )
     const current = destinationButtons().find((button) => button.textContent?.includes('Later'))
     expect(current?.disabled).toBe(true)
-    expect(current?.textContent).toContain('(current)')
+    expect(current?.textContent).toContain('Current')
     const top = destinationButtons().find((button) => button.textContent?.includes('Top level'))
     expect(top?.disabled).toBe(false)
-    expect(top?.textContent).not.toContain('(current)')
+    expect(top?.textContent).not.toContain('Current')
     clickDestination('Later')
     expect(onPick).not.toHaveBeenCalled()
     clickDestination('Deep dive')
@@ -306,7 +306,7 @@ describe('CollectionDestinationPicker', () => {
     )
     const top = destinationButtons().find((button) => button.textContent?.includes('Top level'))
     expect(top?.disabled).toBe(true)
-    expect(top?.textContent).toContain('(current)')
+    expect(top?.textContent).toContain('Current')
     clickDestination('Top level')
     expect(onPick).not.toHaveBeenCalled()
   })
@@ -338,7 +338,7 @@ describe('CollectionDestinationPicker', () => {
     )
     // The moved folder and its whole subtree are gone; the root entry stays
     // (disabled as the current parent) and the sibling folder remains valid.
-    expect(destinationLabels()).toEqual(['Top level(current)', 'Sibling'])
+    expect(destinationLabels()).toEqual(['Top levelCurrent', 'Sibling'])
   })
 
   it('moving a bookmark excludes nothing — bookmarks can never be parents', () => {
@@ -411,7 +411,7 @@ describe('CollectionDestinationPicker', () => {
     )
     for (const button of destinationButtons()) {
       expect(button.disabled).toBe(false)
-      expect(button.textContent).not.toContain('(current)')
+      expect(button.textContent).not.toContain('Current')
     }
   })
 

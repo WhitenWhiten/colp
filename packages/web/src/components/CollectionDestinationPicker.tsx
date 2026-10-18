@@ -48,7 +48,7 @@ type Props = {
   busy?: boolean
   /**
    * Move mode: the shared current parent of every moved bookmark, disabled
-   * and flagged "(current)". Null (mixed parents) disables nothing.
+   * and flagged "Current". Null (mixed parents) disables nothing.
    */
   currentParentId?: string | null
   /**
@@ -133,7 +133,7 @@ function FolderList({
         >
           <Icon name="folder" />
           Top level
-          {currentParentId === rootId && <span className="library-dest-current">(current)</span>}
+          {currentParentId === rootId && <span className="library-dest-current">Current</span>}
         </button>
       </li>}
       {options.map((folder) => (
@@ -147,7 +147,7 @@ function FolderList({
           >
             <Icon name="folder" />
             {folder.title}
-            {currentParentId === folder.id && <span className="library-dest-current">(current)</span>}
+            {currentParentId === folder.id && <span className="library-dest-current">Current</span>}
           </button>
         </li>
       ))}
@@ -223,7 +223,8 @@ export function CollectionDestinationPicker({
     if (soleId) openTarget(soleId, soleTitle)
   }, [openTarget, soleId, soleTitle])
 
-  const title = mode === 'move' ? 'Move to…' : 'Copy to…'
+  // The menu item's ellipsis promises this dialog; the dialog names the action.
+  const title = mode === 'move' ? 'Move to folder' : 'Copy to folder'
   const excludeIds = mode === 'move' && current && movingIds && movingIds.length > 0
     ? movedSubtreeIds(current.nodes, movingIds)
     : undefined

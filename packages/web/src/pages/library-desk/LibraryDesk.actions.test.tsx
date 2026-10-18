@@ -281,7 +281,7 @@ describe('LibraryDesk menus and selection', () => {
     clickMenuItem('Move to…')
     let current = destinationButtons().find((button) => button.textContent?.includes('Later'))
     expect(current?.disabled).toBe(true)
-    expect(current?.textContent).toContain('(current)')
+    expect(current?.textContent).toContain('Current')
     act(() => {
       document.querySelector<HTMLButtonElement>('button[aria-label="Close dialog"]')?.click()
     })
@@ -292,7 +292,7 @@ describe('LibraryDesk menus and selection', () => {
       document.querySelector<HTMLInputElement>('input[aria-label="Select First page item"]')?.click()
     })
     act(() => bulkbarButton('Move')?.click())
-    current = destinationButtons().find((button) => button.textContent?.includes('(current)'))
+    current = destinationButtons().find((button) => button.textContent?.includes('Current'))
     expect(current).toBeUndefined()
     for (const button of destinationButtons()) expect(button.disabled).toBe(false)
   })
