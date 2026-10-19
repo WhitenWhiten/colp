@@ -360,6 +360,13 @@ function activityGroup(view: AutomationStateView, chosen: ActivityTab | null, ch
       return panel;
     },
   };
+  // Signed out there is only this browser to tell about: its rows under the heading, with no tab to choose.
+  if (tabs.length === 1) {
+    if (view.placements.length) title.append(el('span', String(view.placements.length), 'automation-count'));
+    card.append(panels.browser());
+    section.append(head, card);
+    return section;
+  }
   const buttons: HTMLButtonElement[] = [];
   for (const tab of tabs) {
     const [id, label, count] = labels[tab];
@@ -431,14 +438,14 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     if (tried.length) preview.update(view);
     if (view.account === 'signedOut') {
       // This browser's rules need no account, so they lead; the account's rules are one sign-in away.
-      parts.push(flowStrip(view), ruleListGroup(view, tried), configCard(), risk.element, accountCard());
+      parts.push(flowStrip(view), ruleListGroup(view, tried, [configCard()]), risk.element, accountCard());
     } else {
       const alert = notice(view);
       if (alert) parts.push(alert);
       // The order every save follows comes first, so each section below reads as one of its steps.
       parts.push(flowStrip(view), statusCard(view, refresh, busy));
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
-      parts.push(ruleListGroup(view, tried), configCard(), risk.element);
+      parts.push(ruleListGroup(view, tried, [configCard()]), risk.element);
     }
     const activity = activityGroup(view, tab, (next) => { tab = next; if (last) render(last); });
     if (activity) parts.push(activity);

@@ -367,8 +367,18 @@ function orderNotice(list: BrowserListView): HTMLElement | null {
     : t('automation_orderNotice', 'Rules here now go from the top, and the first that matches decides.'), dismiss);
 }
 
-/** The section: the list, or the first-visit empty state. `after` follows a list that has entries (Try a page). */
-export function ruleListGroup(view: AutomationStateView, after: readonly HTMLElement[] = []): HTMLElement {
+/** A toolbar button: an icon and a word, quiet until hovered, like the web's Export beside its rules. */
+function tool(icon: Parameters<typeof createIcon>[0], label: string, onClick: () => void): HTMLButtonElement {
+  const node = button(label, 'btn btn-ghost btn-sm', onClick);
+  node.prepend(createIcon(icon, 14));
+  return node;
+}
+
+/**
+ * The section: the list, or the first-visit empty state. `after` follows a list that has entries (Try a
+ * page); `always` closes the section either way (the rules file, which can fill an empty list).
+ */
+export function ruleListGroup(view: AutomationStateView, after: readonly HTMLElement[] = [], always: readonly HTMLElement[] = []): HTMLElement {
   const list = view.browserList;
   const section = el('section', undefined, 'set-group automation-browser');
   section.setAttribute('aria-labelledby', 'automation-browser-heading');
@@ -377,25 +387,31 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
   if (view.browserRules.length) title.append(el('span', String(view.browserRules.length), 'automation-count'));
   // The account's pause is for every automation here, these rules too (design 01 §7.5).
   const paused = view.account === 'signedIn' && view.state === 'paused';
-  head.append(title, el('p', paused
+  head.append(title);
+  // The switch for the whole list sits on the heading's line: it is the section's, not one of its tools.
+  if (list.entries.length) {
+    head.append(toggle(t('automation_listUse', 'Use rules in this browser'), list.enabled,
+      async (enabled) => (await send({ kind: 'known.automation.browser.list.enable', enabled })).ok, 'toggle automation-list-switch'));
+  }
+  head.append(el('p', paused
     ? t('automation_browserLedePaused', 'Paused with your account’s automations. They file pages again when you resume on the web.')
     : !list.enabled ? t('automation_listOffLede', 'Switched off: pages you save keep the folder you save them to.')
       : view.account === 'signedIn'
         ? t('automation_listLedeSignedIn', 'Only this browser uses them, after your account’s rules, from the top of the list: the first that matches decides. For pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins.')
         : t('automation_listLede', 'Tried from the top, and the first that matches decides. They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins.'), 'detail'));
+  // Ways to add to the list on the left; Run once, which works on bookmarks already saved, on the right.
   const tools = el('div', undefined, 'automation-list-tools');
-  const newSet = button(t('automation_newSet', 'New set'), 'btn btn-secondary btn-sm', () => openSetDialog(null, newSet));
-  const importSet = button(t('automation_importSet', 'Import set'), 'btn btn-secondary btn-sm', () => openRulesetImport(importSet)); importSet.dataset.importSet = '';
-  const subscribe = button(t('automation_subscribe', 'Subscribe'), 'btn btn-secondary btn-sm', () => openSubscribe(subscribe)); subscribe.dataset.subscribe = '';
-  tools.append(newSet, importSet, subscribe);
-  if (list.entries.length) {
-    // Run once sorts bookmarks already saved; it takes the list as it is, so it waits while the list is off.
-    if (list.enabled && !paused) { const run = button(t('automation_runOnce', 'Run once'), 'btn btn-secondary btn-sm', () => openRunOnce(run)); run.dataset.runOnce = ''; tools.append(run); }
-    tools.append(toggle(t('automation_listUse', 'Use rules in this browser'), list.enabled,
-      async (enabled) => (await send({ kind: 'known.automation.browser.list.enable', enabled })).ok, 'toggle automation-list-switch'));
+  const add = el('div', undefined, 'automation-list-add');
+  const newSet = tool('collection', t('automation_newSet', 'New set'), () => openSetDialog(null, newSet));
+  const importSet = tool('upload', t('automation_importSet', 'Import set'), () => openRulesetImport(importSet)); importSet.dataset.importSet = '';
+  const subscribe = tool('rss', t('automation_subscribe', 'Subscribe'), () => openSubscribe(subscribe)); subscribe.dataset.subscribe = '';
+  add.append(newSet, importSet, subscribe);
+  tools.append(add);
+  // Run once sorts bookmarks already saved; it takes the list as it is, so it waits while the list is off.
+  if (list.entries.length && list.enabled && !paused) {
+    const run = tool('play', t('automation_runOnce', 'Run once'), () => openRunOnce(run)); run.dataset.runOnce = ''; tools.append(run);
   }
-  head.append(tools);
-  section.append(head);
+  section.append(head, tools);
   for (const notice of [orderNotice(list), overlapNotice(view)]) if (notice) section.append(notice);
   if (!list.entries.length) {
     const card = el('div', undefined, 'set-card');
@@ -403,7 +419,7 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
     make.addEventListener('click', () => openRuleEditor(null, make, { account: offersAccountRules(view), collections: listCollections(view) }));
     card.append(emptyBlock({ icon: 'bolt', title: t('automation_browserEmptyTitle', 'No rules in this browser yet'),
       hint: t('automation_browserEmptyHint', 'Tell Know-N once that pages from arxiv.org go to Papers, and each one you save lands there.'), action: make }));
-    section.append(card);
+    section.append(card, ...always);
     return section;
   }
   const context: Context = { view, list, paused, sets: listSets(view), collections: listCollections(view), drag: dragAndDrop(list) };
@@ -412,7 +428,7 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
   for (const entry of list.entries) {
     rows.append(entry.kind === 'rule' ? ruleRow(entry.rule, null, context) : entry.kind === 'set' ? setBlock(entry.set, context) : subscriptionRow(entry, context));
   }
-  section.append(rows, ...after);
+  section.append(rows, ...after, ...always);
   return section;
 }
 

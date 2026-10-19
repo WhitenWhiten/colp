@@ -1561,14 +1561,13 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-preview .detail { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-copy); }
 .automation-preview-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; align-items: end; gap: var(--space-2) var(--space-3); }
 .automation-preview-form > .form-error { grid-column: 1 / -1; }
-.automation-preview-more { display: flex; flex-wrap: wrap; grid-column: 1 / -1; align-items: center; gap: var(--space-2) var(--space-3); }
+.automation-preview-more { display: flex; flex-wrap: wrap; grid-column: 1 / -1; align-items: center; gap: var(--space-2) var(--space-3); margin-left: calc(-1 * var(--space-2)); }
 .automation-preview-output:empty, .automation-preview-compare:empty { display: none; }
 .automation-preview-output, .automation-preview-result, .automation-preview-compare { display: grid; gap: var(--space-2); }
 .automation-preview-verdict { margin: 0; color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-copy); }
 .automation-preview-broad { margin: 0; padding-left: var(--hair-55); border-left: 2px solid var(--warning); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-preview-entries > .form-label { margin: 0; }
-/* Rules file (doc 17 §5.3): one quiet row, and the import dialog's folder choices. */
-.automation-config { margin: 0 0 var(--space-6); }
+/* Rules file (doc 17 §5.3): one quiet row closing the browser's rules, and the import dialog's folder choices. */
 /* Risk alerts (risk-pane.ts): the mode, the lists with how fresh each is, the exceptions. */
 .risk-body { display: grid; gap: var(--space-3); min-width: 0; }
 .risk-mode { padding: var(--space-3) var(--space-4); }
@@ -1634,8 +1633,19 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-sub-section-inline > .mgr-hint { margin: 0; }
 .automation-review-group { display: grid; gap: var(--hair-30); }
 .automation-review-group > .form-label { margin: 0; }
-/* Under the lede, so the lede keeps the width to be read: New set, Import set, Subscribe, Run once and the list's switch. */
-.automation-list-tools { display: flex; flex-wrap: wrap; grid-column: 1 / -1; grid-row: auto; align-items: center; gap: var(--space-3); margin-top: var(--space-2); }
+/* The list's own switch on the heading's line; the lede under both, full width. */
+.automation-browser > .automation-group-head { align-items: center; }
+.automation-browser > .automation-group-head > .toggle { grid-column: 2; grid-row: 1; }
+.automation-browser > .automation-group-head > .detail { grid-column: 1 / -1; }
+/* A quiet toolbar over the list, the web's Rules header: ways to add on the left, Run once on the right.
+   Ghost buttons, pulled out by their own padding so the first icon lines up with the card's edge. */
+.automation-list-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--hair-15) var(--space-3);
+  margin: var(--hair-30) calc(-1 * var(--space-2)) 0; }
+.automation-list-add { display: flex; flex-wrap: wrap; gap: var(--hair-15); }
+.automation-list-tools .btn svg { width: 0.875rem; height: 0.875rem; color: var(--muted); }
+.automation-list-tools .btn:hover:not(:disabled) svg { color: inherit; }
+/* Cards after the list (Try a page, the rules file) sit a step apart from it and from each other. */
+.automation-browser > .set-card { margin-top: var(--hair-30); }
 .automation-account { margin: 0 0 var(--space-6); }
 .automation-browser > .inline-alert { margin: 0; }
 /* Where a browser rule meets an account rule (AW-69): one quiet line, toned while it is not reviewed. */
