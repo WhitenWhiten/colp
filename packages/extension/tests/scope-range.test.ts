@@ -198,6 +198,29 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     store.close();
   });
 
+  test('root trash keeps its frozen mount version across a later range confirmation', async () => {
+    const store = await activeStore(); await seedBar(store);
+    await store.bumpBoundaryVersion(scope); await store.bumpBoundaryVersion(scope); await store.bumpBoundaryVersion(scope);
+    const { preview } = await previewRangeChange(store, scope, { roots: tree(), selectedNativeIds: ['bar'], privateNativeIds: ['bar'] });
+    assert.notEqual(preview.boundaryVersion, (await store.getMountBinding(scope, 'mount-bar'))!.boundaryVersion);
+    await applyConfirmedRange(store, scope, { preview, keepNativeIds: [], unmountNativeIds: [], remoteDeleteNativeIds: ['bar'] });
+    assert.equal((await store.getMountBinding(scope, 'mount-bar'))!.boundaryVersion, '1');
+    // The range's own bootstrap confirmation stages mounts before the frozen
+    // delete plan runs; it must not invalidate the version that plan froze.
+    assert.equal((await confirmAddRange(store, scope, {
+      previewId: preview.previewId, confirmationId: 'conf-root-trash', treeDigest: preview.treeDigest,
+      localFacts: localFactsFromRoots(tree(), ['bar'], [], ['bar']),
+      preserveBoundaryNativeIds: ['bar'], consumePreview: false,
+    })).ok, true);
+    assert.equal((await store.getMountBinding(scope, 'mount-bar'))!.boundaryVersion, '1');
+    const { frozenRemoteDeleteCommand } = await import('../src/scope-commands.js');
+    const command = frozenRemoteDeleteCommand(preview, 'bar')!;
+    assert.equal((await executeRemoteDelete(store, scope, command)).ok, true);
+    assert.deepEqual((await store.listQueue(scope)).filter(row => String(row.payload.type).startsWith('delete'))
+      .map(row => row.payload.targetId), ['colp-bm-1']);
+    store.close();
+  });
+
   test('role-root trash uses remote-only bookmark kind evidence', async () => {
     const store = await activeStore();
     await seedBar(store);

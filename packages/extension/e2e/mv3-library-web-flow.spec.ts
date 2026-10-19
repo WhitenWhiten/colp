@@ -78,7 +78,7 @@ test('one library works across the real web, extension, local exclusions, saves 
     await nav.getByRole('link', { name: /Bookmarks bar/ }).click();
     await nav.getByRole('button', { name: 'New folder', exact: true }).click();
     await web.locator('#lc-title').fill('Web to browser');
-    await web.getByTestId('library-compose').getByRole('button', { name: 'Add', exact: true }).click();
+    await web.getByTestId('library-compose').getByRole('button', { name: 'Create folder', exact: true }).click();
     const webFolder = web.locator('[data-folder-actions]', { hasText: 'Web to browser' });
     await expect(webFolder).toBeVisible();
     const remoteFolderId = new URL((await webFolder.getByRole('link').first().getAttribute('href'))!, stack.serverOrigin).searchParams.get('folder')!;
@@ -132,8 +132,16 @@ test('one library works across the real web, extension, local exclusions, saves 
     await page.locator('#save-roots').click(); await page.locator('#range-confirm').click();
     await expect.poll(async () => ((await stack.observations()).canonicalNodes as Array<{ title: string; deleted_at: string | null }>).filter(node => node.title === 'Keep on this browser' && node.deleted_at === null).length, { timeout: 45_000 }).toBe(1);
     expect(await page.evaluate(async id => (await chrome.bookmarks.getSubTree(id))[0]?.children?.length, native.privateFolder)).toBe(1);
-    // Whole browser-root exclusion must offer review/trash while preserving both role folders.
+    // The preceding inclusion can still change mapping evidence after the folder appears remotely.
+    // Wait for its queue to settle before reviewing a new whole-root exclusion.
+    await expect.poll(async () => {
+      const reply = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync-state.evidence', method: 'exportOutboundPushEvidence', args: [] })) as {
+        ok: boolean; value?: { engine?: { phase?: string }; queue?: { status: string }[] };
+      };
+      return reply.ok && reply.value?.engine?.phase === 'sleeping' && reply.value.queue?.every(row => row.status === 'terminal');
+    }, { timeout: 60000 }).toBe(true);
     await page.locator('#refresh-roots').click();
+    await expect(page.locator('#refresh-roots')).toBeEnabled();
     const otherRow = page.locator('.root-row[data-depth="0"]').filter({ has: page.locator('.folder-name', { hasText: 'Other bookmarks' }) });
     await otherRow.locator('.root-select input').uncheck();
     await page.locator('#save-roots').click();
@@ -141,6 +149,7 @@ test('one library works across the real web, extension, local exclusions, saves 
     await page.locator('#range-remote-delete').check();
     await page.locator('#range-confirm').click();
     await expect(page.locator('#range-preview')).toBeHidden();
+    await expect(page.locator('#root-feedback')).toHaveText('Folder settings saved');
     await expect.poll(async () => ((await stack.observations()).canonicalNodes as Array<{ title: string; deleted_at: string | null }>).some(node => node.title === 'From browser' && node.deleted_at === null), { timeout: 45_000 }).toBe(false);
     expect(await page.evaluate(() => chrome.bookmarks.search({ title: 'From browser' }).then(nodes => nodes.length))).toBe(1);
     const afterRootExclusion = (await stack.observations()).canonicalNodes as Array<{ id: string; deleted_at: string | null }>;

@@ -195,7 +195,7 @@ export async function applyConfirmedRange(store: Store, scope: SyncScope, input:
     unmounted.push(nativeId);
   }
   const existing = await store.listMountBindings(scope);
-  await mergePreviewMounts(store, scope, existing, input.preview);
+  await mergePreviewMounts(store, scope, existing, input.preview, input.remoteDeleteNativeIds ?? []);
   return { kept, unmounted };
 }
 
@@ -303,8 +303,11 @@ export function discoveredFromRoots(roots: readonly NormalizedBookmarkRoot[]): M
 }
 
 export async function mergePreviewMounts(store: Store, scope: SyncScope, existing: readonly MountBindingRecord[],
-  preview: ScopePreviewRecord): Promise<void> {
+  preview: ScopePreviewRecord, preserveBoundaryNativeIds: readonly string[] = []): Promise<void> {
   const byRoot = new Map(existing.map((mount) => [mount.nativeRootId, mount]));
+  // A root explicitly confirmed for remote deletion keeps the mount version its
+  // frozen preview evidence was minted against until that delete is staged.
+  const preserved = new Set(preserveBoundaryNativeIds);
   for (const planned of preview.boundary.mounts.filter((mount) => mount.writable)) {
     const prior = byRoot.get(planned.nativeRootId);
     if (prior?.status === 'detached') continue;
@@ -316,7 +319,8 @@ export async function mergePreviewMounts(store: Store, scope: SyncScope, existin
     byRoot.set(planned.nativeRootId, {
       scopeKey: preview.scopeKey, ...rest, nativeRootId: planned.nativeRootId,
       remoteMountNodeId: prior?.remoteMountNodeId ?? null,
-      boundaryVersion: preview.boundaryVersion, materialized: planned.materialized,
+      boundaryVersion: prior && preserved.has(planned.nativeRootId) ? prior.boundaryVersion : preview.boundaryVersion,
+      materialized: planned.materialized,
       status: prior?.status === 'active' || prior?.status === 'pending' ? prior.status : 'pending',
       // The confirmed plan replaces the mutually exclusive mount identity fields.
       ...(planned.rootRole ? { rootRole: planned.rootRole } : {}),

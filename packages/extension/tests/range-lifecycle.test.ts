@@ -399,3 +399,13 @@ test.each([false, true])('expanding into canonical browser roots binds remote ro
   }
   expect((await syncState.getScope(scope))?.selectedRoots).toEqual(['canonical-1', 'canonical-2']);
 });
+
+test('excluding a root after earlier range changes confirms its cloud trash in the same operation', async () => {
+  await seed('roots');
+  await syncState.bumpBoundaryVersion(scope); await syncState.bumpBoundaryVersion(scope);
+  const ui = await screen();
+  checkbox('Bookmarks bar').click(); await ui.review();
+  element<HTMLInputElement>('range-remote-delete').checked = true;
+  expect(await confirm()).toMatchObject({ ok: true });
+  expect((await syncState.listQueue(scope)).map(row => row.payload.targetId).sort()).toEqual(['remote-10', 'remote-20']);
+});

@@ -126,6 +126,7 @@ async function confirmRange(message: ConfirmRequest, scope: SyncScope): Promise<
       previewId: preview.previewId, confirmationId: message.confirmationId, treeDigest: preview.treeDigest,
       consumePreview: false,
       localFacts: localFactsFromRoots(tree.roots, selectedNativeIds, preview.boundary.excludedNativeIds, privateNativeIds),
+      ...(remoteDeleteNativeIds.length ? { preserveBoundaryNativeIds: remoteDeleteNativeIds } : {}),
       ...(await collectionRootNodeId(scope)),
     });
     if (!started.ok) {

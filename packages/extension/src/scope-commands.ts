@@ -227,6 +227,8 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
   readonly localFacts: ConfirmInput['localFacts']; readonly remoteFacts?: ConfirmInput['remoteFacts'];
   readonly rootNodeId?: string | null; readonly now?: () => number;
   readonly consumePreview?: boolean;
+  /** Frozen remote-delete plans keep the mount version their evidence was minted against. */
+  readonly preserveBoundaryNativeIds?: readonly string[];
 }): Promise<FirstRunOrScopeResponse> {
   if (await kns09Paused('coordinator')) return { ok: false, error: 'sync_paused' };
   const recordedScope = await store.getScope(scope);
@@ -242,7 +244,7 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
   if (!preview || rejected) return { ok: false, error: 'request_invalid' };
   const priorFirstRun = recordedScope?.firstRun;
   const existing = await store.listMountBindings(scope);
-  await mergePreviewMounts(store, scope, existing, preview);
+  await mergePreviewMounts(store, scope, existing, preview, input.preserveBoundaryNativeIds);
   const mappings = provenMappings(await store.listMappings(scope), input.localFacts.map((row) => row.nativeId));
   const localFacts = input.localFacts;
   const mounts = (await store.listMountBindings(scope)).map((mount) => ({
@@ -257,6 +259,7 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
     confirmationVersion: preview.boundaryVersion, localFacts, mounts,
     mappings, ...(input.remoteFacts ? { remoteFacts: input.remoteFacts } : {}),
     ...(input.rootNodeId !== undefined ? { rootNodeId: input.rootNodeId } : {}),
+    ...(input.preserveBoundaryNativeIds ? { preserveBoundaryNativeIds: input.preserveBoundaryNativeIds } : {}),
   });
   // Keep onboarding completed; later range jobs resume from the bootstrap run.
   if (priorFirstRun === 'completed') await store.setFirstRun(scope, 'completed');

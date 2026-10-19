@@ -31,6 +31,8 @@ export interface ConfirmInput {
   readonly mounts: readonly MountFact[]; readonly rootNodeId?: string | null;
   readonly bootstrapMode?: BootstrapMode; readonly previewOnly?: boolean;
   readonly destructiveConfirmed?: boolean; readonly pauseAfter?: PauseAfter;
+  /** Mounts whose frozen remote-delete evidence must keep its boundary version. */
+  readonly preserveBoundaryNativeIds?: readonly string[];
 }
 
 export interface BootstrapView {
@@ -66,7 +68,7 @@ export function createBootstrapCoordinator(options: {
     });
     // Range jobs after onboarding must not reopen the first-run UI.
     if ((await store.getScope(scope))?.firstRun !== 'completed') await store.setFirstRun(scope, 'running');
-    await bindMounts(input.mounts, input.confirmationVersion);
+    await bindMounts(input.mounts, input.confirmationVersion, input.preserveBoundaryNativeIds);
     if (input.pauseAfter === 'confirmed') return view(run.runId, null);
     return advance(run.runId, input);
   }
@@ -414,16 +416,21 @@ export function createBootstrapCoordinator(options: {
     }
   }
 
-  async function bindMounts(mounts: readonly MountFact[], boundaryVersion: string): Promise<void> {
+  async function bindMounts(mounts: readonly MountFact[], boundaryVersion: string,
+    preserveBoundaryNativeIds: readonly string[] = []): Promise<void> {
     const existing = await store.listMountBindings(scope);
     const byRoot = new Map(existing.map((row) => [row.nativeRootId, row]));
+    // A root whose frozen remote-delete plan is applied after this confirmation
+    // must keep the mount version that plan was minted against.
+    const preserved = new Set(preserveBoundaryNativeIds);
     const records: Omit<MountBindingRecord, 'scopeKey'>[] = mounts.map((mount) => {
       const prior = byRoot.get(mount.nativeRootId);
       const { scopeKey: _scopeKey, rootRole: _role, customSourceKey: _source, ...previous } = prior ?? {} as Partial<MountBindingRecord>;
       return { ...previous,
         mountId: prior?.mountId ?? `mount:${mount.nativeRootId}`, nativeRootId: mount.nativeRootId,
         remoteMountNodeId: mount.remoteMountNodeId ?? prior?.remoteMountNodeId ?? null,
-        boundaryVersion, materialized: prior?.materialized ?? false, status: prior?.status ?? 'pending',
+        boundaryVersion: prior && preserved.has(mount.nativeRootId) ? prior.boundaryVersion : boundaryVersion,
+        materialized: prior?.materialized ?? false, status: prior?.status ?? 'pending',
         ...(mount.rootRole ? { rootRole: mount.rootRole } : {}),
         ...(mount.customSourceKey ? { customSourceKey: mount.customSourceKey } : {}),
       };
