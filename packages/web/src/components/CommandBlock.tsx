@@ -56,7 +56,12 @@ type Props = {
  * through lib/clipboard so it also works on the plain-HTTP origins this
  * server supports; a failure asks for a manual copy instead of hiding.
  */
-export function CopyButton({ label, text }: { label: string; text: string }) {
+export function CopyButton({ label, text, onCopied, onCopyFailed }: {
+  label: string
+  text: string
+  onCopied?: () => void
+  onCopyFailed?: () => void
+}) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
   useEffect(() => {
@@ -68,9 +73,9 @@ export function CopyButton({ label, text }: { label: string; text: string }) {
   async function copy() {
     try {
       await copyTextToClipboard(text)
-      setState('copied')
+      setState('copied'); onCopied?.()
     } catch {
-      setState('failed')
+      setState('failed'); onCopyFailed?.()
     }
   }
 

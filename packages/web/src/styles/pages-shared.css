@@ -330,32 +330,22 @@
 }
 
 /* ——— Copy field (components/CopyField) ———
-   A value the owner carries elsewhere: server address, MCP endpoint, a
-   command. Label, monospace value, one Copy button; the block form holds a
-   multi-line command and puts the button under it. */
+   A value the owner carries elsewhere: server address, share link. Its
+   label, then the value in the command block's sunken box with the same
+   Copy in its corner (.command-block, below).
+   Compact: the row around it names the value, so a single-line value sits
+   as a chip beside an outlined Copy, and a multi-line one (raw diagnostics)
+   puts the button under it. */
 .copy-field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    'label label'
-    'value button';
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
+  gap: var(--space-1);
+  min-width: 0;
 }
 
-.copy-field--block {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    'label'
-    'value'
-    'button';
-  justify-items: start;
-}
-
-/* Compact: the row around it names the value, so the label is for assistive
-   tech only and a single-line value sits as a chip beside its button. */
 .copy-field--compact {
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: 'value button';
+  align-items: center;
   gap: var(--space-2);
 }
 
@@ -381,13 +371,14 @@
 }
 
 .copy-field--compact.copy-field--block {
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     'value'
     'button';
+  justify-items: start;
 }
 
 .copy-field-label {
-  grid-area: label;
   color: var(--muted);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
