@@ -594,3 +594,55 @@ blocked-page exits are Rebuild / fail-closed integrity). Receipt: 56 affected ex
 Limits kept: `mapping_identity_conflict` stops the replica until Rebuild; a sent-unsettled head
 still holds the lane (now visible); uncaught engine exceptions at wake start are not reflected in
 health; the server infers activity only for replicas that are behind.
+
+## Fifth round — a second device (2026-10-18, night)
+
+The earlier rounds were tested with one browser against the server. Read with two browsers in
+mind, the push and pull lanes each had a case where one device's ordinary edit made the other
+device's ordinary delete a permanent item.
+
+- **A delete the other device raced was lost.** `delete_node`/`delete_subtree` is refused with
+  `409 revision_conflict` as soon as the other device edited or moved the node, or touched any
+  member of the folder (observation digest). The Problem is `retryable: false`, so the worker
+  settled the row `rejected`; Retry recaptured the native node, found it gone and threw
+  `deletion_identity_unproven`; the mapping had been dropped at capture, so every later remote
+  change to that node became a set-aside item. The only exit was Rebuild.
+  - Protocol: the `revision_conflict` Problem for a stale delete now carries `currentRevision`
+    and, for `delete_subtree`, `currentSubtree` `{version, count, digest, memberIdsDigest}`
+    (`03-sync.md` §13.1, `09-problem-registry.md` §3, schema `subtreeObservationSummary`;
+    `subtreeMemberIdsDigest()`/`subtreeObservationSummary()` in `@know-n/colp`).
+  - Server: `evaluateCanonicalNodeDelete` attaches those facts
+    (`sync-stale-delete-facts.ts`); `sync-push-routes` drops `currentSubtree` when the pinned
+    `@know-n/colp` predates it, never a 500. `tests/unit/sync/sync-push-http.test.ts`,
+    `tests/support/sync-data-safety-cases.ts` (PostgreSQL, 1 case).
+  - Extension: a single delete is rebased on the named revision and sent again on the same
+    sequence (deletion dominates, §10.2). A subtree delete is rebased the same way when the
+    member-ID digest recorded at capture (`subtreeMemberIdsDigest` in the removal event) equals
+    the server's; otherwise, or when the server names no members, it leaves the lane as the
+    decide item `delete_subtree_changed`, already carrying the current facts, and Retry
+    re-authors that deletion at the tail ("delete anyway"). The lane behind it keeps going.
+    `src/push-delete-rebase.ts`, `queue-recapture.ts`, `sync-push-wire.ts`,
+    `tests/outbound-push-worker-stale-delete.test.ts` (8), `ds-04-subtree-observation.test.ts`.
+    Web copy for the new code in `health.tsx`.
+- **Changes to a node this browser deleted were filed as items.** With the mapping gone, a
+  foreign update, a foreign delete of the same node, or a bookmark saved elsewhere into the
+  deleted folder each failed preflight and stayed a set-aside item after the local delete had
+  landed. `pull-local-delete-supersede.ts`: when every node the event needs is unmapped and named
+  by a removal this browser still stands behind (pending, in the lane, held, applied or
+  recaptured; never one the server refused for good), the event is committed as
+  `local_removal` with no browser change, parent children revisions still advance. Subtree
+  removals record their member IDs (`subtreeMemberIds`, ≤ 2,000) so changes deeper in the folder
+  qualify. A move *out* of a deleted folder keeps its item: the rescued bookmark is not lost here
+  silently. `tests/pull-local-delete-supersede.test.ts` (9); the foreign/unreceipted/unconfirmed
+  cases in `pull-self-content-local-removal.test.ts` now expect this.
+
+Receipt: extension 78 pull/delete/issue files (565 tests) and 38 push/queue/issue files (326)
+passed; node schema audits updated for the new definition (192 definitions, 170 closed) and the
+subtree-observation test (3); server push HTTP/delete units (28) and the DS-04 PostgreSQL case
+passed in a Testcontainers Postgres; typecheck in node, server, extension and web; changed-file
+lint, source-size, i18n and `git diff --check`. No browser E2E or long-lived service.
+
+Limits: `currentSubtree` reaches the wire only once `@know-n/colp` 0.2.2 is published and the
+server pin moves (until then every stale subtree delete becomes the decide item); a device cannot
+yet take in a bookmark moved out of a folder it deleted; the member-ID list is bounded, a larger
+folder's deeper members still become items; second-device bootstrap (03 §5.3) was not reviewed.
