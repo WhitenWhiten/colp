@@ -74,15 +74,23 @@ test('an older create echo cannot recreate a native after its later removal dele
   } finally { f.store.close(); }
 });
 
-test.each([
-  {}, { removal: 'unrelated' as const }, { removal: 'processed' as const, receipt: false },
-  { removal: 'processed' as const, foreign: true }, { removal: 'processed' as const, wrongRevision: true },
-])('a missing target still requires repair without matching local removal authority: %j', async input => {
+test.each([{ removal: 'processed' as const, foreign: true }, { removal: 'processed' as const, receipt: false },
+  { removal: 'processed' as const, wrongRevision: true }])(
+  'an update of a node this browser removed is superseded by that removal: %j', async input => {
+  // The removal itself is the authority (pull-local-delete-supersede.ts): another device's edit, or
+  // this browser's own echo without its receipt, no longer needs repair for a node the user deleted.
   const f = await fixture(input);
   try {
     await f.applier.resume();
-    const missingMapping = input.removal === 'processed' && !('wrongRevision' in input && input.wrongRevision);
-    assert.deepEqual((await f.store.listPullIssues(scope)).map(issue => issue.code),
-      [missingMapping ? 'target_mapping_missing' : 'pull_apply_target_missing']);
+    assert.deepEqual(await f.store.listPullIssues(scope), []);
+    assert.equal((await f.store.exportScope(scope)).pullPages[0]?.state, 'page_complete');
+  } finally { f.store.close(); }
+});
+
+test.each([{}, { removal: 'unrelated' as const }])('a missing target still requires repair without matching local removal authority: %j', async input => {
+  const f = await fixture(input);
+  try {
+    await f.applier.resume();
+    assert.deepEqual((await f.store.listPullIssues(scope)).map(issue => issue.code), ['pull_apply_target_missing']);
   } finally { f.store.close(); }
 });

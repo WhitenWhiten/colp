@@ -281,16 +281,27 @@ function normalizeError(error: unknown): SyncPushHttpError {
   return new SyncPushHttpError('internal_error');
 }
 
+function problemDescriptor(error: SyncPushHttpError) {
+  const recovery = {
+    ...(error.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: error.retryAfterSeconds }),
+    ...(error.expectedSequence === undefined ? {} : { expectedSequence: error.expectedSequence }),
+    ...(error.staleDelete === undefined ? {} : { currentRevision: error.staleDelete.currentRevision,
+      ...(error.staleDelete.currentSubtree === undefined ? {}
+        : { currentSubtree: { ...error.staleDelete.currentSubtree } }) }),
+  };
+  const input = Object.keys(recovery).length === 0 ? { code: error.code } : { code: error.code, recovery };
+  try { return createPublicationProblemDescriptor(input); }
+  catch (cause) {
+    // `currentSubtree` entered the wire with @know-n/colp 0.2.2. A pinned
+    // older package still reports the current revision, never a 500.
+    if (!('currentSubtree' in recovery) || !(cause instanceof TypeError)) throw cause;
+    const { currentSubtree: _unsupported, ...supported } = recovery;
+    return createPublicationProblemDescriptor({ code: error.code, recovery: supported });
+  }
+}
+
 function sendProblem(reply: FastifyReply, error: SyncPushHttpError) {
-  const descriptor = createPublicationProblemDescriptor({
-    code: error.code,
-    ...((error.retryAfterSeconds === undefined && error.expectedSequence === undefined) ? {} : {
-      recovery: {
-        ...(error.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: error.retryAfterSeconds }),
-        ...(error.expectedSequence === undefined ? {} : { expectedSequence: error.expectedSequence }),
-      },
-    }),
-  });
+  const descriptor = problemDescriptor(error);
   if (error.code === 'authentication_required') reply.header('WWW-Authenticate', 'Bearer');
   return reply.code(descriptor.status).header('Cache-Control', 'private, no-store')
     .type(descriptor.headers['content-type']).send(descriptor.problem);

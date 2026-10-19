@@ -4,7 +4,7 @@ import { afterEach, describe, test } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { Manifest, Problem, SyncPush, SyncPushResult } from '@know-n/colp/types';
-import { problemRegistry } from '@know-n/colp/server';
+import { createPublicationProblemDescriptor, problemRegistry } from '@know-n/colp/server';
 import { prototypeMemberJsonBodies } from '../../support/prototype-member-json.js';
 import { createPublicationManifestCandidate } from '../../../src/modules/publication/index.js';
 import { loadConfig } from '../../support/test-config.js';
@@ -418,6 +418,51 @@ describe('P3-11 single-operation Sync Push HTTP admission', () => {
       assert.match(body, /service_unavailable/u);
       assert.doesNotMatch(body, /DATABASE-SECRET/u);
     }
+  });
+
+  test('a stale delete refusal reports the current revision and, when the wire allows, the current subtree', async () => {
+    const subtree = { version: 1 as const, count: 2, digest: `sha-256=:${'B'.repeat(43)}=:`,
+      memberIdsDigest: `sha-256=:${'C'.repeat(43)}=:` };
+    const app = Fastify({ logger: false });
+    registerSyncPushRoutes(app, {
+      path: '/private-entry/operation-ingress', allowedOrigins: [ORIGIN],
+      credentialVerifier: { async verify() {
+        return mintVerifiedExtensionCredentialFixture({
+          issuer: 'https://issuer.example', audience: 'known-api', clientId: 'known-extension',
+          subject: 'push-subject', credentialId: 'push-credential',
+        });
+      } },
+      application: {
+        runtimeOwnership: { operationIdReservationOwner: 'sequence', usesPushCoordinator: false,
+          maxBatchOperations: 1, evaluator: 'canonical_node_create' },
+        async admit() {
+          throw new SyncPushHttpError('revision_conflict', undefined, undefined, undefined,
+            { currentRevision: 'r_current', currentSubtree: subtree });
+        },
+      },
+      rateLimit: { maxRequests: 100, windowMs: 60_000 }, maxBatchOperations: 1,
+      allowInsecureLoopback: true,
+    });
+    apps.push(app);
+    const response = await app.inject({
+      method: 'POST', url: '/private-entry/operation-ingress',
+      headers: { authorization: `Bearer ${TOKEN}`, origin: ORIGIN, 'content-type': 'application/json',
+        'idempotency-key': 'push-key-stale-delete' },
+      payload: syncPushAdmissionRequest(),
+    });
+    assert.equal(response.statusCode, 409);
+    const body = response.json<Problem & { currentSubtree?: unknown }>();
+    assert.equal(body.code, 'revision_conflict');
+    assert.equal(body.retryable, false);
+    assert.equal(body.currentRevision, 'r_current');
+    // `currentSubtree` entered the wire with @know-n/colp 0.2.2; an older pin drops it instead of failing.
+    let wireCarriesSubtree = true;
+    try {
+      createPublicationProblemDescriptor({ code: 'revision_conflict',
+        recovery: { currentRevision: 'r', currentSubtree: subtree } as never });
+    } catch { wireCarriesSubtree = false; }
+    assert.deepEqual(body.currentSubtree, wireCarriesSubtree ? subtree : undefined);
+    assert.ok(createValidatorRegistry().validate('problem', body).valid);
   });
 
   test('publishes bounded P3-16 Push metrics without request identity or content labels', async () => {

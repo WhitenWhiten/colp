@@ -22,6 +22,7 @@ import {
   type ManagedAncestryCapabilities,
 } from '../managed-ancestry-policy.js';
 import { persistSyncOperationProjection } from './sync-pull-postgres.js';
+import { subtreeObservationSummary } from '../sync-stale-delete-facts.js';
 import { persistAuthoritativeOperationEffect } from '../sync-operation-effects-postgres.js';
 import { syncCanonicalMutationInput } from '../sync-canonical-mutation-input.js';
 import {
@@ -71,23 +72,24 @@ export async function evaluateCanonicalNodeDelete(
       deleted: current.deleted_at !== null,
     });
   } catch (error) {
-    if (error instanceof SyncNodeDeleteError) throw new SyncPushHttpError(error.code);
+    if (error instanceof SyncNodeDeleteError) {
+      // A stale single delete rebases on the current revision (03 §13.1); a
+      // stale subtree root also needs its current members, loaded below.
+      if (error.code === 'revision_conflict' && operation.type === 'delete_node') {
+        throw new SyncPushHttpError(error.code, undefined, undefined, undefined,
+          { currentRevision: current.resource_revision });
+      }
+      if (error.code === 'revision_conflict' && operation.type === 'delete_subtree') {
+        throw await staleSubtreeDelete(tx, transaction.authority.collectionId, current.id, current.resource_revision);
+      }
+      throw new SyncPushHttpError(error.code);
+    }
     throw error;
   }
 
   const memberIds = mapped.scope === 'single'
     ? [mapped.targetId]
-    : (await sql<{ id: string }>`
-      with recursive members(id, path, depth) as (
-        select id, array[id], 0 from nodes
-        where collection_id=${mapped.collectionId} and id=${mapped.targetId} and deleted_at is null
-        union all
-        select child.id, parent.path || child.id, parent.depth + 1
-        from members parent join nodes child
-          on child.collection_id=${mapped.collectionId} and child.parent_id=parent.id
-        where child.deleted_at is null and parent.depth < 1024 and not child.id=any(parent.path)
-      ) select id from members order by id
-    `.execute(tx)).rows.map((row) => row.id);
+    : await liveSubtreeMemberIds(tx, mapped.collectionId, mapped.targetId);
   if (memberIds.length < 1 || !memberIds.includes(mapped.targetId)) {
     throw new SyncPushHttpError('resource_not_found');
   }
@@ -108,7 +110,11 @@ export async function evaluateCanonicalNodeDelete(
       if (!observation || typeof observation !== 'object' || Array.isArray(observation)
           || Object.keys(observation).length !== 3 || observation.version !== expected.version
           || observation.count !== expected.count || observation.digest !== expected.digest) {
-        throw new SyncPushHttpError('revision_conflict');
+        throw new SyncPushHttpError('revision_conflict', undefined, undefined, undefined, {
+          currentRevision: current.resource_revision,
+          currentSubtree: subtreeObservationSummary(mapped.targetId,
+            members.map((row) => ({ id: row.id, revision: row.resource_revision }))),
+        });
       }
     }
   }
@@ -208,6 +214,34 @@ export async function evaluateCanonicalNodeDelete(
     ...(options.faultInjector ? { faultInjector: options.faultInjector } : {}),
   });
   return appliedPushResult(serverBatchId, operation, 'applied', mapped.targetId, revision, cursor);
+}
+
+async function liveSubtreeMemberIds(tx: PushSequenceTransaction['databaseTransaction'], collectionId: string, rootId: string) {
+  return (await sql<{ id: string }>`
+    with recursive members(id, path, depth) as (
+      select id, array[id], 0 from nodes
+      where collection_id=${collectionId} and id=${rootId} and deleted_at is null
+      union all
+      select child.id, parent.path || child.id, parent.depth + 1
+      from members parent join nodes child
+        on child.collection_id=${collectionId} and child.parent_id=parent.id
+      where child.deleted_at is null and parent.depth < 1024 and not child.id=any(parent.path)
+    ) select id from members order by id
+  `.execute(tx)).rows.map((row) => row.id);
+}
+
+/** The refusal for a subtree root whose own revision went stale: current revision plus current members. */
+async function staleSubtreeDelete(tx: PushSequenceTransaction['databaseTransaction'], collectionId: string,
+  rootId: string, currentRevision: string): Promise<SyncPushHttpError> {
+  const memberIds = await liveSubtreeMemberIds(tx, collectionId, rootId);
+  const members = memberIds.length < 1 ? [] : await tx.selectFrom('nodes').select(['id', 'resource_revision'])
+    .where('collection_id', '=', collectionId).where('id', 'in', memberIds).orderBy('id').execute();
+  if (!members.some((row) => row.id === rootId)) return new SyncPushHttpError('revision_conflict');
+  return new SyncPushHttpError('revision_conflict', undefined, undefined, undefined, {
+    currentRevision,
+    currentSubtree: subtreeObservationSummary(rootId,
+      members.map((row) => ({ id: row.id, revision: row.resource_revision }))),
+  });
 }
 
 export async function evaluateCanonicalNodeMove(

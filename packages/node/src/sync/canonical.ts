@@ -15,7 +15,7 @@ import {
 } from './canonical-json.js';
 
 export { canonicalJsonSnapshot, encodeCanonicalJson } from './canonical-json.js';
-export { subtreeDeleteSource, SUBTREE_OBSERVATION_EXTENSION } from './subtree-observation.js';
+export { subtreeDeleteSource, subtreeMemberIdsDigest, subtreeObservationSummary, SUBTREE_OBSERVATION_EXTENSION } from './subtree-observation.js';
 
 export const AUTHORITATIVE_EFFECT_MAX_BYTES = 262_144;
 export const AUTHORITATIVE_EFFECT_PAGE_MAX_BYTES = 262_144;

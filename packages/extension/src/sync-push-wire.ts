@@ -62,12 +62,19 @@ export function parseSyncPushResult(value: unknown, binding: { readonly opId: st
     result: result as unknown as SyncPushResult['results'][number] & JsonObject, terminal: TERMINAL.has(status) };
 }
 
-export function parseColpProblem(value: unknown): { readonly code: string; readonly status: number; readonly expectedSequence?: number;
-  readonly retryAfterSeconds?: number; readonly retryable?: boolean; readonly conflictId?: string } {
+/** The server's current view of a `delete_subtree` target, sent with `revision_conflict` (03 §13.1). */
+export interface ParsedSubtreeSummary {
+  readonly version: 1; readonly count: number; readonly digest: string; readonly memberIdsDigest: string;
+}
+export interface ParsedColpProblem { readonly code: string; readonly status: number; readonly expectedSequence?: number;
+  readonly retryAfterSeconds?: number; readonly retryable?: boolean; readonly conflictId?: string;
+  readonly currentRevision?: string; readonly currentSubtree?: ParsedSubtreeSummary }
+const SUBTREE_DIGEST = /^sha-256=:[A-Za-z0-9+/]{43}=:$/u;
+export function parseColpProblem(value: unknown): ParsedColpProblem {
   const problem = exactRecord(value, ['type', 'title', 'status', 'detail', 'instance', 'code', 'expectedSequence',
-    'currentRevision', 'currentEtag', 'supportedVersions', 'retryAfterSeconds', 'snapshotUrl', 'conflictId',
+    'currentRevision', 'currentEtag', 'currentSubtree', 'supportedVersions', 'retryAfterSeconds', 'snapshotUrl', 'conflictId',
     'retryable', 'errors', 'links'], 'problem', ['detail', 'instance', 'expectedSequence', 'currentRevision',
-    'currentEtag', 'supportedVersions', 'retryAfterSeconds', 'snapshotUrl', 'conflictId', 'retryable', 'errors', 'links']);
+    'currentEtag', 'currentSubtree', 'supportedVersions', 'retryAfterSeconds', 'snapshotUrl', 'conflictId', 'retryable', 'errors', 'links']);
   if (typeof problem.type !== 'string' || typeof problem.title !== 'string' || typeof problem.code !== 'string'
       || !Number.isSafeInteger(problem.status)) throw new Error('push_problem_invalid');
   if (problem.retryable !== undefined && typeof problem.retryable !== 'boolean') throw new Error('push_problem_invalid');
@@ -77,11 +84,25 @@ export function parseColpProblem(value: unknown): { readonly code: string; reado
   }
   if ((problem.code === 'sequence_gap' || problem.code === 'sequence_blocked')
       && problem.expectedSequence === undefined) throw new Error('push_problem_invalid');
+  const currentRevision = typeof problem.currentRevision === 'string' && OPAQUE_ID.test(problem.currentRevision)
+    ? problem.currentRevision : undefined;
   return { code: problem.code, status: Number(problem.status),
     ...(problem.expectedSequence === undefined ? {} : { expectedSequence: positiveInteger(problem.expectedSequence) }),
     ...(problem.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: Number(problem.retryAfterSeconds) }),
     ...(problem.retryable === undefined ? {} : { retryable: problem.retryable as boolean }),
-    ...(typeof problem.conflictId === 'string' ? { conflictId: problem.conflictId } : {}) };
+    ...(typeof problem.conflictId === 'string' ? { conflictId: problem.conflictId } : {}),
+    ...(currentRevision === undefined ? {} : { currentRevision }),
+    ...(problem.currentSubtree === undefined ? {} : { currentSubtree: parseSubtreeSummary(problem.currentSubtree) }) };
+}
+
+function parseSubtreeSummary(value: unknown): ParsedSubtreeSummary {
+  const summary = exactRecord(value, ['version', 'count', 'digest', 'memberIdsDigest'], 'push_problem');
+  if (summary.version !== 1 || !Number.isSafeInteger(summary.count) || Number(summary.count) < 1
+      || typeof summary.digest !== 'string' || !SUBTREE_DIGEST.test(summary.digest)
+      || typeof summary.memberIdsDigest !== 'string' || !SUBTREE_DIGEST.test(summary.memberIdsDigest)) {
+    throw new Error('push_problem_invalid');
+  }
+  return { version: 1, count: Number(summary.count), digest: summary.digest, memberIdsDigest: summary.memberIdsDigest };
 }
 
 function exactRecord(value: unknown, allowed: readonly string[], label: string, optional: readonly string[] = []) {

@@ -4123,6 +4123,35 @@ const schema = {
       ],
       "additionalProperties": false
     },
+    "subtreeObservationSummary": {
+      "type": "object",
+      "description": "The server's current view of a delete_subtree target: the same count and digest the subtree observation precondition expects now, plus a digest over the member IDs alone so a client can tell changed members from changed revisions.",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha-256=:[A-Za-z0-9+/]{43}=:$"
+        },
+        "memberIdsDigest": {
+          "type": "string",
+          "pattern": "^sha-256=:[A-Za-z0-9+/]{43}=:$"
+        }
+      },
+      "required": [
+        "version",
+        "count",
+        "digest",
+        "memberIdsDigest"
+      ],
+      "additionalProperties": false
+    },
     "problem": {
       "type": "object",
       "properties": {
@@ -4220,6 +4249,9 @@ const schema = {
         },
         "conflictId": {
           "$ref": "#/$defs/opaqueId"
+        },
+        "currentSubtree": {
+          "$ref": "#/$defs/subtreeObservationSummary"
         },
         "retryable": {
           "type": "boolean"

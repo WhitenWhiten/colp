@@ -24,6 +24,7 @@ import { reconcileBookmarkTree } from './bookmark-event-reconcile.js';
 import { captureMissingNativeRemovals } from './bookmark-removal-reconcile.js';
 import { journalSubtreeNativeIds, persistRemovalJournal } from './deletion-journal.js';
 import { capturePendingSubtreeDeletion } from './subtree-observation.js';
+import { LOCAL_DELETE_MEMBER_ID_BOUND } from './pull-local-delete-supersede.js';
 import { resolveEventIdentityTokens } from './bookmark-event-resolve.js';
 import { createProjectionSuppression, projectionSuppresses, type ProjectionChangeFields } from './recovery-overlay.js';
 import { recordMoveOutOfBoundaryShift } from './scope-range-shift.js';
@@ -282,6 +283,10 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     // Keep boundary-root mappings out of every delete: root authority is
     // reconciled through configureBrowserRoots, not by bookmark events.
     ...(subtree?.observation ? { subtreeObservation: subtree.observation } : {}),
+    // Kept so a stale upload can tell "the same nodes, newer revisions" from new members (push-delete-rebase.ts).
+    ...(subtree?.memberIdsDigest ? { subtreeMemberIdsDigest: subtree.memberIdsDigest } : {}),
+    // Names the members so a later remote change inside the deleted folder is taken as superseded.
+    ...(subtree && subtree.memberIds.length <= LOCAL_DELETE_MEMBER_ID_BOUND ? { subtreeMemberIds: subtree.memberIds } : {}),
     deleteNativeIds: deleteNativeIds.filter((id) => !boundaries.has(id)) }, eventId);
   }
 

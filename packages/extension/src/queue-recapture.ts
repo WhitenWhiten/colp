@@ -4,6 +4,7 @@ import { bookmarkKind, bookmarkRepresentability, nodeCreate, nodeContent, valida
   type BookmarkEventNode } from './bookmark-event-codec.js';
 import { resolveIngressBoundary, isManagedBookmarkNode } from './bookmark-event-ingress.js';
 import { nativeIsLocallyExcluded } from './remote-delete-exclusion.js';
+import { DELETE_SUBTREE_CHANGED } from './push-delete-rebase.js';
 import type { JsonObject, QueueOperation, BookmarkEventRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export interface QueueRecapture {
@@ -22,6 +23,11 @@ export function createQueueRecapture(input: { store: ReturnType<typeof createSyn
     if (!await input.permission()) throw new Error('permission_required');
     const recorded = await store.getScope(scope);
     if (recorded?.lifecycle !== 'active' || recorded.rootStatus !== 'ready') throw new Error('scope_not_writable');
+    // "Delete anyway": the held row already carries the revision and members
+    // the server reported, so Retry re-authors that deletion at the tail.
+    if (row.status === 'set_aside' && row.recovery?.code === DELETE_SUBTREE_CHANGED) {
+      return { operations: [reauthoredDelete(row, new Date((input.now ?? Date.now)()).toISOString(), scope)] };
+    }
     let event: BookmarkEventRecord | undefined;
     let after = 0;
     for (;;) {
@@ -122,3 +128,14 @@ export function createQueueRecapture(input: { store: ReturnType<typeof createSyn
 }
 
 export const recapturedOperationDigest = (operation: JsonObject) => canonicalOperationDigest(operation as never);
+
+function reauthoredDelete(row: QueueOperation, occurredAt: string, scope: SyncScope): JsonObject {
+  const { type, targetId, baseRevision, payload, source } = row.payload;
+  if ((type !== 'delete_node' && type !== 'delete_subtree') || typeof targetId !== 'string'
+      || typeof baseRevision !== 'string') throw new Error('deletion_identity_unproven');
+  const operation: JsonObject = { opId: crypto.randomUUID(), replicaId: scope.replicaId, sequence: 1,
+    collectionId: scope.collectionId, type, targetId, baseRevision, occurredAt, dependencies: [],
+    ...(source === undefined ? {} : { source }), payload: payload ?? { reason: 'browser_event' } };
+  if (!validateOperation(operation)) throw new Error('operation_schema_invalid');
+  return operation;
+}

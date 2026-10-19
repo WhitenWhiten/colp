@@ -18,9 +18,18 @@ const acceptSemantics = (): { readonly valid: true; readonly issues: readonly []
   issues: [],
 });
 
+export interface PublicationProblemSubtreeSummary {
+  readonly version: 1;
+  readonly count: number;
+  readonly digest: string;
+  readonly memberIdsDigest: string;
+}
+
 export interface PublicationProblemRecovery {
   readonly currentRevision?: string;
   readonly currentEtag?: string;
+  /** With `revision_conflict` on `delete_subtree`: the target's current members, as the precondition sees them. */
+  readonly currentSubtree?: PublicationProblemSubtreeSummary;
   readonly expectedSequence?: number;
   readonly supportedVersions?: readonly string[];
   readonly retryAfterSeconds?: number;
@@ -138,6 +147,7 @@ function cloneRecovery(recovery: PublicationProblemRecovery | undefined): Public
     new Set([
       'currentRevision',
       'currentEtag',
+      'currentSubtree',
       'expectedSequence',
       'supportedVersions',
       'retryAfterSeconds',
@@ -163,6 +173,14 @@ function cloneRecovery(recovery: PublicationProblemRecovery | undefined): Public
       );
     }
   }
+  if (safeRecovery.currentSubtree !== undefined) {
+    assertPlainDataObject(safeRecovery.currentSubtree, 'Publication Problem recovery.currentSubtree');
+    assertOnlyDataProperties(
+      safeRecovery.currentSubtree,
+      new Set(['version', 'count', 'digest', 'memberIdsDigest']),
+      'Publication Problem recovery.currentSubtree',
+    );
+  }
   if (safeRecovery.links !== undefined) {
     assertPlainDataObject(safeRecovery.links, 'Publication Problem recovery.links');
     if (Object.keys(safeRecovery.links).length > MAX_RECOVERY_ARRAY_ITEMS) {
@@ -179,6 +197,7 @@ function cloneRecovery(recovery: PublicationProblemRecovery | undefined): Public
   return {
     ...(safeRecovery.currentRevision === undefined ? {} : { currentRevision: safeRecovery.currentRevision }),
     ...(safeRecovery.currentEtag === undefined ? {} : { currentEtag: safeRecovery.currentEtag }),
+    ...(safeRecovery.currentSubtree === undefined ? {} : { currentSubtree: { ...safeRecovery.currentSubtree } }),
     ...(safeRecovery.expectedSequence === undefined ? {} : { expectedSequence: safeRecovery.expectedSequence }),
     ...(safeRecovery.supportedVersions === undefined
       ? {}

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { test } from 'vitest';
-import { subtreeDeleteSource } from '@know-n/colp/sync';
+import { canonicalOperationDigest, subtreeDeleteSource } from '@know-n/colp/sync';
 import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
-import { captureSubtreeDeletion } from '../src/subtree-observation.js';
+import { captureSubtreeDeletion, subtreeMemberIdsDigest } from '../src/subtree-observation.js';
 import { resolveSubtreePredecessors } from '../src/bookmark-subtree-predecessors.js';
 import { setup as stateStore, scope } from './sync-recovery-hardening-fixture.js';
 import { mapping, seedMappedNode, setupT03, t03Scope } from './srg-t03-delete-harness.js';
@@ -25,6 +25,18 @@ test('DS-04 removal captures exact descendant revisions and does not refresh the
   const row = (await f.store.listQueue(t03Scope))[0]!;
   assert.deepEqual(row.payload.source, subtreeDeleteSource('node-1',
     [{ id: 'node-1', revision: 'revision-old' }, { id: 'node-child', revision: 'revision-old' }]));
+  // The member-ID digest the stale-delete rebase compares with the server's `currentSubtree`.
+  const event = (await f.store.listBookmarkEvents(t03Scope, 0, 10)).find(item => item.opId === row.opId)!;
+  assert.equal(event.details.subtreeMemberIdsDigest, subtreeMemberIdsDigest('node-1', ['node-child', 'node-1']));
+  assert.equal(event.details.subtreeMemberIdsDigest,
+    canonicalOperationDigest({ rootId: 'node-1', members: [['node-1'], ['node-child']] } as never));
+});
+
+test('the member-ID digest matches the reference package vector and ignores revisions', () => {
+  assert.equal(subtreeMemberIdsDigest('root', ['child', 'root']), 'sha-256=:ZqLR3Lo/bCxh+n1BSKyH7zCj/qR06i0ILaoYYkhhY6A=:');
+  assert.equal(subtreeMemberIdsDigest('node-1', ['node-1']), 'sha-256=:muDWtyxNoGBinKXer8o1WDCC67cAWTvzkq9OdqGbSh0=:');
+  assert.notEqual(subtreeMemberIdsDigest('root', ['child', 'root']),
+    Object.values(subtreeDeleteSource('root', [{ id: 'root', revision: 'r1' }, { id: 'child', revision: 'r2' }]).extensions)[0]!.digest);
 });
 
 test.each([false, true])('pending subtree removal uses only exact captured create receipts (child complete=%s)', async completeChild => {

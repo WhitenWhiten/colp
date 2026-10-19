@@ -33,3 +33,8 @@ test('a stalled upload says the lane behind it waits, instead of claiming a reje
 test('a pulled change that collides with an existing mapping names the rebuild exit', () => {
   expect(stopReason('mapping_identity_conflict')).toBe('its copy of your library needs a rebuild.')
 })
+
+test('a subtree delete held because the folder changed elsewhere says Retry deletes it anyway', () => {
+  const base = { issueId: 'i', direction: 'push' as const, count: 1, firstSeenAt: 'now', lastSeenAt: 'now', actions: ['retry' as const] }
+  expect(issueSummary({ ...base, code: 'delete_subtree_changed' })).toContain('Retry deletes it anyway')
+})

@@ -84,6 +84,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   deletion_identity_unproven: entry('item', 'decide', FREEZES),
   create_placement_parent_deleted: entry('item', 'decide'),
   create_placement_unproven: entry('item', 'decide'),
+  // A folder deleted here gained members on another device first; Retry deletes it anyway.
+  delete_subtree_changed: entry('item', 'decide'),
   remote_delete_confirmation_required: entry('item', 'confirm', FREEZES),
   pull_apply_target_missing: entry('item', 'rebuild', SETS_ASIDE),
   pull_apply_evidence_missing: entry('item', 'rebuild', FREEZES),

@@ -179,7 +179,7 @@ describe(`CORE-0015 complete schema wiring ${evidence}`, () => {
   it('audits every property, item, nullable branch, conditional branch, and map reference', () => {
     const audit = auditWireIdSchema();
 
-    expect(Object.keys(collectionProtocolSchema.$defs)).toHaveLength(191);
+    expect(Object.keys(collectionProtocolSchema.$defs)).toHaveLength(192);
     expect(collectionProtocolSchema.$defs.globalResourceType.enum).toHaveLength(7);
     expect(collectionProtocolSchema.$defs.globalResourceIdentity.required).toEqual([
       'serverUuid',

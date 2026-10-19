@@ -5,6 +5,8 @@ import { resolveProductConflictInTransaction } from '../../src/infrastructure/sy
 import { syncNodeDeletePushRequest } from '../fixtures/phase3/sync-node-delete.js';
 import { syncNodeUpdatePushRequest } from '../fixtures/phase3/sync-node-update.js';
 import { observeSubtree } from './subtree-observation.js';
+import { createPublicationProblemDescriptor } from '@know-n/colp/server';
+import { subtreeMemberIdsDigest } from '../../src/infrastructure/sync/sync-stale-delete-facts.js';
 import type { IsolatedPostgresRuntime } from './postgres-test-runtime.js';
 import type { createSyncSessionBlackBoxClient } from './sync-session-black-box-client.js';
 
@@ -35,13 +37,30 @@ export async function verifyObservedSubtreeSafety<C extends Identity>(h: Harness
             opId: `ds04-update-${randomUUID()}`, base: { title: 'Original' }, value: { title: 'Important new edit' } }) });
         assert.equal(result(updated.body).results[0]?.status, 'applied');
       }
-      if (variant === 'inserted') await seedNode('bookmark', { parentId: nested.id, title: 'Unobserved addition' });
+      let lastInserted: string | undefined;
+      if (variant === 'inserted') lastInserted = (await seedNode('bookmark', { parentId: nested.id, title: 'Unobserved addition' })).id;
       const a = await context('owner', '0.2'); const sa = await start(a);
       const response = await blackBox(sa.origin).push({ idempotencyKey: `ds04-delete-${randomUUID()}`,
         request: syncNodeDeletePushRequest({ sessionId: a.session.sessionId, replicaId: a.replica.replicaId,
           collectionId: COLLECTION, targetId: parent.id, baseRevision: parent.revision,
           opId: `ds04-delete-${randomUUID()}`, subtree: true, ...(variant === 'legacy' ? {} : { source }) }) });
       assert.equal((response.body as Problem).code, variant === 'legacy' ? 'precondition_required' : 'revision_conflict');
+      if (variant !== 'legacy') {
+        // 03 §13.1: the refusal names what the delete was stale against, so a
+        // client can rebase a revision-only change and must ask about new members.
+        const problem = response.body as Problem & { currentSubtree?: { version: number; count: number;
+          digest: string; memberIdsDigest: string } };
+        assert.equal(problem.currentRevision, parent.revision);
+        if (wireCarriesCurrentSubtree()) {
+          const current = await observeSubtree(isolated.runtime.db, parent.id);
+          const expected = Object.values(current.extensions)[0]!;
+          assert.deepEqual(problem.currentSubtree, { version: 1, count: expected.count, digest: expected.digest,
+            memberIdsDigest: subtreeMemberIdsDigest(parent.id, variant === 'updated'
+              ? [parent.id, nested.id, child.id] : [parent.id, nested.id, child.id, lastInserted!]) });
+          assert.equal(problem.currentSubtree.memberIdsDigest === subtreeMemberIdsDigest(parent.id, [parent.id, nested.id, child.id]),
+            variant === 'updated');
+        } else assert.equal(problem.currentSubtree, undefined);
+      }
       const row = (await isolated.runtime.pool.query('select deleted_at from nodes where id=$1', [child.id])).rows[0];
       assert.equal(row.deleted_at, null);
       assert.equal((await isolated.runtime.pool.query('select count(*)::int n from sync_node_tombstones where root_target_id=$1', [parent.id])).rows[0].n, 0);
@@ -71,4 +90,14 @@ export async function verifyResolutionLaneSafety<C extends Identity>(h: Harness<
     assert.equal((await isolated.runtime.pool.query('select count(*)::int n from sync_resolution_authors where operation_id=$1',
       [resolved.operation.opId])).rows[0].n, 1);
     await assert.rejects(isolated.runtime.pool.query('delete from sync_resolution_authors where operation_id=$1', [resolved.operation.opId]));
+}
+
+/** `currentSubtree` entered the Problem wire with @know-n/colp 0.2.2; the server tolerates an older pin. */
+function wireCarriesCurrentSubtree(): boolean {
+  try {
+    createPublicationProblemDescriptor({ code: 'revision_conflict', recovery: { currentRevision: 'r',
+      currentSubtree: { version: 1, count: 1, digest: `sha-256=:${'A'.repeat(43)}=:`,
+        memberIdsDigest: `sha-256=:${'A'.repeat(43)}=:` } } as never });
+    return true;
+  } catch { return false; }
 }

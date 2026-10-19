@@ -31,14 +31,12 @@ import {
   applyPlannedMove, frozenRangeAction, moveAnchors, planRemoteMove,
   rangeActionOf, rangePlanFromAnchors, resolvePersistedMovePlan, type PlannedMoveApply,
 } from './pull-range-move.js';
-import {
-  pendingLocalContentForEvent,
-  queueHasPendingTarget,
-} from './pull-queue-facts.js';
+import { pendingLocalContentForEvent, queueHasPendingTarget } from './pull-queue-facts.js';
 import { applyRemoteNodeContentUpdate } from './pull-native-content-barrier.js';
 import { kns09Paused, recordKns09Stop } from './kns-09-release.js';
 import { pauseBindingForMapping } from './sync-state/remote-observation.js';
 import { hasQueuedSelfCreate, provisionalSelfCreateMapping } from './pull-self-create.js';
+import { commitSupersededByLocalDelete } from './pull-local-delete-supersede.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -85,7 +83,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (!ordinaryPullEventAllowed(authority, raw) && !detached) { await recoverSupersededPullEvent(options, authority, raw); continue; }
       const event = raw.payload as unknown as Extract<SyncPullEventV02, { kind: 'operation' }>;
       try {
-      if (await commitRemovedSelfProjection(options, String(raw.eventId), event, now(), parentRevisionMapping)) continue;
+      if (await commitRemovedSelfProjection(options, String(raw.eventId), event, now(), parentRevisionMapping)
+        || await commitSupersededByLocalDelete(options, String(raw.eventId), event, now())) continue;
       if (raw.state === 'staged') {
         if (await setAsidePullItem(options, String(raw.eventId), event, now())) continue;
         if (await interceptStagedRemoteDelete(options, api, String(raw.eventId), String(raw.pageId), event, now) === 'skip') continue;

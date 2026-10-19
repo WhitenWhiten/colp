@@ -7,7 +7,7 @@ export async function findProcessedBookmarkEvent<T extends {
 }>(
   readPage: (afterOrdinal: number, limit: number) => Promise<readonly T[]>,
   opId: string,
-  kind: 'create' | 'move',
+  kind: 'create' | 'move' | 'remove',
   pageSize = BOOKMARK_EVENT_PAGE_SIZE,
   maxPages = BOOKMARK_EVENT_MAX_PAGES,
 ): Promise<T | null> {

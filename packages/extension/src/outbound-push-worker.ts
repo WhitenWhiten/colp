@@ -9,6 +9,7 @@ import { sendBootstrapCreateBatch } from './outbound-push-batch.js';
 import { createPushWorkBudget, recordPushBatchDecision, MAX_PUSH_DRAIN_OPERATIONS as MAX_DRAIN_OPERATIONS } from './push-work-budget.js';
 import { releaseSettledQueueHolds, settlePushResult } from './outbound-push-settlement.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
+import { isDeleteOperation, rebaseStaleDelete } from './push-delete-rebase.js';
 import { stopDeniedMetadataAttempt } from './metadata-dispatch-recovery.js';
 import { reasonCode } from './push-error-code.js';
 import { recordKns09Stop } from './kns-09-release.js';
@@ -381,6 +382,13 @@ export function createOutboundPushWorker(options: WorkerOptions) {
               retry: { attempt: queue.retry.attempt, notBefore: now() }, recovery: { code: 'conflict_pending' } });
             return 'blocked';
           }
+          // A delete another device raced is rebased on the revision the server names
+          // (deletion dominates), or held as one item when the folder gained members.
+          const staleDelete = isDeleteOperation(queue.payload.type)
+            ? await rebaseStaleDelete({ store: options.store, scope: options.scope, ownerId, fence, queue, problem,
+              digest: payload => `sha256:${digestJson(payload)}` }) : null;
+          if (staleDelete === 'rebased') return persistUnknown(queue, fence, problem.code, null, true);
+          if (staleDelete === 'held') return 'terminal';
           const disposition = classifyPushProblem(problem);
           if (disposition === 'reuse') {
             try {

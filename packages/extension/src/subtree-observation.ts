@@ -2,6 +2,7 @@ import { materializeNativeMutation } from './bookmark-native-mutation.js';
 import { identityFromMapping } from './bookmark-node-identity.js';
 import { deletionNodeKind } from './bookmark-deletion-scope.js';
 import { subtreeDeleteSource } from '@know-n/colp/sync/canonical';
+import { sha256 } from '@noble/hashes/sha2.js';
 import type { BookmarkEventRecord, JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 /** Capture once, before dropping native mappings; never recompute at upload. */
@@ -15,9 +16,28 @@ export function mappedSubtreeDeleteSource(rootId: string, mappings: readonly Map
 
 export function captureSubtreeDeletion(rootId: string, mappings: readonly MappingInput[]) {
   const members = capturedSubtreeMembers(rootId, mappings);
+  const memberIds = members.map(row => row.colpId);
   return members.some(row => /^(pending-|local-)/u.test(row.colpId) || row.revision.startsWith('local-'))
-    ? { observation: members as JsonObject[], source: undefined }
-    : { observation: undefined, source: subtreeDeleteSource(rootId, members.map(row => ({ id: row.colpId, revision: row.revision }))) };
+    ? { observation: members as JsonObject[], source: undefined, memberIdsDigest: undefined, memberIds }
+    : { observation: undefined, source: subtreeDeleteSource(rootId, members.map(row => ({ id: row.colpId, revision: row.revision }))),
+      memberIdsDigest: subtreeMemberIdsDigest(rootId, memberIds), memberIds };
+}
+
+/**
+ * The subtree observation's canonical digest over the member IDs alone
+ * (`{rootId, members: [[id], ...]}`, IDs sorted by code point), as
+ * `subtreeMemberIdsDigest()` in `@know-n/colp` 0.2.2 and a `revision_conflict`
+ * Problem's `currentSubtree.memberIdsDigest` compute it. Equal digests mean the
+ * server still holds exactly the nodes the user deleted; only revisions moved.
+ */
+export function subtreeMemberIdsDigest(rootId: string, memberIds: readonly string[]): string {
+  const ordered = [...memberIds].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+  const hash = sha256.create(); const encoder = new TextEncoder();
+  hash.update(encoder.encode('{"members":['));
+  ordered.forEach((id, index) => hash.update(encoder.encode(`${index ? ',' : ''}${JSON.stringify([id])}`)));
+  hash.update(encoder.encode(`],"rootId":${JSON.stringify(rootId)}}`));
+  let binary = ''; for (const byte of hash.digest()) binary += String.fromCharCode(byte);
+  return `sha-256=:${btoa(binary)}:`;
 }
 
 function capturedSubtreeMembers(rootId: string, mappings: readonly MappingInput[]) {

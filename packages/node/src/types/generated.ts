@@ -432,6 +432,7 @@ export interface ColpContracts {
   snapshotQuery: SnapshotQuery;
   sourceRef: SourceRef;
   subject: Subject;
+  subtreeObservationSummary: SubtreeObservationSummary;
   syncAckRequest: SyncAckRequest;
   syncAckResult: SyncAckResult;
   syncCollectionPush: SyncCollectionPush;
@@ -1391,11 +1392,21 @@ export interface Problem {
   retryAfterSeconds?: number;
   snapshotUrl?: HttpUrl;
   conflictId?: OpaqueId;
+  currentSubtree?: SubtreeObservationSummary;
   retryable?: boolean;
   errors?: ProblemFieldError[];
   links?: {
     [k: string]: HttpUrl;
   };
+}
+/**
+ * The server's current view of a delete_subtree target: the same count and digest the subtree observation precondition expects now, plus a digest over the member IDs alone so a client can tell changed members from changed revisions.
+ */
+export interface SubtreeObservationSummary {
+  version: 1;
+  count: number;
+  digest: string;
+  memberIdsDigest: string;
 }
 export interface ProblemFieldError {
   path: string;

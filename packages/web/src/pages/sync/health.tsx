@@ -67,6 +67,7 @@ export function issueSummary(issue: SyncReplicaIssue): string {
     case 'create_placement_unproven': return 'Its place in the folder couldn’t be confirmed'
     case 'recovery_identity_unproven': return 'It couldn’t be matched with one saved bookmark'
     case 'deletion_identity_unproven': return 'Deleted on that browser, but it couldn’t be matched, so nothing else was deleted'
+    case 'delete_subtree_changed': return 'Deleted on that browser, but the folder changed elsewhere first. Retry deletes it anyway, with those changes'
     case 'record_too_large': return 'Too large for this browser to store'
     case 'bounded_string_invalid': return 'A field is too long for this browser to store'
     case 'native_result_unknown': return 'Waiting for a decision in the browser'
