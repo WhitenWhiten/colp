@@ -38,6 +38,8 @@
 //     browser-kept (signed out: two saves a browser rule matched but had to leave where they were saved)
 //     browser-runs (Run once: one run with Undo, one undone; doc 17 RW-07)
 //     browser-imported (with browser-set: the set came from a rule-set file; one of its roles has no folder yet; doc 17 RW-10)
+//     browser-subscribed (a subscribed rule set with a version waiting for review; doc 17 RW-13, RW-14),
+//     browser-sub-failed (the same, not ready: its first fetch got HTTP 503)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -451,6 +453,25 @@ export function installStub(messages) {
           rule: { id: kind === 'conflict' ? 'r1' : 'r2', name: kind === 'conflict' ? 'arXiv papers' : 'GitHub repositories to Programming',
             folder: kind === 'conflict' ? 'Academic' : 'Programming', match: kind === 'conflict' ? { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] }
               : { combinator: 'all', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }] } } } : null;
+        // A subscribed rule set (doc 17 RW-13): two filing entries, one switched off, one only naming a site; version 2026.10.19-1 waits.
+        const research = { nativeId: 'f-research', title: 'Research', path: ['Bookmarks bar', 'Research'] };
+        const programming = { nativeId: 'f-prog', title: 'Programming', path: ['Bookmarks bar', 'Programming'] };
+        const subscribedEntry = (failed) => ({ kind: 'subscription', id: 'sub-1', enabled: true,
+          subscription: { id: 'sub-1', url: 'https://rules.example.org/community-tech.json', origin: 'https://rules.example.org', name: failed ? 'rules.example.org' : 'Community technology sites',
+            publisher: failed ? null : { name: 'Example Collective', url: 'https://example.org', feedbackUrl: 'https://example.org/issues' }, license: failed ? null : 'CC-BY-4.0',
+            state: failed ? 'notReady' : 'ready', updatePolicy: 'review', refreshIntervalHours: 24, paused: false, pinned: false,
+            currentVersion: failed ? null : '2026.10.18-1', previousVersion: failed ? null : '2026.10.11-1', candidateVersion: failed ? null : '2026.10.19-1',
+            candidateWaits: failed ? null : 'review', fetchedAt: failed ? null : now - 26 * 3600e3, lastAttemptAt: now - 2 * 3600e3, lastSuccessAt: failed ? null : now - 2 * 3600e3,
+            lastFailure: failed ? { code: 'http', status: 503, at: now - 2 * 3600e3 } : null },
+          ...(failed ? {} : { detail: { entries: [
+            { id: 'e-arxiv', name: 'arXiv', enabled: true, match: { combinator: 'all', conditions: [{ kind: 'siteCollection', value: 'arXiv' }] }, role: 'Academic papers', folder: research, needsFolder: false },
+            { id: 'e-gh', name: 'GitHub repositories', enabled: true, match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'github.com' }] }, role: 'Source code', folder: programming, needsFolder: false },
+            { id: 'e-hn', name: 'Hacker News', enabled: false, match: { combinator: 'all', conditions: [{ kind: 'siteCollection', value: 'Hacker News' }] }, role: 'Academic papers', folder: research, needsFolder: false },
+            { id: 'e-mirror', name: 'Example mirror set', enabled: true, match: null, role: null, folder: null, needsFolder: false }],
+          roles: [{ key: 'papers', description: 'Academic papers', folder: research }, { key: 'code', description: 'Source code', folder: programming }],
+          exceptions: [{ id: 'x-1', scope: 'domain', value: 'medium.com' }], goneSettings: 1,
+          sites: [{ id: 'arxiv', name: 'arXiv', addresses: [{ host: 'arxiv.org', scope: 'domain', status: 'current' }, { host: 'xxx.lanl.gov', scope: 'exact', status: 'revoked', until: '2009-01-01' }] },
+            { id: 'hn', name: 'Hacker News', addresses: [{ host: 'news.ycombinator.com', scope: 'exact', status: 'current' }] }] } }) });
         // With browser-set, the last two sit in a set of the Owner's (doc 17 RW-04).
         const inSet = (id) => has('browser-set') && (id === 'b2' || id === 'b3');
         const waiting = (id) => has('browser-imported') && id === 'b3';
@@ -474,7 +495,8 @@ export function installStub(messages) {
           ...(grouped.length ? [{ kind: 'set', set: { id: 's1', name: has('browser-imported') ? 'Community reading list' : 'Reading', enabled: !has('browser-set-off'),
             origin: has('browser-imported') ? { kind: 'import', sourceName: 'Community reading list', sourceVersion: '2026.10.18-1', publisher: 'Example Collective' } : { kind: 'custom' },
             roles: has('browser-imported') ? [{ key: 'seo', description: 'SEO reading', folder: { nativeId: 'f-seo', title: 'SEO', path: ['Bookmarks bar', 'Marketing', 'SEO'] } },
-              { key: 'recipes', description: 'Recipes', folder: null }] : [], rules: grouped } }] : [])],
+              { key: 'recipes', description: 'Recipes', folder: null }] : [], rules: grouped } }] : []),
+          ...(has('browser-subscribed', 'browser-sub-failed') ? [subscribedEntry(has('browser-sub-failed'))] : [])],
           orderNotice: has('browser-order') ? [{ upper: 'Papers from arXiv', lower: 'SEO reading' }] : null };
         // Each row names the list entry that decided it (doc 17 RW-05).
         const decided = (row) => ({ ...row, entry: { listRevision: 4, kind: 'rule', ruleId: 'b1' }, entryState: 'on' });
@@ -512,6 +534,16 @@ export function installStub(messages) {
         return { ok: true, ruleset: { id: 'community-tech', name: 'Community technology sites', version: '2026.10.18-1', publisher: 'Example Collective', license: 'CC-BY-4.0',
           roles: [{ key: 'papers', description: 'Academic papers', rules: 12 }, { key: 'code', description: 'Source code', rules: 5 }], rules: 17, matchingOnly: 2, inactive: 1,
           sample: { size: 2000, limit: 2000, matched: 37, byRole: [{ role: 'papers', count: 30 }, { role: 'code', count: 7 }] } } };
+      // Subscribe and Review (doc 17 RW-13, RW-14).
+      case 'known.automation.browser.subscription.check':
+        return { ok: true, ruleset: { id: 'community-tech', name: 'Community technology sites', version: '2026.10.18-1', publisher: 'Example Collective', license: 'CC-BY-4.0',
+          roles: [{ key: 'papers', description: 'Academic papers', rules: 12 }, { key: 'code', description: 'Source code', rules: 5 }], rules: 17, matchingOnly: 2, inactive: 0,
+          sample: { size: 2000, limit: 2000, matched: 37, byRole: [{ role: 'papers', count: 30 }, { role: 'code', count: 7 }] } } };
+      case 'known.automation.browser.subscription.review':
+        return { ok: true, review: { id: 'sub-1', name: 'Community technology sites', currentVersion: '2026.10.18-1', candidateVersion: '2026.10.19-1',
+          scope: { ok: false, reasons: ['roles'] }, diff: { added: [{ id: 'e-so', name: 'Stack Overflow answers' }, { id: 'e-docs', name: 'MDN Web Docs' }],
+            removed: [{ id: 'e-hn', name: 'Hacker News' }], changed: [{ id: 'e-arxiv', name: 'arXiv' }], roles: { added: [{ key: 'docs', description: 'Reference documentation' }], removed: [] } },
+          sample: { size: 2000, changed: 23, byFolder: [{ title: 'Programming', count: 17 }, { title: 'Research', count: 4 }, { title: '', count: 2 }] } } };
       case 'known.automation.browser.runPreview':
         return { ok: true, run: { previewId: 'preview-1', expiresAt: now + 15 * 60e3, scope: { nativeId: msg.scopeNativeId, title: 'Inbox' }, counted: 214, tooMany: false,
           moves: 38, unchanged: 12, kept: 3, unmatched: 158, blocked: 3, excludedFolders: 1,

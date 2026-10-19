@@ -133,6 +133,18 @@ const STATES = [
   ['automations-browser-copy', 'options.html?shot=signedout,browser-set,browser-imported#automations', async (p) => {
     await p.hover('.rule-set-rules .automation-browser-rule >> nth=0'); await p.click('.rule-set-rules .automation-browser-rule >> nth=0 >> button:has(svg[data-icon="fork"])');
     await p.waitForTimeout(400); }, false],
+  // Subscriptions (doc 17 RW-13, RW-14): the block with its fold open, one not ready, Subscribe, Review and its settings.
+  ['automations-browser-subscribed', 'options.html?shot=signedout,browser-subscribed#automations', async (p) => {
+    await p.click('.automation-sub-about > summary'); await p.waitForTimeout(200); }],
+  ['automations-browser-sub-failed', 'options.html?shot=signedout,browser-sub-failed#automations'],
+  ['automations-browser-subscribe', 'options.html?shot=signedout#automations', async (p) => {
+    await p.click('[data-subscribe]'); await p.fill('dialog.automation-subscribe input[type="url"]', 'https://rules.example.org/community-tech.json');
+    await p.click('dialog.automation-subscribe button[type="submit"]'); await p.waitForTimeout(500); }, false],
+  ['automations-browser-sub-review', 'options.html?shot=signedout,browser-subscribed#automations', async (p) => {
+    await p.click('[data-review]'); await p.waitForTimeout(500); }, false],
+  ['automations-browser-sub-settings', 'options.html?shot=signedout,browser-subscribed#automations', async (p) => {
+    await p.hover('.automation-subscription > .rule-set-head'); await p.click('.automation-subscription > .rule-set-head button:has(svg[data-icon="settings"])');
+    await p.waitForTimeout(300); }, false],
   // A rule filed a page starred in the browser while Know-N was in front (AW-20).
   ['automations-notice', 'options.html#automations', (p) => p.evaluate(() => window.__workerMessage({ kind: 'known.automation.notice',
     text: 'Moved “Attention Is All You Need” to Academic by rule “arXiv papers”.', attention: false }))],
