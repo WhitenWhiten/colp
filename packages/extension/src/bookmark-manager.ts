@@ -310,7 +310,7 @@ export function createBookmarkManager(elements: ManagerElements) {
     if (folder.id !== rootId && boundaries.selected.length > 0) {
       const synced = isNodeSynced(folder.id, nodesById, boundaries);
       elements.syncState.append(icon('sync'), document.createTextNode(synced ? t('manager_synced', 'Synced') : t('manager_notSynced', 'Not synced')));
-      elements.syncState.title = synced ? t('manager_syncedFolderSyncedKnow', 'In a synced folder · synced with Know-N') : t('manager_stayLocalNotSynced', 'No Know-N sync');
+      elements.syncState.title = synced ? t('manager_syncedFolderSyncedKnow', 'In a synced folder · synced with your library') : t('manager_stayLocalNotSynced', 'Not in a synced folder · stays on this browser');
       elements.syncState.hidden = false;
     }
   }

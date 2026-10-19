@@ -38,7 +38,7 @@ export function nativeWaitIntroCopy(): string {
 
 /** The alert line over the Status page while items wait. */
 export function nativeWaitSummaryCopy(count: number): string {
-  return tn('sync_waitSummary', count, '$1 bookmark from Know-N needs your decision before it’s added here.', '$1 bookmarks from Know-N need your decision before they’re added here.');
+  return tn('sync_waitSummary', count, '$1 bookmark from your library needs your decision before it’s added here.', '$1 bookmarks from your library need your decision before they’re added here.');
 }
 
 export function nativeWaitActionLabel(action: NativeWaitConfirmAction): string {
@@ -237,7 +237,7 @@ function showCancelConfirmation(row: HTMLElement, onConfirm: () => void): void {
   if (!text || !controls || row.querySelector('.native-wait-cancel-confirm')) return;
   controls.hidden = true;
   const wrap = el('div', undefined, 'native-wait-cancel-confirm');
-  const note = el('p', t('nativeWait_dontPlaceCloudItem2', "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."));
+  const note = el('p', t('nativeWait_dontPlaceCloudItem2', "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in your library on the web."));
   const actions = el('div', undefined, 'confirm-actions');
   const keep = el('button', t('common_keepItem', 'Keep item'), 'btn btn-ghost btn-sm'); keep.type = 'button';
   keep.addEventListener('click', () => { wrap.remove(); controls.hidden = false; controls.querySelector('button')?.focus(); });

@@ -33,8 +33,8 @@ describe('P1 native-wait Options contract', () => {
     assert.doesNotMatch(intro, /Pull\/Ack/);
     assert.match(intro, /uploads continue/i);
     assert.match(intro, /Don’t place/);
-    assert.equal(nativeWaitSummaryCopy(1), '1 bookmark from Know-N needs your decision before it’s added here.');
-    assert.equal(nativeWaitSummaryCopy(2), '2 bookmarks from Know-N need your decision before they’re added here.');
+    assert.equal(nativeWaitSummaryCopy(1), '1 bookmark from your library needs your decision before it’s added here.');
+    assert.equal(nativeWaitSummaryCopy(2), '2 bookmarks from your library need your decision before they’re added here.');
     // A row carries short words; the long sentences stay as the tooltip and accessible name.
     assert.deepEqual((['bind', 'keep_local_and_create', 'cancel'] as const).map(nativeWaitShortLabel), ['Use existing', 'Keep both', "Don't place"]);
     assert.equal(nativeWaitTitleCopy({ ...wait, title: 'GitHub', url: 'https://github.com/x' }), 'GitHub');

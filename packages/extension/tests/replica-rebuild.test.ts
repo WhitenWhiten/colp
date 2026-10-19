@@ -28,7 +28,7 @@ test('rebuild archives pending edits and reorder targets before opening a fresh 
   assert.equal(await f.store.getEngineState({ ...f.scope, replicaId: binding.replicaId }), null);
   assert.equal(f.registrations, 1);
   assert.equal((await f.journal.get(REPLICA_REBUILD_JOURNAL))[REPLICA_REBUILD_JOURNAL], undefined);
-  assert.match(replicaRebuildConfirmation(1), /Your bookmarks stay on this device and in Know-N/);
+  assert.match(replicaRebuildConfirmation(1), /Your bookmarks stay on this device and in your library/);
   assert.match(replicaRebuildConfirmation(1), /1 change that has not synced yet will be set aside/);
   assert.match(replicaRebuildConfirmation(3), /3 changes that have not synced yet/);
   assert.doesNotMatch(replicaRebuildConfirmation(0), /set aside/);

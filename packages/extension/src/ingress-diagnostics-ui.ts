@@ -57,15 +57,15 @@ let LABELS: Readonly<Record<string, string>>;
 localized(() => {
   LABELS = {
   unselected_range: t('sync_folderIsntSynced', "In a folder that isn't synced"),
-  private_local: t('sync_insideNoKnowNSyncFolder', 'Inside a folder excluded from Know-N sync'),
+  private_local: t('sync_insideNoKnowNSyncFolder', 'Inside a folder excluded from sync'),
   managed: t('firstRun_managedBrowserPolicyDevice', 'Managed by browser policy. This device cannot change it, so it does not sync'),
   unsupported_url_scheme: t('sync_onlyWebAddressesHttp', 'Only web addresses (http or https) can sync'),
   invalid_url: t('sync_urlCannotRepresentedMissing', 'URL cannot be synced (invalid format, disallowed scheme, or too long)'),
   invalid_title: t('sync_titleCannotRepresentedEmpty', 'Title cannot be represented (empty or too long)'),
   reorder_children_local_only: t('sync_orderChangedOnlyDevice', 'Order changed only on this device; Know-N keeps its order'),
-  reorder_children_unmapped: t('sync_folderIsntLinkedKnow', "This folder isn't linked to Know-N yet, so the new order stays on this device"),
+  reorder_children_unmapped: t('sync_folderIsntLinkedKnow', "This folder isn't linked to your library yet, so the new order stays on this device"),
   reorder_children_excluded: t('sync_someSiblingBookmarksExcluded', 'Some sibling bookmarks are excluded, so the order change was not fully uploaded'),
-  reorder_uplink_staged: t('sync_orderChangeScheduledUpload', 'Order change is scheduled to upload (it will sync to Know-N)'),
+  reorder_uplink_staged: t('sync_orderChangeScheduledUpload', 'Order change is scheduled to upload (it will sync to your library)'),
 };
 });
 

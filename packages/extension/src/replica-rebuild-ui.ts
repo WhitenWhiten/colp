@@ -9,8 +9,8 @@ localized(() => {
   REBUILD_CANCEL_LABEL = t('common_cancel', 'Cancel');
 });
 export function replicaRebuildConfirmation(queuedOperations: number): string {
-  if (queuedOperations === 0) return t('sync_rebuildConfirm', "Your bookmarks stay on this device and in Know-N. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?");
-  return t('sync_rebuildConfirmSetAside', "Your bookmarks stay on this device and in Know-N. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?",
+  if (queuedOperations === 0) return t('sync_rebuildConfirm', "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?");
+  return t('sync_rebuildConfirmSetAside', "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?",
     tn('sync_rebuildSetAside', queuedOperations, '$1 change that has not synced yet will be set aside and not retried.', '$1 changes that have not synced yet will be set aside and not retried.'));
 }
 

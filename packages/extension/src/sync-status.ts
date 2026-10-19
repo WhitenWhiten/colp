@@ -15,7 +15,7 @@ export function projectSyncStatus(kind: SyncStatusKind): SyncStatus {
   const labels: Record<SyncStatusKind, string> = {
     'signed-out': t('sync_notSignedIn', 'Not signed in'),
     'saved-locally': t('save_savedBrowser', 'Saved to this browser'),
-    'local-only': t('sync_stayLocal', 'No Know-N sync'),
+    'local-only': t('sync_stayLocal', 'This browser only'),
     'setup-required': t('sync_notSynced', 'Sync is off'),
     paused: t('sync_personalPaused', 'Sync is paused'),
     syncing: t('common_syncing', 'Syncing'), synced: t('common_synced', 'Synced'),

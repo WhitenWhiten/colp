@@ -5572,8 +5572,8 @@
     "description": "Allow bookmark access, then choose which folders to sync."
   },
   "firstRun_remoteOnlyItems_other": {
-    "message": "$1 个项目仅在 Know-N 中",
-    "description": "$1 items only in Know-N"
+    "message": "$1 个项目仅在你的书签库中",
+    "description": "$1 items only in your library"
   },
   "firstRun_reviewConfirmChangeList": {
     "message": "请先查看并确认更改列表。",
@@ -5620,8 +5620,8 @@
     "description": "Sync is still running in the background. Please refresh or check again."
   },
   "firstRun_syncedFoldersItemsExist": {
-    "message": "已列出同步文件夹中仅存在于 Know-N 的项目。确认后，它们会移入 Know-N 的回收站。",
-    "description": "In the synced folders, items that exist only in Know-N are listed. After you confirm, they move to Know-N's trash."
+    "message": "已列出同步文件夹中仅存在于你的书签库的项目。确认后，它们会移入书签库的回收站。",
+    "description": "In the synced folders, items that exist only in your library are listed. After you confirm, they move to your library's trash."
   },
   "firstRun_syncedFoldersItemsExist2": {
     "message": "已列出同步文件夹中仅存在于此浏览器的项目。确认后，它们会从此浏览器中移除。",
@@ -6352,16 +6352,16 @@
     "description": "Show in folder"
   },
   "manager_stayLocalNotSynced": {
-    "message": "不与 Know-N 同步",
-    "description": "No Know-N sync"
+    "message": "不在同步文件夹中 · 仅保留在此浏览器",
+    "description": "Not in a synced folder · stays on this browser"
   },
   "manager_synced": {
     "message": "已同步",
     "description": "Synced"
   },
   "manager_syncedFolderSyncedKnow": {
-    "message": "位于同步文件夹中 · 已与 Know-N 同步",
-    "description": "In a synced folder · synced with Know-N"
+    "message": "位于同步文件夹中 · 已与你的书签库同步",
+    "description": "In a synced folder · synced with your library"
   },
   "manager_tagAction": {
     "message": "标签…",
@@ -6484,8 +6484,8 @@
     "description": "Your draft is saved in this browser. Save to review both versions and choose which note to keep."
   },
   "metadata_noteUnsupported": {
-    "message": "备注已保存在此浏览器。请在 Know-N 中核对云端备注；其格式或大小无法在此同步。",
-    "description": "Your note is saved in this browser. Review the cloud note in Know-N; its format or size cannot be synced here."
+    "message": "备注已保存在此浏览器。请在网页上的书签库中核对备注；其格式或大小无法在此同步。",
+    "description": "Your note is saved in this browser. Review the note in your library on the web; its format or size cannot be synced here."
   },
   "metadata_reviewTitle": {
     "message": "核对两个版本",
@@ -6572,8 +6572,8 @@
     "description": "Don't place this cloud item on this device"
   },
   "nativeWait_dontPlaceCloudItem2": {
-    "message": "不将此云端项目放置到此设备？该云端书签会保留在你的书签库中，但不会添加到此浏览器。如需稍后同步，请在 Know-N 中编辑该书签。",
-    "description": "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."
+    "message": "不将此云端项目放置到此设备？该云端书签会保留在你的书签库中，但不会添加到此浏览器。如需稍后同步，请在网页上的书签库中编辑该书签。",
+    "description": "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in your library on the web."
   },
   "nativeWait_extensionBackgroundTemporarilyUnavailable": {
     "message": "扩展程序后台暂时不可用，请重试。",
@@ -6704,8 +6704,8 @@
     "description": "Collections and digests you follow, kept up to date as read-only folders in this browser."
   },
   "options_collectionsSyncedFoldersConfirmations2": {
-    "message": "登录后可与 Know-N 同步并导入到你的书签库。保存、整理和导入 HTML 文件无需账号。",
-    "description": "Sign in to sync with Know-N and import into your library. Saving, organizing and HTML import work without an account."
+    "message": "登录后可同步并导入到你的书签库。保存、整理和导入 HTML 文件无需账号。",
+    "description": "Sign in to sync and import into your library. Saving, organizing and HTML import work without an account."
   },
   "options_completingSecureSign": {
     "message": "正在完成安全登录。",
@@ -7092,8 +7092,8 @@
     "description": "Saving all tabs will ask for tab access again. Saving the current page and existing bookmarks are unchanged."
   },
   "permissions_scopeHint": {
-    "message": "与 Know-N 的同步在“同步”页面设置。浏览器自带的账号同步与此无关。",
-    "description": "Sync with Know-N is set up under Sync. Your browser’s own account sync is separate."
+    "message": "与书签库的同步在“同步”页面设置。浏览器自带的账号同步与此无关。",
+    "description": "Syncing with your library is set up under Sync. Your browser’s own account sync is separate."
   },
   "permissions_tabs": {
     "message": "读取全部标签页",
@@ -8048,8 +8048,8 @@
     "description": "Your account has different saving defaults from this browser."
   },
   "shell_accountSignedOutLede": {
-    "message": "保存、整理和备份无需账号。登录后可在所有设备上与 Know-N 同步。",
-    "description": "Saving, organizing and backups work without an account. Sign in to sync with Know-N on every device."
+    "message": "保存、整理和备份无需账号。登录后可在所有设备上同步你的书签库。",
+    "description": "Saving, organizing and backups work without an account. Sign in to sync your library on every device."
   },
   "shell_aiLede": {
     "message": "可选功能。对没有规则匹配的网页，AI 会挑选文件夹，并可建议或添加标签。自动模式下它会把网页放进那个文件夹；手动模式下它只在表单中给出建议。",
@@ -9680,8 +9680,8 @@
     "description": "$1 is highlighted. Check it to include it in sync, then review your changes."
   },
   "sync_folderIsntLinkedKnow": {
-    "message": "此文件夹尚未关联到 Know-N，因此新顺序仅保留在此设备上",
-    "description": "This folder isn't linked to Know-N yet, so the new order stays on this device"
+    "message": "此文件夹尚未关联到你的书签库，因此新顺序仅保留在此设备上",
+    "description": "This folder isn't linked to your library yet, so the new order stays on this device"
   },
   "sync_folderIsntSynced": {
     "message": "位于未同步的文件夹中",
@@ -9796,8 +9796,8 @@
     "description": "$1 cloud items are waiting for your decision."
   },
   "sync_insideNoKnowNSyncFolder": {
-    "message": "位于已排除在 Know-N 同步范围之外的文件夹中",
-    "description": "Inside a folder excluded from Know-N sync"
+    "message": "位于已排除在同步范围之外的文件夹中",
+    "description": "Inside a folder excluded from sync"
   },
   "sync_invert": {
     "message": "反选",
@@ -9896,8 +9896,8 @@
     "description": "Open Sync center on the web"
   },
   "sync_orderChangeScheduledUpload": {
-    "message": "顺序更改已安排上传（将同步到 Know-N）",
-    "description": "Order change is scheduled to upload (it will sync to Know-N)"
+    "message": "顺序更改已安排上传（将同步到你的书签库）",
+    "description": "Order change is scheduled to upload (it will sync to your library)"
   },
   "sync_orderChangedOnlyDevice": {
     "message": "顺序仅在此设备上更改，Know-N 保持其原有顺序",
@@ -9992,20 +9992,20 @@
     "description": "$1 moved out of your synced folders ($2)."
   },
   "sync_rangeStops": {
-    "message": "$1 将停止同步（$2）。书签会保留在此浏览器和 Know-N 中。",
-    "description": "$1 will stop syncing ($2). Bookmarks stay in this browser and in Know-N."
+    "message": "$1 将停止同步（$2）。书签会保留在此浏览器和你的书签库中。",
+    "description": "$1 will stop syncing ($2). Bookmarks stay in this browser and in your library."
   },
   "sync_rangeTotalsChanges": {
     "message": "$1 $2。",
     "description": "$1 $2."
   },
   "sync_rebuildConfirm": {
-    "message": "你的书签会保留在此设备和 Know-N 中。之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
-    "description": "Your bookmarks stay on this device and in Know-N. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+    "message": "你的书签会保留在此设备和你的书签库中。之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
+    "description": "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
   "sync_rebuildConfirmSetAside": {
-    "message": "你的书签会保留在此设备和 Know-N 中。$1之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
-    "description": "Your bookmarks stay on this device and in Know-N. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+    "message": "你的书签会保留在此设备和你的书签库中。$1之后你需要重新选择要同步的文件夹，并再次查看合并结果。现在重置同步吗？",
+    "description": "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
   "sync_rebuildNoLongerAvailable": {
     "message": "同步状态已变化。请刷新“状态”查看当前可用的操作（$1）。",
@@ -10088,8 +10088,8 @@
     "description": "Some sibling bookmarks are excluded, so the order change was not fully uploaded"
   },
   "sync_stayLocal": {
-    "message": "不与 Know-N 同步",
-    "description": "No Know-N sync"
+    "message": "仅此浏览器",
+    "description": "This browser only"
   },
   "sync_stopSyncing": {
     "message": "停止同步",
@@ -10108,8 +10108,8 @@
     "description": "Sync on this device has stopped: the transfer size exceeds supported limits. Retrying will not change the result."
   },
   "sync_syncDeviceHasStopped3": {
-    "message": "此设备上的同步已停止，因为此设备上缺少部分书签。你在 Know-N 中的书签是安全的。请重置此设备上的同步以继续。",
-    "description": "Sync on this device has stopped because some bookmarks on this device are missing. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
+    "message": "此设备上的同步已停止，因为此设备上缺少部分书签。你书签库中的书签是安全的。请重置此设备上的同步以继续。",
+    "description": "Sync on this device has stopped because some bookmarks on this device are missing. The bookmarks in your library are safe. Reset sync on this device to continue."
   },
   "sync_syncDeviceHasStopped4": {
     "message": "此设备上的同步已停止：此设备无法确认要删除的书签与云端项目一致。",
@@ -10168,8 +10168,8 @@
     "description": "Title cannot be represented (empty or too long)"
   },
   "sync_tooManyItemsSetAside": {
-    "message": "此设备上的同步已停止：它搁置的项目过多，无法继续安全同步。你在 Know-N 中的书签是安全的。请重置此设备上的同步以继续。",
-    "description": "Sync on this device has stopped: it set aside too many items to keep syncing safely. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
+    "message": "此设备上的同步已停止：它搁置的项目过多，无法继续安全同步。你书签库中的书签是安全的。请重置此设备上的同步以继续。",
+    "description": "Sync on this device has stopped: it set aside too many items to keep syncing safely. The bookmarks in your library are safe. Reset sync on this device to continue."
   },
   "sync_urlCannotRepresentedMissing": {
     "message": "此网址无法同步（格式无效、不允许的协议或过长）",
@@ -10180,8 +10180,8 @@
     "description": "Use existing"
   },
   "sync_waitSummary_other": {
-    "message": "来自 Know-N 的 $1 个书签需要你决定后才会添加到这里。",
-    "description": "$1 bookmarks from Know-N need your decision before they’re added here."
+    "message": "来自你书签库的 $1 个书签需要你决定后才会添加到这里。",
+    "description": "$1 bookmarks from your library need your decision before they’re added here."
   },
   "sync_waitingForYou": {
     "message": "等你处理",

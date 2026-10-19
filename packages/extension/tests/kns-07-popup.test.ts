@@ -93,7 +93,7 @@ describe('KNS-07 popup save status selector', () => {
       firstRunIncomplete: true, hasAuthoritativeReceipt: true, hasApplyEvidence: true,
     })), "setup-required");
     assert.notEqual(projectSaveStatus(baseFacts({ inSyncRange: false })), "synced");
-    assert.equal(FIRST_RUN_LOCAL_ONLY, 'No Know-N sync');
+    assert.equal(FIRST_RUN_LOCAL_ONLY, 'This browser only');
     assert.equal(FIRST_RUN_UNSYNCED, 'Sync is off');
   });
 

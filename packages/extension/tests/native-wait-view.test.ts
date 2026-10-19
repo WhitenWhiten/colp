@@ -30,7 +30,7 @@ test('nothing waiting hides the group and its summary; waiting items raise both'
   await mount(() => ({ ok: true, waits: [wait(1), wait(2, { candidates: [] })] }));
   expect(group().hidden).toBe(false);
   expect(document.getElementById('sync-summary')!.hidden).toBe(false);
-  expect(document.getElementById('sync-summary-copy')!.textContent).toBe('2 bookmarks from Know-N need your decision before they’re added here.');
+  expect(document.getElementById('sync-summary-copy')!.textContent).toBe('2 bookmarks from your library need your decision before they’re added here.');
   expect(rows()).toHaveLength(2);
 });
 

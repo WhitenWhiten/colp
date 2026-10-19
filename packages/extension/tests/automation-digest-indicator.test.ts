@@ -75,8 +75,8 @@ describe('the popup line', () => {
       { fetchedAt: NOW - 2 * 3_600_000, problem: 'offline' }), WEB)!;
     note.set('digest', digestLine(stale));
     expect(host.textContent).toBe('2 new digests · as of 2 hours ago · Open Digests');
-    note.set('dest', 'No Know-N sync');
-    expect(host.textContent).toBe('No Know-N sync');
+    note.set('dest', 'This browser only');
+    expect(host.textContent).toBe('This browser only');
     note.set('dest', undefined);
     expect(note.current()).toBe('digest');
   });

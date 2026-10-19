@@ -4374,10 +4374,10 @@
     "message": "Allow bookmark access, then choose which folders to sync."
   },
   "firstRun_remoteOnlyItems_one": {
-    "message": "$1 item only in Know-N"
+    "message": "$1 item only in your library"
   },
   "firstRun_remoteOnlyItems_other": {
-    "message": "$1 items only in Know-N"
+    "message": "$1 items only in your library"
   },
   "firstRun_reviewConfirmChangeList": {
     "message": "Review and confirm the change list first."
@@ -4413,7 +4413,7 @@
     "message": "Sync is still running in the background. Please refresh or check again."
   },
   "firstRun_syncedFoldersItemsExist": {
-    "message": "In the synced folders, items that exist only in Know-N are listed. After you confirm, they move to Know-N's trash."
+    "message": "In the synced folders, items that exist only in your library are listed. After you confirm, they move to your library's trash."
   },
   "firstRun_syncedFoldersItemsExist2": {
     "message": "In the synced folders, items that exist only in this browser are listed. After you confirm, they are removed from this browser."
@@ -4968,13 +4968,13 @@
     "message": "Show in folder"
   },
   "manager_stayLocalNotSynced": {
-    "message": "No Know-N sync"
+    "message": "Not in a synced folder · stays on this browser"
   },
   "manager_synced": {
     "message": "Synced"
   },
   "manager_syncedFolderSyncedKnow": {
-    "message": "In a synced folder · synced with Know-N"
+    "message": "In a synced folder · synced with your library"
   },
   "manager_tagAction": {
     "message": "Tag…"
@@ -5076,7 +5076,7 @@
     "message": "Your draft is saved in this browser. Save to review both versions and choose which note to keep."
   },
   "metadata_noteUnsupported": {
-    "message": "Your note is saved in this browser. Review the cloud note in Know-N; its format or size cannot be synced here."
+    "message": "Your note is saved in this browser. Review the note in your library on the web; its format or size cannot be synced here."
   },
   "metadata_reviewTitle": {
     "message": "Review both versions"
@@ -5142,7 +5142,7 @@
     "message": "Don't place this cloud item on this device"
   },
   "nativeWait_dontPlaceCloudItem2": {
-    "message": "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in Know-N."
+    "message": "Don't place this cloud item on this device? The cloud bookmark will stay in your library, but won't be added to this browser. To sync it later, edit the bookmark in your library on the web."
   },
   "nativeWait_extensionBackgroundTemporarilyUnavailable": {
     "message": "The extension background is temporarily unavailable. Try again."
@@ -5241,7 +5241,7 @@
     "message": "Collections and digests you follow, kept up to date as read-only folders in this browser."
   },
   "options_collectionsSyncedFoldersConfirmations2": {
-    "message": "Sign in to sync with Know-N and import into your library. Saving, organizing and HTML import work without an account."
+    "message": "Sign in to sync and import into your library. Saving, organizing and HTML import work without an account."
   },
   "options_completingSecureSign": {
     "message": "Completing secure sign-in."
@@ -5532,7 +5532,7 @@
     "message": "Saving all tabs will ask for tab access again. Saving the current page and existing bookmarks are unchanged."
   },
   "permissions_scopeHint": {
-    "message": "Sync with Know-N is set up under Sync. Your browser’s own account sync is separate."
+    "message": "Syncing with your library is set up under Sync. Your browser’s own account sync is separate."
   },
   "permissions_tabs": {
     "message": "Read all tabs"
@@ -6255,7 +6255,7 @@
     "message": "Your account has different saving defaults from this browser."
   },
   "shell_accountSignedOutLede": {
-    "message": "Saving, organizing and backups work without an account. Sign in to sync with Know-N on every device."
+    "message": "Saving, organizing and backups work without an account. Sign in to sync your library on every device."
   },
   "shell_aiLede": {
     "message": "Optional. AI picks a folder for a page no rule matched, and can suggest or add tags. In Automatic mode it files the page there; in Manual mode it only suggests, in the form."
@@ -7488,7 +7488,7 @@
     "message": "$1 is highlighted. Check it to include it in sync, then review your changes."
   },
   "sync_folderIsntLinkedKnow": {
-    "message": "This folder isn't linked to Know-N yet, so the new order stays on this device"
+    "message": "This folder isn't linked to your library yet, so the new order stays on this device"
   },
   "sync_folderIsntSynced": {
     "message": "In a folder that isn't synced"
@@ -7599,7 +7599,7 @@
     "message": "$1 cloud items are waiting for your decision."
   },
   "sync_insideNoKnowNSyncFolder": {
-    "message": "Inside a folder excluded from Know-N sync"
+    "message": "Inside a folder excluded from sync"
   },
   "sync_invert": {
     "message": "Invert"
@@ -7677,7 +7677,7 @@
     "message": "Open Sync center on the web"
   },
   "sync_orderChangeScheduledUpload": {
-    "message": "Order change is scheduled to upload (it will sync to Know-N)"
+    "message": "Order change is scheduled to upload (it will sync to your library)"
   },
   "sync_orderChangedOnlyDevice": {
     "message": "Order changed only on this device; Know-N keeps its order"
@@ -7749,16 +7749,16 @@
     "message": "$1 moved out of your synced folders ($2)."
   },
   "sync_rangeStops": {
-    "message": "$1 will stop syncing ($2). Bookmarks stay in this browser and in Know-N."
+    "message": "$1 will stop syncing ($2). Bookmarks stay in this browser and in your library."
   },
   "sync_rangeTotalsChanges": {
     "message": "$1 $2."
   },
   "sync_rebuildConfirm": {
-    "message": "Your bookmarks stay on this device and in Know-N. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+    "message": "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
   "sync_rebuildConfirmSetAside": {
-    "message": "Your bookmarks stay on this device and in Know-N. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
+    "message": "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
   "sync_rebuildNoLongerAvailable": {
     "message": "Sync state changed. Refresh Status to review the available actions ($1)."
@@ -7824,7 +7824,7 @@
     "message": "Some sibling bookmarks are excluded, so the order change was not fully uploaded"
   },
   "sync_stayLocal": {
-    "message": "No Know-N sync"
+    "message": "This browser only"
   },
   "sync_stopSyncing": {
     "message": "Stop syncing"
@@ -7839,7 +7839,7 @@
     "message": "Sync on this device has stopped: the transfer size exceeds supported limits. Retrying will not change the result."
   },
   "sync_syncDeviceHasStopped3": {
-    "message": "Sync on this device has stopped because some bookmarks on this device are missing. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
+    "message": "Sync on this device has stopped because some bookmarks on this device are missing. The bookmarks in your library are safe. Reset sync on this device to continue."
   },
   "sync_syncDeviceHasStopped4": {
     "message": "Sync on this device has stopped: this device cannot verify the bookmark to delete matches the cloud item."
@@ -7884,7 +7884,7 @@
     "message": "Title cannot be represented (empty or too long)"
   },
   "sync_tooManyItemsSetAside": {
-    "message": "Sync on this device has stopped: it set aside too many items to keep syncing safely. Your bookmarks in Know-N are safe. Reset sync on this device to continue."
+    "message": "Sync on this device has stopped: it set aside too many items to keep syncing safely. The bookmarks in your library are safe. Reset sync on this device to continue."
   },
   "sync_urlCannotRepresentedMissing": {
     "message": "URL cannot be synced (invalid format, disallowed scheme, or too long)"
@@ -7893,10 +7893,10 @@
     "message": "Use existing"
   },
   "sync_waitSummary_one": {
-    "message": "$1 bookmark from Know-N needs your decision before it’s added here."
+    "message": "$1 bookmark from your library needs your decision before it’s added here."
   },
   "sync_waitSummary_other": {
-    "message": "$1 bookmarks from Know-N need your decision before they’re added here."
+    "message": "$1 bookmarks from your library need your decision before they’re added here."
   },
   "sync_waitingForYou": {
     "message": "Waiting for you"

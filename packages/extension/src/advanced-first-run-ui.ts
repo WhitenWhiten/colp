@@ -20,7 +20,7 @@ export let ADVANCED_MODE_HINTS: Readonly<Record<AdvancedUiMode, string>>;
 localized(() => {
   ADVANCED_MODE_HINTS = Object.freeze({
   merge: t('firstRun_itemsBothSidesKept', 'Items on both sides are kept. Unmatched items are kept as two copies.'),
-  upload: t('firstRun_syncedFoldersItemsExist', "In the synced folders, items that exist only in Know-N are listed. After you confirm, they move to Know-N's trash."),
+  upload: t('firstRun_syncedFoldersItemsExist', "In the synced folders, items that exist only in your library are listed. After you confirm, they move to your library's trash."),
   download: t('firstRun_syncedFoldersItemsExist2', 'In the synced folders, items that exist only in this browser are listed. After you confirm, they are removed from this browser.'),
   'preview-only': t('firstRun_buildsMatchDeletionLists', 'Builds the match and deletion lists only. No run is created and nothing is applied.'),
 });
@@ -87,7 +87,7 @@ export function advancedPreviewSummary(report: {
 }): string {
   return t('firstRun_advancedSummary', '$1.', listCopy([tn('firstRun_matchedItems', report.matched, '$1 matched item', '$1 matched items'),
     tn('firstRun_localOnlyItems', report.localOnly, '$1 item only on this device', '$1 items only on this device'),
-    tn('firstRun_remoteOnlyItems', report.remoteOnly, '$1 item only in Know-N', '$1 items only in Know-N'),
+    tn('firstRun_remoteOnlyItems', report.remoteOnly, '$1 item only in your library', '$1 items only in your library'),
     tn('firstRun_duplicateCandidates', report.candidates, '$1 duplicate candidate', '$1 duplicate candidates'),
     tn('firstRun_conflicts', report.conflicts, '$1 conflict', '$1 conflicts')]));
 }

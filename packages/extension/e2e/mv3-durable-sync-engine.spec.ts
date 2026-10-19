@@ -208,7 +208,7 @@ for (const code of ['pull_apply_target_missing', 'payload_too_large']) {
       await expect(button).toBeVisible();
       await button.click();
       const confirmation = page.locator('.rebuild-confirm');
-      await expect(confirmation).toContainText('Your bookmarks stay on this device and in Know-N');
+      await expect(confirmation).toContainText('Your bookmarks stay on this device and in your library');
       await Promise.all([page.waitForEvent('domcontentloaded', { timeout: 30_000 }),
         confirmation.getByRole('button', { name: 'Reset sync', exact: true }).click()]);
       await expect.poll(async () => page.evaluate(async () =>

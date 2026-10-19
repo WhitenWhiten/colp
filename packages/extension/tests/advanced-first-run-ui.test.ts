@@ -62,9 +62,9 @@ describe('advanced first-run UI contract', () => {
 
   test('formats preview summary with noun units and proper pluralization (UX-54)', () => {
     const plural = advancedPreviewSummary({ matched: 12, localOnly: 3, remoteOnly: 5, candidates: 2, conflicts: 4 });
-    assert.equal(plural, '12 matched items, 3 items only on this device, 5 items only in Know-N, 2 duplicate candidates, 4 conflicts.');
+    assert.equal(plural, '12 matched items, 3 items only on this device, 5 items only in your library, 2 duplicate candidates, 4 conflicts.');
     const singular = advancedPreviewSummary({ matched: 1, localOnly: 1, remoteOnly: 1, candidates: 1, conflicts: 1 });
-    assert.equal(singular, '1 matched item, 1 item only on this device, 1 item only in Know-N, 1 duplicate candidate, 1 conflict.');
+    assert.equal(singular, '1 matched item, 1 item only on this device, 1 item only in your library, 1 duplicate candidate, 1 conflict.');
   });
 
   test('message validator accepts only complete, mode-bound advanced confirmations', () => {

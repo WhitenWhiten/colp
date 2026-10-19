@@ -144,7 +144,7 @@ export function bindRangeAdjustment(host: {
       const copy = document.createElement('span');
       copy.textContent = shift
         ? t('sync_rangeShifted', '$1 moved out of your synced folders ($2).', row.title || t('sync_folder', 'Folder'), tn('common_items', row.affectedCount, '$1 item', '$1 items'))
-        : t('sync_rangeStops', '$1 will stop syncing ($2). Bookmarks stay in this browser and in Know-N.', row.title || t('sync_folder', 'Folder'), tn('common_items', row.affectedCount, '$1 item', '$1 items'));
+        : t('sync_rangeStops', '$1 will stop syncing ($2). Bookmarks stay in this browser and in your library.', row.title || t('sync_folder', 'Folder'), tn('common_items', row.affectedCount, '$1 item', '$1 items'));
       item.append(copy);
       if (shift) {
         const select = document.createElement('select');

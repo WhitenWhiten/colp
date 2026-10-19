@@ -148,10 +148,10 @@ export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode): strin
     return t('sync_syncDeviceHasStopped2', 'Sync on this device has stopped: the transfer size exceeds supported limits. Retrying will not change the result.');
   }
   if (code === 'pull_issue_ceiling' || code === 'sync_issue_ceiling') {
-    return t('sync_tooManyItemsSetAside', 'Sync on this device has stopped: it set aside too many items to keep syncing safely. Your bookmarks in Know-N are safe. Reset sync on this device to continue.');
+    return t('sync_tooManyItemsSetAside', 'Sync on this device has stopped: it set aside too many items to keep syncing safely. The bookmarks in your library are safe. Reset sync on this device to continue.');
   }
   if (needsReplicaRebuild(code)) {
-    return t('sync_syncDeviceHasStopped3', 'Sync on this device has stopped because some bookmarks on this device are missing. Your bookmarks in Know-N are safe. Reset sync on this device to continue.');
+    return t('sync_syncDeviceHasStopped3', 'Sync on this device has stopped because some bookmarks on this device are missing. The bookmarks in your library are safe. Reset sync on this device to continue.');
   }
   if (code === 'deletion_identity_unproven') {
     return t('sync_syncDeviceHasStopped4', 'Sync on this device has stopped: this device cannot verify the bookmark to delete matches the cloud item.');

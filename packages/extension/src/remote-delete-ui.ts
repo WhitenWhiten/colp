@@ -134,7 +134,7 @@ function renderItems(list: HTMLElement, items: readonly PublicRemoteDeleteItem[]
     more.addEventListener('click', () => {
       const rect = more.getBoundingClientRect();
       sharedManagerMenu().openAt(rect.right - 176, rect.bottom + 4, [{
-        label: t('sync_stayLocal', 'No Know-N sync'),
+        label: t('sync_stayLocal', 'This browser only'),
         run: () => { void flushPendingUndo().then(() => onDecide(item.decisionId, 'keep_local', item)); },
       }], more);
     });
