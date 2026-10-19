@@ -1570,7 +1570,7 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 /* Rules file (doc 17 §5.3): one quiet row closing the browser's rules, and the import dialog's folder choices. */
 /* Risk alerts (risk-pane.ts): the mode, the lists with how fresh each is, the exceptions. */
 .risk-body { display: grid; gap: var(--space-3); min-width: 0; }
-.risk-mode { padding: var(--space-3) var(--space-4); }
+.risk-mode { overflow: hidden; }
 .risk-list-items { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .risk-list-items > li + li { border-top: 1px solid var(--line); }
 .risk-list-row .list-row-meta { display: block; white-space: normal; }

@@ -70,6 +70,23 @@ export function emptyBlock(input: { readonly icon: IconName; readonly title: str
   return box;
 }
 
+/**
+ * A radio or a checkbox with its title and a muted line under it: the web's .option-row. Rows stack in an
+ * `.option-list`, a card on a page or one bordered group in a dialog, instead of side-by-side cards.
+ */
+export function optionRow(input: { readonly type: 'radio' | 'checkbox'; readonly name?: string; readonly value?: string; readonly checked: boolean;
+  readonly title: string; readonly hint?: string }): { readonly label: HTMLLabelElement; readonly input: HTMLInputElement } {
+  const label = el('label', undefined, 'option-row');
+  const box = el('input'); box.type = input.type; box.checked = input.checked;
+  if (input.name) box.name = input.name;
+  if (input.value) box.value = input.value;
+  const text = el('span', undefined, 'option-row-text');
+  text.append(el('span', input.title, 'option-row-title'));
+  if (input.hint) text.append(el('span', input.hint, 'option-row-hint'));
+  label.append(box, text);
+  return { label, input: box };
+}
+
 /** Neutral notice with a toned rule, an icon and an optional ghost action. */
 export function inlineAlert(tone: 'warning' | 'danger' | 'info' | 'success', text: string, action?: HTMLElement): HTMLElement {
   const box = el('div', undefined, 'inline-alert');

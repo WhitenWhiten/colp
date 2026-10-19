@@ -598,6 +598,19 @@ button.chip:hover { border-color: var(--line-heavy); background: var(--paper); c
 .choice input { margin-top: 0.15rem; accent-color: var(--ink); }
 .choice-title { color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
 .choice-hint { grid-column: 2; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+/* Option rows (library-dom.ts optionRow): a radio or checkbox, its title and a muted line, the web's
+   .option-row. For choices whose words need room; the cards above stay for two short ones with art. */
+.option-list { display: grid; min-width: 0; margin: 0; padding: 0; }
+.option-list--boxed { border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-raised); overflow: hidden; }
+.option-row { display: grid; grid-template-columns: 1rem minmax(0, 1fr); align-items: start; gap: var(--hair-65); padding: var(--hair-65) var(--space-3); cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-quart); }
+.option-row + .option-row { border-top: 1px solid var(--line); }
+.option-row:hover { background: color-mix(in srgb, var(--paper) 60%, var(--surface-raised)); }
+.option-row > input { width: 1rem; height: 1rem; margin: 0.1rem 0 0; accent-color: var(--ink); }
+.option-row-text { display: grid; gap: var(--hair-15); min-width: 0; }
+.option-row-title { color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-ui); }
+.option-row-hint { color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); text-wrap: pretty; }
+.set-card.option-list > .option-row { padding: var(--hair-85) var(--space-4); }
 .art-frame { fill: var(--surface-raised); stroke: var(--line-heavy); stroke-width: 1; }
 .art-line { fill: var(--line-strong); }
 .art-panel { fill: var(--surface-raised); stroke: var(--line-heavy); }

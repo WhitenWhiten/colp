@@ -5,7 +5,7 @@ import type { FailureCode } from '../automation/subscription-store.js';
 import { createDialog, dialogButton } from '../dialog.js';
 import { createIcon } from '../icons.js';
 import { relativeText, t, tn } from '../i18n.js';
-import { button, el, grouped, iconButton, selectOf } from '../library-dom.js';
+import { button, el, grouped, iconButton, optionRow, selectOf } from '../library-dom.js';
 import { showToast } from '../toast.js';
 import type { RiskCommand, RiskExceptionView, RiskListView, RiskResponse, RiskStateView } from './risk-messages.js';
 import { BROWSE_PERMISSIONS, type RiskMode } from './risk-settings.js';
@@ -133,14 +133,13 @@ export function openRiskSubscribe(trigger?: HTMLElement | null): void {
   document.body.append(dialog); dialog.showModal(); input.focus();
 }
 
+/** Off, on saves, or on saves and while browsing: three rows in one card, each saying what it does. */
 function modeField(mode: RiskMode, change: (mode: RiskMode) => void): HTMLElement {
   const group = `risk-mode-${crypto.randomUUID()}`;
-  const choices = el('div', undefined, 'choice-pair'); choices.setAttribute('role', 'radiogroup'); choices.setAttribute('aria-label', t('risk_modeLabel', 'Warn me'));
+  const choices = el('div', undefined, 'set-card option-list risk-mode'); choices.setAttribute('role', 'radiogroup'); choices.setAttribute('aria-label', t('risk_modeLabel', 'Warn me'));
   const option = (value: RiskMode, title: string, hint: string) => {
-    const label = el('label', undefined, 'choice');
-    const input = el('input'); input.type = 'radio'; input.name = group; input.value = value; input.checked = value === mode;
+    const { label, input } = optionRow({ type: 'radio', name: group, value, checked: value === mode, title, hint });
     input.addEventListener('change', () => { if (input.checked) change(value); });
-    label.append(input, el('span', title, 'choice-title'), el('span', hint, 'choice-hint'));
     return label;
   };
   choices.append(option('off', t('risk_modeOff', 'Off'), t('risk_modeOffHint', 'No lists are checked and none are fetched by themselves.')),
@@ -163,16 +162,19 @@ function listRow(view: RiskListView): HTMLLIElement {
   if (status.tone) words.dataset.tone = status.tone;
   meta.append(`${view.publisher?.name ?? site(view.url)} · `, words);
   main.append(title, meta);
+  // Its actions show on hover and focus, as a rule's do; how it stands stays in its line.
   const tail = el('div', undefined, 'list-row-tail');
+  const actions = el('span', undefined, 'row-actions-hover');
   // Opened only when clicked: nothing is sent to the publisher by this browser (RS-15.4).
   const feedback = view.publisher?.feedbackUrl;
   if (feedback) {
     const link = el('a', t('risk_reportMistake', 'Report a mistake'), 'btn btn-ghost btn-sm'); link.href = feedback; link.target = '_blank'; link.rel = 'noreferrer';
-    tail.append(link);
+    actions.append(link);
   }
   const refresh = iconButton('refresh', t('automation_subRefresh', 'Refresh now'), () => refreshNow(view, refresh));
   const remove = iconButton('trash', t('risk_remove', 'Remove list'), () => confirmRemove(view, remove));
-  tail.append(refresh, remove);
+  actions.append(refresh, remove);
+  tail.append(actions);
   row.append(tile, main, tail);
   node.append(row);
   return node;
@@ -192,16 +194,15 @@ function exceptionRow(item: RiskExceptionView, reload: () => void): HTMLLIElemen
       reload();
     });
   });
-  const tail = el('div', undefined, 'list-row-tail'); tail.append(remove);
+  const tail = el('div', undefined, 'list-row-tail'); const actions = el('span', undefined, 'row-actions-hover'); actions.append(remove); tail.append(actions);
   row.append(main, tail);
   node.append(row);
   return node;
 }
 
 export function riskBody(state: RiskStateView, reload: () => void): HTMLElement[] {
-  const mode = el('div', undefined, 'set-card risk-mode');
   const send = (next: RiskMode) => sendRiskCommand({ kind: 'known.risk.mode', mode: next });
-  mode.append(modeField(state.mode, (next) => {
+  const mode = modeField(state.mode, (next) => {
     if (next === 'onSaveAndBrowse') {
       // Asked in the switch, before anything is awaited (RS-16.3); without them alerts stay on for saves.
       void chrome.permissions.request({ permissions: BROWSE_PERMISSIONS }).catch(() => false).then(async (granted) => {
@@ -218,7 +219,7 @@ export function riskBody(state: RiskStateView, reload: () => void): HTMLElement[
       showToast(next === 'off' ? t('risk_modeTurnedOff', 'Risk alerts are off.') : t('risk_modeTurnedOn', 'The popup now warns when a page you save is on one of your lists.'), 'ok', { announce: true });
       reload();
     });
-  }));
+  });
   const lists = el('div', undefined, 'set-card risk-lists');
   const head = el('div', undefined, 'set-row');
   const words = el('div', undefined, 'set-row-text');
@@ -250,8 +251,9 @@ export function createRiskPane(): RiskPane {
   section.id = 'automation-risk'; section.setAttribute('aria-labelledby', 'automation-risk-heading');
   const head = el('div', undefined, 'set-group-head');
   const title = el('h2', t('risk_title', 'Risk alerts')); title.id = 'automation-risk-heading';
-  head.append(title, el('p', t('risk_lede', 'Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes.'), 'detail'),
-    el('p', t('risk_absence', 'Absence from a list means nothing either way: a page on no list gets no notice, good or bad.'), 'detail risk-absence'));
+  // One paragraph: what it does, then what a page on no list means.
+  head.append(title, el('p', `${t('risk_lede', 'Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes.')} ${
+    t('risk_absence', 'Absence from a list means nothing either way: a page on no list gets no notice, good or bad.')}`, 'detail'));
   const body = el('div', undefined, 'risk-body');
   section.append(head, body);
   let active = false, turn = 0, revealed = false;
