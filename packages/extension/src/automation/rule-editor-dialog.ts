@@ -129,7 +129,8 @@ export function openRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLEleme
     };
     sites.addEventListener('change', () => { input.value = sites.value; error.hidden = true; listError.hidden = true; });
     select.addEventListener('change', showSites);
-    element.append(select, input, sites, remove, help, error);
+    // Without collections there is nothing to pick, so the row keeps its one select.
+    element.append(select, input, ...(collections.length ? [sites] : []), remove, help, error);
     showSites();
     const host = () => {
       const raw = input.value.trim();
