@@ -271,7 +271,9 @@ body[data-capture-error] .pp-page, body[data-capture-error] #pp-fields { display
 .risk-notice-body { flex: 1 1 12rem; min-width: 0; display: grid; gap: var(--hair-40); }
 .risk-notice-body > p, .risk-notice-matches { margin: 0; }
 .risk-notice-title { color: var(--ink); font-weight: var(--weight-medium); }
-.risk-notice-matches { display: grid; gap: var(--hair-20); padding: 0; list-style: none; overflow-wrap: anywhere; }
+.risk-notice-matches { display: grid; gap: var(--hair-40); padding: 0; list-style: none; color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); overflow-wrap: anywhere; }
+/* Each list that names the page on its own line, set off by a hairline when there are several. */
+.risk-notice-matches > li + li { padding-top: var(--hair-40); border-top: 1px solid var(--line); }
 .risk-notice-hint { color: var(--muted); font-size: var(--text-xs); }
 .risk-notice-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-heavy); text-underline-offset: 2px; }
 .risk-notice-link:hover { text-decoration-color: currentColor; }
