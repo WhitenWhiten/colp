@@ -1,5 +1,6 @@
 import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import type { DigestIndicator } from './digest-indicator.js';
+import type { RulesetProblem } from './ruleset-format.js';
 import type { DraftProblem, RuleDraft } from './rule-conditions.js';
 import type { RuleMatchView } from './rule-match.js';
 import type { LocalRule, LocalSet } from './rule-list-store.js';
@@ -67,6 +68,11 @@ export type BrowserRuleCommand =
   | { readonly kind: 'known.automation.browser.runApply'; readonly previewId: string }
   | { readonly kind: 'known.automation.browser.runUndo'; readonly runId: string }
   /** The list as a `known-rules-config/v1` file, and such a file back with a folder here for each of its folders (doc 17 §5.3). */
+  /** A `colp.ruleset/v1` file (doc 17 RS-02): checked, then added as a set with its roles bound here; and a set written out as one. */
+  | { readonly kind: 'known.automation.browser.import.check'; readonly text: string }
+  | { readonly kind: 'known.automation.browser.import'; readonly text: string; readonly bindings: Readonly<Record<string, string | null>> }
+  | { readonly kind: 'known.automation.browser.set.export'; readonly id: string }
+  | { readonly kind: 'known.automation.browser.set.bind'; readonly id: string; readonly bindings: Readonly<Record<string, string | null>> }
   | { readonly kind: 'known.automation.browser.config.export' }
   | { readonly kind: 'known.automation.browser.config.import'; readonly text: string; readonly folders: Readonly<Record<string, string | null>>;
     readonly replace: boolean }
@@ -87,18 +93,27 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   | { readonly ok: true; readonly preview: BrowserPreviewView }
   | { readonly ok: true; readonly run: BrowserRunPreviewView }
   | { readonly ok: true; readonly config: { readonly content: string; readonly filename: string } }
+  | { readonly ok: true; readonly ruleset: BrowserRulesetView }
   | { readonly ok: true; readonly imported: { readonly revision: number; readonly rules: number; readonly sets: number; readonly subscriptions: number;
     readonly skipped: number } }
   /** Apply: moved now; Undo: moved back. `skipped` were left alone, `missing` are gone. */
   | { readonly ok: true; readonly result: { readonly runId: string; readonly moved: number; readonly skipped: number; readonly missing: number } }
   /** `notSynced`: the folder is not in the synced collection; `signedOut`: there is no account to make it in. */
-  | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
+  | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[];
+    /** A rule-set file this build refuses: up to ten problems, each where it is in the file. */
+    readonly rulesetProblems?: readonly RulesetProblem[] };
 
 export type BrowserRunCommand = Extract<BrowserRuleCommand, { readonly kind: 'known.automation.browser.runPreview' | 'known.automation.browser.runApply'
   | 'known.automation.browser.runUndo' }>;
 const RUN_KINDS = new Set(['known.automation.browser.runPreview', 'known.automation.browser.runApply', 'known.automation.browser.runUndo']);
 /** Run once's commands go to their own worker module (sw/automation-run.ts). */
 export const isBrowserRunCommand = (command: BrowserRuleCommand): command is BrowserRunCommand => RUN_KINDS.has(command.kind);
+export type BrowserRulesetCommand = Extract<BrowserRuleCommand, { readonly kind: 'known.automation.browser.import.check' | 'known.automation.browser.import'
+  | 'known.automation.browser.set.export' | 'known.automation.browser.set.bind' }>;
+const RULESET_KINDS = new Set(['known.automation.browser.import.check', 'known.automation.browser.import', 'known.automation.browser.set.export',
+  'known.automation.browser.set.bind']);
+/** Rule-set files and their roles have their own worker module (sw/automation-ruleset.ts). */
+export const isBrowserRulesetCommand = (command: BrowserRuleCommand): command is BrowserRulesetCommand => RULESET_KINDS.has(command.kind);
 export type BrowserConfigCommand = Extract<BrowserRuleCommand, { readonly kind: 'known.automation.browser.config.export' | 'known.automation.browser.config.import' }>;
 /** So do configuration export and import (sw/automation-config.ts). */
 export const isBrowserConfigCommand = (command: BrowserRuleCommand): command is BrowserConfigCommand =>
@@ -163,6 +178,14 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
   }
   if (raw.kind === 'known.automation.browser.notice.dismiss') return keys === 1;
   if (raw.kind === 'known.automation.browser.config.export') return keys === 1;
+  const rulesetText = (value: unknown) => typeof value === 'string' && value.length > 0 && value.length <= 2 * 1024 * 1024;
+  if (raw.kind === 'known.automation.browser.import.check') return keys === 2 && rulesetText(raw.text);
+  const roleBindings = (bindings: unknown) => Boolean(bindings) && typeof bindings === 'object' && !Array.isArray(bindings)
+    && Object.keys(bindings as object).length <= 32 && Object.entries(bindings as Record<string, unknown>).every(([key, value]) => /^[A-Za-z0-9._-]{1,64}$/u.test(key)
+      && (value === null || typeof value === 'string' && /^[\w.-]{1,128}$/u.test(value)));
+  if (raw.kind === 'known.automation.browser.import') return keys === 3 && rulesetText(raw.text) && roleBindings(raw.bindings);
+  if (raw.kind === 'known.automation.browser.set.bind') return keys === 3 && id(raw.id) && roleBindings(raw.bindings);
+  if (raw.kind === 'known.automation.browser.set.export') return keys === 2 && id(raw.id);
   if (raw.kind === 'known.automation.browser.config.import') {
     const folders = raw.folders;
     return keys === 4 && typeof raw.text === 'string' && raw.text.length > 0 && raw.text.length <= 2 * 1024 * 1024 && typeof raw.replace === 'boolean'
@@ -229,6 +252,10 @@ export interface BrowserRuleView {
   /** Its folder here; null while bookmark access is off or once the folder is gone (`folderMissing`). */
   readonly folder: { readonly nativeId: string; readonly title: string; readonly path: readonly string[] } | null;
   readonly folderMissing: boolean;
+  /** An imported set's rule filing by its set's role (doc 17 RS-07): the role's description. */
+  readonly role?: string;
+  /** Its role has no folder here yet: a match is blocked until one is chosen (RS-02.3). */
+  readonly needsFolder?: boolean;
   /**
    * The account rule it overlaps (AW-69), when signed in with rules in force: the same rule (`duplicate`),
    * or one that takes some of its pages to another folder first (`conflict`). Null otherwise.
@@ -283,6 +310,24 @@ export interface BrowserPreviewView {
   readonly page?: BrowserPreviewPageView;
   readonly sample?: { readonly size: number; readonly rows: readonly BrowserPreviewSampleRow[];
     readonly broad: readonly (BrowserPreviewEntryView & { readonly shadows: number })[] };
+}
+
+/** A rule-set file as the import dialog shows it (doc 17 RS-02): what it adds, and what its rules would take of the recent bookmarks. */
+export interface BrowserRulesetView {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly publisher: string | null;
+  readonly license: string | null;
+  readonly roles: readonly { readonly key: string; readonly description: string; readonly rules: number }[];
+  /** Entries that become rules. */
+  readonly rules: number;
+  /** Entries with no role: matching data only, not added. */
+  readonly matchingOnly: number;
+  /** Site entries whose addresses are all revoked: they match nothing. */
+  readonly inactive: number;
+  /** Null without bookmark access. */
+  readonly sample: { readonly size: number; readonly limit: number; readonly matched: number; readonly byRole: readonly { readonly role: string; readonly count: number }[] } | null;
 }
 
 /** What Run once would do in one folder, before anything moves (doc 17 §6.4). */
@@ -341,6 +386,9 @@ export interface BrowserSetView {
   readonly origin: { readonly kind: 'custom' } | { readonly kind: 'import'; readonly sourceName: string; readonly sourceVersion: string;
     readonly publisher: string | null };
   readonly rules: readonly BrowserRuleView[];
+  /** An imported set's roles and the folder each is bound to here; empty for a set of the Owner's. */
+  readonly roles?: readonly { readonly key: string; readonly description: string;
+    readonly folder: { readonly nativeId: string; readonly title: string; readonly path: readonly string[] } | null }[];
 }
 
 export interface BrowserRuleOverlapView {

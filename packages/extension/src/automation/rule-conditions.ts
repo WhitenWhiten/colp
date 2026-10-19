@@ -77,13 +77,18 @@ export function fallbackName(conditions: readonly RuleCondition[]): string {
 export function ruleDefinition(name: string, combinator: 'all' | 'any', conditions: readonly RuleCondition[]): RuleDefinition {
   const items = conditions.filter((condition) => condition.value.trim() !== '').map(conditionPredicate);
   const [only] = items;
+  return definitionFor(name.trim() || fallbackName(conditions), items.length === 1 && only ? only : { kind: combinator, items });
+}
+
+/** The M1 placement definition around a match, whoever wrote it: the editor, or a rule set's entry (ruleset-format.ts). */
+export function definitionFor(name: string, match: Predicate): RuleDefinition {
   return {
     apiVersion: 'colp.automation/v1',
-    name: name.trim() || fallbackName(conditions),
+    name,
     roles: [{ key: DESTINATION_ROLE, kind: 'folder', required: true, description: 'Folder in this browser that matching pages are saved to' }],
     on: 'bookmark.intake',
     scope: {},
-    match: items.length === 1 && only ? only : { kind: combinator, items },
+    match,
     intake: { folderRole: DESTINATION_ROLE, constraint: 'withinSubtree', satisfies: ['classify.root'], onUnusableBinding: 'keepOriginalAndBlock',
       respectExplicitSelection: true },
     trigger: { mode: 'each' },

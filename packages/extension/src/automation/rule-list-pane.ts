@@ -10,6 +10,7 @@ import { sendRuleCommand as send } from './rule-command.js';
 import { openRuleEditor } from './rule-editor-dialog.js';
 import { confirmDeleteSet, openSetDialog } from './rule-set-dialog.js';
 import { openRunOnce } from './run-once-pane.js';
+import { exportSet, openRoleBindings, openRulesetImport } from './ruleset-pane.js';
 import { ruleConditions } from './status-ui.js';
 
 /**
@@ -242,6 +243,7 @@ function ruleRow(rule: BrowserRuleView, set: BrowserSetView | null, context: Con
   const meta = el('p', undefined, 'list-row-meta automation-recipe');
   meta.append(el('span', ruleConditions(rule.match), 'grow'), createIcon('arrow-right', 12));
   if (rule.keepHere) meta.append(el('span', t('automation_recipeKeep', 'kept where you save it'), 'automation-recipe-folder'));
+  else if (rule.needsFolder) meta.append(el('span', t('automation_recipeRoleUnbound', 'the set’s folder for “$1”, not chosen yet', rule.role ?? ''), 'automation-recipe-missing'));
   else if (rule.folder) {
     const folder = el('span', rule.folder.title, 'automation-recipe-folder'); folder.title = rule.folder.path.join(' › ');
     meta.append(createIcon('folder', 12), folder);
@@ -264,6 +266,10 @@ function ruleRow(rule: BrowserRuleView, set: BrowserSetView | null, context: Con
     const missing = badge(t('automation_browserFolderMissing', 'Folder missing'), 'warning');
     missing.title = t('automation_browserFolderMissingHint', 'Its folder was deleted. Edit the rule to choose another one.');
     tail.append(missing);
+  } else if (rule.needsFolder) {
+    const waiting = badge(t('automation_ruleNeedsFolder', 'Needs a folder'), 'warning');
+    waiting.title = t('automation_ruleNeedsFolderHint', 'Its set has no folder here for this kind of page yet. Choose the set’s folders to fix it.');
+    tail.append(waiting);
   } else if (!rule.enabled) tail.append(badge(t('automation_browserOff', 'Off')));
   else if (context.paused) tail.append(badge(t('automation_rulePaused', 'Paused')));
   else {
@@ -300,9 +306,11 @@ function setBlock(set: BrowserSetView, context: Context): HTMLLIElement {
   const addRule = iconButton('plus', t('automation_setAddRule', 'New rule in this set'), () => openRuleEditor(null, addRule, { sets: context.sets, into: set.id,
     account: false }));
   const rename = iconButton('pencil', t('automation_setRename', 'Rename set'), () => openSetDialog(set, rename));
+  const folders = set.roles?.length ? iconButton('folder', t('automation_setFolders', 'Choose the set’s folders'), () => openRoleBindings(set, folders!)) : null;
+  const download = iconButton('download', t('automation_setExport', 'Export set'), () => exportSet(set));
   const remove = iconButton('trash', t('automation_setDelete', 'Delete set'), () => confirmDeleteSet(set, remove));
-  actions.append(...moveButtons(context.list, set.id, null), addRule, rename,
-    iconButton('copy', t('automation_duplicateSet', 'Duplicate set'), () => duplicate('set', set.id, set.name)), remove);
+  actions.append(...moveButtons(context.list, set.id, null), addRule, rename, ...(folders ? [folders] : []),
+    iconButton('copy', t('automation_duplicateSet', 'Duplicate set'), () => duplicate('set', set.id, set.name)), download, remove);
   tail.append(actions);
   if (!set.enabled) tail.append(badge(t('automation_browserOff', 'Off')));
   head.append(grip, tile, main, tail, toggle(t('automation_setUse', 'Use the set “$1”', set.name), set.enabled,
@@ -374,7 +382,8 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
         : t('automation_listLede', 'Tried from the top, and the first that matches decides. They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins.'), 'detail'));
   const tools = el('div', undefined, 'automation-list-tools');
   const newSet = button(t('automation_newSet', 'New set'), 'btn btn-secondary btn-sm', () => openSetDialog(null, newSet));
-  tools.append(newSet);
+  const importSet = button(t('automation_importSet', 'Import set'), 'btn btn-secondary btn-sm', () => openRulesetImport(importSet)); importSet.dataset.importSet = '';
+  tools.append(newSet, importSet);
   if (list.entries.length) {
     // Run once sorts bookmarks already saved; it takes the list as it is, so it waits while the list is off.
     if (list.enabled && !paused) { const run = button(t('automation_runOnce', 'Run once'), 'btn btn-secondary btn-sm', () => openRunOnce(run)); run.dataset.runOnce = ''; tools.append(run); }

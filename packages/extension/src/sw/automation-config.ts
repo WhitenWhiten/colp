@@ -18,7 +18,8 @@ async function exportConfig(): Promise<BrowserRuleResponse> {
   return { ok: true, config: { content: `${JSON.stringify(config, null, 2)}\n`, filename: `known-rules-config-${day}.json` } };
 }
 
-async function ownFolder(nativeId: string): Promise<boolean> {
+/** A folder of the Owner's here: it exists, is a folder, and no bookmark subscription keeps it. */
+export async function ownFolder(nativeId: string): Promise<boolean> {
   const node = await nativeFolderLookup(nativeId);
   if (!node || node.url !== undefined) return false;
   try { await assertBookmarkFolderAllowed(nativeId); return !await isSubscriptionExcluded(nativeId); } catch { return false; }

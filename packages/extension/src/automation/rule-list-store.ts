@@ -490,6 +490,20 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         return { result: { ok: true, revision: list.revision + 1 }, entries: next, ...(replace ? { notice: 'dismiss' as const } : {}) };
       });
     },
+    /** An imported set's roles bound to folders here (RS-07): a role named with null is unbound; roles it does not have are ignored. */
+    bindRoles(setId: string, bindings: Readonly<Record<string, string | null>>, now: number): Promise<ListChangeResult> {
+      return update((list): Change<ListChangeResult> => {
+        const set = findSet(list, setId);
+        if (!set) return { result: { ok: false, error: 'notFound' } };
+        const next: Record<string, string> = { ...set.bindings };
+        for (const role of set.roles) {
+          if (!(role.key in bindings)) continue;
+          const folder = bindings[role.key];
+          if (folder) next[role.key] = folder; else delete next[role.key];
+        }
+        return { result: { ok: true, revision: list.revision + 1 }, entries: mapSet(list.entries, setId, (item) => ({ ...item, bindings: next, updatedAt: now })) };
+      });
+    },
     dismissOrderNotice(): Promise<boolean> {
       return update((list) => list.orderNotice ? { result: true, notice: 'dismiss' } : { result: false });
     },

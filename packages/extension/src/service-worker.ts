@@ -81,9 +81,10 @@ import { validLocalImportRequest } from './local-import/contracts.js';
 import { handleLocalImport, LOCAL_IMPORT_ALARM, wakeLocalImports } from './sw/local-import.js';
 import { exportLocalBackup, validBackupExportRequest } from './local-backup/export.js';
 import { handleSaveStatus } from './sw/save-status.js';
-import { isBrowserConfigCommand, isBrowserRunCommand, validAutomationRequest, validBrowserRuleCommand } from './automation/messages.js';
+import { isBrowserConfigCommand, isBrowserRulesetCommand, isBrowserRunCommand, validAutomationRequest, validBrowserRuleCommand } from './automation/messages.js';
 import { handleBrowserRuleCommand } from './sw/automation-browser.js';
 import { handleConfigCommand } from './sw/automation-config.js';
+import { handleRulesetCommand } from './sw/automation-ruleset.js';
 import { handleRunCommand } from './sw/automation-run.js';
 import { accountLink, AUTOMATION_ALARM, handleAutomationRequest, installAutomationRuntime, refreshAutomation } from './sw/automation.js';
 import { installObservedCreates, resumeObservedCreates } from './sw/automation-observed.js';
@@ -347,7 +348,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     // This browser's own rules are written from Options only.
     if (!trustedLifecyclePage(sender, chrome.runtime.id)) return false;
     void (isBrowserRunCommand(message) ? handleRunCommand(message) : isBrowserConfigCommand(message) ? handleConfigCommand(message)
-      : handleBrowserRuleCommand(message, accountLink))
+      : isBrowserRulesetCommand(message) ? handleRulesetCommand(message) : handleBrowserRuleCommand(message, accountLink))
       .then(respond, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }

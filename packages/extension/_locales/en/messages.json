@@ -584,6 +584,9 @@
   "automation_freshnessHintShort": {
     "message": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
+  "automation_importSet": {
+    "message": "Import set"
+  },
   "automation_inNoSet": {
     "message": "On its own"
   },
@@ -1028,6 +1031,9 @@
   "automation_recipeKeep": {
     "message": "kept where you save it"
   },
+  "automation_recipeRoleUnbound": {
+    "message": "the set’s folder for “$1”, not chosen yet"
+  },
   "automation_removeCondition": {
     "message": "Remove condition"
   },
@@ -1085,6 +1091,12 @@
   "automation_ruleNamePlaceholder": {
     "message": "Papers from arXiv"
   },
+  "automation_ruleNeedsFolder": {
+    "message": "Needs a folder"
+  },
+  "automation_ruleNeedsFolderHint": {
+    "message": "Its set has no folder here for this kind of page yet. Choose the set’s folders to fix it."
+  },
   "automation_ruleNeedsReview": {
     "message": "Rule “$1” needs a review on the web, so the page stayed where you saved it."
   },
@@ -1111,6 +1123,147 @@
   },
   "automation_rulesPausedLede": {
     "message": "Rules that file bookmarks come back here when you resume automations on the web."
+  },
+  "automation_rulesetAdd": {
+    "message": "Add set"
+  },
+  "automation_rulesetAddFailed": {
+    "message": "Couldn’t add this set. Try again."
+  },
+  "automation_rulesetAdded": {
+    "message": "Added “$1” at the end of your list."
+  },
+  "automation_rulesetBindFailed": {
+    "message": "Couldn’t save these folders. Try again."
+  },
+  "automation_rulesetBindHint": {
+    "message": "Each kind of page this set files goes to the folder you choose here."
+  },
+  "automation_rulesetBindTitle": {
+    "message": "Folders for “$1”"
+  },
+  "automation_rulesetBound": {
+    "message": "Saved the folders for “$1”."
+  },
+  "automation_rulesetCheckFailed": {
+    "message": "Couldn’t read this rule set. Try again."
+  },
+  "automation_rulesetDuplicate": {
+    "message": "Used twice"
+  },
+  "automation_rulesetExportFailed": {
+    "message": "Couldn’t export this set. Try again."
+  },
+  "automation_rulesetExported": {
+    "message": "Download started. Anyone can import this file as a set and choose their own folders."
+  },
+  "automation_rulesetFormat": {
+    "message": "This isn’t a colp.ruleset/v1 rule set."
+  },
+  "automation_rulesetImportTitle": {
+    "message": "Import “$1”"
+  },
+  "automation_rulesetInactive_one": {
+    "message": "$1 site has only retired addresses and matches nothing."
+  },
+  "automation_rulesetInactive_other": {
+    "message": "$1 sites have only retired addresses and match nothing."
+  },
+  "automation_rulesetInvalidHost": {
+    "message": "Not a site name"
+  },
+  "automation_rulesetInvalidMatch": {
+    "message": "These conditions can’t be checked here"
+  },
+  "automation_rulesetInvalidUrl": {
+    "message": "Not a web link"
+  },
+  "automation_rulesetJson": {
+    "message": "This file isn’t JSON."
+  },
+  "automation_rulesetLimit": {
+    "message": "With this set, this browser would pass its limit of 50 sets or 1,000 rules. Delete some first."
+  },
+  "automation_rulesetMatchingOnly_one": {
+    "message": "$1 entry has no folder role, so it isn’t added."
+  },
+  "automation_rulesetMatchingOnly_other": {
+    "message": "$1 entries have no folder role, so they aren’t added."
+  },
+  "automation_rulesetMore": {
+    "message": "Only the first 10 are shown."
+  },
+  "automation_rulesetOneOf": {
+    "message": "An entry needs a site or a match, not both"
+  },
+  "automation_rulesetPattern": {
+    "message": "Not a value this place allows"
+  },
+  "automation_rulesetRefused": {
+    "message": "Nothing was added. Every entry has to pass, so fix these in the file and try again:"
+  },
+  "automation_rulesetRefusedTitle": {
+    "message": "Can’t import “$1”"
+  },
+  "automation_rulesetRequired": {
+    "message": "Missing"
+  },
+  "automation_rulesetRoleKey": {
+    "message": "Role “$1”"
+  },
+  "automation_rulesetRolesHint": {
+    "message": "Choose a folder here for each kind of page it files. A role you leave without a folder waits: its rules don’t file anything until you choose one."
+  },
+  "automation_rulesetRules_one": {
+    "message": "$1 rule"
+  },
+  "automation_rulesetRules_other": {
+    "message": "$1 rules"
+  },
+  "automation_rulesetSampleNone": {
+    "message": "None of your last $1 bookmarks match its rules."
+  },
+  "automation_rulesetSampleRole_one": {
+    "message": "$2: $1 bookmark"
+  },
+  "automation_rulesetSampleRole_other": {
+    "message": "$2: $1 bookmarks"
+  },
+  "automation_rulesetSample_one": {
+    "message": "Its rules would file $1 of your last $2 bookmarks."
+  },
+  "automation_rulesetSample_other": {
+    "message": "Its rules would file $1 of your last $2 bookmarks."
+  },
+  "automation_rulesetTooLarge": {
+    "message": "This file is larger than 2 MB."
+  },
+  "automation_rulesetTooLong": {
+    "message": "Too long"
+  },
+  "automation_rulesetTooMany": {
+    "message": "More than the format allows"
+  },
+  "automation_rulesetType": {
+    "message": "The wrong kind of value"
+  },
+  "automation_rulesetUnknownKey": {
+    "message": "Not part of the format"
+  },
+  "automation_rulesetUnknownRole": {
+    "message": "No such role in this file"
+  },
+  "automation_rulesetUnknownSite": {
+    "message": "No such site in this file"
+  },
+  "automation_rulesetVersion": {
+    "message": "version $1"
+  },
+  "automation_rulesetWaiting_one": {
+    "message": "$1 role still needs a folder."
+  },
+  "automation_rulesetWaiting_other": {
+    "message": "$1 roles still need a folder."
   },
   "automation_runBlocked": {
     "message": "Blocked"
@@ -1429,6 +1582,12 @@
   },
   "automation_setEmpty": {
     "message": "No rules yet. Drag rules here, or add one."
+  },
+  "automation_setExport": {
+    "message": "Export set"
+  },
+  "automation_setFolders": {
+    "message": "Choose the set’s folders"
   },
   "automation_setGone": {
     "message": "This set was deleted meanwhile."

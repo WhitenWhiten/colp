@@ -340,3 +340,61 @@ describe('the rules file (doc 17 §5.3)', () => {
     expect(document.querySelector('dialog.automation-config-dialog')).toBeNull();
   });
 });
+
+describe('rule sets from a file (doc 17 RS-02)', () => {
+  const summary = { id: 'community-tech', name: 'Community technology sites', version: '2026.10.18-1', publisher: 'Example Collective', license: 'CC-BY-4.0',
+    roles: [{ key: 'papers', description: 'Academic papers', rules: 1 }, { key: 'code', description: 'Source code', rules: 1 }], rules: 2, matchingOnly: 1, inactive: 0,
+    sample: { size: 2_000, limit: 2_000, matched: 37, byRole: [{ role: 'papers', count: 30 }, { role: 'code', count: 7 }] } };
+  async function pick(content: string): Promise<void> {
+    document.querySelector<HTMLButtonElement>('[data-import-set]')!.click();
+    const input = document.querySelector<HTMLInputElement>('body > input[type="file"]')!;
+    Object.defineProperty(input, 'files', { configurable: true, value: [new File([content], 'community.json', { type: 'application/json' })] });
+    input.dispatchEvent(new Event('change'));
+  }
+
+  it('shows what the file adds, binds each role to a folder here, and adds the set', async () => {
+    reply = (message) => message.kind === 'known.automation.browser.import.check' ? { ok: true, ruleset: summary } : { ok: true, set: {} };
+    await render(standard());
+    await pick('{"format":"colp.ruleset/v1"}');
+    await vi.waitFor(() => expect(document.querySelector('dialog.automation-config-dialog')).not.toBeNull());
+    const dialog = document.querySelector<HTMLDialogElement>('dialog.automation-config-dialog')!;
+    expect(text(dialog.querySelector('h3'))).toBe('Import “Community technology sites”');
+    expect(text(dialog.querySelector('.automation-preview-verdict'))).toBe('2 rules · version 2026.10.18-1 · Example Collective · CC-BY-4.0');
+    expect(text(dialog.querySelector('.detail'))).toBe('Its rules would file 37 of your last 2000 bookmarks.');
+    expect(Array.from(dialog.querySelectorAll('.automation-run-folders li')).map((item) => text(item))).toEqual(['Academic papers: 30 bookmarks', 'Source code: 7 bookmarks']);
+    await vi.waitFor(() => expect(dialog.querySelectorAll('.folder-picker .folder-opt').length).toBeGreaterThan(0));
+    const first = dialog.querySelectorAll<HTMLElement>('.folder-picker')[0]!;
+    first.querySelector<HTMLButtonElement>('.folder-pill')!.click();
+    first.querySelector<HTMLElement>('.folder-opt[data-folder-id="f-papers"]')!.click();
+    dialog.querySelector<HTMLButtonElement>('.btn-primary')!.click();
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent).toEqual([{ kind: 'known.automation.browser.import.check', text: '{"format":"colp.ruleset/v1"}' },
+      { kind: 'known.automation.browser.import', text: '{"format":"colp.ruleset/v1"}', bindings: { papers: 'f-papers', code: null } }]);
+  });
+
+  it('answers a refused file with where each problem is', async () => {
+    reply = () => ({ ok: false, error: 'invalid', rulesetProblems: [{ pointer: '/entries/1/match', code: 'invalidMatch' }, { pointer: '/folder', code: 'unknownKey' }] });
+    await render(standard());
+    await pick('{}');
+    await vi.waitFor(() => expect(document.querySelector('dialog.automation-ruleset-problems')).not.toBeNull());
+    expect(Array.from(document.querySelectorAll('.automation-ruleset-problem-list li')).map((item) => text(item)))
+      .toEqual(['/entries/1/match These conditions can’t be checked here', '/folder Not part of the format']);
+  });
+
+  it('marks a rule whose role has no folder yet, and lets the set’s folders be chosen', async () => {
+    const waiting = rule('b', { role: 'Source code', needsFolder: true, folder: null, draft: null });
+    await render(view([set('s', [waiting], { origin: { kind: 'import', sourceName: 'Community technology sites', sourceVersion: '2026.10.18-1', publisher: null },
+      roles: [{ key: 'code', description: 'Source code', folder: null }] })]));
+    expect(text(row('b').querySelector('.automation-recipe'))).toContain('the set’s folder for “Source code”, not chosen yet');
+    expect(text(row('b').querySelector('.badge'))).toBe('Needs a folder');
+    expect(text(row('s').querySelector('.list-row-meta'))).toBe('1 rule · Imported from Community technology sites, version 2026.10.18-1');
+    row('s').querySelector<HTMLButtonElement>('button[aria-label="Choose the set’s folders"]')!.click();
+    const dialog = document.querySelector<HTMLDialogElement>('dialog.automation-config-dialog')!;
+    expect(text(dialog.querySelector('h3'))).toBe('Folders for “Set s”');
+    await vi.waitFor(() => expect(dialog.querySelectorAll('.folder-opt').length).toBeGreaterThan(0));
+    dialog.querySelector<HTMLButtonElement>('.folder-pill')!.click();
+    dialog.querySelector<HTMLElement>('.folder-opt[data-folder-id="f-papers"]')!.click();
+    dialog.querySelector<HTMLButtonElement>('.btn-primary')!.click();
+    await vi.waitFor(() => expect(sent).toEqual([{ kind: 'known.automation.browser.set.bind', id: 's', bindings: { code: 'f-papers' } }]));
+  });
+});

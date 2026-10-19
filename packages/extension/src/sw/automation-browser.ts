@@ -7,7 +7,7 @@ import { flattenList, type FlatItem } from '../automation/rule-list-flatten.js';
 import { createRuleListStore, individualRules, ruleFolderNativeId, type LocalRule, type LocalSet, type RuleListStore } from '../automation/rule-list-store.js';
 import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '../automation/browser-overlap.js';
 import type { AutomationPlacementView, BrowserListEntryView, BrowserListView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse,
-  BrowserRuleView, BrowserRunCommand, BrowserConfigCommand } from '../automation/messages.js';
+  BrowserRuleView, BrowserRunCommand, BrowserConfigCommand, BrowserRulesetCommand } from '../automation/messages.js';
 import { ruleMatchView } from '../automation/rule-match.js';
 import { PREVIEW_SAMPLE, previewList, type PreviewPage } from '../automation/rule-preview.js';
 import type { PreSaveInput } from '../automation/pre-save.js';
@@ -111,7 +111,7 @@ export interface AccountRuleForOverlap extends OverlapRule {
 /** How many of the most recently added bookmarks the overlap check replays (design 01 §7.5). */
 export const OVERLAP_SAMPLE = 2_000;
 
-async function recentPages(): Promise<Page[]> {
+export async function recentPages(): Promise<Page[]> {
   const nodes = await chrome.bookmarks.getRecent(OVERLAP_SAMPLE).catch(() => []);
   return nodes.filter((node) => typeof node.url === 'string').map((node) => ({ url: node.url!, title: node.title }));
 }
@@ -158,9 +158,13 @@ export async function browserListViews(context: AccountContext | null = null): P
     const url = canonical && context?.webUrl ? accountEditorUrl(context.webUrl, rule, canonical) : null;
     // The conditions as written are what the editor opens with; a rule an earlier build wrote without them only switches.
     const draft: RuleDraft | null = rule.conditions.length ? { name: rule.name, combinator: rule.combinator, conditions: rule.conditions, action: rule.action } : null;
+    // A role with no folder bound here is not a folder gone missing: the set's role is still to be chosen (RS-02.3).
+    const role = rule.action.kind === 'file' && 'role' in rule.action ? rule.action.role : null;
+    const needsFolder = role !== null && !folderNativeId;
     return { id: rule.id, name: rule.name, enabled: rule.enabled, active: stored.enabled && rule.enabled && (set?.enabled ?? true), setId: set?.id ?? null,
       match: rule.conditions.length ? { combinator: rule.combinator, conditions: rule.conditions } : ruleMatchView(rule.definition.match),
-      keepHere: rule.action.kind === 'keepHere', draft, folder, folderMissing: access && rule.action.kind !== 'keepHere' && !folder,
+      keepHere: rule.action.kind === 'keepHere', draft, folder, folderMissing: access && rule.action.kind !== 'keepHere' && !folder && !needsFolder,
+      ...(role !== null ? { role: set?.roles.find((item) => item.key === role)?.description ?? role, needsFolder } : {}),
       account: overlap, move: url ? { url } : null,
       // Signed out no account copy can arrive, so nothing is shown as waiting for one.
       localOnly: Boolean(context && folder && !set && !canonical), moving: Boolean(context) && rule.movingSince !== undefined,
@@ -170,7 +174,9 @@ export async function browserListViews(context: AccountContext | null = null): P
     if (entry.kind === 'rule') return { kind: 'rule', rule: await view(entry.rule, null) };
     if (entry.kind === 'subscription') return { kind: 'subscription', id: entry.subscriptionId, enabled: entry.enabled };
     const { set } = entry;
-    return { kind: 'set', set: { id: set.id, name: set.name, enabled: set.enabled, rules: await Promise.all(set.rules.map((rule) => view(rule, set))),
+    const roles = await Promise.all(set.roles.map(async (role) => ({ key: role.key, description: role.description,
+      folder: access && set.bindings[role.key] ? await folderView(set.bindings[role.key]!) : null })));
+    return { kind: 'set', set: { id: set.id, name: set.name, enabled: set.enabled, rules: await Promise.all(set.rules.map((rule) => view(rule, set))), roles,
       origin: set.origin.kind === 'custom' ? { kind: 'custom' } : { kind: 'import', sourceName: set.origin.sourceName,
         sourceVersion: set.origin.sourceVersion, publisher: set.origin.publisher } } };
   }));
@@ -221,7 +227,7 @@ export async function browserPlacementViews(): Promise<AutomationPlacementView[]
   });
 }
 
-export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleCommand, BrowserRunCommand | BrowserConfigCommand>,
+export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleCommand, BrowserRunCommand | BrowserConfigCommand | BrowserRulesetCommand>,
   link: () => Promise<AccountLink | null> = async () => null): Promise<BrowserRuleResponse> {
   const store = browserRuleStore(), now = Date.now();
   const rule = (value: LocalRule | null): BrowserRuleResponse => value ? { ok: true, rule: value } : { ok: false, error: 'notFound' };

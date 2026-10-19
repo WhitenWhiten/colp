@@ -743,6 +743,10 @@
     "message": "此浏览器每 5 分钟检查一次。你在网页上暂停后，下次检查时这里就会生效。",
     "description": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
+  "automation_importSet": {
+    "message": "导入规则集",
+    "description": "Import set"
+  },
   "automation_inNoSet": {
     "message": "单独放置",
     "description": "On its own"
@@ -1311,6 +1315,10 @@
     "message": "留在你保存的位置",
     "description": "kept where you save it"
   },
+  "automation_recipeRoleUnbound": {
+    "message": "规则集中“$1”对应的文件夹，尚未选择",
+    "description": "the set’s folder for “$1”, not chosen yet"
+  },
   "automation_removeCondition": {
     "message": "移除条件",
     "description": "Remove condition"
@@ -1387,6 +1395,14 @@
     "message": "来自 arXiv 的论文",
     "description": "Papers from arXiv"
   },
+  "automation_ruleNeedsFolder": {
+    "message": "需要文件夹",
+    "description": "Needs a folder"
+  },
+  "automation_ruleNeedsFolderHint": {
+    "message": "它所在的规则集还没有为这类页面选择这里的文件夹。请选择规则集的文件夹来解决。",
+    "description": "Its set has no folder here for this kind of page yet. Choose the set’s folders to fix it."
+  },
   "automation_ruleNeedsReview": {
     "message": "规则“$1”需要在网页上审核，书签留在你保存的位置。",
     "description": "Rule “$1” needs a review on the web, so the page stayed where you saved it."
@@ -1422,6 +1438,170 @@
   "automation_rulesPausedLede": {
     "message": "在网页上恢复自动化后，归档书签的规则会重新出现在这里。",
     "description": "Rules that file bookmarks come back here when you resume automations on the web."
+  },
+  "automation_rulesetAdd": {
+    "message": "添加规则集",
+    "description": "Add set"
+  },
+  "automation_rulesetAddFailed": {
+    "message": "无法添加这个规则集。请重试。",
+    "description": "Couldn’t add this set. Try again."
+  },
+  "automation_rulesetAdded": {
+    "message": "已将“$1”添加到列表末尾。",
+    "description": "Added “$1” at the end of your list."
+  },
+  "automation_rulesetBindFailed": {
+    "message": "无法保存这些文件夹。请重试。",
+    "description": "Couldn’t save these folders. Try again."
+  },
+  "automation_rulesetBindHint": {
+    "message": "这个规则集归档的每类页面，都会放进你在这里选择的文件夹。",
+    "description": "Each kind of page this set files goes to the folder you choose here."
+  },
+  "automation_rulesetBindTitle": {
+    "message": "“$1”的文件夹",
+    "description": "Folders for “$1”"
+  },
+  "automation_rulesetBound": {
+    "message": "已保存“$1”的文件夹。",
+    "description": "Saved the folders for “$1”."
+  },
+  "automation_rulesetCheckFailed": {
+    "message": "无法读取这个规则集。请重试。",
+    "description": "Couldn’t read this rule set. Try again."
+  },
+  "automation_rulesetDuplicate": {
+    "message": "重复使用",
+    "description": "Used twice"
+  },
+  "automation_rulesetExportFailed": {
+    "message": "无法导出这个规则集。请重试。",
+    "description": "Couldn’t export this set. Try again."
+  },
+  "automation_rulesetExported": {
+    "message": "已开始下载。任何人都可以把此文件导入为规则集，并选择自己的文件夹。",
+    "description": "Download started. Anyone can import this file as a set and choose their own folders."
+  },
+  "automation_rulesetFormat": {
+    "message": "这不是 colp.ruleset/v1 规则集。",
+    "description": "This isn’t a colp.ruleset/v1 rule set."
+  },
+  "automation_rulesetImportTitle": {
+    "message": "导入“$1”",
+    "description": "Import “$1”"
+  },
+  "automation_rulesetInactive_other": {
+    "message": "$1 个网站只有已停用的地址，不会匹配任何页面。",
+    "description": "$1 sites have only retired addresses and match nothing."
+  },
+  "automation_rulesetInvalidHost": {
+    "message": "不是网站名称",
+    "description": "Not a site name"
+  },
+  "automation_rulesetInvalidMatch": {
+    "message": "这里无法检查这些条件",
+    "description": "These conditions can’t be checked here"
+  },
+  "automation_rulesetInvalidUrl": {
+    "message": "不是网页链接",
+    "description": "Not a web link"
+  },
+  "automation_rulesetJson": {
+    "message": "此文件不是 JSON。",
+    "description": "This file isn’t JSON."
+  },
+  "automation_rulesetLimit": {
+    "message": "加上这个规则集后，此浏览器会超出 50 个规则集或 1,000 条规则的限制。请先删除一些。",
+    "description": "With this set, this browser would pass its limit of 50 sets or 1,000 rules. Delete some first."
+  },
+  "automation_rulesetMatchingOnly_other": {
+    "message": "$1 个条目没有文件夹角色，因此不会添加。",
+    "description": "$1 entries have no folder role, so they aren’t added."
+  },
+  "automation_rulesetMore": {
+    "message": "只显示前 10 个。",
+    "description": "Only the first 10 are shown."
+  },
+  "automation_rulesetOneOf": {
+    "message": "条目需要网站或匹配条件之一，不能两者都有",
+    "description": "An entry needs a site or a match, not both"
+  },
+  "automation_rulesetPattern": {
+    "message": "此处不允许这个值",
+    "description": "Not a value this place allows"
+  },
+  "automation_rulesetRefused": {
+    "message": "没有添加任何内容。每个条目都必须通过，请在文件中修正以下问题后重试：",
+    "description": "Nothing was added. Every entry has to pass, so fix these in the file and try again:"
+  },
+  "automation_rulesetRefusedTitle": {
+    "message": "无法导入“$1”",
+    "description": "Can’t import “$1”"
+  },
+  "automation_rulesetRequired": {
+    "message": "缺失",
+    "description": "Missing"
+  },
+  "automation_rulesetRoleKey": {
+    "message": "角色“$1”",
+    "description": "Role “$1”"
+  },
+  "automation_rulesetRolesHint": {
+    "message": "为它归档的每类页面选择这里的文件夹。未选择文件夹的角色会等待：在你选择之前，它的规则不会归档任何内容。",
+    "description": "Choose a folder here for each kind of page it files. A role you leave without a folder waits: its rules don’t file anything until you choose one."
+  },
+  "automation_rulesetRules_other": {
+    "message": "$1 条规则",
+    "description": "$1 rules"
+  },
+  "automation_rulesetSampleNone": {
+    "message": "你最近的 $1 个书签都不匹配它的规则。",
+    "description": "None of your last $1 bookmarks match its rules."
+  },
+  "automation_rulesetSampleRole_other": {
+    "message": "$2：$1 个书签",
+    "description": "$2: $1 bookmarks"
+  },
+  "automation_rulesetSample_other": {
+    "message": "它的规则会归档你最近 $2 个书签中的 $1 个。",
+    "description": "Its rules would file $1 of your last $2 bookmarks."
+  },
+  "automation_rulesetTooLarge": {
+    "message": "此文件大于 2 MB。",
+    "description": "This file is larger than 2 MB."
+  },
+  "automation_rulesetTooLong": {
+    "message": "太长",
+    "description": "Too long"
+  },
+  "automation_rulesetTooMany": {
+    "message": "超过格式允许的数量",
+    "description": "More than the format allows"
+  },
+  "automation_rulesetType": {
+    "message": "值的类型不对",
+    "description": "The wrong kind of value"
+  },
+  "automation_rulesetUnknownKey": {
+    "message": "不属于此格式",
+    "description": "Not part of the format"
+  },
+  "automation_rulesetUnknownRole": {
+    "message": "此文件中没有这个角色",
+    "description": "No such role in this file"
+  },
+  "automation_rulesetUnknownSite": {
+    "message": "此文件中没有这个网站",
+    "description": "No such site in this file"
+  },
+  "automation_rulesetVersion": {
+    "message": "版本 $1",
+    "description": "version $1"
+  },
+  "automation_rulesetWaiting_other": {
+    "message": "还有 $1 个角色需要文件夹。",
+    "description": "$1 roles still need a folder."
   },
   "automation_runBlocked": {
     "message": "已阻止",
@@ -1778,6 +1958,14 @@
   "automation_setEmpty": {
     "message": "还没有规则。将规则拖到这里，或新建一条。",
     "description": "No rules yet. Drag rules here, or add one."
+  },
+  "automation_setExport": {
+    "message": "导出规则集",
+    "description": "Export set"
+  },
+  "automation_setFolders": {
+    "message": "选择规则集的文件夹",
+    "description": "Choose the set’s folders"
   },
   "automation_setGone": {
     "message": "此规则集已在此期间被删除。",
