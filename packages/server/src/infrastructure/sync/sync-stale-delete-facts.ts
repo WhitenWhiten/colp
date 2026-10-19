@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { SUBTREE_OBSERVATION_EXTENSION, subtreeDeleteSource, type SubtreeMemberRevision } from '@know-n/colp/sync';
-import type { SyncPushSubtreeSummary } from '../../modules/sync/sync-push.js';
+import type { SyncPushSubtreeSummary } from '../../modules/sync/index.js';
 
 /**
  * The current members of a `delete_subtree` target, as a `revision_conflict`
