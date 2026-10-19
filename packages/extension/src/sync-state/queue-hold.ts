@@ -1,7 +1,7 @@
 import { consumedRejectionRows } from './queue-issue-repository.js';
 import { isOpenQueueIssue } from './open-issue-facts.js';
-import { dependsOnIssue, issueAncestry } from '../sync-issues.js';
-import { transactionIssueDependencies } from './issue-dependencies.js';
+import { issueAncestry } from '../sync-issues.js';
+import { dependsOnIssueOrdered, transactionIssueDependencies, type DependencyGraph } from './issue-dependencies.js';
 import { conflictResolutionBindings } from './conflict-resolution-bindings.js';
 import { cursorPage, iterateCursor, requestValue } from './idb.js';
 import { enqueueDependencyIds, firstLiveQueueRow } from './queue-live-work.js';
@@ -59,25 +59,36 @@ export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordB
  * or a create the change places work inside. Existing descendants and destination parents share the closure. Siblings
  * and unrelated bookmarks keep syncing.
  */
-export function heldBy(row: QueueOperation, holders: readonly QueueOperation[], graph?: Awaited<ReturnType<typeof transactionIssueDependencies>>): QueueOperation | undefined {
+export async function heldBy(row: QueueOperation, holders: readonly QueueOperation[],
+  graph?: DependencyGraph): Promise<QueueOperation | undefined> {
   const target = row.payload.targetId; const parents = enqueueDependencyIds(row.payload);
   const direct = holders.find((holder) => holder.opId !== row.opId
     && ((typeof target === 'string' && (target === holder.payload.targetId || target === `pending-${holder.opId}`))
       || parents.includes(`pending-${holder.opId}`)
       || typeof holder.payload.targetId === 'string' && parents.includes(holder.payload.targetId)));
   if (direct || !graph) return direct;
-  const targets = [...(typeof target === 'string' ? [target] : []), ...parents, ...(graph.operationParents.get(row.opId) ?? [])];
-  const parentMap = new Map([...graph.parents, ...issueAncestry([], holders)]);
+  // A never-confirmed create maps its pending identity to its explicit parent;
+  // every older mapping edge is resolved through its index on demand.
+  const pendingParents = issueAncestry([], holders);
+  const parentOf = async (id: string) => pendingParents.has(id)
+    ? { known: true, parent: pendingParents.get(id) ?? null } : await graph.parents.parentOf(id);
+  const baseTargets = [...(typeof target === 'string' ? [target] : []), ...parents];
   const deleting = row.payload.type === 'delete_node' || row.payload.type === 'delete_subtree';
-  const affected = (roots: ReadonlySet<string>) => dependsOnIssue(targets, roots, parentMap)
-    || (deleting && typeof target === 'string' && dependsOnIssue([...roots], new Set([target]), parentMap));
-  const holder = holders.find(holder => holder.opId !== row.opId && affected(
-    new Set([String(holder.payload.targetId ?? `pending-${holder.opId}`)])));
-  if (holder) return holder;
+  const affected = async (roots: ReadonlySet<string>) => {
+    if (roots.size === 0) return false;
+    const targets = [...baseTargets, ...await graph.operationParents.get(row.opId)];
+    if (await dependsOnIssueOrdered(targets, roots, parentOf)) return true;
+    return deleting && typeof target === 'string'
+      && await dependsOnIssueOrdered([...roots], new Set([target]), parentOf);
+  };
+  for (const holder of holders) {
+    if (holder.opId === row.opId) continue;
+    if (await affected(new Set([String(holder.payload.targetId ?? `pending-${holder.opId}`)]))) return holder;
+  }
   const roots = new Set(graph.independentRoots);
   for (const decision of graph.decisions) if (decision.restoreOpId !== row.opId
       && ['pending', 'applying', 'restoring', 'rejected'].includes(String(decision.state))) roots.add(String(decision.targetId));
-  return affected(roots)
+  return (await affected(roots))
     ? { ...row, opId: `external-issue:${row.opId}`, status: 'set_aside' } : undefined;
 }
 
@@ -107,7 +118,7 @@ export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: u
   if (!holdable(row)) return row;
   const code = hold && typeof hold === 'object' ? (hold as { readonly code?: unknown }).code : undefined;
   if (typeof code === 'string' && code.length > 0) return asHeld(row, code, maxRecordBytes);
-  const holder = heldBy(row, await laneHolders(queue, key, maxRecordBytes), await transactionIssueDependencies(queue, key, resolvingEventId));
+  const holder = await heldBy(row, await laneHolders(queue, key, maxRecordBytes), await transactionIssueDependencies(queue, key, resolvingEventId));
   return holder ? asHeld(row, dependentHold(holder), maxRecordBytes) : row;
 }
 
@@ -126,7 +137,7 @@ export async function holdWaitingRows(queue: IDBObjectStore, key: string, maxRec
   let held = 0;
   for (const value of pending) {
     const row = validateQueueRecord(value, maxRecordBytes);
-    const holder = holdable(row) ? heldBy(row, holders, graph) : undefined;
+    const holder = holdable(row) ? await heldBy(row, holders, graph) : undefined;
     if (!holder) continue;
     const updated = asHeld(row, dependentHold(holder), maxRecordBytes);
     queue.put(updated); holders.push(updated); held += 1;

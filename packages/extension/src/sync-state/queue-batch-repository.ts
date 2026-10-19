@@ -36,7 +36,7 @@ export function createQueueBatchRepository(ctx: SyncStoreRuntime) {
           const row = validateQueueRecord(raw, ctx.maxRecordBytes);
           if (row.sequence !== sequence + claimed.length + 1 || row.status !== 'pending'
               || row.attempt || row.retry.attempt !== 0 || row.retry.notBefore > now
-              || unavailable.has(row.opId) || heldBy(row, holders, graph) || !eligible(row)) break;
+              || unavailable.has(row.opId) || await heldBy(row, holders, graph) || !eligible(row)) break;
           const updated = validateQueueRecord({ ...row, status: 'claimed', retry: { ...row.retry,
             ownerId, fence, claimExpiresAt: lease.expiresAt } }, ctx.maxRecordBytes);
           queue.put(updated); claimed.push(updated);

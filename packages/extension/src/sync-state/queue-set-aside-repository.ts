@@ -80,7 +80,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
       const holders = await laneHolders(queue, key, ctx.maxRecordBytes);
       for (const row of holders) {
         if (row.recovery?.code !== 'dependency_hold' || row.attempt || !graph.prerequisiteOpIds.has(row.opId)
-            || heldBy(row, holders.filter(other => other.sequence < row.sequence), graph)) continue;
+            || await heldBy(row, holders.filter(other => other.sequence < row.sequence), graph)) continue;
         queue.put(validateQueueRecord({ ...row, status: 'pending', recovery: undefined }, ctx.maxRecordBytes));
       }
     });
@@ -91,7 +91,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
       const kept = holders.filter((row) => !dependent(row)); const released: QueueOperation[] = [];
       for (const row of holders) {
         if (!dependent(row)) continue;
-        if (heldBy(row, kept, graph)) kept.push(row); else released.push(row);
+        if (await heldBy(row, kept, graph)) kept.push(row); else released.push(row);
       }
       return released;
     }, recapture, true);
@@ -108,7 +108,7 @@ export function createQueueSetAsideRepository(ctx: SyncStoreRuntime) {
       const graph = await transactionIssueDependencies(queue, key);
       const independent = holders.filter(row => !exempt.has(row.opId) && row.recovery?.code !== CONFLICT_HOLD);
       for (const row of holders) if (row.recovery?.code === CONFLICT_HOLD
-          && heldBy(row, resolved, graph) && !heldBy(row, independent, graph)) exempt.add(row.opId);
+          && await heldBy(row, resolved, graph) && !await heldBy(row, independent, graph)) exempt.add(row.opId);
     }
     await done; return [...exempt];
   }
