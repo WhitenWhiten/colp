@@ -7,10 +7,10 @@ import { automationDatabase } from '../src/automation/indexeddb-store.js';
 import { RISK_SESSION_EXCEPTIONS_KEY } from '../src/risk/risk-settings.js';
 import type { RiskEntry } from '../src/risk/risklist-format.js';
 import { handleRiskCommand } from '../src/sw/risk.js';
-import { ALERT_WINDOW_MS, applyBrowsing, handleCommitted, installRiskBrowsing, RISK_RECENT_ALERTS_KEY, shouldAlert } from '../src/sw/risk-browse.js';
+import { applyBrowsing, handleCommitted, installRiskBrowsing, RISK_RECENT_ALERTS_KEY } from '../src/sw/risk-browse.js';
 import { NOW } from './automation-fixture.js';
 
-/** Doc 17 §9 While browsing, RS-16.3, RS-16.4, RS-17.4, R11, R12: a badge per tab for a listed page, once per domain in 10 minutes unless the kind changes. */
+/** Doc 17 §9 While browsing, RS-16.3, RS-16.4, RS-17.4, R11, R12: the badge follows the tab — on while its page is listed, off when it is not, back when it returns. */
 const MINUTE = 60_000, DAY = 86_400_000;
 const flag = (scope: RiskEntry['scope'], value: string, over: Partial<RiskEntry> = {}): RiskEntry =>
   ({ scope, value, kind: 'phishing', since: '2026-10-01T00:00:00Z', expires: null, evidenceUrl: null, ...over });
@@ -51,38 +51,41 @@ async function subscribe(id: string, entries: RiskEntry[]) {
 const commit = (tabId: number, url: string, frameId = 0) => handleCommitted({ tabId, frameId, url, timeStamp: Date.now() }, Date.now());
 const shown = (tabId: number) => badges.filter((item) => item.tabId === tabId).at(-1)?.text ?? null;
 
-describe('R12 dedupe', () => {
-  it('alerts once per tab and domain within 10 minutes, again after, and again when the kind changes', () => {
-    const first = { domain: 'login-example-support.com', kind: 'phishing', at: NOW };
-    expect(shouldAlert(undefined, first, NOW)).toBe(true);
-    expect(shouldAlert(first, first, NOW + ALERT_WINDOW_MS - 1)).toBe(false);
-    expect(shouldAlert(first, first, NOW + ALERT_WINDOW_MS)).toBe(true);
-    expect(shouldAlert(first, { ...first, kind: 'malware' }, NOW + MINUTE)).toBe(true);
-    expect(shouldAlert(first, { ...first, domain: 'other.example' }, NOW + MINUTE)).toBe(true);
-  });
-});
-
 describe('alerts while browsing', () => {
   beforeEach(async () => {
     await subscribe('a', [flag('domain', 'login-example-support.com'), flag('host', 'old.example.com', { expires: '2026-10-01T00:00:00Z' })]);
     expect(await handleRiskCommand({ kind: 'known.risk.mode', mode: 'onSaveAndBrowse' })).toEqual({ ok: true });
   });
 
-  it('puts ! on the tab for a listed page, not again in 10 minutes on the same domain, again after (RS-17.4)', async () => {
+  it('puts ! on the tab for a listed page and holds it while the tab stays on that domain (RS-17.4, R12)', async () => {
     expect(await commit(7, 'https://login-example-support.com/a')).toBe(true);
     expect(shown(7)).toBe('!');
     vi.setSystemTime(NOW + 4 * MINUTE);
-    expect(await commit(7, 'https://www.login-example-support.com/b')).toBe(false);
-    expect(shown(7)).toBeNull();
+    // A second page of the same domain in the same tab: the badge is held, not taken off and not repeated.
+    expect(await commit(7, 'https://www.login-example-support.com/b')).toBe(true);
+    expect(shown(7)).toBe('!');
     // Another tab is its own.
     expect(await commit(8, 'https://login-example-support.com/a')).toBe(true);
-    vi.setSystemTime(NOW + 11 * MINUTE);
-    expect(await commit(7, 'https://login-example-support.com/c')).toBe(true);
-    expect(session[RISK_RECENT_ALERTS_KEY]).toEqual({ 7: { domain: 'login-example-support.com', kind: 'phishing', at: NOW + 11 * MINUTE },
+    expect(session[RISK_RECENT_ALERTS_KEY]).toEqual({ 7: { domain: 'login-example-support.com', kind: 'phishing', at: NOW + 4 * MINUTE },
       8: { domain: 'login-example-support.com', kind: 'phishing', at: NOW + 4 * MINUTE } });
   });
 
-  it('alerts again in the window when what the lists call the page changes', async () => {
+  it('takes the badge off when the tab leaves for an unlisted page, and puts it back when it returns, however soon', async () => {
+    expect(await commit(7, 'https://login-example-support.com/')).toBe(true);
+    vi.setSystemTime(NOW + MINUTE);
+    expect(await commit(7, 'https://example.org/')).toBe(false);
+    expect(shown(7)).toBeNull();
+    expect(session[RISK_RECENT_ALERTS_KEY]).toEqual({});
+    vi.setSystemTime(NOW + 2 * MINUTE);
+    expect(await commit(7, 'https://login-example-support.com/again')).toBe(true);
+    expect(shown(7)).toBe('!');
+    // A tab with no badge is left alone: no call to take one off.
+    badges.length = 0;
+    expect(await commit(9, 'https://example.org/')).toBe(false);
+    expect(badges).toEqual([]);
+  });
+
+  it('says what the lists call the page, and changes when another list names it', async () => {
     await subscribe('b', [flag('host', 'pay.login-example-support.com', { kind: 'malware' })]);
     expect(await commit(7, 'https://login-example-support.com/')).toBe(true);
     vi.setSystemTime(NOW + MINUTE);
@@ -107,7 +110,8 @@ describe('alerts while browsing', () => {
     expect(sendMessage).not.toHaveBeenCalled();
     const source = readFileSync(resolve(import.meta.dirname, '../src/sw/risk-browse.ts'), 'utf8');
     const imports = [...source.matchAll(/^import .* from '([^']+)';$/gmu)].map((match) => match[1]);
-    expect(imports).toEqual(['@know-n/colp/automation', '../automation/public-suffix.js', '../badge-colors.js', '../risk/risk-check.js', '../risk/risk-settings.js', './risk.js']);
+    expect(imports).toEqual(['@know-n/colp/automation', '../automation/closed-value.js', '../automation/lane.js', '../automation/public-suffix.js', '../badge-colors.js',
+      '../risk/risk-check.js', '../risk/risk-settings.js', './risk.js']);
     expect(source).not.toMatch(/chrome\.bookmarks|declarativeNetRequest|classif/u);
   });
 });

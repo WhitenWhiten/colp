@@ -218,6 +218,9 @@
   "automation_browserGone": {
     "message": "This rule was deleted meanwhile."
   },
+  "automation_browserInvalidConditions": {
+    "message": "These conditions can’t be checked together. Use fewer, or fewer sites."
+  },
   "automation_browserLedePaused": {
     "message": "Paused with your account’s automations. They file pages again when you resume on the web."
   },

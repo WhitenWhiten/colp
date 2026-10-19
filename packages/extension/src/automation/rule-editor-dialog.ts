@@ -51,6 +51,7 @@ function problemCopy(problem: DraftProblem): string {
     case 'required': return problem.field === 'folder' ? t('automation_browserNeedFolder', 'Choose the folder pages go to.')
       : t('automation_browserNeedCondition', 'Add at least one condition.');
     case 'tooMany': return t('automation_browserTooMany', 'Use 8 conditions or fewer.');
+    case 'invalid': return t('automation_browserInvalidConditions', 'These conditions can’t be checked together. Use fewer, or fewer sites.');
     case 'invalidHost': return t('automation_browserBadSite', 'Use a site name, such as arxiv.org.');
     case 'invalidPath': return t('automation_browserBadPath', 'Use a link path, such as /papers/.');
     case 'tooLong': return problem.field === 'name' ? t('automation_browserNameTooLong', 'Use 200 characters or fewer.')

@@ -44,7 +44,8 @@ export interface RuleDraft {
 }
 
 export type DraftProblem =
-  | { readonly field: 'conditions'; readonly code: 'required' | 'tooMany' }
+  /** `invalid`: the conditions together make a definition the shared core refuses (too many nodes for a collection's sites, for one). */
+  | { readonly field: 'conditions'; readonly code: 'required' | 'tooMany' | 'invalid' }
   /**
    * `collection`: the site is gone from its subscription, the subscription is, or it has no live address;
    * `oneCollection`: a rule's sites come from one subscription, so each version recompiles it whole.
@@ -163,7 +164,7 @@ export function checkRuleDraft(draft: RuleDraft, collections?: CollectionLookup)
   const conditions = filled.map(({ kind, value }) => ({ kind, value: conditionValue(kind, value) }));
   const definition = ruleDefinition(draft.name, draft.combinator, conditions, collections);
   const compiled = compilePredicate(definition.match);
-  if (!compiled.valid || validateM1Rule(definition).length) return { ok: false, problems: [{ field: 'conditions', code: 'required' }] };
+  if (!compiled.valid || validateM1Rule(definition).length) return { ok: false, problems: [{ field: 'conditions', code: 'invalid' }] };
   const contentVersions: Record<string, string> = {};
   for (const condition of conditions) {
     const ref = condition.kind === 'siteCollection' ? collectionRef(condition.value) : null;

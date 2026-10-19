@@ -325,8 +325,8 @@ export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleComma
       return result.ok ? { ok: true, rule: result.rule } : { ok: false, error: result.error };
     }
     case 'known.automation.browser.save': {
-      // A collection's site is compiled from its subscription's current version (RS-10).
-      const collections = collectionLookup(await listSources(await store.load()));
+      // A collection's site is compiled from its subscription's current version, read inside the list's write lane (RS-10).
+      const collections = { read: async (list: RuleListRecord) => collectionLookup(await listSources(list)) };
       const result = await store.saveRule({ ...(command.id ? { id: command.id } : {}), draft: command.draft,
         ...(command.enabled === undefined ? {} : { enabled: command.enabled }), ...(command.into ? { into: command.into } : {}),
         ...(command.index === undefined ? {} : { index: command.index }) }, now, collections);

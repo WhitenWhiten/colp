@@ -11,8 +11,9 @@ import { grantOptionalBookmarks } from './bookmark-permission.js';
  * Doc 17 RW-17 (RS-16.3, RS-17.4, R12): with no account, a `colp.risklist/v1` list served from a
  * `node:http` fixture on 127.0.0.1 is subscribed to, and risk alerts are switched to *while I browse*,
  * which asks for `tabs` and `webNavigation` in the switch. A tab that opens a listed page gets "!" on the
- * Know-N button; a second page of that domain in the same tab within 10 minutes gets none; another tab
- * gets its own. Switching back to saves only clears the badges.
+ * Know-N button and keeps it on a second page of that domain; the badge goes when the tab moves to an
+ * unlisted page and comes back when it returns; another tab gets its own. Switching back to saves only
+ * clears the badges.
  */
 const extensionPath = resolve(import.meta.dirname, '../dist/development');
 
@@ -40,7 +41,7 @@ const badgeOn = (options: Page, url: string) => options.evaluate(async (wanted) 
   return tab?.id === undefined ? null : chrome.action.getBadgeText({ tabId: tab.id });
 }, url);
 
-test('a listed page puts ! on its tab once, not again on the same domain within the window', async ({}, testInfo) => {
+test('a listed page puts ! on its tab, held while the tab stays on that domain and back when it returns', async ({}, testInfo) => {
   test.setTimeout(150_000);
   const fixture = await serve();
   const profile = await mkdtemp(resolve(tmpdir(), 'known-risk-browse-'));
@@ -77,9 +78,14 @@ test('a listed page puts ! on its tab once, not again on the same domain within 
     await other.goto('https://example.org/');
     await expect.poll(() => badgeOn(options, 'https://example.org/')).toBe('');
 
-    // The same domain again in that tab, within 10 minutes: no badge (R12).
+    // The same domain again in that tab: the badge is held (R12 as implemented: a badge is held, not repeated).
     await page.goto('https://www.login-example-support.com/second');
-    await expect.poll(() => badgeOn(options, 'https://www.login-example-support.com/second'), { timeout: 15_000 }).toBe('');
+    await expect.poll(() => badgeOn(options, 'https://www.login-example-support.com/second'), { timeout: 15_000 }).toBe('!');
+    // Away to an unlisted page: the badge goes; back to the domain: it returns.
+    await page.goto('https://example.org/away');
+    await expect.poll(() => badgeOn(options, 'https://example.org/away'), { timeout: 15_000 }).toBe('');
+    await page.goto('https://login-example-support.com/back');
+    await expect.poll(() => badgeOn(options, 'https://login-example-support.com/back'), { timeout: 15_000 }).toBe('!');
     // Another tab is its own: ! there.
     await other.goto('https://login-example-support.com/third');
     await expect.poll(() => badgeOn(options, 'https://login-example-support.com/third'), { timeout: 15_000 }).toBe('!');

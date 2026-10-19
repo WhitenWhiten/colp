@@ -74,6 +74,17 @@ describe('parsing', () => {
     expect(matches(only!.definition.match, 'https://docs.site-47.example/x')).toBe(false);
     expect(matches(only!.definition.match, 'https://site-47.example/x')).toBe(true);
     expect(parse(site(49))).toEqual({ ok: false, problems: [{ pointer: '/sites/0/addresses', code: 'tooMany' }] });
+    // An address with a path prefix is three nodes: 41 fit the core's 128, 42 do not, and the file says so at the site.
+    const prefixed = (count: number) => ({ ...example(), sites: [{ id: 'many', name: 'Many', addresses: Array.from({ length: count }, (_, index) =>
+      ({ host: `site-${index}.example`, scope: 'domain', status: 'current', pathPrefix: '/docs' })) }], entries: [{ id: 'e-many', site: 'many', role: 'papers' }] });
+    const ok = parse(prefixed(41));
+    expect(ok.ok && compilePredicate(ok.compiled[0]!.definition.match).valid).toBe(true);
+    expect(parse(prefixed(42))).toEqual({ ok: false, problems: [{ pointer: '/sites/0/addresses', code: 'tooMany' }] });
+  });
+
+  it('names a missing required key once', () => {
+    const { id: _id, ...noId } = example();
+    expect(parse(noId)).toEqual({ ok: false, problems: [{ pointer: '/id', code: 'required' }] });
   });
 
   it('never matches a revoked address, keeps a path prefix to its host, and counts a site with only retired addresses', () => {

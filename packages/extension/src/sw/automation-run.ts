@@ -1,6 +1,8 @@
 import { assertBookmarkFolderAllowed } from '../bookmark-folder-policy.js';
 import { exclusionIds, isSubscriptionExcluded, personalBookmarks } from '../bookmark-subscriptions/guards.js';
+import { record } from '../automation/closed-value.js';
 import { automationDatabase } from '../automation/indexeddb-store.js';
+import { createLane } from '../automation/lane.js';
 import type { BrowserRuleResponse, BrowserRunCommand, BrowserRunView } from '../automation/messages.js';
 import { planRun, RUN_PREVIEW_TTL_MS, topFolders, type RunPlan, type RunTreeNode } from '../automation/run-once.js';
 import { currentFlat, nativeFolderLookup } from './automation-browser.js';
@@ -48,12 +50,8 @@ export interface RunJournal {
 }
 
 const area = () => automationDatabase().area();
-let lane: Promise<unknown> = Promise.resolve(), running: string | null = null;
-function exclusive<T>(work: () => Promise<T>): Promise<T> {
-  const run = lane.then(work, work); lane = run.catch(() => undefined); return run;
-}
-
-const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const exclusive = createLane();
+let running: string | null = null;
 async function journals(): Promise<RunJournal[]> {
   const value = await area().get(RUNS_KEY);
   return (Array.isArray(value) ? value : []).filter((item): item is RunJournal => record(item) && typeof item.runId === 'string'

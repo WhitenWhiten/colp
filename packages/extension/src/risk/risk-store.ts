@@ -1,4 +1,6 @@
 import type { SnapshotStateArea } from '../automation/bundle-store.js';
+import { formatOf, record } from '../automation/closed-value.js';
+import { createLane } from '../automation/lane.js';
 import { REFRESH_INTERVALS, type RefreshInterval } from '../automation/subscription-messages.js';
 import { newSubscription, parseSubscriptionRecord, REFRESH_PER_TICK, type FailureCode, type RefreshOutcome,
   type SubscriptionRecord } from '../automation/subscription-store.js';
@@ -28,7 +30,6 @@ export interface RiskContent { readonly version: string; readonly digest: string
 export type RiskSubscribeResult = { readonly ok: true; readonly record: SubscriptionRecord } | { readonly ok: false; readonly error: 'limit' | 'duplicate' };
 export type RiskSettingsPatch = Partial<Pick<SubscriptionRecord, 'refreshIntervalHours' | 'paused'>>;
 
-const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 /** A risk list's record: a subscription record with one slot, applied by itself. */
 export function parseRiskRecord(value: unknown): SubscriptionRecord | null {
   const parsed = parseSubscriptionRecord(value);
@@ -47,17 +48,10 @@ async function digestOf(value: unknown): Promise<string> {
   const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value))));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
-/** The `format` a file says it has, to tell a later format (`unsupported`) from a broken file (`invalid`). */
-function formatOf(text: string): unknown {
-  try { const value: unknown = JSON.parse(text); return record(value) ? value.format : undefined; } catch { return undefined; }
-}
 
 export function createRiskStore(area: SnapshotStateArea, options: { readonly id?: () => string } = {}) {
   const newId = options.id ?? (() => crypto.randomUUID());
-  let lane: Promise<unknown> = Promise.resolve();
-  function exclusive<T>(work: () => Promise<T>): Promise<T> {
-    const run = lane.then(work, work); lane = run.catch(() => undefined); return run;
-  }
+  const exclusive = createLane();
   /** Indexes already read, by list and version: a version names one content, so a check reads each once. */
   const indexes = new Map<string, RiskIndex>();
   const ids = async () => parseIds(await area.get(RISK_LISTS_KEY));

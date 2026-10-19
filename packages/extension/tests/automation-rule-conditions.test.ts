@@ -53,6 +53,11 @@ describe('a draft becomes a stored rule', () => {
       .toMatchObject({ ok: false, problems: [{ field: 'condition', index: 0, code: 'tooLong' }] });
     expect(checkRuleDraft(draft({ conditions: [{ kind: 'hasTag' as never, value: 'research' }] })))
       .toMatchObject({ ok: false, problems: [{ field: 'condition', index: 0, code: 'kind' }] });
+    // Each condition passes, but together they make a definition the shared core refuses: that is said as such, not as a missing condition.
+    const wide: Parameters<typeof checkRuleDraft>[1] = () => ({ name: 'Wide', version: '1', predicate: { kind: 'any',
+      items: Array.from({ length: 32 }, (_, index) => ({ kind: 'field', field: 'bookmark.url.host', op: 'eq', value: `m${index}.example` })) } });
+    expect(checkRuleDraft(draft({ conditions: Array.from({ length: 5 }, () => ({ kind: 'siteCollection' as const, value: 'sub-1/wide' })) }), wide))
+      .toEqual({ ok: false, problems: [{ field: 'conditions', code: 'invalid' }] });
   });
 
   it('needs no folder to keep a page where it was saved', () => {

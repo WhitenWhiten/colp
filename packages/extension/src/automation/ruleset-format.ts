@@ -1,5 +1,6 @@
 import { automationDigest, compilePredicate, normalizeHost, validateM1Rule, type Predicate, type RuleDefinition } from '@know-n/colp/automation';
 import { editorConditions } from './browser-rules.js';
+import { record } from './closed-value.js';
 import { CONDITION_LIMIT, NAME_LIMIT, checkRuleDraft, definitionFor, type RuleCondition } from './rule-conditions.js';
 import type { LocalRule, LocalSet } from './rule-list-store.js';
 
@@ -8,7 +9,8 @@ import type { LocalRule, LocalSet } from './rule-list-store.js';
  * own. The document is closed — a key outside the format is a problem, so it cannot carry a folder, a
  * credential or a task — and one bad entry refuses the whole import, with up to ten problems named by
  * JSON pointer. A site entry expands to explicit host conditions (revoked addresses never match; more
- * than 32 are grouped, since the shared core takes 32 items per group and 128 nodes per predicate); a
+ * than 32 are grouped, since the shared core takes 32 items per group and 128 nodes per predicate, so a
+ * site takes 48 plain addresses but 41 with path prefixes, each of those being three nodes); a
  * `match` entry is the finite M1 predicate. Roles name kinds of folder; the Owner binds each to a folder
  * here, and an entry without a role is matching data only and is not added. After the import nothing
  * refers back to the file.
@@ -58,7 +60,6 @@ export type ParsedRuleset = { readonly ok: true; readonly ruleset: Ruleset; read
   | { readonly ok: false; readonly problems: readonly RulesetProblem[] };
 
 class Problems extends Error {}
-const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const at = (pointer: string, key: string | number) => `${pointer}/${String(key).replace(/~/gu, '~0').replace(/\//gu, '~1')}`;
 
 function reader() {
@@ -74,7 +75,9 @@ function reader() {
     for (const key of required) if (!(key in value)) fail(at(pointer, key), 'required');
     return value;
   };
+  // A required key that is missing was named by `object`; a reader says nothing more about it.
   const text = (value: unknown, pointer: string, limit: number, pattern?: RegExp): string | undefined => {
+    if (value === undefined) return undefined;
     if (typeof value !== 'string' || /\u0000/u.test(value)) return fail(pointer, 'type');
     if (value.length > limit) return fail(pointer, 'tooLong');
     if (pattern && !pattern.test(value)) return fail(pointer, 'pattern');
@@ -88,6 +91,7 @@ function reader() {
     return fail(pointer, 'invalidUrl');
   };
   const list = (value: unknown, pointer: string, limit: number): unknown[] | undefined => {
+    if (value === undefined) return undefined;
     if (!Array.isArray(value)) return fail(pointer, 'type');
     if (value.length > limit) return fail(pointer, 'tooMany');
     return value;
@@ -141,7 +145,7 @@ export function parseRuleset(text: string): ParsedRuleset {
       if (roles.some((role) => role.key === key)) { read.fail(`${pointer}/key`, 'duplicate'); continue; }
       roles.push({ key, description });
     }
-    const sites: RulesetSite[] = [];
+    const sites: RulesetSite[] = [], overBudget = new Set<string>();
     for (const [index, item] of (root.sites === undefined ? [] : read.list(root.sites, '/sites', RULESET_LIMITS.sites) ?? []).entries()) {
       const pointer = at('/sites', index), raw = read.object(item, pointer, ['id', 'name', 'addresses']);
       if (!raw) continue;
@@ -162,7 +166,11 @@ export function parseRuleset(text: string): ParsedRuleset {
       }
       if (siteId === undefined || siteName === undefined) continue;
       if (sites.some((site) => site.id === siteId)) { read.fail(`${pointer}/id`, 'duplicate'); continue; }
-      sites.push({ id: siteId, name: siteName, addresses });
+      const site: RulesetSite = { id: siteId, name: siteName, addresses };
+      // An address with a path prefix is three nodes, not one, so fewer of them fit the core's 128 (§5.1). The site is kept so its entries resolve.
+      const predicate = sitePredicate(site);
+      if (predicate && !compilePredicate(predicate).valid) { read.fail(`${pointer}/addresses`, 'tooMany'); overBudget.add(siteId); }
+      sites.push(site);
     }
     const entries: RulesetEntry[] = [], compiled: CompiledEntry[] = [];
     let matchingOnly = 0, inactive = 0;
@@ -181,6 +189,7 @@ export function parseRuleset(text: string): ParsedRuleset {
         const siteId = read.text(raw.site, `${pointer}/site`, 64, IDENT);
         site = sites.find((item) => item.id === siteId);
         if (!site) { if (siteId !== undefined) read.fail(`${pointer}/site`, 'unknownSite'); continue; }
+        if (overBudget.has(site.id)) continue; // named at the site already
         predicate = sitePredicate(site);
       } else predicate = raw.match as Predicate;
       const entry: RulesetEntry = { id: entryId, ...(entryName !== undefined ? { name: entryName } : {}), ...(site ? { site: site.id } : { match: raw.match as Predicate }),

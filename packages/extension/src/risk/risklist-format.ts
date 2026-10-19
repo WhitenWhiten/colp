@@ -1,4 +1,5 @@
 import { normalizeHost } from '@know-n/colp/automation';
+import { record } from '../automation/closed-value.js';
 import { registrableDomain } from '../automation/public-suffix.js';
 
 /**
@@ -42,7 +43,6 @@ export type ParsedRiskList = { readonly ok: true; readonly list: RiskList } | { 
 
 class Problems extends Error {}
 const KINDS = new Set<string>(['phishing', 'scam', 'malware', 'other']);
-const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const date = (value: string) => value.length <= 64 && Number.isFinite(Date.parse(value));
 
 /** A page address a prefix may be: http(s), no user name, query or fragment; normalized as the URL parser writes it. */

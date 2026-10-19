@@ -12,32 +12,37 @@ import { PUBLIC_SUFFIX_RULES } from '../generated/public-suffix-list.js';
  * confusable characters. An address by number has no suffix, and a single-label host the list does
  * not name (`localhost`, an intranet name) is not treated as one.
  */
-let tables: { readonly rules: Set<string>; readonly wildcards: Set<string>; readonly exceptions: Set<string> } | undefined;
+let tables: { readonly rules: Set<string>; readonly wildcards: Set<string>; readonly exceptions: Set<string>; readonly tlds: Set<string> } | undefined;
 function load() {
   if (tables) return tables;
-  const rules = new Set<string>(), wildcards = new Set<string>(), exceptions = new Set<string>();
+  const rules = new Set<string>(), wildcards = new Set<string>(), exceptions = new Set<string>(), tlds = new Set<string>();
   for (const rule of PUBLIC_SUFFIX_RULES.split('\n')) {
     if (rule.startsWith('!')) exceptions.add(rule.slice(1));
     else if (rule.startsWith('*.')) wildcards.add(rule.slice(2));
     else rules.add(rule);
+    // The last label of any rule is a top-level domain the list knows, even one it names only under a wildcard (`*.ck`).
+    tlds.add(rule.slice(rule.lastIndexOf('.') + 1));
   }
-  tables = { rules, wildcards, exceptions };
+  tables = { rules, wildcards, exceptions, tlds };
   return tables;
 }
 
 const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/u;
 export const isIpAddress = (host: string): boolean => IPV4.test(host) || host.startsWith('[');
 
-/** The longest suffix a rule names (an exception names its parent), else the last label, which no rule lists. */
+/**
+ * The longest suffix a rule names (an exception names its parent), else the last label: listed when it is a
+ * top-level domain the list knows (the list's implicit `*` rule), not for a single name of the Owner's own.
+ */
 function suffixOf(host: string): { readonly suffix: string; readonly listed: boolean } {
-  const { rules, wildcards, exceptions } = load();
+  const { rules, wildcards, exceptions, tlds } = load();
   const labels = host.split('.');
   for (let index = 0; index < labels.length; index++) {
     const candidate = labels.slice(index).join('.');
     if (exceptions.has(candidate)) return { suffix: labels.slice(index + 1).join('.'), listed: true };
     if (rules.has(candidate) || (index + 1 < labels.length && wildcards.has(labels.slice(index + 1).join('.')))) return { suffix: candidate, listed: true };
   }
-  return { suffix: labels.at(-1)!, listed: false };
+  return { suffix: labels.at(-1)!, listed: tlds.has(labels.at(-1)!) };
 }
 
 const hostName = (raw: string): string | null => {

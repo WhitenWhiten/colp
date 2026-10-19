@@ -1,5 +1,7 @@
 import { automationDigest } from '@know-n/colp/automation';
 import type { SnapshotStateArea } from './bundle-store.js';
+import { closed, formatOf, record } from './closed-value.js';
+import { createLane } from './lane.js';
 import { parseRuleList, RULE_LIST_KEY, type ListChangeResult, type ListEntry, type LocalRule, type RuleListRecord,
   type RuleSaveResult } from './rule-list-store.js';
 import { parseRuleset, withinScope, type ParsedRuleset, type Ruleset } from './ruleset-format.js';
@@ -71,9 +73,6 @@ export type RefreshOutcome = { readonly kind: 'failed'; readonly code: FailureCo
   | { readonly kind: 'notModified' }
   | { readonly kind: 'fetched'; readonly text: string; readonly etag: string | null };
 
-const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const closed = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) =>
-  required.every((key) => key in value) && Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
 const text = (value: unknown, limit: number) => typeof value === 'string' && value.length <= limit;
 const textOrNull = (value: unknown, limit: number) => value === null || text(value, limit);
 const time = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
@@ -184,10 +183,7 @@ const sourceKeys = (id: string) => { const keys = subscriptionKeys(id); return [
 
 export function createSubscriptionStore(area: SnapshotStateArea, list: SubscriptionListPort, options: { readonly id?: () => string } = {}) {
   const newId = options.id ?? (() => crypto.randomUUID());
-  let lane: Promise<unknown> = Promise.resolve();
-  function exclusive<T>(work: () => Promise<T>): Promise<T> {
-    const run = lane.then(work, work); lane = run.catch(() => undefined); return run;
-  }
+  const exclusive = createLane();
   const read = async (id: string) => parseSubscriptionRecord(await area.get(subscriptionKeys(id).record));
   const content = async (id: string, slot: ContentSlot) => parseContentRecord(await area.get(subscriptionKeys(id).content(slot)));
   async function all(): Promise<{ readonly id: string; readonly enabled: boolean; readonly record: SubscriptionRecord | null }[]> {
@@ -353,7 +349,3 @@ export function createSubscriptionStore(area: SnapshotStateArea, list: Subscript
 }
 export type SubscriptionStore = ReturnType<typeof createSubscriptionStore>;
 
-/** The `format` a file says it has, to tell a later format (`unsupported`) from a broken file (`invalid`). */
-function formatOf(text: string): unknown {
-  try { const value: unknown = JSON.parse(text); return record(value) ? value.format : undefined; } catch { return undefined; }
-}

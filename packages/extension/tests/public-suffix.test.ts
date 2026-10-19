@@ -29,6 +29,10 @@ describe('the Public Suffix List', () => {
     expect(isPublicSuffix('github.io')).toBe(true);
     expect(isPublicSuffix('edu')).toBe(true);
     expect(isPublicSuffix('co.uk')).toBe(true);
+    // A top-level domain the list names only under a wildcard is a suffix too; a name the list does not know is not.
+    expect(isPublicSuffix('ck')).toBe(true);
+    expect(registrableDomain('foo.ck')).toBeNull();
+    expect(isPublicSuffix('intranet')).toBe(false);
     expect(isPublicSuffix('arxiv.org')).toBe(false);
     expect(isPublicSuffix('localhost')).toBe(false);
     expect(isPublicSuffix('10.0.0.1')).toBe(false);

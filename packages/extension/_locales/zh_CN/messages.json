@@ -211,13 +211,13 @@
     "message": "此类条件不能在这里使用。",
     "description": "This kind of condition can’t be used here."
   },
-  "automation_browserBadSite": {
-    "message": "请填写网站名称，例如 arxiv.org。",
-    "description": "Use a site name, such as arxiv.org."
-  },
   "automation_browserBadPath": {
     "message": "请使用链接路径，例如 /papers/。",
     "description": "Use a link path, such as /papers/."
+  },
+  "automation_browserBadSite": {
+    "message": "请填写网站名称，例如 arxiv.org。",
+    "description": "Use a site name, such as arxiv.org."
   },
   "automation_browserCreate": {
     "message": "保存规则",
@@ -282,6 +282,10 @@
   "automation_browserGone": {
     "message": "这条规则已在此期间被删除。",
     "description": "This rule was deleted meanwhile."
+  },
+  "automation_browserInvalidConditions": {
+    "message": "这些条件无法一起检查。请减少条件数量或所选站点。",
+    "description": "These conditions can’t be checked together. Use fewer, or fewer sites."
   },
   "automation_browserLedePaused": {
     "message": "已随你账户的自动化一起暂停。在网页上恢复后，它们会继续为网页归档。",
@@ -447,6 +451,10 @@
     "message": "为文件中的每个文件夹选择这里的对应文件夹。会建议路径相同的文件夹；导入前不会使用任何文件夹。",
     "description": "Choose the folder here for each folder in the file. A folder with the same path is suggested; nothing is used until you import."
   },
+  "automation_configHasRiskLists_other": {
+    "message": "$1 个风险列表，你允许其网站后会重新下载",
+    "description": "$1 risk lists, fetched again once you allow their sites"
+  },
   "automation_configHasRules_other": {
     "message": "“$2”包含 $1 条规则",
     "description": "“$2” has $1 rules"
@@ -458,10 +466,6 @@
   "automation_configHasSubscriptions_other": {
     "message": "$1 个订阅，允许访问其站点后会重新获取",
     "description": "$1 subscriptions, fetched again once you allow their sites"
-  },
-  "automation_configHasRiskLists_other": {
-    "message": "$1 个风险列表，你允许其网站后会重新下载",
-    "description": "$1 risk lists, fetched again once you allow their sites"
   },
   "automation_configHint": {
     "message": "把此浏览器的规则、规则集及其使用的文件夹保存在一个文件中，或从另一个浏览器带过来。文件中不包含书签。",
@@ -483,13 +487,13 @@
     "message": "导入规则",
     "description": "Import rules"
   },
-  "automation_configImportedSets_other": {
-    "message": "$1 个规则集。",
-    "description": "$1 sets."
-  },
   "automation_configImportedRisk_other": {
     "message": "$1 个风险列表。",
     "description": "$1 risk lists."
+  },
+  "automation_configImportedSets_other": {
+    "message": "$1 个规则集。",
+    "description": "$1 sets."
   },
   "automation_configImported_other": {
     "message": "已导入 $1 条规则。",
@@ -831,6 +835,10 @@
     "message": "这条规则的文件夹在此不可用，所以网页留在你保存的位置。",
     "description": "The rule’s folder isn’t available here, so it stayed where you saved it."
   },
+  "automation_keptByRule": {
+    "message": "已按规则“$1”保留在你保存的位置。",
+    "description": "Kept where you saved it, by rule “$1”."
+  },
   "automation_keptByRuleWhy": {
     "message": "这条规则会让此类页面留在你保存的位置。",
     "description": "The rule keeps pages like this where you save them."
@@ -842,10 +850,6 @@
   "automation_keptYourFolder": {
     "message": "已保留你选择的文件夹；规则“$1”没有移动它。",
     "description": "Kept the folder you chose; rule “$1” didn’t move it."
-  },
-  "automation_keptByRule": {
-    "message": "已按规则“$1”保留在你保存的位置。",
-    "description": "Kept where you saved it, by rule “$1”."
   },
   "automation_kindPathStartsWith": {
     "message": "链接路径开头是",
@@ -1042,6 +1046,10 @@
   "automation_noRunsTitle": {
     "message": "还没有运行记录",
     "description": "Nothing has run yet"
+  },
+  "automation_notOnWeb": {
+    "message": "网页编辑器无法创建这条规则。请在此浏览器中使用它。",
+    "description": "The web editor can’t make this rule. Use it in this browser."
   },
   "automation_noticeRejected": {
     "message": "服务器发来的规则无法在此浏览器使用，之前的规则继续有效。",
@@ -2254,10 +2262,6 @@
   "automation_siteUseDomain": {
     "message": "改用 $1 及其子域名",
     "description": "Use $1 and its subdomains instead"
-  },
-  "automation_notOnWeb": {
-    "message": "网页编辑器无法创建这条规则。请在此浏览器中使用它。",
-    "description": "The web editor can’t make this rule. Use it in this browser."
   },
   "automation_statusNoneHint": {
     "message": "此浏览器还没有收到任何规则。",

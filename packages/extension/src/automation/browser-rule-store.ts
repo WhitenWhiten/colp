@@ -1,5 +1,7 @@
 import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import type { AutomationStateArea } from './bundle-store.js';
+import { record } from './closed-value.js';
+import { createLane } from './lane.js';
 
 /**
  * The pages this browser's own rules (rule-list-store.ts) filed, for Options' recent activity, in the
@@ -31,8 +33,6 @@ export interface BrowserPlacement {
   readonly sourceName?: string;
 }
 
-const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
 function parsePlacement(value: unknown): BrowserPlacement | null {
   if (!record(value)) return null;
   const strings = ['id', 'ruleId', 'ruleName', 'folder', 'title', 'url'] as const;
@@ -46,10 +46,7 @@ function parsePlacement(value: unknown): BrowserPlacement | null {
 
 /** Every write is one read-modify-write of the whole log, taken one at a time. */
 export function createBrowserPlacementLog(area: AutomationStateArea) {
-  let lane: Promise<unknown> = Promise.resolve();
-  function exclusive<T>(work: () => Promise<T>): Promise<T> {
-    const run = lane.then(work, work); lane = run.catch(() => undefined); return run;
-  }
+  const exclusive = createLane();
   const read = async () => {
     const value = await area.get(BROWSER_PLACEMENTS_KEY);
     return (Array.isArray(value) ? value : []).map(parsePlacement).filter((item): item is BrowserPlacement => item !== null);

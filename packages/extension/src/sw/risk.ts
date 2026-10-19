@@ -1,5 +1,6 @@
 import { normalizeHost } from '@know-n/colp/automation';
 import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
+import { createLane } from '../automation/lane.js';
 import { registrableDomain } from '../automation/public-suffix.js';
 import { fetchSubscription, subscriptionAddress, subscriptionOriginPattern, type FetchPorts } from '../automation/subscription-fetch.js';
 import type { ConfigRisk } from '../automation/rules-config-format.js';
@@ -83,15 +84,13 @@ const exceptionView = (item: StoredRiskException, duration: RiskExceptionView['d
   ({ id: item.id, scope: item.scope, value: item.value, duration, createdAt: item.createdAt });
 
 /** This session's exception list, changed one at a time; it ends with the browser (R12). */
-let sessionLane: Promise<unknown> = Promise.resolve();
+const sessionLane = createLane();
 function changeSession<T>(change: (items: StoredRiskException[]) => { readonly items: StoredRiskException[] | null; readonly result: T }): Promise<T> {
-  const run = sessionLane.then(async () => {
+  return sessionLane(async () => {
     const { items, result } = change(await sessionExceptions());
     if (items) await chrome.storage.session.set({ [RISK_SESSION_EXCEPTIONS_KEY]: items });
     return result;
   });
-  sessionLane = run.catch(() => undefined);
-  return run;
 }
 
 async function exceptionCommand(command: Extract<RiskCommand, { kind: 'known.risk.exception.add' | 'known.risk.exception.remove' }>): Promise<RiskResponse> {
@@ -157,10 +156,11 @@ export async function handleRiskCommand(command: RiskCommand): Promise<RiskRespo
 
 /**
  * A rules file's risk alerts (doc 17 §5.3): its lists added, not ready until fetched once their sites are
- * allowed here; its exceptions added beside these; its mode taken, but *while browsing* only with the
- * permissions already granted here (otherwise on for saves). Returns how many lists it added.
+ * allowed here; its exceptions added beside these. Its mode is taken only when the file replaces the list
+ * (`takeMode`); added to a list, the mode here stays. *While browsing* is taken only with the permissions
+ * already granted here (otherwise on for saves). Returns how many lists it added.
  */
-export async function importRiskConfig(risk: ConfigRisk, now = Date.now()): Promise<number> {
+export async function importRiskConfig(risk: ConfigRisk, options: { readonly takeMode: boolean }, now = Date.now()): Promise<number> {
   const store = riskStore();
   let added = 0;
   for (const item of risk.lists) {
@@ -172,6 +172,7 @@ export async function importRiskConfig(risk: ConfigRisk, now = Date.now()): Prom
     if (item.paused) await store.update(made.record.id, { paused: true });
   }
   for (const exception of risk.exceptions) await store.addException(exception.scope, exception.value, now);
+  if (!options.takeMode) return added;
   const browse = risk.mode === 'onSaveAndBrowse' && await chrome.permissions.contains({ permissions: BROWSE_PERMISSIONS }).catch(() => false);
   const mode: RiskMode = risk.mode === 'onSaveAndBrowse' && !browse ? 'onSave' : risk.mode;
   await store.setMode(mode);

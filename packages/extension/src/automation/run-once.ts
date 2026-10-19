@@ -62,7 +62,7 @@ export async function planRun(root: RunTreeNode, flat: FlatList, excluded: Reado
   const stack: RunTreeNode[] = [root];
   while (stack.length) {
     const node = stack.pop()!;
-    if (excluded.has(node.id)) { excludedFolders += 1; continue; }
+    if (excluded.has(node.id)) { if (node.url === undefined) excludedFolders += 1; continue; }
     if (node.url !== undefined) {
       if (bookmarks.length >= RUN_LIMIT) { tooMany = true; break; }
       bookmarks.push(node); continue;

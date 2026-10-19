@@ -1,4 +1,5 @@
 import { normalizeHost } from '@know-n/colp/automation';
+import { record } from '../automation/closed-value.js';
 import { registrableDomain } from '../automation/public-suffix.js';
 import type { RiskException } from './risk-check.js';
 
@@ -20,7 +21,6 @@ export const DEFAULT_RISK_SETTINGS: RiskSettings = { mode: 'off', exceptions: []
 
 const MODES = new Set<string>(['off', 'onSave', 'onSaveAndBrowse']);
 const ID = /^[\w-]{1,128}$/u;
-const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 /** The value an exception keeps for a host or domain the Owner typed or picked, or null when it names none. */
 export function exceptionValue(scope: RiskException['scope'], raw: string): string | null {

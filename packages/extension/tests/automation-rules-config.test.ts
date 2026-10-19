@@ -187,14 +187,19 @@ describe('the worker', () => {
     const file = JSON.parse(out.config.content) as RulesConfig;
     expect(file.risk).toEqual({ mode: 'onSaveAndBrowse', exceptions: [{ scope: 'host', value: 'login.example-bank.com' }],
       lists: [{ url: 'https://lists.example.org/phish.json', refreshIntervalHours: 24, paused: false }] });
-    // Another browser, without the browsing permissions: the lists come back not ready, alerts on for saves.
+    // Another browser, without the browsing permissions: the lists come back not ready. Added to the list here, the mode here stays.
     vi.stubGlobal('indexedDB', new IDBFactory());
     granted = false;
     expect(await handleConfigCommand({ kind: 'known.automation.browser.config.import', text: out.config.content, folders: { 30: '30' }, replace: false }))
       .toMatchObject({ ok: true, imported: { rules: 1, riskLists: 1 } });
     const here = riskStore();
     expect(await here.all()).toEqual([expect.objectContaining({ url: 'https://lists.example.org/phish.json', state: 'notReady', lastAttemptAt: null, updatePolicy: 'auto' })]);
-    expect(await here.settings()).toMatchObject({ mode: 'onSave', exceptions: [expect.objectContaining({ scope: 'host', value: 'login.example-bank.com' })] });
+    expect(await here.settings()).toMatchObject({ mode: 'off', exceptions: [expect.objectContaining({ scope: 'host', value: 'login.example-bank.com' })] });
+    // In place of the list, the file's mode is taken: *while browsing* without the permissions is alerts on for saves.
+    expect(await handleConfigCommand({ kind: 'known.automation.browser.config.import', text: out.config.content, folders: { 30: '30' }, replace: true }))
+      .toMatchObject({ ok: true, imported: { rules: 1, riskLists: 0 } });
+    expect(await here.settings()).toMatchObject({ mode: 'onSave' });
+    expect(await here.all()).toHaveLength(1);
     // Closed like the rest: an unknown key, a public suffix as a domain, an address off https.
     expect(() => parseRulesConfig({ ...file, risk: { ...file.risk, extra: 1 } })).toThrow('config_invalid');
     expect(() => parseRulesConfig({ ...file, risk: { ...file.risk!, exceptions: [{ scope: 'domain', value: 'github.io' }] } })).toThrow('config_invalid');

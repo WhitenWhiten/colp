@@ -1,3 +1,4 @@
+import { record } from './closed-value.js';
 import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, VALUE_LIMIT, checkRuleDraft, collectionRef, type CollectionLookup, type RuleAction,
   type RuleCondition } from './rule-conditions.js';
 import { LIST_LIMITS, ruleFolderNativeId, type ListEntry, type LocalRule, type LocalSet, type RuleListRecord, type SetOrigin } from './rule-list-store.js';
@@ -112,7 +113,6 @@ export async function buildRulesConfig(list: RuleListRecord, folder: (nativeId: 
   return { format: CONFIG_FORMAT, exportedAt: now, list: { enabled: list.enabled, entries }, folders, ...(risk ? { risk } : {}) };
 }
 
-const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 function object(value: unknown, required: readonly string[], optional: readonly string[] = []): Record<string, unknown> {
   if (!record(value) || !required.every((key) => key in value) || Object.keys(value).some((key) => !required.includes(key) && !optional.includes(key))) {
     throw new Error('config_invalid');
@@ -174,7 +174,8 @@ function parseSubscription(value: unknown): ConfigSubscription {
     if (exception.scope !== 'host' && exception.scope !== 'domain') throw new Error('config_invalid');
     return { scope: exception.scope as 'host' | 'domain', value: text(exception.value, 253, /^[a-z0-9.-]+$/u) };
   });
-  const bindings = object(raw.bindings, [], Object.keys(raw.bindings as object).filter((key) => ROLE.test(key)));
+  if (!record(raw.bindings)) throw new Error('config_invalid');
+  const bindings = object(raw.bindings, [], Object.keys(raw.bindings).filter((key) => ROLE.test(key)));
   return { id: text(raw.id, 128, ID), enabled: flag(raw.enabled), url: address.url, updatePolicy: raw.updatePolicy,
     refreshIntervalHours: raw.refreshIntervalHours as RefreshInterval, paused: flag(raw.paused), pinned: flag(raw.pinned),
     disabledEntryIds: list(raw.disabledEntryIds, 2_000).map((id) => text(id, 64, ROLE)), exceptions,

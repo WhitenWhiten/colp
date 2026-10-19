@@ -148,6 +148,21 @@ describe('site collections (RS-10)', () => {
     expect(await save([collectionValue(made.id, 'arxiv'), collectionValue('other', 'arxiv')])).toMatchObject({ ok: false,
       problems: [{ field: 'condition', index: 1, code: 'oneCollection' }] });
   });
+
+  it('reads a collection inside the write lane, so a version activated meanwhile cannot leave the rule compiled from the one before', async () => {
+    const made = await ready();
+    await made.subscriptions.settle(made.id, { kind: 'fetched', text: doc('1'), etag: null }, NOW + 1);
+    const draft = { name: '', combinator: 'any' as const, action: { kind: 'file' as const, folderNativeId: '31' },
+      conditions: [{ kind: 'siteCollection' as const, value: collectionValue(made.id, 'arxiv') }] };
+    // A lookup taken before the activation says version 1; read in the lane, the list's own subscriptions say version 2.
+    const before = collectionLookup(new Map([[made.id, await source(made)]]));
+    const inLane = { read: async (list: RuleListRecord) => collectionLookup(new Map((await Promise.all(list.entries.flatMap((entry) =>
+      entry.kind === 'subscription' ? [made.subscriptions.source(entry.subscriptionId)] : []))).flatMap((found) => found ? [[found.record.id, found] as const] : []))) };
+    await made.subscriptions.settle(made.id, { kind: 'fetched', text: doc('2'), etag: null }, NOW + 2);
+    await made.subscriptions.apply(made.id);
+    expect(await made.list.saveRule({ draft }, NOW + 3, before)).toMatchObject({ ok: true, rule: { compiledFrom: { contentVersions: { [made.id]: '1' } } } });
+    expect(await made.list.saveRule({ draft }, NOW + 3, inLane)).toMatchObject({ ok: true, rule: { compiledFrom: { contentVersions: { [made.id]: '2' } } } });
+  });
 });
 
 describe('Copy to my rules from a subscription (RS-05.4)', () => {
