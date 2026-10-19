@@ -7,7 +7,7 @@ import type { AutomationStateArea } from './bundle-store.js';
  * and signing out leaves it in place.
  */
 export const BROWSER_PLACEMENTS_KEY = 'known.automation.browserPlacements.v1';
-const PLACEMENT_LIMIT = 20;
+const PLACEMENT_LIMIT = 100;
 
 /** A page a browser rule filed here, for Options' recent activity. */
 export interface BrowserPlacement {

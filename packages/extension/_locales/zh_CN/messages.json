@@ -971,6 +971,10 @@
     "message": "服务器恢复数据后已暂停。书签会留在你保存时选择的文件夹。",
     "description": "Paused after a server restore. Bookmarks keep the folder you save them to."
   },
+  "automation_placementAddAbove": {
+    "message": "在上方添加规则",
+    "description": "Add a rule above"
+  },
   "automation_placementAttention": {
     "message": "无法确认",
     "description": "Couldn’t confirm"
@@ -978,6 +982,18 @@
   "automation_placementKept": {
     "message": "留在原处",
     "description": "Kept where saved"
+  },
+  "automation_placementListRule": {
+    "message": "来自“$2”的规则“$1”",
+    "description": "Rule “$1” from “$2”"
+  },
+  "automation_placementListRuleVersion": {
+    "message": "来自“$2”的规则“$1”，版本 $3",
+    "description": "Rule “$1” from “$2”, version $3"
+  },
+  "automation_placementOpenRule": {
+    "message": "打开规则",
+    "description": "Open rule"
   },
   "automation_placementRejected": {
     "message": "未被接受",
@@ -990,6 +1006,22 @@
   "automation_placementRule": {
     "message": "规则“$1”",
     "description": "Rule “$1”"
+  },
+  "automation_placementRuleGone": {
+    "message": "这条规则已不在列表中。",
+    "description": "This rule is no longer in the list."
+  },
+  "automation_placementSetRule": {
+    "message": "“$2”中的规则“$1”",
+    "description": "Rule “$1” in “$2”"
+  },
+  "automation_placementTurnOff": {
+    "message": "关闭此条目",
+    "description": "Turn off this entry"
+  },
+  "automation_placementTurnedOff": {
+    "message": "已关闭“$1”。此类页面现在由它下方的条目决定。",
+    "description": "Turned off “$1”. The entries below it decide pages like this now."
   },
   "automation_placementWaiting": {
     "message": "等待同步",

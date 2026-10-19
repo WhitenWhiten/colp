@@ -1,13 +1,15 @@
 import { faviconTile } from '../bookmark-manager-dom.js';
 import { createIcon } from '../icons.js';
-import { button, el, emptyBlock, inlineAlert } from '../library-dom.js';
+import { button, el, emptyBlock, iconButton, inlineAlert } from '../library-dom.js';
 import { formatMoment, SLOT, t, tn, withSlot } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
-import { AUTOMATION_CHANGED_KEY, type AutomationResponse, type AutomationServerRuleView, type AutomationServerView,
+import { showToast } from '../toast.js';
+import { AUTOMATION_CHANGED_KEY, type AutomationPlacementView, type AutomationResponse, type AutomationServerRuleView, type AutomationServerView,
   type AutomationStateView } from './messages.js';
 import { offersAccountRules } from './browser-rules-pane.js';
 import { openRuleEditor } from './rule-editor-dialog.js';
-import { listSets, restoreListFocus, ruleListGroup } from './rule-list-pane.js';
+import { sendRuleCommand } from './rule-command.js';
+import { entryPlace, listSets, restoreListFocus, revealEntry, ruleListGroup } from './rule-list-pane.js';
 import { flowStrip } from './flow-strip.js';
 import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
 
@@ -208,6 +210,42 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     : t('automation_accountRulesLede', 'They work on every device, before this browser’s own rules. Open one to change it on the web.'));
 }
 
+/** The rule that decided, with the set or subscription it came from as it was at the save (doc 17 RS-15). */
+function placementSource(placement: AutomationPlacementView): string {
+  const { entry, sourceName, ruleName } = placement;
+  if (!entry || !sourceName) return t('automation_placementRule', 'Rule “$1”', ruleName);
+  if (entry.kind === 'setRule') return t('automation_placementSetRule', 'Rule “$1” in “$2”', ruleName, sourceName);
+  return entry.contentVersion ? t('automation_placementListRuleVersion', 'Rule “$1” from “$2”, version $3', ruleName, sourceName, entry.contentVersion)
+    : t('automation_placementListRule', 'Rule “$1” from “$2”', ruleName, sourceName);
+}
+
+/**
+ * What a row this browser's list decided offers (RS-15.3): show the entry in the list, turn it off, or put a
+ * rule above it that keeps pages from this site where they are saved. A rule no longer in the list offers none.
+ */
+function placementActions(placement: AutomationPlacementView, view: AutomationStateView): HTMLElement | null {
+  const place = placement.entry && placement.entryState !== 'gone' && view.browserList ? entryPlace(view.browserList, placement.entry) : null;
+  if (!place) return null;
+  const actions = el('span', undefined, 'row-actions-hover');
+  const open = iconButton('eye', t('automation_placementOpenRule', 'Open rule'), () => {
+    if (!revealEntry(document, place.row)) showToast(t('automation_placementRuleGone', 'This rule is no longer in the list.'), 'info', { announce: true });
+  });
+  actions.append(open);
+  if (placement.entryState === 'on' && place.rule) {
+    const rule = place.rule;
+    actions.append(iconButton('pause', t('automation_placementTurnOff', 'Turn off this entry'), () => {
+      void sendRuleCommand({ kind: 'known.automation.browser.enable', id: rule.id, enabled: false }).then((reply) => showToast(reply.ok
+        ? t('automation_placementTurnedOff', 'Turned off “$1”. The entries below it decide pages like this now.', rule.name)
+        : t('automation_listSaveFailed', 'Couldn’t change the list. Try again.'), reply.ok ? 'ok' : 'error', { announce: true }));
+    }));
+  }
+  const above = iconButton('plus', t('automation_placementAddAbove', 'Add a rule above'), () => openRuleEditor(null, above, {
+    sets: listSets(view), into: place.into, index: place.index,
+    draft: { name: '', combinator: 'all', conditions: placement.host ? [{ kind: 'siteIs', value: placement.host }] : [], action: { kind: 'keepHere' } } }));
+  actions.append(above);
+  return actions;
+}
+
 function placementList(view: AutomationStateView): HTMLElement {
   if (!view.placements.length) {
     return emptyBlock({ icon: 'bookmark', title: t('automation_noPlacementsTitle', 'Nothing filed here yet'),
@@ -219,7 +257,7 @@ function placementList(view: AutomationStateView): HTMLElement {
     const main = el('div', undefined, 'list-row-main');
     const meta = el('p', undefined, 'list-row-meta');
     meta.append(createIcon('folder', 12), el('span', placement.folder), el('span', undefined, 'sep'),
-      el('span', t('automation_placementRule', 'Rule “$1”', placement.ruleName), 'grow'), el('span', undefined, 'sep'), when(placement.at));
+      el('span', placementSource(placement), 'grow'), el('span', undefined, 'sep'), when(placement.at));
     const title = el('p', placement.title || placement.host, 'list-row-title'); title.title = placement.host;
     main.append(title, meta);
     // Why a matching rule left the page where it was saved, after the save panel is gone (U6).
@@ -230,8 +268,8 @@ function placementList(view: AutomationStateView): HTMLElement {
           : t('automation_keptBlocked', 'The rule’s folder isn’t available here, so it stayed where you saved it.'), 'list-row-meta automation-kept-why'));
     }
     item.append(faviconTile(placement.url), main);
-    const badge = placementBadge(placement.state);
-    if (badge) { const tail = el('div', undefined, 'list-row-tail'); tail.append(badge); item.append(tail); }
+    const badge = placementBadge(placement.state), actions = placementActions(placement, view);
+    if (badge || actions) { const tail = el('div', undefined, 'list-row-tail'); tail.append(...[actions, badge].filter((node) => node !== null)); item.append(tail); }
     list.append(item);
   }
   return list;

@@ -37,6 +37,10 @@ export interface EditorOptions {
   /** The list's sets, for "In"; a new rule starts in `into`. */
   readonly sets?: readonly { readonly id: string; readonly name: string }[];
   readonly into?: string | null;
+  /** A new rule's place in the list, or in `into` (Add a rule above, doc 17 RS-15.3); it goes last when the set is changed. */
+  readonly index?: number;
+  /** What a new rule starts as. */
+  readonly draft?: RuleDraft;
 }
 
 function problemCopy(problem: DraftProblem): string {
@@ -60,7 +64,7 @@ interface ConditionRow {
 }
 
 export function openRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLElement | null, options: EditorOptions = {}): void {
-  const draft = rule?.draft ?? null;
+  const draft = rule?.draft ?? options.draft ?? null;
   // One New rule for both kinds: where it is used is the first thing asked, and only when there is a choice.
   const offerAccount = !rule && options.account === true;
   let use: 'browser' | 'account' = offerAccount && options.use === 'account' ? 'account' : 'browser';
@@ -324,7 +328,8 @@ export function openRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLEleme
       return;
     }
     const into = inSet.value || null;
-    void send({ kind: 'known.automation.browser.save', ...(rule ? { id: rule.id } : {}), ...(!rule && into ? { into } : {}), draft: next }).then(async (reply) => {
+    const index = !rule && options.index !== undefined && into === (options.into ?? null) ? { index: options.index } : {};
+    void send({ kind: 'known.automation.browser.save', ...(rule ? { id: rule.id } : {}), ...(!rule && into ? { into } : {}), ...index, draft: next }).then(async (reply) => {
       // An edited rule that changes set goes to the end of the new one, or below the list's entries.
       if (reply.ok && rule && into !== rule.setId) {
         const moved = await send({ kind: 'known.automation.browser.moveRule', ruleId: rule.id, into, index: 1_000 });

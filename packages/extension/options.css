@@ -1550,6 +1550,10 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .rule-list [data-drop="before"] { box-shadow: inset 0 2px 0 var(--ink); }
 .rule-list [data-drop="after"] { box-shadow: inset 0 -2px 0 var(--ink); }
 .rule-list [data-drop="into"] { background: var(--paper-2); box-shadow: inset 0 0 0 1px var(--line-heavy); }
+/* Open rule from Recent activity (doc 17 RS-15.3): the entry is marked for a moment, then settles. */
+.rule-list .list-row { transition: background var(--duration-fast) var(--ease-quart); }
+.rule-list .list-row[data-highlight] { background: var(--paper-2); box-shadow: inset 2px 0 0 var(--ink); }
+.rule-list .list-row:focus-visible { outline-offset: -2px; }
 .rule-set-head { background: var(--paper); }
 .rule-set-rules { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
 .rule-set-rules .list-row { padding-left: calc(var(--space-4) + var(--space-6)); }

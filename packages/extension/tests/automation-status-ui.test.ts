@@ -1,6 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AutomationRunView, AutomationServerView, AutomationStateView } from '../src/automation/messages.js';
+import type { AutomationPlacementView, AutomationRunView, AutomationServerView, AutomationStateView, BrowserRuleView } from '../src/automation/messages.js';
+
+vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ exclusionIds: async () => new Set<string>() }));
+
 import { bindAutomationsPane } from '../src/automation/options-pane.js';
 import { placementBadge, ruleServerBadge, ruleServerMeta, runBadge, runRow, runTitle, serverFreshness } from '../src/automation/status-ui.js';
 
@@ -194,5 +197,73 @@ describe('Options › Automations with the server’s status', () => {
     expect(stale.querySelectorAll('.automation-run')).toHaveLength(2);
     expect(text(stale.querySelector('.automation-freshness'))).toBe('Couldn’t reach your server. Showing what it said 3 hours ago.');
     expect((await render(view({ server: null }))).querySelector('[aria-labelledby="automation-server-heading"]')).toBeNull();
+  });
+});
+
+describe('a row this browser’s list decided (doc 17 RS-15)', () => {
+  const rule = (id: string, over: Partial<BrowserRuleView> = {}): BrowserRuleView => ({ id, name: `Rule ${id}`, enabled: true, active: true, setId: null,
+    keepHere: false, match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: `${id}.example` }] },
+    draft: { name: `Rule ${id}`, combinator: 'all', conditions: [{ kind: 'siteIs', value: `${id}.example` }], action: { kind: 'file', folderNativeId: 'f-papers' } },
+    folder: { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] }, folderMissing: false, account: null, move: null, localOnly: false,
+    moving: false, movingStale: false, ...over });
+  const placement = (id: string, over: Partial<AutomationPlacementView>): AutomationPlacementView => ({ id, title: `Page ${id}`, host: 'arxiv.org',
+    url: 'https://arxiv.org/abs/1', ruleName: 'Rule b', folder: 'Papers', at: NOW - 60_000, path: 'preSave', state: 'filed', ...over });
+  const state = (): AutomationStateView => ({ account: 'signedOut', state: 'none', rules: [], browserRules: [rule('a'), rule('b', { setId: 's' })],
+    browserList: { revision: 4, enabled: true, orderNotice: null, entries: [{ kind: 'rule', rule: rule('a') },
+      { kind: 'set', set: { id: 's', name: 'Research', enabled: true, origin: { kind: 'custom' }, rules: [rule('b', { setId: 's' })] } },
+      { kind: 'subscription', id: 'sub', enabled: true }] },
+    placements: [placement('set', { entry: { listRevision: 3, kind: 'setRule', setId: 's', ruleId: 'b' }, sourceName: 'Research', entryState: 'on' }),
+      placement('sub', { ruleName: 'Trackers', entry: { listRevision: 3, kind: 'subscriptionEntry', subscriptionId: 'sub', entryId: 'e-1',
+        contentVersion: '2026.10.1' }, sourceName: 'Tracker list', entryState: 'on', state: 'keptHere', kept: 'keepHere' }),
+      placement('gone', { entry: { listRevision: 1, kind: 'rule', ruleId: 'z' }, entryState: 'gone' }),
+      placement('old', { ruleName: 'Rule a' })],
+    pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl: null, server: null,
+    saving: { mode: 'manual', ai: null, suggestInForm: false } });
+  let sent: Record<string, unknown>[] = [];
+
+  async function render(): Promise<HTMLElement> {
+    sent = [];
+    document.body.innerHTML = '<section><a data-automations-web hidden></a><div data-automations-body></div></section>';
+    vi.stubGlobal('chrome', {
+      runtime: { getURL: (path: string) => `chrome-extension://known/${path}`, sendMessage: vi.fn(async (message: Record<string, unknown>) => {
+        if (message.kind === 'known.automation.state') return { ok: true, state: state() };
+        sent.push(message); return { ok: true, revision: 5 };
+      }) },
+      storage: { onChanged: { addListener: vi.fn() } },
+      permissions: { contains: async () => true, request: async () => true },
+      bookmarks: { getTree: async () => [{ id: '0', title: '', children: [{ id: '1', title: 'Bookmarks bar', children: [{ id: 'f-papers', title: 'Papers', children: [] }] }] }] },
+    });
+    bindAutomationsPane(document.querySelector('section')!).activate();
+    await vi.waitFor(() => expect(document.querySelector('.automation-placements')).not.toBeNull());
+    return document.querySelector<HTMLElement>('.automation-placements')!;
+  }
+  const rows = (list: HTMLElement) => Array.from(list.children) as HTMLElement[];
+  const actions = (row: HTMLElement) => Array.from(row.querySelectorAll<HTMLButtonElement>('.row-actions-hover button')).map((node) => node.getAttribute('aria-label'));
+
+  it('names the set or subscription and its version, and offers what still applies', async () => {
+    const list = await render();
+    expect(rows(list).map((row) => text(row.querySelector('.list-row-meta .grow')))).toEqual(['Rule “Rule b” in “Research”',
+      'Rule “Trackers” from “Tracker list”, version 2026.10.1', 'Rule “Rule b”', 'Rule “Rule a”']);
+    expect(rows(list).map(actions)).toEqual([['Open rule', 'Turn off this entry', 'Add a rule above'], ['Open rule', 'Add a rule above'], [], []]);
+  });
+
+  it('shows the rule in the list, turns it off, and puts a rule for this site above it', async () => {
+    const list = await render();
+    const [set] = rows(list);
+    const button = (label: string) => set!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+    button('Open rule').click();
+    const target = document.querySelector<HTMLElement>('[data-entry-id="b"] > .list-row')!;
+    expect([target.hasAttribute('data-highlight'), document.activeElement === target]).toEqual([true, true]);
+    button('Turn off this entry').click();
+    await vi.waitFor(() => expect(sent).toEqual([{ kind: 'known.automation.browser.enable', id: 'b', enabled: false }]));
+    button('Add a rule above').click();
+    const editor = document.querySelector<HTMLDialogElement>('dialog.automation-rule-editor')!;
+    expect([editor.querySelector<HTMLSelectElement>('.automation-condition select')!.value, editor.querySelector<HTMLInputElement>('.automation-condition input')!.value,
+      editor.querySelector<HTMLInputElement>('input[type="radio"][value="keepHere"]')!.checked, editor.querySelector<HTMLSelectElement>('.automation-in-set select')!.value])
+      .toEqual(['siteIs', 'arxiv.org', true, 's']);
+    editor.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toEqual({ kind: 'known.automation.browser.save', into: 's', index: 0,
+      draft: { name: 'arxiv.org', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], action: { kind: 'keepHere' } } });
   });
 });

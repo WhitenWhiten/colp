@@ -1,3 +1,4 @@
+import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import type { DigestIndicator } from './digest-indicator.js';
 import type { DraftProblem, RuleDraft } from './rule-conditions.js';
 import type { RuleMatchView } from './rule-match.js';
@@ -41,7 +42,7 @@ export function validAutomationRequest(value: unknown): value is AutomationReque
 export type BrowserRuleCommand =
   /** A new rule goes to the end of the list, or of the set `into`; an edited one stays where it is. */
   | { readonly kind: 'known.automation.browser.save'; readonly id?: string; readonly draft: RuleDraft; readonly enabled?: boolean;
-    readonly into?: string }
+    readonly into?: string; readonly index?: number }
   /** A rule (`entry` left out), a set or a subscription on or off. */
   | { readonly kind: 'known.automation.browser.enable'; readonly id: string; readonly enabled: boolean; readonly entry?: 'rule' | 'set' | 'subscription' }
   | { readonly kind: 'known.automation.browser.remove'; readonly id: string }
@@ -102,14 +103,15 @@ function validDraft(value: unknown): value is RuleDraft {
 const id = (value: unknown): value is string => typeof value === 'string' && RULE_ID.test(value);
 /** Room for every entry the list's limits allow (rule-list-store.ts LIST_LIMITS). */
 const ORDER_LIMIT = 512, INDEX_LIMIT = 1_000;
+const validIndex = (value: unknown) => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= INDEX_LIMIT;
 
 export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCommand {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>, keys = Object.keys(raw).length;
   if (raw.kind === 'known.automation.browser.save') {
     return validDraft(raw.draft) && (raw.id === undefined || id(raw.id)) && (raw.into === undefined || id(raw.into))
-      && (raw.enabled === undefined || typeof raw.enabled === 'boolean')
-      && keys === 2 + Number(raw.id !== undefined) + Number(raw.enabled !== undefined) + Number(raw.into !== undefined);
+      && (raw.enabled === undefined || typeof raw.enabled === 'boolean') && (raw.index === undefined || validIndex(raw.index))
+      && keys === 2 + Number(raw.id !== undefined) + Number(raw.enabled !== undefined) + Number(raw.into !== undefined) + Number(raw.index !== undefined);
   }
   if (raw.kind === 'known.automation.browser.forAccount') return keys === 2 && validDraft(raw.draft);
   if (raw.kind === 'known.automation.browser.enable') {
@@ -120,8 +122,7 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
     return keys === 2 && Array.isArray(raw.order) && raw.order.length <= ORDER_LIMIT && raw.order.every(id);
   }
   if (raw.kind === 'known.automation.browser.moveRule') {
-    return keys === 4 && id(raw.ruleId) && (raw.into === null || id(raw.into)) && Number.isInteger(raw.index)
-      && (raw.index as number) >= 0 && (raw.index as number) <= INDEX_LIMIT;
+    return keys === 4 && id(raw.ruleId) && (raw.into === null || id(raw.into)) && validIndex(raw.index);
   }
   if (raw.kind === 'known.automation.browser.set.save') {
     return keys === 2 + Number(raw.id !== undefined) && (raw.id === undefined || id(raw.id)) && typeof raw.name === 'string' && raw.name.length <= 1024;
@@ -247,6 +248,12 @@ export interface AutomationPlacementView {
    */
   readonly state: 'waitingForSync' | 'confirmed' | 'review' | 'rejected' | 'attention' | 'filed' | 'keptHere';
   readonly kept?: 'conflict' | 'blocked' | 'keepHere';
+  /** A browser rule's placement (doc 17 RS-15): the list entry that decided, absent on pages filed before the ordered list. */
+  readonly entry?: BrowserDecisionEntry;
+  /** The set or subscription of that entry, by its name at the save. */
+  readonly sourceName?: string;
+  /** With `entry`: where that rule (or subscription) stands in the list now, on, switched off (or its set or the list is), or gone. */
+  readonly entryState?: 'on' | 'off' | 'gone';
 }
 
 export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';

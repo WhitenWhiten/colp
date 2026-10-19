@@ -181,6 +181,49 @@ describe('a placed save', () => {
     expect(await browserPlacementLog().placements()).toHaveLength(1);
   });
 
+  it('says which entry of which set decided, and where that rule stands in the list now (doc 17 RS-15)', async () => {
+    const made = await handleBrowserRuleCommand({ kind: 'known.automation.browser.set.save', name: 'Research' });
+    if (!made.ok || !('set' in made) || !made.set) throw new Error('no set');
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', into: made.set.id, draft: draft({ name: 'In the set' }) });
+    const [papers] = individualRules(await browserRuleStore().load());
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: papers!.id, enabled: false });
+    const signedOut = { ...f.scope, accountId: null, collectionId: null };
+    const decision = await rulesDecision(signedOut, { ...paper, explicit: false });
+    expect(decision?.automation).toMatchObject({ outcome: 'placed', sourceName: 'Research', entry: { kind: 'setRule', setId: made.set.id } });
+    const saved: CaptureTask = { ...base, captureId: '0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f05', scope: signedOut, save: 'local-saved', disposition: 'new',
+      nativeId: '58', targetNativeId: '30', title: 'A paper', url: paper.url, savedAt: NOW, automation: decision!.automation };
+    await recordPreSaveReceipt(saved);
+    const row = async () => (await automationStateView()).placements[0];
+    expect(await row()).toMatchObject({ ruleName: 'In the set', sourceName: 'Research', entryState: 'on',
+      entry: { kind: 'setRule', setId: made.set.id, ruleId: decision!.automation!.rule.id } });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: made.set.id, enabled: false, entry: 'set' });
+    expect(await row()).toMatchObject({ entryState: 'off' });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.set.remove', id: made.set.id, keepRules: false });
+    expect(await row()).toMatchObject({ entryState: 'gone' });
+    // A row from before the ordered list names its rule and nothing more.
+    await browserPlacementLog().logPlacement({ id: 'before', ruleId: papers!.id, ruleName: 'Papers from arXiv', folder: 'Papers', title: 'Old',
+      url: paper.url, at: NOW + 1 });
+    const before = (await automationStateView()).placements[0]!;
+    expect([before.id, before.entry, before.entryState, before.sourceName]).toEqual(['before', undefined, undefined, undefined]);
+  });
+
+  it('puts a rule made from a row above the entry that decided (Add a rule above)', async () => {
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', index: 0,
+      draft: { name: '', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], action: { kind: 'keepHere' } } });
+    expect(individualRules(await browserRuleStore().load()).map((rule) => [rule.name, rule.action.kind])).toEqual([['arxiv.org', 'keepHere'],
+      ['Papers from arXiv', 'file']]);
+  });
+
+  it('keeps the latest 100 rows', async () => {
+    const [rule] = individualRules(await browserRuleStore().load());
+    const log = browserPlacementLog();
+    for (let at = 0; at < 105; at += 1) {
+      await log.logPlacement({ id: `p-${at}`, ruleId: rule!.id, ruleName: 'Papers from arXiv', folder: 'Papers', title: 'A paper', url: paper.url, at: NOW + at });
+    }
+    const rows = await log.placements();
+    expect([rows.length, rows[0]!.id, rows.at(-1)!.id]).toEqual([100, 'p-104', 'p-5']);
+  });
+
   it('is logged with why when a rule matched but the page stayed where it was saved (U6)', async () => {
     const [rule] = individualRules(await browserRuleStore().load());
     const kept = (captureId: string, outcome: 'conflict' | 'blocked', at: number): CaptureTask => ({ ...base, captureId,
@@ -251,6 +294,8 @@ describe('Options’ commands', () => {
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft() })).toBe(true);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', id: 'b-1', draft: draft(), enabled: false })).toBe(true);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: { ...draft(), extra: 1 } })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft(), index: 0 })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft(), index: -1 })).toBe(false);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft({ conditions: [{ kind: 'hasTag' as never, value: 'x' }] }) })).toBe(false);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft({ folderNativeId: '../1' }) })).toBe(false);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: 'b-1', enabled: 'yes' })).toBe(false);

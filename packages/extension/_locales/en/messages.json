@@ -746,11 +746,23 @@
   "automation_pausedRestore": {
     "message": "Paused after a server restore. Bookmarks keep the folder you save them to."
   },
+  "automation_placementAddAbove": {
+    "message": "Add a rule above"
+  },
   "automation_placementAttention": {
     "message": "Couldn’t confirm"
   },
   "automation_placementKept": {
     "message": "Kept where saved"
+  },
+  "automation_placementListRule": {
+    "message": "Rule “$1” from “$2”"
+  },
+  "automation_placementListRuleVersion": {
+    "message": "Rule “$1” from “$2”, version $3"
+  },
+  "automation_placementOpenRule": {
+    "message": "Open rule"
   },
   "automation_placementRejected": {
     "message": "Not accepted"
@@ -760,6 +772,18 @@
   },
   "automation_placementRule": {
     "message": "Rule “$1”"
+  },
+  "automation_placementRuleGone": {
+    "message": "This rule is no longer in the list."
+  },
+  "automation_placementSetRule": {
+    "message": "Rule “$1” in “$2”"
+  },
+  "automation_placementTurnOff": {
+    "message": "Turn off this entry"
+  },
+  "automation_placementTurnedOff": {
+    "message": "Turned off “$1”. The entries below it decide pages like this now."
   },
   "automation_placementWaiting": {
     "message": "Waiting for sync"

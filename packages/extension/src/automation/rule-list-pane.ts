@@ -4,6 +4,7 @@ import { t, tn } from '../i18n.js';
 import { button, el, emptyBlock, iconButton, inlineAlert } from '../library-dom.js';
 import { showToast } from '../toast.js';
 import { accountBadge, accountNotes, moveToAccountAction, offersAccountRules, overlapNotice } from './browser-rules-pane.js';
+import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import type { AutomationStateView, BrowserListEntryView, BrowserListView, BrowserRuleView, BrowserSetView } from './messages.js';
 import { sendRuleCommand as send } from './rule-command.js';
 import { openRuleEditor } from './rule-editor-dialog.js';
@@ -29,6 +30,33 @@ export function restoreListFocus(root: HTMLElement): void {
   const target = [control, control === 'up' ? 'down' : 'up'].map((name) => row?.querySelector<HTMLButtonElement>(`:scope > .list-row [data-move="${name}"]`))
     .find((node) => node && !node.disabled);
   target?.focus();
+}
+
+/**
+ * Where the entry that decided a save stands in the list now (doc 17 RS-15.3): the row to show, and the
+ * place a rule goes to be tried before it (in its set, for a set's rule). Null once it left the list.
+ */
+export function entryPlace(list: BrowserListView, entry: BrowserDecisionEntry): { readonly row: string; readonly into: string | null;
+  readonly index: number; readonly rule: BrowserRuleView | null } | null {
+  for (const [index, item] of list.entries.entries()) {
+    if (item.kind === 'rule' && entry.kind === 'rule' && item.rule.id === entry.ruleId) return { row: item.rule.id, into: null, index, rule: item.rule };
+    if (item.kind === 'subscription' && entry.kind === 'subscriptionEntry' && item.id === entry.subscriptionId) return { row: item.id, into: null, index, rule: null };
+    if (item.kind === 'set' && entry.kind === 'setRule') {
+      const at = item.set.rules.findIndex((rule) => rule.id === entry.ruleId);
+      if (at >= 0) return { row: entry.ruleId!, into: item.set.id, index: at, rule: item.set.rules[at]! };
+    }
+  }
+  return null;
+}
+
+/** Open rule: the entry's row scrolled into view, marked for a moment, with its actions in reach of the keyboard. */
+export function revealEntry(root: ParentNode, id: string): boolean {
+  const row = root.querySelector<HTMLElement>(`.rule-list [data-entry-id="${CSS.escape(id)}"] > .list-row`);
+  if (!row) return false;
+  row.scrollIntoView?.({ block: 'center' });
+  row.tabIndex = -1; row.dataset.highlight = ''; row.focus({ preventScroll: true });
+  setTimeout(() => { delete row.dataset.highlight; }, 2_400);
+  return true;
 }
 
 function badge(label: string, tone?: 'warning'): HTMLElement {

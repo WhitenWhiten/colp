@@ -197,13 +197,26 @@ export async function retireMovedBrowserRules(account: readonly AccountRuleForOv
   return retired;
 }
 
-/** Pages this browser's rules filed, in the shape of the account's placements; there is nothing to confirm. */
+/**
+ * Pages this browser's rules filed, in the shape of the account's placements; there is nothing to confirm.
+ * Each says which entry decided and where that rule stands in the list now, for Options' row actions (doc 17 RS-15).
+ */
 export async function browserPlacementViews(): Promise<AutomationPlacementView[]> {
-  return (await browserPlacementLog().placements()).map((placement) => {
+  const [placements, list] = await Promise.all([browserPlacementLog().placements(), browserRuleStore().load()]);
+  const standing = new Map<string, 'on' | 'off'>();
+  for (const entry of list.entries) {
+    if (entry.kind === 'rule') standing.set(entry.rule.id, list.enabled && entry.rule.enabled ? 'on' : 'off');
+    if (entry.kind === 'set') for (const rule of entry.set.rules) standing.set(rule.id, list.enabled && entry.set.enabled && rule.enabled ? 'on' : 'off');
+    if (entry.kind === 'subscription') standing.set(`subscription:${entry.subscriptionId}`, list.enabled && entry.enabled ? 'on' : 'off');
+  }
+  return placements.map((placement) => {
     let host = '';
     try { host = new URL(placement.url).hostname; } catch { /* the title stands alone */ }
     return { id: placement.id, title: placement.title, host, url: placement.url, ruleName: placement.ruleName, folder: placement.folder,
-      at: placement.at, path: 'preSave', ...(placement.kept ? { state: 'keptHere', kept: placement.kept } : { state: 'filed' }) } satisfies AutomationPlacementView;
+      at: placement.at, path: 'preSave', ...(placement.kept ? { state: 'keptHere', kept: placement.kept } : { state: 'filed' }),
+      ...(placement.sourceName ? { sourceName: placement.sourceName } : {}),
+      ...(placement.entry ? { entry: placement.entry, entryState: standing.get(placement.entry.kind === 'subscriptionEntry'
+        ? `subscription:${placement.entry.subscriptionId}` : placement.entry.ruleId ?? '') ?? 'gone' } : {}) } satisfies AutomationPlacementView;
   });
 }
 
@@ -232,7 +245,8 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand,
     case 'known.automation.browser.notice.dismiss': await store.dismissOrderNotice(); return { ok: true, revision: (await store.load()).revision };
     case 'known.automation.browser.save': {
       const result = await store.saveRule({ ...(command.id ? { id: command.id } : {}), draft: command.draft,
-        ...(command.enabled === undefined ? {} : { enabled: command.enabled }), ...(command.into ? { into: command.into } : {}) }, now);
+        ...(command.enabled === undefined ? {} : { enabled: command.enabled }), ...(command.into ? { into: command.into } : {}),
+        ...(command.index === undefined ? {} : { index: command.index }) }, now);
       if (result.ok) return { ok: true, rule: result.rule };
       return result.error === 'invalid' ? { ok: false, error: 'invalid', problems: result.problems } : { ok: false, error: result.error };
     }
