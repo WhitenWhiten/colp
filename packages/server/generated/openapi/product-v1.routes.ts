@@ -136,11 +136,6 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "getAvatar"
   },
   {
-    "method": "POST",
-    "path": "/api/v1/client-events",
-    "operationId": "recordClientEvents"
-  },
-  {
     "method": "GET",
     "path": "/api/v1/collections",
     "operationId": "listOwnedCollections"

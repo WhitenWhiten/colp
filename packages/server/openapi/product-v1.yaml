@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.98.0
+  version: 1.99.0
   description: >-
     Version 1.70.0 intentionally removes browser credential management: parent
     keys are provisioned only through the database for official bots. Credential
@@ -221,6 +221,9 @@ info:
     so a client can tell a folder hit from a bookmark, and optional username
     on AccountView, the sign-in name of a username account, preserving every
     accepted 1.92.0 Product client contract.
+    info.version 1.99.0 intentionally removes anonymous POST
+    /api/v1/client-events: the self-hosted web app sends no error or Web Vitals
+    telemetry and the server mounts no browser telemetry endpoint.
 servers:
   - url: /
 tags:
@@ -284,11 +287,6 @@ tags:
       response; no Attachment DTO, receipt, operation, or error body ever
       carries a key, credential, digest, or download capability. The surface
       declares no public, shared, or inline Attachment capability.
-  - name: ClientTelemetry
-    description: >-
-      Anonymous same-origin beacons from the Product web client: front-end
-      errors and Core Web Vitals, keyed by route template. No account, Session,
-      or concrete URL is recorded.
   - name: PublishingInsights
     description: >-
       Anonymous same-origin ingest of public-collection engagement events. Owner
@@ -7172,51 +7170,6 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           $ref: '#/components/responses/InvalidDocument'
-        '429':
-          $ref: '#/components/responses/RateLimited'
-        '500':
-          $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-
-  /api/v1/client-events:
-    post:
-      tags: [ ClientTelemetry ]
-      operationId: recordClientEvents
-      summary: Record web client errors and Web Vitals
-      description: >-
-        Same-origin browser beacon for front-end errors and Core Web Vitals
-        (LCP, CLS, INP). Anonymous: Origin is required, and no Session cookie,
-        CSRF token, or Known-Command-Id is read. Events carry the route template
-        (for example /c/:slug), never a concrete URL, and no account identifier.
-        The server writes each event to its structured log and returns 204 with
-        an empty body. Rate limited per client IP.
-      security:
-        - {}
-      parameters:
-        - $ref: '#/components/parameters/Origin'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ClientEventBatch'
-      responses:
-        '204':
-          description: Events accepted. Empty body.
-          headers:
-            Cache-Control:
-              $ref: '#/components/headers/PrivateNoStore'
-            X-Request-Id:
-              $ref: '#/components/headers/XRequestId'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
@@ -29299,68 +29252,6 @@ components:
       minLength: 3
       maxLength: 263
       pattern: '^[a-z0-9](?:[a-z0-9-]{1,261}[a-z0-9])$'
-    ClientEventBatch:
-      type: object
-      additionalProperties: false
-      required: [ release, events ]
-      properties:
-        release:
-          description: Web build identifier.
-          type: string
-          minLength: 1
-          maxLength: 64
-          pattern: '^[A-Za-z0-9._-]+$'
-        events:
-          type: array
-          minItems: 1
-          maxItems: 20
-          items:
-            $ref: '#/components/schemas/ClientEvent'
-    ClientRouteTemplate:
-      description: Route template such as /c/:slug; never a concrete URL.
-      type: string
-      minLength: 1
-      maxLength: 200
-      pattern: '^/[A-Za-z0-9/:*?._-]*$'
-    ClientEvent:
-      oneOf:
-        - type: object
-          additionalProperties: false
-          required: [ kind, source, route, message ]
-          properties:
-            kind:
-              type: string
-              const: error
-            source:
-              type: string
-              enum: [ window_error, unhandled_rejection, render_error, chunk_load_error ]
-            route:
-              $ref: '#/components/schemas/ClientRouteTemplate'
-            message:
-              type: string
-              maxLength: 500
-            stack:
-              type: string
-              maxLength: 4000
-        - type: object
-          additionalProperties: false
-          required: [ kind, name, value, rating, route ]
-          properties:
-            kind:
-              type: string
-              const: vital
-            name:
-              type: string
-              enum: [ LCP, CLS, INP ]
-            value:
-              type: number
-              minimum: 0
-              maximum: 600000
-            rating:
-              type: string
-              enum: [ good, needs-improvement, poor ]
-            route:
-              $ref: '#/components/schemas/ClientRouteTemplate'
     RecordInsightEventRequest:
       oneOf:
         - type: object

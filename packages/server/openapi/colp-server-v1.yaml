@@ -194,10 +194,10 @@ info:
     /api/v1/collections/{collectionId}/link-preview-requests, and the
     per-bookmark preview mode at GET/PUT
     /api/v1/collections/{collectionId}/nodes/{nodeId}/preview-image-mode while
-    preserving every accepted 1.85.0 Product client contract. info.version
-    1.87.0 additively exposes anonymous POST /api/v1/client-events (same-origin
-    web client error and Web Vitals beacons) while preserving every accepted
-    1.86.0 Product client contract. info.version 1.88.0 changes anonymous GET
+    preserving every accepted 1.85.0 Product client contract. The self-hosted
+    server does not mount the 1.87.0 anonymous POST /api/v1/client-events
+    browser telemetry beacon, and its web app sends no error or Web Vitals
+    telemetry. info.version 1.88.0 changes anonymous GET
     /api/v1/link-preview/{previewId} success caching from a one-year immutable
     policy to public, max-age=60, must-revalidate, so a hide_public revocation
     is not pinned in shared caches. The route also refuses bytes unless a
@@ -275,10 +275,6 @@ tags:
       issue response; no Attachment DTO, receipt, operation, or error body ever
       carries a key, credential, digest, or download capability. The surface
       declares no public, shared, or inline Attachment capability.
-  - name: ClientTelemetry
-    description: "Anonymous same-origin beacons from the Product web client:
-      front-end errors and Core Web Vitals, keyed by route template. No account,
-      Session, or concrete URL is recorded."
   - name: PublishingInsights
     description: Anonymous same-origin ingest of public-collection engagement
       events. Owner self-view is accepted as 204 without writing a row. Visitor

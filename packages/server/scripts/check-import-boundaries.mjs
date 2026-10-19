@@ -720,8 +720,6 @@ const transportTargets = new Set([
   'transport/product/bookmark-favicon-routes.ts',
   'transport/product/link-preview-routes.ts',
   'transport/product/link-preview-command-routes.ts',
-  // R15-13: client-event beacon registered from the product surface seam.
-  'transport/product/client-event-routes.ts',
   'transport/auth/browser-auth-deps.ts',
   'transport/auth/browser-auth-handlers.ts',
   'transport/auth/browser-auth-mapping.ts',

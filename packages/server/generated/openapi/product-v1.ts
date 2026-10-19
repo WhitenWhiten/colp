@@ -2293,26 +2293,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/client-events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Record web client errors and Web Vitals
-         * @description Same-origin browser beacon for front-end errors and Core Web Vitals (LCP, CLS, INP). Anonymous: Origin is required, and no Session cookie, CSRF token, or Known-Command-Id is read. Events carry the route template (for example /c/:slug), never a concrete URL, and no account identifier. The server writes each event to its structured log and returns 204 with an empty body. Rate limited per client IP.
-         */
-        post: operations["recordClientEvents"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/public-collections/{slug}/insight-events": {
         parameters: {
             query?: never;
@@ -9449,31 +9429,6 @@ export interface components {
         PublicationVisibility: "private" | "public" | "unlisted";
         PublicationSlug: string;
         PublicationLocatorSlug: string;
-        ClientEventBatch: {
-            /** @description Web build identifier. */
-            release: string;
-            events: components["schemas"]["ClientEvent"][];
-        };
-        /** @description Route template such as /c/:slug; never a concrete URL. */
-        ClientRouteTemplate: string;
-        ClientEvent: {
-            /** @constant */
-            kind: "error";
-            /** @enum {string} */
-            source: "window_error" | "unhandled_rejection" | "render_error" | "chunk_load_error";
-            route: components["schemas"]["ClientRouteTemplate"];
-            message: string;
-            stack?: string;
-        } | {
-            /** @constant */
-            kind: "vital";
-            /** @enum {string} */
-            name: "LCP" | "CLS" | "INP";
-            value: number;
-            /** @enum {string} */
-            rating: "good" | "needs-improvement" | "poor";
-            route: components["schemas"]["ClientRouteTemplate"];
-        };
         RecordInsightEventRequest: {
             /** @enum {string} */
             eventType: "collection_view" | "preview_open";
@@ -18176,40 +18131,6 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["InvalidDocument"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["ServiceUnavailable"];
-        };
-    };
-    recordClientEvents: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Exact allowed Product Web origin. Duplicate or null values fail. */
-                Origin: components["parameters"]["Origin"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ClientEventBatch"];
-            };
-        };
-        responses: {
-            /** @description Events accepted. Empty body. */
-            204: {
-                headers: {
-                    "Cache-Control": components["headers"]["PrivateNoStore"];
-                    "X-Request-Id": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["BadRequest"];
-            403: components["responses"]["Forbidden"];
-            413: components["responses"]["PayloadTooLarge"];
-            415: components["responses"]["UnsupportedMediaType"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ServiceUnavailable"];

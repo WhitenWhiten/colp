@@ -140,3 +140,9 @@ obsolete node limits from collection history responses. Library initialization
 still creates Bookmarks bar and Other bookmarks; synchronized Mobile roots use
 the same write and protection rules. The frozen snapshot is
 baselines/product-v1.1.98.0.yaml; 1.97.0 remains immutable.
+
+Product 1.99.0 intentionally removes anonymous `POST /api/v1/client-events`
+and its `ClientEventBatch`, `ClientEvent` and `ClientRouteTemplate` schemas.
+The self-hosted web app sends no error or Web Vitals telemetry and the server
+mounts no browser telemetry endpoint, so no client can depend on the route. The
+frozen snapshot is baselines/product-v1.1.99.0.yaml; 1.98.0 remains immutable.
