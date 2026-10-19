@@ -3,25 +3,31 @@ import type { BookmarkPreferencesPatch } from '@known/product-v1-client'
 import { productClient, ProductApiError } from '../../api'
 import { useAuth } from '../../auth/AuthContext'
 import { getApiBaseUrl } from '../../api/config'
+import { FilterRail } from '../FilterRail'
 import { RouteState } from '../RouteState'
+import { SelectMenu } from '../SelectMenu'
 
 type Remote = Awaited<ReturnType<typeof productClient.getBookmarkPreferences>>
 type Pending = { patch: BookmarkPreferencesPatch; etag: string; intentId: string }
 type Cache = { current: Remote; pending?: Pending; conflict?: Remote }
+/* The words are the extension's (Options › Saving): one preference record,
+   one name for each setting wherever it is changed. */
 const labels: Record<keyof BookmarkPreferencesPatch, string> = {
-  bookmarkInsertPosition: 'Save position', foldersFirst: 'Folders first', captureMode: 'Capture mode',
-  resultPanelAutoDismissMs: 'Result panel duration', learnFromCorrections: 'Use my classification corrections',
+  bookmarkInsertPosition: 'New bookmarks go', foldersFirst: 'Show folders before bookmarks', captureMode: 'Toolbar button',
+  resultPanelAutoDismissMs: 'Close the result panel', learnFromCorrections: 'Use my classification corrections',
   resumeClassificationWhenOnline: 'Resume classification when online', aiTagMode: 'Tags from AI',
   subscriptionOnUnfollow: 'After unfollowing', subscriptionOnUnsubscribe: 'After unsubscribing',
   subscriptionDefaultCheckIntervalMinutes: 'Default check interval', subscriptionDefaultDigestMode: 'Default Digest content', subscriptionDefaultEditionLimit: 'Default recent issue count',
 }
+
+const PANEL_DURATIONS = [3000, 5000, 10000, 30000, 0] as const
 
 function formatPreference(field: keyof BookmarkPreferencesPatch, value: unknown): string {
   if (field === 'subscriptionDefaultCheckIntervalMinutes' && value === null) return 'Manual'
   if (value === undefined || value === null || value === '') return 'Not set'
   if (typeof value === 'boolean') return value ? 'On' : 'Off'
   if (field === 'captureMode') return value === 'automatic' ? 'Automatic' : 'Manual'
-  if (field === 'bookmarkInsertPosition') return value === 'top' ? 'Top' : 'Bottom'
+  if (field === 'bookmarkInsertPosition') return value === 'top' ? 'Top of folder' : 'Bottom of folder'
   if (field === 'aiTagMode') return value === 'off' ? 'Off' : value === 'add' ? 'Add' : 'Suggest'
   if (field === 'resultPanelAutoDismissMs') return value ? `${Number(value) / 1000} seconds` : 'Close manually'
   if (field === 'subscriptionOnUnfollow' || field === 'subscriptionOnUnsubscribe') return value === 'remove' ? 'Remove managed content' : 'Keep ordinary bookmarks'
@@ -105,22 +111,33 @@ function AccountBookmarkPreferences({ accountId }: { accountId: string }) {
   }
   const value = cache ? { ...cache.current.preferences, ...cache.pending?.patch } : null
   const disabled = busy || Boolean(cache?.conflict) || Boolean(cache?.pending)
-  return <section className="stack gap-1" aria-label="Bookmark preferences">
+  return <section className="settings-section" aria-label="Bookmark preferences">
     <div className="settings-section-head"><h3 className="settings-toggle-label">Bookmarks</h3><p className="meta">These preferences sync to the browser extension. The extension saves a page only when you click it. Choose browser folders in the extension.</p></div>
-    {value && <>
-      <div className="field"><label htmlFor="pref-capture-mode">Capture mode</label><select id="pref-capture-mode" value={value.captureMode ?? 'manual'} disabled={disabled} onChange={event => void save({ captureMode: event.target.value as 'manual' | 'automatic' })}>
-        <option value="manual">Manual</option><option value="automatic">Automatic (requires extension authorization)</option>
-      </select></div>
-      <div className="field"><label htmlFor="pref-save-position">Save position</label><select id="pref-save-position" value={value.bookmarkInsertPosition} disabled={disabled} onChange={event => void save({ bookmarkInsertPosition: event.target.value as 'top' | 'bottom' })}>
-        <option value="top">Top</option><option value="bottom">Bottom</option>
-      </select></div>
-      <div className="field"><label htmlFor="pref-panel-duration">Result panel duration</label><select id="pref-panel-duration" value={value.resultPanelAutoDismissMs ?? 3000} disabled={disabled} onChange={event => void save({ resultPanelAutoDismissMs: Number(event.target.value) })}>
-        {[3000, 5000, 10000, 30000, 0].map(ms => <option key={ms} value={ms}>{ms ? `${ms / 1000} seconds` : 'Close manually'}</option>)}
-      </select></div>
-      <div className="option-group">
-        <label className="option-row"><input type="checkbox" checked={value.foldersFirst} disabled={disabled} onChange={event => void save({ foldersFirst: event.target.checked })} /><span>Folders first</span></label>
+    {value && <div className="settings-rows">
+      <div className="toggle-row">
+        <div><strong id="pref-capture-mode">Toolbar button</strong><span className="meta">Manual opens a short form to check the title, folder, tags and note. Automatic saves in one click once you confirm it in the extension.</span></div>
+        <FilterRail<'manual' | 'automatic'> variant="segments" className="view-switch" selection="manual" label="Toolbar button" labelledBy="pref-capture-mode"
+          value={value.captureMode ?? 'manual'} onChange={mode => void save({ captureMode: mode })}
+          options={[{ value: 'manual', label: 'Manual', disabled }, { value: 'automatic', label: 'Automatic', disabled }]} />
       </div>
-    </>}
+      <div className="toggle-row">
+        <div><strong id="pref-save-position">New bookmarks go</strong></div>
+        <FilterRail<'top' | 'bottom'> variant="segments" className="view-switch" selection="manual" label="New bookmarks go" labelledBy="pref-save-position"
+          value={value.bookmarkInsertPosition} onChange={position => void save({ bookmarkInsertPosition: position })}
+          options={[{ value: 'top', label: 'Top of folder', disabled }, { value: 'bottom', label: 'Bottom of folder', disabled }]} />
+      </div>
+      <div className="toggle-row">
+        <div><strong>Close the result panel</strong><span className="meta">Automatic mode only.</span></div>
+        <SelectMenu label="Close the result panel" disabled={disabled} value={String(value.resultPanelAutoDismissMs ?? 3000)}
+          options={PANEL_DURATIONS.map(ms => ({ value: String(ms), label: ms ? `${ms / 1000} seconds` : 'Close manually' }))}
+          onChange={ms => void save({ resultPanelAutoDismissMs: Number(ms) })} />
+      </div>
+      <div className="toggle-row">
+        <div><strong id="pref-folders-first">Show folders before bookmarks</strong><span className="meta" id="pref-folders-first-hint">Also reorders your browser bookmarks, keeping the order within each group.</span></div>
+        <button type="button" role="switch" className="toggle" aria-checked={value.foldersFirst} aria-labelledby="pref-folders-first"
+          aria-describedby="pref-folders-first-hint" disabled={disabled} onClick={() => void save({ foldersFirst: !value.foldersFirst })} />
+      </div>
+    </div>}
     {message !== null && (
       <p
         className={message.kind === 'error' ? 'field-error' : 'meta'}

@@ -346,6 +346,13 @@
   font-size: var(--text-md);
 }
 
+/* One setting per row: its name and hint on the left, the control on the
+   right, hairlines between, as on the extension's Options pages. */
+.settings-rows {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+
 /* A group's legend inside a section reads like the field labels around it
    (.field label): the section heading is the only larger line. */
 .settings-section .option-group legend {

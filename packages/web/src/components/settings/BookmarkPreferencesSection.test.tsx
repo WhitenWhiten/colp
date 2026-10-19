@@ -19,8 +19,8 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 it('persists an offline choice before showing success and replays the same intent on reconnect', async () => {
   mocks.update.mockRejectedValue(new Error('offline'))
   mountTree(<BookmarkPreferencesSection />)
-  await waitForDom(() => Boolean(document.querySelector('input[type="checkbox"]')))
-  const input = [...document.querySelectorAll<HTMLInputElement>('input')].find(node => node.parentElement?.textContent?.includes('Folders first'))!
+  await waitForDom(() => Boolean(document.querySelector('[role="switch"]')))
+  const input = document.querySelector<HTMLButtonElement>('[role="switch"][aria-labelledby="pref-folders-first"]')!
   await act(async () => input.click())
   await waitForDom(() => Boolean(document.body.textContent?.includes('It will sync when you reconnect')))
   const [patch, etag, options] = mocks.update.mock.calls[0]!
@@ -33,8 +33,8 @@ it('persists an offline choice before showing success and replays the same inten
 
 it('does not claim persistence or issue a mutation if browser storage fails', async () => {
   mountTree(<BookmarkPreferencesSection />)
-  await waitForDom(() => Boolean(document.querySelector('input[type="checkbox"]')))
-  const input = [...document.querySelectorAll<HTMLInputElement>('input')].find(node => node.parentElement?.textContent?.includes('Folders first'))!
+  await waitForDom(() => Boolean(document.querySelector('[role="switch"]')))
+  const input = document.querySelector<HTMLButtonElement>('[role="switch"][aria-labelledby="pref-folders-first"]')!
   vi.stubGlobal('localStorage', { getItem: localStorage.getItem.bind(localStorage), setItem() { throw new Error('quota') } })
   await act(async () => input.click())
   await waitForDom(() => Boolean(document.body.textContent?.includes('Not saved. Browser storage is unavailable')))
@@ -49,20 +49,21 @@ it('hides previous account state immediately and discards its late response', as
   mocks.read.mockImplementation(() => mocks.accountId === 'a' ? new Promise(done => { resolve = done }) : Promise.resolve(remote))
   const view = mountTree(<BookmarkPreferencesSection />)
   mocks.accountId = 'b'; view.rerender(<BookmarkPreferencesSection />)
-  await waitForDom(() => document.querySelector('select') !== null)
+  const captureMode = () => document.querySelector('[aria-labelledby="pref-capture-mode"] [aria-checked="true"]')?.textContent
+  await waitForDom(() => captureMode() !== undefined)
   await act(async () => resolve({ ...remote, preferences: { ...remote.preferences, captureMode: 'automatic' } }))
-  expect(document.querySelector('select')?.value).toBe('manual')
+  expect(captureMode()).toBe('Manual')
 })
 
 it('renders a conflict with human-readable values, not raw booleans', async () => {
   mocks.update.mockRejectedValueOnce(new ProductApiError({ status: 412, code: 'conflict', message: 'conflict' }))
   mocks.read.mockResolvedValueOnce(remote).mockResolvedValueOnce({ ...remote, preferences: { ...remote.preferences, foldersFirst: true }, etag: '"2"' })
   mountTree(<BookmarkPreferencesSection />)
-  await waitForDom(() => Boolean(document.querySelector('input[type="checkbox"]')))
-  const input = [...document.querySelectorAll<HTMLInputElement>('input')].find(node => node.parentElement?.textContent?.includes('Folders first'))!
+  await waitForDom(() => Boolean(document.querySelector('[role="switch"]')))
+  const input = document.querySelector<HTMLButtonElement>('[role="switch"][aria-labelledby="pref-folders-first"]')!
   await act(async () => input.click())
   await waitForDom(() => Boolean(document.querySelector('table')))
-  const row = [...document.querySelectorAll('tr')].find(node => node.textContent?.includes('Folders first'))!
+  const row = [...document.querySelectorAll('tr')].find(node => node.textContent?.includes('Show folders before bookmarks'))!
   expect(row.textContent).toContain('Off')
   expect(row.textContent).toContain('On')
   expect(row.textContent).not.toMatch(/true|false/)
