@@ -8,15 +8,15 @@ const folder = { id: 'folder', kind: 'folder', title: 'Research', parentId: 'roo
 const bookmark = { id: 'first', kind: 'bookmark', title: 'A & B', url: 'https://example.com/a', parentId: 'folder', position: 'a' } as EditableNodeView
 
 describe('bookmark HTML import', () => {
-  it('lists destination folders in tree order with their path as the label', () => {
+  it('lists destination folders in tree order with their depth', () => {
     const nested = { id: 'nested', kind: 'folder', title: 'Papers', parentId: 'folder', position: 'a' } as EditableNodeView
     const later = { id: 'later', kind: 'folder', title: 'Later', parentId: 'root', position: 'b' } as EditableNodeView
     const orphan = { id: 'orphan', kind: 'folder', title: 'Orphan', parentId: 'missing', position: 'a' } as EditableNodeView
     const options = importFolderOptions({ ...snapshot, nodes: [later, bookmark, nested, folder, orphan] })
     expect(options).toEqual([
-      { id: 'folder', title: 'Research', depth: 0, label: 'Research' },
-      { id: 'nested', title: 'Papers', depth: 1, label: 'Research / Papers' },
-      { id: 'later', title: 'Later', depth: 0, label: 'Later' },
+      { id: 'folder', title: 'Research', depth: 0 },
+      { id: 'nested', title: 'Papers', depth: 1 },
+      { id: 'later', title: 'Later', depth: 0 },
     ])
   })
 

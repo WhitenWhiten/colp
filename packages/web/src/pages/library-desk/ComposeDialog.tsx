@@ -103,7 +103,7 @@ export function ComposeDialog({ snap, mutations }: {
   const folders = useMemo(() => {
     if (!snap) return []
     const nested = snap.collection.library ? 0 : 1
-    const tree = importFolderOptions(snap).map(({ id, title, depth }) => ({ id, title, depth: depth + nested }))
+    const tree = importFolderOptions(snap).map((folder) => ({ ...folder, depth: folder.depth + nested }))
     return nested ? [{ id: snap.root.id, title: rootTitle(snap.collection), depth: 0 }, ...tree] : tree
   }, [snap])
   // Read when the dialog opens; a create records its folder (mutations.onCreate).

@@ -4,11 +4,10 @@ import type { CreateNodeRequest } from '../api/types'
 
 export const BOOKMARK_IMPORT_MAX_BYTES = 8 * 1024 * 1024
 
-export type ImportFolderOption = { id: string; title: string; depth: number; label: string }
+export type ImportFolderOption = { id: string; title: string; depth: number }
 
 /** Destination folders in tree order (parents before children, siblings by
-    position), each labelled with its path so a nested "Reading" is told apart
-    from a top-level one in a flat <select>. */
+    position) with their depth, as the folder picker lists them. */
 export function importFolderOptions(snapshot: Pick<EditorSnapshot, 'root' | 'nodes'>): ImportFolderOption[] {
   const folders = snapshot.nodes.filter(node => node.kind === 'folder')
   const byParent = new Map<string, EditableNodeView[]>()
@@ -18,17 +17,16 @@ export function importFolderOptions(snapshot: Pick<EditorSnapshot, 'root' | 'nod
     byParent.set(node.parentId, siblings)
   }
   const out: ImportFolderOption[] = []
-  const visit = (parentId: string, depth: number, path: string[], seen: Set<string>) => {
+  const visit = (parentId: string, depth: number, seen: Set<string>) => {
     const siblings = (byParent.get(parentId) ?? []).sort((a, b) => a.position < b.position ? -1 : a.position > b.position ? 1 : 0)
     for (const node of siblings) {
       if (seen.has(node.id)) continue
       seen.add(node.id)
-      const trail = [...path, node.title]
-      out.push({ id: node.id, title: node.title, depth, label: trail.join(' / ') })
-      visit(node.id, depth + 1, trail, seen)
+      out.push({ id: node.id, title: node.title, depth })
+      visit(node.id, depth + 1, seen)
     }
   }
-  visit(snapshot.root.id, 0, [], new Set())
+  visit(snapshot.root.id, 0, new Set())
   return out
 }
 

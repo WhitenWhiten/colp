@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { productClient, type EditorSnapshot } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/AppToast'
 import { Breadcrumb } from '../components/Breadcrumb'
+import { FolderPicker } from '../components/FolderPicker'
 import { Icon } from '../components/Icon'
 import { PageHead } from '../components/PageHead'
 import { PageShell } from '../components/PageShell'
@@ -22,11 +23,6 @@ const BROWSER_EXPORTS: ReadonlyArray<{ name: string; path: string }> = [
   { name: 'Safari', path: 'File → Export → Bookmarks' },
 ]
 type Progress = { done: number; total: number }
-
-/** Nested folders are indented so the flat <select> reads as a tree. */
-export function folderOptionText(depth: number, title: string): string {
-  return depth === 0 ? title : `${'\u00a0\u00a0\u00a0'.repeat(depth)}↳ ${title}`
-}
 
 export function SelfHostedImport() {
   const { isLoggedIn, bootstrapping, user } = useAuth()
@@ -73,6 +69,7 @@ export function SelfHostedImport() {
     return () => controller.abort()
   }, [collectionId, toastError])
   const [dragging, setDragging] = useState(false)
+  const folders = useMemo(() => (snapshot ? importFolderOptions(snapshot) : []), [snapshot])
   const readFile = async (file: File | undefined) => {
     const generation = ++fileGeneration.current
     setPreview(null); setFileName(''); setFileError(null); attempt.current = bookmarkImportAttempt()
@@ -122,7 +119,6 @@ export function SelfHostedImport() {
     if (busy) return
     void readFile(event.dataTransfer.files?.[0])
   }
-  const folders = snapshot ? importFolderOptions(snapshot) : []
   return (
     <PageShell variant="grid">
       <PageHead variant="workbench" breadcrumb={<Breadcrumb items={[{ label: 'Library', to: '/library' }, { label: 'Import' }]} />}
@@ -164,11 +160,10 @@ export function SelfHostedImport() {
               <li className="import-step">
                 <h2>Pick where it goes</h2>
                 <div className="field">
-                  <label htmlFor="import-folder">Destination folder</label>
-                  <select id="import-folder" value={parentId} disabled={busy || !snapshot} onChange={event => { changeDestination(); setParentId(event.target.value) }}>
-                    <option value="">{snapshot ? 'Choose a folder' : 'Loading folders…'}</option>
-                    {folders.map(option => <option key={option.id} value={option.id} title={option.label}>{folderOptionText(option.depth, option.title)}</option>)}
-                  </select>
+                  <label id="import-folder-label" htmlFor="import-folder">Destination folder</label>
+                  <FolderPicker id="import-folder" labelledBy="import-folder-label" folders={folders} value={parentId}
+                    placeholder={snapshot ? 'Choose a folder' : 'Loading folders…'} disabled={busy || !snapshot}
+                    onChange={id => { changeDestination(); setParentId(id) }} />
                 </div>
                 <p className="field-hint">Folders in the file are created under the folder you choose; existing folders with the same name are reused.</p>
               </li>

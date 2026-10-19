@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EditableNodeView, EditorSnapshot } from '../api'
 import { ToastProvider } from '../components/AppToast'
-import { SelfHostedImport, folderOptionText } from './SelfHostedImport'
+import { SelfHostedImport } from './SelfHostedImport'
 import { cleanup, mountTree } from '../test/render'
 
 const mocks = vi.hoisted(() => ({
@@ -69,15 +69,13 @@ describe('SelfHostedImport', () => {
     vi.clearAllMocks()
   })
 
-  it('indents nested destination folders so the flat select reads as a tree', async () => {
-    expect(folderOptionText(0, 'Research')).toBe('Research')
-    expect(folderOptionText(2, 'Deep')).toContain('↳ Deep')
+  it('lists destination folders as a tree in the folder picker', async () => {
     mountTree(<MemoryRouter><SelfHostedImport /></MemoryRouter>)
     await flush()
-    const options = [...document.querySelectorAll<HTMLOptionElement>('#import-folder option')]
-    expect(options.map((option) => option.value)).toEqual(['', 'folder', 'nested'])
-    expect(options[2]!.textContent).toContain('↳ Papers')
-    expect(options[2]!.title).toBe('Research / Papers')
+    act(() => document.querySelector<HTMLButtonElement>('#import-folder')!.click())
+    const options = [...document.querySelectorAll<HTMLButtonElement>('#import-folder-panel [role="option"]')]
+    expect(options.map((option) => [option.dataset.folderId, option.style.getPropertyValue('--depth')])).toEqual([['folder', '0'], ['nested', '1']])
+    expect(options[1]!.title).toBe('Research › Papers')
   })
 
   it('previews the chosen file, then clears it after a completed import so Confirm cannot run twice', async () => {
@@ -91,8 +89,8 @@ describe('SelfHostedImport', () => {
     expect(preview?.textContent).toContain('bookmarks.html')
     expect(preview?.textContent).toContain('1 folder, 2 bookmarks')
     expect(confirm.disabled).toBe(true)
-    const destination = document.querySelector<HTMLSelectElement>('#import-folder')!
-    act(() => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(destination, 'folder'); destination.dispatchEvent(new Event('change', { bubbles: true })) })
+    act(() => document.querySelector<HTMLButtonElement>('#import-folder')!.click())
+    act(() => document.querySelector<HTMLButtonElement>('#import-folder-panel [data-folder-id="folder"]')!.click())
     expect(confirm.disabled).toBe(false)
 
     await act(async () => {
@@ -113,7 +111,7 @@ describe('SelfHostedImport', () => {
 
   it('requires an explicit destination and never creates a collection', async () => {
     mountTree(<MemoryRouter><SelfHostedImport /></MemoryRouter>); await flush(); await chooseFile()
-    expect(document.querySelector<HTMLSelectElement>('#import-folder')!.value).toBe('')
+    expect(document.querySelector<HTMLButtonElement>('#import-folder')!.value).toBe('')
     expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true)
     expect(document.querySelector('#import-collection')).toBeNull()
     expect(mocks.createCollection).not.toHaveBeenCalled()
