@@ -212,6 +212,9 @@ export function NodeEditDrawer({
     </div>
     <footer className="node-drawer-foot">
       <span className="node-drawer-status" role="status" data-testid="node-drawer-status">{drawer.status}</span>
+      {/* Cancel and the decision, as every dialog ends; Cancel asks first
+          when there are unsaved changes, like the close button. */}
+      <button type="button" className="btn btn-ghost" onClick={requestClose}>Cancel</button>
       <button
         type="button"
         className="btn btn-primary"

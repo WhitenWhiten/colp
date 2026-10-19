@@ -2179,8 +2179,8 @@ body[data-bookmark-drag] {
   border-top: 1px solid var(--line);
   background: var(--surface);
 }
-.node-drawer-foot .btn-primary { margin-left: auto; }
 .node-drawer-status {
+  margin-right: auto;
   font-size: var(--text-xs);
   color: var(--faint);
 }
