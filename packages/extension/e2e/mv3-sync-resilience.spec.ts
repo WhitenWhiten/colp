@@ -70,7 +70,13 @@ test('web Retry executes in MV3; result loss and browser restart retain the real
     context = await launch(profile, stack); let { page, web } = await setupBrowser(context, stack);
     const replicaId = await currentReplica(page);
     stack.resilience!.setPullDenial(true);
-    for (let i = 0; i < 6; i++) await evidence(page, 'wakeDurableEngineEvidence');
+    // A manual wake may first encounter the normal polling deadline. Wait for the actual circuit state,
+    // instead of assuming six immediate wake requests have each sent a Pull.
+    await expect.poll(async () => {
+      await evidence(page, 'wakeDurableEngineEvidence');
+      const { engine } = await evidence(page, 'exportOutboundPushEvidence');
+      return engine?.phase === 'error' && engine?.lastError === 'need_authority' && engine?.circuitBreaker?.retryAt !== undefined;
+    }, { timeout: 75000, intervals: [1000] }).toBe(true);
     await evidence(page, 'reportReplicaHealthEvidence'); await refresh(web);
     await expect(web.locator('.replica-card').filter({ hasText: 'Sync on this browser has stopped' })).toContainText('need_authority');
     await web.getByRole('button', { name: 'Retry', exact: true }).click();
@@ -82,7 +88,7 @@ test('web Retry executes in MV3; result loss and browser restart retain the real
     page = (await openExtensionOptions(context)).page;
     await evidence(page, 'reportReplicaHealthEvidence');
     web = await context.newPage(); await web.goto(`${stack.serverOrigin}/sync`);
-    await expect(web.locator('.replica-card').filter({ hasText: 'Retry ran' })).toBeVisible();
+    await expect(web.locator('.replica-card').filter({ hasText: 'The browser processed retry.' })).toBeVisible();
     const replica = (await status(web)).replicas.find((r: any) => r.id === replicaId);
     expect(replica.health.commands).toHaveLength(1);
     expect(replica.health.commands[0]).toMatchObject({ state: 'done', resultCode: 'retry_completed' });
