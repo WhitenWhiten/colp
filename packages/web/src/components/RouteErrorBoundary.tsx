@@ -20,8 +20,6 @@ export class RouteErrorBoundary extends Component<Props, State> {
     return { hasError: true, chunkError: isChunkLoadError(error) }
   }
 
-  /* Telemetry is reported once for every boundary by createRoot's
-     onCaughtError (main.tsx). */
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[known:route-error]', error, info.componentStack ?? '')
   }

@@ -239,7 +239,7 @@ src/
 ├── auth/         # session bootstrap and AuthContext
 ├── components/   # shared UI (TopNav, Layout, PageHead, ResourceList, settings, …)
 ├── generated/    # colp-server-v1.ts, generated from the server's OpenAPI document
-├── lib/          # hooks and helpers (data loading, scroll, telemetry, edition)
+├── lib/          # hooks and helpers (data loading, scroll, edition)
 ├── pages/        # route-level pages; larger pages own a folder (library-desk/, collection-editor/, …)
 ├── styles/       # the stylesheets above and their contract tests
 └── test/         # render helpers and test-only fixtures
