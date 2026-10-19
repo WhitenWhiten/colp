@@ -14,7 +14,7 @@ import { useSearchKeyboard } from '../lib/useSearchKeyboard'
 import { searchFolderHref, searchResultHref, useProductSearch } from '../lib/useProductSearch'
 import { productName } from '../lib/edition'
 import { useLibrary } from '../lib/useLibrary'
-import { plural } from '../lib/plural'
+import { pluralNoun } from '../lib/plural'
 import { compactTrail, useSearchPlaces, type SearchPlace } from './search/places'
 
 /* One library per account: folders are nodes, so there is no collection
@@ -158,7 +158,12 @@ export function Search() {
       <section className="search-product-results" aria-labelledby="search-results-title">
         <div className={query ? 'search-product-summary' : 'visually-hidden'}>
           <h2 id="search-results-title">Results</h2>
-          {search.state === 'ready' && !search.hasMore && <span>{plural(search.items.length, 'result')}</span>}
+          {search.state === 'ready' && !search.hasMore && (
+            <span className="count-pill">
+              {search.items.length}
+              <span className="visually-hidden"> {pluralNoun(search.items.length, 'result')}</span>
+            </span>
+          )}
         </div>
 
         {!query && (

@@ -348,24 +348,20 @@ a.search-product-result.is-active {
   padding-top: var(--hair-125);
 }
 
+/* The section title and its count pill, as on Sync and Automations. */
 .search-product-summary {
   min-height: 2rem;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-4);
+  align-items: center;
+  gap: var(--space-2);
   margin-bottom: var(--space-2);
 }
 
 .search-product-summary h2 {
   margin: 0;
-  font-size: var(--text-base);
-  letter-spacing: 0;
-}
-
-.search-product-summary span {
-  color: var(--muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
 }
 
 .search-product-list {
