@@ -363,7 +363,11 @@
 }
 
 /* The provider template is a long URL: the field takes the row and the
-   Save button keeps its own width beside it. */
+   Save button keeps its own width beside it, as tall as the field. */
+.favicon-provider-row {
+  align-items: stretch;
+}
+
 .favicon-provider-row > input {
   flex: 1 1 auto;
   min-width: 0;

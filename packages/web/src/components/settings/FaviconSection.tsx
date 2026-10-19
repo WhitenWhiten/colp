@@ -199,7 +199,7 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
               />
               <button
                 type="button"
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 data-testid="favicon-provider-save"
                 disabled={busy || !dirtyProvider}
                 onClick={() => void submitProvider()}
