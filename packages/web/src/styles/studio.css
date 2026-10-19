@@ -85,6 +85,9 @@
 
 /* ——— Settings ——— */
 .settings-dialog {
+  /* The close button's side; the body's top corner makes room for it. */
+  --settings-close-size: 2rem;
+
   position: relative;
   display: grid;
   grid-template-columns: 14rem minmax(0, 1fr);
@@ -110,8 +113,16 @@
   grid-column: 2;
   grid-row: 1;
   justify-self: end;
+  width: var(--settings-close-size);
+  height: var(--settings-close-size);
   margin-block-start: var(--space-3);
   margin-inline-end: var(--space-3);
+}
+
+@media (pointer: coarse) {
+  .settings-dialog {
+    --settings-close-size: 2.75rem;
+  }
 }
 
 .settings-dialog .settings-nav {
@@ -141,10 +152,25 @@
     right: var(--space-3);
     z-index: 1;
     margin: 0;
+    /* Opaque, so a scrolled section passes under it cleanly. */
+    background: var(--surface);
+  }
+
+  .settings-dialog-close:hover {
+    background: var(--surface-sunken);
   }
 
   .settings-dialog-body {
     grid-row: 1 / -1;
+  }
+
+  /* Section heads open on short titles, clear of the button; the status
+     blocks that can open the body (a session note, the icon progress card)
+     run full width, so they stop short of it. */
+  .settings-dialog-body > .auth-notice,
+  .settings-dialog-body > .auth-alert,
+  .settings-dialog-body > .favicon-job-progress {
+    margin-inline-end: calc(var(--space-3) + var(--settings-close-size) + var(--space-2) - var(--space-6));
   }
 }
 
