@@ -18,6 +18,7 @@ import { types as nodeTypes } from "node:util";
 import type { McpToolInputSchema, McpToolOutputSchema } from "../tool-input.js";
 import { McpToolInputError } from "../tool-input.js";
 import { snapshotMcpData } from "../safe-data.js";
+import { createOwnDataGuards, type OwnDataGuards } from "./own-data.js";
 import type { McpResourceReadBudget } from "./resources.js";
 import {
   McpReadRequestAbortedError,
@@ -112,6 +113,20 @@ export interface McpStatelessToolCore {
 }
 
 const toolNamePattern = /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)+$/u;
+const ownData: OwnDataGuards = createOwnDataGuards(configError);
+function assertExactDataObject(
+  value: unknown,
+  required: readonly string[],
+  optional: readonly string[] = [],
+  fail: () => Error = configError,
+): asserts value is object {
+  ownData.assertExactDataObject(value, required, optional, fail);
+}
+const readOwnValue = (value: object, name: string, fail: () => Error = configError): unknown =>
+  ownData.readOwnValue(value, name, fail);
+const readOwnData = (value: object, name: string, fail: () => Error = configError): unknown =>
+  ownData.readOwnData(value, name, fail);
+const readOptionalData = (value: object, name: string): unknown => ownData.readOptionalData(value, name);
 
 /**
  * Creates the reusable stateless Tool execution core. Immutable registrations
@@ -264,12 +279,6 @@ function readRequiredScopes(value: unknown): readonly string[] {
   return Object.freeze(scopes);
 }
 
-function readOptionalData(value: object, name: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined || !("value" in descriptor)) return undefined;
-  return descriptor.value;
-}
-
 function hasRequiredScopes(
   definition: McpToolDefinition,
   effectiveScope: ReadonlySet<string>,
@@ -328,40 +337,6 @@ function assertNotAborted(signal: AbortSignal): void {
   if (signal.aborted) {
     throw new McpReadRequestAbortedError();
   }
-}
-
-function assertExactDataObject(
-  value: unknown,
-  required: readonly string[],
-  optional: readonly string[] = [],
-  fail: () => Error = configError,
-): asserts value is object {
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    throw fail();
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) throw fail();
-  const allowed = new Set([...required, ...optional]);
-  const keys = Reflect.ownKeys(value);
-  if (keys.some((key) => typeof key !== "string" || !allowed.has(key)))
-    throw fail();
-  if (required.some((key) => !keys.includes(key))) throw fail();
-  for (const key of keys) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !("value" in descriptor)) throw fail();
-  }
-}
-
-function readOwnValue(value: object, name: string, fail: () => Error): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined) return undefined;
-  if (!("value" in descriptor)) throw fail();
-  return descriptor.value;
-}
-
-function readOwnData(value: object, name: string, fail: () => Error): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined || !("value" in descriptor)) throw fail();
-  return descriptor.value;
 }
 
 function assertArgumentCount(actual: number, expected: number): void {

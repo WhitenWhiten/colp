@@ -17,6 +17,7 @@ import {
   type McpAuthenticatedAuthorizationBinding,
 } from '../shared/authorization.js';
 import { resolveMcpResourceReadBudget } from '../shared/resources.js';
+import { createOwnDataGuards, type OwnDataGuards } from '../shared/own-data.js';
 import {
   McpToolInputError,
   type McpToolInputSchema,
@@ -960,46 +961,21 @@ function configError(): TypeError {
   return new TypeError('Invalid Modern MCP Write Tool adapter configuration.');
 }
 
+const ownData: OwnDataGuards = createOwnDataGuards(configError);
 function assertExactDataObject(
   value: unknown,
   required: readonly string[],
   optional: readonly string[] = [],
   fail: () => Error = configError,
 ): asserts value is object {
-  if (typeof value !== 'object' || value === null || Array.isArray(value) || nodeTypes.isProxy(value)) {
-    throw fail();
-  }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) throw fail();
-  const allowed = new Set([...required, ...optional]);
-  const keys = Reflect.ownKeys(value);
-  if (keys.some((key) => typeof key !== 'string' || !allowed.has(key))) throw fail();
-  if (required.some((key) => !keys.includes(key))) throw fail();
-  for (const key of keys as string[]) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !('value' in descriptor)) throw fail();
-  }
+  ownData.assertExactDataObject(value, required, optional, fail);
 }
-
-function readOwnValue(value: object, name: string, fail: () => Error = configError): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined) return undefined;
-  if (!('value' in descriptor)) throw fail();
-  return descriptor.value;
-}
+const readOwnValue = (value: object, name: string, fail: () => Error = configError): unknown =>
+  ownData.readOwnValue(value, name, fail);
+const readOwnData = (value: object, name: string, fail: () => Error = configError): unknown =>
+  ownData.readOwnData(value, name, fail);
+const readOptionalData = (value: object, name: string): unknown => ownData.readOptionalData(value, name);
 
 function readOptionalOwnValue(value: object, name: string): unknown {
   return readOwnValue(value, name);
-}
-
-function readOwnData(value: object, name: string, fail: () => Error = configError): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined || !('value' in descriptor)) throw fail();
-  return descriptor.value;
-}
-
-function readOptionalData(value: object, name: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined || !('value' in descriptor)) return undefined;
-  return descriptor.value;
 }

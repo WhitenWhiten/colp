@@ -195,6 +195,35 @@ describe('shared stateless cores — context, output and option hardening', () =
     expect(() => resolveMcpResourceReadBudget(Object.freeze({ maxListItems: 0 }))).toThrow(TypeError);
   });
 
+  it('rejects Proxy, accessor and non-plain Tool registrations before traps or getters run', () => {
+    const definition = { name: 'probe.read', description: 'Probe', inputSchema: { type: 'object' } };
+    const invoke = () => ({ structuredContent: { ok: true } });
+
+    const ownKeys = vi.fn();
+    const proxyRegistration = new Proxy({ definition, invoke }, { ownKeys });
+    expect(() => createMcpStatelessToolCore({ tools: [proxyRegistration] } as never)).toThrow(TypeError);
+    expect(ownKeys).not.toHaveBeenCalled();
+
+    const definitionKeys = vi.fn();
+    const proxyDefinition = new Proxy(definition, { ownKeys: definitionKeys });
+    expect(() => createMcpStatelessToolCore({ tools: [{ definition: proxyDefinition, invoke }] } as never))
+      .toThrow(TypeError);
+    expect(definitionKeys).not.toHaveBeenCalled();
+
+    const getter = vi.fn(() => definition);
+    const accessorRegistration = Object.defineProperty({ invoke }, 'definition', { enumerable: true, get: getter });
+    expect(() => createMcpStatelessToolCore({ tools: [accessorRegistration] } as never)).toThrow(TypeError);
+    expect(getter).not.toHaveBeenCalled();
+
+    const optionsGetter = vi.fn(() => []);
+    const accessorOptions = Object.defineProperty({}, 'tools', { get: optionsGetter });
+    expect(() => createMcpStatelessToolCore(accessorOptions as never)).toThrow(TypeError);
+    expect(optionsGetter).not.toHaveBeenCalled();
+
+    class Registration { definition = definition; invoke = invoke; }
+    expect(() => createMcpStatelessToolCore({ tools: [new Registration()] } as never)).toThrow(TypeError);
+  });
+
   it('rejects invalid trusted contexts, list provenance and result shapes', async () => {
     const contexts: unknown[] = [
       { binding: {}, scope: [123], budget: undefined, abortSignal: new AbortController().signal, authorization: {} },

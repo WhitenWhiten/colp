@@ -25,6 +25,22 @@ import type { McpWriteInputBudget } from '../safe-data.js';
 import { resolveMcpWriteInputBudget, snapshotMcpData } from '../safe-data.js';
 import type { McpAuthorizationBinding } from './authorization.js';
 import { snapshotMcpAuthorizationBinding } from './authorization.js';
+import { createOwnDataGuards, type OwnDataGuards } from './own-data.js';
+
+const ownData: OwnDataGuards = createOwnDataGuards(resourceError);
+function assertExactDataObject(
+  value: unknown,
+  required: readonly string[],
+  optional: readonly string[] = [],
+  fail: () => Error = resourceError,
+): asserts value is object {
+  ownData.assertExactDataObject(value, required, optional, fail);
+}
+const readOwnValue = (value: object, name: string, fail: () => Error = resourceError): unknown =>
+  ownData.readOwnValue(value, name, fail);
+const readOwnData = (value: object, name: string, fail: () => Error = resourceError): unknown =>
+  ownData.readOwnData(value, name, fail);
+const readOptionalData = (value: unknown, name: string): unknown => ownData.readOptionalData(value, name);
 
 /** Trusted origin of a projected Resource body or list entry. */
 export type McpResourceProvenance =
@@ -527,25 +543,6 @@ function readReadLimit(
   return descriptor.value as number;
 }
 
-function assertExactDataObject(
-  value: unknown,
-  required: readonly string[],
-  optional: readonly string[] = [],
-  fail: () => Error = resourceError,
-): asserts value is object {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw fail();
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) throw fail();
-  const allowed = new Set([...required, ...optional]);
-  const keys = Reflect.ownKeys(value);
-  if (keys.some((key) => typeof key !== 'string' || !allowed.has(key))) throw fail();
-  if (required.some((key) => !keys.includes(key))) throw fail();
-  for (const key of keys) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !('value' in descriptor)) throw fail();
-  }
-}
-
 function assertStrictArray(value: unknown): asserts value is unknown[] {
   if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) throw resourceError();
   const keys = Reflect.ownKeys(value);
@@ -556,26 +553,6 @@ function assertStrictArray(value: unknown): asserts value is unknown[] {
     const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
     if (descriptor === undefined || !('value' in descriptor)) throw resourceError();
   }
-}
-
-function readOwnValue(value: object, name: string, fail: () => Error = resourceError): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined) return undefined;
-  if (!('value' in descriptor)) throw fail();
-  return descriptor.value;
-}
-
-function readOwnData(value: object, name: string, fail: () => Error = resourceError): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined || !('value' in descriptor)) throw fail();
-  return descriptor.value;
-}
-
-function readOptionalData(value: unknown, name: string): unknown {
-  if (typeof value !== 'object' || value === null) return undefined;
-  const descriptor = Object.getOwnPropertyDescriptor(value, name);
-  if (descriptor === undefined || !('value' in descriptor)) return undefined;
-  return descriptor.value;
 }
 
 function readNonEmptyString(value: object, name: string): string {
