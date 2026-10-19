@@ -87,6 +87,9 @@ test('real Chrome events survive worker/browser restarts with stable unique sequ
 });
 
 test('crash points recover accepted events exactly once without sequence gaps', async () => {
+  // Three crash points, each with two browser launches; CI ran 42.8s against
+  // the config's 45s, so any runner jitter timed the test out.
+  test.setTimeout(120_000);
   for (const crashPoint of ['after_event', 'after_sequence', 'after_queue'] as const) {
     const profile = await mkdtemp(resolve(tmpdir(), `known-p3-30-${crashPoint}-`));
     let context = await launch(profile);

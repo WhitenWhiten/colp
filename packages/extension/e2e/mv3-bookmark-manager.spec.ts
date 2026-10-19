@@ -28,7 +28,9 @@ test('production MV3 bookmark manager performs real create, rename, move and key
     await expect(page.locator('#manager-feedback')).toHaveText('Folder created.');
     const destination = await bookmarkByTitle(page, 'Manager destination');
 
-    await page.getByRole('button', { name: 'New bookmark' }).click();
+    // The toolbar and the open composer both say Add bookmark; the toolbar has
+    // its own id, and the composer's submit is scoped to the composer row.
+    await page.locator('#manager-new-bookmark').click();
     await page.getByLabel('New bookmark name').fill('Manager source');
     await page.getByLabel('New bookmark URL').fill('example.com/manager-source');
     // A native event arriving while the composer is open must not rebuild the
@@ -41,7 +43,7 @@ test('production MV3 bookmark manager performs real create, rename, move and key
     await page.waitForTimeout(250);
     await expect(page.getByLabel('New bookmark name')).toHaveValue('Manager source');
     await expect(page.getByLabel('New bookmark URL')).toHaveValue('example.com/manager-source');
-    await page.getByRole('button', { name: 'Add bookmark' }).click();
+    await page.locator('.mgr-composer').getByRole('button', { name: 'Add bookmark' }).click();
     await expect(page.locator('#manager-feedback')).toHaveText('Bookmark added.');
     const source = await bookmarkByTitle(page, 'Manager source');
     await expect(row(page, source.id).getByRole('link', { name: 'Manager source' }))
