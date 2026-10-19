@@ -138,7 +138,7 @@ export function CollectionHistory() {
       const versions = await loadVersionPage(collectionId, signal)
       return { owned, versions }
     },
-    fallbackError: "Couldn't load collection history. Try again.",
+    fallbackError: "Couldn't load version history. Try again.",
   })
   const owned = route.data?.owned ?? null
   const library = owned?.collection.library === true
@@ -328,8 +328,8 @@ export function CollectionHistory() {
         <RouteState
           kind="auth"
           icon="refresh"
-          title="Sign in to see this collection's history"
-          description="You need to be signed in to view collection history."
+          title="Sign in to see version history"
+          description="You need to be signed in to view version history."
         />
       ) : route.status === 'unavailable' ? (
         <RouteState
@@ -342,14 +342,14 @@ export function CollectionHistory() {
         <RouteState
           kind="error"
           icon="alert"
-          title="Couldn't load collection history"
+          title="Couldn't load version history"
           description={error}
           onRetry={() => {
             void reload()
           }}
         />
       ) : loading ? (
-        <LoadingState label="Loading collection history…" />
+        <LoadingState label="Loading version history…" />
       ) : versions.length === 0 ? (
         /* Nothing to compare yet: one centred page-level empty state instead
            of an empty two-column shell with a second empty state beside it. */
@@ -376,7 +376,7 @@ export function CollectionHistory() {
               className="history-version-list"
               data-testid="history-version-list"
               role="group"
-              aria-label="Collection versions"
+              aria-label="Saved versions"
             >
               {versions.map((item) => (
                 <button

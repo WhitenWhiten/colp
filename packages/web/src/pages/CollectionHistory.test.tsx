@@ -375,7 +375,7 @@ describe('Collection history Product wiring', () => {
       await waitForDom(domFinishedLoading)
       expect(document.body.textContent).toContain('Live snapshot A')
       expect(mocks.error).toHaveBeenCalledWith("Couldn't save the version. Try again.")
-      expect(document.body.textContent).not.toContain("Couldn't load collection history")
+      expect(document.body.textContent).not.toContain("Couldn't load version history")
     })
 
     it('restores the selected version with the same contentEtag', async () => {
@@ -493,7 +493,7 @@ describe('Collection history Product wiring', () => {
       }))
       render()
       await waitForDom(domFinishedLoading)
-      expect(document.body.textContent).toContain("Couldn't load collection history")
+      expect(document.body.textContent).toContain("Couldn't load version history")
       expect(document.body.textContent).not.toContain('It will appear here when it is ready.')
       expect(document.body.textContent).not.toContain('尚未开放')
       expect(document.body.textContent).not.toContain('Version 18')

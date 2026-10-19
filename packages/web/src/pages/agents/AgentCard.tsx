@@ -99,7 +99,7 @@ function ActivityList({ activity }: { activity: AgentActivity }) {
                 {record.versionId && href && (
                   <>
                     {' · '}
-                    <Link to={href} aria-label={`Collection version ${record.versionId} in History`}>Saved a version</Link>
+                    <Link to={href} aria-label={`Version ${record.versionId} in Version history`}>Saved a version</Link>
                   </>
                 )}
                 {record.versionId && !href && ' · Saved a version'}
