@@ -586,9 +586,9 @@ body[data-first-run="syncing"] .folder-foot { display: none; }
   .auth-otp-send { min-width: 0; }
   .panel-head { flex-direction: column; }
   .facts div { grid-template-columns: 5.5rem minmax(0, 1fr); }
-  /* Phone-width CTAs go full-width by name, like the site's .btn-lg rule;
-     toolbars, pills and the OAuth circles keep their natural width without
-     needing a blanket .btn rule plus an opt-out list nobody remembers. */
+  /* Phone-width CTAs go full-width by name; toolbars, pills and the OAuth
+     circles keep their natural width without needing a blanket .btn rule
+     plus an opt-out list nobody remembers. */
   .manager-gate .btn, #primary-action { width: 100%; }
   .row-actions { flex-direction: column; align-items: stretch; }
   .section-commands { align-self: flex-end; }
@@ -1077,8 +1077,11 @@ body[data-state="signed_out"] .side-id .avatar { background: var(--paper-2); col
 .side-version { padding: var(--hair-40) var(--hair-65) 0; color: var(--faint); font-size: var(--text-xs); }
 
 /* ---- main column */
-.main { min-width: 0; padding: var(--space-6) var(--space-8) var(--space-10); }
-.main-inner { max-width: 46rem; margin-inline: auto; }
+/* Every page starts where the wide 72rem track starts, so moving between
+   Bookmarks and a settings page never shifts the title sideways; a settings
+   page is narrower and simply stops sooner. */
+.main { --main-track-start: max(0px, (100% - 72rem) / 2); min-width: 0; padding: var(--space-6) var(--space-8) var(--space-10); }
+.main-inner { max-width: 46rem; margin-inline: var(--main-track-start) auto; }
 .main-inner--wide { max-width: 72rem; margin-inline: auto; }
 .page-head { display: flex; align-items: flex-end; gap: var(--space-4); margin-bottom: var(--space-5); }
 .page-head-copy { flex: 1 1 14rem; min-width: 0; display: grid; gap: var(--hair-30); }
@@ -1095,7 +1098,7 @@ body[data-state="signed_out"] .side-id .avatar { background: var(--paper-2); col
 .main .btn-secondary:disabled { background: transparent; border-color: var(--line-strong); color: var(--faint); }
 .main .btn-ghost:disabled { background: transparent; border-color: transparent; color: var(--faint); }
 .main > .inline-alert, .session-stage > .inline-alert, .main-inner > .inline-alert { margin-bottom: var(--space-5); }
-.main > .inline-alert { max-width: 46rem; margin-inline: auto; }
+.main > .inline-alert { max-width: 46rem; margin-inline: var(--main-track-start) auto; }
 .first-run-alert[data-tone="warning"] > .first-run-alert-info, .first-run-alert:not([data-tone="warning"]) > .first-run-alert-warning { display: none; }
 .set-group > .inline-alert { margin: 0; }
 
@@ -1423,7 +1426,7 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .capture-load-more { display: flex; margin: var(--space-4) auto 0; }
 
 /* One saved page. */
-#history-card[data-view="detail"] { max-width: 46rem; }
+#history-card[data-view="detail"] { max-width: 46rem; margin-inline: var(--main-track-start) auto; }
 #history-card[data-view="detail"] > .page-head, #history-card[data-view="detail"] > .history-saves { display: none; }
 .hist-detail { display: grid; gap: var(--space-5); min-width: 0; overflow-wrap: anywhere; }
 .hist-detail:focus, .hist-detail:focus-visible { outline: none; box-shadow: none; }
