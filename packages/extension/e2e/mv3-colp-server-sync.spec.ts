@@ -30,12 +30,15 @@ test('COLP Server: real first sync, two profiles, web edit, conflict and disconn
     await web.locator('#login-password').fill(password!);
     await web.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(web).not.toHaveURL(/\/login/u);
-    await web.goto(`${origin}/library/new`);
-    const title = `I2 browser sync ${Date.now()}`;
-    await web.locator('#cc-title').fill(title);
-    await web.getByRole('button', { name: 'Create', exact: true }).click();
-    await expect(web).toHaveURL(/\/library\/(?!new$)[^/?]+$/u);
-    const collection = new URL(web.url()).pathname.split('/').at(-1)!;
+    await web.goto(`${origin}/library`);
+    await expect(web.getByTestId('library-nav').getByRole('link', { name: /Bookmarks bar/ })).toBeVisible();
+    const collection = await web.evaluate(async () => {
+      const response = await fetch('/api/v1/me/library', { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`Library discovery returned ${response.status}`);
+      const library = await response.json() as { id: string; library: boolean };
+      if (!library.library || !library.id) throw new Error('The account library is unavailable');
+      return library.id;
+    });
     const open = async () => {
       const dir = await mkdtemp(resolve(tmpdir(), 'colp-i2-profile-')); dirs.push(dir);
       const context = await chromium.launchPersistentContext(dir, {
@@ -55,7 +58,7 @@ test('COLP Server: real first sync, two profiles, web edit, conflict and disconn
     await firstSync(a.page, collection);
     process.stdout.write('I2: first sync completed\n');
     await web.reload();
-    await web.locator('.library-folder-row').filter({ hasText: 'bookmarks-bar' }).getByRole('link').first().click();
+    await web.getByTestId('library-nav').getByRole('link', { name: /Bookmarks bar/ }).click();
     await expect(web).toHaveURL(/\?folder=/u);
     const libraryUrl = web.url();
     await expect(web.getByRole('button', { name: 'Actions for I2 first sync', exact: true })).toBeVisible({ timeout: 45_000 });
@@ -204,7 +207,7 @@ async function connect(page: Page): Promise<void> {
   await page.locator('#login-password').fill(password!);
   await page.locator('#login-submit').click();
   await expect(page.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 25_000 });
-  expect(await page.evaluate(() => chrome.storage.local.get('known.sync.collection.v1'))).toEqual({});
+  await waitForLibraryBinding(page);
 }
 
 async function firstSync(page: Page, collection: string): Promise<void> {
