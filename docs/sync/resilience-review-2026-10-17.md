@@ -636,6 +636,15 @@ device's ordinary delete a permanent item.
   silently. `tests/pull-local-delete-supersede.test.ts` (9); the foreign/unreceipted/unconfirmed
   cases in `pull-self-content-local-removal.test.ts` now expect this.
 
+- **Both devices deleting the same bookmark left two items.** The second delete came back
+  `404 resource_not_found` and settled `rejected` (an open item for good); the other device's
+  tombstone then failed preflight on the unmapped node and became a set-aside item, for a node
+  gone everywhere. A delete refused with `resource_not_found` now settles as the history code
+  `target_already_deleted` (`settleAlreadyDeleted` in `push-delete-rebase.ts`,
+  `SETTLED_REJECTION_CODES` in `open-issue-facts.ts`): no open issue, no rejected banner, a hole
+  the lane realigns over, and the removal still counts as this browser's authority, so the
+  remote tombstone is superseded. Tests in the two files above.
+
 Receipt: extension 78 pull/delete/issue files (565 tests) and 38 push/queue/issue files (326)
 passed; node schema audits updated for the new definition (192 definitions, 170 closed) and the
 subtree-observation test (3); server push HTTP/delete units (28) and the DS-04 PostgreSQL case
