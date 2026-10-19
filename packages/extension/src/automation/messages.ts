@@ -53,6 +53,10 @@ export type BrowserRuleCommand =
   /** `keepRules`: its rules stay, as individual rules where the set was. */
   | { readonly kind: 'known.automation.browser.set.remove'; readonly id: string; readonly keepRules: boolean }
   | { readonly kind: 'known.automation.browser.list.enable'; readonly enabled: boolean }
+  /** A copy right below the original, under the name the page gives it. */
+  | { readonly kind: 'known.automation.browser.duplicate'; readonly id: string; readonly entry: 'rule' | 'set'; readonly name: string }
+  /** The Owner has read the note about rules whose order now decides (doc 17 R2). */
+  | { readonly kind: 'known.automation.browser.notice.dismiss' }
   /** Keep this rule next to the account rule it overlaps, at that rule's current revision (`reviewKey`). */
   | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string }
   /** Add mine to the account was opened on the web: retire this rule once the account's enabled copy arrives. */
@@ -124,6 +128,10 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
   }
   if (raw.kind === 'known.automation.browser.set.remove') return keys === 3 && id(raw.id) && typeof raw.keepRules === 'boolean';
   if (raw.kind === 'known.automation.browser.list.enable') return keys === 2 && typeof raw.enabled === 'boolean';
+  if (raw.kind === 'known.automation.browser.duplicate') {
+    return keys === 4 && id(raw.id) && (raw.entry === 'rule' || raw.entry === 'set') && typeof raw.name === 'string' && raw.name.length <= 1024;
+  }
+  if (raw.kind === 'known.automation.browser.notice.dismiss') return keys === 1;
   if (raw.kind === 'known.automation.browser.review') {
     return keys === 4 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.accountRuleId === 'string'
       && raw.accountRuleId.length > 0 && raw.accountRuleId.length <= 256 && typeof raw.key === 'string' && raw.key.length > 0 && raw.key.length <= 512;
@@ -159,8 +167,16 @@ export interface AutomationRuleView {
 export interface BrowserRuleView {
   readonly id: string;
   readonly name: string;
+  /** Its own switch. */
   readonly enabled: boolean;
+  /** It takes part in saves now: it, its set and the whole list are on. */
+  readonly active: boolean;
+  /** The set it is in; null outside any set. */
+  readonly setId: string | null;
+  /** Its conditions as written, in the editor's kinds; null when it has no short form. */
   readonly match: RuleMatchView | null;
+  /** It keeps matching pages where they are saved, so it has no folder. */
+  readonly keepHere: boolean;
   /** What the editor opens with; null for a rule it cannot show (never written by this build's editor). */
   readonly draft: RuleDraft | null;
   /** Its folder here; null while bookmark access is off or once the folder is gone (`folderMissing`). */
@@ -179,6 +195,27 @@ export interface BrowserRuleView {
   readonly moving: boolean;
   /** Moving for over a day and the account's copy is still not here: it was never turned on, or changed on the web. */
   readonly movingStale: boolean;
+}
+
+/** This browser's ordered list, as Options shows it (doc 17 §4.1): its entries in the order saves try them. */
+export interface BrowserListView {
+  readonly revision: number;
+  /** The whole list's switch. */
+  readonly enabled: boolean;
+  readonly entries: readonly BrowserListEntryView[];
+  /** Rules from the earlier list that can take one page to different folders; the upper one files it now (R2). Null once read. */
+  readonly orderNotice: readonly { readonly upper: string; readonly lower: string }[] | null;
+}
+export type BrowserListEntryView = { readonly kind: 'rule'; readonly rule: BrowserRuleView } | { readonly kind: 'set'; readonly set: BrowserSetView }
+  | { readonly kind: 'subscription'; readonly id: string; readonly enabled: boolean };
+export interface BrowserSetView {
+  readonly id: string;
+  readonly name: string;
+  readonly enabled: boolean;
+  /** Made here, or imported from a rule-set file: where its rules came from, and nothing more. */
+  readonly origin: { readonly kind: 'custom' } | { readonly kind: 'import'; readonly sourceName: string; readonly sourceVersion: string;
+    readonly publisher: string | null };
+  readonly rules: readonly BrowserRuleView[];
 }
 
 export interface BrowserRuleOverlapView {
@@ -261,8 +298,10 @@ export interface AutomationStateView {
   readonly rules: readonly AutomationRuleView[];
   /** Recent placements in this browser, by this account's rules and this browser's own, newest first. */
   readonly placements: readonly AutomationPlacementView[];
-  /** This browser's own rules, signed in or not, in the order they were made. */
+  /** This browser's own rules, signed in or not, in the order saves try them, those in sets included. */
   readonly browserRules: readonly BrowserRuleView[];
+  /** The same rules as the list they are kept in: individual rules, sets and subscriptions. */
+  readonly browserList: BrowserListView;
   readonly pausedAt: number | null;
   readonly pausedBy: 'owner' | 'restore' | 'capacity' | null;
   readonly expiresAt: number | null;

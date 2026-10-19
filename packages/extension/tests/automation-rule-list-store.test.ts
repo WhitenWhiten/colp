@@ -220,6 +220,23 @@ describe('rules and sets', () => {
     expect(await rules.removeSet('r-2', true, NOW)).toEqual({ ok: false, error: 'notFound' });
   });
 
+  it('copies a rule right below it, in its set, and a set with new rules right below the set', async () => {
+    const { store: rules } = store();
+    await rules.saveRule({ draft: draft() }, NOW);
+    await rules.markMoving('r-1', NOW);
+    await rules.saveSet({ name: 'Reading' }, NOW);
+    await rules.saveRule({ draft: draft(), into: 'r-2' }, NOW);
+    expect(await rules.duplicate({ kind: 'rule', id: 'r-1' }, 'Papers (copy)', NOW + 1)).toMatchObject({ ok: true });
+    expect(await rules.duplicate({ kind: 'rule', id: 'r-3' }, 'In set (copy)', NOW + 1)).toMatchObject({ ok: true });
+    expect(await rules.duplicate({ kind: 'set', id: 'r-2' }, 'Reading (copy)', NOW + 1)).toMatchObject({ ok: true });
+    const list = await rules.load();
+    expect(ids(list)).toEqual(['r-1', 'r-4', 'r-2[r-3,r-5]', 'r-6[r-7,r-8]']);
+    const copy = individualRules(list)[1]!;
+    expect(copy).toMatchObject({ name: 'Papers (copy)', definition: { name: 'Papers (copy)' }, createdAt: NOW + 1 });
+    expect(copy).not.toHaveProperty('movingSince');
+    expect(await rules.duplicate({ kind: 'set', id: 'missing' }, 'x', NOW)).toEqual({ ok: false, error: 'notFound' });
+  });
+
   it('switches the whole list, and never loses a change to another one at the same time', async () => {
     const { store: rules } = store();
     await Promise.all([rules.saveRule({ draft: draft() }, NOW), rules.saveRule({ draft: draft({ name: 'Two' }) }, NOW), rules.saveSet({ name: 'Set' }, NOW),

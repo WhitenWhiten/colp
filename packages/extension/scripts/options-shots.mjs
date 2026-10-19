@@ -104,6 +104,10 @@ const STATES = [
   ['automations-browser-kept', 'options.html?shot=signedout,browser-kept#automations'],
   // A move the account has not finished after a day (follow-up U5).
   ['automations-browser-stale', 'options.html?shot=browser-stale#automations'],
+  // The ordered list (doc 17 RW-04): a set of the Owner's, the one-time order notice, and the editor's Then.
+  ['automations-browser-set', 'options.html?shot=signedout,browser-set,browser-order#automations'],
+  ['automations-browser-set-edit', 'options.html?shot=signedout,browser-set#automations', async (p) => { await p.click('.rule-set-rules .automation-browser-rule >> nth=0');
+    await p.waitForTimeout(500); }, false],
   ['automations-browser-delete', 'options.html?shot=signedout#automations', async (p) => { await p.hover('.automation-browser-rule >> nth=0');
     await p.click('.automation-browser-rule >> nth=0 >> button:has(svg[data-icon="trash"])'); await p.waitForTimeout(400); }, false],
   // A rule filed a page starred in the browser while Know-N was in front (AW-20).

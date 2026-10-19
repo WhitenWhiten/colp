@@ -1536,11 +1536,26 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-group-head > .btn { grid-column: 2; grid-row: 1 / span 2; align-self: end; }
 .automation-group-head > .btn svg { width: 0.85rem; height: 0.85rem; }
 
-/* Rules in this browser (browser-rules-pane.ts): the account's row anatomy, opened in place instead of on the web. */
-.automation-browser-rule { grid-template-columns: auto minmax(0, 1fr) auto auto; cursor: pointer; }
+/* Rules in this browser (rule-list-pane.ts): one ordered list in the account's row anatomy, opened in place
+   instead of on the web. A grip leads each row; a set is a head row over its own indented rows. */
+.automation-browser-rule, .rule-set-head { grid-template-columns: auto auto minmax(0, 1fr) auto auto; }
+.automation-browser-rule { cursor: pointer; }
 .automation-browser-rule:hover { background: var(--paper); }
-.automation-browser-rule[data-off] :is(.list-row-title, .list-row-meta, .automation-recipe-folder) { color: var(--muted); }
-.automation-browser-rule[data-off] .favicon-tile { color: var(--faint); }
+:is(.automation-browser-rule, .rule-set-head)[data-off] :is(.list-row-title, .list-row-meta, .automation-recipe-folder) { color: var(--muted); }
+:is(.automation-browser-rule, .rule-set-head)[data-off] .favicon-tile { color: var(--faint); }
+.rule-grip { display: grid; place-items: center; width: 0.875rem; color: var(--faint); cursor: grab; }
+.rule-grip svg { width: 0.875rem; height: 0.875rem; }
+.list-row:hover > .rule-grip { color: var(--muted); }
+.rule-list [data-dragging] { opacity: 0.5; }
+.rule-list [data-drop="before"] { box-shadow: inset 0 2px 0 var(--ink); }
+.rule-list [data-drop="after"] { box-shadow: inset 0 -2px 0 var(--ink); }
+.rule-list [data-drop="into"] { background: var(--paper-2); box-shadow: inset 0 0 0 1px var(--line-heavy); }
+.rule-set-head { background: var(--paper); }
+.rule-set-rules { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
+.rule-set-rules .list-row { padding-left: calc(var(--space-4) + var(--space-6)); }
+.rule-set-empty { padding: var(--hair-65) var(--space-4) var(--hair-65) calc(var(--space-4) + var(--space-6)); }
+.rule-set-empty > .list-row-meta { white-space: normal; }
+.automation-list-tools { display: flex; grid-column: 2; grid-row: 1 / span 2; align-items: center; align-self: end; gap: var(--space-3); }
 .automation-account { margin: 0 0 var(--space-6); }
 .automation-browser > .inline-alert { margin: 0; }
 /* Where a browser rule meets an account rule (AW-69): one quiet line, toned while it is not reviewed. */
@@ -1600,6 +1615,18 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-add-condition { display: inline-flex; align-items: center; gap: var(--hair-40); padding-inline: var(--hair-55); }
 .automation-add-condition svg { width: 0.85rem; height: 0.85rem; }
 .automation-access > .inline-alert { margin: 0; }
+/* What a site value means, under its row: its Unicode form, a domain to use instead, a suffix many owners share. */
+.automation-condition > .automation-condition-help { display: flex; flex-wrap: wrap; grid-column: 1 / -1; align-items: center; gap: var(--hair-30) var(--space-2); margin: 0;
+  color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.automation-condition > .automation-condition-help[hidden] { display: none; }
+.automation-condition-help[data-tone="warning"] > span { color: color-mix(in srgb, var(--warning) 70%, var(--ink)); }
+/* Then: file into a folder here, the set's folder, or keep the page where it is saved. */
+.automation-then { display: grid; gap: var(--hair-55); min-width: 0; margin: 0; padding: 0; border: 0; }
+.automation-then > legend { margin-bottom: var(--hair-30); padding: 0; }
+.automation-then-choices { display: grid; gap: var(--hair-55); }
+.automation-then-choice { grid-template-columns: minmax(0, 1fr); cursor: default; }
+.automation-then-label { display: flex; align-items: center; gap: var(--hair-55); cursor: pointer; }
+.automation-then-label > input { margin-top: 0; }
 
 /* Narrow: as on the other library lists, a row's badge drops under its text and a meta line wraps,
    so a rule's name is never cut to one letter between the folder and the time. */
@@ -1615,9 +1642,13 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
   .automation-rules .list-row-tail > svg { display: none; }
   .automation-rules .list-row-tail:not(:has(.badge)) { display: none; }
   /* A browser rule keeps its switch at the end of the first line; its badge and actions go under its text. */
-  .automation-rules .automation-browser-rule { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .automation-rules .automation-browser-rule > .automation-rule-switch { grid-column: 3; grid-row: 1; align-self: start; }
-  .automation-rules .automation-browser-rule > .list-row-tail { display: flex; grid-row: 2; }
+  .automation-rules :is(.automation-browser-rule, .rule-set-head) { grid-template-columns: auto minmax(0, 1fr) auto; }
+  /* Narrow screens move entries with Move up and Move down; the grip goes. */
+  .rule-grip { display: none; }
+  .rule-set-rules .list-row, .rule-set-empty { padding-left: calc(var(--space-4) + var(--space-3)); }
+  .automation-list-tools { grid-column: 1; grid-row: auto; justify-self: start; }
+  .automation-rules :is(.automation-browser-rule, .rule-set-head) > .automation-rule-switch { grid-column: 3; grid-row: 1; align-self: start; }
+  .automation-rules :is(.automation-browser-rule, .rule-set-head) > .list-row-tail { display: flex; grid-row: 2; }
   .automation-rules .list-row-meta > .automation-recipe-missing { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
   .automation-rules .list-row-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; white-space: normal; }
   .automation-rules .list-row-meta { flex-wrap: wrap; row-gap: 0; white-space: normal; }

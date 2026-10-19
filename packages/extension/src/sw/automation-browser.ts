@@ -4,9 +4,10 @@ import { automationDatabase, type AutomationDatabase } from '../automation/index
 import { checkRuleDraft, type RuleDraft } from '../automation/rule-conditions.js';
 import { decideList, type ListDecision, type ListResult } from '../automation/rule-list-decide.js';
 import { flattenList, type FlatItem } from '../automation/rule-list-flatten.js';
-import { createRuleListStore, individualRules, ruleFolderNativeId, type LocalRule, type RuleListStore } from '../automation/rule-list-store.js';
+import { createRuleListStore, individualRules, ruleFolderNativeId, type LocalRule, type LocalSet, type RuleListStore } from '../automation/rule-list-store.js';
 import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '../automation/browser-overlap.js';
-import type { AutomationPlacementView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse, BrowserRuleView } from '../automation/messages.js';
+import type { AutomationPlacementView, BrowserListEntryView, BrowserListView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse,
+  BrowserRuleView } from '../automation/messages.js';
 import { ruleMatchView } from '../automation/rule-match.js';
 import type { PreSaveInput } from '../automation/pre-save.js';
 import type { BrowserAutomation, CaptureTask } from '../capture/contracts.js';
@@ -126,41 +127,58 @@ export interface AccountContext extends AccountLink {
   readonly account: readonly AccountRuleForOverlap[];
 }
 
-/**
- * This browser's rules for Options, oldest first. Without bookmark access their folders cannot be named.
- * Signed in, each switched-on rule also says which account rule it overlaps (AW-69), and a rule whose
- * folder is synced can be moved to the account (AW-71).
- */
 /** A move the account has not finished after a day is said to be stuck (follow-up U5). */
 export const MOVING_STALE_MS = 24 * 60 * 60 * 1000;
 
-export async function browserRuleViews(context: AccountContext | null = null): Promise<BrowserRuleView[]> {
-  const rules = individualRules(await browserRuleStore().load());
-  if (!rules.length) return [];
+/**
+ * This browser's list for Options, in the order saves try it (doc 17 §4.1), and the same rules flat.
+ * Without bookmark access their folders cannot be named. Signed in, each switched-on individual rule
+ * also says which account rule it overlaps (AW-69), and one whose folder is synced can be moved to the
+ * account (AW-71); a rule in a set belongs to the set and stays here.
+ */
+export async function browserListViews(context: AccountContext | null = null): Promise<{ readonly rules: BrowserRuleView[]; readonly list: BrowserListView }> {
+  const stored = await browserRuleStore().load();
+  const individual = individualRules(stored);
   const account = context?.account ?? [];
   const access = await hasBookmarkPermission(), now = Date.now();
-  const enabled = filing(rules).filter((rule) => rule.enabled);
+  const enabled = filing(individual).filter((rule) => rule.enabled);
   const compare = access && account.length > 0 && enabled.length > 0;
   const counts = compare ? replayOverlap(enabled, account, await recentPages(), now) : new Map<string, Map<string, number>>();
-  return Promise.all(rules.map(async (rule) => {
-    const folderNativeId = ruleFolderNativeId(rule);
+  const view = async (rule: LocalRule, set: LocalSet | null): Promise<BrowserRuleView> => {
+    const folderNativeId = ruleFolderNativeId(rule, set);
     const folder = access && folderNativeId ? await folderView(folderNativeId) : null;
-    const relation = compare && rule.enabled ? relateBrowserRule({ id: rule.id, definition: rule.definition, folderNativeId },
+    const relation = compare && rule.enabled && !set ? relateBrowserRule({ id: rule.id, definition: rule.definition, folderNativeId },
       account, counts.get(rule.id), now) : null;
     const other = relation ? account.find((item) => item.id === relation.accountRuleId)! : null;
     const overlap: BrowserRuleOverlapView | null = relation && other ? { kind: relation.kind, pages: relation.pages, reviewKey: other.key,
       rule: { id: other.id, name: other.name, match: ruleMatchView(other.definition.match), folder: other.folderTitle },
       reviewed: (rule.reviewed ?? []).some((item) => item.accountRuleId === other.id && item.key === other.key) } : null;
-    const canonical = context && folder && folderNativeId ? await context.canonical(folderNativeId).catch(() => null) : null;
-    const url = canonical && context?.webUrl && folderNativeId ? accountEditorUrl(context.webUrl, rule, canonical) : null;
+    const canonical = context && folder && folderNativeId && !set ? await context.canonical(folderNativeId).catch(() => null) : null;
+    const url = canonical && context?.webUrl ? accountEditorUrl(context.webUrl, rule, canonical) : null;
     // The conditions as written are what the editor opens with; a rule an earlier build wrote without them only switches.
     const draft: RuleDraft | null = rule.conditions.length ? { name: rule.name, combinator: rule.combinator, conditions: rule.conditions, action: rule.action } : null;
-    return { id: rule.id, name: rule.name, enabled: rule.enabled, match: ruleMatchView(rule.definition.match),
-      draft, folder, folderMissing: access && Boolean(folderNativeId) && !folder, account: overlap, move: url ? { url } : null,
+    return { id: rule.id, name: rule.name, enabled: rule.enabled, active: stored.enabled && rule.enabled && (set?.enabled ?? true), setId: set?.id ?? null,
+      match: rule.conditions.length ? { combinator: rule.combinator, conditions: rule.conditions } : ruleMatchView(rule.definition.match),
+      keepHere: rule.action.kind === 'keepHere', draft, folder, folderMissing: access && rule.action.kind !== 'keepHere' && !folder,
+      account: overlap, move: url ? { url } : null,
       // Signed out no account copy can arrive, so nothing is shown as waiting for one.
-      localOnly: Boolean(context && folder && !canonical), moving: Boolean(context) && rule.movingSince !== undefined,
+      localOnly: Boolean(context && folder && !set && !canonical), moving: Boolean(context) && rule.movingSince !== undefined,
       movingStale: Boolean(context) && rule.movingSince !== undefined && now - rule.movingSince > MOVING_STALE_MS };
+  };
+  const entries = await Promise.all(stored.entries.map(async (entry): Promise<BrowserListEntryView> => {
+    if (entry.kind === 'rule') return { kind: 'rule', rule: await view(entry.rule, null) };
+    if (entry.kind === 'subscription') return { kind: 'subscription', id: entry.subscriptionId, enabled: entry.enabled };
+    const { set } = entry;
+    return { kind: 'set', set: { id: set.id, name: set.name, enabled: set.enabled, rules: await Promise.all(set.rules.map((rule) => view(rule, set))),
+      origin: set.origin.kind === 'custom' ? { kind: 'custom' } : { kind: 'import', sourceName: set.origin.sourceName,
+        sourceVersion: set.origin.sourceVersion, publisher: set.origin.publisher } } };
   }));
+  const names = new Map(entries.flatMap((entry) => entry.kind === 'rule' ? [[entry.rule.id, entry.rule.name] as const]
+    : entry.kind === 'set' ? entry.set.rules.map((rule) => [rule.id, rule.name] as const) : []));
+  const pairs = (stored.orderNotice?.pairs ?? []).flatMap(([upper, lower]) => names.has(upper) && names.has(lower)
+    ? [{ upper: names.get(upper)!, lower: names.get(lower)! }] : []);
+  return { rules: entries.flatMap((entry) => entry.kind === 'rule' ? [entry.rule] : entry.kind === 'set' ? entry.set.rules : []),
+    list: { revision: stored.revision, enabled: stored.enabled, entries, orderNotice: stored.orderNotice ? pairs : null } };
 }
 
 /**
@@ -210,6 +228,8 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand,
     case 'known.automation.browser.set.save': return store.saveSet({ ...(command.id ? { id: command.id } : {}), name: command.name }, now);
     case 'known.automation.browser.set.remove': return store.removeSet(command.id, command.keepRules, now);
     case 'known.automation.browser.list.enable': return store.setListEnabled(command.enabled);
+    case 'known.automation.browser.duplicate': return store.duplicate({ kind: command.entry, id: command.id }, command.name, now);
+    case 'known.automation.browser.notice.dismiss': await store.dismissOrderNotice(); return { ok: true, revision: (await store.load()).revision };
     case 'known.automation.browser.save': {
       const result = await store.saveRule({ ...(command.id ? { id: command.id } : {}), draft: command.draft,
         ...(command.enabled === undefined ? {} : { enabled: command.enabled }), ...(command.into ? { into: command.into } : {}) }, now);

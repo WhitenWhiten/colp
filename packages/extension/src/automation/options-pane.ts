@@ -5,7 +5,9 @@ import { formatMoment, SLOT, t, tn, withSlot } from '../i18n.js';
 import { when } from '../subscriptions-ui/dom.js';
 import { AUTOMATION_CHANGED_KEY, type AutomationResponse, type AutomationServerRuleView, type AutomationServerView,
   type AutomationStateView } from './messages.js';
-import { browserRulesGroup, offersAccountRules, openBrowserRuleEditor } from './browser-rules-pane.js';
+import { offersAccountRules } from './browser-rules-pane.js';
+import { openRuleEditor } from './rule-editor-dialog.js';
+import { listSets, restoreListFocus, ruleListGroup } from './rule-list-pane.js';
 import { flowStrip } from './flow-strip.js';
 import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
 
@@ -159,7 +161,7 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     const card = el('div', undefined, 'set-card');
     // The same editor as this browser's rules, set to all devices; the rule itself is made on the web.
     const make = offersAccountRules(view) ? button(t('automation_newRule', 'New rule'), 'btn btn-secondary btn-sm') : undefined;
-    make?.addEventListener('click', () => openBrowserRuleEditor(null, make, { account: true, use: 'account' }));
+    make?.addEventListener('click', () => openRuleEditor(null, make, { account: true, use: 'account', sets: listSets(view) }));
     card.append(emptyBlock({ icon: 'bolt', title: t('automation_noAccountRulesTitle', 'No account rules here yet'),
       hint: view.state === 'paused' ? t('automation_noRulesPausedHint', 'Rules come back here when you resume automations on the web.')
         : t('automation_noAccountRulesHint', 'An account rule files pages on every device signed in to your account.'),
@@ -371,21 +373,22 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     const parts: HTMLElement[] = [];
     if (view.account === 'signedOut') {
       // This browser's rules need no account, so they lead; the account's rules are one sign-in away.
-      parts.push(flowStrip(view), browserRulesGroup(view), accountCard());
+      parts.push(flowStrip(view), ruleListGroup(view), accountCard());
     } else {
       const alert = notice(view);
       if (alert) parts.push(alert);
       // The order every save follows comes first, so each section below reads as one of its steps.
       parts.push(flowStrip(view), statusCard(view, refresh, busy));
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
-      parts.push(browserRulesGroup(view));
+      parts.push(ruleListGroup(view));
     }
     const activity = activityGroup(view, tab, (next) => { tab = next; if (last) render(last); });
     if (activity) parts.push(activity);
     body.replaceChildren(...parts);
+    restoreListFocus(body);
   }
   // One New rule: signed in, it asks whether the rule is this browser's or the account's (made on the web).
-  newRule?.addEventListener('click', () => openBrowserRuleEditor(null, newRule, { account: Boolean(last && offersAccountRules(last)) }));
+  newRule?.addEventListener('click', () => openRuleEditor(null, newRule, { account: Boolean(last && offersAccountRules(last)), sets: last ? listSets(last) : [] }));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (active && area === 'local' && AUTOMATION_CHANGED_KEY in changes) void load('known.automation.state');
   });

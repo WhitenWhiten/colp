@@ -450,6 +450,33 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         return changed(list, [...list.entries.slice(0, at), ...moved, ...list.entries.slice(at + 1)]);
       });
     },
+    /** A copy of a rule right below it, in the same set, or of a set and its rules right below the set. */
+    duplicate(target: { readonly kind: 'rule' | 'set'; readonly id: string }, name: string, now: number): Promise<ListChangeResult> {
+      const named = name.trim().slice(0, NAME_LIMIT);
+      return update((list): Change<ListChangeResult> => {
+        if (!named) return { result: { ok: false, error: 'notFound' } };
+        const copy = (rule: LocalRule, title = rule.name): LocalRule => {
+          const { reviewed: _reviewed, movingSince: _moving, ...rest } = rule;
+          return { ...rest, id: newId(), name: title, definition: { ...rule.definition, name: title }, createdAt: now, updatedAt: now };
+        };
+        if (target.kind === 'set') {
+          const at = list.entries.findIndex((entry) => entry.kind === 'set' && entry.set.id === target.id);
+          const entry = list.entries[at];
+          if (entry?.kind !== 'set') return { result: { ok: false, error: 'notFound' } };
+          const set: LocalSet = { ...entry.set, id: newId(), name: named, createdAt: now, updatedAt: now, rules: entry.set.rules.map((rule) => copy(rule)) };
+          return changed(list, insertAt(list.entries, at + 1, { kind: 'set', set }));
+        }
+        const found = locate(list, target.id);
+        if (!found) return { result: { ok: false, error: 'notFound' } };
+        const rule = copy(found.rule, named);
+        if (!found.set) {
+          const at = list.entries.findIndex((entry) => entry.kind === 'rule' && entry.rule.id === target.id);
+          return changed(list, insertAt(list.entries, at + 1, { kind: 'rule', rule }));
+        }
+        const index = found.set.rules.findIndex((item) => item.id === target.id);
+        return changed(list, mapSet(list.entries, found.set.id, (set) => ({ ...set, rules: insertAt(set.rules, index + 1, rule) })));
+      });
+    },
     dismissOrderNotice(): Promise<boolean> {
       return update((list) => list.orderNotice ? { result: true, notice: 'dismiss' } : { result: false });
     },

@@ -449,8 +449,11 @@ export function installStub(messages) {
           rule: { id: kind === 'conflict' ? 'r1' : 'r2', name: kind === 'conflict' ? 'arXiv papers' : 'GitHub repositories to Programming',
             folder: kind === 'conflict' ? 'Academic' : 'Programming', match: kind === 'conflict' ? { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] }
               : { combinator: 'all', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }] } } } : null;
-        const browserRule = (id, name, enabled, combinator, conditions, folder, folderMissing = false, account = null) => ({ id, name, enabled, match: { combinator, conditions },
-          draft: { name, combinator, conditions, folderNativeId: folder?.nativeId ?? 'gone' }, folder, folderMissing, account,
+        // With browser-set, the last two sit in a set of the Owner's (doc 17 RW-04).
+        const inSet = (id) => has('browser-set') && (id === 'b2' || id === 'b3');
+        const browserRule = (id, name, enabled, combinator, conditions, folder, folderMissing = false, account = null) => ({ id, name, enabled,
+          active: enabled && !(inSet(id) && has('browser-set-off')), setId: inSet(id) ? 's1' : null, keepHere: false, match: { combinator, conditions },
+          draft: { name, combinator, conditions, action: { kind: 'file', folderNativeId: folder?.nativeId ?? 'gone' } }, folder, folderMissing, account,
           move: !signedOut && folder && id !== 'b2' ? { url: 'https://known.example/automations/new?from=browser' } : null,
           localOnly: !signedOut && has('browser-move') && id === 'b2', moving: has('browser-move', 'browser-stale') && id === 'b1',
           movingStale: has('browser-stale') && id === 'b1' });
@@ -462,12 +465,16 @@ export function installStub(messages) {
           browserRule('b2', 'SEO reading', false, 'any', [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }],
             { nativeId: 'f-seo', title: 'SEO', path: ['Bookmarks bar', 'Marketing', 'SEO'] }),
           browserRule('b3', 'Recipes', true, 'all', [{ kind: 'pathStartsWith', value: '/recipes/' }], null, true)];
+        const loose = browserRules.filter((rule) => !rule.setId), grouped = browserRules.filter((rule) => rule.setId);
+        const browserList = { revision: 4, enabled: true, entries: [...loose.map((rule) => ({ kind: 'rule', rule })),
+          ...(grouped.length ? [{ kind: 'set', set: { id: 's1', name: 'Reading', enabled: !has('browser-set-off'), origin: { kind: 'custom' }, rules: grouped } }] : [])],
+          orderNotice: has('browser-order') ? [{ upper: 'Papers from arXiv', lower: 'SEO reading' }] : null };
         const filed = has('browser-none', 'browser-empty') || !signedOut ? [] : [
           placement('f1', 'Attention Is All You Need', 'https://arxiv.org/abs/1706.03762', 'Papers from arXiv', 'Research', 90e3, 'filed'),
           ...(has('browser-kept') ? [{ ...placement('k1', 'Ahrefs: SEO tools & resources', 'https://ahrefs.com/blog/', 'SEO reading', 'Reading list', 30e3, 'keptHere'), kept: 'conflict' },
             { ...placement('k2', 'Sourdough starter guide', 'https://example.org/recipes/sourdough', 'Recipes', 'Inbox', 50e3, 'keptHere'), kept: 'blocked' }] : []),
           placement('f2', 'Scaling Laws for Neural Language Models', 'https://arxiv.org/abs/2001.08361', 'Papers from arXiv', 'Research', 5 * 3600e3, 'filed')];
-        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements: signedOut ? filed : placements, browserRules, server,
+        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements: signedOut ? filed : placements, browserRules, browserList, server,
           pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,
           // Without a bundle the worker has neither an expiry nor a good refresh to report.
           expiresAt: state === 'expired' ? now - 3600e3 : state === 'none' ? null : now + 6 * 86400e3, lastRefreshAt: state === 'none' ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),

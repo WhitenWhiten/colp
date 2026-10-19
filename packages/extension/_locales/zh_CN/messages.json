@@ -251,10 +251,6 @@
     "message": "编辑规则",
     "description": "Edit rule"
   },
-  "automation_browserEditorHint": {
-    "message": "只有此浏览器使用这条规则，排在你账户的规则之后，处理你用 Know-N 按钮或菜单保存的网页。保存时你亲自选择的文件夹总是优先。",
-    "description": "Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. A folder you pick when saving always wins."
-  },
   "automation_browserEmptyHint": {
     "message": "告诉 Know-N 一次：来自 arxiv.org 的网页放进“论文”，之后你保存的每一篇都会放到那里。",
     "description": "Tell Know-N once that pages from arxiv.org go to Papers, and each one you save lands there."
@@ -283,21 +279,9 @@
     "message": "这条规则已在此期间被删除。",
     "description": "This rule was deleted meanwhile."
   },
-  "automation_browserLede": {
-    "message": "它们会把你用 Know-N 按钮或菜单保存的网页归档（不含浏览器星标收藏的书签），离线和未登录时也一样。你亲自选择的文件夹总是优先。",
-    "description": "They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
-  },
   "automation_browserLedePaused": {
     "message": "已随你账户的自动化一起暂停。在网页上恢复后，它们会继续为网页归档。",
     "description": "Paused with your account’s automations. They file pages again when you resume on the web."
-  },
-  "automation_browserLedeSignedIn": {
-    "message": "只有此浏览器使用它们，排在你账户的规则之后，处理你用 Know-N 按钮或菜单保存的网页（不含浏览器星标收藏的书签）。你亲自选择的文件夹总是优先。",
-    "description": "Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
-  },
-  "automation_browserLimit": {
-    "message": "此浏览器最多保存 200 条规则。删除一条后才能再添加。",
-    "description": "This browser keeps up to 200 rules. Delete one to add another."
   },
   "automation_browserNameTooLong": {
     "message": "请不要超过 200 个字符。",
@@ -379,6 +363,10 @@
     "message": "路径以 $1 开头",
     "description": "Path starts with $1"
   },
+  "automation_condPathUnder": {
+    "message": "路径为 $1 或在其下",
+    "description": "Path is or is under $1"
+  },
   "automation_condSiteEndsWith": {
     "message": "来自 $1 或其子域名",
     "description": "From $1 or a subdomain"
@@ -403,6 +391,10 @@
     "message": "在网页上继续",
     "description": "Continue on the web"
   },
+  "automation_copyName": {
+    "message": "$1（副本）",
+    "description": "$1 (copy)"
+  },
   "automation_digestAsOf": {
     "message": "截至$1",
     "description": "as of $1"
@@ -418,6 +410,10 @@
   "automation_digestRead": {
     "message": "阅读",
     "description": "Read"
+  },
+  "automation_dragToMove": {
+    "message": "拖动以移动",
+    "description": "Drag to move"
   },
   "automation_duplicateBadge": {
     "message": "与账户相同",
@@ -442,6 +438,18 @@
   "automation_duplicateRemoved": {
     "message": "已移除这条规则。",
     "description": "Removed this rule."
+  },
+  "automation_duplicateRule": {
+    "message": "复制规则",
+    "description": "Duplicate rule"
+  },
+  "automation_duplicateSet": {
+    "message": "复制规则集",
+    "description": "Duplicate set"
+  },
+  "automation_duplicated": {
+    "message": "已在原项下方添加“$1”。",
+    "description": "Added “$1” below the original."
   },
   "automation_explainAlreadyThere": {
     "message": "已在规则的文件夹中，未移动。",
@@ -615,6 +623,14 @@
     "message": "此浏览器每 5 分钟检查一次。你在网页上暂停后，下次检查时这里就会生效。",
     "description": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
+  "automation_inNoSet": {
+    "message": "单独放置",
+    "description": "On its own"
+  },
+  "automation_inSet": {
+    "message": "位置",
+    "description": "In"
+  },
   "automation_keptBlocked": {
     "message": "这条规则的文件夹在此不可用，所以网页留在你保存的位置。",
     "description": "The rule’s folder isn’t available here, so it stayed where you saved it."
@@ -639,13 +655,17 @@
     "message": "链接路径开头是",
     "description": "Link path starts with"
   },
-  "automation_kindSiteEndsWith": {
-    "message": "网站结尾是",
-    "description": "Site ends with"
+  "automation_kindPathUnder": {
+    "message": "链接路径为此路径或在其下",
+    "description": "Link path is or is under"
   },
   "automation_kindSiteIs": {
     "message": "网站是",
     "description": "Site is"
+  },
+  "automation_kindSiteOrSubdomains": {
+    "message": "网站或其子域名",
+    "description": "Site or its subdomains"
   },
   "automation_kindTitleContains": {
     "message": "标题包含",
@@ -654,6 +674,38 @@
   "automation_ledeBrowser": {
     "message": "规则会把你保存的网页放进合适的文件夹。此浏览器的规则无需账户；你账户的规则在每台设备上生效。",
     "description": "Rules file the pages you save into the right folder. Rules in this browser need no account; your account’s rules work on every device."
+  },
+  "automation_listEditorHint": {
+    "message": "只有此浏览器使用这条规则，在你账户的规则之后，用于你通过 Know-N 按钮或菜单保存的页面。规则从列表顶部开始依次尝试，第一条匹配的规则决定结果。保存时你自己选择的文件夹始终优先。",
+    "description": "Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. Rules are tried from the top of the list; the first that matches decides. A folder you pick when saving always wins."
+  },
+  "automation_listLabel": {
+    "message": "此浏览器中的规则，按尝试顺序排列",
+    "description": "Rules in this browser, in the order they are tried"
+  },
+  "automation_listLede": {
+    "message": "从顶部开始依次尝试，第一条匹配的规则决定结果。它们会归档你通过 Know-N 按钮或菜单保存的页面（不包括浏览器的星标），即使离线、没有账户也可以。你自己选择的文件夹始终优先。",
+    "description": "Tried from the top, and the first that matches decides. They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
+  },
+  "automation_listLedeSignedIn": {
+    "message": "只有此浏览器使用它们，在你账户的规则之后，从列表顶部开始：第一条匹配的规则决定结果。适用于你通过 Know-N 按钮或菜单保存的页面，不包括浏览器的星标。你自己选择的文件夹始终优先。",
+    "description": "Only this browser uses them, after your account’s rules, from the top of the list: the first that matches decides. For pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
+  },
+  "automation_listLimit": {
+    "message": "此浏览器最多保存 200 条单独规则，总计 1,000 条。删除一条后才能再添加。",
+    "description": "This browser keeps up to 200 rules on their own and 1,000 in all. Delete one to add another."
+  },
+  "automation_listOffLede": {
+    "message": "已关闭：你保存的页面会留在你保存到的文件夹中。",
+    "description": "Switched off: pages you save keep the folder you save them to."
+  },
+  "automation_listSaveFailed": {
+    "message": "无法更改列表。请重试。",
+    "description": "Couldn’t change the list. Try again."
+  },
+  "automation_listUse": {
+    "message": "使用此浏览器中的规则",
+    "description": "Use rules in this browser"
   },
   "automation_loadFailed": {
     "message": "无法读取此浏览器中的自动化。请重新加载页面后再试。",
@@ -675,6 +727,10 @@
     "message": "匹配",
     "description": "Match"
   },
+  "automation_moveDown": {
+    "message": "下移",
+    "description": "Move down"
+  },
   "automation_moveStarted": {
     "message": "请在网页上完成：预览规则并开启。在此之前，此浏览器会继续使用自己的副本。",
     "description": "Finish on the web: preview the rule and turn it on. This browser keeps using its copy until then."
@@ -682,6 +738,14 @@
   "automation_moveToAccount": {
     "message": "添加到你的账户",
     "description": "Add to your account"
+  },
+  "automation_moveUnbound": {
+    "message": "它所在的规则集没有为它指定文件夹。请先选择一个文件夹。",
+    "description": "Its set has no folder for it. Choose a folder first."
+  },
+  "automation_moveUp": {
+    "message": "上移",
+    "description": "Move up"
   },
   "automation_movedByRule": {
     "message": "已按规则“$3”将“$1”移到 $2。",
@@ -747,6 +811,10 @@
     "message": "新建规则",
     "description": "New rule"
   },
+  "automation_newSet": {
+    "message": "新建规则集",
+    "description": "New set"
+  },
   "automation_noAccountRulesHint": {
     "message": "账户规则会在每台登录了你账户的设备上为网页归档。",
     "description": "An account rule files pages on every device signed in to your account."
@@ -786,6 +854,22 @@
   "automation_openWeb": {
     "message": "打开自动化",
     "description": "Open Automations"
+  },
+  "automation_orderNotice": {
+    "message": "这里的规则现在从顶部开始依次尝试，第一条匹配的规则决定结果。",
+    "description": "Rules here now go from the top, and the first that matches decides."
+  },
+  "automation_orderNoticeDismiss": {
+    "message": "知道了",
+    "description": "Got it"
+  },
+  "automation_orderNoticePair": {
+    "message": "“$1”在“$2”之前",
+    "description": "“$1” before “$2”"
+  },
+  "automation_orderNoticePairs": {
+    "message": "这里的规则现在从顶部开始依次尝试，第一条匹配的规则决定结果。以前两条规则意见不一时，页面会留在你保存的位置；现在由上面那条归档：$1。移动它们即可改变这一点。",
+    "description": "Rules here now go from the top, and the first that matches decides. Where two of them used to disagree and left the page where you saved it, the upper one files it now: $1. Move them to change that."
   },
   "automation_overlapBadge": {
     "message": "有重叠",
@@ -926,6 +1010,10 @@
   "automation_recentPlacementsLedeLocal": {
     "message": "由你的规则在此浏览器中归档。",
     "description": "Filed in this browser by your rules."
+  },
+  "automation_recipeKeep": {
+    "message": "留在你保存的位置",
+    "description": "kept where you save it"
   },
   "automation_removeCondition": {
     "message": "移除条件",
@@ -1095,6 +1183,10 @@
     "message": "等待中",
     "description": "Waiting"
   },
+  "automation_saveAnyway": {
+    "message": "仍然保存",
+    "description": "Save anyway"
+  },
   "automation_saveIn": {
     "message": "保存到",
     "description": "Save it in"
@@ -1155,9 +1247,153 @@
     "message": "$1更新。",
     "description": "Updated $1."
   },
+  "automation_setAddRule": {
+    "message": "在此规则集中新建规则",
+    "description": "New rule in this set"
+  },
+  "automation_setCount_other": {
+    "message": "$1 条规则",
+    "description": "$1 rules"
+  },
+  "automation_setCreate": {
+    "message": "创建规则集",
+    "description": "Create set"
+  },
+  "automation_setCreated": {
+    "message": "已创建“$1”。可通过“新建规则”或拖动规则来添加规则。",
+    "description": "Created “$1”. Add rules to it from New rule or by dragging them in."
+  },
+  "automation_setCustom": {
+    "message": "你的规则集",
+    "description": "Your set"
+  },
+  "automation_setDelete": {
+    "message": "删除规则集",
+    "description": "Delete set"
+  },
+  "automation_setDeleteEmpty": {
+    "message": "其中没有规则。",
+    "description": "It has no rules."
+  },
+  "automation_setDeleteFailed": {
+    "message": "无法删除此规则集。请重试。",
+    "description": "Couldn’t delete this set. Try again."
+  },
+  "automation_setDeleteLimit": {
+    "message": "如果单独保留，其中的规则会超过此浏览器最多保存的 200 条。请将其中一部分随规则集一起删除。",
+    "description": "Kept on their own, its rules would pass the 200 this browser keeps. Delete some of them with the set."
+  },
+  "automation_setDeleteRulesHint": {
+    "message": "它们已归档的页面会留在原处。",
+    "description": "Pages they already filed stay where they are."
+  },
+  "automation_setDeleteRules_other": {
+    "message": "同时删除其中的 $1 条规则",
+    "description": "Delete its $1 rules too"
+  },
+  "automation_setDeleteTitle": {
+    "message": "删除“$1”？",
+    "description": "Delete “$1”?"
+  },
+  "automation_setDeleteUnbound": {
+    "message": "其中一些规则会归档到规则集的文件夹，而这些文件夹尚未选择。请先选择，或将这些规则随规则集一起删除。",
+    "description": "Some of its rules file into the set’s folders, which aren’t chosen yet. Choose them, or delete the rules with the set."
+  },
+  "automation_setDeleted": {
+    "message": "已删除“$1”。",
+    "description": "Deleted “$1”."
+  },
+  "automation_setEmpty": {
+    "message": "还没有规则。将规则拖到这里，或新建一条。",
+    "description": "No rules yet. Drag rules here, or add one."
+  },
+  "automation_setGone": {
+    "message": "此规则集已在此期间被删除。",
+    "description": "This set was deleted meanwhile."
+  },
+  "automation_setHint": {
+    "message": "规则集把规则放在列表中的一起。它在所在位置被尝试，其中的规则从顶部开始，并一起开启或关闭。",
+    "description": "A set keeps rules together in the list. It is tried where it stands, its rules from the top, and turns them on and off together."
+  },
+  "automation_setImported": {
+    "message": "导入自 $1，版本 $2",
+    "description": "Imported from $1, version $2"
+  },
+  "automation_setKeepRulesHint": {
+    "message": "它们会单独留在列表中规则集原来的位置。",
+    "description": "They stay in the list where the set was, each on its own."
+  },
+  "automation_setKeepRules_other": {
+    "message": "保留其中的 $1 条规则",
+    "description": "Keep its $1 rules"
+  },
+  "automation_setLimit": {
+    "message": "此浏览器最多保存 50 个规则集。删除一个后才能再添加。",
+    "description": "This browser keeps up to 50 sets. Delete one to add another."
+  },
+  "automation_setName": {
+    "message": "名称",
+    "description": "Name"
+  },
+  "automation_setNamePlaceholder": {
+    "message": "研究",
+    "description": "Research"
+  },
+  "automation_setNeedName": {
+    "message": "请为规则集命名。",
+    "description": "Give the set a name."
+  },
+  "automation_setNewTitle": {
+    "message": "新建规则集",
+    "description": "New set"
+  },
+  "automation_setRename": {
+    "message": "重命名规则集",
+    "description": "Rename set"
+  },
+  "automation_setRenameTitle": {
+    "message": "重命名规则集",
+    "description": "Rename set"
+  },
+  "automation_setRenamed": {
+    "message": "已重命名为“$1”。",
+    "description": "Renamed to “$1”."
+  },
+  "automation_setRulesLabel": {
+    "message": "“$1”中的规则",
+    "description": "Rules in “$1”"
+  },
+  "automation_setSaveFailed": {
+    "message": "无法保存此规则集。请重试。",
+    "description": "Couldn’t save this set. Try again."
+  },
+  "automation_setUse": {
+    "message": "使用规则集“$1”",
+    "description": "Use the set “$1”"
+  },
   "automation_signInForAccount": {
     "message": "登录后才能创建适用于所有设备的规则。",
     "description": "Sign in to make a rule for all your devices."
+  },
+  "automation_siteBroad": {
+    "message": "涵盖 $1 下的所有网站，这些网站属于许多不同的所有者。",
+    "description": "Covers every site under $1, run by many different owners."
+  },
+  "automation_siteBroadConfirm": {
+    "message": "这条规则涵盖 $1 下的所有网站。再次保存即可保留。",
+    "description": "This rule covers every site under $1. Save again to keep it."
+  },
+  "automation_siteSavedAs": {
+    "message": "保存为 $1。",
+    "description": "Saved as $1."
+  },
+  "automation_siteUnicode": {
+    "message": "显示为 $1，保存为 $2。",
+    "description": "Shown as $1, saved as $2."
+  },
+  "automation_siteUseDomain": {
+    "message": "改用 $1 及其子域名",
+    "description": "Use $1 and its subdomains instead"
   },
   "automation_notOnWeb": {
     "message": "网页编辑器无法创建这条规则。请在此浏览器中使用它。",
@@ -1203,6 +1439,18 @@
     "message": "此服务器未开启自动化。",
     "description": "Automations aren’t turned on for this server."
   },
+  "automation_subscription": {
+    "message": "已订阅的规则集",
+    "description": "Subscribed rule set"
+  },
+  "automation_subscriptionNotReady": {
+    "message": "还没有版本，因此不会归档任何内容。",
+    "description": "No version yet, so it files nothing."
+  },
+  "automation_subscriptionUse": {
+    "message": "使用此订阅",
+    "description": "Use this subscription"
+  },
   "automation_tabBrowser": {
     "message": "此浏览器",
     "description": "This browser"
@@ -1210,6 +1458,22 @@
   "automation_tabServer": {
     "message": "你的服务器",
     "description": "Your server"
+  },
+  "automation_then": {
+    "message": "然后",
+    "description": "Then"
+  },
+  "automation_thenFile": {
+    "message": "归档到",
+    "description": "File it in"
+  },
+  "automation_thenKeep": {
+    "message": "留在我保存的位置",
+    "description": "Keep it where I save it"
+  },
+  "automation_thenRole": {
+    "message": "规则集中“$1”对应的文件夹",
+    "description": "The set’s folder for “$1”"
   },
   "automation_updatedAt": {
     "message": "$1更新。",

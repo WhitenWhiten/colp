@@ -25,7 +25,7 @@ import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
-import { browserPlacementViews, browserPreSaveDecision, browserRuleViews, recordBrowserPlacement, retireMovedBrowserRules,
+import { browserListViews, browserPlacementViews, browserPreSaveDecision, recordBrowserPlacement, retireMovedBrowserRules,
   type AccountLink, type AccountRuleForOverlap, type BrowserPreSaveDecision } from './automation-browser.js';
 import { mappingLooksAuthoritative } from '../save-status.js';
 import { t } from '../i18n.js';
@@ -397,19 +397,21 @@ export async function automationStateView(): Promise<AutomationStateView> {
   // This browser's own rules and what they filed show whether or not an account is signed in.
   const filed = await browserPlacementViews();
   if (!owner) {
-    return { account: 'signedOut', state: 'none', rules: [], placements: filed.slice(0, 10), browserRules: await browserRuleViews(), pausedAt: null,
+    const browser = await browserListViews();
+    return { account: 'signedOut', state: 'none', rules: [], placements: filed.slice(0, 10), browserRules: browser.rules, browserList: browser.list, pausedAt: null,
       pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl, server: null, saving: await savingFlow() };
   }
   const record = await createBundleStore(automationArea(), owner).read();
   const now = Date.now(), current = bundleState(record, now);
   // Signed in, each browser rule is compared with the account's rules in force here, and may move to the account.
-  const browserRules = await browserRuleViews({ account: await accountRulesForOverlap(record, now), ...await linkFor(owner, webUrl) });
+  const browser = await browserListViews({ account: await accountRulesForOverlap(record, now), ...await linkFor(owner, webUrl) });
   const pause = (await chrome.storage.local.get(PAUSE_KEY))[PAUSE_KEY] as { ownerKey?: string; pausedAt?: string | null; pausedBy?: AutomationStateView['pausedBy'] } | undefined;
   const pauseKnown = current.state === 'paused' && pause?.ownerKey === automationOwnerKey(owner);
   const pausedAt = pauseKnown && pause?.pausedAt ? Date.parse(pause.pausedAt) : current.state === 'paused' ? current.since : null;
   return { account: 'signedIn', state: current.state, webUrl,
     rules: current.state === 'active' ? await ruleViews(record) : [],
-    placements: [...await placementViews(automationOwnerKey(owner)), ...filed].sort((a, b) => b.at - a.at).slice(0, 10), browserRules,
+    placements: [...await placementViews(automationOwnerKey(owner)), ...filed].sort((a, b) => b.at - a.at).slice(0, 10),
+    browserRules: browser.rules, browserList: browser.list,
     pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: pauseKnown ? pause?.pausedBy ?? null : null,
     expiresAt: current.state === 'active' || current.state === 'paused' ? current.expiresAt : current.state === 'expired' ? current.expiredAt : null,
     lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null, server: await serverView(owner, record, owner.serverOrigin),

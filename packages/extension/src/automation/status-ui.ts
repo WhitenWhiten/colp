@@ -23,6 +23,7 @@ const CONDITION: Record<ConditionKind, (value: string) => string> = {
   titleContains: (value) => t('automation_condTitleContains', 'Title has “$1”', value),
   hasTag: (value) => t('automation_condHasTag', 'Tagged $1', value),
   pathStartsWith: (value) => t('automation_condPathStartsWith', 'Path starts with $1', value),
+  pathUnder: (value) => t('automation_condPathUnder', 'Path is or is under $1', value),
 };
 
 /** "From arxiv.org" — a rule's own words for what it takes, as the web says them. Account and browser rules alike. */

@@ -12,18 +12,23 @@ import { bindAutomationsPane } from '../src/automation/options-pane.js';
  * draft; the page only sends what the Owner filled in and shows what came back.
  */
 const NOW = Date.parse('2026-10-14T08:00:00.000Z');
-const rule = (over: Partial<BrowserRuleView> = {}): BrowserRuleView => ({ id: 'b-1', name: 'Papers from arXiv', enabled: true,
-  match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] },
-  draft: { name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: 'f-papers' },
+const rule = (over: Partial<BrowserRuleView> = {}): BrowserRuleView => ({ id: 'b-1', name: 'Papers from arXiv', enabled: true, active: over.enabled ?? true,
+  setId: null, keepHere: false, match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] },
+  draft: { name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], action: { kind: 'file', folderNativeId: 'f-papers' } },
   folder: { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] }, folderMissing: false, account: null, move: null, localOnly: false,
   moving: false, movingStale: false, ...over });
-const view = (over: Partial<AutomationStateView> = {}): AutomationStateView => ({ account: 'signedOut', state: 'none', rules: [], placements: [],
-  browserRules: [rule(), rule({ id: 'b-2', name: 'SEO reading', enabled: false,
+function view(over: Partial<AutomationStateView> = {}): AutomationStateView {
+  const browserRules = over.browserRules ?? defaultRules();
+  return { ...base(), browserRules, browserList: { revision: 1, enabled: true, entries: browserRules.map((item) => ({ kind: 'rule', rule: item })), orderNotice: null },
+    ...over };
+}
+const defaultRules = () => [rule(), rule({ id: 'b-2', name: 'SEO reading', enabled: false,
     match: { combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }] },
     draft: { name: 'SEO reading', combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }],
-      folderNativeId: 'f-papers' } }),
-  rule({ id: 'b-3', name: 'Recipes', folder: null, folderMissing: true })],
-  pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl: null, server: null, saving: { mode: 'manual', ai: null, suggestInForm: false }, ...over });
+      action: { kind: 'file', folderNativeId: 'f-papers' } } }),
+  rule({ id: 'b-3', name: 'Recipes', folder: null, folderMissing: true })];
+const base = (): Omit<AutomationStateView, 'browserRules' | 'browserList'> => ({ account: 'signedOut', state: 'none', rules: [], placements: [],
+  pausedAt: null, pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl: null, server: null, saving: { mode: 'manual', ai: null, suggestInForm: false } });
 const tree = [{ id: '0', title: '', children: [{ id: '1', title: 'Bookmarks bar', children: [{ id: 'f-papers', title: 'Papers', children: [] },
   { id: 'f-sub', title: 'A subscription', children: [] }] }] }];
 
@@ -146,14 +151,14 @@ describe('the rule dialog', () => {
     dialog.querySelector<HTMLButtonElement>('.folder-pill')!.click();
     dialog.querySelector<HTMLButtonElement>('.folder-opt[data-folder-id="f-papers"]')!.click();
     submit();
-    expect(sent).toEqual([{ kind: 'known.automation.browser.save', draft: { name: 'Paper → Papers', combinator: 'any', folderNativeId: 'f-papers',
+    expect(sent).toEqual([{ kind: 'known.automation.browser.save', draft: { name: 'Paper → Papers', combinator: 'any', action: { kind: 'file', folderNativeId: 'f-papers' },
       conditions: [{ kind: 'titleContains', value: 'Paper' }, { kind: 'siteIs', value: 'not a site' }] } }]);
     await vi.waitFor(() => expect(text(second.querySelector('.form-error'))).toBe('Use a site name, such as arxiv.org.'));
     expect(dialog.open).toBe(true);
   });
 
   it('opens a rule as it was written and saves it under its id', async () => {
-    reply = () => ({ ok: true, rule: { definition: { name: 'SEO reading' } } });
+    reply = () => ({ ok: true, rule: { name: 'SEO reading' } });
     const body = await render(view());
     body.querySelectorAll<HTMLElement>('.automation-browser-rule')[1]!.click();
     await vi.waitFor(() => expect(editor().querySelector<HTMLButtonElement>('.folder-pill')!.dataset.value).toBe('f-papers'));
@@ -163,7 +168,7 @@ describe('the rule dialog', () => {
     expect(dialog.querySelector<HTMLSelectElement>('.automation-joiner select')!.value).toBe('any');
     expect(dialog.querySelector<HTMLInputElement>('input[maxlength="200"]')!.value).toBe('SEO reading');
     submit();
-    expect(sent[0]).toMatchObject({ kind: 'known.automation.browser.save', id: 'b-2', draft: { folderNativeId: 'f-papers', combinator: 'any' } });
+    expect(sent[0]).toMatchObject({ kind: 'known.automation.browser.save', id: 'b-2', draft: { action: { kind: 'file', folderNativeId: 'f-papers' }, combinator: 'any' } });
     await vi.waitFor(() => expect(dialog.isConnected).toBe(false));
   });
 
@@ -175,6 +180,81 @@ describe('the rule dialog', () => {
     expect(text(confirm)).toContain('Pages it already filed stay where they are.');
     confirm.querySelector<HTMLButtonElement>('.btn-danger')!.click();
     expect(sent).toEqual([{ kind: 'known.automation.browser.remove', id: 'b-1' }]);
+  });
+});
+
+describe('the rule dialog for the ordered list (doc 17 RW-04)', () => {
+  const open = async (state = view()) => {
+    await render(state);
+    document.querySelector<HTMLButtonElement>('[data-automations-new]')!.click();
+    await vi.waitFor(() => expect(editor().querySelectorAll('.folder-opt').length).toBe(2));
+    return editor();
+  };
+  const site = (dialog: HTMLDialogElement, value: string, kind = 'siteIs', paste = false) => {
+    const select = dialog.querySelector<HTMLSelectElement>('.automation-condition select')!;
+    const input = dialog.querySelector<HTMLInputElement>('.automation-condition input')!;
+    select.value = kind; select.dispatchEvent(new Event('change'));
+    input.value = value; input.dispatchEvent(new Event(paste ? 'paste' : 'input'));
+    return input;
+  };
+  const help = (dialog: HTMLDialogElement) => dialog.querySelector<HTMLElement>('.automation-condition-help')!;
+
+  it('offers the five kinds of condition and a rule that keeps pages where they are saved', async () => {
+    const dialog = await open();
+    expect(Array.from(dialog.querySelectorAll('.automation-condition select option')).map((option) => text(option)))
+      .toEqual(['Site is', 'Site or its subdomains', 'Title contains', 'Link path starts with', 'Link path is or is under']);
+    site(dialog, '/list', 'pathUnder');
+    dialog.querySelector<HTMLInputElement>('.automation-then input[value="keepHere"]')!.click();
+    submit();
+    expect(sent).toEqual([{ kind: 'known.automation.browser.save', draft: { name: '/list', combinator: 'all', action: { kind: 'keepHere' },
+      conditions: [{ kind: 'pathUnder', value: '/list' }] } }]);
+  });
+
+  it('takes a pasted link for its site and offers its registrable domain', async () => {
+    const dialog = await open();
+    const input = site(dialog, 'https://docs.team.example.co.uk/x', 'siteIs', true);
+    await vi.waitFor(() => expect(input.value).toBe('docs.team.example.co.uk'));
+    const offer = help(dialog).querySelector<HTMLButtonElement>('button')!;
+    expect(text(offer)).toBe('Use example.co.uk and its subdomains instead');
+    offer.click();
+    expect([dialog.querySelector<HTMLSelectElement>('.automation-condition select')!.value, input.value]).toEqual(['siteEndsWith', 'example.co.uk']);
+    expect(help(dialog).hidden).toBe(true);
+  });
+
+  it('asks once more before saving a rule for every site under a shared suffix', async () => {
+    const dialog = await open();
+    site(dialog, 'github.io', 'siteEndsWith');
+    expect(text(help(dialog))).toBe('Covers every site under github.io, run by many different owners.');
+    dialog.querySelector<HTMLButtonElement>('.folder-pill')!.click();
+    dialog.querySelector<HTMLButtonElement>('.folder-opt[data-folder-id="f-papers"]')!.click();
+    submit();
+    expect(sent).toEqual([]);
+    expect(text(dialog.querySelector('[role="alert"]'))).toBe('This rule covers every site under github.io. Save again to keep it.');
+    expect(text(dialog.querySelector('button[type="submit"]'))).toBe('Save anyway');
+    submit();
+    expect(sent).toMatchObject([{ kind: 'known.automation.browser.save', draft: { conditions: [{ kind: 'siteEndsWith', value: 'github.io' }] } }]);
+  });
+
+  it('shows the ASCII form a site in another script is saved as', async () => {
+    const dialog = await open();
+    site(dialog, 'пример.рф');
+    expect(text(help(dialog))).toBe('Saved as xn--e1afmkfd.xn--p1ai.');
+    site(dialog, 'xn--e1afmkfd.xn--p1ai');
+    expect(text(help(dialog))).toBe('Shown as пример.рф, saved as xn--e1afmkfd.xn--p1ai.');
+  });
+
+  it('moves an edited rule into the set chosen for it', async () => {
+    const rules = [rule(), rule({ id: 'b-2', name: 'In a set', setId: 's-1' })];
+    reply = () => ({ ok: true, rule: { name: 'Papers from arXiv' } });
+    const body = await render({ ...view({ browserRules: rules }), browserList: { revision: 2, enabled: true, orderNotice: null, entries: [{ kind: 'rule', rule: rules[0]! },
+      { kind: 'set', set: { id: 's-1', name: 'Research', enabled: true, origin: { kind: 'custom' }, rules: [rules[1]!] } }] } });
+    body.querySelector<HTMLElement>('[data-entry-id="b-1"] .automation-browser-rule')!.click();
+    const select = editor().querySelector<HTMLSelectElement>('.automation-in-set select')!;
+    expect(Array.from(select.options).map((option) => [option.value, text(option)])).toEqual([['', 'On its own'], ['s-1', 'Research']]);
+    select.value = 's-1';
+    submit();
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toEqual({ kind: 'known.automation.browser.moveRule', ruleId: 'b-1', into: 's-1', index: 1000 });
   });
 });
 
@@ -306,7 +386,7 @@ describe('one New rule for both kinds (U2)', () => {
     submit();
     await vi.waitFor(() => expect(open).toHaveBeenCalledWith('https://colp.example/automations/new?from=browser', '_blank', 'noopener'));
     expect(sent).toEqual([{ kind: 'known.automation.browser.forAccount',
-      draft: { name: 'arxiv.org → Papers', combinator: 'all', folderNativeId: 'f-papers', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] } }]);
+      draft: { name: 'arxiv.org → Papers', combinator: 'all', action: { kind: 'file', folderNativeId: 'f-papers' }, conditions: [{ kind: 'siteIs', value: 'arxiv.org' }] } }]);
     expect(document.querySelector('dialog.automation-rule-editor')).toBeNull();
     expect(text(document.querySelector('.toast'))).toContain('Finish on the web: preview the rule and turn it on.');
   });

@@ -194,9 +194,6 @@
   "automation_browserEditTitle": {
     "message": "Edit rule"
   },
-  "automation_browserEditorHint": {
-    "message": "Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. A folder you pick when saving always wins."
-  },
   "automation_browserEmptyHint": {
     "message": "Tell Know-N once that pages from arxiv.org go to Papers, and each one you save lands there."
   },
@@ -218,17 +215,8 @@
   "automation_browserGone": {
     "message": "This rule was deleted meanwhile."
   },
-  "automation_browserLede": {
-    "message": "They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
-  },
   "automation_browserLedePaused": {
     "message": "Paused with your account’s automations. They file pages again when you resume on the web."
-  },
-  "automation_browserLedeSignedIn": {
-    "message": "Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
-  },
-  "automation_browserLimit": {
-    "message": "This browser keeps up to 200 rules. Delete one to add another."
   },
   "automation_browserNameTooLong": {
     "message": "Use 200 characters or fewer."
@@ -290,6 +278,9 @@
   "automation_condPathStartsWith": {
     "message": "Path starts with $1"
   },
+  "automation_condPathUnder": {
+    "message": "Path is or is under $1"
+  },
   "automation_condSiteEndsWith": {
     "message": "From $1 or a subdomain"
   },
@@ -308,6 +299,9 @@
   "automation_continueOnWeb": {
     "message": "Continue on the web"
   },
+  "automation_copyName": {
+    "message": "$1 (copy)"
+  },
   "automation_digestAsOf": {
     "message": "as of $1"
   },
@@ -319,6 +313,9 @@
   },
   "automation_digestRead": {
     "message": "Read"
+  },
+  "automation_dragToMove": {
+    "message": "Drag to move"
   },
   "automation_duplicateBadge": {
     "message": "Same as account"
@@ -337,6 +334,15 @@
   },
   "automation_duplicateRemoved": {
     "message": "Removed this rule."
+  },
+  "automation_duplicateRule": {
+    "message": "Duplicate rule"
+  },
+  "automation_duplicateSet": {
+    "message": "Duplicate set"
+  },
+  "automation_duplicated": {
+    "message": "Added “$1” below the original."
   },
   "automation_explainAlreadyThere": {
     "message": "Already in the rule’s folder, so nothing moved."
@@ -470,6 +476,12 @@
   "automation_freshnessHintShort": {
     "message": "This browser checks every 5 minutes. A pause you make on the web reaches it at the next check."
   },
+  "automation_inNoSet": {
+    "message": "On its own"
+  },
+  "automation_inSet": {
+    "message": "In"
+  },
   "automation_keptBlocked": {
     "message": "The rule’s folder isn’t available here, so it stayed where you saved it."
   },
@@ -488,17 +500,44 @@
   "automation_kindPathStartsWith": {
     "message": "Link path starts with"
   },
-  "automation_kindSiteEndsWith": {
-    "message": "Site ends with"
+  "automation_kindPathUnder": {
+    "message": "Link path is or is under"
   },
   "automation_kindSiteIs": {
     "message": "Site is"
+  },
+  "automation_kindSiteOrSubdomains": {
+    "message": "Site or its subdomains"
   },
   "automation_kindTitleContains": {
     "message": "Title contains"
   },
   "automation_ledeBrowser": {
     "message": "Rules file the pages you save into the right folder. Rules in this browser need no account; your account’s rules work on every device."
+  },
+  "automation_listEditorHint": {
+    "message": "Only this browser uses this rule, after your account’s rules, for pages you save with the Know-N button or menu. Rules are tried from the top of the list; the first that matches decides. A folder you pick when saving always wins."
+  },
+  "automation_listLabel": {
+    "message": "Rules in this browser, in the order they are tried"
+  },
+  "automation_listLede": {
+    "message": "Tried from the top, and the first that matches decides. They file pages you save with the Know-N button or menu, not the browser’s star, even offline and with no account. A folder you pick yourself always wins."
+  },
+  "automation_listLedeSignedIn": {
+    "message": "Only this browser uses them, after your account’s rules, from the top of the list: the first that matches decides. For pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
+  },
+  "automation_listLimit": {
+    "message": "This browser keeps up to 200 rules on their own and 1,000 in all. Delete one to add another."
+  },
+  "automation_listOffLede": {
+    "message": "Switched off: pages you save keep the folder you save them to."
+  },
+  "automation_listSaveFailed": {
+    "message": "Couldn’t change the list. Try again."
+  },
+  "automation_listUse": {
+    "message": "Use rules in this browser"
   },
   "automation_loadFailed": {
     "message": "Couldn’t read automations in this browser. Reload the page to try again."
@@ -515,11 +554,20 @@
   "automation_matchLabel": {
     "message": "Match"
   },
+  "automation_moveDown": {
+    "message": "Move down"
+  },
   "automation_moveStarted": {
     "message": "Finish on the web: preview the rule and turn it on. This browser keeps using its copy until then."
   },
   "automation_moveToAccount": {
     "message": "Add to your account"
+  },
+  "automation_moveUnbound": {
+    "message": "Its set has no folder for it. Choose a folder first."
+  },
+  "automation_moveUp": {
+    "message": "Move up"
   },
   "automation_movedByRule": {
     "message": "Moved “$1” to $2 by rule “$3”."
@@ -569,6 +617,9 @@
   "automation_newRule": {
     "message": "New rule"
   },
+  "automation_newSet": {
+    "message": "New set"
+  },
   "automation_noAccountRulesHint": {
     "message": "An account rule files pages on every device signed in to your account."
   },
@@ -601,6 +652,18 @@
   },
   "automation_openWeb": {
     "message": "Open Automations"
+  },
+  "automation_orderNotice": {
+    "message": "Rules here now go from the top, and the first that matches decides."
+  },
+  "automation_orderNoticeDismiss": {
+    "message": "Got it"
+  },
+  "automation_orderNoticePair": {
+    "message": "“$1” before “$2”"
+  },
+  "automation_orderNoticePairs": {
+    "message": "Rules here now go from the top, and the first that matches decides. Where two of them used to disagree and left the page where you saved it, the upper one files it now: $1. Move them to change that."
   },
   "automation_overlapBadge": {
     "message": "Overlaps"
@@ -712,6 +775,9 @@
   },
   "automation_recentPlacementsLedeLocal": {
     "message": "Filed in this browser by your rules."
+  },
+  "automation_recipeKeep": {
+    "message": "kept where you save it"
   },
   "automation_removeCondition": {
     "message": "Remove condition"
@@ -839,6 +905,9 @@
   "automation_runWaiting": {
     "message": "Waiting"
   },
+  "automation_saveAnyway": {
+    "message": "Save anyway"
+  },
   "automation_saveIn": {
     "message": "Save it in"
   },
@@ -884,8 +953,125 @@
   "automation_serverUpdatedAt": {
     "message": "Updated $1."
   },
+  "automation_setAddRule": {
+    "message": "New rule in this set"
+  },
+  "automation_setCount_one": {
+    "message": "$1 rule"
+  },
+  "automation_setCount_other": {
+    "message": "$1 rules"
+  },
+  "automation_setCreate": {
+    "message": "Create set"
+  },
+  "automation_setCreated": {
+    "message": "Created “$1”. Add rules to it from New rule or by dragging them in."
+  },
+  "automation_setCustom": {
+    "message": "Your set"
+  },
+  "automation_setDelete": {
+    "message": "Delete set"
+  },
+  "automation_setDeleteEmpty": {
+    "message": "It has no rules."
+  },
+  "automation_setDeleteFailed": {
+    "message": "Couldn’t delete this set. Try again."
+  },
+  "automation_setDeleteLimit": {
+    "message": "Kept on their own, its rules would pass the 200 this browser keeps. Delete some of them with the set."
+  },
+  "automation_setDeleteRulesHint": {
+    "message": "Pages they already filed stay where they are."
+  },
+  "automation_setDeleteRules_one": {
+    "message": "Delete its rule too"
+  },
+  "automation_setDeleteRules_other": {
+    "message": "Delete its $1 rules too"
+  },
+  "automation_setDeleteTitle": {
+    "message": "Delete “$1”?"
+  },
+  "automation_setDeleteUnbound": {
+    "message": "Some of its rules file into the set’s folders, which aren’t chosen yet. Choose them, or delete the rules with the set."
+  },
+  "automation_setDeleted": {
+    "message": "Deleted “$1”."
+  },
+  "automation_setEmpty": {
+    "message": "No rules yet. Drag rules here, or add one."
+  },
+  "automation_setGone": {
+    "message": "This set was deleted meanwhile."
+  },
+  "automation_setHint": {
+    "message": "A set keeps rules together in the list. It is tried where it stands, its rules from the top, and turns them on and off together."
+  },
+  "automation_setImported": {
+    "message": "Imported from $1, version $2"
+  },
+  "automation_setKeepRulesHint": {
+    "message": "They stay in the list where the set was, each on its own."
+  },
+  "automation_setKeepRules_one": {
+    "message": "Keep its rule"
+  },
+  "automation_setKeepRules_other": {
+    "message": "Keep its $1 rules"
+  },
+  "automation_setLimit": {
+    "message": "This browser keeps up to 50 sets. Delete one to add another."
+  },
+  "automation_setName": {
+    "message": "Name"
+  },
+  "automation_setNamePlaceholder": {
+    "message": "Research"
+  },
+  "automation_setNeedName": {
+    "message": "Give the set a name."
+  },
+  "automation_setNewTitle": {
+    "message": "New set"
+  },
+  "automation_setRename": {
+    "message": "Rename set"
+  },
+  "automation_setRenameTitle": {
+    "message": "Rename set"
+  },
+  "automation_setRenamed": {
+    "message": "Renamed to “$1”."
+  },
+  "automation_setRulesLabel": {
+    "message": "Rules in “$1”"
+  },
+  "automation_setSaveFailed": {
+    "message": "Couldn’t save this set. Try again."
+  },
+  "automation_setUse": {
+    "message": "Use the set “$1”"
+  },
   "automation_signInForAccount": {
     "message": "Sign in to make a rule for all your devices."
+  },
+  "automation_siteBroad": {
+    "message": "Covers every site under $1, run by many different owners."
+  },
+  "automation_siteBroadConfirm": {
+    "message": "This rule covers every site under $1. Save again to keep it."
+  },
+  "automation_siteSavedAs": {
+    "message": "Saved as $1."
+  },
+  "automation_siteUnicode": {
+    "message": "Shown as $1, saved as $2."
+  },
+  "automation_siteUseDomain": {
+    "message": "Use $1 and its subdomains instead"
   },
   "automation_statusNoneHint": {
     "message": "No rules have reached this browser yet."
@@ -920,11 +1106,32 @@
   "automation_statusUnavailableHint": {
     "message": "Automations aren’t turned on for this server."
   },
+  "automation_subscription": {
+    "message": "Subscribed rule set"
+  },
+  "automation_subscriptionNotReady": {
+    "message": "No version yet, so it files nothing."
+  },
+  "automation_subscriptionUse": {
+    "message": "Use this subscription"
+  },
   "automation_tabBrowser": {
     "message": "This browser"
   },
   "automation_tabServer": {
     "message": "Your server"
+  },
+  "automation_then": {
+    "message": "Then"
+  },
+  "automation_thenFile": {
+    "message": "File it in"
+  },
+  "automation_thenKeep": {
+    "message": "Keep it where I save it"
+  },
+  "automation_thenRole": {
+    "message": "The set’s folder for “$1”"
   },
   "automation_updatedAt": {
     "message": "Updated $1."

@@ -22,7 +22,7 @@ function accountStep(view: AutomationStateView): Step {
 function browserStep(view: AutomationStateView): Step {
   const title = t('automation_browserRules', 'Rules in this browser');
   if (view.account === 'signedIn' && view.state === 'paused') return { title, state: t('automation_flowPaused', 'Paused'), tone: 'warning' };
-  const on = view.browserRules.filter((rule) => rule.enabled && !rule.folderMissing).length;
+  const on = view.browserRules.filter((rule) => rule.active && !rule.folderMissing).length;
   if (on) return { title, state: tn('automation_flowOn', on, '$1 on', '$1 on') };
   return { title, state: view.browserRules.length ? t('automation_flowAllOff', 'All off') : t('automation_flowNone', 'None yet'), tone: 'muted' };
 }

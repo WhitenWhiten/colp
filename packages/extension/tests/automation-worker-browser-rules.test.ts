@@ -149,6 +149,23 @@ describe('a save decided by this browser’s list', () => {
   });
 });
 
+describe('the list Options shows', () => {
+  it('keeps the order saves try, with each rule’s set and whether it takes part, and the order note until it is read', async () => {
+    f.scope = { ...f.scope, accountId: null, collectionId: null };
+    const made = await handleBrowserRuleCommand({ kind: 'known.automation.browser.set.save', name: 'Research' });
+    if (!made.ok || !('set' in made) || !made.set) throw new Error('no set');
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', into: made.set.id, draft: draft({ name: 'In the set' }) });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: made.set.id, enabled: false, entry: 'set' });
+    const { browserList, browserRules } = await automationStateView();
+    expect(browserList).toMatchObject({ enabled: true, orderNotice: null, entries: [{ kind: 'rule', rule: { name: 'Papers from arXiv', active: true, setId: null } },
+      { kind: 'set', set: { name: 'Research', enabled: false, origin: { kind: 'custom' }, rules: [{ name: 'In the set', active: false, setId: made.set.id }] } }] });
+    expect(browserRules.map((rule) => rule.name)).toEqual(['Papers from arXiv', 'In the set']);
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.duplicate', id: browserRules[0]!.id, entry: 'rule', name: 'Copy' }))
+      .toMatchObject({ ok: true });
+    expect((await automationStateView()).browserRules.map((rule) => rule.name)).toEqual(['Papers from arXiv', 'Copy', 'In the set']);
+  });
+});
+
 describe('a placed save', () => {
   it('is logged once for Options and never receipted', async () => {
     const [rule] = individualRules(await browserRuleStore().load());
