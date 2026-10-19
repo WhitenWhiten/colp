@@ -1190,11 +1190,12 @@ label.set-row-title { cursor: pointer; }
 .identity-row { min-height: 5rem; }
 .identity-name { font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .identity-row .set-row-hint { font-size: var(--text-sm); }
-/* Signed out: the web's sign-in card (web auth.css .auth-card), on the page's
-   left edge under its head like every other group, at the web card's width. */
+/* Signed out: the web's sign-in card (web auth.css .auth-card), centred in the
+   pane under its head, at the web card's width. */
 .account-login { display: block; margin-bottom: var(--space-6); }
 .account-login > .login-card {
   width: min(100%, 26rem);
+  margin-inline: auto;
   padding: var(--hair-200) var(--hair-160);
   background-color: var(--surface);
   background-image: var(--grain);
