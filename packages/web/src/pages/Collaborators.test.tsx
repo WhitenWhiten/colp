@@ -376,8 +376,8 @@ describe('Collaborators page behaviour', () => {
     })
     await waitForDom(() => modalButton('Cancel') !== undefined)
     expect(document.querySelector('[data-testid="modal-panel"]')?.textContent).toContain("Remove Ed Ivor's access?")
-    // The shared modal orders Cancel before the red action.
-    expect([...document.querySelectorAll('[data-testid="modal-panel"] .empty-state-actions button')].map((button) => button.textContent))
+    // The shared modal orders Cancel before the red action in the .edit-form-actions footer.
+    expect([...document.querySelectorAll('[data-testid="modal-panel"] .edit-form-actions button')].map((button) => button.textContent))
       .toEqual(['Cancel', 'Remove'])
     await act(async () => {
       modalButton('Cancel')?.click()
