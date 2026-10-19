@@ -419,10 +419,6 @@
   pointer-events: none;
 }
 
-:root[data-edition='self-hosted'] .self-hosted-about-hero .section-label {
-  margin: 0;
-}
-
 :root[data-edition='self-hosted'] .self-hosted-about h1 {
   margin: 0;
   font-size: var(--display-md);

@@ -107,7 +107,6 @@ export function SelfHostedAbout({
   return (
     <article className="self-hosted-about" data-testid="self-hosted-about">
       <header className="self-hosted-about-hero">
-        <p className="section-label">About</p>
         <h1>About this server</h1>
         <p className="self-hosted-about-lede">
           COLP Server keeps your bookmarks on a machine you run. It speaks the Collection
