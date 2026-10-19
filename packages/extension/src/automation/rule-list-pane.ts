@@ -8,7 +8,7 @@ import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import type { AutomationStateView, BrowserListEntryView, BrowserListView, BrowserRuleView, BrowserSetView } from './messages.js';
 import { sendRuleCommand as send } from './rule-command.js';
 import { openRuleEditor } from './rule-editor-dialog.js';
-import { confirmDeleteSet, openSetDialog } from './rule-set-dialog.js';
+import { confirmCopyToMine, confirmDeleteSet, openSetDialog } from './rule-set-dialog.js';
 import { openRunOnce } from './run-once-pane.js';
 import { exportSet, openRoleBindings, openRulesetImport } from './ruleset-pane.js';
 import { ruleConditions } from './status-ui.js';
@@ -255,10 +255,12 @@ function ruleRow(rule: BrowserRuleView, set: BrowserSetView | null, context: Con
   // Actions show on hover and focus; the state badge stays next to the switch, which keeps its own column.
   const tail = el('div', undefined, 'list-row-tail');
   const actions = el('span', undefined, 'row-actions-hover');
-  const edit = iconButton('pencil', t('automation_browserEdit', 'Edit rule'), () => openRuleEditor(rule, edit, { sets: context.sets }));
+  // A rule whose conditions the editor cannot write (from an earlier build or a rule set's file) switches, moves and is deleted only (doc 17 §4.1).
+  const edit = rule.draft ? iconButton('pencil', t('automation_browserEdit', 'Edit rule'), () => openRuleEditor(rule, edit, { sets: context.sets })) : null;
   const move = moveToAccountAction(rule);
-  actions.append(...moveButtons(context.list, rule.id, set), edit,
-    iconButton('copy', t('automation_duplicateRule', 'Duplicate rule'), () => duplicate('rule', rule.id, rule.name)), ...(move ? [move] : []));
+  const mine = set ? iconButton('fork', t('automation_copyToMine', 'Copy to my rules'), () => confirmCopyToMine(rule, set, mine)) : null;
+  actions.append(...moveButtons(context.list, rule.id, set), ...(edit ? [edit] : []), ...(mine ? [mine] : []),
+    ...(rule.draft ? [iconButton('copy', t('automation_duplicateRule', 'Duplicate rule'), () => duplicate('rule', rule.id, rule.name))] : []), ...(move ? [move] : []));
   const remove = iconButton('trash', t('automation_browserDelete', 'Delete rule'), () => confirmDelete(rule, remove));
   actions.append(remove);
   tail.append(actions);
@@ -280,7 +282,7 @@ function ruleRow(rule: BrowserRuleView, set: BrowserSetView | null, context: Con
     async (enabled) => (await send({ kind: 'known.automation.browser.enable', id: rule.id, enabled })).ok));
   // The whole row opens the rule, like a row on the web; its own controls keep their clicks.
   row.addEventListener('click', (event) => {
-    if (event.target instanceof Element && event.target.closest('button, a')) return;
+    if (!edit || event.target instanceof Element && event.target.closest('button, a')) return;
     openRuleEditor(rule, edit, { sets: context.sets });
   });
   context.drag.source(row, { kind: 'rule', id: rule.id, setId: set?.id ?? null });

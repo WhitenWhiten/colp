@@ -398,3 +398,26 @@ describe('rule sets from a file (doc 17 RS-02)', () => {
     await vi.waitFor(() => expect(sent).toEqual([{ kind: 'known.automation.browser.set.bind', id: 's', bindings: { code: 'f-papers' } }]));
   });
 });
+
+describe('Copy to my rules (RW-11)', () => {
+  it('copies a set’s rule above the set, turning the original off unless told not to', async () => {
+    await render(standard());
+    row('b').querySelector<HTMLButtonElement>('button[aria-label="Copy to my rules"]')!.click();
+    const dialog = document.querySelector<HTMLDialogElement>('dialog.capture-dialog')!;
+    expect(text(dialog.querySelector('h3'))).toBe('Copy “Rule b” to your rules?');
+    expect(text(dialog.querySelector('.mgr-hint'))).toBe('The copy goes above “Set s” as a rule of your own, filing into Papers. It is tried before the set, and you can change it.');
+    dialog.querySelector<HTMLButtonElement>('.btn-primary')!.click();
+    await vi.waitFor(() => expect(sent).toEqual([{ kind: 'known.automation.browser.copyEntry', ruleId: 'b', disableOriginal: true }]));
+    // Rules outside a set are duplicated instead.
+    expect(row('a').querySelector('button[aria-label="Copy to my rules"]')).toBeNull();
+  });
+
+  it('offers only switch, move and delete for a rule whose conditions the editor cannot write', async () => {
+    await render(view([one(rule('a', { draft: null, match: null }))]));
+    expect(row('a').querySelector('button[aria-label="Edit rule"]')).toBeNull();
+    expect(row('a').querySelector('button[aria-label="Duplicate rule"]')).toBeNull();
+    expect(text(row('a').querySelector('.automation-recipe'))).toContain('Matches its conditions');
+    row('a').querySelector<HTMLElement>('.list-row-main')!.click();
+    expect(document.querySelector('dialog.automation-rule-editor')).toBeNull();
+  });
+});

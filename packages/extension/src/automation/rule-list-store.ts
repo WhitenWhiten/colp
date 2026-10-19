@@ -282,7 +282,8 @@ function insideSet(rule: LocalRule): LocalRule {
 
 export type RuleSaveResult = { readonly ok: true; readonly rule: LocalRule }
   | { readonly ok: false; readonly error: 'invalid'; readonly problems: readonly DraftProblem[] }
-  | { readonly ok: false; readonly error: 'notFound' | 'limit' };
+  /** `unbound`: a set's rule copied out (or moved out) has no folder bound to its role to file into. */
+  | { readonly ok: false; readonly error: 'notFound' | 'limit' | 'unbound' };
 export type SetSaveResult = { readonly ok: true; readonly set: LocalSet }
   | { readonly ok: false; readonly error: 'invalid' | 'notFound' | 'limit' };
 /** `mismatch`: the order names other entries than the list has; `unbound`: a rule would leave its set with no folder to keep. */
@@ -416,6 +417,26 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         const entries = into === null ? insertAt(rest, index, { kind: 'rule', rule })
           : mapSet(rest, into, (set) => ({ ...set, rules: insertAt(set.rules, index, insideSet(rule)) }));
         return changed(list, entries);
+      });
+    },
+    /**
+     * Copy to my rules (doc 17 RS-03.4, RW-11): a set's rule as a rule of the Owner's own, just above its set so it is
+     * tried first, filing where the set binds its role. The original stays in its set, switched off when asked.
+     * Subscription entries are copied the same way once subscriptions have content (RW-13).
+     */
+    copyToMine(ruleId: string, disableOriginal: boolean, now: number): Promise<RuleSaveResult> {
+      return update((list): Change<RuleSaveResult> => {
+        const found = locate(list, ruleId);
+        if (!found?.set) return { result: { ok: false, error: 'notFound' } };
+        const kept = outsideSet(found.rule, found.set);
+        if (!kept) return { result: { ok: false, error: 'unbound' } };
+        const { reviewed: _reviewed, movingSince: _moving, ...rest } = kept;
+        const rule: LocalRule = { ...rest, id: newId(), enabled: true, createdAt: now, updatedAt: now };
+        const at = list.entries.findIndex((entry) => entry.kind === 'set' && entry.set.id === found.set!.id);
+        const entries = insertAt(disableOriginal ? mapRule(list.entries, ruleId, (item) => ({ ...item, enabled: false, updatedAt: now })) : list.entries,
+          at, { kind: 'rule', rule });
+        const result = changed(list, entries);
+        return result.result.ok ? { result: { ok: true, rule }, entries } : { result: { ok: false, error: 'limit' } };
       });
     },
     /** Creates an empty set of the Owner's own (no id), or renames one. */

@@ -59,6 +59,8 @@ export type BrowserRuleCommand =
   | { readonly kind: 'known.automation.browser.duplicate'; readonly id: string; readonly entry: 'rule' | 'set'; readonly name: string }
   /** The Owner has read the note about rules whose order now decides (doc 17 R2). */
   | { readonly kind: 'known.automation.browser.notice.dismiss' }
+  /** Copy to my rules (doc 17 RS-03.4): a set's rule as the Owner's own, above the set; the original switched off when asked. */
+  | { readonly kind: 'known.automation.browser.copyEntry'; readonly ruleId: string; readonly disableOriginal: boolean }
   /** Try a page, or a bookmark, or a sample of recent bookmarks, against the whole list; nothing is written (doc 17 RS-08). */
   | { readonly kind: 'known.automation.browser.preview'; readonly url: string; readonly title: string }
   | { readonly kind: 'known.automation.browser.preview'; readonly nativeId: string }
@@ -177,6 +179,7 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
     return keys === 4 && id(raw.id) && (raw.entry === 'rule' || raw.entry === 'set') && typeof raw.name === 'string' && raw.name.length <= 1024;
   }
   if (raw.kind === 'known.automation.browser.notice.dismiss') return keys === 1;
+  if (raw.kind === 'known.automation.browser.copyEntry') return keys === 3 && id(raw.ruleId) && typeof raw.disableOriginal === 'boolean';
   if (raw.kind === 'known.automation.browser.config.export') return keys === 1;
   const rulesetText = (value: unknown) => typeof value === 'string' && value.length > 0 && value.length <= 2 * 1024 * 1024;
   if (raw.kind === 'known.automation.browser.import.check') return keys === 2 && rulesetText(raw.text);

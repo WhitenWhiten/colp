@@ -251,6 +251,10 @@ export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleComma
     case 'known.automation.browser.duplicate': return store.duplicate({ kind: command.entry, id: command.id }, command.name, now);
     case 'known.automation.browser.notice.dismiss': await store.dismissOrderNotice(); return { ok: true, revision: (await store.load()).revision };
     case 'known.automation.browser.preview': return browserPreview(command);
+    case 'known.automation.browser.copyEntry': {
+      const result = await store.copyToMine(command.ruleId, command.disableOriginal, now);
+      return result.ok ? { ok: true, rule: result.rule } : { ok: false, error: result.error };
+    }
     case 'known.automation.browser.save': {
       const result = await store.saveRule({ ...(command.id ? { id: command.id } : {}), draft: command.draft,
         ...(command.enabled === undefined ? {} : { enabled: command.enabled }), ...(command.into ? { into: command.into } : {}),

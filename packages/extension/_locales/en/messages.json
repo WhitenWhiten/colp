@@ -407,8 +407,32 @@
   "automation_continueOnWeb": {
     "message": "Continue on the web"
   },
+  "automation_copied": {
+    "message": "Copied “$1” above “$2”."
+  },
+  "automation_copy": {
+    "message": "Copy to my rules"
+  },
+  "automation_copyFailed": {
+    "message": "Couldn’t copy this rule. Try again."
+  },
+  "automation_copyHint": {
+    "message": "The copy goes above “$1” as a rule of your own, filing into $2. It is tried before the set, and you can change it."
+  },
+  "automation_copyHintKeep": {
+    "message": "The copy goes above “$1” as a rule of your own. It is tried before the set, and you can change it."
+  },
   "automation_copyName": {
     "message": "$1 (copy)"
+  },
+  "automation_copyTitle": {
+    "message": "Copy “$1” to your rules?"
+  },
+  "automation_copyToMine": {
+    "message": "Copy to my rules"
+  },
+  "automation_copyTurnOff": {
+    "message": "Also turn off the original in “$1”"
   },
   "automation_digestAsOf": {
     "message": "as of $1"

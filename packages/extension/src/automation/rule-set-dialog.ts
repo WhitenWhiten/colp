@@ -2,13 +2,14 @@ import { createDialog, dialogButton } from '../dialog.js';
 import { t, tn } from '../i18n.js';
 import { el } from '../library-dom.js';
 import { showToast } from '../toast.js';
-import type { BrowserSetView } from './messages.js';
+import type { BrowserRuleView, BrowserSetView } from './messages.js';
 import { sendRuleCommand as send } from './rule-command.js';
 
 /**
  * A set of this browser's rules (doc 17 R3, RS-03): a named run of rules in the list, one level deep.
  * New set and Rename ask for its name; Delete asks whether its rules go with it or stay in the list
- * where the set was. The worker keeps the list (rule-list-store.ts); this page only asks.
+ * where the set was. Copy to my rules takes one of its rules out as the Owner's own, above the set. The worker
+ * keeps the list (rule-list-store.ts); this page only asks.
  */
 function close(dialog: HTMLDialogElement, trigger?: HTMLElement | null): void {
   dialog.addEventListener('close', () => { dialog.remove(); if (trigger?.isConnected) trigger.focus(); });
@@ -88,4 +89,36 @@ export function confirmDeleteSet(set: BrowserSetView, trigger?: HTMLElement | nu
   actions.append(cancel, confirm);
   close(dialog, trigger);
   document.body.append(dialog); dialog.showModal(); cancel.focus();
+}
+
+/**
+ * Copy to my rules (doc 17 RS-03.4, RW-11): the set's rule becomes one of the Owner's own, just above the set, so
+ * it is tried first and can be changed; the set's own copy stays as it came, or is switched off.
+ */
+export function confirmCopyToMine(rule: BrowserRuleView, set: Pick<BrowserSetView, 'name'>, trigger?: HTMLElement | null): void {
+  const { dialog, body, actions } = createDialog(t('automation_copyTitle', 'Copy “$1” to your rules?', rule.name));
+  body.append(el('p', rule.folder ? t('automation_copyHint', 'The copy goes above “$1” as a rule of your own, filing into $2. It is tried before the set, and you can change it.', set.name, rule.folder.title)
+    : t('automation_copyHintKeep', 'The copy goes above “$1” as a rule of your own. It is tried before the set, and you can change it.', set.name), 'mgr-hint'));
+  const label = el('label', undefined, 'choice');
+  const box = el('input'); box.type = 'checkbox'; box.checked = true;
+  label.append(box, el('span', t('automation_copyTurnOff', 'Also turn off the original in “$1”', set.name), 'choice-title'));
+  const error = el('p', undefined, 'form-error'); error.setAttribute('role', 'alert'); error.hidden = true;
+  body.append(label, error);
+  const cancel = dialogButton(t('common_cancel', 'Cancel'));
+  const copy = dialogButton(t('automation_copy', 'Copy to my rules'), 'primary');
+  cancel.addEventListener('click', () => dialog.close());
+  copy.addEventListener('click', () => {
+    copy.disabled = true;
+    void send({ kind: 'known.automation.browser.copyEntry', ruleId: rule.id, disableOriginal: box.checked }).then((reply) => {
+      copy.disabled = false;
+      if (reply.ok) { dialog.close(); showToast(t('automation_copied', 'Copied “$1” above “$2”.', rule.name, set.name), 'ok', { announce: true }); return; }
+      error.textContent = reply.error === 'unbound' ? t('automation_moveUnbound', 'Its set has no folder for it. Choose a folder first.')
+        : reply.error === 'limit' ? t('automation_listLimit', 'This browser keeps up to 200 rules on their own and 1,000 in all. Delete one to add another.')
+          : t('automation_copyFailed', 'Couldn’t copy this rule. Try again.');
+      error.hidden = false;
+    });
+  });
+  actions.append(cancel, copy);
+  close(dialog, trigger);
+  document.body.append(dialog); dialog.showModal(); copy.focus();
 }

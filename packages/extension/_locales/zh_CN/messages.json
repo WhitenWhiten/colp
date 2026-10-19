@@ -511,9 +511,41 @@
     "message": "在网页上继续",
     "description": "Continue on the web"
   },
+  "automation_copied": {
+    "message": "已将“$1”复制到“$2”上方。",
+    "description": "Copied “$1” above “$2”."
+  },
+  "automation_copy": {
+    "message": "复制到我的规则",
+    "description": "Copy to my rules"
+  },
+  "automation_copyFailed": {
+    "message": "无法复制这条规则。请重试。",
+    "description": "Couldn’t copy this rule. Try again."
+  },
+  "automation_copyHint": {
+    "message": "副本会作为你自己的规则放在“$1”上方，归档到 $2。它会先于规则集被尝试，你也可以修改它。",
+    "description": "The copy goes above “$1” as a rule of your own, filing into $2. It is tried before the set, and you can change it."
+  },
+  "automation_copyHintKeep": {
+    "message": "副本会作为你自己的规则放在“$1”上方。它会先于规则集被尝试，你也可以修改它。",
+    "description": "The copy goes above “$1” as a rule of your own. It is tried before the set, and you can change it."
+  },
   "automation_copyName": {
     "message": "$1（副本）",
     "description": "$1 (copy)"
+  },
+  "automation_copyTitle": {
+    "message": "将“$1”复制到你的规则？",
+    "description": "Copy “$1” to your rules?"
+  },
+  "automation_copyToMine": {
+    "message": "复制到我的规则",
+    "description": "Copy to my rules"
+  },
+  "automation_copyTurnOff": {
+    "message": "同时关闭“$1”中的原规则",
+    "description": "Also turn off the original in “$1”"
   },
   "automation_digestAsOf": {
     "message": "截至$1",

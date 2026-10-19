@@ -207,6 +207,48 @@ describe('rules and sets', () => {
     expect(ids(await rules.load())).toEqual(['e-1']);
   });
 
+  it('copies a set’s rule to the Owner’s own rules, just above the set, filing where its role was bound (RW-11)', async () => {
+    const { area, store: rules } = store();
+    const checked = checkRuleDraft(draft());
+    if (!checked.ok) throw new Error('invalid draft');
+    const byRole = (id: string, role: string): LocalRule => ({ id, enabled: true, name: id, combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
+      action: { kind: 'file', role }, definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW,
+      origin: { kind: 'import', sourceId: 'community', sourceName: 'Community', sourceVersion: '1', importedAt: NOW } });
+    area.values.set(RULE_LIST_KEY, { version: 2, revision: 4, enabled: true, entries: [
+      { kind: 'rule', rule: { ...byRole('top', 'papers'), action: { kind: 'file', folderNativeId: '31' } } },
+      { kind: 'set', set: importedSet('s-1', [byRole('e-1', 'papers'), byRole('e-2', 'code')], { papers: '30' }) }] });
+    const copied = await rules.copyToMine('e-1', false, NOW + 1);
+    expect(copied).toMatchObject({ ok: true, rule: { id: 'r-1', name: 'e-1', enabled: true, action: { kind: 'file', folderNativeId: '30' }, createdAt: NOW + 1,
+      origin: { kind: 'import', sourceName: 'Community' } } });
+    let list = await rules.load();
+    expect([list.revision, ids(list)]).toEqual([5, ['top', 'r-1', 's-1[e-1,e-2]']]);
+    expect(list.entries[2]!.kind === 'set' && list.entries[2]!.set.rules[0]!.enabled).toBe(true);
+    // Also turning the original off is the same change.
+    expect(await rules.copyToMine('e-1', true, NOW + 2)).toMatchObject({ ok: true, rule: { id: 'r-2' } });
+    list = await rules.load();
+    expect([list.revision, ids(list)]).toEqual([6, ['top', 'r-1', 'r-2', 's-1[e-1,e-2]']]);
+    expect(list.entries[3]!.kind === 'set' && list.entries[3]!.set.rules.map((rule) => [rule.id, rule.enabled])).toEqual([['e-1', false], ['e-2', true]]);
+    // A role with no folder here has none to copy; a rule outside any set is duplicated, not copied.
+    expect(await rules.copyToMine('e-2', false, NOW)).toEqual({ ok: false, error: 'unbound' });
+    expect(await rules.copyToMine('top', false, NOW)).toEqual({ ok: false, error: 'notFound' });
+    expect((await rules.load()).revision).toBe(6);
+  });
+
+  it('refuses a copy past the limit of individual rules, and changes nothing', async () => {
+    const { area, store: rules } = store();
+    const checked = checkRuleDraft(draft());
+    if (!checked.ok) throw new Error('invalid draft');
+    const rule = (id: string): LocalRule => ({ id, enabled: true, name: id, combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
+      action: { kind: 'file', folderNativeId: '30' }, definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW });
+    area.values.set(RULE_LIST_KEY, { version: 2, revision: 1, enabled: true, entries: [
+      ...Array.from({ length: LIST_LIMITS.rules }, (_, index): ListEntry => ({ kind: 'rule', rule: rule(`own-${index}`) })),
+      { kind: 'set', set: { id: 's-1', name: 'Mine', enabled: true, createdAt: NOW, updatedAt: NOW, origin: { kind: 'custom' }, roles: [], bindings: {}, rules: [rule('in-set')] } }] });
+    expect(await rules.copyToMine('in-set', true, NOW)).toEqual({ ok: false, error: 'limit' });
+    const list = await rules.load();
+    const last = list.entries.at(-1)!;
+    expect([list.revision, last.kind === 'set' && last.set.rules[0]!.enabled]).toEqual([1, true]);
+  });
+
   it('puts a deleted set’s rules where it was when they are kept', async () => {
     const { store: rules } = store();
     await rules.saveRule({ draft: draft() }, NOW);
