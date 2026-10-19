@@ -3836,7 +3836,8 @@
           "properties": {
             "maxRules": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Maximum unarchived rules; archiving retains history and releases a slot."
             },
             "maxExpressionBytes": {
               "type": "integer",

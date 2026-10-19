@@ -3836,7 +3836,8 @@
           "properties": {
             "maxRules": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Maximum unarchived rules; archiving retains history and releases a slot."
             },
             "maxExpressionBytes": {
               "type": "integer",
@@ -5021,6 +5022,11 @@
         "heldJobs": {
           "type": "integer",
           "minimum": 0
+        },
+        "heldRuns": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Runs with remaining work explicitly held by the Owner."
         },
         "externalCosts": {
           "type": "string",
