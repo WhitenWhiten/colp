@@ -135,11 +135,12 @@ export function SyncView({ data, mutations, trashBatch }: {
                         <dd title={formatInstant(replica.lastSeenAt)}>{formatRelative(replica.lastSeenAt)}</dd>
                       </div>
                     </dl>
-                    <ReplicaHealth replica={replica} onChanged={() => void load('refresh')} />
-                    <ReplicaRetireControls replica={replica} draft={retireDrafts[replica.id] ?? EMPTY_RETIRE}
-                      disabled={refreshing} onStart={() => startRetire(replica)}
-                      onConfirm={() => void submitRetire(replica)} onReplay={() => void submitRetire(replica, true)}
-                      onCancel={() => cancelRetire(replica)} />
+                    <ReplicaHealth replica={replica} onChanged={() => void load('refresh')}>
+                      <ReplicaRetireControls replica={replica} draft={retireDrafts[replica.id] ?? EMPTY_RETIRE}
+                        disabled={refreshing} onStart={() => startRetire(replica)}
+                        onConfirm={() => void submitRetire(replica)} onReplay={() => void submitRetire(replica, true)}
+                        onCancel={() => cancelRetire(replica)} />
+                    </ReplicaHealth>
                   </li>
                 ))}
               </ul>}

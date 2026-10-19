@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ProductApiError, productClient, type SyncReplicaCommandView, type SyncReplicaIssue, type SyncReplicaIssuesView,
   type SyncReplicaView,
@@ -190,7 +190,14 @@ function useReplicaCommand(replica: SyncReplicaView, onSent: () => void) {
 type IssuesState = { readonly phase: 'closed' } | { readonly phase: 'loading' }
   | { readonly phase: 'loaded'; readonly view: SyncReplicaIssuesView } | { readonly phase: 'failed' }
 
-export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView; onChanged(): void }) {
+/**
+ * A browser's health on its card: a band when there is something to say
+ * (with Retry / Reset sync when the browser offers them), then the card's
+ * foot — the diagnostics button and `children` (Stop syncing) on one row.
+ */
+export function ReplicaHealth({ replica, onChanged, children }: {
+  replica: SyncReplicaView; onChanged(): void; children?: ReactNode
+}) {
   const [issues, setIssues] = useState<IssuesState>({ phase: 'closed' })
   const [expanded, setExpanded] = useState(false)
   const requestGeneration = useRef(0)
@@ -239,19 +246,27 @@ export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView
   const tone = health?.state === 'stopped' ? 'is-blocked' : notes.length > 0 ? 'is-stale' : ''
   const paused = health?.state === 'paused'
   const showLabel = count > 0 && !paused ? `Show ${plural(count, 'item')}` : 'Show diagnostics'
-  // The band only frames something to say; a quiet browser keeps a plain row.
-  const framed = notes.length > 0 || command.feedback !== null
-  return <div className={framed ? `replica-health replica-message ${tone}` : 'replica-health'} role={notes.length > 0 ? 'status' : undefined}>
-    {notes.map((note) => <p key={note}>{note}</p>)}
-    {health && <p className="replica-reported">Reported {formatRelative(health.reportedAt)}.</p>}
-    {command.feedback && <p role="alert">{command.feedback}</p>}
-    {health && Date.now() - Date.parse(health.reportedAt) > 15 * 60_000 && <p>This browser’s report is over 15 minutes old. Open the extension to refresh its status before relying on it.</p>}
-    <div className="replica-actions">
+  const staleReport = health !== null && health !== undefined && Date.now() - Date.parse(health.reportedAt) > 15 * 60_000
+  // The band only frames something to say; a quiet browser shows its foot alone.
+  const framed = notes.length > 0 || command.feedback !== null || staleReport
+  const retry = offered.includes('retry')
+  const rebuild = offered.includes('rebuild')
+  return <>
+    {framed && <div className={`replica-message ${tone}`.trim()} role={notes.length > 0 ? 'status' : undefined}>
+      {notes.map((note) => <p key={note}>{note}</p>)}
+      {health && <p className="replica-reported">Reported {formatRelative(health.reportedAt)}.</p>}
+      {command.feedback && <p role="alert">{command.feedback}</p>}
+      {staleReport && <p>This browser’s report is over 15 minutes old. Open the extension to refresh its status before relying on it.</p>}
+      {(retry || rebuild) && <div className="replica-actions">
+        {retry && <button type="button" className="btn btn-secondary btn-sm" disabled={command.busy !== null}
+          onClick={() => void command.send('retry')}>{command.busy === 'retry:' ? 'Sending…' : 'Retry'}</button>}
+        {rebuild && <button type="button" className="btn btn-danger-ghost btn-sm" disabled={command.busy !== null}
+          onClick={() => void reset()}>{command.busy === 'rebuild:' ? 'Sending…' : 'Reset sync'}</button>}
+      </div>}
+    </div>}
+    <div className="replica-foot">
       <button type="button" className="btn btn-secondary btn-sm" onClick={() => setExpanded(true)}>{showLabel}</button>
-      {offered.includes('retry') && <button type="button" className="btn btn-secondary btn-sm" disabled={command.busy !== null}
-        onClick={() => void command.send('retry')}>{command.busy === 'retry:' ? 'Sending…' : 'Retry'}</button>}
-      {offered.includes('rebuild') && <button type="button" className="btn btn-danger-ghost btn-sm" disabled={command.busy !== null}
-        onClick={() => void reset()}>{command.busy === 'rebuild:' ? 'Sending…' : 'Reset sync'}</button>}
+      {children}
     </div>
     {/* The items open in a dialog so the card keeps its height in the grid. */}
     <BodyPortal>
@@ -280,7 +295,7 @@ export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView
         </div>
       </Modal>
     </BodyPortal>
-  </div>
+  </>
 }
 
 function ReplicaIssueList({ view, replica, busy, onRetry }: {

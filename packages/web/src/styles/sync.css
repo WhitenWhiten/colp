@@ -41,9 +41,11 @@
 }
 /* One card per browser, after floccus's sync profiles: who it is, which
    collection it syncs, and an unmistakable state line. */
+/* A column whose foot (diagnostics, Stop syncing) sits at the bottom, so
+   the feet of cards sharing a grid row line up. */
 .replica-card {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
   padding: var(--space-4);
@@ -67,15 +69,16 @@
 .replica-facts dt { color: var(--muted); font-size: var(--text-xs); }
 .replica-facts dd { margin: var(--hair-20) 0 0; overflow-wrap: anywhere; font-size: var(--text-sm); font-weight: var(--weight-medium); }
 .replica-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: var(--space-2); min-width: 0; }
-.replica-message { margin: 0; padding: var(--space-3); border-left: 3px solid var(--line-strong); background: var(--paper-2); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.replica-message { display: grid; gap: var(--space-2); margin: 0; padding: var(--space-3); border-left: 3px solid var(--line-strong); background: var(--paper-2); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .replica-message.is-unknown,
 .replica-message.is-stale { border-left-color: var(--warning); }
 .replica-message.is-invalid,
 .replica-message.is-blocked { border-left-color: var(--danger); }
 /* The card says what is wrong and offers its buttons; the items themselves
    open in the diagnostics dialog so a card never outgrows its grid row. */
-.replica-health { display: grid; gap: var(--space-2); min-width: 0; }
-.replica-health p { margin: 0; }
+.replica-message p { margin: 0; }
+.replica-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.replica-foot > .replica-message { flex-basis: 100%; }
 .replica-reported { color: var(--muted); font-size: var(--text-xs); }
 .replica-diagnostics { display: grid; gap: var(--space-4); min-width: 0; font-size: var(--text-sm); }
 .replica-diagnostics p { margin: 0; }
