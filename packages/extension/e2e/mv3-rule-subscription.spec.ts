@@ -12,10 +12,11 @@ import { grantTabAccess, openPopupOver } from './popup-page.js';
  * Doc 17 RW-13 (RS-04, RS-05, RS-10): with no account, a rule set served from a `node:http` fixture on
  * 127.0.0.1 is subscribed to in Options; reading its site is granted in the Subscribe click; its role
  * gets a folder, and a save files by its entry, citing the version. A new version served later waits
- * as an update, and the hourly refresh alarm is registered.
+ * as an update; Review shows what it adds and what it would do to recent bookmarks, Apply makes it
+ * current (RW-14), and the next save follows it. The hourly refresh alarm is registered.
  */
 const extensionPath = resolve(import.meta.dirname, '../dist/development');
-const PAPER = 'https://arxiv.org/abs/2410.00003';
+const PAPER = 'https://arxiv.org/abs/2410.00003', SCHOLAR = 'https://scholar.example/paper/7';
 
 function ruleset(version: string, extra: object[] = []): string {
   return JSON.stringify({ format: 'colp.ruleset/v1', id: 'community', name: 'Community papers', version,
@@ -50,13 +51,13 @@ const state = (options: Page) => options.evaluate(async () => {
   return reply.state.browserList.entries.find((entry) => entry.kind === 'subscription')?.subscription ?? null;
 });
 
-test('a subscribed rule set files a save by its entry, and a new version waits as an update', async ({}, testInfo) => {
+test('a subscribed rule set files a save by its entry, and a reviewed new version takes over', async ({}, testInfo) => {
   test.setTimeout(180_000);
   const fixture = await serve();
   const profile = await mkdtemp(resolve(tmpdir(), 'known-rule-subscription-'));
   const context = await launch(profile);
   try {
-    await context.route(/^https:\/\/arxiv\.org\//u, (route) => route.fulfill({ contentType: 'text/html', body: '<title>A paper</title><p>Fixture</p>' }));
+    await context.route(/^https:\/\/(?:arxiv\.org|scholar\.example)\//u, (route) => route.fulfill({ contentType: 'text/html', body: '<title>A paper</title><p>Fixture</p>' }));
     const options = context.pages().find((page) => page.url().includes('/options.html')) ?? await context.newPage();
     await options.goto(`chrome-extension://${EXTENSION_ID}/options.html`);
     await expect(options.locator('body')).toHaveAttribute('data-pane', 'bookmarks');
@@ -95,7 +96,7 @@ test('a subscribed rule set files a save by its entry, and a new version waits a
     await popup.locator('#save').click();
     await expect.poll(() => options.evaluate((url) => chrome.bookmarks.search({ url }).then((nodes) => nodes[0]?.parentId ?? null), PAPER),
       { timeout: 30_000 }).toBe(papers.id);
-    const saved = () => options.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.capture.list' })) as Promise<{ tasks: { save: string }[] }>;
+    const saved = () => options.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.capture.list' })) as Promise<{ tasks: { save: string; url: string }[] }>;
     await expect.poll(async () => (await saved()).tasks[0]?.save, { timeout: 15_000 }).toBe('local-saved');
     expect(await saved()).toMatchObject({ tasks: [expect.objectContaining({ automation: expect.objectContaining({ source: 'browser', outcome: 'placed',
       folderTitle: 'Papers', sourceName: 'Community papers', entry: expect.objectContaining({ kind: 'subscriptionEntry', entryId: 'e-arxiv', contentVersion: '1' }) }) })] });
@@ -113,6 +114,31 @@ test('a subscribed rule set files a save by its entry, and a new version waits a
     // Every request was a GET of the subscribed address, the later ones with the ETag kept.
     expect(fixture.hits.every((hit) => hit.startsWith('GET /rules.json'))).toBe(true);
     expect(fixture.hits.at(-1)).toBe('GET /rules.json "1"');
+
+    // Review: what version 2 adds, and what it would do to the bookmark already saved; Apply makes it current.
+    await block.locator('[data-review]').click();
+    const review = options.locator('dialog.automation-review');
+    await expect(review).toContainText('Added (1)');
+    await expect(review).toContainText('Scholar');
+    await expect(review).toContainText('Your last bookmark would be filed the same way.');
+    await options.screenshot({ path: testInfo.outputPath('rule-subscription-review.png') });
+    await review.getByRole('button', { name: 'Apply version 2' }).click();
+    await expect(review).toHaveCount(0);
+    await expect.poll(() => state(options)).toMatchObject({ currentVersion: '2', candidateVersion: null });
+    await expect(head.locator('.badge')).toHaveCount(0);
+
+    // The next save goes by version 2's new entry.
+    const second = await context.newPage(); await second.goto(SCHOLAR);
+    await context.setOffline(true);
+    const again = await openPopupOver(context, second);
+    await expect(again.locator('#dest-folder')).toHaveText('Papers', { timeout: 20_000 });
+    await again.locator('#save').click();
+    await expect.poll(() => options.evaluate((url) => chrome.bookmarks.search({ url }).then((nodes) => nodes[0]?.parentId ?? null), SCHOLAR),
+      { timeout: 30_000 }).toBe(papers.id);
+    await expect.poll(async () => (await saved()).tasks.find((task) => task.url === SCHOLAR)?.save, { timeout: 15_000 }).toBe('local-saved');
+    expect((await saved()).tasks.find((task) => task.url === SCHOLAR)).toMatchObject({ automation: expect.objectContaining({ outcome: 'placed',
+      entry: expect.objectContaining({ kind: 'subscriptionEntry', entryId: 'e-scholar', contentVersion: '2' }) }) });
+    await context.setOffline(false);
   } finally {
     await context.close(); await rm(profile, { recursive: true, force: true });
     await new Promise((done) => fixture.server.close(done));

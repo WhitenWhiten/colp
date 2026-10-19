@@ -3,7 +3,7 @@ import { isPublicSuffix, registrableDomain } from './public-suffix.js';
 import { checkRuleDraft, collectionRef, type CollectionLookup } from './rule-conditions.js';
 import type { FlatItem, SubscriptionItems } from './rule-list-flatten.js';
 import type { ListEntry, LocalRule } from './rule-list-store.js';
-import { sitePredicate, type CompiledEntry, type ParsedRuleset } from './ruleset-format.js';
+import { sitePredicate, withinScope, type CompiledEntry, type ParsedRuleset } from './ruleset-format.js';
 import type { BrowserSubscriptionView } from './subscription-messages.js';
 import type { LocalAdjustments, SubscriptionRecord } from './subscription-store.js';
 
@@ -21,14 +21,18 @@ export interface SubscriptionSource {
   readonly current: Parsed | null;
   /** When that version arrived. */
   readonly fetchedAt: number | null;
+  /** A version waiting for review, parsed. */
+  readonly candidate?: Parsed | null;
   readonly local: LocalAdjustments;
 }
 
 /** A subscription as Options shows it (RS-04.2, RS-15.2). */
-export function subscriptionRecordView({ record, current, fetchedAt }: SubscriptionSource): BrowserSubscriptionView {
+export function subscriptionRecordView({ record, current, candidate, fetchedAt }: SubscriptionSource): BrowserSubscriptionView {
+  const scope = current && candidate ? withinScope(current.ruleset, candidate.ruleset) : null;
+  const waits = record.candidateVersion === null ? null : record.pinned ? 'pinned' : record.updatePolicy === 'review' ? 'review' : scope?.reasons[0] ?? 'review';
   return { id: record.id, url: record.url, origin: record.origin, name: record.name, publisher: record.publisher, license: current?.ruleset.license ?? null,
     state: record.state, updatePolicy: record.updatePolicy, refreshIntervalHours: record.refreshIntervalHours, paused: record.paused, pinned: record.pinned,
-    currentVersion: record.currentVersion, previousVersion: record.previousVersion, candidateVersion: record.candidateVersion, fetchedAt,
+    currentVersion: record.currentVersion, previousVersion: record.previousVersion, candidateVersion: record.candidateVersion, candidateWaits: waits, fetchedAt,
     lastAttemptAt: record.lastAttemptAt, lastSuccessAt: record.lastSuccessAt, lastFailure: record.lastFailure };
 }
 

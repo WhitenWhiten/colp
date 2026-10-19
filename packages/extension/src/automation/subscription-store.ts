@@ -1,7 +1,8 @@
 import { automationDigest } from '@know-n/colp/automation';
-import type { AtomicStateArea } from './bundle-store.js';
-import type { ListChangeResult, ListEntry, LocalRule, RuleListRecord, RuleSaveResult } from './rule-list-store.js';
-import { parseRuleset, type ParsedRuleset, type Ruleset } from './ruleset-format.js';
+import type { SnapshotStateArea } from './bundle-store.js';
+import { parseRuleList, RULE_LIST_KEY, type ListChangeResult, type ListEntry, type LocalRule, type RuleListRecord,
+  type RuleSaveResult } from './rule-list-store.js';
+import { parseRuleset, withinScope, type ParsedRuleset, type Ruleset } from './ruleset-format.js';
 import { adjusted, copiedRule, recompileCollections, type Adjustment, type SubscriptionSource } from './subscription-list.js';
 import { REFRESH_INTERVALS, type RefreshInterval } from './subscription-messages.js';
 
@@ -11,8 +12,9 @@ import { REFRESH_INTERVALS, type RefreshInterval } from './subscription-messages
  * the automation store. The list (rule-list-store.ts) holds where a subscription stands; adding,
  * activating and removing write the list and these keys in one transaction, so a save reads one version
  * whole or the other (RS-12.4). Until a version validates the subscription is `notReady` and adds nothing.
- * A later version waits as the candidate; a failure leaves the current one in force (RS-13.1). Nothing
- * here reaches the network: fetching is subscription-fetch.ts, called from the worker.
+ * A later version waits as the candidate unless *Automatic* may apply it (R10) and it is not pinned; *Apply*
+ * takes the candidate, *Use previous version* swaps back and pins. A failure leaves the current version in
+ * force (RS-13.1). Nothing here reaches the network: fetching is subscription-fetch.ts, called from the worker.
  */
 export const SUBSCRIPTION_RECORD_PREFIX = 'known.automation.subscription.v1:';
 export const SUBSCRIPTION_CONTENT_PREFIX = 'known.automation.subscriptionContent.v1:';
@@ -167,9 +169,20 @@ export const subscriptionKeyList = (id: string): string[] => {
   const keys = subscriptionKeys(id);
   return [keys.record, keys.local, keys.content('current'), keys.content('previous'), keys.content('candidate')];
 };
-export type SettingsPatch = Partial<Pick<SubscriptionRecord, 'updatePolicy' | 'refreshIntervalHours' | 'paused'>>;
+export type SettingsPatch = Partial<Pick<SubscriptionRecord, 'updatePolicy' | 'refreshIntervalHours' | 'paused' | 'pinned'>>;
 
-export function createSubscriptionStore(area: AtomicStateArea, list: SubscriptionListPort, options: { readonly id?: () => string } = {}) {
+/** A subscription's source from values read together: its record, current and waiting versions, and adjustments. */
+function sourceOf(id: string, values: Readonly<Record<string, unknown>>): SubscriptionSource | null {
+  const keys = subscriptionKeys(id), record = parseSubscriptionRecord(values[keys.record]);
+  if (!record) return null;
+  const current = record.state === 'ready' ? parseContentRecord(values[keys.content('current')]) : null;
+  const candidate = record.candidateVersion !== null ? parseContentRecord(values[keys.content('candidate')]) : null;
+  return { record, current: current ? contentRuleset(current) : null, fetchedAt: current?.fetchedAt ?? null,
+    candidate: candidate ? contentRuleset(candidate) : null, local: parseLocalAdjustments(values[keys.local]) };
+}
+const sourceKeys = (id: string) => { const keys = subscriptionKeys(id); return [keys.record, keys.local, keys.content('current'), keys.content('candidate')]; };
+
+export function createSubscriptionStore(area: SnapshotStateArea, list: SubscriptionListPort, options: { readonly id?: () => string } = {}) {
   const newId = options.id ?? (() => crypto.randomUUID());
   let lane: Promise<unknown> = Promise.resolve();
   function exclusive<T>(work: () => Promise<T>): Promise<T> {
@@ -196,17 +209,35 @@ export function createSubscriptionStore(area: AtomicStateArea, list: Subscriptio
     if (current?.digest === next.digest || candidate?.digest === next.digest) { await area.set(keys.record, succeeded); return succeeded; }
     // A version names one content: a file that changes without a new version is refused, so explanations stay true.
     if (current?.version === next.version || candidate?.version === next.version) return failed(attempted, 'invalid', now);
-    if (previous.state === 'notReady' || !current) {
-      const ready: SubscriptionRecord = { ...succeeded, state: 'ready', currentVersion: next.version, documentId: parsed.ruleset.id, name: parsed.ruleset.name,
-        publisher: publisherOf(parsed.ruleset) };
-      // Rules naming its sites are compiled from it in the same write (RS-10.4).
-      await list.subscriptionWrite({ [keys.record]: ready, [keys.content('current')]: next }, [],
-        (entries) => recompileCollections(entries, previous.id, parsed));
-      return ready;
-    }
+    if (previous.state === 'notReady' || !current) return activate(succeeded, next, null, null);
+    // Automatic applies what keeps the same rule set and folder roles; pinned, or anything else, waits (R10).
+    const scoped = contentRuleset(current);
+    if (previous.updatePolicy === 'auto' && !previous.pinned && scoped && withinScope(scoped.ruleset, parsed.ruleset).ok) return activate(succeeded, next, current, null);
     const waiting: SubscriptionRecord = { ...succeeded, candidateVersion: next.version };
     await area.commit({ [keys.record]: waiting, [keys.content('candidate')]: next });
     return waiting;
+  }
+  /**
+   * `current` in force from now, `previous` kept to go back to, `candidate` still waiting: the three slots, the
+   * record and every rule naming its sites (recompiled, RS-10.4) in one write with a new list revision (RS-12.4).
+   */
+  async function activate(record: SubscriptionRecord, current: ContentRecord, previous: ContentRecord | null, candidate: ContentRecord | null,
+    patch: SettingsPatch = {}): Promise<SubscriptionRecord> {
+    const parsed = contentRuleset(current)!, keys = subscriptionKeys(record.id);
+    const next: SubscriptionRecord = { ...record, ...patch, state: 'ready', currentVersion: current.version, previousVersion: previous?.version ?? null,
+      candidateVersion: candidate?.version ?? null, documentId: parsed.ruleset.id, name: parsed.ruleset.name, publisher: publisherOf(parsed.ruleset) };
+    const slots = { current, previous, candidate } as const;
+    const writes: Record<string, unknown> = { [keys.record]: next }, deletes: string[] = [];
+    for (const [slot, value] of Object.entries(slots)) { if (value) writes[keys.content(slot as ContentSlot)] = value; else deletes.push(keys.content(slot as ContentSlot)); }
+    await list.subscriptionWrite(writes, deletes, (entries) => recompileCollections(entries, record.id, parsed));
+    return next;
+  }
+  /** Under *Automatic* and not pinned, a waiting version the scope allows is applied (after Unpin, or switching to Automatic). */
+  async function resume(record: SubscriptionRecord): Promise<SubscriptionRecord> {
+    if (record.updatePolicy !== 'auto' || record.pinned || record.candidateVersion === null) return record;
+    const [current, candidate] = await Promise.all([content(record.id, 'current'), content(record.id, 'candidate')]);
+    const from = current && contentRuleset(current), to = candidate && contentRuleset(candidate);
+    return from && to && withinScope(from.ruleset, to.ruleset).ok ? activate(record, candidate!, current, null) : record;
   }
   async function failed(attempted: SubscriptionRecord, code: FailureCode, now: number, status?: number): Promise<SubscriptionRecord> {
     const next = { ...attempted, lastFailure: { code, ...(status !== undefined ? { status } : {}), at: now } };
@@ -215,13 +246,8 @@ export function createSubscriptionStore(area: AtomicStateArea, list: Subscriptio
   }
 
   const adjustments = async (id: string) => parseLocalAdjustments(await area.get(subscriptionKeys(id).local));
-  /** Its record, current version and adjustments, as the list reads them; null once it is gone. */
-  async function source(id: string): Promise<SubscriptionSource | null> {
-    const record = await read(id);
-    if (!record) return null;
-    const [current, local] = await Promise.all([record.state === 'ready' ? content(id, 'current') : null, adjustments(id)]);
-    return { record, current: current ? contentRuleset(current) : null, fetchedAt: current?.fetchedAt ?? null, local };
-  }
+  /** Its record, versions and adjustments, read together; null once it is gone. */
+  const source = async (id: string): Promise<SubscriptionSource | null> => sourceOf(id, await area.getMany(sourceKeys(id)));
 
   return {
     all,
@@ -229,6 +255,33 @@ export function createSubscriptionStore(area: AtomicStateArea, list: Subscriptio
     content,
     adjustments,
     source,
+    /**
+     * The list and every subscription in it, read in one transaction: a save or a preview sees one version of
+     * each, with the rules compiled from it, never a mixture (RS-12.4).
+     */
+    async snapshot(): Promise<{ readonly list: RuleListRecord; readonly sources: Map<string, SubscriptionSource> }> {
+      const ids = (await list.load()).entries.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []);
+      const values = await area.getMany([RULE_LIST_KEY, ...ids.flatMap(sourceKeys)]);
+      const current = parseRuleList(values[RULE_LIST_KEY]);
+      const sources = new Map(ids.flatMap((id) => { const found = sourceOf(id, values); return found ? [[id, found] as const] : []; }));
+      return { list: current, sources };
+    },
+    /** Apply: the waiting version becomes current; the one it replaces is kept as previous. */
+    apply(id: string): Promise<SubscriptionRecord | null> {
+      return exclusive(async () => {
+        const record = await read(id);
+        const [current, candidate] = await Promise.all([content(id, 'current'), content(id, 'candidate')]);
+        return record && current && candidate ? activate(record, candidate, current, null) : null;
+      });
+    },
+    /** Use previous version (RS-13.3): previous and current swap, and it is pinned there; a waiting version stays waiting. */
+    rollback(id: string): Promise<SubscriptionRecord | null> {
+      return exclusive(async () => {
+        const record = await read(id);
+        const [current, previous, candidate] = await Promise.all([content(id, 'current'), content(id, 'previous'), content(id, 'candidate')]);
+        return record && current && previous ? activate(record, previous, current, candidate, { pinned: true }) : null;
+      });
+    },
     /** One adjustment (subscription-list.ts), written with a new list revision: what saves get from it changes. */
     adjust(id: string, change: Adjustment, now: number): Promise<ListChangeResult | { readonly ok: false; readonly error: 'invalid' }> {
       return exclusive(async () => {
@@ -279,7 +332,7 @@ export function createSubscriptionStore(area: AtomicStateArea, list: Subscriptio
         if (!previous) return null;
         const next = { ...previous, ...patch };
         await area.set(subscriptionKeys(id).record, next);
-        return next;
+        return resume(next);
       });
     },
     /** Its versions, adjustments and place in the list go together; rules copied from it stay. */

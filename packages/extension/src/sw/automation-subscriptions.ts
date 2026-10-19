@@ -1,10 +1,12 @@
 import type { BrowserRuleResponse } from '../automation/messages.js';
-import { parseRuleset } from '../automation/ruleset-format.js';
+import type { FolderLookup } from '../automation/browser-rules.js';
+import { decideList, type ListResult } from '../automation/rule-list-decide.js';
+import { entryDiff, parseRuleset, withinScope } from '../automation/ruleset-format.js';
 import { fetchSubscription, subscriptionAddress, subscriptionOriginPattern, type FetchPorts } from '../automation/subscription-fetch.js';
-import type { BrowserSubscriptionView, SubscriptionCommand } from '../automation/subscription-messages.js';
-import { subscriptionRecordView } from '../automation/subscription-list.js';
+import type { BrowserSubscriptionReviewView, BrowserSubscriptionView, SubscriptionCommand } from '../automation/subscription-messages.js';
+import { recompileCollections, subscriptionRecordView } from '../automation/subscription-list.js';
 import type { SubscriptionRecord, SubscriptionStore } from '../automation/subscription-store.js';
-import { browserSubscriptionStore } from './automation-browser.js';
+import { browserSubscriptionStore, flatFrom, nativeFolderLookup, recentPages } from './automation-browser.js';
 import { ownFolder } from './automation-config.js';
 import { rulesetView, rulesetSample } from './automation-ruleset.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
@@ -53,7 +55,7 @@ export async function refreshDueSubscriptions(now = Date.now()): Promise<readonl
 
 export async function subscriptionView(record: SubscriptionRecord): Promise<BrowserSubscriptionView> {
   const source = await ruleSubscriptionStore().source(record.id);
-  return subscriptionRecordView(source ?? { record, current: null, fetchedAt: null, local: { disabledEntryIds: [], exceptions: [], bindings: {} } });
+  return subscriptionRecordView(source ?? { record, current: null, fetchedAt: null, candidate: null, local: { disabledEntryIds: [], exceptions: [], bindings: {} } });
 }
 const viewed = async (record: SubscriptionRecord | null): Promise<BrowserRuleResponse> =>
   record ? { ok: true, subscription: await subscriptionView(record) } : { ok: false, error: 'notFound' };
@@ -70,8 +72,44 @@ async function chosenFolders(bindings: Readonly<Record<string, string | null>>):
   return chosen;
 }
 
+/**
+ * Review (RS-12.1): the waiting version against the current one — entries by id, folder roles, whether
+ * *Automatic* would take it — and what it would do to the recent bookmarks, each decided by the list as
+ * it is and as it would be with that version (rules naming its sites compiled from it too).
+ */
+async function review(id: string): Promise<BrowserRuleResponse> {
+  const { list, sources } = await ruleSubscriptionStore().snapshot();
+  const source = sources.get(id);
+  if (!source?.current || !source.candidate) return { ok: false, error: 'notFound' };
+  const current = source.current, candidate = source.candidate;
+  let sample: BrowserSubscriptionReviewView['sample'] = null;
+  if (await hasBookmarkPermission()) {
+    const before = flatFrom(list, sources), after = flatFrom({ ...list, entries: recompileCollections(list.entries, id, candidate) },
+      new Map([...sources, [id, { ...source, current: candidate, candidate: null }]]));
+    const folders = new Map<string, ReturnType<FolderLookup>>();
+    const lookup: FolderLookup = (nativeId) => { if (!folders.has(nativeId)) folders.set(nativeId, nativeFolderLookup(nativeId)); return folders.get(nativeId)!; };
+    const where = (result: ListResult) => result.decision ? `${result.decision.outcome}:${result.decision.folder?.nativeId ?? ''}` : '';
+    const pages = await recentPages(), now = Date.now(), byFolder = new Map<string, number>();
+    let changed = 0;
+    for (const page of pages) {
+      const [was, will] = await Promise.all([decideList(before.items, { ...page, explicit: false }, lookup, now),
+        decideList(after.items, { ...page, explicit: false }, lookup, now)]);
+      if (where(was) === where(will)) continue;
+      changed += 1;
+      const title = will.decision?.folder?.title ?? '';
+      byFolder.set(title, (byFolder.get(title) ?? 0) + 1);
+    }
+    sample = { size: pages.length, changed, byFolder: [...byFolder].map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count) };
+  }
+  return { ok: true, review: { id, name: source.record.name, currentVersion: current.ruleset.version, candidateVersion: candidate.ruleset.version,
+    scope: withinScope(current.ruleset, candidate.ruleset), diff: entryDiff(current.ruleset, candidate.ruleset), sample } };
+}
+
 export async function handleSubscriptionCommand(command: SubscriptionCommand): Promise<BrowserRuleResponse> {
   const store = ruleSubscriptionStore();
+  if (command.kind === 'known.automation.browser.subscription.review') return review(command.id);
+  if (command.kind === 'known.automation.browser.subscription.apply') return viewed(await store.apply(command.id));
+  if (command.kind === 'known.automation.browser.subscription.rollback') return viewed(await store.rollback(command.id));
   if (command.kind === 'known.automation.browser.subscription.update') {
     const { kind: _kind, id, ...patch } = command;
     return viewed(await store.update(id, patch));

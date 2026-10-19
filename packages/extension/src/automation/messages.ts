@@ -4,8 +4,8 @@ import type { RulesetProblem } from './ruleset-format.js';
 import type { DraftProblem, RuleDraft } from './rule-conditions.js';
 import type { RuleMatchView } from './rule-match.js';
 import type { LocalRule, LocalSet } from './rule-list-store.js';
-import { isSubscriptionKind, validSubscriptionCommand, type BrowserSubscriptionDetail, type BrowserSubscriptionView,
-  type SubscriptionCommand } from './subscription-messages.js';
+import { isSubscriptionKind, validSubscriptionCommand, type BrowserSubscriptionDetail, type BrowserSubscriptionReviewView,
+  type BrowserSubscriptionView, type SubscriptionCommand } from './subscription-messages.js';
 
 /**
  * Page ↔ worker messages for automations: the Options page's state and refresh,
@@ -100,6 +100,7 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   | { readonly ok: true; readonly config: { readonly content: string; readonly filename: string } }
   | { readonly ok: true; readonly ruleset: BrowserRulesetView }
   | { readonly ok: true; readonly subscription: BrowserSubscriptionView }
+  | { readonly ok: true; readonly review: BrowserSubscriptionReviewView }
   | { readonly ok: true; readonly imported: { readonly revision: number; readonly rules: number; readonly sets: number; readonly subscriptions: number;
     readonly skipped: number } }
   /** Apply: moved now; Undo: moved back. `skipped` were left alone, `missing` are gone. */

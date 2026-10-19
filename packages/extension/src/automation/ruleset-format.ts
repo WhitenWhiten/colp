@@ -1,4 +1,4 @@
-import { compilePredicate, normalizeHost, validateM1Rule, type Predicate, type RuleDefinition } from '@know-n/colp/automation';
+import { automationDigest, compilePredicate, normalizeHost, validateM1Rule, type Predicate, type RuleDefinition } from '@know-n/colp/automation';
 import { editorConditions } from './browser-rules.js';
 import { CONDITION_LIMIT, NAME_LIMIT, checkRuleDraft, definitionFor, type RuleCondition } from './rule-conditions.js';
 import type { LocalRule, LocalSet } from './rule-list-store.js';
@@ -261,4 +261,42 @@ export function exportRuleset(set: LocalSet, folderTitle: (nativeId: string) => 
   const day = new Date(now).toISOString();
   return { format: RULESET_FORMAT, id: slug, name: set.name, version: day, updatedAt: day, roles: roles.filter((role) => entries.some((entry) => entry.role === role.key)),
     sites: [], entries };
+}
+
+/**
+ * Whether a new version may apply by itself under *Automatic* (doc 17 R10): the same rule set, with the
+ * same folder roles. Limits, roles that entries name and the format are already the parser's to refuse,
+ * and a rule set names no task, grant or address to call, so nothing else can widen. Else it waits.
+ */
+export type ScopeReason = 'roles' | 'document';
+export function withinScope(current: Ruleset, next: Ruleset): { readonly ok: boolean; readonly reasons: readonly ScopeReason[] } {
+  const keys = (ruleset: Ruleset) => ruleset.roles.map((role) => role.key).sort().join('\n');
+  const reasons: ScopeReason[] = [];
+  if (next.id !== current.id) reasons.push('document');
+  if (keys(next) !== keys(current)) reasons.push('roles');
+  return { ok: reasons.length === 0, reasons };
+}
+
+export interface EntryDiff {
+  readonly added: readonly { readonly id: string; readonly name: string }[];
+  readonly removed: readonly { readonly id: string; readonly name: string }[];
+  /** The same id with other conditions, role, name or site addresses. */
+  readonly changed: readonly { readonly id: string; readonly name: string }[];
+  readonly roles: { readonly added: Ruleset['roles']; readonly removed: Ruleset['roles'] };
+}
+/** Two versions' entries by id (§8 Policy): what is added, removed and changed, and which folder roles come and go. */
+export function entryDiff(current: Ruleset, next: Ruleset): EntryDiff {
+  const shape = (ruleset: Ruleset) => new Map(ruleset.entries.map((entry) => {
+    const site = entry.site ? ruleset.sites.find((item) => item.id === entry.site) : undefined;
+    return [entry.id, { name: entry.name ?? site?.name ?? entry.id, digest: automationDigest({ entry, site: site ?? null }) }] as const;
+  }));
+  const before = shape(current), after = shape(next);
+  const named = (map: typeof before, id: string) => ({ id, name: map.get(id)!.name });
+  const keys = (ruleset: Ruleset) => new Set(ruleset.roles.map((role) => role.key));
+  return {
+    added: [...after.keys()].filter((id) => !before.has(id)).map((id) => named(after, id)),
+    removed: [...before.keys()].filter((id) => !after.has(id)).map((id) => named(before, id)),
+    changed: [...after.keys()].filter((id) => before.has(id) && before.get(id)!.digest !== after.get(id)!.digest).map((id) => named(after, id)),
+    roles: { added: next.roles.filter((role) => !keys(current).has(role.key)), removed: current.roles.filter((role) => !keys(next).has(role.key)) },
+  };
 }

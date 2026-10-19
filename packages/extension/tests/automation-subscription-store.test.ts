@@ -74,7 +74,7 @@ describe('what a fetch leaves', () => {
     expect(ready).toMatchObject({ state: 'ready', currentVersion: '1', candidateVersion: null, documentId: 'community-tech', name: 'Community technology sites',
       publisher: { name: 'Example Collective', url: 'https://example.org', feedbackUrl: null }, lastSuccessAt: NOW + 2, lastFailure: null, etag: '"1"' });
     const keys = subscriptionKeys('s-1');
-    expect(commits).toEqual([[RULE_LIST_KEY, keys.content('current'), keys.record].sort()]);
+    expect(commits).toEqual([[RULE_LIST_KEY, keys.content('current'), keys.record, `-${keys.content('previous')}`, `-${keys.content('candidate')}`].sort()]);
     expect((await list.load()).revision).toBe(before + 1);
     expect(await subscriptions.content('s-1', 'current')).toMatchObject({ version: '1', fetchedAt: NOW + 2, document: { id: 'community-tech', version: '1' } });
   });
@@ -156,6 +156,8 @@ describe('the commands Options can send', () => {
     for (const command of [{ kind: 'known.automation.browser.subscription.check', url },
       { kind: 'known.automation.browser.subscribe', url, bindings: { papers: '30', code: null }, updatePolicy: 'auto', refreshIntervalHours: 168 },
       { kind: 'known.automation.browser.subscription.update', id, paused: true }, { kind: 'known.automation.browser.subscription.update', id, refreshIntervalHours: 6, updatePolicy: 'review' },
+      { kind: 'known.automation.browser.subscription.update', id, pinned: true }, { kind: 'known.automation.browser.subscription.review', id },
+      { kind: 'known.automation.browser.subscription.apply', id }, { kind: 'known.automation.browser.subscription.rollback', id },
       { kind: 'known.automation.browser.subscription.refresh', id }, { kind: 'known.automation.browser.subscription.remove', id }]) {
       expect(validBrowserRuleCommand(command)).toBe(true);
     }
@@ -163,7 +165,8 @@ describe('the commands Options can send', () => {
       { kind: 'known.automation.browser.subscribe', url, bindings: {}, updatePolicy: 'review', refreshIntervalHours: 12 },
       { kind: 'known.automation.browser.subscribe', url, bindings: { 'no spaces': '30' }, updatePolicy: 'review', refreshIntervalHours: 24 },
       { kind: 'known.automation.browser.subscribe', url, bindings: {}, updatePolicy: 'review', refreshIntervalHours: 24, headers: { Authorization: 'x' } },
-      { kind: 'known.automation.browser.subscription.update', id }, { kind: 'known.automation.browser.subscription.update', id, pinned: true },
+      { kind: 'known.automation.browser.subscription.update', id }, { kind: 'known.automation.browser.subscription.update', id, pinned: 'yes' },
+      { kind: 'known.automation.browser.subscription.apply', id, version: '2' },
       { kind: 'known.automation.browser.subscription.refresh', id: '../x' }]) {
       expect(validBrowserRuleCommand(command)).toBe(false);
     }

@@ -42,15 +42,19 @@ export const browserPlacementLog = (): BrowserPlacementLog => stores().log;
 export const browserSubscriptionStore = (): SubscriptionStore => stores().subscriptions;
 
 /** Each subscription in the list with its current version and adjustments, read once for one decision or view. */
-export async function listSources(list: RuleListRecord): Promise<Map<string, SubscriptionSource>> {
+export async function listSources(list: RuleListRecord, store: Pick<SubscriptionStore, 'source'> = browserSubscriptionStore()): Promise<Map<string, SubscriptionSource>> {
   const ids = list.entries.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []);
-  const found = await Promise.all(ids.map((id) => browserSubscriptionStore().source(id)));
+  const found = await Promise.all(ids.map((id) => store.source(id)));
   return new Map(found.flatMap((source) => source ? [[source.record.id, source] as const] : []));
 }
 /** The list as saves try it now (doc 17 §6.1): only stored content, never a fetch (RS-04.5). */
-export async function currentFlat(list: RuleListRecord, sources?: Map<string, SubscriptionSource>): Promise<FlatList> {
-  const known = sources ?? await listSources(list);
-  return flattenList(list, (id) => { const source = known.get(id); return source ? subscriptionItems(source) : undefined; });
+export function flatFrom(list: RuleListRecord, sources: ReadonlyMap<string, SubscriptionSource>): FlatList {
+  return flattenList(list, (id) => { const source = sources.get(id); return source ? subscriptionItems(source) : undefined; });
+}
+/** The list and its subscriptions read in one transaction, flattened: one version of each, whole (RS-12.4). */
+export async function currentFlat(): Promise<FlatList> {
+  const { list, sources } = await browserSubscriptionStore().snapshot();
+  return flatFrom(list, sources);
 }
 
 /** Individual rules that file into a folder of their own, as the overlap check with the account reads them. */
@@ -81,7 +85,7 @@ function browserAutomation(decision: ListDecision, result: ListResult, listRevis
 /** This browser's list's decision for a save no account rule decided, first match wins (doc 17 §6.3); null when none matches. */
 export async function browserPreSaveDecision(input: PreSaveInput): Promise<BrowserPreSaveDecision | null> {
   if (!await hasBookmarkPermission()) return null;
-  const flat = await currentFlat(await browserRuleStore().load());
+  const flat = await currentFlat();
   if (flat.stopped || !flat.items.length) return null;
   const result = await decideList(flat.items, input, nativeFolderLookup, Date.now());
   if (!result.decision) return null;
@@ -161,8 +165,8 @@ export const MOVING_STALE_MS = 24 * 60 * 60 * 1000;
  * account (AW-71); a rule in a set belongs to the set and stays here.
  */
 export async function browserListViews(context: AccountContext | null = null): Promise<{ readonly rules: BrowserRuleView[]; readonly list: BrowserListView }> {
-  const stored = await browserRuleStore().load();
-  const individual = individualRules(stored), sources = await listSources(stored), sites = collectionLookup(sources);
+  const { list: stored, sources } = await browserSubscriptionStore().snapshot();
+  const individual = individualRules(stored), sites = collectionLookup(sources);
   const versionOf = (id: string) => sources.get(id)?.current?.ruleset.version ?? null;
   const account = context?.account ?? [];
   const access = await hasBookmarkPermission(), now = Date.now();
@@ -268,8 +272,8 @@ export async function retireMovedBrowserRules(account: readonly AccountRuleForOv
  * Each says which entry decided and where that rule stands in the list now, for Options' row actions (doc 17 RS-15).
  */
 export async function browserPlacementViews(): Promise<AutomationPlacementView[]> {
-  const [placements, list] = await Promise.all([browserPlacementLog().placements(), browserRuleStore().load()]);
-  const sources = await listSources(list), standing = new Map<string, 'on' | 'off'>();
+  const [placements, { list, sources }] = await Promise.all([browserPlacementLog().placements(), browserSubscriptionStore().snapshot()]);
+  const standing = new Map<string, 'on' | 'off'>();
   for (const entry of list.entries) {
     if (entry.kind === 'rule') standing.set(entry.rule.id, list.enabled && entry.rule.enabled ? 'on' : 'off');
     if (entry.kind === 'set') for (const rule of entry.set.rules) standing.set(rule.id, list.enabled && entry.set.enabled && rule.enabled ? 'on' : 'off');
@@ -338,8 +342,8 @@ export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleComma
  */
 async function browserPreview(command: Extract<BrowserRuleCommand, { kind: 'known.automation.browser.preview' }>): Promise<BrowserRuleResponse> {
   if (!await hasBookmarkPermission()) return { ok: false, error: 'noAccess' };
-  const list = await browserRuleStore().load();
-  const flat = await currentFlat({ ...list, enabled: true }), stopped = list.enabled ? null : 'listOff' as const;
+  const { list, sources } = await browserSubscriptionStore().snapshot();
+  const flat = flatFrom({ ...list, enabled: true }, sources), stopped = list.enabled ? null : 'listOff' as const;
   const recent = async (): Promise<PreviewPage[]> => (await chrome.bookmarks.getRecent(PREVIEW_SAMPLE).catch(() => []))
     .filter((node) => typeof node.url === 'string').map((node) => ({ url: node.url!, title: node.title, nativeId: node.id }));
   const now = Date.now();

@@ -1,5 +1,5 @@
 import { requestValue, transactionDone } from '../sync-state/idb.js';
-import type { AtomicStateArea } from './bundle-store.js';
+import type { SnapshotStateArea } from './bundle-store.js';
 import type { ObservedPlacement } from './observed-create.js';
 import { AUTOMATION_BUNDLE_KEY, AUTOMATION_CHANGED_KEY, AUTOMATION_RECEIPTS_KEY } from './messages.js';
 import { SERVER_STATUS_KEY } from './server-status.js';
@@ -82,9 +82,14 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
 
   return {
     /** Key/value access for the bundle record, the receipt list and this browser's own rules. */
-    area(): AtomicStateArea {
+    area(): SnapshotStateArea {
       return {
         get: (key) => run([STATE], 'readonly', (tx) => requestValue(tx.objectStore(STATE).get(key))),
+        getMany: (keys) => run([STATE], 'readonly', async (tx) => {
+          const state = tx.objectStore(STATE);
+          const values = await Promise.all(keys.map((key) => requestValue(state.get(key))));
+          return Object.fromEntries(keys.flatMap((key, index) => values[index] === undefined ? [] : [[key, values[index]]]));
+        }),
         async set(key, value) { await run([STATE], 'readwrite', async (tx) => { tx.objectStore(STATE).put(value, key); }); await changed(); },
         async commit(writes, deletes = []) {
           await run([STATE], 'readwrite', async (tx) => {

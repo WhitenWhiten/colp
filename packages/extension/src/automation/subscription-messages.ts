@@ -1,6 +1,6 @@
 import type { BrowserRuleView } from './messages.js';
 import type { RuleMatchView } from './rule-match.js';
-import type { RulesetAddress } from './ruleset-format.js';
+import type { EntryDiff, RulesetAddress, ScopeReason } from './ruleset-format.js';
 import type { Adjustment } from './subscription-list.js';
 import type { SubscriptionFailure, SubscriptionPublisher, SubscriptionRecord } from './subscription-store.js';
 
@@ -20,7 +20,11 @@ export type SubscriptionCommand =
   | { readonly kind: 'known.automation.browser.subscribe'; readonly url: string; readonly bindings: Bindings;
     readonly updatePolicy: SubscriptionRecord['updatePolicy']; readonly refreshIntervalHours: RefreshInterval }
   | { readonly kind: 'known.automation.browser.subscription.update'; readonly id: string; readonly updatePolicy?: SubscriptionRecord['updatePolicy'];
-    readonly refreshIntervalHours?: RefreshInterval; readonly paused?: boolean }
+    readonly refreshIntervalHours?: RefreshInterval; readonly paused?: boolean; readonly pinned?: boolean }
+  /** What the waiting version changes (RS-12.1); Apply makes it current; Use previous version swaps back and pins (RS-13.3). */
+  | { readonly kind: 'known.automation.browser.subscription.review'; readonly id: string }
+  | { readonly kind: 'known.automation.browser.subscription.apply'; readonly id: string }
+  | { readonly kind: 'known.automation.browser.subscription.rollback'; readonly id: string }
   /** Refresh now: ignores the interval. */
   | { readonly kind: 'known.automation.browser.subscription.refresh'; readonly id: string }
   | { readonly kind: 'known.automation.browser.subscription.remove'; readonly id: string }
@@ -45,6 +49,11 @@ export interface BrowserSubscriptionView {
   readonly currentVersion: string | null;
   readonly previousVersion: string | null;
   readonly candidateVersion: string | null;
+  /**
+   * Why the candidate waits (RS-12.3): *Review* is the policy, it is pinned, or *Automatic* may not apply it
+   * because it adds or drops a folder role or is another rule set. Null with no candidate.
+   */
+  readonly candidateWaits: 'review' | 'pinned' | ScopeReason | null;
   /** When the current version arrived. */
   readonly fetchedAt: number | null;
   readonly lastAttemptAt: number | null;
@@ -77,9 +86,23 @@ export interface BrowserSubscriptionDetail {
   readonly sites: readonly { readonly id: string; readonly name: string; readonly addresses: readonly RulesetAddress[] }[];
 }
 
-const KINDS = new Set(['known.automation.browser.subscription.check', 'known.automation.browser.subscribe', 'known.automation.browser.subscription.update',
-  'known.automation.browser.subscription.refresh', 'known.automation.browser.subscription.remove', 'known.automation.browser.subscription.adjust',
-  'known.automation.browser.subscription.copy']);
+/** The waiting version against the current one: its entries by id, its folder roles, and what it would do to recent bookmarks. */
+export interface BrowserSubscriptionReviewView {
+  readonly id: string;
+  readonly name: string;
+  readonly currentVersion: string;
+  readonly candidateVersion: string;
+  /** *Automatic* would apply it by itself; otherwise why not (R10). */
+  readonly scope: { readonly ok: boolean; readonly reasons: readonly ScopeReason[] };
+  readonly diff: EntryDiff;
+  /** Of the most recent bookmarks, how many another entry or folder would take; null without bookmark access. */
+  readonly sample: { readonly size: number; readonly changed: number; readonly byFolder: readonly { readonly title: string; readonly count: number }[] } | null;
+}
+
+const ONE_ID = new Set(['known.automation.browser.subscription.refresh', 'known.automation.browser.subscription.remove',
+  'known.automation.browser.subscription.review', 'known.automation.browser.subscription.apply', 'known.automation.browser.subscription.rollback']);
+const KINDS = new Set([...ONE_ID, 'known.automation.browser.subscription.check', 'known.automation.browser.subscribe', 'known.automation.browser.subscription.update',
+  'known.automation.browser.subscription.adjust', 'known.automation.browser.subscription.copy']);
 export const isSubscriptionKind = (kind: unknown): boolean => typeof kind === 'string' && KINDS.has(kind);
 export const isSubscriptionCommand = (command: { readonly kind: string }): command is SubscriptionCommand => KINDS.has(command.kind);
 
@@ -108,13 +131,14 @@ export function validSubscriptionCommand(raw: Record<string, unknown>): boolean 
     return keys === 5 && url(raw.url) && bindings(raw.bindings) && policy(raw.updatePolicy) && interval(raw.refreshIntervalHours);
   }
   if (raw.kind === 'known.automation.browser.subscription.update') {
-    const given = ['updatePolicy', 'refreshIntervalHours', 'paused'].filter((key) => raw[key] !== undefined).length;
+    const given = ['updatePolicy', 'refreshIntervalHours', 'paused', 'pinned'].filter((key) => raw[key] !== undefined).length;
     return given > 0 && keys === 2 + given && id && (raw.updatePolicy === undefined || policy(raw.updatePolicy))
-      && (raw.refreshIntervalHours === undefined || interval(raw.refreshIntervalHours)) && (raw.paused === undefined || typeof raw.paused === 'boolean');
+      && (raw.refreshIntervalHours === undefined || interval(raw.refreshIntervalHours)) && (raw.paused === undefined || typeof raw.paused === 'boolean')
+      && (raw.pinned === undefined || typeof raw.pinned === 'boolean');
   }
   if (raw.kind === 'known.automation.browser.subscription.adjust') return keys === 3 && id && validAdjustment(raw.change);
   if (raw.kind === 'known.automation.browser.subscription.copy') {
     return keys === 4 && id && typeof raw.entryId === 'string' && ROLE.test(raw.entryId) && typeof raw.disableOriginal === 'boolean';
   }
-  return (raw.kind === 'known.automation.browser.subscription.refresh' || raw.kind === 'known.automation.browser.subscription.remove') && keys === 2 && id;
+  return ONE_ID.has(String(raw.kind)) && keys === 2 && id;
 }

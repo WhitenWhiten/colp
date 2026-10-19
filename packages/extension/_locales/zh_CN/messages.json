@@ -1403,6 +1403,110 @@
     "message": "在网页上恢复",
     "description": "Resume on the web"
   },
+  "automation_reviewAdded": {
+    "message": "新增",
+    "description": "Added"
+  },
+  "automation_reviewApplied": {
+    "message": "现在使用“$2”的版本 $1。",
+    "description": "Now using version $1 of “$2”."
+  },
+  "automation_reviewApply": {
+    "message": "应用版本 $1",
+    "description": "Apply version $1"
+  },
+  "automation_reviewApplyFailed": {
+    "message": "无法应用这个版本。请重试。",
+    "description": "Couldn’t apply this version. Try again."
+  },
+  "automation_reviewChanged": {
+    "message": "有改动",
+    "description": "Changed"
+  },
+  "automation_reviewFailed": {
+    "message": "无法比较这个版本。请重试。",
+    "description": "Couldn’t compare this version. Try again."
+  },
+  "automation_reviewGone": {
+    "message": "这个版本已不在等待中。请关闭后重新查看。",
+    "description": "This version isn’t waiting any more. Close and look again."
+  },
+  "automation_reviewMore_other": {
+    "message": "还有 $1 个",
+    "description": "and $1 more"
+  },
+  "automation_reviewNoEntries": {
+    "message": "条目没有变化，只有细节有改动。",
+    "description": "No entry changes; only its details do."
+  },
+  "automation_reviewNow": {
+    "message": "目前由版本 $1 归档页面。应用这个版本不会移动你已有的书签。",
+    "description": "Version $1 files pages now. Applying this one moves no bookmark you already have."
+  },
+  "automation_reviewRemoved": {
+    "message": "移除",
+    "description": "Removed"
+  },
+  "automation_reviewRolesAdded": {
+    "message": "它新增了要归档的页面类型。请为每种类型选择文件夹，或先让它等待：",
+    "description": "New kinds of page it files. Choose a folder for each, or leave it to wait:"
+  },
+  "automation_reviewRolesRemoved": {
+    "message": "不再归档的页面类型",
+    "description": "Kinds of page it no longer files"
+  },
+  "automation_reviewSampleFolder_other": {
+    "message": "$2：$1 个书签",
+    "description": "$2: $1 bookmarks"
+  },
+  "automation_reviewSampleNone_other": {
+    "message": "你最近的 $1 个书签都不会被改为归档到别处。",
+    "description": "None of your last $1 bookmarks would be filed differently."
+  },
+  "automation_reviewSampleStay_other": {
+    "message": "留在保存位置：$1 个书签",
+    "description": "Stay where saved: $1 bookmarks"
+  },
+  "automation_reviewSample_other": {
+    "message": "在你最近的 $2 个书签中，有 $1 个会被改为归档到别处：",
+    "description": "Of your last $2 bookmarks, $1 would be filed differently:"
+  },
+  "automation_reviewScopeDocument": {
+    "message": "这个地址上现在是另一个规则集，所以它总是等待你审阅。",
+    "description": "It is a different rule set at this address, so it always waits for your review."
+  },
+  "automation_reviewScopeOk": {
+    "message": "它保持相同的页面类型，所以“自动”会直接应用它。",
+    "description": "It keeps the same kinds of page, so Automatic would have applied it."
+  },
+  "automation_reviewScopeRoles": {
+    "message": "它改变了要归档的页面类型，所以总是等待你审阅。",
+    "description": "It changes the kinds of page it files, so it always waits for your review."
+  },
+  "automation_reviewTitle": {
+    "message": "“$2”的版本 $1",
+    "description": "Version $1 of “$2”"
+  },
+  "automation_rollback": {
+    "message": "使用上一版本",
+    "description": "Use previous version"
+  },
+  "automation_rollbackBody": {
+    "message": "版本 $1 将重新归档页面，并保持固定，直到你取消固定。你为这个订阅做的设置保持不变。已保存的书签不会移动。",
+    "description": "Version $1 files pages again, and it stays pinned until you unpin it. Your settings for this subscription stay. Bookmarks already saved don’t move."
+  },
+  "automation_rollbackFailed": {
+    "message": "无法回到上一版本。请重试。",
+    "description": "Couldn’t go back to the previous version. Try again."
+  },
+  "automation_rollbackTitle": {
+    "message": "重新使用“$2”的版本 $1？",
+    "description": "Use version $1 of “$2” again?"
+  },
+  "automation_rolledBack": {
+    "message": "已重新使用“$2”的版本 $1，并已固定。",
+    "description": "Using version $1 of “$2” again, pinned."
+  },
   "automation_ruleArchived": {
     "message": "已归档",
     "description": "Archived"
@@ -2403,6 +2507,18 @@
     "message": "已暂停更新",
     "description": "Updates paused"
   },
+  "automation_subPin": {
+    "message": "固定版本 $1",
+    "description": "Pin version $1"
+  },
+  "automation_subPinHint": {
+    "message": "仍会检查更新，但不会自动应用任何新版本。取消固定后恢复上面的选择。",
+    "description": "Keeps checking, but no new version applies by itself. Unpinning goes back to the choice above."
+  },
+  "automation_subPinnedBadge": {
+    "message": "已固定",
+    "description": "Pinned"
+  },
   "automation_subPolicy": {
     "message": "新版本",
     "description": "New versions"
@@ -2426,6 +2542,10 @@
   "automation_subPrevious": {
     "message": "上一版本：$1",
     "description": "Previous version: $1"
+  },
+  "automation_subPreviousHint": {
+    "message": "版本 $1 已保留，你可以回到它。",
+    "description": "Version $1 is kept, so you can go back to it."
   },
   "automation_subPublisher": {
     "message": "发布者：$1",
@@ -2454,6 +2574,10 @@
   "automation_subRemoved": {
     "message": "已移除“$1”。",
     "description": "Removed “$1”."
+  },
+  "automation_subReview": {
+    "message": "审阅更新",
+    "description": "Review update"
   },
   "automation_subRevoked": {
     "message": "$1 已于 $2 停用",
@@ -2530,6 +2654,14 @@
   "automation_subVersion": {
     "message": "版本 $1",
     "description": "version $1"
+  },
+  "automation_subWaitsDocument": {
+    "message": "版本 $1 正在等待你审阅：它是另一个规则集。",
+    "description": "Version $1 waits for your review: it is a different rule set."
+  },
+  "automation_subWaitsRoles": {
+    "message": "版本 $1 正在等待你审阅：它改变了要归档的页面类型。",
+    "description": "Version $1 waits for your review: it changes the kinds of page it files."
   },
   "automation_subscribe": {
     "message": "订阅",

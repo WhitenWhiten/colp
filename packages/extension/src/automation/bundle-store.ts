@@ -56,6 +56,10 @@ export interface AutomationStateArea {
 export interface AtomicStateArea extends AutomationStateArea {
   commit(writes: Readonly<Record<string, unknown>>, deletes?: readonly string[]): Promise<void>;
 }
+/** The same area, reading several keys in one transaction too: what one commit left, never half of it (doc 17 RS-12.4). */
+export interface SnapshotStateArea extends AtomicStateArea {
+  getMany(keys: readonly string[]): Promise<Record<string, unknown>>;
+}
 
 const empty = (ownerKey: string): BundleRecord => ({ version: 1, ownerKey, bundle: null, serverUuid: null, installedAt: null,
   lastRefreshAt: null, lastAttemptAt: null, failures: 0, pausedSince: null, problem: null });

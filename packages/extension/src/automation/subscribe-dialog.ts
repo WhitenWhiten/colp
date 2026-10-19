@@ -5,6 +5,7 @@ import { showToast } from '../toast.js';
 import type { BrowserListEntryView, BrowserRulesetView } from './messages.js';
 import { sendRuleCommand as send } from './rule-command.js';
 import { rolePickers, showProblems } from './ruleset-pane.js';
+import { confirmRollback } from './subscription-review-pane.js';
 import { subscriptionAddress, subscriptionOriginPattern } from './subscription-fetch.js';
 import type { BrowserSubscriptionEntryView, BrowserSubscriptionView, RefreshInterval } from './subscription-messages.js';
 import type { FailureCode } from './subscription-store.js';
@@ -160,22 +161,38 @@ export function openSubscribe(trigger?: HTMLElement | null): void {
   document.body.append(dialog); dialog.showModal(); input.focus();
 }
 
-export function openSubscriptionSettings(view: BrowserSubscriptionView, trigger?: HTMLElement | null): void {
+export function openSubscriptionSettings(entry: Entry, trigger?: HTMLElement | null): void {
+  const view = entry.subscription!;
   const { dialog, body, actions } = createDialog(t('automation_subSettingsTitle', 'Updates for “$1”', view.name), 'automation-config-dialog');
   const policy = policyField(view.updatePolicy), interval = intervalField(view.refreshIntervalHours);
-  const pause = el('label', undefined, 'choice');
-  const box = el('input'); box.type = 'checkbox'; box.checked = view.paused;
-  pause.append(box, el('span', t('automation_subPause', 'Pause updates'), 'choice-title'),
-    el('span', t('automation_subPauseHint', 'Keeps version $1 and stops checking for new ones.', view.currentVersion ?? '—'), 'choice-hint'));
+  const check = (on: boolean, title: string, hint: string) => {
+    const label = el('label', undefined, 'choice');
+    const box = el('input'); box.type = 'checkbox'; box.checked = on;
+    label.append(box, el('span', title, 'choice-title'), el('span', hint, 'choice-hint'));
+    return { label, box };
+  };
+  const pause = check(view.paused, t('automation_subPause', 'Pause updates'), t('automation_subPauseHint', 'Keeps version $1 and stops checking for new ones.', view.currentVersion ?? '—'));
+  // Pinned: whatever the policy, no version applies by itself; new ones wait for review (RS-13.3).
+  const pin = check(view.pinned, t('automation_subPin', 'Pin version $1', view.currentVersion ?? '—'),
+    t('automation_subPinHint', 'Keeps checking, but no new version applies by itself. Unpinning goes back to the choice above.'));
   const error = errorLine();
-  body.append(policy.element, interval.element, pause, error);
+  body.append(policy.element, interval.element, pause.label, pin.label);
+  if (view.previousVersion) {
+    const back = el('div', undefined, 'automation-sub-section-inline');
+    const use = dialogButton(t('automation_rollback', 'Use previous version'), 'secondary');
+    use.addEventListener('click', () => { dialog.close(); confirmRollback(entry, trigger); });
+    back.append(el('p', t('automation_subPreviousHint', 'Version $1 is kept, so you can go back to it.', view.previousVersion), 'mgr-hint'), use);
+    body.append(back);
+  }
+  body.append(error);
+  const box = pause.box;
   const cancel = dialogButton(t('common_cancel', 'Cancel'));
   const save = dialogButton(t('common_save', 'Save'), 'primary');
   cancel.addEventListener('click', () => dialog.close());
   save.addEventListener('click', () => {
     save.disabled = true;
     void send({ kind: 'known.automation.browser.subscription.update', id: view.id, updatePolicy: policy.value(),
-      refreshIntervalHours: Number(interval.select.value) as RefreshInterval, paused: box.checked }).then((reply) => {
+      refreshIntervalHours: Number(interval.select.value) as RefreshInterval, paused: box.checked, pinned: pin.box.checked }).then((reply) => {
       save.disabled = false;
       if (reply.ok) { dialog.close(); showToast(t('automation_subSettingsSaved', 'Saved the update settings for “$1”.', view.name), 'ok', { announce: true }); return; }
       error.textContent = t('automation_subSettingsFailed', 'Couldn’t save these settings. Try again.'); error.hidden = false;

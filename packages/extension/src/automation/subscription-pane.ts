@@ -8,6 +8,7 @@ import { ruleConditions } from './status-ui.js';
 import { subscriptionOriginPattern } from './subscription-fetch.js';
 import type { BrowserSubscriptionEntryView, BrowserSubscriptionView } from './subscription-messages.js';
 import { confirmCopyEntry, confirmRemoveSubscription, failureText, openSubscriptionFolders, openSubscriptionSettings, siteOf } from './subscribe-dialog.js';
+import { openReview } from './subscription-review-pane.js';
 
 /**
  * A subscription in Options' list (doc 17 RS-04, RS-05, RS-10, RS-15.2): where it comes from, its
@@ -176,6 +177,16 @@ export function subscriptionBlock(entry: Entry, parts: SubscriptionParts): HTMLL
   const filing = detail?.entries.filter((item) => item.role !== null) ?? [];
   main.append(el('p', view?.name ?? t('automation_subscription', 'Subscribed rule set'), 'list-row-title'),
     el('p', view ? statusLine(view, filing.length) : t('automation_subUnreadable', 'This browser can’t read this subscription, so it files nothing.'), 'list-row-meta'));
+  // A waiting version, and why it waits (RS-12.3); pinned, it is not pressed on the Owner (§8 Policy).
+  if (view?.candidateVersion && view.candidateWaits !== 'pinned') {
+    const waiting = el('div', undefined, 'automation-sub-waiting');
+    const why = view.candidateWaits === 'roles' ? t('automation_subWaitsRoles', 'Version $1 waits for your review: it changes the kinds of page it files.', view.candidateVersion)
+      : view.candidateWaits === 'document' ? t('automation_subWaitsDocument', 'Version $1 waits for your review: it is a different rule set.', view.candidateVersion)
+        : t('automation_subUpdateWaiting', 'Version $1 is waiting for your review.', view.candidateVersion);
+    const review = button(t('automation_subReview', 'Review update'), 'btn btn-secondary btn-sm', () => openReview(entry, review)); review.dataset.review = '';
+    waiting.append(el('span', why, 'list-row-meta'), review);
+    main.append(waiting);
+  }
   // A failure after the version in force: that version keeps filing (RS-13.1).
   if (view?.state === 'ready' && view.lastFailure && view.lastFailure.at >= (view.lastSuccessAt ?? 0)) {
     main.append(el('p', t('automation_subLastTry', 'Still using version $1. $2', view.currentVersion ?? '', failureText(view) ?? ''), 'list-row-meta automation-recipe-missing'));
@@ -184,15 +195,17 @@ export function subscriptionBlock(entry: Entry, parts: SubscriptionParts): HTMLL
   const actions = el('span', undefined, 'row-actions-hover');
   actions.append(...parts.moves);
   if (view) {
-    const settings = iconButton('settings', t('automation_subSettings', 'Update settings'), () => openSubscriptionSettings(view, settings));
+    const settings = iconButton('settings', t('automation_subSettings', 'Update settings'), () => openSubscriptionSettings(entry, settings));
     actions.append(iconButton('refresh', t('automation_subRefresh', 'Refresh now'), () => refreshNow(view)), settings);
     if (detail?.roles.length) { const folders = iconButton('folder', t('automation_subFolders', 'Choose its folders'), () => openSubscriptionFolders(entry, folders)); actions.append(folders); }
+    if (view.candidateVersion && view.pinned) { const review = iconButton('eye', t('automation_subReview', 'Review update'), () => openReview(entry, review)); actions.append(review); }
   }
   const remove = iconButton('trash', t('automation_subRemove', 'Remove subscription'), () => confirmRemoveSubscription(entry, remove));
   actions.append(remove);
   tail.append(actions);
   if (!entry.enabled) tail.append(badge(t('automation_browserOff', 'Off')));
   else if (!view || view.state === 'notReady') tail.append(badge(t('automation_subNotReadyBadge', 'Not ready'), 'warning'));
+  else if (view.pinned) tail.append(badge(t('automation_subPinnedBadge', 'Pinned')));
   else if (view.candidateVersion) tail.append(badge(t('automation_subUpdateBadge', 'Update available')));
   else if (view.paused) tail.append(badge(t('automation_subPausedBadge', 'Updates paused')));
   head.append(grip, tile, main, tail, parts.toggle(t('automation_subscriptionUse', 'Use this subscription'), entry.enabled,

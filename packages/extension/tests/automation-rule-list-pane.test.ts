@@ -426,7 +426,8 @@ describe('a subscription in the list (doc 17 RW-13, RS-04, RS-05, RS-10)', () =>
   const papers = { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] };
   const record = (over: Record<string, unknown> = {}) => ({ id: 'sub', url: 'https://rules.example.org/c.json', origin: 'https://rules.example.org', name: 'Community',
     publisher: { name: 'Example Collective', url: null, feedbackUrl: 'https://example.org/issues' }, license: 'CC-BY-4.0', state: 'ready' as const, updatePolicy: 'review' as const,
-    refreshIntervalHours: 24 as const, paused: false, pinned: false, currentVersion: '3', previousVersion: null, candidateVersion: '4', fetchedAt: NOW - 3_600_000,
+    refreshIntervalHours: 24 as const, paused: false, pinned: false, currentVersion: '3', previousVersion: null, candidateVersion: '4', candidateWaits: 'review' as const,
+    fetchedAt: NOW - 3_600_000,
     lastAttemptAt: NOW - 60_000, lastSuccessAt: NOW - 60_000, lastFailure: null, ...over });
   const subscription = (over: Record<string, unknown> = {}): BrowserListEntryView => ({ kind: 'subscription', id: 'sub', enabled: true, subscription: record(over),
     detail: { entries: [
@@ -465,6 +466,42 @@ describe('a subscription in the list (doc 17 RW-13, RS-04, RS-05, RS-10)', () =>
       change: { kind: 'exception', scope: 'domain', value: 'docs.example.net' } }));
     Array.from(about.querySelectorAll<HTMLButtonElement>('.inline-alert button')).find((node) => text(node) === 'Clear')!.click();
     await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscription.adjust', id: 'sub', change: { kind: 'clearGone' } }));
+  });
+
+  it('a waiting version says why it waits, Review shows what changes, and Apply sends it; pinned, it is not pressed (RS-12)', async () => {
+    await render(view([subscription({ candidateWaits: 'roles', previousVersion: '2' })]));
+    expect(text(document.querySelector('.automation-sub-waiting'))).toBe('Version 4 waits for your review: it changes the kinds of page it files.Review update');
+    reply = (message) => message.kind === 'known.automation.browser.subscription.review' ? { ok: true, review: { id: 'sub', name: 'Community', currentVersion: '3',
+      candidateVersion: '4', scope: { ok: false, reasons: ['roles'] }, diff: { added: [{ id: 'e-gh', name: 'GitHub' }], removed: [], changed: [{ id: 'e-arxiv', name: 'arXiv' }],
+        roles: { added: [{ key: 'code', description: 'Code' }], removed: [] } }, sample: { size: 40, changed: 3, byFolder: [{ title: 'Papers', count: 2 }, { title: '', count: 1 }] } } }
+      : { ok: true, subscription: record({ currentVersion: '4', candidateVersion: null }) };
+    document.querySelector<HTMLButtonElement>('[data-review]')!.click();
+    const review = await vi.waitFor(() => { const node = document.querySelector<HTMLDialogElement>('dialog.automation-review'); expect(node).not.toBeNull(); return node!; });
+    expect(text(review)).toContain('It changes the kinds of page it files, so it always waits for your review.');
+    expect(text(review)).toContain('Added (1)GitHub');
+    expect(text(review)).toContain('Changed (1)arXiv');
+    expect(text(review)).toContain('Of your last 40 bookmarks, 3 would be filed differently:Papers: 2 bookmarksStay where saved: 1 bookmark');
+    expect(text(review)).toContain('New kinds of page it files.');
+    Array.from(review.querySelectorAll<HTMLButtonElement>('button')).find((node) => text(node) === 'Apply version 4')!.click();
+    await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscription.apply', id: 'sub' }));
+    // Settings: pin, and go back to the version kept.
+    await repaint(view([subscription({ candidateWaits: 'pinned', pinned: true, previousVersion: '2' })]));
+    expect(document.querySelector('.automation-sub-waiting')).toBeNull();
+    expect(text(row('sub').querySelector('.badge'))).toBe('Pinned');
+    row('sub').querySelector<HTMLButtonElement>('[aria-label="Update settings"]')!.click();
+    const settings = document.querySelector<HTMLDialogElement>('dialog.automation-config-dialog')!;
+    const pin = Array.from(settings.querySelectorAll('label.choice')).find((node) => text(node).startsWith('Pin version 3'))!.querySelector('input')!;
+    expect(pin.checked).toBe(true);
+    pin.click();
+    Array.from(settings.querySelectorAll<HTMLButtonElement>('button')).find((node) => text(node) === 'Save')!.click();
+    await vi.waitFor(() => expect(sent.at(-1)).toMatchObject({ kind: 'known.automation.browser.subscription.update', id: 'sub', pinned: false }));
+    row('sub').querySelector<HTMLButtonElement>('[aria-label="Update settings"]')!.click();
+    const again = Array.from(document.querySelectorAll<HTMLDialogElement>('dialog.automation-config-dialog')).at(-1)!;
+    Array.from(again.querySelectorAll<HTMLButtonElement>('button')).find((node) => text(node) === 'Use previous version')!.click();
+    const confirm = Array.from(document.querySelectorAll<HTMLDialogElement>('dialog.capture-dialog')).at(-1)!;
+    expect(text(confirm.querySelector('h3'))).toBe('Use version 2 of “Community” again?');
+    Array.from(confirm.querySelectorAll<HTMLButtonElement>('button')).find((node) => text(node) === 'Use previous version')!.click();
+    await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscription.rollback', id: 'sub' }));
   });
 
   it('one not allowed to read its site yet says so, and asks in the click before fetching', async () => {

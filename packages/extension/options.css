@@ -1617,6 +1617,12 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-sub-site { color: var(--ink); font-size: var(--text-sm); line-height: var(--leading-ui); }
 .automation-sub-sites .list-row-meta { margin: 0; white-space: normal; }
 .automation-sub-history { color: var(--muted); }
+.automation-sub-waiting { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hair-30) var(--space-2); margin-top: var(--hair-40); }
+.automation-sub-waiting > .list-row-meta { margin: 0; white-space: normal; }
+.automation-sub-section-inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.automation-sub-section-inline > .mgr-hint { margin: 0; }
+.automation-review-group { display: grid; gap: var(--hair-30); }
+.automation-review-group > .form-label { margin: 0; }
 .automation-list-tools { display: flex; flex-wrap: wrap; grid-column: 2; grid-row: 1 / span 2; align-items: center; align-self: end; justify-content: flex-end;
   gap: var(--space-3); }
 .automation-account { margin: 0 0 var(--space-6); }
