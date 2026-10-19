@@ -232,6 +232,40 @@
   justify-items: start;
 }
 
+/* Compact: the row around it names the value, so the label is for assistive
+   tech only and a single-line value sits as a chip beside its button. */
+.copy-field--compact {
+  grid-template-areas: 'value button';
+  gap: var(--space-2);
+}
+
+.copy-field--compact:not(.copy-field--block) {
+  grid-template-columns: minmax(0, auto) auto;
+  align-items: stretch;
+  justify-content: start;
+  gap: var(--space-1);
+}
+
+/* Chip and button share one height: the button's, which is the touch target. */
+.copy-field--compact:not(.copy-field--block) .copy-field-value {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+}
+
+@media (pointer: fine) {
+  .copy-field--compact:not(.copy-field--block) .copy-field-button {
+    min-height: 1.6rem;
+  }
+}
+
+.copy-field--compact.copy-field--block {
+  grid-template-areas:
+    'value'
+    'button';
+}
+
 .copy-field-label {
   grid-area: label;
   color: var(--muted);

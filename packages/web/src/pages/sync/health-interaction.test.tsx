@@ -38,7 +38,7 @@ test('local merge diagnostics are explicit; refreshing a resolved list removes i
   expect(document.body.textContent).toContain('not a server conflict'); expect(document.body.textContent).toContain('issue')
   act(() => document.querySelector<HTMLButtonElement>('[aria-label="Copy error code"]')!.click())
   await waitForDom(() => mocks.copy.mock.calls.length > 0); expect(mocks.copy).toHaveBeenCalledWith('local_merge_difference')
-  mocks.list.mockResolvedValue({ ...report(), total: 0, items: [] }); click('Refresh diagnostics')
+  mocks.list.mockResolvedValue({ ...report(), total: 0, items: [] }); click('Refresh')
   await waitForDom(() => document.body.textContent?.includes('nothing set aside any more') === true)
   expect(document.body.textContent).not.toContain('local_merge_difference')
 })

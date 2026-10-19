@@ -43,6 +43,7 @@
    collection it syncs, and an unmistakable state line. */
 .replica-card {
   display: grid;
+  align-content: start;
   gap: var(--space-4);
   min-width: 0;
   padding: var(--space-4);
@@ -66,18 +67,45 @@
 .replica-facts dt { color: var(--muted); font-size: var(--text-xs); }
 .replica-facts dd { margin: var(--hair-20) 0 0; overflow-wrap: anywhere; font-size: var(--text-sm); font-weight: var(--weight-medium); }
 .replica-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: var(--space-2); min-width: 0; }
-.replica-message { margin: 0; padding: var(--space-3); border-left: 3px solid var(--line-strong); background: var(--paper-2); overflow-wrap: anywhere; }
+.replica-message { margin: 0; padding: var(--space-3); border-left: 3px solid var(--line-strong); background: var(--paper-2); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .replica-message.is-unknown,
 .replica-message.is-stale { border-left-color: var(--warning); }
 .replica-message.is-invalid,
 .replica-message.is-blocked { border-left-color: var(--danger); }
-.replica-message[role='status'] { display: grid; gap: var(--space-2); }
-.replica-message p { margin: 0; }
+/* The card says what is wrong and offers its buttons; the items themselves
+   open in the diagnostics dialog so a card never outgrows its grid row. */
+.replica-health { display: grid; gap: var(--space-2); min-width: 0; }
+.replica-health p { margin: 0; }
 .replica-reported { color: var(--muted); font-size: var(--text-xs); }
-.replica-issues { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.replica-issues li { display: grid; gap: var(--hair-20); min-width: 0; padding-top: var(--space-2); border-top: 1px solid var(--line); }
-.replica-issues strong { overflow-wrap: anywhere; font-size: var(--text-sm); }
-.replica-issues span { color: var(--muted); font-size: var(--text-sm); }
+.replica-diagnostics { display: grid; gap: var(--space-4); min-width: 0; font-size: var(--text-sm); }
+.replica-diagnostics p { margin: 0; }
+.replica-diagnostics-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.replica-diagnostics-stale { padding: var(--space-2) var(--space-3); border-left: 3px solid var(--warning); background: var(--paper-2); font-size: var(--text-sm); }
+/* One bordered list with hairline rows; a row's Try again sits in its own column. */
+.replica-issues { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius); }
+.replica-issues li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4); }
+.replica-issues li + li { border-top: 1px solid var(--line); }
+.replica-issues li > span { color: var(--muted); font-size: var(--text-sm); }
+.replica-issue-body { display: grid; gap: var(--hair-20); min-width: 0; font-size: var(--text-sm); }
+.replica-issue-body strong { overflow-wrap: anywhere; }
+.replica-issue-body > span { color: var(--ink-2); overflow-wrap: anywhere; }
+.replica-issue-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-1); color: var(--muted); font-size: var(--text-xs); }
+.replica-issue-meta code { overflow-wrap: anywhere; font-family: var(--font-mono); }
+.replica-issue-body > .replica-issue-note { color: var(--muted); font-size: var(--text-xs); }
+.replica-ack { display: grid; gap: var(--space-2); }
+.replica-ack h3 { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); letter-spacing: 0; }
+.replica-ack > p { color: var(--muted); font-size: var(--text-xs); }
+.replica-raw > summary { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--ink-2); font-size: var(--text-sm); font-weight: var(--weight-semibold); list-style: none; cursor: pointer; }
+.replica-raw > summary::-webkit-details-marker { display: none; }
+.replica-raw > summary:hover { color: var(--ink); }
+.replica-raw > summary svg { width: 0.9rem; height: 0.9rem; transition: transform var(--duration-fast) var(--ease-out); }
+.replica-raw[open] > summary svg { transform: rotate(90deg); }
+.replica-raw .copy-field { margin-top: var(--space-3); }
+.replica-raw .copy-field-value { max-height: 18rem; font-size: var(--text-xs); }
+@media (max-width: 639px) {
+  .replica-issues li { grid-template-columns: minmax(0, 1fr); }
+  .replica-issues li > .btn { justify-self: start; }
+}
 .conflict-list { margin-top: var(--space-3); border-bottom: 1px solid var(--line); }
 .conflict-card { padding: var(--hair-125) 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
 .conflict-title h3 { margin: var(--hair-20) 0 0; font-size: var(--text-base); letter-spacing: 0; text-transform: capitalize; }

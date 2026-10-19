@@ -3,9 +3,13 @@ import {
   ProductApiError, productClient, type SyncReplicaCommandView, type SyncReplicaIssue, type SyncReplicaIssuesView,
   type SyncReplicaView,
 } from '../../api'
+import { BodyPortal } from '../../components/BodyPortal'
 import { CopyField } from '../../components/CopyField'
 import { useToast } from '../../components/AppToast'
 import { useConfirm } from '../../components/ConfirmModal'
+import { LoadingState } from '../../components/EmptyState'
+import { Icon } from '../../components/Icon'
+import { Modal } from '../../components/Modal'
 import type { StatusTone } from '../../components/StatusBadge'
 import { formatRelative } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
@@ -233,36 +237,49 @@ export function ReplicaHealth({ replica, onChanged }: { replica: SyncReplicaView
     }
   }
   const tone = health?.state === 'stopped' ? 'is-blocked' : notes.length > 0 ? 'is-stale' : ''
-  return <div className={`replica-message ${tone}`} role={notes.length > 0 ? 'status' : undefined}>
+  const paused = health?.state === 'paused'
+  const showLabel = count > 0 && !paused ? `Show ${plural(count, 'item')}` : 'Show diagnostics'
+  // The band only frames something to say; a quiet browser keeps a plain row.
+  const framed = notes.length > 0 || command.feedback !== null
+  return <div className={framed ? `replica-health replica-message ${tone}` : 'replica-health'} role={notes.length > 0 ? 'status' : undefined}>
     {notes.map((note) => <p key={note}>{note}</p>)}
     {health && <p className="replica-reported">Reported {formatRelative(health.reportedAt)}.</p>}
     {command.feedback && <p role="alert">{command.feedback}</p>}
     {health && Date.now() - Date.parse(health.reportedAt) > 15 * 60_000 && <p>This browser’s report is over 15 minutes old. Open the extension to refresh its status before relying on it.</p>}
-    {offered.length > 0 && (
-      <div className="replica-actions">
-        {offered.includes('retry') && <button type="button" className="btn btn-secondary btn-sm" disabled={command.busy !== null}
-          onClick={() => void command.send('retry')}>{command.busy === 'retry:' ? 'Sending…' : 'Retry'}</button>}
-        {offered.includes('rebuild') && <button type="button" className="btn btn-danger-ghost btn-sm" disabled={command.busy !== null}
-          onClick={() => void reset()}>{command.busy === 'rebuild:' ? 'Sending…' : 'Reset sync'}</button>}
-      </div>
-    )}
-    {(issues.phase === 'closed' || issues.phase === 'failed') && (
-      <div className="replica-actions">
-        {issues.phase === 'failed' && <span>Couldn’t load the items.</span>}
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => { if (!expanded) setExpanded(true); else void load() }}>
-          {issues.phase === 'failed' ? 'Try again' : count > 0 && health?.state !== 'paused' ? `Show ${plural(count, 'item')}` : 'Show diagnostics'}
-        </button>
-      </div>
-    )}
-    {issues.phase === 'loading' && <p>Loading items…</p>}
-    {issues.phase === 'loaded' && <>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={() => void load()}>Refresh diagnostics</button>
-      {health?.state !== 'paused' && <ReplicaIssueList view={issues.view} replica={replica} busy={command.busy}
-        onRetry={(issueId) => void command.send('retry', issueId)} />}
-      <AckWarnings view={issues.view} />
-      <CopyField label="sync diagnostics" multiline value={JSON.stringify({ health: health ?? null, ...issues.view,
-        ...(health?.state === 'paused' ? { items: [] } : {}) }, null, 2)} />
-    </>}
+    <div className="replica-actions">
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setExpanded(true)}>{showLabel}</button>
+      {offered.includes('retry') && <button type="button" className="btn btn-secondary btn-sm" disabled={command.busy !== null}
+        onClick={() => void command.send('retry')}>{command.busy === 'retry:' ? 'Sending…' : 'Retry'}</button>}
+      {offered.includes('rebuild') && <button type="button" className="btn btn-danger-ghost btn-sm" disabled={command.busy !== null}
+        onClick={() => void reset()}>{command.busy === 'rebuild:' ? 'Sending…' : 'Reset sync'}</button>}
+    </div>
+    {/* The items open in a dialog so the card keeps its height in the grid. */}
+    <BodyPortal>
+      <Modal open={expanded} onClose={() => setExpanded(false)} size="lg" label={`Sync diagnostics for ${replica.name}`}
+        title={`Sync diagnostics · ${replica.name}`}>
+        <div className="replica-diagnostics">
+          <div className="replica-diagnostics-bar">
+            <span>{health ? `Reported ${formatRelative(health.reportedAt)}` : 'This browser hasn’t sent a report yet'}</span>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={issues.phase === 'loading'}
+              onClick={() => void load()}>{issues.phase === 'failed' ? 'Try again' : 'Refresh'}</button>
+          </div>
+          {(issues.phase === 'loading' || issues.phase === 'closed') && <LoadingState label="Loading items…" />}
+          {issues.phase === 'failed' && <p>Couldn’t load the items.</p>}
+          {issues.phase === 'loaded' && <>
+            {paused
+              ? <p>Sync is paused on this browser, so its items aren’t listed.</p>
+              : <ReplicaIssueList view={issues.view} replica={replica} busy={command.busy}
+                onRetry={(issueId) => void command.send('retry', issueId)} />}
+            <AckWarnings view={issues.view} />
+            <details className="replica-raw">
+              <summary><Icon name="chevron-right" />Raw diagnostics</summary>
+              <CopyField label="sync diagnostics" compact multiline value={JSON.stringify({ health: health ?? null, ...issues.view,
+                ...(paused ? { items: [] } : {}) }, null, 2)} />
+            </details>
+          </>}
+        </div>
+      </Modal>
+    </BodyPortal>
   </div>
 }
 
@@ -275,47 +292,43 @@ function ReplicaIssueList({ view, replica, busy, onRetry }: {
   const more = view.total - view.items.length
   const stale = Boolean(replica.health?.reportedAt && view.reportedAt !== replica.health.reportedAt)
   return <>
-    {stale && <p>This item list predates the latest browser report. Refresh diagnostics before acting.</p>}
+    {stale && <p className="replica-diagnostics-stale">This item list predates the latest browser report. Refresh before acting.</p>}
     <ul className="replica-issues" aria-label="Items this browser couldn’t sync">
-    {view.items.map((issue) => (
-      <li key={issue.issueId}>
-        <strong>{issue.title ?? (issue.nodeId ? 'A bookmark in your library' : 'A bookmark on that browser')}</strong>
-        <span>{issueSummary(issue)}{issue.count > 1 ? ` (${issue.count} times)` : ''}</span>
-        <span>{issue.direction === 'push' ? 'Upload' : issue.direction === 'pull' ? 'Download' : 'Local merge or capture'} ·
-          First seen {formatRelative(issue.firstSeenAt)} · Last seen {formatRelative(issue.lastSeenAt)}</span>
-        <CopyField label="error code" value={issue.code} />
-        <details><summary>Diagnostic identifiers</summary><code>{JSON.stringify({ issueId: issue.issueId,
-          nodeId: issue.nodeId, opId: issue.opId, actions: issue.actions })}</code></details>
-        <IssueCommand issue={issue} replica={replica} busy={stale ? 'stale' : busy} onRetry={onRetry} />
+    {view.items.map((issue) => {
+      const latest = latestCommand(replica, issue.issueId)
+      // An open request takes the place of its button.
+      const retry = issue.actions.includes('retry') && !(latest && open(latest))
+      return <li key={issue.issueId}>
+        <div className="replica-issue-body">
+          <strong>{issue.title ?? (issue.nodeId ? 'A bookmark in your library' : 'A bookmark on that browser')}</strong>
+          <span>{issueSummary(issue)}{issue.count > 1 ? ` (${issue.count} times)` : ''}</span>
+          <div className="replica-issue-meta">
+            <span>{issue.direction === 'push' ? 'Upload' : issue.direction === 'pull' ? 'Download' : 'Local merge or capture'} ·
+              First seen {formatRelative(issue.firstSeenAt)} · Last seen {formatRelative(issue.lastSeenAt)}</span>
+            <CopyField label="error code" compact value={issue.code} />
+          </div>
+          {latest && <span className="replica-issue-note">{commandNote(latest, replica.name)}</span>}
+        </div>
+        {retry && <button type="button" className="btn btn-secondary btn-sm" disabled={stale || busy !== null}
+          aria-label={`Try again: ${issue.title ?? 'this item'}`} onClick={() => onRetry(issue.issueId)}>
+          {busy === `retry:${issue.issueId}` ? 'Sending…' : 'Try again'}</button>}
       </li>
-    ))}
+    })}
     {more > 0 && <li><span>and {plural(more, 'more item')}</span></li>}
   </ul></>
 }
 
+/** Warnings ride the latest acknowledgement only; without any, the raw diagnostics still carry the empty list. */
 function AckWarnings({ view }: { view: SyncReplicaIssuesView }) {
-  return <section aria-label="Latest acknowledgement warnings">
-    <p>Latest acknowledgement warnings{view.ackWarningsAt ? ` · ${formatRelative(view.ackWarningsAt)}` : ''}.
-      These describe the latest acknowledgement and are separate from current open issues; they are not a cumulative history.</p>
-    {view.ackWarnings.length === 0 ? <p>No warnings in the latest acknowledgement.</p> : <ul>
+  if (view.ackWarnings.length === 0) return null
+  return <section className="replica-ack" aria-label="Latest acknowledgement warnings">
+    <h3>Latest acknowledgement warnings{view.ackWarningsAt ? ` · ${formatRelative(view.ackWarningsAt)}` : ''}</h3>
+    <p>These describe the latest acknowledgement and are separate from current open issues; they are not a cumulative history.</p>
+    <ul className="replica-issues">
       {[...new Map(view.ackWarnings.map(warning => [JSON.stringify(warning), warning])).values()].map(warning =>
-        <li key={JSON.stringify(warning)}><span>{warning.message}</span><CopyField label="warning code" value={warning.code} />
-          {warning.path && <code>{warning.path}</code>}</li>)}
-    </ul>}
+        <li key={JSON.stringify(warning)}><div className="replica-issue-body"><span>{warning.message}</span>
+          <div className="replica-issue-meta">{warning.path && <code>{warning.path}</code>}
+            <CopyField label="warning code" compact value={warning.code} /></div></div></li>)}
+    </ul>
   </section>
-}
-
-function IssueCommand({ issue, replica, busy, onRetry }: {
-  issue: SyncReplicaIssue; replica: SyncReplicaView; busy: string | null; onRetry(issueId: string): void
-}) {
-  const latest = latestCommand(replica, issue.issueId)
-  if (latest && open(latest)) return <span>{commandNote(latest, replica.name)}</span>
-  return <>
-    {latest && <span>{commandNote(latest, replica.name)}</span>}
-    {issue.actions.includes('retry') && <div className="replica-actions">
-      <button type="button" className="btn btn-secondary btn-sm" disabled={busy !== null}
-        aria-label={`Try again: ${issue.title ?? 'this item'}`} onClick={() => onRetry(issue.issueId)}>
-        {busy === `retry:${issue.issueId}` ? 'Sending…' : 'Try again'}</button>
-    </div>}
-  </>
 }

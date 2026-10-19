@@ -7,6 +7,8 @@ type Props = {
   value: string
   /** Multi-line value (a command block) renders as a <pre>. */
   multiline?: boolean
+  /** The label is read to assistive tech only; for values whose row already names them. */
+  compact?: boolean
   className?: string
   onCopied?: () => void
   onCopyFailed?: () => void
@@ -18,7 +20,7 @@ type Props = {
  * Copying goes through lib/clipboard so it also works on the plain-HTTP
  * origins this edition supports (navigator.clipboard is absent there).
  */
-export function CopyField({ label, value, multiline = false, className, onCopied, onCopyFailed }: Props) {
+export function CopyField({ label, value, multiline = false, compact = false, className, onCopied, onCopyFailed }: Props) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
   useEffect(() => {
@@ -36,10 +38,11 @@ export function CopyField({ label, value, multiline = false, className, onCopied
     }
   }
 
-  const classes = ['copy-field', multiline ? 'copy-field--block' : '', className ?? ''].filter(Boolean).join(' ')
+  const classes = ['copy-field', multiline ? 'copy-field--block' : '', compact ? 'copy-field--compact' : '', className ?? '']
+    .filter(Boolean).join(' ')
   return (
     <div className={classes} data-testid="copy-field">
-      <span className="copy-field-label">{label}</span>
+      <span className={compact ? 'visually-hidden' : 'copy-field-label'}>{label}</span>
       {multiline
         ? <pre className="copy-field-value" data-testid="copy-field-value">{value}</pre>
         : <code className="copy-field-value" data-testid="copy-field-value">{value}</code>}
