@@ -5,6 +5,7 @@ import { SyncFailureError } from './sync-failure-class.js';
 import type { SyncAckRequest } from '@know-n/colp/types';
 import type { AckIntentRecord } from './sync-state-store.js';
 import type { StoredCredential, StoredSession } from './types.js';
+import { canonicalJson as canonicalJsonValue } from './canonical-json.js';
 
 export function ackEnvelope(kind: AckIntentRecord['kind'], sessionId: string, cursor: string,
   recoveryCapability?: string, warnings: SyncAckRequest['warnings'] = []) {
@@ -23,11 +24,9 @@ export function headers(authority: { readonly credential: Pick<StoredCredential,
 }
 export function digest(value: unknown) { return digestBytes(canonicalJson(value)); }
 export function digestBytes(value: string) { return bytesToHex(sha256(new TextEncoder().encode(value))); }
-export function canonicalJson(value: unknown): string { if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  const encoded = JSON.stringify(value); if (encoded === undefined) throw new SyncFailureError('canonical_json_invalid'); return encoded; }
+export function canonicalJson(value: unknown): string {
+  return canonicalJsonValue(value, () => { throw new SyncFailureError('canonical_json_invalid'); });
+}
 export function jsonContentType(response: Response) { return /^application\/json(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? ''); }
 export function problemContentType(response: Response) { return /^application\/problem\+json(?:\s*;|$)/iu.test(
   response.headers.get('Content-Type') ?? ''); }

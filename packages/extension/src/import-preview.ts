@@ -7,6 +7,7 @@ import { normalizeAnnotationNote, normalizeAnnotationTags } from './bookmark-ann
 import { bookmarkUrl as bookmarkUrlValidator,
   conversionPreview as conversionPreviewValidator } from './generated/import-preview-validators.js';
 import { SNAPSHOT_V02_SUPPORT } from './snapshot-v02-pages.js';
+import { canonicalJson as canonicalJsonValue } from './canonical-json.js';
 
 export interface ImportLimits {
   readonly maxInputBytes: number;
@@ -544,10 +545,7 @@ function resolveLimits(overrides: Partial<ImportLimits>): ImportLimits {
 function digestBytes(value: Uint8Array): string { return `sha256:${bytesToHex(sha256(value))}`; }
 function digestText(value: string): string { return digestBytes(utf8.encode(value)); }
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') { const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`; }
-  const encoded = JSON.stringify(value); if (encoded === undefined) fail('input_invalid'); return encoded;
+  return canonicalJsonValue(value, () => fail('input_invalid'));
 }
 function deepFreeze<Value>(value: Value): Value {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {

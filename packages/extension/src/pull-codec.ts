@@ -5,6 +5,7 @@ import type { AuthoritativeEffectPage, SyncPullEventV02 } from '@know-n/colp/typ
 import { canonicalAuthoritativeEffectDigest, canonicalAuthoritativeEffectPageDigest,
   canonicalAuthoritativeMemberDigest, canonicalOperationDigest } from '@know-n/colp/sync/canonical';
 import type { JsonObject } from './sync-state-store.js';
+import { canonicalJson } from './canonical-json.js';
 import { authoritativeEffectPage } from './generated/pull-effect-validators.js';
 
 export function record(value: unknown): value is Record<string, unknown> {
@@ -12,13 +13,7 @@ export function record(value: unknown): value is Record<string, unknown> {
 }
 
 export function stable(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
-  if (record(value)) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
-  }
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) throw new SyncFailureError('i_json_invalid');
-  return encoded;
+  return canonicalJson(value, () => { throw new SyncFailureError('i_json_invalid'); });
 }
 
 export function digest(value: unknown) {
