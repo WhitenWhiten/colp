@@ -251,9 +251,8 @@ export function createRiskPane(): RiskPane {
   section.id = 'automation-risk'; section.setAttribute('aria-labelledby', 'automation-risk-heading');
   const head = el('div', undefined, 'set-group-head');
   const title = el('h2', t('risk_title', 'Risk alerts')); title.id = 'automation-risk-heading';
-  // One paragraph: what it does, then what a page on no list means.
-  head.append(title, el('p', `${t('risk_lede', 'Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes.')} ${
-    t('risk_absence', 'Absence from a list means nothing either way: a page on no list gets no notice, good or bad.')}`, 'detail'));
+  head.append(title, el('p', t('risk_lede', 'Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes.'), 'detail'),
+    el('p', t('risk_absence', 'Absence from a list means nothing either way: a page on no list gets no notice, good or bad.'), 'detail risk-absence'));
   const body = el('div', undefined, 'risk-body');
   section.append(head, body);
   let active = false, turn = 0, revealed = false;
