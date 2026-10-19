@@ -195,6 +195,7 @@ export function parseAdvancedStepDefinition(raw: unknown): AdvancedStepDefinitio
   }
   if (side === 'local' && (action === 'update' || action === 'move')) {
     expect(operation, action);
+    const parent = action === 'move' ? parseParentRef(definition.parent) : undefined;
     const source = object(definition.source); text(source.nodeId, 'source.nodeId'); parseRemoteState(source.fact);
     const target = object(definition.target); text(target.nativeId, 'target.nativeId'); text(target.nodeId, 'target.nodeId');
     const payload = object(definition.payload);
@@ -203,6 +204,7 @@ export function parseAdvancedStepDefinition(raw: unknown): AdvancedStepDefinitio
     else { parseParentRef(payload.newParent); integer(payload.index, 'payload.index'); }
     parseLocalState(definition.before); parseDesiredLocal(definition.after);
     return Object.freeze({ ...common, side, action, source: source as never, target: target as never,
+      ...(parent === undefined ? {} : { parent }),
       payload: payload as never, before: definition.before as AdvancedLocalState,
       after: definition.after as AdvancedDesiredLocalState } as AdvancedStep);
   }

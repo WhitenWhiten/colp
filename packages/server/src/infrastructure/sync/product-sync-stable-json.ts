@@ -9,7 +9,7 @@
  * choose the boundary policy explicitly:
  *
  * - `omit` (response bodies): object members with `undefined` are omitted and
- *   array entries become `null`, matching `JSON.stringify` semantics.
+ *   array entries (including holes) become `null`, matching `JSON.stringify` semantics.
  * - `reject` (signed cursors): any `undefined` in the payload fails closed,
  *   because silently dropping a field would change the signed payload.
  *
@@ -32,7 +32,12 @@ function encodeStableJson(
   if (value === undefined) return undefinedValue(onUndefined, inArray);
   if (value === null) return 'null';
   if (Array.isArray(value)) {
-    return `[${value.map((item) => encodeStableJson(item, onUndefined, true) ?? 'null').join(',')}]`;
+    const items: string[] = [];
+    // Visit holes too so every array position follows the undefined policy.
+    for (let index = 0; index < value.length; index += 1) {
+      items.push(encodeStableJson(value[index], onUndefined, true) ?? 'null');
+    }
+    return `[${items.join(',')}]`;
   }
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>;

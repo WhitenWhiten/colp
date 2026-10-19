@@ -7,6 +7,7 @@ import {
 } from '../src/bootstrap/advanced-record-validation.js';
 import { activateAdvancedPlan, executeActiveAdvancedPlan } from '../src/bootstrap/advanced-run.js';
 import type { AdvancedNativeApi } from '../src/bootstrap/advanced-local-executor.js';
+import type { AdvancedLocalMoveStep, AdvancedParentRef } from '../src/bootstrap/advanced-plan-types.js';
 import { createSyncStateStore } from '../src/sync-state-store.js';
 import { active, scope } from './kns-03-bootstrap-harness.js';
 
@@ -14,6 +15,43 @@ const legacyMetadata = {
   mode: 'upload', confirmationId: 'confirm-1', treeDigest: 'tree-1',
   mounts: [{ nativeRootId: 'bar', rootRole: 'bookmarks-bar', remoteMountNodeId: 'remote-bar' }],
 };
+
+const localMoveStep: AdvancedLocalMoveStep = {
+  stepId: 'move-bookmark', order: 0, dependsOn: [], side: 'local', action: 'move', operation: 'move',
+  source: { nodeId: 'remote-bookmark', fact: {
+    nodeId: 'remote-bookmark', parentId: 'remote-folder', kind: 'bookmark', title: 'Bookmark',
+    url: 'https://example.test/', revision: 'r1',
+  } },
+  target: { nativeId: 'bookmark', nodeId: 'remote-bookmark' },
+  parent: { kind: 'native-node', id: 'folder' },
+  payload: { type: 'move', nativeId: 'bookmark', newParent: { kind: 'native-node', id: 'folder' }, index: 0 },
+  before: { nativeId: 'bookmark', mountNativeRootId: 'bar', parentNativeId: 'bar', kind: 'bookmark',
+    title: 'Bookmark', url: 'https://example.test/', index: 0 },
+  after: { nativeId: 'bookmark', parent: { kind: 'native-node', id: 'folder' },
+    node: { kind: 'bookmark', title: 'Bookmark', url: 'https://example.test/' }, index: 0 },
+};
+
+test('local move definitions retain every supported parent reference', () => {
+  const parents: readonly AdvancedParentRef[] = [
+    { kind: 'native-node', id: 'folder' },
+    { kind: 'remote-node', id: 'remote-folder' },
+    { kind: 'step', stepId: 'create-folder' },
+  ];
+  for (const parent of parents) {
+    const step = { ...localMoveStep, parent, payload: { ...localMoveStep.payload, newParent: parent },
+      after: { ...localMoveStep.after, parent } };
+    assert.deepEqual(parseAdvancedStepDefinition(JSON.parse(JSON.stringify(step))), step);
+  }
+});
+
+test('local move definitions reject a missing or malformed parent', () => {
+  const missingParent = Object.fromEntries(Object.entries(localMoveStep).filter(([key]) => key !== 'parent'));
+  assert.throws(() => parseAdvancedStepDefinition(missingParent), /advanced_plan_corrupt/u);
+  for (const parent of [undefined, null, {}, { kind: 'native-node' },
+    { kind: 'native-node', id: '' }, { kind: 'step' }, { kind: 'unsupported', id: 'folder' }]) {
+    assert.throws(() => parseAdvancedStepDefinition({ ...localMoveStep, parent }), /advanced_plan_corrupt/u);
+  }
+});
 
 test('parses a legacy plan with only the fields it actually had', () => {
   const metadata = parseAdvancedPlanMetadata(legacyMetadata);
