@@ -297,3 +297,46 @@ describe('Try a page (RS-08)', () => {
     expect(sent.filter((message) => 'sample' in message)).toHaveLength(2);
   });
 });
+
+describe('the rules file (doc 17 §5.3)', () => {
+  const file = { format: 'known-rules-config/v1', exportedAt: NOW, folders: [{ nativeId: '30', title: 'Papers', path: ['Bookmarks bar', 'Papers'] },
+    { nativeId: '31', title: 'Elsewhere', path: ['Other bookmarks', 'Elsewhere'] }], list: { enabled: true, entries: [
+    { kind: 'rule', rule: { id: 'r1', enabled: true, name: 'Papers', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
+      action: { kind: 'file', folderNativeId: '30' } } },
+    { kind: 'rule', rule: { id: 'r2', enabled: true, name: 'Other', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'other.example' }],
+      action: { kind: 'file', folderNativeId: '31' } } }] } };
+  async function choose(content: string): Promise<HTMLDialogElement> {
+    const card = document.querySelector<HTMLElement>('.automation-config')!;
+    const input = card.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, 'files', { configurable: true, value: [new File([content], 'rules.json', { type: 'application/json' })] });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(document.querySelector('dialog.automation-config-dialog')).not.toBeNull());
+    return document.querySelector<HTMLDialogElement>('dialog.automation-config-dialog')!;
+  }
+
+  it('asks for a folder here for each folder in the file, suggesting the same path, and sends only the choices', async () => {
+    reply = () => ({ ok: true, imported: { revision: 4, rules: 2, sets: 0, subscriptions: 0, skipped: 0 } });
+    await render(standard());
+    const dialog = await choose(JSON.stringify(file));
+    expect(text(dialog.querySelector('.automation-preview-verdict'))).toBe('“rules.json” has 2 rules');
+    await vi.waitFor(() => expect(text(dialog.querySelector('.folder-pill'))).toContain('Papers'));
+    dialog.querySelector<HTMLButtonElement>('.btn-primary')!.click();
+    expect(text(dialog.querySelector('.form-error'))).toBe('Choose a folder here for “Elsewhere”.');
+    expect(sent).toEqual([]);
+    const pills = dialog.querySelectorAll<HTMLButtonElement>('.folder-pill');
+    pills[1]!.click();
+    pills[1]!.closest('.folder-picker')!.querySelector<HTMLElement>('.folder-opt[data-folder-id="f-papers"]')!.click();
+    dialog.querySelector<HTMLButtonElement>('.btn-primary')!.click();
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ kind: 'known.automation.browser.config.import', text: JSON.stringify(file), folders: { 30: 'f-papers', 31: 'f-papers' }, replace: false });
+  });
+
+  it('says plainly when a file is not a rules file', async () => {
+    await render(standard());
+    const input = document.querySelector<HTMLInputElement>('.automation-config input[type="file"]')!;
+    Object.defineProperty(input, 'files', { configurable: true, value: [new File(['{"format":"known-browser-backup"}'], 'backup.json')] });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(text(document.querySelector('.toast'))).toContain('This isn’t a Know-N rules file, or it is damaged.'));
+    expect(document.querySelector('dialog.automation-config-dialog')).toBeNull();
+  });
+});

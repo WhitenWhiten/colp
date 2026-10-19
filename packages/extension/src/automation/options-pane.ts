@@ -11,6 +11,7 @@ import { openRuleEditor } from './rule-editor-dialog.js';
 import { sendRuleCommand } from './rule-command.js';
 import { entryPlace, listSets, restoreListFocus, revealEntry, ruleListGroup } from './rule-list-pane.js';
 import { createRulePreview } from './rule-preview-pane.js';
+import { configCard } from './rules-config-pane.js';
 import { runList } from './run-once-pane.js';
 import { flowStrip } from './flow-strip.js';
 import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
@@ -417,14 +418,14 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     if (tried.length) preview.update(view);
     if (view.account === 'signedOut') {
       // This browser's rules need no account, so they lead; the account's rules are one sign-in away.
-      parts.push(flowStrip(view), ruleListGroup(view, tried), accountCard());
+      parts.push(flowStrip(view), ruleListGroup(view, tried), configCard(), accountCard());
     } else {
       const alert = notice(view);
       if (alert) parts.push(alert);
       // The order every save follows comes first, so each section below reads as one of its steps.
       parts.push(flowStrip(view), statusCard(view, refresh, busy));
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
-      parts.push(ruleListGroup(view, tried));
+      parts.push(ruleListGroup(view, tried), configCard());
     }
     const activity = activityGroup(view, tab, (next) => { tab = next; if (last) render(last); });
     if (activity) parts.push(activity);

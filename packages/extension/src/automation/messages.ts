@@ -66,6 +66,10 @@ export type BrowserRuleCommand =
   | { readonly kind: 'known.automation.browser.runPreview'; readonly scopeNativeId: string }
   | { readonly kind: 'known.automation.browser.runApply'; readonly previewId: string }
   | { readonly kind: 'known.automation.browser.runUndo'; readonly runId: string }
+  /** The list as a `known-rules-config/v1` file, and such a file back with a folder here for each of its folders (doc 17 §5.3). */
+  | { readonly kind: 'known.automation.browser.config.export' }
+  | { readonly kind: 'known.automation.browser.config.import'; readonly text: string; readonly folders: Readonly<Record<string, string | null>>;
+    readonly replace: boolean }
   /** Keep this rule next to the account rule it overlaps, at that rule's current revision (`reviewKey`). */
   | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string }
   /** Add mine to the account was opened on the web: retire this rule once the account's enabled copy arrives. */
@@ -82,6 +86,9 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   | { readonly ok: true; readonly url: string }
   | { readonly ok: true; readonly preview: BrowserPreviewView }
   | { readonly ok: true; readonly run: BrowserRunPreviewView }
+  | { readonly ok: true; readonly config: { readonly content: string; readonly filename: string } }
+  | { readonly ok: true; readonly imported: { readonly revision: number; readonly rules: number; readonly sets: number; readonly subscriptions: number;
+    readonly skipped: number } }
   /** Apply: moved now; Undo: moved back. `skipped` were left alone, `missing` are gone. */
   | { readonly ok: true; readonly result: { readonly runId: string; readonly moved: number; readonly skipped: number; readonly missing: number } }
   /** `notSynced`: the folder is not in the synced collection; `signedOut`: there is no account to make it in. */
@@ -92,6 +99,10 @@ export type BrowserRunCommand = Extract<BrowserRuleCommand, { readonly kind: 'kn
 const RUN_KINDS = new Set(['known.automation.browser.runPreview', 'known.automation.browser.runApply', 'known.automation.browser.runUndo']);
 /** Run once's commands go to their own worker module (sw/automation-run.ts). */
 export const isBrowserRunCommand = (command: BrowserRuleCommand): command is BrowserRunCommand => RUN_KINDS.has(command.kind);
+export type BrowserConfigCommand = Extract<BrowserRuleCommand, { readonly kind: 'known.automation.browser.config.export' | 'known.automation.browser.config.import' }>;
+/** So do configuration export and import (sw/automation-config.ts). */
+export const isBrowserConfigCommand = (command: BrowserRuleCommand): command is BrowserConfigCommand =>
+  command.kind === 'known.automation.browser.config.export' || command.kind === 'known.automation.browser.config.import';
 
 const RULE_ID = /^[\w-]{1,128}$/u;
 const KINDS = new Set(['siteIs', 'siteEndsWith', 'titleContains', 'pathStartsWith', 'pathUnder']);
@@ -151,6 +162,14 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
     return keys === 4 && id(raw.id) && (raw.entry === 'rule' || raw.entry === 'set') && typeof raw.name === 'string' && raw.name.length <= 1024;
   }
   if (raw.kind === 'known.automation.browser.notice.dismiss') return keys === 1;
+  if (raw.kind === 'known.automation.browser.config.export') return keys === 1;
+  if (raw.kind === 'known.automation.browser.config.import') {
+    const folders = raw.folders;
+    return keys === 4 && typeof raw.text === 'string' && raw.text.length > 0 && raw.text.length <= 2 * 1024 * 1024 && typeof raw.replace === 'boolean'
+      && Boolean(folders) && typeof folders === 'object' && !Array.isArray(folders) && Object.keys(folders as object).length <= 2_000
+      && Object.entries(folders as Record<string, unknown>).every(([key, value]) => /^[\w.-]{1,128}$/u.test(key)
+        && (value === null || typeof value === 'string' && /^[\w.-]{1,128}$/u.test(value)));
+  }
   if (raw.kind === 'known.automation.browser.runPreview') return keys === 2 && typeof raw.scopeNativeId === 'string' && /^[\w.-]{1,128}$/u.test(raw.scopeNativeId);
   if (raw.kind === 'known.automation.browser.runApply') return keys === 2 && id(raw.previewId);
   if (raw.kind === 'known.automation.browser.runUndo') return keys === 2 && id(raw.runId);

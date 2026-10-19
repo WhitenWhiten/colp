@@ -296,6 +296,114 @@
   "automation_conditionValue": {
     "message": "Value"
   },
+  "automation_configAdd": {
+    "message": "Add below my rules"
+  },
+  "automation_configAddHint": {
+    "message": "Your list stays as it is; the file’s entries come after it."
+  },
+  "automation_configExport": {
+    "message": "Export"
+  },
+  "automation_configExportFailed": {
+    "message": "Couldn’t export your rules. Try again."
+  },
+  "automation_configExported": {
+    "message": "Download started. Import the file in Know-N on any browser to bring these rules there."
+  },
+  "automation_configFolder": {
+    "message": "“$1”"
+  },
+  "automation_configFolderGone": {
+    "message": "One of the folders you chose is gone, or a bookmark subscription keeps it. Choose another one."
+  },
+  "automation_configFolderUnknown": {
+    "message": "A folder that was gone when the file was made"
+  },
+  "automation_configFoldersHint": {
+    "message": "Choose the folder here for each folder in the file. A folder with the same path is suggested; nothing is used until you import."
+  },
+  "automation_configHasRules_one": {
+    "message": "“$2” has $1 rule"
+  },
+  "automation_configHasRules_other": {
+    "message": "“$2” has $1 rules"
+  },
+  "automation_configHasSets_one": {
+    "message": "$1 set"
+  },
+  "automation_configHasSets_other": {
+    "message": "$1 sets"
+  },
+  "automation_configHasSubscriptions_one": {
+    "message": "$1 subscription, which starts with nothing to file"
+  },
+  "automation_configHasSubscriptions_other": {
+    "message": "$1 subscriptions, which start with nothing to file"
+  },
+  "automation_configHint": {
+    "message": "Keep this browser’s rules, sets and the folders they use in a file, or bring them from another browser. Bookmarks aren’t in it."
+  },
+  "automation_configImport": {
+    "message": "Import"
+  },
+  "automation_configImportButton": {
+    "message": "Import"
+  },
+  "automation_configImportFailed": {
+    "message": "Couldn’t import these rules. Try again."
+  },
+  "automation_configImportTitle": {
+    "message": "Import rules"
+  },
+  "automation_configImportedSets_one": {
+    "message": "$1 set."
+  },
+  "automation_configImportedSets_other": {
+    "message": "$1 sets."
+  },
+  "automation_configImported_one": {
+    "message": "Imported $1 rule."
+  },
+  "automation_configImported_other": {
+    "message": "Imported $1 rules."
+  },
+  "automation_configInvalid": {
+    "message": "This isn’t a Know-N rules file, or it is damaged."
+  },
+  "automation_configLimit": {
+    "message": "With these, this browser would pass its limits of 200 rules on their own, 50 sets and 1,000 rules in all. Replace your rules, or delete some first."
+  },
+  "automation_configMayStayUnbound": {
+    "message": "Only a set’s role uses it; with no folder, the role stays unbound."
+  },
+  "automation_configNeedFolder": {
+    "message": "Choose a folder here for “$1”."
+  },
+  "automation_configNoAccess": {
+    "message": "Know-N needs access to your bookmarks to import rules."
+  },
+  "automation_configReplace": {
+    "message": "Replace my rules"
+  },
+  "automation_configReplaceHint": {
+    "message": "Your rules, sets and subscriptions here are removed first."
+  },
+  "automation_configSkipped_one": {
+    "message": "$1 rule this version can’t use was left out."
+  },
+  "automation_configSkipped_other": {
+    "message": "$1 rules this version can’t use were left out."
+  },
+  "automation_configTitle": {
+    "message": "Rules file"
+  },
+  "automation_configTooLarge": {
+    "message": "This file is larger than 2 MB, so it isn’t a rules file."
+  },
+  "automation_configUnsupported": {
+    "message": "This file is from a newer version of Know-N. Update Know-N to import it."
+  },
   "automation_continueOnWeb": {
     "message": "Continue on the web"
   },

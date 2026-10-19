@@ -387,6 +387,126 @@
     "message": "值",
     "description": "Value"
   },
+  "automation_configAdd": {
+    "message": "添加到我的规则下方",
+    "description": "Add below my rules"
+  },
+  "automation_configAddHint": {
+    "message": "你的列表保持不变；文件中的条目排在它后面。",
+    "description": "Your list stays as it is; the file’s entries come after it."
+  },
+  "automation_configExport": {
+    "message": "导出",
+    "description": "Export"
+  },
+  "automation_configExportFailed": {
+    "message": "无法导出你的规则。请重试。",
+    "description": "Couldn’t export your rules. Try again."
+  },
+  "automation_configExported": {
+    "message": "已开始下载。在任意浏览器的 Know-N 中导入此文件，即可把这些规则带过去。",
+    "description": "Download started. Import the file in Know-N on any browser to bring these rules there."
+  },
+  "automation_configFolder": {
+    "message": "“$1”",
+    "description": "“$1”"
+  },
+  "automation_configFolderGone": {
+    "message": "你选择的某个文件夹已不存在，或由书签订阅管理。请选择另一个。",
+    "description": "One of the folders you chose is gone, or a bookmark subscription keeps it. Choose another one."
+  },
+  "automation_configFolderUnknown": {
+    "message": "制作文件时已不存在的文件夹",
+    "description": "A folder that was gone when the file was made"
+  },
+  "automation_configFoldersHint": {
+    "message": "为文件中的每个文件夹选择这里的对应文件夹。会建议路径相同的文件夹；导入前不会使用任何文件夹。",
+    "description": "Choose the folder here for each folder in the file. A folder with the same path is suggested; nothing is used until you import."
+  },
+  "automation_configHasRules_other": {
+    "message": "“$2”包含 $1 条规则",
+    "description": "“$2” has $1 rules"
+  },
+  "automation_configHasSets_other": {
+    "message": "$1 个规则集",
+    "description": "$1 sets"
+  },
+  "automation_configHasSubscriptions_other": {
+    "message": "$1 个订阅，开始时没有可归档的内容",
+    "description": "$1 subscriptions, which start with nothing to file"
+  },
+  "automation_configHint": {
+    "message": "把此浏览器的规则、规则集及其使用的文件夹保存在一个文件中，或从另一个浏览器带过来。文件中不包含书签。",
+    "description": "Keep this browser’s rules, sets and the folders they use in a file, or bring them from another browser. Bookmarks aren’t in it."
+  },
+  "automation_configImport": {
+    "message": "导入",
+    "description": "Import"
+  },
+  "automation_configImportButton": {
+    "message": "导入",
+    "description": "Import"
+  },
+  "automation_configImportFailed": {
+    "message": "无法导入这些规则。请重试。",
+    "description": "Couldn’t import these rules. Try again."
+  },
+  "automation_configImportTitle": {
+    "message": "导入规则",
+    "description": "Import rules"
+  },
+  "automation_configImportedSets_other": {
+    "message": "$1 个规则集。",
+    "description": "$1 sets."
+  },
+  "automation_configImported_other": {
+    "message": "已导入 $1 条规则。",
+    "description": "Imported $1 rules."
+  },
+  "automation_configInvalid": {
+    "message": "这不是 Know-N 规则文件，或文件已损坏。",
+    "description": "This isn’t a Know-N rules file, or it is damaged."
+  },
+  "automation_configLimit": {
+    "message": "导入这些后，此浏览器会超出限制：单独规则 200 条、规则集 50 个、规则共 1,000 条。请替换你的规则，或先删除一些。",
+    "description": "With these, this browser would pass its limits of 200 rules on their own, 50 sets and 1,000 rules in all. Replace your rules, or delete some first."
+  },
+  "automation_configMayStayUnbound": {
+    "message": "只有某个规则集的角色使用它；不选文件夹时，该角色保持未绑定。",
+    "description": "Only a set’s role uses it; with no folder, the role stays unbound."
+  },
+  "automation_configNeedFolder": {
+    "message": "请为“$1”选择这里的文件夹。",
+    "description": "Choose a folder here for “$1”."
+  },
+  "automation_configNoAccess": {
+    "message": "Know-N 需要访问你的书签才能导入规则。",
+    "description": "Know-N needs access to your bookmarks to import rules."
+  },
+  "automation_configReplace": {
+    "message": "替换我的规则",
+    "description": "Replace my rules"
+  },
+  "automation_configReplaceHint": {
+    "message": "会先移除这里的规则、规则集和订阅。",
+    "description": "Your rules, sets and subscriptions here are removed first."
+  },
+  "automation_configSkipped_other": {
+    "message": "有 $1 条此版本无法使用的规则未导入。",
+    "description": "$1 rules this version can’t use were left out."
+  },
+  "automation_configTitle": {
+    "message": "规则文件",
+    "description": "Rules file"
+  },
+  "automation_configTooLarge": {
+    "message": "此文件大于 2 MB，因此不是规则文件。",
+    "description": "This file is larger than 2 MB, so it isn’t a rules file."
+  },
+  "automation_configUnsupported": {
+    "message": "此文件来自更新版本的 Know-N。请更新 Know-N 后再导入。",
+    "description": "This file is from a newer version of Know-N. Update Know-N to import it."
+  },
   "automation_continueOnWeb": {
     "message": "在网页上继续",
     "description": "Continue on the web"

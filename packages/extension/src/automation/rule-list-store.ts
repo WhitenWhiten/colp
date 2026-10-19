@@ -477,6 +477,19 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         return changed(list, mapSet(list.entries, found.set.id, (set) => ({ ...set, rules: insertAt(set.rules, index + 1, rule) })));
       });
     },
+    /**
+     * A configuration file's entries (rules-config-format.ts), below the list's own or in place of them. A
+     * subscription entry already in the list is not added twice; an import past a limit is refused whole.
+     */
+    importEntries(entries: readonly ListEntry[], replace: boolean): Promise<ListChangeResult> {
+      return update((list): Change<ListChangeResult> => {
+        const kept = replace ? [] : list.entries;
+        const present = new Set(kept.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []));
+        const next = [...kept, ...entries.filter((entry) => entry.kind !== 'subscription' || !present.has(entry.subscriptionId))];
+        if (overLimits(next)) return { result: { ok: false, error: 'limit' } };
+        return { result: { ok: true, revision: list.revision + 1 }, entries: next, ...(replace ? { notice: 'dismiss' as const } : {}) };
+      });
+    },
     dismissOrderNotice(): Promise<boolean> {
       return update((list) => list.orderNotice ? { result: true, notice: 'dismiss' } : { result: false });
     },
