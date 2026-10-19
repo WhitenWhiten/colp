@@ -1,3 +1,4 @@
+import { restoreVersionDeletedNodes } from './collection-version-deleted-nodes.js';
 import { withCanonicalTreeCapacityBatch, type CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
@@ -210,6 +211,7 @@ export function createPostgresCollectionVersionUnitOfWork(
             clock: { now: () => new Date() },
             mutations: createCollectionVersionCanonicalPorts(transaction, admission, options),
             restoreReceipts: createPostgresCollectionVersionRestoreReceiptStore(transaction),
+            restoreDeletedNodes: input => restoreVersionDeletedNodes(transaction, input, options.reportSourceInvalidation),
             commandIds: { next: () => randomUUID() },
           };
           return work(ports);

@@ -8,6 +8,7 @@ import { readCanonicalTreeCapacity } from '../../../src/infrastructure/collectio
 import {
   CollectionVersionRestoreReceiptConflictError,
   createCollectionVersion,
+  deleteCollectionNode,
   materializeCollectionPayload,
   materializeNodePayload,
   restoreCollectionVersion,
@@ -365,4 +366,57 @@ describeWithPostgres('HV-02 PostgreSQL collection version restore', () => {
     assert.equal(collection.rows[0]?.publication_slug, SLUG);
     assert.equal(String(collection.rows[0]?.published_at), String(before.rows[0]?.published_at));
   });
+  test('restores a deleted folder and its bookmarks with their original identities, then replays safely', async () => {
+    await resetLibrary();
+    const unit = createPostgresCollectionVersionUnitOfWork(isolated.runtime.db);
+    const actor = { principalId: PRINCIPAL, subjectId: OWNER };
+    const saved = await unit.execute(ports => createCollectionVersion(ports, {
+      actor, commandId: randomUUID(), collectionId: COL, ifMatch: strongEntityTag('a-c1'),
+    }));
+    assert.equal(saved.kind, 'succeeded'); if (saved.kind !== 'succeeded') return;
+    const deleted = await unit.execute(ports => deleteCollectionNode((ports as RestoreCollectionVersionPorts).mutations, {
+      actor: { ...actor, principalType: 'account' }, command: { commandId: randomUUID(), fingerprint: 'delete-for-version-restore' },
+      collectionId: COL, nodeId: UNSORTED, ifMatch: strongEntityTag('u-r1'), recursive: true, ifContentMatch: strongEntityTag('a-c1'),
+    }));
+    assert.equal(deleted.kind, 'deleted');
+    const revision = (await isolated.runtime.pool.query('select content_revision from collections where id=$1', [COL])).rows[0].content_revision;
+    const input = { actor, commandId: randomUUID(), collectionId: COL, versionId: saved.version.versionId, ifMatch: strongEntityTag(revision) };
+    const restored = await unit.execute(ports => restoreCollectionVersion(ports as RestoreCollectionVersionPorts, input));
+    assert.equal(restored.kind, 'succeeded');
+    if (restored.kind === 'succeeded') assert.equal(restored.receipt.noop, false);
+    const rows = await isolated.runtime.pool.query('select id,parent_id from nodes where collection_id=$1 and deleted_at is null order by id', [COL]);
+    assert.deepEqual(rows.rows.filter(row => [UNSORTED, BM_EARLY, BM_LATE].includes(row.id)), [
+      { id: BM_EARLY, parent_id: UNSORTED }, { id: BM_LATE, parent_id: UNSORTED }, { id: UNSORTED, parent_id: ROOT },
+    ]);
+    assert.equal((await unit.execute(ports => restoreCollectionVersion(ports as RestoreCollectionVersionPorts, input))).kind, 'replay');
+    const tombstones = await isolated.runtime.pool.query('select target_id from sync_node_tombstones where collection_id=$1', [COL]);
+    assert.equal(tombstones.rows.length, 0);
+  });
+  test('a purged child refuses the whole restore and rolls back earlier parent restoration', async () => {
+    await resetLibrary();
+    const unit = createPostgresCollectionVersionUnitOfWork(isolated.runtime.db);
+    const actor = { principalId: PRINCIPAL, subjectId: OWNER };
+    const saved = await unit.execute(ports => createCollectionVersion(ports, {
+      actor, commandId: randomUUID(), collectionId: COL, ifMatch: strongEntityTag('a-c1'),
+    }));
+    assert.equal(saved.kind, 'succeeded'); if (saved.kind !== 'succeeded') return;
+    const deleted = await unit.execute(ports => deleteCollectionNode((ports as RestoreCollectionVersionPorts).mutations, {
+      actor: { ...actor, principalType: 'account' }, command: { commandId: randomUUID(), fingerprint: 'delete-for-version-restore' },
+      collectionId: COL, nodeId: UNSORTED, ifMatch: strongEntityTag('u-r1'), recursive: true, ifContentMatch: strongEntityTag('a-c1'),
+    }));
+    assert.equal(deleted.kind, 'deleted');
+    const revision = (await isolated.runtime.pool.query('select content_revision from collections where id=$1', [COL])).rows[0].content_revision;
+    const input = { actor, commandId: randomUUID(), collectionId: COL, versionId: saved.version.versionId, ifMatch: strongEntityTag(revision) };
+    await isolated.runtime.pool.query(`INSERT INTO sync_purged_node_id_watermarks
+      (collection_id,target_id,delete_commit_ordinal,delete_revision,delete_operation_id,purge_state_revision,purged_at)
+      SELECT n.collection_id,n.id,n.deleted_commit_ordinal,n.resource_revision,o.operation_id,1,now()
+      FROM nodes n JOIN operations o ON o.collection_id=n.collection_id AND o.commit_ordinal=n.deleted_commit_ordinal
+      WHERE n.id=$1`, [BM_EARLY]);
+    await assert.rejects(unit.execute(ports => restoreCollectionVersion(ports as RestoreCollectionVersionPorts, input)),
+      (error: unknown) => error instanceof Error && error.message.includes('permanently removed'));
+    const nodes = await isolated.runtime.pool.query('select id from nodes where id=ANY($1::text[]) and deleted_at is null', [[UNSORTED, BM_EARLY, BM_LATE]]);
+    assert.equal(nodes.rows.length, 0);
+    assert.equal((await isolated.runtime.pool.query('select count(*)::int as n from collection_tree_versions where collection_id=$1', [COL])).rows[0].n, 1);
+  });
+
 });

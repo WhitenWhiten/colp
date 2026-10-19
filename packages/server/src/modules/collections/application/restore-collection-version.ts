@@ -84,6 +84,11 @@ export interface CollectionVersionRestoreReceiptStore {
 export interface RestoreCollectionVersionPorts extends CreateCollectionVersionPorts {
   readonly mutations: ProductCollectionCanonicalPorts;
   readonly restoreReceipts: CollectionVersionRestoreReceiptStore;
+  /** Restore retained tombstones through the canonical restore path in this same transaction. */
+  readonly restoreDeletedNodes?: (input: {
+    readonly actor: RestoreCollectionVersionInput['actor']; readonly collectionId: string;
+    readonly nodes: readonly CollectionTreeSnapshotNode[];
+  }) => Promise<void>;
   readonly commandIds?: { next(): string };
 }
 
@@ -187,8 +192,11 @@ export async function restoreCollectionVersion(
   );
   if (!target) throw new CollectionVersionNotFoundError();
 
-  const live = await ports.versions.loadLiveMembers(input.collectionId);
-  assertSnapshotNodesStillLive(target.treeJson, live);
+  let live = await ports.versions.loadLiveMembers(input.collectionId);
+  const liveIds = new Set(live.map(node => node.id));
+  const missing = target.treeJson.filter(node => !liveIds.has(node.id));
+  assertSnapshotNodesStillLive(target.treeJson.filter(node => liveIds.has(node.id)), live);
+  if (missing.length && !ports.restoreDeletedNodes) assertSnapshotNodesStillLive(target.treeJson, live);
 
   const claim = await ports.receipts.claim(binding, fingerprint);
   if (claim.kind !== 'claimed') return mapClaim(claim);
@@ -200,7 +208,12 @@ export async function restoreCollectionVersion(
     target,
     input.cause,
   );
-  const equivalent = isEquivalentTree(target.treeJson, live);
+  if (missing.length) {
+    await ports.restoreDeletedNodes!({ actor: input.actor, collectionId: input.collectionId, nodes: missing });
+    live = await ports.versions.loadLiveMembers(input.collectionId);
+    assertSnapshotNodesStillLive(target.treeJson, live);
+  }
+  const equivalent = missing.length === 0 && isEquivalentTree(target.treeJson, live);
   const actor = {
     principalId: input.actor.principalId,
     principalType: 'account' as const,
