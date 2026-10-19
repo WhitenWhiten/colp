@@ -36,6 +36,7 @@
 //     flow-manual (Manual mode, suggestions in the form), flow-noai (Automatic mode with no AI set up)
 //     browser-stale (signed in: a browser rule has waited over a day for the account's copy)
 //     browser-kept (signed out: two saves a browser rule matched but had to leave where they were saved)
+//     browser-runs (Run once: one run with Undo, one undone; doc 17 RW-07)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -469,12 +470,18 @@ export function installStub(messages) {
         const browserList = { revision: 4, enabled: true, entries: [...loose.map((rule) => ({ kind: 'rule', rule })),
           ...(grouped.length ? [{ kind: 'set', set: { id: 's1', name: 'Reading', enabled: !has('browser-set-off'), origin: { kind: 'custom' }, rules: grouped } }] : [])],
           orderNotice: has('browser-order') ? [{ upper: 'Papers from arXiv', lower: 'SEO reading' }] : null };
+        // Each row names the list entry that decided it (doc 17 RW-05).
+        const decided = (row) => ({ ...row, entry: { listRevision: 4, kind: 'rule', ruleId: 'b1' }, entryState: 'on' });
         const filed = has('browser-none', 'browser-empty') || !signedOut ? [] : [
-          placement('f1', 'Attention Is All You Need', 'https://arxiv.org/abs/1706.03762', 'Papers from arXiv', 'Research', 90e3, 'filed'),
+          decided(placement('f1', 'Attention Is All You Need', 'https://arxiv.org/abs/1706.03762', 'Papers from arXiv', 'Research', 90e3, 'filed')),
           ...(has('browser-kept') ? [{ ...placement('k1', 'Ahrefs: SEO tools & resources', 'https://ahrefs.com/blog/', 'SEO reading', 'Reading list', 30e3, 'keptHere'), kept: 'conflict' },
             { ...placement('k2', 'Sourdough starter guide', 'https://example.org/recipes/sourdough', 'Recipes', 'Inbox', 50e3, 'keptHere'), kept: 'blocked' }] : []),
-          placement('f2', 'Scaling Laws for Neural Language Models', 'https://arxiv.org/abs/2001.08361', 'Papers from arXiv', 'Research', 5 * 3600e3, 'filed')];
-        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements: signedOut ? filed : placements, browserRules, browserList, server,
+          decided(placement('f2', 'Scaling Laws for Neural Language Models', 'https://arxiv.org/abs/2001.08361', 'Papers from arXiv', 'Research', 5 * 3600e3, 'filed'))];
+        const browserRuns = has('browser-runs') ? [
+          { runId: 'run-a', startedAt: now - 4 * 60e3, finishedAt: now - 4 * 60e3, scopeTitle: 'Inbox', state: 'done', moved: 18, skipped: 2, undone: 0, undoneAt: null, canUndo: true },
+          { runId: 'run-b', startedAt: now - 2 * 86400e3, finishedAt: now - 2 * 86400e3, scopeTitle: 'Reading list', state: 'undone', moved: 6, skipped: 0, undone: 6,
+            undoneAt: now - 2 * 86400e3 + 60e3, canUndo: false }] : [];
+        return { ok: true, state: { account: signedOut ? 'signedOut' : 'signedIn', state: signedOut ? 'none' : state, rules, placements: signedOut ? filed : placements, browserRules, browserList, browserRuns, server,
           pausedAt: state === 'paused' ? now - 2 * 86400e3 : null, pausedBy: state === 'paused' ? 'owner' : null,
           // Without a bundle the worker has neither an expiry nor a good refresh to report.
           expiresAt: state === 'expired' ? now - 3600e3 : state === 'none' ? null : now + 6 * 86400e3, lastRefreshAt: state === 'none' ? null : now - (state === 'expired' ? 8 * 86400e3 : 120e3),
@@ -488,6 +495,20 @@ export function installStub(messages) {
         return { ok: true, rule: null };
       case 'known.automation.browser.forAccount':
         return { ok: true, url: 'https://known.example/automations/new?from=browser' };
+      // Try a page and Run once (doc 17 RW-06, RW-07): one answer each, the same whatever is asked.
+      case 'known.automation.browser.preview': {
+        const entry = (id, name, extra = {}) => ({ id, name, kind: 'rule', ruleId: id, sourceName: null, ...extra });
+        return { ok: true, preview: { listRevision: 4, contentVersions: {}, stopped: null, page: { url: msg.url ?? 'https://arxiv.org/abs/1706.03762', title: msg.title ?? '',
+          outcome: 'placed', winner: entry('b1', 'Papers from arXiv'), folder: { nativeId: 'f-research', title: 'Research' }, broad: false,
+          skipped: [entry('b3', 'Recipes')], shadowed: [entry('b2', 'SEO reading', { kind: 'setRule', setId: 's1', sourceName: 'Reading' })] } } };
+      }
+      case 'known.automation.browser.runPreview':
+        return { ok: true, run: { previewId: 'preview-1', expiresAt: now + 15 * 60e3, scope: { nativeId: msg.scopeNativeId, title: 'Inbox' }, counted: 214, tooMany: false,
+          moves: 38, unchanged: 12, kept: 3, unmatched: 158, blocked: 3, excludedFolders: 1,
+          topFolders: [{ nativeId: 'f-research', title: 'Research', count: 31 }, { nativeId: 'f-seo', title: 'SEO', count: 7 }],
+          examples: [{ title: 'Attention Is All You Need', url: 'https://arxiv.org/abs/1706.03762', to: 'Research' },
+            { title: 'Scaling Laws for Neural Language Models', url: 'https://arxiv.org/abs/2001.08361', to: 'Research' },
+            { title: 'Moz: Beginner’s guide to SEO', url: 'https://moz.com/beginners-guide-to-seo', to: 'SEO' }] } };
       case 'known.capture.check': case 'known.capture.resume': case 'known.capture.edit.cancel': case 'known.capture.feedback': case 'known.capture.presented': case 'known.connectivity.online': case 'known.favicon.drain': return { ok: true };
       default: return { ok: false, error: 'unavailable' };
     }

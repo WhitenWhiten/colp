@@ -377,7 +377,7 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
   tools.append(newSet);
   if (list.entries.length) {
     // Run once sorts bookmarks already saved; it takes the list as it is, so it waits while the list is off.
-    if (list.enabled && !paused) { const run = button(t('automation_runOnce', 'Run once'), 'btn btn-secondary btn-sm', () => openRunOnce(run)); tools.append(run); }
+    if (list.enabled && !paused) { const run = button(t('automation_runOnce', 'Run once'), 'btn btn-secondary btn-sm', () => openRunOnce(run)); run.dataset.runOnce = ''; tools.append(run); }
     tools.append(toggle(t('automation_listUse', 'Use rules in this browser'), list.enabled,
       async (enabled) => (await send({ kind: 'known.automation.browser.list.enable', enabled })).ok, 'toggle automation-list-switch'));
   }

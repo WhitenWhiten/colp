@@ -110,6 +110,20 @@ const STATES = [
     await p.waitForTimeout(500); }, false],
   ['automations-browser-delete', 'options.html?shot=signedout#automations', async (p) => { await p.hover('.automation-browser-rule >> nth=0');
     await p.click('.automation-browser-rule >> nth=0 >> button:has(svg[data-icon="trash"])'); await p.waitForTimeout(400); }, false],
+  // Doc 17 Stage 1: a page tried against the list, Run once's preview, the runs with Undo, Recent activity's actions, and a rules file to import.
+  ['automations-browser-try', 'options.html?shot=signedout#automations', async (p) => { await p.fill('.automation-preview-form input[type="url"]', 'https://arxiv.org/abs/1706.03762');
+    await p.click('.automation-preview-form button[type="submit"]'); await p.waitForTimeout(400); }],
+  ['automations-browser-run', 'options.html?shot=signedout#automations', async (p) => { await p.click('[data-run-once]'); await p.waitForTimeout(400);
+    await p.click('.automation-run-dialog .folder-pill'); await p.click('.automation-run-dialog .folder-opt >> nth=1'); await p.click('.automation-run-dialog .btn-primary');
+    await p.waitForTimeout(400); }, false],
+  ['automations-browser-runs', 'options.html?shot=signedout,browser-runs#automations'],
+  ['automations-browser-activity', 'options.html?shot=signedout#automations', async (p) => { await p.hover('.automation-placements > li >> nth=0'); await p.waitForTimeout(200); }],
+  ['automations-browser-import', 'options.html?shot=signedout#automations', async (p) => { await p.setInputFiles('.automation-config input[type="file"]', { name: 'known-rules-config-2026-10-18.json',
+    mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'known-rules-config/v1', exportedAt: 1, list: { enabled: true, entries: [
+      { kind: 'rule', rule: { id: 'r1', enabled: true, name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], action: { kind: 'file', folderNativeId: '9' } } },
+      { kind: 'rule', rule: { id: 'r2', enabled: true, name: 'Docs', combinator: 'all', conditions: [{ kind: 'pathUnder', value: '/docs' }], action: { kind: 'file', folderNativeId: '12' } } }] },
+    folders: [{ nativeId: '9', title: 'Research', path: ['Bookmarks bar', 'Research'] }, { nativeId: '12', title: 'Manuals', path: ['Other bookmarks', 'Manuals'] }] })) });
+    await p.waitForTimeout(500); }, false],
   // A rule filed a page starred in the browser while Know-N was in front (AW-20).
   ['automations-notice', 'options.html#automations', (p) => p.evaluate(() => window.__workerMessage({ kind: 'known.automation.notice',
     text: 'Moved “Attention Is All You Need” to Academic by rule “arXiv papers”.', attention: false }))],
