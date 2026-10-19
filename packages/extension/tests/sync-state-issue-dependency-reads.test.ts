@@ -247,7 +247,11 @@ async function graphFor(history: number, observer: ReturnType<typeof installRead
 
 import { transactionDone } from '../src/sync-state/idb.js';
 
-test('dependency graph reads only real issues, holders and ancestor edges across large history', async () => {
+// Seeding 200/2_000 and 300/3_000 historical rows is deliberately heavy: the
+// assertion is about bounded reads, not speed. V8 coverage roughly triples the
+// fixture cost, so these two cases carry their own budget instead of the
+// suite's default 5s (15s under vitest.sync-coverage.config.ts).
+test('dependency graph reads only real issues, holders and ancestor edges across large history', { timeout: 60_000 }, async () => {
   const observer = installReadObserver();
   const small = await graphFor(200, observer);
   const large = await graphFor(2_000, observer);
@@ -284,7 +288,7 @@ test('dependency graph reads only real issues, holders and ancestor edges across
   } finally { small.store.close(); large.store.close(); }
 });
 
-test('an enqueue in a scope with large unrelated history reads a fixed set of rows', async () => {
+test('an enqueue in a scope with large unrelated history reads a fixed set of rows', { timeout: 60_000 }, async () => {
   const observer = installReadObserver();
   const results: Array<{ history: number; rows: Record<string, number>; reads: Record<string, number> }> = [];
   for (const history of [300, 3_000]) {
