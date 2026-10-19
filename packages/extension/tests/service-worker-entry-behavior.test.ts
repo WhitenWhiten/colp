@@ -125,6 +125,8 @@ vi.mock('../src/auth-snapshot.js', () => ({ writeAuthSnapshot: async () => undef
 
 type ChromeListeners = {
   onAdded: Array<(permissions: { permissions?: string[] }) => void>;
+  onRemovedPermission: Array<(permissions: { permissions?: string[] }) => void>;
+  onTabRemoved: Array<(tabId: number) => void>;
   onStorageChanged: Array<(changes: Record<string, {oldValue?: unknown; newValue?: unknown}>, area: string) => void>;
   onStartup: Array<() => void>;
   onInstalled: Array<(details: unknown) => void>;
@@ -136,8 +138,9 @@ type ChromeListeners = {
   bookmarkListeners: number[];
 };
 
-const chromeListeners: ChromeListeners = { onStorageChanged: [], onAdded: [], onStartup: [], onInstalled: [], onAlarm: [],
-  onMessage: [], onMessageExternal: [], online: [], alarmNames: [], bookmarkListeners: [] };
+const chromeListeners: ChromeListeners = { onStorageChanged: [], onAdded: [], onRemovedPermission: [], onTabRemoved: [],
+  onStartup: [], onInstalled: [], onAlarm: [], onMessage: [], onMessageExternal: [], online: [], alarmNames: [],
+  bookmarkListeners: [] };
 
 /** Boot-time observations, captured during `beforeAll` before any `afterEach` reset. */
 const boot = { recoveries: [] as string[], lanes: [] as string[], wakes: [] as Array<Record<string, unknown>> };
@@ -161,7 +164,10 @@ function installChromeStub(): void {
       onMessageExternal: { addListener: (listener: ChromeListeners['onMessageExternal'][number]) =>
         chromeListeners.onMessageExternal.push(listener) } },
     permissions: { onAdded: { addListener: (listener: (permissions: { permissions?: string[] }) => void) =>
-      chromeListeners.onAdded.push(listener) }, contains: async () => true },
+      chromeListeners.onAdded.push(listener) }, onRemoved: { addListener: (listener: (permissions: { permissions?: string[] }) => void) =>
+      chromeListeners.onRemovedPermission.push(listener) }, contains: async () => true },
+    // Risk alerts follow their tab's badge and stop when the tab or permission goes away (risk-browse.ts).
+    tabs: { onRemoved: { addListener: (listener: (tabId: number) => void) => chromeListeners.onTabRemoved.push(listener) } },
     alarms: { create: (name: string, info?: { when?: number; periodInMinutes?: number }) => {
         chromeListeners.alarmNames.push(name);
         if (info?.periodInMinutes !== undefined) observed.alarmPeriods[name] = info.periodInMinutes;
@@ -420,6 +426,13 @@ describe('MV3 service worker entry wiring is exercised, not grepped', () => {
     assert.equal(observed.resumes, 0);
     for (const listener of chromeListeners.onAdded) listener({ permissions: ['bookmarks'] });
     await vi.waitFor(() => { assert.equal(observed.resumes, 1); });
+  });
+
+  test('browsing alerts are installed for tab closes and permission removal', () => {
+    assert.equal(chromeListeners.onTabRemoved.length, 1,
+      'risk-browse.ts must clear a closed tab’s alert state');
+    assert.equal(chromeListeners.onRemovedPermission.length, 1,
+      'risk-browse.ts must drop while-browsing mode when its permission is revoked');
   });
 
   test('the entry never revives the retired outbound-push alarm owner', () => {

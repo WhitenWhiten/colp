@@ -76,11 +76,15 @@ describe('Rules in this browser on the page', () => {
       ['From arxiv.org', 'Papers'], ['From moz.com or a subdomain or title has “SEO”', 'Papers'], ['From arxiv.org', 'a folder that no longer exists']]);
     expect(rows.map((row) => text(row.querySelector('.badge')))).toEqual(['', 'Off', 'Folder missing']);
     expect(rows.map((row) => row.querySelector('[role="switch"]')!.getAttribute('aria-checked'))).toEqual(['true', 'false', 'true']);
-    // The rules file (doc 17 §5.3) and risk alerts (§9) sit under them, before what an account adds.
-    expect(groups[1]!.getAttribute('aria-label')).toBe('Rules file');
-    expect(groups[2]!.getAttribute('aria-labelledby')).toBe('automation-risk-heading');
-    expect(text(groups[3]!)).toContain('Your account’s rules');
-    expect(groups[3]!.querySelector<HTMLAnchorElement>('a.btn')!.getAttribute('href')).toBe('#account');
+    // The rules file (doc 17 §5.3) belongs to this browser's rule list, below its rows;
+    // risk alerts (§9) follow the list, before what an account adds.
+    const config = groups[0]!.querySelector<HTMLElement>('.automation-config')!;
+    expect(config.getAttribute('aria-label')).toBe('Rules file');
+    expect(Array.from(config.querySelectorAll('button')).map((control) => text(control))).toEqual(['Export', 'Import']);
+    expect(Array.from(config.querySelectorAll<HTMLButtonElement>('button')).every((control) => !control.disabled)).toBe(true);
+    expect(groups[1]!.getAttribute('aria-labelledby')).toBe('automation-risk-heading');
+    expect(text(groups[2]!)).toContain('Your account’s rules');
+    expect(groups[2]!.querySelector<HTMLAnchorElement>('a.btn')!.getAttribute('href')).toBe('#account');
     // No status card and no web link without an account.
     expect(body.querySelector('.automation-status')).toBeNull();
     expect(document.querySelector<HTMLElement>('[data-automations-web]')!.hidden).toBe(true);
@@ -99,8 +103,10 @@ describe('Rules in this browser on the page', () => {
     const body = await render(view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations',
       rules: [{ id: 'rule-arxiv', name: 'arXiv papers', folder: 'Academic', resolved: true, match: null }] }));
     expect(Array.from(body.children).map((node) => node.getAttribute('aria-labelledby') ?? node.getAttribute('aria-label'))).toEqual(['automation-flow-heading',
-      'automation-status-title', 'automation-rules-heading', 'automation-browser-heading', 'Rules file', 'automation-risk-heading']);
+      'automation-status-title', 'automation-rules-heading', 'automation-browser-heading', 'automation-risk-heading']);
     expect(text(body.querySelector('#automation-rules-heading'))).toBe('Your account’s rules');
+    // The rules file is part of this browser's section, not a sibling after it.
+    expect(body.querySelector('[aria-labelledby="automation-browser-heading"] .automation-config')).not.toBeNull();
     // One New rule for the page (U2): the account's section has no second one.
     expect(body.querySelector('[aria-labelledby="automation-rules-heading"] .automation-group-head a, [aria-labelledby="automation-rules-heading"] .automation-group-head button')).toBeNull();
   });
