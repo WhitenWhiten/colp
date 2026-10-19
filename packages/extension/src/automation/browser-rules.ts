@@ -17,7 +17,6 @@ import { evaluateLocalRules, type EvaluableRule, type LocalFolder, type LocalRul
 export type BrowserConditionKind = Exclude<ConditionKind, 'hasTag'>;
 /** Tags are written after the bookmark exists, so a tag condition never matches at save. */
 export const BROWSER_CONDITION_KINDS: readonly BrowserConditionKind[] = ['siteIs', 'siteEndsWith', 'titleContains', 'pathStartsWith'];
-export const BROWSER_RULE_LIMIT = 100;
 export const BROWSER_CONDITION_LIMIT = 8;
 const VALUE_LIMIT = 512, NAME_LIMIT = 200;
 export const DESTINATION_ROLE = 'destination';
@@ -192,7 +191,7 @@ export interface BrowserDecision {
  * `explicit`: the Owner picked that folder for this save, so no rule moves it.
  * Null when no rule matches.
  */
-export async function decideBrowserRules(rules: readonly BrowserRule[], page: { readonly url: string; readonly title: string; readonly explicit: boolean },
+export async function decideBrowserRules(rules: readonly Pick<BrowserRule, 'id' | 'definition' | 'folderNativeId' | 'enabled'>[], page: { readonly url: string; readonly title: string; readonly explicit: boolean },
   lookup: FolderLookup, now: number): Promise<BrowserDecision | null> {
   const enabled = rules.filter((rule) => rule.enabled);
   if (!enabled.length) return null;

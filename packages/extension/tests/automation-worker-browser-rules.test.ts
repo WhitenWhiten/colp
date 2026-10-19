@@ -46,7 +46,8 @@ vi.mock('../src/sw/bookmark-preferences.js', () => ({ readEffectiveBookmarkPrefe
 vi.mock('../src/classification-local-session.js', () => ({ localClassificationEnabled: async () => f.ownAi }));
 
 import { accountLink, automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation, rulesDecision } from '../src/sw/automation.js';
-import { browserRuleStore, handleBrowserRuleCommand, MOVING_STALE_MS } from '../src/sw/automation-browser.js';
+import { browserPlacementLog, browserRuleStore, handleBrowserRuleCommand, MOVING_STALE_MS } from '../src/sw/automation-browser.js';
+import { individualRules } from '../src/automation/rule-list-store.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
 const paper = { url: 'https://arxiv.org/abs/2410.00001', title: 'A paper', parentNativeId: '21' };
@@ -106,21 +107,21 @@ describe('the popup’s preview', () => {
 
 describe('a placed save', () => {
   it('is logged once for Options and never receipted', async () => {
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     const saved: CaptureTask = { ...base, captureId: '0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f01', scope: { ...f.scope, accountId: null, collectionId: null },
       save: 'local-saved', disposition: 'new', nativeId: '55', targetNativeId: '30', title: 'A paper', url: paper.url, savedAt: NOW,
       automation: { source: 'browser', outcome: 'placed', rule: { id: rule!.id, name: 'Papers from arXiv' }, ruleIds: [rule!.id], folderTitle: 'Papers', fromNativeId: '21' } };
     await recordPreSaveReceipt(saved);
     await recordPreSaveReceipt(saved);
-    expect(await browserRuleStore().placements()).toEqual([{ id: saved.captureId, ruleId: rule!.id, ruleName: 'Papers from arXiv', folder: 'Papers',
+    expect(await browserPlacementLog().placements()).toEqual([{ id: saved.captureId, ruleId: rule!.id, ruleName: 'Papers from arXiv', folder: 'Papers',
       title: 'A paper', url: paper.url, at: NOW }]);
     expect(await createReceiptStore(automationArea()).list()).toEqual([]);
     await recordPreSaveReceipt({ ...saved, captureId: '0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f02', automation: { ...saved.automation!, outcome: 'kept' } as CaptureTask['automation'] });
-    expect(await browserRuleStore().placements()).toHaveLength(1);
+    expect(await browserPlacementLog().placements()).toHaveLength(1);
   });
 
   it('is logged with why when a rule matched but the page stayed where it was saved (U6)', async () => {
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     const kept = (captureId: string, outcome: 'conflict' | 'blocked', at: number): CaptureTask => ({ ...base, captureId,
       scope: { ...f.scope, accountId: null, collectionId: null }, save: 'local-saved', disposition: 'new', nativeId: '56', targetNativeId: '21',
       title: 'A paper', url: paper.url, savedAt: at,
@@ -129,7 +130,7 @@ describe('a placed save', () => {
         rule: { id: rule!.id, name: 'Papers from arXiv' }, ruleIds: [rule!.id], fromNativeId: '21' } });
     await recordPreSaveReceipt(kept('0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f03', 'conflict', NOW));
     await recordPreSaveReceipt(kept('0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f04', 'blocked', NOW + 1));
-    expect((await browserRuleStore().placements()).map(({ id, folder, kept: why }) => ({ id: id.slice(-2), folder, why })))
+    expect((await browserPlacementLog().placements()).map(({ id, folder, kept: why }) => ({ id: id.slice(-2), folder, why })))
       .toEqual([{ id: '04', folder: 'Inbox', why: 'blocked' }, { id: '03', folder: 'Inbox', why: 'conflict' }]);
     expect((await automationStateView()).placements.map(({ state, kept: why }) => ({ state, why })))
       .toEqual([{ state: 'keptHere', why: 'blocked' }, { state: 'keptHere', why: 'conflict' }]);
@@ -158,7 +159,7 @@ describe('how a page finds its folder past the rules (U3)', () => {
 
 describe('Options’ commands', () => {
   it('save, switch off and remove a rule, and explain a draft it cannot keep', async () => {
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: rule!.id, enabled: false })).toMatchObject({ ok: true, rule: { enabled: false } });
     f.scope = { ...f.scope, accountId: null, collectionId: null };
     expect(await match()).toEqual({ ok: true, match: null });
@@ -171,7 +172,7 @@ describe('Options’ commands', () => {
   it('fill in the web editor for a rule on all devices, from a synced folder only, and store nothing here', async () => {
     const forAccount = (folderNativeId: string) => handleBrowserRuleCommand({ kind: 'known.automation.browser.forAccount',
       draft: draft({ name: 'arxiv.org → Academic', folderNativeId }) }, accountLink);
-    const before = await browserRuleStore().list();
+    const before = individualRules(await browserRuleStore().load());
     expect(await forAccount('10')).toEqual({ ok: false, error: 'signedOut' });
     f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' };
     const reply = await forAccount('10');
@@ -182,7 +183,7 @@ describe('Options’ commands', () => {
     expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.forAccount',
       draft: draft({ conditions: [{ kind: 'siteIs', value: 'not a host' }], folderNativeId: '10' }) }, accountLink))
       .toEqual({ ok: false, error: 'invalid', problems: [{ field: 'condition', index: 0, code: 'invalidHost' }] });
-    expect(await browserRuleStore().list()).toEqual(before);
+    expect(individualRules(await browserRuleStore().load())).toEqual(before);
   });
 
   it('are accepted only in their exact shape', () => {
@@ -198,6 +199,26 @@ describe('Options’ commands', () => {
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.forAccount', draft: draft() })).toBe(true);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.forAccount', draft: draft(), id: 'b-1' })).toBe(false);
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.forAccount', draft: { ...draft(), extra: 1 } })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft(), into: 's-1' })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: 's-1', enabled: false, entry: 'set' })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: 's-1', enabled: false, entry: 'folder' })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.reorder', order: ['b-1', 's-1'] })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.reorder', order: ['b 1'] })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.moveRule', ruleId: 'b-1', into: null, index: 0 })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.moveRule', ruleId: 'b-1', into: 's-1', index: -1 })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.moveRule', ruleId: 'b-1', into: 's-1', index: 1.5 })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.set.save', name: 'Reading' })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.set.save', name: 'Reading', enabled: true })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.set.remove', id: 's-1', keepRules: true })).toBe(true);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.set.remove', id: 's-1' })).toBe(false);
+    expect(validBrowserRuleCommand({ kind: 'known.automation.browser.list.enable', enabled: false })).toBe(true);
+  });
+
+  it('stand still while the whole list is switched off', async () => {
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.list.enable', enabled: false })).toEqual({ ok: true, revision: 2 });
+    expect(await rulesDecision({ ...f.scope, accountId: null, collectionId: null }, { ...paper, explicit: false })).toBeNull();
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.list.enable', enabled: true });
+    expect(await rulesDecision({ ...f.scope, accountId: null, collectionId: null }, { ...paper, explicit: false })).toMatchObject({ targetNativeId: '30' });
   });
 });
 
@@ -217,7 +238,7 @@ describe('next to the account’s rules (AW-69)', () => {
   });
 
   it('remembers Keep both until the account rule changes', async () => {
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.review', id: rule!.id, accountRuleId: 'rule-arxiv', key: '4:1' }))
       .toMatchObject({ ok: true, rule: { reviewed: [{ accountRuleId: 'rule-arxiv', key: '4:1' }] } });
     expect(await overlap()).toMatchObject({ reviewed: true });
@@ -226,7 +247,7 @@ describe('next to the account’s rules (AW-69)', () => {
   });
 
   it('is a duplicate when it files the same pages into the same folder, and nothing once switched off or signed out', async () => {
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
     expect(await overlap()).toMatchObject({ kind: 'duplicate', pages: 2 });
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.enable', id: rule!.id, enabled: false });
@@ -252,7 +273,7 @@ describe('moving a rule to the account (AW-71)', () => {
 
   it('offers the filled-in web editor only for a rule whose folder is synced', async () => {
     expect(await first()).toMatchObject({ move: null, localOnly: true, moving: false });
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
     const view = await first();
     expect(view.localOnly).toBe(false);
@@ -263,19 +284,19 @@ describe('moving a rule to the account (AW-71)', () => {
   });
 
   it('retires once the account’s enabled copy is installed, and says so', async () => {
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
     expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.moving', id: rule!.id })).toMatchObject({ ok: true, rule: { movingSince: NOW } });
     expect(await first()).toMatchObject({ moving: true });
     f.bundle = ruleBundle([compiledRule()], { revision: 'b-4', settingsRevision: 4 });
     await refreshAutomation({ manual: true });
-    expect(await browserRuleStore().list()).toEqual([]);
+    expect(individualRules(await browserRuleStore().load())).toEqual([]);
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ kind: 'known.automation.notice', attention: false,
       text: '“Papers from arXiv” now runs from your account, on every device.' });
   });
 
   it('says a move is stuck after a day, and can keep the rule here instead (U5)', async () => {
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.moving', id: rule!.id });
     vi.setSystemTime(NOW + MOVING_STALE_MS);
@@ -287,7 +308,7 @@ describe('moving a rule to the account (AW-71)', () => {
     expect(await first()).toMatchObject({ moving: false, movingStale: false });
     f.credential = { serverOrigin: 'https://colp.example', subject: 'owner' };
     expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.stay', id: rule!.id })).toMatchObject({ ok: true, rule: { id: rule!.id } });
-    expect((await browserRuleStore().list())[0]).not.toHaveProperty('movingSince');
+    expect((individualRules(await browserRuleStore().load()))[0]).not.toHaveProperty('movingSince');
     expect(await first()).toMatchObject({ moving: false, movingStale: false, enabled: true });
     expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.stay', id: 'missing' })).toEqual({ ok: false, error: 'notFound' });
     expect(validBrowserRuleCommand({ kind: 'known.automation.browser.stay', id: 'b-1' })).toBe(true);
@@ -295,21 +316,21 @@ describe('moving a rule to the account (AW-71)', () => {
   });
 
   it('keeps filing while the account has only something else, or nothing in force', async () => {
-    const [rule] = await browserRuleStore().list();
+    const [rule] = individualRules(await browserRuleStore().load());
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10' }) });
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.moving', id: rule!.id });
     // The account changed the conditions before turning it on.
     f.bundle = ruleBundle([compiledRule({ definition: { match: { kind: 'all', items: [{ kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'arxiv.org' },
       { kind: 'field', field: 'bookmark.title', op: 'contains', value: 'Paper' }] } } })], { revision: 'b-4', settingsRevision: 4 });
     await refreshAutomation({ manual: true });
-    expect(await browserRuleStore().list()).toHaveLength(1);
+    expect(individualRules(await browserRuleStore().load())).toHaveLength(1);
     f.bundle = ruleBundle([], { paused: true, revision: 'b-5', settingsRevision: 5 });
     await refreshAutomation({ manual: true });
-    expect(await browserRuleStore().list()).toHaveLength(1);
+    expect(individualRules(await browserRuleStore().load())).toHaveLength(1);
     // A rule that was never moved is not retired by a duplicate.
     f.bundle = ruleBundle([compiledRule()], { revision: 'b-6', settingsRevision: 6 });
     await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', id: rule!.id, draft: draft({ folderNativeId: '10', name: 'Edited' }) });
     await refreshAutomation({ manual: true });
-    expect(await browserRuleStore().list()).toHaveLength(1);
+    expect(individualRules(await browserRuleStore().load())).toHaveLength(1);
   });
 });

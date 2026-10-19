@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BROWSER_PLACEMENTS_KEY, createBrowserRuleStore } from '../src/automation/browser-rule-store.js';
+import { BROWSER_PLACEMENTS_KEY, createBrowserPlacementLog } from '../src/automation/browser-rule-store.js';
 import { accountEditorUrl, checkBrowserDraft, type BrowserRule, type BrowserRuleDraft } from '../src/automation/browser-rules.js';
-import type { AutomationStateArea } from '../src/automation/bundle-store.js';
-import { NOW } from './automation-fixture.js';
+import type { AtomicStateArea } from '../src/automation/bundle-store.js';
+import { createRuleListStore, individualRules } from '../src/automation/rule-list-store.js';
+import { memoryStateArea as memoryArea, NOW } from './automation-fixture.js';
 
 /** AW-71: a browser rule goes to the account only through the filled-in web editor, and waits there to retire. */
 const draft = (over: Partial<BrowserRuleDraft> = {}): BrowserRuleDraft =>
@@ -12,10 +13,6 @@ function stored(over: Partial<BrowserRuleDraft> = {}): BrowserRule {
   const checked = checkBrowserDraft(draft(over));
   if (!checked.ok) throw new Error('invalid draft');
   return { id: 'b-1', definition: checked.definition, folderNativeId: '30', enabled: true, createdAt: NOW, updatedAt: NOW };
-}
-function memoryArea(): AutomationStateArea {
-  const values = new Map<string, unknown>();
-  return { get: async (key) => structuredClone(values.get(key)), set: async (key, value) => { values.set(key, structuredClone(value)); } };
 }
 
 describe('the web editor, filled in', () => {
@@ -41,52 +38,53 @@ describe('a rule waiting to move', () => {
     const started = new Promise<void>((resolve) => { writeStarted = resolve; });
     const gate = new Promise<void>((resolve) => { releaseWrite = resolve; });
     let blockNext = false;
-    const area: AutomationStateArea = {
+    const area: AtomicStateArea = {
       get: base.get,
+      commit: base.commit,
       set: async (key, value) => {
         if (blockNext) { blockNext = false; writeStarted?.(); await gate; }
         await base.set(key, value);
       },
     };
-    const store = createBrowserRuleStore(area, { id: () => 'b-1' });
-    await store.save({ draft: draft() }, NOW);
+    const store = createRuleListStore(area, { id: () => 'b-1' });
+    await store.saveRule({ draft: draft() }, NOW);
     await store.markMoving('b-1', NOW + 1);
-    const snapshot = (await store.list())[0]!;
-    const account = [{ id: 'a-1', definition: snapshot.definition, folderNativeId: snapshot.folderNativeId }];
+    const snapshot = individualRules(await store.load())[0]!;
+    const account = [{ id: 'a-1', definition: snapshot.definition, folderNativeId: '30' }];
     blockNext = true;
     const userChange = change === 'edit'
-      ? store.save({ id: 'b-1', draft: draft({ name: 'Edited', folderNativeId: '31' }) }, NOW + 2)
+      ? store.saveRule({ id: 'b-1', draft: draft({ name: 'Edited', folderNativeId: '31' }) }, NOW + 2)
       : store.stopMoving('b-1');
     await started;
     const refreshes = [store.retireIfDuplicate('b-1', account, NOW + 3), store.retireIfDuplicate('b-1', account, NOW + 3)];
     releaseWrite?.();
     await userChange;
     expect(await Promise.all(refreshes)).toEqual([null, null]);
-    expect(await store.list()).toMatchObject([{ id: 'b-1' }]);
-    expect((await store.list())[0]).not.toHaveProperty('movingSince');
+    expect(individualRules(await store.load())).toMatchObject([{ id: 'b-1' }]);
+    expect(individualRules(await store.load())[0]).not.toHaveProperty('movingSince');
   });
 
   it('is marked once, keeps the first time, and stops waiting when it is edited', async () => {
-    const store = createBrowserRuleStore(memoryArea(), { id: () => 'b-1' });
-    await store.save({ draft: draft() }, NOW);
+    const store = createRuleListStore(memoryArea(), { id: () => 'b-1' });
+    await store.saveRule({ draft: draft() }, NOW);
     expect(await store.markMoving('b-1', NOW + 1)).toMatchObject({ movingSince: NOW + 1 });
     expect(await store.markMoving('b-1', NOW + 2)).toMatchObject({ movingSince: NOW + 1 });
-    expect((await store.list())[0]).toMatchObject({ movingSince: NOW + 1 });
-    await store.setEnabled('b-1', false, NOW + 3);
-    expect((await store.list())[0]).toMatchObject({ movingSince: NOW + 1 });
-    await store.save({ id: 'b-1', draft: draft({ name: 'Edited' }) }, NOW + 4);
-    expect((await store.list())[0]).not.toHaveProperty('movingSince');
+    expect(individualRules(await store.load())[0]).toMatchObject({ movingSince: NOW + 1 });
+    await store.setEnabled({ kind: 'rule', id: 'b-1' }, false, NOW + 3);
+    expect(individualRules(await store.load())[0]).toMatchObject({ movingSince: NOW + 1 });
+    await store.saveRule({ id: 'b-1', draft: draft({ name: 'Edited' }) }, NOW + 4);
+    expect(individualRules(await store.load())[0]).not.toHaveProperty('movingSince');
     expect(await store.markMoving('missing', NOW)).toBeNull();
   });
 
   it('stops waiting when kept in this browser, and keeps everything else (U5)', async () => {
-    const store = createBrowserRuleStore(memoryArea(), { id: () => 'b-1' });
-    await store.save({ draft: draft() }, NOW);
+    const store = createRuleListStore(memoryArea(), { id: () => 'b-1' });
+    await store.saveRule({ draft: draft() }, NOW);
     await store.markMoving('b-1', NOW + 1);
     const kept = await store.stopMoving('b-1');
     expect(kept).not.toHaveProperty('movingSince');
-    expect(kept).toMatchObject({ id: 'b-1', enabled: true, folderNativeId: '30' });
-    expect((await store.list())[0]).not.toHaveProperty('movingSince');
+    expect(kept).toMatchObject({ id: 'b-1', enabled: true, action: { kind: 'file', folderNativeId: '30' } });
+    expect(individualRules(await store.load())[0]).not.toHaveProperty('movingSince');
     expect(await store.stopMoving('b-1')).toMatchObject({ id: 'b-1' });
     expect(await store.stopMoving('missing')).toBeNull();
   });
@@ -95,7 +93,7 @@ describe('a rule waiting to move', () => {
 describe('the placement log', () => {
   it('keeps why a page stayed where it was saved, and drops a reason it does not know (U6)', async () => {
     const area = memoryArea();
-    const store = createBrowserRuleStore(area);
+    const store = createBrowserPlacementLog(area);
     const base = { ruleId: 'b-1', ruleName: 'Papers', folder: 'Inbox', title: 'A paper', url: 'https://arxiv.org/abs/1', at: NOW };
     await store.logPlacement({ ...base, id: 'c-1', kept: 'conflict' });
     await store.logPlacement({ ...base, id: 'c-2', at: NOW + 1 });

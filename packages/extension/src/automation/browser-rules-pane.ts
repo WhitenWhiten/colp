@@ -505,7 +505,7 @@ export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HT
         return;
       }
       if (reply.problems?.length) { show(reply.problems); return; }
-      failure.textContent = reply.error === 'limit' ? t('automation_browserLimit', 'This browser keeps up to 100 rules. Delete one to add another.')
+      failure.textContent = reply.error === 'limit' ? t('automation_browserLimit', 'This browser keeps up to 200 rules. Delete one to add another.')
         : reply.error === 'notFound' ? t('automation_browserGone', 'This rule was deleted meanwhile.')
           : t('automation_browserSaveFailed', 'Couldn’t save this rule. Try again.');
       failure.hidden = false;

@@ -69,6 +69,15 @@ describe('the automation database', () => {
     await database.area().set(AUTOMATION_BUNDLE_KEY, { version: 1 });
     expect(changed).toHaveBeenCalledOnce();
   });
+
+  it('writes and deletes several keys in one transaction, and says so once', async () => {
+    const changed = vi.fn(async () => undefined);
+    const area = createAutomationDatabase(factory, { changed }).area();
+    await area.set('old', { version: 1 });
+    await area.commit({ new: { version: 2 }, other: [1] }, ['old']);
+    expect([await area.get('old'), await area.get('new'), await area.get('other')]).toEqual([undefined, { version: 2 }, [1]]);
+    expect(changed).toHaveBeenCalledTimes(2);
+  });
 });
 
 const OWNER = '["https://colp.example","owner"]';

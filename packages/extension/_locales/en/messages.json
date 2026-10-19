@@ -225,7 +225,7 @@
     "message": "Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
   },
   "automation_browserLimit": {
-    "message": "This browser keeps up to 100 rules. Delete one to add another."
+    "message": "This browser keeps up to 200 rules. Delete one to add another."
   },
   "automation_browserNameTooLong": {
     "message": "Use 200 characters or fewer."

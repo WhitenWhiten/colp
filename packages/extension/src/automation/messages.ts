@@ -1,6 +1,7 @@
-import type { BrowserRule, BrowserRuleDraft, DraftProblem } from './browser-rules.js';
+import type { BrowserRuleDraft, DraftProblem } from './browser-rules.js';
 import type { DigestIndicator } from './digest-indicator.js';
 import type { RuleMatchView } from './rule-match.js';
+import type { LocalRule, LocalSet } from './rule-list-store.js';
 
 /**
  * Page ↔ worker messages for automations: the Options page's state and refresh,
@@ -35,11 +36,22 @@ export function validAutomationRequest(value: unknown): value is AutomationReque
   return raw.kind === 'known.automation.refresh' && raw.userGesture === true && Object.keys(raw).length === 2;
 }
 
-/** Options writes this browser's own rules (browser-rules.ts); only the Options page may send these. */
+/** Options writes this browser's own rules (rule-list-store.ts); only the Options page may send these. */
 export type BrowserRuleCommand =
-  | { readonly kind: 'known.automation.browser.save'; readonly id?: string; readonly draft: BrowserRuleDraft; readonly enabled?: boolean }
-  | { readonly kind: 'known.automation.browser.enable'; readonly id: string; readonly enabled: boolean }
+  /** A new rule goes to the end of the list, or of the set `into`; an edited one stays where it is. */
+  | { readonly kind: 'known.automation.browser.save'; readonly id?: string; readonly draft: BrowserRuleDraft; readonly enabled?: boolean;
+    readonly into?: string }
+  /** A rule (`entry` left out), a set or a subscription on or off. */
+  | { readonly kind: 'known.automation.browser.enable'; readonly id: string; readonly enabled: boolean; readonly entry?: 'rule' | 'set' | 'subscription' }
   | { readonly kind: 'known.automation.browser.remove'; readonly id: string }
+  /** The list's entries in a new order: exactly the ids it has (doc 17 RS-01.1). */
+  | { readonly kind: 'known.automation.browser.reorder'; readonly order: readonly string[] }
+  /** A rule into a set (`into`) or out to the list (`into` null), at `index` there. */
+  | { readonly kind: 'known.automation.browser.moveRule'; readonly ruleId: string; readonly into: string | null; readonly index: number }
+  | { readonly kind: 'known.automation.browser.set.save'; readonly id?: string; readonly name: string }
+  /** `keepRules`: its rules stay, as individual rules where the set was. */
+  | { readonly kind: 'known.automation.browser.set.remove'; readonly id: string; readonly keepRules: boolean }
+  | { readonly kind: 'known.automation.browser.list.enable'; readonly enabled: boolean }
   /** Keep this rule next to the account rule it overlaps, at that rule's current revision (`reviewKey`). */
   | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string }
   /** Add mine to the account was opened on the web: retire this rule once the account's enabled copy arrives. */
@@ -49,7 +61,10 @@ export type BrowserRuleCommand =
   /** A new rule for all the account's devices: the web editor, filled in with this draft. Nothing is stored here. */
   | { readonly kind: 'known.automation.browser.forAccount'; readonly draft: BrowserRuleDraft };
 
-export type BrowserRuleResponse = { readonly ok: true; readonly rule: BrowserRule | null }
+export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule | null }
+  | { readonly ok: true; readonly set: LocalSet | null }
+  /** A change to the list's order or switch: its revision after it. */
+  | { readonly ok: true; readonly revision: number }
   | { readonly ok: true; readonly url: string }
   /** `notSynced`: the folder is not in the synced collection; `signedOut`: there is no account to make it in. */
   | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
@@ -70,15 +85,35 @@ function validDraft(value: unknown): value is BrowserRuleDraft {
     });
 }
 
+const id = (value: unknown): value is string => typeof value === 'string' && RULE_ID.test(value);
+/** Room for every entry the list's limits allow (rule-list-store.ts LIST_LIMITS). */
+const ORDER_LIMIT = 512, INDEX_LIMIT = 1_000;
+
 export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCommand {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>, keys = Object.keys(raw).length;
   if (raw.kind === 'known.automation.browser.save') {
-    return validDraft(raw.draft) && (raw.id === undefined || typeof raw.id === 'string' && RULE_ID.test(raw.id))
-      && (raw.enabled === undefined || typeof raw.enabled === 'boolean') && keys === 2 + Number(raw.id !== undefined) + Number(raw.enabled !== undefined);
+    return validDraft(raw.draft) && (raw.id === undefined || id(raw.id)) && (raw.into === undefined || id(raw.into))
+      && (raw.enabled === undefined || typeof raw.enabled === 'boolean')
+      && keys === 2 + Number(raw.id !== undefined) + Number(raw.enabled !== undefined) + Number(raw.into !== undefined);
   }
   if (raw.kind === 'known.automation.browser.forAccount') return keys === 2 && validDraft(raw.draft);
-  if (raw.kind === 'known.automation.browser.enable') return keys === 3 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.enabled === 'boolean';
+  if (raw.kind === 'known.automation.browser.enable') {
+    return keys === 3 + Number(raw.entry !== undefined) && id(raw.id) && typeof raw.enabled === 'boolean'
+      && (raw.entry === undefined || raw.entry === 'rule' || raw.entry === 'set' || raw.entry === 'subscription');
+  }
+  if (raw.kind === 'known.automation.browser.reorder') {
+    return keys === 2 && Array.isArray(raw.order) && raw.order.length <= ORDER_LIMIT && raw.order.every(id);
+  }
+  if (raw.kind === 'known.automation.browser.moveRule') {
+    return keys === 4 && id(raw.ruleId) && (raw.into === null || id(raw.into)) && Number.isInteger(raw.index)
+      && (raw.index as number) >= 0 && (raw.index as number) <= INDEX_LIMIT;
+  }
+  if (raw.kind === 'known.automation.browser.set.save') {
+    return keys === 2 + Number(raw.id !== undefined) && (raw.id === undefined || id(raw.id)) && typeof raw.name === 'string' && raw.name.length <= 1024;
+  }
+  if (raw.kind === 'known.automation.browser.set.remove') return keys === 3 && id(raw.id) && typeof raw.keepRules === 'boolean';
+  if (raw.kind === 'known.automation.browser.list.enable') return keys === 2 && typeof raw.enabled === 'boolean';
   if (raw.kind === 'known.automation.browser.review') {
     return keys === 4 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.accountRuleId === 'string'
       && raw.accountRuleId.length > 0 && raw.accountRuleId.length <= 256 && typeof raw.key === 'string' && raw.key.length > 0 && raw.key.length <= 512;

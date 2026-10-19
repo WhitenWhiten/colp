@@ -1,5 +1,5 @@
 import { requestValue, transactionDone } from '../sync-state/idb.js';
-import type { AutomationStateArea } from './bundle-store.js';
+import type { AtomicStateArea } from './bundle-store.js';
 import type { ObservedPlacement } from './observed-create.js';
 import { AUTOMATION_BUNDLE_KEY, AUTOMATION_CHANGED_KEY, AUTOMATION_RECEIPTS_KEY } from './messages.js';
 import { SERVER_STATUS_KEY } from './server-status.js';
@@ -81,17 +81,25 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
   const changed = () => options.changed?.().catch(() => undefined);
 
   return {
-    /** Key/value access for the bundle record and the receipt list. */
-    area(): AutomationStateArea {
+    /** Key/value access for the bundle record, the receipt list and this browser's own rules. */
+    area(): AtomicStateArea {
       return {
         get: (key) => run([STATE], 'readonly', (tx) => requestValue(tx.objectStore(STATE).get(key))),
         async set(key, value) { await run([STATE], 'readwrite', async (tx) => { tx.objectStore(STATE).put(value, key); }); await changed(); },
+        async commit(writes, deletes = []) {
+          await run([STATE], 'readwrite', async (tx) => {
+            const state = tx.objectStore(STATE);
+            for (const [key, value] of Object.entries(writes)) state.put(value, key);
+            for (const key of deletes) state.delete(key);
+          });
+          await changed();
+        },
       };
     },
     /**
      * Sign-out (AW-72): that account's bundle, server status, receipts and
      * placement intents go, in one transaction. Another account's entries and
-     * this browser's own rules and their log (browser-rule-store.ts) stay.
+     * this browser's own rules and their log (rule-list-store.ts, browser-rule-store.ts) stay.
      */
     async clearAccount(ownerKey: string): Promise<void> {
       await run([STATE, INTENTS], 'readwrite', async (tx) => {

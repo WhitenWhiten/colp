@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { AUTOMATION_BADGE_KEY } from '../src/action-badge.js';
 import { automationOwnerKey, createBundleStore } from '../src/automation/bundle-store.js';
-import { BROWSER_PLACEMENTS_KEY, BROWSER_RULES_KEY } from '../src/automation/browser-rule-store.js';
+import { BROWSER_PLACEMENTS_KEY } from '../src/automation/browser-rule-store.js';
+import { individualRules, RULE_LIST_KEY } from '../src/automation/rule-list-store.js';
 import { automationDatabase, createAutomationDatabase, type PlacementIntent } from '../src/automation/indexeddb-store.js';
 import { AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY } from '../src/automation/messages.js';
 import { SERVER_STATUS_KEY } from '../src/automation/server-status.js';
@@ -48,7 +49,7 @@ vi.mock('../src/sw/reconcile-alarm.js', () => ({ ensurePeriodicAlarm: async () =
 
 import { handle } from '../src/sw/auth.js';
 import { automationArea, handleAutomationRequest, refreshAutomation } from '../src/sw/automation.js';
-import { browserPreSaveDecision, browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
+import { browserPlacementLog, browserPreSaveDecision, browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
 const ownerKey = automationOwnerKey(owner), otherKey = automationOwnerKey({ ...owner, accountId: 'other' });
@@ -71,8 +72,8 @@ beforeEach(async () => {
   // This browser's rule, and a page it filed.
   expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.save',
     draft: { name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: '30' } })).toMatchObject({ ok: true });
-  const [rule] = await browserRuleStore().list();
-  await browserRuleStore().logPlacement({ id: 'capture-1', ruleId: rule!.id, ruleName: 'Papers from arXiv', folder: 'Papers', title: 'Earlier', url: 'https://arxiv.org/abs/1', at: NOW });
+  const [rule] = individualRules(await browserRuleStore().load());
+  await browserPlacementLog().logPlacement({ id: 'capture-1', ruleId: rule!.id, ruleName: 'Papers from arXiv', folder: 'Papers', title: 'Earlier', url: 'https://arxiv.org/abs/1', at: NOW });
   // The account's: its bundle, the server's status, receipts and an intent, and what chrome.storage.local caches for it.
   await createBundleStore(automationArea(), owner).install(ruleBundle([compiledRule()], { revision: 'b-3', settingsRevision: 3 }), NOW);
   await automationArea().set(SERVER_STATUS_KEY, { version: 1, ownerKey, fetchedAt: NOW, rules: [], runs: [], lastAttemptAt: NOW, failures: 0, problem: null });
@@ -98,9 +99,9 @@ describe('signing out', () => {
   });
 
   it('keeps this browser’s rules and their log, and a browser rule still places the save', async () => {
-    const rules = await automationArea().get(BROWSER_RULES_KEY), placements = await automationArea().get(BROWSER_PLACEMENTS_KEY);
+    const rules = await automationArea().get(RULE_LIST_KEY), placements = await automationArea().get(BROWSER_PLACEMENTS_KEY);
     await logout();
-    expect(await automationArea().get(BROWSER_RULES_KEY)).toEqual(rules);
+    expect(await automationArea().get(RULE_LIST_KEY)).toEqual(rules);
     expect(await automationArea().get(BROWSER_PLACEMENTS_KEY)).toEqual(placements);
     // The capture scope still names the account: the bundle itself is gone, so the browser's rule decides.
     expect(await match()).toEqual({ ok: true, match: { outcome: 'placed', ruleName: 'Papers from arXiv', ruleCount: 1, folderNativeId: '30', folderTitle: 'Papers' } });
@@ -129,13 +130,13 @@ describe('signing in', () => {
   };
 
   it('as another account takes the earlier account’s data and keeps this browser’s rules', async () => {
-    const rules = await automationArea().get(BROWSER_RULES_KEY);
+    const rules = await automationArea().get(RULE_LIST_KEY);
     expect(await login('someone-else')).toMatchObject({ ok: true });
     expect(await automationArea().get(AUTOMATION_BUNDLE_KEY)).toBeUndefined();
     expect(await automationArea().get(SERVER_STATUS_KEY)).toBeUndefined();
     expect((await automationDatabase().intents.list()).map((item) => item.intentId)).toEqual(['i-other']);
     expect(await chrome.storage.local.get('known.automation.pause.v1')).toEqual({});
-    expect(await automationArea().get(BROWSER_RULES_KEY)).toEqual(rules);
+    expect(await automationArea().get(RULE_LIST_KEY)).toEqual(rules);
   });
 
   it('on another server counts as another account', async () => {
@@ -154,11 +155,11 @@ describe('the store’s account cleanup', () => {
   it('leaves everything alone for an account it holds nothing for', async () => {
     const database = createAutomationDatabase(new IDBFactory());
     await database.area().set(AUTOMATION_RECEIPTS_KEY, [{ version: 1, localReceiptId: 'r-other', ownerKey: otherKey }]);
-    await database.area().set(BROWSER_RULES_KEY, { version: 1, rules: [] });
+    await database.area().set(RULE_LIST_KEY, { version: 2, revision: 1, enabled: true, entries: [] });
     await database.intents.put(intent('i-other', otherKey));
     await database.clearAccount(ownerKey);
     expect(await database.area().get(AUTOMATION_RECEIPTS_KEY)).toEqual([{ version: 1, localReceiptId: 'r-other', ownerKey: otherKey }]);
-    expect(await database.area().get(BROWSER_RULES_KEY)).toEqual({ version: 1, rules: [] });
+    expect(await database.area().get(RULE_LIST_KEY)).toEqual({ version: 2, revision: 1, enabled: true, entries: [] });
     expect(await database.intents.list()).toHaveLength(1);
     database.close();
   });

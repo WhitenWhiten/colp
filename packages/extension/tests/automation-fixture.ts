@@ -4,6 +4,7 @@ import {
   automationDigest, normalizeRuleDefinition, ruleSemanticDigest,
   type CompiledRule, type EventFacts, type FolderRef, type Rule, type RuleBundle, type RuleDefinition, type Run,
 } from '@know-n/colp/automation';
+import type { AtomicStateArea } from '../src/automation/bundle-store.js';
 
 /** Reviewed M1 rule (copied byte for byte from packages/node/tests/fixtures/automation). */
 export const M1_RULE = JSON.parse(readFileSync(resolve(import.meta.dirname, 'fixtures/automation/m1-placement.json'), 'utf8')) as RuleDefinition;
@@ -65,4 +66,18 @@ export function serverRun(input: Partial<Pick<Run, 'id' | 'ruleId' | 'status' | 
     executionPolicyRevision: null, status: input.status ?? 'completed', memberEventIds: ['event-1'], recipientTargetIds: [], createdAt: at, updatedAt: at,
     jobIds: [], causationRoot: 'event-1', kind: input.kind ?? 'intake', effects: [], unread: input.unread ?? false, outputCount: input.outputCount ?? 0,
     ...(input.held === undefined ? {} : { held: input.held }), ...(input.explanation ? { explanation: input.explanation } : {}) };
+}
+
+/** The automation store's key/value area in memory, each value cloned the way IndexedDB clones it. */
+export function memoryStateArea(): AtomicStateArea & { readonly values: Map<string, unknown> } {
+  const values = new Map<string, unknown>();
+  return {
+    values,
+    get: async (key) => structuredClone(values.get(key)),
+    set: async (key, value) => { values.set(key, structuredClone(value)); },
+    commit: async (writes, deletes = []) => {
+      for (const [key, value] of Object.entries(writes)) values.set(key, structuredClone(value));
+      for (const key of deletes) values.delete(key);
+    },
+  };
 }

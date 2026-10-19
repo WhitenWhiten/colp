@@ -1,10 +1,9 @@
 import { validateM1Rule } from '@know-n/colp/automation';
 import { describe, expect, it } from 'vitest';
-import { createBrowserRuleStore, BROWSER_PLACEMENTS_KEY, BROWSER_RULES_KEY } from '../src/automation/browser-rule-store.js';
-import { BROWSER_RULE_LIMIT, browserRuleDefinition, checkBrowserDraft, decideBrowserRules, draftFromRule, type BrowserRule,
+import { createBrowserPlacementLog, BROWSER_PLACEMENTS_KEY } from '../src/automation/browser-rule-store.js';
+import { browserRuleDefinition, checkBrowserDraft, decideBrowserRules, draftFromRule, type BrowserRule,
   type BrowserRuleDraft, type FolderLookup } from '../src/automation/browser-rules.js';
-import type { AutomationStateArea } from '../src/automation/bundle-store.js';
-import { NOW } from './automation-fixture.js';
+import { memoryStateArea as memoryArea, NOW } from './automation-fixture.js';
 
 /** Browser rules (AW-67): the editor's draft, its stored definition, and what they decide at save. */
 const draft = (over: Partial<BrowserRuleDraft> = {}): BrowserRuleDraft =>
@@ -21,11 +20,6 @@ const folders: Record<string, { id: string; title: string; url?: string; unmodif
   50: { id: '50', title: 'A bookmark', url: 'https://example.org/' } };
 const lookup: FolderLookup = async (id) => folders[id] ?? null;
 const page = (url: string, title = 'A paper', explicit = false) => ({ url, title, explicit });
-
-function memoryArea(): AutomationStateArea & { values: Map<string, unknown> } {
-  const values = new Map<string, unknown>();
-  return { values, get: async (key) => structuredClone(values.get(key)), set: async (key, value) => { values.set(key, structuredClone(value)); } };
-}
 
 describe('a draft becomes a stored rule', () => {
   it('is the M1 placement definition with no collection, normalized the way the evaluator compares', () => {
@@ -106,45 +100,9 @@ describe('what browser rules decide at save', () => {
   });
 });
 
-describe('the browser rule store', () => {
-  it('creates, edits, switches off and removes rules, keeping their order and creation time', async () => {
-    const area = memoryArea();
-    let next = 0;
-    const store = createBrowserRuleStore(area, { id: () => `b-${++next}` });
-    const first = await store.save({ draft: draft() }, NOW);
-    const second = await store.save({ draft: draft({ name: 'Reading', folderNativeId: '31' }) }, NOW + 1);
-    expect(first).toMatchObject({ ok: true, rule: { id: 'b-1', enabled: true, createdAt: NOW } });
-    expect((await store.list()).map((rule) => rule.id)).toEqual(['b-1', 'b-2']);
-    expect(await store.save({ id: 'b-1', draft: draft({ name: 'Papers' }) }, NOW + 2)).toMatchObject({ ok: true,
-      rule: { id: 'b-1', createdAt: NOW, updatedAt: NOW + 2, definition: { name: 'Papers' } } });
-    expect(await store.setEnabled('b-2', false, NOW + 3)).toMatchObject({ enabled: false });
-    expect(await store.save({ id: 'b-2', draft: draft({ name: 'Reading' }) }, NOW + 4)).toMatchObject({ rule: { enabled: false } });
-    expect(await store.remove('b-1')).toBe(true);
-    expect(await store.remove('b-1')).toBe(false);
-    expect((await store.list()).map((rule) => [rule.id, rule.enabled])).toEqual([['b-2', false]]);
-    expect(second.ok).toBe(true);
-  });
-
-  it('refuses what it cannot keep', async () => {
-    const store = createBrowserRuleStore(memoryArea());
-    expect(await store.save({ draft: draft({ folderNativeId: '' }) }, NOW)).toMatchObject({ ok: false, error: 'invalid' });
-    expect(await store.save({ id: 'missing', draft: draft() }, NOW)).toEqual({ ok: false, error: 'notFound' });
-    expect(await store.setEnabled('missing', false, NOW)).toBeNull();
-    for (let index = 0; index < BROWSER_RULE_LIMIT; index++) await store.save({ draft: draft() }, NOW);
-    expect(await store.save({ draft: draft() }, NOW)).toEqual({ ok: false, error: 'limit' });
-  });
-
-  it('never loses a rule to two saves at once, and drops a stored value it cannot run', async () => {
-    const area = memoryArea(), store = createBrowserRuleStore(area);
-    await Promise.all([store.save({ draft: draft() }, NOW), store.save({ draft: draft({ name: 'Two' }) }, NOW), store.remove('none')]);
-    expect(await store.list()).toHaveLength(2);
-    area.values.set(BROWSER_RULES_KEY, { version: 1, rules: [...(area.values.get(BROWSER_RULES_KEY) as { rules: unknown[] }).rules,
-      { id: 'broken', definition: { name: 'x' }, folderNativeId: '30', enabled: true, createdAt: NOW, updatedAt: NOW }] });
-    expect(await store.list()).toHaveLength(2);
-  });
-
+describe('the placement log', () => {
   it('logs each placed save once and keeps the newest twenty', async () => {
-    const area = memoryArea(), store = createBrowserRuleStore(area);
+    const area = memoryArea(), store = createBrowserPlacementLog(area);
     const placement = (index: number) => ({ id: `c-${index}`, ruleId: 'b-1', ruleName: 'Papers', folder: 'Papers', title: `Paper ${index}`,
       url: `https://arxiv.org/abs/${index}`, at: NOW + index });
     expect(await store.logPlacement(placement(1))).toBe(true);

@@ -52,6 +52,10 @@ export interface AutomationStateArea {
   get(key: string): Promise<unknown>;
   set(key: string, value: unknown): Promise<void>;
 }
+/** The same area, writing and deleting several keys in one transaction: a reader sees all of them or none. */
+export interface AtomicStateArea extends AutomationStateArea {
+  commit(writes: Readonly<Record<string, unknown>>, deletes?: readonly string[]): Promise<void>;
+}
 
 const empty = (ownerKey: string): BundleRecord => ({ version: 1, ownerKey, bundle: null, serverUuid: null, installedAt: null,
   lastRefreshAt: null, lastAttemptAt: null, failures: 0, pausedSince: null, problem: null });

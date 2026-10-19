@@ -292,8 +292,8 @@
     "description": "Only this browser uses them, after your account’s rules, for pages you save with the Know-N button or menu, not the browser’s star. A folder you pick yourself always wins."
   },
   "automation_browserLimit": {
-    "message": "此浏览器最多保存 100 条规则。删除一条后才能再添加。",
-    "description": "This browser keeps up to 100 rules. Delete one to add another."
+    "message": "此浏览器最多保存 200 条规则。删除一条后才能再添加。",
+    "description": "This browser keeps up to 200 rules. Delete one to add another."
   },
   "automation_browserNameTooLong": {
     "message": "请不要超过 200 个字符。",
