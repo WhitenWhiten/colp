@@ -55,12 +55,21 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
       if (!stagedCreates.has(effect.placement.parentId)) throw new SyncFailureError('need_authority');
       return;
     }
-    let parent: Awaited<ReturnType<typeof preflightPullMapping>> | null = null;
-    try { parent = await preflightPullMapping(options, effect.placement.parentId, stagedCreates, 'parent'); }
-    catch { return; }
+    // A restored node whose parent mapping is not staged yet is set aside by
+    // the apply path. Any other preflight failure is real and must not be
+    // mistaken for that specific, recoverable item condition.
+    const parent = await preflightPullMapping(options, effect.placement.parentId, stagedCreates, 'parent')
+      .catch((error: unknown) => {
+        if (error instanceof SyncFailureError && error.code === PULL_PREFLIGHT_FAILURE.parent) return null;
+        throw error;
+      });
     if (parent) {
-      await requirePullAnchor(options, effect.placement.afterId, parent.nativeId, stagedCreates).catch(() => undefined);
-      await requirePullAnchor(options, effect.placement.beforeId, parent.nativeId, stagedCreates).catch(() => undefined);
+      for (const anchor of [effect.placement.afterId, effect.placement.beforeId]) {
+        await requirePullAnchor(options, anchor, parent.nativeId, stagedCreates).catch((error: unknown) => {
+          if (error instanceof SyncFailureError && error.code === PULL_MAPPING_FAILURE.anchor) return;
+          throw error;
+        });
+      }
     }
     return;
   }

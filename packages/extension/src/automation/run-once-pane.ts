@@ -102,9 +102,9 @@ export function openRunOnce(trigger?: HTMLElement | null): void {
     let granted = false;
     try { granted = await chrome.permissions.contains({ permissions: ['bookmarks'] }); } catch { granted = false; }
     if (!granted || typeof chrome.bookmarks?.getTree !== 'function') { fail(problem('noAccess')); go.disabled = true; picker.pill.disabled = true; return; }
-    const [roots, hidden] = await Promise.all([chrome.bookmarks.getTree() as Promise<FolderSourceNode[]>, exclusionIds().catch(() => new Set<string>())]);
+    const [roots, hidden] = await Promise.all([chrome.bookmarks.getTree() as Promise<FolderSourceNode[]>, exclusionIds()]);
     if (dialog.isConnected) picker.setChoices(folderChoices(roots, { exclude: hidden }));
-  })().catch(() => undefined);
+  })().catch(() => showToast(t('automation_loadFailed', 'Couldn’t read automations in this browser. Reload the page to try again.'), 'error', { announce: true }));
   dialog.addEventListener('close', () => { dialog.remove(); if (trigger?.isConnected) trigger.focus(); });
   document.body.append(dialog); dialog.showModal(); picker.pill.focus();
 }

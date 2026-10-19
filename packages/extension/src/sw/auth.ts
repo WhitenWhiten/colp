@@ -1,4 +1,5 @@
 import { showAutomationBadge } from '../action-badge.js';
+import { logBackgroundFailure } from './background-failure.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import { suspendPersonalSyncForLogout } from './personal-sync.js';
 import { ensureLibraryBinding, libraryUnsupported, bindLibraryOnStartup } from './library.js';
@@ -35,7 +36,7 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
     const initial = await auth.status();
     if (initial.status === 'connected') {
       if (await hasBoundCollection()) scheduleSessionFreshen();
-      else void bindLibraryOnStartup().catch(() => undefined);
+      else void bindLibraryOnStartup().catch((error) => logBackgroundFailure('auth.bind-library', error));
     }
     return { ok: true, state: await libraryUnsupported() ? { ...initial, errorCode: 'sync_unsupported' } : initial };
   }
@@ -66,7 +67,7 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
     } finally {
       sw.bindingPromise = undefined; sw.rootViewTokens = undefined;
       if (typeof globalThis.chrome?.storage?.local?.remove === 'function') await chrome.storage.local.remove([COLLECTION_BINDING, LIBRARY_STATE]);
-      await clearSaveContextCache().catch(() => undefined);
+      await clearSaveContextCache().catch((error) => logBackgroundFailure('auth.clear-save-context', error));
       if (credential?.subject && signedOut) {
         // Re-clear in case a concurrent engine write restored the credential
         // between auth.logout() clearing it and this cleanup.
@@ -75,7 +76,8 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
         if (binding) await syncState.cleanupAccount({ environment: config.environment,
           serverId: config.serverOrigin, accountId: credential.subject, browserProfileId: binding.browserProfileId });
         // The account's automation data goes with it; this browser's own rules stay (AW-72).
-        await clearAccountAutomation({ serverOrigin: credential.serverOrigin, accountId: credential.subject }).catch(() => undefined);
+        await clearAccountAutomation({ serverOrigin: credential.serverOrigin, accountId: credential.subject })
+          .catch((error) => logBackgroundFailure('auth.clear-account-automation', error));
       }
     }
   }
@@ -103,7 +105,8 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
   }
   // Signing in as someone else is a sign-out for the earlier account's automation data too (AW-72).
   if (previous?.subject && (previous.subject !== credential.subject || previous.serverOrigin !== credential.serverOrigin)) {
-    await clearAccountAutomation({ serverOrigin: previous.serverOrigin, accountId: previous.subject }).catch(() => undefined);
+    await clearAccountAutomation({ serverOrigin: previous.serverOrigin, accountId: previous.subject })
+      .catch((error) => logBackgroundFailure('auth.clear-previous-account-automation', error));
   }
   try { await ensureLibraryBinding({ login: true }); } catch { /* Sign-in stays usable when library discovery is temporarily offline. */ }
   if (!await hasBoundCollection()) return { ok: true, state: { ...await auth.status(), ...(await libraryUnsupported() ? { errorCode: 'sync_unsupported' } : {}) } };

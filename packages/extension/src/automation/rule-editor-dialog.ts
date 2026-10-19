@@ -285,12 +285,21 @@ export function openRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLEleme
       return;
     }
     access.hidden = true; picker.pill.disabled = false;
-    const [roots, hidden] = await Promise.all([chrome.bookmarks.getTree() as Promise<FolderSourceNode[]>, exclusionIds().catch(() => new Set<string>())]);
+    // A subscription-exclusion read failure must not offer subscription folders.
+    const [roots, hidden] = await Promise.all([chrome.bookmarks.getTree() as Promise<FolderSourceNode[]>, exclusionIds()]);
     const folders = folderChoices(roots, { exclude: hidden });
     for (const folder of folders) titles.set(folder.id, folder.title);
     if (dialog.isConnected) { picker.setChoices(folders); suggest(); }
   }
-  void loadFolders().catch(() => undefined);
+  const folderLoadFailed = (): void => {
+    access.replaceChildren(inlineAlert('warning',
+      t('automation_loadFailed', 'Couldn’t read automations in this browser. Reload the page to try again.'),
+      button(t('common_tryAgain', 'Try again'), 'btn btn-secondary btn-sm', () => {
+        void loadFolders().catch(folderLoadFailed);
+      })));
+    access.hidden = false; picker.pill.disabled = true;
+  };
+  void loadFolders().catch(folderLoadFailed);
 
   function show(problems: readonly DraftProblem[]): void {
     for (const problem of problems) {

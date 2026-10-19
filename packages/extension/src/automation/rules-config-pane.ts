@@ -95,12 +95,12 @@ function openImport(config: RulesConfig, name: string, trigger: HTMLElement, tex
     });
   });
   void (async () => {
-    const [roots, hidden] = await Promise.all([chrome.bookmarks.getTree() as Promise<FolderSourceNode[]>, exclusionIds().catch(() => new Set<string>())]);
+    const [roots, hidden] = await Promise.all([chrome.bookmarks.getTree() as Promise<FolderSourceNode[]>, exclusionIds()]);
     const choices = folderChoices(roots, { exclude: hidden });
     const suggested = suggestFolders(folders, choices.filter((folder) => !folder.disabled));
     if (!dialog.isConnected) return;
     for (const [id, picker] of pickers) { picker.setChoices(choices); const value = suggested[id]; if (value) picker.setValue(value); }
-  })().catch(() => undefined);
+  })().catch(() => showToast(t('automation_loadFailed', 'Couldn’t read automations in this browser. Reload the page to try again.'), 'error', { announce: true }));
   dialog.addEventListener('close', () => { dialog.remove(); if (trigger.isConnected) trigger.focus(); });
   document.body.append(dialog); dialog.showModal(); (pickers.values().next().value?.pill ?? cancel).focus();
 }

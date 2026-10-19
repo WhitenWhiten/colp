@@ -37,6 +37,7 @@ import { kns09Paused, recordKns09Stop } from './kns-09-release.js';
 import { pauseBindingForMapping } from './sync-state/remote-observation.js';
 import { hasQueuedSelfCreate, provisionalSelfCreateMapping } from './pull-self-create.js';
 import { commitSupersededByLocalDelete } from './pull-local-delete-supersede.js';
+import { logBackgroundFailure } from './sw/background-failure.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -485,7 +486,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       ?.nativeResultConfirmation;
     if (confirmed?.kind !== 'candidate_event') {
       await options.store.recordPullApiEvidence(options.scope, eventKey, { operationId: event.operation.opId,
-        nativeId, recovery: 'uncertain_create' }).catch(() => undefined);
+        nativeId, recovery: 'uncertain_create' }).catch((error) => logBackgroundFailure('pull.record-uncertain-create-evidence', error));
     }
     const resumed = await resumeSnapshotDeferredCreate(options, api, eventKey, event, mappingFor(effect.node, nativeId,
       parent.nativeId, parent.colpId, effect.kind === 'node_created' ? effect.nodeChildrenRevision : null, parent.rootNativeId));

@@ -77,6 +77,7 @@ import { BOOKMARK_RECONCILE_ALARM, BOOKMARK_RECONCILE_PERIOD_MINUTES, BOOKMARK_R
   hasBookmarkPermission, safeError, store, sw, syncState, workCoordinator } from './sw/runtime.js';
 import { installNativeSaveEntries, saveThroughNativeEntry } from './sw/save-entry.js';
 import { initI18n } from './i18n.js';
+import { logBackgroundFailure } from './sw/background-failure.js';
 import { validLocalImportRequest } from './local-import/contracts.js';
 import { handleLocalImport, LOCAL_IMPORT_ALARM, wakeLocalImports } from './sw/local-import.js';
 import { exportLocalBackup, validBackupExportRequest } from './local-backup/export.js';
@@ -101,7 +102,7 @@ import type { BatchResponse, ExtensionResponse, ImportResponse,
   SaveStatusResponse, SyncAttentionResponse, SyncProgressResponse, FirstRunOrScopeResponse, FirstRunRequest } from './types.js';
 
 configurePersonalSyncTransport(browserPersonalSyncPolicy());
-void bindLibraryOnStartup().catch(() => undefined);
+void bindLibraryOnStartup().catch((error) => logBackgroundFailure('startup.bind-library', error));
 void wakeSubscriptions('startup');
 bookmarkListenerLifecycle.install();
 installNativeFoldersFirst();
@@ -115,11 +116,13 @@ installAutomationRuntime();
 installRuleSubscriptions();
 installRiskBrowsing();
 installObservedCreates();
-void wakeLocalImports().catch(() => undefined);
+void wakeLocalImports().catch((error) => logBackgroundFailure('startup.local-imports', error));
 chrome.runtime.onStartup.addListener(() => {
-  void flushBookmarkPreferences().catch(() => undefined);
-  void wakeCaptures().catch(() => undefined); void wakeCaptureBatches().catch(() => undefined);
-  void flushCaptureFeedback().catch(() => undefined); void flushCaptureReports().catch(() => undefined);
+  void flushBookmarkPreferences().catch((error) => logBackgroundFailure('startup.bookmark-preferences', error));
+  void wakeCaptures().catch((error) => logBackgroundFailure('startup.captures', error));
+  void wakeCaptureBatches().catch((error) => logBackgroundFailure('startup.capture-batches', error));
+  void flushCaptureFeedback().catch((error) => logBackgroundFailure('startup.capture-feedback', error));
+  void flushCaptureReports().catch((error) => logBackgroundFailure('startup.capture-reports', error));
 });
 chrome.permissions.onAdded.addListener((permissions) => {
   if (permissions.permissions?.includes('bookmarks')) {
@@ -131,43 +134,52 @@ chrome.runtime.onStartup.addListener(() => { void recoverBookmarkEventsAfterEngi
 // An upgraded profile still holds the pre-split plaintext bearer in
 // `storage.local`; nothing reads it any more, but leaving it there would keep
 // the exposure the split was meant to end.
-void purgeLegacyLocalAuthority(chrome.storage.local).catch(() => undefined);
+void purgeLegacyLocalAuthority(chrome.storage.local).catch((error) => logBackgroundFailure('startup.legacy-authority-purge', error));
 // Registered on every worker boot as well as at install: the alarm is
 // idempotent, and re-creating it repairs a registration the platform dropped.
 ensureBookmarkReconcileAlarm();
 void ensurePeriodicAlarm(chrome, REPLICA_HEALTH_ALARM, REPLICA_HEALTH_PERIOD_MINUTES);
 chrome.runtime.onInstalled.addListener((details) => {
-  if (details.reason === 'update') void retireClassificationConfirmations().catch(() => undefined);
+  if (details.reason === 'update') void retireClassificationConfirmations().catch((error) => logBackgroundFailure('install.classification-confirmations', error));
   return onExtensionInstalled(details);
 });
 // No action.onClicked listener: the manifest declares default_popup, so the
 // toolbar click always opens the popup and that event never fires.
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === FOLDERS_FIRST_ALARM) scheduleNativeFoldersFirst();
-  if (alarm.name === PIN_PLACEMENT_ALARM) void placeDeferredUnpins().catch(() => undefined);
-  if (alarm.name === LOCAL_IMPORT_ALARM) void wakeLocalImports().catch(() => undefined);
+  if (alarm.name === PIN_PLACEMENT_ALARM) void placeDeferredUnpins().catch((error) => logBackgroundFailure('alarm.pin-placement', error));
+  if (alarm.name === LOCAL_IMPORT_ALARM) void wakeLocalImports().catch((error) => logBackgroundFailure('alarm.local-imports', error));
   if (alarm.name === SUBSCRIPTION_ALARM) void wakeSubscriptions('alarm');
-  if (alarm.name === CAPTURE_ALARM) void wakeCaptures().catch(() => undefined);
-  if (alarm.name === CAPTURE_ALARM) void wakeCaptureBatches().catch(() => undefined);
-  if (alarm.name === CAPTURE_ALARM) void flushCaptureFeedback().catch(() => undefined);
-  if (alarm.name === CAPTURE_ALARM) void flushCaptureReports().catch(() => undefined);
+  if (alarm.name === CAPTURE_ALARM) {
+    void wakeCaptures().catch((error) => logBackgroundFailure('alarm.captures', error));
+    void wakeCaptureBatches().catch((error) => logBackgroundFailure('alarm.capture-batches', error));
+    void flushCaptureFeedback().catch((error) => logBackgroundFailure('alarm.capture-feedback', error));
+    void flushCaptureReports().catch((error) => logBackgroundFailure('alarm.capture-reports', error));
+  }
   if (alarm.name === 'known-sync-engine') scheduleSyncEngineWake('alarm');
   if (alarm.name === REPLICA_HEALTH_ALARM) void reportReplicaHealth();
   if (alarm.name === FAVICON_SIDECAR_ALARM) void drainFaviconSidecarsForCurrentScope();
   if (alarm.name === BOOKMARK_RECOVERY_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
   if (alarm.name === BOOKMARK_RECONCILE_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
   // Rule sets and risk lists refresh on the same hourly tick, each list on its own interval.
-  if (alarm.name === RULE_SUBSCRIPTION_ALARM) { void refreshDueSubscriptions().catch(() => undefined); void refreshDueRiskLists().catch(() => undefined); }
-  if (alarm.name === AUTOMATION_ALARM) { void refreshAutomation().catch(() => undefined); void resumeObservedCreates().catch(() => undefined); }
+  if (alarm.name === RULE_SUBSCRIPTION_ALARM) {
+    void refreshDueSubscriptions().catch((error) => logBackgroundFailure('alarm.subscriptions', error));
+    void refreshDueRiskLists().catch((error) => logBackgroundFailure('alarm.risk-lists', error));
+  }
+  if (alarm.name === AUTOMATION_ALARM) {
+    void refreshAutomation().catch((error) => logBackgroundFailure('alarm.automation', error));
+    void resumeObservedCreates().catch((error) => logBackgroundFailure('alarm.observed-creates', error));
+  }
 });
 self.addEventListener('online', (event) => {
   if (event.isTrusted && navigator.onLine === true) {
     void wakeSubscriptions('online');
     scheduleSyncEngineWake('online', 0, true);
-    void wakeCaptures().catch(() => undefined); void wakeCaptureBatches().catch(() => undefined);
-    void flushBookmarkPreferences().catch(() => undefined);
-    void flushCaptureFeedback().catch(() => undefined);
-    void flushCaptureReports().catch(() => undefined);
+    void wakeCaptures().catch((error) => logBackgroundFailure('online.captures', error));
+    void wakeCaptureBatches().catch((error) => logBackgroundFailure('online.capture-batches', error));
+    void flushBookmarkPreferences().catch((error) => logBackgroundFailure('online.bookmark-preferences', error));
+    void flushCaptureFeedback().catch((error) => logBackgroundFailure('online.capture-feedback', error));
+    void flushCaptureReports().catch((error) => logBackgroundFailure('online.capture-reports', error));
   }
 });
 
@@ -184,7 +196,8 @@ const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: s
 /** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list. */
 const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState };
 
-void workCoordinator.run('engine', () => replicaRebuilder().resume()).catch(() => undefined)
+void workCoordinator.run('engine', () => replicaRebuilder().resume())
+  .catch((error) => logBackgroundFailure('startup.replica-rebuild-resume', error))
   .then(() => recoverBookmarkEventsAfterEngineSettles());
 
 /**
@@ -284,7 +297,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   }
   if (validCapturePanelRequest(message)) {
     void handleCapturePanel(message, sender).then(result => {
-      respond(result); if (message.kind === 'known.capture.feedback') void flushCaptureFeedback().catch(() => undefined);
+      respond(result); if (message.kind === 'known.capture.feedback') void flushCaptureFeedback().catch((error) => logBackgroundFailure('message.capture-feedback', error));
     }, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }
@@ -298,7 +311,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validFolderDescriptionNotice(message) || validBookmarkAnnotationNotice(message)) {
-    void scheduleSyncEngineWake('manual').catch(() => undefined);
+    void scheduleSyncEngineWake('manual').catch((error) => logBackgroundFailure('message.sync-engine-wake', error));
     respond({ ok: true }); return false;
   }
   if (validClassificationRequest(message)) {
@@ -316,7 +329,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (validConnectivityRequest(message)) {
     if (navigator.onLine !== true) { respond({ ok: true }); return false; }
     const wake = scheduleSyncEngineWake('online', 0, true);
-    void flushBookmarkPreferences().catch(() => undefined);
+    void flushBookmarkPreferences().catch((error) => logBackgroundFailure('message.bookmark-preferences', error));
     void wake.then(() => respond({ ok: true }), () => respond({ ok: true })); return true;
   }
   if (__KNOWN_EXTENSION_EVIDENCE__ && validSyncStateEvidenceRequest(message)) {
@@ -324,7 +337,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validSyncRetryRequest(message)) {
-    void scheduleSyncEngineWake('manual').catch(() => undefined);
+    void scheduleSyncEngineWake('manual').catch((error) => logBackgroundFailure('message.sync-engine-wake', error));
     respond({ ok: true }); return false;
   }
   if (validSyncEngineRequest(message)) {

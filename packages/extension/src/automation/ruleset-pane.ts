@@ -78,11 +78,11 @@ export function rolePickers(roles: readonly { readonly key: string; readonly des
   }
   body.append(list);
   void (async () => {
-    const [roots, hidden] = await Promise.all([chrome.bookmarks.getTree() as Promise<FolderSourceNode[]>, exclusionIds().catch(() => new Set<string>())]);
+    const [roots, hidden] = await Promise.all([chrome.bookmarks.getTree() as Promise<FolderSourceNode[]>, exclusionIds()]);
     if (!dialog.isConnected) return;
     const choices = folderChoices(roots, { exclude: hidden });
     for (const [key, picker] of pickers) { picker.setChoices(choices); if (current[key]) picker.setValue(current[key]!); }
-  })().catch(() => undefined);
+  })().catch(() => showToast(t('automation_loadFailed', 'Couldn’t read automations in this browser. Reload the page to try again.'), 'error', { announce: true }));
   return pickers;
 }
 

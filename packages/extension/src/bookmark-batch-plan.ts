@@ -60,9 +60,11 @@ export async function previewBatch(input: BatchOwner & {
   const byId = new Map<string, BatchChromeNode>();
   const top = tree[0]; if (top) indexTree(top, byId);
   // Account metadata enriches the preview; it never owns a native command.
+  // A failed read must not silently
+  // become an empty boundary/parked set and mint a different plan.
   const attachment = cloud ? await Promise.all([
     cloud.store.getScope(cloud.scope), cloud.store.listMountBindings(cloud.scope), parkedNativeIds(cloud.store, cloud.scope),
-  ]).catch(error => { if (!('local' in input)) throw error; return null; }) : null;
+  ]) : null;
   const [scopeRow, mounts, parked] = attachment ?? [null, [], new Set<string>()];
   const selected = new Set([...(scopeRow?.selectedRoots ?? []),
     ...mounts.filter((mount) => mount.status === 'active').map((mount) => mount.nativeRootId)]);
@@ -79,11 +81,11 @@ export async function previewBatch(input: BatchOwner & {
   const items = input.kind === 'delete' ? described.filter(item => !described.some(parent => !parent.blocked
     && parent.nativeId !== item.nativeId && isDescendant(byId, parent.nativeId, item.nativeId))) : described;
   const mappings = await Promise.all(items.map(async (item) => {
-    const mapping = cloud ? await cloud.store.getMappingByNativeId(cloud.scope, item.nativeId).catch(() => null) : null;
+    const mapping = cloud ? await cloud.store.getMappingByNativeId(cloud.scope, item.nativeId) : null;
     return bindMapping(item, mapping);
   }));
   const targetMapping = target && cloud
-    ? await cloud.store.getMappingByNativeId(cloud.scope, target.id).catch(() => null) : null;
+    ? await cloud.store.getMappingByNativeId(cloud.scope, target.id) : null;
   const withTarget = mappings.map((item) => input.kind !== 'move' ? item : {
     ...item,
     targetParentNativeId: input.targetParentId,
@@ -229,6 +231,6 @@ function indexTree(node: BatchChromeNode, byId: Map<string, BatchChromeNode>): v
 }
 
 async function parkedNativeIds(store: Store, scope: SyncScope): Promise<Set<string>> {
-  const rows = await store.listRemoteDeleteDecisions(scope, PARKED).catch(() => []);
+  const rows = await store.listRemoteDeleteDecisions(scope, PARKED);
   return new Set(rows.flatMap((row) => row.nativeIds));
 }
