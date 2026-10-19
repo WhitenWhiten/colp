@@ -110,7 +110,7 @@ test('a subscribed rule set files a save by its entry, and a reviewed new versio
     await head.hover();
     await head.getByRole('button', { name: 'Refresh now' }).click();
     await expect.poll(() => state(options), { timeout: 20_000 }).toMatchObject({ currentVersion: '1', candidateVersion: '2' });
-    await expect(head.locator('.badge')).toHaveText('Update available');
+    await expect(block.locator('.automation-sub-waiting')).toContainText('Version 2 is waiting for your review.');
     // Every request was a GET of the subscribed address, the later ones with the ETag kept.
     expect(fixture.hits.every((hit) => hit.startsWith('GET /rules.json'))).toBe(true);
     expect(fixture.hits.at(-1)).toBe('GET /rules.json "1"');

@@ -4,6 +4,7 @@ import { button, el, iconButton, inlineAlert } from '../library-dom.js';
 import { showToast } from '../toast.js';
 import type { BrowserListEntryView } from './messages.js';
 import { sendRuleCommand as send } from './rule-command.js';
+import type { RulesetAddress } from './ruleset-format.js';
 import { ruleConditions } from './status-ui.js';
 import { subscriptionOriginPattern } from './subscription-fetch.js';
 import type { BrowserSubscriptionEntryView, BrowserSubscriptionView } from './subscription-messages.js';
@@ -78,37 +79,51 @@ function entryRow(entry: Entry, item: BrowserSubscriptionEntryView, parts: Subsc
   return node;
 }
 
+/** One part of the fold: its name on the left, what it holds on the right (stacked when narrow). */
+function aboutPart(label: string, ...content: Node[]): HTMLElement {
+  const part = el('div', undefined, 'automation-sub-section');
+  const value = el('div', undefined, 'automation-sub-value'); value.append(...content);
+  part.append(el('p', label, 'automation-sub-label'), value);
+  return part;
+}
+
+/** A site's current addresses in words: "arxiv.org and its subdomains, export.arxiv.org". */
+function addressWords(address: RulesetAddress): string {
+  const where = `${address.host}${address.pathPrefix ?? ''}`;
+  return address.scope === 'domain' ? t('automation_subExceptionDomain', '$1 and its subdomains', where) : where;
+}
+
 /** What it leaves alone here, where it comes from, and its collection with each site's history. */
 function about(entry: Entry): HTMLElement {
   const view = entry.subscription!, detail = entry.detail;
-  const box = el('details', undefined, 'automation-sub-about');
+  const box = el('details', undefined, 'disclosure automation-sub-about');
   box.append(el('summary', t('automation_subAbout', 'Source, sites left alone and history')));
-  const source = el('div', undefined, 'automation-sub-section');
+  const panel = el('div', undefined, 'automation-sub-panel');
+  box.append(panel);
   // Provenance only: where it came from, never a claim that it is right or safe (RS-12.5).
   const scheme = view.url.startsWith('https:') ? 'HTTPS' : 'HTTP';
-  source.append(el('p', t('automation_subFetchedFrom', 'Fetched from $1 over $2', siteOf(view.origin), scheme), 'detail'));
+  const source: Node[] = [el('p', t('automation_subFetchedFrom', 'Fetched from $1 over $2', siteOf(view.origin), scheme), 'detail')];
   const facts = [view.publisher ? t('automation_subPublisher', 'Published by $1', view.publisher.name) : '', view.license ? t('automation_subLicense', 'Licence: $1', view.license) : '',
     view.fetchedAt ? t('automation_subFetchedAt', 'This version arrived $1', relativeText(view.fetchedAt)) : '',
     view.previousVersion ? t('automation_subPrevious', 'Previous version: $1', view.previousVersion) : ''].filter(Boolean);
-  if (facts.length) source.append(el('p', facts.join(' · '), 'list-row-meta'));
+  if (facts.length) source.push(el('p', facts.join(' · '), 'list-row-meta'));
   if (view.publisher?.feedbackUrl) {
-    const link = el('a', t('automation_subFeedback', 'Tell the publisher about a problem'), 'btn btn-ghost btn-sm');
+    const link = el('a', undefined, 'automation-sub-link');
     link.href = view.publisher.feedbackUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
-    source.append(link);
+    link.append(el('span', t('automation_subFeedback', 'Tell the publisher about a problem')), createIcon('arrow-up-right', 12));
+    source.push(link);
   }
-  box.append(source);
+  panel.append(aboutPart(t('automation_subSource', 'Source'), ...source));
   if (!detail) return box;
   if (detail.goneSettings) {
     const clear = button(t('automation_subClearGone', 'Clear'), 'btn btn-secondary btn-sm', () => {
       clear.disabled = true;
       void send({ kind: 'known.automation.browser.subscription.adjust', id: entry.id, change: { kind: 'clearGone' } }).then((reply) => { clear.disabled = false; if (!reply.ok) failed(); });
     });
-    box.append(inlineAlert('info', tn('automation_subGone', detail.goneSettings, '$1 setting for an entry no longer in this subscription. It applies again if the entry comes back.',
+    panel.append(inlineAlert('info', tn('automation_subGone', detail.goneSettings, '$1 setting for an entry no longer in this subscription. It applies again if the entry comes back.',
       '$1 settings for entries no longer in this subscription. They apply again if the entries come back.'), clear));
   }
   // Sites this subscription leaves alone; a rule of yours or another set can still take them (RS-05.3).
-  const alone = el('div', undefined, 'automation-sub-section');
-  alone.append(el('p', t('automation_subLeftAlone', 'Sites it leaves alone here'), 'form-label'));
   const chips = el('ul', undefined, 'automation-sub-exceptions');
   for (const exception of detail.exceptions) {
     const chip = el('li', exception.scope === 'domain' ? t('automation_subExceptionDomain', '$1 and its subdomains', exception.value) : exception.value, 'badge');
@@ -118,7 +133,7 @@ function about(entry: Entry): HTMLElement {
     }, 'btn btn-ghost btn-sm btn-icon'));
     chips.append(chip);
   }
-  if (!detail.exceptions.length) alone.append(el('p', t('automation_subLeftAloneNone', 'None. Add a site its entries shouldn’t file, for this subscription only.'), 'list-row-meta'));
+  const none = detail.exceptions.length ? [] : [el('p', t('automation_subLeftAloneNone', 'None. Add a site its entries shouldn’t file, for this subscription only.'), 'list-row-meta')];
   const form = el('form', undefined, 'automation-sub-exception-form'); form.noValidate = true;
   const input = el('input', undefined, 'field-quiet'); input.type = 'text'; input.placeholder = 'example.org'; input.autocomplete = 'off'; input.spellcheck = false;
   input.setAttribute('aria-label', t('automation_subExceptionSite', 'Site to leave alone'));
@@ -142,26 +157,24 @@ function about(entry: Entry): HTMLElement {
           : t('automation_listSaveFailed', 'Couldn’t change the list. Try again.'), 'error', { announce: true });
       });
   });
-  alone.append(chips, form);
-  box.append(alone);
+  panel.append(aboutPart(t('automation_subLeftAlone', 'Sites it leaves alone here'), chips, ...none, form));
   if (detail.sites.length) {
-    const sites = el('div', undefined, 'automation-sub-section');
-    sites.append(el('p', tn('automation_subSites', detail.sites.length, 'Its collection: $1 site', 'Its collection: $1 sites'), 'form-label'));
     const list = el('ul', undefined, 'automation-sub-sites');
     for (const site of detail.sites) {
       const item = el('li');
-      const live = site.addresses.filter((address) => address.status !== 'revoked').map((address) => `${address.host}${address.pathPrefix ?? ''}${address.scope === 'domain' ? ' *' : ''}`);
-      item.append(el('span', site.name, 'automation-sub-site'), el('span', live.join(', ') || t('automation_subSiteRetired', 'no current address'), 'list-row-meta'));
+      const live = site.addresses.filter((address) => address.status !== 'revoked').map(addressWords);
+      const where = el('div', undefined, 'automation-sub-site-where');
+      where.append(el('span', live.join(', ') || t('automation_subSiteRetired', 'no current address'), 'list-row-meta'));
       const history = site.addresses.filter((address) => address.status !== 'current');
       if (history.length) {
-        item.append(el('span', history.map((address) => address.status === 'revoked'
+        where.append(el('span', history.map((address) => address.status === 'revoked'
           ? t('automation_subRevoked', '$1 retired $2', address.host, address.until ?? '') : t('automation_subHistorical', '$1 earlier address, still matched', address.host)).join(' · '),
         'list-row-meta automation-sub-history'));
       }
+      item.append(el('span', site.name, 'automation-sub-site'), where);
       list.append(item);
     }
-    sites.append(list);
-    box.append(sites);
+    panel.append(aboutPart(tn('automation_subSites', detail.sites.length, 'Its collection: $1 site', 'Its collection: $1 sites'), list));
   }
   return box;
 }
@@ -177,16 +190,6 @@ export function subscriptionBlock(entry: Entry, parts: SubscriptionParts): HTMLL
   const filing = detail?.entries.filter((item) => item.role !== null) ?? [];
   main.append(el('p', view?.name ?? t('automation_subscription', 'Subscribed rule set'), 'list-row-title'),
     el('p', view ? statusLine(view, filing.length) : t('automation_subUnreadable', 'This browser can’t read this subscription, so it files nothing.'), 'list-row-meta'));
-  // A waiting version, and why it waits (RS-12.3); pinned, it is not pressed on the Owner (§8 Policy).
-  if (view?.candidateVersion && view.candidateWaits !== 'pinned') {
-    const waiting = el('div', undefined, 'automation-sub-waiting');
-    const why = view.candidateWaits === 'roles' ? t('automation_subWaitsRoles', 'Version $1 waits for your review: it changes the kinds of page it files.', view.candidateVersion)
-      : view.candidateWaits === 'document' ? t('automation_subWaitsDocument', 'Version $1 waits for your review: it is a different rule set.', view.candidateVersion)
-        : t('automation_subUpdateWaiting', 'Version $1 is waiting for your review.', view.candidateVersion);
-    const review = button(t('automation_subReview', 'Review update'), 'btn btn-secondary btn-sm', () => openReview(entry, review)); review.dataset.review = '';
-    waiting.append(el('span', why, 'list-row-meta'), review);
-    main.append(waiting);
-  }
   // A failure after the version in force: that version keeps filing (RS-13.1).
   if (view?.state === 'ready' && view.lastFailure && view.lastFailure.at >= (view.lastSuccessAt ?? 0)) {
     main.append(el('p', t('automation_subLastTry', 'Still using version $1. $2', view.currentVersion ?? '', failureText(view) ?? ''), 'list-row-meta automation-recipe-missing'));
@@ -206,12 +209,22 @@ export function subscriptionBlock(entry: Entry, parts: SubscriptionParts): HTMLL
   if (!entry.enabled) tail.append(badge(t('automation_browserOff', 'Off')));
   else if (!view || view.state === 'notReady') tail.append(badge(t('automation_subNotReadyBadge', 'Not ready'), 'warning'));
   else if (view.pinned) tail.append(badge(t('automation_subPinnedBadge', 'Pinned')));
-  else if (view.candidateVersion) tail.append(badge(t('automation_subUpdateBadge', 'Update available')));
+  // A version waiting for review has its own row under this one, with Review update; no badge says it twice.
+  else if (view.candidateVersion && view.candidateWaits === 'pinned') tail.append(badge(t('automation_subUpdateBadge', 'Update available')));
   else if (view.paused) tail.append(badge(t('automation_subPausedBadge', 'Updates paused')));
   head.append(grip, tile, main, tail, parts.toggle(t('automation_subscriptionUse', 'Use this subscription'), entry.enabled,
     async (enabled) => (await send({ kind: 'known.automation.browser.enable', id: entry.id, enabled, entry: 'subscription' })).ok));
   parts.drag(head);
   node.append(head);
+  // A waiting version, and why it waits (RS-12.3); pinned, it is not pressed on the Owner (§8 Policy).
+  if (view?.candidateVersion && view.candidateWaits !== 'pinned') {
+    const why = view.candidateWaits === 'roles' ? t('automation_subWaitsRoles', 'Version $1 waits for your review: it changes the kinds of page it files.', view.candidateVersion)
+      : view.candidateWaits === 'document' ? t('automation_subWaitsDocument', 'Version $1 waits for your review: it is a different rule set.', view.candidateVersion)
+        : t('automation_subUpdateWaiting', 'Version $1 is waiting for your review.', view.candidateVersion);
+    const review = button(t('automation_subReview', 'Review update'), 'btn btn-secondary btn-sm', () => openReview(entry, review)); review.dataset.review = '';
+    const waiting = inlineAlert('info', why, review); waiting.classList.add('automation-sub-waiting');
+    node.append(waiting);
+  }
   if (view?.lastFailure?.code === 'permission') {
     node.append(inlineAlert('warning', t('automation_subAllowHint', 'Allow this browser to read $1, then it fetches the rule set.', siteOf(view.origin)),
       button(t('automation_subAllow', 'Allow and fetch'), 'btn btn-secondary btn-sm', () => refreshNow(view))));

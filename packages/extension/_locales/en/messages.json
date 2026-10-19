@@ -2132,6 +2132,9 @@
   "automation_subSites_other": {
     "message": "Its collection: $1 sites"
   },
+  "automation_subSource": {
+    "message": "Source"
+  },
   "automation_subSubscribe": {
     "message": "Subscribe"
   },

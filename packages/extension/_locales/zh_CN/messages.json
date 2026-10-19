@@ -2635,6 +2635,10 @@
     "message": "它的站点集合：$1 个站点",
     "description": "Its collection: $1 sites"
   },
+  "automation_subSource": {
+    "message": "来源",
+    "description": "Source"
+  },
   "automation_subSubscribe": {
     "message": "订阅",
     "description": "Subscribe"

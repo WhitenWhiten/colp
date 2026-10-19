@@ -1600,35 +1600,47 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .rule-set-empty { padding: var(--hair-65) var(--space-4) var(--hair-65) calc(var(--space-4) + var(--space-6)); }
 .rule-set-empty > .list-row-meta { white-space: normal; }
 .rule-set-empty.list-row-meta { margin: 0; white-space: normal; }
-/* A subscription (doc 17 RS-04, RS-05): its source, the sites it leaves alone and its collection's history, folded under its entries. */
-.automation-subscription > .inline-alert { margin: 0; border-radius: 0; border-inline: 0; }
+/* A subscription (doc 17 RS-04, RS-05): a waiting version as a row of its own under the head, then its
+   entries, then one fold for its source, the sites it leaves alone and its collection's history. The fold
+   reads like the web's About panel: each part's name on the left, what it holds on the right. */
+.automation-subscription > .inline-alert { margin: 0; padding-inline: var(--space-4); border-top: 1px solid var(--line); border-radius: 0; border-inline: 0; }
+.automation-subscription > .inline-alert > p { white-space: normal; }
 .automation-sub-about { border-top: 1px solid var(--line); }
 .automation-sub-about > summary { padding: var(--hair-65) var(--space-4) var(--hair-65) calc(var(--space-4) + var(--space-6)); color: var(--muted);
-  font-size: var(--text-xs); line-height: var(--leading-ui); cursor: pointer; }
-.automation-sub-about > summary:hover { color: var(--ink); }
+  font-size: var(--text-xs); line-height: var(--leading-ui); }
 .automation-sub-about[open] > summary { color: var(--ink-2); }
-.automation-sub-about > .inline-alert { margin: 0 var(--space-4) var(--space-3) calc(var(--space-4) + var(--space-6)); }
-.automation-sub-section { display: grid; gap: var(--hair-40); padding: 0 var(--space-4) var(--space-3) calc(var(--space-4) + var(--space-6)); }
-.automation-sub-section > .detail, .automation-sub-section > .list-row-meta, .automation-sub-section > .form-label { margin: 0; }
-.automation-sub-section > .detail { color: var(--ink-2); font-size: var(--text-sm); line-height: var(--leading-copy); }
-.automation-sub-section > .list-row-meta { white-space: normal; }
-.automation-sub-section > a.btn { justify-self: start; }
+.automation-sub-panel { display: grid; padding: 0 var(--space-4) var(--hair-30) calc(var(--space-4) + var(--space-6)); }
+.automation-sub-panel > .inline-alert { margin: 0 0 var(--hair-65); }
+.automation-sub-section { display: flex; flex-wrap: wrap; gap: var(--hair-30) var(--space-4); padding: var(--hair-65) 0; border-top: 1px solid var(--line); }
+.automation-sub-label { flex: 0 0 10rem; margin: 0; color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-medium); line-height: var(--leading-body); }
+.automation-sub-value { display: grid; flex: 1 1 18rem; gap: var(--hair-40); justify-items: start; min-width: 0; }
+.automation-sub-value > :is(.detail, .list-row-meta) { margin: 0; white-space: normal; }
+.automation-sub-value > .detail { color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
+.automation-sub-link { display: inline-flex; align-items: center; gap: var(--hair-15); color: var(--ink-2); font-size: var(--text-xs); text-decoration: underline;
+  text-decoration-color: var(--line-heavy); text-underline-offset: 0.2em; }
+.automation-sub-link:hover { color: var(--ink); text-decoration-color: currentColor; }
+.automation-sub-link svg { width: 0.75rem; height: 0.75rem; }
 .automation-sub-exceptions { display: flex; flex-wrap: wrap; gap: var(--hair-40); margin: 0; padding: 0; list-style: none; }
 .automation-sub-exceptions:empty { display: none; }
 .automation-sub-exceptions > .badge { display: inline-flex; align-items: center; gap: var(--hair-15); padding-right: 0; }
 .automation-sub-exceptions > .badge > .btn-icon { width: 1.375rem; height: 1.375rem; min-height: 0; }
-.automation-sub-exception-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hair-55); }
+.automation-sub-exception-form { display: flex; flex-wrap: wrap; align-items: center; justify-self: stretch; gap: var(--hair-55); }
 .automation-sub-exception-form > .field-quiet { flex: 1 1 12rem; width: auto; min-width: 0; }
 .automation-sub-exception-form > .field-select { flex: 0 0 auto; width: auto; }
+/* A subscription's entries keep their upstream order, so they have no grip: one column less, and the tile
+   stands where a set's rules have theirs, after the grip's place. */
+.automation-subscription .rule-set-rules .automation-browser-rule { grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding-left: calc(var(--space-4) + var(--space-6) + 0.875rem + var(--space-3)); }
 /* A subscription's state is said in full: its version, when it was checked, and why it is not ready. */
 .automation-subscription > .rule-set-head .list-row-meta { white-space: normal; }
-.automation-sub-sites { display: grid; gap: var(--hair-40); margin: 0; padding: 0; list-style: none; }
-.automation-sub-sites > li { display: grid; gap: var(--hair-15); }
-.automation-sub-site { color: var(--ink); font-size: var(--text-sm); line-height: var(--leading-ui); }
-.automation-sub-sites .list-row-meta { margin: 0; white-space: normal; }
+/* Its collection: one line per site, its name and where it lives now, its earlier addresses under them. */
+.automation-sub-sites { display: grid; justify-self: stretch; margin: 0; padding: 0; list-style: none; }
+.automation-sub-sites > li { display: grid; grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr); gap: var(--hair-15) var(--space-3); padding: var(--hair-30) 0; }
+.automation-sub-sites > li + li { border-top: 1px dashed var(--line); }
+.automation-sub-site { color: var(--ink); font-size: var(--text-xs); font-weight: var(--weight-medium); line-height: var(--leading-body); overflow-wrap: anywhere; }
+.automation-sub-site-where { display: grid; gap: var(--hair-15); min-width: 0; }
+.automation-sub-sites .list-row-meta { margin: 0; white-space: normal; overflow-wrap: anywhere; }
 .automation-sub-history { color: var(--muted); }
-.automation-sub-waiting { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hair-30) var(--space-2); margin-top: var(--hair-40); }
-.automation-sub-waiting > .list-row-meta { margin: 0; white-space: normal; }
 .automation-sub-section-inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .automation-sub-section-inline > .mgr-hint { margin: 0; }
 .automation-review-group { display: grid; gap: var(--hair-30); }

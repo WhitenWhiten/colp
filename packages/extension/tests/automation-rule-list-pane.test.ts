@@ -444,7 +444,9 @@ describe('a subscription in the list (doc 17 RW-13, RS-04, RS-05, RS-10)', () =>
     const body = await render(view([one(rule('a')), subscription()]));
     expect(text(row('sub'))).toContain('Community');
     expect(text(row('sub').querySelector('.list-row-meta'))).toBe('2 entries · version 3 · checked 1 minute ago');
-    expect(text(row('sub').querySelector('.badge'))).toBe('Update available');
+    // The waiting version is said once, in its own row under the head with Review update, not as a badge too.
+    expect(row('sub').querySelector('.badge')).toBeNull();
+    expect(text(document.querySelector('[data-entry-id="sub"] > .automation-sub-waiting'))).toBe('Version 4 is waiting for your review.Review update');
     expect(Array.from(body.querySelectorAll('[data-entry-id="sub"] .rule-set-rules > li')).map((item) => (item as HTMLElement).dataset.entryId ?? text(item)))
       .toEqual(['sub:e-arxiv', 'sub:e-gh', '1 more entry only names a site, for rules of yours.']);
     expect(text(row('sub:e-arxiv').querySelector('.automation-recipe'))).toBe('From any address of arXivPapers');
