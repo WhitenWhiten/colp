@@ -315,6 +315,7 @@ export function registerProductSurfaces(
       rateLimiter: resolveProductRouteRateLimiter('favicon-policy', faviconPolicyRateLimiter, defaultProductRouteBudget),
       timeoutMs: config.faviconPolicy.timeoutMs,
       productOrigin: config.productOrigin,
+      retentionSeconds: config.faviconPolicy.historyRetentionSeconds,
     });
     registerFaviconJobRoutes(app, {
       enabled: config.faviconPolicy.enabled, allowedOrigins: config.allowedOrigins,

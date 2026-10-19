@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { uploadBookmarkFavicon, type BookmarkFaviconCommandPorts } from '../../../src/modules/collections/application/bookmark-favicon-command.js';
+import {
+  deleteBookmarkFavicon,
+  uploadBookmarkFavicon,
+  type BookmarkFaviconCommandPorts,
+} from '../../../src/modules/collections/application/bookmark-favicon-command.js';
 
 const NOW = new Date('2026-09-17T00:00:00.000Z');
 const BODY = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
@@ -12,6 +16,7 @@ function commandPorts(overrides: {
   deleteFails?: boolean;
   withPrevious?: boolean;
   boundBeforeFailure?: boolean;
+  retentionSeconds?: number;
 } = {}) {
   const trace = {
     puts: 0,
@@ -57,6 +62,23 @@ function commandPorts(overrides: {
         // rolling the fresh binding back after the retirement throws.
         if (overrides.retireFailsFor === undefined) bound.set(row.nodeId, row.objectId);
       },
+      findObjectIdsByNodeIds: async (nodeIds: readonly string[]) => {
+        const result = new Map<string, string>();
+        for (const nodeId of nodeIds) {
+          const objectId = bound.get(nodeId);
+          if (objectId !== undefined) result.set(nodeId, objectId);
+        }
+        return result;
+      },
+      deleteByNodeId: async (nodeId: string) => {
+        const objectId = bound.get(nodeId);
+        if (objectId === undefined) return null;
+        bound.delete(nodeId);
+        return {
+          nodeId, collectionId: 'collection-1', objectId, contentType: 'image/png',
+          byteSize: 10, digestSha256: Buffer.alloc(32), createdAt: NOW, updatedAt: NOW,
+        };
+      },
     },
     faviconSources: {
       setMode: async () => undefined,
@@ -65,6 +87,9 @@ function commandPorts(overrides: {
       put: async (objectId: string, body: Buffer, contentType: string) => {
         trace.puts += 1;
         objects.set(objectId, { body, contentType });
+        // A concurrent/crashed run may already have committed this object as
+        // the live binding before the failure surfaced.
+        if (overrides.boundBeforeFailure === true) bound.set('node-1', objectId);
       },
       get: async (objectId: string) => objects.get(objectId) ?? null,
       delete: async (objectId: string) => {
@@ -95,6 +120,7 @@ function commandPorts(overrides: {
       trace.retired.push({ objectId: input.objectId, deletableAt: input.at.getTime() });
     },
     clock: { now: async () => NOW },
+    retentionSeconds: overrides.retentionSeconds ?? 86_400,
   } as unknown as BookmarkFaviconCommandPorts;
   return { ports, trace, objects, bound };
 }
@@ -134,4 +160,63 @@ test('FO-C-02 upload: previous-binding retirement failure ledges the new object'
   const { ports, trace, bound } = commandPorts({ withPrevious: true, retireFailsFor: 'object-previous' });
   await assert.rejects(() => uploadBookmarkFavicon(ports!, uploadInput()), /recordRetired/);
   assert.equal(trace.retired.length, 1, 'new object must be ledged when retirement rolled back');
+});
+
+test('T08 compensation: an upload failure never ledgers an object that is already the live binding', async () => {
+  const { ports, trace, objects, bound } = commandPorts({
+    upsertFailsWith: new Error('db down'),
+    deleteFails: true,
+    boundBeforeFailure: true,
+  });
+  await assert.rejects(() => uploadBookmarkFavicon(ports!, uploadInput()), /db down/);
+  assert.equal(trace.puts, 1);
+  assert.equal(trace.deletes, 1, 'the plain delete is attempted first');
+  assert.equal(trace.retired.length, 0,
+    'the live binding must be protected from the orphan ledger');
+  const live = bound.get('node-1');
+  assert.ok(live !== undefined, 'the crashed run committed the binding');
+  assert.ok(objects.has(live), 'the referenced object must not be deleted');
+});
+
+test('T07 retention: upload uses the explicit command retention, not a process global', async () => {
+  const first = commandPorts({ withPrevious: true, retentionSeconds: 120 });
+  await uploadBookmarkFavicon(first.ports, uploadInput());
+  assert.deepEqual(first.trace.retired, [{
+    objectId: 'object-previous', deletableAt: NOW.getTime() + 120_000,
+  }]);
+
+  const second = commandPorts({ withPrevious: true, retentionSeconds: 600 });
+  await uploadBookmarkFavicon(second.ports, uploadInput());
+  assert.deepEqual(second.trace.retired, [{
+    objectId: 'object-previous', deletableAt: NOW.getTime() + 600_000,
+  }], 'a second command instance keeps its own window');
+  assert.deepEqual(first.trace.retired, [{
+    objectId: 'object-previous', deletableAt: NOW.getTime() + 120_000,
+  }], 'the first instance is unchanged by the second');
+});
+
+test('T07 retention: delete uses its own explicit retention window', async () => {
+  const { ports, trace } = commandPorts({ withPrevious: true, retentionSeconds: 300 });
+  const result = await deleteBookmarkFavicon(ports!, {
+    actor: { principalId: 'principal-1', subjectId: 'subject-1' },
+    commandId: '22222222-2222-4222-8222-222222222222',
+    collectionId: 'collection-1',
+    nodeId: 'node-1',
+    productOrigin: 'https://app.example.test',
+  });
+  assert.equal(result.kind, 'created');
+  assert.deepEqual(trace.retired, [{
+    objectId: 'object-previous', deletableAt: NOW.getTime() + 300_000,
+  }]);
+});
+
+test('T07 retention: a missing command retention fails before any side effect (no 365-day default)', async () => {
+  const { ports, trace } = commandPorts({ withPrevious: true });
+  (ports as unknown as { retentionSeconds?: number }).retentionSeconds = undefined;
+  await assert.rejects(
+    () => uploadBookmarkFavicon(ports!, uploadInput()),
+    /explicit positive favicon retention window/,
+  );
+  assert.equal(trace.puts, 0);
+  assert.equal(trace.retired.length, 0);
 });

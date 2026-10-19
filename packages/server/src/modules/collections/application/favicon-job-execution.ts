@@ -310,9 +310,12 @@ export async function processFaviconRefreshClaim(
   let objectId = claim.objectId;
   if (objectId === null) {
     const allocated = await ports.verify.run(async (tx) => {
-      const job = await tx.jobs.findByJobId(claim.jobId);
-      if (job === null) return null;
-      // FO-08: never allocate a fresh object id for a re-claimed lease.
+      // FO-08/T06: the write is fenced by the job-row lock + lease owner, not
+      // by a plain read. A takeover between the read and setObjectId would
+      // otherwise let this stale claim persist an object id the new owner
+      // never saw.
+      const job = await tx.jobs.lockByJobId(claim.jobId);
+      if (job === null || (job.status !== 'pending' && job.status !== 'running')) return null;
       if (job.leaseOwner !== claim.leaseOwner) return null;
       if (job.objectId !== null) return job.objectId;
       const freshId = randomUUID();
@@ -410,11 +413,13 @@ async function applyFaviconRefreshCas(
   now: Date,
   retentionSeconds: number,
 ): Promise<FaviconCasVerdict> {
-  const job = await tx.jobs.findByJobId(claim.jobId);
+  // FO-08/T06: lock the job row before the owner fence + writes, mirroring the
+  // batch CAS. A plain findByJobId fence can pass in this transaction while a
+  // takeover claim updates the row and commits before our binding write lands.
+  // The row lock serializes the takeover with the CAS, so the owner check and
+  // the write see one state (batch `applyBatchCaptureCas` already does this).
+  const job = await tx.jobs.lockByJobId(claim.jobId);
   if (job === null || (job.status !== 'pending' && job.status !== 'running')) return { kind: 'missing' };
-  // FO-08: a re-claimed lease must never let this claim bind its stale object
-  // (verifyFaviconRefreshIdentity below re-checks the same fence inside the
-  // CAS transaction; this early check just avoids the allocation path).
   if (job.leaseOwner !== claim.leaseOwner) return { kind: 'missing' };
   const identity = await verifyFaviconRefreshIdentity(tx, claim);
   if (identity.kind !== 'ready') return identity;
@@ -476,27 +481,31 @@ async function applyFaviconRefreshCas(
 }
 
 /**
- * The GC retention window (FAVICON_HISTORY_RETENTION_SECONDS).
+ * F-A7/T07: explicit favicon GC retention configuration.
  *
- * F-A7: this module-level value is NO LONGER read by the worker CAS paths —
- * `FaviconRefreshExecutionPorts`/`FaviconBatchExecutionPorts` carry
- * `options.retentionSeconds` and the CAS functions thread it through, so each
- * worker uses its own configured window (a process-global set by every worker
- * constructor was untestable and drifted between workers). The global remains
- * ONLY as a mirror of config for the non-worker command paths that build
- * retention records without an execution-ports object (favicon-icon-source.ts,
- * bookmark-favicon-command.ts, favicon-helper-capture.ts), which
- * favicon-worker.ts still seeds at worker construction.
+ * There is NO process-global retention value. The worker carries its window in
+ * `FaviconRefreshExecutionPorts`/`FaviconBatchExecutionPorts`
+ * (`options.retentionSeconds`), and every non-worker command path (upload,
+ * delete, helper capture/clear, source mode switch) receives its own explicit
+ * `retentionSeconds` through its ports. A missing or malformed value fails
+ * loudly instead of silently substituting the old implicit 365-day window, so
+ * an API process can never inherit a worker's window (or vice versa).
  */
-let activeRetentionSeconds = 31_536_000;
-export function setFaviconRetentionSeconds(seconds: number): void {
-  if (!Number.isSafeInteger(seconds) || seconds < 1) {
-    throw new TypeError('favicon retention seconds must be a positive integer');
+export class FaviconRetentionConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FaviconRetentionConfigError';
   }
-  activeRetentionSeconds = seconds;
 }
-export function faviconRetentionSeconds(): number {
-  return activeRetentionSeconds;
+
+export function requireFaviconRetentionSeconds(value: unknown, origin: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new FaviconRetentionConfigError(
+      `${origin} requires an explicit positive favicon retention window (retentionSeconds); `
+        + 'there is no implicit default.',
+    );
+  }
+  return value;
 }
 
 async function markFaviconJobFailed(
@@ -590,13 +599,19 @@ export function isFaviconGcActionable(
 /** GC retries use a conservative attempt cap; a still-referenced object is never collected. */
 export const FAVICON_GC_MAX_ATTEMPTS = 10;
 
+/**
+ * GC retry schedule. `attempts` is the 1-based count of failed attempts (the
+ * same convention as `nextFaviconAttemptAt`): the first retry uses
+ * `backoffSeconds[0]`. The old `attempts`-indexed version skipped a step for
+ * every GC record (first retry jumped straight to the second entry).
+ */
 export function nextFaviconGcAttemptAt(
   attempts: number,
   backoffSeconds: readonly number[],
   now: Date,
 ): Date {
   if (backoffSeconds.length === 0) return new Date(now.getTime() + 60_000);
-  const index = Math.min(Math.max(attempts, 0), backoffSeconds.length - 1);
+  const index = Math.min(Math.max(attempts - 1, 0), backoffSeconds.length - 1);
   const delaySeconds = backoffSeconds[index] ?? backoffSeconds[backoffSeconds.length - 1] ?? 60;
   return new Date(now.getTime() + Math.max(delaySeconds, 1) * 1_000);
 }

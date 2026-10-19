@@ -341,8 +341,11 @@ test('GC eligibility: only past-window records are actionable', () => {
   assert.equal(isFaviconGcActionable({ deletableAt: past }, now), true);
   assert.equal(isFaviconGcActionable({ deletableAt: future }, now), false);
   assert.equal(FAVICON_GC_MAX_ATTEMPTS, 10);
-  assert.equal(nextFaviconGcAttemptAt(0, [1, 2, 4, 8, 16], now).getTime(), now.getTime() + 1_000);
-  assert.equal(nextFaviconGcAttemptAt(4, [1, 2, 4, 8, 16], now).getTime(), now.getTime() + 16_000);
+  // T08: attempts is 1-based, exactly like nextFaviconAttemptAt — the first
+  // retry must use the first backoff entry (the old attempts-indexed code
+  // skipped one step for every GC record).
+  assert.equal(nextFaviconGcAttemptAt(1, [1, 2, 4, 8, 16], now).getTime(), now.getTime() + 1_000);
+  assert.equal(nextFaviconGcAttemptAt(5, [1, 2, 4, 8, 16], now).getTime(), now.getTime() + 16_000);
 });
 
 test('GC processing: referenced object is never deleted; delete failure schedules retry', async () => {

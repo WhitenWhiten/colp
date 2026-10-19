@@ -138,7 +138,7 @@ export async function verifyFaviconBatchItemIdentity(
   // long cycle and be re-claimed by another worker; every verify/CAS must then
   // release this claim so two workers never interleave item writes for one
   // job (this is the durable part of the fence — the cycle also renews the
-  // lease up front so the takeover normally never happens).
+  // lease before every item, so the takeover normally never happens).
   if (job.leaseOwner !== claim.leaseOwner) {
     return { kind: 'job_gone' };
   }
@@ -193,6 +193,39 @@ function claimPolicyRevision(claim: FaviconJobClaim): bigint {
   return parsed >= 1n ? parsed : 0n;
 }
 
+type FencedBatchItemWrite<T> =
+  | { readonly kind: 'written'; readonly value: T }
+  | { readonly kind: 'lease_lost' };
+
+/**
+ * FO-08/T06: every item-row write is fenced by the job-row lock and the exact
+ * lease owner, in the SAME transaction as the write.
+ *
+ * `verifyFaviconBatchItemIdentity` alone is not a write fence: it runs in an
+ * earlier transaction, and a slow fetch can outlive the lease. A second worker
+ * can then re-claim the job and mark the item succeeded/failed while the old
+ * worker's failure/skip/retry write is still in flight. Only the binding CAS
+ * used to hold this lock (`applyBatchCaptureCas`); the non-CAS state writes
+ * (markSkipped/markFailed/scheduleRetry/setObjectId and the force-restore
+ * snapshot delete) could overwrite the new owner's row, or delete a restore
+ * snapshot the new owner still needs. Losing the fence returns `lease_lost`
+ * and the caller stops the cycle without writing.
+ */
+async function runFencedBatchItemWrite<T>(
+  ports: FaviconBatchExecutionPorts,
+  claim: FaviconJobClaim,
+  work: (tx: FaviconBatchCasPorts) => Promise<T>,
+): Promise<FencedBatchItemWrite<T>> {
+  return ports.verify.run(async (tx) => {
+    const job = await tx.jobs.lockByJobId(claim.jobId);
+    if (job === null || (job.status !== 'pending' && job.status !== 'running')) {
+      return { kind: 'lease_lost' as const };
+    }
+    if (job.leaseOwner !== claim.leaseOwner) return { kind: 'lease_lost' as const };
+    return { kind: 'written' as const, value: await work(tx) };
+  });
+}
+
 export type FaviconBatchItemOutcome =
   | 'succeeded'
   | 'skipped'
@@ -213,7 +246,7 @@ export async function processFaviconBatchItem(
   const identity = await ports.verify.run((tx) => verifyFaviconBatchItemIdentity(tx, claim, item));
   if (identity.kind === 'job_gone') return 'job_gone';
   if (identity.kind === 'skipped') {
-    await ports.verify.run(async (tx) => {
+    const written = await runFencedBatchItemWrite(ports, claim, async (tx) => {
       if (claim.operation === 'restore_sources') {
         // A newer source state supersedes the restore; release the GC-protected
         // restore reference so the original object is never leaked.
@@ -221,13 +254,13 @@ export async function processFaviconBatchItem(
       }
       await tx.items.markSkipped(claim.jobId, item.nodeId, ports.now());
     });
-    return 'skipped';
+    return written.kind === 'written' ? 'skipped' : 'job_gone';
   }
   if (identity.kind === 'terminal') {
-    await ports.verify.run((tx) => tx.items.markFailed(
+    const written = await runFencedBatchItemWrite(ports, claim, (tx) => tx.items.markFailed(
       claim.jobId, item.nodeId, item.attempts + 1, identity.reason, ports.now(),
     ));
-    return 'failed';
+    return written.kind === 'written' ? 'failed' : 'job_gone';
   }
   if (claim.operation === 'restore_sources') {
     return await restoreOneItem(ports, claim, item);
@@ -244,15 +277,15 @@ async function captureOneItem(
   const now = ports.now();
   let objectId = item.objectId;
   if (objectId === null) {
-    const allocated = await ports.verify.run(async (tx) => {
+    const allocated = await runFencedBatchItemWrite(ports, claim, async (tx) => {
       const fresh = await tx.items.findByJobAndNode(claim.jobId, item.nodeId);
       if (fresh === null || fresh.objectId !== null) return fresh?.objectId ?? null;
       const id = randomUUID();
       await tx.items.setObjectId(claim.jobId, item.nodeId, id, now);
       return id;
     });
-    if (allocated === null) return 'job_gone';
-    objectId = allocated;
+    if (allocated.kind === 'lease_lost' || allocated.value === null) return 'job_gone';
+    objectId = allocated.value;
   }
   let fetched: FaviconFetchedImage;
   try {
@@ -286,10 +319,10 @@ async function captureOneItem(
   if (cas.kind === 'gone') return 'job_gone';
   if (cas.kind === 'skipped') return 'skipped';
   if (cas.kind === 'terminal') {
-    await ports.verify.run((tx) => tx.items.markFailed(
+    const written = await runFencedBatchItemWrite(ports, claim, (tx) => tx.items.markFailed(
       claim.jobId, item.nodeId, item.attempts + 1, cas.reason, ports.now(),
     ));
-    return 'failed';
+    return written.kind === 'written' ? 'failed' : 'job_gone';
   }
   return 'succeeded';
 }
@@ -420,8 +453,9 @@ async function restoreOneItem(
   // observe finishing nor retry).
   const restoreRow = await ports.verify.run((tx) => tx.restores.findByNodeId(item.nodeId));
   if (restoreRow === null) {
-    await ports.verify.run((tx) => tx.items.markSkipped(claim.jobId, item.nodeId, ports.now()));
-    return 'skipped';
+    const written = await runFencedBatchItemWrite(ports, claim, (tx) =>
+      tx.items.markSkipped(claim.jobId, item.nodeId, ports.now()));
+    return written.kind === 'written' ? 'skipped' : 'job_gone';
   }
   const now = ports.now();
   const applied = await ports.verify.run((tx) => applyRestoreCas(
@@ -431,12 +465,14 @@ async function restoreOneItem(
   if (applied.kind === 'skipped') return 'skipped';
   if (applied.kind === 'terminal') {
     // The node's state no longer matches the force window; drop the stale
-    // restore record so it never fights the user's newer intent.
-    await ports.verify.run(async (tx) => {
+    // restore record so it never fights the user's newer intent. The delete and
+    // the failed mark are fenced: a worker that lost the lease must not delete
+    // the restore snapshot the new owner may still restore from.
+    const written = await runFencedBatchItemWrite(ports, claim, async (tx) => {
       await tx.restores.deleteByNodeId(item.nodeId);
       await tx.items.markFailed(claim.jobId, item.nodeId, item.attempts + 1, applied.reason, ports.now());
     });
-    return 'failed';
+    return written.kind === 'written' ? 'failed' : 'job_gone';
   }
   return 'succeeded';
 }
@@ -493,22 +529,23 @@ async function handleBatchItemFailure(
   error: unknown,
 ): Promise<FaviconBatchItemOutcome> {
   if (error instanceof FaviconFetchDeferred) {
-    await ports.verify.run((tx) => tx.items.scheduleRetry(
+    const written = await runFencedBatchItemWrite(ports, claim, (tx) => tx.items.scheduleRetry(
       claim.jobId, item.nodeId, item.attempts, error.retryAt, 'fetch_failed', ports.now(),
     ));
-    return 'retry_scheduled';
+    return written.kind === 'written' ? 'retry_scheduled' : 'job_gone';
   }
   const reason = classifyBatchItemFailure(error);
   const attempts = item.attempts + 1;
   if (isFaviconTerminalReason(reason) || attempts >= ports.options.maxAttempts) {
-    await ports.verify.run((tx) => tx.items.markFailed(claim.jobId, item.nodeId, attempts, reason, ports.now()));
-    return 'failed';
+    const written = await runFencedBatchItemWrite(ports, claim, (tx) =>
+      tx.items.markFailed(claim.jobId, item.nodeId, attempts, reason, ports.now()));
+    return written.kind === 'written' ? 'failed' : 'job_gone';
   }
   const nextAttemptAt = nextBatchItemAttemptAt(attempts, ports.options.backoffSeconds, ports.now());
-  await ports.verify.run((tx) => tx.items.scheduleRetry(
+  const written = await runFencedBatchItemWrite(ports, claim, (tx) => tx.items.scheduleRetry(
     claim.jobId, item.nodeId, attempts, nextAttemptAt, reason, ports.now(),
   ));
-  return 'retry_scheduled';
+  return written.kind === 'written' ? 'retry_scheduled' : 'job_gone';
 }
 
 function classifyBatchItemFailure(error: unknown): FaviconJobErrorReason {
@@ -538,16 +575,6 @@ export async function processFaviconBatchClaim(
   const batchSize = ports.options.batchSize;
   let processed = 0;
   while (processed < batchSize) {
-    // Re-arm the job lease before selecting another bounded page. A cycle
-    // may span several pages; renewal keeps the claim
-    // exclusive. A failed renew means another worker re-claimed the job —
-    // abort the cycle before its next item write.
-    const renewed = await ports.worker.renewLease({
-      jobId: claim.jobId,
-      leaseOwner: claim.leaseOwner,
-      leaseDurationMs: ports.options.leaseDurationMs,
-    });
-    if (!renewed) return { jobId: claim.jobId, outcome: 'lease_lost' };
     const due = await ports.verify.run((tx) => tx.items.listDueItems({
       jobId: claim.jobId,
       limit: batchSize - processed,
@@ -555,6 +582,18 @@ export async function processFaviconBatchClaim(
     }));
     if (due.length === 0) break;
     for (const item of due) {
+      // FO-08/T06: re-arm the job lease before EVERY item, not once per page.
+      // A page holds up to batchSize serial fetches (default 100 x 10s fetch
+      // budget) and easily outlives the 60s lease, which would let a second
+      // worker re-claim the job mid-page. The renewal is the normal path; the
+      // per-write job-row lock + owner fence above is the durable guard for the
+      // unavoidable race (event-loop stall, store PUT beyond the lease).
+      const renewed = await ports.worker.renewLease({
+        jobId: claim.jobId,
+        leaseOwner: claim.leaseOwner,
+        leaseDurationMs: ports.options.leaseDurationMs,
+      });
+      if (!renewed) return { jobId: claim.jobId, outcome: 'lease_lost' };
       const outcome = await processFaviconBatchItem(ports, claim, item);
       processed += 1;
       if (outcome === 'job_gone') return { jobId: claim.jobId, outcome: 'lease_lost' };

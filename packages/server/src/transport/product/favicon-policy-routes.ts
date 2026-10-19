@@ -54,6 +54,8 @@ export interface FaviconPolicyRouteDependencies {
   readonly rateLimiter: ProductAdmissionRateLimiter;
   readonly timeoutMs: number;
   readonly productOrigin: string;
+  /** Explicit GC retention for the source command in this route composition. */
+  readonly retentionSeconds: number;
 }
 
 type SourcePorts = CollectionsWritePorts & {
@@ -113,7 +115,7 @@ function sourceQueryPorts(ports: SourcePorts): GetBookmarkFaviconSourcePorts {
   };
 }
 
-function sourceCommandPorts(ports: SourcePorts): SetBookmarkFaviconSourcePorts {
+function sourceCommandPorts(ports: SourcePorts, retentionSeconds: number): SetBookmarkFaviconSourcePorts {
   return {
     receipts: ports.receipts,
     clock: ports.clock,
@@ -124,6 +126,7 @@ function sourceCommandPorts(ports: SourcePorts): SetBookmarkFaviconSourcePorts {
     policies: ports.faviconPolicies,
     bookmarkIcons: ports.bookmarkIcons,
     gc: ports.faviconGc,
+    retentionSeconds,
     jobs: ports.faviconJobsRead,
     collectionMembers: ports.faviconSourceMembership,
     // F-A8: pending force-restore lookup drives the restorable projection.
@@ -305,7 +308,7 @@ export function registerFaviconPolicyRoutes(
       const outcome = await withCancellation(request, deps.timeoutMs, (signal) =>
         deps.collectionsUnitOfWork.execute((ports) => {
           requireSourcePorts(ports);
-          return setBookmarkFaviconSource(sourceCommandPorts(ports), {
+          return setBookmarkFaviconSource(sourceCommandPorts(ports, deps.retentionSeconds), {
             actor: { principalId: account.id, subjectId: account.subjectId },
             commandId,
             expectedEtag: ifMatch,

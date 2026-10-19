@@ -67,6 +67,8 @@ export interface SyncFaviconHelperRouteDependencies {
    */
   readonly rateLimiter?: ProductAdmissionRateLimiter;
   readonly timeoutMs: number;
+  /** Explicit GC retention for the helper capture/clear commands. */
+  readonly retentionSeconds: number;
   readonly metrics?: { increment(name: string, value?: number): void };
   readonly transportSecurity?: SyncTransportSecurity;
 }
@@ -292,6 +294,7 @@ function capturePorts(
     bookmarkIcons: ports.bookmarkIcons,
     faviconStore: context?.store ?? deps.faviconStore!,
     gc: ports.faviconGc,
+    retentionSeconds: deps.retentionSeconds,
     onOrphanCleanupFailure: () => deps.metrics?.increment('favicon_helper.r2_delete.failed'),
     orphanLedger: context?.orphanLedger ?? (async () => {}),
   };

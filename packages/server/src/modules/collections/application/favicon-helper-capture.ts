@@ -40,7 +40,7 @@ import type {
   NodeWritePort,
 } from './ports.js';
 import type { FaviconGcWritePort } from './favicon-job.js';
-import { faviconRetentionSeconds } from './favicon-job-execution.js';
+import { requireFaviconRetentionSeconds } from './favicon-job-execution.js';
 import { CollectionPreconditionError } from '../domain/index.js';
 
 export const FAVICON_HELPER_CAPTURE_CONTRACT_VERSION = '1.0.0';
@@ -84,6 +84,11 @@ export interface FaviconHelperCapturePorts {
   readonly faviconStore: BookmarkFaviconObjectStore;
   /** Durable retirement of the displaced object (retention window). */
   readonly gc: Pick<FaviconGcWritePort, 'recordRetired'>;
+  /**
+   * F-A7: explicit GC retention for the helper capture/clear commands.
+   * Required — never read a worker-seeded process global.
+   */
+  readonly retentionSeconds: number;
   /**
    * Schedule retirement after the command transaction releases its connection,
    * using the same contract as bookmark-favicon-command.orphanLedger.
@@ -147,6 +152,8 @@ export async function captureBookmarkFavicon(
   ports: FaviconHelperCapturePorts,
   input: FaviconHelperCaptureInput,
 ): Promise<FaviconHelperCommandResult> {
+  // F-A7: this command's own retention, resolved before receipt/If-Match work.
+  const retentionSeconds = requireFaviconRetentionSeconds(ports.retentionSeconds, 'captureBookmarkFavicon');
   let commandId: string;
   try {
     commandId = assertCanonicalCommandId(input.commandId);
@@ -265,7 +272,7 @@ export async function captureBookmarkFavicon(
         nodeId: previous.nodeId,
         collectionId: previous.collectionId,
         retiredAt: now,
-        deletableAt: new Date(now.getTime() + faviconRetentionSeconds() * 1_000),
+        deletableAt: new Date(now.getTime() + retentionSeconds * 1_000),
       });
     } catch (error) {
       // FO-C-02: retirement failed; the helper binding may have rolled back
@@ -294,6 +301,7 @@ export async function clearCapturedBookmarkFavicon(
   ports: FaviconHelperCapturePorts,
   input: FaviconHelperClearInput,
 ): Promise<FaviconHelperCommandResult> {
+  const retentionSeconds = requireFaviconRetentionSeconds(ports.retentionSeconds, 'clearCapturedBookmarkFavicon');
   let commandId: string;
   try {
     commandId = assertCanonicalCommandId(input.commandId);
@@ -352,7 +360,7 @@ export async function clearCapturedBookmarkFavicon(
       nodeId: previous.nodeId,
       collectionId: previous.collectionId,
       retiredAt: now,
-      deletableAt: new Date(now.getTime() + faviconRetentionSeconds() * 1_000),
+      deletableAt: new Date(now.getTime() + retentionSeconds * 1_000),
     });
   }
   const written = await ports.sources.update({

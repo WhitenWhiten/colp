@@ -32,7 +32,7 @@ import type {
   FaviconJobReadPort,
 } from './favicon-job.js';
 import type { FaviconSourceRestoreRow } from './favicon-batch-policy.js';
-import { faviconRetentionSeconds } from './favicon-job-execution.js';
+import { requireFaviconRetentionSeconds } from './favicon-job-execution.js';
 import {
   faviconHostnameFromBookmarkUrl,
   resolveFaviconProviderUrl,
@@ -192,6 +192,12 @@ export interface SetBookmarkFaviconSourcePorts {
   readonly bookmarkIcons: Pick<BookmarkIconWritePort, 'findByNodeId' | 'deleteByNodeId'> & Partial<Pick<BookmarkIconWritePort, 'findObjectIdsByNodeIds'>>;
   /** Durable object retirement (retention window), never an immediate delete. */
   readonly gc: Pick<FaviconGcWritePort, 'recordRetired'>;
+  /**
+   * F-A7: this command's own GC retention window. Required — there is no
+   * process-global fallback (the worker's window must never leak into an API
+   * command running in the same process).
+   */
+  readonly retentionSeconds: number;
   /** FO-02 online status projection. */
   readonly jobs?: FaviconJobReadPort;
   /** FO-02 unshared-private directUrl exposure. */
@@ -457,6 +463,12 @@ export async function setBookmarkFaviconSource(
   ports: SetBookmarkFaviconSourcePorts,
   input: SetBookmarkFaviconSourceInput,
 ): Promise<SetBookmarkFaviconSourceResult> {
+  // F-A7: fail before any receipt/binding side effect when the composition did
+  // not give this command an explicit retention window.
+  const retentionSeconds = requireFaviconRetentionSeconds(
+    ports.retentionSeconds,
+    'setBookmarkFaviconSource',
+  );
   let commandId: string;
   try {
     commandId = assertCanonicalCommandId(input.commandId);
@@ -519,7 +531,7 @@ export async function setBookmarkFaviconSource(
       nodeId: previousBinding.nodeId,
       collectionId: previousBinding.collectionId,
       retiredAt: now,
-      deletableAt: new Date(now.getTime() + faviconRetentionSeconds() * 1_000),
+      deletableAt: new Date(now.getTime() + retentionSeconds * 1_000),
     });
   }
 

@@ -11,7 +11,7 @@ import {
   type FaviconGcOutcome,
   type FaviconGcWorkerRepository,
   processFaviconRefreshClaim,
-  setFaviconRetentionSeconds,
+  requireFaviconRetentionSeconds,
   type FaviconExecutionOutcome,
   type FaviconFetcher,
   type FaviconJobClaim,
@@ -102,11 +102,15 @@ export class FaviconJobWorkerLoop {
     if (!Array.isArray(options.options.backoffSeconds) || options.options.backoffSeconds.length === 0) {
       throw new TypeError('favicon retry backoff must be a non-empty numeric schedule');
     }
+    // F-A7: the worker's window is explicit configuration carried by its
+    // execution ports. It is never published into a process global (the command
+    // paths receive their own retention through their own ports). A missing
+    // window fails worker construction clearly.
+    requireFaviconRetentionSeconds(options.options.retentionSeconds, 'FaviconJobWorkerLoop');
     const batchSize = options.batchSize ?? 100;
     if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 1_000) {
       throw new RangeError('FAVICON_JOB_BATCH_SIZE must be an integer between 1 and 1000');
     }
-    setFaviconRetentionSeconds(options.options.retentionSeconds);
     this.executionPorts = {
       verify: options.verify,
       worker: options.repository.worker,

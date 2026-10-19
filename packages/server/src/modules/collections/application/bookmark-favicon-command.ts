@@ -28,7 +28,7 @@ import {
 } from './bookmark-icon-url.js';
 import type { BookmarkIconRow, BookmarkIconWritePort, CollectionWritePort, CollectionsClock, LockedNodeRow, NodeWritePort } from './ports.js';
 import type { FaviconGcWritePort } from './favicon-job.js';
-import { faviconRetentionSeconds } from './favicon-job-execution.js';
+import { requireFaviconRetentionSeconds } from './favicon-job-execution.js';
 import type { BookmarkIconSourceWritePort } from './favicon-icon-source.js';
 
 export const BOOKMARK_FAVICON_COMMAND_CONTRACT_VERSION = '1.0.0';
@@ -71,6 +71,12 @@ export interface BookmarkFaviconCommandPorts {
   readonly faviconStore: BookmarkFaviconObjectStore;
   /** Durable retirement of the displaced object (retention window). */
   readonly faviconGc: Pick<FaviconGcWritePort, 'recordRetired'>;
+  /**
+   * F-A7: explicit GC retention for this command. Required — an API command
+   * must never read a worker-seeded process global (or silently fall back to
+   * an implicit 365-day window).
+   */
+  readonly retentionSeconds: number;
   /** FO-01 source state; the real upload/delete persist uploaded/none here. */
   readonly faviconSources?: Pick<BookmarkIconSourceWritePort, 'setMode'>;
   readonly onOrphanCleanupFailure?: () => void;
@@ -124,6 +130,8 @@ export async function uploadBookmarkFavicon(
   ports: BookmarkFaviconCommandPorts,
   input: UploadBookmarkFaviconInput,
 ): Promise<BookmarkFaviconCommandResult> {
+  // F-A7: resolve the command's OWN retention before any receipt/binding work.
+  const retentionSeconds = requireFaviconRetentionSeconds(ports.retentionSeconds, 'uploadBookmarkFavicon');
   let commandId: string;
   try {
     commandId = assertCanonicalCommandId(input.commandId);
@@ -207,7 +215,7 @@ export async function uploadBookmarkFavicon(
         nodeId: previous.nodeId,
         collectionId: previous.collectionId,
         retiredAt: now,
-        deletableAt: new Date(now.getTime() + faviconRetentionSeconds() * 1_000),
+        deletableAt: new Date(now.getTime() + retentionSeconds * 1_000),
       });
     } catch (error) {
       // FO-C-02: the retirement failed. The upload binding may have rolled
@@ -227,6 +235,7 @@ export async function deleteBookmarkFavicon(
   ports: BookmarkFaviconCommandPorts,
   input: DeleteBookmarkFaviconInput,
 ): Promise<BookmarkFaviconCommandResult> {
+  const retentionSeconds = requireFaviconRetentionSeconds(ports.retentionSeconds, 'deleteBookmarkFavicon');
   let commandId: string;
   try {
     commandId = assertCanonicalCommandId(input.commandId);
@@ -258,7 +267,7 @@ export async function deleteBookmarkFavicon(
       nodeId: previous.nodeId,
       collectionId: previous.collectionId,
       retiredAt: now,
-      deletableAt: new Date(now.getTime() + faviconRetentionSeconds() * 1_000),
+      deletableAt: new Date(now.getTime() + retentionSeconds * 1_000),
     });
   }
   await ports.faviconSources?.setMode({

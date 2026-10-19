@@ -346,6 +346,7 @@ async function handleProductUpload(
         bookmarkIcons: ports.bookmarkIcons,
         faviconSources: ports.faviconSources,
         faviconGc: ports.faviconGc,
+        retentionSeconds: deps.config.faviconPolicy.historyRetentionSeconds,
         faviconStore: context.store,
         onOrphanCleanupFailure: () => increment(deps.metrics, 'bookmark_favicon.r2_delete.failed'),
         orphanLedger: context.orphanLedger,
@@ -397,6 +398,7 @@ async function handleProductDelete(
         bookmarkIcons: ports.bookmarkIcons,
         faviconSources: ports.faviconSources,
         faviconGc: ports.faviconGc,
+        retentionSeconds: deps.config.faviconPolicy.historyRetentionSeconds,
         faviconStore: writes.faviconStore,
         onOrphanCleanupFailure: () => increment(deps.metrics, 'bookmark_favicon.r2_delete.failed'),
         orphanLedger: async (input) => {

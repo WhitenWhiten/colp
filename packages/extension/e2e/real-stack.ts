@@ -687,6 +687,9 @@ export async function startRealStack(options: {readonly classification?:boolean;
     collectionsUnitOfWork: faviconHelperCollections,
     faviconStore: faviconObjectStore,
     productOrigin: SERVER_ORIGIN,
+    // Explicit test composition: the helper journeys never depend on the GC
+    // window, but the command still requires a positive configured value.
+    retentionSeconds: 31_536_000,
     rateLimiter: createFixedWindowRateLimiter({ maxRequests: 120, windowMs: 60_000 }),
     timeoutMs: 2_000,
   });

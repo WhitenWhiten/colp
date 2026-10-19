@@ -242,6 +242,7 @@ export function registerColpSync(app: FastifyInstance, deps: AppDependencies): v
     ...(deps.collectionsUnitOfWork ? { collectionsUnitOfWork: deps.collectionsUnitOfWork } : {}),
     ...(deps.faviconStore ? { faviconStore: deps.faviconStore } : {}),
     productOrigin: config.productOrigin,
+    retentionSeconds: config.faviconPolicy.historyRetentionSeconds,
     // SYNC-Q-014: never mint a route-local limiter here. Shared mode stays
     // fail-closed (the composition must inject the Redis adapter); without the
     // shared limiter the helper simply runs without local rate limiting, like
