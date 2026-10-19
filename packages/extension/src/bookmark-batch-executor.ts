@@ -1,7 +1,9 @@
 import { digestJson, validateOperation } from './bookmark-event-codec.js';
 import {
-  itemPostDigest, itemPreDigest, previewBatch, toCommitItems, type BatchBookmarkApi, type BatchPreview,
+  itemPostDigest, itemPreDigest, previewBatch, toCommitItems, type BatchBookmarkApi, type BatchChromeNode,
+  type BatchPreview,
 } from './bookmark-batch-plan.js';
+import { lookupBookmark } from './bookmark-api-error.js';
 import { kns09Paused } from './kns-09-release.js';
 import { backupLocalDelete, restoreLocalDelete } from './bookmark-local-delete.js';
 import { assertDeleteSubtree } from './bookmark-batch-delete-boundary.js';
@@ -157,57 +159,21 @@ async function runItem(context: BatchContext, api: BatchBookmarkApi, plan: Batch
     expectedState: item.state, state: 'executing', now: now(),
   });
   try {
-    const live = await readNode(api, item.nativeId);
-    if (live && !matchesBatchInput(live, item, items, plan.kind)) {
-      return context.journal.settleBatchItem({
-        planId: plan.planId, itemId: item.itemId, expectedCasVersion: started.casVersion,
-        expectedState: 'executing', state: 'changed', now: now(), error: 'changed',
-      });
+    const read = await readNode(api, item.nativeId);
+    if (read.state === 'failed') {
+      return settleItem(context, plan, item, started, now, 'failed', read.code);
+    }
+    if (read.state === 'present' && !matchesBatchInput(read.node, item, items, plan.kind)) {
+      return settleItem(context, plan, item, started, now, 'changed', 'changed');
     }
     if (plan.kind === 'delete') {
-      if (!live) {
-        return context.journal.settleBatchItem({
-          planId: plan.planId, itemId: item.itemId, expectedCasVersion: started.casVersion,
-          expectedState: 'executing', state: 'applied', now: now(),
-          postDigest: itemPostDigest({ nativeId: item.nativeId, title: item.title, url: item.url,
-            parentId: item.parentNativeId, index: item.index, kind: item.nodeKind, deleted: true }),
-        });
-      }
-      if (!item.colpId) await backupLocalDelete(api, item, now());
-      if (item.nodeKind === 'folder') await assertDeleteSubtree(api, item.nativeId, item.subtreeDigest);
-      const beforeDelete = await readNode(api, item.nativeId);
-      if (!beforeDelete || !matchesBatchInput(beforeDelete, item, items, plan.kind)) throw new Error('changed');
-      if (item.nodeKind === 'folder') await api.removeTree(item.nativeId); else await api.remove(item.nativeId);
-      return context.journal.settleBatchItem({
-        planId: plan.planId, itemId: item.itemId, expectedCasVersion: started.casVersion,
-        expectedState: 'executing', state: 'applied', now: now(),
-        postIndex: live.index ?? 0,
-        postDigest: itemPostDigest({ nativeId: item.nativeId, title: item.title, url: item.url,
-          parentId: item.parentNativeId, index: item.index, kind: item.nodeKind, deleted: true }),
-      });
+      // Only a verified Chromium not_found proves the target was already gone.
+      if (read.state === 'not_found') return settleDeleted(context, plan, item, started, now);
+      return await runDeleteItem(context, api, plan, item, items, started, read.node, now);
     }
-    if (!live) {
-      return context.journal.settleBatchItem({
-        planId: plan.planId, itemId: item.itemId, expectedCasVersion: started.casVersion,
-        expectedState: 'executing', state: 'failed', now: now(), error: 'missing',
-      });
-    }
-    if (plan.kind === 'rename') {
-      const next = await api.update(item.nativeId, { title: item.newTitle ?? item.title });
-      return context.journal.settleBatchItem({
-        planId: plan.planId, itemId: item.itemId, expectedCasVersion: started.casVersion,
-        expectedState: 'executing', state: 'applied', now: now(), postDigest: itemPreDigest(next), postIndex: next.index ?? 0,
-      });
-    }
-    const parentId = item.targetParentNativeId ?? live.parentId;
-    if (!parentId) throw new Error('move_target_required');
-    const next = await api.move(item.nativeId, {
-      parentId, ...(item.targetIndex === undefined ? {} : { index: batchTargetIndex(items) }),
-    });
-    return context.journal.settleBatchItem({
-      planId: plan.planId, itemId: item.itemId, expectedCasVersion: started.casVersion,
-      expectedState: 'executing', state: 'applied', now: now(), postDigest: itemPreDigest(next), postIndex: next.index ?? 0,
-    });
+    if (read.state === 'not_found') return settleItem(context, plan, item, started, now, 'failed', 'missing');
+    if (plan.kind === 'rename') return await runRenameItem(context, api, plan, item, started, now);
+    return await runMoveItem(context, api, plan, item, items, started, read.node, now);
   } catch (error) {
     const code = error instanceof Error && /^[a-z][a-z0-9_]{0,63}$/u.test(error.message) ? error.message
       : 'chrome_mutation_failed';
@@ -216,6 +182,59 @@ async function runItem(context: BatchContext, api: BatchBookmarkApi, plan: Batch
       expectedState: 'executing', state: code === 'changed' ? 'changed' : 'failed', now: now(), error: code,
     }).catch(() => undefined);
   }
+}
+
+async function runDeleteItem(context: BatchContext, api: BatchBookmarkApi, plan: BatchPlanRecord,
+  item: BatchItemRecord, items: readonly BatchItemRecord[], started: BatchItemRecord,
+  live: BatchChromeNode, now: () => number): Promise<BatchItemRecord> {
+  if (!item.colpId) await backupLocalDelete(api, item, now());
+  if (item.nodeKind === 'folder') await assertDeleteSubtree(api, item.nativeId, item.subtreeDigest);
+  const beforeRead = await readNode(api, item.nativeId);
+  if (beforeRead.state === 'failed') throw new Error(beforeRead.code);
+  const beforeDelete = beforeRead.state === 'present' ? beforeRead.node : undefined;
+  if (!beforeDelete || !matchesBatchInput(beforeDelete, item, items, plan.kind)) throw new Error('changed');
+  if (item.nodeKind === 'folder') await api.removeTree(item.nativeId); else await api.remove(item.nativeId);
+  return settleItem(context, plan, item, started, now, 'applied', undefined,
+    live.index ?? 0, deletedPostDigest(item));
+}
+
+async function runRenameItem(context: BatchContext, api: BatchBookmarkApi, plan: BatchPlanRecord,
+  item: BatchItemRecord, started: BatchItemRecord, now: () => number): Promise<BatchItemRecord> {
+  const next = await api.update(item.nativeId, { title: item.newTitle ?? item.title });
+  return settleItem(context, plan, item, started, now, 'applied', undefined, next.index ?? 0,
+    itemPreDigest(next));
+}
+
+async function runMoveItem(context: BatchContext, api: BatchBookmarkApi, plan: BatchPlanRecord,
+  item: BatchItemRecord, items: readonly BatchItemRecord[], started: BatchItemRecord,
+  live: BatchChromeNode, now: () => number): Promise<BatchItemRecord> {
+  const parentId = item.targetParentNativeId ?? live.parentId;
+  if (!parentId) throw new Error('move_target_required');
+  const next = await api.move(item.nativeId, {
+    parentId, ...(item.targetIndex === undefined ? {} : { index: batchTargetIndex(items) }),
+  });
+  return settleItem(context, plan, item, started, now, 'applied', undefined, next.index ?? 0,
+    itemPreDigest(next));
+}
+
+function settleDeleted(context: BatchContext, plan: BatchPlanRecord, item: BatchItemRecord,
+  started: BatchItemRecord, now: () => number): Promise<BatchItemRecord> {
+  return settleItem(context, plan, item, started, now, 'applied', undefined, undefined, deletedPostDigest(item));
+}
+
+function deletedPostDigest(item: BatchItemRecord): string {
+  return itemPostDigest({ nativeId: item.nativeId, title: item.title, url: item.url,
+    parentId: item.parentNativeId, index: item.index, kind: item.nodeKind, deleted: true });
+}
+
+function settleItem(context: BatchContext, plan: BatchPlanRecord, item: BatchItemRecord,
+  started: BatchItemRecord, now: () => number, state: 'applied' | 'failed' | 'changed',
+  error: string | undefined, postIndex?: number, postDigest?: string): Promise<BatchItemRecord> {
+  return context.journal.settleBatchItem({
+    planId: plan.planId, itemId: item.itemId, expectedCasVersion: started.casVersion,
+    expectedState: 'executing', state, now: now(), ...(error ? { error } : {}),
+    ...(postIndex === undefined ? {} : { postIndex }), ...(postDigest === undefined ? {} : { postDigest }),
+  });
 }
 
 async function undoPlan(context: BatchContext, api: BatchBookmarkApi, planId: string,
@@ -262,8 +281,10 @@ async function undoPlan(context: BatchContext, api: BatchBookmarkApi, planId: st
 }
 
 async function undoChrome(api: BatchBookmarkApi, kind: BatchKind, item: BatchItemRecord, items: readonly BatchItemRecord[]): Promise<void> {
-  const live = await readNode(api, item.nativeId);
-  if (!live) throw new Error('changed');
+  const read = await readNode(api, item.nativeId);
+  if (read.state === 'failed') throw new Error(read.code);
+  if (read.state === 'not_found') throw new Error('changed');
+  const live = read.node;
   if (!matchesBatchOutput(live, item, items, kind)) throw new Error('changed');
   if (kind === 'rename') {
     await api.update(item.nativeId, { title: item.title });
@@ -387,6 +408,26 @@ async function viewOf(context: BatchContext, planId: string, reused: boolean): P
   };
 }
 
-async function readNode(api: BatchBookmarkApi, id: string): Promise<import('./bookmark-batch-plan.js').BatchChromeNode | undefined> {
-  try { return (await api.get(id))[0]; } catch { return undefined; }
+type BatchNodeRead =
+  | { readonly state: 'present'; readonly node: BatchChromeNode }
+  | { readonly state: 'not_found' }
+  | { readonly state: 'failed'; readonly code: 'bookmark_permission_denied' | 'bookmark_managed_not_writable'
+      | 'bookmark_lookup_failed' };
+
+/**
+ * A node read where absence is evidence and failure is not. Chromium rejects a
+ * missing id; an API failure (permission revoked, managed tree) must never be
+ * mistaken for a deletion that already happened.
+ */
+async function readNode(api: BatchBookmarkApi, id: string): Promise<BatchNodeRead> {
+  const looked = await lookupBookmark((nativeId) => api.get(nativeId), id);
+  if (looked.class === 'present') {
+    const node = looked.nodes[0];
+    return node ? { state: 'present', node: node as BatchChromeNode }
+      : { state: 'failed', code: 'bookmark_lookup_failed' };
+  }
+  if (looked.class === 'not_found') return { state: 'not_found' };
+  if (looked.class === 'permission_denied') return { state: 'failed', code: 'bookmark_permission_denied' };
+  if (looked.class === 'managed_not_writable') return { state: 'failed', code: 'bookmark_managed_not_writable' };
+  return { state: 'failed', code: 'bookmark_lookup_failed' };
 }

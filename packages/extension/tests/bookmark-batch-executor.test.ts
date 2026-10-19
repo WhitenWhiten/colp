@@ -234,6 +234,58 @@ describe('bookmark batch execute / undo', () => {
     assert.equal(api.node('bm-2')?.title, 'B');
   });
 
+  test('a permission failure while reading never records a delete as applied', async () => {
+    // Reproduces the false success at the real resume entry point: preview saw
+    // the node, but the resumed get() is denied. The bookmark still exists.
+    const { store, api } = await setup();
+    await commitPendingPlan({ store, api }, 'cmd-delete-denied', 'delete', ['bm-1']);
+    api.get = async () => { throw new Error('Permission denied'); };
+    await resumeBatchPlans({ store, scope, api });
+    const after = await store.readBatchPlan(scope, 'cmd-delete-denied');
+    assert.equal(after?.plan.state, 'attention');
+    assert.equal(after?.items[0]?.state, 'failed');
+    assert.equal(after?.items[0]?.error, 'bookmark_permission_denied');
+    assert.equal(after?.items.filter((item) => item.state === 'applied').length, 0);
+    assert.ok(api.node('bm-1'));
+    assert.deepEqual(api.mutations, []);
+  });
+
+  test('transient lookup failures fail rename and move without touching Chrome', async () => {
+    const { store, api } = await setup();
+    const get = api.get.bind(api);
+    for (const [planId, kind, nativeId, extra] of [
+      ['cmd-rename-lookup', 'rename', 'bm-1', { titles: { 'bm-1': 'A' } }],
+      ['cmd-move-lookup', 'move', 'bm-2', { targetParentId: 'folder-a' }],
+    ] as const) {
+      await commitPendingPlan({ store, api }, planId, kind, [nativeId], extra);
+      api.get = async () => { throw new Error('Bookmark service unavailable'); };
+      await resumeBatchPlans({ store, scope, api });
+      const after = await store.readBatchPlan(scope, planId);
+      assert.equal(after?.items[0]?.state, 'failed', planId);
+      assert.equal(after?.items[0]?.error, 'bookmark_lookup_failed', planId);
+      assert.equal(after?.plan.state, 'attention', planId);
+      api.get = get;
+    }
+    assert.equal(api.node('bm-1')?.title, 'One');
+    assert.equal(api.node('bm-2')?.parentId, 'bar');
+    assert.deepEqual(api.mutations, []);
+  });
+
+  test('a verified not_found remains evidence that a delete is already applied', async () => {
+    const { store, api } = await setup();
+    await commitPendingPlan({ store, api }, 'cmd-delete-gone', 'delete', ['bm-1']);
+    await api.remove('bm-1');
+    // Chromium's real missing-id rejection, not the fixture's shorthand error.
+    api.get = async () => { throw new Error("Can't find bookmark for id."); };
+    api.mutations.length = 0;
+    await resumeBatchPlans({ store, scope, api });
+    const after = await store.readBatchPlan(scope, 'cmd-delete-gone');
+    assert.equal(after?.plan.state, 'completed');
+    assert.equal(after?.items[0]?.state, 'applied');
+    assert.equal(after?.items[0]?.error, undefined);
+    assert.deepEqual(api.mutations, []);
+  });
+
   test('concurrent move skips undo when the postcondition no longer matches', async () => {
     const { store, api } = await setup();
     const preview = await previewBatch({
@@ -353,6 +405,22 @@ describe('bookmark batch execute / undo', () => {
     assert.equal(restores[0]?.payload.targetId, 'node-1');
   });
 });
+
+async function commitPendingPlan(
+  fixture: Awaited<ReturnType<typeof setup>>, planId: string,
+  kind: 'rename' | 'move' | 'delete', nativeIds: readonly string[],
+  extra: { readonly titles?: Readonly<Record<string, string>>; readonly targetParentId?: string } = {},
+): Promise<void> {
+  const preview = await previewBatch({ store: fixture.store, scope, api: fixture.api, kind, nativeIds, ...extra });
+  await fixture.store.commitBatchPlan(scope, {
+    plan: {
+      planId, commandId: planId, kind, digest: preview.digest, treeDigest: preview.treeDigest,
+      boundaryVersion: preview.boundaryVersion, itemCount: preview.items.length,
+      requiresSecondConfirm: preview.requiresSecondConfirm, createdAt: 10, updatedAt: 10,
+    },
+    items: toCommitItems(preview, { uuid: () => 'stable' }),
+  });
+}
 
 async function setup() {
   const store = createSyncStateStore({ indexedDB });
