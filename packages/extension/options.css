@@ -1,4 +1,7 @@
 /*
+ * 固定布局要求（不允许改动）：所有主要页面的内容容器必须在主内容区域水平居中。
+ * 同步、自动化及其他设置页均保持居中，禁止为对齐宽页面左边缘而将窄页面左移。
+ *
  * Know-N extension options page
  * Tokens are generated from design/tokens.css
  */
@@ -1077,11 +1080,8 @@ body[data-state="signed_out"] .side-id .avatar { background: var(--paper-2); col
 .side-version { padding: var(--hair-40) var(--hair-65) 0; color: var(--faint); font-size: var(--text-xs); }
 
 /* ---- main column */
-/* Every page starts where the wide 72rem track starts, so moving between
-   Bookmarks and a settings page never shifts the title sideways; a settings
-   page is narrower and simply stops sooner. */
-.main { --main-track-start: max(0px, (100% - 72rem) / 2); min-width: 0; padding: var(--space-6) var(--space-8) var(--space-10); }
-.main-inner { max-width: 46rem; margin-inline: var(--main-track-start) auto; }
+.main { min-width: 0; padding: var(--space-6) var(--space-8) var(--space-10); }
+.main-inner { max-width: 46rem; margin-inline: auto; }
 .main-inner--wide { max-width: 72rem; margin-inline: auto; }
 .page-head { display: flex; align-items: flex-end; gap: var(--space-4); margin-bottom: var(--space-5); }
 .page-head-copy { flex: 1 1 14rem; min-width: 0; display: grid; gap: var(--hair-30); }
@@ -1098,7 +1098,7 @@ body[data-state="signed_out"] .side-id .avatar { background: var(--paper-2); col
 .main .btn-secondary:disabled { background: transparent; border-color: var(--line-strong); color: var(--faint); }
 .main .btn-ghost:disabled { background: transparent; border-color: transparent; color: var(--faint); }
 .main > .inline-alert, .session-stage > .inline-alert, .main-inner > .inline-alert { margin-bottom: var(--space-5); }
-.main > .inline-alert { max-width: 46rem; margin-inline: var(--main-track-start) auto; }
+.main > .inline-alert { max-width: 46rem; margin-inline: auto; }
 .first-run-alert[data-tone="warning"] > .first-run-alert-info, .first-run-alert:not([data-tone="warning"]) > .first-run-alert-warning { display: none; }
 .set-group > .inline-alert { margin: 0; }
 
@@ -1427,7 +1427,7 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .capture-load-more { display: flex; margin: var(--space-4) auto 0; }
 
 /* One saved page. */
-#history-card[data-view="detail"] { max-width: 46rem; margin-inline: var(--main-track-start) auto; }
+#history-card[data-view="detail"] { max-width: 46rem; }
 #history-card[data-view="detail"] > .page-head, #history-card[data-view="detail"] > .history-saves { display: none; }
 .hist-detail { display: grid; gap: var(--space-5); min-width: 0; overflow-wrap: anywhere; }
 .hist-detail:focus, .hist-detail:focus-visible { outline: none; box-shadow: none; }
