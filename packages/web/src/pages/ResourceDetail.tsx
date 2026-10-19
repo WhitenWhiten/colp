@@ -450,7 +450,7 @@ function ResourceDetailContent() {
                     Edit details
                   </Link>
                 ) : !annotationLocator ? (
-                  <p className="meta">Open this bookmark from its collection to see notes.</p>
+                  <p className="meta">Open this bookmark from your library to see notes.</p>
                 ) : null}
               </section>
             )}

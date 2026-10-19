@@ -53,7 +53,7 @@ export function useRelationWorkflow(locator: RelationLocator | null, draftDirty 
   const syncEditing = useCallback((next: RelationView | null) => { editingRef.current = next; setEditing(next) }, [])
 
   const load = useCallback(async (preserveAccess = false) => {
-    if (!locator) { setCanEdit(false); setNodes([]); setIncoming([]); setOutgoing([]); setState('ready'); setMessage('Open this bookmark from its collection to manage relations.'); return false }
+    if (!locator) { setCanEdit(false); setNodes([]); setIncoming([]); setOutgoing([]); setState('ready'); setMessage('Open this bookmark from your library to manage relations.'); return false }
     const requestIdentity = sessionIdentity
     const generation = ++generationRef.current
     loadControllerRef.current?.abort()

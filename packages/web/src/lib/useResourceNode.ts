@@ -153,8 +153,8 @@ export function resourceNodeEmptyCopy(load: ResourceNodeLoad): {
       }
     case 'needs-collection':
       return {
-        title: 'Open this bookmark from its collection',
-        description: 'Bookmarks open from the collection they belong to.',
+        title: 'Open this bookmark from your library',
+        description: 'A bookmark opens from the folder it is filed in.',
         login: false,
       }
     case 'error':
