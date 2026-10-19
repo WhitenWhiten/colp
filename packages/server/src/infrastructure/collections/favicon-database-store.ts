@@ -14,9 +14,13 @@ export function createDatabaseFaviconStore(db: Kysely<DatabaseSchema>): Bookmark
     async put(objectId, body) {
       validateId(objectId);
       const contentType = assertBookmarkFaviconImage(body);
-      await sql`INSERT INTO favicon_object_bytes (object_id, content_type, body)
+      const inserted = await sql<{ object_id: string }>`INSERT INTO favicon_object_bytes (object_id, content_type, body)
         VALUES (${objectId}::uuid, ${contentType}, ${body})
-        ON CONFLICT (object_id) DO NOTHING`.execute(db);
+        ON CONFLICT (object_id) DO NOTHING
+        RETURNING object_id`.execute(db);
+      // A silent conflict would let a worker bind the losing body's digest
+      // while the object still contains the winning writer's bytes.
+      if (inserted.rows.length === 0) throw new Error('favicon_object_already_exists');
     },
     async get(objectId, options) {
       validateId(objectId);

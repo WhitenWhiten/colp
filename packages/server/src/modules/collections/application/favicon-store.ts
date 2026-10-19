@@ -32,6 +32,11 @@ export interface StoredBookmarkFavicon {
 export interface BookmarkFaviconObjectStore {
   /** Database objects require the command's transaction; bound stores roll back with its writes. */
   readonly writeTransaction?: 'required' | 'bound';
+  /**
+   * Atomically create an immutable object; reject if the id already exists.
+   * A losing writer must retry through get(), never bind metadata for bytes
+   * it did not store. Job lease checks alone cannot fence an in-flight PUT.
+   */
   put(objectId: string, body: Buffer, contentType: string): Promise<void>;
   get(objectId: string, options?: { readonly signal?: AbortSignal }): Promise<StoredBookmarkFavicon | null>;
   /** Best-effort removal of a stored favicon object. */

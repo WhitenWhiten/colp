@@ -23,6 +23,7 @@ import {
   resolveFaviconProviderUrl,
 } from './favicon-fetch-policy.js';
 import { decodeFaviconImage, type DecodedFaviconImage } from './favicon-image-decode.js';
+import type { BookmarkFaviconObjectStore } from './favicon-store.js';
 import type {
   BookmarkIconRow,
   BookmarkIconWritePort,
@@ -159,10 +160,7 @@ export interface FaviconRefreshExecutionPorts {
   readonly verify: FaviconRefreshCasRunner;
   readonly worker: FaviconJobWorkerPort;
   readonly fetcher: FaviconFetcher;
-  readonly store: {
-    get(objectId: string): Promise<{ readonly contentType: string; readonly body: Buffer } | null>;
-    put(objectId: string, body: Buffer, contentType: string): Promise<void>;
-  };
+  readonly store: Pick<BookmarkFaviconObjectStore, 'get' | 'put'>;
   readonly clock: CollectionsClock;
   readonly now: () => Date;
   readonly options: {

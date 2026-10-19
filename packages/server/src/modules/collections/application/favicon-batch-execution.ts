@@ -1,4 +1,5 @@
 import { FaviconFetchDeferred } from './favicon-fetch-deferred.js';
+import type { BookmarkFaviconObjectStore } from './favicon-store.js';
 /**
  * FO-03 favicon batch job worker execution.
  *
@@ -92,10 +93,7 @@ export interface FaviconBatchExecutionPorts {
   readonly verify: FaviconBatchCasRunner;
   readonly worker: FaviconJobWorkerPort;
   readonly fetcher: FaviconFetcher;
-  readonly store: {
-    get(objectId: string): Promise<{ readonly contentType: string; readonly body: Buffer } | null>;
-    put(objectId: string, body: Buffer, contentType: string): Promise<void>;
-  };
+  readonly store: Pick<BookmarkFaviconObjectStore, 'get' | 'put'>;
   readonly clock: CollectionsClock;
   readonly now: () => Date;
   readonly options: {

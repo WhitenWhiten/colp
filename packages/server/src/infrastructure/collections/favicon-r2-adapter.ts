@@ -130,6 +130,10 @@ export function createR2FaviconStore(options: R2FaviconStoreOptions): BookmarkFa
         Key: key(objectId),
         Body: body,
         ContentType: contentType,
+        // A previous lease holder may still finish its PUT after takeover.
+        // Keep the winner immutable; 412/409 propagate into the job retry,
+        // which reads the stored bytes before calculating binding metadata.
+        IfNoneMatch: '*',
       }));
     },
     async get(objectId, getOptions) {
