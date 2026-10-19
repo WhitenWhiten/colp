@@ -7,7 +7,7 @@ import { MANUAL_CLASSIFICATION_AUTO } from '../src/manual-classification.js';
 import { createBundleStore } from '../src/automation/bundle-store.js';
 import { createReceiptStore } from '../src/automation/receipt-sync.js';
 import { validBrowserRuleCommand } from '../src/automation/messages.js';
-import type { BrowserRuleDraft } from '../src/automation/browser-rules.js';
+import type { RuleDraft } from '../src/automation/rule-conditions.js';
 import type { CaptureTask } from '../src/capture/contracts.js';
 import { COLLECTION_ID, NOW, compiledRule, ruleBundle } from './automation-fixture.js';
 import { task as base } from './fixtures/capture.js';
@@ -48,13 +48,14 @@ vi.mock('../src/classification-local-session.js', () => ({ localClassificationEn
 import { accountLink, automationArea, automationStateView, handleAutomationRequest, recordPreSaveReceipt, refreshAutomation, rulesDecision } from '../src/sw/automation.js';
 import { browserPlacementLog, browserRuleStore, handleBrowserRuleCommand, MOVING_STALE_MS } from '../src/sw/automation-browser.js';
 import { individualRules } from '../src/automation/rule-list-store.js';
+import { automationSaveLine } from '../src/save-status.js';
 
 const owner = { serverOrigin: 'https://colp.example', accountId: 'owner' };
 const paper = { url: 'https://arxiv.org/abs/2410.00001', title: 'A paper', parentNativeId: '21' };
 const nodes: Record<string, { id: string; title: string; parentId: string }> = {
   10: { id: '10', title: 'Academic', parentId: '1' }, 21: { id: '21', title: 'Inbox', parentId: '1' }, 30: { id: '30', title: 'Papers', parentId: '2' } };
-const draft = (over: Partial<BrowserRuleDraft> = {}): BrowserRuleDraft =>
-  ({ name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: '30', ...over });
+const draft = ({ folderNativeId = '30', ...over }: Partial<RuleDraft> & { readonly folderNativeId?: string } = {}): RuleDraft =>
+  ({ name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], action: { kind: 'file', folderNativeId }, ...over });
 const match = (request = paper) => handleAutomationRequest({ kind: 'known.automation.match', ...request });
 
 beforeEach(async () => {
@@ -74,7 +75,17 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('the popup’s preview', () => {
   it('shows a browser rule’s folder with no account at all', async () => {
     f.scope = { ...f.scope, accountId: null, collectionId: null };
-    expect(await match()).toEqual({ ok: true, match: { outcome: 'placed', ruleName: 'Papers from arXiv', ruleCount: 1, folderNativeId: '30', folderTitle: 'Papers' } });
+    expect(await match()).toEqual({ ok: true, match: { outcome: 'placed', ruleName: 'Papers from arXiv', sourceName: null, ruleCount: 1, folderNativeId: '30',
+      folderTitle: 'Papers' } });
+  });
+
+  it('names a set’s rule with its set', async () => {
+    f.scope = { ...f.scope, accountId: null, collectionId: null };
+    const made = await handleBrowserRuleCommand({ kind: 'known.automation.browser.set.save', name: 'Research' });
+    if (!made.ok || !('set' in made) || !made.set) throw new Error('no set');
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', into: made.set.id, draft: draft({ name: 'arXiv', folderNativeId: '10' }) });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.reorder', order: [made.set.id, ...individualRules(await browserRuleStore().load()).map((rule) => rule.id)] });
+    expect(await match()).toMatchObject({ match: { outcome: 'placed', ruleName: 'arXiv', sourceName: 'Research', folderNativeId: '10' } });
   });
 
   it('shows the account’s rule when one matches, and this browser’s only for pages it does not', async () => {
@@ -102,6 +113,39 @@ describe('the popup’s preview', () => {
     const decision = await rulesDecision(f.scope, { ...paper, explicit: false });
     expect(decision).toMatchObject({ targetNativeId: '10', automation: { outcome: 'placed', rule: { name: 'Place research papers in Academic' } } });
     expect(decision!.automation).not.toHaveProperty('source', 'browser');
+  });
+});
+
+describe('a save decided by this browser’s list', () => {
+  const signedOut = () => ({ ...f.scope, accountId: null, collectionId: null });
+
+  it('goes where the upper of two matching rules files it, and records which entry of which list decided', async () => {
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft({ name: 'Reading', conditions: [{ kind: 'titleContains', value: 'paper' }],
+      folderNativeId: '10' }) });
+    const [papers, reading] = individualRules(await browserRuleStore().load());
+    const revision = (await browserRuleStore().load()).revision;
+    expect(await rulesDecision(signedOut(), { ...paper, explicit: false })).toEqual({ targetNativeId: '30', automation: { source: 'browser', outcome: 'placed',
+      rule: { id: papers!.id, name: 'Papers from arXiv' }, ruleIds: [papers!.id], folderTitle: 'Papers', fromNativeId: '21',
+      entry: { listRevision: revision, kind: 'rule', ruleId: papers!.id } } });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.reorder', order: [reading!.id, papers!.id] });
+    expect(await rulesDecision(signedOut(), { ...paper, explicit: false })).toMatchObject({ targetNativeId: '10',
+      automation: { rule: { name: 'Reading' }, entry: { listRevision: revision + 1 } } });
+  });
+
+  it('keeps a page where it was saved by a rule that says so, and logs it with why', async () => {
+    const [papers] = individualRules(await browserRuleStore().load());
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: { ...draft({ name: 'Listings', conditions: [{ kind: 'pathUnder', value: '/list' }] }),
+      action: { kind: 'keepHere' } } });
+    const keep = individualRules(await browserRuleStore().load())[1]!;
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.reorder', order: [keep.id, papers!.id] });
+    const decision = await rulesDecision(signedOut(), { ...paper, url: 'https://arxiv.org/list/cs', explicit: false });
+    expect(decision).toMatchObject({ targetNativeId: null, automation: { outcome: 'kept', reason: 'keepHere', rule: { name: 'Listings' } } });
+    expect(automationSaveLine(decision!.automation)).toEqual({ attention: false, text: 'Kept where you saved it, by rule “Listings”.' });
+    const saved: CaptureTask = { ...base, captureId: '0b6f9a8e-3c1d-4f2a-9b7e-5d4c3b2a1f09', scope: signedOut(), save: 'local-saved', disposition: 'new',
+      nativeId: '57', targetNativeId: '21', title: 'Listing', url: 'https://arxiv.org/list/cs', savedAt: NOW, automation: decision!.automation,
+      localLocation: { collectionId: null, collectionTitle: null, nodeId: null, nativeId: '21', path: ['Bookmarks bar', 'Inbox'], writable: true, url: paper.url } };
+    await recordPreSaveReceipt(saved);
+    expect(await browserPlacementLog().placements()).toMatchObject([{ ruleName: 'Listings', folder: 'Inbox', kept: 'keepHere', entry: { kind: 'rule', ruleId: keep.id } }]);
   });
 });
 

@@ -161,6 +161,9 @@
   "automation_browserBadKind": {
     "message": "This kind of condition can’t be used here."
   },
+  "automation_browserBadPath": {
+    "message": "Use a link path, such as /papers/."
+  },
   "automation_browserBadSite": {
     "message": "Use a site name, such as arxiv.org."
   },
@@ -470,6 +473,12 @@
   "automation_keptBlocked": {
     "message": "The rule’s folder isn’t available here, so it stayed where you saved it."
   },
+  "automation_keptByRule": {
+    "message": "Kept where you saved it, by rule “$1”."
+  },
+  "automation_keptByRuleWhy": {
+    "message": "The rule keeps pages like this where you save them."
+  },
   "automation_keptConflict": {
     "message": "Two of this browser’s rules wanted different folders, so it stayed where you saved it."
   },
@@ -580,6 +589,9 @@
   },
   "automation_noRunsTitle": {
     "message": "Nothing has run yet"
+  },
+  "automation_notOnWeb": {
+    "message": "The web editor can’t make this rule. Use it in this browser."
   },
   "automation_noticeRejected": {
     "message": "The server sent rules this browser can’t use. The previous rules stay in force."

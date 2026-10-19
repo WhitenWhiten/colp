@@ -1,12 +1,12 @@
 import type { Predicate, RuleDefinition } from '@know-n/colp/automation';
 import { describe, expect, it } from 'vitest';
 import { relateBrowserRule, replayOverlap, sameMatch, witnessOverlap, type OverlapRule } from '../src/automation/browser-overlap.js';
-import { checkBrowserDraft, type BrowserRuleDraft } from '../src/automation/browser-rules.js';
+import { checkRuleDraft, type RuleDraft } from '../src/automation/rule-conditions.js';
 import { compiledRule, NOW } from './automation-fixture.js';
 
 /** AW-69: where a browser rule and an account rule can take the same page, proven by a page or counted on real ones. */
-function browser(id: string, conditions: BrowserRuleDraft['conditions'], folderNativeId = '30', combinator: 'all' | 'any' = 'all'): OverlapRule {
-  const checked = checkBrowserDraft({ name: id, combinator, conditions, folderNativeId });
+function browser(id: string, conditions: RuleDraft['conditions'], folderNativeId = '30', combinator: 'all' | 'any' = 'all'): OverlapRule {
+  const checked = checkRuleDraft({ name: id, combinator, conditions, action: { kind: 'file', folderNativeId } });
   if (!checked.ok) throw new Error('invalid draft');
   return { id, definition: checked.definition, folderNativeId };
 }

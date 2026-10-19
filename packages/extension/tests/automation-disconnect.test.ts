@@ -71,7 +71,7 @@ beforeEach(async () => {
   f.credential = { serverOrigin: owner.serverOrigin, subject: owner.accountId }; f.bundle = null; f.fetched = 0;
   // This browser's rule, and a page it filed.
   expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.save',
-    draft: { name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: '30' } })).toMatchObject({ ok: true });
+    draft: { name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], action: { kind: 'file', folderNativeId: '30' } } })).toMatchObject({ ok: true });
   const [rule] = individualRules(await browserRuleStore().load());
   await browserPlacementLog().logPlacement({ id: 'capture-1', ruleId: rule!.id, ruleName: 'Papers from arXiv', folder: 'Papers', title: 'Earlier', url: 'https://arxiv.org/abs/1', at: NOW });
   // The account's: its bundle, the server's status, receipts and an intent, and what chrome.storage.local caches for it.
@@ -104,7 +104,7 @@ describe('signing out', () => {
     expect(await automationArea().get(RULE_LIST_KEY)).toEqual(rules);
     expect(await automationArea().get(BROWSER_PLACEMENTS_KEY)).toEqual(placements);
     // The capture scope still names the account: the bundle itself is gone, so the browser's rule decides.
-    expect(await match()).toEqual({ ok: true, match: { outcome: 'placed', ruleName: 'Papers from arXiv', ruleCount: 1, folderNativeId: '30', folderTitle: 'Papers' } });
+    expect(await match()).toEqual({ ok: true, match: { outcome: 'placed', ruleName: 'Papers from arXiv', sourceName: null, ruleCount: 1, folderNativeId: '30', folderTitle: 'Papers' } });
     expect(await browserPreSaveDecision({ ...paper, explicit: false })).toMatchObject({ targetNativeId: '30', automation: { source: 'browser', outcome: 'placed', fromNativeId: '21' } });
   });
 

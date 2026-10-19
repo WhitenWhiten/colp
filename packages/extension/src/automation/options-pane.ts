@@ -224,7 +224,8 @@ function placementList(view: AutomationStateView): HTMLElement {
     if (placement.kept) {
       main.append(el('p', placement.kept === 'conflict'
         ? t('automation_keptConflict', 'Two of this browser’s rules wanted different folders, so it stayed where you saved it.')
-        : t('automation_keptBlocked', 'The rule’s folder isn’t available here, so it stayed where you saved it.'), 'list-row-meta automation-kept-why'));
+        : placement.kept === 'keepHere' ? t('automation_keptByRuleWhy', 'The rule keeps pages like this where you save them.')
+          : t('automation_keptBlocked', 'The rule’s folder isn’t available here, so it stayed where you saved it.'), 'list-row-meta automation-kept-why'));
     }
     item.append(faviconTile(placement.url), main);
     const badge = placementBadge(placement.state);

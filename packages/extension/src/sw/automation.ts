@@ -225,8 +225,8 @@ async function matchView(request: Extract<AutomationRequest, { kind: 'known.auto
   const decision = await rulesDecision(scope, page);
   if (!decision) return null;
   const { automation } = decision;
-  return { outcome: automation.outcome, ruleName: automation.rule.name, ruleCount: automation.ruleIds.length,
-    folderNativeId: decision.targetNativeId, folderTitle: automation.folderTitle ?? null };
+  return { outcome: automation.outcome, ruleName: automation.rule.name, sourceName: automation.source === 'browser' ? automation.sourceName ?? null : null,
+    ruleCount: automation.ruleIds.length, folderNativeId: decision.targetNativeId, folderTitle: automation.folderTitle ?? null };
 }
 
 function refreshProblem(problem: DeviceProblem): Exclude<RefreshProblem, 'rejected'> {

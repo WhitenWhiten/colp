@@ -144,14 +144,35 @@ export interface AccountAutomation {
   readonly replicaId: string;
   readonly generation: number;
 }
+/**
+ * Which entry of this browser's ordered rule list decided (doc 17 §4.3): the list's revision, and the rule,
+ * the set it is in, or the subscription entry and the content version it came from.
+ */
+export interface BrowserDecisionEntry {
+  readonly listRevision: number;
+  readonly kind: 'rule' | 'setRule' | 'subscriptionEntry';
+  readonly ruleId?: string;
+  readonly setId?: string;
+  readonly subscriptionId?: string;
+  readonly entryId?: string;
+  readonly contentVersion?: string;
+}
 export interface BrowserAutomation {
   readonly source: 'browser';
+  /** `conflict` only on saves from before the ordered list, when two matching rules kept the page where it was saved. */
   readonly outcome: 'placed' | 'kept' | 'blocked' | 'conflict';
-  readonly reason?: 'bindingUnavailable' | 'evaluation';
+  /** `keepHere`: the rule's action is to keep the page where it was saved. A kept save without one is the Owner's own folder. */
+  readonly reason?: 'bindingUnavailable' | 'evaluation' | 'keepHere';
   readonly rule: { readonly id: string; readonly name: string };
   readonly ruleIds: readonly string[];
   readonly folderTitle?: string;
   readonly fromNativeId: string;
+  /** Absent on saves from before the ordered list. */
+  readonly entry?: BrowserDecisionEntry;
+  /** The set or subscription the rule belongs to, by its name at the save. */
+  readonly sourceName?: string;
+  /** Entries passed over because the page lacked what they ask about (the first ten). */
+  readonly skipped?: readonly { readonly ruleId?: string; readonly entryId?: string; readonly reason: 'missingInput' }[];
 }
 export const isAccountAutomation = (automation: CaptureAutomation | undefined): automation is AccountAutomation =>
   automation !== undefined && automation.source !== 'browser';

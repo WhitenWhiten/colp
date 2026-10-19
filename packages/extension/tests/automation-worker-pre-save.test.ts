@@ -59,7 +59,7 @@ describe('pre-save in the worker', () => {
 
   it('answers the popup’s preview without placing anything', async () => {
     expect(await handleAutomationRequest({ kind: 'known.automation.match', ...page })).toEqual({ ok: true,
-      match: { outcome: 'placed', ruleName: 'Place research papers in Academic', ruleCount: 1, folderNativeId: '10', folderTitle: 'Academic' } });
+      match: { outcome: 'placed', ruleName: 'Place research papers in Academic', sourceName: null, ruleCount: 1, folderNativeId: '10', folderTitle: 'Academic' } });
     expect(await createReceiptStore(automationArea()).list()).toEqual([]);
   });
 

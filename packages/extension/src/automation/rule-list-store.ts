@@ -1,8 +1,9 @@
 import { validateM1Rule, type RuleDefinition } from '@know-n/colp/automation';
 import { relateBrowserRule, witnessOverlap, type OverlapRule } from './browser-overlap.js';
-import { BROWSER_CONDITION_KINDS, checkBrowserDraft, draftFromRule, type BrowserConditionKind, type BrowserRuleDraft,
-  type DraftProblem } from './browser-rules.js';
+import { editorConditions } from './browser-rules.js';
 import type { AtomicStateArea } from './bundle-store.js';
+import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, checkRuleDraft, type ConditionKind, type DraftProblem, type RuleAction, type RuleCondition,
+  type RuleDraft } from './rule-conditions.js';
 
 /**
  * This browser's rules as one ordered list (doc 17 §4.1, R1): individual rules, local sets of rules
@@ -21,12 +22,8 @@ export const LEGACY_RULES_KEY = 'known.automation.browserRules.v1';
 
 /** Exceeding one is a save error, never a silent truncation. */
 export const LIST_LIMITS = { rules: 200, sets: 50, localRules: 1_000, subscriptions: 20 } as const;
-const NAME_LIMIT = 200, CONDITION_LIMIT = 8, VALUE_LIMIT = 2_048, REVIEW_LIMIT = 20, NOTICE_PAIRS = 20;
+const VALUE_LIMIT = 2_048, REVIEW_LIMIT = 20, NOTICE_PAIRS = 20;
 
-export interface RuleCondition { readonly kind: BrowserConditionKind; readonly value: string }
-/** What a matching rule does: file into a folder here (by native id, or by its set's role) or keep the page where it was saved. */
-export type RuleAction = { readonly kind: 'file'; readonly folderNativeId: string } | { readonly kind: 'file'; readonly role: string }
-  | { readonly kind: 'keepHere' };
 export type RuleOrigin = { readonly kind: 'copiedFrom'; readonly subscriptionId: string; readonly entryId: string; readonly contentVersion: string }
   | { readonly kind: 'import'; readonly sourceId: string; readonly sourceName: string; readonly sourceVersion: string; readonly importedAt: number };
 
@@ -137,7 +134,7 @@ function parseRule(value: unknown): LocalRule | null {
   const valid = typeof value.id === 'string' && ID.test(value.id) && typeof value.enabled === 'boolean' && text(value.name, NAME_LIMIT)
     && (value.combinator === 'all' || value.combinator === 'any') && Array.isArray(value.conditions) && value.conditions.length <= CONDITION_LIMIT
     && value.conditions.every((item) => record(item) && closed(item, ['kind', 'value'])
-      && BROWSER_CONDITION_KINDS.includes(item.kind as BrowserConditionKind) && text(item.value, VALUE_LIMIT))
+      && CONDITION_KINDS.includes(item.kind as ConditionKind) && text(item.value, VALUE_LIMIT))
     && validAction(value.action) && !validateM1Rule(value.definition).length
     && record(compiledFrom) && closed(compiledFrom, ['contentVersions']) && record(compiledFrom.contentVersions)
     && Object.values(compiledFrom.contentVersions).every((version) => text(version, 64))
@@ -194,7 +191,7 @@ function legacyRule(value: unknown): LocalRule | null {
     || !FOLDER.test(value.folderNativeId) || typeof value.enabled !== 'boolean' || !time(value.createdAt) || !time(value.updatedAt)
     || validateM1Rule(value.definition).length) return null;
   const definition = value.definition as RuleDefinition;
-  const draft = draftFromRule({ definition, folderNativeId: value.folderNativeId });
+  const draft = editorConditions(definition);
   const reviewed = Array.isArray(value.reviewed) ? value.reviewed.filter((item): item is { accountRuleId: string; key: string } =>
     record(item) && typeof item.accountRuleId === 'string' && typeof item.key === 'string').slice(0, REVIEW_LIMIT) : [];
   return { id: value.id, enabled: value.enabled, name: definition.name.slice(0, NAME_LIMIT), combinator: draft?.combinator ?? 'all',
@@ -283,17 +280,6 @@ function insideSet(rule: LocalRule): LocalRule {
   return rest;
 }
 
-/** The draft's filled conditions as the Owner wrote them; a pasted link stands for its site. */
-function writtenConditions(draft: BrowserRuleDraft): RuleCondition[] {
-  return draft.conditions.filter((condition) => condition.value.trim() !== '').map((condition) => {
-    const value = condition.value.trim();
-    if ((condition.kind === 'siteIs' || condition.kind === 'siteEndsWith') && /^[a-z][a-z\d+.-]*:\/\//iu.test(value)) {
-      try { return { kind: condition.kind, value: new URL(value).hostname }; } catch { /* checked as typed */ }
-    }
-    return { kind: condition.kind, value };
-  });
-}
-
 export type RuleSaveResult = { readonly ok: true; readonly rule: LocalRule }
   | { readonly ok: false; readonly error: 'invalid'; readonly problems: readonly DraftProblem[] }
   | { readonly ok: false; readonly error: 'notFound' | 'limit' };
@@ -355,24 +341,29 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
      * Creates a rule (no id) at the end of the list or of the set `into`, or replaces one's conditions,
      * name and folder where it is.
      */
-    saveRule(input: { readonly id?: string; readonly draft: BrowserRuleDraft; readonly enabled?: boolean; readonly into?: string | null;
+    saveRule(input: { readonly id?: string; readonly draft: RuleDraft; readonly enabled?: boolean; readonly into?: string | null;
       readonly index?: number }, now: number): Promise<RuleSaveResult> {
-      const checked = checkBrowserDraft(input.draft);
+      const checked = checkRuleDraft(input.draft);
       if (!checked.ok) return Promise.resolve({ ok: false, error: 'invalid', problems: checked.problems });
       return update((list): Change<RuleSaveResult> => {
         const found = input.id === undefined ? null : locate(list, input.id);
         if (input.id !== undefined && !found) return { result: { ok: false, error: 'notFound' } };
+        const into = input.into ?? null, set = found ? found.set : into === null ? null : findSet(list, into);
+        if (!found && into !== null && !set) return { result: { ok: false, error: 'notFound' } };
+        // A role names a folder only inside the set that declares it.
+        const { action } = input.draft;
+        if (action.kind === 'file' && 'role' in action && !set?.roles.some((role) => role.key === action.role)) {
+          return { result: { ok: false, error: 'invalid', problems: [{ field: 'folder', code: 'required' }] } };
+        }
         const previous = found?.rule;
         // An edited rule is no longer the one sent to the account, so it stops waiting to retire; reviews stay.
-        const rule: LocalRule = { id: previous?.id ?? newId(), enabled: input.enabled ?? previous?.enabled ?? true, name: checked.definition.name,
-          combinator: input.draft.combinator, conditions: writtenConditions(input.draft), action: { kind: 'file', folderNativeId: input.draft.folderNativeId },
-          definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: previous?.createdAt ?? now, updatedAt: now,
+        const rule: LocalRule = { id: previous?.id ?? newId(), enabled: input.enabled ?? previous?.enabled ?? true, name: checked.name,
+          combinator: input.draft.combinator, conditions: checked.conditions, action, definition: checked.definition,
+          compiledFrom: { contentVersions: {} }, createdAt: previous?.createdAt ?? now, updatedAt: now,
           ...(previous?.origin ? { origin: previous.origin } : {}), ...(previous?.reviewed ? { reviewed: previous.reviewed } : {}) };
         if (previous) return { result: { ok: true, rule }, entries: mapRule(list.entries, rule.id, () => rule) };
-        const into = input.into ?? null;
-        if (into !== null && !findSet(list, into)) return { result: { ok: false, error: 'notFound' } };
         const entries = into === null ? insertAt(list.entries, input.index, { kind: 'rule', rule })
-          : mapSet(list.entries, into, (set) => ({ ...set, rules: insertAt(set.rules, input.index, insideSet(rule)) }));
+          : mapSet(list.entries, into, (target) => ({ ...target, rules: insertAt(target.rules, input.index, insideSet(rule)) }));
         return overLimits(entries) ? { result: { ok: false, error: 'limit' } } : { result: { ok: true, rule }, entries };
       });
     },

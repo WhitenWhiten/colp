@@ -1,3 +1,4 @@
+import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import type { AutomationStateArea } from './bundle-store.js';
 
 /**
@@ -19,10 +20,15 @@ export interface BrowserPlacement {
   readonly url: string;
   readonly at: number;
   /**
-   * The rule matched but the page stayed where it was saved (follow-up U6): `conflict`, two rules here wanted
-   * different folders; `blocked`, the rule's folder was not available. `folder` is then where the page is.
+   * The rule matched but the page stayed where it was saved (follow-up U6): `blocked`, the rule's folder was
+   * not available; `keepHere`, the rule keeps pages where they are saved; `conflict`, before the ordered list,
+   * two rules here wanted different folders. `folder` is then where the page is.
    */
-  readonly kept?: 'conflict' | 'blocked';
+  readonly kept?: 'conflict' | 'blocked' | 'keepHere';
+  /** The list entry that decided (doc 17 §4.3); absent on pages filed before the ordered list. */
+  readonly entry?: BrowserDecisionEntry;
+  /** The set or subscription of that entry, by its name then. */
+  readonly sourceName?: string;
 }
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -30,8 +36,12 @@ const record = (value: unknown): value is Record<string, unknown> => Boolean(val
 function parsePlacement(value: unknown): BrowserPlacement | null {
   if (!record(value)) return null;
   const strings = ['id', 'ruleId', 'ruleName', 'folder', 'title', 'url'] as const;
+  const entry = value.entry;
   return strings.every((key) => typeof value[key] === 'string') && typeof value.at === 'number'
-    && (value.kept === undefined || value.kept === 'conflict' || value.kept === 'blocked') ? value as unknown as BrowserPlacement : null;
+    && (value.kept === undefined || value.kept === 'conflict' || value.kept === 'blocked' || value.kept === 'keepHere')
+    && (entry === undefined || record(entry) && typeof entry.listRevision === 'number'
+      && (entry.kind === 'rule' || entry.kind === 'setRule' || entry.kind === 'subscriptionEntry'))
+    && (value.sourceName === undefined || typeof value.sourceName === 'string') ? value as unknown as BrowserPlacement : null;
 }
 
 /** Every write is one read-modify-write of the whole log, taken one at a time. */

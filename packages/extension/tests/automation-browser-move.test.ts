@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { BROWSER_PLACEMENTS_KEY, createBrowserPlacementLog } from '../src/automation/browser-rule-store.js';
-import { accountEditorUrl, checkBrowserDraft, type BrowserRule, type BrowserRuleDraft } from '../src/automation/browser-rules.js';
+import { accountEditorUrl, type BrowserRule } from '../src/automation/browser-rules.js';
+import { checkRuleDraft, type RuleDraft } from '../src/automation/rule-conditions.js';
 import type { AtomicStateArea } from '../src/automation/bundle-store.js';
 import { createRuleListStore, individualRules } from '../src/automation/rule-list-store.js';
 import { memoryStateArea as memoryArea, NOW } from './automation-fixture.js';
 
 /** AW-71: a browser rule goes to the account only through the filled-in web editor, and waits there to retire. */
-const draft = (over: Partial<BrowserRuleDraft> = {}): BrowserRuleDraft =>
+type Draft = Partial<RuleDraft> & { readonly folderNativeId?: string };
+const draft = ({ folderNativeId = '30', ...over }: Draft = {}): RuleDraft =>
   ({ name: 'arxiv.org → Papers', combinator: 'any', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }, { kind: 'titleContains', value: 'Paper: notes' }],
-    folderNativeId: '30', ...over });
-function stored(over: Partial<BrowserRuleDraft> = {}): BrowserRule {
-  const checked = checkBrowserDraft(draft(over));
+    action: { kind: 'file', folderNativeId }, ...over });
+function stored(over: Draft = {}): BrowserRule {
+  const checked = checkRuleDraft(draft(over));
   if (!checked.ok) throw new Error('invalid draft');
   return { id: 'b-1', definition: checked.definition, folderNativeId: '30', enabled: true, createdAt: NOW, updatedAt: NOW };
 }

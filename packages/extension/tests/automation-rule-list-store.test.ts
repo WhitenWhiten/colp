@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { checkBrowserDraft, type BrowserRule, type BrowserRuleDraft } from '../src/automation/browser-rules.js';
+import type { BrowserRule } from '../src/automation/browser-rules.js';
+import { checkRuleDraft, type RuleDraft } from '../src/automation/rule-conditions.js';
 import {
   createRuleListStore, entryId, individualRules, LEGACY_RULES_KEY, LIST_LIMITS, RULE_LIST_KEY,
   type ListEntry, type LocalRule, type LocalSet, type RuleListRecord,
@@ -7,13 +8,14 @@ import {
 import { memoryStateArea, NOW } from './automation-fixture.js';
 
 /** Doc 17 RW-01: the ordered list in this browser, its limits, its commands and the move from the v1 list. */
-const draft = (over: Partial<BrowserRuleDraft> = {}): BrowserRuleDraft =>
-  ({ name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: '30', ...over });
+type Draft = Partial<RuleDraft> & { readonly folderNativeId?: string };
+const draft = ({ folderNativeId = '30', ...over }: Draft = {}): RuleDraft =>
+  ({ name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], action: { kind: 'file', folderNativeId }, ...over });
 
-function legacy(id: string, over: Partial<BrowserRuleDraft> = {}, extra: Partial<BrowserRule> = {}): BrowserRule {
-  const checked = checkBrowserDraft(draft(over));
+function legacy(id: string, over: Draft = {}, extra: Partial<BrowserRule> = {}): BrowserRule {
+  const checked = checkRuleDraft(draft(over));
   if (!checked.ok) throw new Error('invalid draft');
-  return { id, definition: checked.definition, folderNativeId: draft(over).folderNativeId, enabled: true, createdAt: NOW, updatedAt: NOW, ...extra };
+  return { id, definition: checked.definition, folderNativeId: over.folderNativeId ?? '30', enabled: true, createdAt: NOW, updatedAt: NOW, ...extra };
 }
 
 function store(area = memoryStateArea()) {
@@ -118,7 +120,7 @@ describe('rules and sets', () => {
   it(`keeps at most ${LIST_LIMITS.rules} individual rules, ${LIST_LIMITS.sets} sets and ${LIST_LIMITS.localRules} rules in all`, async () => {
     const { area, store: rules } = store();
     const rule = (id: string): LocalRule => {
-      const checked = checkBrowserDraft(draft());
+      const checked = checkRuleDraft(draft());
       if (!checked.ok) throw new Error('invalid draft');
       return { id, enabled: true, name: 'Papers', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
         action: { kind: 'file', folderNativeId: '30' }, definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW };
@@ -188,7 +190,7 @@ describe('rules and sets', () => {
 
   it('takes a rule out of an imported set with the folder its role was bound to', async () => {
     const { area, store: rules } = store();
-    const checked = checkBrowserDraft(draft());
+    const checked = checkRuleDraft(draft());
     if (!checked.ok) throw new Error('invalid draft');
     const byRole = (id: string, role: string): LocalRule => ({ id, enabled: true, name: id, combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }],
       action: { kind: 'file', role }, definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: NOW, updatedAt: NOW,

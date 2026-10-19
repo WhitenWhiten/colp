@@ -1,5 +1,5 @@
-import type { BrowserRuleDraft, DraftProblem } from './browser-rules.js';
 import type { DigestIndicator } from './digest-indicator.js';
+import type { DraftProblem, RuleDraft } from './rule-conditions.js';
 import type { RuleMatchView } from './rule-match.js';
 import type { LocalRule, LocalSet } from './rule-list-store.js';
 
@@ -39,7 +39,7 @@ export function validAutomationRequest(value: unknown): value is AutomationReque
 /** Options writes this browser's own rules (rule-list-store.ts); only the Options page may send these. */
 export type BrowserRuleCommand =
   /** A new rule goes to the end of the list, or of the set `into`; an edited one stays where it is. */
-  | { readonly kind: 'known.automation.browser.save'; readonly id?: string; readonly draft: BrowserRuleDraft; readonly enabled?: boolean;
+  | { readonly kind: 'known.automation.browser.save'; readonly id?: string; readonly draft: RuleDraft; readonly enabled?: boolean;
     readonly into?: string }
   /** A rule (`entry` left out), a set or a subscription on or off. */
   | { readonly kind: 'known.automation.browser.enable'; readonly id: string; readonly enabled: boolean; readonly entry?: 'rule' | 'set' | 'subscription' }
@@ -59,7 +59,7 @@ export type BrowserRuleCommand =
   /** Keep in this browser: stop waiting for the account's copy (follow-up U5). The rule keeps filing as before. */
   | { readonly kind: 'known.automation.browser.stay'; readonly id: string }
   /** A new rule for all the account's devices: the web editor, filled in with this draft. Nothing is stored here. */
-  | { readonly kind: 'known.automation.browser.forAccount'; readonly draft: BrowserRuleDraft };
+  | { readonly kind: 'known.automation.browser.forAccount'; readonly draft: RuleDraft };
 
 export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule | null }
   | { readonly ok: true; readonly set: LocalSet | null }
@@ -70,13 +70,22 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
 
 const RULE_ID = /^[\w-]{1,128}$/u;
-const KINDS = new Set(['siteIs', 'siteEndsWith', 'titleContains', 'pathStartsWith']);
+const KINDS = new Set(['siteIs', 'siteEndsWith', 'titleContains', 'pathStartsWith', 'pathUnder']);
 
-function validDraft(value: unknown): value is BrowserRuleDraft {
+/** File into a folder here (empty while none is chosen, so the worker can say so), by a set's role, or keep here. */
+function validAction(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const raw = value as Record<string, unknown>, keys = Object.keys(raw).length;
+  if (raw.kind === 'keepHere') return keys === 1;
+  return raw.kind === 'file' && keys === 2 && (typeof raw.folderNativeId === 'string' && /^[\w.-]{0,128}$/u.test(raw.folderNativeId)
+    || typeof raw.role === 'string' && /^[A-Za-z0-9._-]{1,64}$/u.test(raw.role));
+}
+
+function validDraft(value: unknown): value is RuleDraft {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>;
   return Object.keys(raw).length === 4 && typeof raw.name === 'string' && raw.name.length <= 1024
-    && (raw.combinator === 'all' || raw.combinator === 'any') && typeof raw.folderNativeId === 'string' && /^[\w.-]{0,128}$/u.test(raw.folderNativeId)
+    && (raw.combinator === 'all' || raw.combinator === 'any') && validAction(raw.action)
     && Array.isArray(raw.conditions) && raw.conditions.length <= 16 && raw.conditions.every((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
       const condition = item as Record<string, unknown>;
@@ -127,6 +136,8 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
 export interface AutomationMatchView {
   readonly outcome: 'placed' | 'kept' | 'blocked' | 'conflict' | 'review' | 'expired';
   readonly ruleName: string;
+  /** The set or subscription of a browser rule, for "By Community › GitHub"; null for an account rule or an individual one. */
+  readonly sourceName: string | null;
   readonly ruleCount: number;
   /** The rule's folder in this browser; only a placement has one. */
   readonly folderNativeId: string | null;
@@ -150,7 +161,7 @@ export interface BrowserRuleView {
   readonly enabled: boolean;
   readonly match: RuleMatchView | null;
   /** What the editor opens with; null for a rule it cannot show (never written by this build's editor). */
-  readonly draft: BrowserRuleDraft | null;
+  readonly draft: RuleDraft | null;
   /** Its folder here; null while bookmark access is off or once the folder is gone (`folderMissing`). */
   readonly folder: { readonly nativeId: string; readonly title: string; readonly path: readonly string[] } | null;
   readonly folderMissing: boolean;
@@ -197,7 +208,7 @@ export interface AutomationPlacementView {
    * keptHere: one of this browser's rules matched, but the page stayed where it was saved (`kept` says why).
    */
   readonly state: 'waitingForSync' | 'confirmed' | 'review' | 'rejected' | 'attention' | 'filed' | 'keptHere';
-  readonly kept?: 'conflict' | 'blocked';
+  readonly kept?: 'conflict' | 'blocked' | 'keepHere';
 }
 
 export type AutomationProblem = 'offline' | 'signedOut' | 'unavailable' | 'rateLimited' | 'server' | 'rejected';

@@ -211,6 +211,10 @@
     "message": "请填写网站名称，例如 arxiv.org。",
     "description": "Use a site name, such as arxiv.org."
   },
+  "automation_browserBadPath": {
+    "message": "请使用链接路径，例如 /papers/。",
+    "description": "Use a link path, such as /papers/."
+  },
   "automation_browserCreate": {
     "message": "保存规则",
     "description": "Save rule"
@@ -615,6 +619,10 @@
     "message": "这条规则的文件夹在此不可用，所以网页留在你保存的位置。",
     "description": "The rule’s folder isn’t available here, so it stayed where you saved it."
   },
+  "automation_keptByRuleWhy": {
+    "message": "这条规则会让此类页面留在你保存的位置。",
+    "description": "The rule keeps pages like this where you save them."
+  },
   "automation_keptConflict": {
     "message": "此浏览器的两条规则想放进不同的文件夹，所以网页留在你保存的位置。",
     "description": "Two of this browser’s rules wanted different folders, so it stayed where you saved it."
@@ -622,6 +630,10 @@
   "automation_keptYourFolder": {
     "message": "已保留你选择的文件夹；规则“$1”没有移动它。",
     "description": "Kept the folder you chose; rule “$1” didn’t move it."
+  },
+  "automation_keptByRule": {
+    "message": "已按规则“$1”保留在你保存的位置。",
+    "description": "Kept where you saved it, by rule “$1”."
   },
   "automation_kindPathStartsWith": {
     "message": "链接路径开头是",
@@ -1146,6 +1158,10 @@
   "automation_signInForAccount": {
     "message": "登录后才能创建适用于所有设备的规则。",
     "description": "Sign in to make a rule for all your devices."
+  },
+  "automation_notOnWeb": {
+    "message": "网页编辑器无法创建这条规则。请在此浏览器中使用它。",
+    "description": "The web editor can’t make this rule. Use it in this browser."
   },
   "automation_statusNoneHint": {
     "message": "此浏览器还没有收到任何规则。",

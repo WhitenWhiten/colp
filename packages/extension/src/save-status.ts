@@ -63,7 +63,9 @@ export function automationSaveLine(automation: CaptureAutomation | undefined): {
   const name = automation.rule.name;
   switch (automation.outcome) {
     case 'placed': return { attention: false, text: t('automation_savedByRule', 'Saved to $1 by rule “$2”.', automation.folderTitle ?? '', name) };
-    case 'kept': return { attention: false, text: t('automation_keptYourFolder', 'Kept the folder you chose; rule “$1” didn’t move it.', name) };
+    case 'kept': return { attention: false, text: automation.source === 'browser' && automation.reason === 'keepHere'
+      ? t('automation_keptByRule', 'Kept where you saved it, by rule “$1”.', name)
+      : t('automation_keptYourFolder', 'Kept the folder you chose; rule “$1” didn’t move it.', name) };
     case 'blocked': return { attention: true, text: automation.reason === 'evaluation'
       ? t('automation_ruleNotChecked', 'Rule “$1” couldn’t be checked, so the page stayed where you saved it.', name)
       : t('automation_ruleFolderUnavailable', 'Rule “$1” matched, but its folder isn’t in this browser, so the page stayed where you saved it.', name) };

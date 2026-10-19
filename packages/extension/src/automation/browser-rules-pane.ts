@@ -5,7 +5,7 @@ import { t, tn } from '../i18n.js';
 import { button, el, emptyBlock, iconButton, inlineAlert, selectOf, selectPill } from '../library-dom.js';
 import { createFolderPicker, folderChoices, type FolderSourceNode } from '../library-folder-picker.js';
 import { showToast } from '../toast.js';
-import type { BrowserConditionKind, BrowserRuleDraft, DraftProblem } from './browser-rules.js';
+import type { ConditionKind, DraftProblem, RuleDraft } from './rule-conditions.js';
 import type { AutomationStateView, BrowserRuleOverlapView, BrowserRuleResponse, BrowserRuleView } from './messages.js';
 import { ruleConditions } from './status-ui.js';
 
@@ -16,7 +16,7 @@ import { ruleConditions } from './status-ui.js';
  * (browser-rules.ts); this page only collects the form and shows what the
  * worker said, so nothing here decides what a rule matches.
  */
-const KINDS: readonly { readonly kind: BrowserConditionKind; readonly label: () => string; readonly placeholder: string }[] = [
+const KINDS: readonly { readonly kind: ConditionKind; readonly label: () => string; readonly placeholder: string }[] = [
   { kind: 'siteIs', label: () => t('automation_kindSiteIs', 'Site is'), placeholder: 'arxiv.org' },
   { kind: 'siteEndsWith', label: () => t('automation_kindSiteEndsWith', 'Site ends with'), placeholder: 'github.com' },
   { kind: 'titleContains', label: () => t('automation_kindTitleContains', 'Title contains'), placeholder: 'Paper' },
@@ -301,6 +301,7 @@ function problemCopy(problem: DraftProblem): string {
       : t('automation_browserNeedCondition', 'Add at least one condition.');
     case 'tooMany': return t('automation_browserTooMany', 'Use 8 conditions or fewer.');
     case 'invalidHost': return t('automation_browserBadSite', 'Use a site name, such as arxiv.org.');
+    case 'invalidPath': return t('automation_browserBadPath', 'Use a link path, such as /papers/.');
     case 'tooLong': return problem.field === 'name' ? t('automation_browserNameTooLong', 'Use 200 characters or fewer.')
       : t('automation_browserValueTooLong', 'Use 512 characters or fewer.');
     case 'kind': return t('automation_browserBadKind', 'This kind of condition can’t be used here.');
@@ -353,7 +354,7 @@ export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HT
     add.disabled = rows.length >= CONDITION_LIMIT;
     for (const row of rows) row.element.querySelector<HTMLButtonElement>('.automation-condition-remove')!.hidden = rows.length < 2;
   }
-  function addRow(kind: BrowserConditionKind = 'siteIs', value = ''): ConditionRow {
+  function addRow(kind: ConditionKind = 'siteIs', value = ''): ConditionRow {
     const element = el('div', undefined, 'automation-condition');
     const select = selectOf(KINDS.map((item) => [item.kind, item.label()] as const), kind);
     select.className = 'field-select'; select.setAttribute('aria-label', t('automation_conditionKind', 'Condition'));
@@ -377,7 +378,7 @@ export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HT
   // Where: any folder in this browser, synced or not.
   const where = el('div', undefined, 'form-field');
   const whereLabel = el('span', t('automation_saveIn', 'Save it in'), 'form-label');
-  const picker = createFolderPicker({ choices: [], value: draft?.folderNativeId ?? rule?.folder?.nativeId ?? '', startEmpty: true,
+  const picker = createFolderPicker({ choices: [], value: (draft?.action.kind === 'file' && 'folderNativeId' in draft.action ? draft.action.folderNativeId : null) ?? rule?.folder?.nativeId ?? '', startEmpty: true,
     label: t('automation_saveIn', 'Save it in'), onChange: () => { folderError.hidden = true; suggest(); } });
   const folderError = el('p', undefined, 'form-error'); folderError.hidden = true;
   const access = el('div', undefined, 'automation-access'); access.hidden = true;
@@ -468,12 +469,13 @@ export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HT
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     for (const node of [failure, listError, folderError, nameError, ...rows.map((row) => row.error)]) node.hidden = true;
-    const next: BrowserRuleDraft = { name: name.value.trim() || suggested(), combinator: combinator.value === 'any' ? 'any' : 'all', folderNativeId: picker.value(),
-      conditions: rows.map((row) => ({ kind: row.kind.value as BrowserConditionKind, value: row.value.value })) };
+    const folderNativeId = picker.value();
+    const next: RuleDraft = { name: name.value.trim() || suggested(), combinator: combinator.value === 'any' ? 'any' : 'all',
+      action: { kind: 'file', folderNativeId }, conditions: rows.map((row) => ({ kind: row.kind.value as ConditionKind, value: row.value.value })) };
     // The worker checks everything; these two are said at once, without a round trip.
     const local: DraftProblem[] = [];
     if (!next.conditions.some((condition) => condition.value.trim())) local.push({ field: 'conditions', code: 'required' });
-    if (!next.folderNativeId) local.push({ field: 'folder', code: 'required' });
+    if (!folderNativeId) local.push({ field: 'folder', code: 'required' });
     if (local.length) { show(local); return; }
     save.disabled = true;
     if (use === 'account') {
@@ -492,6 +494,7 @@ export function openBrowserRuleEditor(rule: BrowserRuleView | null, trigger?: HT
         }
         if (!reply.ok && reply.problems?.length) { show(reply.problems); return; }
         failure.textContent = !reply.ok && reply.error === 'signedOut' ? t('automation_signInForAccount', 'Sign in to make a rule for all your devices.')
+          : !reply.ok && reply.error === 'notOnWeb' ? t('automation_notOnWeb', 'The web editor can’t make this rule. Use it in this browser.')
           : t('automation_browserSaveFailed', 'Couldn’t save this rule. Try again.');
         failure.hidden = false;
       });

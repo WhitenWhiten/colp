@@ -14,7 +14,7 @@ const onChange = vi.fn();
 
 beforeEach(() => {
   chosen = '21'; explicit = false; sent.length = 0; folders.adopt.mockClear(); fields.setRulePick.mockClear(); onChange.mockClear();
-  match = { outcome: 'placed', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: '10', folderTitle: 'Academic' };
+  match = { outcome: 'placed', ruleName: 'arXiv papers', sourceName: null, ruleCount: 1, folderNativeId: '10', folderTitle: 'Academic' };
   document.body.dataset.captureMode = 'manual'; delete document.body.dataset.existing;
   vi.stubGlobal('chrome', { runtime: { sendMessage: async (message: unknown) => { sent.push(message); return { ok: true, match }; } } });
 });
@@ -49,11 +49,11 @@ test('picking a folder makes it the user’s: no rule mark, and Save says it was
 });
 
 test('no placement, an existing bookmark or the automatic popup leave the folder alone', async () => {
-  match = { outcome: 'blocked', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: null, folderTitle: null };
+  match = { outcome: 'blocked', ruleName: 'arXiv papers', sourceName: null, ruleCount: 1, folderNativeId: null, folderTitle: null };
   await bind().refresh();
   expect(chosen).toBe('21');
   expect(fields.setRulePick).toHaveBeenLastCalledWith(null);
-  match = { outcome: 'placed', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: '10', folderTitle: 'Academic' };
+  match = { outcome: 'placed', ruleName: 'arXiv papers', sourceName: null, ruleCount: 1, folderNativeId: '10', folderTitle: 'Academic' };
   document.body.dataset.existing = 'edit';
   await bind().refresh();
   document.body.dataset.existing = ''; document.body.dataset.captureMode = 'automatic';

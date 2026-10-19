@@ -51,7 +51,8 @@ export function bindPopupRule(host: {
       if (match?.outcome !== 'placed' || !match.folderNativeId) { if (decides()) await host.folders.adopt(base); clear(); return; }
       base = parent; shown = match.folderNativeId;
       if (host.folders.chosenFolderId() !== shown) await host.folders.adopt(shown);
-      host.fields.setRulePick(match.ruleName);
+      // A rule from a set or a subscription is named with it: "Community › GitHub".
+      host.fields.setRulePick(match.sourceName ? `${match.sourceName} › ${match.ruleName}` : match.ruleName);
       host.onChange();
     },
     /** The user picked a folder: it is theirs now. */
@@ -69,7 +70,9 @@ export function bindPopupRule(host: {
       }
       const placed = task.disposition === 'new' && task.automation?.outcome === 'placed';
       shown = placed ? task.targetNativeId : '';
-      host.fields.setRulePick(placed ? task.automation!.rule.name : null);
+      const automation = placed ? task.automation! : null;
+      host.fields.setRulePick(automation ? automation.source === 'browser' && automation.sourceName
+        ? `${automation.sourceName} › ${automation.rule.name}` : automation.rule.name : null);
     },
   };
 }

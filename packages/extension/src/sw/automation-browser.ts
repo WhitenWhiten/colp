@@ -1,7 +1,9 @@
 import { createBrowserPlacementLog, type BrowserPlacementLog } from '../automation/browser-rule-store.js';
-import { accountEditorUrl, checkBrowserDraft, decideBrowserRules, type BrowserDecision, type BrowserRuleDraft,
-  type FolderLookup } from '../automation/browser-rules.js';
+import { accountEditorUrl, type FolderLookup } from '../automation/browser-rules.js';
 import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
+import { checkRuleDraft, type RuleDraft } from '../automation/rule-conditions.js';
+import { decideList, type ListDecision, type ListResult } from '../automation/rule-list-decide.js';
+import { flattenList, type FlatItem } from '../automation/rule-list-flatten.js';
 import { createRuleListStore, individualRules, ruleFolderNativeId, type LocalRule, type RuleListStore } from '../automation/rule-list-store.js';
 import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '../automation/browser-overlap.js';
 import type { AutomationPlacementView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse, BrowserRuleView } from '../automation/messages.js';
@@ -26,7 +28,7 @@ function stores() {
 export const browserRuleStore = (): RuleListStore => stores().store;
 export const browserPlacementLog = (): BrowserPlacementLog => stores().log;
 
-/** The list's own rules that file into a folder of their own, as the shared arbitration reads them. */
+/** Individual rules that file into a folder of their own, as the overlap check with the account reads them. */
 const filing = (rules: readonly LocalRule[]) => rules.flatMap((rule) => {
   const folderNativeId = ruleFolderNativeId(rule);
   return folderNativeId === null ? [] : [{ id: rule.id, definition: rule.definition, folderNativeId, enabled: rule.enabled }];
@@ -40,33 +42,43 @@ export interface BrowserPreSaveDecision {
   readonly targetNativeId: string | null;
 }
 
-function browserAutomation(decision: BrowserDecision, fromNativeId: string): BrowserAutomation {
-  return { source: 'browser', outcome: decision.outcome, ...(decision.reason ? { reason: decision.reason } : {}), rule: decision.rule,
-    ruleIds: [...decision.ruleIds], ...(decision.folder ? { folderTitle: decision.folder.title } : {}), fromNativeId };
+const skippedRef = (item: FlatItem) => ({ ...item.ref.kind === 'subscriptionEntry' ? { entryId: item.id } : { ruleId: item.id },
+  reason: 'missingInput' as const });
+
+/** The decision as the capture task keeps it: which entry of which list revision decided, and what it passed over (doc 17 §4.3). */
+function browserAutomation(decision: ListDecision, result: ListResult, listRevision: number, fromNativeId: string): BrowserAutomation {
+  const { item } = decision;
+  return { source: 'browser', outcome: decision.outcome, ...(decision.reason ? { reason: decision.reason } : {}), rule: { id: item.id, name: item.name },
+    ruleIds: [item.id], ...(decision.folder ? { folderTitle: decision.folder.title } : {}), fromNativeId, entry: { listRevision, ...item.ref },
+    ...(item.source ? { sourceName: item.source.name } : {}), ...(result.skipped.length ? { skipped: result.skipped.map(skippedRef) } : {}) };
 }
 
-/** This browser's rules' decision for a save no account rule decided; null when none matches. */
+/** This browser's list's decision for a save no account rule decided, first match wins (doc 17 §6.3); null when none matches. */
 export async function browserPreSaveDecision(input: PreSaveInput): Promise<BrowserPreSaveDecision | null> {
   if (!await hasBookmarkPermission()) return null;
-  const list = await browserRuleStore().load();
-  if (!list.enabled) return null;
-  const decision = await decideBrowserRules(filing(individualRules(list)), input, nativeFolderLookup, Date.now());
-  return decision ? { automation: browserAutomation(decision, input.parentNativeId), targetNativeId: decision.folder?.nativeId ?? null } : null;
+  const flat = flattenList(await browserRuleStore().load());
+  if (flat.stopped || !flat.items.length) return null;
+  const result = await decideList(flat.items, input, nativeFolderLookup, Date.now());
+  if (!result.decision) return null;
+  return { automation: browserAutomation(result.decision, result, flat.revision, input.parentNativeId),
+    targetNativeId: result.decision.folder?.nativeId ?? null };
 }
 
 /**
  * A save a browser rule decided, for Options' recent activity. The capture id keeps a repeated acknowledgement
  * from logging it twice. A rule that matched but could not file the page is logged too (follow-up U6), so its
- * reason outlives the save panel; a folder the Owner picked (`kept`) is their choice, not news.
+ * reason outlives the save panel, and so is a rule that keeps pages where they are saved; a folder the Owner
+ * picked is their choice, not news.
  */
 export async function recordBrowserPlacement(task: CaptureTask): Promise<void> {
   const automation = task.automation;
-  if (automation?.source !== 'browser' || automation.outcome === 'kept' || !task.nativeId || task.save !== 'local-saved'
-    || task.disposition !== 'new') return;
-  const kept = automation.outcome === 'placed' ? undefined : automation.outcome;
+  if (automation?.source !== 'browser' || (automation.outcome === 'kept' && automation.reason !== 'keepHere') || !task.nativeId
+    || task.save !== 'local-saved' || task.disposition !== 'new') return;
+  const kept = automation.outcome === 'placed' ? undefined : automation.outcome === 'kept' ? 'keepHere' as const : automation.outcome;
   await browserPlacementLog().logPlacement({ id: task.captureId, ruleId: automation.rule.id, ruleName: automation.rule.name,
     folder: kept ? task.localLocation?.path.at(-1) ?? '' : automation.folderTitle ?? '', title: task.title, url: task.url,
-    at: task.savedAt ?? Date.now(), ...(kept ? { kept } : {}) });
+    at: task.savedAt ?? Date.now(), ...(kept ? { kept } : {}), ...(automation.entry ? { entry: automation.entry } : {}),
+    ...(automation.sourceName ? { sourceName: automation.sourceName } : {}) });
 }
 
 /** A folder as Options names it: its title under its parents' ("Bookmarks bar › Reading › Papers"). Null once it is gone. */
@@ -140,10 +152,9 @@ export async function browserRuleViews(context: AccountContext | null = null): P
       rule: { id: other.id, name: other.name, match: ruleMatchView(other.definition.match), folder: other.folderTitle },
       reviewed: (rule.reviewed ?? []).some((item) => item.accountRuleId === other.id && item.key === other.key) } : null;
     const canonical = context && folder && folderNativeId ? await context.canonical(folderNativeId).catch(() => null) : null;
-    const url = canonical && context?.webUrl && folderNativeId ? accountEditorUrl(context.webUrl, { definition: rule.definition, folderNativeId }, canonical) : null;
+    const url = canonical && context?.webUrl && folderNativeId ? accountEditorUrl(context.webUrl, rule, canonical) : null;
     // The conditions as written are what the editor opens with; a rule an earlier build wrote without them only switches.
-    const draft: BrowserRuleDraft | null = rule.conditions.length && folderNativeId
-      ? { name: rule.name, combinator: rule.combinator, conditions: rule.conditions, folderNativeId } : null;
+    const draft: RuleDraft | null = rule.conditions.length ? { name: rule.name, combinator: rule.combinator, conditions: rule.conditions, action: rule.action } : null;
     return { id: rule.id, name: rule.name, enabled: rule.enabled, match: ruleMatchView(rule.definition.match),
       draft, folder, folderMissing: access && Boolean(folderNativeId) && !folder, account: overlap, move: url ? { url } : null,
       // Signed out no account copy can arrive, so nothing is shown as waiting for one.
@@ -213,12 +224,15 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand,
  * this only checks the draft here and fills in the web editor with it. Its folder must be synced, because
  * the account names folders by their identity in the collection.
  */
-async function forAccount(draft: BrowserRuleDraft, link: AccountLink | null): Promise<BrowserRuleResponse> {
-  const checked = checkBrowserDraft(draft);
+async function forAccount(draft: RuleDraft, link: AccountLink | null): Promise<BrowserRuleResponse> {
+  const checked = checkRuleDraft(draft);
   if (!checked.ok) return { ok: false, error: 'invalid', problems: checked.problems };
+  // The account's rules file into a synced folder by the web editor's own conditions.
+  const folderNativeId = ruleFolderNativeId(draft);
+  if (!folderNativeId) return { ok: false, error: 'notOnWeb' };
   if (!link?.webUrl) return { ok: false, error: 'signedOut' };
-  const folder = await link.canonical(draft.folderNativeId).catch(() => null);
+  const folder = await link.canonical(folderNativeId).catch(() => null);
   if (!folder) return { ok: false, error: 'notSynced' };
-  const url = accountEditorUrl(link.webUrl, { definition: checked.definition, folderNativeId: draft.folderNativeId }, folder);
-  return url ? { ok: true, url } : { ok: false, error: 'invalid', problems: [] };
+  const url = accountEditorUrl(link.webUrl, { definition: checked.definition }, folder);
+  return url ? { ok: true, url } : { ok: false, error: 'notOnWeb' };
 }

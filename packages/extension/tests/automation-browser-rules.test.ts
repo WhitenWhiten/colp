@@ -1,102 +1,39 @@
-import { validateM1Rule } from '@know-n/colp/automation';
 import { describe, expect, it } from 'vitest';
 import { createBrowserPlacementLog, BROWSER_PLACEMENTS_KEY } from '../src/automation/browser-rule-store.js';
-import { browserRuleDefinition, checkBrowserDraft, decideBrowserRules, draftFromRule, type BrowserRule,
-  type BrowserRuleDraft, type FolderLookup } from '../src/automation/browser-rules.js';
+import { editorConditions, resolveBrowserFolder, type FolderLookup } from '../src/automation/browser-rules.js';
+import { checkRuleDraft, type RuleCondition } from '../src/automation/rule-conditions.js';
 import { memoryStateArea as memoryArea, NOW } from './automation-fixture.js';
 
-/** Browser rules (AW-67): the editor's draft, its stored definition, and what they decide at save. */
-const draft = (over: Partial<BrowserRuleDraft> = {}): BrowserRuleDraft =>
-  ({ name: 'Papers from arXiv', combinator: 'all', conditions: [{ kind: 'siteIs', value: 'arxiv.org' }], folderNativeId: '30', ...over });
-
-function stored(id: string, over: Partial<BrowserRuleDraft> = {}, enabled = true): BrowserRule {
-  const checked = checkBrowserDraft(draft(over));
-  if (!checked.ok) throw new Error('invalid draft');
-  return { id, definition: checked.definition, folderNativeId: draft(over).folderNativeId, enabled, createdAt: NOW, updatedAt: NOW };
-}
-
+/** Browser rules (AW-67, doc 17 RS-07): their folders here, the web editor's form of them, and the pages they filed. */
 const folders: Record<string, { id: string; title: string; url?: string; unmodifiable?: string }> = {
-  30: { id: '30', title: 'Papers' }, 31: { id: '31', title: 'Reading' }, 40: { id: '40', title: 'Managed', unmodifiable: 'managed' },
+  30: { id: '30', title: 'Papers' }, 40: { id: '40', title: 'Managed', unmodifiable: 'managed' },
   50: { id: '50', title: 'A bookmark', url: 'https://example.org/' } };
 const lookup: FolderLookup = async (id) => folders[id] ?? null;
-const page = (url: string, title = 'A paper', explicit = false) => ({ url, title, explicit });
 
-describe('a draft becomes a stored rule', () => {
-  it('is the M1 placement definition with no collection, normalized the way the evaluator compares', () => {
-    const checked = checkBrowserDraft(draft({ conditions: [{ kind: 'siteIs', value: ' ArXiv.org ' }] }));
-    expect(checked.ok).toBe(true);
-    if (!checked.ok) return;
-    expect(validateM1Rule(checked.definition)).toEqual([]);
-    expect(checked.definition).toMatchObject({ name: 'Papers from arXiv', scope: {}, on: 'bookmark.intake', tasks: [], priority: 100,
-      match: { kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'arxiv.org' }, intake: { folderRole: 'destination' } });
-  });
-
-  it('takes a pasted link for its site, and names an unnamed rule after its first value', () => {
-    const checked = checkBrowserDraft(draft({ name: '  ', conditions: [{ kind: 'siteEndsWith', value: 'https://Docs.GitHub.com/en/actions' }] }));
-    expect(checked.ok && checked.definition).toMatchObject({ name: 'docs.github.com', match: { op: 'hostSuffix', value: 'docs.github.com' } });
-  });
-
-  it('joins several conditions with all or any and drops empty rows', () => {
-    const definition = browserRuleDefinition(draft({ combinator: 'any', conditions: [{ kind: 'titleContains', value: 'Paper' }, { kind: 'siteIs', value: '' },
-      { kind: 'pathStartsWith', value: '/abs/' }] }));
-    expect(definition.match).toEqual({ kind: 'any', items: [{ kind: 'field', field: 'bookmark.title', op: 'contains', value: 'Paper' },
-      { kind: 'field', field: 'bookmark.url.path', op: 'startsWith', value: '/abs/' }] });
-  });
-
-  it('says what the editor should point at', () => {
-    expect(checkBrowserDraft(draft({ conditions: [{ kind: 'siteIs', value: '  ' }], folderNativeId: '' }))).toEqual({ ok: false,
-      problems: [{ field: 'conditions', code: 'required' }, { field: 'folder', code: 'required' }] });
-    expect(checkBrowserDraft(draft({ conditions: [{ kind: 'titleContains', value: 'ok' }, { kind: 'siteIs', value: 'not a host' }] }))).toEqual({ ok: false,
-      problems: [{ field: 'condition', index: 1, code: 'invalidHost' }] });
-    expect(checkBrowserDraft(draft({ conditions: Array.from({ length: 9 }, (_, index) => ({ kind: 'titleContains' as const, value: `w${index}` })) })))
-      .toMatchObject({ ok: false, problems: [{ field: 'conditions', code: 'tooMany' }] });
-    expect(checkBrowserDraft(draft({ name: 'x'.repeat(201) }))).toMatchObject({ ok: false, problems: [{ field: 'name', code: 'tooLong' }] });
-    expect(checkBrowserDraft(draft({ conditions: [{ kind: 'hasTag' as never, value: 'research' }] })))
-      .toMatchObject({ ok: false, problems: [{ field: 'condition', index: 0, code: 'kind' }] });
-  });
-
-  it('opens again in the editor as it was written', () => {
-    const rule = stored('b-1', { combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }, { kind: 'titleContains', value: 'Review' }] });
-    expect(draftFromRule(rule)).toEqual({ name: 'Papers from arXiv', combinator: 'any', folderNativeId: '30',
-      conditions: [{ kind: 'siteEndsWith', value: 'github.com' }, { kind: 'titleContains', value: 'Review' }] });
+describe('a rule’s folder here', () => {
+  it('is its native id: a rename keeps it, and a new folder with the old title never takes it', async () => {
+    expect(await resolveBrowserFolder('30', lookup)).toMatchObject({ status: 'resolved', nativeId: '30', title: 'Papers' });
+    folders[30] = { id: '30', title: 'Reading' };
+    expect(await resolveBrowserFolder('30', lookup)).toMatchObject({ status: 'resolved', title: 'Reading' });
+    folders[31] = { id: '31', title: 'Papers' };
+    delete folders[30];
+    expect(await resolveBrowserFolder('30', lookup)).toMatchObject({ status: 'unresolved', reason: 'deleted' });
+    expect(await resolveBrowserFolder('40', lookup)).toMatchObject({ status: 'unresolved', reason: 'notFolder' });
+    expect(await resolveBrowserFolder('50', lookup)).toMatchObject({ status: 'unresolved', reason: 'notFolder' });
   });
 });
 
-describe('what browser rules decide at save', () => {
-  it('place a matching page in the rule’s folder and leave others alone', async () => {
-    const rules = [stored('b-1')];
-    expect(await decideBrowserRules(rules, page('https://arxiv.org/abs/2410.00001'), lookup, NOW)).toEqual({ outcome: 'placed',
-      rule: { id: 'b-1', name: 'Papers from arXiv' }, ruleIds: ['b-1'], folder: { nativeId: '30', title: 'Papers' } });
-    expect(await decideBrowserRules(rules, page('https://example.org/'), lookup, NOW)).toBeNull();
-    expect(await decideBrowserRules([stored('b-1', {}, false)], page('https://arxiv.org/abs/1'), lookup, NOW)).toBeNull();
-    expect(await decideBrowserRules([], page('https://arxiv.org/abs/1'), lookup, NOW)).toBeNull();
-  });
+describe('the web editor’s form of a rule', () => {
+  const definition = (conditions: RuleCondition[], combinator: 'all' | 'any' = 'all') => {
+    const checked = checkRuleDraft({ name: 'Rule', combinator, conditions, action: { kind: 'file', folderNativeId: '30' } });
+    if (!checked.ok) throw new Error('invalid draft');
+    return checked.definition;
+  };
 
-  it('stand aside for a folder the Owner picked', async () => {
-    expect(await decideBrowserRules([stored('b-1')], page('https://arxiv.org/abs/1', 'A paper', true), lookup, NOW))
-      .toMatchObject({ outcome: 'kept', folder: null });
-  });
-
-  it('block, never guess, when the folder is gone or cannot hold bookmarks', async () => {
-    for (const folderNativeId of ['99', '40', '50']) {
-      expect(await decideBrowserRules([stored('b-1', { folderNativeId })], page('https://arxiv.org/abs/1'), lookup, NOW))
-        .toMatchObject({ outcome: 'blocked', reason: 'bindingUnavailable', folder: null });
-    }
-  });
-
-  it('keep the page where it was saved when two rules send it to different folders, and agree when they don’t', async () => {
-    const other = stored('b-2', { name: 'Reading list', conditions: [{ kind: 'titleContains', value: 'paper' }], folderNativeId: '31' });
-    expect(await decideBrowserRules([stored('b-1'), other], page('https://arxiv.org/abs/1', 'A paper'), lookup, NOW))
-      .toMatchObject({ outcome: 'conflict', ruleIds: ['b-1', 'b-2'] });
-    const same = stored('b-3', { conditions: [{ kind: 'pathStartsWith', value: '/abs/' }] });
-    expect(await decideBrowserRules([stored('b-1'), same], page('https://arxiv.org/abs/1'), lookup, NOW))
-      .toMatchObject({ outcome: 'placed', ruleIds: ['b-1', 'b-3'], folder: { nativeId: '30' } });
-  });
-
-  it('match a whole site with "ends with", and a path from its first segment', async () => {
-    const rules = [stored('b-1', { conditions: [{ kind: 'siteEndsWith', value: 'github.com' }, { kind: 'pathStartsWith', value: '/know-n/' }] })];
-    expect(await decideBrowserRules(rules, page('https://gist.github.com/know-n/abc'), lookup, NOW)).toMatchObject({ outcome: 'placed' });
-    expect(await decideBrowserRules(rules, page('https://github.com/other/abc'), lookup, NOW)).toBeNull();
+  it('is the conditions the web can write, and nothing for those it cannot', () => {
+    expect(editorConditions(definition([{ kind: 'siteEndsWith', value: 'github.com' }, { kind: 'titleContains', value: 'Review' }], 'any')))
+      .toEqual({ combinator: 'any', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }, { kind: 'titleContains', value: 'Review' }] });
+    expect(editorConditions(definition([{ kind: 'pathUnder', value: '/team' }]))).toBeNull();
   });
 });
 
@@ -112,5 +49,15 @@ describe('the placement log', () => {
     expect(logged).toHaveLength(20);
     expect(logged[0]).toMatchObject({ id: 'c-25' });
     expect(area.values.has(BROWSER_PLACEMENTS_KEY)).toBe(true);
+  });
+
+  it('keeps the list entry that decided, and drops one it cannot read', async () => {
+    const area = memoryArea(), store = createBrowserPlacementLog(area);
+    const base = { ruleId: 'r-1', ruleName: 'GitHub', folder: 'Code', title: 'Repo', url: 'https://github.com/x', at: NOW };
+    await store.logPlacement({ ...base, id: 'c-1', entry: { listRevision: 4, kind: 'setRule', ruleId: 'r-1', setId: 's-1' }, sourceName: 'Community' });
+    await store.logPlacement({ ...base, id: 'c-2', at: NOW + 1, kept: 'keepHere' });
+    expect(await store.placements()).toMatchObject([{ id: 'c-2', kept: 'keepHere' }, { id: 'c-1', sourceName: 'Community', entry: { kind: 'setRule', setId: 's-1' } }]);
+    await area.set(BROWSER_PLACEMENTS_KEY, [{ ...base, id: 'c-3', entry: { listRevision: 'x', kind: 'rule' } }]);
+    expect(await store.placements()).toEqual([]);
   });
 });
