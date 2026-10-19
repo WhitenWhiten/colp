@@ -1,13 +1,19 @@
-import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, VALUE_LIMIT, checkRuleDraft, type RuleAction, type RuleCondition } from './rule-conditions.js';
+import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, VALUE_LIMIT, checkRuleDraft, collectionRef, type CollectionLookup, type RuleAction,
+  type RuleCondition } from './rule-conditions.js';
 import { LIST_LIMITS, ruleFolderNativeId, type ListEntry, type LocalRule, type LocalSet, type RuleListRecord, type SetOrigin } from './rule-list-store.js';
+import { subscriptionAddress } from './subscription-fetch.js';
+import { REFRESH_INTERVALS, type RefreshInterval } from './subscription-messages.js';
+import type { LocalAdjustments, SubscriptionRecord } from './subscription-store.js';
 
 /**
  * `known-rules-config/v1` (doc 17 §5.3, RS-19.3): this browser's rule list in a file the Owner keeps,
  * apart from the bookmark backup. It holds the list (conditions, actions, sets with their origin, roles
- * and bindings, subscription entries), and a folder table naming every folder an action or binding
- * uses by its title and path. Folder ids in a file are another browser's: an import maps every folder
- * in the table to one here, suggested by an exact path, and uses none of the file's ids (RS-07.4).
- * The document is closed and versioned; it carries no credential, token or content of any kind.
+ * and bindings, subscriptions with their address, settings and adjustments but none of their content),
+ * and a folder table naming every folder an action or binding uses by its title and path. Folder ids in
+ * a file are another browser's: an import maps every folder in the table to one here, suggested by an
+ * exact path, and uses none of the file's ids (RS-07.4). A subscription comes back not ready, and is
+ * fetched once its origin is allowed here (RS-19.3). The document is closed and versioned; it carries
+ * no credential, token or fetched content (RS-19.4).
  */
 export const CONFIG_FORMAT = 'known-rules-config/v1';
 export const CONFIG_MAX_BYTES = 2 * 1024 * 1024;
@@ -32,9 +38,22 @@ export interface ConfigSet {
   readonly bindings: Readonly<Record<string, string>>;
   readonly rules: readonly ConfigRule[];
 }
+export interface ConfigSubscription {
+  /** Kept on import, so rules naming its sites still do. */
+  readonly id: string;
+  readonly enabled: boolean;
+  readonly url: string;
+  readonly updatePolicy: SubscriptionRecord['updatePolicy'];
+  readonly refreshIntervalHours: RefreshInterval;
+  readonly paused: boolean;
+  readonly pinned: boolean;
+  readonly disabledEntryIds: readonly string[];
+  readonly exceptions: readonly { readonly scope: 'host' | 'domain'; readonly value: string }[];
+  /** Role key → a folder in the table. */
+  readonly bindings: Readonly<Record<string, string>>;
+}
 export type ConfigEntry = { readonly kind: 'rule'; readonly rule: ConfigRule } | { readonly kind: 'set'; readonly set: ConfigSet }
-  /** Its source and settings arrive with subscriptions (Stage 3); an import recreates it with nothing to file yet. */
-  | { readonly kind: 'subscription'; readonly subscription: { readonly id: string; readonly enabled: boolean } };
+  | { readonly kind: 'subscription'; readonly subscription: ConfigSubscription };
 export interface RulesConfig {
   readonly format: typeof CONFIG_FORMAT;
   readonly exportedAt: number;
@@ -45,12 +64,24 @@ export interface RulesConfig {
 const ruleOf = (rule: LocalRule): ConfigRule => ({ id: rule.id, enabled: rule.enabled, name: rule.name, combinator: rule.combinator,
   conditions: rule.conditions, action: rule.action });
 
-/** The list as a file. `folder` names a folder here by title and path; a folder gone since keeps its id with no path. */
+type Subscribed = (id: string) => { readonly record: SubscriptionRecord; readonly local: LocalAdjustments } | null;
+
+/**
+ * The list as a file. `folder` names a folder here by title and path; a folder gone since keeps its id with no path.
+ * A subscription whose record cannot be read is left out: there is no address to subscribe to again.
+ */
 export async function buildRulesConfig(list: RuleListRecord, folder: (nativeId: string) => Promise<{ readonly title: string; readonly path: readonly string[] } | null>,
-  now: number): Promise<RulesConfig> {
+  now: number, subscribed: Subscribed = () => null): Promise<RulesConfig> {
   const entries = list.entries.flatMap((entry): ConfigEntry[] => {
     if (entry.kind === 'rule') return entry.rule.conditions.length ? [{ kind: 'rule', rule: ruleOf(entry.rule) }] : [];
-    if (entry.kind === 'subscription') return [{ kind: 'subscription', subscription: { id: entry.subscriptionId, enabled: entry.enabled } }];
+    if (entry.kind === 'subscription') {
+      const found = subscribed(entry.subscriptionId);
+      if (!found) return [];
+      const { record, local } = found;
+      return [{ kind: 'subscription', subscription: { id: record.id, enabled: entry.enabled, url: record.url, updatePolicy: record.updatePolicy,
+        refreshIntervalHours: record.refreshIntervalHours, paused: record.paused, pinned: record.pinned, disabledEntryIds: local.disabledEntryIds,
+        exceptions: local.exceptions.map(({ scope, value }) => ({ scope, value })), bindings: local.bindings } }];
+    }
     const { id, name, enabled, origin, roles, bindings, rules } = entry.set;
     return [{ kind: 'set', set: { id, name, enabled, origin, roles, bindings, rules: rules.filter((rule) => rule.conditions.length).map(ruleOf) } }];
   });
@@ -61,6 +92,7 @@ export async function buildRulesConfig(list: RuleListRecord, folder: (nativeId: 
       for (const rule of entry.set.rules) if (rule.action.kind === 'file' && 'folderNativeId' in rule.action) ids.add(rule.action.folderNativeId);
       for (const id of Object.values(entry.set.bindings)) ids.add(id);
     }
+    if (entry.kind === 'subscription') for (const id of Object.values(subscribed(entry.subscriptionId)?.local.bindings ?? {})) ids.add(id);
   }
   const folders = await Promise.all([...ids].map(async (nativeId) => {
     const found = await folder(nativeId);
@@ -121,15 +153,27 @@ function parseSet(value: unknown): ConfigSet {
     bindings: Object.fromEntries(Object.entries(bindings).map(([key, folder]) => [key, text(folder, 128, FOLDER)])),
     rules: list(raw.rules, LIST_LIMITS.localRules).map(parseRule) };
 }
+function parseSubscription(value: unknown): ConfigSubscription {
+  const raw = object(value, ['id', 'enabled', 'url', 'updatePolicy', 'refreshIntervalHours', 'paused', 'pinned', 'disabledEntryIds', 'exceptions', 'bindings']);
+  const address = subscriptionAddress(text(raw.url, 2_048));
+  if (!address.ok || address.url !== raw.url || (raw.updatePolicy !== 'review' && raw.updatePolicy !== 'auto')
+    || !REFRESH_INTERVALS.includes(raw.refreshIntervalHours as RefreshInterval)) throw new Error('config_invalid');
+  const exceptions = list(raw.exceptions, 200).map((item) => {
+    const exception = object(item, ['scope', 'value']);
+    if (exception.scope !== 'host' && exception.scope !== 'domain') throw new Error('config_invalid');
+    return { scope: exception.scope as 'host' | 'domain', value: text(exception.value, 253, /^[a-z0-9.-]+$/u) };
+  });
+  const bindings = object(raw.bindings, [], Object.keys(raw.bindings as object).filter((key) => ROLE.test(key)));
+  return { id: text(raw.id, 128, ID), enabled: flag(raw.enabled), url: address.url, updatePolicy: raw.updatePolicy,
+    refreshIntervalHours: raw.refreshIntervalHours as RefreshInterval, paused: flag(raw.paused), pinned: flag(raw.pinned),
+    disabledEntryIds: list(raw.disabledEntryIds, 2_000).map((id) => text(id, 64, ROLE)), exceptions,
+    bindings: Object.fromEntries(Object.entries(bindings).map(([key, folder]) => [key, text(folder, 128, FOLDER)])) };
+}
 function parseEntry(value: unknown): ConfigEntry {
   const raw = object(value, ['kind'], ['rule', 'set', 'subscription']);
   if (raw.kind === 'rule') { object(raw, ['kind', 'rule']); return { kind: 'rule', rule: parseRule(raw.rule) }; }
   if (raw.kind === 'set') { object(raw, ['kind', 'set']); return { kind: 'set', set: parseSet(raw.set) }; }
-  if (raw.kind === 'subscription') {
-    object(raw, ['kind', 'subscription']);
-    const subscription = object(raw.subscription, ['id', 'enabled']);
-    return { kind: 'subscription', subscription: { id: text(subscription.id, 128, ID), enabled: flag(subscription.enabled) } };
-  }
+  if (raw.kind === 'subscription') { object(raw, ['kind', 'subscription']); return { kind: 'subscription', subscription: parseSubscription(raw.subscription) }; }
   throw new Error('config_invalid');
 }
 
@@ -160,6 +204,7 @@ export function foldersUsed(config: Pick<RulesConfig, 'list'> | { readonly list:
   for (const entry of config.list.entries) {
     if (entry.kind === 'rule') rule(entry.rule);
     if (entry.kind === 'set') { entry.set.rules.forEach(rule); for (const id of Object.values(entry.set.bindings)) all.add(id); }
+    if (entry.kind === 'subscription') for (const id of Object.values(entry.subscription.bindings)) all.add(id);
   }
   return { actions, all };
 }
@@ -174,29 +219,44 @@ export function suggestFolders(folders: readonly ConfigFolder[], here: readonly 
   }));
 }
 
+/** A collection's site before its subscription has a version here: compiled to match nothing, from no version, so it waits (subscription-list.ts). */
+const PENDING: CollectionLookup = (_subscriptionId, siteId) => ({ name: siteId, version: '',
+  predicate: { kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'collection.invalid' } });
+/** A subscription to recreate here, not ready, with its adjustments. */
+export interface ImportedSubscription { readonly config: ConfigSubscription; readonly local: LocalAdjustments }
+
 /**
  * The file's entries as list entries here, every folder through `remap` (file id → folder here, or null
  * for a binding left unbound). Rules and sets get new ids; a rule this build cannot check is left out.
+ * A rule naming a collection's site waits for its subscription's first version, which compiles it.
  */
 export function configEntries(config: RulesConfig, remap: Readonly<Record<string, string | null>>, newId: () => string, now: number):
-  { readonly entries: readonly ListEntry[]; readonly skipped: number } | { readonly error: 'unmapped' } {
+  { readonly entries: readonly ListEntry[]; readonly skipped: number; readonly subscriptions: readonly ImportedSubscription[] } | { readonly error: 'unmapped' } {
   const used = foldersUsed(config);
   if ([...used.actions].some((id) => !remap[id])) return { error: 'unmapped' };
   let skipped = 0;
   const rule = (item: ConfigRule): LocalRule | null => {
     const action: RuleAction = item.action.kind === 'file' && 'folderNativeId' in item.action ? { kind: 'file', folderNativeId: remap[item.action.folderNativeId]! } : item.action;
-    const checked = checkRuleDraft({ name: item.name, combinator: item.combinator, conditions: item.conditions, action });
+    const pending = item.conditions.some((condition) => condition.kind === 'siteCollection' && collectionRef(condition.value));
+    const checked = checkRuleDraft({ name: item.name, combinator: item.combinator, conditions: item.conditions, action }, pending ? PENDING : undefined);
     if (!checked.ok) { skipped += 1; return null; }
     return { id: newId(), enabled: item.enabled, name: checked.name, combinator: item.combinator, conditions: checked.conditions, action,
-      definition: checked.definition, compiledFrom: { contentVersions: {} }, createdAt: now, updatedAt: now };
+      definition: checked.definition, compiledFrom: { contentVersions: checked.contentVersions }, createdAt: now, updatedAt: now };
   };
+  const subscriptions: ImportedSubscription[] = [];
   const entries = config.list.entries.flatMap((entry): ListEntry[] => {
-    if (entry.kind === 'subscription') return [{ kind: 'subscription', subscriptionId: entry.subscription.id, enabled: entry.subscription.enabled }];
+    if (entry.kind === 'subscription') {
+      const { subscription } = entry;
+      subscriptions.push({ config: subscription, local: { disabledEntryIds: subscription.disabledEntryIds,
+        exceptions: subscription.exceptions.map((exception) => ({ id: newId(), ...exception, createdAt: now })),
+        bindings: Object.fromEntries(Object.entries(subscription.bindings).flatMap(([role, id]) => remap[id] ? [[role, remap[id]!]] : [])) } });
+      return [{ kind: 'subscription', subscriptionId: subscription.id, enabled: subscription.enabled }];
+    }
     if (entry.kind === 'rule') { const made = rule(entry.rule); return made ? [{ kind: 'rule', rule: made }] : []; }
     const bindings = Object.fromEntries(Object.entries(entry.set.bindings).flatMap(([role, id]) => remap[id] ? [[role, remap[id]!]] : []));
     const set: LocalSet = { id: newId(), name: entry.set.name, enabled: entry.set.enabled, createdAt: now, updatedAt: now, origin: entry.set.origin,
       roles: entry.set.roles, bindings, rules: entry.set.rules.map(rule).filter((item): item is LocalRule => item !== null) };
     return [{ kind: 'set', set }];
   });
-  return { entries, skipped };
+  return { entries, skipped, subscriptions };
 }

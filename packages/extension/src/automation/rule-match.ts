@@ -6,7 +6,8 @@ import type { RuleDefinition } from '@know-n/colp/automation';
  * cannot write (a nested group, a CEL expression, a list value) has no short
  * form here, and the page falls back to "matches its conditions".
  */
-export type ConditionKind = 'siteIs' | 'siteEndsWith' | 'titleContains' | 'hasTag' | 'pathStartsWith' | 'pathUnder';
+/** `siteCollection` is shown by its site's name, from what the browser rule wrote. */
+export type ConditionKind = 'siteIs' | 'siteEndsWith' | 'titleContains' | 'hasTag' | 'pathStartsWith' | 'pathUnder' | 'siteCollection';
 
 export interface RuleMatchView {
   readonly combinator: 'all' | 'any';
@@ -16,7 +17,7 @@ export interface RuleMatchView {
 type Predicate = RuleDefinition['match'];
 
 /** A browser rule's "path is or is under" compiles to a group (rule-conditions.ts), so it is only ever shown from what was written. */
-const KINDS: readonly (readonly [Exclude<ConditionKind, 'pathUnder'>, string, string])[] = [
+const KINDS: readonly (readonly [Exclude<ConditionKind, 'pathUnder' | 'siteCollection'>, string, string])[] = [
   ['siteIs', 'bookmark.url.host', 'eq'],
   ['siteEndsWith', 'bookmark.url.host', 'hostSuffix'],
   ['titleContains', 'bookmark.title', 'contains'],

@@ -11,6 +11,8 @@ import { openRuleEditor } from './rule-editor-dialog.js';
 import { confirmCopyToMine, confirmDeleteSet, openSetDialog } from './rule-set-dialog.js';
 import { openRunOnce } from './run-once-pane.js';
 import { exportSet, openRoleBindings, openRulesetImport } from './ruleset-pane.js';
+import { openSubscribe } from './subscribe-dialog.js';
+import { subscriptionBlock } from './subscription-pane.js';
 import { ruleConditions } from './status-ui.js';
 
 /**
@@ -42,7 +44,11 @@ export function entryPlace(list: BrowserListView, entry: BrowserDecisionEntry): 
   readonly index: number; readonly rule: BrowserRuleView | null } | null {
   for (const [index, item] of list.entries.entries()) {
     if (item.kind === 'rule' && entry.kind === 'rule' && item.rule.id === entry.ruleId) return { row: item.rule.id, into: null, index, rule: item.rule };
-    if (item.kind === 'subscription' && entry.kind === 'subscriptionEntry' && item.id === entry.subscriptionId) return { row: item.id, into: null, index, rule: null };
+    if (item.kind === 'subscription' && entry.kind === 'subscriptionEntry' && item.id === entry.subscriptionId) {
+      // The entry's own row when the subscription still lists it, else the subscription.
+      const listed = item.detail?.entries.some((row) => row.id === entry.entryId);
+      return { row: listed ? `${item.id}:${entry.entryId}` : item.id, into: null, index, rule: null };
+    }
     if (item.kind === 'set' && entry.kind === 'setRule') {
       const at = item.set.rules.findIndex((rule) => rule.id === entry.ruleId);
       if (at >= 0) return { row: entry.ruleId!, into: item.set.id, index: at, rule: item.set.rules[at]! };
@@ -55,6 +61,7 @@ export function entryPlace(list: BrowserListView, entry: BrowserDecisionEntry): 
 export function revealEntry(root: ParentNode, id: string): boolean {
   const row = root.querySelector<HTMLElement>(`.rule-list [data-entry-id="${CSS.escape(id)}"] > .list-row`);
   if (!row) return false;
+  row.closest('details')?.setAttribute('open', '');
   row.scrollIntoView?.({ block: 'center' });
   row.tabIndex = -1; row.dataset.highlight = ''; row.focus({ preventScroll: true });
   setTimeout(() => { delete row.dataset.highlight; }, 2_400);
@@ -230,6 +237,7 @@ interface Context {
   readonly list: BrowserListView;
   readonly paused: boolean;
   readonly sets: readonly { readonly id: string; readonly name: string }[];
+  readonly collections: ReturnType<typeof listCollections>;
   readonly drag: ReturnType<typeof dragAndDrop>;
 }
 
@@ -256,7 +264,8 @@ function ruleRow(rule: BrowserRuleView, set: BrowserSetView | null, context: Con
   const tail = el('div', undefined, 'list-row-tail');
   const actions = el('span', undefined, 'row-actions-hover');
   // A rule whose conditions the editor cannot write (from an earlier build or a rule set's file) switches, moves and is deleted only (doc 17 §4.1).
-  const edit = rule.draft ? iconButton('pencil', t('automation_browserEdit', 'Edit rule'), () => openRuleEditor(rule, edit, { sets: context.sets })) : null;
+  const edit = rule.draft ? iconButton('pencil', t('automation_browserEdit', 'Edit rule'), () => openRuleEditor(rule, edit, { sets: context.sets,
+    collections: context.collections })) : null;
   const move = moveToAccountAction(rule);
   const mine = set ? iconButton('fork', t('automation_copyToMine', 'Copy to my rules'), () => confirmCopyToMine(rule, set, mine)) : null;
   actions.append(...moveButtons(context.list, rule.id, set), ...(edit ? [edit] : []), ...(mine ? [mine] : []),
@@ -264,7 +273,11 @@ function ruleRow(rule: BrowserRuleView, set: BrowserSetView | null, context: Con
   const remove = iconButton('trash', t('automation_browserDelete', 'Delete rule'), () => confirmDelete(rule, remove));
   actions.append(remove);
   tail.append(actions);
-  if (rule.folderMissing) {
+  if (rule.needsAttention) {
+    const attention = badge(t('automation_ruleNeedsAttention', 'Needs attention'), 'warning');
+    attention.title = t('automation_ruleNeedsAttentionHint', 'A site it uses is gone from its subscription, or the subscription is. Edit the rule to choose another.');
+    tail.append(attention);
+  } else if (rule.folderMissing) {
     const missing = badge(t('automation_browserFolderMissing', 'Folder missing'), 'warning');
     missing.title = t('automation_browserFolderMissingHint', 'Its folder was deleted. Edit the rule to choose another one.');
     tail.append(missing);
@@ -283,7 +296,7 @@ function ruleRow(rule: BrowserRuleView, set: BrowserSetView | null, context: Con
   // The whole row opens the rule, like a row on the web; its own controls keep their clicks.
   row.addEventListener('click', (event) => {
     if (!edit || event.target instanceof Element && event.target.closest('button, a')) return;
-    openRuleEditor(rule, edit, { sets: context.sets });
+    openRuleEditor(rule, edit, { sets: context.sets, collections: context.collections });
   });
   context.drag.source(row, { kind: 'rule', id: rule.id, setId: set?.id ?? null });
   context.drag.target(row, set ? { id: rule.id, setId: set.id, kind: 'rule' } : { id: rule.id, setId: null, kind: 'entry' });
@@ -308,7 +321,7 @@ function setBlock(set: BrowserSetView, context: Context): HTMLLIElement {
   const tail = el('div', undefined, 'list-row-tail');
   const actions = el('span', undefined, 'row-actions-hover');
   const addRule = iconButton('plus', t('automation_setAddRule', 'New rule in this set'), () => openRuleEditor(null, addRule, { sets: context.sets, into: set.id,
-    account: false }));
+    account: false, collections: context.collections }));
   const rename = iconButton('pencil', t('automation_setRename', 'Rename set'), () => openSetDialog(set, rename));
   const folders = set.roles?.length ? iconButton('folder', t('automation_setFolders', 'Choose the set’s folders'), () => openRoleBindings(set, folders!)) : null;
   const download = iconButton('download', t('automation_setExport', 'Export set'), () => exportSet(set));
@@ -336,23 +349,9 @@ function setBlock(set: BrowserSetView, context: Context): HTMLLIElement {
 }
 
 function subscriptionRow(entry: Extract<BrowserListEntryView, { kind: 'subscription' }>, context: Context): HTMLLIElement {
-  const item = el('li'); item.dataset.entryId = entry.id;
-  const row = el('div', undefined, 'list-row automation-rule automation-browser-rule');
-  if (!entry.enabled || !context.list.enabled) row.dataset.off = '';
-  const grip = el('span', undefined, 'rule-grip'); grip.append(createIcon('reorder', 14));
-  const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('rss', 16));
-  const main = el('div', undefined, 'list-row-main');
-  main.append(el('p', t('automation_subscription', 'Subscribed rule set'), 'list-row-title'),
-    el('p', t('automation_subscriptionNotReady', 'No version yet, so it files nothing.'), 'list-row-meta'));
-  const tail = el('div', undefined, 'list-row-tail');
-  const actions = el('span', undefined, 'row-actions-hover'); actions.append(...moveButtons(context.list, entry.id, null));
-  tail.append(actions);
-  row.append(grip, tile, main, tail, toggle(t('automation_subscriptionUse', 'Use this subscription'), entry.enabled,
-    async (enabled) => (await send({ kind: 'known.automation.browser.enable', id: entry.id, enabled, entry: 'subscription' })).ok));
-  context.drag.source(row, { kind: 'subscription', id: entry.id, setId: null });
-  context.drag.target(row, { id: entry.id, setId: null, kind: 'entry' });
-  item.append(row);
-  return item;
+  return subscriptionBlock(entry, { moves: moveButtons(context.list, entry.id, null), listOn: context.list.enabled,
+    toggle: (label, on, change) => toggle(label, on, change),
+    drag: (head) => { context.drag.source(head, { kind: 'subscription', id: entry.id, setId: null }); context.drag.target(head, { id: entry.id, setId: null, kind: 'entry' }); } });
 }
 
 /** The first time after the move to an ordered list: which rules that used to agree to disagree now go by their order (R2). */
@@ -387,7 +386,8 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
   const tools = el('div', undefined, 'automation-list-tools');
   const newSet = button(t('automation_newSet', 'New set'), 'btn btn-secondary btn-sm', () => openSetDialog(null, newSet));
   const importSet = button(t('automation_importSet', 'Import set'), 'btn btn-secondary btn-sm', () => openRulesetImport(importSet)); importSet.dataset.importSet = '';
-  tools.append(newSet, importSet);
+  const subscribe = button(t('automation_subscribe', 'Subscribe'), 'btn btn-secondary btn-sm', () => openSubscribe(subscribe)); subscribe.dataset.subscribe = '';
+  tools.append(newSet, importSet, subscribe);
   if (list.entries.length) {
     // Run once sorts bookmarks already saved; it takes the list as it is, so it waits while the list is off.
     if (list.enabled && !paused) { const run = button(t('automation_runOnce', 'Run once'), 'btn btn-secondary btn-sm', () => openRunOnce(run)); run.dataset.runOnce = ''; tools.append(run); }
@@ -400,13 +400,13 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
   if (!list.entries.length) {
     const card = el('div', undefined, 'set-card');
     const make = button(t('automation_newRule', 'New rule'), view.account === 'signedIn' ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm');
-    make.addEventListener('click', () => openRuleEditor(null, make, { account: offersAccountRules(view) }));
+    make.addEventListener('click', () => openRuleEditor(null, make, { account: offersAccountRules(view), collections: listCollections(view) }));
     card.append(emptyBlock({ icon: 'bolt', title: t('automation_browserEmptyTitle', 'No rules in this browser yet'),
       hint: t('automation_browserEmptyHint', 'Tell Know-N once that pages from arxiv.org go to Papers, and each one you save lands there.'), action: make }));
     section.append(card);
     return section;
   }
-  const context: Context = { view, list, paused, sets: listSets(view), drag: dragAndDrop(list) };
+  const context: Context = { view, list, paused, sets: listSets(view), collections: listCollections(view), drag: dragAndDrop(list) };
   const rows = el('ul', undefined, 'list-card automation-rules rule-list');
   rows.setAttribute('aria-label', t('automation_listLabel', 'Rules in this browser, in the order they are tried'));
   for (const entry of list.entries) {
@@ -419,3 +419,8 @@ export function ruleListGroup(view: AutomationStateView, after: readonly HTMLEle
 /** The sets of the list, for the page's own New rule. */
 export const listSets = (view: AutomationStateView) =>
   view.browserList.entries.flatMap((entry) => entry.kind === 'set' ? [{ id: entry.set.id, name: entry.set.name }] : []);
+
+/** The sites of the subscriptions' collections, for *Site from a collection* (doc 17 RS-10). */
+export const listCollections = (view: AutomationStateView) => view.browserList.entries.flatMap((entry) => entry.kind === 'subscription' && entry.subscription
+  ? (entry.detail?.sites ?? []).map((site) => ({ value: `${entry.id}/${site.id}`, label: t('automation_collectionSite', '$1, from “$2”', site.name, entry.subscription!.name) }))
+  : []);

@@ -2,9 +2,8 @@ import { assertBookmarkFolderAllowed } from '../bookmark-folder-policy.js';
 import { exclusionIds, isSubscriptionExcluded, personalBookmarks } from '../bookmark-subscriptions/guards.js';
 import { automationDatabase } from '../automation/indexeddb-store.js';
 import type { BrowserRuleResponse, BrowserRunCommand, BrowserRunView } from '../automation/messages.js';
-import { flattenList } from '../automation/rule-list-flatten.js';
 import { planRun, RUN_PREVIEW_TTL_MS, topFolders, type RunPlan, type RunTreeNode } from '../automation/run-once.js';
-import { browserRuleStore, nativeFolderLookup } from './automation-browser.js';
+import { browserRuleStore, currentFlat, nativeFolderLookup } from './automation-browser.js';
 import { hasBookmarkPermission } from './runtime.js';
 
 /**
@@ -76,7 +75,7 @@ async function preview(scopeNativeId: string): Promise<BrowserRuleResponse> {
   const scope = await node(scopeNativeId);
   if (!scope || scope.url !== undefined) return { ok: false, error: 'notFound' };
   if (!await destinationAllowed(scopeNativeId)) return { ok: false, error: 'excluded' };
-  const list = await browserRuleStore().load(), flat = flattenList(list);
+  const flat = await currentFlat(await browserRuleStore().load());
   if (flat.stopped) return { ok: false, error: 'listOff' };
   const [tree, excluded] = await Promise.all([chrome.bookmarks.getSubTree(scopeNativeId), exclusionIds()]);
   const now = Date.now();
@@ -96,7 +95,7 @@ async function apply(previewId: string): Promise<BrowserRuleResponse> {
   if (!record(stored) || stored.previewId !== previewId || stored.expiresAt < Date.now()) return { ok: false, error: 'expired' };
   await area().set(RUN_PREVIEW_KEY, null);
   // The run is the previewed list's run: a list that moved on since is previewed again (RS-08.4).
-  const flat = flattenList(await browserRuleStore().load());
+  const flat = await currentFlat(await browserRuleStore().load());
   if (flat.revision !== stored.listRevision || !sameVersions(flat.contentVersions, stored.contentVersions)) return { ok: false, error: 'changed' };
   let journal: RunJournal = { runId: crypto.randomUUID(), startedAt: Date.now(), finishedAt: null, listRevision: stored.listRevision,
     scopeNativeId: stored.scopeNativeId, scopeTitle: stored.scopeTitle, undoneAt: null, items: [] };

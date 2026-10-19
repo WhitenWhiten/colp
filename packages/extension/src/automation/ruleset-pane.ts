@@ -36,7 +36,7 @@ function problemCopy(problem: RulesetProblem): string {
   }
 }
 
-function showProblems(name: string, problems: readonly RulesetProblem[], trigger: HTMLElement): void {
+export function showProblems(name: string, problems: readonly RulesetProblem[], trigger: HTMLElement): void {
   const whole = problems.length === 1 && (problems[0]!.pointer === '' || problems[0]!.pointer === '/format');
   if (whole) { showToast(problemCopy(problems[0]!), 'error', { announce: true }); return; }
   const { dialog, body, actions } = createDialog(t('automation_rulesetRefusedTitle', 'Can’t import “$1”', name), 'automation-ruleset-problems');
@@ -55,7 +55,7 @@ function showProblems(name: string, problems: readonly RulesetProblem[], trigger
 }
 
 /** The folders a role may be bound to: this browser's own, never a bookmark subscription's. */
-function rolePickers(roles: readonly { readonly key: string; readonly description: string }[], current: Readonly<Record<string, string>>,
+export function rolePickers(roles: readonly { readonly key: string; readonly description: string }[], current: Readonly<Record<string, string>>,
   body: HTMLElement, dialog: HTMLDialogElement): Map<string, FolderPicker> {
   const pickers = new Map<string, FolderPicker>();
   const list = el('div', undefined, 'automation-config-folders');

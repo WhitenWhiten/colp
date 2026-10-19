@@ -1,7 +1,8 @@
 import { automationDigest } from '@know-n/colp/automation';
 import type { AtomicStateArea } from './bundle-store.js';
-import type { ListChangeResult, RuleListRecord } from './rule-list-store.js';
+import type { ListChangeResult, ListEntry, LocalRule, RuleListRecord, RuleSaveResult } from './rule-list-store.js';
 import { parseRuleset, type ParsedRuleset, type Ruleset } from './ruleset-format.js';
+import { adjusted, copiedRule, recompileCollections, type Adjustment, type SubscriptionSource } from './subscription-list.js';
 import { REFRESH_INTERVALS, type RefreshInterval } from './subscription-messages.js';
 
 /**
@@ -138,7 +139,9 @@ const publisherOf = (ruleset: Ruleset): SubscriptionPublisher | null => ruleset.
 export interface SubscriptionListPort {
   load(): Promise<RuleListRecord>;
   addSubscription(id: string, writes: Readonly<Record<string, unknown>>, index?: number): Promise<ListChangeResult>;
-  activateSubscription(writes: Readonly<Record<string, unknown>>, deletes?: readonly string[]): Promise<number>;
+  subscriptionWrite(writes: Readonly<Record<string, unknown>>, deletes?: readonly string[],
+    recompile?: (entries: readonly ListEntry[]) => readonly ListEntry[]): Promise<number>;
+  addAbove(subscriptionId: string, rule: LocalRule, writes: Readonly<Record<string, unknown>>): Promise<RuleSaveResult>;
   removeSubscription(id: string, deletes: readonly string[]): Promise<ListChangeResult>;
 }
 export interface SubscribeInput {
@@ -150,6 +153,20 @@ export interface SubscribeInput {
   readonly index?: number;
 }
 export type SubscribeResult = { readonly ok: true; readonly record: SubscriptionRecord } | { readonly ok: false; readonly error: 'limit' | 'duplicate' };
+
+/** A subscription not fetched yet: named by its host until a version says otherwise. */
+export function newSubscription(id: string, input: Omit<SubscribeInput, 'bindings' | 'index'> & { readonly paused?: boolean; readonly pinned?: boolean },
+  now: number): SubscriptionRecord {
+  return { id, url: input.url, origin: input.origin, documentId: null, name: new URL(input.url).host.slice(0, 200), publisher: null,
+    updatePolicy: input.updatePolicy, refreshIntervalHours: input.refreshIntervalHours, paused: input.paused ?? false, pinned: input.pinned ?? false,
+    state: 'notReady', currentVersion: null, previousVersion: null, candidateVersion: null, lastAttemptAt: null, lastSuccessAt: null, etag: null,
+    lastFailure: null, createdAt: now };
+}
+/** Every key a subscription has, for removing it with the list. */
+export const subscriptionKeyList = (id: string): string[] => {
+  const keys = subscriptionKeys(id);
+  return [keys.record, keys.local, keys.content('current'), keys.content('previous'), keys.content('candidate')];
+};
 export type SettingsPatch = Partial<Pick<SubscriptionRecord, 'updatePolicy' | 'refreshIntervalHours' | 'paused'>>;
 
 export function createSubscriptionStore(area: AtomicStateArea, list: SubscriptionListPort, options: { readonly id?: () => string } = {}) {
@@ -182,7 +199,9 @@ export function createSubscriptionStore(area: AtomicStateArea, list: Subscriptio
     if (previous.state === 'notReady' || !current) {
       const ready: SubscriptionRecord = { ...succeeded, state: 'ready', currentVersion: next.version, documentId: parsed.ruleset.id, name: parsed.ruleset.name,
         publisher: publisherOf(parsed.ruleset) };
-      await list.activateSubscription({ [keys.record]: ready, [keys.content('current')]: next });
+      // Rules naming its sites are compiled from it in the same write (RS-10.4).
+      await list.subscriptionWrite({ [keys.record]: ready, [keys.content('current')]: next }, [],
+        (entries) => recompileCollections(entries, previous.id, parsed));
       return ready;
     }
     const waiting: SubscriptionRecord = { ...succeeded, candidateVersion: next.version };
@@ -195,19 +214,48 @@ export function createSubscriptionStore(area: AtomicStateArea, list: Subscriptio
     return next;
   }
 
+  const adjustments = async (id: string) => parseLocalAdjustments(await area.get(subscriptionKeys(id).local));
+  /** Its record, current version and adjustments, as the list reads them; null once it is gone. */
+  async function source(id: string): Promise<SubscriptionSource | null> {
+    const record = await read(id);
+    if (!record) return null;
+    const [current, local] = await Promise.all([record.state === 'ready' ? content(id, 'current') : null, adjustments(id)]);
+    return { record, current: current ? contentRuleset(current) : null, fetchedAt: current?.fetchedAt ?? null, local };
+  }
+
   return {
     all,
     get: read,
     content,
-    adjustments: async (id: string) => parseLocalAdjustments(await area.get(subscriptionKeys(id).local)),
+    adjustments,
+    source,
+    /** One adjustment (subscription-list.ts), written with a new list revision: what saves get from it changes. */
+    adjust(id: string, change: Adjustment, now: number): Promise<ListChangeResult | { readonly ok: false; readonly error: 'invalid' }> {
+      return exclusive(async () => {
+        const found = await source(id);
+        if (!found) return { ok: false, error: 'notFound' } as const;
+        const next = adjusted(found.local, change, found.current, newId, now);
+        if (next === 'invalid') return { ok: false, error: 'invalid' } as const;
+        return { ok: true, revision: await list.subscriptionWrite({ [subscriptionKeys(id).local]: next }) } as const;
+      });
+    },
+    /** Copy to my rules (RS-05.4): the rule just above the subscription and, when asked, the entry switched off, in one write. */
+    copyEntry(id: string, entryId: string, disableOriginal: boolean, now: number): Promise<RuleSaveResult> {
+      return exclusive(async (): Promise<RuleSaveResult> => {
+        const found = await source(id);
+        const item = found?.current?.compiled.find((entry) => entry.entry.id === entryId);
+        if (!found?.current || !item) return { ok: false, error: 'notFound' };
+        const rule = copiedRule(item, { ...found, current: found.current }, newId(), now);
+        if (!rule) return { ok: false, error: 'unbound' };
+        const local = disableOriginal ? adjusted(found.local, { kind: 'entry', entryId, enabled: false }, found.current, newId, now) : null;
+        return list.addAbove(id, rule, local && local !== 'invalid' ? { [subscriptionKeys(id).local]: local } : {});
+      });
+    },
     /** Subscribe: the record and its place in the list, with nothing to file until a version checks. */
     create(input: SubscribeInput, now: number): Promise<SubscribeResult> {
       return exclusive(async (): Promise<SubscribeResult> => {
         if ((await all()).some((item) => item.record?.url === input.url)) return { ok: false, error: 'duplicate' };
-        const id = newId(), keys = subscriptionKeys(id);
-        const made: SubscriptionRecord = { id, url: input.url, origin: input.origin, documentId: null, name: new URL(input.url).host.slice(0, 200), publisher: null,
-          updatePolicy: input.updatePolicy, refreshIntervalHours: input.refreshIntervalHours, paused: false, pinned: false, state: 'notReady',
-          currentVersion: null, previousVersion: null, candidateVersion: null, lastAttemptAt: null, lastSuccessAt: null, etag: null, lastFailure: null, createdAt: now };
+        const id = newId(), keys = subscriptionKeys(id), made = newSubscription(id, input, now);
         const local: LocalAdjustments = { ...NO_ADJUSTMENTS, bindings: { ...input.bindings } };
         const added = await list.addSubscription(id, { [keys.record]: made, [keys.local]: local }, input.index);
         return added.ok ? { ok: true, record: made } : { ok: false, error: added.error === 'limit' ? 'limit' : 'duplicate' };
@@ -239,8 +287,7 @@ export function createSubscriptionStore(area: AtomicStateArea, list: Subscriptio
       return exclusive(async (): Promise<ListChangeResult> => {
         const listed = (await list.load()).entries.some((entry) => entry.kind === 'subscription' && entry.subscriptionId === id);
         if (!listed && !await read(id)) return { ok: false, error: 'notFound' };
-        const keys = subscriptionKeys(id);
-        return list.removeSubscription(id, [keys.record, keys.local, keys.content('current'), keys.content('previous'), keys.content('candidate')]);
+        return list.removeSubscription(id, subscriptionKeyList(id));
       });
     },
     /** Those the refresh alarm takes now: not paused, their interval passed since the last attempt, oldest attempt first. */

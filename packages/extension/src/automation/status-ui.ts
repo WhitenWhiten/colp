@@ -24,6 +24,7 @@ const CONDITION: Record<ConditionKind, (value: string) => string> = {
   hasTag: (value) => t('automation_condHasTag', 'Tagged $1', value),
   pathStartsWith: (value) => t('automation_condPathStartsWith', 'Path starts with $1', value),
   pathUnder: (value) => t('automation_condPathUnder', 'Path is or is under $1', value),
+  siteCollection: (value) => t('automation_condSiteCollection', 'From any address of $1', value),
 };
 
 /** "From arxiv.org" — a rule's own words for what it takes, as the web says them. Account and browser rules alike. */

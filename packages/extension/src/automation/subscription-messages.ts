@@ -1,9 +1,14 @@
+import type { BrowserRuleView } from './messages.js';
+import type { RuleMatchView } from './rule-match.js';
+import type { RulesetAddress } from './ruleset-format.js';
+import type { Adjustment } from './subscription-list.js';
 import type { SubscriptionFailure, SubscriptionPublisher, SubscriptionRecord } from './subscription-store.js';
 
 /**
  * Options ↔ worker commands for rule-set subscriptions (doc 17 §8, §11), closed like the list's own
- * (messages.ts): check an address before subscribing, subscribe, change its settings, refresh now and
- * remove. The worker module is sw/automation-subscriptions.ts.
+ * (messages.ts): check an address before subscribing, subscribe, change its settings, refresh now,
+ * adjust it here, copy an entry to the Owner's rules and remove. The worker module is
+ * sw/automation-subscriptions.ts.
  */
 export const REFRESH_INTERVALS = [6, 24, 168] as const;
 export type RefreshInterval = typeof REFRESH_INTERVALS[number];
@@ -18,7 +23,11 @@ export type SubscriptionCommand =
     readonly refreshIntervalHours?: RefreshInterval; readonly paused?: boolean }
   /** Refresh now: ignores the interval. */
   | { readonly kind: 'known.automation.browser.subscription.refresh'; readonly id: string }
-  | { readonly kind: 'known.automation.browser.subscription.remove'; readonly id: string };
+  | { readonly kind: 'known.automation.browser.subscription.remove'; readonly id: string }
+  /** Switch an entry, leave a site alone, bind a role, or forget settings for entries gone upstream (RS-05). */
+  | { readonly kind: 'known.automation.browser.subscription.adjust'; readonly id: string; readonly change: Adjustment }
+  /** Copy to my rules (RS-05.4): above the subscription; the entry here switched off when asked. */
+  | { readonly kind: 'known.automation.browser.subscription.copy'; readonly id: string; readonly entryId: string; readonly disableOriginal: boolean };
 
 /** A subscription as Options shows it: where it comes from, its versions, and how its last fetches went (RS-04.2, RS-15.2). */
 export interface BrowserSubscriptionView {
@@ -43,8 +52,34 @@ export interface BrowserSubscriptionView {
   readonly lastFailure: SubscriptionFailure | null;
 }
 
+/** One of the current version's entries, as the subscription's row lists it. */
+export interface BrowserSubscriptionEntryView {
+  readonly id: string;
+  readonly name: string;
+  /** Not switched off here. */
+  readonly enabled: boolean;
+  /** Its conditions in the editor's words; a site entry is named by its site. Null when they have no short form. */
+  readonly match: RuleMatchView | null;
+  /** The description of its role; null for an entry that only names a site (matching data). */
+  readonly role: string | null;
+  readonly folder: BrowserRuleView['folder'];
+  /** Its role has no folder here yet: a match is blocked until one is chosen. */
+  readonly needsFolder: boolean;
+}
+/** What a subscription in the list has beyond its record (RS-05, RS-10, RS-15.2). */
+export interface BrowserSubscriptionDetail {
+  readonly entries: readonly BrowserSubscriptionEntryView[];
+  readonly roles: readonly { readonly key: string; readonly description: string; readonly folder: BrowserRuleView['folder'] }[];
+  readonly exceptions: readonly { readonly id: string; readonly scope: 'host' | 'domain'; readonly value: string }[];
+  /** Entries switched off here that its current version no longer has (R4). */
+  readonly goneSettings: number;
+  /** Its collection: each site's addresses, revoked and historical ones too, for its history and for rules here. */
+  readonly sites: readonly { readonly id: string; readonly name: string; readonly addresses: readonly RulesetAddress[] }[];
+}
+
 const KINDS = new Set(['known.automation.browser.subscription.check', 'known.automation.browser.subscribe', 'known.automation.browser.subscription.update',
-  'known.automation.browser.subscription.refresh', 'known.automation.browser.subscription.remove']);
+  'known.automation.browser.subscription.refresh', 'known.automation.browser.subscription.remove', 'known.automation.browser.subscription.adjust',
+  'known.automation.browser.subscription.copy']);
 export const isSubscriptionKind = (kind: unknown): boolean => typeof kind === 'string' && KINDS.has(kind);
 export const isSubscriptionCommand = (command: { readonly kind: string }): command is SubscriptionCommand => KINDS.has(command.kind);
 
@@ -54,6 +89,17 @@ const policy = (value: unknown) => value === 'review' || value === 'auto';
 const interval = (value: unknown) => REFRESH_INTERVALS.includes(value as RefreshInterval);
 const bindings = (value: unknown) => Boolean(value) && typeof value === 'object' && !Array.isArray(value) && Object.keys(value as object).length <= 32
   && Object.entries(value as Record<string, unknown>).every(([role, folder]) => ROLE.test(role) && (folder === null || typeof folder === 'string' && FOLDER.test(folder)));
+
+function validAdjustment(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const raw = value as Record<string, unknown>, keys = Object.keys(raw).length;
+  if (raw.kind === 'entry') return keys === 3 && typeof raw.entryId === 'string' && ROLE.test(raw.entryId) && typeof raw.enabled === 'boolean';
+  if (raw.kind === 'exception') return keys === 3 && (raw.scope === 'host' || raw.scope === 'domain') && typeof raw.value === 'string'
+    && raw.value.length > 0 && raw.value.length <= 253;
+  if (raw.kind === 'removeException') return keys === 2 && typeof raw.exceptionId === 'string' && ID.test(raw.exceptionId);
+  if (raw.kind === 'bindings') return keys === 2 && bindings(raw.bindings);
+  return raw.kind === 'clearGone' && keys === 1;
+}
 
 export function validSubscriptionCommand(raw: Record<string, unknown>): boolean {
   const keys = Object.keys(raw).length, id = typeof raw.id === 'string' && ID.test(raw.id);
@@ -65,6 +111,10 @@ export function validSubscriptionCommand(raw: Record<string, unknown>): boolean 
     const given = ['updatePolicy', 'refreshIntervalHours', 'paused'].filter((key) => raw[key] !== undefined).length;
     return given > 0 && keys === 2 + given && id && (raw.updatePolicy === undefined || policy(raw.updatePolicy))
       && (raw.refreshIntervalHours === undefined || interval(raw.refreshIntervalHours)) && (raw.paused === undefined || typeof raw.paused === 'boolean');
+  }
+  if (raw.kind === 'known.automation.browser.subscription.adjust') return keys === 3 && id && validAdjustment(raw.change);
+  if (raw.kind === 'known.automation.browser.subscription.copy') {
+    return keys === 4 && id && typeof raw.entryId === 'string' && ROLE.test(raw.entryId) && typeof raw.disableOriginal === 'boolean';
   }
   return (raw.kind === 'known.automation.browser.subscription.refresh' || raw.kind === 'known.automation.browser.subscription.remove') && keys === 2 && id;
 }

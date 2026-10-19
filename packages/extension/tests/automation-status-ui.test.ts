@@ -244,7 +244,8 @@ describe('a row this browser’s list decided (doc 17 RS-15)', () => {
     const list = await render();
     expect(rows(list).map((row) => text(row.querySelector('.list-row-meta .grow')))).toEqual(['Rule “Rule b” in “Research”',
       'Rule “Trackers” from “Tracker list”, version 2026.10.1', 'Rule “Rule b”', 'Rule “Rule a”']);
-    expect(rows(list).map(actions)).toEqual([['Open rule', 'Turn off this entry', 'Add a rule above'], ['Open rule', 'Add a rule above'], [], []]);
+    expect(rows(list).map(actions)).toEqual([['Open rule', 'Turn off this entry', 'Add a rule above'],
+      ['Open rule', 'Turn off this entry', 'Turn off this subscription', 'Add a rule above'], [], []]);
   });
 
   it('shows the rule in the list, turns it off, and puts a rule for this site above it', async () => {

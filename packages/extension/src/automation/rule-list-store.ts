@@ -2,8 +2,8 @@ import { validateM1Rule, type RuleDefinition } from '@know-n/colp/automation';
 import { relateBrowserRule, witnessOverlap, type OverlapRule } from './browser-overlap.js';
 import { editorConditions } from './browser-rules.js';
 import type { AtomicStateArea } from './bundle-store.js';
-import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, checkRuleDraft, type ConditionKind, type DraftProblem, type RuleAction, type RuleCondition,
-  type RuleDraft } from './rule-conditions.js';
+import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, checkRuleDraft, type CollectionLookup, type ConditionKind, type DraftProblem, type RuleAction,
+  type RuleCondition, type RuleDraft } from './rule-conditions.js';
 
 /**
  * This browser's rules as one ordered list (doc 17 §4.1, R1): individual rules, local sets of rules
@@ -346,8 +346,8 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
      * name and folder where it is.
      */
     saveRule(input: { readonly id?: string; readonly draft: RuleDraft; readonly enabled?: boolean; readonly into?: string | null;
-      readonly index?: number }, now: number): Promise<RuleSaveResult> {
-      const checked = checkRuleDraft(input.draft);
+      readonly index?: number }, now: number, collections?: CollectionLookup): Promise<RuleSaveResult> {
+      const checked = checkRuleDraft(input.draft, collections);
       if (!checked.ok) return Promise.resolve({ ok: false, error: 'invalid', problems: checked.problems });
       return update((list): Change<RuleSaveResult> => {
         const found = input.id === undefined ? null : locate(list, input.id);
@@ -363,7 +363,7 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         // An edited rule is no longer the one sent to the account, so it stops waiting to retire; reviews stay.
         const rule: LocalRule = { id: previous?.id ?? newId(), enabled: input.enabled ?? previous?.enabled ?? true, name: checked.name,
           combinator: input.draft.combinator, conditions: checked.conditions, action, definition: checked.definition,
-          compiledFrom: { contentVersions: {} }, createdAt: previous?.createdAt ?? now, updatedAt: now,
+          compiledFrom: { contentVersions: checked.contentVersions }, createdAt: previous?.createdAt ?? now, updatedAt: now,
           ...(previous?.origin ? { origin: previous.origin } : {}), ...(previous?.reviewed ? { reviewed: previous.reviewed } : {}) };
         if (previous) return { result: { ok: true, rule }, entries: mapRule(list.entries, rule.id, () => rule) };
         const entries = into === null ? insertAt(list.entries, input.index, { kind: 'rule', rule })
@@ -505,13 +505,19 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
      * A configuration file's entries (rules-config-format.ts), below the list's own or in place of them. A
      * subscription entry already in the list is not added twice; an import past a limit is refused whole.
      */
-    importEntries(entries: readonly ListEntry[], replace: boolean): Promise<ListChangeResult> {
+    importEntries(entries: readonly ListEntry[], replace: boolean, extra: { readonly writes?: Readonly<Record<string, unknown>>;
+      readonly dropped?: (subscriptionId: string) => readonly string[] } = {}): Promise<ListChangeResult> {
       return update((list): Change<ListChangeResult> => {
         const kept = replace ? [] : list.entries;
         const present = new Set(kept.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []));
         const next = [...kept, ...entries.filter((entry) => entry.kind !== 'subscription' || !present.has(entry.subscriptionId))];
         if (overLimits(next)) return { result: { ok: false, error: 'limit' } };
-        return { result: { ok: true, revision: list.revision + 1 }, entries: next, ...(replace ? { notice: 'dismiss' as const } : {}) };
+        // A subscription the replaced list had and the new one does not goes with its keys (subscription-store.ts).
+        const staying = new Set(next.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []));
+        const deletes = list.entries.flatMap((entry) => entry.kind === 'subscription' && !staying.has(entry.subscriptionId)
+          ? extra.dropped?.(entry.subscriptionId) ?? [] : []);
+        return { result: { ok: true, revision: list.revision + 1 }, entries: next, ...(replace ? { notice: 'dismiss' as const } : {}),
+          ...(extra.writes ? { writes: extra.writes } : {}), ...(deletes.length ? { deletes } : {}) };
       });
     },
     /** An imported set's roles bound to folders here (RS-07): a role named with null is unbound; roles it does not have are ignored. */
@@ -540,8 +546,19 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         return overLimits(entries) ? { result: { ok: false, error: 'limit' } } : { result: { ok: true, revision: list.revision + 1 }, entries, writes };
       });
     },
-    activateSubscription(writes: Readonly<Record<string, unknown>>, deletes: readonly string[] = []): Promise<number> {
-      return update((list) => ({ result: list.revision + 1, touch: true, writes, deletes }));
+    /** A version activated, or adjustments changed: what saves get from it changes, so the revision moves on; `recompile` gives the new entries. */
+    subscriptionWrite(writes: Readonly<Record<string, unknown>>, deletes: readonly string[] = [],
+      recompile?: (entries: readonly ListEntry[]) => readonly ListEntry[]): Promise<number> {
+      return update((list) => ({ result: list.revision + 1, touch: true, writes, deletes, ...(recompile ? { entries: recompile(list.entries) } : {}) }));
+    },
+    /** Copy to my rules from a subscription (RS-05.4): the rule goes just above it, with the subscription's own keys written alongside. */
+    addAbove(subscriptionId: string, rule: LocalRule, writes: Readonly<Record<string, unknown>>): Promise<RuleSaveResult> {
+      return update((list): Change<RuleSaveResult> => {
+        const at = list.entries.findIndex((entry) => entry.kind === 'subscription' && entry.subscriptionId === subscriptionId);
+        if (at < 0) return { result: { ok: false, error: 'notFound' } };
+        const entries = insertAt(list.entries, at, { kind: 'rule', rule });
+        return overLimits(entries) ? { result: { ok: false, error: 'limit' } } : { result: { ok: true, rule }, entries, writes };
+      });
     },
     removeSubscription(id: string, deletes: readonly string[]): Promise<ListChangeResult> {
       return update((list) => ({ result: { ok: true, revision: list.revision + 1 }, deletes,

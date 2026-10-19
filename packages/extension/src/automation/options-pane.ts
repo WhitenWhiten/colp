@@ -9,7 +9,7 @@ import { AUTOMATION_CHANGED_KEY, type AutomationPlacementView, type AutomationRe
 import { offersAccountRules } from './browser-rules-pane.js';
 import { openRuleEditor } from './rule-editor-dialog.js';
 import { sendRuleCommand } from './rule-command.js';
-import { entryPlace, listSets, restoreListFocus, revealEntry, ruleListGroup } from './rule-list-pane.js';
+import { entryPlace, listCollections, listSets, restoreListFocus, revealEntry, ruleListGroup } from './rule-list-pane.js';
 import { createRulePreview } from './rule-preview-pane.js';
 import { configCard } from './rules-config-pane.js';
 import { runList } from './run-once-pane.js';
@@ -166,7 +166,7 @@ function rulesGroup(view: AutomationStateView): HTMLElement {
     const card = el('div', undefined, 'set-card');
     // The same editor as this browser's rules, set to all devices; the rule itself is made on the web.
     const make = offersAccountRules(view) ? button(t('automation_newRule', 'New rule'), 'btn btn-secondary btn-sm') : undefined;
-    make?.addEventListener('click', () => openRuleEditor(null, make, { account: true, use: 'account', sets: listSets(view) }));
+    make?.addEventListener('click', () => openRuleEditor(null, make, { account: true, use: 'account', sets: listSets(view), collections: listCollections(view) }));
     card.append(emptyBlock({ icon: 'bolt', title: t('automation_noAccountRulesTitle', 'No account rules here yet'),
       hint: view.state === 'paused' ? t('automation_noRulesPausedHint', 'Rules come back here when you resume automations on the web.')
         : t('automation_noAccountRulesHint', 'An account rule files pages on every device signed in to your account.'),
@@ -241,9 +241,19 @@ function placementActions(placement: AutomationPlacementView, view: AutomationSt
         ? t('automation_placementTurnedOff', 'Turned off “$1”. The entries below it decide pages like this now.', rule.name)
         : t('automation_listSaveFailed', 'Couldn’t change the list. Try again.'), reply.ok ? 'ok' : 'error', { announce: true }));
     }));
+  } else if (placement.entryState === 'on' && placement.entry?.kind === 'subscriptionEntry' && placement.entry.subscriptionId && placement.entry.entryId) {
+    const { subscriptionId: id, entryId } = placement.entry, source = placement.sourceName ?? '';
+    const answer = (ok: boolean, copy: string) => showToast(ok ? copy : t('automation_listSaveFailed', 'Couldn’t change the list. Try again.'), ok ? 'ok' : 'error', { announce: true });
+    actions.append(iconButton('pause', t('automation_placementTurnOff', 'Turn off this entry'), () => {
+      void sendRuleCommand({ kind: 'known.automation.browser.subscription.adjust', id, change: { kind: 'entry', entryId, enabled: false } }).then((reply) =>
+        answer(reply.ok, t('automation_placementTurnedOff', 'Turned off “$1”. The entries below it decide pages like this now.', placement.ruleName)));
+    }), iconButton('eye-off', t('automation_placementTurnOffSubscription', 'Turn off this subscription'), () => {
+      void sendRuleCommand({ kind: 'known.automation.browser.enable', id, enabled: false, entry: 'subscription' }).then((reply) =>
+        answer(reply.ok, t('automation_placementSubscriptionOff', 'Turned off “$1”. Its entries file nothing until you turn it on.', source)));
+    }));
   }
   const above = iconButton('plus', t('automation_placementAddAbove', 'Add a rule above'), () => openRuleEditor(null, above, {
-    sets: listSets(view), into: place.into, index: place.index,
+    sets: listSets(view), collections: listCollections(view), into: place.into, index: place.index,
     draft: { name: '', combinator: 'all', conditions: placement.host ? [{ kind: 'siteIs', value: placement.host }] : [], action: { kind: 'keepHere' } } }));
   actions.append(above);
   return actions;
@@ -433,7 +443,8 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     restoreListFocus(body);
   }
   // One New rule: signed in, it asks whether the rule is this browser's or the account's (made on the web).
-  newRule?.addEventListener('click', () => openRuleEditor(null, newRule, { account: Boolean(last && offersAccountRules(last)), sets: last ? listSets(last) : [] }));
+  newRule?.addEventListener('click', () => openRuleEditor(null, newRule, { account: Boolean(last && offersAccountRules(last)), sets: last ? listSets(last) : [],
+    collections: last ? listCollections(last) : [] }));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (active && area === 'local' && AUTOMATION_CHANGED_KEY in changes) void load('known.automation.state');
   });

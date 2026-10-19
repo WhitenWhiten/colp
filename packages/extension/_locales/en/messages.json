@@ -158,6 +158,9 @@
   "automation_badgeStale": {
     "message": "$1 as of $2. Your server couldn’t be reached since."
   },
+  "automation_browserBadCollection": {
+    "message": "This site is no longer in its subscription. Choose another one."
+  },
   "automation_browserBadKind": {
     "message": "This kind of condition can’t be used here."
   },
@@ -233,6 +236,9 @@
   "automation_browserOff": {
     "message": "Off"
   },
+  "automation_browserOneCollection": {
+    "message": "Use sites from one subscription in a rule. Make another rule for the others."
+  },
   "automation_browserRules": {
     "message": "Rules in this browser"
   },
@@ -263,6 +269,15 @@
   "automation_checking": {
     "message": "Checking…"
   },
+  "automation_collectionGone": {
+    "message": "A site no longer in its subscription"
+  },
+  "automation_collectionPick": {
+    "message": "Site"
+  },
+  "automation_collectionSite": {
+    "message": "$1, from “$2”"
+  },
   "automation_condAnd": {
     "message": " and "
   },
@@ -280,6 +295,9 @@
   },
   "automation_condPathUnder": {
     "message": "Path is or is under $1"
+  },
+  "automation_condSiteCollection": {
+    "message": "From any address of $1"
   },
   "automation_condSiteEndsWith": {
     "message": "From $1 or a subdomain"
@@ -336,10 +354,10 @@
     "message": "$1 sets"
   },
   "automation_configHasSubscriptions_one": {
-    "message": "$1 subscription, which starts with nothing to file"
+    "message": "$1 subscription, fetched again once you allow its site"
   },
   "automation_configHasSubscriptions_other": {
-    "message": "$1 subscriptions, which start with nothing to file"
+    "message": "$1 subscriptions, fetched again once you allow their sites"
   },
   "automation_configHint": {
     "message": "Keep this browser’s rules, sets and the folders they use in a file, or bring them from another browser. Bookmarks aren’t in it."
@@ -433,6 +451,9 @@
   },
   "automation_copyTurnOff": {
     "message": "Also turn off the original in “$1”"
+  },
+  "automation_copyUnbound": {
+    "message": "Its kind of page has no folder here yet. Choose the subscription’s folders first."
   },
   "automation_digestAsOf": {
     "message": "as of $1"
@@ -637,6 +658,9 @@
   },
   "automation_kindPathUnder": {
     "message": "Link path is or is under"
+  },
+  "automation_kindSiteCollection": {
+    "message": "Site from a collection"
   },
   "automation_kindSiteIs": {
     "message": "Site is"
@@ -914,8 +938,14 @@
   "automation_placementSetRule": {
     "message": "Rule “$1” in “$2”"
   },
+  "automation_placementSubscriptionOff": {
+    "message": "Turned off “$1”. Its entries file nothing until you turn it on."
+  },
   "automation_placementTurnOff": {
     "message": "Turn off this entry"
+  },
+  "automation_placementTurnOffSubscription": {
+    "message": "Turn off this subscription"
   },
   "automation_placementTurnedOff": {
     "message": "Turned off “$1”. The entries below it decide pages like this now."
@@ -1114,6 +1144,12 @@
   },
   "automation_ruleNamePlaceholder": {
     "message": "Papers from arXiv"
+  },
+  "automation_ruleNeedsAttention": {
+    "message": "Needs attention"
+  },
+  "automation_ruleNeedsAttentionHint": {
+    "message": "A site it uses is gone from its subscription, or the subscription is. Edit the rule to choose another."
   },
   "automation_ruleNeedsFolder": {
     "message": "Needs a folder"
@@ -1718,11 +1754,290 @@
   "automation_statusUnavailableHint": {
     "message": "Automations aren’t turned on for this server."
   },
+  "automation_subAbout": {
+    "message": "Source, sites left alone and history"
+  },
+  "automation_subAddFailed": {
+    "message": "Couldn’t subscribe. Try again."
+  },
+  "automation_subAdded": {
+    "message": "Subscribed to “$1”. It is tried after the rest of your list."
+  },
+  "automation_subAddedNotReady": {
+    "message": "Subscribed, but not ready yet: $1"
+  },
+  "automation_subAllow": {
+    "message": "Allow and fetch"
+  },
+  "automation_subAllowHint": {
+    "message": "Allow this browser to read $1, then it fetches the rule set."
+  },
+  "automation_subBadUrl": {
+    "message": "Use an https address, such as https://example.org/rules.json."
+  },
+  "automation_subBindHint": {
+    "message": "Each kind of page this subscription files goes to the folder you choose here. Updates keep your choices."
+  },
+  "automation_subCheck": {
+    "message": "Check"
+  },
+  "automation_subCheckFailed": {
+    "message": "Couldn’t check it now: $1 You can still subscribe; it files nothing until a version arrives."
+  },
+  "automation_subChecked": {
+    "message": "checked $1"
+  },
+  "automation_subClearGone": {
+    "message": "Clear"
+  },
+  "automation_subCopyHint": {
+    "message": "The copy goes above “$1” as a rule of your own, filing into $2. It is tried before the subscription, and you can change it."
+  },
+  "automation_subCopyHintKeep": {
+    "message": "The copy goes above “$1” as a rule of your own. It is tried before the subscription, and you can change it."
+  },
+  "automation_subDuplicate": {
+    "message": "You already subscribe to this address."
+  },
+  "automation_subEntriesLabel": {
+    "message": "Entries of “$1”"
+  },
+  "automation_subEntries_one": {
+    "message": "$1 entry"
+  },
+  "automation_subEntries_other": {
+    "message": "$1 entries"
+  },
+  "automation_subEvery6": {
+    "message": "Every 6 hours"
+  },
+  "automation_subEveryDay": {
+    "message": "Once a day"
+  },
+  "automation_subEveryWeek": {
+    "message": "Once a week"
+  },
+  "automation_subExceptionAdd": {
+    "message": "Leave alone"
+  },
+  "automation_subExceptionBad": {
+    "message": "Use one site, such as example.org. A suffix many sites share can’t be left alone."
+  },
+  "automation_subExceptionDomain": {
+    "message": "$1 and its subdomains"
+  },
+  "automation_subExceptionRemove": {
+    "message": "Stop leaving $1 alone"
+  },
+  "automation_subExceptionScope": {
+    "message": "How much of it"
+  },
+  "automation_subExceptionSite": {
+    "message": "Site to leave alone"
+  },
+  "automation_subFailHttp": {
+    "message": "Couldn’t fetch it from $1 (HTTP $2), $3."
+  },
+  "automation_subFailInvalid": {
+    "message": "The file at $1 isn’t a rule set this browser can use, $2."
+  },
+  "automation_subFailNetwork": {
+    "message": "Couldn’t reach $1, $2."
+  },
+  "automation_subFailPermission": {
+    "message": "This browser isn’t allowed to read $1 yet."
+  },
+  "automation_subFailTooLarge": {
+    "message": "The file at $1 is larger than 2 MB, $2."
+  },
+  "automation_subFailUnsupported": {
+    "message": "The file at $1 moved to another site or is in a newer format, $2."
+  },
+  "automation_subFeedback": {
+    "message": "Tell the publisher about a problem"
+  },
+  "automation_subFetchedAt": {
+    "message": "This version arrived $1"
+  },
+  "automation_subFetchedFrom": {
+    "message": "Fetched from $1 over $2"
+  },
+  "automation_subFolders": {
+    "message": "Choose its folders"
+  },
+  "automation_subGone_one": {
+    "message": "$1 setting for an entry no longer in this subscription. It applies again if the entry comes back."
+  },
+  "automation_subGone_other": {
+    "message": "$1 settings for entries no longer in this subscription. They apply again if the entries come back."
+  },
+  "automation_subHistorical": {
+    "message": "$1 earlier address, still matched"
+  },
+  "automation_subInterval": {
+    "message": "Check for updates"
+  },
+  "automation_subIntervalHint": {
+    "message": "Only while this browser is open."
+  },
+  "automation_subLastTry": {
+    "message": "Still using version $1. $2"
+  },
+  "automation_subLeftAlone": {
+    "message": "Sites it leaves alone here"
+  },
+  "automation_subLeftAloneNone": {
+    "message": "None. Add a site its entries shouldn’t file, for this subscription only."
+  },
+  "automation_subLicense": {
+    "message": "Licence: $1"
+  },
+  "automation_subLimit": {
+    "message": "This browser keeps up to 20 subscriptions. Remove one to add another."
+  },
+  "automation_subNamingCount_one": {
+    "message": "$1 entry names a site only"
+  },
+  "automation_subNamingCount_other": {
+    "message": "$1 entries name a site only"
+  },
+  "automation_subNamingOnly_one": {
+    "message": "$1 more entry only names a site, for rules of yours."
+  },
+  "automation_subNamingOnly_other": {
+    "message": "$1 more entries only name sites, for rules of yours."
+  },
+  "automation_subNeedsAccess": {
+    "message": "Allow reading $1 to fetch this subscription."
+  },
+  "automation_subNeedsAccessCheck": {
+    "message": "Allow reading $1 to check this rule set. Know-N reads nothing else from that site."
+  },
+  "automation_subNotFetched": {
+    "message": "Not fetched yet, so it files nothing."
+  },
+  "automation_subNotReady": {
+    "message": "Not ready: $1"
+  },
+  "automation_subNotReadyBadge": {
+    "message": "Not ready"
+  },
+  "automation_subPause": {
+    "message": "Pause updates"
+  },
+  "automation_subPauseHint": {
+    "message": "Keeps version $1 and stops checking for new ones."
+  },
+  "automation_subPausedBadge": {
+    "message": "Updates paused"
+  },
+  "automation_subPolicy": {
+    "message": "New versions"
+  },
+  "automation_subPolicyAuto": {
+    "message": "Apply small updates by themselves"
+  },
+  "automation_subPolicyAutoHint": {
+    "message": "Applies updates that change conditions and sites but add no new folder roles; anything else waits for your review."
+  },
+  "automation_subPolicyReview": {
+    "message": "Wait for my review"
+  },
+  "automation_subPolicyReviewHint": {
+    "message": "You see what changes before it files anything."
+  },
+  "automation_subPrevious": {
+    "message": "Previous version: $1"
+  },
+  "automation_subPublisher": {
+    "message": "Published by $1"
+  },
+  "automation_subRefresh": {
+    "message": "Refresh now"
+  },
+  "automation_subRemove": {
+    "message": "Remove subscription"
+  },
+  "automation_subRemoveBody": {
+    "message": "Its entries stop filing pages, and your settings for it go too. Rules you copied from it stay. Pages it already filed stay where they are."
+  },
+  "automation_subRemoveFailed": {
+    "message": "Couldn’t remove this subscription. Try again."
+  },
+  "automation_subRemoveTitle": {
+    "message": "Remove “$1”?"
+  },
+  "automation_subRemoved": {
+    "message": "Removed “$1”."
+  },
+  "automation_subRevoked": {
+    "message": "$1 retired $2"
+  },
+  "automation_subScopeDomain": {
+    "message": "and its subdomains"
+  },
+  "automation_subScopeHost": {
+    "message": "this site only"
+  },
+  "automation_subSettings": {
+    "message": "Update settings"
+  },
+  "automation_subSettingsFailed": {
+    "message": "Couldn’t save these settings. Try again."
+  },
+  "automation_subSettingsSaved": {
+    "message": "Saved the update settings for “$1”."
+  },
+  "automation_subSettingsTitle": {
+    "message": "Updates for “$1”"
+  },
+  "automation_subShowAll_one": {
+    "message": "Show all $1 entry"
+  },
+  "automation_subShowAll_other": {
+    "message": "Show all $1 entries"
+  },
+  "automation_subSiteRetired": {
+    "message": "no current address"
+  },
+  "automation_subSites_one": {
+    "message": "Its collection: $1 site"
+  },
+  "automation_subSites_other": {
+    "message": "Its collection: $1 sites"
+  },
+  "automation_subSubscribe": {
+    "message": "Subscribe"
+  },
+  "automation_subTitle": {
+    "message": "Subscribe to a rule set"
+  },
+  "automation_subUnreadable": {
+    "message": "This browser can’t read this subscription, so it files nothing."
+  },
+  "automation_subUpToDate": {
+    "message": "Up to date: version $1."
+  },
+  "automation_subUpdateBadge": {
+    "message": "Update available"
+  },
+  "automation_subUpdateWaiting": {
+    "message": "Version $1 is waiting for your review."
+  },
+  "automation_subUrl": {
+    "message": "Address of the rule set"
+  },
+  "automation_subUrlHint": {
+    "message": "A colp.ruleset/v1 file on an https address. Know-N asks to read that site, and fetches nothing else from it."
+  },
+  "automation_subVersion": {
+    "message": "version $1"
+  },
+  "automation_subscribe": {
+    "message": "Subscribe"
+  },
   "automation_subscription": {
     "message": "Subscribed rule set"
-  },
-  "automation_subscriptionNotReady": {
-    "message": "No version yet, so it files nothing."
   },
   "automation_subscriptionUse": {
     "message": "Use this subscription"

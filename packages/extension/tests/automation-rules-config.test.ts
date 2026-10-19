@@ -5,6 +5,7 @@ import { validBrowserRuleCommand } from '../src/automation/messages.js';
 import { checkRuleDraft, type RuleAction, type RuleCondition } from '../src/automation/rule-conditions.js';
 import type { ListEntry, LocalRule, LocalSet, RuleListRecord } from '../src/automation/rule-list-store.js';
 import { buildRulesConfig, configEntries, parseRulesConfig, suggestFolders, type RulesConfig } from '../src/automation/rules-config-format.js';
+import { newSubscription, subscriptionKeys, type LocalAdjustments, type SubscriptionRecord } from '../src/automation/subscription-store.js';
 import { NOW } from './automation-fixture.js';
 
 /** Doc 17 §5.3, RS-07.4, RS-19.3/4: the rule configuration as a closed file whose folders are always chosen again here. */
@@ -14,7 +15,7 @@ vi.mock('../src/bookmark-folder-policy.js', () => ({ assertBookmarkFolderAllowed
 vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ isSubscriptionExcluded: async (id: string) => id === 'managed' }));
 
 import { handleConfigCommand } from '../src/sw/automation-config.js';
-import { browserRuleStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
+import { browserRuleStore, browserSubscriptionStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 
 function rule(id: string, conditions: RuleCondition[], action: RuleAction, enabled = true): LocalRule {
   const checked = checkRuleDraft({ name: `Rule ${id}`, combinator: 'all', conditions, action });
@@ -34,7 +35,12 @@ const record: RuleListRecord = { version: 2, revision: 9, enabled: true, entries
   { kind: 'subscription', subscriptionId: 'sub-1', enabled: true }] };
 const paths: Record<string, { title: string; path: string[] }> = { 30: { title: 'Papers', path: ['Bookmarks bar', 'Papers'] },
   31: { title: 'Docs', path: ['Bookmarks bar', 'Docs'] }, 32: { title: 'Code', path: ['Other bookmarks', 'Code'] } };
-const exported = () => buildRulesConfig(record, async (id) => paths[id] ?? null, NOW);
+const subscription: SubscriptionRecord = { ...newSubscription('sub-1', { url: 'https://rules.example.org/community.json', origin: 'https://rules.example.org',
+  updatePolicy: 'auto', refreshIntervalHours: 168, paused: true }, NOW - 9), state: 'ready', currentVersion: '4', etag: '"4"', lastSuccessAt: NOW - 2 };
+const adjustments: LocalAdjustments = { disabledEntryIds: ['e-off'], exceptions: [{ id: 'x-1', scope: 'domain', value: 'example.org', createdAt: NOW - 3 }],
+  bindings: { papers: '31' } };
+const exported = () => buildRulesConfig(record, async (id) => paths[id] ?? null, NOW,
+  (id) => id === 'sub-1' ? { record: subscription, local: adjustments } : null);
 let next = 0;
 const newId = () => `new-${++next}`;
 
@@ -58,6 +64,11 @@ describe('the file', () => {
     // New ids, the import's time, and nothing of this browser's own state about a rule.
     const first = made.entries[0] as Extract<ListEntry, { kind: 'rule' }>;
     expect([first.rule.id, first.rule.createdAt, 'reviewed' in first.rule, made.skipped]).toEqual(['new-1', NOW, false, 0]);
+    // A subscription keeps its id, address, settings and adjustments, its folders chosen here; nothing it fetched is in the file (RS-19.3).
+    expect(made.subscriptions).toEqual([{ config: { id: 'sub-1', enabled: true, url: subscription.url, updatePolicy: 'auto', refreshIntervalHours: 168, paused: true,
+      pinned: false, disabledEntryIds: ['e-off'], exceptions: [{ scope: 'domain', value: 'example.org' }], bindings: { papers: '31' } },
+    local: { disabledEntryIds: ['e-off'], exceptions: [{ id: expect.any(String), scope: 'domain', value: 'example.org', createdAt: NOW }], bindings: { papers: '71' } } }]);
+    expect(JSON.stringify(file)).not.toMatch(/"(?:etag|currentVersion|lastSuccessAt|document|digest)"/u);
   });
 
   it('never uses a folder id from the file that was not chosen here', async () => {
@@ -106,6 +117,9 @@ describe('the file', () => {
 });
 
 describe('the worker', () => {
+  const subscribed = (id: string, url: string): RulesConfig => ({ format: 'known-rules-config/v1', exportedAt: NOW, folders: [{ nativeId: '9', title: 'Papers', path: ['Bookmarks bar', 'Papers'] }],
+    list: { enabled: true, entries: [{ kind: 'subscription', subscription: { id, enabled: true, url, updatePolicy: 'review', refreshIntervalHours: 24, paused: false,
+      pinned: false, disabledEntryIds: [], exceptions: [{ scope: 'host', value: 'docs.example.org' }], bindings: { papers: '9' } } }] } });
   beforeEach(async () => {
     vi.stubGlobal('indexedDB', new IDBFactory());
     folders.clear();
@@ -140,6 +154,24 @@ describe('the worker', () => {
       .toEqual([{ kind: 'file', folderNativeId: '31' }]);
     expect(await handleConfigCommand({ ...command({ 30: '70' }, false), text: '{"format":"known-rules-config/v9"}' })).toEqual({ ok: false, error: 'unsupported' });
     expect(await handleConfigCommand({ ...command({ 30: '70' }, false), text: 'not json' })).toEqual({ ok: false, error: 'invalid' });
+  });
+
+  it('recreates a subscription not ready, with its settings and folders chosen here, and leaves out a second one to the same address', async () => {
+    const text = JSON.stringify(subscribed('sub-9', 'https://rules.example.org/community.json'));
+    expect(await handleConfigCommand({ kind: 'known.automation.browser.config.import', text, folders: { 9: '30' }, replace: false }))
+      .toMatchObject({ ok: true, imported: { subscriptions: 1, skipped: 0 } });
+    expect(await browserSubscriptionStore().get('sub-9')).toMatchObject({ state: 'notReady', url: 'https://rules.example.org/community.json', lastAttemptAt: null,
+      updatePolicy: 'review', refreshIntervalHours: 24 });
+    expect(await browserSubscriptionStore().adjustments('sub-9')).toMatchObject({ bindings: { papers: '30' }, exceptions: [{ scope: 'host', value: 'docs.example.org' }] });
+    expect(await handleConfigCommand({ kind: 'known.automation.browser.config.import', text: JSON.stringify(subscribed('sub-10', 'https://rules.example.org/community.json')),
+      folders: { 9: '30' }, replace: false })).toMatchObject({ ok: true, imported: { subscriptions: 0, skipped: 1 } });
+    expect(await browserSubscriptionStore().get('sub-10')).toBeNull();
+    // Replacing the list takes a subscription it no longer has with every key it had.
+    await handleConfigCommand({ kind: 'known.automation.browser.config.import', text: JSON.stringify(subscribed('sub-11', 'https://rules.example.org/other.json')),
+      folders: { 9: '30' }, replace: true });
+    expect([await browserSubscriptionStore().get('sub-9'), await browserSubscriptionStore().get('sub-11')]).toEqual([null, expect.objectContaining({ state: 'notReady' })]);
+    expect((await browserRuleStore().load()).entries.map((entry) => entry.kind === 'subscription' ? entry.subscriptionId : entry.kind)).toEqual(['sub-11']);
+    expect(subscriptionKeys('sub-9').record).toBe('known.automation.subscription.v1:sub-9');
   });
 
   it('refuses an import past the list’s limits, whole', async () => {

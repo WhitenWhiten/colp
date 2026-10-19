@@ -75,7 +75,7 @@ describe('the list on the page', () => {
     expect(Array.from(list.children).map((item) => (item as HTMLElement).dataset.entryId)).toEqual(['a', 's', 'd', 'sub']);
     expect(Array.from(list.querySelectorAll('[data-entry-id="s"] .rule-set-rules > li')).map((item) => (item as HTMLElement).dataset.entryId)).toEqual(['b', 'c']);
     expect(text(row('s').querySelector('.list-row-meta'))).toBe('2 rules · Your set');
-    expect(text(row('sub'))).toContain('No version yet, so it files nothing.');
+    expect(text(row('sub'))).toContain('This browser can’t read this subscription, so it files nothing.');
     expect(text(body.querySelector('#automation-browser-heading'))).toBe('Rules in this browser4');
     expect(text(body.querySelector('.automation-browser .detail'))).toContain('Tried from the top, and the first that matches decides.');
   });
@@ -419,5 +419,87 @@ describe('Copy to my rules (RW-11)', () => {
     expect(text(row('a').querySelector('.automation-recipe'))).toContain('Matches its conditions');
     row('a').querySelector<HTMLElement>('.list-row-main')!.click();
     expect(document.querySelector('dialog.automation-rule-editor')).toBeNull();
+  });
+});
+
+describe('a subscription in the list (doc 17 RW-13, RS-04, RS-05, RS-10)', () => {
+  const papers = { nativeId: 'f-papers', title: 'Papers', path: ['Bookmarks bar', 'Papers'] };
+  const record = (over: Record<string, unknown> = {}) => ({ id: 'sub', url: 'https://rules.example.org/c.json', origin: 'https://rules.example.org', name: 'Community',
+    publisher: { name: 'Example Collective', url: null, feedbackUrl: 'https://example.org/issues' }, license: 'CC-BY-4.0', state: 'ready' as const, updatePolicy: 'review' as const,
+    refreshIntervalHours: 24 as const, paused: false, pinned: false, currentVersion: '3', previousVersion: null, candidateVersion: '4', fetchedAt: NOW - 3_600_000,
+    lastAttemptAt: NOW - 60_000, lastSuccessAt: NOW - 60_000, lastFailure: null, ...over });
+  const subscription = (over: Record<string, unknown> = {}): BrowserListEntryView => ({ kind: 'subscription', id: 'sub', enabled: true, subscription: record(over),
+    detail: { entries: [
+      { id: 'e-arxiv', name: 'arXiv', enabled: true, match: { combinator: 'all', conditions: [{ kind: 'siteCollection', value: 'arXiv' }] }, role: 'Papers', folder: papers, needsFolder: false },
+      { id: 'e-gh', name: 'GitHub', enabled: false, match: { combinator: 'all', conditions: [{ kind: 'siteIs', value: 'github.com' }] }, role: 'Code', folder: null, needsFolder: true },
+      { id: 'e-data', name: 'Data', enabled: true, match: null, role: null, folder: null, needsFolder: false }],
+    roles: [{ key: 'papers', description: 'Papers', folder: papers }, { key: 'code', description: 'Code', folder: null }],
+    exceptions: [{ id: 'x-1', scope: 'domain', value: 'example.org' }], goneSettings: 1,
+    sites: [{ id: 'arxiv', name: 'arXiv', addresses: [{ host: 'arxiv.org', scope: 'domain', status: 'current' },
+      { host: 'xxx.lanl.gov', scope: 'exact', status: 'revoked', until: '2009-01-01' }] }] } });
+
+  it('says where it comes from and how it is, lists its filing entries with their switches, and changes them through the worker', async () => {
+    const body = await render(view([one(rule('a')), subscription()]));
+    expect(text(row('sub'))).toContain('Community');
+    expect(text(row('sub').querySelector('.list-row-meta'))).toBe('2 entries · version 3 · checked 1 minute ago');
+    expect(text(row('sub').querySelector('.badge'))).toBe('Update available');
+    expect(Array.from(body.querySelectorAll('[data-entry-id="sub"] .rule-set-rules > li')).map((item) => (item as HTMLElement).dataset.entryId ?? text(item)))
+      .toEqual(['sub:e-arxiv', 'sub:e-gh', '1 more entry only names a site, for rules of yours.']);
+    expect(text(row('sub:e-arxiv').querySelector('.automation-recipe'))).toBe('From any address of arXivPapers');
+    expect(text(row('sub:e-gh'))).toContain('no folder yet for “Code”');
+    expect(text(row('sub:e-gh').querySelector('.badge'))).toBe('Needs a folder');
+    // Its entries that file count in How a page finds its folder, beside the rules of this browser.
+    const step = Array.from(document.querySelectorAll('.automation-flow-step')).find((node) => text(node.querySelector('.automation-flow-name')) === 'Rules in this browser');
+    expect(text(step!.querySelector('.automation-flow-state'))).toBe('2 on');
+    row('sub:e-arxiv').querySelector<HTMLButtonElement>('.automation-rule-switch')!.click();
+    await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscription.adjust', id: 'sub', change: { kind: 'entry', entryId: 'e-arxiv', enabled: false } }));
+    const about = body.querySelector<HTMLDetailsElement>('.automation-sub-about')!;
+    expect(text(about)).toContain('Fetched from rules.example.org over HTTPS');
+    expect(text(about)).toContain('Published by Example Collective · Licence: CC-BY-4.0');
+    expect(about.querySelector<HTMLAnchorElement>('a[target="_blank"]')!.href).toBe('https://example.org/issues');
+    expect(text(about.querySelector('.automation-sub-exceptions'))).toBe('example.org and its subdomains');
+    expect(text(about.querySelector('.automation-sub-history'))).toBe('xxx.lanl.gov retired 2009-01-01');
+    about.querySelector<HTMLInputElement>('.automation-sub-exception-form input')!.value = 'https://docs.example.net/x/y';
+    about.querySelector<HTMLFormElement>('.automation-sub-exception-form')!.requestSubmit();
+    await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscription.adjust', id: 'sub',
+      change: { kind: 'exception', scope: 'domain', value: 'docs.example.net' } }));
+    Array.from(about.querySelectorAll<HTMLButtonElement>('.inline-alert button')).find((node) => text(node) === 'Clear')!.click();
+    await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscription.adjust', id: 'sub', change: { kind: 'clearGone' } }));
+  });
+
+  it('one not allowed to read its site yet says so, and asks in the click before fetching', async () => {
+    await render(view([subscription({ state: 'notReady', currentVersion: null, candidateVersion: null, lastSuccessAt: null,
+      lastFailure: { code: 'permission', at: NOW - 60_000 } })]));
+    expect(text(row('sub'))).toContain('Not ready: This browser isn’t allowed to read rules.example.org yet.');
+    expect(text(row('sub').querySelector('.badge'))).toBe('Not ready');
+    const request = vi.spyOn(chrome.permissions, 'request');
+    reply = () => ({ ok: true, subscription: record() });
+    Array.from(document.querySelectorAll<HTMLButtonElement>('.automation-subscription > .inline-alert button')).find((node) => text(node) === 'Allow and fetch')!.click();
+    expect(request).toHaveBeenCalledWith({ origins: ['https://rules.example.org/*'] });
+    await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscription.refresh', id: 'sub' }));
+  });
+
+  it('Subscribe takes an https address, asks to read its site in the click, checks it, and subscribes with folders and settings', async () => {
+    await render(standard());
+    const request = vi.spyOn(chrome.permissions, 'request');
+    document.querySelector<HTMLButtonElement>('[data-subscribe]')!.click();
+    const subscribe = document.querySelector<HTMLDialogElement>('dialog.automation-subscribe')!;
+    const field = subscribe.querySelector<HTMLInputElement>('input[type="url"]')!;
+    field.value = 'http://rules.example.org/c.json';
+    subscribe.querySelector('form')!.requestSubmit();
+    expect(text(subscribe.querySelector('.form-error'))).toBe('Use an https address, such as https://example.org/rules.json.');
+    expect(request).not.toHaveBeenCalled();
+    reply = (message) => message.kind === 'known.automation.browser.subscription.check' ? { ok: true, ruleset: { id: 'community', name: 'Community', version: '3',
+      publisher: 'Example Collective', license: null, roles: [{ key: 'papers', description: 'Papers', rules: 1 }], rules: 1, matchingOnly: 1, inactive: 0, sample: null } }
+      : { ok: true, subscription: record() };
+    field.value = 'https://rules.example.org/c.json';
+    subscribe.querySelector('form')!.requestSubmit();
+    expect(request).toHaveBeenCalledWith({ origins: ['https://rules.example.org/*'] });
+    await vi.waitFor(() => expect(text(subscribe)).toContain('Community · version 3 · Example Collective'));
+    expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscription.check', url: 'https://rules.example.org/c.json' });
+    expect(text(subscribe)).toContain('1 rule · 1 entry names a site only');
+    Array.from(subscribe.querySelectorAll<HTMLButtonElement>('button')).find((node) => text(node) === 'Subscribe')!.click();
+    await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.subscribe', url: 'https://rules.example.org/c.json', bindings: { papers: null },
+      updatePolicy: 'review', refreshIntervalHours: 24 }));
   });
 });

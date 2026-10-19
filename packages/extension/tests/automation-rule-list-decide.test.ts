@@ -4,6 +4,9 @@ import { checkRuleDraft, type RuleAction, type RuleCondition } from '../src/auto
 import { decideList } from '../src/automation/rule-list-decide.js';
 import { flattenList, type FlatItem } from '../src/automation/rule-list-flatten.js';
 import type { ListEntry, LocalRule, LocalSet, RuleListRecord } from '../src/automation/rule-list-store.js';
+import { parseRuleset } from '../src/automation/ruleset-format.js';
+import { subscriptionItems } from '../src/automation/subscription-list.js';
+import type { SubscriptionRecord } from '../src/automation/subscription-store.js';
 import { NOW } from './automation-fixture.js';
 
 /** Doc 17 RS-06, RS-08.2, R8: the ordered list decides top to bottom, and the first match is the only one that counts. */
@@ -118,6 +121,32 @@ describe('first match', () => {
     expect(flat.contentVersions).toEqual({ 'sub-1': '1' });
     const result = await decideList(flat.items, page('https://arxiv.org/abs/1'), lookup, NOW);
     expect(result.decision).toMatchObject({ item: { id: 'mine' }, folder: { nativeId: '31' } });
+  });
+
+  it('expands a subscription’s current version in its order, files by its bindings, and leaves its exceptions to the entries below (RS-05.3)', async () => {
+    const parsed = parseRuleset(JSON.stringify({ format: 'colp.ruleset/v1', id: 'community', name: 'Community', version: '3',
+      roles: [{ key: 'papers', description: 'Papers' }, { key: 'code', description: 'Code' }],
+      sites: [{ id: 'arxiv', name: 'arXiv', addresses: [{ host: 'arxiv.org', scope: 'domain', status: 'current' }] }],
+      entries: [{ id: 'e-off', site: 'arxiv', role: 'code' }, { id: 'e-arxiv', site: 'arxiv', role: 'papers' }, { id: 'e-data', site: 'arxiv' },
+        { id: 'e-gh', match: { kind: 'field', field: 'bookmark.url.host', op: 'eq', value: 'github.com' }, role: 'code' }] }));
+    if (!parsed.ok) throw new Error('fixture');
+    const record = { id: 'sub-a', name: 'Community', state: 'ready' } as SubscriptionRecord;
+    const source = (exceptions: { scope: 'host' | 'domain'; value: string }[]) => subscriptionItems({ record, current: parsed, fetchedAt: NOW,
+      local: { disabledEntryIds: ['e-off'], exceptions: exceptions.map((item, index) => ({ id: `x-${index}`, createdAt: NOW, ...item })), bindings: { papers: '30' } } });
+    const plain = source([]);
+    expect(plain.items.map((item) => [item.id, item.action])).toEqual([['sub-a:e-arxiv', { kind: 'file', folderNativeId: '30' }],
+      ['sub-a:e-gh', { kind: 'file', folderNativeId: null }]]);
+    expect(plain.items[0]!.ref).toEqual({ kind: 'subscriptionEntry', subscriptionId: 'sub-a', entryId: 'e-arxiv', contentVersion: '3' });
+    const entries = list([{ kind: 'subscription', subscriptionId: 'sub-a', enabled: true }, ...individual(arxiv('mine', '31'))]);
+    const decided = async (items: ReturnType<typeof source>, url: string) =>
+      (await decideList(flattenList(entries, () => items).items, page(url), lookup, NOW)).decision;
+    expect(await decided(plain, 'https://export.arxiv.org/abs/1')).toMatchObject({ outcome: 'placed', item: { id: 'sub-a:e-arxiv' }, folder: { nativeId: '30' } });
+    // Its role for code has no folder here: a match stops there, blocked (R8).
+    expect(await decided(plain, 'https://github.com/x')).toMatchObject({ outcome: 'blocked', reason: 'bindingUnavailable', item: { id: 'sub-a:e-gh' } });
+    const excepted = source([{ scope: 'domain', value: 'arxiv.org' }]);
+    expect(await decided(excepted, 'https://arxiv.org/abs/1')).toMatchObject({ item: { id: 'mine' }, folder: { nativeId: '31' } });
+    expect(await decided(excepted, 'https://export.arxiv.org/abs/1')).toBeNull();
+    expect(await decided(source([{ scope: 'host', value: 'arxiv.org' }]), 'https://export.arxiv.org/abs/1')).toMatchObject({ item: { id: 'sub-a:e-arxiv' } });
   });
 
   it(`decides a list of 5,000 entries in well under a save's time once warm`, async () => {

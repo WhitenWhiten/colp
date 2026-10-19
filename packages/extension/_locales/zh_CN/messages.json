@@ -203,6 +203,10 @@
     "message": "截至$2：$1。此后无法连接到你的服务器。",
     "description": "$1 as of $2. Your server couldn’t be reached since."
   },
+  "automation_browserBadCollection": {
+    "message": "这个站点已不在它的订阅中。请另选一个。",
+    "description": "This site is no longer in its subscription. Choose another one."
+  },
   "automation_browserBadKind": {
     "message": "此类条件不能在这里使用。",
     "description": "This kind of condition can’t be used here."
@@ -303,6 +307,10 @@
     "message": "已关闭",
     "description": "Off"
   },
+  "automation_browserOneCollection": {
+    "message": "一条规则只能使用同一个订阅中的站点。其余站点请另建规则。",
+    "description": "Use sites from one subscription in a rule. Make another rule for the others."
+  },
   "automation_browserRules": {
     "message": "此浏览器的规则",
     "description": "Rules in this browser"
@@ -343,6 +351,18 @@
     "message": "正在检查…",
     "description": "Checking…"
   },
+  "automation_collectionGone": {
+    "message": "已不在订阅中的站点",
+    "description": "A site no longer in its subscription"
+  },
+  "automation_collectionPick": {
+    "message": "站点",
+    "description": "Site"
+  },
+  "automation_collectionSite": {
+    "message": "$1，来自“$2”",
+    "description": "$1, from “$2”"
+  },
   "automation_condAnd": {
     "message": "，且",
     "description": " and "
@@ -366,6 +386,10 @@
   "automation_condPathUnder": {
     "message": "路径为 $1 或在其下",
     "description": "Path is or is under $1"
+  },
+  "automation_condSiteCollection": {
+    "message": "来自 $1 的任一地址",
+    "description": "From any address of $1"
   },
   "automation_condSiteEndsWith": {
     "message": "来自 $1 或其子域名",
@@ -432,8 +456,8 @@
     "description": "$1 sets"
   },
   "automation_configHasSubscriptions_other": {
-    "message": "$1 个订阅，开始时没有可归档的内容",
-    "description": "$1 subscriptions, which start with nothing to file"
+    "message": "$1 个订阅，允许访问其站点后会重新获取",
+    "description": "$1 subscriptions, fetched again once you allow their sites"
   },
   "automation_configHint": {
     "message": "把此浏览器的规则、规则集及其使用的文件夹保存在一个文件中，或从另一个浏览器带过来。文件中不包含书签。",
@@ -546,6 +570,10 @@
   "automation_copyTurnOff": {
     "message": "同时关闭“$1”中的原规则",
     "description": "Also turn off the original in “$1”"
+  },
+  "automation_copyUnbound": {
+    "message": "这类页面在这里还没有文件夹。请先为订阅选择文件夹。",
+    "description": "Its kind of page has no folder here yet. Choose the subscription’s folders first."
   },
   "automation_digestAsOf": {
     "message": "截至$1",
@@ -814,6 +842,10 @@
   "automation_kindPathUnder": {
     "message": "链接路径为此路径或在其下",
     "description": "Link path is or is under"
+  },
+  "automation_kindSiteCollection": {
+    "message": "来自站点集合的站点",
+    "description": "Site from a collection"
   },
   "automation_kindSiteIs": {
     "message": "网站是",
@@ -1171,9 +1203,17 @@
     "message": "“$2”中的规则“$1”",
     "description": "Rule “$1” in “$2”"
   },
+  "automation_placementSubscriptionOff": {
+    "message": "已关闭“$1”。在你重新开启前，它的条目不会归档任何内容。",
+    "description": "Turned off “$1”. Its entries file nothing until you turn it on."
+  },
   "automation_placementTurnOff": {
     "message": "关闭此条目",
     "description": "Turn off this entry"
+  },
+  "automation_placementTurnOffSubscription": {
+    "message": "关闭这个订阅",
+    "description": "Turn off this subscription"
   },
   "automation_placementTurnedOff": {
     "message": "已关闭“$1”。此类页面现在由它下方的条目决定。",
@@ -1426,6 +1466,14 @@
   "automation_ruleNamePlaceholder": {
     "message": "来自 arXiv 的论文",
     "description": "Papers from arXiv"
+  },
+  "automation_ruleNeedsAttention": {
+    "message": "需要处理",
+    "description": "Needs attention"
+  },
+  "automation_ruleNeedsAttentionHint": {
+    "message": "它使用的某个站点已从订阅中移除，或订阅本身已移除。请编辑规则另选一个。",
+    "description": "A site it uses is gone from its subscription, or the subscription is. Edit the rule to choose another."
   },
   "automation_ruleNeedsFolder": {
     "message": "需要文件夹",
@@ -2135,13 +2183,361 @@
     "message": "此服务器未开启自动化。",
     "description": "Automations aren’t turned on for this server."
   },
+  "automation_subAbout": {
+    "message": "来源、跳过的站点和历史",
+    "description": "Source, sites left alone and history"
+  },
+  "automation_subAddFailed": {
+    "message": "无法订阅。请重试。",
+    "description": "Couldn’t subscribe. Try again."
+  },
+  "automation_subAdded": {
+    "message": "已订阅“$1”。它会在你列表中的其余条目之后被尝试。",
+    "description": "Subscribed to “$1”. It is tried after the rest of your list."
+  },
+  "automation_subAddedNotReady": {
+    "message": "已订阅，但尚未就绪：$1",
+    "description": "Subscribed, but not ready yet: $1"
+  },
+  "automation_subAllow": {
+    "message": "允许并获取",
+    "description": "Allow and fetch"
+  },
+  "automation_subAllowHint": {
+    "message": "允许此浏览器读取 $1，之后它会获取这个规则集。",
+    "description": "Allow this browser to read $1, then it fetches the rule set."
+  },
+  "automation_subBadUrl": {
+    "message": "请使用 https 地址，例如 https://example.org/rules.json。",
+    "description": "Use an https address, such as https://example.org/rules.json."
+  },
+  "automation_subBindHint": {
+    "message": "这个订阅归档的每类页面都会进入你在这里选择的文件夹。更新会保留你的选择。",
+    "description": "Each kind of page this subscription files goes to the folder you choose here. Updates keep your choices."
+  },
+  "automation_subCheck": {
+    "message": "检查",
+    "description": "Check"
+  },
+  "automation_subCheckFailed": {
+    "message": "暂时无法检查：$1 你仍然可以订阅；在收到某个版本前，它不会归档任何内容。",
+    "description": "Couldn’t check it now: $1 You can still subscribe; it files nothing until a version arrives."
+  },
+  "automation_subChecked": {
+    "message": "$1检查过",
+    "description": "checked $1"
+  },
+  "automation_subClearGone": {
+    "message": "清除",
+    "description": "Clear"
+  },
+  "automation_subCopyHint": {
+    "message": "副本会作为你自己的规则放在“$1”上方，归档到 $2。它会先于这个订阅被尝试，你也可以修改它。",
+    "description": "The copy goes above “$1” as a rule of your own, filing into $2. It is tried before the subscription, and you can change it."
+  },
+  "automation_subCopyHintKeep": {
+    "message": "副本会作为你自己的规则放在“$1”上方。它会先于这个订阅被尝试，你也可以修改它。",
+    "description": "The copy goes above “$1” as a rule of your own. It is tried before the subscription, and you can change it."
+  },
+  "automation_subDuplicate": {
+    "message": "你已经订阅了这个地址。",
+    "description": "You already subscribe to this address."
+  },
+  "automation_subEntriesLabel": {
+    "message": "“$1”的条目",
+    "description": "Entries of “$1”"
+  },
+  "automation_subEntries_other": {
+    "message": "$1 个条目",
+    "description": "$1 entries"
+  },
+  "automation_subEvery6": {
+    "message": "每 6 小时",
+    "description": "Every 6 hours"
+  },
+  "automation_subEveryDay": {
+    "message": "每天一次",
+    "description": "Once a day"
+  },
+  "automation_subEveryWeek": {
+    "message": "每周一次",
+    "description": "Once a week"
+  },
+  "automation_subExceptionAdd": {
+    "message": "跳过",
+    "description": "Leave alone"
+  },
+  "automation_subExceptionBad": {
+    "message": "请填写一个站点，例如 example.org。许多站点共用的后缀不能跳过。",
+    "description": "Use one site, such as example.org. A suffix many sites share can’t be left alone."
+  },
+  "automation_subExceptionDomain": {
+    "message": "$1 及其子域名",
+    "description": "$1 and its subdomains"
+  },
+  "automation_subExceptionRemove": {
+    "message": "不再跳过 $1",
+    "description": "Stop leaving $1 alone"
+  },
+  "automation_subExceptionScope": {
+    "message": "范围",
+    "description": "How much of it"
+  },
+  "automation_subExceptionSite": {
+    "message": "要跳过的站点",
+    "description": "Site to leave alone"
+  },
+  "automation_subFailHttp": {
+    "message": "无法从 $1 获取（HTTP $2），$3。",
+    "description": "Couldn’t fetch it from $1 (HTTP $2), $3."
+  },
+  "automation_subFailInvalid": {
+    "message": "$1 上的文件不是此浏览器可用的规则集，$2。",
+    "description": "The file at $1 isn’t a rule set this browser can use, $2."
+  },
+  "automation_subFailNetwork": {
+    "message": "无法连接到 $1，$2。",
+    "description": "Couldn’t reach $1, $2."
+  },
+  "automation_subFailPermission": {
+    "message": "此浏览器还没有读取 $1 的权限。",
+    "description": "This browser isn’t allowed to read $1 yet."
+  },
+  "automation_subFailTooLarge": {
+    "message": "$1 上的文件超过 2 MB，$2。",
+    "description": "The file at $1 is larger than 2 MB, $2."
+  },
+  "automation_subFailUnsupported": {
+    "message": "$1 上的文件已移到其他站点，或使用了更新的格式，$2。",
+    "description": "The file at $1 moved to another site or is in a newer format, $2."
+  },
+  "automation_subFeedback": {
+    "message": "向发布者报告问题",
+    "description": "Tell the publisher about a problem"
+  },
+  "automation_subFetchedAt": {
+    "message": "这个版本于$1收到",
+    "description": "This version arrived $1"
+  },
+  "automation_subFetchedFrom": {
+    "message": "通过 $2 从 $1 获取",
+    "description": "Fetched from $1 over $2"
+  },
+  "automation_subFolders": {
+    "message": "选择它的文件夹",
+    "description": "Choose its folders"
+  },
+  "automation_subGone_other": {
+    "message": "$1 项设置所属的条目已不在这个订阅中。如果条目回来，设置会重新生效。",
+    "description": "$1 settings for entries no longer in this subscription. They apply again if the entries come back."
+  },
+  "automation_subHistorical": {
+    "message": "$1 是旧地址，仍会匹配",
+    "description": "$1 earlier address, still matched"
+  },
+  "automation_subInterval": {
+    "message": "检查更新",
+    "description": "Check for updates"
+  },
+  "automation_subIntervalHint": {
+    "message": "仅在此浏览器打开时检查。",
+    "description": "Only while this browser is open."
+  },
+  "automation_subLastTry": {
+    "message": "仍在使用版本 $1。$2",
+    "description": "Still using version $1. $2"
+  },
+  "automation_subLeftAlone": {
+    "message": "在这里跳过的站点",
+    "description": "Sites it leaves alone here"
+  },
+  "automation_subLeftAloneNone": {
+    "message": "没有。添加一个站点，让这个订阅的条目不归档它（仅对这个订阅生效）。",
+    "description": "None. Add a site its entries shouldn’t file, for this subscription only."
+  },
+  "automation_subLicense": {
+    "message": "许可：$1",
+    "description": "Licence: $1"
+  },
+  "automation_subLimit": {
+    "message": "此浏览器最多保留 20 个订阅。请先移除一个。",
+    "description": "This browser keeps up to 20 subscriptions. Remove one to add another."
+  },
+  "automation_subNamingCount_other": {
+    "message": "$1 个条目只标明站点",
+    "description": "$1 entries name a site only"
+  },
+  "automation_subNamingOnly_other": {
+    "message": "另有 $1 个条目只标明站点，供你的规则使用。",
+    "description": "$1 more entries only name sites, for rules of yours."
+  },
+  "automation_subNeedsAccess": {
+    "message": "请允许读取 $1，才能获取这个订阅。",
+    "description": "Allow reading $1 to fetch this subscription."
+  },
+  "automation_subNeedsAccessCheck": {
+    "message": "请允许读取 $1 以检查这个规则集。Know-N 不会从该站点读取任何其他内容。",
+    "description": "Allow reading $1 to check this rule set. Know-N reads nothing else from that site."
+  },
+  "automation_subNotFetched": {
+    "message": "尚未获取，所以不会归档任何内容。",
+    "description": "Not fetched yet, so it files nothing."
+  },
+  "automation_subNotReady": {
+    "message": "未就绪：$1",
+    "description": "Not ready: $1"
+  },
+  "automation_subNotReadyBadge": {
+    "message": "未就绪",
+    "description": "Not ready"
+  },
+  "automation_subPause": {
+    "message": "暂停更新",
+    "description": "Pause updates"
+  },
+  "automation_subPauseHint": {
+    "message": "保留版本 $1，不再检查新版本。",
+    "description": "Keeps version $1 and stops checking for new ones."
+  },
+  "automation_subPausedBadge": {
+    "message": "已暂停更新",
+    "description": "Updates paused"
+  },
+  "automation_subPolicy": {
+    "message": "新版本",
+    "description": "New versions"
+  },
+  "automation_subPolicyAuto": {
+    "message": "自动应用小更新",
+    "description": "Apply small updates by themselves"
+  },
+  "automation_subPolicyAutoHint": {
+    "message": "自动应用只改变条件和站点、不新增文件夹角色的更新；其他更新都会等待你审阅。",
+    "description": "Applies updates that change conditions and sites but add no new folder roles; anything else waits for your review."
+  },
+  "automation_subPolicyReview": {
+    "message": "等待我审阅",
+    "description": "Wait for my review"
+  },
+  "automation_subPolicyReviewHint": {
+    "message": "在它归档任何内容之前，你会先看到有哪些变化。",
+    "description": "You see what changes before it files anything."
+  },
+  "automation_subPrevious": {
+    "message": "上一版本：$1",
+    "description": "Previous version: $1"
+  },
+  "automation_subPublisher": {
+    "message": "发布者：$1",
+    "description": "Published by $1"
+  },
+  "automation_subRefresh": {
+    "message": "立即刷新",
+    "description": "Refresh now"
+  },
+  "automation_subRemove": {
+    "message": "移除订阅",
+    "description": "Remove subscription"
+  },
+  "automation_subRemoveBody": {
+    "message": "它的条目将不再归档页面，你为它做的设置也会一并移除。你从中复制的规则会保留。它已归档的页面留在原处。",
+    "description": "Its entries stop filing pages, and your settings for it go too. Rules you copied from it stay. Pages it already filed stay where they are."
+  },
+  "automation_subRemoveFailed": {
+    "message": "无法移除这个订阅。请重试。",
+    "description": "Couldn’t remove this subscription. Try again."
+  },
+  "automation_subRemoveTitle": {
+    "message": "移除“$1”？",
+    "description": "Remove “$1”?"
+  },
+  "automation_subRemoved": {
+    "message": "已移除“$1”。",
+    "description": "Removed “$1”."
+  },
+  "automation_subRevoked": {
+    "message": "$1 已于 $2 停用",
+    "description": "$1 retired $2"
+  },
+  "automation_subScopeDomain": {
+    "message": "及其子域名",
+    "description": "and its subdomains"
+  },
+  "automation_subScopeHost": {
+    "message": "仅此站点",
+    "description": "this site only"
+  },
+  "automation_subSettings": {
+    "message": "更新设置",
+    "description": "Update settings"
+  },
+  "automation_subSettingsFailed": {
+    "message": "无法保存这些设置。请重试。",
+    "description": "Couldn’t save these settings. Try again."
+  },
+  "automation_subSettingsSaved": {
+    "message": "已保存“$1”的更新设置。",
+    "description": "Saved the update settings for “$1”."
+  },
+  "automation_subSettingsTitle": {
+    "message": "“$1”的更新",
+    "description": "Updates for “$1”"
+  },
+  "automation_subShowAll_other": {
+    "message": "显示全部 $1 个条目",
+    "description": "Show all $1 entries"
+  },
+  "automation_subSiteRetired": {
+    "message": "没有当前地址",
+    "description": "no current address"
+  },
+  "automation_subSites_other": {
+    "message": "它的站点集合：$1 个站点",
+    "description": "Its collection: $1 sites"
+  },
+  "automation_subSubscribe": {
+    "message": "订阅",
+    "description": "Subscribe"
+  },
+  "automation_subTitle": {
+    "message": "订阅规则集",
+    "description": "Subscribe to a rule set"
+  },
+  "automation_subUnreadable": {
+    "message": "此浏览器无法读取这个订阅，所以它不会归档任何内容。",
+    "description": "This browser can’t read this subscription, so it files nothing."
+  },
+  "automation_subUpToDate": {
+    "message": "已是最新：版本 $1。",
+    "description": "Up to date: version $1."
+  },
+  "automation_subUpdateBadge": {
+    "message": "有可用更新",
+    "description": "Update available"
+  },
+  "automation_subUpdateWaiting": {
+    "message": "版本 $1 正在等待你审阅。",
+    "description": "Version $1 is waiting for your review."
+  },
+  "automation_subUrl": {
+    "message": "规则集地址",
+    "description": "Address of the rule set"
+  },
+  "automation_subUrlHint": {
+    "message": "https 地址上的 colp.ruleset/v1 文件。Know-N 会请求读取该站点，且不会从那里获取其他任何内容。",
+    "description": "A colp.ruleset/v1 file on an https address. Know-N asks to read that site, and fetches nothing else from it."
+  },
+  "automation_subVersion": {
+    "message": "版本 $1",
+    "description": "version $1"
+  },
+  "automation_subscribe": {
+    "message": "订阅",
+    "description": "Subscribe"
+  },
   "automation_subscription": {
     "message": "已订阅的规则集",
     "description": "Subscribed rule set"
-  },
-  "automation_subscriptionNotReady": {
-    "message": "还没有版本，因此不会归档任何内容。",
-    "description": "No version yet, so it files nothing."
   },
   "automation_subscriptionUse": {
     "message": "使用此订阅",

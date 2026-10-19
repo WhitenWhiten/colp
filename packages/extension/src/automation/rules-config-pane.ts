@@ -32,7 +32,7 @@ function openImport(config: RulesConfig, name: string, trigger: HTMLElement, tex
   const subscriptions = config.list.entries.filter((entry) => entry.kind === 'subscription').length;
   body.append(el('p', [tn('automation_configHasRules', rules, '“$2” has $1 rule', '“$2” has $1 rules', name),
     sets ? tn('automation_configHasSets', sets, '$1 set', '$1 sets') : '',
-    subscriptions ? tn('automation_configHasSubscriptions', subscriptions, '$1 subscription, which starts with nothing to file', '$1 subscriptions, which start with nothing to file') : '']
+    subscriptions ? tn('automation_configHasSubscriptions', subscriptions, '$1 subscription, fetched again once you allow its site', '$1 subscriptions, fetched again once you allow their sites') : '']
     .filter(Boolean).join(' · '), 'automation-preview-verdict'));
   const used = foldersUsed(config);
   const folders = config.folders.filter((folder) => used.all.has(folder.nativeId));

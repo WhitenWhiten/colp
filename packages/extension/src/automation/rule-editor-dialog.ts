@@ -16,7 +16,8 @@ import type { ConditionKind, DraftProblem, RuleAction, RuleDraft } from './rule-
  * it where it is saved), where in the list (on its own or in a set), and an optional name. The worker
  * checks the draft (rule-conditions.ts) and its problems land on the field they are about; this dialog
  * only helps write site values: a pasted link becomes its site with its registrable domain offered,
- * a suffix shared by many owners asks once more, and an `xn--` site shows its Unicode form.
+ * a suffix shared by many owners asks once more, and an `xn--` site shows its Unicode form. *Site from a
+ * collection* is offered only when a subscription has sites, and picks one of them.
  */
 const KINDS: readonly { readonly kind: ConditionKind; readonly label: () => string; readonly placeholder: string }[] = [
   { kind: 'siteIs', label: () => t('automation_kindSiteIs', 'Site is'), placeholder: 'arxiv.org' },
@@ -41,6 +42,8 @@ export interface EditorOptions {
   readonly index?: number;
   /** What a new rule starts as. */
   readonly draft?: RuleDraft;
+  /** The sites of the subscriptions' collections (`<subscriptionId>/<siteId>`), for *Site from a collection*. */
+  readonly collections?: readonly { readonly value: string; readonly label: string }[];
 }
 
 function problemCopy(problem: DraftProblem): string {
@@ -53,6 +56,8 @@ function problemCopy(problem: DraftProblem): string {
     case 'tooLong': return problem.field === 'name' ? t('automation_browserNameTooLong', 'Use 200 characters or fewer.')
       : t('automation_browserValueTooLong', 'Use 512 characters or fewer.');
     case 'kind': return t('automation_browserBadKind', 'This kind of condition can’t be used here.');
+    case 'collection': return t('automation_browserBadCollection', 'This site is no longer in its subscription. Choose another one.');
+    case 'oneCollection': return t('automation_browserOneCollection', 'Use sites from one subscription in a rule. Make another rule for the others.');
   }
 }
 
@@ -98,9 +103,12 @@ export function openRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLEleme
     add.disabled = rows.length >= CONDITION_LIMIT;
     for (const row of rows) row.element.querySelector<HTMLButtonElement>('.automation-condition-remove')!.hidden = rows.length < 2;
   }
+  const collections = options.collections ?? [];
+  const kinds = collections.length || draft?.conditions.some((condition) => condition.kind === 'siteCollection')
+    ? [...KINDS, { kind: 'siteCollection' as const, label: () => t('automation_kindSiteCollection', 'Site from a collection'), placeholder: '' }] : KINDS;
   function addRow(kind: ConditionKind = 'siteIs', value = ''): ConditionRow {
     const element = el('div', undefined, 'automation-condition');
-    const select = selectOf(KINDS.map((item) => [item.kind, item.label()] as const), kind);
+    const select = selectOf(kinds.map((item) => [item.kind, item.label()] as const), kind);
     select.className = 'field-select'; select.setAttribute('aria-label', t('automation_conditionKind', 'Condition'));
     const input = el('input', undefined, 'field-quiet'); input.type = 'text'; input.value = value; input.autocomplete = 'off'; input.spellcheck = false;
     input.setAttribute('aria-label', t('automation_conditionValue', 'Value'));
@@ -109,7 +117,20 @@ export function openRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLEleme
     }, 'btn btn-ghost btn-sm btn-icon automation-condition-remove');
     const help = el('p', undefined, 'automation-condition-help'); help.hidden = true;
     const error = el('p', undefined, 'form-error automation-condition-error'); error.hidden = true;
-    element.append(select, input, remove, help, error);
+    // A collection's site is picked, not typed; the input keeps its value for the draft.
+    const known = collections.some((item) => item.value === value);
+    const sites = selectOf([...(kind === 'siteCollection' && value && !known ? [[value, t('automation_collectionGone', 'A site no longer in its subscription')] as const] : []),
+      ...collections.map((item) => [item.value, item.label] as const)], kind === 'siteCollection' ? value : collections[0]?.value ?? '');
+    sites.className = 'field-select automation-condition-site'; sites.setAttribute('aria-label', t('automation_collectionPick', 'Site'));
+    const showSites = () => {
+      const on = select.value === 'siteCollection';
+      sites.hidden = !on; input.hidden = on;
+      if (on) input.value = sites.value; else if (collections.some((item) => item.value === input.value)) input.value = '';
+    };
+    sites.addEventListener('change', () => { input.value = sites.value; error.hidden = true; listError.hidden = true; });
+    select.addEventListener('change', showSites);
+    element.append(select, input, sites, remove, help, error);
+    showSites();
     const host = () => {
       const raw = input.value.trim();
       if (!isSite(select.value) || !raw) return null;
@@ -121,7 +142,7 @@ export function openRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLEleme
     // What the site value means: its Unicode form, its registrable domain, and how wide it reaches.
     const explain = () => {
       help.replaceChildren(); help.hidden = true; delete help.dataset.tone;
-      input.placeholder = KINDS.find((item) => item.kind === select.value)?.placeholder ?? '';
+      input.placeholder = kinds.find((item) => item.kind === select.value)?.placeholder ?? '';
       const site = host();
       if (!site) return;
       const parts: (string | HTMLElement)[] = [];

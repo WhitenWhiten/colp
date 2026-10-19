@@ -1,17 +1,20 @@
 import type { RuleDefinition } from '@know-n/colp/automation';
 import type { BrowserDecisionEntry } from '../capture/contracts.js';
 import { ruleFolderNativeId, type LocalRule, type LocalSet, type RuleListRecord } from './rule-list-store.js';
+import { collectionStale } from './subscription-list.js';
 
 /**
  * The ordered list in evaluation order (doc 17 §6.1): the one source for what Options shows and what a
  * save decides (RS-01.3). A switched-off rule, set or subscription contributes nothing; a set
  * contributes its switched-on rules in their order, each filing where the set binds its role; a
  * subscription contributes its current version's entries, or nothing while it has none (`notReady`).
+ * A rule naming a collection's site is tried only while it was compiled from that subscription's
+ * current version; otherwise it needs attention and is passed over (§8 Remove).
  */
 export type EntryRef = Omit<BrowserDecisionEntry, 'listRevision'>;
 export interface FlatItem {
   readonly ref: EntryRef;
-  /** The rule's id, or the subscription entry's. */
+  /** The rule's id, or `<subscriptionId>:<entryId>` for a subscription's entry. */
   readonly id: string;
   readonly name: string;
   /** The set or subscription it belongs to; null for an individual rule. */
@@ -42,6 +45,8 @@ export interface FlatList {
   readonly skippedSources: readonly { readonly subscriptionId: string; readonly reason: 'notReady' }[];
   /** Subscription id → the content version its items came from; a preview citing others is stale (RS-08.4). */
   readonly contentVersions: Readonly<Record<string, string>>;
+  /** Switched-on rules passed over: a collection's site they name is gone, or its subscription is. */
+  readonly needsAttention: readonly string[];
 }
 
 function ruleItem(rule: LocalRule, set: LocalSet | null): FlatItem {
@@ -55,11 +60,17 @@ export function flattenList(list: RuleListRecord, subscriptions: SubscriptionLoo
   context: { readonly accountPaused?: boolean } = {}): FlatList {
   const stopped = context.accountPaused ? 'accountPaused' : list.enabled ? null : 'listOff';
   const items: FlatItem[] = [], skippedSources: FlatList['skippedSources'][number][] = [], contentVersions: Record<string, string> = {};
-  if (stopped) return { revision: list.revision, items, stopped, skippedSources, contentVersions };
+  const needsAttention: string[] = [];
+  if (stopped) return { revision: list.revision, items, stopped, skippedSources, contentVersions, needsAttention };
+  const current = (id: string) => { const content = subscriptions(id); return content?.ready ? content.contentVersion : null; };
+  const add = (rule: LocalRule, set: LocalSet | null) => {
+    if (!rule.enabled) return;
+    if (collectionStale(rule, current)) needsAttention.push(rule.id); else items.push(ruleItem(rule, set));
+  };
   for (const entry of list.entries) {
-    if (entry.kind === 'rule') { if (entry.rule.enabled) items.push(ruleItem(entry.rule, null)); continue; }
+    if (entry.kind === 'rule') { add(entry.rule, null); continue; }
     if (entry.kind === 'set') {
-      if (entry.set.enabled) for (const rule of entry.set.rules) if (rule.enabled) items.push(ruleItem(rule, entry.set));
+      if (entry.set.enabled) for (const rule of entry.set.rules) add(rule, entry.set);
       continue;
     }
     if (!entry.enabled) continue;
@@ -68,5 +79,5 @@ export function flattenList(list: RuleListRecord, subscriptions: SubscriptionLoo
     if (content.contentVersion) contentVersions[entry.subscriptionId] = content.contentVersion;
     items.push(...content.items);
   }
-  return { revision: list.revision, items, stopped, skippedSources, contentVersions };
+  return { revision: list.revision, items, stopped, skippedSources, contentVersions, needsAttention };
 }

@@ -3,15 +3,20 @@ import { accountEditorUrl, type FolderLookup } from '../automation/browser-rules
 import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
 import { checkRuleDraft, type RuleDraft } from '../automation/rule-conditions.js';
 import { decideList, type ListDecision, type ListResult } from '../automation/rule-list-decide.js';
-import { flattenList, type FlatItem } from '../automation/rule-list-flatten.js';
-import { createRuleListStore, individualRules, ruleFolderNativeId, type LocalRule, type LocalSet, type RuleListStore } from '../automation/rule-list-store.js';
+import { flattenList, type FlatItem, type FlatList } from '../automation/rule-list-flatten.js';
+import { collectionRef } from '../automation/rule-conditions.js';
+import { createRuleListStore, individualRules, ruleFolderNativeId, type LocalRule, type LocalSet, type RuleListRecord,
+  type RuleListStore } from '../automation/rule-list-store.js';
+import { collectionLookup, collectionStale, goneSettings, subscriptionItems, subscriptionRecordView,
+  type SubscriptionSource } from '../automation/subscription-list.js';
+import { createSubscriptionStore, type SubscriptionStore } from '../automation/subscription-store.js';
 import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '../automation/browser-overlap.js';
 import type { AutomationPlacementView, BrowserListEntryView, BrowserListView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse,
   BrowserRuleView, BrowserRunCommand, BrowserConfigCommand, BrowserRulesetCommand } from '../automation/messages.js';
 import { ruleMatchView } from '../automation/rule-match.js';
 import { PREVIEW_SAMPLE, previewList, type PreviewPage } from '../automation/rule-preview.js';
 import type { PreSaveInput } from '../automation/pre-save.js';
-import type { SubscriptionCommand } from '../automation/subscription-messages.js';
+import type { BrowserSubscriptionDetail, SubscriptionCommand } from '../automation/subscription-messages.js';
 import type { BrowserAutomation, CaptureTask } from '../capture/contracts.js';
 import { hasBookmarkPermission } from './runtime.js';
 
@@ -21,15 +26,32 @@ import { hasBookmarkPermission } from './runtime.js';
  * page they filed is logged for Options' recent activity. Nothing here needs an
  * account or the network.
  */
-let shared: { readonly database: AutomationDatabase; readonly store: RuleListStore; readonly log: BrowserPlacementLog } | undefined;
+let shared: { readonly database: AutomationDatabase; readonly store: RuleListStore; readonly log: BrowserPlacementLog;
+  readonly subscriptions: SubscriptionStore } | undefined;
 function stores() {
   const database = automationDatabase();
-  if (shared?.database !== database) shared = { database, store: createRuleListStore(database.area()), log: createBrowserPlacementLog(database.area()) };
+  if (shared?.database !== database) {
+    const store = createRuleListStore(database.area());
+    shared = { database, store, log: createBrowserPlacementLog(database.area()), subscriptions: createSubscriptionStore(database.area(), store) };
+  }
   return shared;
 }
-/** One store per database, so every write goes through the same queue. */
+/** One store per database, so every write goes through the same queue; subscriptions write the list through it too. */
 export const browserRuleStore = (): RuleListStore => stores().store;
 export const browserPlacementLog = (): BrowserPlacementLog => stores().log;
+export const browserSubscriptionStore = (): SubscriptionStore => stores().subscriptions;
+
+/** Each subscription in the list with its current version and adjustments, read once for one decision or view. */
+export async function listSources(list: RuleListRecord): Promise<Map<string, SubscriptionSource>> {
+  const ids = list.entries.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []);
+  const found = await Promise.all(ids.map((id) => browserSubscriptionStore().source(id)));
+  return new Map(found.flatMap((source) => source ? [[source.record.id, source] as const] : []));
+}
+/** The list as saves try it now (doc 17 §6.1): only stored content, never a fetch (RS-04.5). */
+export async function currentFlat(list: RuleListRecord, sources?: Map<string, SubscriptionSource>): Promise<FlatList> {
+  const known = sources ?? await listSources(list);
+  return flattenList(list, (id) => { const source = known.get(id); return source ? subscriptionItems(source) : undefined; });
+}
 
 /** Individual rules that file into a folder of their own, as the overlap check with the account reads them. */
 const filing = (rules: readonly LocalRule[]) => rules.flatMap((rule) => {
@@ -45,7 +67,7 @@ export interface BrowserPreSaveDecision {
   readonly targetNativeId: string | null;
 }
 
-const skippedRef = (item: FlatItem) => ({ ...item.ref.kind === 'subscriptionEntry' ? { entryId: item.id } : { ruleId: item.id },
+const skippedRef = (item: FlatItem) => ({ ...item.ref.kind === 'subscriptionEntry' ? { entryId: item.ref.entryId } : { ruleId: item.id },
   reason: 'missingInput' as const });
 
 /** The decision as the capture task keeps it: which entry of which list revision decided, and what it passed over (doc 17 §4.3). */
@@ -59,7 +81,7 @@ function browserAutomation(decision: ListDecision, result: ListResult, listRevis
 /** This browser's list's decision for a save no account rule decided, first match wins (doc 17 §6.3); null when none matches. */
 export async function browserPreSaveDecision(input: PreSaveInput): Promise<BrowserPreSaveDecision | null> {
   if (!await hasBookmarkPermission()) return null;
-  const flat = flattenList(await browserRuleStore().load());
+  const flat = await currentFlat(await browserRuleStore().load());
   if (flat.stopped || !flat.items.length) return null;
   const result = await decideList(flat.items, input, nativeFolderLookup, Date.now());
   if (!result.decision) return null;
@@ -140,7 +162,8 @@ export const MOVING_STALE_MS = 24 * 60 * 60 * 1000;
  */
 export async function browserListViews(context: AccountContext | null = null): Promise<{ readonly rules: BrowserRuleView[]; readonly list: BrowserListView }> {
   const stored = await browserRuleStore().load();
-  const individual = individualRules(stored);
+  const individual = individualRules(stored), sources = await listSources(stored), sites = collectionLookup(sources);
+  const versionOf = (id: string) => sources.get(id)?.current?.ruleset.version ?? null;
   const account = context?.account ?? [];
   const access = await hasBookmarkPermission(), now = Date.now();
   const enabled = filing(individual).filter((rule) => rule.enabled);
@@ -162,8 +185,15 @@ export async function browserListViews(context: AccountContext | null = null): P
     // A role with no folder bound here is not a folder gone missing: the set's role is still to be chosen (RS-02.3).
     const role = rule.action.kind === 'file' && 'role' in rule.action ? rule.action.role : null;
     const needsFolder = role !== null && !folderNativeId;
-    return { id: rule.id, name: rule.name, enabled: rule.enabled, active: stored.enabled && rule.enabled && (set?.enabled ?? true), setId: set?.id ?? null,
-      match: rule.conditions.length ? { combinator: rule.combinator, conditions: rule.conditions } : ruleMatchView(rule.definition.match),
+    // A collection's site is named as its subscription names it now.
+    const conditions = rule.conditions.map((condition) => {
+      const ref = condition.kind === 'siteCollection' ? collectionRef(condition.value) : null;
+      return ref ? { kind: condition.kind, value: sites(ref.subscriptionId, ref.siteId)?.name ?? ref.siteId } : condition;
+    });
+    const stale = collectionStale(rule, versionOf);
+    return { id: rule.id, name: rule.name, enabled: rule.enabled, active: stored.enabled && rule.enabled && (set?.enabled ?? true) && !stale,
+      setId: set?.id ?? null, ...(stale ? { needsAttention: true } : {}),
+      match: rule.conditions.length ? { combinator: rule.combinator, conditions } : ruleMatchView(rule.definition.match),
       keepHere: rule.action.kind === 'keepHere', draft, folder, folderMissing: access && rule.action.kind !== 'keepHere' && !folder && !needsFolder,
       ...(role !== null ? { role: set?.roles.find((item) => item.key === role)?.description ?? role, needsFolder } : {}),
       account: overlap, move: url ? { url } : null,
@@ -173,7 +203,11 @@ export async function browserListViews(context: AccountContext | null = null): P
   };
   const entries = await Promise.all(stored.entries.map(async (entry): Promise<BrowserListEntryView> => {
     if (entry.kind === 'rule') return { kind: 'rule', rule: await view(entry.rule, null) };
-    if (entry.kind === 'subscription') return { kind: 'subscription', id: entry.subscriptionId, enabled: entry.enabled };
+    if (entry.kind === 'subscription') {
+      const source = sources.get(entry.subscriptionId);
+      return { kind: 'subscription', id: entry.subscriptionId, enabled: entry.enabled,
+        ...(source ? { subscription: subscriptionRecordView(source), detail: await subscriptionDetail(source, access) } : {}) };
+    }
     const { set } = entry;
     const roles = await Promise.all(set.roles.map(async (role) => ({ key: role.key, description: role.description,
       folder: access && set.bindings[role.key] ? await folderView(set.bindings[role.key]!) : null })));
@@ -187,6 +221,30 @@ export async function browserListViews(context: AccountContext | null = null): P
     ? [{ upper: names.get(upper)!, lower: names.get(lower)! }] : []);
   return { rules: entries.flatMap((entry) => entry.kind === 'rule' ? [entry.rule] : entry.kind === 'set' ? entry.set.rules : []),
     list: { revision: stored.revision, enabled: stored.enabled, entries, orderNotice: stored.orderNotice ? pairs : null } };
+}
+
+/** A subscription's row beyond its record: its current entries, what is switched off and where each files here, its collection (RS-05, RS-10). */
+async function subscriptionDetail(source: SubscriptionSource, access: boolean): Promise<BrowserSubscriptionDetail> {
+  const { current, local } = source, ruleset = current?.ruleset;
+  const folders = new Map<string, Promise<BrowserRuleView['folder']>>();
+  const folder = (nativeId: string | undefined) => {
+    if (!access || !nativeId) return Promise.resolve(null);
+    if (!folders.has(nativeId)) folders.set(nativeId, folderView(nativeId));
+    return folders.get(nativeId)!;
+  };
+  const off = new Set(local.disabledEntryIds), compiled = new Map((current?.compiled ?? []).map((item) => [item.entry.id, item]));
+  const roles = await Promise.all((ruleset?.roles ?? []).map(async (role) => ({ ...role, folder: await folder(local.bindings[role.key]) })));
+  const entries = await Promise.all((ruleset?.entries ?? []).map(async (entry) => {
+    const site = entry.site ? ruleset!.sites.find((item) => item.id === entry.site) : undefined;
+    const bound = entry.role ? local.bindings[entry.role] : undefined;
+    return { id: entry.id, name: compiled.get(entry.id)?.name ?? entry.name ?? site?.name ?? entry.id, enabled: !off.has(entry.id),
+      match: site ? { combinator: 'all' as const, conditions: [{ kind: 'siteCollection' as const, value: site.name }] }
+        : compiled.get(entry.id)?.conditions ?? (entry.match ? ruleMatchView(entry.match) : null),
+      role: entry.role ? ruleset!.roles.find((role) => role.key === entry.role)?.description ?? entry.role : null,
+      folder: await folder(bound), needsFolder: entry.role !== undefined && !bound };
+  }));
+  return { entries, roles, exceptions: local.exceptions.map(({ id, scope, value }) => ({ id, scope, value })), goneSettings: goneSettings(local, current),
+    sites: (ruleset?.sites ?? []).map((site) => ({ id: site.id, name: site.name, addresses: site.addresses })) };
 }
 
 /**
@@ -211,11 +269,16 @@ export async function retireMovedBrowserRules(account: readonly AccountRuleForOv
  */
 export async function browserPlacementViews(): Promise<AutomationPlacementView[]> {
   const [placements, list] = await Promise.all([browserPlacementLog().placements(), browserRuleStore().load()]);
-  const standing = new Map<string, 'on' | 'off'>();
+  const sources = await listSources(list), standing = new Map<string, 'on' | 'off'>();
   for (const entry of list.entries) {
     if (entry.kind === 'rule') standing.set(entry.rule.id, list.enabled && entry.rule.enabled ? 'on' : 'off');
     if (entry.kind === 'set') for (const rule of entry.set.rules) standing.set(rule.id, list.enabled && entry.set.enabled && rule.enabled ? 'on' : 'off');
-    if (entry.kind === 'subscription') standing.set(`subscription:${entry.subscriptionId}`, list.enabled && entry.enabled ? 'on' : 'off');
+    // A subscription's entry is gone once its current version no longer has it.
+    const source = entry.kind === 'subscription' ? sources.get(entry.subscriptionId) : undefined;
+    for (const item of source?.current?.ruleset.entries ?? []) {
+      standing.set(`${entry.kind === 'subscription' ? entry.subscriptionId : ''}:${item.id}`, list.enabled && entry.kind === 'subscription' && entry.enabled
+        && !source!.local.disabledEntryIds.includes(item.id) ? 'on' : 'off');
+    }
   }
   return placements.map((placement) => {
     let host = '';
@@ -224,7 +287,7 @@ export async function browserPlacementViews(): Promise<AutomationPlacementView[]
       at: placement.at, path: 'preSave', ...(placement.kept ? { state: 'keptHere', kept: placement.kept } : { state: 'filed' }),
       ...(placement.sourceName ? { sourceName: placement.sourceName } : {}),
       ...(placement.entry ? { entry: placement.entry, entryState: standing.get(placement.entry.kind === 'subscriptionEntry'
-        ? `subscription:${placement.entry.subscriptionId}` : placement.entry.ruleId ?? '') ?? 'gone' } : {}) } satisfies AutomationPlacementView;
+        ? `${placement.entry.subscriptionId}:${placement.entry.entryId}` : placement.entry.ruleId ?? '') ?? 'gone' } : {}) } satisfies AutomationPlacementView;
   });
 }
 
@@ -258,9 +321,11 @@ export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleComma
       return result.ok ? { ok: true, rule: result.rule } : { ok: false, error: result.error };
     }
     case 'known.automation.browser.save': {
+      // A collection's site is compiled from its subscription's current version (RS-10).
+      const collections = collectionLookup(await listSources(await store.load()));
       const result = await store.saveRule({ ...(command.id ? { id: command.id } : {}), draft: command.draft,
         ...(command.enabled === undefined ? {} : { enabled: command.enabled }), ...(command.into ? { into: command.into } : {}),
-        ...(command.index === undefined ? {} : { index: command.index }) }, now);
+        ...(command.index === undefined ? {} : { index: command.index }) }, now, collections);
       if (result.ok) return { ok: true, rule: result.rule };
       return result.error === 'invalid' ? { ok: false, error: 'invalid', problems: result.problems } : { ok: false, error: result.error };
     }
@@ -274,7 +339,7 @@ export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleComma
 async function browserPreview(command: Extract<BrowserRuleCommand, { kind: 'known.automation.browser.preview' }>): Promise<BrowserRuleResponse> {
   if (!await hasBookmarkPermission()) return { ok: false, error: 'noAccess' };
   const list = await browserRuleStore().load();
-  const flat = flattenList({ ...list, enabled: true }), stopped = list.enabled ? null : 'listOff' as const;
+  const flat = await currentFlat({ ...list, enabled: true }), stopped = list.enabled ? null : 'listOff' as const;
   const recent = async (): Promise<PreviewPage[]> => (await chrome.bookmarks.getRecent(PREVIEW_SAMPLE).catch(() => []))
     .filter((node) => typeof node.url === 'string').map((node) => ({ url: node.url!, title: node.title, nativeId: node.id }));
   const now = Date.now();

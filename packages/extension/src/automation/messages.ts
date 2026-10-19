@@ -4,7 +4,8 @@ import type { RulesetProblem } from './ruleset-format.js';
 import type { DraftProblem, RuleDraft } from './rule-conditions.js';
 import type { RuleMatchView } from './rule-match.js';
 import type { LocalRule, LocalSet } from './rule-list-store.js';
-import { isSubscriptionKind, validSubscriptionCommand, type BrowserSubscriptionView, type SubscriptionCommand } from './subscription-messages.js';
+import { isSubscriptionKind, validSubscriptionCommand, type BrowserSubscriptionDetail, type BrowserSubscriptionView,
+  type SubscriptionCommand } from './subscription-messages.js';
 
 /**
  * Page ↔ worker messages for automations: the Options page's state and refresh,
@@ -127,7 +128,7 @@ export const isBrowserConfigCommand = (command: BrowserRuleCommand): command is 
   command.kind === 'known.automation.browser.config.export' || command.kind === 'known.automation.browser.config.import';
 
 const RULE_ID = /^[\w-]{1,128}$/u;
-const KINDS = new Set(['siteIs', 'siteEndsWith', 'titleContains', 'pathStartsWith', 'pathUnder']);
+const KINDS = new Set(['siteIs', 'siteEndsWith', 'titleContains', 'pathStartsWith', 'pathUnder', 'siteCollection']);
 
 /** File into a folder here (empty while none is chosen, so the worker can say so), by a set's role, or keep here. */
 function validAction(value: unknown): boolean {
@@ -265,6 +266,8 @@ export interface BrowserRuleView {
   readonly role?: string;
   /** Its role has no folder here yet: a match is blocked until one is chosen (RS-02.3). */
   readonly needsFolder?: boolean;
+  /** A collection's site it names is gone, or its subscription is: it is passed over until edited (doc 17 §8 Remove). */
+  readonly needsAttention?: boolean;
   /**
    * The account rule it overlaps (AW-69), when signed in with rules in force: the same rule (`duplicate`),
    * or one that takes some of its pages to another folder first (`conflict`). Null otherwise.
@@ -386,7 +389,9 @@ export interface BrowserListView {
   readonly orderNotice: readonly { readonly upper: string; readonly lower: string }[] | null;
 }
 export type BrowserListEntryView = { readonly kind: 'rule'; readonly rule: BrowserRuleView } | { readonly kind: 'set'; readonly set: BrowserSetView }
-  | { readonly kind: 'subscription'; readonly id: string; readonly enabled: boolean };
+  /** Without `subscription` its record could not be read: it files nothing. */
+  | { readonly kind: 'subscription'; readonly id: string; readonly enabled: boolean; readonly subscription?: BrowserSubscriptionView;
+    readonly detail?: BrowserSubscriptionDetail };
 export interface BrowserSetView {
   readonly id: string;
   readonly name: string;

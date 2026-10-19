@@ -2,9 +2,9 @@ import type { BrowserRuleResponse } from '../automation/messages.js';
 import { parseRuleset } from '../automation/ruleset-format.js';
 import { fetchSubscription, subscriptionAddress, subscriptionOriginPattern, type FetchPorts } from '../automation/subscription-fetch.js';
 import type { BrowserSubscriptionView, SubscriptionCommand } from '../automation/subscription-messages.js';
-import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
-import { contentRuleset, createSubscriptionStore, type SubscriptionRecord, type SubscriptionStore } from '../automation/subscription-store.js';
-import { browserRuleStore } from './automation-browser.js';
+import { subscriptionRecordView } from '../automation/subscription-list.js';
+import type { SubscriptionRecord, SubscriptionStore } from '../automation/subscription-store.js';
+import { browserSubscriptionStore } from './automation-browser.js';
 import { ownFolder } from './automation-config.js';
 import { rulesetView, rulesetSample } from './automation-ruleset.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
@@ -18,13 +18,8 @@ import { hasBookmarkPermission } from './runtime.js';
 export const RULE_SUBSCRIPTION_ALARM = 'known.automation.subscriptionRefresh';
 export const RULE_SUBSCRIPTION_MINUTES = 60;
 
-let shared: { readonly database: AutomationDatabase; readonly store: SubscriptionStore } | undefined;
-/** One store per database, writing the list through the list's own queue. */
-export function ruleSubscriptionStore(): SubscriptionStore {
-  const database = automationDatabase();
-  if (shared?.database !== database) shared = { database, store: createSubscriptionStore(database.area(), browserRuleStore()) };
-  return shared.store;
-}
+/** One store per database, writing the list through the list's own queue (automation-browser.ts). */
+export const ruleSubscriptionStore = (): SubscriptionStore => browserSubscriptionStore();
 const ports: FetchPorts = {
   fetch: (input, init) => fetch(input, init),
   granted: (origin) => chrome.permissions.contains({ origins: [subscriptionOriginPattern(origin)] }),
@@ -57,15 +52,23 @@ export async function refreshDueSubscriptions(now = Date.now()): Promise<readonl
 }
 
 export async function subscriptionView(record: SubscriptionRecord): Promise<BrowserSubscriptionView> {
-  const current = record.state === 'ready' ? await ruleSubscriptionStore().content(record.id, 'current') : null;
-  const ruleset = current ? contentRuleset(current)?.ruleset ?? null : null;
-  return { id: record.id, url: record.url, origin: record.origin, name: record.name, publisher: record.publisher, license: ruleset?.license ?? null,
-    state: record.state, updatePolicy: record.updatePolicy, refreshIntervalHours: record.refreshIntervalHours, paused: record.paused, pinned: record.pinned,
-    currentVersion: record.currentVersion, previousVersion: record.previousVersion, candidateVersion: record.candidateVersion,
-    fetchedAt: current?.fetchedAt ?? null, lastAttemptAt: record.lastAttemptAt, lastSuccessAt: record.lastSuccessAt, lastFailure: record.lastFailure };
+  const source = await ruleSubscriptionStore().source(record.id);
+  return subscriptionRecordView(source ?? { record, current: null, fetchedAt: null, local: { disabledEntryIds: [], exceptions: [], bindings: {} } });
 }
 const viewed = async (record: SubscriptionRecord | null): Promise<BrowserRuleResponse> =>
   record ? { ok: true, subscription: await subscriptionView(record) } : { ok: false, error: 'notFound' };
+
+/** Folders the Owner chose for roles: each must be a folder of theirs here. */
+async function chosenFolders(bindings: Readonly<Record<string, string | null>>): Promise<Record<string, string> | 'noAccess' | 'folderGone'> {
+  const chosen: Record<string, string> = {};
+  for (const [role, folder] of Object.entries(bindings)) {
+    if (folder === null) continue;
+    if (!await hasBookmarkPermission()) return 'noAccess';
+    if (!await ownFolder(folder)) return 'folderGone';
+    chosen[role] = folder;
+  }
+  return chosen;
+}
 
 export async function handleSubscriptionCommand(command: SubscriptionCommand): Promise<BrowserRuleResponse> {
   const store = ruleSubscriptionStore();
@@ -75,6 +78,17 @@ export async function handleSubscriptionCommand(command: SubscriptionCommand): P
   }
   if (command.kind === 'known.automation.browser.subscription.refresh') return viewed(await refreshSubscription(command.id));
   if (command.kind === 'known.automation.browser.subscription.remove') return store.remove(command.id);
+  if (command.kind === 'known.automation.browser.subscription.adjust') {
+    if (command.change.kind === 'bindings') {
+      const chosen = await chosenFolders(command.change.bindings);
+      if (typeof chosen === 'string') return { ok: false, error: chosen };
+    }
+    return store.adjust(command.id, command.change, Date.now());
+  }
+  if (command.kind === 'known.automation.browser.subscription.copy') {
+    const result = await store.copyEntry(command.id, command.entryId, command.disableOriginal, Date.now());
+    return result.ok ? { ok: true, rule: result.rule } : { ok: false, error: result.error };
+  }
   const address = subscriptionAddress(command.url);
   if (!address.ok) return { ok: false, error: 'unsupported' };
   if (command.kind === 'known.automation.browser.subscription.check') {
@@ -85,13 +99,8 @@ export async function handleSubscriptionCommand(command: SubscriptionCommand): P
     if (!parsed.ok) return { ok: false, error: 'invalid', rulesetProblems: parsed.problems };
     return { ok: true, ruleset: rulesetView(parsed, await hasBookmarkPermission() ? await rulesetSample(parsed.compiled) : null) };
   }
-  const bindings: Record<string, string> = {};
-  for (const [role, folder] of Object.entries(command.bindings)) {
-    if (folder === null) continue;
-    if (!await hasBookmarkPermission()) return { ok: false, error: 'noAccess' };
-    if (!await ownFolder(folder)) return { ok: false, error: 'folderGone' };
-    bindings[role] = folder;
-  }
+  const bindings = await chosenFolders(command.bindings);
+  if (typeof bindings === 'string') return { ok: false, error: bindings };
   const made = await store.create({ url: address.url, origin: address.origin, updatePolicy: command.updatePolicy,
     refreshIntervalHours: command.refreshIntervalHours, bindings }, Date.now());
   if (!made.ok) return made;

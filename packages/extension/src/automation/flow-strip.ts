@@ -22,9 +22,13 @@ function accountStep(view: AutomationStateView): Step {
 function browserStep(view: AutomationStateView): Step {
   const title = t('automation_browserRules', 'Rules in this browser');
   if (view.account === 'signedIn' && view.state === 'paused') return { title, state: t('automation_flowPaused', 'Paused'), tone: 'warning' };
-  const on = view.browserRules.filter((rule) => rule.active && !rule.folderMissing).length;
+  // A subscription's entries count once it has a version and they have a folder here.
+  const list = view.browserList, subscriptions = list.entries.flatMap((entry) => entry.kind === 'subscription' ? [entry] : []);
+  const subscribed = subscriptions.reduce((sum, entry) => sum + (list.enabled && entry.enabled && entry.subscription?.state === 'ready'
+    ? entry.detail?.entries.filter((item) => item.role !== null && item.enabled && !item.needsFolder).length ?? 0 : 0), 0);
+  const on = view.browserRules.filter((rule) => rule.active && !rule.folderMissing).length + subscribed;
   if (on) return { title, state: tn('automation_flowOn', on, '$1 on', '$1 on') };
-  return { title, state: view.browserRules.length ? t('automation_flowAllOff', 'All off') : t('automation_flowNone', 'None yet'), tone: 'muted' };
+  return { title, state: view.browserRules.length || subscriptions.length ? t('automation_flowAllOff', 'All off') : t('automation_flowNone', 'None yet'), tone: 'muted' };
 }
 
 /** The AI files a page only in Automatic mode; in Manual mode the form decides, perhaps with a suggestion. */
