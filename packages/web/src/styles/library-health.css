@@ -2,9 +2,10 @@
    Route-owned: imported by pages/LibraryHealth.tsx only. */
 
 @layer pages {
+/* The summary starts one head gap below the head, as every owner page's
+   first content does; only its foot needs room before the rule. */
 .health-overview {
-  margin-top: var(--hair-150);
-  padding: var(--hair-110) 0;
+  padding-bottom: var(--hair-110);
   display: grid;
   gap: var(--space-4);
   border-bottom: 1px solid var(--line-strong);
