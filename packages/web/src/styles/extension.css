@@ -29,7 +29,8 @@
   }
 
   /* Steps, then the permissions; from 1100px the permissions sit beside the
-     steps as a quiet aside, the same track as Agents and Import. */
+     steps as a quiet aside, on the same track as Agents, Automations and
+     Import: the steps fill the row, the aside keeps 20rem. */
   .extension-layout {
     display: grid;
     gap: var(--space-5);
@@ -39,7 +40,8 @@
 
   @media (min-width: 1100px) {
     .extension-layout {
-      grid-template-columns: minmax(0, var(--measure-wide)) minmax(0, 20rem);
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: var(--space-8);
     }
   }
 

@@ -11,9 +11,12 @@
   align-items: start;
 }
 
+/* The page's track: the work fills the row and the aside keeps the 20rem
+   every owner page's side column uses (Agents, Automations, Extension). */
 @media (min-width: 1100px) {
   .import-layout {
-    grid-template-columns: minmax(0, var(--measure-wide)) minmax(0, 20rem);
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    gap: var(--space-8);
   }
 }
 
