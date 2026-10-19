@@ -1,3 +1,4 @@
+import type { PlannedNodeCreate } from './organize-plan.js';
 import { isAutomationPlanOperation, executeAutomationPlanOperation } from './automation-plan-operations.js';
 import type { AnnotationMutationPorts } from '../collections/index.js';
 /**
@@ -97,7 +98,7 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
       if (!createAnnotationPorts) throw commitFailure('Automation operation ports unavailable.');
       result = await executeAutomationPlanOperation(operation,plan,ownedBinding,ports,createAnnotationPorts(transaction));
     } else if (isCreateNodeOperation(operation)) {
-      result = await executeNodeCreate(ports, plan, operation, ownedBinding);
+      result = await executeNodeCreate(ports, plan, operation, ownedBinding, revisions);
     } else if (isMoveNodeOperation(operation)) {
       result = await executeNodeMove(ports, plan, operation, ownedBinding, revisions);
     } else if (isDeleteSubtreeOperation(operation)) {
@@ -108,6 +109,7 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
         ownedBinding,
         transaction,
         recordDeleteSubtreeTombstones,
+        revisions,
       );
     } else if (isSetVisibilityOperation(operation)) {
       result = await executeSetVisibility(ports, plan, operation, ownedBinding);
@@ -115,6 +117,25 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
       throw commitFailure('Change Plan contains an unknown or unregistered canonical operation.');
     }
     results.push(result);
+    // Later operations fence against the revisions earlier operations in this transaction produced.
+    // Base revisions were verified once, before any side effect.
+    const collectionId = (operation as { collectionId?: string }).collectionId;
+    if (collectionId) {
+      const collection = await ports.collections.lockForUpdate(collectionId);
+      if (collection) revisions.set(`content.${collectionId}`, collection.contentRevision);
+      const value = operation as { nodeId?: string; parentId?: string; sourceParentId?: string; plannedNodeId?: string; payload?: { parentId?: string } };
+      const touched = new Set([value.nodeId, value.parentId, value.sourceParentId, value.plannedNodeId, value.payload?.parentId]);
+      for (const id of [...touched]) {
+        if (!id) continue;
+        const node = await ports.nodes.getNode(collectionId, id);
+        if (node?.parentId) touched.add(node.parentId);
+      }
+      for (const id of touched) {
+        if (!id) continue;
+        const node = await ports.nodes.getNode(collectionId, id);
+        if (node) { revisions.set(`node.${id}`, node.resourceRevision); revisions.set(`children.${id}`, node.childrenRevision); }
+      }
+    }
   }
   if (recordCommittedContentRevisions !== undefined) {
     await recordCommittedContentRevisions(transaction, {
@@ -138,19 +159,24 @@ export function planCollectionIds(operations: readonly unknown[]): readonly stri
 async function executeNodeCreate(
   ports: ProductCollectionCanonicalPorts,
   plan: McpStoredPlan,
-  operation: Phase4bMcpNodeCreateOperation,
+  operation: PlannedNodeCreate,
   binding: McpAuthenticatedAuthorizationBinding,
+  revisions: Map<string, string>,
 ): Promise<OperationResult> {
   const commandId = randomUUID();
   const payload = operation.payload;
   const result = await executeMcpNodeCreate(ports, {
     collectionId: operation.collectionId,
     parentId: payload.parentId,
+    ...(operation.plannedNodeId ? { nodeId: operation.plannedNodeId } : {}),
     afterId: payload.afterId ?? null,
     beforeId: payload.beforeId ?? null,
     node: parseMcpNodeCreatePayload(payload.node),
     idempotencyKey: commandId,
-    expectedBaseRevisions: plan.baseRevisions,
+    expectedBaseRevisions: {
+      [`children.${payload.parentId}`]: revisions.get(`children.${payload.parentId}`)!,
+      [`content.${operation.collectionId}`]: revisions.get(`content.${operation.collectionId}`)!,
+    },
   }, {
     binding,
     accountSubjectId: requireMcpAccountSubjectId(),
@@ -447,9 +473,10 @@ async function executeDeleteSubtree<Transaction extends object>(
     transaction: Transaction,
     facts: McpDeleteSubtreeTombstoneFacts,
   ) => Promise<void>,
+  revisions: Map<string, string> = new Map(Object.entries(plan.baseRevisions)),
 ): Promise<OperationResult> {
-  const nodeRevision = plan.baseRevisions[`node.${operation.nodeId}`];
-  const contentRevision = plan.baseRevisions[`content.${operation.collectionId}`];
+  const nodeRevision = revisions.get(`node.${operation.nodeId}`);
+  const contentRevision = revisions.get(`content.${operation.collectionId}`);
   if (typeof nodeRevision !== 'string' || nodeRevision.length === 0
     || typeof contentRevision !== 'string' || contentRevision.length === 0) {
     throw commitFailure('Delete Plan does not bind the node and content revisions.');

@@ -39,8 +39,33 @@ changes. `nodes.update` accepts `returnRepresentation: true` to include the
 updated node, including on an idempotent replay. A trusted move can return
 `status: consumed` and `applied: true`; it has already committed. Pending move
 and deletion results include the approval link and expiry. `changes.plan`
-supports visibility operations; use the dedicated move and deletion tools
-for those operations. Its required `dryRun: true` saves a real pending plan.
+supports visibility operations and mixed organization plans. Supply `collectionId`,
+`reason`, `dryRun: true`, and up to 50 `operations` using `create_node`, `move_node`,
+and `delete_subtree`. A folder creation may declare `ref`; later creates or moves
+can use `parentRef` to that earlier folder instead of `parentId`. The plan stays
+pending until approved and commits all operations in one transaction. For example:
+
+```json
+{
+  "collectionId": "YOUR_LIBRARY_ID",
+  "reason": "File the paper and remove the duplicate",
+  "dryRun": true,
+  "operations": [
+    {"type": "create_node", "ref": "papers", "parentId": "DESTINATION_ID", "node": {"kind": "folder", "title": "Papers", "visibility": "private"}},
+    {"type": "move_node", "nodeId": "PAPER_ID", "parentRef": "papers"},
+    {"type": "delete_subtree", "nodeId": "DUPLICATE_ID"}
+  ]
+}
+```
+
+History restores retained deleted folders and bookmarks with their original IDs.
+A permanently purged item prevents the entire restore; no partial tree is applied.
+Automation Undo compensates an individual move, tag update or added note while its
+recorded revisions still match. Later edits prevent Undo. Tag effects from older
+versions without a saved prior value cannot be undone automatically.
+
+The self-hosted web app does not send error or Web Vitals telemetry, and the server
+does not mount a browser telemetry endpoint.
 
 The tool catalog is scoped to the caller and cacheable for 30 seconds with
 `cacheScope: private`; static resource templates are public for 60 seconds.

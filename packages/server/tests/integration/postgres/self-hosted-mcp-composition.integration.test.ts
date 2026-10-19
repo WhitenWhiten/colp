@@ -345,4 +345,75 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     }));
     assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
   });
+  async function organize(tree: Awaited<ReturnType<typeof fixture>>) {
+    return composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), { name: 'changes.plan', arguments: {
+      collectionId: tree.collectionId, dryRun: true, reason: 'Create a folder, file the bookmark and remove the empty old folder', operations: [
+        { type: 'create_node', ref: 'organized', parentId: tree.rootId, node: { kind: 'folder', title: 'Organized', visibility: 'private' } },
+        { type: 'move_node', nodeId: tree.nodeId, parentRef: 'organized' },
+        { type: 'delete_subtree', nodeId: tree.folderId },
+      ],
+    } });
+  }
+  test('one mixed plan creates a folder, moves into it and deletes another subtree atomically', async () => {
+    const tree = await fixture();
+    const planned = await organize(tree), plan = planned.structuredContent as { planId: string; requiresApproval: boolean };
+    assert.equal(plan.requiresApproval, true);
+    assert.equal((await isolated.runtime.pool.query("select count(*)::int as n from nodes where collection_id=$1 and title='Organized'", [tree.collectionId])).rows[0].n, 0);
+    await composition.changePlanService.recordOutOfBandApproval(plan.planId, BINDING);
+    const key = randomUUID(), first = await commit(plan.planId, key);
+    assert.equal(first.operations.length, 3);
+    assert.deepEqual(await commit(plan.planId, key), first);
+    const folder = (await isolated.runtime.pool.query("select id from nodes where collection_id=$1 and title='Organized' and deleted_at is null", [tree.collectionId])).rows;
+    assert.equal(folder.length, 1);
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id=$1', [tree.nodeId])).rows[0].parent_id, folder[0].id);
+    assert.ok((await isolated.runtime.pool.query('select deleted_at from nodes where id=$1', [tree.folderId])).rows[0].deleted_at);
+    assert.equal((await isolated.runtime.pool.query('select count(*)::int as n from sync_node_tombstones where target_id=$1', [tree.folderId])).rows[0].n, 1);
+    assert.equal((await planHistory(tree.collectionId, plan.planId)).versionIds.length, 1);
+  });
+  test('a stale mixed plan makes none of its changes', async () => {
+    const tree = await fixture(), planned = await organize(tree);
+    const plan = planned.structuredContent as { planId: string };
+    await composition.changePlanService.recordOutOfBandApproval(plan.planId, BINDING);
+    await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), { name: 'nodes.create', arguments: {
+      collectionId: tree.collectionId, parentId: tree.rootId, node: { kind: 'folder', title: 'Owner edit', visibility: 'private' }, confirmApply: true,
+    } });
+    await assert.rejects(() => commit(plan.planId), (error: unknown) => error instanceof McpChangePlanError && error.code === 'revision_drift');
+    assert.equal((await isolated.runtime.pool.query("select count(*)::int as n from nodes where collection_id=$1 and title='Organized'", [tree.collectionId])).rows[0].n, 0);
+    assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id=$1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
+    assert.equal((await isolated.runtime.pool.query('select deleted_at from nodes where id=$1', [tree.folderId])).rows[0].deleted_at, null);
+  });
+  test('an invalid mixed plan leaves neither a partial plan nor a folder', async () => {
+    const tree = await fixture();
+    const before = (await isolated.runtime.pool.query('select count(*)::int as n from mcp_change_plans')).rows[0].n;
+    await assert.rejects(() => composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), { name: 'changes.plan', arguments: {
+      collectionId: tree.collectionId, dryRun: true, reason: 'Invalid forward reference', operations: [
+        { type: 'create_node', ref: 'created', parentId: tree.rootId, node: { kind: 'folder', title: 'Never created', visibility: 'private' } },
+        { type: 'move_node', nodeId: tree.nodeId, parentRef: 'unknown' },
+      ],
+    } }));
+    assert.equal((await isolated.runtime.pool.query('select count(*)::int as n from mcp_change_plans')).rows[0].n, before);
+  });
+
+  test('a later invalid move rolls back every earlier mixed-plan effect', async () => {
+    const tree = await fixture();
+    const made = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), { name: 'nodes.create', arguments: {
+      collectionId: tree.collectionId, parentId: tree.rootId, node: { kind: 'folder', title: 'Second folder', visibility: 'private' }, confirmApply: true,
+    } });
+    const second = (made.structuredContent as { node: { id: string } }).node.id;
+    const planned = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), { name: 'changes.plan', arguments: {
+      collectionId: tree.collectionId, reason: 'An invalid cyclic organization', dryRun: true, operations: [
+        { type: 'create_node', parentId: tree.rootId, node: { kind: 'folder', title: 'Rolled back', visibility: 'private' } },
+        { type: 'move_node', nodeId: tree.folderId, parentId: second },
+        { type: 'move_node', nodeId: second, parentId: tree.folderId },
+      ],
+    } });
+    const planId = (planned.structuredContent as { planId: string }).planId;
+    await composition.changePlanService.recordOutOfBandApproval(planId, BINDING);
+    await assert.rejects(() => commit(planId));
+    const folders = await isolated.runtime.pool.query('select parent_id from nodes where id=ANY($1::text[])', [[second, tree.folderId]]);
+    assert.deepEqual(folders.rows.map(row => row.parent_id), [tree.rootId, tree.rootId]);
+    assert.equal((await isolated.runtime.pool.query("select count(*)::int as n from nodes where collection_id=$1 and title='Rolled back'", [tree.collectionId])).rows[0].n, 0);
+    assert.deepEqual(await planHistory(tree.collectionId, planId), { versionIds: [], receipts: [] });
+  });
+
 });

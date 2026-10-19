@@ -1,3 +1,4 @@
+import { isOrganizePlanRequest } from './organize-plan.js';
 import { createPhase4bMcpResult } from './results.js';
 import { withWriteReceipt, withWriteReceiptSchema } from './write-result-receipt.js';
 import { assertHostPlanOperations, narrowHostPlanSchema } from './plan-tool-schema.js';
@@ -104,7 +105,7 @@ import {
 export const PHASE4B_MCP_WRITE_COLLECTION_ID_HEADER = 'X-Collection-Id' as const;
 
 export const PHASE4B_MCP_CHANGES_PLAN_DESCRIPTION =
-  'Plan visibility changes only; use nodes.move or nodes.delete_subtree for moves and deletions. dryRun must be true: this stores a pending plan requiring owner approval before changes.commit. Collection public/unlisted uses the collection resource revision; node protected/private uses the node revision.';
+  'Plan visibility changes, or atomically organize one collection with create_node, move_node and delete_subtree operations. For organizing, supply collectionId; a create may declare ref and later destinations use parentRef. dryRun must be true: this stores a pending plan requiring owner approval before changes.commit. Collection public/unlisted uses the collection resource revision; node protected/private uses the node revision.';
 
 /**
  * The COLP SDK lists low-risk write tools as "Write tool <name>". Agents pick
@@ -577,6 +578,16 @@ function withMcpAccountSubject(
         const call = snapshotPhase4bData(input, MCP_OWN_DATA_DEFAULT_BUDGET) as Record<string, unknown>;
         if (call.name === 'changes.plan' && canCallPhase4bMcpWriteTool(context, 'changes.plan')) {
           assertHostPlanOperations(call.arguments);
+        }
+        if (call.name === 'changes.plan' && planCatalog && isOrganizePlanRequest(call.arguments)
+          && canCallPhase4bMcpWriteTool(context, 'changes.plan')) {
+          await lookup.getTool(context, 'changes.plan');
+          const planned = await planCatalog.plan(call.arguments, requireAuthenticatedWriteBinding(snapshotMcpAuthorizationBinding(context.binding)));
+          const { planId, expiresAt, risk, requiresApproval, summary, impact, requiredScopes, baseRevisions, approvalMethod, approvalUri } = planned;
+          return createPhase4bMcpResult({ method: 'tools/call', fields: { structuredContent: {
+            planId, expiresAt, risk, requiresApproval, summary, impact, requiredScopes, baseRevisions,
+            ...(approvalMethod ? { approvalMethod, approvalUri } : {}), ...(planned.approvedBy ? { approvedBy: planned.approvedBy } : {}),
+          } }, cache: { ttlMs: 0, cacheScope: 'private' } }, true);
         }
         if (call.name === 'changes.plan' && planRevisions && canCallPhase4bMcpWriteTool(context, 'changes.plan')) {
           await lookup.getTool(context, 'changes.plan');

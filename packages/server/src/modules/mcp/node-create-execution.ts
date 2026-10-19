@@ -19,6 +19,8 @@ import { phase4bMcpResolvedCreateVisibility } from './write-dependency-gate.js';
 /** Closed application command: no transport mode, tool name or service/UoW wrapper. */
 export interface Phase4bMcpNodeCreateCommand {
   readonly collectionId: string;
+  /** Host-planned identity; never accepted by the direct tool parser. */
+  readonly nodeId?: string;
   readonly parentId?: string;
   readonly afterId: string | null;
   readonly beforeId: string | null;
@@ -71,6 +73,7 @@ export async function executeMcpNodeCreate(
     beforeId: command.beforeId,
     node: toNodeCreateInput(command.node, snapshot.appliedVisibility),
     operationId: command.idempotencyKey,
+    ...(command.nodeId ? { nodeId: command.nodeId } : {}),
   });
 }
 
@@ -82,6 +85,7 @@ export function computeNodeCreateFingerprint(
     operation: 'nodes.create',
     binding: snapshotMcpAuthorizationBinding(binding),
     collectionId: parsed.collectionId,
+    ...(parsed.nodeId ? { nodeId: parsed.nodeId } : {}),
     parentId: parsed.parentId,
     afterId: parsed.afterId,
     beforeId: parsed.beforeId,

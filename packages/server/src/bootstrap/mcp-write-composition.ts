@@ -1,3 +1,4 @@
+import { createOrganizePlanPlanner } from '../modules/mcp/index.js';
 import { CollectionsError } from '../modules/collections/index.js';
 import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/index.js';
 import { recordMcpDeleteSubtreeTombstones } from '../infrastructure/sync/index.js';
@@ -61,7 +62,6 @@ import {
 import {
   readMcpGrantedScopes,
   createPhase4bMcpChangePlanDigestVerifier,
-  createPhase4bMcpChangePlanPlanner,
   createPhase4bMcpChangePlanRevisionPort,
   createPhase4bMcpChangePlanService,
   createPhase4bMcpLowRiskAnnotationCreateService,
@@ -234,7 +234,7 @@ export function createPhase4bMcpWriteComposition(
     planStore: store.planStore,
     approvedByPolicy: (planId) => readPlanApprovedByPolicy(options.db, planId),
   });
-  const planner = createPhase4bMcpChangePlanPlanner(
+  const planner = createOrganizePlanPlanner(
     createPlannerOptions(options, store),
   );
   // FIX-M-016: exactly one production Commit coordinator. The W05 service and

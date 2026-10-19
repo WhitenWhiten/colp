@@ -21,7 +21,7 @@ test('the host plan catalog excludes unsupported operations and stays within its
   const schema = materializeClosedMcpToolSchema(tool.inputSchema as Record<string, unknown>);
   const json = JSON.stringify(schema);
   assert.doesNotMatch(json, /create_key|rotate_key|set_rate_limit|publish_release|sync_mirror/);
-  assert.ok(Buffer.byteLength(json) < 4_000);
+  assert.ok(Buffer.byteLength(json) < 12_000);
   assert.doesNotThrow(() => assertHostPlanOperations({ operations: [{ type: 'set_visibility' }] }));
   assert.throws(() => assertHostPlanOperations({ operations: [{ type: 'create_key' }] }), { wireCode: -32602 });
 });
