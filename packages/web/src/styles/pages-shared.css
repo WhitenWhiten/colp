@@ -209,6 +209,127 @@
   }
 }
 
+/* ——— Folder picker (components/FolderPicker) ———
+   The extension popup's picker: a control that names the chosen folder
+   (parents muted, so the name never truncates first) and an inline panel —
+   search, then the folders as an indented tree with a check on the chosen
+   one. It sits in a .field, so the toggle wears that field's control
+   metrics. */
+.folder-picker {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: var(--measure);
+}
+
+.folder-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--hair-55) var(--hair-85);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-md);
+  text-align: left;
+  transition: border-color var(--duration-fast) var(--ease-quart), box-shadow var(--duration-fast) var(--ease-quart);
+}
+
+.folder-pill:hover { border-color: var(--line-heavy); }
+.folder-pill[aria-expanded='true'] { border-color: var(--ink); box-shadow: var(--shadow-ring); }
+.folder-pill[aria-invalid='true'] { border-color: var(--danger); }
+.folder-pill:disabled { background-color: var(--paper-2); color: var(--muted); cursor: default; }
+.folder-pill > svg { flex: none; width: 1rem; height: 1rem; color: var(--muted); }
+.folder-pill > .folder-pill-chevron { width: 0.85rem; height: 0.85rem; margin-left: auto; color: var(--faint); }
+.folder-pill-current { display: flex; flex: 0 1 auto; align-items: center; gap: var(--hair-40); min-width: 0; }
+.folder-pill-trail,
+.folder-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-pill-trail { flex: 0 1 auto; color: var(--muted); }
+.folder-pill-name { flex: 0 0 auto; max-width: 100%; font-weight: var(--weight-medium); }
+.folder-pill-placeholder { color: var(--muted); }
+
+/* The bare search field's focus cue is the panel's frame. */
+.folder-panel:focus-within { border-color: var(--line-heavy); }
+
+.folder-panel {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.folder-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--faint);
+}
+
+.folder-search > svg { flex: none; width: 0.9rem; height: 0.9rem; }
+
+/* Bare input inside the panel's own frame; .field input chrome stays off. */
+.folder-picker .folder-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.5rem;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.folder-picker .folder-search input:focus { outline: none; box-shadow: none; }
+.folder-search input::placeholder { color: var(--faint); }
+
+.folder-list {
+  position: relative;
+  max-height: 16rem;
+  overflow-y: auto;
+  padding: var(--hair-30);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.folder-group { margin: 0; padding: var(--hair-40) var(--hair-55) var(--hair-20); color: var(--muted); font-size: var(--text-xs); }
+
+.folder-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2rem;
+  padding: 0 var(--hair-55) 0 calc(var(--hair-55) + var(--depth, 0) * var(--space-4));
+  border-radius: var(--radius-xs);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.folder-opt > svg { flex: none; width: 0.9rem; height: 0.9rem; color: var(--faint); }
+.folder-opt:hover,
+.folder-opt:focus-visible { background: var(--paper); color: var(--ink); }
+.folder-opt[aria-selected='true'] { color: var(--ink); font-weight: var(--weight-medium); }
+.folder-opt > .folder-opt-check { color: var(--ink); }
+.folder-opt-label { display: flex; flex: 1; align-items: baseline; gap: var(--space-2); min-width: 0; overflow: hidden; white-space: nowrap; }
+.folder-opt-trail { min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--text-xs); font-weight: var(--weight-regular); text-overflow: ellipsis; }
+.folder-empty { margin: 0; padding: var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+
+@media (pointer: coarse) {
+  .folder-opt { min-height: 2.75rem; }
+}
+
 /* ——— Copy field (components/CopyField) ———
    A value the owner carries elsewhere: server address, MCP endpoint, a
    command. Label, monospace value, one Copy button; the block form holds a

@@ -9,6 +9,7 @@ import {
 import type { ToastAction } from '../../components/AppToast'
 import type { DestinationPick } from '../../components/CollectionDestinationPicker'
 import { useConfirm } from '../../components/ConfirmModal'
+import { pushFolderRecent } from '../../lib/folderRecents'
 import { childFolders, rootTitle, type BookmarkNode, type FolderNode } from '../../lib/libraryTree'
 import { addTags } from '../../components/TagInput'
 import { countTags, retag } from '../../lib/libraryTags'
@@ -238,6 +239,7 @@ export function useLibraryDeskMutations(options: {
         },
         { intentId },
       )
+      pushFolderRecent(snap.collection.id, parentId)
       // Created somewhere other than the folder on screen: offer the way there.
       const created = compose === 'folder' ? 'Folder created' : 'Bookmark created'
       if (parentId === (options.parentId || snap.root.id)) success(created)

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { productClient, type EditorSnapshot } from '../../api'
 import { BookmarkIcon } from '../../components/BookmarkIcon'
+import { FolderPicker } from '../../components/FolderPicker'
 import { Icon } from '../../components/Icon'
 import { Modal } from '../../components/Modal'
 import { TagInput } from '../../components/TagInput'
 import { importFolderOptions } from '../../lib/bookmarkImport'
 import { providerFaviconSrc } from '../../lib/bookmarkIcon'
+import { readFolderRecents } from '../../lib/folderRecents'
 import { countTags } from '../../lib/libraryTags'
 import { hostInitial, rootTitle } from '../../lib/libraryTree'
 import { NODE_DESCRIPTION_MAX } from './nodeEditDrawer'
@@ -96,23 +98,22 @@ export function ComposeDialog({ snap, mutations }: {
   const kind = kindRef.current
   const isBookmark = kind === 'bookmark'
 
-  // Full paths, as the rule editor's folder picker shows them, so the closed
-  // select still says where the item goes ("Bookmarks bar › Reading").
+  // The library root holds only the browser folders; a shared collection's
+  // root takes items, so its folders nest under it.
   const folders = useMemo(() => {
-    const trail: string[] = []
-    return (snap ? importFolderOptions(snap) : []).map((option) => {
-      trail.length = option.depth
-      trail.push(option.title)
-      return { id: option.id, path: trail.join(' › ') }
-    })
+    if (!snap) return []
+    const nested = snap.collection.library ? 0 : 1
+    const tree = importFolderOptions(snap).map(({ id, title, depth }) => ({ id, title, depth: depth + nested }))
+    return nested ? [{ id: snap.root.id, title: rootTitle(snap.collection), depth: 0 }, ...tree] : tree
   }, [snap])
+  // Read when the dialog opens; a create records its folder (mutations.onCreate).
+  const collectionId = snap?.collection.id
+  const recentIds = useMemo(() => (compose && collectionId ? readFolderRecents(collectionId) : []), [compose, collectionId])
   // The tags already in use, offered while typing so one tag keeps one spelling.
   const tagVocabulary = useMemo(
     () => countTags((snap?.nodes ?? []).filter((node) => node.kind === 'bookmark')),
     [snap],
   )
-  // A shared collection's root takes items; the library root holds only the browser folders.
-  const rootOption = snap && !snap.collection.library ? { id: snap.root.id, title: rootTitle(snap.collection) } : null
   const site = siteName(createUrl)
   const onlineTemplate = useOnlineFaviconTemplate(compose === 'bookmark')
   const settledUrl = useSettled(createUrl.trim(), 400)
@@ -217,24 +218,21 @@ export function ComposeDialog({ snap, mutations }: {
           </div>
         )}
         <div className="field">
-          <label htmlFor="lc-parent">In folder</label>
-          <select
+          <label id="lc-parent-label" htmlFor="lc-parent">In folder</label>
+          <FolderPicker
             id="lc-parent"
+            labelledBy="lc-parent-label"
+            folders={folders}
+            recentIds={recentIds}
             value={createParentId}
-            onChange={(event) => {
-              setCreateParentId(event.target.value)
+            onChange={(id) => {
+              setCreateParentId(id)
               setCreateParentError(null)
             }}
             disabled={busy}
-            aria-invalid={createParentError ? true : undefined}
-            aria-describedby={createParentError ? 'lc-parent-error' : undefined}
-          >
-            {!createParentId && <option value="">Choose a folder</option>}
-            {rootOption && <option value={rootOption.id}>{rootOption.title}</option>}
-            {folders.map((option) => (
-              <option key={option.id} value={option.id}>{option.path}</option>
-            ))}
-          </select>
+            invalid={Boolean(createParentError)}
+            describedBy={createParentError ? 'lc-parent-error' : undefined}
+          />
           {createParentError && (
             <p id="lc-parent-error" className="field-error" role="alert">{createParentError}</p>
           )}

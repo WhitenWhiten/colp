@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFolderRecents } from '../../lib/folderRecents'
 import { cleanup, domFinishedLoading, waitForDom } from '../../test/render'
 import {
   extraBookmark,
@@ -567,7 +568,7 @@ describe('LibraryDesk', () => {
     expect(icon?.textContent).toBe('G')
   })
 
-  it('starts the library root compose in its first folder and lists folders by path', async () => {
+  it('starts the library root compose in its first folder and picks folders from the tree', async () => {
     mocks.loadEditorSnapshot.mockImplementation((id: string) => {
       const snap = snapshot(id)
       return Promise.resolve({ ...snap, collection: { ...snap.collection, library: true } })
@@ -576,10 +577,15 @@ describe('LibraryDesk', () => {
     mount()
     await waitForDom(domFinishedLoading)
     openBookmarkCompose()
-    const parent = document.getElementById('lc-parent') as HTMLSelectElement
-    // The library root holds only folders, so there is no root option.
-    expect([...parent.options].map((option) => option.textContent)).toEqual(['Later'])
+    const parent = document.getElementById('lc-parent') as HTMLButtonElement
     expect(parent.value).toBe('col-1-folder')
+    expect(parent.textContent).toBe('Later')
+    act(() => parent.click())
+    // The library root holds only folders, so there is no root option.
+    const options = [...document.querySelectorAll<HTMLButtonElement>('#lc-parent-panel [role="option"]')]
+    expect(options.map((option) => option.textContent)).toEqual(['Later'])
+    act(() => options[0]!.click())
+    expect(document.getElementById('lc-parent-panel')).toBeNull()
     setControlValue(document.getElementById('lc-url') as HTMLInputElement, 'https://added.example')
     await act(async () => {
       document.querySelector<HTMLFormElement>('[data-testid="library-compose"]')?.requestSubmit()
@@ -591,6 +597,18 @@ describe('LibraryDesk', () => {
     expect(mocks.success).toHaveBeenCalledWith('Bookmark created', {
       action: { label: 'View in Later', to: '/library/col-1?folder=col-1-folder' },
     })
+    // The folder leads the picker's Recent group next time.
+    expect(readFolderRecents('col-1')).toEqual(['col-1-folder'])
+  })
+
+  it('nests a shared collection\'s folders under its root in the folder picker', async () => {
+    mount()
+    await waitForDom(domFinishedLoading)
+    openBookmarkCompose()
+    act(() => (document.getElementById('lc-parent') as HTMLButtonElement).click())
+    const options = [...document.querySelectorAll<HTMLButtonElement>('#lc-parent-panel [role="option"]')]
+    expect(options.map((option) => [option.textContent, option.style.getPropertyValue('--depth')]))
+      .toEqual([['Reading queue', '0'], ['Later', '1']])
   })
 
   it('asks for a folder inline when the library root has none to start in', async () => {

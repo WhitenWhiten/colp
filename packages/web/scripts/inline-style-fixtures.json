@@ -19,6 +19,12 @@
       "reason": "caller-supplied style passthrough"
     },
     {
+      "file": "components/FolderPicker.tsx",
+      "style": "style={flat ? undefined : { ['--depth' as string]: String(row.depth) }}",
+      "count": 1,
+      "reason": "data-driven depth indent (custom property)"
+    },
+    {
       "file": "components/Modal.tsx",
       "style": "panel.style.setProperty('--modal-sheet-drag', `${deltaY}px`)",
       "count": 1,
