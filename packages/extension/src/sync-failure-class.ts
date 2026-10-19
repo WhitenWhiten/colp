@@ -107,6 +107,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
 
   pull_page_invalid: entry('replica', 'refresh', FREEZES),
   effect_page_invalid: entry('replica', 'refresh', FREEZES),
+  // Integrity audit codes: a corrupt staged event freezes the page chain like a corrupt page.
+  pull_event_invalid: entry('replica', 'refresh', FREEZES),
   pull_event_duplicate: entry('replica', 'refresh', FREEZES),
   pull_event_conflict: entry('replica', 'refresh', FREEZES),
   pull_effect_binding_invalid: entry('replica', 'refresh', FREEZES),
@@ -228,6 +230,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   intent_correlation_active: entry('transient', 'retry'),
   intent_mapping_mismatch: entry('replica', 'stop'),
   intent_not_found: entry('replica', 'stop'),
+  // A stored intent without its scope key is corruption, not a retryable race.
+  intent_scope_invalid: entry('replica', 'stop'),
   journal_kind_invalid: entry('replica', 'stop'),
   journal_scope_invalid: entry('replica', 'stop'),
   lease_authority_invalid: entry('authority', 'refresh', FREEZES),
@@ -316,6 +320,8 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   recovery_authority_not_activated: entry('authority', 'refresh', FREEZES),
   recovery_incomplete: entry('replica', 'stop'),
   recovery_invalid: entry('replica', 'stop'),
+  recovery_header_invalid: entry('replica', 'stop'),
+  recovery_node_invalid: entry('replica', 'stop'),
   recovery_page_invalid: entry('replica', 'stop'),
   recovery_rebase_invalid: entry('replica', 'stop'),
   remote_delete_command_pending: entry('transient', 'retry'),
