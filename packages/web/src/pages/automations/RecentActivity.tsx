@@ -30,7 +30,7 @@ export function RecentActivity({
         <h2 id="automations-activity-heading">Recent activity</h2>
         <Link className="automation-activity-more" to="/automations/digests">
           Digests
-          {unread > 0 && <span className="automations-count" data-tone="accent">{unread}</span>}
+          {unread > 0 && <span className="count-pill" data-tone="accent">{unread}</span>}
         </Link>
       </div>
       {runs.status === 'loading' && (

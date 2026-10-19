@@ -147,7 +147,7 @@ export function RunOutputs({
     <section className="automations-section" aria-labelledby="automation-run-outputs" id="outputs">
       <div className="automations-section-head">
         <h2 id="automation-run-outputs">What it wrote</h2>
-        <span className="automations-count">{run.outputCount}</span>
+        <span className="count-pill">{run.outputCount}</span>
         {arrivedUnread && <StatusBadge tone="accent" data-testid="automation-run-unread">New</StatusBadge>}
       </div>
       {outputs.status === 'loading' && <RouteState kind="loading" loadingLabel="Loading what it wrote…" />}

@@ -44,11 +44,13 @@
   margin-bottom: var(--hair-35);
 }
 
+/* The owner's pages title a section one way: 18px semibold, as Agents
+   and Automations do, a clear rung under the 28px page title. */
 .section-head--split h2 {
   margin: 0;
-  font-size: var(--text-xl);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
 }
 
 .section-head--split > span,
@@ -74,12 +76,6 @@
     align-items: flex-start;
     justify-content: flex-start;
     text-align: left;
-  }
-
-  /* One rung under the 28px page title: a 22px bold sans section head
-     outweighed the h1 above it (Collaborators). */
-  .section-head--split h2 {
-    font-size: var(--text-lg);
   }
 }
 

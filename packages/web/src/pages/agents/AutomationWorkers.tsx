@@ -649,7 +649,7 @@ export function AutomationWorkersSection({
     <section className="agents-section" aria-labelledby="agents-workers" data-testid="automation-workers">
       <div className="agents-section-head">
         <h2 id="agents-workers">Automation workers</h2>
-        {active.length > 0 && <span className="agents-count">{active.length}</span>}
+        {active.length > 0 && <span className="count-pill">{active.length}</span>}
         {data.status === 'ready' && !adding && (
           <button type="button" className="btn btn-secondary btn-sm agents-section-action" onClick={() => setAdding(true)}>
             <Icon name="plus" />

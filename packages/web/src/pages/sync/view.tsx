@@ -88,14 +88,11 @@ export function SyncView({ data, mutations, trashBatch }: {
         {!loading && !loadError && <>
           <section className="sync-section" aria-labelledby="replica-heading">
             <div className="section-head section-head--split">
-              <div>
-                <p className="section-label">Browsers</p>
-                <div className="sync-heading-row">
-                  <h2 id="replica-heading">Connected browsers</h2>
-                  {(status?.replicas.length ?? 0) > 0 && (
-                    <span className="sync-count" data-testid="sync-count">{status?.replicas.length}</span>
-                  )}
-                </div>
+              <div className="sync-heading-row">
+                <h2 id="replica-heading">Connected browsers</h2>
+                {(status?.replicas.length ?? 0) > 0 && (
+                  <span className="count-pill" data-testid="sync-count">{status?.replicas.length}</span>
+                )}
               </div>
               {(status?.replicas.length ?? 0) > 0 && (
                 <Link to="/extension" className="btn btn-secondary btn-sm">Connect another browser</Link>
@@ -150,12 +147,9 @@ export function SyncView({ data, mutations, trashBatch }: {
 
           <section className="sync-section" aria-labelledby="conflict-heading">
             <div className="section-head section-head--split">
-              <div>
-                <p className="section-label">Conflicts</p>
-                <div className="sync-heading-row">
-                  <h2 id="conflict-heading" ref={conflictHeading} tabIndex={-1}>Review browser changes</h2>
-                  {conflicts.length > 0 && <span className="sync-count" data-testid="sync-count">{conflicts.length}</span>}
-                </div>
+              <div className="sync-heading-row">
+                <h2 id="conflict-heading" ref={conflictHeading} tabIndex={-1}>Review browser changes</h2>
+                {conflicts.length > 0 && <span className="count-pill" data-testid="sync-count">{conflicts.length}</span>}
               </div>
             </div>
             {conflicts.length === 0 && receiptList.length === 0 ? (

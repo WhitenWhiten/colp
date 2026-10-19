@@ -237,7 +237,7 @@ export function RuleDetail() {
           <section className="automations-section" aria-labelledby="automation-rule-runs">
             <div className="automations-section-head">
               <h2 id="automation-rule-runs">Runs</h2>
-              {runs.length > 0 && <span className="automations-count">{runs.length}{history.state.cursor ? '+' : ''}</span>}
+              {runs.length > 0 && <span className="count-pill">{runs.length}{history.state.cursor ? '+' : ''}</span>}
             </div>
             {history.state.status === 'loading' && runs.length === 0 && <RouteState kind="loading" loadingLabel="Loading runs…" />}
             {history.state.status === 'error' && (

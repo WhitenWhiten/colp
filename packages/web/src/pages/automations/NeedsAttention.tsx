@@ -54,7 +54,7 @@ export function NeedsAttention({
     <section className="automations-section" aria-labelledby="automations-attention-heading">
       <div className="automations-section-head">
         <h2 id="automations-attention-heading">Needs attention</h2>
-        <span className="automations-count" data-testid="automations-attention-count">{count}</span>
+        <span className="count-pill" data-testid="automations-attention-count">{count}</span>
       </div>
       <ul className="automation-notices">
         {incidents.map((incident) => {

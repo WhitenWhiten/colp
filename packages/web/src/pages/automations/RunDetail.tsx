@@ -289,7 +289,7 @@ export function RunDetail() {
             <section className="automations-section" aria-labelledby="automation-run-jobs">
               <div className="automations-section-head">
                 <h2 id="automation-run-jobs">Agent work</h2>
-                <span className="automations-count">{shown.jobIds.length}</span>
+                <span className="count-pill">{shown.jobIds.length}</span>
               </div>
               {jobs.slots === null && <RouteState kind="loading" loadingLabel="Loading agent work…" />}
               {jobs.slots && (
@@ -311,7 +311,7 @@ export function RunDetail() {
             <section className="automations-section" aria-labelledby="automation-run-children">
               <div className="automations-section-head">
                 <h2 id="automation-run-children">Bookmarks in this run</h2>
-                <span className="automations-count">{children.length}</span>
+                <span className="count-pill">{children.length}</span>
               </div>
               <p className="automation-meta">Each bookmark has its own run, with its own changes and Undo.</p>
               <ol className="automation-child-runs">

@@ -68,14 +68,10 @@ export function TrashSection({
   return (
     <section className="sync-section" aria-labelledby="trash-heading">
       <div className="section-head section-head--split">
-        <div>
-          <p className="section-label">Trash</p>
-          <div className="sync-heading-row">
-            <h2 id="trash-heading">Deleted items</h2>
-            {items.length > 0 && <span className="sync-count" data-testid="sync-count">{items.length}</span>}
-          </div>
+        <div className="sync-heading-row">
+          <h2 id="trash-heading">Deleted items</h2>
+          {items.length > 0 && <span className="count-pill" data-testid="sync-count">{items.length}</span>}
         </div>
-
       </div>
       {error && errorKind === 'auth' && (
         <RouteState className="empty-state--compact" kind="auth" icon="link" title="Sign in to see deleted items" description="Sign in again to view deleted items." />

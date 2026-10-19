@@ -17,14 +17,8 @@
 .sync-section { padding: var(--space-6) 0; border-top: 1px solid var(--line); }
 .sync-heading-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
-}
-.sync-count {
-  color: var(--muted);
-  font-size: var(--text-xs);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--weight-semibold);
 }
 .sync-empty { padding: var(--space-8) 0; }
 .sync-empty.empty-state--compact { padding: var(--space-4) 0 var(--space-2); }

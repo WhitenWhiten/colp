@@ -361,7 +361,7 @@ export function Agents({
             <section className="agents-section" aria-labelledby="agents-list">
               <div className="agents-section-head">
                 <h2 id="agents-list">Connected agents</h2>
-                {agents.length > 0 && <span className="agents-count">{agents.length}</span>}
+                {agents.length > 0 && <span className="count-pill">{agents.length}</span>}
               </div>
               {loading && agents.length === 0 && <LoadingState label="Loading agents…" />}
               {loadError && (

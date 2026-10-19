@@ -259,10 +259,6 @@
   align-items: baseline;
 }
 
-.resource-section-head h2 {
-  font-size: var(--text-lg);
-}
-
 .resource-section-status {
   margin: 0;
   color: var(--faint);
