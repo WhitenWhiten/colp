@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { afterAll, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import { buildApiApp } from '../../../src/transport/app.js';
-import { createFixedWindowRateLimiter } from '../../../src/transport/http-security.js';
 import { parseClientEventBatch } from '../../../src/transport/product/client-event-routes.js';
 
-/* R15-13: anonymous web client errors and Web Vitals. */
+/* R15-13: anonymous web client errors and Web Vitals. The self-hosted server collects no browser
+   telemetry (1ba57c0b), so the beacon route stays unmounted; only its closed batch parser remains. */
 
 const ORIGIN = 'https://known.example';
 const config = loadConfig({
@@ -15,10 +15,7 @@ const config = loadConfig({
   LOG_LEVEL: 'silent',
   OIDC_JWKS_URI: 'https://issuer.example/realms/known/certs',
 });
-const app = buildApiApp({
-  config,
-  publicObjectRateLimiter: createFixedWindowRateLimiter({ maxRequests: 5, windowMs: 60_000 }),
-});
+const app = buildApiApp({ config });
 
 afterAll(async () => {
   await app.close();
@@ -59,27 +56,13 @@ test('parses a mixed batch and rejects anything outside the closed schema', () =
   }
 });
 
-test('accepts a same-origin batch with 204 and an empty body', async () => {
-  const response = await post({ release: 'b-1', events: [ERROR_EVENT, VITAL_EVENT] });
-  assert.equal(response.statusCode, 204);
-  assert.equal(response.body, '');
-});
-
-test('rejects an invalid batch with 400', async () => {
-  const response = await post({ release: 'b-1', events: [{ ...VITAL_EVENT, route: 'https://x' }] });
-  assert.equal(response.statusCode, 400);
-});
-
-test('rejects a foreign or missing Origin with 403', async () => {
-  assert.equal((await post({ release: 'b-1', events: [VITAL_EVENT] }, { origin: 'https://evil.example' })).statusCode, 403);
-  assert.equal((await post({ release: 'b-1', events: [VITAL_EVENT] }, {})).statusCode, 403);
-});
-
-test('rate limits per client with 429 and Retry-After', async () => {
-  let last = await post({ release: 'b-1', events: [VITAL_EVENT] });
-  for (let i = 0; i < 5 && last.statusCode !== 429; i += 1) {
-    last = await post({ release: 'b-1', events: [VITAL_EVENT] });
+test('does not mount the beacon route, whatever the batch or Origin', async () => {
+  for (const [payload, headers] of [
+    [{ release: 'b-1', events: [ERROR_EVENT, VITAL_EVENT] }, { origin: ORIGIN }],
+    [{ release: 'b-1', events: [{ ...VITAL_EVENT, route: 'https://x' }] }, { origin: ORIGIN }],
+    [{ release: 'b-1', events: [VITAL_EVENT] }, { origin: 'https://evil.example' }],
+    [{ release: 'b-1', events: [VITAL_EVENT] }, {}],
+  ] as const) {
+    assert.equal((await post(payload, headers)).statusCode, 404, JSON.stringify({ payload, headers }));
   }
-  assert.equal(last.statusCode, 429);
-  assert.ok(Number(last.headers['retry-after']) > 0);
 });
