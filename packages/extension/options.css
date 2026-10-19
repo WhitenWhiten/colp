@@ -1717,10 +1717,13 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-rule-form .capture-dialog-body { gap: var(--space-4); }
 .automation-when { display: grid; gap: var(--hair-55); min-width: 0; margin: 0; padding: 0; border: 0; }
 .automation-when > legend { margin-bottom: var(--hair-30); padding: 0; }
-/* How a page you save finds its folder (follow-up U3): five numbered steps, in a row where there is room. */
-.automation-flow-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.automation-flow-step { display: flex; gap: var(--hair-55); min-width: 0; padding: var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-raised); }
-.automation-flow-n { display: grid; flex: none; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 999px; background: var(--paper-2); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+/* How a page you save finds its folder (follow-up U3): five numbered steps on one surface, split by hairlines,
+   in a row where there is room. The number sits over the step's name so the name keeps the column's width. */
+.automation-flow-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: var(--shadow-xs); }
+.automation-flow-step { display: grid; align-content: start; gap: var(--hair-40); min-width: 0; padding: var(--hair-85) var(--space-3); }
+.automation-flow-step + .automation-flow-step { border-left: 1px solid var(--line); }
+.automation-flow-n { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 999px; background: var(--paper-2); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
 .automation-flow-text { display: grid; align-content: start; gap: var(--hair-15); min-width: 0; }
 .automation-flow-name { margin: 0; color: var(--ink); font-size: var(--text-xs); font-weight: var(--weight-semibold); line-height: var(--leading-body); }
 .automation-flow-state { margin: 0; color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
@@ -1728,9 +1731,10 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-flow-state[data-tone="warning"] { color: color-mix(in srgb, var(--warning) 70%, var(--ink)); }
 .automation-flow-state a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 @media (max-width: 760px) {
-  .automation-flow-steps { grid-template-columns: minmax(0, 1fr); gap: 0; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-raised); }
-  .automation-flow-step { border: 0; border-radius: 0; background: none; padding: var(--hair-55) var(--space-3); }
-  .automation-flow-step + .automation-flow-step { border-top: 1px solid var(--line); }
+  .automation-flow-steps { grid-template-columns: minmax(0, 1fr); }
+  .automation-flow-step { display: flex; gap: var(--hair-55); padding: var(--hair-55) var(--space-3); }
+  .automation-flow-n { flex: none; }
+  .automation-flow-step + .automation-flow-step { border-top: 1px solid var(--line); border-left: 0; }
 }
 
 /* Where a new rule is used, asked first when signed in (follow-up U2). */
