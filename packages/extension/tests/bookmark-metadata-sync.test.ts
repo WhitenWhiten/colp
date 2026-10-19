@@ -309,3 +309,21 @@ test('unchanged cloud polls do not broadcast unnecessary UI invalidations', asyn
   expect(await reconcileBookmarkNotes({ ...input(), clientFor: () => client })).toBe(true);
   expect(await reconcileBookmarkNotes({ ...input(), clientFor: () => client })).toBe(false);
 });
+
+test('a batch annotation snapshot confirms a replayed note and keeps a newer draft, with no node-queue settlement evidence', async () => {
+  await annotations.observeNote(bookmark, binding(null, 'absent', null));
+  await annotations.save(bookmark, { tags: [], note: 'Sent' });
+  const prepared = await annotations.prepareNote(bookmark, scopeKey(scope), 'mapped-colp');
+  const attempt = prepared!.noteSync!.attempt!;
+  expect(attempt.eventId).toBe(prepared!.noteIntent!.commandId);
+  expect(await settledMetadataAttempt(f.store, scope, attempt, 'note-r2')).toBeUndefined();
+  await annotations.save(bookmark, { tags: [], note: 'Newer' });
+  const snapshot = new Map([['mapped-colp', binding('Sent', 'note-r2')]]);
+  const send = vi.fn(async () => binding('Sent', 'note-r2'));
+  await reconcileBookmarkNotes({ ...input(), readCollection: async () => snapshot, clientFor: () => ({ read: vi.fn(), send }) });
+  const row = (await annotations.get(bookmark))!;
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(row.note).toBe('Newer');
+  expect(row.noteSync).toMatchObject({ value: 'Newer', state: 'dirty', remote: { revision: 'note-r2' } });
+  expect(row.noteIntent).toBeUndefined();
+});
