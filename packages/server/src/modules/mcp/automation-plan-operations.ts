@@ -8,7 +8,7 @@ import { requireMcpAccountSubjectId } from './account-context.js';
 export interface AutomationPlanOperation {
   type: 'update_node' | 'create_annotation' | 'move_node'; collectionId: string; nodeId: string;
   commandId: string; operationId: string; ruleId: string; jobId: string; runId: string;
-  parentId?: string; sourceParentId?: string; tags?: string[]; text?: string; annotationId?: string; creator?: { id: string; name: string };
+  parentId?: string; sourceParentId?: string; tags?: string[]; previousTags?: string[]; text?: string; annotationId?: string; creator?: { id: string; name: string };
 }
 export function isAutomationPlanOperation(value: unknown): value is AutomationPlanOperation {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;

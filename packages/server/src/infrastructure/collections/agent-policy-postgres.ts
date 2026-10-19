@@ -119,7 +119,7 @@ export type IssueAgentKey = (
  */
 export function createPhase4bMcpAgentApprovalApi(
   db: Kysely<DatabaseSchema>,
-  options: { issueAgentKey?: IssueAgentKey } = {},
+  options: { issueAgentKey?: IssueAgentKey; undoAutomation?: (input: AgentUndoInput) => Promise<{ noop: boolean } | undefined> } = {},
 ): AgentApprovalApi {
   const ports = createPostgresMcpWriteApprovalPorts(db);
   const base = createPhase4bMcpWriteApprovalApi(ports);
@@ -142,7 +142,7 @@ export function createPhase4bMcpAgentApprovalApi(
     },
     getAgentPolicy: (principalId, clientId) => readAgentPolicyView(db, principalId, clientId),
     putAgentPolicy: (principalId, clientId, policy) => writeAgentPolicy(db, principalId, clientId, policy),
-    undo: (input) => undoApprovedPlan(db, base, input),
+    undo: (input) => undoApprovedPlan(db, base, input, options.undoAutomation),
   });
 }
 
@@ -282,6 +282,7 @@ async function undoApprovedPlan(
   db: Kysely<DatabaseSchema>,
   api: Phase4bMcpWriteApprovalApi,
   input: AgentUndoInput,
+  undoAutomation?: (input: AgentUndoInput) => Promise<{ noop: boolean } | undefined>,
 ): Promise<AgentUndoResult> {
   const account: WriteApprovalAccount = { id: input.accountId };
   const plan = await api.get(account, input.planId);
@@ -292,6 +293,10 @@ async function undoApprovedPlan(
   if (receipt === undefined) {
     throw new AgentPlanUndoError('not_found', 'This plan has no saved version to undo.');
   }
+  const automation = await undoAutomation?.(input);
+  if (automation) return { planId: input.planId, versionId: receipt.versionId, restored: true, noop: automation.noop };
+  if ((await sql`SELECT plan_id FROM automation_proposals WHERE plan_id=${input.planId}`.execute(db)).rows.length)
+    throw new AgentPlanUndoError('not_found', 'Undo this automation through its effect receipt; structural restore cannot undo its fields.');
   const committedContentRevision = await readMcpPlanCommitRevision(db, input.planId, receipt.collectionId);
   const restored = await createPostgresCollectionVersionUnitOfWork(db).execute((ports) =>
     undoAgentPlanVersion(ports as RestoreCollectionVersionPorts, {

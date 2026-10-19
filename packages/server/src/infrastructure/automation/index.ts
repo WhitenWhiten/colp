@@ -27,3 +27,5 @@ export { resumeOwnerBudgets } from './budget-wakes.js';
 export { convergeOwnerWork } from './owner-maintenance.js';
 
 export { createManualRunConsumer } from './manual-run-consumer.js';
+
+export { undoAutomationApproval } from './approval-undo.js';

@@ -1,3 +1,4 @@
+import { undoAutomationApproval } from '../infrastructure/automation/index.js';
 import { isFaviconReadableBySubject } from '../infrastructure/database/index.js';
 import {
   createDatabaseFaviconStore,
@@ -536,7 +537,8 @@ export async function startApi(options: StartApiOptions = {}): Promise<StartedAp
             enabled: true,
             allowedOrigins: config.allowedOrigins,
             identityUnitOfWork: ports.identityUnitOfWork,
-            api: createPhase4bMcpAgentApprovalApi(database.db, agentKeyIssuer(database.db, config)),
+            api: createPhase4bMcpAgentApprovalApi(database.db, { ...agentKeyIssuer(database.db, config),
+              undoAutomation: input => undoAutomationApproval(database.db, input) }),
             // FIX-M-018: approval policy of the unified MCP limiter (shared
             // across replicas; mcpWriteEnabled implies the limiter exists).
             rateLimiter: mcpRateLimiter!,

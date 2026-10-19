@@ -1,3 +1,4 @@
+import { fieldUndoSupported } from './plan-field-undo.js';
 import { sql } from 'kysely';
 import type { EffectReceiptView } from '@know-n/colp/automation';
 import { planUndoAvailability, type AutomationActor } from '../../modules/automation/index.js';
@@ -12,9 +13,15 @@ export async function planEffectView(tx: DatabaseTransaction,actor: AutomationAc
   const node = row.node_id ? await tx.selectFrom('nodes').select(['resource_revision','parent_id','deleted_at']).where('id','=',row.node_id).where('collection_id','=',row.collection_id!).executeTakeFirst() : undefined;
   const parent = row.before_folder ? await tx.selectFrom('nodes').select(['kind','deleted_at']).where('id','=',row.before_folder.nodeId).where('collection_id','=',row.before_folder.collectionId).executeTakeFirst() : undefined;
   const op = plan?.operations_json[0];
+  const annotation = op?.type === 'create_annotation' && op.annotationId
+    ? await tx.selectFrom('annotations').select(['resource_revision', 'deleted_at', 'subject_id']).where('id', '=', op.annotationId)
+      .where('collection_id', '=', row.collection_id!).executeTakeFirst() : undefined;
+  const resourceMatches = op?.type === 'create_annotation'
+    ? !!node && !node.deleted_at && !!annotation && !annotation.deleted_at && annotation.subject_id === row.node_id && annotation.resource_revision === row.after_revision
+    : !!node && !node.deleted_at && node.resource_revision === row.after_revision && (op?.type !== 'move_node' || node.parent_id === row.after_parent_id);
   return { id: row.id,kind: 'plan',status: row.undone_operation_id ? 'reverted' : 'committed',effectDigest: row.effect_digest,operationId: row.operation_id,planId: row.plan_id!,...(plan?.version_id ? { versionId: plan.version_id } : {}),
     ...planUndoAvailability({ currentOwner: !!collection && !collection.deleted_at && collection.owner_subject_id === actor.subjectId,versionLinked: !!plan?.version_id,
       operationTypes: plan?.operations_json.map(op => op.type) ?? [],effectUnitMatches: op?.operationId === row.operation_id && op.collectionId === row.collection_id && op.nodeId === row.node_id,
-      contentMatches: collection?.content_revision === row.after_content_revision,resourceMatches: !!node && !node.deleted_at && node.resource_revision === row.after_revision && node.parent_id === row.after_parent_id,
+      contentMatches: collection?.content_revision === row.after_content_revision,resourceMatches, fieldRestorable: fieldUndoSupported(op),
       originalFolderAvailable: !!parent && parent.kind === 'folder' && !parent.deleted_at,reverted: !!row.undone_operation_id }) };
 }

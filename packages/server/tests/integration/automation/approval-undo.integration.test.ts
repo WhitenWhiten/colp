@@ -31,13 +31,28 @@ describeWithPostgres('AW-25 plan history and conservative single-effect Undo', (
     expect(await f.db.selectFrom('nodes').select(['id','title','parent_id']).where('id','in',['parent','academic','paper']).orderBy('id').execute()).toEqual(unrelated);
     expect((await run()).effects[0]).toMatchObject({ status: 'reverted',undoAvailable: false });
   });
-  test.each(['summary','tags'] as const)('%s does not pretend the existing tree version restores this field', async kind => {
+  test.each(['summary','tags'] as const)('%s has a fenced compensation and does not restore an unrelated tree', async kind => {
     await finish(kind); const current = await run(), effect = current.effects[0]!;
-    expect(effect.undoAvailable).toBe(false); expect(effect.undoReason).toContain('snapshot');
-    await expect(f.uow.execute(f.owner,p => undoAutomationRun(p,f.runId,{ effectReceiptId: effect.id,expectedEffectDigest: effect.effectDigest,reason: 'Unavailable' },`"${current.revision}"`))).rejects.toMatchObject({ code: 'automation_stale_input' });
+    expect(effect.undoAvailable).toBe(true);
+    await f.uow.execute(f.owner,p => undoAutomationRun(p,f.runId,{ effectReceiptId: effect.id,expectedEffectDigest: effect.effectDigest,reason: 'Undo this field' },`"${current.revision}"`));
+    if (kind === 'summary') expect(await f.db.selectFrom('annotations').select('id').where('subject_id','=','job-paper').where('deleted_at','is',null).execute()).toHaveLength(0);
+    else expect((await f.db.selectFrom('nodes').select('payload_json').where('id','=','job-paper').executeTakeFirstOrThrow()).payload_json?.tags).toEqual([]);
+    expect((await run()).effects[0]).toMatchObject({ status: 'reverted', undoAvailable: false });
   });
-  test('later unrelated content prevents plan Undo rather than restoring unrelated changes', async () => {
-    await finish('move'); await f.rename('paper','New user title');
+  test.each(['summary','tags'] as const)('generic approval Undo compensates %s and replays without another mutation', async kind => {
+    const { createPhase4bMcpAgentApprovalApi } = await import('../../../src/infrastructure/collections/index.js');
+    const { randomUUID } = await import('node:crypto');
+    await finish(kind); const effect = (await run()).effects[0]!;
+    const { undoAutomationApproval } = await import('../../../src/infrastructure/automation/index.js');
+    const api = createPhase4bMcpAgentApprovalApi(f.db, { undoAutomation: input => undoAutomationApproval(f.db, input) });
+    const input = { accountId:f.owner.accountId,subjectId:f.owner.subjectId,planId:effect.planId!,force:false,commandId:randomUUID() };
+    expect(await api.undo(input)).toMatchObject({ restored: true, noop: false });
+    expect(await api.undo(input)).toMatchObject({ restored: true, noop: true });
+    if (kind === 'summary') expect(await f.db.selectFrom('annotations').select('id').where('subject_id','=','job-paper').where('deleted_at','is',null).execute()).toHaveLength(0);
+    else expect((await f.db.selectFrom('nodes').select('payload_json').where('id','=','job-paper').executeTakeFirstOrThrow()).payload_json?.tags).toEqual([]);
+  });
+  test.each(['move', 'summary', 'tags'] as const)('later unrelated content prevents %s Undo rather than restoring unrelated changes', async kind => {
+    await finish(kind); await f.rename('paper','New user title');
     const current = await run(), effect = current.effects[0]!; expect(effect.undoAvailable).toBe(false);
     await expect(f.uow.execute(f.owner,p => undoAutomationRun(p,f.runId,{ effectReceiptId: effect.id,expectedEffectDigest: effect.effectDigest,reason: 'Unsafe' },`"${current.revision}"`))).rejects.toMatchObject({ code: 'automation_stale_input' });
     expect((await f.db.selectFrom('nodes').select('title').where('id','=','paper').executeTakeFirstOrThrow()).title).toBe('New user title');

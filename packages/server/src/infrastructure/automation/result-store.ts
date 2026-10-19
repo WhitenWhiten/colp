@@ -118,6 +118,7 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
         }>`SELECT tag_key FROM automation_tag_rejections WHERE owner_id=${actor.accountId} AND rule_id=${job.rule_id}`.execute(tx)).rows.map(r => r.tag_key));
         operation.tags = [...new Set([...(node.payload_json?.tags as string[] ?? []), ...input.output.add.map(tag => tag.key.normalize('NFC')).filter(tag => !rejected.has(tag))])];
         const previousTags = node.payload_json?.tags as string[] ?? [];
+        operation.previousTags = [...previousTags];
         if (operation.tags.length === previousTags.length && operation.tags.every((tag, i) => tag === previousTags[i])) {
           await storeTypedResult(tx, job, input, digest, pin.authority_digest, 'succeeded', 'All proposed tags are already present or explicitly suppressed; no canonical effect.');
           return;

@@ -26,7 +26,6 @@ const REVERSIBLE_OPERATION_TYPES = new Set([
   'reorder',
   'reorder_children',
   'create_annotation',
-  'update_annotation',
 ]);
 
 export interface AgentPlanPolicyReceipt {
@@ -86,6 +85,11 @@ export function planOperationsAreReversible(operations: readonly unknown[]): boo
   return operations.every((operation) => {
     if (typeof operation !== 'object' || operation === null) return false;
     const type = (operation as { readonly type?: unknown }).type;
+    if (type === 'update_node') {
+      const value = operation as { jobId?: unknown; previousTags?: unknown };
+      return typeof value.jobId === 'string' && Array.isArray(value.previousTags) && value.previousTags.every(tag => typeof tag === 'string');
+    }
+    if (type === 'create_annotation') return typeof (operation as { annotationId?: unknown }).annotationId === 'string';
     return typeof type === 'string' && REVERSIBLE_OPERATION_TYPES.has(type);
   });
 }
