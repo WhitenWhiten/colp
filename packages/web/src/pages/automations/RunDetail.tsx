@@ -234,13 +234,15 @@ export function RunDetail() {
           ]}
           />
         )}
-        eyebrow={`${RUN_KIND[shown.kind]} · ${formatDate(shown.createdAt)}`}
         title={RUN_HEADLINE[shown.status]}
         documentTitle={`Run of ${ruleName ?? 'a rule'}`}
         afterTitle={(
           <span className="automation-head-state">
             <StatusBadge tone={status.tone} data-testid="automation-run-status">{status.label}</StatusBadge>
             {shown.held && <StatusBadge tone="warning">On hold</StatusBadge>}
+            {/* What kind of run and when, beside its state: the breadcrumb
+                already names the area, so the head carries no eyebrow. */}
+            <span className="automation-head-when">{RUN_KIND[shown.kind]} · {formatDate(shown.createdAt)}</span>
             {stateDetail && <span>{stateDetail}</span>}
             {shown.held && <Link to={`${ruleEditPath(shown.ruleId)}#preview`}>Review earlier work and choose whether to continue</Link>}
           </span>

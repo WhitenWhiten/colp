@@ -1329,6 +1329,10 @@
   font-weight: var(--weight-regular);
 }
 
+.automation-head-when {
+  color: var(--muted);
+}
+
 .automation-head-sentence {
   max-width: var(--measure);
   margin-top: var(--space-3);
