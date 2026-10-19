@@ -21,12 +21,12 @@ async function launch(profile: string): Promise<BrowserContext> {
 const children = (options: Page, id: string) => options.evaluate((folderId) => chrome.bookmarks.getChildren(folderId)
   .then((nodes) => nodes.map((node) => node.title)), id);
 
-test('Run once moves what the preview listed, and Undo moves it back', async ({}, testInfo) => {
+test('Run once moves what the preview listed, and Undo survives a browser restart', async ({}, testInfo) => {
   test.setTimeout(120_000);
   const profile = await mkdtemp(resolve(tmpdir(), 'known-browser-rule-run-'));
-  const context = await launch(profile);
+  let context = await launch(profile);
   try {
-    const options = context.pages().find((page) => page.url().includes('/options.html')) ?? await context.newPage();
+    let options = context.pages().find((page) => page.url().includes('/options.html')) ?? await context.newPage();
     await options.goto(`chrome-extension://${EXTENSION_ID}/options.html`);
     await expect(options.locator('body')).toHaveAttribute('data-pane', 'bookmarks');
     await grantOptionalBookmarks(options, 'Allow bookmark access', 'Known browser rule run once');
@@ -66,6 +66,12 @@ test('Run once moves what the preview listed, and Undo moves it back', async ({}
     await expect.poll(() => children(options, papers.id)).toEqual(['First paper', 'Second paper']);
     expect(await children(options, inbox.id)).toEqual(['A blog']);
 
+    // A new browser process reads the same durable intents and item receipts.
+    await context.close();
+    context = await launch(profile);
+    options = await context.newPage();
+    await options.goto(`chrome-extension://${EXTENSION_ID}/options.html#automations`);
+    await expect(options.locator('#automation-browser-heading')).toBeVisible();
     // Undo: back where they were, in their old order.
     const run = options.locator('.automation-runs-card .automation-run-row').first();
     await expect(run.locator('.list-row-title')).toHaveText('Ran on “Inbox”');
