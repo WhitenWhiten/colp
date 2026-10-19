@@ -529,8 +529,8 @@
   }
 }
 
-/* ——— Section head + primary action row ———
-   Used by several routes and settings sections, so they live in base.
+/* ——— Section head ———
+   Used by several routes and settings sections, so it lives in base.
    Modifiers stay with their pages: `--split` in studio.css. */
 .section-head {
   width: var(--shell);
@@ -551,14 +551,6 @@
   margin-bottom: var(--hair-65);
 }
 
-/* Row of primary/secondary CTAs under a hero, page head or trust document. */
-.cta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--hair-65);
-  margin-top: var(--hair-160);
-}
-
 @media (max-width: 639px) {
   .section-head {
     flex-direction: column;
@@ -569,20 +561,6 @@
 
   .section-head .btn {
     align-self: flex-start;
-  }
-
-  /* Full-width stacked CTAs on phones. */
-  .cta-row {
-    flex-direction: column;
-  }
-
-  .cta-row .btn {
-    width: 100%;
-    min-width: 0;
-    min-height: 3rem;
-    padding-inline: var(--space-4);
-    white-space: nowrap;
-    text-align: center;
   }
 }
 

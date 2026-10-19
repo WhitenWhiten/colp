@@ -22,7 +22,7 @@ const sectionLabels: Record<SettingsSection, string> = {
 }
 
 const GO_TO_LINKS = [
-  { to: '/extension', label: 'Browser extension' },
+  { to: '/extension', label: 'Connect a browser' },
 ] as const
 
 export function SettingsDialog() {

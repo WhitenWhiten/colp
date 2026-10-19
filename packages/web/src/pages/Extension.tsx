@@ -48,21 +48,22 @@ export function Extension({ origin }: { origin?: string } = {}) {
     <PageShell sections>
       <PageSection>
         <PageHead
+          as="header"
+          layout="split"
+          variant="workbench"
           eyebrow="Tools"
           title="Connect a browser"
-          documentTitle="Extension"
+          documentTitle="Connect a browser"
           lede="The Know-N browser extension keeps a browser’s bookmarks in sync with your library on this server. Any folder can stay on the browser only; conflicts are kept for you to resolve."
+          actions={(
+            <>
+              {storeUrl && <a className="btn btn-primary btn-sm" href={storeUrl} target="_blank" rel="noopener noreferrer">Install extension</a>}
+              {returnPath && <Link className="btn btn-secondary btn-sm" to={returnPath}>Return to source and continue setup</Link>}
+              <Link to="/sync" className="btn btn-secondary btn-sm">Open sync center</Link>
+              <Link to="/import" className="btn btn-ghost btn-sm">Import bookmarks</Link>
+            </>
+          )}
         />
-        <div className="cta-row extension-cta">
-          {storeUrl && <a className="btn btn-primary btn-lg" href={storeUrl} target="_blank" rel="noopener noreferrer">Install extension</a>}
-          {returnPath && <Link className="btn btn-secondary" to={returnPath}>Return to source and continue setup</Link>}
-          <Link to="/sync" className="btn btn-secondary">
-            Open sync center
-          </Link>
-          <Link to="/import" className="btn btn-ghost">
-            Import bookmarks
-          </Link>
-        </div>
       </PageSection>
 
       {/* Steps and permissions side by side from 1100px, like Agents and Import. */}

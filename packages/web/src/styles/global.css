@@ -419,13 +419,6 @@ kbd,
   font-weight: var(--weight-semibold);
 }
 
-.btn-lg {
-  min-height: 2.85rem;
-  padding: 0 var(--hair-125);
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-}
-
 .btn-primary:disabled {
   background: color-mix(in srgb, var(--ink) 55%, var(--paper-2));
   color: var(--paper);
@@ -1656,15 +1649,6 @@ kbd,
 
 /* Breakpoint allowlist and track descriptions live in tokens.css
    (see the Breakpoints comment). Do not restate tracks here. */
-
-/* iPhone: tighter gutters, full-width CTAs */
-@media (max-width: 639px) {
-  .btn-lg {
-    width: 100%;
-  }
-
-  /* .section-head phone stacking lives in page-chrome.css. */
-}
 
 /* Modal and toast chrome moved to overlays.css (same @layer base, imported right after this file). */
 

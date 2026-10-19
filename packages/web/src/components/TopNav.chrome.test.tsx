@@ -298,7 +298,7 @@ describe('TopNav session chrome', () => {
       '/import',
     ])
     expect([...dropdown.querySelectorAll('a')].map((anchor) => anchor.textContent)).toEqual([
-      'Extension',
+      'Connect a browser',
       'Link health',
       'Import',
     ])

@@ -23,7 +23,7 @@ import { lazyWithRetry } from '../lib/lazyWithRetry'
 const SearchPalette = lazyWithRetry('SearchPalette', async () => (await import('./SearchPalette')).SearchPalette)
 
 const SESSION_TOOLS = [
-  { to: '/extension', label: 'Extension' },
+  { to: '/extension', label: 'Connect a browser' },
   { to: '/library/health', label: 'Link health' },
   { to: '/import', label: 'Import' },
 ] as const

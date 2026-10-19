@@ -57,10 +57,6 @@
   box-shadow: none;
 }
 
-.btn-lg:active {
-  transform: scale(0.97) translateY(0);
-}
-
 /* Nav links — subtle slide-in underline */
 .nav-links a::after {
   content: '';
@@ -163,7 +159,6 @@ kbd:active, .kbd:active {
   .btn-primary:hover,
   .btn-primary:active,
   .btn-secondary:active,
-  .btn-lg:active,
   .site-footer nav a:hover {
     transform: none;
   }
