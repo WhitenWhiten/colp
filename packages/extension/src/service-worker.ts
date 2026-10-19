@@ -88,6 +88,8 @@ import { handleRulesetCommand } from './sw/automation-ruleset.js';
 import { handleRunCommand } from './sw/automation-run.js';
 import { handleSubscriptionCommand, installRuleSubscriptions, refreshDueSubscriptions, RULE_SUBSCRIPTION_ALARM } from './sw/automation-subscriptions.js';
 import { isSubscriptionCommand } from './automation/subscription-messages.js';
+import { handleRiskCommand, refreshDueRiskLists } from './sw/risk.js';
+import { validRiskCommand } from './risk/risk-messages.js';
 import { accountLink, AUTOMATION_ALARM, handleAutomationRequest, installAutomationRuntime, refreshAutomation } from './sw/automation.js';
 import { installObservedCreates, resumeObservedCreates } from './sw/automation-observed.js';
 import { currentSyncScope, stateAfterFailure } from './sw/scope.js';
@@ -152,7 +154,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === FAVICON_SIDECAR_ALARM) void drainFaviconSidecarsForCurrentScope();
   if (alarm.name === BOOKMARK_RECOVERY_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
   if (alarm.name === BOOKMARK_RECONCILE_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
-  if (alarm.name === RULE_SUBSCRIPTION_ALARM) void refreshDueSubscriptions().catch(() => undefined);
+  // Rule sets and risk lists refresh on the same hourly tick, each list on its own interval.
+  if (alarm.name === RULE_SUBSCRIPTION_ALARM) { void refreshDueSubscriptions().catch(() => undefined); void refreshDueRiskLists().catch(() => undefined); }
   if (alarm.name === AUTOMATION_ALARM) { void refreshAutomation().catch(() => undefined); void resumeObservedCreates().catch(() => undefined); }
 });
 self.addEventListener('online', (event) => {
@@ -346,6 +349,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   }
   if (validAutomationRequest(message)) {
     void handleAutomationRequest(message).then(respond, error => respond({ ok: false, error: safeError(error) }));
+    return true;
+  }
+  if (validRiskCommand(message)) {
+    // Risk lists are changed from Options only; a check is a read the popup makes too.
+    if (!trustedLifecyclePage(sender, chrome.runtime.id, message.kind === 'known.risk.check')) return false;
+    void handleRiskCommand(message).then(respond, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }
   if (validBrowserRuleCommand(message)) {
