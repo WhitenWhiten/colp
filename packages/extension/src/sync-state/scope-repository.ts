@@ -6,6 +6,8 @@ import {
   type DeletionJournalRecord, type RemoteObservationRecord, type ScopeCommandPlanRecord,
 } from './types.js';
 import { boundedString, clone, safeInteger, strictObject, validateRecord } from './codec.js';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 import { constraintError } from './errors.js';
 import {
   cursorPage, deleteScopeRows, iterateCursor, requestValue, requireActiveScope, runTransaction,
@@ -15,11 +17,142 @@ import { AUTHORITY_DIGEST, DATABASE_NAME, DATABASE_VERSION, INDEXES, SCOPE_ROW_S
 import {
   SCOPE_FIELDS, scopeKey, validLifecycleTransition, validateAccountScope, validateScope, validateScopeRecord,
 } from './scope-key.js';
-import { validateMapping } from './mapping-repository.js';
+import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { validateBookmarkEventRecord } from './bookmark-event-repository.js';
-import { validateAckIntent, validateEngineState } from './pull-validate.js';
-import { validateQueueRecord } from './queue-validate.js';
+import { validateAckIntent, validateEngineState, validateImportNode, validateImportPlan, validateIntent } from './pull-validate.js';
+import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
+
+
+/** Bounded corruption evidence: enough records to repair a cluster, never a ledger dump. */
+export const INTEGRITY_DETAIL_LIMIT = 32;
+const INTEGRITY_PAGE_STATES: ReadonlySet<string> = new Set(['staged', 'blocked', 'page_complete']);
+const INTEGRITY_EVENT_STATES: ReadonlySet<string> = new Set(['staged', 'intent_prepared', 'browser_call_started',
+  'native_event_observed', 'awaiting_confirmation', 'authority_committed', 'page_complete', 'blocked']);
+
+/** Account/server identity is not corruption evidence; a stable digest still separates scopes. */
+function integrityScope(scopeKeyValue: unknown): string {
+  if (typeof scopeKeyValue !== 'string') return 'no-scope';
+  return bytesToHex(sha256(new TextEncoder().encode(scopeKeyValue))).slice(0, 16);
+}
+
+function integrityField(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.length > 0 && value.length <= 4_096) return value;
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
+  return undefined;
+}
+
+/** Only the durable key/id fields: never titles, URLs, bodies, or notes. */
+export function integrityRecordKey(store: string, record: UnknownRecord): string {
+  const fields = (names: readonly string[]) => names.flatMap((name) => {
+    const value = integrityField(record[name]);
+    return value === undefined ? [] : [`${name}=${value}`];
+  }).join(',');
+  switch (store) {
+    case STORES.scopes: return record.scopeKey === undefined ? 'scopeKey=?'
+      : `scopeKey=${integrityScope(record.scopeKey)}`;
+    case STORES.queue: return fields(['sequence', 'opId']) || 'sequence=?';
+    case STORES.receipts: return fields(['receiptId', 'sequence']) || 'receiptId=?';
+    case STORES.bookmarkEvents: return fields(['eventId']) || 'eventId=?';
+    case STORES.mappings: return fields(['nativeId', 'colpId']) || 'mapping=?';
+    case STORES.pullPages: return fields(['pageId']) || 'pageId=?';
+    case STORES.pullEvents: return fields(['eventId']) || 'eventId=?';
+    case STORES.effectPages: return fields(['eventId', 'pageNumber']) || 'effectPage=?';
+    case STORES.engine: return 'engine';
+    case STORES.ackIntents: return fields(['intentId']) || 'intentId=?';
+    case STORES.importPlans: return fields(['planId']) || 'planId=?';
+    case STORES.importNodes: return fields(['planId', 'sourceNodeId']) || 'importNode=?';
+    case STORES.recovery: return fields(['snapshotId']) || 'snapshotId=?';
+    case STORES.recoveryNodes: return fields(['snapshotId', 'colpId']) || 'recoveryNode=?';
+    default: return fields(['id']) || 'key=?';
+  }
+}
+
+function integrityCode(error: unknown): string {
+  if (error instanceof SyncStateError) return error.code;
+  if (error instanceof DOMException) return error.name;
+  if (error instanceof Error) {
+    const code = (error as { readonly code?: unknown }).code;
+    return typeof code === 'string' ? code : 'record_invalid';
+  }
+  return 'record_invalid';
+}
+
+function integrityDetail(store: string, record: unknown, error: unknown) {
+  const value = record && typeof record === 'object' && !Array.isArray(record) ? record as UnknownRecord : {};
+  return { store, key: integrityRecordKey(store, value), scope: integrityScope(value.scopeKey), code: integrityCode(error) };
+}
+
+/** One record's validation failure never stops the remaining critical record types. */
+function validateIntegrityRecord<T>(store: string, record: T, validate: (record: T) => void,
+  failures: { count: number; details: unknown[] }) {
+  try { validate(record); } catch (error) {
+    failures.count += 1;
+    if (failures.details.length < INTEGRITY_DETAIL_LIMIT) failures.details.push(integrityDetail(store, record, error));
+  }
+}
+
+function validatePullPageIntegrity(record: UnknownRecord, maxBytes: number): void {
+  validateRecord(record, maxBytes);
+  if (typeof record.scopeKey !== 'string' || typeof record.pageId !== 'string'
+      || !INTEGRITY_PAGE_STATES.has(String(record.state))
+      || typeof record.previousCursor !== 'string' || typeof record.nextCursor !== 'string'
+      || typeof record.pageDigest !== 'string') throw new SyncStateError('pull_page_invalid');
+}
+
+function validatePullEventIntegrity(record: UnknownRecord, maxBytes: number): void {
+  validateRecord(record, maxBytes);
+  if (typeof record.scopeKey !== 'string' || typeof record.eventId !== 'string' || typeof record.pageId !== 'string'
+      || !INTEGRITY_EVENT_STATES.has(String(record.state)) || !Number.isSafeInteger(record.ordinal)
+      || typeof record.payload !== 'object' || record.payload === null || Array.isArray(record.payload)) {
+    throw new SyncStateError('pull_event_invalid');
+  }
+}
+
+function validateEffectPageIntegrity(record: UnknownRecord, maxBytes: number): void {
+  validateRecord(record, maxBytes);
+  if (typeof record.scopeKey !== 'string' || typeof record.eventId !== 'string'
+      || !Number.isSafeInteger(record.pageNumber) || (record.pageNumber as number) < 1
+      || typeof record.pageDigest !== 'string'
+      || (record.previousPageDigest !== null && typeof record.previousPageDigest !== 'string')) {
+    throw new SyncStateError('effect_page_invalid');
+  }
+}
+
+function validateRecoveryHeaderIntegrity(record: UnknownRecord, maxBytes: number): void {
+  validateRecord(record, maxBytes);
+  if (typeof record.scopeKey !== 'string' || typeof record.snapshotId !== 'string'
+      || typeof record.revision !== 'string' || typeof record.syncCursor !== 'string'
+      || typeof record.identityDigest !== 'string' || typeof record.rootNodeId !== 'string'
+      || !Number.isSafeInteger(record.lastPage) || (record.lastPage as number) < 0
+      || typeof record.lastPageDigest !== 'string' || typeof record.complete !== 'boolean'
+      || (record.nextCursor !== null && typeof record.nextCursor !== 'string')
+      || (record.sessionId !== null && record.sessionId !== undefined && typeof record.sessionId !== 'string')) {
+    throw new SyncStateError('recovery_header_invalid');
+  }
+}
+
+function validateRecoveryNodeIntegrity(record: UnknownRecord, maxBytes: number): void {
+  validateRecord(record, maxBytes);
+  if (typeof record.scopeKey !== 'string' || typeof record.snapshotId !== 'string'
+      || !Number.isSafeInteger(record.page) || (record.page as number) < 0 || typeof record.colpId !== 'string'
+      || (record.parentId !== null && typeof record.parentId !== 'string') || typeof record.position !== 'string'
+      || !['Folder', 'Bookmark', 'Separator'].includes(String(record.kind))
+      || typeof record.payloadDigest !== 'string' || !record.mapping || typeof record.mapping !== 'object'
+      || Array.isArray(record.mapping)) throw new SyncStateError('recovery_node_invalid');
+  validateMappingRecord(record.scopeKey, record.mapping, maxBytes);
+}
+
+/**
+ * Stored intents carry `scopeKey` as their primary-key component, while
+ * `validateIntent` takes the scope separately and applies the full domain
+ * shape. Strip only that routing field and validate the rest strictly.
+ */
+function validateIntentIntegrity(record: UnknownRecord, maxBytes: number): void {
+  if (typeof record.scopeKey !== 'string') throw new SyncStateError('intent_scope_invalid');
+  const { scopeKey, ...input } = record;
+  validateIntent(scopeKey, input, maxBytes);
+}
 
 export function legacyDiagnosticRecord(state: LegacyState, maxBytes: number) {
   validateRecord(state, maxBytes);
@@ -369,15 +502,39 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
     if (pullEvents.some((event) => !pullPageKeys.has(`${event.scopeKey}\u001f${event.pageId}`))
       || effectPages.some((page) => !pullPageKeys.has(`${page.scopeKey}\u001f${page.pageId}`)
         || !pullEventKeys.has(`${page.scopeKey}\u001f${page.eventId}`))) problems.push('orphan_pull_fact');
-    try { scopes.forEach((record) => validateScopeRecord(record, maxRecordBytes));
-      queue.forEach((record) => validateQueueRecord(record, maxRecordBytes));
-      bookmarkEvents.forEach((record) => validateBookmarkEventRecord(record, maxRecordBytes));
-      engines.forEach(validateEngineState); ackIntents.forEach(validateAckIntent);
-      [...mappings, ...receipts, ...intents, ...pullPages, ...pullEvents, ...effectPages]
-        .forEach((record) => validateRecord(record, Math.max(maxRecordBytes, 2 * 1024 * 1024))); }
-    catch { problems.push('bad_record'); }
+    // T10: validate every critical record type independently, so the first bad
+    // row no longer hides the rest. Each failure records its store, stable key,
+    // scope digest and code; the bounded list never contains record content.
+    const maxIntegrityBytes = Math.max(maxRecordBytes, 2 * 1024 * 1024);
+    const failures = { count: 0, details: [] as unknown[] };
+    const validateRows = <T>(store: string, rows: readonly T[], validate: (record: T) => void) => {
+      for (const record of rows) validateIntegrityRecord(store, record, validate, failures);
+    };
+    const scopeOf = (record: unknown) => String((record as UnknownRecord | undefined)?.scopeKey ?? '');
+    const sequenceOf = (record: unknown) => {
+      const sequence = (record as UnknownRecord | undefined)?.sequence;
+      return Number.isSafeInteger(sequence) ? sequence as number : 0;
+    };
+    validateRows(STORES.scopes, scopes, (record) => validateScopeRecord(record, maxRecordBytes));
+    validateRows(STORES.queue, queue, (record) => validateQueueRecord(record, maxRecordBytes));
+    validateRows(STORES.bookmarkEvents, bookmarkEvents, (record) => validateBookmarkEventRecord(record, maxRecordBytes));
+    validateRows(STORES.mappings, mappings, (record) => validateMappingRecord(scopeOf(record), record, maxRecordBytes));
+    validateRows(STORES.receipts, receipts, (record) => validateReceipt(scopeOf(record), sequenceOf(record), record, maxRecordBytes));
+    validateRows(STORES.intents, intents, (record) => validateIntentIntegrity(record as unknown as UnknownRecord, maxIntegrityBytes));
+    validateRows(STORES.pullPages, pullPages, (record) => validatePullPageIntegrity(record, maxIntegrityBytes));
+    validateRows(STORES.pullEvents, pullEvents, (record) => validatePullEventIntegrity(record, maxIntegrityBytes));
+    validateRows(STORES.effectPages, effectPages, (record) => validateEffectPageIntegrity(record, maxIntegrityBytes));
+    validateRows(STORES.recovery, recovery, (record) => validateRecoveryHeaderIntegrity(record as unknown as UnknownRecord, maxIntegrityBytes));
+    validateRows(STORES.recoveryNodes, recoveryNodes, (record) => validateRecoveryNodeIntegrity(record as unknown as UnknownRecord, maxIntegrityBytes));
+    validateRows(STORES.engine, engines, validateEngineState);
+    validateRows(STORES.ackIntents, ackIntents, validateAckIntent);
+    validateRows(STORES.importPlans, importPlans, (record) => validateImportPlan(scopeOf(record), record, maxRecordBytes));
+    validateRows(STORES.importNodes, importNodes, (record) => validateImportNode(scopeOf(record), record, maxRecordBytes));
+    if (failures.count > 0) problems.push('bad_record');
     if (problems.length) {
-      tx.objectStore(STORES.diagnostics).put({ id: `integrity:${Date.now()}`, scopeKey: null, kind: 'corruption', problems });
+      tx.objectStore(STORES.diagnostics).put({ id: `integrity:${Date.now()}`, scopeKey: null, kind: 'corruption', problems,
+        ...(failures.details.length === 0 ? {} : { details: failures.details,
+          truncated: failures.count > failures.details.length }) });
       await completion; ctx.setDiagnosticReadOnly(); throw new SyncStateError('corruption_detected');
     }
     await completion; return { outcome: 'valid' };
