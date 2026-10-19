@@ -4711,10 +4711,6 @@
     "message": "网络错误",
     "description": "Network error"
   },
-  "common_newBookmark": {
-    "message": "新建书签",
-    "description": "New bookmark"
-  },
   "common_newHere": {
     "message": "初次使用？",
     "description": "New here?"

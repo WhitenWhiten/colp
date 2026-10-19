@@ -3704,9 +3704,6 @@
   "common_networkError": {
     "message": "Network error"
   },
-  "common_newBookmark": {
-    "message": "New bookmark"
-  },
   "common_newHere": {
     "message": "New here?"
   },
