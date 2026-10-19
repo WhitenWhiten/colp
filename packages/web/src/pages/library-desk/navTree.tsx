@@ -154,7 +154,7 @@ export function CollectionBranch({
   }
 
   const rootLabel = (
-    <NavRowMarks title={rootTitle(collection)} count={bookmarkTotal} container="collection" />
+    <NavRowMarks title={rootTitle(collection)} count={bookmarkTotal} container={collection.library ? 'library' : 'collection'} />
   )
   const rootLink = onSelect ? (
     <button
@@ -306,7 +306,7 @@ function FolderBranch({
 function NavRowMarks({ title, count, container, shared }: {
   title: string
   count: number | null
-  container: 'collection' | 'folder'
+  container: 'library' | 'collection' | 'folder'
   shared?: boolean
 }) {
   return (
@@ -317,7 +317,7 @@ function NavRowMarks({ title, count, container, shared }: {
       <span className="library-nav-label" title={title}>{title}</span>
       {shared && <SharedFolderMark />}
       {count != null && (
-        <span className="library-nav-count" title={`${plural(count, 'bookmark')} in this ${container}`}>
+        <span className="library-nav-count" title={`${plural(count, 'bookmark')} in ${container === 'library' ? 'your library' : `this ${container}`}`}>
           {count}
           <span className="visually-hidden"> {pluralNoun(count, 'bookmark')}</span>
         </span>

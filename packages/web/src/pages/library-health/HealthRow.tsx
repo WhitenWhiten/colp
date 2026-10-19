@@ -80,9 +80,9 @@ export function HealthRow({
             <a href={item.finalUrl} title={item.finalUrl} target="_blank" rel="noopener noreferrer">{item.finalUrl}</a>
           </p>
         ) : reviewed ? (
-          <p>Reviewed as a duplicate. Both bookmarks stay in the collection.</p>
+          <p>Reviewed as a duplicate. Both bookmarks stay in your library.</p>
         ) : candidate ? (
-          <p>Possible duplicate of another bookmark in this collection</p>
+          <p>Possible duplicate of another bookmark in your library</p>
         ) : display.kind === 'check_failed' ? (
           <p>The checker could not reach this link. Retry the check.</p>
         ) : display.kind === 'remote_error' ? (

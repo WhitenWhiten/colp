@@ -46,7 +46,7 @@ const RULES: ReadonlyArray<{ icon: 'lock' | 'check' | 'refresh'; title: string; 
   {
     icon: 'refresh',
     title: 'Always reversible',
-    body: 'Every applied plan saves a version in the collection’s History, and moves can be undone from Approvals.',
+    body: 'Every applied plan saves a version in your library’s Version history, and moves can be undone from Approvals.',
   },
 ]
 

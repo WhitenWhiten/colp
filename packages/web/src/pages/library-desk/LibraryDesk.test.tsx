@@ -84,7 +84,7 @@ describe('LibraryDesk', () => {
     expect(document.querySelector('[data-testid="library-desk-count"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('2 bookmarks · 1 here')
     const navCount = document.querySelector('a[data-collection-id="col-1"] .library-nav-count')
     expect(navCount?.textContent).toBe('2 bookmarks')
-    expect(navCount?.getAttribute('title')).toBe('2 bookmarks in this collection')
+    expect(navCount?.getAttribute('title')).toBe('2 bookmarks in your library')
     // A folder row names its own container, and one bookmark is singular.
     const folderCount = document.querySelector('[data-testid="library-nav"] [data-folder-id="col-1-folder"] .library-nav-count')
     expect(folderCount?.textContent).toBe('1 bookmark')

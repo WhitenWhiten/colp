@@ -69,7 +69,7 @@ function startRefusal(error: unknown): string {
     if (error.code === 'automation_command_conflict') {
       return 'This needs more runs than the rule has left today. Start again once its daily allowance resets, or choose fewer bookmarks.'
     }
-    if (error.code === 'payload_too_large') return 'Your collection’s history is full, so these moves couldn’t be kept for Undo. Nothing was moved.'
+    if (error.code === 'payload_too_large') return 'Your library’s version history is full, so these moves couldn’t be kept for Undo. Nothing was moved.'
   }
   return errorMessage(error, 'Could not start this run.')
 }

@@ -320,7 +320,7 @@ export function BookmarkArea({
       <EmptyState
         role="alert"
         icon="alert"
-        title="Couldn't load this collection"
+        title="Couldn't load your library"
         description={loadMessage}
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={() => selectedId && void loadTree(selectedId)}>Try again</button>}
       />
