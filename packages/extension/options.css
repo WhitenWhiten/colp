@@ -1576,18 +1576,46 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .risk-list-row .list-row-meta { display: block; white-space: normal; }
 .risk-status[data-tone="warning"] { color: var(--warning); }
 .risk-exception-row { grid-template-columns: minmax(0, 1fr) auto; }
-.automation-config-folders { display: grid; gap: var(--space-3); }
+/* Import, subscribe and review dialogs (dialog-parts.ts): what the file is and would do in one quiet box at
+   the top; each kind of page it files as a row, its name left and its folder picker right, in one bordered
+   group (the picker's panel opens across the row); counts as rows, not bullets; choices as option rows. */
+.automation-dialog-summary { display: grid; gap: var(--hair-40); padding: var(--hair-85) var(--space-3); border-radius: var(--radius); background: var(--paper); }
+.automation-dialog-summary > p { margin: 0; }
+.automation-dialog-headline { color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-copy); overflow-wrap: anywhere; }
+.automation-dialog-summary > .automation-run-folders { margin-top: var(--hair-15); }
+.automation-config-folders { display: grid; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-raised); }
+.automation-role-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--hair-55) var(--space-3); padding: var(--hair-65) var(--space-3); }
+.automation-role-row + .automation-role-row { border-top: 1px solid var(--line); }
+.automation-role-text { display: grid; gap: var(--hair-15); min-width: 0; }
+.automation-role-text > .form-label { margin: 0; color: var(--ink); font-size: var(--text-sm); }
+.automation-role-row > .folder-picker { display: contents; }
+.automation-role-row > .folder-picker > .folder-pill { grid-column: 2; grid-row: 1; max-width: 15rem; }
+.automation-role-row > .folder-picker > .folder-panel { grid-column: 1 / -1; }
 .automation-config-path { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); overflow-wrap: anywhere; }
+.automation-run-folders, .automation-run-result ul { display: grid; margin: 0; padding: 0; list-style: none; color: var(--ink-2); font-size: var(--text-xs);
+  line-height: var(--leading-body); font-variant-numeric: tabular-nums; }
+.automation-run-folders > li, .automation-run-result ul > li { padding: var(--hair-30) 0; overflow-wrap: anywhere; }
+.automation-run-folders > li + li, .automation-run-result ul > li + li { border-top: 1px solid var(--line); }
+/* What a new version changes: each kind of change on the left, its entries on the right. */
+.automation-review-diff { display: grid; grid-template-columns: minmax(6rem, auto) minmax(0, 1fr); margin: 0; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  font-size: var(--text-xs); line-height: var(--leading-body); }
+.automation-review-diff > dt { padding: var(--hair-55) var(--space-3); color: var(--ink-2); font-weight: var(--weight-medium); white-space: nowrap; }
+.automation-review-diff > dd { margin: 0; padding: var(--hair-55) var(--space-3) var(--hair-55) 0; color: var(--ink); }
+.automation-review-diff > dt:not(:first-child), .automation-review-diff > dt:not(:first-child) + dd { border-top: 1px solid var(--line); }
+.automation-review-names { display: flex; flex-wrap: wrap; gap: var(--hair-15) var(--hair-30); margin: 0; padding: 0; list-style: none; }
+.automation-review-names > li:not(:last-child)::after { content: ","; color: var(--muted); }
+.automation-review-more { color: var(--muted); }
+.automation-review-sample { display: grid; gap: var(--hair-40); }
 /* A rule-set file refused (doc 17 RS-02): where each problem is, in the file's own terms. */
 .automation-ruleset-problem-list { display: grid; gap: var(--hair-30); margin: 0; padding-left: var(--space-4); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-ruleset-problem-list code { color: var(--ink); overflow-wrap: anywhere; }
 .automation-config-dialog .detail { margin: 0; color: var(--ink-2); font-size: var(--text-sm); line-height: var(--leading-copy); }
-.automation-config-dialog .automation-run-folders { margin: 0; padding-left: var(--space-4); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
 /* Run once (doc 17 §6.4): what a folder's run would move, and the runs with their Undo. */
 .automation-run-dialog .folder-picker { min-width: 0; }
 .automation-run-result { display: grid; gap: var(--space-2); }
+/* Its answer sits in the same quiet box as an import's summary. */
+.automation-run-dialog .automation-run-result:not(:empty) { padding: var(--hair-85) var(--space-3); border-radius: var(--radius); background: var(--paper); }
 .automation-run-result .detail { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
-.automation-run-result ul { margin: 0; padding-left: var(--space-4); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-run-result .form-label { margin: var(--hair-30) 0 0; }
 .automation-runs-head { display: grid; gap: var(--hair-15); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
 .automation-runs-head > h3 { margin: 0; color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-semibold); line-height: var(--leading-ui); }
@@ -1641,10 +1669,10 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-sub-site-where { display: grid; gap: var(--hair-15); min-width: 0; }
 .automation-sub-sites .list-row-meta { margin: 0; white-space: normal; overflow-wrap: anywhere; }
 .automation-sub-history { color: var(--muted); }
-.automation-sub-section-inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+/* Use previous version, under the settings: a quiet line and its button, set off by a hairline. */
+.automation-sub-section-inline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2);
+  padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .automation-sub-section-inline > .mgr-hint { margin: 0; }
-.automation-review-group { display: grid; gap: var(--hair-30); }
-.automation-review-group > .form-label { margin: 0; }
 /* The list's own switch on the heading's line; the lede under both, full width. */
 .automation-browser > .automation-group-head { align-items: center; }
 .automation-browser > .automation-group-head > .toggle { grid-column: 2; grid-row: 1; }

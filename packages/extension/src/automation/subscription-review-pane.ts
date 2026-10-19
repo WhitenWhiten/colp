@@ -2,6 +2,7 @@ import { createDialog, dialogButton } from '../dialog.js';
 import { t, tn } from '../i18n.js';
 import { el } from '../library-dom.js';
 import { showToast } from '../toast.js';
+import { countList, dialogSummary } from './dialog-parts.js';
 import type { BrowserListEntryView } from './messages.js';
 import { sendRuleCommand as send } from './rule-command.js';
 import { rolePickers } from './ruleset-pane.js';
@@ -22,40 +23,40 @@ export function scopeCopy(reason: ScopeReason): string {
     : t('automation_reviewScopeDocument', 'It is a different rule set at this address, so it always waits for your review.');
 }
 
-function names(title: string, items: readonly { readonly name: string }[]): HTMLElement | null {
-  if (!items.length) return null;
-  const box = el('div', undefined, 'automation-review-group');
-  const list = el('ul', undefined, 'automation-run-folders');
+/** One kind of change, "Added (2)", and the entries it holds, beside each other in the diff. */
+function names(title: string, items: readonly { readonly name: string }[]): HTMLElement[] {
+  if (!items.length) return [];
+  const list = el('ul', undefined, 'automation-review-names');
   for (const item of items.slice(0, SHOWN)) list.append(el('li', item.name));
-  if (items.length > SHOWN) list.append(el('li', tn('automation_reviewMore', items.length - SHOWN, 'and $1 more', 'and $1 more')));
-  box.append(el('p', `${title} (${items.length})`, 'form-label'), list);
-  return box;
+  if (items.length > SHOWN) list.append(el('li', tn('automation_reviewMore', items.length - SHOWN, 'and $1 more', 'and $1 more'), 'automation-review-more'));
+  const value = el('dd'); value.append(list);
+  return [el('dt', `${title} (${items.length})`), value];
 }
 
 function show(entry: Entry, review: BrowserSubscriptionReviewView, trigger?: HTMLElement | null): void {
   const { dialog, body, actions } = createDialog(t('automation_reviewTitle', 'Version $1 of “$2”', review.candidateVersion, review.name), 'automation-config-dialog automation-review');
   const { diff, scope, sample } = review;
-  body.append(el('p', t('automation_reviewNow', 'Version $1 files pages now. Applying this one moves no bookmark you already have.', review.currentVersion), 'detail'),
-    el('p', scope.ok ? t('automation_reviewScopeOk', 'It keeps the same kinds of page, so Automatic would have applied it.') : scopeCopy(scope.reasons[0]!), 'mgr-hint'));
-  const groups = [names(t('automation_reviewAdded', 'Added'), diff.added), names(t('automation_reviewChanged', 'Changed'), diff.changed),
-    names(t('automation_reviewRemoved', 'Removed'), diff.removed), names(t('automation_reviewRolesRemoved', 'Kinds of page it no longer files'),
-      diff.roles.removed.map((role) => ({ name: role.description || role.key })))].filter((node): node is HTMLElement => node !== null);
-  body.append(...groups.length ? groups : [el('p', t('automation_reviewNoEntries', 'No entry changes; only its details do.'), 'detail')]);
+  body.append(dialogSummary(t('automation_reviewNow', 'Version $1 files pages now. Applying this one moves no bookmark you already have.', review.currentVersion),
+    el('p', scope.ok ? t('automation_reviewScopeOk', 'It keeps the same kinds of page, so Automatic would have applied it.') : scopeCopy(scope.reasons[0]!), 'mgr-hint')));
+  // What changes, entry by entry: each kind of change on the left, its entries on the right.
+  const rows = [...names(t('automation_reviewAdded', 'Added'), diff.added), ...names(t('automation_reviewChanged', 'Changed'), diff.changed),
+    ...names(t('automation_reviewRemoved', 'Removed'), diff.removed), ...names(t('automation_reviewRolesRemoved', 'Kinds of page it no longer files'),
+      diff.roles.removed.map((role) => ({ name: role.description || role.key })))];
+  if (rows.length) { const changes = el('dl', undefined, 'automation-review-diff'); changes.append(...rows); body.append(changes); }
+  else body.append(el('p', t('automation_reviewNoEntries', 'No entry changes; only its details do.'), 'detail'));
   if (sample) {
-    body.append(el('p', sample.changed ? tn('automation_reviewSample', sample.changed, 'Of your last $2 bookmarks, $1 would be filed differently:',
+    const moved = el('div', undefined, 'automation-review-sample');
+    moved.append(el('p', sample.changed ? tn('automation_reviewSample', sample.changed, 'Of your last $2 bookmarks, $1 would be filed differently:',
       'Of your last $2 bookmarks, $1 would be filed differently:', sample.size) : tn('automation_reviewSampleNone', sample.size, 'Your last bookmark would be filed the same way.',
       'None of your last $1 bookmarks would be filed differently.'), 'detail'));
     if (sample.byFolder.length) {
-      const list = el('ul', undefined, 'automation-run-folders');
-      for (const row of sample.byFolder.slice(0, 5)) {
-        list.append(el('li', row.title ? tn('automation_reviewSampleFolder', row.count, '$2: $1 bookmark', '$2: $1 bookmarks', row.title)
-          : tn('automation_reviewSampleStay', row.count, 'Stay where saved: $1 bookmark', 'Stay where saved: $1 bookmarks')));
-      }
-      body.append(list);
+      moved.append(countList(sample.byFolder.slice(0, 5).map((row) => row.title ? tn('automation_reviewSampleFolder', row.count, '$2: $1 bookmark', '$2: $1 bookmarks', row.title)
+        : tn('automation_reviewSampleStay', row.count, 'Stay where saved: $1 bookmark', 'Stay where saved: $1 bookmarks'))));
     }
+    body.append(moved);
   }
   // A kind of page it adds files nowhere until it has a folder here; choose it now, or later.
-  if (diff.roles.added.length) body.append(el('p', t('automation_reviewRolesAdded', 'New kinds of page it files. Choose a folder for each, or leave it to wait:'), 'form-label'));
+  if (diff.roles.added.length) body.append(el('p', t('automation_reviewRolesAdded', 'New kinds of page it files. Choose a folder for each, or leave it to wait:'), 'mgr-hint'));
   const pickers = rolePickers(diff.roles.added, {}, body, dialog);
   const error = el('p', undefined, 'form-error'); error.setAttribute('role', 'alert'); error.hidden = true;
   body.append(error);

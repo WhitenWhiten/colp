@@ -319,7 +319,7 @@ describe('the rules file (doc 17 §5.3)', () => {
     reply = () => ({ ok: true, imported: { revision: 4, rules: 2, sets: 0, subscriptions: 0, skipped: 0 } });
     await render(standard());
     const dialog = await choose(JSON.stringify(file));
-    expect(text(dialog.querySelector('.automation-preview-verdict'))).toBe('“rules.json” has 2 rules');
+    expect(text(dialog.querySelector('.automation-dialog-headline'))).toBe('“rules.json” has 2 rules');
     await vi.waitFor(() => expect(text(dialog.querySelector('.folder-pill'))).toContain('Papers'));
     dialog.querySelector<HTMLButtonElement>('.btn-primary')!.click();
     expect(text(dialog.querySelector('.form-error'))).toBe('Choose a folder here for “Elsewhere”.');
@@ -360,7 +360,7 @@ describe('rule sets from a file (doc 17 RS-02)', () => {
     await vi.waitFor(() => expect(document.querySelector('dialog.automation-config-dialog')).not.toBeNull());
     const dialog = document.querySelector<HTMLDialogElement>('dialog.automation-config-dialog')!;
     expect(text(dialog.querySelector('h3'))).toBe('Import “Community technology sites”');
-    expect(text(dialog.querySelector('.automation-preview-verdict'))).toBe('2 rules · version 2026.10.18-1 · Example Collective · CC-BY-4.0');
+    expect(text(dialog.querySelector('.automation-dialog-headline'))).toBe('2 rules · version 2026.10.18-1 · Example Collective · CC-BY-4.0');
     expect(text(dialog.querySelector('.detail'))).toBe('Its rules would file 37 of your last 2000 bookmarks.');
     expect(Array.from(dialog.querySelectorAll('.automation-run-folders li')).map((item) => text(item))).toEqual(['Academic papers: 30 bookmarks', 'Source code: 7 bookmarks']);
     await vi.waitFor(() => expect(dialog.querySelectorAll('.folder-picker .folder-opt').length).toBeGreaterThan(0));
@@ -493,7 +493,7 @@ describe('a subscription in the list (doc 17 RW-13, RS-04, RS-05, RS-10)', () =>
     expect(text(row('sub').querySelector('.badge'))).toBe('Pinned');
     row('sub').querySelector<HTMLButtonElement>('[aria-label="Update settings"]')!.click();
     const settings = document.querySelector<HTMLDialogElement>('dialog.automation-config-dialog')!;
-    const pin = Array.from(settings.querySelectorAll('label.choice')).find((node) => text(node).startsWith('Pin version 3'))!.querySelector('input')!;
+    const pin = Array.from(settings.querySelectorAll('label.option-row')).find((node) => text(node).startsWith('Pin version 3'))!.querySelector('input')!;
     expect(pin.checked).toBe(true);
     pin.click();
     Array.from(settings.querySelectorAll<HTMLButtonElement>('button')).find((node) => text(node) === 'Save')!.click();

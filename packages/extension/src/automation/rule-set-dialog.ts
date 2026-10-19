@@ -2,6 +2,7 @@ import { createDialog, dialogButton } from '../dialog.js';
 import { t, tn } from '../i18n.js';
 import { el } from '../library-dom.js';
 import { showToast } from '../toast.js';
+import { optionGroup } from './dialog-parts.js';
 import type { BrowserRuleView, BrowserSetView } from './messages.js';
 import { sendRuleCommand as send } from './rule-command.js';
 
@@ -51,22 +52,16 @@ export function openSetDialog(set: Pick<BrowserSetView, 'id' | 'name'> | null, t
 
 export function confirmDeleteSet(set: BrowserSetView, trigger?: HTMLElement | null): void {
   const { dialog, body, actions } = createDialog(t('automation_setDeleteTitle', 'Delete “$1”?', set.name));
-  const group = `automation-set-delete-${crypto.randomUUID()}`;
-  const option = (value: 'keep' | 'delete', title: string, hint: string) => {
-    const label = el('label', undefined, 'choice');
-    const input = el('input'); input.type = 'radio'; input.name = group; input.value = value; input.checked = value === 'keep';
-    label.append(input, el('span', title, 'choice-title'), el('span', hint, 'choice-hint'));
-    return label;
-  };
   const error = el('p', undefined, 'form-error'); error.setAttribute('role', 'alert'); error.hidden = true;
+  let deleteRules: HTMLInputElement | undefined;
   if (set.rules.length) {
-    const choices = el('div', undefined, 'choice-pair');
-    choices.append(
-      option('keep', tn('automation_setKeepRules', set.rules.length, 'Keep its rule', 'Keep its $1 rules'),
-        t('automation_setKeepRulesHint', 'They stay in the list where the set was, each on its own.')),
-      option('delete', tn('automation_setDeleteRules', set.rules.length, 'Delete its rule too', 'Delete its $1 rules too'),
-        t('automation_setDeleteRulesHint', 'Pages they already filed stay where they are.')));
-    body.append(choices);
+    const choices = optionGroup('radio', [
+      { value: 'keep', title: tn('automation_setKeepRules', set.rules.length, 'Keep its rule', 'Keep its $1 rules'),
+        hint: t('automation_setKeepRulesHint', 'They stay in the list where the set was, each on its own.'), checked: true },
+      { value: 'delete', title: tn('automation_setDeleteRules', set.rules.length, 'Delete its rule too', 'Delete its $1 rules too'),
+        hint: t('automation_setDeleteRulesHint', 'Pages they already filed stay where they are.'), checked: false }]);
+    deleteRules = choices.inputs[1];
+    body.append(choices.element);
   } else {
     body.append(el('p', t('automation_setDeleteEmpty', 'It has no rules.')));
   }
@@ -75,7 +70,7 @@ export function confirmDeleteSet(set: BrowserSetView, trigger?: HTMLElement | nu
   const confirm = dialogButton(t('automation_setDelete', 'Delete set'), 'danger');
   cancel.addEventListener('click', () => dialog.close());
   confirm.addEventListener('click', () => {
-    const keepRules = dialog.querySelector<HTMLInputElement>(`input[name="${group}"][value="delete"]`)?.checked !== true;
+    const keepRules = deleteRules?.checked !== true;
     confirm.disabled = true;
     void send({ kind: 'known.automation.browser.set.remove', id: set.id, keepRules }).then((reply) => {
       confirm.disabled = false;
@@ -99,11 +94,10 @@ export function confirmCopyToMine(rule: BrowserRuleView, set: Pick<BrowserSetVie
   const { dialog, body, actions } = createDialog(t('automation_copyTitle', 'Copy “$1” to your rules?', rule.name));
   body.append(el('p', rule.folder ? t('automation_copyHint', 'The copy goes above “$1” as a rule of your own, filing into $2. It is tried before the set, and you can change it.', set.name, rule.folder.title)
     : t('automation_copyHintKeep', 'The copy goes above “$1” as a rule of your own. It is tried before the set, and you can change it.', set.name), 'mgr-hint'));
-  const label = el('label', undefined, 'choice');
-  const box = el('input'); box.type = 'checkbox'; box.checked = true;
-  label.append(box, el('span', t('automation_copyTurnOff', 'Also turn off the original in “$1”', set.name), 'choice-title'));
+  const turnOff = optionGroup('checkbox', [{ value: 'off', title: t('automation_copyTurnOff', 'Also turn off the original in “$1”', set.name), checked: true }]);
+  const box = turnOff.inputs[0]!;
   const error = el('p', undefined, 'form-error'); error.setAttribute('role', 'alert'); error.hidden = true;
-  body.append(label, error);
+  body.append(turnOff.element, error);
   const cancel = dialogButton(t('common_cancel', 'Cancel'));
   const copy = dialogButton(t('automation_copy', 'Copy to my rules'), 'primary');
   cancel.addEventListener('click', () => dialog.close());

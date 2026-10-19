@@ -4,6 +4,7 @@ import { t, tn } from '../i18n.js';
 import { el } from '../library-dom.js';
 import { createFolderPicker, folderChoices, type FolderPicker, type FolderSourceNode } from '../library-folder-picker.js';
 import { showToast } from '../toast.js';
+import { countList, dialogSummary } from './dialog-parts.js';
 import type { BrowserRulesetView, BrowserSetView } from './messages.js';
 import { sendRuleCommand as send } from './rule-command.js';
 import { RULESET_MAX_BYTES, type RulesetProblem } from './ruleset-format.js';
@@ -54,18 +55,26 @@ export function showProblems(name: string, problems: readonly RulesetProblem[], 
   document.body.append(dialog); dialog.showModal(); close.focus();
 }
 
+/** One kind of page (or one folder of a rules file) and the folder here it goes to: its name on the left, the picker on the right. */
+export function folderRow(name: string, notes: readonly string[], picker: FolderPicker): HTMLElement {
+  const row = el('div', undefined, 'automation-role-row');
+  const words = el('div', undefined, 'automation-role-text');
+  words.append(el('p', name, 'form-label'), ...notes.map((note) => el('p', note, 'automation-config-path')));
+  row.append(words, picker.element);
+  return row;
+}
+
 /** The folders a role may be bound to: this browser's own, never a bookmark subscription's. */
 export function rolePickers(roles: readonly { readonly key: string; readonly description: string }[], current: Readonly<Record<string, string>>,
   body: HTMLElement, dialog: HTMLDialogElement): Map<string, FolderPicker> {
   const pickers = new Map<string, FolderPicker>();
+  if (!roles.length) return pickers;
   const list = el('div', undefined, 'automation-config-folders');
   for (const role of roles) {
-    const field = el('div', undefined, 'form-field');
     const picker = createFolderPicker({ choices: [], startEmpty: !current[role.key], ...(current[role.key] ? { value: current[role.key] } : {}),
       label: role.description || role.key });
     pickers.set(role.key, picker);
-    field.append(el('p', role.description || role.key, 'form-label'), el('p', t('automation_rulesetRoleKey', 'Role “$1”', role.key), 'automation-config-path'), picker.element);
-    list.append(field);
+    list.append(folderRow(role.description || role.key, [t('automation_rulesetRoleKey', 'Role “$1”', role.key)], picker));
   }
   body.append(list);
   void (async () => {
@@ -79,22 +88,17 @@ export function rolePickers(roles: readonly { readonly key: string; readonly des
 
 function openImport(view: BrowserRulesetView, text: string, trigger: HTMLElement): void {
   const { dialog, body, actions } = createDialog(t('automation_rulesetImportTitle', 'Import “$1”', view.name), 'automation-config-dialog');
-  body.append(el('p', [tn('automation_rulesetRules', view.rules, '$1 rule', '$1 rules'), t('automation_rulesetVersion', 'version $1', view.version),
-    view.publisher ?? '', view.license ?? ''].filter(Boolean).join(' · '), 'automation-preview-verdict'));
   const left = [view.matchingOnly ? tn('automation_rulesetMatchingOnly', view.matchingOnly, '$1 entry has no folder role, so it isn’t added.',
     '$1 entries have no folder role, so they aren’t added.') : '', view.inactive ? tn('automation_rulesetInactive', view.inactive,
     '$1 site has only retired addresses and matches nothing.', '$1 sites have only retired addresses and match nothing.') : ''].filter(Boolean);
-  if (left.length) body.append(el('p', left.join(' '), 'mgr-hint'));
-  if (view.sample) {
-    const roleName = (key: string) => view.roles.find((role) => role.key === key)?.description || key;
-    body.append(el('p', view.sample.matched ? tn('automation_rulesetSample', view.sample.matched, 'Its rules would file $1 of your last $2 bookmarks.',
-      'Its rules would file $1 of your last $2 bookmarks.', view.sample.size) : t('automation_rulesetSampleNone', 'None of your last $1 bookmarks match its rules.', view.sample.size), 'detail'));
-    if (view.sample.byRole.length) {
-      const top = el('ul', undefined, 'automation-run-folders');
-      for (const row of view.sample.byRole.slice(0, 5)) top.append(el('li', tn('automation_rulesetSampleRole', row.count, '$2: $1 bookmark', '$2: $1 bookmarks', roleName(row.role))));
-      body.append(top);
-    }
-  }
+  const roleName = (key: string) => view.roles.find((role) => role.key === key)?.description || key;
+  // What the file is, then what it would do to the bookmarks already here, in one box.
+  body.append(dialogSummary([tn('automation_rulesetRules', view.rules, '$1 rule', '$1 rules'), t('automation_rulesetVersion', 'version $1', view.version),
+    view.publisher ?? '', view.license ?? ''].filter(Boolean).join(' · '),
+  left.length ? el('p', left.join(' '), 'mgr-hint') : null,
+  view.sample ? el('p', view.sample.matched ? tn('automation_rulesetSample', view.sample.matched, 'Its rules would file $1 of your last $2 bookmarks.',
+    'Its rules would file $1 of your last $2 bookmarks.', view.sample.size) : t('automation_rulesetSampleNone', 'None of your last $1 bookmarks match its rules.', view.sample.size), 'detail') : null,
+  view.sample?.byRole.length ? countList(view.sample.byRole.slice(0, 5).map((row) => tn('automation_rulesetSampleRole', row.count, '$2: $1 bookmark', '$2: $1 bookmarks', roleName(row.role)))) : null));
   if (view.roles.length) body.append(el('p', t('automation_rulesetRolesHint', 'Choose a folder here for each kind of page it files. A role you leave without a folder waits: its rules don’t file anything until you choose one.'), 'mgr-hint'));
   const pickers = rolePickers(view.roles, {}, body, dialog);
   const error = el('p', undefined, 'form-error'); error.setAttribute('role', 'alert'); error.hidden = true;

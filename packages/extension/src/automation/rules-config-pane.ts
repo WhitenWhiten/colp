@@ -4,7 +4,9 @@ import { t, tn } from '../i18n.js';
 import { button, el } from '../library-dom.js';
 import { createFolderPicker, folderChoices, type FolderPicker, type FolderSourceNode } from '../library-folder-picker.js';
 import { showToast } from '../toast.js';
+import { dialogSummary, optionGroup } from './dialog-parts.js';
 import { sendRuleCommand as send } from './rule-command.js';
+import { folderRow } from './ruleset-pane.js';
 import { CONFIG_MAX_BYTES, foldersUsed, parseRulesConfig, suggestFolders, type RulesConfig } from './rules-config-format.js';
 
 /**
@@ -30,14 +32,14 @@ function openImport(config: RulesConfig, name: string, trigger: HTMLElement, tex
   const rules = config.list.entries.reduce((sum, entry) => sum + (entry.kind === 'rule' ? 1 : entry.kind === 'set' ? entry.set.rules.length : 0), 0);
   const sets = config.list.entries.filter((entry) => entry.kind === 'set').length;
   const subscriptions = config.list.entries.filter((entry) => entry.kind === 'subscription').length;
-  body.append(el('p', [tn('automation_configHasRules', rules, '“$2” has $1 rule', '“$2” has $1 rules', name),
+  // Risk alerts are not part of the list: the file's setting is taken, its lists and exceptions added (sw/risk.ts).
+  body.append(dialogSummary([tn('automation_configHasRules', rules, '“$2” has $1 rule', '“$2” has $1 rules', name),
     sets ? tn('automation_configHasSets', sets, '$1 set', '$1 sets') : '',
     subscriptions ? tn('automation_configHasSubscriptions', subscriptions, '$1 subscription, fetched again once you allow its site', '$1 subscriptions, fetched again once you allow their sites') : '',
     config.risk?.lists.length ? tn('automation_configHasRiskLists', config.risk.lists.length, '$1 risk list, fetched again once you allow its site',
       '$1 risk lists, fetched again once you allow their sites') : '']
-    .filter(Boolean).join(' · '), 'automation-preview-verdict'));
-  // Risk alerts are not part of the list: the file's setting is taken, its lists and exceptions added (sw/risk.ts).
-  if (config.risk) body.append(el('p', t('automation_configRiskHint', 'Risk alerts are set as in the file, and its lists and exceptions are added to yours.'), 'mgr-hint'));
+    .filter(Boolean).join(' · '),
+  config.risk ? el('p', t('automation_configRiskHint', 'Risk alerts are set as in the file, and its lists and exceptions are added to yours.'), 'mgr-hint') : null));
   const used = foldersUsed(config);
   const folders = config.folders.filter((folder) => used.all.has(folder.nativeId));
   const pickers = new Map<string, FolderPicker>();
@@ -45,33 +47,22 @@ function openImport(config: RulesConfig, name: string, trigger: HTMLElement, tex
     body.append(el('p', t('automation_configFoldersHint', 'Choose the folder here for each folder in the file. A folder with the same path is suggested; nothing is used until you import.'), 'mgr-hint'));
     const list = el('div', undefined, 'automation-config-folders');
     for (const folder of folders) {
-      const field = el('div', undefined, 'form-field');
       const named = folder.title ? t('automation_configFolder', '“$1”', folder.title) : t('automation_configFolderUnknown', 'A folder that was gone when the file was made');
-      const label = el('p', named, 'form-label');
-      if (folder.path.length) label.title = folder.path.join(' › ');
-      const detail = el('p', folder.path.length ? folder.path.join(' › ') : '', 'automation-config-path');
       const picker = createFolderPicker({ choices: [], startEmpty: true, label: named });
       pickers.set(folder.nativeId, picker);
-      field.append(label, ...(folder.path.length ? [detail] : []), picker.element);
-      if (!used.actions.has(folder.nativeId)) field.append(el('p', t('automation_configMayStayUnbound', 'Only a set’s role uses it; with no folder, the role stays unbound.'), 'automation-config-path'));
-      list.append(field);
+      const notes = [folder.path.length ? folder.path.join(' › ') : '',
+        used.actions.has(folder.nativeId) ? '' : t('automation_configMayStayUnbound', 'Only a set’s role uses it; with no folder, the role stays unbound.')].filter(Boolean);
+      list.append(folderRow(named, notes, picker));
     }
     body.append(list);
   }
   let replace = false;
-  const mode = el('div', undefined, 'choice-pair');
-  const group = `automation-config-mode-${crypto.randomUUID()}`;
-  const choice = (value: boolean, title: string, hint: string) => {
-    const label = el('label', undefined, 'choice');
-    const input = el('input'); input.type = 'radio'; input.name = group; input.checked = value === replace;
-    input.addEventListener('change', () => { if (input.checked) replace = value; });
-    label.append(input, el('span', title, 'choice-title'), el('span', hint, 'choice-hint'));
-    return label;
-  };
-  mode.append(choice(false, t('automation_configAdd', 'Add below my rules'), t('automation_configAddHint', 'Your list stays as it is; the file’s entries come after it.')),
-    choice(true, t('automation_configReplace', 'Replace my rules'), t('automation_configReplaceHint', 'Your rules, sets and subscriptions here are removed first.')));
+  const mode = optionGroup('radio', [
+    { value: 'add', title: t('automation_configAdd', 'Add below my rules'), hint: t('automation_configAddHint', 'Your list stays as it is; the file’s entries come after it.'), checked: true },
+    { value: 'replace', title: t('automation_configReplace', 'Replace my rules'), hint: t('automation_configReplaceHint', 'Your rules, sets and subscriptions here are removed first.'), checked: false }]);
+  for (const input of mode.inputs) input.addEventListener('change', () => { if (input.checked) replace = input.value === 'replace'; });
   const error = el('p', undefined, 'form-error'); error.setAttribute('role', 'alert'); error.hidden = true;
-  body.append(mode, error);
+  body.append(mode.element, error);
   const cancel = dialogButton(t('common_cancel', 'Cancel'));
   const go = dialogButton(t('automation_configImport', 'Import'), 'primary');
   cancel.addEventListener('click', () => dialog.close());

@@ -3,6 +3,7 @@ import { relativeText, t, tn } from '../i18n.js';
 import { el, selectOf } from '../library-dom.js';
 import { showToast } from '../toast.js';
 import type { BrowserListEntryView, BrowserRulesetView } from './messages.js';
+import { dialogSummary, optionGroup } from './dialog-parts.js';
 import { sendRuleCommand as send } from './rule-command.js';
 import { rolePickers, showProblems } from './ruleset-pane.js';
 import { confirmRollback } from './subscription-review-pane.js';
@@ -40,21 +41,15 @@ export const failureText = (view: Pick<BrowserSubscriptionView, 'origin' | 'last
   view.lastFailure ? failureWords(view.lastFailure.code, view.origin, view.lastFailure.at, view.lastFailure.status) : null;
 
 function policyField(current: BrowserSubscriptionView['updatePolicy']): { readonly element: HTMLElement; value(): BrowserSubscriptionView['updatePolicy'] } {
-  const group = `automation-sub-policy-${crypto.randomUUID()}`;
   const field = el('div', undefined, 'form-field');
-  const label = el('p', t('automation_subPolicy', 'New versions'), 'form-label'); label.id = `${group}-label`;
-  const choices = el('div', undefined, 'choice-pair'); choices.setAttribute('role', 'radiogroup'); choices.setAttribute('aria-labelledby', label.id);
-  field.append(label, choices);
-  const option = (value: 'review' | 'auto', title: string, hint: string) => {
-    const label = el('label', undefined, 'choice');
-    const input = el('input'); input.type = 'radio'; input.name = group; input.value = value; input.checked = value === current;
-    label.append(input, el('span', title, 'choice-title'), el('span', hint, 'choice-hint'));
-    return label;
-  };
-  choices.append(option('review', t('automation_subPolicyReview', 'Wait for my review'), t('automation_subPolicyReviewHint', 'You see what changes before it files anything.')),
-    option('auto', t('automation_subPolicyAuto', 'Apply small updates by themselves'),
-      t('automation_subPolicyAutoHint', 'Applies updates that change conditions and sites but add no new folder roles; anything else waits for your review.')));
-  return { element: field, value: () => (field.querySelector<HTMLInputElement>('input:checked')?.value ?? 'review') as 'review' | 'auto' };
+  const label = el('p', t('automation_subPolicy', 'New versions'), 'form-label');
+  const choices = optionGroup('radio', [
+    { value: 'review', title: t('automation_subPolicyReview', 'Wait for my review'), hint: t('automation_subPolicyReviewHint', 'You see what changes before it files anything.'), checked: current === 'review' },
+    { value: 'auto', title: t('automation_subPolicyAuto', 'Apply small updates by themselves'),
+      hint: t('automation_subPolicyAutoHint', 'Applies updates that change conditions and sites but add no new folder roles; anything else waits for your review.'), checked: current === 'auto' }],
+  t('automation_subPolicy', 'New versions'));
+  field.append(label, choices.element);
+  return { element: field, value: () => (choices.inputs.find((input) => input.checked)?.value ?? 'review') as 'review' | 'auto' };
 }
 function intervalField(current: RefreshInterval): { readonly element: HTMLElement; readonly select: HTMLSelectElement } {
   const select = selectOf([['6', t('automation_subEvery6', 'Every 6 hours')], ['24', t('automation_subEveryDay', 'Once a day')],
@@ -70,15 +65,13 @@ function intervalField(current: RefreshInterval): { readonly element: HTMLElemen
 function subscribeStep(dialog: HTMLDialogElement, body: HTMLElement, actions: HTMLElement, url: string, view: BrowserRulesetView | null, problem: string | null): void {
   body.replaceChildren();
   if (view) {
-    body.append(el('p', [view.name, t('automation_rulesetVersion', 'version $1', view.version), view.publisher ?? '', view.license ?? ''].filter(Boolean).join(' · '),
-      'automation-preview-verdict'),
-    el('p', t('automation_subFetchedFrom', 'Fetched from $1 over $2', siteOf(url), url.startsWith('https:') ? 'HTTPS' : 'HTTP'), 'detail'),
-    el('p', [tn('automation_rulesetRules', view.rules, '$1 rule', '$1 rules'), view.matchingOnly ? tn('automation_subNamingCount', view.matchingOnly,
-      '$1 entry names a site only', '$1 entries name a site only') : ''].filter(Boolean).join(' · '), 'list-row-meta'));
-    if (view.sample) {
-      body.append(el('p', view.sample.matched ? tn('automation_rulesetSample', view.sample.matched, 'Its rules would file $1 of your last $2 bookmarks.',
-        'Its rules would file $1 of your last $2 bookmarks.', view.sample.size) : t('automation_rulesetSampleNone', 'None of your last $1 bookmarks match its rules.', view.sample.size), 'detail'));
-    }
+    // What the address holds and where it came from, then what it would do here, in one box.
+    body.append(dialogSummary([view.name, t('automation_rulesetVersion', 'version $1', view.version), view.publisher ?? '', view.license ?? ''].filter(Boolean).join(' · '),
+      el('p', [t('automation_subFetchedFrom', 'Fetched from $1 over $2', siteOf(url), url.startsWith('https:') ? 'HTTPS' : 'HTTP'),
+        tn('automation_rulesetRules', view.rules, '$1 rule', '$1 rules'), view.matchingOnly ? tn('automation_subNamingCount', view.matchingOnly,
+          '$1 entry names a site only', '$1 entries name a site only') : ''].filter(Boolean).join(' · '), 'mgr-hint'),
+      view.sample ? el('p', view.sample.matched ? tn('automation_rulesetSample', view.sample.matched, 'Its rules would file $1 of your last $2 bookmarks.',
+        'Its rules would file $1 of your last $2 bookmarks.', view.sample.size) : t('automation_rulesetSampleNone', 'None of your last $1 bookmarks match its rules.', view.sample.size), 'detail') : null));
     if (view.roles.length) body.append(el('p', t('automation_rulesetRolesHint', 'Choose a folder here for each kind of page it files. A role you leave without a folder waits: its rules don’t file anything until you choose one.'), 'mgr-hint'));
   } else {
     body.append(el('p', t('automation_subCheckFailed', 'Couldn’t check it now: $1 You can still subscribe; it files nothing until a version arrives.', problem ?? ''), 'detail'));
@@ -165,18 +158,14 @@ export function openSubscriptionSettings(entry: Entry, trigger?: HTMLElement | n
   const view = entry.subscription!;
   const { dialog, body, actions } = createDialog(t('automation_subSettingsTitle', 'Updates for “$1”', view.name), 'automation-config-dialog');
   const policy = policyField(view.updatePolicy), interval = intervalField(view.refreshIntervalHours);
-  const check = (on: boolean, title: string, hint: string) => {
-    const label = el('label', undefined, 'choice');
-    const box = el('input'); box.type = 'checkbox'; box.checked = on;
-    label.append(box, el('span', title, 'choice-title'), el('span', hint, 'choice-hint'));
-    return { label, box };
-  };
-  const pause = check(view.paused, t('automation_subPause', 'Pause updates'), t('automation_subPauseHint', 'Keeps version $1 and stops checking for new ones.', view.currentVersion ?? '—'));
   // Pinned: whatever the policy, no version applies by itself; new ones wait for review (RS-13.3).
-  const pin = check(view.pinned, t('automation_subPin', 'Pin version $1', view.currentVersion ?? '—'),
-    t('automation_subPinHint', 'Keeps checking, but no new version applies by itself. Unpinning goes back to the choice above.'));
+  const holds = optionGroup('checkbox', [
+    { value: 'pause', title: t('automation_subPause', 'Pause updates'), hint: t('automation_subPauseHint', 'Keeps version $1 and stops checking for new ones.', view.currentVersion ?? '—'), checked: view.paused },
+    { value: 'pin', title: t('automation_subPin', 'Pin version $1', view.currentVersion ?? '—'),
+      hint: t('automation_subPinHint', 'Keeps checking, but no new version applies by itself. Unpinning goes back to the choice above.'), checked: view.pinned }]);
+  const [box, pinBox] = holds.inputs as [HTMLInputElement, HTMLInputElement];
   const error = errorLine();
-  body.append(policy.element, interval.element, pause.label, pin.label);
+  body.append(policy.element, interval.element, holds.element);
   if (view.previousVersion) {
     const back = el('div', undefined, 'automation-sub-section-inline');
     const use = dialogButton(t('automation_rollback', 'Use previous version'), 'secondary');
@@ -185,14 +174,13 @@ export function openSubscriptionSettings(entry: Entry, trigger?: HTMLElement | n
     body.append(back);
   }
   body.append(error);
-  const box = pause.box;
   const cancel = dialogButton(t('common_cancel', 'Cancel'));
   const save = dialogButton(t('common_save', 'Save'), 'primary');
   cancel.addEventListener('click', () => dialog.close());
   save.addEventListener('click', () => {
     save.disabled = true;
     void send({ kind: 'known.automation.browser.subscription.update', id: view.id, updatePolicy: policy.value(),
-      refreshIntervalHours: Number(interval.select.value) as RefreshInterval, paused: box.checked, pinned: pin.box.checked }).then((reply) => {
+      refreshIntervalHours: Number(interval.select.value) as RefreshInterval, paused: box.checked, pinned: pinBox.checked }).then((reply) => {
       save.disabled = false;
       if (reply.ok) { dialog.close(); showToast(t('automation_subSettingsSaved', 'Saved the update settings for “$1”.', view.name), 'ok', { announce: true }); return; }
       error.textContent = t('automation_subSettingsFailed', 'Couldn’t save these settings. Try again.'); error.hidden = false;
@@ -254,11 +242,10 @@ export function confirmCopyEntry(subscriptionId: string, sourceName: string, ite
   const { dialog, body, actions } = createDialog(t('automation_copyTitle', 'Copy “$1” to your rules?', item.name));
   body.append(el('p', item.folder ? t('automation_subCopyHint', 'The copy goes above “$1” as a rule of your own, filing into $2. It is tried before the subscription, and you can change it.', sourceName, item.folder.title)
     : t('automation_subCopyHintKeep', 'The copy goes above “$1” as a rule of your own. It is tried before the subscription, and you can change it.', sourceName), 'mgr-hint'));
-  const label = el('label', undefined, 'choice');
-  const box = el('input'); box.type = 'checkbox'; box.checked = true;
-  label.append(box, el('span', t('automation_copyTurnOff', 'Also turn off the original in “$1”', sourceName), 'choice-title'));
+  const turnOff = optionGroup('checkbox', [{ value: 'off', title: t('automation_copyTurnOff', 'Also turn off the original in “$1”', sourceName), checked: true }]);
+  const box = turnOff.inputs[0]!;
   const error = errorLine();
-  body.append(label, error);
+  body.append(turnOff.element, error);
   const cancel = dialogButton(t('common_cancel', 'Cancel'));
   const copy = dialogButton(t('automation_copy', 'Copy to my rules'), 'primary');
   cancel.addEventListener('click', () => dialog.close());
