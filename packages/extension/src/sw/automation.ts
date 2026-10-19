@@ -27,6 +27,7 @@ import { readBoundedJson } from '../json-response.js';
 import { ensurePeriodicAlarm } from './reconcile-alarm.js';
 import { browserListViews, browserPlacementViews, browserPreSaveDecision, recordBrowserPlacement, retireMovedBrowserRules,
   type AccountLink, type AccountRuleForOverlap, type BrowserPreSaveDecision } from './automation-browser.js';
+import { browserRunViews } from './automation-run.js';
 import { mappingLooksAuthoritative } from '../save-status.js';
 import { t } from '../i18n.js';
 import { extensionOrigin, hasBookmarkPermission, store, syncState } from './runtime.js';
@@ -398,7 +399,8 @@ export async function automationStateView(): Promise<AutomationStateView> {
   const filed = await browserPlacementViews();
   if (!owner) {
     const browser = await browserListViews();
-    return { account: 'signedOut', state: 'none', rules: [], placements: filed.slice(0, 10), browserRules: browser.rules, browserList: browser.list, pausedAt: null,
+    return { account: 'signedOut', state: 'none', rules: [], placements: filed.slice(0, 10), browserRules: browser.rules, browserList: browser.list,
+      browserRuns: await browserRunViews(), pausedAt: null,
       pausedBy: null, expiresAt: null, lastRefreshAt: null, problem: null, webUrl, server: null, saving: await savingFlow() };
   }
   const record = await createBundleStore(automationArea(), owner).read();
@@ -411,7 +413,7 @@ export async function automationStateView(): Promise<AutomationStateView> {
   return { account: 'signedIn', state: current.state, webUrl,
     rules: current.state === 'active' ? await ruleViews(record) : [],
     placements: [...await placementViews(automationOwnerKey(owner)), ...filed].sort((a, b) => b.at - a.at).slice(0, 10),
-    browserRules: browser.rules, browserList: browser.list,
+    browserRules: browser.rules, browserList: browser.list, browserRuns: await browserRunViews(),
     pausedAt: Number.isFinite(pausedAt) ? pausedAt : null, pausedBy: pauseKnown ? pause?.pausedBy ?? null : null,
     expiresAt: current.state === 'active' || current.state === 'paused' ? current.expiresAt : current.state === 'expired' ? current.expiredAt : null,
     lastRefreshAt: record.lastRefreshAt, problem: record.problem?.kind ?? null, server: await serverView(owner, record, owner.serverOrigin),

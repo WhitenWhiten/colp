@@ -62,6 +62,10 @@ export type BrowserRuleCommand =
   | { readonly kind: 'known.automation.browser.preview'; readonly url: string; readonly title: string }
   | { readonly kind: 'known.automation.browser.preview'; readonly nativeId: string }
   | { readonly kind: 'known.automation.browser.preview'; readonly sample: true }
+  /** Run once over one folder's bookmarks (doc 17 §6.4): preview, then apply that preview, then perhaps undo the run. */
+  | { readonly kind: 'known.automation.browser.runPreview'; readonly scopeNativeId: string }
+  | { readonly kind: 'known.automation.browser.runApply'; readonly previewId: string }
+  | { readonly kind: 'known.automation.browser.runUndo'; readonly runId: string }
   /** Keep this rule next to the account rule it overlaps, at that rule's current revision (`reviewKey`). */
   | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string }
   /** Add mine to the account was opened on the web: retire this rule once the account's enabled copy arrives. */
@@ -77,8 +81,17 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   | { readonly ok: true; readonly revision: number }
   | { readonly ok: true; readonly url: string }
   | { readonly ok: true; readonly preview: BrowserPreviewView }
+  | { readonly ok: true; readonly run: BrowserRunPreviewView }
+  /** Apply: moved now; Undo: moved back. `skipped` were left alone, `missing` are gone. */
+  | { readonly ok: true; readonly result: { readonly runId: string; readonly moved: number; readonly skipped: number; readonly missing: number } }
   /** `notSynced`: the folder is not in the synced collection; `signedOut`: there is no account to make it in. */
   | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
+
+export type BrowserRunCommand = Extract<BrowserRuleCommand, { readonly kind: 'known.automation.browser.runPreview' | 'known.automation.browser.runApply'
+  | 'known.automation.browser.runUndo' }>;
+const RUN_KINDS = new Set(['known.automation.browser.runPreview', 'known.automation.browser.runApply', 'known.automation.browser.runUndo']);
+/** Run once's commands go to their own worker module (sw/automation-run.ts). */
+export const isBrowserRunCommand = (command: BrowserRuleCommand): command is BrowserRunCommand => RUN_KINDS.has(command.kind);
 
 const RULE_ID = /^[\w-]{1,128}$/u;
 const KINDS = new Set(['siteIs', 'siteEndsWith', 'titleContains', 'pathStartsWith', 'pathUnder']);
@@ -138,6 +151,9 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
     return keys === 4 && id(raw.id) && (raw.entry === 'rule' || raw.entry === 'set') && typeof raw.name === 'string' && raw.name.length <= 1024;
   }
   if (raw.kind === 'known.automation.browser.notice.dismiss') return keys === 1;
+  if (raw.kind === 'known.automation.browser.runPreview') return keys === 2 && typeof raw.scopeNativeId === 'string' && /^[\w.-]{1,128}$/u.test(raw.scopeNativeId);
+  if (raw.kind === 'known.automation.browser.runApply') return keys === 2 && id(raw.previewId);
+  if (raw.kind === 'known.automation.browser.runUndo') return keys === 2 && id(raw.runId);
   if (raw.kind === 'known.automation.browser.preview') {
     if (raw.sample !== undefined) return keys === 2 && raw.sample === true;
     if (raw.nativeId !== undefined) return keys === 2 && typeof raw.nativeId === 'string' && /^[\w.-]{1,128}$/u.test(raw.nativeId);
@@ -248,6 +264,43 @@ export interface BrowserPreviewView {
   readonly page?: BrowserPreviewPageView;
   readonly sample?: { readonly size: number; readonly rows: readonly BrowserPreviewSampleRow[];
     readonly broad: readonly (BrowserPreviewEntryView & { readonly shadows: number })[] };
+}
+
+/** What Run once would do in one folder, before anything moves (doc 17 §6.4). */
+export interface BrowserRunPreviewView {
+  readonly previewId: string;
+  readonly expiresAt: number;
+  readonly scope: { readonly nativeId: string; readonly title: string };
+  /** Bookmarks looked at, the folder's subfolders included. */
+  readonly counted: number;
+  /** Over the 20,000 a run takes: nothing was planned. */
+  readonly tooMany: boolean;
+  readonly moves: number;
+  /** Already where their rule files them. */
+  readonly unchanged: number;
+  /** A rule keeps them where they are. */
+  readonly kept: number;
+  readonly unmatched: number;
+  /** A rule matches, but its folder is not available here. */
+  readonly blocked: number;
+  /** Subfolders not entered: a bookmark subscription manages them, or they are excluded. */
+  readonly excludedFolders: number;
+  readonly topFolders: readonly { readonly nativeId: string; readonly title: string; readonly count: number }[];
+  readonly examples: readonly { readonly title: string; readonly url: string; readonly to: string }[];
+}
+/** A run, as Options lists it with its Undo. */
+export interface BrowserRunView {
+  readonly runId: string;
+  readonly startedAt: number;
+  readonly finishedAt: number | null;
+  readonly scopeTitle: string;
+  /** `interrupted`: the worker stopped before the run finished; what it moved can still be undone. */
+  readonly state: 'running' | 'interrupted' | 'done' | 'undone';
+  readonly moved: number;
+  readonly skipped: number;
+  readonly undone: number;
+  readonly undoneAt: number | null;
+  readonly canUndo: boolean;
 }
 
 /** This browser's ordered list, as Options shows it (doc 17 §4.1): its entries in the order saves try them. */
@@ -361,6 +414,8 @@ export interface AutomationStateView {
   readonly browserRules: readonly BrowserRuleView[];
   /** The same rules as the list they are kept in: individual rules, sets and subscriptions. */
   readonly browserList: BrowserListView;
+  /** Run once's last runs, newest first (doc 17 §6.4); absent where nothing reads them. */
+  readonly browserRuns?: readonly BrowserRunView[];
   readonly pausedAt: number | null;
   readonly pausedBy: 'owner' | 'restore' | 'capacity' | null;
   readonly expiresAt: number | null;

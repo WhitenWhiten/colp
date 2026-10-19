@@ -1031,6 +1031,183 @@
   "automation_runNew": {
     "message": "New"
   },
+  "automation_runOnce": {
+    "message": "Run once"
+  },
+  "automation_runOnceApply_one": {
+    "message": "Move $1 bookmark"
+  },
+  "automation_runOnceApply_other": {
+    "message": "Move $1 bookmarks"
+  },
+  "automation_runOnceBlocked_one": {
+    "message": "$1 can’t be filed here: its folder isn’t available"
+  },
+  "automation_runOnceBlocked_other": {
+    "message": "$1 can’t be filed here: their folders aren’t available"
+  },
+  "automation_runOnceChanged": {
+    "message": "Your rules changed since this preview. Preview again."
+  },
+  "automation_runOnceChangedSince_one": {
+    "message": "$1 had changed since and stayed where it is."
+  },
+  "automation_runOnceChangedSince_other": {
+    "message": "$1 had changed since and stayed where they are."
+  },
+  "automation_runOnceEmpty": {
+    "message": "“$1” has no bookmarks to sort."
+  },
+  "automation_runOnceExample": {
+    "message": "$1 → $2"
+  },
+  "automation_runOnceExamples": {
+    "message": "For example"
+  },
+  "automation_runOnceExcludedScope": {
+    "message": "A bookmark subscription keeps this folder. Choose one of your own."
+  },
+  "automation_runOnceExcluded_one": {
+    "message": "$1 subscription folder left out"
+  },
+  "automation_runOnceExcluded_other": {
+    "message": "$1 subscription folders left out"
+  },
+  "automation_runOnceExpired": {
+    "message": "This preview expired. Preview again."
+  },
+  "automation_runOnceFailed": {
+    "message": "Couldn’t run your rules. Try again."
+  },
+  "automation_runOnceFolder": {
+    "message": "Folder"
+  },
+  "automation_runOnceGone": {
+    "message": "This folder is gone. Choose another one."
+  },
+  "automation_runOnceHint": {
+    "message": "Your rules sort the bookmarks already in a folder, its subfolders too, as if you had just saved them. Nothing moves until you confirm, and you can undo the run."
+  },
+  "automation_runOnceKept_one": {
+    "message": "$1 kept where it is by a rule"
+  },
+  "automation_runOnceKept_other": {
+    "message": "$1 kept where they are by a rule"
+  },
+  "automation_runOnceLeft_one": {
+    "message": "$1 had changed meanwhile and was left alone."
+  },
+  "automation_runOnceLeft_other": {
+    "message": "$1 had changed meanwhile and were left alone."
+  },
+  "automation_runOnceListHint": {
+    "message": "Undo moves back only what is still where the run left it."
+  },
+  "automation_runOnceListOff": {
+    "message": "Rules in this browser are switched off. Turn them on to run them."
+  },
+  "automation_runOnceListTitle": {
+    "message": "Runs"
+  },
+  "automation_runOnceMovedBack_one": {
+    "message": "Moved $1 bookmark back."
+  },
+  "automation_runOnceMovedBack_other": {
+    "message": "Moved $1 bookmarks back."
+  },
+  "automation_runOnceMoved_one": {
+    "message": "Moved $1 bookmark."
+  },
+  "automation_runOnceMoved_other": {
+    "message": "Moved $1 bookmarks."
+  },
+  "automation_runOnceNeedFolder": {
+    "message": "Choose the folder to sort."
+  },
+  "automation_runOnceNoAccess": {
+    "message": "Know-N needs access to your bookmarks to sort them."
+  },
+  "automation_runOnceNothing": {
+    "message": "Nothing in “$1” would move."
+  },
+  "automation_runOncePreview": {
+    "message": "Preview"
+  },
+  "automation_runOnceRowMoved_one": {
+    "message": "$1 moved"
+  },
+  "automation_runOnceRowMoved_other": {
+    "message": "$1 moved"
+  },
+  "automation_runOnceRowSkipped_one": {
+    "message": "$1 left alone"
+  },
+  "automation_runOnceRowSkipped_other": {
+    "message": "$1 left alone"
+  },
+  "automation_runOnceRowTitle": {
+    "message": "Ran on “$1”"
+  },
+  "automation_runOnceRowUndone_one": {
+    "message": "$1 moved back"
+  },
+  "automation_runOnceRowUndone_other": {
+    "message": "$1 moved back"
+  },
+  "automation_runOnceStateInterrupted": {
+    "message": "Stopped early"
+  },
+  "automation_runOnceStateRunning": {
+    "message": "Running"
+  },
+  "automation_runOnceStateUndone": {
+    "message": "Undone"
+  },
+  "automation_runOnceTitle": {
+    "message": "Run your rules once"
+  },
+  "automation_runOnceToFolder_one": {
+    "message": "$2: $1 bookmark"
+  },
+  "automation_runOnceToFolder_other": {
+    "message": "$2: $1 bookmarks"
+  },
+  "automation_runOnceTooMany": {
+    "message": "“$1” holds more than 20,000 bookmarks. Choose a smaller folder."
+  },
+  "automation_runOnceUnchanged_one": {
+    "message": "$1 already in place"
+  },
+  "automation_runOnceUnchanged_other": {
+    "message": "$1 already in place"
+  },
+  "automation_runOnceUndo": {
+    "message": "Undo"
+  },
+  "automation_runOnceUndoFailed": {
+    "message": "Couldn’t undo this run. Try again."
+  },
+  "automation_runOnceUndoLabel": {
+    "message": "Undo the run on “$1”"
+  },
+  "automation_runOnceUndoWhere": {
+    "message": "You can undo this run under Runs."
+  },
+  "automation_runOnceUnmatched_one": {
+    "message": "$1 matches no rule"
+  },
+  "automation_runOnceUnmatched_other": {
+    "message": "$1 match no rule"
+  },
+  "automation_runOnceWhere": {
+    "message": "Where they would go"
+  },
+  "automation_runOnceWouldMove_one": {
+    "message": "$1 of $2 bookmarks in “$3” would move."
+  },
+  "automation_runOnceWouldMove_other": {
+    "message": "$1 of $2 bookmarks in “$3” would move."
+  },
   "automation_runPartial": {
     "message": "Partly done"
   },

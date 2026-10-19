@@ -7,7 +7,7 @@ import { flattenList, type FlatItem } from '../automation/rule-list-flatten.js';
 import { createRuleListStore, individualRules, ruleFolderNativeId, type LocalRule, type LocalSet, type RuleListStore } from '../automation/rule-list-store.js';
 import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '../automation/browser-overlap.js';
 import type { AutomationPlacementView, BrowserListEntryView, BrowserListView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse,
-  BrowserRuleView } from '../automation/messages.js';
+  BrowserRuleView, BrowserRunCommand } from '../automation/messages.js';
 import { ruleMatchView } from '../automation/rule-match.js';
 import { PREVIEW_SAMPLE, previewList, type PreviewPage } from '../automation/rule-preview.js';
 import type { PreSaveInput } from '../automation/pre-save.js';
@@ -221,7 +221,7 @@ export async function browserPlacementViews(): Promise<AutomationPlacementView[]
   });
 }
 
-export async function handleBrowserRuleCommand(command: BrowserRuleCommand,
+export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleCommand, BrowserRunCommand>,
   link: () => Promise<AccountLink | null> = async () => null): Promise<BrowserRuleResponse> {
   const store = browserRuleStore(), now = Date.now();
   const rule = (value: LocalRule | null): BrowserRuleResponse => value ? { ok: true, rule: value } : { ok: false, error: 'notFound' };

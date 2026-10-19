@@ -1339,6 +1339,182 @@
     "message": "新",
     "description": "New"
   },
+  "automation_runOnce": {
+    "message": "运行一次",
+    "description": "Run once"
+  },
+  "automation_runOnceApply_other": {
+    "message": "移动 $1 个书签",
+    "description": "Move $1 bookmarks"
+  },
+  "automation_runOnceBlocked_other": {
+    "message": "$1 个无法在这里归档：它们的文件夹不可用",
+    "description": "$1 can’t be filed here: their folders aren’t available"
+  },
+  "automation_runOnceChanged": {
+    "message": "预览之后你的规则已更改。请重新预览。",
+    "description": "Your rules changed since this preview. Preview again."
+  },
+  "automation_runOnceChangedSince_other": {
+    "message": "$1 个之后有过变动，留在了原处。",
+    "description": "$1 had changed since and stayed where they are."
+  },
+  "automation_runOnceEmpty": {
+    "message": "“$1”中没有可整理的书签。",
+    "description": "“$1” has no bookmarks to sort."
+  },
+  "automation_runOnceExample": {
+    "message": "$1 → $2",
+    "description": "$1 → $2"
+  },
+  "automation_runOnceExamples": {
+    "message": "例如",
+    "description": "For example"
+  },
+  "automation_runOnceExcludedScope": {
+    "message": "这个文件夹由书签订阅管理。请选择你自己的文件夹。",
+    "description": "A bookmark subscription keeps this folder. Choose one of your own."
+  },
+  "automation_runOnceExcluded_other": {
+    "message": "跳过了 $1 个订阅文件夹",
+    "description": "$1 subscription folders left out"
+  },
+  "automation_runOnceExpired": {
+    "message": "这个预览已过期。请重新预览。",
+    "description": "This preview expired. Preview again."
+  },
+  "automation_runOnceFailed": {
+    "message": "无法运行你的规则。请重试。",
+    "description": "Couldn’t run your rules. Try again."
+  },
+  "automation_runOnceFolder": {
+    "message": "文件夹",
+    "description": "Folder"
+  },
+  "automation_runOnceGone": {
+    "message": "这个文件夹已不存在。请选择另一个。",
+    "description": "This folder is gone. Choose another one."
+  },
+  "automation_runOnceHint": {
+    "message": "你的规则会整理某个文件夹（包括其子文件夹）中已有的书签，就像你刚保存它们一样。确认之前不会移动任何内容，之后也可以撤销这次运行。",
+    "description": "Your rules sort the bookmarks already in a folder, its subfolders too, as if you had just saved them. Nothing moves until you confirm, and you can undo the run."
+  },
+  "automation_runOnceKept_other": {
+    "message": "$1 个被规则留在原处",
+    "description": "$1 kept where they are by a rule"
+  },
+  "automation_runOnceLeft_other": {
+    "message": "$1 个在此期间有过变动，未被移动。",
+    "description": "$1 had changed meanwhile and were left alone."
+  },
+  "automation_runOnceListHint": {
+    "message": "撤销只会移回仍在运行所放位置的书签。",
+    "description": "Undo moves back only what is still where the run left it."
+  },
+  "automation_runOnceListOff": {
+    "message": "此浏览器中的规则已关闭。请先开启再运行。",
+    "description": "Rules in this browser are switched off. Turn them on to run them."
+  },
+  "automation_runOnceListTitle": {
+    "message": "运行记录",
+    "description": "Runs"
+  },
+  "automation_runOnceMovedBack_other": {
+    "message": "已移回 $1 个书签。",
+    "description": "Moved $1 bookmarks back."
+  },
+  "automation_runOnceMoved_other": {
+    "message": "已移动 $1 个书签。",
+    "description": "Moved $1 bookmarks."
+  },
+  "automation_runOnceNeedFolder": {
+    "message": "选择要整理的文件夹。",
+    "description": "Choose the folder to sort."
+  },
+  "automation_runOnceNoAccess": {
+    "message": "Know-N 需要访问你的书签才能整理它们。",
+    "description": "Know-N needs access to your bookmarks to sort them."
+  },
+  "automation_runOnceNothing": {
+    "message": "“$1”中没有需要移动的书签。",
+    "description": "Nothing in “$1” would move."
+  },
+  "automation_runOncePreview": {
+    "message": "预览",
+    "description": "Preview"
+  },
+  "automation_runOnceRowMoved_other": {
+    "message": "移动了 $1 个",
+    "description": "$1 moved"
+  },
+  "automation_runOnceRowSkipped_other": {
+    "message": "$1 个未移动",
+    "description": "$1 left alone"
+  },
+  "automation_runOnceRowTitle": {
+    "message": "在“$1”上运行",
+    "description": "Ran on “$1”"
+  },
+  "automation_runOnceRowUndone_other": {
+    "message": "移回了 $1 个",
+    "description": "$1 moved back"
+  },
+  "automation_runOnceStateInterrupted": {
+    "message": "提前停止",
+    "description": "Stopped early"
+  },
+  "automation_runOnceStateRunning": {
+    "message": "运行中",
+    "description": "Running"
+  },
+  "automation_runOnceStateUndone": {
+    "message": "已撤销",
+    "description": "Undone"
+  },
+  "automation_runOnceTitle": {
+    "message": "运行一次你的规则",
+    "description": "Run your rules once"
+  },
+  "automation_runOnceToFolder_other": {
+    "message": "$2：$1 个书签",
+    "description": "$2: $1 bookmarks"
+  },
+  "automation_runOnceTooMany": {
+    "message": "“$1”中的书签超过 20,000 个。请选择一个更小的文件夹。",
+    "description": "“$1” holds more than 20,000 bookmarks. Choose a smaller folder."
+  },
+  "automation_runOnceUnchanged_other": {
+    "message": "$1 个已在正确位置",
+    "description": "$1 already in place"
+  },
+  "automation_runOnceUndo": {
+    "message": "撤销",
+    "description": "Undo"
+  },
+  "automation_runOnceUndoFailed": {
+    "message": "无法撤销这次运行。请重试。",
+    "description": "Couldn’t undo this run. Try again."
+  },
+  "automation_runOnceUndoLabel": {
+    "message": "撤销在“$1”上的运行",
+    "description": "Undo the run on “$1”"
+  },
+  "automation_runOnceUndoWhere": {
+    "message": "你可以在“运行记录”中撤销这次运行。",
+    "description": "You can undo this run under Runs."
+  },
+  "automation_runOnceUnmatched_other": {
+    "message": "$1 个不匹配任何规则",
+    "description": "$1 match no rule"
+  },
+  "automation_runOnceWhere": {
+    "message": "它们会去哪里",
+    "description": "Where they would go"
+  },
+  "automation_runOnceWouldMove_other": {
+    "message": "“$3”中的 $2 个书签里有 $1 个会被移动。",
+    "description": "$1 of $2 bookmarks in “$3” would move."
+  },
   "automation_runPartial": {
     "message": "部分完成",
     "description": "Partly done"

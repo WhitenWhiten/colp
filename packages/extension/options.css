@@ -1567,6 +1567,15 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-preview-verdict { margin: 0; color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-copy); }
 .automation-preview-broad { margin: 0; padding-left: var(--hair-55); border-left: 2px solid var(--warning); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-preview-entries > .form-label { margin: 0; }
+/* Run once (doc 17 §6.4): what a folder's run would move, and the runs with their Undo. */
+.automation-run-dialog .folder-picker { min-width: 0; }
+.automation-run-result { display: grid; gap: var(--space-2); }
+.automation-run-result .detail { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.automation-run-result ul { margin: 0; padding-left: var(--space-4); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
+.automation-run-result .form-label { margin: var(--hair-30) 0 0; }
+.automation-runs-head { display: grid; gap: var(--hair-15); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); }
+.automation-runs-head > h3 { margin: 0; color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-semibold); line-height: var(--leading-ui); }
+.automation-runs-head > .detail { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-preview ul { margin: var(--hair-15) 0 0; padding-left: var(--space-4); color: var(--ink-2);
   font-size: var(--text-xs); line-height: var(--leading-body); }
 .rule-set-head { background: var(--paper); }

@@ -11,6 +11,7 @@ import { openRuleEditor } from './rule-editor-dialog.js';
 import { sendRuleCommand } from './rule-command.js';
 import { entryPlace, listSets, restoreListFocus, revealEntry, ruleListGroup } from './rule-list-pane.js';
 import { createRulePreview } from './rule-preview-pane.js';
+import { runList } from './run-once-pane.js';
 import { flowStrip } from './flow-strip.js';
 import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
 
@@ -411,7 +412,8 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     openWeb.hidden = !view.webUrl || view.account === 'signedOut';
     if (view.webUrl) openWeb.href = view.webUrl;
     const parts: HTMLElement[] = [];
-    const tried = view.browserList.entries.length ? [preview.element] : [];
+    const runs = runList(view);
+    const tried = view.browserList.entries.length ? [preview.element, ...(runs ? [runs] : [])] : [];
     if (tried.length) preview.update(view);
     if (view.account === 'signedOut') {
       // This browser's rules need no account, so they lead; the account's rules are one sign-in away.
