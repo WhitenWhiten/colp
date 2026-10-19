@@ -252,4 +252,19 @@ describe('durable run recovery and user edits', () => {
     expect(parent('b1')).toBe('30');
     expect(tree.nodes.get('30')!.children![0]).toBe('b1');
   });
+  it('retains the intent when observing a completed move temporarily fails', async () => {
+    const run = await preview(), originalGet = chrome.bookmarks.get;
+    const failure = vi.spyOn(chrome.bookmarks, 'get').mockImplementation(async id => {
+      if (id === 'b1' && parent('b1') === '30') throw new Error('Browser API temporarily unavailable');
+      return originalGet(id);
+    });
+    await expect(handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId })).rejects.toThrow('temporarily unavailable');
+    failure.mockRestore();
+    const { browserRunViews } = await import('../src/sw/automation-run.js');
+    const [runView] = await browserRunViews();
+    expect(runView!.canUndo).toBe(true);
+    await handleRunCommand({ kind: 'known.automation.browser.runUndo', runId: runView!.runId });
+    expect(parent('b1')).toBe('20');
+  });
+
 });

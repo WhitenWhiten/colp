@@ -1,3 +1,4 @@
+import { classifyBookmarkApiFailure } from '../bookmark-api-error.js';
 import { assertBookmarkFolderAllowed } from '../bookmark-folder-policy.js';
 import { exclusionIds, isSubscriptionExcluded, personalBookmarks } from '../bookmark-subscriptions/guards.js';
 import { createRunJournalStore, matchesRunPosition, settleRunIntent, type JournalItem, type RunJournal } from '../automation/run-journal.js';
@@ -34,7 +35,10 @@ const exclusive = createLane();
 let running: string | null = null;
 const sameVersions = (a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>) =>
   Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([key, value]) => b[key] === value);
-const node = async (nativeId: string) => (await chrome.bookmarks.get(nativeId).catch(() => []))[0] ?? null;
+const node = async (nativeId: string) => {
+  try { return (await chrome.bookmarks.get(nativeId))[0] ?? null; }
+  catch (error) { if (classifyBookmarkApiFailure(error) === 'not_found') return null; throw error; }
+};
 
 async function destinationAllowed(nativeId: string): Promise<boolean> {
   try { await assertBookmarkFolderAllowed(nativeId); return !await isSubscriptionExcluded(nativeId); } catch { return false; }
