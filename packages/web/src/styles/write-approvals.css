@@ -2,19 +2,9 @@
 
 @layer pages {
 /* ——— MCP Write approvals ———
-   R10-16: the head is PageHead layout="split" variant="workbench" — the
-   variant owns the ornament subtraction + compact title; the host only
-   pulls the bottom margin flush against the live-status line below. */
-.write-approvals-head {
-  margin-bottom: 0;
-}
-
-.write-approvals-live {
-  min-height: 1.25rem;
-  margin-top: var(--space-3);
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
+   R10-16: the head is PageHead layout="split" variant="workbench"; the
+   variant owns the ornament subtraction + compact title, and the content
+   starts one head gap below it as on every owner page. */
 
 .write-approvals-error {
   width: 100%;
@@ -477,7 +467,6 @@
 }
 
 @media (max-width: 719px) {
-  .write-approvals-head,
   .write-approvals-error {
     align-items: stretch;
     flex-direction: column;
@@ -489,7 +478,6 @@
   .write-approval-scopes {
     flex-basis: 100%;
   }
-  .write-approvals-head .btn,
   .write-approvals-error .btn {
     align-self: flex-start;
   }

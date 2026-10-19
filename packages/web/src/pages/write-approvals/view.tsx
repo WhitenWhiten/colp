@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { productClient } from '../../api'
 import { Breadcrumb } from '../../components/Breadcrumb'
-import { EmptyState } from '../../components/EmptyState'
+import { EmptyState, LoadingState } from '../../components/EmptyState'
 import { FilterRail } from '../../components/FilterRail'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
@@ -47,7 +47,6 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
     <PageShell>
         <PageHead
           as="header"
-          className="write-approvals-head"
           layout="split"
           variant="workbench"
           breadcrumb={detailMode
@@ -68,15 +67,15 @@ export function WriteApprovalsView({ data }: { data: WriteApprovalsData }) {
           ) : undefined}
         />
 
-        <div className="write-approvals-live" aria-live="polite">
-          {authPending
-            ? 'Checking your session…'
-            : loading
-            ? 'Loading write approvals…'
-            : refreshing
-              ? 'Refreshing write approvals…'
-              : ''}
+        {/* The first load shows the shared loading state, which announces
+            itself; a refresh keeps the list and says so here and on the
+            Refresh button. */}
+        <div className="visually-hidden" aria-live="polite">
+          {!authPending && !loading && refreshing ? 'Refreshing write approvals…' : ''}
         </div>
+        {(authPending || loading) && !loadError && !invalidPlanId && !missingDetail && (
+          <LoadingState label={authPending ? 'Checking your session…' : 'Loading approvals…'} />
+        )}
 
         {invalidPlanId && (
           <EmptyState

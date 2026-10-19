@@ -54,7 +54,7 @@ export function SyncView({ data, mutations, trashBatch }: {
           }
         />
 
-        <div className="sync-live" aria-live="polite">{loading && !status ? '' : loading ? 'Loading Sync status…' : refreshing ? 'Refreshing Sync status…' : ''}</div>
+        <div className="visually-hidden" aria-live="polite">{loading && !status ? '' : loading ? 'Loading Sync status…' : refreshing ? 'Refreshing Sync status…' : ''}</div>
         {loadError && loadErrorKind === 'auth' && (
           <RouteState
             className="empty-state--compact"

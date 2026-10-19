@@ -8,7 +8,6 @@
   gap: var(--space-4);
 }
 
-.sync-live { min-height: 1.25rem; color: var(--muted); font-size: var(--text-sm); }
 .sync-error,
 .sync-recovery { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--hair-90) 0; border-block: 1px solid var(--line); }
 .sync-error { width: 100%; color: var(--danger); }
