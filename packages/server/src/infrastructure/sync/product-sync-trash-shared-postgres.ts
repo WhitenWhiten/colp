@@ -14,6 +14,7 @@ import { createPostgresProductCommandReceiptPort } from '../database/product-com
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { Metrics } from '../telemetry/index.js';
 import { applyCanonicalNodeRestore } from './sync-node-restore-postgres.js';
+import { stableJson } from './product-sync-stable-json.js';
 
 export interface ProductSyncTrashPostgresOptions {
   readonly cursorSecret: string;
@@ -229,13 +230,4 @@ export function preconditionFailed() {
 }
 export function invalidRequest(message = 'The restore request is invalid.') {
   return Object.assign(new Error(message), { code: 'invalid_request' });
-}
-
-export function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
 }

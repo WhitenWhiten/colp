@@ -17,6 +17,7 @@ import { retireReplicaInTransaction } from './replica-lifecycle-postgres.js';
 import type { ReportSourceInvalidationOutboxPort } from '../outbox/report-source-invalidation-producer.js';
 import type { Metrics } from '../telemetry/index.js';
 import { productSyncTrashPorts } from './product-sync-trash-postgres.js';
+import { stableJson } from './product-sync-stable-json.js';
 
 const CONTRACT_VERSION = '1.10.0';
 const JSON_TYPE = 'application/json; charset=utf-8';
@@ -316,7 +317,7 @@ async function command<T>(transaction: DatabaseTransaction,
 }
 
 function encodeCursor(value: { createdAt: string; id: string; limit: number }, accountId: string, secret: string): string {
-  const payload = Buffer.from(stableJson({ v: 1, p: 'product-sync-conflicts', exp: Date.now() + 15 * 60_000, ...value }), 'utf8').toString('base64url');
+  const payload = Buffer.from(stableJson({ v: 1, p: 'product-sync-conflicts', exp: Date.now() + 15 * 60_000, ...value }, 'reject'), 'utf8').toString('base64url');
   const signature = createHmac('sha256', secret).update('product-sync-conflicts\0').update(accountId).update('\0').update(payload).digest('base64url'); return `${payload}.${signature}`;
 }
 function decodeCursor(cursor: string, accountId: string, secret: string): { createdAt: string; id: string; limit: number } {
@@ -334,12 +335,3 @@ function decodeCursor(cursor: string, accountId: string, secret: string): { crea
 }
 function notFound() { return Object.assign(new Error('Replica not found'), { code: 'resource_not_found' }); }
 function preconditionFailed() { return Object.assign(new Error('Replica lifecycle revision changed'), { code: 'precondition_failed' }); }
-
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
