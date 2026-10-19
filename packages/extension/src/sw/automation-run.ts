@@ -1,5 +1,8 @@
 import { assertBookmarkFolderAllowed } from '../bookmark-folder-policy.js';
 import { exclusionIds, isSubscriptionExcluded, personalBookmarks } from '../bookmark-subscriptions/guards.js';
+import { createRunJournalStore, matchesRunPosition, settleRunIntent, type JournalItem, type RunJournal } from '../automation/run-journal.js';
+export { RUNS_KEY } from '../automation/run-journal.js';
+export type { RunJournal } from '../automation/run-journal.js';
 import { record } from '../automation/closed-value.js';
 import { automationDatabase } from '../automation/indexeddb-store.js';
 import { createLane } from '../automation/lane.js';
@@ -16,8 +19,6 @@ import { hasBookmarkPermission } from './runtime.js';
  * moves in a synced folder reach the server as the Owner's own moves, with no automation receipt.
  */
 export const RUN_PREVIEW_KEY = 'known.automation.browserRunPreview.v1';
-export const RUNS_KEY = 'known.automation.browserRuns.v1';
-const RUN_KEEP = 10, JOURNAL_EVERY = 20, ID = /^[\w-]{1,128}$/u;
 
 interface StoredPreview extends RunPlan {
   readonly previewId: string;
@@ -27,40 +28,10 @@ interface StoredPreview extends RunPlan {
   readonly scopeTitle: string;
   readonly expiresAt: number;
 }
-interface JournalItem {
-  readonly nativeId: string;
-  readonly fromParentId: string;
-  readonly fromIndex: number;
-  readonly toParentId: string;
-  readonly state: 'moved' | 'skipped' | 'undone';
-  /** Why the run left it alone. */
-  readonly reason?: 'missing' | 'movedMeanwhile' | 'failed';
-  /** Why Undo left a moved bookmark where it is. */
-  readonly kept?: 'missing' | 'changedSince' | 'failed';
-}
-export interface RunJournal {
-  readonly runId: string;
-  readonly startedAt: number;
-  readonly finishedAt: number | null;
-  readonly listRevision: number;
-  readonly scopeNativeId: string;
-  readonly scopeTitle: string;
-  readonly undoneAt: number | null;
-  readonly items: readonly JournalItem[];
-}
-
 const area = () => automationDatabase().area();
+const journalStore = () => createRunJournalStore(area());
 const exclusive = createLane();
 let running: string | null = null;
-async function journals(): Promise<RunJournal[]> {
-  const value = await area().get(RUNS_KEY);
-  return (Array.isArray(value) ? value : []).filter((item): item is RunJournal => record(item) && typeof item.runId === 'string'
-    && ID.test(item.runId) && typeof item.startedAt === 'number' && Array.isArray(item.items));
-}
-async function keep(journal: RunJournal): Promise<void> {
-  const rest = (await journals()).filter((item) => item.runId !== journal.runId);
-  await area().set(RUNS_KEY, [journal, ...rest].sort((a, b) => b.startedAt - a.startedAt).slice(0, RUN_KEEP));
-}
 const sameVersions = (a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>) =>
   Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([key, value]) => b[key] === value);
 const node = async (nativeId: string) => (await chrome.bookmarks.get(nativeId).catch(() => []))[0] ?? null;
@@ -95,50 +66,64 @@ async function apply(previewId: string): Promise<BrowserRuleResponse> {
   // The run is the previewed list's run: a list that moved on since is previewed again (RS-08.4).
   const flat = await currentFlat();
   if (flat.revision !== stored.listRevision || !sameVersions(flat.contentVersions, stored.contentVersions)) return { ok: false, error: 'changed' };
-  let journal: RunJournal = { runId: crypto.randomUUID(), startedAt: Date.now(), finishedAt: null, listRevision: stored.listRevision,
+  const journal: RunJournal = { runId: crypto.randomUUID(), startedAt: Date.now(), finishedAt: null, listRevision: stored.listRevision,
     scopeNativeId: stored.scopeNativeId, scopeTitle: stored.scopeTitle, undoneAt: null, items: [] };
+  const log = journalStore(), items: JournalItem[] = [];
   running = journal.runId;
   try {
-    await keep(journal);
-    const items: JournalItem[] = [];
-    for (const [index, move] of stored.moves.entries()) {
+    await log.create(journal, stored.moves.length);
+    for (const [ordinal, move] of stored.moves.entries()) {
       const current = await node(move.nativeId);
-      const base = { nativeId: move.nativeId, fromParentId: move.fromParentId, fromIndex: current?.index ?? 0, toParentId: move.toParentId };
-      if (!current) items.push({ ...base, state: 'skipped', reason: 'missing' });
-      else if (current.parentId !== move.fromParentId) items.push({ ...base, state: 'skipped', reason: 'movedMeanwhile' });
+      let item: JournalItem = { ordinal, nativeId: move.nativeId, fromParentId: move.fromParentId,
+        fromIndex: current?.index ?? 0, toParentId: move.toParentId, title: move.title, url: move.url, state: 'moving' };
+      if (!current) item = { ...item, state: 'skipped', reason: 'missing' };
+      else if (current.parentId !== move.fromParentId || current.title !== move.title || current.url !== move.url)
+        item = { ...item, state: 'skipped', reason: 'movedMeanwhile' };
       else {
-        try { await personalBookmarks.move(move.nativeId, { parentId: move.toParentId }); items.push({ ...base, state: 'moved' }); }
-        catch { items.push({ ...base, state: 'skipped', reason: 'failed' }); }
+        item = { ...item, toIndex: (await chrome.bookmarks.getChildren(move.toParentId)).length };
+        // A worker stop before or after the native call leaves an intent that Undo can inspect.
+        await log.write(journal.runId, item);
+        try { await personalBookmarks.move(move.nativeId, { parentId: move.toParentId, index: item.toIndex }); }
+        catch { /* A rejected native call can still have applied; inspect its effect before deciding. */ }
+        item = settleRunIntent(item, await node(move.nativeId));
       }
-      if (index % JOURNAL_EVERY === JOURNAL_EVERY - 1) { journal = { ...journal, items: [...items] }; await keep(journal); }
+      await log.write(journal.runId, item);
+      items.push(item);
     }
-    journal = { ...journal, items, finishedAt: Date.now() };
-    await keep(journal);
+    await log.finish(journal.runId, { finishedAt: Date.now() });
   } finally { running = null; }
-  const count = (state: JournalItem['state'], reason?: JournalItem['reason']) => journal.items.filter((item) => item.state === state && (!reason || item.reason === reason)).length;
+  const count = (state: JournalItem['state'], reason?: JournalItem['reason']) => items.filter((item) => item.state === state && (!reason || item.reason === reason)).length;
   return { ok: true, result: { runId: journal.runId, moved: count('moved'), skipped: count('skipped') - count('skipped', 'missing'), missing: count('skipped', 'missing') } };
 }
 
 async function undo(runId: string): Promise<BrowserRuleResponse> {
-  const journal = (await journals()).find((item) => item.runId === runId);
+  const log = journalStore(), journal = (await log.list()).find((item) => item.runId === runId);
   if (!journal) return { ok: false, error: 'notFound' };
-  const items = [...journal.items];
   let moved = 0, skipped = 0, missing = 0;
-  // Last moved first, so each bookmark goes back to its old place among its old neighbours.
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const item = items[index]!;
-    if (item.state !== 'moved' || item.kept) continue;
+  for (const original of [...journal.items].reverse()) {
+    let item = original;
     const current = await node(item.nativeId);
-    if (!current) { items[index] = { ...item, kept: 'missing' }; missing += 1; continue; }
-    if (current.parentId !== item.toParentId) { items[index] = { ...item, kept: 'changedSince' }; skipped += 1; continue; }
-    try {
-      // Its old place among its neighbours, when that place still exists.
-      await personalBookmarks.move(item.nativeId, { parentId: item.fromParentId, index: item.fromIndex })
-        .catch(() => personalBookmarks.move(item.nativeId, { parentId: item.fromParentId }));
-      items[index] = { ...item, state: 'undone' }; moved += 1;
-    } catch { items[index] = { ...item, kept: 'failed' }; skipped += 1; }
+    if (item.state === 'moving' || item.state === 'undoing') {
+      item = settleRunIntent(item, current);
+      await log.write(runId, item);
+    }
+    if (item.state !== 'moved' || item.kept) continue;
+    if (!current) { await log.write(runId, { ...item, kept: 'missing' }); missing += 1; continue; }
+    if (!matchesRunPosition(item, current, item.toParentId, item.toIndex)) {
+      await log.write(runId, { ...item, kept: 'changedSince' }); skipped += 1; continue;
+    }
+    let undoIndex: number;
+    try { undoIndex = Math.min(item.fromIndex, (await chrome.bookmarks.getChildren(item.fromParentId)).length); }
+    catch { await log.write(runId, { ...item, kept: 'failed' }); skipped += 1; continue; }
+    item = { ...item, state: 'undoing', undoIndex };
+    await log.write(runId, item);
+    try { await personalBookmarks.move(item.nativeId, { parentId: item.fromParentId, index: undoIndex }); }
+    catch { /* Settle the durable intent from the observed location, including lost native replies. */ }
+    item = settleRunIntent(item, await node(item.nativeId));
+    await log.write(runId, item);
+    if (item.state === 'undone') moved += 1; else skipped += 1;
   }
-  await keep({ ...journal, items, undoneAt: Date.now() });
+  await log.finish(runId, { undoneAt: Date.now() });
   return { ok: true, result: { runId, moved, skipped, missing } };
 }
 
@@ -155,11 +140,11 @@ export function handleRunCommand(command: BrowserRunCommand): Promise<BrowserRul
 
 /** The last runs for Options, newest first: what each moved, and whether Undo still has anything to move back. */
 export async function browserRunViews(): Promise<BrowserRunView[]> {
-  return (await journals()).map((journal) => {
+  return (await journalStore().list()).map((journal) => {
     const count = (state: JournalItem['state']) => journal.items.filter((item) => item.state === state).length;
     const state = journal.undoneAt ? 'undone' : journal.finishedAt !== null ? 'done' : journal.runId === running ? 'running' : 'interrupted';
     return { runId: journal.runId, startedAt: journal.startedAt, finishedAt: journal.finishedAt, scopeTitle: journal.scopeTitle, state,
       moved: count('moved') + count('undone'), skipped: count('skipped'), undone: count('undone'), undoneAt: journal.undoneAt,
-      canUndo: state !== 'running' && journal.items.some((item) => item.state === 'moved' && !item.kept) };
+      canUndo: state !== 'running' && journal.items.some((item) => ['moving', 'moved', 'undoing'].includes(item.state) && !item.kept) };
   });
 }

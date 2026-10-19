@@ -116,10 +116,11 @@ beforeEach(async () => {
   }
   vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}), set: async () => undefined } }, bookmarks: {
     get: async (id: string) => { if (!tree.nodes.has(id)) throw new Error('Can’t find bookmark for id.'); return [view(id)]; },
+    getChildren: async (id: string) => tree.nodes.get(id)!.children!.map(view),
     getSubTree: async (id: string) => [sub(id)], move: async (id: string, destination: { parentId: string; index?: number }) => move(id, destination) } });
   await handleBrowserRuleCommand({ kind: 'known.automation.browser.save', draft: draft('30') });
 });
-afterEach(async () => { automationDatabase().close?.(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(async () => { vi.restoreAllMocks(); automationDatabase().close?.(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 const preview = async (scopeNativeId = '20') => {
   const reply = await handleRunCommand({ kind: 'known.automation.browser.runPreview', scopeNativeId });
@@ -191,5 +192,64 @@ describe('a run', () => {
     await handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: second.previewId });
     expect(await browserRunViews()).toMatchObject([{ scopeTitle: 'Inbox', state: 'done', moved: 3, skipped: 0, undone: 0, canUndo: true }]);
     expect((await browserRuleStore().load()).revision).toBe(1);
+  });
+});
+
+
+describe('durable run recovery and user edits', () => {
+  function failItemWrite(state: string) {
+    const database = automationDatabase(), original = database.area();
+    return vi.spyOn(database, 'area').mockReturnValue({ ...original, async set(key, value) {
+      if (key.startsWith('known.automation.browserRunItem.v1:') && (value as { state?: string }).state === state)
+        throw new Error('worker interrupted');
+      return original.set(key, value);
+    } });
+  }
+  it('writes the intent before moving and can undo after losing the completion write', async () => {
+    const run = await preview(), failure = failItemWrite('moved');
+    await expect(handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId })).rejects.toThrow('worker interrupted');
+    expect(parent('b1')).toBe('30');
+    failure.mockRestore(); automationDatabase().close();
+    const { browserRunViews } = await import('../src/sw/automation-run.js');
+    const [interrupted] = await browserRunViews();
+    expect(interrupted).toMatchObject({ state: 'interrupted', canUndo: true });
+    expect(await handleRunCommand({ kind: 'known.automation.browser.runUndo', runId: interrupted!.runId })).toMatchObject({ result: { moved: 1 } });
+    expect(parent('b1')).toBe('20');
+    expect(tree.nodes.get('20')!.children).toEqual(['b1', 'b2', 'b3', 'b4']);
+  });
+  it('does not move when persisting the intent fails', async () => {
+    const run = await preview(); failItemWrite('moving');
+    await expect(handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId })).rejects.toThrow();
+    expect(['b1', 'b3', 'b4'].map(parent)).toEqual(['20', '20', '20']);
+  });
+  it('recovers an interrupted Undo without repeating a completed native move', async () => {
+    const run = await preview();
+    const applied = await handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId });
+    if (!applied.ok || !('result' in applied)) throw new Error('no result');
+    const failure = failItemWrite('undone');
+    await expect(handleRunCommand({ kind: 'known.automation.browser.runUndo', runId: applied.result.runId })).rejects.toThrow();
+    expect(parent('b4')).toBe('20');
+    failure.mockRestore(); automationDatabase().close();
+    const moves = vi.spyOn(chrome.bookmarks, 'move');
+    await handleRunCommand({ kind: 'known.automation.browser.runUndo', runId: applied.result.runId });
+    expect(moves.mock.calls.map(([id]) => id)).toEqual(['b3', 'b1']);
+    expect(tree.nodes.get('20')!.children).toEqual(['b1', 'b2', 'b3', 'b4']);
+  });
+  it('keeps URL and title edits made after preview', async () => {
+    const run = await preview();
+    tree.nodes.get('b1')!.url = 'https://unrelated.example/changed';
+    tree.nodes.get('b3')!.title = 'Edited by me';
+    expect(await handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId }))
+      .toMatchObject({ result: { moved: 1, skipped: 2 } });
+    expect([parent('b1'), parent('b3')]).toEqual(['20', '20']);
+  });
+  it('keeps a bookmark manually reordered within its destination', async () => {
+    const run = await preview();
+    const applied = await handleRunCommand({ kind: 'known.automation.browser.runApply', previewId: run.previewId });
+    if (!applied.ok || !('result' in applied)) throw new Error('no result');
+    move('b1', { parentId: '30', index: 0 });
+    await handleRunCommand({ kind: 'known.automation.browser.runUndo', runId: applied.result.runId });
+    expect(parent('b1')).toBe('30');
+    expect(tree.nodes.get('30')!.children![0]).toBe('b1');
   });
 });
