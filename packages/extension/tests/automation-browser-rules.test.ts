@@ -38,16 +38,16 @@ describe('the web editor’s form of a rule', () => {
 });
 
 describe('the placement log', () => {
-  it('logs each placed save once and keeps the newest twenty', async () => {
+  it('logs each placed save once and keeps the newest hundred (doc 17 RS-15)', async () => {
     const area = memoryArea(), store = createBrowserPlacementLog(area);
     const placement = (index: number) => ({ id: `c-${index}`, ruleId: 'b-1', ruleName: 'Papers', folder: 'Papers', title: `Paper ${index}`,
       url: `https://arxiv.org/abs/${index}`, at: NOW + index });
     expect(await store.logPlacement(placement(1))).toBe(true);
     expect(await store.logPlacement(placement(1))).toBe(false);
-    for (let index = 2; index <= 25; index++) await store.logPlacement(placement(index));
+    for (let index = 2; index <= 105; index++) await store.logPlacement(placement(index));
     const logged = await store.placements();
-    expect(logged).toHaveLength(20);
-    expect(logged[0]).toMatchObject({ id: 'c-25' });
+    expect(logged).toHaveLength(100);
+    expect([logged[0]!.id, logged.at(-1)!.id]).toEqual(['c-105', 'c-6']);
     expect(area.values.has(BROWSER_PLACEMENTS_KEY)).toBe(true);
   });
 
