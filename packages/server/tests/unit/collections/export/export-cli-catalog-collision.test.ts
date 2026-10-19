@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createValidatorRegistry } from '@know-n/colp/schema';
-import { afterEach, test, vi } from 'vitest';
+import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { ExportCollectionSource } from '../../../../src/modules/collections/application/export-collection.js';
 
 /**
@@ -11,7 +11,28 @@ import type { ExportCollectionSource } from '../../../../src/modules/collections
  * construction, HTML rendering and file writes). Only the process/database
  * boundaries are doubled: configuration, the owner lookup and the read port.
  */
-const state = vi.hoisted(() => ({ sources: [] as ExportCollectionSource[] }));
+interface OwnerRow {
+  readonly accountId: string;
+  readonly subjectId: string;
+  readonly status: string;
+  readonly deletedAt: Date | null;
+}
+
+const DEFAULT_OWNER: OwnerRow = {
+  accountId: 'principal-owner',
+  subjectId: 'subject-owner',
+  status: 'active',
+  deletedAt: null,
+};
+
+const state = vi.hoisted(() => ({
+  sources: [] as ExportCollectionSource[],
+  ownerRows: [] as OwnerRow[],
+  authUsers: [] as Array<{ readonly id: string }>,
+  listSubjectIds: [] as string[],
+  loadSubjectIds: [] as string[],
+  automationPrincipalIds: [] as string[],
+}));
 
 vi.mock('../../../../src/bootstrap/self-hosted-preset.js', () => ({
   applySelfHostedPreset: () => undefined,
@@ -28,32 +49,47 @@ vi.mock('../../../../src/bootstrap/config.js', () => ({
 }));
 
 vi.mock('../../../../src/infrastructure/database/index.js', () => {
-  const owner = { accountId: 'principal-owner', subjectId: 'subject-owner', status: 'active', deletedAt: null };
-  const query = {
-    innerJoin() { return query; },
-    select() { return query; },
-    where() { return query; },
-    async executeTakeFirst() { return owner; },
+  const query = (table: string) => {
+    const builder = {
+      innerJoin() { return builder; },
+      select() { return builder; },
+      where() { return builder; },
+      async executeTakeFirst() {
+        return table === 'auth_users as user' ? state.ownerRows[0] : state.authUsers[0];
+      },
+    };
+    return builder;
   };
   return {
     maintenanceDatabaseRuntimeOptions: () => ({}),
-    createDatabaseRuntime: () => ({ db: { selectFrom: () => query }, close: async () => undefined }),
+    createDatabaseRuntime: () => ({
+      db: { selectFrom: (table: string) => query(table) },
+      close: async () => undefined,
+    }),
   };
 });
 
 vi.mock('../../../../src/infrastructure/collections/index.js', () => ({
   createPostgresCollectionExportReadPort: () => ({
-    listOwnedIds: async () => state.sources.map((source) => source.id),
-    loadForPrincipal: async ({ collectionId }: { collectionId: string }) =>
-      state.sources.find((source) => source.id === collectionId) ?? null,
+    listOwnedIds: async (subjectId: string) => {
+      state.listSubjectIds.push(subjectId);
+      return state.sources.map((source) => source.id);
+    },
+    loadForPrincipal: async ({ collectionId, subjectId }: { collectionId: string; subjectId: string }) => {
+      state.loadSubjectIds.push(subjectId);
+      return state.sources.find((source) => source.id === collectionId) ?? null;
+    },
   }),
 }));
 
 vi.mock('../../../../src/infrastructure/automation/index.js', () => ({
-  exportAutomations: async () => ({ contractVersion: '0.2.1-design', exportedAt: '2026-10-10T00:00:00.000Z', rules: [] }),
+  exportAutomations: async (_db: unknown, principalId: string) => {
+    state.automationPrincipalIds.push(principalId);
+    return { contractVersion: '0.2.1-design', exportedAt: '2026-10-10T00:00:00.000Z', rules: [] };
+  },
 }));
 
-const { exportOwnedCollections, uniqueSlug } = await import('../../../../src/cli/export.js');
+const { ExportCliError, exportOwnedCollections, uniqueSlug } = await import('../../../../src/cli/export.js');
 
 /**
  * The allocator is a synchronous loop, which no test timeout can interrupt.
@@ -75,8 +111,18 @@ const validators = createValidatorRegistry();
 const stamp = new Date('2026-10-10T00:00:00.000Z');
 const directories: string[] = [];
 
+beforeEach(() => {
+  state.ownerRows = [{ ...DEFAULT_OWNER }];
+  state.authUsers = [];
+});
+
 afterEach(async () => {
   state.sources = [];
+  state.ownerRows = [];
+  state.authUsers = [];
+  state.listSubjectIds = [];
+  state.loadSubjectIds = [];
+  state.automationPrincipalIds = [];
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
@@ -237,4 +283,104 @@ test('re-exporting into the same directory still replaces the previous export in
   await exportInto(directory);
   const entries = await exportInto(directory);
   await assertEveryCatalogEntryHasItsOwnSnapshot(directory, entries);
+});
+
+test('a valid account with zero collections still exports an empty catalog', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'colp-export-owner-'));
+  directories.push(directory);
+  state.sources = [];
+
+  await exportOwnedCollections({ username: 'owner', outDir: directory });
+
+  assert.deepEqual((await readdir(directory)).sort(), ['automations.json', 'index.json']);
+  const catalog = JSON.parse(await readFile(join(directory, 'index.json'), 'utf8')) as {
+    readonly collections: readonly CatalogEntry[];
+    readonly exportedAt: string;
+  };
+  assert.deepEqual(catalog.collections, []);
+  assert.equal(typeof catalog.exportedAt, 'string');
+  const automations = JSON.parse(await readFile(join(directory, 'automations.json'), 'utf8')) as {
+    readonly rules: readonly unknown[];
+  };
+  assert.deepEqual(automations.rules, []);
+  // Reads are subject-scoped; the Automation export is account-scoped.
+  assert.deepEqual(state.listSubjectIds, ['subject-owner']);
+  assert.deepEqual(state.loadSubjectIds, []);
+  assert.deepEqual(state.automationPrincipalIds, ['principal-owner']);
+});
+
+test('export never substitutes the auth user id or an empty subject for the account mapping', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'colp-export-owner-'));
+  directories.push(directory);
+  state.sources = [collection('col-owned', 'Owned')];
+
+  await exportInto(directory);
+
+  assert.deepEqual(state.listSubjectIds, ['subject-owner']);
+  assert.deepEqual(state.loadSubjectIds, ['subject-owner']);
+  assert.deepEqual(state.automationPrincipalIds, ['principal-owner']);
+  assert.equal(state.listSubjectIds.includes(''), false);
+  assert.equal(state.automationPrincipalIds.includes('auth-user-fallback'), false);
+});
+
+/**
+ * Runs the command against an output directory that does not exist yet, so a
+ * rejection that happens after `prepareDirectory` is observable as files.
+ */
+async function expectExportFailure(
+  configure: () => void,
+  expectedCode: number,
+  message: RegExp,
+): Promise<void> {
+  const parent = await mkdtemp(join(tmpdir(), 'colp-export-owner-'));
+  directories.push(parent);
+  const directory = join(parent, 'out');
+  configure();
+  await assert.rejects(
+    () => exportOwnedCollections({ username: 'owner', outDir: directory }),
+    (error: unknown) => {
+      assert.ok(error instanceof ExportCliError, `expected ExportCliError, got ${String(error)}`);
+      assert.equal(error.code, expectedCode);
+      assert.match(error.message, message);
+      return true;
+    },
+  );
+  await assert.rejects(access(directory), { code: 'ENOENT' });
+  assert.deepEqual(state.listSubjectIds, []);
+  assert.deepEqual(state.loadSubjectIds, []);
+  assert.deepEqual(state.automationPrincipalIds, []);
+}
+
+test('an auth user without an account mapping fails and writes no backup files', async () => {
+  // `auth_users` row exists but neither the mapping nor the account join
+  // produced an owner; the old fallback silently exported an empty subject.
+  await expectExportFailure(() => {
+    state.ownerRows = [];
+    state.authUsers = [{ id: 'auth-user-fallback' }];
+  }, 1, /account mapping/u);
+});
+
+test('a mapping to a deleted account stays a non-exportable unknown user', async () => {
+  await expectExportFailure(() => {
+    state.ownerRows = [{
+      accountId: 'principal-deleted',
+      subjectId: 'subject-deleted',
+      status: 'deleted',
+      deletedAt: new Date('2026-10-01T00:00:00.000Z'),
+    }];
+    state.authUsers = [{ id: 'auth-user-deleted' }];
+  }, 3, /unknown user/u);
+});
+
+test('an unusable mapped account fails instead of exporting an empty subject', async () => {
+  for (const [label, row, message] of [
+    ['empty subject', { ...DEFAULT_OWNER, subjectId: '' }, /empty subject id/u],
+    ['blank subject', { ...DEFAULT_OWNER, subjectId: '   ' }, /empty subject id/u],
+    ['empty account id', { ...DEFAULT_OWNER, accountId: '' }, /empty account id/u],
+  ] as const) {
+    await expectExportFailure(() => {
+      state.ownerRows = [row];
+    }, 1, message);
+    assert.equal(state.listSubjectIds.length, 0, `${label} must not reach the read port`);
+  }
 });

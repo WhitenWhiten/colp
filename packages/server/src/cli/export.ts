@@ -48,7 +48,6 @@ export async function exportOwnedCollections(input: {
   });
   try {
     const owner = await findOwner(database.db, username);
-    if (owner === null) throw new ExportCliError(3, 'unknown user');
     const directory = await prepareDirectory(input.outDir);
     const reads = createPostgresCollectionExportReadPort(database.db);
     const ids = await reads.listOwnedIds(owner.subjectId);
@@ -87,23 +86,49 @@ export async function exportOwnedCollections(input: {
   }
 }
 
+/**
+ * Resolve the export owner from the Better Auth user -> product account map.
+ *
+ * `principalId` is the product account id (accounts.id) and `subjectId` is its
+ * separate ownership subject (accounts.subject_id). They are never
+ * interchangeable: list/load reads are subject-scoped, while annotation
+ * visibility and the Automation export are account-scoped.
+ *
+ * A user whose account mapping is missing or unusable (no map row, dangling
+ * account, empty identifiers, deleted account) must fail the command. Falling
+ * back to the auth user id with an empty subject would export nothing and
+ * report success, which is indistinguishable from a genuinely empty backup.
+ */
 async function findOwner(
   db: Kysely<DatabaseSchema>,
   username: string,
-): Promise<{ readonly principalId: string; readonly subjectId: string } | null> {
+): Promise<{ readonly principalId: string; readonly subjectId: string }> {
   const account = await db.selectFrom('auth_users as user')
     .innerJoin('auth_user_account_map as mapping', 'mapping.auth_user_id', 'user.id')
     .innerJoin('accounts as account', 'account.id', 'mapping.account_id')
     .select(['account.id as accountId', 'account.subject_id as subjectId', 'account.status as status', 'account.deleted_at as deletedAt'])
     .where('user.username', '=', username)
     .executeTakeFirst();
-  if (account !== undefined) {
-    if (account.status === 'deleted' || account.deletedAt !== null) return null;
-    return { principalId: account.accountId, subjectId: account.subjectId };
+  if (account === undefined) {
+    const user = await db.selectFrom('auth_users').select('id').where('username', '=', username).executeTakeFirst();
+    if (user === undefined) throw new ExportCliError(3, 'unknown user');
+    // The auth user exists but has no product account mapping, or its mapping
+    // points at an account row that no longer exists (the inner joins above
+    // cannot distinguish those two cases, and neither is exportable).
+    throw new ExportCliError(1, 'user has no usable account mapping');
   }
-  const user = await db.selectFrom('auth_users').select('id').where('username', '=', username).executeTakeFirst();
-  if (user === undefined) return null;
-  return { principalId: user.id, subjectId: '' };
+  // Soft-deleted accounts keep their auth user mapping; match `unknown user`
+  // so a deleted owner cannot be used to read account data.
+  if (account.status === 'deleted' || account.deletedAt !== null) {
+    throw new ExportCliError(3, 'unknown user');
+  }
+  if (typeof account.accountId !== 'string' || account.accountId.trim().length === 0) {
+    throw new ExportCliError(1, 'account mapping has an empty account id');
+  }
+  if (typeof account.subjectId !== 'string' || account.subjectId.trim().length === 0) {
+    throw new ExportCliError(1, 'account mapping has an empty subject id');
+  }
+  return { principalId: account.accountId, subjectId: account.subjectId };
 }
 
 async function prepareDirectory(outDir: string): Promise<string> {
