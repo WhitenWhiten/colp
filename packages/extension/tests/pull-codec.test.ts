@@ -66,6 +66,33 @@ describe('Pull protocol codec', () => {
     assert.throws(() => validatePullEvent(event), /pull_effect_binding_invalid/);
   });
 
+  test.each([
+    ['create', () => pullFixtures.createEvent({ kind: 'Folder', sequence: 51, collectionId, parentId: 'root' }),
+      (event: any) => { event.effect.nodeChildrenRevision = null; }],
+    ['update', () => pullFixtures.mutationEvent({ kind: 'update', sequence: 52, collectionId,
+      targetId: 'node', parentId: 'root' }), (event: any) => { event.effect.node.id = 'other'; }],
+    ['move', () => pullFixtures.mutationEvent({ kind: 'move', sequence: 53, collectionId,
+      targetId: 'node', parentId: 'root' }), (event: any) => { event.effect.placement.parentId = 'other'; }],
+    ['delete', () => pullFixtures.mutationEvent({ kind: 'delete', sequence: 54, collectionId,
+      targetId: 'node', parentId: 'root' }), (event: any) => { event.effect.deletion.affectedCount = 2; }],
+    ['subtree', () => pullFixtures.subtreeEvent({ sequence: 55, collectionId, targetId: 'node',
+      members: ['node'], paged: false }), (event: any) => { event.effect.rootTombstone.affectedCount = 2; }],
+    ['restore', () => pullFixtures.restoreEvent({ sequence: 56, collectionId, targetId: 'node', parentId: 'root' }),
+      (event: any) => { event.effect.node.id = 'other'; }],
+  ])('rejects a re-digested %s effect that disagrees with its operation', (_kind, create, mutate) => {
+    const event: any = structuredClone(create()); mutate(event);
+    event.effect.effectDigest = canonicalAuthoritativeEffectDigest(event.effect);
+    assert.throws(() => validatePullEvent(event), /pull_effect_binding_invalid/);
+  });
+
+  test('rejects a digest-bound effect of an unknown family', () => {
+    const event: any = structuredClone(pullFixtures.mutationEvent({ kind: 'update', sequence: 57, collectionId,
+      targetId: 'node', parentId: 'root' }));
+    event.effect.kind = 'node_renamed';
+    event.effect.effectDigest = canonicalAuthoritativeEffectDigest(event.effect);
+    assert.throws(() => validatePullEvent(event), /pull_effect_kind_invalid/);
+  });
+
   test('rejects duplicate cursor, operation, effect and conflict identities', () => {
     const first = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 21, collectionId, parentId: 'root' });
     const second = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 22, collectionId, parentId: 'root' });
