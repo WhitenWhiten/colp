@@ -17,6 +17,7 @@ await promisify(execFile)(process.execPath, [resolve(import.meta.dirname, '../..
 const root = resolve(import.meta.dirname, '..'); const output = resolve(root, 'dist', environment);
 await promisify(execFile)(process.execPath, [resolve(root, 'scripts/generate-bookmark-operation-validators.mjs'), '--check']);
 await promisify(execFile)(process.execPath, [resolve(root, 'scripts/generate-automation-validators.mjs'), '--check']);
+await promisify(execFile)(process.execPath, [resolve(root, 'scripts/generate-public-suffix.mjs'), '--check']);
 const configFlag = process.argv.indexOf('--config');
 if (configFlag >= 0 && (environment !== 'production' || configFlag !== 3 || process.argv.length !== 5)) {
   throw new Error('A deployment config is supported only as: build.mjs production --config <file>');
@@ -57,6 +58,9 @@ await cp(resolve(root, 'node_modules/@fontsource-variable/newsreader/files/newsr
 // The SIL Open Font License requires its text to travel with every copy of the fonts.
 await cp(resolve(root, 'node_modules/@fontsource-variable/instrument-sans/LICENSE'), resolve(output, 'fonts/instrument-sans-OFL.txt'));
 await cp(resolve(root, 'node_modules/@fontsource-variable/newsreader/LICENSE'), resolve(output, 'fonts/newsreader-OFL.txt'));
+// The Public Suffix List is bundled from third_party/public-suffix-list under the Mozilla Public License 2.0.
+await mkdir(resolve(output, 'licenses'), { recursive: true });
+await cp(resolve(root, 'third_party/public-suffix-list/LICENSE'), resolve(output, 'licenses/public-suffix-list-MPL-2.0.txt'));
 const manifest = JSON.parse(await readFile(resolve(root, 'manifest.base.json'), 'utf8'));
 // "favicon" only exposes the read-only /_favicon/ resource to extension pages
 // (bookmark manager rows) and carries no install-time warning.

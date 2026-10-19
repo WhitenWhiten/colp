@@ -1,0 +1,5 @@
+source: https://github.com/publicsuffix/list
+commit: 52b71b3c4576ff77450cc7ebcfc7f34a916af3f9
+committed: 2026-10-17T18:51:57Z
+file: public_suffix_list.dat (ICANN and PRIVATE sections)
+licence: MPL-2.0, see LICENSE
