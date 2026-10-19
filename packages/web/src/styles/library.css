@@ -2085,14 +2085,12 @@ body[data-bookmark-drag] {
 
 /* The named bookmark inside "Delete “…”?" stays one ellipsized line so a
    long title cannot push the confirm actions off screen. */
+/* The title stays inside its sentence: as an ellipsed inline-block a long
+   one took a line of its own and left the quote marks on the lines around
+   it ("Delete “ / title… / ”?"). */
 .library-delete-title {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
   font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
 }
 
 /* Touch target: row/More menu items reach 2.75rem (44px) on coarse pointers
