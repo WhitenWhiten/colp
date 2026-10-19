@@ -788,6 +788,123 @@
   "automation_placementWaiting": {
     "message": "Waiting for sync"
   },
+  "automation_previewBadLink": {
+    "message": "Use a web link, such as https://arxiv.org/abs/1."
+  },
+  "automation_previewBlockedError": {
+    "message": "$1 couldn’t be checked, so the page stays where you save it."
+  },
+  "automation_previewBlockedFolder": {
+    "message": "$1 matches, but its folder isn’t here, so the page stays where you save it."
+  },
+  "automation_previewBroad_one": {
+    "message": "Broad: it takes every site under a public suffix, and shadows $1 later entry in your sample."
+  },
+  "automation_previewBroad_other": {
+    "message": "Broad: it takes every site under a public suffix, and shadows $1 later entries in your sample."
+  },
+  "automation_previewFailed": {
+    "message": "Couldn’t try this page. Try again."
+  },
+  "automation_previewHint": {
+    "message": "See which rule would decide a page, and which rules it passes over or hides. Nothing is saved."
+  },
+  "automation_previewKept": {
+    "message": "Stays where you save it, by $1."
+  },
+  "automation_previewLink": {
+    "message": "Link"
+  },
+  "automation_previewListOff": {
+    "message": "The list is switched off, so saves aren’t filed now. Switched on, it would do this:"
+  },
+  "automation_previewListRule": {
+    "message": "“$1” from “$2”"
+  },
+  "automation_previewListRuleVersion": {
+    "message": "“$1” from “$2”, version $3"
+  },
+  "automation_previewMovedRow": {
+    "message": "$1: $2 → $3"
+  },
+  "automation_previewMoved_one": {
+    "message": "After this change, $1 of your $2 recent bookmarks would go elsewhere."
+  },
+  "automation_previewMoved_other": {
+    "message": "After this change, $1 of your $2 recent bookmarks would go elsewhere."
+  },
+  "automation_previewNeedLink": {
+    "message": "Paste a link to try."
+  },
+  "automation_previewNoAccess": {
+    "message": "Know-N needs access to your bookmarks to try pages against your rules."
+  },
+  "automation_previewNone": {
+    "message": "No rule matches. The page stays where you save it."
+  },
+  "automation_previewPageTitle": {
+    "message": "Title"
+  },
+  "automation_previewPick": {
+    "message": "Or a recent bookmark"
+  },
+  "automation_previewPickGone": {
+    "message": "That bookmark is gone."
+  },
+  "automation_previewPickNone": {
+    "message": "none"
+  },
+  "automation_previewPlaced": {
+    "message": "Goes to $1, by $2."
+  },
+  "automation_previewRule": {
+    "message": "“$1”"
+  },
+  "automation_previewSample": {
+    "message": "Try my recent bookmarks"
+  },
+  "automation_previewSampleBroad_one": {
+    "message": "$2 is broad: it takes every site under a public suffix, and shadows $1 later entry in your sample."
+  },
+  "automation_previewSampleBroad_other": {
+    "message": "$2 is broad: it takes every site under a public suffix, and shadows $1 later entries in your sample."
+  },
+  "automation_previewSampleEmpty": {
+    "message": "There are no bookmarks to try yet."
+  },
+  "automation_previewSampleFailed": {
+    "message": "Couldn’t try your recent bookmarks. Try again."
+  },
+  "automation_previewSampleSummary": {
+    "message": "Of your $1 most recent bookmarks, rules would file $2 and keep $3 where they are; $4 match no rule."
+  },
+  "automation_previewSetRule": {
+    "message": "“$1” in “$2”"
+  },
+  "automation_previewShadowed": {
+    "message": "Also match, but come later, so they never get it"
+  },
+  "automation_previewSkipped": {
+    "message": "Passed over: this page lacks what they ask about"
+  },
+  "automation_previewStale": {
+    "message": "Your list changed. Try again to see what it does now."
+  },
+  "automation_previewTitle": {
+    "message": "Try a page"
+  },
+  "automation_previewTitlePlaceholder": {
+    "message": "Optional"
+  },
+  "automation_previewTry": {
+    "message": "Try"
+  },
+  "automation_previewUnmoved": {
+    "message": "After this change, your $1 recent bookmarks would go where they did before."
+  },
+  "automation_previewWhereSaved": {
+    "message": "where you save it"
+  },
   "automation_recentActivity": {
     "message": "Recent activity"
   },

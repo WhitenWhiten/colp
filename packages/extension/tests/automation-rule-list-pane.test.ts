@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AutomationStateView, BrowserListEntryView, BrowserListView, BrowserRuleView, BrowserSetView } from '../src/automation/messages.js';
+import type { AutomationStateView, BrowserListEntryView, BrowserListView, BrowserPreviewPageView, BrowserPreviewSampleRow, BrowserPreviewView, BrowserRuleView,
+  BrowserSetView } from '../src/automation/messages.js';
 
 vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ exclusionIds: async () => new Set<string>() }));
 
@@ -212,5 +213,87 @@ describe('the one-time note about order (R2)', () => {
     expect(text(notice)).toContain('the upper one files it now: “Rule a” before “Rule b”.');
     notice.querySelector<HTMLButtonElement>('button')!.click();
     expect(sent).toEqual([{ kind: 'known.automation.browser.notice.dismiss' }]);
+  });
+});
+
+describe('Try a page (RS-08)', () => {
+  const page = (over: Partial<BrowserPreviewPageView> = {}): BrowserPreviewPageView => ({ url: 'https://arxiv.org/abs/1', title: 'A paper', outcome: 'placed',
+    winner: { id: 'b', name: 'Rule b', kind: 'setRule', ruleId: 'b', setId: 's', sourceName: 'Set s' }, folder: { nativeId: 'f-papers', title: 'Papers' },
+    broad: false, skipped: [{ id: 'a', name: 'Rule a', kind: 'rule', ruleId: 'a', sourceName: null }],
+    shadowed: [{ id: 'd', name: 'Rule d', kind: 'rule', ruleId: 'd', sourceName: null },
+      { id: 'e-1', name: 'Trackers', kind: 'subscriptionEntry', subscriptionId: 'sub', entryId: 'e-1', contentVersion: '2026.10.1', sourceName: 'Community list' }],
+    ...over });
+  const answer = (preview: Partial<BrowserPreviewView>): BrowserPreviewView => ({ listRevision: 3, contentVersions: {}, stopped: null, ...preview });
+  const sampleRow = (nativeId: string, folder: string | null): BrowserPreviewSampleRow => ({ nativeId, title: `Bookmark ${nativeId}`, url: `https://${nativeId}.example/`,
+    outcome: folder ? 'placed' : 'none', winnerId: folder ? 'a' : null, winnerName: folder ? 'Rule a' : null, folder });
+  const card = () => document.querySelector<HTMLElement>('.automation-preview')!;
+  const field = (label: string) => Array.from(card().querySelectorAll<HTMLInputElement>('input')).find((input) => card().querySelector(`label[for="${input.id}"]`)?.textContent === label)!;
+  const submit = () => card().querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+
+  it('asks the worker about a link and a title, and names the winner, what it passed over and what it shadows', async () => {
+    reply = (message) => message.kind === 'known.automation.browser.preview' ? { ok: true, preview: answer({ page: page() }) } : { ok: true, revision: 4 };
+    await render(standard());
+    field('Link').value = 'arxiv.org/abs/1'; field('Title').value = ' A paper ';
+    submit();
+    await vi.waitFor(() => expect(card().querySelector('.automation-preview-result')).not.toBeNull());
+    expect(sent).toEqual([{ kind: 'known.automation.browser.preview', url: 'https://arxiv.org/abs/1', title: 'A paper' }]);
+    expect(text(card().querySelector('.automation-preview-verdict'))).toBe('Goes to Papers, by “Rule b” in “Set s”.');
+    expect(Array.from(card().querySelectorAll('.automation-preview-entries')).map((block) => [text(block.querySelector('p')),
+      ...Array.from(block.querySelectorAll('li')).map((item) => text(item))])).toEqual([
+      ['Passed over: this page lacks what they ask about', '“Rule a”'],
+      ['Also match, but come later, so they never get it', '“Rule d”', '“Trackers” from “Community list”, version 2026.10.1']]);
+    expect(card().querySelector('.automation-preview-broad')).toBeNull();
+  });
+
+  it('labels a broad winner with what it shadows in the sample, and says what nothing matching means', async () => {
+    let next = answer({ page: page({ winner: { id: 'a', name: 'Rule a', kind: 'rule', ruleId: 'a', sourceName: null }, broad: true, broadShadows: 3, skipped: [], shadowed: [] }) });
+    reply = (message) => message.kind === 'known.automation.browser.preview' ? { ok: true, preview: next } : { ok: true, revision: 4 };
+    await render(standard());
+    field('Link').value = 'https://colp.io/';
+    submit();
+    await vi.waitFor(() => expect(card().querySelector('.automation-preview-broad')).not.toBeNull());
+    expect(text(card().querySelector('.automation-preview-broad'))).toBe('Broad: it takes every site under a public suffix, and shadows 3 later entries in your sample.');
+    next = answer({ page: page({ outcome: 'none', winner: null, folder: null, skipped: [], shadowed: [] }), stopped: 'listOff' });
+    submit();
+    await vi.waitFor(() => expect(text(card().querySelector('.automation-preview-verdict'))).toBe('No rule matches. The page stays where you save it.'));
+    expect(text(card().querySelector('.automation-preview-result .detail'))).toBe('The list is switched off, so saves aren’t filed now. Switched on, it would do this:');
+  });
+
+  it('drops an answer once the list moves on (RS-08.4), and keeps the card across repaints', async () => {
+    reply = (message) => message.kind === 'known.automation.browser.preview' ? { ok: true, preview: answer({ page: page() }) } : { ok: true, revision: 4 };
+    await render(standard());
+    const before = card();
+    field('Link').value = 'https://arxiv.org/abs/1';
+    submit();
+    await vi.waitFor(() => expect(card().querySelector('.automation-preview-result')).not.toBeNull());
+    await repaint({ ...standard(), browserList: { ...standard().browserList, revision: 3 } });
+    expect([card() === before, card().querySelector('.automation-preview-result') !== null]).toEqual([true, true]);
+    await repaint({ ...standard(), browserList: { ...standard().browserList, revision: 4 } });
+    expect(card().querySelector('.automation-preview-result')).toBeNull();
+    expect(text(card().querySelector('.automation-preview-output'))).toBe('Your list changed. Try again to see what it does now.');
+    expect(field('Link').value).toBe('https://arxiv.org/abs/1');
+  });
+
+  it('tries the recent bookmarks, and after a change names those that would now go elsewhere (RS-08.3)', async () => {
+    let rows = [sampleRow('one', 'Papers'), sampleRow('two', null)], revision = 3;
+    reply = (message) => message.kind === 'known.automation.browser.preview' && 'sample' in message
+      ? { ok: true, preview: answer({ listRevision: revision, sample: { size: rows.length, rows, broad: [] } }) }
+      : message.kind === 'known.automation.browser.preview' ? { ok: true, preview: answer({ page: page() }) } : { ok: true, revision: 4 };
+    await render(standard());
+    card().querySelector<HTMLButtonElement>('.automation-preview-more .btn')!.click();
+    await vi.waitFor(() => expect(card().querySelector('.automation-preview-verdict')).not.toBeNull());
+    expect(text(card().querySelector('.automation-preview-verdict'))).toBe('Of your 2 most recent bookmarks, rules would file 1 and keep 0 where they are; 1 match no rule.');
+    // The sample's bookmarks can be tried one by one.
+    const picks = card().querySelector<HTMLSelectElement>('.automation-preview-more select')!;
+    expect(Array.from(picks.options).map((option) => option.textContent)).toEqual(['none', 'Bookmark one', 'Bookmark two']);
+    picks.value = 'two'; picks.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.automation.browser.preview', nativeId: 'two' }));
+    // A move: the card asks again and compares.
+    rows = [sampleRow('one', 'Reading'), sampleRow('two', null)]; revision = 4;
+    await repaint({ ...standard(), browserList: { ...standard().browserList, revision: 4 } });
+    await vi.waitFor(() => expect(text(card().querySelector('.automation-preview-compare'))).not.toBe(''));
+    expect([text(card().querySelector('.automation-preview-compare p')), text(card().querySelector('.automation-preview-compare li'))])
+      .toEqual(['After this change, 1 of your 2 recent bookmarks would go elsewhere.', 'Bookmark one: Papers → Reading']);
+    expect(sent.filter((message) => 'sample' in message)).toHaveLength(2);
   });
 });

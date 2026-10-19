@@ -58,6 +58,10 @@ export type BrowserRuleCommand =
   | { readonly kind: 'known.automation.browser.duplicate'; readonly id: string; readonly entry: 'rule' | 'set'; readonly name: string }
   /** The Owner has read the note about rules whose order now decides (doc 17 R2). */
   | { readonly kind: 'known.automation.browser.notice.dismiss' }
+  /** Try a page, or a bookmark, or a sample of recent bookmarks, against the whole list; nothing is written (doc 17 RS-08). */
+  | { readonly kind: 'known.automation.browser.preview'; readonly url: string; readonly title: string }
+  | { readonly kind: 'known.automation.browser.preview'; readonly nativeId: string }
+  | { readonly kind: 'known.automation.browser.preview'; readonly sample: true }
   /** Keep this rule next to the account rule it overlaps, at that rule's current revision (`reviewKey`). */
   | { readonly kind: 'known.automation.browser.review'; readonly id: string; readonly accountRuleId: string; readonly key: string }
   /** Add mine to the account was opened on the web: retire this rule once the account's enabled copy arrives. */
@@ -72,6 +76,7 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   /** A change to the list's order or switch: its revision after it. */
   | { readonly ok: true; readonly revision: number }
   | { readonly ok: true; readonly url: string }
+  | { readonly ok: true; readonly preview: BrowserPreviewView }
   /** `notSynced`: the folder is not in the synced collection; `signedOut`: there is no account to make it in. */
   | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[] };
 
@@ -133,6 +138,12 @@ export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCom
     return keys === 4 && id(raw.id) && (raw.entry === 'rule' || raw.entry === 'set') && typeof raw.name === 'string' && raw.name.length <= 1024;
   }
   if (raw.kind === 'known.automation.browser.notice.dismiss') return keys === 1;
+  if (raw.kind === 'known.automation.browser.preview') {
+    if (raw.sample !== undefined) return keys === 2 && raw.sample === true;
+    if (raw.nativeId !== undefined) return keys === 2 && typeof raw.nativeId === 'string' && /^[\w.-]{1,128}$/u.test(raw.nativeId);
+    return keys === 3 && typeof raw.url === 'string' && raw.url.length > 0 && raw.url.length <= 4_096
+      && typeof raw.title === 'string' && raw.title.length <= 1_024;
+  }
   if (raw.kind === 'known.automation.browser.review') {
     return keys === 4 && typeof raw.id === 'string' && RULE_ID.test(raw.id) && typeof raw.accountRuleId === 'string'
       && raw.accountRuleId.length > 0 && raw.accountRuleId.length <= 256 && typeof raw.key === 'string' && raw.key.length > 0 && raw.key.length <= 512;
@@ -196,6 +207,47 @@ export interface BrowserRuleView {
   readonly moving: boolean;
   /** Moving for over a day and the account's copy is still not here: it was never turned on, or changed on the web. */
   readonly movingStale: boolean;
+}
+
+/** An entry as a preview names it: which rule of which set or subscription (and version), by its name now. */
+export type BrowserPreviewEntryView = Omit<BrowserDecisionEntry, 'listRevision'> & { readonly id: string; readonly name: string;
+  readonly sourceName: string | null };
+/** One page tried against the whole list (doc 17 RS-08.2): what would decide it, what was passed over, what it hides. */
+export interface BrowserPreviewPageView {
+  readonly url: string;
+  readonly title: string;
+  readonly nativeId?: string;
+  readonly outcome: 'placed' | 'kept' | 'blocked' | 'none';
+  readonly reason?: 'bindingUnavailable' | 'evaluation' | 'keepHere';
+  readonly winner: BrowserPreviewEntryView | null;
+  readonly folder: { readonly nativeId: string; readonly title: string } | null;
+  /** The winner takes a whole public suffix's sites (RS-08.5). */
+  readonly broad: boolean;
+  /** With `broad`: how many different later entries it shadows across the sample and this page. */
+  readonly broadShadows?: number;
+  /** Before the winner: entries that ask about something this page lacks. */
+  readonly skipped: readonly BrowserPreviewEntryView[];
+  /** After the winner: entries that match too, and never get the page. */
+  readonly shadowed: readonly BrowserPreviewEntryView[];
+}
+export interface BrowserPreviewSampleRow {
+  readonly nativeId: string;
+  readonly title: string;
+  readonly url: string;
+  readonly outcome: BrowserPreviewPageView['outcome'];
+  readonly winnerId: string | null;
+  readonly winnerName: string | null;
+  readonly folder: string | null;
+}
+export interface BrowserPreviewView {
+  /** The list it was made from; a page drops it once the list moves on (RS-08.4). */
+  readonly listRevision: number;
+  readonly contentVersions: Readonly<Record<string, string>>;
+  /** Saves are not decided now (the list is off); the preview shows what the list would do. */
+  readonly stopped: 'listOff' | 'accountPaused' | null;
+  readonly page?: BrowserPreviewPageView;
+  readonly sample?: { readonly size: number; readonly rows: readonly BrowserPreviewSampleRow[];
+    readonly broad: readonly (BrowserPreviewEntryView & { readonly shadows: number })[] };
 }
 
 /** This browser's ordered list, as Options shows it (doc 17 §4.1): its entries in the order saves try them. */

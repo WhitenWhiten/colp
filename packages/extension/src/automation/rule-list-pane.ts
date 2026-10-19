@@ -355,8 +355,8 @@ function orderNotice(list: BrowserListView): HTMLElement | null {
     : t('automation_orderNotice', 'Rules here now go from the top, and the first that matches decides.'), dismiss);
 }
 
-/** The section: the list, or the first-visit empty state. */
-export function ruleListGroup(view: AutomationStateView): HTMLElement {
+/** The section: the list, or the first-visit empty state. `after` follows a list that has entries (Try a page). */
+export function ruleListGroup(view: AutomationStateView, after: readonly HTMLElement[] = []): HTMLElement {
   const list = view.browserList;
   const section = el('section', undefined, 'set-group automation-browser');
   section.setAttribute('aria-labelledby', 'automation-browser-heading');
@@ -396,7 +396,7 @@ export function ruleListGroup(view: AutomationStateView): HTMLElement {
   for (const entry of list.entries) {
     rows.append(entry.kind === 'rule' ? ruleRow(entry.rule, null, context) : entry.kind === 'set' ? setBlock(entry.set, context) : subscriptionRow(entry, context));
   }
-  section.append(rows);
+  section.append(rows, ...after);
   return section;
 }
 

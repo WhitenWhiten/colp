@@ -9,6 +9,7 @@ import { relateBrowserRule, replayOverlap, type OverlapRule, type Page } from '.
 import type { AutomationPlacementView, BrowserListEntryView, BrowserListView, BrowserRuleCommand, BrowserRuleOverlapView, BrowserRuleResponse,
   BrowserRuleView } from '../automation/messages.js';
 import { ruleMatchView } from '../automation/rule-match.js';
+import { PREVIEW_SAMPLE, previewList, type PreviewPage } from '../automation/rule-preview.js';
 import type { PreSaveInput } from '../automation/pre-save.js';
 import type { BrowserAutomation, CaptureTask } from '../capture/contracts.js';
 import { hasBookmarkPermission } from './runtime.js';
@@ -243,6 +244,7 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand,
     case 'known.automation.browser.list.enable': return store.setListEnabled(command.enabled);
     case 'known.automation.browser.duplicate': return store.duplicate({ kind: command.entry, id: command.id }, command.name, now);
     case 'known.automation.browser.notice.dismiss': await store.dismissOrderNotice(); return { ok: true, revision: (await store.load()).revision };
+    case 'known.automation.browser.preview': return browserPreview(command);
     case 'known.automation.browser.save': {
       const result = await store.saveRule({ ...(command.id ? { id: command.id } : {}), draft: command.draft,
         ...(command.enabled === undefined ? {} : { enabled: command.enabled }), ...(command.into ? { into: command.into } : {}),
@@ -251,6 +253,32 @@ export async function handleBrowserRuleCommand(command: BrowserRuleCommand,
       return result.error === 'invalid' ? { ok: false, error: 'invalid', problems: result.problems } : { ok: false, error: result.error };
     }
   }
+}
+
+/**
+ * Try a page, a bookmark or the recent bookmarks against the list as it stands (doc 17 RS-08). A list that
+ * is switched off is tried as if it were on, and says so. Nothing is written.
+ */
+async function browserPreview(command: Extract<BrowserRuleCommand, { kind: 'known.automation.browser.preview' }>): Promise<BrowserRuleResponse> {
+  if (!await hasBookmarkPermission()) return { ok: false, error: 'noAccess' };
+  const list = await browserRuleStore().load();
+  const flat = flattenList({ ...list, enabled: true }), stopped = list.enabled ? null : 'listOff' as const;
+  const recent = async (): Promise<PreviewPage[]> => (await chrome.bookmarks.getRecent(PREVIEW_SAMPLE).catch(() => []))
+    .filter((node) => typeof node.url === 'string').map((node) => ({ url: node.url!, title: node.title, nativeId: node.id }));
+  const now = Date.now();
+  if ('sample' in command) return { ok: true, preview: await previewList(flat, stopped, { sample: await recent() }, nativeFolderLookup, now) };
+  let page: PreviewPage;
+  if ('nativeId' in command) {
+    const node = (await chrome.bookmarks.get(command.nativeId).catch(() => []))[0];
+    if (!node?.url) return { ok: false, error: 'notFound' };
+    page = { url: node.url, title: node.title, nativeId: node.id };
+  } else {
+    let protocol = '';
+    try { protocol = new URL(command.url).protocol; } catch { /* not a link */ }
+    if (protocol !== 'http:' && protocol !== 'https:') return { ok: false, error: 'invalidUrl' };
+    page = { url: command.url, title: command.title };
+  }
+  return { ok: true, preview: await previewList(flat, stopped, { page, sample: await recent() }, nativeFolderLookup, now) };
 }
 
 /**

@@ -166,6 +166,22 @@ describe('the list Options shows', () => {
   });
 });
 
+describe('Try a page (doc 17 RS-08)', () => {
+  it('tries a link, a bookmark or the recent bookmarks against the list as it stands, and writes nothing', async () => {
+    f.recent = [{ id: '70', title: 'A paper', url: 'https://arxiv.org/abs/2' }, { id: 'folder', title: 'A folder' }, { id: '71', title: 'Elsewhere', url: 'https://example.org/' }];
+    const revision = (await browserRuleStore().load()).revision;
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.preview', url: paper.url, title: 'A paper' })).toMatchObject({ ok: true,
+      preview: { listRevision: revision, stopped: null, page: { outcome: 'placed', folder: { nativeId: '30', title: 'Papers' }, winner: { name: 'Papers from arXiv', kind: 'rule' } } } });
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.preview', url: 'ftp://arxiv.org/x', title: '' })).toEqual({ ok: false, error: 'invalidUrl' });
+    expect(await handleBrowserRuleCommand({ kind: 'known.automation.browser.preview', nativeId: '21' })).toEqual({ ok: false, error: 'notFound' });
+    await handleBrowserRuleCommand({ kind: 'known.automation.browser.list.enable', enabled: false });
+    const sample = await handleBrowserRuleCommand({ kind: 'known.automation.browser.preview', sample: true });
+    expect(sample).toMatchObject({ ok: true, preview: { stopped: 'listOff', sample: { size: 2, broad: [], rows: [
+      { nativeId: '70', outcome: 'placed', folder: 'Papers', winnerName: 'Papers from arXiv' }, { nativeId: '71', outcome: 'none', folder: null }] } } });
+    expect((await browserRuleStore().load()).revision).toBe(revision + 1);
+  });
+});
+
 describe('a placed save', () => {
   it('is logged once for Options and never receipted', async () => {
     const [rule] = individualRules(await browserRuleStore().load());

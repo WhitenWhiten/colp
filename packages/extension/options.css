@@ -1554,6 +1554,21 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .rule-list .list-row { transition: background var(--duration-fast) var(--ease-quart); }
 .rule-list .list-row[data-highlight] { background: var(--paper-2); box-shadow: inset 2px 0 0 var(--ink); }
 .rule-list .list-row:focus-visible { outline-offset: -2px; }
+/* Try a page (doc 17 RS-08): a link against the whole list, its answer, then what the last change moved. */
+.automation-preview { display: grid; gap: var(--space-3); padding: var(--space-4); }
+.automation-preview-head { display: grid; gap: var(--hair-15); }
+.automation-preview-head > h3 { margin: 0; color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-semibold); line-height: var(--leading-ui); }
+.automation-preview .detail { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-copy); }
+.automation-preview-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; align-items: end; gap: var(--space-2) var(--space-3); }
+.automation-preview-form > .form-error { grid-column: 1 / -1; }
+.automation-preview-more { display: flex; flex-wrap: wrap; grid-column: 1 / -1; align-items: center; gap: var(--space-2) var(--space-3); }
+.automation-preview-output:empty, .automation-preview-compare:empty { display: none; }
+.automation-preview-output, .automation-preview-result, .automation-preview-compare { display: grid; gap: var(--space-2); }
+.automation-preview-verdict { margin: 0; color: var(--ink); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-copy); }
+.automation-preview-broad { margin: 0; padding-left: var(--hair-55); border-left: 2px solid var(--warning); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
+.automation-preview-entries > .form-label { margin: 0; }
+.automation-preview ul { margin: var(--hair-15) 0 0; padding-left: var(--space-4); color: var(--ink-2);
+  font-size: var(--text-xs); line-height: var(--leading-body); }
 .rule-set-head { background: var(--paper); }
 .rule-set-rules { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
 .rule-set-rules .list-row { padding-left: calc(var(--space-4) + var(--space-6)); }
@@ -1644,13 +1659,15 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
   .automation-rules .list-row { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--hair-30); }
   .automation-rules .list-row > .list-row-tail { grid-column: 2; justify-self: start; flex-wrap: wrap; }
   .automation-rules .list-row-tail > svg { display: none; }
-  .automation-rules .list-row-tail:not(:has(.badge)) { display: none; }
+  .automation-rules .list-row-tail:not(:has(.badge, .row-actions-hover)) { display: none; }
   /* A browser rule keeps its switch at the end of the first line; its badge and actions go under its text. */
   .automation-rules :is(.automation-browser-rule, .rule-set-head) { grid-template-columns: auto minmax(0, 1fr) auto; }
   /* Narrow screens move entries with Move up and Move down; the grip goes. */
   .rule-grip { display: none; }
   .rule-set-rules .list-row, .rule-set-empty { padding-left: calc(var(--space-4) + var(--space-3)); }
   .automation-list-tools { grid-column: 1; grid-row: auto; justify-self: start; }
+  .automation-preview-form { grid-template-columns: minmax(0, 1fr); }
+  .automation-preview-form > .btn { justify-self: start; }
   .automation-rules :is(.automation-browser-rule, .rule-set-head) > .automation-rule-switch { grid-column: 3; grid-row: 1; align-self: start; }
   .automation-rules :is(.automation-browser-rule, .rule-set-head) > .list-row-tail { display: flex; grid-row: 2; }
   .automation-rules .list-row-meta > .automation-recipe-missing { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }

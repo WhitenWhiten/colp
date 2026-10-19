@@ -1027,6 +1027,150 @@
     "message": "等待同步",
     "description": "Waiting for sync"
   },
+  "automation_previewBadLink": {
+    "message": "请使用网页链接，例如 https://arxiv.org/abs/1。",
+    "description": "Use a web link, such as https://arxiv.org/abs/1."
+  },
+  "automation_previewBlockedError": {
+    "message": "无法检查$1，页面会留在你保存的位置。",
+    "description": "$1 couldn’t be checked, so the page stays where you save it."
+  },
+  "automation_previewBlockedFolder": {
+    "message": "$1 匹配，但它的文件夹不在这里，页面会留在你保存的位置。",
+    "description": "$1 matches, but its folder isn’t here, so the page stays where you save it."
+  },
+  "automation_previewBroad_other": {
+    "message": "范围很广：它会接收某个公共后缀下的所有网站，并在你的样本中遮住后面的 $1 个条目。",
+    "description": "Broad: it takes every site under a public suffix, and shadows $1 later entries in your sample."
+  },
+  "automation_previewFailed": {
+    "message": "无法试用这个页面。请重试。",
+    "description": "Couldn’t try this page. Try again."
+  },
+  "automation_previewHint": {
+    "message": "查看哪条规则会决定一个页面，以及它跳过或遮住了哪些规则。不会保存任何内容。",
+    "description": "See which rule would decide a page, and which rules it passes over or hides. Nothing is saved."
+  },
+  "automation_previewKept": {
+    "message": "由$1留在你保存的位置。",
+    "description": "Stays where you save it, by $1."
+  },
+  "automation_previewLink": {
+    "message": "链接",
+    "description": "Link"
+  },
+  "automation_previewListOff": {
+    "message": "列表已关闭，所以现在保存时不会归档。开启后，它会这样做：",
+    "description": "The list is switched off, so saves aren’t filed now. Switched on, it would do this:"
+  },
+  "automation_previewListRule": {
+    "message": "来自“$2”的“$1”",
+    "description": "“$1” from “$2”"
+  },
+  "automation_previewListRuleVersion": {
+    "message": "来自“$2”的“$1”，版本 $3",
+    "description": "“$1” from “$2”, version $3"
+  },
+  "automation_previewMovedRow": {
+    "message": "$1：$2 → $3",
+    "description": "$1: $2 → $3"
+  },
+  "automation_previewMoved_other": {
+    "message": "这次更改后，你最近的 $2 个书签中有 $1 个会去别处。",
+    "description": "After this change, $1 of your $2 recent bookmarks would go elsewhere."
+  },
+  "automation_previewNeedLink": {
+    "message": "粘贴一个链接来试用。",
+    "description": "Paste a link to try."
+  },
+  "automation_previewNoAccess": {
+    "message": "Know-N 需要访问你的书签，才能用你的规则试用页面。",
+    "description": "Know-N needs access to your bookmarks to try pages against your rules."
+  },
+  "automation_previewNone": {
+    "message": "没有匹配的规则。页面会留在你保存的位置。",
+    "description": "No rule matches. The page stays where you save it."
+  },
+  "automation_previewPageTitle": {
+    "message": "标题",
+    "description": "Title"
+  },
+  "automation_previewPick": {
+    "message": "或选择一个最近的书签",
+    "description": "Or a recent bookmark"
+  },
+  "automation_previewPickGone": {
+    "message": "那个书签已不存在。",
+    "description": "That bookmark is gone."
+  },
+  "automation_previewPickNone": {
+    "message": "无",
+    "description": "none"
+  },
+  "automation_previewPlaced": {
+    "message": "由$2放入 $1。",
+    "description": "Goes to $1, by $2."
+  },
+  "automation_previewRule": {
+    "message": "“$1”",
+    "description": "“$1”"
+  },
+  "automation_previewSample": {
+    "message": "试用我最近的书签",
+    "description": "Try my recent bookmarks"
+  },
+  "automation_previewSampleBroad_other": {
+    "message": "$2 范围很广：它会接收某个公共后缀下的所有网站，并在你的样本中遮住后面的 $1 个条目。",
+    "description": "$2 is broad: it takes every site under a public suffix, and shadows $1 later entries in your sample."
+  },
+  "automation_previewSampleEmpty": {
+    "message": "还没有可以试用的书签。",
+    "description": "There are no bookmarks to try yet."
+  },
+  "automation_previewSampleFailed": {
+    "message": "无法试用你最近的书签。请重试。",
+    "description": "Couldn’t try your recent bookmarks. Try again."
+  },
+  "automation_previewSampleSummary": {
+    "message": "在你最近的 $1 个书签中，规则会归档 $2 个，把 $3 个留在原处；$4 个不匹配任何规则。",
+    "description": "Of your $1 most recent bookmarks, rules would file $2 and keep $3 where they are; $4 match no rule."
+  },
+  "automation_previewSetRule": {
+    "message": "“$2”中的“$1”",
+    "description": "“$1” in “$2”"
+  },
+  "automation_previewShadowed": {
+    "message": "同样匹配，但排在后面，所以永远轮不到它们",
+    "description": "Also match, but come later, so they never get it"
+  },
+  "automation_previewSkipped": {
+    "message": "已跳过：这个页面缺少它们要检查的内容",
+    "description": "Passed over: this page lacks what they ask about"
+  },
+  "automation_previewStale": {
+    "message": "你的列表已更改。请重试，查看它现在会怎么做。",
+    "description": "Your list changed. Try again to see what it does now."
+  },
+  "automation_previewTitle": {
+    "message": "试用页面",
+    "description": "Try a page"
+  },
+  "automation_previewTitlePlaceholder": {
+    "message": "可选",
+    "description": "Optional"
+  },
+  "automation_previewTry": {
+    "message": "试用",
+    "description": "Try"
+  },
+  "automation_previewUnmoved": {
+    "message": "这次更改后，你最近的 $1 个书签仍会去原来的位置。",
+    "description": "After this change, your $1 recent bookmarks would go where they did before."
+  },
+  "automation_previewWhereSaved": {
+    "message": "你保存的位置",
+    "description": "where you save it"
+  },
   "automation_recentActivity": {
     "message": "最近动态",
     "description": "Recent activity"
