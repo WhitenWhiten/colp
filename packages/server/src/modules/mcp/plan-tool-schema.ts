@@ -13,19 +13,20 @@ const organizeOperations = [
   { type: 'object', additionalProperties: false, properties: { type: { const: 'delete_subtree' }, nodeId: id }, required: ['type', 'nodeId'] },
 ];
 
-/** Visibility plans retain their contract; organize plans use one collection and earlier-created folder references. */
+/**
+ * Visibility plans retain their contract; organize plans use one collection and earlier-created folder references.
+ * One closed object, because MCP hosts reject a top-level oneOf: assertHostPlanOperations and the organize planner
+ * keep set_visibility out of organize plans and organize operations out of visibility plans.
+ */
 export function narrowHostPlanSchema(tool: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
   if (tool.name !== 'changes.plan') return tool;
   const schema = tool.inputSchema as Record<string, unknown>;
   const properties = schema.properties as Record<string, unknown>;
   const operations = properties.operations as Record<string, unknown>;
-  const visibility = { ...schema, properties: { ...properties,
-    operations: { ...operations, items: createCanonicalMcpSchemaReference('setVisibilityPlanOperation') },
-  } };
-  const organize = { ...schema, properties: { ...properties, collectionId: id,
-    operations: { type: 'array', minItems: 1, maxItems: 50, items: { oneOf: organizeOperations } } },
-    required: ['collectionId', 'operations', 'reason', 'dryRun'] };
-  return { ...tool, inputSchema: { type: 'object', oneOf: [visibility, organize] } };
+  return { ...tool, inputSchema: { ...schema, properties: { ...properties,
+    collectionId: { ...id, description: 'Organize plans only: the collection that up to 50 create_node, move_node and delete_subtree operations change.' },
+    operations: { ...operations, items: { oneOf: [createCanonicalMcpSchemaReference('setVisibilityPlanOperation'), ...organizeOperations] } },
+  } } };
 }
 
 export function assertHostPlanOperations(args: unknown): void {

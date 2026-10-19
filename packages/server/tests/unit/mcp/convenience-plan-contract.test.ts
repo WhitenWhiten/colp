@@ -33,8 +33,11 @@ for (const [name, applied] of [['nodes.move', false], ['nodes.move', true], ['no
       await client.connect(createMcpHttpSdkTransport(server.app, auth.strictToken));
       const listed = await client.listTools();
       const definition = listed.tools.find((tool) => tool.name === name)!;
-      if (name === 'changes.plan') assert.ok(definition.inputSchema.oneOf);
-      else assert.ok((definition.inputSchema.properties as Record<string, unknown>).reason);
+      assert.ok((definition.inputSchema.properties as Record<string, unknown>).reason);
+      if (name === 'changes.plan') {
+        assert.equal('oneOf' in definition.inputSchema, false);
+        assert.ok((definition.inputSchema.properties as Record<string, unknown>).collectionId);
+      }
       const result = await client.callTool({ name, arguments: {
         ...(name === 'changes.plan' ? { collectionId: 'collection-1', dryRun: true, reason, operations: [
           { type: 'create_node', ref: 'new', parentId: 'folder-1', node: { kind: 'folder', title: 'New folder', visibility: 'private' } },
