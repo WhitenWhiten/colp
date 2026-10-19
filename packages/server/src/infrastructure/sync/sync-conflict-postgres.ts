@@ -5,6 +5,7 @@ import type { PostgresSyncSequenceTransaction } from './sync-sequence-postgres.j
 import type { TrustedSyncNodeRevision } from '../../modules/sync/index.js';
 import { appendAuditEvent } from '../database/audit-event-payload.js';
 import { appendOperationWithPayload } from '../database/operation-payload-store.js';
+import { buildSyncConflictAad, type SyncConflictAadSource } from './sync-conflict-aad.js';
 
 export type SyncConflictType = 'concurrent_field_update' | 'unprovable_base'
   | 'untrusted_base' | 'delete_update';
@@ -342,7 +343,7 @@ function projectRawValues(
 export function encryptPrivatePayload(
   plaintext: string,
   conflictPayloadEncryption: SyncConflictPayloadEncryption,
-  aad: Readonly<Record<string, string>>,
+  source: SyncConflictAadSource,
 ): Readonly<{ readonly ciphertext: Buffer; readonly iv: Buffer; readonly authTag: Buffer;
   readonly digest: string }> {
   const key = Buffer.from(hkdfSync(
@@ -351,7 +352,7 @@ export function encryptPrivatePayload(
   ));
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key, iv);
-  cipher.setAAD(Buffer.from(stableJson(aad), 'utf8'));
+  cipher.setAAD(Buffer.from(stableJson(buildSyncConflictAad(source)), 'utf8'));
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   return Object.freeze({
     ciphertext,

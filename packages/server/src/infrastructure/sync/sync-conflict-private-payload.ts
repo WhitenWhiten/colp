@@ -5,6 +5,7 @@ import {
   selectSyncConflictPayloadKey,
   type SyncConflictPayloadKeyring,
 } from './sync-conflict-postgres.js';
+import { buildSyncConflictAad } from './sync-conflict-aad.js';
 import { isRecord, stableJson } from './sync-conflict-json.js';
 
 /**
@@ -35,7 +36,7 @@ export function decryptPrivatePayload(
   const key = Buffer.from(hkdfSync('sha256', encryption.key, Buffer.alloc(0),
     Buffer.from('known.sync-conflict.private.v1', 'utf8'), 32));
   const decipher = createDecipheriv('aes-256-gcm', key, conflict.private_payload_iv);
-  decipher.setAAD(Buffer.from(stableJson({
+  decipher.setAAD(Buffer.from(stableJson(buildSyncConflictAad({
     collectionId: conflict.collection_id, replicaId: conflict.replica_id,
     leaseGeneration: leaseGeneration.toString(), sessionId: conflict.session_id, operationId: conflict.operation_id,
     targetId: conflict.target_id, conflictId: conflict.conflict_id,
@@ -43,7 +44,7 @@ export function decryptPrivatePayload(
     conflictingFields: stableJson(conflict.conflicting_fields, invalid), nodeKind,
     baseRevision: conflict.base_revision, currentRevision: conflict.current_revision,
     keyVersion: String(conflict.private_payload_key_version),
-  }, invalid), 'utf8'));
+  }), invalid), 'utf8'));
   decipher.setAuthTag(conflict.private_payload_auth_tag);
   let plaintext: Buffer;
   try {
