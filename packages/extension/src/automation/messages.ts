@@ -4,6 +4,7 @@ import type { RulesetProblem } from './ruleset-format.js';
 import type { DraftProblem, RuleDraft } from './rule-conditions.js';
 import type { RuleMatchView } from './rule-match.js';
 import type { LocalRule, LocalSet } from './rule-list-store.js';
+import { isSubscriptionKind, validSubscriptionCommand, type BrowserSubscriptionView, type SubscriptionCommand } from './subscription-messages.js';
 
 /**
  * Page ↔ worker messages for automations: the Options page's state and refresh,
@@ -85,7 +86,8 @@ export type BrowserRuleCommand =
   /** Keep in this browser: stop waiting for the account's copy (follow-up U5). The rule keeps filing as before. */
   | { readonly kind: 'known.automation.browser.stay'; readonly id: string }
   /** A new rule for all the account's devices: the web editor, filled in with this draft. Nothing is stored here. */
-  | { readonly kind: 'known.automation.browser.forAccount'; readonly draft: RuleDraft };
+  | { readonly kind: 'known.automation.browser.forAccount'; readonly draft: RuleDraft }
+  | SubscriptionCommand;
 
 export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule | null }
   | { readonly ok: true; readonly set: LocalSet | null }
@@ -96,6 +98,7 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   | { readonly ok: true; readonly run: BrowserRunPreviewView }
   | { readonly ok: true; readonly config: { readonly content: string; readonly filename: string } }
   | { readonly ok: true; readonly ruleset: BrowserRulesetView }
+  | { readonly ok: true; readonly subscription: BrowserSubscriptionView }
   | { readonly ok: true; readonly imported: { readonly revision: number; readonly rules: number; readonly sets: number; readonly subscriptions: number;
     readonly skipped: number } }
   /** Apply: moved now; Undo: moved back. `skipped` were left alone, `missing` are gone. */
@@ -103,7 +106,9 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   /** `notSynced`: the folder is not in the synced collection; `signedOut`: there is no account to make it in. */
   | { readonly ok: false; readonly error: string; readonly problems?: readonly DraftProblem[];
     /** A rule-set file this build refuses: up to ten problems, each where it is in the file. */
-    readonly rulesetProblems?: readonly RulesetProblem[] };
+    readonly rulesetProblems?: readonly RulesetProblem[];
+    /** A subscription's address answered with this HTTP status. */
+    readonly status?: number };
 
 export type BrowserRunCommand = Extract<BrowserRuleCommand, { readonly kind: 'known.automation.browser.runPreview' | 'known.automation.browser.runApply'
   | 'known.automation.browser.runUndo' }>;
@@ -154,6 +159,7 @@ const validIndex = (value: unknown) => Number.isInteger(value) && (value as numb
 export function validBrowserRuleCommand(value: unknown): value is BrowserRuleCommand {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const raw = value as Record<string, unknown>, keys = Object.keys(raw).length;
+  if (isSubscriptionKind(raw.kind)) return validSubscriptionCommand(raw);
   if (raw.kind === 'known.automation.browser.save') {
     return validDraft(raw.draft) && (raw.id === undefined || id(raw.id)) && (raw.into === undefined || id(raw.into))
       && (raw.enabled === undefined || typeof raw.enabled === 'boolean') && (raw.index === undefined || validIndex(raw.index))

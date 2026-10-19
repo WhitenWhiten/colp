@@ -86,6 +86,8 @@ import { handleBrowserRuleCommand } from './sw/automation-browser.js';
 import { handleConfigCommand } from './sw/automation-config.js';
 import { handleRulesetCommand } from './sw/automation-ruleset.js';
 import { handleRunCommand } from './sw/automation-run.js';
+import { handleSubscriptionCommand, installRuleSubscriptions, refreshDueSubscriptions, RULE_SUBSCRIPTION_ALARM } from './sw/automation-subscriptions.js';
+import { isSubscriptionCommand } from './automation/subscription-messages.js';
 import { accountLink, AUTOMATION_ALARM, handleAutomationRequest, installAutomationRuntime, refreshAutomation } from './sw/automation.js';
 import { installObservedCreates, resumeObservedCreates } from './sw/automation-observed.js';
 import { currentSyncScope, stateAfterFailure } from './sw/scope.js';
@@ -107,6 +109,7 @@ installClassificationAuthorityListener();
 void initI18n();
 installNativeSaveEntries();
 installAutomationRuntime();
+installRuleSubscriptions();
 installObservedCreates();
 void wakeLocalImports().catch(() => undefined);
 chrome.runtime.onStartup.addListener(() => {
@@ -149,6 +152,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === FAVICON_SIDECAR_ALARM) void drainFaviconSidecarsForCurrentScope();
   if (alarm.name === BOOKMARK_RECOVERY_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
   if (alarm.name === BOOKMARK_RECONCILE_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
+  if (alarm.name === RULE_SUBSCRIPTION_ALARM) void refreshDueSubscriptions().catch(() => undefined);
   if (alarm.name === AUTOMATION_ALARM) { void refreshAutomation().catch(() => undefined); void resumeObservedCreates().catch(() => undefined); }
 });
 self.addEventListener('online', (event) => {
@@ -348,7 +352,8 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     // This browser's own rules are written from Options only.
     if (!trustedLifecyclePage(sender, chrome.runtime.id)) return false;
     void (isBrowserRunCommand(message) ? handleRunCommand(message) : isBrowserConfigCommand(message) ? handleConfigCommand(message)
-      : isBrowserRulesetCommand(message) ? handleRulesetCommand(message) : handleBrowserRuleCommand(message, accountLink))
+      : isBrowserRulesetCommand(message) ? handleRulesetCommand(message) : isSubscriptionCommand(message) ? handleSubscriptionCommand(message)
+        : handleBrowserRuleCommand(message, accountLink))
       .then(respond, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }

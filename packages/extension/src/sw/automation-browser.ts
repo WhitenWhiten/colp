@@ -11,6 +11,7 @@ import type { AutomationPlacementView, BrowserListEntryView, BrowserListView, Br
 import { ruleMatchView } from '../automation/rule-match.js';
 import { PREVIEW_SAMPLE, previewList, type PreviewPage } from '../automation/rule-preview.js';
 import type { PreSaveInput } from '../automation/pre-save.js';
+import type { SubscriptionCommand } from '../automation/subscription-messages.js';
 import type { BrowserAutomation, CaptureTask } from '../capture/contracts.js';
 import { hasBookmarkPermission } from './runtime.js';
 
@@ -227,7 +228,8 @@ export async function browserPlacementViews(): Promise<AutomationPlacementView[]
   });
 }
 
-export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleCommand, BrowserRunCommand | BrowserConfigCommand | BrowserRulesetCommand>,
+export async function handleBrowserRuleCommand(command: Exclude<BrowserRuleCommand, BrowserRunCommand | BrowserConfigCommand | BrowserRulesetCommand
+  | SubscriptionCommand>,
   link: () => Promise<AccountLink | null> = async () => null): Promise<BrowserRuleResponse> {
   const store = browserRuleStore(), now = Date.now();
   const rule = (value: LocalRule | null): BrowserRuleResponse => value ? { ok: true, rule: value } : { ok: false, error: 'notFound' };

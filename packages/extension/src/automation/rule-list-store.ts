@@ -291,7 +291,9 @@ export type ListChangeResult = { readonly ok: true; readonly revision: number }
   | { readonly ok: false; readonly error: 'notFound' | 'mismatch' | 'limit' | 'unbound' };
 export type EntryRef = { readonly kind: 'rule' | 'set' | 'subscription'; readonly id: string };
 
-type Change<T> = { readonly result: T; readonly entries?: readonly ListEntry[]; readonly enabled?: boolean; readonly notice?: 'dismiss' };
+/** `writes` and `deletes`: a subscription's own keys (subscription-store.ts), in the list's transaction; `touch`: a new revision with nothing else changed. */
+type Change<T> = { readonly result: T; readonly entries?: readonly ListEntry[]; readonly enabled?: boolean; readonly notice?: 'dismiss';
+  readonly writes?: Readonly<Record<string, unknown>>; readonly deletes?: readonly string[]; readonly touch?: true };
 
 export function createRuleListStore(area: AtomicStateArea, options: { readonly id?: () => string; readonly now?: () => number } = {}) {
   const newId = options.id ?? (() => crypto.randomUUID());
@@ -315,11 +317,12 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
     return exclusive(async () => {
       const list = await current();
       const change = work(list);
-      if (change.entries === undefined && change.enabled === undefined && change.notice === undefined) return change.result;
+      if (change.entries === undefined && change.enabled === undefined && change.notice === undefined && !change.touch) return change.result;
       const { orderNotice, ...rest } = list;
       const next: RuleListRecord = { ...rest, revision: list.revision + 1, entries: change.entries ?? list.entries, enabled: change.enabled ?? list.enabled,
         ...(orderNotice && change.notice !== 'dismiss' ? { orderNotice } : {}) };
-      await area.set(RULE_LIST_KEY, next);
+      if (change.writes || change.deletes) await area.commit({ ...change.writes, [RULE_LIST_KEY]: next }, change.deletes);
+      else await area.set(RULE_LIST_KEY, next);
       return change.result;
     });
   }
@@ -524,6 +527,25 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         }
         return { result: { ok: true, revision: list.revision + 1 }, entries: mapSet(list.entries, setId, (item) => ({ ...item, bindings: next, updatedAt: now })) };
       });
+    },
+    /**
+     * A subscription's records written with the list (doc 17 §4.2, §8), one transaction each so no save sees one
+     * without the other: added at `index` (the end when absent) with its record, its content activated (the
+     * revision moves on, so open previews are stale), or taken out with every key it had.
+     */
+    addSubscription(id: string, writes: Readonly<Record<string, unknown>>, index?: number): Promise<ListChangeResult> {
+      return update((list): Change<ListChangeResult> => {
+        if (list.entries.some((entry) => entry.kind === 'subscription' && entry.subscriptionId === id)) return { result: { ok: false, error: 'mismatch' } };
+        const entries = insertAt(list.entries, index, { kind: 'subscription', subscriptionId: id, enabled: true });
+        return overLimits(entries) ? { result: { ok: false, error: 'limit' } } : { result: { ok: true, revision: list.revision + 1 }, entries, writes };
+      });
+    },
+    activateSubscription(writes: Readonly<Record<string, unknown>>, deletes: readonly string[] = []): Promise<number> {
+      return update((list) => ({ result: list.revision + 1, touch: true, writes, deletes }));
+    },
+    removeSubscription(id: string, deletes: readonly string[]): Promise<ListChangeResult> {
+      return update((list) => ({ result: { ok: true, revision: list.revision + 1 }, deletes,
+        entries: list.entries.filter((entry) => entry.kind !== 'subscription' || entry.subscriptionId !== id) }));
     },
     dismissOrderNotice(): Promise<boolean> {
       return update((list) => list.orderNotice ? { result: true, notice: 'dismiss' } : { result: false });

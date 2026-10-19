@@ -16,7 +16,7 @@ import { hasBookmarkPermission } from './runtime.js';
 type Parsed = Extract<ReturnType<typeof parseRuleset>, { ok: true }>;
 
 /** Of the recent bookmarks, how many the set's rules would take, first match within the set, by role. */
-async function sample(compiled: readonly CompiledEntry[]): Promise<BrowserRulesetView['sample']> {
+export async function rulesetSample(compiled: readonly CompiledEntry[]): Promise<BrowserRulesetView['sample']> {
   const pages = await recentPages(), now = Date.now();
   const predicates = compiled.map((item) => ({ role: item.entry.role!, check: compilePredicate(item.definition.match) }));
   const byRole = new Map<string, number>();
@@ -31,7 +31,7 @@ async function sample(compiled: readonly CompiledEntry[]): Promise<BrowserRulese
   return { size: pages.length, limit: OVERLAP_SAMPLE, matched, byRole: [...byRole].map(([role, count]) => ({ role, count })).sort((a, b) => b.count - a.count) };
 }
 
-function view(parsed: Parsed, sampled: BrowserRulesetView['sample']): BrowserRulesetView {
+export function rulesetView(parsed: Parsed, sampled: BrowserRulesetView['sample']): BrowserRulesetView {
   const { ruleset, compiled, left } = parsed;
   return { id: ruleset.id, name: ruleset.name, version: ruleset.version, publisher: ruleset.publisher?.name ?? null, license: ruleset.license ?? null,
     roles: ruleset.roles.map((role) => ({ ...role, rules: compiled.filter((item) => item.entry.role === role.key).length })),
@@ -60,7 +60,7 @@ export async function handleRulesetCommand(command: BrowserRulesetCommand): Prom
   const parsed = parseRuleset(command.text);
   if (!parsed.ok) return { ok: false, error: 'invalid', rulesetProblems: parsed.problems };
   if (command.kind === 'known.automation.browser.import.check') {
-    return { ok: true, ruleset: view(parsed, await hasBookmarkPermission() ? await sample(parsed.compiled) : null) };
+    return { ok: true, ruleset: rulesetView(parsed, await hasBookmarkPermission() ? await rulesetSample(parsed.compiled) : null) };
   }
   if (!await hasBookmarkPermission()) return { ok: false, error: 'noAccess' };
   const bindings: Record<string, string> = {};
