@@ -1,6 +1,7 @@
 import { types as nodeTypes } from 'node:util';
 
 import { isRfc3339DateTime } from '../shared/date-time.js';
+import { bindMethod, dataObject, requirePromise } from './port-snapshot.js';
 import type { DeleteResult, DeletionReceipt } from '../types/generated.js';
 import type {
   IdempotencyBinding,
@@ -298,52 +299,6 @@ function exactDataObject(
     if (!Object.hasOwn(value, key)) throw new TypeError(`${label} is missing required member ${key}.`);
   }
   return value as Record<string, unknown>;
-}
-
-function dataObject(owner: unknown, name: string, label: string): object {
-  if (owner === null || typeof owner !== 'object' || nodeTypes.isProxy(owner)) {
-    throw new TypeError(`${label} must be a non-Proxy object.`);
-  }
-  const descriptor = findDataProperty(owner, name, label);
-  if (descriptor === undefined || !('value' in descriptor)
-    || descriptor.value === null || typeof descriptor.value !== 'object'
-    || nodeTypes.isProxy(descriptor.value)) {
-    throw new TypeError(`${label} ${name} must be a non-Proxy data object.`);
-  }
-  return descriptor.value;
-}
-
-function bindMethod<Method extends (...args: any[]) => unknown>(
-  owner: object,
-  name: string,
-  label: string,
-): Method {
-  const descriptor = findDataProperty(owner, name, label);
-  if (descriptor === undefined || !('value' in descriptor)
-    || typeof descriptor.value !== 'function' || nodeTypes.isProxy(descriptor.value)) {
-    throw new TypeError(`${label} ${name} must be a non-Proxy data method.`);
-  }
-  const method = descriptor.value as Method;
-  return ((...args: Parameters<Method>) => Reflect.apply(method, owner, args)) as Method;
-}
-
-function findDataProperty(owner: object, name: string, label: string): PropertyDescriptor | undefined {
-  let current: object | null = owner;
-  while (current !== null) {
-    if (nodeTypes.isProxy(current)) throw new TypeError(`${label} prototype cannot be a Proxy.`);
-    const descriptor = Object.getOwnPropertyDescriptor(current, name);
-    if (descriptor !== undefined) {
-      if (!('value' in descriptor)) throw new TypeError(`${label} ${name} must be a data property.`);
-      return descriptor;
-    }
-    current = Object.getPrototypeOf(current) as object | null;
-  }
-  return undefined;
-}
-
-function requirePromise<Result>(candidate: Promise<Result>, label: string): Promise<Result> {
-  if (!(candidate instanceof Promise)) throw new TypeError(`${label} must return a native Promise.`);
-  return candidate;
 }
 
 function resourceType(value: unknown, label: string): PublisherDeletionResourceType {

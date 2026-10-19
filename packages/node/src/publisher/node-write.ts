@@ -23,6 +23,13 @@ import {
 import type { PrincipalRef } from '../types/index.js';
 import type { PublisherInternalFailureObserver } from './internal-failure.js';
 import { notifyPublisherInternalFailureFromPorts } from './internal-failure.js';
+import {
+  assertPortObject,
+  bindMethod,
+  findDataProperty,
+  optionalMethod,
+  requirePromise,
+} from './port-snapshot.js';
 
 export type PublisherNodeWriteAuthenticationDecision =
   | { readonly authenticated: true; readonly identityResolution: IdentityResolution }
@@ -404,24 +411,26 @@ export function snapshotPublisherNodeWriteGuardPorts<
   ports: PublisherNodeWriteGuardPortInput<Context, Candidate, Result>,
   label = 'Publisher Node write',
 ): PublisherNodeWriteGuardPortInput<Context, Candidate, Result> {
-  if (ports === null || typeof ports !== 'object' || nodeTypes.isProxy(ports)) {
-    throw new TypeError(`${label} ports are required and cannot be a Proxy.`);
-  }
-  const unitOfWork = findDataProperty(ports, 'unitOfWork')?.value;
+  assertPortObject(ports, `${label} ports`);
+  const unitOfWork = findDataProperty(ports, 'unitOfWork', label)?.value;
   if (unitOfWork === null || typeof unitOfWork !== 'object' || nodeTypes.isProxy(unitOfWork)) {
     throw new TypeError(`${label} unit of work is required and cannot be a Proxy.`);
   }
-  const authorizeNodeIdentity = snapshotOptionalMethod<typeof ports.authorizeNodeIdentity>(ports, 'authorizeNodeIdentity');
+  const authorizeNodeIdentity = optionalMethod<typeof ports.authorizeNodeIdentity>(
+    ports,
+    'authorizeNodeIdentity',
+    label,
+  );
   return Object.freeze({
     unitOfWork: Object.freeze({
-      run: snapshotMethod<PublisherNodeWriteUnitOfWork<Context>['run']>(unitOfWork, 'run'),
+      run: bindMethod<PublisherNodeWriteUnitOfWork<Context>['run']>(unitOfWork, 'run', label),
     }),
-    authenticate: snapshotMethod<typeof ports.authenticate>(ports, 'authenticate'),
-    authorize: snapshotMethod<typeof ports.authorize>(ports, 'authorize'),
+    authenticate: bindMethod<typeof ports.authenticate>(ports, 'authenticate', label),
+    authorize: bindMethod<typeof ports.authorize>(ports, 'authorize', label),
     ...(authorizeNodeIdentity === undefined ? {} : { authorizeNodeIdentity }),
-    conceal: snapshotMethod<typeof ports.conceal>(ports, 'conceal'),
-    validate: snapshotMethod<typeof ports.validate>(ports, 'validate'),
-    evaluatePolicy: snapshotMethod<typeof ports.evaluatePolicy>(ports, 'evaluatePolicy'),
+    conceal: bindMethod<typeof ports.conceal>(ports, 'conceal', label),
+    validate: bindMethod<typeof ports.validate>(ports, 'validate', label),
+    evaluatePolicy: bindMethod<typeof ports.evaluatePolicy>(ports, 'evaluatePolicy', label),
   });
 }
 
@@ -429,9 +438,9 @@ function snapshotPorts<Context extends NodeWriteResolver, Candidate, Result>(
   ports: PublisherGuardedNodeWritePorts<Context, Candidate, Result>,
 ): SnapshottedPorts<Context, Candidate, Result> {
   const guard = snapshotPublisherNodeWriteGuardPorts(ports);
-  const beforeBusinessConflict = snapshotOptionalMethod<
+  const beforeBusinessConflict = optionalMethod<
     typeof ports.beforeBusinessConflict
-  >(ports, 'beforeBusinessConflict');
+  >(ports, 'beforeBusinessConflict', 'Publisher Node write');
   return Object.freeze({
     runUnitOfWork: guard.unitOfWork.run,
     authenticate: guard.authenticate,
@@ -441,44 +450,8 @@ function snapshotPorts<Context extends NodeWriteResolver, Candidate, Result>(
     ...(beforeBusinessConflict === undefined ? {} : { beforeBusinessConflict }),
     validate: guard.validate,
     evaluatePolicy: guard.evaluatePolicy,
-    write: snapshotMethod<typeof ports.write>(ports, 'write'),
+    write: bindMethod<typeof ports.write>(ports, 'write', 'Publisher Node write'),
   });
-}
-
-function snapshotOptionalMethod<Method extends ((...args: any[]) => unknown) | undefined>(
-  owner: object,
-  name: string,
-): Method {
-  const descriptor = findDataProperty(owner, name);
-  if (descriptor === undefined) return undefined as Method;
-  if (typeof descriptor.value !== 'function' || nodeTypes.isProxy(descriptor.value)) {
-    throw new TypeError(`Publisher Node write ${name} port must be a non-Proxy data method.`);
-  }
-  const method = descriptor.value;
-  return ((...args: unknown[]) => Reflect.apply(method, owner, args)) as Method;
-}
-
-function snapshotMethod<Method extends (...args: any[]) => unknown>(owner: object, name: string): Method {
-  const descriptor = findDataProperty(owner, name);
-  if (descriptor === undefined || typeof descriptor.value !== 'function' || nodeTypes.isProxy(descriptor.value)) {
-    throw new TypeError(`Publisher Node write ${name} port must be a non-Proxy data method.`);
-  }
-  const method = descriptor.value as Method;
-  return ((...args: Parameters<Method>) => Reflect.apply(method, owner, args)) as Method;
-}
-
-function findDataProperty(owner: object, name: string): PropertyDescriptor | undefined {
-  let current: object | null = owner;
-  while (current !== null) {
-    if (nodeTypes.isProxy(current)) throw new TypeError('Publisher Node write port prototype cannot be a Proxy.');
-    const descriptor = Object.getOwnPropertyDescriptor(current, name);
-    if (descriptor !== undefined) {
-      if (!('value' in descriptor)) throw new TypeError(`Publisher Node write ${name} must be a data property.`);
-      return descriptor;
-    }
-    current = Object.getPrototypeOf(current) as object | null;
-  }
-  return undefined;
 }
 
 function inspectAuthentication(value: unknown): PublisherNodeWriteAuthenticationDecision {
@@ -579,11 +552,6 @@ function deepFreeze<Value>(value: Value, visited = new WeakSet<object>()): Reado
     deepFreeze((value as Record<string, unknown>)[key], visited);
   }
   return Object.freeze(value);
-}
-
-function requirePromise<Result>(candidate: Promise<Result>, label: string): Promise<Result> {
-  if (!(candidate instanceof Promise)) throw new TypeError(`${label} must return a native Promise.`);
-  return candidate;
 }
 
 function problem(code: 'authentication_required' | 'insufficient_scope' | 'resource_not_found' | 'internal_error'):

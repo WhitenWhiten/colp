@@ -1,6 +1,12 @@
 import { types as nodeTypes } from 'node:util';
 
 import { createValidatorRegistry } from '../schema/index.js';
+import {
+  assertPortObject,
+  bindMethod as bindPortMethod,
+  dataValue as portDataValue,
+  requirePromise,
+} from './port-snapshot.js';
 import type {
   GuardedNodeWritePlan,
   NodeWriteLimits,
@@ -698,45 +704,8 @@ function rejectedProblem(
   return Object.freeze({ state: 'rejected', code, ...getProblemDefinition(code) });
 }
 
-function assertPortObject(value: unknown, label: string): asserts value is object {
-  if (value === null || typeof value !== 'object' || nodeTypes.isProxy(value)) {
-    throw new TypeError(`${label} must be a non-Proxy object.`);
-  }
-}
+const dataValue = (owner: object, name: string): unknown =>
+  portDataValue(owner, name, 'Publisher Node Delete');
 
-function dataValue(owner: object, name: string): unknown {
-  const descriptor = findDataProperty(owner, name);
-  if (descriptor === undefined || !('value' in descriptor)) {
-    throw new TypeError(`Publisher Node Delete ${name} port is required.`);
-  }
-  return descriptor.value;
-}
-
-function bindMethod<Method extends (...args: any[]) => unknown>(owner: object, name: string): Method {
-  const descriptor = findDataProperty(owner, name);
-  if (descriptor === undefined || !('value' in descriptor)
-    || typeof descriptor.value !== 'function' || nodeTypes.isProxy(descriptor.value)) {
-    throw new TypeError(`Publisher Node Delete ${name} port must be a non-Proxy data method.`);
-  }
-  const method = descriptor.value as Method;
-  return ((...args: Parameters<Method>) => Reflect.apply(method, owner, args)) as Method;
-}
-
-function findDataProperty(owner: object, name: string): PropertyDescriptor | undefined {
-  let current: object | null = owner;
-  while (current !== null) {
-    if (nodeTypes.isProxy(current)) throw new TypeError('Publisher Node Delete port prototype cannot be a Proxy.');
-    const descriptor = Object.getOwnPropertyDescriptor(current, name);
-    if (descriptor !== undefined) {
-      if (!('value' in descriptor)) throw new TypeError(`Publisher Node Delete ${name} must be a data property.`);
-      return descriptor;
-    }
-    current = Object.getPrototypeOf(current) as object | null;
-  }
-  return undefined;
-}
-
-function requirePromise<Result>(candidate: Promise<Result>, label: string): Promise<Result> {
-  if (!(candidate instanceof Promise)) throw new TypeError(`${label} must return a native Promise.`);
-  return candidate;
-}
+const bindMethod = <Method extends (...args: any[]) => unknown>(owner: object, name: string): Method =>
+  bindPortMethod<Method>(owner, name, 'Publisher Node Delete');

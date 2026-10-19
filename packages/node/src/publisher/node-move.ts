@@ -1,6 +1,12 @@
 import { types as nodeTypes } from 'node:util';
 
 import { createValidatorRegistry } from '../schema/index.js';
+import {
+  assertPortObject,
+  bindMethod as bindPortMethod,
+  dataValue as portDataValue,
+  requirePromise,
+} from './port-snapshot.js';
 import { compareOrderKeys } from '../semantic/snapshot.js';
 import { buildMoveNodePayload } from '../client/node-placement.js';
 import type {
@@ -637,40 +643,8 @@ function assertStableReferences(before: MoveReferences, after: MoveReferences): 
   }
 }
 
-function assertPortObject(value: unknown, label: string): asserts value is object {
-  if (value === null || typeof value !== 'object' || nodeTypes.isProxy(value)) {
-    throw new TypeError(`${label} is required and cannot be a Proxy.`);
-  }
-}
+const dataValue = (owner: object, name: string): unknown =>
+  portDataValue(owner, name, 'Publisher Node Move');
 
-function dataValue(owner: object, name: string): unknown {
-  const descriptor = findDataProperty(owner, name);
-  if (descriptor === undefined || !('value' in descriptor)) {
-    throw new TypeError(`Publisher Node Move ${name} must be a data property.`);
-  }
-  return descriptor.value;
-}
-
-function bindMethod<Method extends (...args: any[]) => unknown>(owner: object, name: string): Method {
-  const method = dataValue(owner, name);
-  if (typeof method !== 'function' || nodeTypes.isProxy(method)) {
-    throw new TypeError(`Publisher Node Move ${name} must be a non-Proxy data method.`);
-  }
-  return ((...args: Parameters<Method>) => Reflect.apply(method, owner, args)) as Method;
-}
-
-function findDataProperty(owner: object, name: string): PropertyDescriptor | undefined {
-  let current: object | null = owner;
-  while (current !== null) {
-    if (nodeTypes.isProxy(current)) throw new TypeError('Publisher Node Move port prototype cannot be a Proxy.');
-    const descriptor = Object.getOwnPropertyDescriptor(current, name);
-    if (descriptor !== undefined) return descriptor;
-    current = Object.getPrototypeOf(current) as object | null;
-  }
-  return undefined;
-}
-
-function requirePromise<Result>(candidate: Promise<Result>, label: string): Promise<Result> {
-  if (!(candidate instanceof Promise)) throw new TypeError(`${label} must return a native Promise.`);
-  return candidate;
-}
+const bindMethod = <Method extends (...args: any[]) => unknown>(owner: object, name: string): Method =>
+  bindPortMethod<Method>(owner, name, 'Publisher Node Move');
