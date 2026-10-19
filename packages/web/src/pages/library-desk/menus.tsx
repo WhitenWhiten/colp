@@ -400,6 +400,7 @@ export function LibraryMoreMenu({
           first-class button, not behind the overflow menu. */}
       {caps?.createNode && (
         <button type="button" className="btn btn-primary btn-sm" onClick={() => compose('bookmark')}>
+          <Icon name="plus" />
           Add bookmark
         </button>
       )}

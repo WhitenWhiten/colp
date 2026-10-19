@@ -476,6 +476,7 @@ function ResourceDetailContent() {
                           aria-controls={creatingRelation ? RELATION_CREATE_FORM_ID : undefined}
                           onClick={() => setCreatingRelation((open) => !open)}
                         >
+                          <Icon name="plus" />
                           Add relation
                         </button>
                       )}
