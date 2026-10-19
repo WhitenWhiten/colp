@@ -341,6 +341,12 @@
   "automation_configFoldersHint": {
     "message": "Choose the folder here for each folder in the file. A folder with the same path is suggested; nothing is used until you import."
   },
+  "automation_configHasRiskLists_one": {
+    "message": "$1 risk list, fetched again once you allow its site"
+  },
+  "automation_configHasRiskLists_other": {
+    "message": "$1 risk lists, fetched again once you allow their sites"
+  },
   "automation_configHasRules_one": {
     "message": "“$2” has $1 rule"
   },
@@ -374,6 +380,12 @@
   "automation_configImportTitle": {
     "message": "Import rules"
   },
+  "automation_configImportedRisk_one": {
+    "message": "$1 risk list."
+  },
+  "automation_configImportedRisk_other": {
+    "message": "$1 risk lists."
+  },
   "automation_configImportedSets_one": {
     "message": "$1 set."
   },
@@ -406,6 +418,9 @@
   },
   "automation_configReplaceHint": {
     "message": "Your rules, sets and subscriptions here are removed first."
+  },
+  "automation_configRiskHint": {
+    "message": "Risk alerts are set as in the file, and its lists and exceptions are added to yours."
   },
   "automation_configSkipped_one": {
     "message": "$1 rule this version can’t use was left out."

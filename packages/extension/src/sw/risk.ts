@@ -2,6 +2,7 @@ import { normalizeHost } from '@know-n/colp/automation';
 import { automationDatabase, type AutomationDatabase } from '../automation/indexeddb-store.js';
 import { registrableDomain } from '../automation/public-suffix.js';
 import { fetchSubscription, subscriptionAddress, subscriptionOriginPattern, type FetchPorts } from '../automation/subscription-fetch.js';
+import type { ConfigRisk } from '../automation/rules-config-format.js';
 import type { SubscriptionRecord } from '../automation/subscription-store.js';
 import { checkRisk, freshness } from '../risk/risk-check.js';
 import type { RiskIndex } from '../risk/risk-index.js';
@@ -152,4 +153,35 @@ export async function handleRiskCommand(command: RiskCommand): Promise<RiskRespo
   if (!made.ok) return made;
   // The first fetch: when it fails the list stays, not ready, with the failure and Retry (RS-13.2).
   return { ok: true, list: await listView(await refreshRiskList(made.record.id).catch(() => null) ?? made.record) };
+}
+
+/**
+ * A rules file's risk alerts (doc 17 §5.3): its lists added, not ready until fetched once their sites are
+ * allowed here; its exceptions added beside these; its mode taken, but *while browsing* only with the
+ * permissions already granted here (otherwise on for saves). Returns how many lists it added.
+ */
+export async function importRiskConfig(risk: ConfigRisk, now = Date.now()): Promise<number> {
+  const store = riskStore();
+  let added = 0;
+  for (const item of risk.lists) {
+    const address = subscriptionAddress(item.url);
+    if (!address.ok) continue;
+    const made = await store.create({ url: address.url, origin: address.origin, refreshIntervalHours: item.refreshIntervalHours }, now);
+    if (!made.ok) continue;
+    added += 1;
+    if (item.paused) await store.update(made.record.id, { paused: true });
+  }
+  for (const exception of risk.exceptions) await store.addException(exception.scope, exception.value, now);
+  const browse = risk.mode === 'onSaveAndBrowse' && await chrome.permissions.contains({ permissions: BROWSE_PERMISSIONS }).catch(() => false);
+  const mode: RiskMode = risk.mode === 'onSaveAndBrowse' && !browse ? 'onSave' : risk.mode;
+  await store.setMode(mode);
+  await modeListener?.(mode);
+  return added;
+}
+
+/** What a rules file keeps of risk alerts: no session exceptions, no list content. */
+export async function exportRiskConfig(): Promise<ConfigRisk> {
+  const store = riskStore(), [settings, records] = await Promise.all([store.settings(), store.all()]);
+  return { mode: settings.mode, exceptions: settings.exceptions.map(({ scope, value }) => ({ scope, value })),
+    lists: records.map((record) => ({ url: record.url, refreshIntervalHours: record.refreshIntervalHours, paused: record.paused })) };
 }

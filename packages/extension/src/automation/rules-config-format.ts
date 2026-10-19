@@ -4,6 +4,8 @@ import { LIST_LIMITS, ruleFolderNativeId, type ListEntry, type LocalRule, type L
 import { subscriptionAddress } from './subscription-fetch.js';
 import { REFRESH_INTERVALS, type RefreshInterval } from './subscription-messages.js';
 import type { LocalAdjustments, SubscriptionRecord } from './subscription-store.js';
+import { exceptionValue, RISK_EXCEPTION_LIMIT, type RiskMode } from '../risk/risk-settings.js';
+import { RISK_LIST_LIMIT } from '../risk/risk-store.js';
 
 /**
  * `known-rules-config/v1` (doc 17 §5.3, RS-19.3): this browser's rule list in a file the Owner keeps,
@@ -12,8 +14,10 @@ import type { LocalAdjustments, SubscriptionRecord } from './subscription-store.
  * and a folder table naming every folder an action or binding uses by its title and path. Folder ids in
  * a file are another browser's: an import maps every folder in the table to one here, suggested by an
  * exact path, and uses none of the file's ids (RS-07.4). A subscription comes back not ready, and is
- * fetched once its origin is allowed here (RS-19.3). The document is closed and versioned; it carries
- * no credential, token or fetched content (RS-19.4).
+ * fetched once its origin is allowed here (RS-19.3). Risk alerts come with it (§5.3): the mode, the
+ * exceptions kept always and each list's address and settings, none of its entries; a file made before
+ * they were added has none. The document is closed and versioned; it carries no credential, token or
+ * fetched content (RS-19.4).
  */
 export const CONFIG_FORMAT = 'known-rules-config/v1';
 export const CONFIG_MAX_BYTES = 2 * 1024 * 1024;
@@ -54,11 +58,18 @@ export interface ConfigSubscription {
 }
 export type ConfigEntry = { readonly kind: 'rule'; readonly rule: ConfigRule } | { readonly kind: 'set'; readonly set: ConfigSet }
   | { readonly kind: 'subscription'; readonly subscription: ConfigSubscription };
+/** Risk alerts (doc 17 §4.4): separate from the list, and naming no folder. */
+export interface ConfigRisk {
+  readonly mode: RiskMode;
+  readonly exceptions: readonly { readonly scope: 'host' | 'domain'; readonly value: string }[];
+  readonly lists: readonly { readonly url: string; readonly refreshIntervalHours: RefreshInterval; readonly paused: boolean }[];
+}
 export interface RulesConfig {
   readonly format: typeof CONFIG_FORMAT;
   readonly exportedAt: number;
   readonly list: { readonly enabled: boolean; readonly entries: readonly ConfigEntry[] };
   readonly folders: readonly ConfigFolder[];
+  readonly risk?: ConfigRisk;
 }
 
 const ruleOf = (rule: LocalRule): ConfigRule => ({ id: rule.id, enabled: rule.enabled, name: rule.name, combinator: rule.combinator,
@@ -71,7 +82,7 @@ type Subscribed = (id: string) => { readonly record: SubscriptionRecord; readonl
  * A subscription whose record cannot be read is left out: there is no address to subscribe to again.
  */
 export async function buildRulesConfig(list: RuleListRecord, folder: (nativeId: string) => Promise<{ readonly title: string; readonly path: readonly string[] } | null>,
-  now: number, subscribed: Subscribed = () => null): Promise<RulesConfig> {
+  now: number, subscribed: Subscribed = () => null, risk?: ConfigRisk): Promise<RulesConfig> {
   const entries = list.entries.flatMap((entry): ConfigEntry[] => {
     if (entry.kind === 'rule') return entry.rule.conditions.length ? [{ kind: 'rule', rule: ruleOf(entry.rule) }] : [];
     if (entry.kind === 'subscription') {
@@ -98,7 +109,7 @@ export async function buildRulesConfig(list: RuleListRecord, folder: (nativeId: 
     const found = await folder(nativeId);
     return { nativeId, title: found?.title ?? '', path: found?.path ?? [] };
   }));
-  return { format: CONFIG_FORMAT, exportedAt: now, list: { enabled: list.enabled, entries }, folders };
+  return { format: CONFIG_FORMAT, exportedAt: now, list: { enabled: list.enabled, entries }, folders, ...(risk ? { risk } : {}) };
 }
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -169,6 +180,23 @@ function parseSubscription(value: unknown): ConfigSubscription {
     disabledEntryIds: list(raw.disabledEntryIds, 2_000).map((id) => text(id, 64, ROLE)), exceptions,
     bindings: Object.fromEntries(Object.entries(bindings).map(([key, folder]) => [key, text(folder, 128, FOLDER)])) };
 }
+function parseRisk(value: unknown): ConfigRisk {
+  const raw = object(value, ['mode', 'exceptions', 'lists']);
+  if (raw.mode !== 'off' && raw.mode !== 'onSave' && raw.mode !== 'onSaveAndBrowse') throw new Error('config_invalid');
+  const exceptions = list(raw.exceptions, RISK_EXCEPTION_LIMIT).map((item) => {
+    const exception = object(item, ['scope', 'value']);
+    if ((exception.scope !== 'host' && exception.scope !== 'domain') || typeof exception.value !== 'string'
+      || exceptionValue(exception.scope, exception.value) !== exception.value) throw new Error('config_invalid');
+    return { scope: exception.scope as 'host' | 'domain', value: exception.value };
+  });
+  const lists = list(raw.lists, RISK_LIST_LIMIT).map((item) => {
+    const entry = object(item, ['url', 'refreshIntervalHours', 'paused']);
+    const address = subscriptionAddress(text(entry.url, 2_048));
+    if (!address.ok || address.url !== entry.url || !REFRESH_INTERVALS.includes(entry.refreshIntervalHours as RefreshInterval)) throw new Error('config_invalid');
+    return { url: address.url, refreshIntervalHours: entry.refreshIntervalHours as RefreshInterval, paused: flag(entry.paused) };
+  });
+  return { mode: raw.mode, exceptions, lists };
+}
 function parseEntry(value: unknown): ConfigEntry {
   const raw = object(value, ['kind'], ['rule', 'set', 'subscription']);
   if (raw.kind === 'rule') { object(raw, ['kind', 'rule']); return { kind: 'rule', rule: parseRule(raw.rule) }; }
@@ -181,7 +209,7 @@ function parseEntry(value: unknown): ConfigEntry {
 export function parseRulesConfig(value: unknown): RulesConfig {
   if (!record(value) || value.format !== CONFIG_FORMAT) throw new Error(record(value) && typeof value.format === 'string'
     && value.format.startsWith('known-rules-config/') ? 'config_version_unsupported' : 'config_invalid');
-  const raw = object(value, ['format', 'exportedAt', 'list', 'folders']);
+  const raw = object(value, ['format', 'exportedAt', 'list', 'folders'], ['risk']);
   if (!Number.isSafeInteger(raw.exportedAt)) throw new Error('config_invalid');
   const body = object(raw.list, ['enabled', 'entries']);
   const entries = list(body.entries, LIST_LIMITS.rules + LIST_LIMITS.sets + LIST_LIMITS.subscriptions).map(parseEntry);
@@ -193,7 +221,8 @@ export function parseRulesConfig(value: unknown): RulesConfig {
   if (table.size !== folders.length) throw new Error('config_invalid');
   // Every folder an action or binding names is in the table.
   for (const id of foldersUsed({ list: { entries } }).all) if (!table.has(id)) throw new Error('config_invalid');
-  return { format: CONFIG_FORMAT, exportedAt: raw.exportedAt as number, list: { enabled: flag(body.enabled), entries }, folders };
+  return { format: CONFIG_FORMAT, exportedAt: raw.exportedAt as number, list: { enabled: flag(body.enabled), entries }, folders,
+    ...(raw.risk !== undefined ? { risk: parseRisk(raw.risk) } : {}) };
 }
 
 /** The table's folders the file uses: by a rule's action (each must be mapped), and those only a set's binding uses (may stay unbound). */

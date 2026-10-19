@@ -15,6 +15,7 @@ vi.mock('../src/bookmark-folder-policy.js', () => ({ assertBookmarkFolderAllowed
 vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ isSubscriptionExcluded: async (id: string) => id === 'managed' }));
 
 import { handleConfigCommand } from '../src/sw/automation-config.js';
+import { riskStore } from '../src/sw/risk.js';
 import { browserRuleStore, browserSubscriptionStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 
 function rule(id: string, conditions: RuleCondition[], action: RuleAction, enabled = true): LocalRule {
@@ -172,6 +173,36 @@ describe('the worker', () => {
     expect([await browserSubscriptionStore().get('sub-9'), await browserSubscriptionStore().get('sub-11')]).toEqual([null, expect.objectContaining({ state: 'notReady' })]);
     expect((await browserRuleStore().load()).entries.map((entry) => entry.kind === 'subscription' ? entry.subscriptionId : entry.kind)).toEqual(['sub-11']);
     expect(subscriptionKeys('sub-9').record).toBe('known.automation.subscription.v1:sub-9');
+  });
+
+  it('carries risk alerts — mode, saved exceptions, list addresses — and brings the lists back not ready (§5.3)', async () => {
+    let granted = true;
+    vi.stubGlobal('chrome', { ...(globalThis.chrome as object), permissions: { contains: async () => granted } });
+    const risk = riskStore();
+    await risk.create({ url: 'https://lists.example.org/phish.json', origin: 'https://lists.example.org', refreshIntervalHours: 24 }, NOW);
+    await risk.addException('host', 'login.example-bank.com', NOW);
+    await risk.setMode('onSaveAndBrowse');
+    const out = await handleConfigCommand({ kind: 'known.automation.browser.config.export' });
+    if (!out.ok || !('config' in out)) throw new Error('no export');
+    const file = JSON.parse(out.config.content) as RulesConfig;
+    expect(file.risk).toEqual({ mode: 'onSaveAndBrowse', exceptions: [{ scope: 'host', value: 'login.example-bank.com' }],
+      lists: [{ url: 'https://lists.example.org/phish.json', refreshIntervalHours: 24, paused: false }] });
+    // Another browser, without the browsing permissions: the lists come back not ready, alerts on for saves.
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    granted = false;
+    expect(await handleConfigCommand({ kind: 'known.automation.browser.config.import', text: out.config.content, folders: { 30: '30' }, replace: false }))
+      .toMatchObject({ ok: true, imported: { rules: 1, riskLists: 1 } });
+    const here = riskStore();
+    expect(await here.all()).toEqual([expect.objectContaining({ url: 'https://lists.example.org/phish.json', state: 'notReady', lastAttemptAt: null, updatePolicy: 'auto' })]);
+    expect(await here.settings()).toMatchObject({ mode: 'onSave', exceptions: [expect.objectContaining({ scope: 'host', value: 'login.example-bank.com' })] });
+    // Closed like the rest: an unknown key, a public suffix as a domain, an address off https.
+    expect(() => parseRulesConfig({ ...file, risk: { ...file.risk, extra: 1 } })).toThrow('config_invalid');
+    expect(() => parseRulesConfig({ ...file, risk: { ...file.risk!, exceptions: [{ scope: 'domain', value: 'github.io' }] } })).toThrow('config_invalid');
+    expect(() => parseRulesConfig({ ...file, risk: { ...file.risk!, lists: [{ url: 'http://lists.example.org/a.json', refreshIntervalHours: 24, paused: false }] } }))
+      .toThrow('config_invalid');
+    // A file from before risk alerts were in it still reads.
+    const { risk: _risk, ...older } = file;
+    expect(parseRulesConfig(older)).not.toHaveProperty('risk');
   });
 
   it('refuses an import past the list’s limits, whole', async () => {

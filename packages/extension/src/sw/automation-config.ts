@@ -4,6 +4,7 @@ import type { BrowserConfigCommand, BrowserRuleResponse } from '../automation/me
 import { buildRulesConfig, CONFIG_MAX_BYTES, configEntries, foldersUsed, parseRulesConfig } from '../automation/rules-config-format.js';
 import { newSubscription, subscriptionKeyList, subscriptionKeys } from '../automation/subscription-store.js';
 import { browserRuleStore, browserSubscriptionStore, folderView, listSources, nativeFolderLookup } from './automation-browser.js';
+import { exportRiskConfig, importRiskConfig } from './risk.js';
 import { hasBookmarkPermission } from './runtime.js';
 
 /**
@@ -11,11 +12,12 @@ import { hasBookmarkPermission } from './runtime.js';
  * folder by title and path; import takes the Owner's choice of folder here for every folder in the file,
  * checks each is a folder of theirs (never a bookmark subscription's), and adds the entries to the list
  * or replaces it. No folder is created, no folder id from the file is used, and nothing is fetched: a
- * subscription comes back not ready, and its first fetch waits for its origin to be allowed here.
+ * subscription comes back not ready, and its first fetch waits for its origin to be allowed here; so do
+ * the file's risk lists, added with its risk alert settings (sw/risk.ts).
  */
 async function exportConfig(): Promise<BrowserRuleResponse> {
   const now = Date.now(), list = await browserRuleStore().load(), sources = await listSources(list);
-  const config = await buildRulesConfig(list, folderView, now, (id) => sources.get(id) ?? null);
+  const config = await buildRulesConfig(list, folderView, now, (id) => sources.get(id) ?? null, await exportRiskConfig());
   const day = new Date(now).toISOString().slice(0, 10);
   return { ok: true, config: { content: `${JSON.stringify(config, null, 2)}\n`, filename: `known-rules-config-${day}.json` } };
 }
@@ -55,9 +57,12 @@ async function importConfig(command: Extract<BrowserConfigCommand, { kind: 'know
   const entries = made.entries.filter((entry) => entry.kind !== 'subscription' || !left.has(entry.subscriptionId));
   const result = await browserRuleStore().importEntries(entries, command.replace, { writes, dropped: subscriptionKeyList });
   if (!result.ok) return result;
+  // Risk alerts are added beside what is here, whichever way the list was imported.
+  const riskLists = config.risk ? await importRiskConfig(config.risk, now) : 0;
   const count = (kind: string) => entries.filter((entry) => entry.kind === kind).length;
   const rules = entries.reduce((sum, entry) => sum + (entry.kind === 'rule' ? 1 : entry.kind === 'set' ? entry.set.rules.length : 0), 0);
-  return { ok: true, imported: { revision: result.revision, rules, sets: count('set'), subscriptions: count('subscription'), skipped: made.skipped + left.size } };
+  return { ok: true, imported: { revision: result.revision, rules, sets: count('set'), subscriptions: count('subscription'), skipped: made.skipped + left.size,
+    riskLists } };
 }
 
 export async function handleConfigCommand(command: BrowserConfigCommand): Promise<BrowserRuleResponse> {

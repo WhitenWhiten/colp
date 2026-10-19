@@ -459,6 +459,10 @@
     "message": "$1 个订阅，允许访问其站点后会重新获取",
     "description": "$1 subscriptions, fetched again once you allow their sites"
   },
+  "automation_configHasRiskLists_other": {
+    "message": "$1 个风险列表，你允许其网站后会重新下载",
+    "description": "$1 risk lists, fetched again once you allow their sites"
+  },
   "automation_configHint": {
     "message": "把此浏览器的规则、规则集及其使用的文件夹保存在一个文件中，或从另一个浏览器带过来。文件中不包含书签。",
     "description": "Keep this browser’s rules, sets and the folders they use in a file, or bring them from another browser. Bookmarks aren’t in it."
@@ -482,6 +486,10 @@
   "automation_configImportedSets_other": {
     "message": "$1 个规则集。",
     "description": "$1 sets."
+  },
+  "automation_configImportedRisk_other": {
+    "message": "$1 个风险列表。",
+    "description": "$1 risk lists."
   },
   "automation_configImported_other": {
     "message": "已导入 $1 条规则。",
@@ -514,6 +522,10 @@
   "automation_configReplaceHint": {
     "message": "会先移除这里的规则、规则集和订阅。",
     "description": "Your rules, sets and subscriptions here are removed first."
+  },
+  "automation_configRiskHint": {
+    "message": "风险提醒按文件中的设置，文件中的列表和例外会添加到你现有的之中。",
+    "description": "Risk alerts are set as in the file, and its lists and exceptions are added to yours."
   },
   "automation_configSkipped_other": {
     "message": "有 $1 条此版本无法使用的规则未导入。",

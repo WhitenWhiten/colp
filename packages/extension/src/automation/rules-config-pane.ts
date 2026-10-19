@@ -32,8 +32,12 @@ function openImport(config: RulesConfig, name: string, trigger: HTMLElement, tex
   const subscriptions = config.list.entries.filter((entry) => entry.kind === 'subscription').length;
   body.append(el('p', [tn('automation_configHasRules', rules, '“$2” has $1 rule', '“$2” has $1 rules', name),
     sets ? tn('automation_configHasSets', sets, '$1 set', '$1 sets') : '',
-    subscriptions ? tn('automation_configHasSubscriptions', subscriptions, '$1 subscription, fetched again once you allow its site', '$1 subscriptions, fetched again once you allow their sites') : '']
+    subscriptions ? tn('automation_configHasSubscriptions', subscriptions, '$1 subscription, fetched again once you allow its site', '$1 subscriptions, fetched again once you allow their sites') : '',
+    config.risk?.lists.length ? tn('automation_configHasRiskLists', config.risk.lists.length, '$1 risk list, fetched again once you allow its site',
+      '$1 risk lists, fetched again once you allow their sites') : '']
     .filter(Boolean).join(' · '), 'automation-preview-verdict'));
+  // Risk alerts are not part of the list: the file's setting is taken, its lists and exceptions added (sw/risk.ts).
+  if (config.risk) body.append(el('p', t('automation_configRiskHint', 'Risk alerts are set as in the file, and its lists and exceptions are added to yours.'), 'mgr-hint'));
   const used = foldersUsed(config);
   const folders = config.folders.filter((folder) => used.all.has(folder.nativeId));
   const pickers = new Map<string, FolderPicker>();
@@ -85,8 +89,9 @@ function openImport(config: RulesConfig, name: string, trigger: HTMLElement, tex
       go.disabled = false;
       if (reply.ok && 'imported' in reply) {
         dialog.close();
-        const { rules: made, sets: madeSets, skipped } = reply.imported;
-        showToast(`${tn('automation_configImported', made, 'Imported $1 rule.', 'Imported $1 rules.')}${madeSets ? ` ${tn('automation_configImportedSets', madeSets, '$1 set.', '$1 sets.')}` : ''}${skipped
+        const { rules: made, sets: madeSets, skipped, riskLists } = reply.imported;
+        showToast(`${tn('automation_configImported', made, 'Imported $1 rule.', 'Imported $1 rules.')}${madeSets ? ` ${tn('automation_configImportedSets', madeSets, '$1 set.', '$1 sets.')}` : ''}${riskLists
+          ? ` ${tn('automation_configImportedRisk', riskLists, '$1 risk list.', '$1 risk lists.')}` : ''}${skipped
           ? ` ${tn('automation_configSkipped', skipped, '$1 rule this version can’t use was left out.', '$1 rules this version can’t use were left out.')}` : ''}`, 'ok', { announce: true });
         return;
       }

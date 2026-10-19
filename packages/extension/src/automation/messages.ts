@@ -102,7 +102,7 @@ export type BrowserRuleResponse = { readonly ok: true; readonly rule: LocalRule 
   | { readonly ok: true; readonly subscription: BrowserSubscriptionView }
   | { readonly ok: true; readonly review: BrowserSubscriptionReviewView }
   | { readonly ok: true; readonly imported: { readonly revision: number; readonly rules: number; readonly sets: number; readonly subscriptions: number;
-    readonly skipped: number } }
+    readonly skipped: number; readonly riskLists: number } }
   /** Apply: moved now; Undo: moved back. `skipped` were left alone, `missing` are gone. */
   | { readonly ok: true; readonly result: { readonly runId: string; readonly moved: number; readonly skipped: number; readonly missing: number } }
   /** `notSynced`: the folder is not in the synced collection; `signedOut`: there is no account to make it in. */
