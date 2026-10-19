@@ -43,8 +43,9 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
   readonly legacy?: LegacyArea; readonly changed?: () => Promise<void>;
 } = {}) {
   let connection: Promise<IDBDatabase> | undefined;
-  function open(): Promise<IDBDatabase> {
-    connection ??= new Promise<IDBDatabase>((resolve, reject) => {
+
+  function openDatabase(): Promise<IDBDatabase> {
+    return new Promise<IDBDatabase>((resolve, reject) => {
       const request = factory.open(AUTOMATION_DB, VERSION);
       request.onupgradeneeded = () => {
         request.result.createObjectStore(STATE);
@@ -54,10 +55,30 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
         request.result.onversionchange = () => { request.result.close(); connection = undefined; };
         resolve(request.result);
       };
-      request.onerror = () => { connection = undefined; reject(request.error); };
-    // A failed move is retried on the next open; the values stay where they were until then.
-    }).then(async (db) => { await migrate(db).catch(() => undefined); return db; });
-    return connection;
+      request.onerror = () => reject(request.error ?? new Error('automation_database_open_failed'));
+    });
+  }
+
+  /**
+   * One open attempt, including the one-time move of earlier builds' values.
+   * Concurrent callers share the attempt (single-flight), so the migration and
+   * its legacy removals run once. A failed migration rejects this attempt and
+   * closes its connection instead of caching it: the values stay in legacy
+   * storage and a later open() creates a fresh connection and retries. Callers
+   * therefore never observe a connection whose migration silently failed, and
+   * a successful open keeps the established behavior.
+   */
+  function open(): Promise<IDBDatabase> {
+    if (connection) return connection;
+    const attempt = (async () => {
+      const db = await openDatabase();
+      try { await migrate(db); return db; }
+      catch (error) { db.close(); throw error; }
+    })();
+    connection = attempt;
+    // Reset only this failed attempt; an open() that already started a newer one is untouched.
+    void attempt.catch(() => { if (connection === attempt) connection = undefined; });
+    return attempt;
   }
   async function run<T>(stores: string[], mode: IDBTransactionMode, work: (tx: IDBTransaction) => Promise<T>): Promise<T> {
     const tx = (await open()).transaction(stores, mode);
@@ -65,12 +86,15 @@ export function createAutomationDatabase(factory: IDBFactory, options: {
     try { const result = await work(tx); await done; return result; }
     catch (error) { try { tx.abort(); } catch { /* Already settled. */ } await done.catch(() => undefined); throw error; }
   }
-  /** Earlier builds' values move here once; a value already here is never overwritten by an older copy. */
+  /**
+   * Earlier builds' values move here once; a value already here is never overwritten by an older copy.
+   * A failed read, write or legacy removal rejects the open: nothing is removed from legacy storage
+   * until the write transaction has committed, and a later open retries the whole move.
+   */
   async function migrate(db: IDBDatabase): Promise<void> {
     const legacy = options.legacy;
     if (!legacy) return;
-    const values = await Promise.all(MIGRATED_KEYS.map(async (key) =>
-      [key, (await legacy.get(key).catch(() => ({}) as Record<string, unknown>))[key]] as const));
+    const values = await Promise.all(MIGRATED_KEYS.map(async (key) => [key, (await legacy.get(key))[key]] as const));
     const present = values.filter(([, value]) => value !== undefined);
     if (!present.length) return;
     const tx = db.transaction(STATE, 'readwrite'), done = transactionDone(tx), store = tx.objectStore(STATE);

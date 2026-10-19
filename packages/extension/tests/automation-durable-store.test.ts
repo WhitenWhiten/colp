@@ -52,12 +52,52 @@ describe('the automation database', () => {
     expect(await legacy.get(null)).toEqual({});
   });
 
-  it('opens even when the old values cannot be moved, and tries again next time', async () => {
+  it('rejects a failed legacy read, leaves those values in place, and migrates them on the next open', async () => {
+    const bundle = { version: 1, ownerKey: 'owner' };
     const legacy = new MemoryStorageArea();
-    await legacy.set({ [AUTOMATION_BUNDLE_KEY]: { version: 1, ownerKey: 'owner' } });
-    const stuck = { get: (key: string) => legacy.get(key), remove: async () => { throw new Error('quota'); } };
-    expect(await createAutomationDatabase(factory, { legacy: stuck }).area().get(AUTOMATION_BUNDLE_KEY)).toEqual({ version: 1, ownerKey: 'owner' });
-    await createAutomationDatabase(factory, { legacy }).area().get(AUTOMATION_BUNDLE_KEY);
+    await legacy.set({ [AUTOMATION_BUNDLE_KEY]: bundle });
+    let unavailable = true;
+    const flaky = { get: async (key: string) => { if (unavailable) throw new Error('legacy_unavailable'); return legacy.get(key); },
+      remove: (key: string | string[]) => legacy.remove(key) };
+    const database = createAutomationDatabase(factory, { legacy: flaky });
+    await expect(database.area().get(AUTOMATION_BUNDLE_KEY)).rejects.toThrow('legacy_unavailable');
+    expect(await legacy.get(null)).toEqual({ [AUTOMATION_BUNDLE_KEY]: bundle });
+    unavailable = false;
+    expect(await database.area().get(AUTOMATION_BUNDLE_KEY)).toEqual(bundle);
+    expect(await legacy.get(null)).toEqual({});
+  });
+
+  it('keeps legacy values when their removal fails, and removes them once on retry without overwriting newer data', async () => {
+    const bundle = { version: 1, ownerKey: 'legacy' };
+    const legacy = new MemoryStorageArea();
+    await legacy.set({ [AUTOMATION_BUNDLE_KEY]: bundle });
+    let removals = 0;
+    const flaky = { get: (key: string) => legacy.get(key), remove: async (key: string | string[]) => {
+      if (removals++ === 0) throw new Error('quota'); await legacy.remove(key);
+    } };
+    const database = createAutomationDatabase(factory, { legacy: flaky });
+    await expect(database.area().get(AUTOMATION_BUNDLE_KEY)).rejects.toThrow('quota');
+    expect(await legacy.get(null)).toEqual({ [AUTOMATION_BUNDLE_KEY]: bundle });
+    expect(await database.area().get(AUTOMATION_BUNDLE_KEY)).toEqual(bundle);
+    expect(removals).toBe(2);
+    expect(await legacy.get(null)).toEqual({});
+  });
+
+  it('shares one migration and removes each legacy value once between concurrent opens', async () => {
+    const bundle = { version: 1, ownerKey: 'owner' }, receipts = [{ version: 1, localReceiptId: 'r1' }];
+    const legacy = new MemoryStorageArea();
+    await legacy.set({ [AUTOMATION_BUNDLE_KEY]: bundle, [AUTOMATION_RECEIPTS_KEY]: receipts });
+    const reads: string[] = [], removals: string[] = [];
+    const slow = {
+      get: async (key: string) => { reads.push(key); await new Promise<void>((resolve) => setTimeout(resolve, 5)); return legacy.get(key); },
+      remove: async (key: string | string[]) => { removals.push(...(Array.isArray(key) ? key : [key])); await legacy.remove(key); },
+    };
+    const database = createAutomationDatabase(factory, { legacy: slow });
+    const [migrated, observedReceipts, intents] = await Promise.all([database.area().get(AUTOMATION_BUNDLE_KEY),
+      database.area().get(AUTOMATION_RECEIPTS_KEY), database.intents.list()]);
+    expect([migrated, observedReceipts, intents]).toEqual([bundle, receipts, []]);
+    expect(reads.sort()).toEqual([AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY].sort());
+    expect(removals.sort()).toEqual([AUTOMATION_BUNDLE_KEY, AUTOMATION_RECEIPTS_KEY].sort());
     expect(await legacy.get(null)).toEqual({});
   });
 
