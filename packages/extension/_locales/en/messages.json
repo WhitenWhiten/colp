@@ -5223,7 +5223,7 @@
     "message": "Bookmarks"
   },
   "options_bookmarksStayBrowserSync": {
-    "message": "Bookmarks, tags, notes and rules made in this browser stay. Personal sync and your account’s rules stop when you sign out."
+    "message": "Bookmarks, tags, notes and rules made in this browser stay. Sync and your account’s rules stop when you sign out."
   },
   "options_checkFolderAccess": {
     "message": "Check folder access"
@@ -5319,7 +5319,7 @@
     "message": "Loading bookmark folders…"
   },
   "options_logoutLifecycle": {
-    "message": "Queued personal sync changes will be archived. Reconnecting after sign-in requires your review. Managed subscription copies will be removed; personal copies you made are kept. Device save history stays on this browser."
+    "message": "Queued sync changes will be archived. Reconnecting after sign-in requires your review. Managed subscription copies will be removed; personal copies you made are kept. Device save history stays on this browser."
   },
   "options_logoutSharedSession": {
     "message": "This browser shares one Know-N session with the website: signing out here also signs you out of Know-N on the web, and signing in there signs this extension in again."

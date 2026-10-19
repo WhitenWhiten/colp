@@ -6680,8 +6680,8 @@
     "description": "Bookmarks"
   },
   "options_bookmarksStayBrowserSync": {
-    "message": "书签、标签、备注和在此浏览器中创建的规则都会保留。退出登录后，个人同步和你账户的规则会停止。",
-    "description": "Bookmarks, tags, notes and rules made in this browser stay. Personal sync and your account’s rules stop when you sign out."
+    "message": "书签、标签、备注和在此浏览器中创建的规则都会保留。退出登录后，同步和你账户的规则会停止。",
+    "description": "Bookmarks, tags, notes and rules made in this browser stay. Sync and your account’s rules stop when you sign out."
   },
   "options_checkFolderAccess": {
     "message": "检查文件夹访问权限",
@@ -6808,8 +6808,8 @@
     "description": "Loading bookmark folders…"
   },
   "options_logoutLifecycle": {
-    "message": "待处理的个人同步更改将被归档。登录后重新连接需要你确认。受管理的订阅副本将被移除；你创建的个人副本会保留。设备保存历史会保留在此浏览器中。",
-    "description": "Queued personal sync changes will be archived. Reconnecting after sign-in requires your review. Managed subscription copies will be removed; personal copies you made are kept. Device save history stays on this browser."
+    "message": "待处理的同步更改将被归档。登录后重新连接需要你确认。受管理的订阅副本将被移除；你创建的个人副本会保留。设备保存历史会保留在此浏览器中。",
+    "description": "Queued sync changes will be archived. Reconnecting after sign-in requires your review. Managed subscription copies will be removed; personal copies you made are kept. Device save history stays on this browser."
   },
   "options_logoutSharedSession": {
     "message": "此浏览器与 Know-N 网站共用同一个登录会话：在此退出也会退出网页版 Know-N，在网页上登录后此扩展也会重新登录。",
