@@ -1278,6 +1278,9 @@ export interface Capabilities {
   )[];
   eventsEnabled: boolean;
   limits: {
+    /**
+     * Maximum unarchived rules; archiving retains history and releases a slot.
+     */
     maxRules: number;
     maxExpressionBytes: number;
     maxTasksPerRule: number;
