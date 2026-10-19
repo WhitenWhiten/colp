@@ -188,6 +188,7 @@ describe('MCP quality gate configuration', () => {
     expect(feedMutationConfig.vitest).toEqual({ configFile: 'vitest.mutation.config.ts' });
     expect(schemaMutationConfig.vitest).toEqual({ configFile: 'vitest.mutation.config.ts' });
     expect(publisherMutationConfig.vitest).toEqual({ configFile: 'vitest.mutation.config.ts' });
+    expect(publisherMutationConfig.mutate).toContain('src/publisher/port-snapshot.ts');
     expect(coreMutationConfig.mutate).toEqual([...requiredCoreMutationSources]);
     expect(coreMutationConfig.testFiles).toEqual([...requiredCoreMutationTests]);
     expect(coreMutationConfig.jsonReporter).toEqual({

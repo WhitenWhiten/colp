@@ -13,6 +13,7 @@ export default {
     'src/publisher/media-type.ts',
     'src/publisher/deletion-receipt.ts',
     'src/publisher/node-move.ts',
+    'src/publisher/port-snapshot.ts',
     'src/server/node-write-guard.ts',
     'src/shared/plain-structured-data.ts',
     'src/shared/dense-array-keys.ts',

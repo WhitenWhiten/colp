@@ -70,6 +70,45 @@ describe('Publisher port snapshot primitives', () => {
     expect(() => method()).toThrow('sync failure');
   });
 
+  it('captures the method before the owner replaces it', () => {
+    const owner = { value: 3, method() { return this.value; } };
+    const captured = bindMethod<() => number>(owner, 'method', 'Test port');
+    owner.method = () => 99;
+    expect(captured()).toBe(3);
+  });
+
+  it('rejects missing or non-callable required methods while taking the snapshot', () => {
+    expect(() => bindMethod({}, 'method', 'Test port')).toThrow(TypeError);
+    for (const method of [null, undefined, 1, {}, 'method']) {
+      expect(() => bindMethod({ method }, 'method', 'Test port')).toThrow(TypeError);
+    }
+    expect(() => dataValue({}, 'missing', 'Test port')).toThrow(TypeError);
+  });
+
+  it('rejects a Proxy optional method before its apply trap can run', () => {
+    const apply = vi.fn(() => 1);
+    const method = new Proxy(() => 1, { apply });
+    expect(() => optionalMethod({ method }, 'method', 'Test port')).toThrow(TypeError);
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid data-object owners before reflecting on a Proxy', () => {
+    const trap = vi.fn(() => { throw new Error('reflection must not run'); });
+    const proxy = new Proxy({ nested: {} }, { getOwnPropertyDescriptor: trap, getPrototypeOf: trap });
+    expect(() => dataObject(proxy, 'nested', 'Test port')).toThrow(TypeError);
+    expect(trap).not.toHaveBeenCalled();
+    const callable = Object.assign(() => undefined, { nested: {} });
+    for (const owner of [null, undefined, 1, 'owner', callable]) {
+      expect(() => dataObject(owner, 'nested', 'Test port')).toThrow(TypeError);
+    }
+  });
+
+  it('rejects absent or null nested objects before returning a snapshot', () => {
+    expect(() => dataObject({}, 'nested', 'Test port')).toThrow(TypeError);
+    expect(() => dataObject({ nested: null }, 'nested', 'Test port')).toThrow(TypeError);
+    expect(() => dataObject({ nested: undefined }, 'nested', 'Test port')).toThrow(TypeError);
+  });
+
   it('accepts only native Promises for the port result contract', () => {
     const native = Promise.resolve(1);
     expect(requirePromise(native, 'Test result')).toBe(native);
