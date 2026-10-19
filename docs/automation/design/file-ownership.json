@@ -1245,7 +1245,8 @@
     "lane": "extension",
     "tasks": [
       "AW-67",
-      "AW-71"
+      "AW-71",
+      "AW-73"
     ],
     "repositoryState": "browserRulesOnMain"
   },
@@ -1253,7 +1254,8 @@
     "path": "packages/extension/src/automation/browser-rule-store.ts",
     "lane": "extension",
     "tasks": [
-      "AW-67"
+      "AW-67",
+      "AW-73"
     ],
     "repositoryState": "browserRulesOnMain"
   },
@@ -1263,7 +1265,8 @@
     "tasks": [
       "AW-67",
       "AW-69",
-      "AW-71"
+      "AW-71",
+      "AW-73"
     ],
     "repositoryState": "browserRulesOnMain"
   },
@@ -1287,7 +1290,8 @@
     "path": "packages/extension/src/automation/messages.ts",
     "lane": "extension",
     "tasks": [
-      "AW-67"
+      "AW-67",
+      "AW-73"
     ],
     "repositoryState": "browserRulesOnMain"
   },
@@ -1295,7 +1299,8 @@
     "path": "packages/extension/src/capture/contracts.ts",
     "lane": "extension",
     "tasks": [
-      "AW-67"
+      "AW-67",
+      "AW-73"
     ],
     "repositoryState": "browserRulesOnMain"
   },
@@ -1347,7 +1352,8 @@
     "path": "packages/extension/src/automation/options-pane.ts",
     "lane": "extension",
     "tasks": [
-      "AW-68"
+      "AW-68",
+      "AW-73"
     ],
     "repositoryState": "browserRulesOnMain"
   },
@@ -1476,6 +1482,198 @@
     "lane": "extension",
     "tasks": [
       "AW-72"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-list-store.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-conditions.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-list-flatten.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-list-decide.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/public-suffix.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/scripts/generate-public-suffix.mjs",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-list-pane.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-editor-dialog.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-set-dialog.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-preview.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rule-preview-pane.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/run-once.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/run-once-pane.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/sw/automation-run.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rules-config-format.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/automation/rules-config-pane.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/src/sw/automation-config.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-rule-list-store.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-rule-list-decide.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-rule-preview.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-run-once.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/tests/automation-rules-config.test.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/e2e/mv3-browser-rule-list.spec.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
+    ],
+    "repositoryState": "browserRulesOnMain"
+  },
+  {
+    "path": "packages/extension/e2e/mv3-browser-rule-run-once.spec.ts",
+    "lane": "extension",
+    "tasks": [
+      "AW-73"
     ],
     "repositoryState": "browserRulesOnMain"
   }

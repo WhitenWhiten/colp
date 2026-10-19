@@ -1,0 +1,13 @@
+{
+  "format": "colp.risklist/v1",
+  "id": "example-phishing",
+  "name": "Example phishing list",
+  "version": "2026-10-18T06:00:00Z",
+  "updatedAt": "2026-10-18T06:00:00Z",
+  "publisher": { "name": "Example", "url": "https://example.org", "feedbackUrl": null },
+  "license": "MIT",
+  "entries": [
+    { "scope": "domain", "value": "login-example-support.com", "kind": "phishing", "since": "2026-10-17T00:00:00Z", "expires": null, "evidenceUrl": "https://example.org/r/1" },
+    { "scope": "urlPrefix", "value": "https://pages.example.dev/u123/", "kind": "scam", "since": "2026-10-10T00:00:00Z", "expires": "2026-12-01T00:00:00Z", "evidenceUrl": null }
+  ]
+}

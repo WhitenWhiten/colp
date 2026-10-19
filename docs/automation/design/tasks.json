@@ -3722,5 +3722,83 @@
       "Do not change another lane's runtime files; open a contract issue and return the defect to its owner.",
       "Do not mark planned acceptance as executed without the actual command, build and evidence."
     ]
+  },
+  {
+    "id": "AW-73",
+    "milestone": "M1",
+    "size": "L",
+    "title": "Keep this browser's rules as one ordered list, with preview, Run once and a configuration file",
+    "dependencies": [
+      "AW-67",
+      "AW-68"
+    ],
+    "stories": [
+      "AU-35"
+    ],
+    "readFirst": [
+      "01-architecture.md §7.5",
+      "packages/extension/src/automation/browser-rules.ts",
+      "packages/extension/src/sw/automation-browser.ts"
+    ],
+    "files": [
+      "packages/extension/src/automation/rule-list-store.ts",
+      "packages/extension/src/automation/rule-conditions.ts",
+      "packages/extension/src/automation/rule-list-flatten.ts",
+      "packages/extension/src/automation/rule-list-decide.ts",
+      "packages/extension/src/automation/public-suffix.ts",
+      "packages/extension/scripts/generate-public-suffix.mjs",
+      "packages/extension/src/automation/rule-list-pane.ts",
+      "packages/extension/src/automation/rule-editor-dialog.ts",
+      "packages/extension/src/automation/rule-set-dialog.ts",
+      "packages/extension/src/automation/rule-preview.ts",
+      "packages/extension/src/automation/rule-preview-pane.ts",
+      "packages/extension/src/automation/run-once.ts",
+      "packages/extension/src/automation/run-once-pane.ts",
+      "packages/extension/src/sw/automation-run.ts",
+      "packages/extension/src/automation/rules-config-format.ts",
+      "packages/extension/src/automation/rules-config-pane.ts",
+      "packages/extension/src/sw/automation-config.ts",
+      "packages/extension/src/sw/automation-browser.ts",
+      "packages/extension/src/automation/browser-rules.ts",
+      "packages/extension/src/automation/browser-rule-store.ts",
+      "packages/extension/src/automation/messages.ts",
+      "packages/extension/src/capture/contracts.ts",
+      "packages/extension/src/automation/options-pane.ts",
+      "packages/extension/tests/automation-rule-list-store.test.ts",
+      "packages/extension/tests/automation-rule-list-decide.test.ts",
+      "packages/extension/tests/automation-rule-preview.test.ts",
+      "packages/extension/tests/automation-run-once.test.ts",
+      "packages/extension/tests/automation-rules-config.test.ts",
+      "packages/extension/e2e/mv3-browser-rule-list.spec.ts",
+      "packages/extension/e2e/mv3-browser-rule-run-once.spec.ts"
+    ],
+    "implementation": [
+      "Keep individual rules, one-level sets and subscription entries as one ordered list in the automation store (known.automation.browserRules.v2), every write one read-modify-write with a revision; move the v1 flat list once, in its order, and name the pairs whose order now decides.",
+      "Store each rule's conditions as the truth and compile them to the existing M1 operators (site is, site or its subdomains, title contains, path starts with, path is or is under); flatten the list and decide by first match: no match goes on, missing input is passed over and named, an error or an unbound role blocks, keep here keeps, a match with its folder places. Every decision carries the entry, its set or subscription, content version and list revision.",
+      "Options: one list with switches, Move up/down and dragging, sets, the editor's Then (folder, the set's role, keep here) and public-suffix help while editing; Recent activity names the entry and offers Open rule, Turn off and Add a rule above.",
+      "Try a page against the whole list (winner, passed over, shadowed, broad) and the recent bookmarks, comparing after each change; Run once over a folder with a 15-minute preview, a journal per run and Undo of what is still where the run left it; export and import known-rules-config/v1 with every folder chosen again."
+    ],
+    "acceptance": [
+      "The upper of two matching rules files the page, offline and signed out, and the order survives a restart; the shared core's contract is unchanged.",
+      "Preview, Run once and Undo, and configuration import behave as AC-76 to AC-78 state; nothing in this packet calls a server."
+    ],
+    "status": "planned",
+    "lane": "extension",
+    "contractInputs": [
+      "01-architecture.md",
+      "02-rule-contract.md",
+      "11-execution-contract.md"
+    ],
+    "startAfter": [
+      "AW-67"
+    ],
+    "handoffArtifacts": [
+      "docs/automation/evidence/aw-73.md: commands, build, result, limitations"
+    ],
+    "nonGoals": [
+      "Do not change another lane's runtime files; open a contract issue and return the defect to its owner.",
+      "Do not mark planned acceptance as executed without the actual command, build and evidence.",
+      "No change to @know-n/colp/automation; no subscription fetching, rule-set import or risk alerts (later stages); no star-button placement by browser rules."
+    ]
   }
 ]

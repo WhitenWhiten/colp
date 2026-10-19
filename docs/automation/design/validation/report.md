@@ -1,6 +1,6 @@
 # Artifact Validation Report
 
-**Result:** PASSED. **Checks:** 63. **Failures:** 0.
+**Result:** PASSED. **Checks:** 64. **Failures:** 0.
 
 Offline artifact structure, JSON Schema, example, selected semantic and planning checks only. No production execution or external OpenAPI linter.
 
@@ -35,6 +35,7 @@ Offline artifact structure, JSON Schema, example, selected semantic and planning
 | Example: run-once-start.json | passed |
 | Example: m1-preview-current-state.json | passed |
 | Example: browser-rule.json | passed |
+| Local list formats: ruleset.json, risklist.json | passed |
 | MCP subscription fixture | passed |
 | MCP occurrence fixture | passed |
 | Contract F01: academic definition | passed |

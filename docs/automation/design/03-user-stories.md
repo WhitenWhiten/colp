@@ -59,6 +59,7 @@ Real-world constraints that shape every story below:
 | AU-32 | A weekly digest at a time I choose | Later | AC-29 |
 | AU-33 | Rules are in my backup and my export, and leave with me | M1 | AC-52, AC-67 |
 | AU-34 | File pages by my own rules in this browser, with or without a server | M1 | AC-69, AC-70, AC-71, AC-72, AC-73, AC-74 |
+| AU-35 | Keep this browser's rules in one order I control, try them, and run them on bookmarks I already have | M1 | AC-75, AC-76, AC-77, AC-78 |
 
 ---
 
@@ -490,6 +491,18 @@ Acceptance:
 6. Disconnecting the server removes the account's rules, receipts and server status from this browser; my browser rules keep filing (AC-74).
 
 Tasks: AW-67, AW-68, AW-69, AW-70, AW-71, AW-72. Tests: AC-69, AC-70, AC-71, AC-72, AC-73, AC-74. Example: [browser-rule.json](examples/browser-rule.json).
+
+### AU-35 Keep this browser's rules in one order I control, try them, and run them on bookmarks I already have — M1
+**As the Owner**, I want my browser's rules to be one list I can read from the top, where the first rule that matches decides and I choose the order, so that two rules that both match a page never leave it where I saved it by accident; and I want to try a page against the whole list, sort what I already saved, and keep the list in a file, all without an account.
+
+Acceptance:
+1. Options › Automations › *Rules in this browser* is one ordered list of rules, sets of rules (one level) and subscriptions. Each has its switch; *Move up*, *Move down* and dragging change the order; a rule moves into and out of a set. The upper of two matching rules files the page, offline and signed out, and the order is the same after a restart. A list from an earlier version keeps its order and names, once, the pairs whose order now decides (AC-75).
+2. A rule says *when* (site is, site or its subdomains, title contains, link path starts with, link path is or is under) and *then*: a folder, its set's folder for a role, or *keep it where I save it*. A rule the page has nothing for is passed over and named; a match whose folder is gone blocks instead of falling through. Every save and every row in Recent activity names the entry, its set or subscription and the list revision, with *Open rule*, *Turn off this entry* and *Add a rule above* (AC-75).
+3. *Try a page* takes a link and a title, or a recent bookmark, and names the winner, the entries passed over and every later entry it shadows; a *Site or its subdomains* rule on a public suffix is labelled broad. After I change the list, it says how many of my recent bookmarks would now go elsewhere, and an answer from the older list is dropped. Nothing is written (AC-76).
+4. *Run once* sorts the bookmarks already in a folder: a preview first, then a second click; a bookmark moved meanwhile is left alone, and *Undo* moves back only what is still where the run left it. A bookmark subscription's folders are never touched (AC-77).
+5. *Export* writes my list to a `known-rules-config/v1` file; *Import* asks for the folder here for each folder in the file, suggesting the one with the same path, and adds the file's entries below mine or replaces them (AC-78).
+
+Tasks: AW-73. Tests: AC-75, AC-76, AC-77, AC-78. Example: [ruleset.json](examples/ruleset.json).
 
 ---
 

@@ -186,7 +186,7 @@ Execution location and data destination are separate facts shown separately. A r
 
 A browser rule is the Owner's own deterministic placement rule kept in one browser: an M1 `RuleDefinition` (`bookmark.intake`, `each`, no tasks, one folder role, no collection scope) plus that browser's native folder id. It is written in the extension's Options page, stored in the extension's automation store and evaluated by the same shared core as the bundle. It needs no account, works offline and may name any folder, synced or not. It never leaves the browser unless the Owner moves it.
 
-**Order at save.** An explicit folder choice, then the account's rules (the installed bundle), then browser rules, then the Owner's local classifier (tags only once a rule placed the page), then the default folder. Any outcome of an account rule (placed, kept, blocked, conflict, review, expired) settles the save; browser rules run only where no account rule matches here, which includes an account that has no bundle. Pausing the account's automations pauses browser rules too, so *Pause all automations* means all of them (amended 2026-10-14; signed out, each browser rule has its own switch). Browser rules use the shared arbitration among themselves (priority 100; disagreeing destinations keep the page where it was saved and say so).
+**Order at save.** An explicit folder choice, then the account's rules (the installed bundle), then browser rules, then the Owner's local classifier (tags only once a rule placed the page), then the default folder. Any outcome of an account rule (placed, kept, blocked, conflict, review, expired) settles the save; browser rules run only where no account rule matches here, which includes an account that has no bundle. Pausing the account's automations pauses browser rules too, so *Pause all automations* means all of them (amended 2026-10-14; signed out, each browser rule has its own switch). Among themselves, browser rules are tried in the Owner's order and the first match decides (amended 2026-10-18 by ADR-A25; before, the shared arbitration kept a page where it was saved when two of them disagreed).
 
 **Why the account goes first.** An account rule carries receipts, Undo, runs and, from M2, agent tasks. A bookmark a browser rule filed outside the collection root reads to the server as the Owner's own folder choice: server intake admits only a create still at the root with default intent (§8.2, ADR-A22), so nothing is admitted for it. Letting a browser rule go first would silently switch the account's automations off on that device and make the web preview wrong for it.
 
@@ -197,6 +197,8 @@ A browser rule is the Owner's own deterministic placement rule kept in one brows
 **Moving a rule to the account.** Only a browser rule whose folder is mapped into the synced collection can move. *Add mine to the account* opens the web editor (`/automations/new`) filled in with the rule's name, conditions and canonical folder; nothing is created until the Owner saves there, and enabling still requires a preview (AU-02). When an enabled account rule that duplicates it reaches the browser, the browser rule retires itself. Browser rules are never uploaded on connect: an account rule acts on every device and on the server, browser rules can name private hosts and unsynced folders, server rules go through validate → preview → enable, several browsers would each push their own copies, and a server may have automations turned off.
 
 **Disconnect.** Disconnecting removes that account's bundle, receipts, placement intents and server status from the browser (AU-33); browser rules stay and keep working.
+
+**One ordered list (amended 2026-10-18, ADR-A25, AU-35).** This browser's rules are one list: individual rules, sets of rules one level deep (an imported set carries folder roles the Owner binds to folders here) and subscription entries. The list is flattened in its order (a switched-off rule, set or subscription contributes nothing) and tried top to bottom with the shared evaluator: `notMatched` goes on, `missingInput` goes on and is named, `error` blocks, a match that keeps pages where they are saved stops there, a match whose folder is gone or whose role is unbound blocks rather than falling through, and a match with its folder places. A folder the Owner picks still wins. A rule's conditions (site is, site or its subdomains, title contains, link path starts with, link path is or is under) are what is stored; each compiles to an operator the M1 core already has, so the shared contract is unchanged, and public-suffix data is consulted only while editing, to suggest a registrable domain or warn about a whole suffix. Every decision and placement names the entry, its set or subscription, the content version and the list revision. A list kept by an earlier build moves once, in its order, and the pairs of rules whose order now decides are named once. *Try a page* runs the same loop to the end and reports the winner, the entries passed over and every later match it shadows. *Run once* plans one folder from a bookmark tree read once, keeps the preview for 15 minutes, applies only while the list is the one it was made from, journals each run and undoes only what is still where the run left it; it never enters a bookmark subscription's folders and its moves reach Sync as the Owner's own. The list can be exported to `known-rules-config/v1` and imported with every folder chosen again.
 
 ## 8. Server admission and ordering
 
@@ -482,6 +484,7 @@ Real-world constraints that shape every story below:
 | AU-32 | A weekly digest at a time I choose | Later | AC-29 |
 | AU-33 | Rules are in my backup and my export, and leave with me | M1 | AC-52, AC-67 |
 | AU-34 | File pages by my own rules in this browser, with or without a server | M1 | AC-69, AC-70, AC-71, AC-72, AC-73, AC-74 |
+| AU-35 | Keep this browser's rules in one order I control, try them, and run them on bookmarks I already have | M1 | AC-75, AC-76, AC-77, AC-78 |
 
 ---
 
@@ -914,6 +917,18 @@ Acceptance:
 
 Tasks: AW-67, AW-68, AW-69, AW-70, AW-71, AW-72. Tests: AC-69, AC-70, AC-71, AC-72, AC-73, AC-74. Example: [browser-rule.json](examples/browser-rule.json).
 
+### AU-35 Keep this browser's rules in one order I control, try them, and run them on bookmarks I already have — M1
+**As the Owner**, I want my browser's rules to be one list I can read from the top, where the first rule that matches decides and I choose the order, so that two rules that both match a page never leave it where I saved it by accident; and I want to try a page against the whole list, sort what I already saved, and keep the list in a file, all without an account.
+
+Acceptance:
+1. Options › Automations › *Rules in this browser* is one ordered list of rules, sets of rules (one level) and subscriptions. Each has its switch; *Move up*, *Move down* and dragging change the order; a rule moves into and out of a set. The upper of two matching rules files the page, offline and signed out, and the order is the same after a restart. A list from an earlier version keeps its order and names, once, the pairs whose order now decides (AC-75).
+2. A rule says *when* (site is, site or its subdomains, title contains, link path starts with, link path is or is under) and *then*: a folder, its set's folder for a role, or *keep it where I save it*. A rule the page has nothing for is passed over and named; a match whose folder is gone blocks instead of falling through. Every save and every row in Recent activity names the entry, its set or subscription and the list revision, with *Open rule*, *Turn off this entry* and *Add a rule above* (AC-75).
+3. *Try a page* takes a link and a title, or a recent bookmark, and names the winner, the entries passed over and every later entry it shadows; a *Site or its subdomains* rule on a public suffix is labelled broad. After I change the list, it says how many of my recent bookmarks would now go elsewhere, and an answer from the older list is dropped. Nothing is written (AC-76).
+4. *Run once* sorts the bookmarks already in a folder: a preview first, then a second click; a bookmark moved meanwhile is left alone, and *Undo* moves back only what is still where the run left it. A bookmark subscription's folders are never touched (AC-77).
+5. *Export* writes my list to a `known-rules-config/v1` file; *Import* asks for the folder here for each folder in the file, suggesting the one with the same path, and adds the file's entries below mine or replaces them (AC-78).
+
+Tasks: AW-73. Tests: AC-75, AC-76, AC-77, AC-78. Example: [ruleset.json](examples/ruleset.json).
+
 ---
 
 ## Worked end-to-end narrative (M2 release proof)
@@ -1246,6 +1261,7 @@ Do not merge a behavior producer before its schema consumer and migrations. Keep
 | AW-70 | M1 | S | Fill the web rule editor from a browser rule | AW-12 | AU-34 |
 | AW-71 | M1 | S | Move a browser rule to the account | AW-69, AW-70 | AU-34 |
 | AW-72 | M1 | S | Disconnect removes the account's automation data and keeps browser rules | AW-21, AW-67 | AU-34 |
+| AW-73 | M1 | L | Keep this browser's rules as one ordered list, with preview, Run once and a configuration file | AW-67, AW-68 | AU-35 |
 | AW-22 | M2 | M | Implement execution policy, budgets and output reuse | AW-10, AW-16 | AU-12, AU-15, AU-17, AU-20, AU-23 |
 | AW-23 | M2 | M | Implement job claims, heartbeat and uncertainty | AW-16, AW-22 | AU-15, AU-18, AU-20 |
 | AW-24 | M2 | L | Implement typed results and the effect gateway through change plans | AW-07, AW-23 | AU-15, AU-16, AU-17, AU-18, AU-19 |
@@ -2219,6 +2235,61 @@ Do not merge a behavior producer before its schema consumer and migrations. Keep
 
 **Done when:**
 - AC-74: after disconnect the account's keys are gone and a browser rule still places a save.
+
+#### AW-73 — Keep this browser's rules as one ordered list, with preview, Run once and a configuration file — L
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-67, AW-68. **Stories:** AU-35.
+
+**Handoff:** docs/automation/evidence/aw-73.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.; No change to @know-n/colp/automation; no subscription fetching, rule-set import or risk alerts (later stages); no star-button placement by browser rules.
+
+**Read first:**
+- `01-architecture.md §7.5`
+- `packages/extension/src/automation/browser-rules.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/rule-list-store.ts`
+- `packages/extension/src/automation/rule-conditions.ts`
+- `packages/extension/src/automation/rule-list-flatten.ts`
+- `packages/extension/src/automation/rule-list-decide.ts`
+- `packages/extension/src/automation/public-suffix.ts`
+- `packages/extension/scripts/generate-public-suffix.mjs`
+- `packages/extension/src/automation/rule-list-pane.ts`
+- `packages/extension/src/automation/rule-editor-dialog.ts`
+- `packages/extension/src/automation/rule-set-dialog.ts`
+- `packages/extension/src/automation/rule-preview.ts`
+- `packages/extension/src/automation/rule-preview-pane.ts`
+- `packages/extension/src/automation/run-once.ts`
+- `packages/extension/src/automation/run-once-pane.ts`
+- `packages/extension/src/sw/automation-run.ts`
+- `packages/extension/src/automation/rules-config-format.ts`
+- `packages/extension/src/automation/rules-config-pane.ts`
+- `packages/extension/src/sw/automation-config.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+- `packages/extension/src/automation/browser-rules.ts`
+- `packages/extension/src/automation/browser-rule-store.ts`
+- `packages/extension/src/automation/messages.ts`
+- `packages/extension/src/capture/contracts.ts`
+- `packages/extension/src/automation/options-pane.ts`
+- `packages/extension/tests/automation-rule-list-store.test.ts`
+- `packages/extension/tests/automation-rule-list-decide.test.ts`
+- `packages/extension/tests/automation-rule-preview.test.ts`
+- `packages/extension/tests/automation-run-once.test.ts`
+- `packages/extension/tests/automation-rules-config.test.ts`
+- `packages/extension/e2e/mv3-browser-rule-list.spec.ts`
+- `packages/extension/e2e/mv3-browser-rule-run-once.spec.ts`
+
+**Steps:**
+1. Keep individual rules, one-level sets and subscription entries as one ordered list in the automation store (known.automation.browserRules.v2), every write one read-modify-write with a revision; move the v1 flat list once, in its order, and name the pairs whose order now decides.
+2. Store each rule's conditions as the truth and compile them to the existing M1 operators (site is, site or its subdomains, title contains, path starts with, path is or is under); flatten the list and decide by first match: no match goes on, missing input is passed over and named, an error or an unbound role blocks, keep here keeps, a match with its folder places. Every decision carries the entry, its set or subscription, content version and list revision.
+3. Options: one list with switches, Move up/down and dragging, sets, the editor's Then (folder, the set's role, keep here) and public-suffix help while editing; Recent activity names the entry and offers Open rule, Turn off and Add a rule above.
+4. Try a page against the whole list (winner, passed over, shadowed, broad) and the recent bookmarks, comparing after each change; Run once over a folder with a 15-minute preview, a journal per run and Undo of what is still where the run left it; export and import known-rules-config/v1 with every folder chosen again.
+
+**Done when:**
+- The upper of two matching rules files the page, offline and signed out, and the order survives a restart; the shared core's contract is unchanged.
+- Preview, Run once and Undo, and configuration import behave as AC-76 to AC-78 state; nothing in this packet calls a server.
 
 ### M2 — An agent finishes the job
 
@@ -3326,6 +3397,10 @@ New UI strings follow the existing localization practice of each surface (the ex
 | AC-72 | M1 | Web editor filled from a browser rule | Open /automations/new with collectionId, folderId, name, combinator and condition parameters | Form shows the name, conditions and folder; nothing is created before Save; unknown kinds and empty values are dropped |
 | AC-73 | M1 | Browser rule moves to the account | Choose Add mine to the account, enable the rule on the web, refresh the bundle | Browser copy retires only after the enabled duplicate arrives; a draft or a rule with other conditions leaves it in place; an unsynced folder cannot move |
 | AC-74 | M1 | Disconnect keeps browser rules | Disconnect with a bundle, receipts, intents, server status and browser rules present | The account's automation data is gone from the browser; browser rules remain and still place saves |
+| AC-75 | M1 | Ordered list of browser rules | Signed out, make two rules that both match a page and a set; move the second rule up; save the page offline; restart the browser; upgrade a browser that kept the earlier flat list | The upper rule files the page and the save names the entry, its set and the list revision; a rule that keeps pages where they are saved stops there; a rule the page lacks input for is passed over and named; the order is the same after the restart; the upgraded list keeps its order and names once the pairs whose order now decides |
+| AC-76 | M1 | Preview across the whole list | Try a link, a bookmark and the recent bookmarks against the list; then reorder it | The answer names the winner with its set or subscription and version, the entries passed over and every later match it shadows; a Site or its subdomains rule on a public suffix is labelled broad with what it shadows in the sample; after the reorder the page says how many recent bookmarks would now go elsewhere and drops an answer from the older revision; nothing is written |
+| AC-77 | M1 | Run once and Undo | Preview Run once on a folder with three bookmarks and one rule, apply it, move one moved bookmark by hand, then Undo | The preview moves nothing; apply moves only what it listed and refuses once the list changed or the preview expired; a bookmark moved meanwhile is skipped; Undo moves back, at the old place, only what is still where the run left it; a bookmark subscription's folders are never entered; no automation receipt is written |
+| AC-78 | M1 | Rules configuration file | Export this browser's rules, then import the file in another profile, once adding and once replacing | The file is known-rules-config/v1, closed, with no credential-like key; every folder it names is chosen again here, suggested by an exact path; no folder id from the file is used unless chosen; an import past the list's limits changes nothing |
 
 ## 2. Test layers
 
@@ -3513,7 +3588,8 @@ Do not call a release complete because schemas parse, a webhook returned 200 or 
 | ADR-A21 (new) | Global pause above rule state; restore starts paused; daily caps hold tasks and never drop placement | Per-rule pause only; caps that drop |
 | ADR-A22 (new) | Server intake requires verified command/receipt disposition after any receipt grace period; timeout alone grants no placement authority; imports/restores/unknown intent are not automatically moved | Browser-only rules |
 | ADR-A23 (new, owner decision 2026-10-12) | The shared automation core is the `automation` subpath of the existing `@know-n/colp` package, marked optional and outside conformance | A new `@know-n/colp-automation` package |
-| ADR-A24 (new, owner decision 2026-10-14) | Browser rules are a local-first layer kept in one browser: explicit choice, then account rules, then browser rules, then the local classifier; an account-rule outcome settles the save; overlaps are reviewed on connect; a browser rule reaches the account only through the web editor, filled in, and retires when the enabled duplicate arrives; disconnect keeps browser rules; amended 2026-10-14: the account's pause pauses browser rules too (01 §7.5) | Server-only rules; uploading browser rules on connect; one merged arbitration over both sets; browser rules ahead of account rules |
+| ADR-A24 (new, owner decision 2026-10-14) | Browser rules are a local-first layer kept in one browser: explicit choice, then account rules, then browser rules, then the local classifier; an account-rule outcome settles the save; overlaps are reviewed on connect; a browser rule reaches the account only through the web editor, filled in, and retires when the enabled duplicate arrives; disconnect keeps browser rules; amended 2026-10-14: the account's pause pauses browser rules too (01 §7.5); amended 2026-10-18 by ADR-A25: among themselves, browser rules are tried in the Owner's order | Server-only rules; uploading browser rules on connect; one merged arbitration over both sets; browser rules ahead of account rules |
+| ADR-A25 (new, owner decision 2026-10-18) | This browser's rules are one ordered list below the account's rules: individual rules, one-level sets and subscriptions, tried top to bottom, the first match deciding; *keep it where I save it* is an action, missing input passes to the next entry, an error or an unbound role blocks. Conditions are stored as the truth and compile to the existing M1 operators, so `@know-n/colp/automation` does not change; public-suffix data is used while editing only. Run once is local, journalled and undoable; the configuration file `known-rules-config/v1` names folders by path and every folder is chosen again on import (01 §7.5, AU-35) | The shared arbitration among browser rules (two disagreeing matches keep the page where it was saved); evaluating sets or subscriptions on a server; uploading the list on connect; a new predicate operator in the shared core |
 
 ## Release gates
 
@@ -3767,22 +3843,41 @@ Normalize nullable target partitions to an explicit sentinel for uniqueness; Pos
 | `examples/worker-script/claim-and-summarize.mjs` | AW-32 | M2 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/_locales/en/messages.json` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/_locales/zh_CN/messages.json` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/e2e/mv3-browser-rule-list.spec.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/e2e/mv3-browser-rule-run-once.spec.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/e2e/mv3-browser-rules.spec.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/options.css` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/options.html` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/scripts/generate-public-suffix.mjs` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/scripts/shots-stub.mjs` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/src/automation/browser-overlap.ts` | AW-69 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
-| `packages/extension/src/automation/browser-rule-store.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-rule-store.ts` | AW-67, AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/src/automation/browser-rules-pane.ts` | AW-68, AW-69, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
-| `packages/extension/src/automation/browser-rules.ts` | AW-67, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/browser-rules.ts` | AW-67, AW-71, AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/src/automation/indexeddb-store.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
-| `packages/extension/src/automation/messages.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
-| `packages/extension/src/automation/options-pane.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/messages.ts` | AW-67, AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/options-pane.ts` | AW-68, AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/src/automation/pre-save.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/public-suffix.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-conditions.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-editor-dialog.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-list-decide.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-list-flatten.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-list-pane.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-list-store.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-preview-pane.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-preview.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rule-set-dialog.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rules-config-format.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/rules-config-pane.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/run-once-pane.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/automation/run-once.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/src/automation/runtime-profile.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
-| `packages/extension/src/capture/contracts.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/capture/contracts.ts` | AW-67, AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/src/sw/auth.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
-| `packages/extension/src/sw/automation-browser.ts` | AW-67, AW-69, AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/automation-browser.ts` | AW-67, AW-69, AW-71, AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/automation-config.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/src/sw/automation-run.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/src/sw/automation.ts` | AW-67, AW-71, AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/src/sw/capture.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/tests/automation-browser-move.test.ts` | AW-71 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
@@ -3790,6 +3885,11 @@ Normalize nullable target partitions to an explicit sentinel for uniqueness; Pos
 | `packages/extension/tests/automation-browser-pane.test.ts` | AW-68 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/tests/automation-browser-rules.test.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/tests/automation-disconnect.test.ts` | AW-72 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-rule-list-decide.test.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-rule-list-store.test.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-rule-preview.test.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-rules-config.test.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
+| `packages/extension/tests/automation-run-once.test.ts` | AW-73 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/extension/tests/automation-worker-browser-rules.test.ts` | AW-67 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/node/docs/API.md` | AW-04 | M1 | verify at AW-01 (not inferred from reviewer filesystem) |
 | `packages/node/docs/AUTOMATION_BROWSER_PROFILE.md` | AW-03 | M0 | verify at AW-01 (not inferred from reviewer filesystem) |

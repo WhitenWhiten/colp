@@ -158,6 +158,14 @@
       "detail": null
     },
     {
+      "name": "Local list formats: ruleset.json, risklist.json",
+      "status": "passed",
+      "detail": {
+        "ruleset_entries": 3,
+        "risklist_entries": 2
+      }
+    },
+    {
       "name": "MCP subscription fixture",
       "status": "passed",
       "detail": null
@@ -319,9 +327,9 @@
       "name": "Plan IDs / DAG / traceability / operation inventory",
       "status": "passed",
       "detail": {
-        "stories": 34,
-        "tasks": 72,
-        "acceptance_tests_planned": 74,
+        "stories": 35,
+        "tasks": 73,
+        "acceptance_tests_planned": 78,
         "http_operations": 67
       }
     },
@@ -329,7 +337,7 @@
       "name": "Markdown local links / code fences",
       "status": "passed",
       "detail": {
-        "local_markdown_links": 181
+        "local_markdown_links": 186
       }
     },
     {
@@ -360,8 +368,8 @@
       "name": "Single-lane files and no backend-to-frontend dependency",
       "status": "passed",
       "detail": {
-        "tasks": 72,
-        "single_lane_files": 183,
+        "tasks": 73,
+        "single_lane_files": 207,
         "backend_transitive_frontend_dependencies": 0
       }
     },
@@ -385,8 +393,8 @@
   ],
   "failures": [],
   "dependencies": {
-    "PyYAML": "6.0.3",
-    "jsonschema": "4.26.0"
+    "PyYAML": "6.0.1",
+    "jsonschema": "4.10.3"
   },
   "not_executed": [
     "Full external OpenAPI linter/metaschema validation",

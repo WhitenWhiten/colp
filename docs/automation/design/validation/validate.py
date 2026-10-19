@@ -135,6 +135,34 @@ EXAMPLES={
  'run-once-start.json':'RunOnceStartInput','m1-preview-current-state.json':'PreviewInput',
  'browser-rule.json':'RuleDefinition'}
 for f,n in EXAMPLES.items():check('Example: '+f,lambda f=f,n=n:v_schema(DOC,n,load(ROOT/'examples'/f)))
+def local_list_formats():
+    # colp.ruleset/v1 and colp.risklist/v1 (AU-35): closed shapes, ids, references, and a finite M1 predicate per match entry.
+    ident=re.compile(r'^[A-Za-z0-9._-]{1,64}$')
+    rs=load(ROOT/'examples/ruleset.json')
+    assert set(rs)=={'format','id','name','version','updatedAt','publisher','license','roles','sites','entries'}
+    assert rs['format']=='colp.ruleset/v1' and ident.match(rs['id']) and len(rs['version'])<=64
+    roles={r['key'] for r in rs['roles']}; sites={x['id'] for x in rs['sites']}
+    assert len(roles)==len(rs['roles'])<=32 and len(sites)==len(rs['sites'])<=500 and all(ident.match(k) for k in roles|sites)
+    for site in rs['sites']:
+        assert 0<len(site['addresses'])<=48
+        for a in site['addresses']:assert a['scope'] in {'exact','domain'} and a['status'] in {'current','historical','revoked'}
+    seen=set()
+    for e in rs['entries']:
+        assert ident.match(e['id']) and e['id'] not in seen and ('match' in e)!=('site' in e) and ('role' not in e or e['role'] in roles)
+        seen.add(e['id'])
+        if 'match' in e:v_schema(DOC,'Predicate',e['match'])
+        else:assert e['site'] in sites
+    # Nothing in a rule set names a folder, a credential, a task or a URL to call.
+    keys={k for item in walk(rs) if isinstance(item,dict) for k in item}
+    assert not keys & {'folder','folderId','nativeId','credential','token','secret','tasks','webhook','endpoint'}
+    rl=load(ROOT/'examples/risklist.json')
+    assert rl['format']=='colp.risklist/v1' and ident.match(rl['id'])
+    for e in rl['entries']:
+        assert set(e)=={'scope','value','kind','since','expires','evidenceUrl'} and e['scope'] in {'domain','urlPrefix'}
+        if e['scope']=='urlPrefix':assert re.match(r'^https?://[^?#]+$',e['value'])
+        else:assert '.' in e['value'] and '/' not in e['value']
+    return {'ruleset_entries':len(rs['entries']),'risklist_entries':len(rl['entries'])}
+check('Local list formats: ruleset.json, risklist.json',local_list_formats)
 check('MCP subscription fixture',lambda:v_schema(MCP,'SubscribeRequest',load(ROOT/'examples/mcp-subscribe.json')))
 check('MCP occurrence fixture',lambda:v_schema(MCP,'Occurrence',load(ROOT/'examples/mcp-occurrence.json')))
 

@@ -378,5 +378,18 @@
       "AC-74"
     ],
     "example": "browser-rule.json"
+  },
+  {
+    "id": "AU-35",
+    "title": "Keep this browser's rules in one order I control, try them, and run them on bookmarks I already have",
+    "actor": "Owner",
+    "milestone": "M1",
+    "tests": [
+      "AC-75",
+      "AC-76",
+      "AC-77",
+      "AC-78"
+    ],
+    "example": "ruleset.json"
   }
 ]

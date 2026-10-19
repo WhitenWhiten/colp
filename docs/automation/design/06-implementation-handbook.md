@@ -82,6 +82,7 @@ Do not merge a behavior producer before its schema consumer and migrations. Keep
 | AW-70 | M1 | S | Fill the web rule editor from a browser rule | AW-12 | AU-34 |
 | AW-71 | M1 | S | Move a browser rule to the account | AW-69, AW-70 | AU-34 |
 | AW-72 | M1 | S | Disconnect removes the account's automation data and keeps browser rules | AW-21, AW-67 | AU-34 |
+| AW-73 | M1 | L | Keep this browser's rules as one ordered list, with preview, Run once and a configuration file | AW-67, AW-68 | AU-35 |
 | AW-22 | M2 | M | Implement execution policy, budgets and output reuse | AW-10, AW-16 | AU-12, AU-15, AU-17, AU-20, AU-23 |
 | AW-23 | M2 | M | Implement job claims, heartbeat and uncertainty | AW-16, AW-22 | AU-15, AU-18, AU-20 |
 | AW-24 | M2 | L | Implement typed results and the effect gateway through change plans | AW-07, AW-23 | AU-15, AU-16, AU-17, AU-18, AU-19 |
@@ -1055,6 +1056,61 @@ Do not merge a behavior producer before its schema consumer and migrations. Keep
 
 **Done when:**
 - AC-74: after disconnect the account's keys are gone and a browser rule still places a save.
+
+#### AW-73 — Keep this browser's rules as one ordered list, with preview, Run once and a configuration file — L
+
+**Milestone:** M1. **Lane:** extension. **Depends on:** AW-67, AW-68. **Stories:** AU-35.
+
+**Handoff:** docs/automation/evidence/aw-73.md: commands, build, result, limitations
+
+**Not in scope:** Do not change another lane's runtime files; open a contract issue and return the defect to its owner.; Do not mark planned acceptance as executed without the actual command, build and evidence.; No change to @know-n/colp/automation; no subscription fetching, rule-set import or risk alerts (later stages); no star-button placement by browser rules.
+
+**Read first:**
+- `01-architecture.md §7.5`
+- `packages/extension/src/automation/browser-rules.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+
+**Files (new or modified):**
+- `packages/extension/src/automation/rule-list-store.ts`
+- `packages/extension/src/automation/rule-conditions.ts`
+- `packages/extension/src/automation/rule-list-flatten.ts`
+- `packages/extension/src/automation/rule-list-decide.ts`
+- `packages/extension/src/automation/public-suffix.ts`
+- `packages/extension/scripts/generate-public-suffix.mjs`
+- `packages/extension/src/automation/rule-list-pane.ts`
+- `packages/extension/src/automation/rule-editor-dialog.ts`
+- `packages/extension/src/automation/rule-set-dialog.ts`
+- `packages/extension/src/automation/rule-preview.ts`
+- `packages/extension/src/automation/rule-preview-pane.ts`
+- `packages/extension/src/automation/run-once.ts`
+- `packages/extension/src/automation/run-once-pane.ts`
+- `packages/extension/src/sw/automation-run.ts`
+- `packages/extension/src/automation/rules-config-format.ts`
+- `packages/extension/src/automation/rules-config-pane.ts`
+- `packages/extension/src/sw/automation-config.ts`
+- `packages/extension/src/sw/automation-browser.ts`
+- `packages/extension/src/automation/browser-rules.ts`
+- `packages/extension/src/automation/browser-rule-store.ts`
+- `packages/extension/src/automation/messages.ts`
+- `packages/extension/src/capture/contracts.ts`
+- `packages/extension/src/automation/options-pane.ts`
+- `packages/extension/tests/automation-rule-list-store.test.ts`
+- `packages/extension/tests/automation-rule-list-decide.test.ts`
+- `packages/extension/tests/automation-rule-preview.test.ts`
+- `packages/extension/tests/automation-run-once.test.ts`
+- `packages/extension/tests/automation-rules-config.test.ts`
+- `packages/extension/e2e/mv3-browser-rule-list.spec.ts`
+- `packages/extension/e2e/mv3-browser-rule-run-once.spec.ts`
+
+**Steps:**
+1. Keep individual rules, one-level sets and subscription entries as one ordered list in the automation store (known.automation.browserRules.v2), every write one read-modify-write with a revision; move the v1 flat list once, in its order, and name the pairs whose order now decides.
+2. Store each rule's conditions as the truth and compile them to the existing M1 operators (site is, site or its subdomains, title contains, path starts with, path is or is under); flatten the list and decide by first match: no match goes on, missing input is passed over and named, an error or an unbound role blocks, keep here keeps, a match with its folder places. Every decision carries the entry, its set or subscription, content version and list revision.
+3. Options: one list with switches, Move up/down and dragging, sets, the editor's Then (folder, the set's role, keep here) and public-suffix help while editing; Recent activity names the entry and offers Open rule, Turn off and Add a rule above.
+4. Try a page against the whole list (winner, passed over, shadowed, broad) and the recent bookmarks, comparing after each change; Run once over a folder with a 15-minute preview, a journal per run and Undo of what is still where the run left it; export and import known-rules-config/v1 with every folder chosen again.
+
+**Done when:**
+- The upper of two matching rules files the page, offline and signed out, and the order survives a restart; the shared core's contract is unchanged.
+- Preview, Run once and Undo, and configuration import behave as AC-76 to AC-78 state; nothing in this packet calls a server.
 
 ### M2 — An agent finishes the job
 

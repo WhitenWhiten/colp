@@ -532,5 +532,18 @@
       "AW-72"
     ],
     "example": "browser-rule.json"
+  },
+  {
+    "storyId": "AU-35",
+    "tests": [
+      "AC-75",
+      "AC-76",
+      "AC-77",
+      "AC-78"
+    ],
+    "tasks": [
+      "AW-73"
+    ],
+    "example": "ruleset.json"
   }
 ]

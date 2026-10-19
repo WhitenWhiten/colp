@@ -1,0 +1,24 @@
+{
+  "format": "colp.ruleset/v1",
+  "id": "community-tech",
+  "name": "Community technology sites",
+  "version": "2026.10.18-1",
+  "updatedAt": "2026-10-18T00:00:00Z",
+  "publisher": { "name": "Example Collective", "url": "https://example.org", "feedbackUrl": "https://example.org/issues" },
+  "license": "CC-BY-4.0",
+  "roles": [
+    { "key": "papers", "description": "Academic papers" },
+    { "key": "code", "description": "Source code" }
+  ],
+  "sites": [
+    { "id": "arxiv", "name": "arXiv", "addresses": [ { "host": "arxiv.org", "scope": "domain", "status": "current" } ] },
+    { "id": "mirror", "name": "Example mirror set", "addresses": [
+      { "host": "example-mirror.org", "scope": "domain", "status": "current", "since": "2024-01-01" },
+      { "host": "example-mirror.xyz", "scope": "domain", "status": "revoked", "since": "2023-01-01", "until": "2024-01-01" } ] }
+  ],
+  "entries": [
+    { "id": "e-arxiv", "name": "arXiv", "site": "arxiv", "role": "papers" },
+    { "id": "e-gh", "name": "GitHub repositories", "match": { "kind": "field", "field": "bookmark.url.host", "op": "eq", "value": "github.com" }, "role": "code" },
+    { "id": "e-mirror", "site": "mirror" }
+  ]
+}

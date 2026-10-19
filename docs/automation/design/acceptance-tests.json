@@ -590,5 +590,37 @@
     "action": "Disconnect with a bundle, receipts, intents, server status and browser rules present",
     "assertion": "The account's automation data is gone from the browser; browser rules remain and still place saves",
     "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-75",
+    "milestone": "M1",
+    "scenario": "Ordered list of browser rules",
+    "action": "Signed out, make two rules that both match a page and a set; move the second rule up; save the page offline; restart the browser; upgrade a browser that kept the earlier flat list",
+    "assertion": "The upper rule files the page and the save names the entry, its set and the list revision; a rule that keeps pages where they are saved stops there; a rule the page lacks input for is passed over and named; the order is the same after the restart; the upgraded list keeps its order and names once the pairs whose order now decides",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-76",
+    "milestone": "M1",
+    "scenario": "Preview across the whole list",
+    "action": "Try a link, a bookmark and the recent bookmarks against the list; then reorder it",
+    "assertion": "The answer names the winner with its set or subscription and version, the entries passed over and every later match it shadows; a Site or its subdomains rule on a public suffix is labelled broad with what it shadows in the sample; after the reorder the page says how many recent bookmarks would now go elsewhere and drops an answer from the older revision; nothing is written",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-77",
+    "milestone": "M1",
+    "scenario": "Run once and Undo",
+    "action": "Preview Run once on a folder with three bookmarks and one rule, apply it, move one moved bookmark by hand, then Undo",
+    "assertion": "The preview moves nothing; apply moves only what it listed and refuses once the list changed or the preview expired; a bookmark moved meanwhile is skipped; Undo moves back, at the old place, only what is still where the run left it; a bookmark subscription's folders are never entered; no automation receipt is written",
+    "status": "planned_not_executed"
+  },
+  {
+    "id": "AC-78",
+    "milestone": "M1",
+    "scenario": "Rules configuration file",
+    "action": "Export this browser's rules, then import the file in another profile, once adding and once replacing",
+    "assertion": "The file is known-rules-config/v1, closed, with no credential-like key; every folder it names is chosen again here, suggested by an exact path; no folder id from the file is used unless chosen; an import past the list's limits changes nothing",
+    "status": "planned_not_executed"
   }
 ]
