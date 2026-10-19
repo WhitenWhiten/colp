@@ -125,7 +125,7 @@ test.describe('automations with mocked Product API', () => {
     await page.getByRole('button', { name: 'Actions for Academic' }).click()
     await page.getByRole('menuitem', { name: 'Automate…' }).click()
     await expect(page).toHaveURL(/\/automations\/new\?collectionId=col-personal&folderId=f-academic$/u)
-    await expect(page.getByLabel('Folder', { exact: true })).toHaveValue('f-academic')
+    await expect(page.getByRole('button', { name: 'Folder Academic' })).toHaveAttribute('value', 'f-academic')
     await expect(page.getByText('Advanced: edit as JSON')).toBeVisible()
     await expect(page.getByLabel('Rule definition JSON')).toBeHidden()
 

@@ -795,8 +795,7 @@
   gap: var(--space-3);
 }
 
-.automation-where .field select {
-  width: 100%;
+.automation-where .folder-picker {
   max-width: none;
 }
 

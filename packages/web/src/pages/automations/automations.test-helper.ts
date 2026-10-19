@@ -211,6 +211,19 @@ export function choose(element: HTMLSelectElement, value: string): void {
   })
 }
 
+/** A FolderPicker's rows as [title, depth], opening its panel first. */
+export function folderRows(id: string): string[][] {
+  if (!document.getElementById(`${id}-panel`)) click(document.getElementById(id))
+  return [...document.querySelectorAll<HTMLButtonElement>(`#${id}-panel [role="option"]`)]
+    .map((row) => [row.textContent ?? '', row.style.getPropertyValue('--depth')])
+}
+
+/** Picks a folder in a FolderPicker, opening its panel first. */
+export function pickFolder(id: string, folderId: string): void {
+  if (!document.getElementById(`${id}-panel`)) click(document.getElementById(id))
+  click(document.querySelector(`#${id}-panel [data-folder-id="${folderId}"]`))
+}
+
 export function click(element: Element | null | undefined): void {
   if (!(element instanceof HTMLElement)) throw new Error('nothing to click')
   act(() => element.click())

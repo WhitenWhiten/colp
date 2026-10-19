@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { AutomationRunOnceInput, AutomationRunOncePreview, AutomationRunOnceSampleItem } from '../../api/automationTypes'
 import { ProductApiError } from '../../api/errors'
 import { useToast } from '../../components/AppToast'
 import { Breadcrumb } from '../../components/Breadcrumb'
 import { EmptyState } from '../../components/EmptyState'
+import { FolderPicker } from '../../components/FolderPicker'
 import { Icon } from '../../components/Icon'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
@@ -93,6 +94,9 @@ export function RunOnce() {
   const loaded = tree.state.status === 'ready' && tree.state.data.collectionId === collectionId ? tree.state.data : null
   // Start from the whole collection: its top level and everything under it.
   const rootId = loaded?.rootId ?? null
+  const folderTree = useMemo(() => loaded
+    ? [{ id: loaded.rootId, title: 'Top level', depth: 0 }, ...loaded.folders.map((entry) => ({ ...entry, depth: entry.depth + 1 }))]
+    : [], [loaded])
   useEffect(() => {
     if (rootId) setOptions((value) => (value.folderId ? value : { ...value, folderId: rootId }))
   }, [rootId])
@@ -227,17 +231,16 @@ export function RunOnce() {
                   <h2 id="run-once-where">Which bookmarks</h2>
                 </div>
                 <div className="field">
-                  <label htmlFor="run-once-folder">Folder in {collectionTitle ?? 'your library'}</label>
-                  <select
+                  <label id="run-once-folder-label" htmlFor="run-once-folder">Folder in {collectionTitle ?? 'your library'}</label>
+                  <FolderPicker
                     id="run-once-folder"
+                    labelledBy="run-once-folder-label"
+                    folders={folderTree}
                     value={options.folderId}
+                    placeholder={tree.state.status === 'error' ? 'Folders unavailable' : 'Loading folders…'}
                     disabled={!loaded || busy !== null}
-                    onChange={(event) => change({ folderId: event.target.value })}
-                  >
-                    {!loaded && <option value="">{tree.state.status === 'error' ? 'Folders unavailable' : 'Loading folders…'}</option>}
-                    {loaded && <option value={loaded.rootId}>Top level</option>}
-                    {loaded?.folders.map((entry) => <option key={entry.id} value={entry.id}>{entry.path}</option>)}
-                  </select>
+                    onChange={(folderId) => change({ folderId })}
+                  />
                 </div>
                 {tree.state.status === 'error' && (
                   <p className="field-error" role="alert">{errorMessage(tree.state.error, 'Could not load the folders of your library.')}</p>

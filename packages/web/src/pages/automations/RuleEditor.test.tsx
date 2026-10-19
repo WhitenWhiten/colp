@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProductApiError } from '../../api/errors'
 import { cleanup, renderWithRouter, waitForDom } from '../../test/render'
 import { Automations } from '../Automations'
-import { binding, buttonNamed, choose, click, deps, fakeApi, fakeFolders, previewResult, rule, typeInto, usage } from './automations.test-helper'
+import { binding, buttonNamed, click, deps, fakeApi, fakeFolders, folderRows, pickFolder, previewResult, rule, typeInto, usage } from './automations.test-helper'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), toast: vi.fn(), warning: vi.fn() }))
 vi.mock('../../components/AppToast', () => ({ useToast: () => toast }))
@@ -47,8 +47,7 @@ describe('Rule editor', () => {
   it('opens from Automate… with the folder already chosen, and Advanced closed', async () => {
     await readyNew()
     expect(document.getElementById('automation-collection')).toBeNull()
-    expect([...select('automation-folder').options].map((option) => option.textContent))
-      .toEqual(['Choose a folder', 'Academic', 'Reading', 'Reading › Design'])
+    expect(folderRows('automation-folder')).toEqual([['Academic', '0'], ['Reading', '0'], ['Design', '1']])
     const advanced = [...document.querySelectorAll('details')].find((item) => item.querySelector('summary')?.textContent === 'Advanced: edit as JSON')
     expect(advanced?.open).toBe(false)
     expect(document.querySelector('[data-testid="automation-sentence"]')?.textContent)
@@ -153,7 +152,7 @@ describe('Rule editor', () => {
     if (!input) throw new Error('no condition input')
     typeInto(input, 'arxiv.org')
     await preview(api)
-    choose(select('automation-folder'), 'f-reading')
+    pickFolder('automation-folder', 'f-reading')
     expect(turnOn()?.disabled).toBe(true)
   })
 
@@ -206,8 +205,7 @@ describe('Rule editor', () => {
       { route: '/automations/new' },
     )
     await waitForDom(() => select('automation-folder')?.disabled === false)
-    expect([...select('automation-folder').options].map((option) => option.textContent))
-      .toEqual(['Choose a folder', 'Academic', 'Reading', 'Reading › Design'])
+    expect(folderRows('automation-folder')).toEqual([['Academic', '0'], ['Reading', '0'], ['Design', '1']])
     // Nothing typed yet: Cancel leaves without asking about unsaved changes.
     click([...document.querySelectorAll('a')].find((link) => link.textContent === 'Cancel'))
     await waitForDom(() => document.querySelector('[data-testid="automation-editor"]') === null)

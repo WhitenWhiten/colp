@@ -7,7 +7,7 @@ import type { AutomationRuleDefinition, AutomationRunOnceInput, AutomationRunOnc
 import { ProductApiError } from '../../api/errors'
 import { cleanup, renderWithRouter, waitForDom } from '../../test/render'
 import { Automations } from '../Automations'
-import { buttonNamed, choose, click, definition, deps, fakeApi, rule, run } from './automations.test-helper'
+import { buttonNamed, click, definition, deps, fakeApi, pickFolder, rule, run } from './automations.test-helper'
 
 /* AW-59 against the AW-41 consumer fixture (fixtures/aw-41/handoff.json):
    the page previews a selection, starts only that stored preview by its id
@@ -50,7 +50,7 @@ function withRule(patch = {}) {
   return api
 }
 
-const folderSelect = () => document.querySelector<HTMLSelectElement>('#run-once-folder')
+const folderSelect = () => document.querySelector<HTMLButtonElement>('#run-once-folder')
 const startButton = () => document.querySelector<HTMLButtonElement>('[data-testid="run-once-start"]')
 const previewPanel = () => document.querySelector('[data-testid="run-once-preview"]')
 const option = (label: string) => [...document.querySelectorAll('label')]
@@ -123,7 +123,7 @@ describe('Run once', () => {
     const changes = [
       () => click(option('Include its subfolders')),
       () => click(option('Also move bookmarks already in a folder')),
-      () => { const select = folderSelect(); if (select) choose(select, 'f-reading') },
+      () => pickFolder('run-once-folder', 'f-reading'),
       () => click(option('File and run its agent tasks')),
     ]
     for (const change of changes) {

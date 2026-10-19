@@ -10,6 +10,7 @@ import { useToast } from '../../components/AppToast'
 import { Breadcrumb } from '../../components/Breadcrumb'
 import { useConfirm, useConfirmLeaveGuard } from '../../components/ConfirmModal'
 import { FilterRail } from '../../components/FilterRail'
+import { FolderPicker } from '../../components/FolderPicker'
 import { Icon } from '../../components/Icon'
 import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
@@ -592,17 +593,17 @@ export function RuleEditor() {
                 </div>
                 <div className="automation-where">
                   <div className="field">
-                    <label htmlFor="automation-folder">Folder</label>
-                    <select
+                    <label id="automation-folder-label" htmlFor="automation-folder">Folder</label>
+                    <FolderPicker
                       id="automation-folder"
+                      labelledBy="automation-folder-label"
+                      folders={folderList}
                       value={draft.folderId}
+                      placeholder={draft.collectionId && tree.state.status === 'loading' ? 'Loading folders…' : 'Choose a folder'}
                       disabled={!draft.collectionId || tree.state.status !== 'ready'}
-                      aria-invalid={folderInvalid && !draft.folderId ? true : undefined}
-                      onChange={(event) => update({ folderId: event.target.value })}
-                    >
-                      <option value="">{draft.collectionId && tree.state.status === 'loading' ? 'Loading folders…' : 'Choose a folder'}</option>
-                      {folderList.map((entry) => <option key={entry.id} value={entry.id}>{entry.path}</option>)}
-                    </select>
+                      invalid={folderInvalid && !draft.folderId}
+                      onChange={(folderId) => update({ folderId })}
+                    />
                   </div>
                 </div>
                 {folderInvalid && <p className="field-error" role="alert">Choose the folder bookmarks go to.</p>}
