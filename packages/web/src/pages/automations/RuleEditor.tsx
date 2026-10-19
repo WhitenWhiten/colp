@@ -16,6 +16,7 @@ import { PageHead } from '../../components/PageHead'
 import { PageShell } from '../../components/PageShell'
 import { RouteState } from '../../components/RouteState'
 import { classifyRouteError } from '../../lib/classifyRouteError'
+import { LIBRARY_ROOT } from '../../lib/libraryTree'
 import { plural } from '../../lib/plural'
 import { CONDITION_OPTIONS, conditionOption, ruleSentence, suggestedRuleName, taskPhrase } from './copy'
 import type { FolderEntry } from './folders'
@@ -132,7 +133,7 @@ export function RuleEditor() {
   const rootId = tree.state.status === 'ready' ? tree.state.data.rootId : null
   const chosenFolder = draft?.folderId
     ? draft.folderId === rootId
-      ? { id: draft.folderId, title: 'Top level', path: 'Top level', depth: -1 }
+      ? { id: draft.folderId, title: LIBRARY_ROOT, path: LIBRARY_ROOT, depth: -1 }
       : folderList.find((entry) => entry.id === draft.folderId) ?? null
     : null
   const collectionTitle = collections.state.status === 'ready' && draft
@@ -245,7 +246,7 @@ export function RuleEditor() {
   const overlaps = rivalFolders ? rivals.flatMap((rule) => {
     const folder = destinationFolder(rule.definition, rivalFolders.get(rule.id))
     if (!folder || (folder.collectionId === form.collectionId && folder.nodeId === form.folderId)) return []
-    const title = folder.nodeId === rootId ? 'Top level' : folderList.find((entry) => entry.id === folder.nodeId)?.title ?? 'another folder'
+    const title = folder.nodeId === rootId ? LIBRARY_ROOT : folderList.find((entry) => entry.id === folder.nodeId)?.title ?? 'another folder'
     return [{ id: rule.id, name: rule.definition.name, folder: title, higher: rule.definition.priority > ruleDefinition.priority }]
   }) : []
   const previewCurrent = previewView !== null && !previewView.stale

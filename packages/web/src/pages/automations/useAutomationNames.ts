@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AutomationBindingSet, AutomationRule } from '../../api/automationTypes'
+import { LIBRARY_ROOT } from '../../lib/libraryTree'
 import { useAutomationDeps } from './shared'
 import { destinationFolder } from './ruleDraft'
 import type { CollectionFolders, FolderEntry } from './folders'
@@ -83,7 +84,7 @@ export function useAutomationNames(rules: readonly AutomationRule[] | null): Aut
       if (!trees.has(collectionId)) return undefined
       const tree = trees.get(collectionId)
       if (!tree) return null
-      if (nodeId === tree.rootId) return { id: nodeId, title: 'Top level', path: 'Top level', depth: -1 }
+      if (nodeId === tree.rootId) return { id: nodeId, title: LIBRARY_ROOT, path: LIBRARY_ROOT, depth: -1 }
       return tree.folders.find((entry) => entry.id === nodeId) ?? null
     }
     const names = new Map((rules ?? []).map((rule) => [rule.id, rule.definition.name]))

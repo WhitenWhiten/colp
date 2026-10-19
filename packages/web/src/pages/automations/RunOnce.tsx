@@ -13,6 +13,7 @@ import { RouteState } from '../../components/RouteState'
 import { StatusBadge, type StatusTone } from '../../components/StatusBadge'
 import { classifyRouteError } from '../../lib/classifyRouteError'
 import { formatDateTime } from '../../lib/formatDate'
+import { LIBRARY_ROOT } from '../../lib/libraryTree'
 import { plural } from '../../lib/plural'
 import { rulePath, runPath } from './paths'
 import { RuleSentence } from './RuleSentence'
@@ -95,7 +96,7 @@ export function RunOnce() {
   // Start from the whole collection: its top level and everything under it.
   const rootId = loaded?.rootId ?? null
   const folderTree = useMemo(() => loaded
-    ? [{ id: loaded.rootId, title: 'Top level', depth: 0 }, ...loaded.folders.map((entry) => ({ ...entry, depth: entry.depth + 1 }))]
+    ? [{ id: loaded.rootId, title: LIBRARY_ROOT, depth: 0 }, ...loaded.folders.map((entry) => ({ ...entry, depth: entry.depth + 1 }))]
     : [], [loaded])
   useEffect(() => {
     if (rootId) setOptions((value) => (value.folderId ? value : { ...value, folderId: rootId }))

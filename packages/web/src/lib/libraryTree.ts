@@ -3,10 +3,13 @@ import type { EditableNodeView, RootNodeView } from '../api'
 export type BookmarkNode = Extract<EditableNodeView, { kind: 'bookmark' }>
 export type FolderNode = Extract<EditableNodeView, { kind: 'folder' }>
 
-/** The library's root reads All bookmarks everywhere; its stored title never
-    shows. Other collections keep their own titles. */
+/** The library's root reads All bookmarks everywhere (the library, search,
+    automations); its stored title never shows. */
+export const LIBRARY_ROOT = 'All bookmarks'
+
+/** Other collections keep their own titles. */
 export function rootTitle(collection: { title: string; library?: boolean }): string {
-  return collection.library ? 'All bookmarks' : collection.title
+  return collection.library ? LIBRARY_ROOT : collection.title
 }
 
 export type BookmarkRow = {
