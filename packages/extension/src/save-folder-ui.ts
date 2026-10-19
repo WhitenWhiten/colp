@@ -179,7 +179,9 @@ export function bindSaveFolderPicker(host: SaveFolderUiHost): {
     async adopt(nativeId) {
       selectionVersion++;
       chosenId = nativeId;
-      await updateLabel();
+      // Back to no folder (a rule's folder is withdrawn): the pill asks for one again.
+      if (nativeId) await updateLabel();
+      else { host.folderCurrent.textContent = ''; currentTitle = ''; paintParent(''); paintNewLabel(); }
       host.onChosen?.();
     },
     userPicked: () => picked,

@@ -32,7 +32,8 @@ export function validAutomationRequest(value: unknown): value is AutomationReque
   if (raw.kind === 'known.automation.state' || raw.kind === 'known.automation.digest') return Object.keys(raw).length === 1;
   if (raw.kind === 'known.automation.match') return Object.keys(raw).length === 4 && typeof raw.url === 'string'
     && raw.url.length <= 8192 && typeof raw.title === 'string' && raw.title.length <= 4096
-    && typeof raw.parentNativeId === 'string' && /^[\w.-]{1,128}$/u.test(raw.parentNativeId);
+    // Empty: the save has no folder of its own yet, and only a rule could give it one.
+    && typeof raw.parentNativeId === 'string' && /^[\w.-]{0,128}$/u.test(raw.parentNativeId);
   return raw.kind === 'known.automation.refresh' && raw.userGesture === true && Object.keys(raw).length === 2;
 }
 

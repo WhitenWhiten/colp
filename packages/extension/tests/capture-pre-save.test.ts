@@ -17,11 +17,13 @@ const f = vi.hoisted(() => ({
   browser: vi.fn(),
   recover: vi.fn(async (_tasks: readonly unknown[]) => 0),
   unavailable: new Set<string>(),
+  noDefault: false,
 }));
 
 vi.mock('../src/sw/capture-native.js', () => ({ currentCaptureScope: async () => f.scope, assertCaptureScope: async () => undefined,
   assertCaptureOwner: async () => undefined, captureExistence: vi.fn(), createNativeCapture: vi.fn(), recoverNativeCapture: vi.fn() }));
 vi.mock('../src/sw/capture-target.js', () => ({ captureTarget: async (_scope: unknown, id?: string) => {
+  if (!id && f.noDefault) throw new Error('capture_target_required');
   const nativeId = id ?? '21';
   if (f.unavailable.has(nativeId)) throw new Error('capture_target_unavailable');
   return { nativeId, path: ['Bookmarks bar', nativeId === '10' ? 'Academic' : 'Inbox'], inRange: nativeId === '10', collectionId: 'c_personal', collectionTitle: null };
@@ -58,7 +60,7 @@ const start = (source: CaptureSource, extra: { readonly folderChoice?: 'explicit
     url: `https://arxiv.org/abs/2410.${String(command).padStart(5, '0')}`, title: 'A paper', ...extra });
 
 beforeEach(() => {
-  f.scope = { ...f.scope, accountId: 'owner', collectionId: 'c_personal' }; f.mode = 'manual'; f.local = false; f.tagMode = 'suggest'; f.consent = null; f.unavailable.clear();
+  f.scope = { ...f.scope, accountId: 'owner', collectionId: 'c_personal' }; f.mode = 'manual'; f.local = false; f.tagMode = 'suggest'; f.consent = null; f.unavailable.clear(); f.noDefault = false;
   f.decide.mockReset().mockResolvedValue({ automation: placed, targetNativeId: '10' });
   f.browser.mockReset().mockResolvedValue(null);
   vi.stubGlobal('chrome', { tabs: { get: async () => null, query: async () => [] }, runtime: { sendMessage: async () => undefined } });
@@ -121,6 +123,17 @@ describe('browser rules, below the account’s (design 01 §7.5)', () => {
     f.decide.mockResolvedValue(null); f.unavailable.add('30');
     expect(await start('manual-popup')).toMatchObject({ targetNativeId: '21',
       automation: { source: 'browser', outcome: 'blocked', reason: 'bindingUnavailable', rule: { name: 'Papers from arXiv' } } });
+  });
+
+  it('give a save with no folder of its own the one they file it in, and nothing else does (doc 17 RS-00)', async () => {
+    f.decide.mockResolvedValue(null); f.noDefault = true;
+    const task = await start('manual-popup');
+    expect(f.browser).toHaveBeenCalledWith({ url: task.url, title: 'A paper', parentNativeId: '', explicit: false });
+    expect(task).toMatchObject({ targetNativeId: '30', automation: { source: 'browser', outcome: 'placed' } });
+    f.browser.mockResolvedValue(null);
+    await expect(start('manual-popup')).rejects.toThrow('capture_target_required');
+    f.browser.mockResolvedValue({ automation: byBrowser, targetNativeId: '30' }); f.unavailable.add('30');
+    await expect(start('context-page')).rejects.toThrow('capture_target_required');
   });
 
   it('ask the user’s own AI for tags only after they placed a page', async () => {

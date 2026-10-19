@@ -71,11 +71,13 @@ test('a rule made in Options with no account files an offline popup save into it
       automation: expect.objectContaining({ source: 'browser', outcome: 'placed', folderTitle: 'Papers' }),
       scope: expect.objectContaining({ accountId: null }) })] });
 
-    // A page the rule does not match keeps the folder it would have had, with no rule mark.
+    // A page the rule does not match gets no folder from it: with no default folder set, the popup asks for one.
     const second = await openPopupOver(context, other);
-    await expect(second.locator('#dest-folder')).not.toHaveText('', { timeout: 20_000 });
+    await expect(second.locator('#dest-panel')).toBeVisible({ timeout: 20_000 });
+    // The rules are asked once the picker is up; give the answer time to arrive before saying nothing changed.
+    await second.waitForTimeout(1_000);
     await expect(second.locator('#rule-mark')).toBeHidden();
-    await expect(second.locator('#dest-folder')).not.toHaveText('Papers');
+    await expect(second.locator('#dest-folder')).toHaveText('');
 
     // Options lists what the rule filed.
     await options.bringToFront();

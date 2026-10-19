@@ -42,8 +42,9 @@ export function bindPopupRule(host: {
     /** Asks the worker what a rule would do with this page; shows its folder when it would place it. */
     async refresh(): Promise<void> {
       const mine = ++turn, page = host.page();
+      // With no folder chosen yet, the page can still go where a rule files it.
       const parent = decides() ? base : host.folders.chosenFolderId();
-      if (!page || !parent || host.folders.explicit() || !newSave()) { clear(); return; }
+      if (!page || host.folders.explicit() || !newSave()) { clear(); return; }
       const reply = await chrome.runtime.sendMessage({ kind: 'known.automation.match', url: page.url, title: page.title, parentNativeId: parent })
         .catch(() => null) as { ok?: boolean; match?: AutomationMatchView | null } | null;
       if (mine !== turn || host.folders.explicit() || !newSave()) return;
@@ -51,6 +52,8 @@ export function bindPopupRule(host: {
       if (match?.outcome !== 'placed' || !match.folderNativeId) { if (decides()) await host.folders.adopt(base); clear(); return; }
       base = parent; shown = match.folderNativeId;
       if (host.folders.chosenFolderId() !== shown) await host.folders.adopt(shown);
+      // The picker opened because the save had no folder; the rule gave it one, so nothing is left to pick.
+      if (!parent) host.folders.close();
       // A rule from a set or a subscription is named with it: "Community › GitHub".
       host.fields.setRulePick(match.sourceName ? `${match.sourceName} › ${match.ruleName}` : match.ruleName);
       host.onChange();

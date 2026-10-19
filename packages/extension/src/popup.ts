@@ -406,7 +406,8 @@ async function submit(hasUserGesture: boolean): Promise<void> {
     // With a rule's folder on the pill, the worker gets the folder the rule replaces and decides again.
     const target = rule.target(chosen);
     const parentNativeId = target.parentNativeId;
-    if (!parentNativeId) {
+    // A rule's folder on the pill stands in for a folder of the save's own.
+    if (!parentNativeId && !rule.decides()) {
       restoreSave();
       setFeedback(t('save_chooseFolderBeforeSaving', 'Choose a folder before saving.'));
       await folders.open(); return;

@@ -58,14 +58,18 @@ export async function startCapture(input: {
   const preferences = await readEffectiveBookmarkPreferences();
   const control = await readCaptureControl(scope);
   const automatic = input.source !== 'batch' && input.source !== 'manual-popup' && preferences.captureMode === 'automatic';
-  const requested = await captureTarget(scope, input.parentNativeId);
+  // A save with no folder of its own (none picked, no default) goes only where a rule files it.
+  const requested = await captureTarget(scope, input.parentNativeId)
+    .catch((error: unknown) => { if (error instanceof Error && error.message === 'capture_target_required') return null; throw error; });
   // Rules decide before the native create, so a rule places the bookmark directly. The account's rules
   // come first; this browser's own rules decide only a page none of them matched, and pause with them (design 01 §7.5).
-  const page = { url: input.url, title: input.title, parentNativeId: requested.nativeId, explicit: input.folderChoice === 'explicit' };
+  const page = { url: input.url, title: input.title, parentNativeId: requested?.nativeId ?? '', explicit: input.folderChoice === 'explicit' };
   const decision = await rulesDecision(scope, page);
   const ruled = decision?.targetNativeId ? await captureTarget(scope, decision.targetNativeId).catch(() => null) : null;
+  const target = ruled ?? requested;
+  if (!target) throw new Error('capture_target_required');
   const automation = decision && decision.targetNativeId && !ruled ? blockedPlacement(decision.automation) : decision?.automation;
-  const { nativeId: targetNativeId, inRange } = ruled ?? requested;
+  const { nativeId: targetNativeId, inRange } = target;
   // Local mode files into any browser folder, so it never needs the synced range, an account or credits.
   const local = automatic && await localClassificationEnabled();
   // A matching rule owns the folder, whatever it decided: no model is asked for one. The user's own

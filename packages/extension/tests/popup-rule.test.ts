@@ -8,12 +8,12 @@ import { task as base } from './fixtures/capture.js';
 let chosen: string, explicit: boolean, match: AutomationMatchView | null;
 const sent: unknown[] = [];
 const folders = { chosenFolderId: () => chosen, explicit: () => explicit, userPicked: () => explicit,
-  adopt: vi.fn(async (id: string) => { chosen = id; }) };
+  adopt: vi.fn(async (id: string) => { chosen = id; }), close: vi.fn() };
 const fields = { setRulePick: vi.fn() };
 const onChange = vi.fn();
 
 beforeEach(() => {
-  chosen = '21'; explicit = false; sent.length = 0; folders.adopt.mockClear(); fields.setRulePick.mockClear(); onChange.mockClear();
+  chosen = '21'; explicit = false; sent.length = 0; folders.adopt.mockClear(); folders.close.mockClear(); fields.setRulePick.mockClear(); onChange.mockClear();
   match = { outcome: 'placed', ruleName: 'arXiv papers', sourceName: null, ruleCount: 1, folderNativeId: '10', folderTitle: 'Academic' };
   document.body.dataset.captureMode = 'manual'; delete document.body.dataset.existing;
   vi.stubGlobal('chrome', { runtime: { sendMessage: async (message: unknown) => { sent.push(message); return { ok: true, match }; } } });
@@ -72,4 +72,21 @@ test('after the save the pill and mark follow where the worker put the bookmark'
       collectionId: 'c', replicaId: 'r', generation: 1 } });
   expect(chosen).toBe('21');
   expect(fields.setRulePick).toHaveBeenLastCalledWith(null);
+});
+
+test('with no folder chosen yet, a rule still shows where it files the page, and Save sends no folder of its own', async () => {
+  chosen = '';
+  const rule = bind();
+  await rule.refresh();
+  expect(sent).toEqual([{ kind: 'known.automation.match', url: 'https://arxiv.org/abs/1', title: 'A paper', parentNativeId: '' }]);
+  expect(chosen).toBe('10');
+  expect(rule.decides()).toBe(true);
+  expect(rule.target('10')).toEqual({ parentNativeId: '', folderChoice: 'default' });
+  // The picker that opened for want of a folder closes: the rule chose one.
+  expect(folders.close).toHaveBeenCalledOnce();
+  // The rule stops matching (the URL changed): the pill asks for a folder again.
+  match = null;
+  await rule.refresh();
+  expect(folders.adopt).toHaveBeenLastCalledWith('');
+  expect(rule.decides()).toBe(false);
 });
