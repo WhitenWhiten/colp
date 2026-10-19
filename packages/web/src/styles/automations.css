@@ -507,13 +507,6 @@
   gap: var(--space-6);
 }
 
-.automations-empty {
-  width: 100%;
-  padding-block: var(--space-8);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-lg);
-}
-
 .automations-promises {
   display: grid;
   gap: var(--space-5);

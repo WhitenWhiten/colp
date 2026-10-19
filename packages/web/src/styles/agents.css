@@ -47,7 +47,6 @@
   letter-spacing: var(--tracking-tight);
 }
 
-.agents-empty,
 .agents-signed-out {
   width: 100%;
   padding-block: var(--space-6);

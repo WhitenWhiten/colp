@@ -695,7 +695,7 @@ export function AutomationWorkersSection({
       {data.status === 'ready' && active.length === 0 && !adding && !workers.grant && (
         <EmptyState
           icon="bolt"
-          className="empty-state--compact agents-empty"
+          className="empty-state--compact empty-state--slot"
           title={revoked > 0 ? 'No active workers' : 'No workers yet'}
           description="Rules that only file bookmarks need no worker. Add one when a rule asks an agent to summarize or tag."
         />

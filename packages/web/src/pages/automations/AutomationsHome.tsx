@@ -195,7 +195,6 @@ function FirstRule() {
     <div className="automations-onboarding">
       <EmptyState
         icon="bolt"
-        className="automations-empty"
         data-testid="automations-empty"
         title="No rules yet"
         description="A rule files bookmarks for you, such as “pages from arxiv.org go to Academic”. Start here, or choose Automate… on a folder in your library."

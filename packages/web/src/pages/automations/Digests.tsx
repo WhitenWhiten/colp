@@ -144,7 +144,6 @@ export function Digests() {
       {state.status === 'ready' && state.runs.length === 0 && (
         <EmptyState
           icon="file"
-          className="automations-empty"
           title={state.cursor ? 'No digests in your recent automation activity' : 'No digests yet'}
           description="When a rule asks an agent to write a digest or a review, it shows up here to read."
           action={<Link className="btn btn-secondary btn-sm" to="/automations">See your rules</Link>}

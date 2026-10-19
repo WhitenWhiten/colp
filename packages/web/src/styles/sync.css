@@ -14,14 +14,15 @@
 .sync-error { width: 100%; color: var(--danger); }
 .sync-recovery { color: var(--ink); }
 .sync-recovery span { color: var(--muted); }
-.sync-section { padding: var(--space-6) 0; border-top: 1px solid var(--line); }
+/* Sections part by space alone, as on Agents: each one's own surface (cards,
+   rows, or the dashed slot of an empty one) already outlines it. */
+.sync-section { padding-bottom: var(--space-8); }
 .sync-heading-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
-.sync-empty { padding: var(--space-8) 0; }
-.sync-empty.empty-state--compact { padding: var(--space-4) 0 var(--space-2); }
+.sync-empty { margin-top: var(--space-4); }
 /* R10-18: replica and trash lists ride the shared .data-table primitive —
    the host class only supplies the column template; head/row chrome and the
    ≤899px collapse live in data-table.css. */

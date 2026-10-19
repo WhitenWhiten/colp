@@ -100,7 +100,7 @@ export function SyncView({ data, mutations, trashBatch }: {
             </div>
             {(status?.replicas.length ?? 0) === 0 ? (
               <EmptyState
-                className="sync-empty"
+                className="empty-state--compact empty-state--slot sync-empty"
                 icon="browser"
                 title="No browsers syncing yet"
                 description="Install the browser extension and connect it to this server. Its bookmarks then sync with your library, and the browser shows up here with its last sync."
@@ -154,7 +154,7 @@ export function SyncView({ data, mutations, trashBatch }: {
             </div>
             {conflicts.length === 0 && receiptList.length === 0 ? (
               <EmptyState
-                className="sync-empty empty-state--compact"
+                className="empty-state--compact empty-state--slot sync-empty"
                 icon="check"
                 title="No open conflicts"
                 description="When a bookmark changes in two places at once, you choose which version stays here."

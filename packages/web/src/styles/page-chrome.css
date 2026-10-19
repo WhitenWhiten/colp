@@ -338,7 +338,11 @@
 /* Empty states are frameless: a region with nothing in it should read as
    deliberate whitespace around a quiet message, not as a panel that failed
    to load its contents. Page files add rules (a section hairline, a row
-   layout) but must not re-introduce a card around the message. */
+   layout) but must not re-introduce a card around the message.
+   One rule decides the frame: a page whose whole content is the empty list
+   (Approvals, Digests, History, a first Automations visit) shows the full
+   medallion with no frame; a section among others (Sync center, Agents)
+   shows the compact one in a dashed slot, where its items will appear. */
 .empty-state {
   width: min(100%, 34rem);
   margin: 0 auto;
@@ -367,6 +371,13 @@
 .empty-state--compact .empty-state-icon svg {
   width: 1.5rem;
   height: 1.5rem;
+}
+
+.empty-state--slot {
+  width: 100%;
+  padding-block: var(--space-6);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
 }
 
 /* Line-art icons and animated illustrations share one medallion so every
