@@ -98,7 +98,10 @@ test('shared production statement binds the wide row, ancestor projection, C col
   });
   assert.deepEqual(statement.values, ['collection-1', 'parent-1', 'B', 'node-9', 501]);
   assert.match(statement.text, /select id, collection_id, parent_id, kind, is_root, title, url, description/u);
-  assert.match(statement.text, /with recursive ancestors/u);
+  assert.match(statement.text, /with recursive target_ancestors/u);
+  assert.match(statement.text, /or cycle/u);
+  assert.match(statement.text, /deleted_at is not null/u);
+  assert.doesNotMatch(statement.text, /with recursive ancestors as/u);
   assert.match(statement.text, /row_number\(\) over/u);
   assert.match(statement.text, /partition by coalesce\(parent_id/u);
   assert.match(statement.text, /as publication_position/u);
@@ -173,12 +176,36 @@ test('scopes root and depth through a recursive query while preserving tuple con
   const scoped = harness.calls.find((call) => call.sql.includes('with recursive scoped'));
   assert.deepEqual(scoped?.values, ['collection-1', 'folder-1', 3, 'folder-1', 'A', 'node-1', 11]);
   assert.match(scoped?.sql ?? '', /scope_depth > 0/u);
-  assert.match(scoped?.sql ?? '', /with recursive scope_ancestors/u);
+  assert.match(scoped?.sql ?? '', /with recursive target_ancestors/u);
+  assert.match(scoped?.sql ?? '', /scoped_facts/u);
+  assert.match(scoped?.sql ?? '', /not child\.id = any\(parent\.scope_path\)/u);
+  assert.match(scoped?.sql ?? '', /or cycle/u);
   assert.match(scoped?.sql ?? '', /row_number\(\) over/u);
   assert.match(scoped?.sql ?? '', /as publication_position/u);
-  assert.match(scoped?.sql ?? '', /parent\.id = n\.parent_id/u);
-  assert.match(scoped?.sql ?? '', /select 1 from scope_ancestors where visibility in \('private', 'protected'\)/u);
+  assert.match(scoped?.sql ?? '', /from scoped_facts n/u);
+  assert.match(scoped?.sql ?? '', /depth = 256 and parent_id is not null/u);
   assert.match(scoped?.sql ?? '', /\) > \(\$4::text/u);
+});
+
+test('public whole-collection and scoped reads use the same canonical ancestor restriction', () => {
+  const whole = buildPublicationSnapshotCandidateStatement({
+    collectionId: 'collection-1', limit: 10, projection: 'public',
+  });
+  const scoped = buildPublicationSnapshotCandidateStatement({
+    collectionId: 'collection-1', limit: 10, projection: 'public', rootId: 'folder-1', depth: 3,
+    after: { parentId: 'folder-1', position: 'A', nodeId: 'node-1' },
+  });
+  for (const statement of [whole, scoped]) {
+    assert.match(statement.text, /with recursive target_ancestors/u);
+    assert.match(statement.text, /or cycle/u);
+    assert.match(statement.text, /deleted_at is not null/u);
+    assert.match(statement.text, /target_ancestor_parent/u);
+    assert.match(statement.text, /depth = 256 and parent_id is not null/u);
+  }
+  assert.match(whole.text, /and not exists \(\s*with recursive target_ancestors/u);
+  assert.match(scoped.text, /scoped_facts n/u);
+  assert.match(scoped.text, /not n\.ancestor_restricted/u);
+  assert.match(scoped.text, /preceding\.ancestor_restricted/u);
 });
 
 test('rolls back and releases the client when the production candidate statement fails', async () => {

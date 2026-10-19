@@ -132,19 +132,7 @@ export function createPostgresPublicationSnapshotReadPort(
             `select id, collection_id, parent_id, kind, is_root, title, url, description,
                     tags, visibility, position_token, null::text as publication_position,
                     resource_revision, created_at, updated_at,
-                      exists (
-                      with recursive ancestors as (
-                        select parent.id, parent.parent_id, parent.visibility
-                          from nodes parent
-                         where parent.collection_id = root_node.collection_id
-                           and parent.id = root_node.parent_id
-                        union all
-                        select parent.id, parent.parent_id, parent.visibility
-                          from nodes parent join ancestors child on parent.id = child.parent_id
-                         where parent.collection_id = root_node.collection_id
-                      )
-                      select 1 from ancestors where visibility in ('private', 'protected')
-                    ) as ancestor_restricted,
+                      ${buildPublicationTargetAncestorRestrictionSql('root_node')} as ancestor_restricted,
                     ${bookmarkHidePublicExistsSql('root_node.id', 'root_node.collection_id')} as moderation_hidden
                from nodes root_node
               where collection_id = $1 and id = $2
@@ -273,17 +261,8 @@ export function buildPublicationSnapshotCandidateStatement(
               partition by coalesce(parent_id, ''::text) collate "C"
               order by coalesce(position_token, ''::text) collate "C", id collate "C"
             )) - 1 + ${ordinalOffset})::text, 20, '0') as publication_position,
-            ${request.projection === 'public' ? 'false' : `exists (
-              with recursive ancestors as (
-                select parent.id, parent.parent_id, parent.visibility
-                  from nodes parent where parent.collection_id = nodes.collection_id and parent.id = nodes.parent_id
-                union all
-                select parent.id, parent.parent_id, parent.visibility
-                  from nodes parent join ancestors child on parent.id = child.parent_id
-                 where parent.collection_id = nodes.collection_id
-              )
-              select 1 from ancestors where visibility in ('private', 'protected')
-            )`} as ancestor_restricted,
+            ${request.projection === 'public' ? 'false'
+              : buildPublicationTargetAncestorRestrictionSql('nodes')} as ancestor_restricted,
             ${request.projection === 'public' ? 'false'
               : bookmarkHidePublicExistsSql('nodes.id', 'nodes.collection_id')} as moderation_hidden,
             ${nodeExtensionFlagSql('nodes', PUBLICATION_PIN_EXTENSION, 'pinned')} as pinned
@@ -320,7 +299,7 @@ function buildScopedCandidateStatement(
   const ordinalOffset = after === undefined
     ? '0::bigint'
     : `case when coalesce(n.parent_id, ''::text) collate "C" = $4::text collate "C" then (
-         select count(*) from scoped preceding
+         select count(*) from scoped_facts preceding
           where preceding.scope_depth > 0
             ${request.projection === 'public' ? `and preceding.visibility = 'inherit'
             and not preceding.ancestor_restricted and not preceding.moderation_hidden` : ''}
@@ -330,30 +309,22 @@ function buildScopedCandidateStatement(
        ) else 0::bigint end`;
   return Object.freeze({
     text: `with recursive scoped as (
-       select n.*, 0::integer as scope_depth,
-                exists (
-                with recursive scope_ancestors as (
-                  select parent.id, parent.parent_id, parent.visibility
-                    from nodes parent
-                   where parent.collection_id = n.collection_id and parent.id = n.parent_id
-                  union all
-                  select parent.id, parent.parent_id, parent.visibility
-                    from nodes parent join scope_ancestors child on parent.id = child.parent_id
-                   where parent.collection_id = n.collection_id
-                )
-                select 1 from scope_ancestors where visibility in ('private', 'protected')
-              ) as ancestor_restricted,
-              ${bookmarkHidePublicExistsSql('n.id', 'n.collection_id')} as moderation_hidden
+       select n.*, 0::integer as scope_depth, array[n.id] as scope_path
          from nodes n
         where n.collection_id = $1
           and n.id = case when $2 = '' then (select root_node_id from collections where id = $1) else $2 end
           and n.deleted_at is null
        union all
-       select child.*, parent.scope_depth + 1,
-              parent.ancestor_restricted or parent.visibility in ('private', 'protected'),
-              ${bookmarkHidePublicExistsSql('child.id', 'child.collection_id')} as moderation_hidden
+       select child.*, parent.scope_depth + 1, parent.scope_path || child.id
          from nodes child join scoped parent on child.parent_id = parent.id
         where child.collection_id = $1 and child.deleted_at is null and parent.scope_depth < $3
+          and not child.id = any(parent.scope_path)
+     ),
+     scoped_facts as (
+       select n.*,
+              ${buildPublicationTargetAncestorRestrictionSql('n')} as ancestor_restricted,
+              ${bookmarkHidePublicExistsSql('n.id', 'n.collection_id')} as moderation_hidden
+         from scoped n
      )
      select n.id, n.collection_id, n.parent_id, n.kind, n.is_root, n.title, n.url, n.description,
             n.tags, n.visibility, n.position_token, n.resource_revision,
@@ -363,7 +334,7 @@ function buildScopedCandidateStatement(
               partition by coalesce(n.parent_id, ''::text) collate "C"
               order by coalesce(n.position_token, ''::text) collate "C", n.id collate "C"
             )) - 1 + ${ordinalOffset})::text, 20, '0') as publication_position
-       from scoped n
+       from scoped_facts n
       where n.scope_depth > 0
         ${request.projection === 'public' ? `and n.visibility = 'inherit'
         and not n.ancestor_restricted
