@@ -93,10 +93,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           tone="danger"
         >
           {pending?.body ? <p>{pending.body}</p> : null}
-          <div className="empty-state-actions">
+          {/* The footer every dialog ends with: hairline, actions on the right. */}
+          <div className="row-end edit-form-actions">
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-ghost"
               onClick={() => settle(false)}
             >
               {pending?.cancelLabel ?? 'Cancel'}

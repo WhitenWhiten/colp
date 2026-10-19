@@ -214,7 +214,7 @@ export function NodeEditDrawer({
       <span className="node-drawer-status" role="status" data-testid="node-drawer-status">{drawer.status}</span>
       <button
         type="button"
-        className="btn btn-primary btn-sm"
+        className="btn btn-primary"
         disabled={!canEdit || !dirty || drawer.saving}
         onClick={() => void drawer.save()}
       >

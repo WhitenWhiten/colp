@@ -135,11 +135,11 @@ export function LibraryTagPicker({ open, onClose, filter }: {
             ))}
           </ul>
         )}
-        <div className="row-end">
+        <div className="row-end edit-form-actions">
           {filter.selected.length > 0 && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => filter.set([])}>Clear tags</button>
+            <button type="button" className="btn btn-ghost" onClick={() => filter.set([])}>Clear tags</button>
           )}
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => { setQuery(''); onClose() }}>Done</button>
+          <button type="button" className="btn btn-primary" onClick={() => { setQuery(''); onClose() }}>Done</button>
         </div>
       </div>
     </Modal>
@@ -270,9 +270,9 @@ export function LibraryBulkTagDialog({ nodes, vocabulary, onApply, onClose }: {
             vocabulary={vocabulary}
           />
         </div>
-        <div className="row-end">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={apply}>Apply</button>
+        <div className="row-end edit-form-actions">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={apply}>Apply</button>
         </div>
       </div>
     </Modal>

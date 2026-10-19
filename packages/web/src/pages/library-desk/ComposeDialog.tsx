@@ -238,10 +238,10 @@ export function ComposeDialog({ snap, mutations }: {
           )}
         </div>
         <div className="row-end edit-form-actions">
-          <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={close}>
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={close}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
             {busy ? (isBookmark ? 'Adding…' : 'Creating…') : isBookmark ? 'Add bookmark' : 'Create folder'}
           </button>
         </div>

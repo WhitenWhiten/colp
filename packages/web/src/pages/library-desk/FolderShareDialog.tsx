@@ -70,17 +70,17 @@ export function FolderShareDialog({ collectionId, nodeId, title, onClose, onChan
         : url ? 'Anyone with the link can view this folder and the folders inside it. The rest of your library stays private.'
         : 'Create a link that lets anyone view this folder and the folders inside it. The rest of your library stays private.'}</p>
       {state === 'loading' ? <LoadingState label="Loading share link…" /> : state === 'error'
-        ? <div className="row-end"><button type="button" className="btn btn-secondary" onClick={() => void reload()}>Try again</button></div>
+        ? <div className="row-end edit-form-actions"><button type="button" className="btn btn-secondary" onClick={() => void reload()}>Try again</button></div>
         : url ? <>
           {!unavailableReason && <CopyField label="Folder link" value={url} onCopied={() => success('Link copied')}
             onCopyFailed={() => error('Couldn’t copy the link. Select and copy it.')} />}
-          <div className="row-end">
+          <div className="row-end edit-form-actions">
             {/* Revoking is one click away but not the row's loudest action. */}
-            <button type="button" className="btn btn-danger-ghost btn-sm folder-share-stop" disabled={busy} onClick={() => void change('stop')}>Stop sharing</button>
-            {!unavailableReason && <a href={url} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">Open link</a>}
-            <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={close}>Done</button>
+            <button type="button" className="btn btn-danger-ghost folder-share-stop" disabled={busy} onClick={() => void change('stop')}>Stop sharing</button>
+            {!unavailableReason && <a href={url} target="_blank" rel="noreferrer" className="btn btn-secondary">Open link</a>}
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={close}>Done</button>
           </div>
-        </> : <div className="row-end">
+        </> : <div className="row-end edit-form-actions">
           <button type="button" className="btn btn-primary" disabled={busy || Boolean(unavailableReason)} onClick={() => void change('share')}>Create link</button>
         </div>}
     </div>
