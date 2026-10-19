@@ -443,10 +443,11 @@
   gap: var(--space-3);
 }
 
+/* Section titles at the size every owner page's sections use. */
 :root[data-edition='self-hosted'] .self-hosted-about-card h2,
 :root[data-edition='self-hosted'] .self-hosted-about-next h2 {
   margin: 0;
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
 }
