@@ -379,7 +379,7 @@ export function AutomationsHome() {
         documentTitle="Automations"
         lede="Rules file the bookmarks you save into the right folder. Nothing runs until you preview a rule and turn it on."
         actions={(
-          <Link className="btn btn-primary" to="/automations/new">
+          <Link className="btn btn-primary btn-sm" to="/automations/new">
             <Icon name="plus" />
             New rule
           </Link>

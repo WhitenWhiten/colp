@@ -196,16 +196,16 @@ export function RuleDetail() {
         actions={(
           <>
             {shown.desiredState !== 'archived' && (
-              <Link className="btn btn-secondary" to={runOncePath(shown.id)} data-testid="automation-run-once-link">Run once</Link>
+              <Link className="btn btn-secondary btn-sm" to={runOncePath(shown.id)} data-testid="automation-run-once-link">Run once</Link>
             )}
             {shown.desiredState === 'enabled' ? (
-              <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void pause()}>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={busy !== null} onClick={() => void pause()}>
                 Pause
               </button>
             ) : shown.desiredState !== 'archived' ? (
-              <Link className="btn btn-secondary" to={`${editHref}#preview`}>Preview and turn on</Link>
+              <Link className="btn btn-secondary btn-sm" to={`${editHref}#preview`}>Preview and turn on</Link>
             ) : null}
-            {shown.desiredState !== 'archived' && <Link className="btn btn-primary" to={editHref}>Edit</Link>}
+            {shown.desiredState !== 'archived' && <Link className="btn btn-primary btn-sm" to={editHref}>Edit</Link>}
           </>
         )}
       >

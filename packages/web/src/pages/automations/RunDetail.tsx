@@ -247,12 +247,12 @@ export function RunDetail() {
         )}
         actions={!finished ? (
           <>
-            <button type="button" className="btn btn-secondary" onClick={refresh}>Refresh</button>
-            <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void cancel()}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={refresh}>Refresh</button>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={busy !== null} onClick={() => void cancel()}>
               Cancel remaining work
             </button>
           </>
-        ) : settled ? undefined : <button type="button" className="btn btn-secondary" onClick={refresh}>Refresh</button>}
+        ) : settled ? undefined : <button type="button" className="btn btn-secondary btn-sm" onClick={refresh}>Refresh</button>}
       />
 
       <div className="automations-layout">
