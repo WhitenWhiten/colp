@@ -89,6 +89,7 @@ Errors provide, as needed:
 - `retryAfterSeconds`
 - `snapshotUrl`
 - `conflictId`
+- `currentSubtree`, with `revision_conflict` on a `delete_subtree`: the target's current `{version, count, digest, memberIdsDigest}` (see [03 §13.1](03-sync.md#colp-section-13-1))
 - `errors[]`, each item containing `path`, `keyword`, and `message`
 - `links`, for example `current`, `snapshot`, `authorization`
 

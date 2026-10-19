@@ -6,7 +6,6 @@
     "src/mcp/2026-07-28/request-context.ts": 1120,
     "src/mcp/2026-07-28/write.ts": 1115,
     "src/mcp/change-plan.ts": 2365,
-    "src/mcp/shared/resources.ts": 606,
     "src/mcp/write-tools.ts": 911,
     "src/publisher/index.ts": 1162,
     "src/publisher/node-delete.ts": 742,
