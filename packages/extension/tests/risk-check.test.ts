@@ -155,7 +155,7 @@ describe('the worker', () => {
     fetchSpy.mockClear();
     expect(await check('https://www.login-example-support.com/a')).toMatchObject({ ok: true, check: { mode: 'onSave',
       matches: [{ listName: 'Example phishing list', scope: 'domain', value: 'login-example-support.com', freshness: 'fresh' }] } });
-    expect(await check('https://example.org/')).toEqual({ ok: true, check: { mode: 'onSave', matches: [] } });
+    expect(await check('https://example.org/')).toEqual({ ok: true, check: { mode: 'onSave', matches: [], site: null } });
     // A week and a day without a successful refresh: the match says the list is stale (R11).
     vi.setSystemTime(NOW + 8 * DAY);
     expect(await check('https://login-example-support.com/')).toMatchObject({ ok: true, check: { matches: [{ freshness: 'stale' }] } });
@@ -164,7 +164,7 @@ describe('the worker', () => {
 
   it('says nothing while alerts are off, and leaves out this session’s and saved exceptions', async () => {
     await subscribe();
-    expect(await check('https://login-example-support.com/')).toEqual({ ok: true, check: { mode: 'off', matches: [] } });
+    expect(await check('https://login-example-support.com/')).toEqual({ ok: true, check: { mode: 'off', matches: [], site: null } });
     await mode('onSaveAndBrowse', [{ id: 'x1', scope: 'host', value: 'www.login-example-support.com', createdAt: NOW }]);
     expect(await check('https://www.login-example-support.com/')).toMatchObject({ check: { matches: [] } });
     expect(await check('https://login-example-support.com/')).toMatchObject({ check: { matches: [{ value: 'login-example-support.com' }] } });
@@ -172,10 +172,14 @@ describe('the worker', () => {
     expect(await check('https://login-example-support.com/')).toMatchObject({ check: { matches: [] } });
   });
 
-  it('fetches through the 4 MB cap, refreshes on the hourly tick when due, and removes', async () => {
+  it('fetches through the 4 MB cap, refreshes on the hourly tick when due and alerts are on, and removes', async () => {
     const list = await subscribe();
     expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({ method: 'GET', credentials: 'omit' });
     served.set('https://lists.example.org/phish.json', () => new Response(null, { status: 304 }));
+    // Off, nothing is fetched by itself.
+    vi.setSystemTime(NOW + 6 * HOUR);
+    expect(await refreshDueRiskLists()).toEqual([]);
+    await mode('onSave');
     vi.setSystemTime(NOW + 5 * HOUR);
     expect(await refreshDueRiskLists()).toEqual([]);
     vi.setSystemTime(NOW + 6 * HOUR);

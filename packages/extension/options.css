@@ -1569,6 +1569,14 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .automation-preview-entries > .form-label { margin: 0; }
 /* Rules file (doc 17 §5.3): one quiet row, and the import dialog's folder choices. */
 .automation-config { margin: 0 0 var(--space-6); }
+/* Risk alerts (risk-pane.ts): the mode, the lists with how fresh each is, the exceptions. */
+.risk-body { display: grid; gap: var(--space-3); min-width: 0; }
+.risk-mode { padding: var(--space-3) var(--space-4); }
+.risk-list-items { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.risk-list-items > li + li { border-top: 1px solid var(--line); }
+.risk-list-row .list-row-meta { white-space: normal; }
+.risk-list-row .list-row-meta[data-tone="warning"] { color: var(--warning); }
+.risk-exception-row { grid-template-columns: minmax(0, 1fr) auto; }
 .automation-config-folders { display: grid; gap: var(--space-3); }
 .automation-config-path { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); overflow-wrap: anywhere; }
 /* A rule-set file refused (doc 17 RS-02): where each problem is, in the file's own terms. */

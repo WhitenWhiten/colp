@@ -89,7 +89,7 @@ import { handleRunCommand } from './sw/automation-run.js';
 import { handleSubscriptionCommand, installRuleSubscriptions, refreshDueSubscriptions, RULE_SUBSCRIPTION_ALARM } from './sw/automation-subscriptions.js';
 import { isSubscriptionCommand } from './automation/subscription-messages.js';
 import { handleRiskCommand, refreshDueRiskLists } from './sw/risk.js';
-import { validRiskCommand } from './risk/risk-messages.js';
+import { POPUP_RISK_KINDS, validRiskCommand } from './risk/risk-messages.js';
 import { accountLink, AUTOMATION_ALARM, handleAutomationRequest, installAutomationRuntime, refreshAutomation } from './sw/automation.js';
 import { installObservedCreates, resumeObservedCreates } from './sw/automation-observed.js';
 import { currentSyncScope, stateAfterFailure } from './sw/scope.js';
@@ -352,8 +352,8 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (validRiskCommand(message)) {
-    // Risk lists are changed from Options only; a check is a read the popup makes too.
-    if (!trustedLifecyclePage(sender, chrome.runtime.id, message.kind === 'known.risk.check')) return false;
+    // Risk settings and lists are changed from Options; the popup checks a page and adds an exception from its notice.
+    if (!trustedLifecyclePage(sender, chrome.runtime.id, POPUP_RISK_KINDS.has(message.kind))) return false;
     void handleRiskCommand(message).then(respond, error => respond({ ok: false, error: safeError(error) }));
     return true;
   }

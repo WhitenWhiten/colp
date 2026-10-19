@@ -7655,6 +7655,298 @@
     "message": "开始同步后，才能更改云端删除在此处的处理方式。",
     "description": "Start syncing to change how cloud deletions are applied here."
   },
+  "risk_absence": {
+    "message": "不在列表上不代表任何结论：不在任何列表上的页面不会收到提示，无论好坏。",
+    "description": "Absence from a list means nothing either way: a page on no list gets no notice, good or bad."
+  },
+  "risk_addException": {
+    "message": "添加例外",
+    "description": "Add exception"
+  },
+  "risk_badUrl": {
+    "message": "请使用 https 地址，例如 https://example.org/risklist.json。",
+    "description": "Use an https address, such as https://example.org/risklist.json."
+  },
+  "risk_changeFailed": {
+    "message": "无法更改风险提醒，请重试。",
+    "description": "Couldn’t change risk alerts. Try again."
+  },
+  "risk_dismiss": {
+    "message": "关闭",
+    "description": "Dismiss"
+  },
+  "risk_duplicate": {
+    "message": "你已经订阅了这个列表。",
+    "description": "You already subscribe to this list."
+  },
+  "risk_entries_other": {
+    "message": "$1 个条目",
+    "description": "$1 entries"
+  },
+  "risk_evidence": {
+    "message": "依据",
+    "description": "Evidence"
+  },
+  "risk_exceptAdd": {
+    "message": "添加",
+    "description": "Add"
+  },
+  "risk_exceptAlways": {
+    "message": "始终",
+    "description": "Always"
+  },
+  "risk_exceptDomain": {
+    "message": "$1 全部",
+    "description": "All of $1"
+  },
+  "risk_exceptDuration": {
+    "message": "持续多久",
+    "description": "For how long"
+  },
+  "risk_exceptHost": {
+    "message": "仅 $1",
+    "description": "Only $1"
+  },
+  "risk_exceptRetry": {
+    "message": "重试",
+    "description": "Try again"
+  },
+  "risk_exceptScope": {
+    "message": "哪些网站",
+    "description": "Which sites"
+  },
+  "risk_exceptSession": {
+    "message": "直到关闭浏览器",
+    "description": "Until the browser closes"
+  },
+  "risk_exceptedAlways": {
+    "message": "$1 不再有风险提醒。",
+    "description": "No more risk alerts for $1."
+  },
+  "risk_exceptedSession": {
+    "message": "关闭浏览器前，$1 不再有风险提醒。",
+    "description": "No risk alerts for $1 until the browser closes."
+  },
+  "risk_exceptionAlways": {
+    "message": "始终",
+    "description": "always"
+  },
+  "risk_exceptionDomain": {
+    "message": "该域名及其下所有主机",
+    "description": "The domain and every host under it"
+  },
+  "risk_exceptionHost": {
+    "message": "仅此主机",
+    "description": "This host only"
+  },
+  "risk_exceptionRemove": {
+    "message": "移除 $1 的例外",
+    "description": "Remove exception for $1"
+  },
+  "risk_exceptionRemoved": {
+    "message": "$1 的风险提醒已恢复。",
+    "description": "Risk alerts are back for $1."
+  },
+  "risk_exceptionSession": {
+    "message": "直到关闭浏览器",
+    "description": "until the browser closes"
+  },
+  "risk_exceptions": {
+    "message": "例外",
+    "description": "Exceptions"
+  },
+  "risk_exceptionsHint": {
+    "message": "这些网站不会收到风险提醒。例外不会改变页面归入哪个文件夹。",
+    "description": "These sites get no risk alerts. Exceptions never change where pages are filed."
+  },
+  "risk_failInvalid": {
+    "message": "$1 上的文件不是这个浏览器能用的风险列表，$2。",
+    "description": "The file at $1 isn’t a risk list this browser can use, $2."
+  },
+  "risk_failTooLarge": {
+    "message": "$1 上的文件超过 4 MB，$2。",
+    "description": "The file at $1 is larger than 4 MB, $2."
+  },
+  "risk_intervalHint": {
+    "message": "只在这个浏览器打开时检查。一周没有更新的列表会标为过时。",
+    "description": "Only while this browser is open. A list not updated for a week is marked stale."
+  },
+  "risk_kindMalware": {
+    "message": "恶意软件",
+    "description": "malware"
+  },
+  "risk_kindOther": {
+    "message": "风险",
+    "description": "a risk"
+  },
+  "risk_kindPhishing": {
+    "message": "钓鱼",
+    "description": "phishing"
+  },
+  "risk_kindScam": {
+    "message": "诈骗",
+    "description": "a scam"
+  },
+  "risk_lede": {
+    "message": "当页面出现在你订阅的风险列表上时提醒你。只作提醒：不会拦截页面，也不会改变书签存放的位置。",
+    "description": "Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes."
+  },
+  "risk_limit": {
+    "message": "这个浏览器最多保留 20 个风险列表。移除一个后再添加。",
+    "description": "This browser keeps up to 20 risk lists. Remove one to add another."
+  },
+  "risk_lists": {
+    "message": "列表",
+    "description": "Lists"
+  },
+  "risk_listsHint": {
+    "message": "下载到这个浏览器并在本地检查。每个列表都注明维护者；列表意见不一致时，你会分别看到每一个。",
+    "description": "Fetched to this browser and checked here. Each says who keeps it; where lists disagree, you see each one."
+  },
+  "risk_loadFailed": {
+    "message": "无法读取这个浏览器中的风险提醒。重新加载页面再试。",
+    "description": "Couldn’t read risk alerts in this browser. Reload the page to try again."
+  },
+  "risk_matchExpired": {
+    "message": "曾被列为$1，直到 $2（已过期）",
+    "description": "listed as $1 until $2 (expired)"
+  },
+  "risk_matchKind": {
+    "message": "自 $2 起被列为$1",
+    "description": "listed as $1 since $2"
+  },
+  "risk_matchStale": {
+    "message": "列表已超过一周未更新",
+    "description": "list not updated for over a week"
+  },
+  "risk_matchUnknown": {
+    "message": "未知，列表已过期",
+    "description": "unknown, list out of date"
+  },
+  "risk_modeLabel": {
+    "message": "提醒方式",
+    "description": "Warn me"
+  },
+  "risk_modeOff": {
+    "message": "关闭",
+    "description": "Off"
+  },
+  "risk_modeOffHint": {
+    "message": "不检查任何列表，也不会自动下载列表。",
+    "description": "No lists are checked and none are fetched by themselves."
+  },
+  "risk_modeOnSave": {
+    "message": "保存页面时",
+    "description": "When I save a page"
+  },
+  "risk_modeOnSaveHint": {
+    "message": "页面在你的某个列表上时，弹出窗口会告诉你。你仍然可以保存。",
+    "description": "The popup says when the page is on one of your lists. You can still save it."
+  },
+  "risk_modeTurnedOff": {
+    "message": "风险提醒已关闭。",
+    "description": "Risk alerts are off."
+  },
+  "risk_modeTurnedOn": {
+    "message": "现在，保存的页面在你的列表上时，弹出窗口会提醒你。",
+    "description": "The popup now warns when a page you save is on one of your lists."
+  },
+  "risk_needsAccess": {
+    "message": "允许读取 $1 才能下载这个列表。",
+    "description": "Allow reading $1 to fetch this list."
+  },
+  "risk_needsAccessSubscribe": {
+    "message": "允许读取 $1 才能订阅这个列表。Know-N 不会从该网站读取其他内容。",
+    "description": "Allow reading $1 to subscribe to this list. Know-N reads nothing else from that site."
+  },
+  "risk_notFetched": {
+    "message": "尚未下载，因此不会提醒任何内容。",
+    "description": "Not fetched yet, so it warns about nothing."
+  },
+  "risk_noticeHint": {
+    "message": "你仍然可以保存；文件夹保持不变。",
+    "description": "You can still save it; the folder stays as it is."
+  },
+  "risk_noticeTitle_other": {
+    "message": "此页面在你订阅的 $1 个风险列表上",
+    "description": "This page is on $1 risk lists you subscribe to"
+  },
+  "risk_outOfDate": {
+    "message": "已过期：最后更新于 $1，因此其提醒显示为“未知”",
+    "description": "out of date: last updated $1, so its alerts say “unknown”"
+  },
+  "risk_remove": {
+    "message": "移除列表",
+    "description": "Remove list"
+  },
+  "risk_removeHint": {
+    "message": "它不再对所列网站发出提醒。你的例外会保留。",
+    "description": "It stops warning about the sites it lists. Your exceptions stay."
+  },
+  "risk_removeTitle": {
+    "message": "移除“$1”？",
+    "description": "Remove “$1”?"
+  },
+  "risk_removed": {
+    "message": "已移除“$1”。",
+    "description": "Removed “$1”."
+  },
+  "risk_reportMistake": {
+    "message": "报告错误",
+    "description": "Report a mistake"
+  },
+  "risk_scopeDomain": {
+    "message": "$1 全部",
+    "description": "all of $1"
+  },
+  "risk_scopeHost": {
+    "message": "此主机 $1",
+    "description": "this host, $1"
+  },
+  "risk_scopePrefix": {
+    "message": "以 $1 开头的地址",
+    "description": "addresses starting $1"
+  },
+  "risk_stale": {
+    "message": "过时：最后更新于 $1",
+    "description": "stale: last updated $1"
+  },
+  "risk_subscribe": {
+    "message": "订阅列表",
+    "description": "Subscribe to a list"
+  },
+  "risk_subscribeFailed": {
+    "message": "无法订阅，请重试。",
+    "description": "Couldn’t subscribe. Try again."
+  },
+  "risk_subscribeTitle": {
+    "message": "订阅风险列表",
+    "description": "Subscribe to a risk list"
+  },
+  "risk_subscribed": {
+    "message": "已订阅“$1”。",
+    "description": "Subscribed to “$1”."
+  },
+  "risk_subscribedNotReady": {
+    "message": "已订阅，但尚未就绪：$1",
+    "description": "Subscribed, but not ready yet: $1"
+  },
+  "risk_title": {
+    "message": "风险提醒",
+    "description": "Risk alerts"
+  },
+  "risk_url": {
+    "message": "列表地址",
+    "description": "Address of the list"
+  },
+  "risk_urlHint": {
+    "message": "https 地址上的 colp.risklist/v1 文件。Know-N 会请求读取该网站，且不会向它发送任何关于你页面的信息。",
+    "description": "A colp.risklist/v1 file on an https address. Know-N asks to read that site, and sends it nothing about your pages."
+  },
+  "risk_viewList": {
+    "message": "查看列表",
+    "description": "View list"
+  },
   "save_allowBookmarkAccessSave": {
     "message": "请允许书签访问权限以保存此页面。",
     "description": "Allow bookmark access to save this page."

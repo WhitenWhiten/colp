@@ -41,6 +41,7 @@ async function render(state: AutomationStateView): Promise<HTMLElement> {
   vi.stubGlobal('chrome', {
     runtime: { getURL: (path: string) => `chrome-extension://known/${path}`, sendMessage: vi.fn(async (message: Record<string, unknown>) => {
       if (message.kind === 'known.automation.state' || message.kind === 'known.automation.refresh') return { ok: true, state };
+      if (message.kind === 'known.risk.state') return { ok: true, state: { mode: 'off', lists: [], exceptions: [] } };
       sent.push(message); return reply(message);
     }) },
     storage: { onChanged: { addListener: vi.fn() } },
@@ -75,10 +76,11 @@ describe('Rules in this browser on the page', () => {
       ['From arxiv.org', 'Papers'], ['From moz.com or a subdomain or title has “SEO”', 'Papers'], ['From arxiv.org', 'a folder that no longer exists']]);
     expect(rows.map((row) => text(row.querySelector('.badge')))).toEqual(['', 'Off', 'Folder missing']);
     expect(rows.map((row) => row.querySelector('[role="switch"]')!.getAttribute('aria-checked'))).toEqual(['true', 'false', 'true']);
-    // The rules file (doc 17 §5.3) sits under them, before what an account adds.
+    // The rules file (doc 17 §5.3) and risk alerts (§9) sit under them, before what an account adds.
     expect(groups[1]!.getAttribute('aria-label')).toBe('Rules file');
-    expect(text(groups[2]!)).toContain('Your account’s rules');
-    expect(groups[2]!.querySelector<HTMLAnchorElement>('a.btn')!.getAttribute('href')).toBe('#account');
+    expect(groups[2]!.getAttribute('aria-labelledby')).toBe('automation-risk-heading');
+    expect(text(groups[3]!)).toContain('Your account’s rules');
+    expect(groups[3]!.querySelector<HTMLAnchorElement>('a.btn')!.getAttribute('href')).toBe('#account');
     // No status card and no web link without an account.
     expect(body.querySelector('.automation-status')).toBeNull();
     expect(document.querySelector<HTMLElement>('[data-automations-web]')!.hidden).toBe(true);
@@ -97,7 +99,7 @@ describe('Rules in this browser on the page', () => {
     const body = await render(view({ account: 'signedIn', state: 'active', webUrl: 'https://colp.example/automations',
       rules: [{ id: 'rule-arxiv', name: 'arXiv papers', folder: 'Academic', resolved: true, match: null }] }));
     expect(Array.from(body.children).map((node) => node.getAttribute('aria-labelledby') ?? node.getAttribute('aria-label'))).toEqual(['automation-flow-heading',
-      'automation-status-title', 'automation-rules-heading', 'automation-browser-heading', 'Rules file']);
+      'automation-status-title', 'automation-rules-heading', 'automation-browser-heading', 'Rules file', 'automation-risk-heading']);
     expect(text(body.querySelector('#automation-rules-heading'))).toBe('Your account’s rules');
     // One New rule for the page (U2): the account's section has no second one.
     expect(body.querySelector('[aria-labelledby="automation-rules-heading"] .automation-group-head a, [aria-labelledby="automation-rules-heading"] .automation-group-head button')).toBeNull();

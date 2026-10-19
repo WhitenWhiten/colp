@@ -5,7 +5,8 @@ import { newSubscription, parseSubscriptionRecord, REFRESH_PER_TICK, type Failur
 import type { RiskSource } from './risk-check.js';
 import { buildRiskIndex, parseRiskIndex, type RiskIndex } from './risk-index.js';
 import { parseRiskList } from './risklist-format.js';
-import { parseRiskSettings, RISK_SETTINGS_KEY, type RiskSettings } from './risk-settings.js';
+import { exceptionValue, parseRiskSettings, RISK_EXCEPTION_LIMIT, RISK_SETTINGS_KEY, type RiskMode, type RiskSettings,
+  type StoredRiskException } from './risk-settings.js';
 
 /**
  * Risk lists this browser subscribes to (doc 17 §4.4, §9): each a `colp.risklist/v1` address with a
@@ -96,6 +97,34 @@ export function createRiskStore(area: SnapshotStateArea, options: { readonly id?
     get: read,
     content: async (id: string) => parseRiskContent(await area.get(riskKeys(id).content)),
     settings: async (): Promise<RiskSettings> => parseRiskSettings(await area.get(RISK_SETTINGS_KEY)),
+    setMode(mode: RiskMode): Promise<RiskSettings> {
+      return exclusive(async () => {
+        const next = { ...parseRiskSettings(await area.get(RISK_SETTINGS_KEY)), mode };
+        await area.set(RISK_SETTINGS_KEY, next);
+        return next;
+      });
+    },
+    /** An exception kept always; the same host or domain again is the one already kept. */
+    addException(scope: StoredRiskException['scope'], raw: string, now: number): Promise<StoredRiskException | 'invalid' | 'limit'> {
+      return exclusive(async () => {
+        const value = exceptionValue(scope, raw), settings = parseRiskSettings(await area.get(RISK_SETTINGS_KEY));
+        if (!value) return 'invalid';
+        const known = settings.exceptions.find((item) => item.scope === scope && item.value === value);
+        if (known) return known;
+        if (settings.exceptions.length >= RISK_EXCEPTION_LIMIT) return 'limit';
+        const made: StoredRiskException = { id: newId(), scope, value, createdAt: now };
+        await area.set(RISK_SETTINGS_KEY, { ...settings, exceptions: [...settings.exceptions, made] });
+        return made;
+      });
+    },
+    removeException(id: string): Promise<boolean> {
+      return exclusive(async () => {
+        const settings = parseRiskSettings(await area.get(RISK_SETTINGS_KEY));
+        if (!settings.exceptions.some((item) => item.id === id)) return false;
+        await area.set(RISK_SETTINGS_KEY, { ...settings, exceptions: settings.exceptions.filter((item) => item.id !== id) });
+        return true;
+      });
+    },
     /** What a check reads: each list with a version, in the Owner's order, its index from storage once per version (RS-16.2). */
     async sources(): Promise<RiskSource[]> {
       const sources: RiskSource[] = [];

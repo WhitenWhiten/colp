@@ -17,6 +17,7 @@ import { readSaveFeedback, SAVE_FEEDBACK_PERMISSION, saveFeedbackIsError } from 
 import { readPopupDraft, writePopupDraft, clearPopupDraft, type PopupDraft } from './popup-draft.js';
 import { savePopupNativePage } from './popup-native-save.js';
 import { bindPopupRule } from './popup-rule.js';
+import { bindPopupRisk } from './popup-risk.js';
 import { bindSaveFolderPicker } from './save-folder-ui.js';
 import { automationSaveLine, writeLastSave } from './save-status.js';
 import { bindClearIconAction } from './clear-icon-ui.js';
@@ -90,9 +91,11 @@ const folders = bindSaveFolderPicker({
   onPick: (id) => { fields.setAiPick(false); rule.picked(); return pickHandler?.(id); },
 });
 /* A matching rule shows its folder before Save; the user's own pick always wins. */
-const rule = bindPopupRule({ folders, fields, onChange: () => classification?.ruleChanged(),
-  page: () => { const url = urlInput.value.trim() || tabUrl; return url ? { url, title: titleInput.value.trim() || tabTitle || url } : null; } });
-urlInput.addEventListener('change', () => { void rule.refresh(); });
+const currentPage = () => { const url = urlInput.value.trim() || tabUrl; return url ? { url, title: titleInput.value.trim() || tabTitle || url } : null; };
+const rule = bindPopupRule({ folders, fields, onChange: () => classification?.ruleChanged(), page: currentPage });
+/* Risk alerts are asked for beside the rule, whatever it decides; they never touch the folder (doc 17 RS-18). */
+const risk = bindPopupRisk({ notice: element('risk-notice'), page: currentPage });
+urlInput.addEventListener('change', () => { void rule.refresh(); void risk.refresh(); });
 bindDestUi({ destToggle: element('dest-toggle') as HTMLButtonElement, destPanel: element('dest-panel'), destSearch: element('dest-search') as HTMLInputElement });
 const editExisting = bindEditExisting({ titleInput, tabTitle: () => tabTitle, save, remove: element('remove-bookmark') as HTMLButtonElement,
   folders, commitFolder: () => folders.commit(selectedCollection()?.id ?? DEVICE_FOLDER_SCOPE), setFeedback, annotation: fields.annotation, pin });
@@ -245,6 +248,7 @@ async function initSaveTarget(collectionId: string | undefined): Promise<void> {
   reflectNativeWaitLink(status?.ok === true && status.status.kind === 'action-required');
   await folders.init(collectionId ?? DEVICE_FOLDER_SCOPE, lastMountNativeIds, status?.ok ? status.privateNativeIds : []);
   await editExisting.reapply();
+  void risk.refresh();
   // The rule's folder first, so an automatic suggestion knows whether to ask for tags only.
   await rule.refresh();
   void manualClassification().refresh(collectionId);

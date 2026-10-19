@@ -14,6 +14,7 @@ import { createRulePreview } from './rule-preview-pane.js';
 import { configCard } from './rules-config-pane.js';
 import { runList } from './run-once-pane.js';
 import { flowStrip } from './flow-strip.js';
+import { createRiskPane } from '../risk/risk-pane.js';
 import { placementBadge, ruleConditions, ruleServerBadge, ruleServerMeta, runRow, serverFreshness } from './status-ui.js';
 
 /**
@@ -405,6 +406,8 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
   const newRule = pane.querySelector<HTMLButtonElement>('[data-automations-new]');
   let active = false, busy = false, turn = 0, last: AutomationStateView | undefined, tab: ActivityTab | null = null;
   const preview = createRulePreview();
+  // Risk alerts keep their own state and store (RS-18.1); the section stays put across renders.
+  const risk = createRiskPane();
 
   async function load(kind: 'known.automation.state' | 'known.automation.refresh'): Promise<void> {
     const mine = ++turn;
@@ -428,14 +431,14 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     if (tried.length) preview.update(view);
     if (view.account === 'signedOut') {
       // This browser's rules need no account, so they lead; the account's rules are one sign-in away.
-      parts.push(flowStrip(view), ruleListGroup(view, tried), configCard(), accountCard());
+      parts.push(flowStrip(view), ruleListGroup(view, tried), configCard(), risk.element, accountCard());
     } else {
       const alert = notice(view);
       if (alert) parts.push(alert);
       // The order every save follows comes first, so each section below reads as one of its steps.
       parts.push(flowStrip(view), statusCard(view, refresh, busy));
       if (view.state === 'active' || view.state === 'paused' || (view.state === 'none' && view.problem !== 'unavailable')) parts.push(rulesGroup(view));
-      parts.push(ruleListGroup(view, tried), configCard());
+      parts.push(ruleListGroup(view, tried), configCard(), risk.element);
     }
     const activity = activityGroup(view, tab, (next) => { tab = next; if (last) render(last); });
     if (activity) parts.push(activity);
@@ -449,7 +452,7 @@ export function bindAutomationsPane(pane: HTMLElement): AutomationsPane {
     if (active && area === 'local' && AUTOMATION_CHANGED_KEY in changes) void load('known.automation.state');
   });
   return {
-    activate() { active = true; void load('known.automation.state'); },
-    deactivate() { active = false; turn += 1; },
+    activate() { active = true; void load('known.automation.state'); risk.activate(); },
+    deactivate() { active = false; turn += 1; risk.deactivate(); },
   };
 }

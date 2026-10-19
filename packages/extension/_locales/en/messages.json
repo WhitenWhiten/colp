@@ -5948,6 +5948,231 @@
   "remoteDelete_startSyncChangeHowCloud": {
     "message": "Start syncing to change how cloud deletions are applied here."
   },
+  "risk_absence": {
+    "message": "Absence from a list means nothing either way: a page on no list gets no notice, good or bad."
+  },
+  "risk_addException": {
+    "message": "Add exception"
+  },
+  "risk_badUrl": {
+    "message": "Use an https address, such as https://example.org/risklist.json."
+  },
+  "risk_changeFailed": {
+    "message": "Couldn’t change risk alerts. Try again."
+  },
+  "risk_dismiss": {
+    "message": "Dismiss"
+  },
+  "risk_duplicate": {
+    "message": "You already subscribe to this list."
+  },
+  "risk_entries_one": {
+    "message": "$1 entry"
+  },
+  "risk_entries_other": {
+    "message": "$1 entries"
+  },
+  "risk_evidence": {
+    "message": "Evidence"
+  },
+  "risk_exceptAdd": {
+    "message": "Add"
+  },
+  "risk_exceptAlways": {
+    "message": "Always"
+  },
+  "risk_exceptDomain": {
+    "message": "All of $1"
+  },
+  "risk_exceptDuration": {
+    "message": "For how long"
+  },
+  "risk_exceptHost": {
+    "message": "Only $1"
+  },
+  "risk_exceptRetry": {
+    "message": "Try again"
+  },
+  "risk_exceptScope": {
+    "message": "Which sites"
+  },
+  "risk_exceptSession": {
+    "message": "Until the browser closes"
+  },
+  "risk_exceptedAlways": {
+    "message": "No more risk alerts for $1."
+  },
+  "risk_exceptedSession": {
+    "message": "No risk alerts for $1 until the browser closes."
+  },
+  "risk_exceptionAlways": {
+    "message": "always"
+  },
+  "risk_exceptionDomain": {
+    "message": "The domain and every host under it"
+  },
+  "risk_exceptionHost": {
+    "message": "This host only"
+  },
+  "risk_exceptionRemove": {
+    "message": "Remove exception for $1"
+  },
+  "risk_exceptionRemoved": {
+    "message": "Risk alerts are back for $1."
+  },
+  "risk_exceptionSession": {
+    "message": "until the browser closes"
+  },
+  "risk_exceptions": {
+    "message": "Exceptions"
+  },
+  "risk_exceptionsHint": {
+    "message": "These sites get no risk alerts. Exceptions never change where pages are filed."
+  },
+  "risk_failInvalid": {
+    "message": "The file at $1 isn’t a risk list this browser can use, $2."
+  },
+  "risk_failTooLarge": {
+    "message": "The file at $1 is larger than 4 MB, $2."
+  },
+  "risk_intervalHint": {
+    "message": "Only while this browser is open. A list not updated for a week is marked stale."
+  },
+  "risk_kindMalware": {
+    "message": "malware"
+  },
+  "risk_kindOther": {
+    "message": "a risk"
+  },
+  "risk_kindPhishing": {
+    "message": "phishing"
+  },
+  "risk_kindScam": {
+    "message": "a scam"
+  },
+  "risk_lede": {
+    "message": "Warns you when a page is on a risk list you subscribe to. It only warns: it never blocks a page or changes where a bookmark goes."
+  },
+  "risk_limit": {
+    "message": "This browser keeps up to 20 risk lists. Remove one to add another."
+  },
+  "risk_lists": {
+    "message": "Lists"
+  },
+  "risk_listsHint": {
+    "message": "Fetched to this browser and checked here. Each says who keeps it; where lists disagree, you see each one."
+  },
+  "risk_loadFailed": {
+    "message": "Couldn’t read risk alerts in this browser. Reload the page to try again."
+  },
+  "risk_matchExpired": {
+    "message": "listed as $1 until $2 (expired)"
+  },
+  "risk_matchKind": {
+    "message": "listed as $1 since $2"
+  },
+  "risk_matchStale": {
+    "message": "list not updated for over a week"
+  },
+  "risk_matchUnknown": {
+    "message": "unknown, list out of date"
+  },
+  "risk_modeLabel": {
+    "message": "Warn me"
+  },
+  "risk_modeOff": {
+    "message": "Off"
+  },
+  "risk_modeOffHint": {
+    "message": "No lists are checked and none are fetched by themselves."
+  },
+  "risk_modeOnSave": {
+    "message": "When I save a page"
+  },
+  "risk_modeOnSaveHint": {
+    "message": "The popup says when the page is on one of your lists. You can still save it."
+  },
+  "risk_modeTurnedOff": {
+    "message": "Risk alerts are off."
+  },
+  "risk_modeTurnedOn": {
+    "message": "The popup now warns when a page you save is on one of your lists."
+  },
+  "risk_needsAccess": {
+    "message": "Allow reading $1 to fetch this list."
+  },
+  "risk_needsAccessSubscribe": {
+    "message": "Allow reading $1 to subscribe to this list. Know-N reads nothing else from that site."
+  },
+  "risk_notFetched": {
+    "message": "Not fetched yet, so it warns about nothing."
+  },
+  "risk_noticeHint": {
+    "message": "You can still save it; the folder stays as it is."
+  },
+  "risk_noticeTitle_one": {
+    "message": "This page is on a risk list you subscribe to"
+  },
+  "risk_noticeTitle_other": {
+    "message": "This page is on $1 risk lists you subscribe to"
+  },
+  "risk_outOfDate": {
+    "message": "out of date: last updated $1, so its alerts say “unknown”"
+  },
+  "risk_remove": {
+    "message": "Remove list"
+  },
+  "risk_removeHint": {
+    "message": "It stops warning about the sites it lists. Your exceptions stay."
+  },
+  "risk_removeTitle": {
+    "message": "Remove “$1”?"
+  },
+  "risk_removed": {
+    "message": "Removed “$1”."
+  },
+  "risk_reportMistake": {
+    "message": "Report a mistake"
+  },
+  "risk_scopeDomain": {
+    "message": "all of $1"
+  },
+  "risk_scopeHost": {
+    "message": "this host, $1"
+  },
+  "risk_scopePrefix": {
+    "message": "addresses starting $1"
+  },
+  "risk_stale": {
+    "message": "stale: last updated $1"
+  },
+  "risk_subscribe": {
+    "message": "Subscribe to a list"
+  },
+  "risk_subscribeFailed": {
+    "message": "Couldn’t subscribe. Try again."
+  },
+  "risk_subscribeTitle": {
+    "message": "Subscribe to a risk list"
+  },
+  "risk_subscribed": {
+    "message": "Subscribed to “$1”."
+  },
+  "risk_subscribedNotReady": {
+    "message": "Subscribed, but not ready yet: $1"
+  },
+  "risk_title": {
+    "message": "Risk alerts"
+  },
+  "risk_url": {
+    "message": "Address of the list"
+  },
+  "risk_urlHint": {
+    "message": "A colp.risklist/v1 file on an https address. Know-N asks to read that site, and sends it nothing about your pages."
+  },
+  "risk_viewList": {
+    "message": "View list"
+  },
   "save_allowBookmarkAccessSave": {
     "message": "Allow bookmark access to save this page."
   },

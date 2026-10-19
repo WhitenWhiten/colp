@@ -266,3 +266,18 @@ body[data-capture-error] .pp-page, body[data-capture-error] #pp-fields { display
 .pp-sync-text { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-2); font-weight: var(--weight-medium); text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pp-sync-more { flex: none; color: var(--muted); text-decoration: underline; text-decoration-color: var(--line-heavy); text-underline-offset: 2px; }
 .pp-sync[data-state="done"] .pp-sync-row svg { color: var(--success); }
+
+/* Risk notice (popup-risk.ts): each list's match, then Dismiss · Add exception · View list. Save stays below it. */
+.risk-notice-body { flex: 1 1 12rem; min-width: 0; display: grid; gap: var(--hair-40); }
+.risk-notice-body > p, .risk-notice-matches { margin: 0; }
+.risk-notice-title { color: var(--ink); font-weight: var(--weight-medium); }
+.risk-notice-matches { display: grid; gap: var(--hair-20); padding: 0; list-style: none; overflow-wrap: anywhere; }
+.risk-notice-hint { color: var(--muted); font-size: var(--text-xs); }
+.risk-notice-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-heavy); text-underline-offset: 2px; }
+.risk-notice-link:hover { text-decoration-color: currentColor; }
+.risk-notice-actions, .risk-notice-except { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hair-40); margin-top: var(--hair-20); }
+.risk-notice-actions[hidden] { display: none; }
+.risk-notice-select { flex: 1 1 8rem; min-width: 0; min-height: 1.875rem; padding: 0.25rem var(--space-5) 0.25rem 0.5rem; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); color: var(--ink-2); background-color: var(--surface-raised); font-size: var(--text-xs);
+  appearance: none; background-image: var(--select-chevron); background-repeat: no-repeat; background-position: right var(--hair-55) center; background-size: 0.6rem auto; }
+.risk-notice-select:focus-visible { border-color: var(--ink); }

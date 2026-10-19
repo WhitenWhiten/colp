@@ -102,7 +102,8 @@ describe('Options › Automations with the server’s status', () => {
 
   async function render(state: AutomationStateView): Promise<HTMLElement> {
     document.body.innerHTML = '<section><a data-automations-web hidden></a><div data-automations-body></div></section>';
-    vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn(async () => ({ ok: true, state })), getURL: (path: string) => `chrome-extension://known${path}` },
+    vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn(async (message: { kind: string }) => message.kind === 'known.risk.state'
+      ? { ok: true, state: { mode: 'off', lists: [], exceptions: [] } } : { ok: true, state }), getURL: (path: string) => `chrome-extension://known${path}` },
       storage: { onChanged: { addListener: vi.fn() } } });
     bindAutomationsPane(document.querySelector('section')!).activate();
     await vi.waitFor(() => expect(document.querySelector('[data-automations-body]')!.children.length).toBeGreaterThan(0));
@@ -227,6 +228,7 @@ describe('a row this browser’s list decided (doc 17 RS-15)', () => {
     vi.stubGlobal('chrome', {
       runtime: { getURL: (path: string) => `chrome-extension://known/${path}`, sendMessage: vi.fn(async (message: Record<string, unknown>) => {
         if (message.kind === 'known.automation.state') return { ok: true, state: state() };
+        if (message.kind === 'known.risk.state') return { ok: true, state: { mode: 'off', lists: [], exceptions: [] } };
         sent.push(message); return { ok: true, revision: 5 };
       }) },
       storage: { onChanged: { addListener: vi.fn() } },

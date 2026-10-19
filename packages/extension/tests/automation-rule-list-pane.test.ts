@@ -40,6 +40,7 @@ async function render(state: AutomationStateView): Promise<HTMLElement> {
   vi.stubGlobal('chrome', {
     runtime: { getURL: (path: string) => `chrome-extension://known/${path}`, sendMessage: vi.fn(async (message: Record<string, unknown>) => {
       if (message.kind === 'known.automation.state') return { ok: true, state: current };
+      if (message.kind === 'known.risk.state') return { ok: true, state: { mode: 'off', lists: [], exceptions: [] } };
       sent.push(message); return reply(message);
     }) },
     storage: { onChanged: { addListener: vi.fn((listener: typeof changed) => { changed = listener; }) } },
