@@ -42,6 +42,11 @@ export async function paintServerEdition(origin: string, fetcher?: typeof fetch)
   const versionNode = document.getElementById('server-edition-version');
   const notice = document.getElementById('server-edition-notice');
   if (!versionNode || !notice) return;
+  const originNode = document.getElementById('server-edition-origin');
+  if (originNode) {
+    originNode.hidden = !origin;
+    originNode.textContent = origin;
+  }
   const version = origin ? await fetchEditionVersion(origin, fetcher) : undefined;
   paintSignInHint(version);
   if (!version) {
@@ -50,7 +55,7 @@ export async function paintServerEdition(origin: string, fetcher?: typeof fetch)
     notice.textContent = '';
     return;
   }
-  versionNode.textContent = version;
+  versionNode.textContent = t('options_serverEdition', 'COLP Server $1', version);
   if (!isOlderThanSupportedServerMinor(version)) {
     notice.hidden = true;
     notice.textContent = '';

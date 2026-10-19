@@ -5402,9 +5402,6 @@
   "options_serverSaveFailed": {
     "message": "Could not connect to this COLP server. Check its address and availability, then try again."
   },
-  "options_serverVersion": {
-    "message": "Server version"
-  },
   "options_serverVersionUnavailable": {
     "message": "Server version unavailable"
   },

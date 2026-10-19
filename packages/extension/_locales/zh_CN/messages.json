@@ -6919,10 +6919,6 @@
     "message": "无法连接到此 COLP 服务器。请检查地址和服务状态后重试。",
     "description": "Could not connect to this COLP server. Check its address and availability, then try again."
   },
-  "options_serverVersion": {
-    "message": "服务器版本",
-    "description": "Server version"
-  },
   "options_serverVersionUnavailable": {
     "message": "无法获取服务器版本",
     "description": "Server version unavailable"
