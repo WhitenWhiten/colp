@@ -3751,13 +3751,13 @@
     "message": "同步需要处理",
     "description": "Sync needs attention"
   },
-  "capture_syncedToKnowN": {
-    "message": "已同步到 Know-N",
-    "description": "Synced to Know-N"
+  "capture_syncedToLibrary": {
+    "message": "已同步到你的书签库",
+    "description": "Synced to your library"
   },
-  "capture_syncingToKnowN": {
-    "message": "正在同步到 Know-N",
-    "description": "Syncing to Know-N"
+  "capture_syncingToLibrary": {
+    "message": "正在同步到你的书签库",
+    "description": "Syncing to your library"
   },
   "capture_tabAccessDeclinedCan": {
     "message": "标签页访问权限已被拒绝。你仍可保存此处显示的可读取标签页。",

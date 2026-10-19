@@ -44,8 +44,8 @@ test('a local save waiting for its folder says so, without the signed-in cloud n
 test('the status line follows the sync state of the task', () => {
   const sync = (over: Partial<CaptureTask>) => resultStatus({ ...filed, ...over });
   expect(sync({ sync: 'local-only' })).toMatchObject({ text: 'Saved', meta: 'On this browser', icon: 'check-circle' });
-  expect(sync({ sync: 'confirmed' })).toMatchObject({ meta: 'Synced to Know-N' });
-  expect(sync({ sync: 'pending', scope: { ...filed.scope, accountId: 'a' } })).toMatchObject({ meta: 'Syncing to Know-N' });
+  expect(sync({ sync: 'confirmed' })).toMatchObject({ meta: 'Synced to your library' });
+  expect(sync({ sync: 'pending', scope: { ...filed.scope, accountId: 'a' } })).toMatchObject({ meta: 'Syncing to your library' });
   expect(sync({ sync: 'attention' })).toMatchObject({ meta: 'Sync needs attention' });
   expect(sync({ save: 'unknown' })).toMatchObject({ text: 'Checking save result', icon: 'clock' });
   expect(sync({ save: 'failed' })).toMatchObject({ text: 'Could not save', tone: 'danger' });

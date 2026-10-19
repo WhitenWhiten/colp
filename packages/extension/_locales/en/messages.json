@@ -2972,11 +2972,11 @@
   "capture_syncNeedsAttention": {
     "message": "Sync needs attention"
   },
-  "capture_syncedToKnowN": {
-    "message": "Synced to Know-N"
+  "capture_syncedToLibrary": {
+    "message": "Synced to your library"
   },
-  "capture_syncingToKnowN": {
-    "message": "Syncing to Know-N"
+  "capture_syncingToLibrary": {
+    "message": "Syncing to your library"
   },
   "capture_tabAccessDeclinedCan": {
     "message": "Tab access was declined. You can still save the readable tabs shown here."

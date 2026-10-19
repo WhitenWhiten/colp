@@ -41,11 +41,11 @@ localized(() => {
 /** Reasons that are only information; every other one needs the user's eye and gets the alert. */
 const CALM_REASONS: ReadonlySet<string> = new Set(['manually_edited', 'classification_corrected', 'offline']);
 
-/** Where a result lives: this browser only, syncing, or on Know-N. Copy follows the task's sync state. */
+/** Where a result lives: this browser only, syncing, or in your library (Know-N's or a COLP Server's). Copy follows the task's sync state. */
 function syncMeta(task: CaptureTask): string {
   switch (task.sync) {
-    case 'confirmed': return t('capture_syncedToKnowN', 'Synced to Know-N');
-    case 'pending': case 'syncing': return task.scope.accountId ? t('capture_syncingToKnowN', 'Syncing to Know-N') : t('capture_onThisBrowser', 'On this browser');
+    case 'confirmed': return t('capture_syncedToLibrary', 'Synced to your library');
+    case 'pending': case 'syncing': return task.scope.accountId ? t('capture_syncingToLibrary', 'Syncing to your library') : t('capture_onThisBrowser', 'On this browser');
     case 'attention': return t('capture_syncNeedsAttention', 'Sync needs attention');
     default: return t('capture_onThisBrowser', 'On this browser');
   }
