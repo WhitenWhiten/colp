@@ -1,4 +1,5 @@
 import { readReplicaRepairCapability } from '../replica-repair-capability.js';
+import { isSettledRejection } from '../sync-state/open-issue-facts.js';
 import { snapshotSyncIssues, localIssueId } from '../sync-issue-snapshot.js';
 import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 /** Shared attention facts and action capabilities. Reading may restore derived issue
@@ -86,7 +87,7 @@ async function queueFacts(store: SyncAttentionStore, scope: SyncScope, open: Ope
 /** One page of each live status, the same scan `pendingDurableWorkFacts` makes. */
 async function liveQueueRows(store: Pick<SyncAttentionStore, 'listQueue'>, scope: SyncScope): Promise<QueueOperation[]> {
   const live: QueueOperation[] = [];
-  for (const status of LIVE_STATUSES) live.push(...(await store.listQueue(scope, status, 0, QUEUE_PAGE)).filter(row => row.recovery?.code !== 'recaptured'));
+  for (const status of LIVE_STATUSES) live.push(...(await store.listQueue(scope, status, 0, QUEUE_PAGE)).filter(row => !isSettledRejection(row)));
   return live;
 }
 

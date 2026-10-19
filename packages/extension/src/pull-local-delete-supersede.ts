@@ -1,6 +1,7 @@
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import { digest } from './pull-codec.js';
 import { currentPullMapping } from './pull-mapping-view.js';
+import { isSettledRejection } from './sync-state/open-issue-facts.js';
 import type { PullApplierOptions } from './pull-applier-types.js';
 import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -82,7 +83,7 @@ async function removalStandsLocally(store: Store, scope: SyncScope,
   if (event.status !== 'processed' || !event.opId) return false;
   const row = await store.getQueueByOpId(scope, event.opId);
   if (!row) return false;
-  if (row.status === 'rejected') return row.recovery?.code === 'recaptured';
+  if (row.status === 'rejected') return isSettledRejection(row);
   return !(row.status === 'terminal' && row.recovery?.resultStatus === 'rejected');
 }
 

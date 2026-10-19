@@ -51,8 +51,18 @@ export function blockedPullIssue(page: UnknownRecord, events: readonly UnknownRe
 }
 
 /** Recaptured bytes are audit history; server rejections, held work and conflicts remain open. */
+/**
+ * A refused row whose intent is already met: recaptured as a fresh change at
+ * the tail, or a delete of a node the server had already deleted. History,
+ * not an open issue, and a hole the lane realigns over.
+ */
+export const SETTLED_REJECTION_CODES: ReadonlySet<string> = new Set(['recaptured', 'target_already_deleted']);
+export function isSettledRejection(row: { readonly status?: string; readonly recovery?: { readonly code?: string } }): boolean {
+  return row.status === 'rejected' && SETTLED_REJECTION_CODES.has(row.recovery?.code ?? '');
+}
+
 export function isOpenQueueIssue(row: { readonly status?: string; readonly recovery?: { readonly code?: string; readonly resultStatus?: string } }): boolean {
-  return (row.status === 'terminal' && row.recovery?.resultStatus === 'rejected') || (row.status === 'rejected' && row.recovery?.code !== 'recaptured') || row.status === 'set_aside'
+  return (row.status === 'terminal' && row.recovery?.resultStatus === 'rejected') || (row.status === 'rejected' && !isSettledRejection(row)) || row.status === 'set_aside'
     || (row.status === 'blocked' && ['conflict_pending', 'sequence_blocked'].includes(row.recovery?.code ?? ''));
 }
 

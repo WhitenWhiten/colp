@@ -7,7 +7,7 @@ import { locallyDeletedColpIds } from '../src/pull-local-delete-supersede.js';
 
 installKns05IndexedDb();
 
-type Removal = 'pending' | 'processed' | 'rejected' | 'recaptured';
+type Removal = 'pending' | 'processed' | 'rejected' | 'recaptured' | 'already_deleted';
 
 /**
  * This browser removed `node-1` (a bookmark) or `node-folder` (a folder whose
@@ -36,7 +36,8 @@ async function removedLocally(f: Awaited<ReturnType<typeof setup>>, input: {
   const claimed = await f.store.claimNextQueue(scope, 'owner-test', lease.fence!, 1_000);
   assert.equal(claimed?.opId, queued.opId);
   await f.store.settleClaimedPush(scope, queued.sequence, 'owner-test', lease.fence!,
-    { outcome: 'rejected', recovery: { code: input.removal === 'recaptured' ? 'recaptured' : 'invalid_document' } });
+    { outcome: 'rejected', recovery: { code: input.removal === 'recaptured' ? 'recaptured'
+      : input.removal === 'already_deleted' ? 'target_already_deleted' : 'invalid_document' } });
 }
 
 const foreign = (f: Awaited<ReturnType<typeof setup>>, kind: 'update' | 'move' | 'delete', targetId = 'node-1', parentId = 'root-colp') =>
@@ -53,7 +54,7 @@ async function applied(f: Awaited<ReturnType<typeof setup>>, event: unknown) {
 }
 
 describe('a remote change to a node this browser deleted', () => {
-  test.each(['pending', 'processed', 'recaptured'] as Removal[])(
+  test.each(['pending', 'processed', 'recaptured', 'already_deleted'] as Removal[])(
     'an update from another device is taken as superseded by the local deletion (%s)', async removal => {
       const f = await setup();
       try {
@@ -67,10 +68,10 @@ describe('a remote change to a node this browser deleted', () => {
       } finally { f.store.close(); }
     });
 
-  test('a deletion from another device of the same node settles without an item', async () => {
+  test.each(['processed', 'already_deleted'] as Removal[])('a deletion from another device of the same node settles without an item (%s)', async removal => {
     const f = await setup();
     try {
-      await removedLocally(f, { removal: 'processed' });
+      await removedLocally(f, { removal });
       const result = await applied(f, foreign(f, 'delete'));
       assert.deepEqual(result.issues, []);
       assert.equal(result.page, 'page_complete');

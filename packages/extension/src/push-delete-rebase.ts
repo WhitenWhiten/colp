@@ -10,7 +10,27 @@ import type { JsonObject, QueueOperation, SyncScope, createSyncStateStore } from
  */
 export const DELETE_SUBTREE_CHANGED = 'delete_subtree_changed';
 
-type Store = Pick<ReturnType<typeof createSyncStateStore>, 'rebaseClaimedPush' | 'setAsideClaimedPush' | 'listBookmarkEvents'>;
+type Store = Pick<ReturnType<typeof createSyncStateStore>, 'rebaseClaimedPush' | 'setAsideClaimedPush' | 'listBookmarkEvents'
+  | 'settleClaimedPush'>;
+
+/** A delete refused because the node was already gone on the server: the intent is met, not refused. */
+export const TARGET_ALREADY_DELETED = 'target_already_deleted';
+
+/**
+ * Both devices deleted the same node. The second delete comes back
+ * `resource_not_found`; the row settles as history (`target_already_deleted`),
+ * never as an open item, and the lane realigns over it. The remote
+ * tombstone that follows is superseded by this removal.
+ */
+export async function settleAlreadyDeleted(input: {
+  readonly store: Store; readonly scope: SyncScope; readonly ownerId: string; readonly fence: number;
+  readonly queue: QueueOperation; readonly problem: ParsedColpProblem;
+}): Promise<boolean> {
+  if (!isDeleteOperation(input.queue.payload.type) || input.problem.code !== 'resource_not_found') return false;
+  await input.store.settleClaimedPush(input.scope, input.queue.sequence, input.ownerId, input.fence,
+    { outcome: 'rejected', recovery: { code: TARGET_ALREADY_DELETED } });
+  return true;
+}
 
 export function isDeleteOperation(type: unknown): type is 'delete_node' | 'delete_subtree' {
   return type === 'delete_node' || type === 'delete_subtree';

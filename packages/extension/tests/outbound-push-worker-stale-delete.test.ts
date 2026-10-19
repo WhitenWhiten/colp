@@ -4,7 +4,8 @@ import { describe, test } from 'vitest';
 import { SUBTREE_OBSERVATION_EXTENSION, canonicalOperationDigest, subtreeDeleteSource } from '@know-n/colp/sync';
 import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
 import { createQueueRecapture } from '../src/queue-recapture.js';
-import { DELETE_SUBTREE_CHANGED } from '../src/push-delete-rebase.js';
+import { DELETE_SUBTREE_CHANGED, TARGET_ALREADY_DELETED } from '../src/push-delete-rebase.js';
+import { isOpenQueueIssue } from '../src/sync-state/open-issue-facts.js';
 import { subtreeMemberIdsDigest } from '../src/subtree-observation.js';
 import { createSyncStateStore, type JsonObject } from '../src/sync-state-store.js';
 import { honestChrome } from './kns-05-pull-harness.js';
@@ -197,5 +198,34 @@ describe('a delete another device raced', () => {
     const row = (await f.store.listQueue(scope))[0]!;
     assert.equal(row.status, 'unknown'); assert.equal(row.recovery?.code, 'push_response_unrecognized');
     assert.equal(row.payload.baseRevision, 'folder-r1');
+  });
+});
+
+describe('both devices deleted the same node', () => {
+  test('the second delete settles as history, not an open item, and the lane realigns over it', async () => {
+    const f = await setupDelete('delete_node');
+    const later: JsonObject = { opId: 'op-later', replicaId: scope.replicaId, sequence: 2, collectionId: scope.collectionId,
+      type: 'delete_node', targetId: 'other-1', baseRevision: 'other-r1', occurredAt: '2026-07-27T00:00:01.000Z',
+      dependencies: [], payload: { reason: 'browser_event' } };
+    await f.store.allocateSequenceAndEnqueue(scope, { opId: 'op-later', batchId: 'batch-later', idempotencyKey: 'key-later',
+      digest: 'sha256:later', endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: 'other-r1',
+      operationRevision: 'other-r1', status: 'pending', retry: { attempt: 0, notBefore: 0 }, payload: later },
+    { allowUnstamped: true });
+    const sent: Array<[string, number]> = []; let expected = 1;
+    const worker = createOutboundPushWorker({ ...f.options, fetch: async (_url, init) => {
+      const operation = sentOperation(String(init?.body)); sent.push([String(operation.opId), Number(operation.sequence)]);
+      if (operation.opId === 'op-delete-1') return problem(404, 'resource_not_found', { retryable: false });
+      if (operation.sequence !== expected) return problem(409, 'sequence_gap', { expectedSequence: expected });
+      expected += 1; return applied(init);
+    } });
+    await worker.drain();
+    const first = (await f.store.getQueueByOpId(scope, 'op-delete-1'))!;
+    assert.equal(first.status, 'rejected'); assert.equal(first.recovery?.code, TARGET_ALREADY_DELETED);
+    assert.equal(isOpenQueueIssue(first), false);
+    // The refused sequence is a hole the next drain realigns the later change over.
+    await worker.drain();
+    assert.deepEqual(sent, [['op-delete-1', 1], ['op-later', 2], ['op-later', 1]]);
+    assert.equal((await f.store.getQueueByOpId(scope, 'op-later'))?.status, 'terminal');
+    assert.equal(await f.store.firstLaneQueue(scope), null);
   });
 });
