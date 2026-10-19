@@ -1056,7 +1056,7 @@
     "message": "kept where you save it"
   },
   "automation_recipeRoleUnbound": {
-    "message": "the set’s folder for “$1”, not chosen yet"
+    "message": "no folder yet for “$1”"
   },
   "automation_removeCondition": {
     "message": "Remove condition"
@@ -1621,6 +1621,9 @@
   },
   "automation_setImported": {
     "message": "Imported from $1, version $2"
+  },
+  "automation_setImportedVersion": {
+    "message": "Imported, version $1"
   },
   "automation_setKeepRulesHint": {
     "message": "They stay in the list where the set was, each on its own."

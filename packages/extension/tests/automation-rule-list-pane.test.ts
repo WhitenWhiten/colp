@@ -385,7 +385,7 @@ describe('rule sets from a file (doc 17 RS-02)', () => {
     const waiting = rule('b', { role: 'Source code', needsFolder: true, folder: null, draft: null });
     await render(view([set('s', [waiting], { origin: { kind: 'import', sourceName: 'Community technology sites', sourceVersion: '2026.10.18-1', publisher: null },
       roles: [{ key: 'code', description: 'Source code', folder: null }] })]));
-    expect(text(row('b').querySelector('.automation-recipe'))).toContain('the set’s folder for “Source code”, not chosen yet');
+    expect(text(row('b').querySelector('.automation-recipe'))).toContain('no folder yet for “Source code”');
     expect(text(row('b').querySelector('.badge'))).toBe('Needs a folder');
     expect(text(row('s').querySelector('.list-row-meta'))).toBe('1 rule · Imported from Community technology sites, version 2026.10.18-1');
     row('s').querySelector<HTMLButtonElement>('button[aria-label="Choose the set’s folders"]')!.click();

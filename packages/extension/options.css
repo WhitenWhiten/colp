@@ -1574,6 +1574,8 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 /* A rule-set file refused (doc 17 RS-02): where each problem is, in the file's own terms. */
 .automation-ruleset-problem-list { display: grid; gap: var(--hair-30); margin: 0; padding-left: var(--space-4); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
 .automation-ruleset-problem-list code { color: var(--ink); overflow-wrap: anywhere; }
+.automation-config-dialog .detail { margin: 0; color: var(--ink-2); font-size: var(--text-sm); line-height: var(--leading-copy); }
+.automation-config-dialog .automation-run-folders { margin: 0; padding-left: var(--space-4); color: var(--ink-2); font-size: var(--text-xs); line-height: var(--leading-body); }
 /* Run once (doc 17 §6.4): what a folder's run would move, and the runs with their Undo. */
 .automation-run-dialog .folder-picker { min-width: 0; }
 .automation-run-result { display: grid; gap: var(--space-2); }

@@ -1348,8 +1348,8 @@
     "description": "kept where you save it"
   },
   "automation_recipeRoleUnbound": {
-    "message": "规则集中“$1”对应的文件夹，尚未选择",
-    "description": "the set’s folder for “$1”, not chosen yet"
+    "message": "“$1”还没有文件夹",
+    "description": "no folder yet for “$1”"
   },
   "automation_removeCondition": {
     "message": "移除条件",
@@ -2010,6 +2010,10 @@
   "automation_setImported": {
     "message": "导入自 $1，版本 $2",
     "description": "Imported from $1, version $2"
+  },
+  "automation_setImportedVersion": {
+    "message": "已导入，版本 $1",
+    "description": "Imported, version $1"
   },
   "automation_setKeepRulesHint": {
     "message": "它们会单独留在列表中规则集原来的位置。",

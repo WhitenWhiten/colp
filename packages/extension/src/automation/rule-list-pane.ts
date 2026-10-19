@@ -243,7 +243,7 @@ function ruleRow(rule: BrowserRuleView, set: BrowserSetView | null, context: Con
   const meta = el('p', undefined, 'list-row-meta automation-recipe');
   meta.append(el('span', ruleConditions(rule.match), 'grow'), createIcon('arrow-right', 12));
   if (rule.keepHere) meta.append(el('span', t('automation_recipeKeep', 'kept where you save it'), 'automation-recipe-folder'));
-  else if (rule.needsFolder) meta.append(el('span', t('automation_recipeRoleUnbound', 'the set’s folder for “$1”, not chosen yet', rule.role ?? ''), 'automation-recipe-missing'));
+  else if (rule.needsFolder) meta.append(el('span', t('automation_recipeRoleUnbound', 'no folder yet for “$1”', rule.role ?? ''), 'automation-recipe-missing'));
   else if (rule.folder) {
     const folder = el('span', rule.folder.title, 'automation-recipe-folder'); folder.title = rule.folder.path.join(' › ');
     meta.append(createIcon('folder', 12), folder);
@@ -299,8 +299,10 @@ function setBlock(set: BrowserSetView, context: Context): HTMLLIElement {
   const tile = el('span', undefined, 'favicon-tile'); tile.append(createIcon('collection', 16));
   const main = el('div', undefined, 'list-row-main');
   const count = tn('automation_setCount', set.rules.length, '$1 rule', '$1 rules');
-  const origin = set.origin.kind === 'import'
-    ? t('automation_setImported', 'Imported from $1, version $2', set.origin.sourceName, set.origin.sourceVersion)
+  // An imported set keeps its file's name unless renamed; the name is then not said twice.
+  const origin = set.origin.kind === 'import' ? set.origin.sourceName === set.name
+    ? t('automation_setImportedVersion', 'Imported, version $1', set.origin.sourceVersion)
+    : t('automation_setImported', 'Imported from $1, version $2', set.origin.sourceName, set.origin.sourceVersion)
     : t('automation_setCustom', 'Your set');
   main.append(el('p', set.name, 'list-row-title'), el('p', `${count} · ${origin}`, 'list-row-meta'));
   const tail = el('div', undefined, 'list-row-tail');

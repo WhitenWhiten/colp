@@ -37,6 +37,7 @@
 //     browser-stale (signed in: a browser rule has waited over a day for the account's copy)
 //     browser-kept (signed out: two saves a browser rule matched but had to leave where they were saved)
 //     browser-runs (Run once: one run with Undo, one undone; doc 17 RW-07)
+//     browser-imported (with browser-set: the set came from a rule-set file; one of its roles has no folder yet; doc 17 RW-10)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -452,7 +453,9 @@ export function installStub(messages) {
               : { combinator: 'all', conditions: [{ kind: 'siteEndsWith', value: 'github.com' }] } } } : null;
         // With browser-set, the last two sit in a set of the Owner's (doc 17 RW-04).
         const inSet = (id) => has('browser-set') && (id === 'b2' || id === 'b3');
+        const waiting = (id) => has('browser-imported') && id === 'b3';
         const browserRule = (id, name, enabled, combinator, conditions, folder, folderMissing = false, account = null) => ({ id, name, enabled,
+          ...(waiting(id) ? { role: 'Recipes', needsFolder: true } : {}),
           active: enabled && !(inSet(id) && has('browser-set-off')), setId: inSet(id) ? 's1' : null, keepHere: false, match: { combinator, conditions },
           draft: { name, combinator, conditions, action: { kind: 'file', folderNativeId: folder?.nativeId ?? 'gone' } }, folder, folderMissing, account,
           move: !signedOut && folder && id !== 'b2' ? { url: 'https://known.example/automations/new?from=browser' } : null,
@@ -465,10 +468,13 @@ export function installStub(messages) {
             { nativeId: 'f-prog', title: 'Programming', path: ['Bookmarks bar', 'Programming'] }, false, overlap('b4', 'duplicate', 12))] : []),
           browserRule('b2', 'SEO reading', false, 'any', [{ kind: 'siteEndsWith', value: 'moz.com' }, { kind: 'titleContains', value: 'SEO' }],
             { nativeId: 'f-seo', title: 'SEO', path: ['Bookmarks bar', 'Marketing', 'SEO'] }),
-          browserRule('b3', 'Recipes', true, 'all', [{ kind: 'pathStartsWith', value: '/recipes/' }], null, true)];
+          browserRule('b3', 'Recipes', true, 'all', [{ kind: 'pathStartsWith', value: '/recipes/' }], null, !has('browser-imported'))];
         const loose = browserRules.filter((rule) => !rule.setId), grouped = browserRules.filter((rule) => rule.setId);
         const browserList = { revision: 4, enabled: true, entries: [...loose.map((rule) => ({ kind: 'rule', rule })),
-          ...(grouped.length ? [{ kind: 'set', set: { id: 's1', name: 'Reading', enabled: !has('browser-set-off'), origin: { kind: 'custom' }, rules: grouped } }] : [])],
+          ...(grouped.length ? [{ kind: 'set', set: { id: 's1', name: has('browser-imported') ? 'Community reading list' : 'Reading', enabled: !has('browser-set-off'),
+            origin: has('browser-imported') ? { kind: 'import', sourceName: 'Community reading list', sourceVersion: '2026.10.18-1', publisher: 'Example Collective' } : { kind: 'custom' },
+            roles: has('browser-imported') ? [{ key: 'seo', description: 'SEO reading', folder: { nativeId: 'f-seo', title: 'SEO', path: ['Bookmarks bar', 'Marketing', 'SEO'] } },
+              { key: 'recipes', description: 'Recipes', folder: null }] : [], rules: grouped } }] : [])],
           orderNotice: has('browser-order') ? [{ upper: 'Papers from arXiv', lower: 'SEO reading' }] : null };
         // Each row names the list entry that decided it (doc 17 RW-05).
         const decided = (row) => ({ ...row, entry: { listRevision: 4, kind: 'rule', ruleId: 'b1' }, entryState: 'on' });
@@ -502,6 +508,10 @@ export function installStub(messages) {
           outcome: 'placed', winner: entry('b1', 'Papers from arXiv'), folder: { nativeId: 'f-research', title: 'Research' }, broad: false,
           skipped: [entry('b3', 'Recipes')], shadowed: [entry('b2', 'SEO reading', { kind: 'setRule', setId: 's1', sourceName: 'Reading' })] } } };
       }
+      case 'known.automation.browser.import.check':
+        return { ok: true, ruleset: { id: 'community-tech', name: 'Community technology sites', version: '2026.10.18-1', publisher: 'Example Collective', license: 'CC-BY-4.0',
+          roles: [{ key: 'papers', description: 'Academic papers', rules: 12 }, { key: 'code', description: 'Source code', rules: 5 }], rules: 17, matchingOnly: 2, inactive: 1,
+          sample: { size: 2000, limit: 2000, matched: 37, byRole: [{ role: 'papers', count: 30 }, { role: 'code', count: 7 }] } } };
       case 'known.automation.browser.runPreview':
         return { ok: true, run: { previewId: 'preview-1', expiresAt: now + 15 * 60e3, scope: { nativeId: msg.scopeNativeId, title: 'Inbox' }, counted: 214, tooMany: false,
           moves: 38, unchanged: 12, kept: 3, unmatched: 158, blocked: 3, excludedFolders: 1,
