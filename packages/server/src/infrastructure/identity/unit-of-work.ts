@@ -3,7 +3,6 @@ import {
   IdentityError,
   createOidcTransactionSecrets,
   createSessionRotationSecrets,
-  createTestOidcTransactionSecrets,
   generateSessionTokenRaw,
   type IdentityPorts,
   type IdentityUnitOfWork,
@@ -26,8 +25,9 @@ export interface PostgresIdentityUnitOfWorkOptions {
   readonly faultInjector?: UnitOfWorkOptions['faultInjector'];
   /**
    * OIDC login-transaction secret protection keys.
-   * Production composition must supply config-backed material; tests may omit
-   * and receive deterministic test secrets.
+   * Production composition must supply config-backed material. Tests that
+   * exercise the legacy OIDC flow must inject `createTestOidcTransactionSecrets()`
+   * explicitly; omitting the option fails closed when the port is used.
    */
   readonly oidcTransactionSecrets?: OidcTransactionSecretsPort | OidcTransactionSecretsConfig;
   /** Stable server-held keying material used to make legacy rotation race-safe. */
@@ -87,10 +87,33 @@ function resolveSessionRotationSecrets(
   return createSessionRotationSecrets(generateSessionTokenRaw());
 }
 
+/**
+ * Fail-closed placeholder for compositions that omit legacy OIDC secret
+ * material (Better Auth mode deliberately omits it). Constructing the unit of
+ * work is always safe: non-OIDC identity work never touches this port. Any
+ * actual OIDC transaction use throws a configuration error rather than
+ * silently accepting or producing data under an implicit fixed test key.
+ */
+function createUnconfiguredOidcTransactionSecrets(): OidcTransactionSecretsPort {
+  const configurationError = (): never => {
+    throw new Error(
+      'oidcTransactionSecrets is required: the legacy OIDC login transaction flow was composed without secret material',
+    );
+  };
+  return Object.freeze({
+    digestState: configurationError,
+    digestNonce: configurationError,
+    verifyStateDigest: configurationError,
+    verifyNonceDigest: configurationError,
+    encryptPkceVerifier: configurationError,
+    decryptPkceVerifier: configurationError,
+  });
+}
+
 function resolveOidcTransactionSecrets(
   value: PostgresIdentityUnitOfWorkOptions['oidcTransactionSecrets'],
 ): OidcTransactionSecretsPort {
-  if (!value) return createTestOidcTransactionSecrets();
+  if (!value) return createUnconfiguredOidcTransactionSecrets();
   if (typeof (value as OidcTransactionSecretsPort).digestState === 'function') {
     return value as OidcTransactionSecretsPort;
   }
