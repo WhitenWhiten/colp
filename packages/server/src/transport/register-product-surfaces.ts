@@ -10,7 +10,6 @@ import {
 import type { ProductSurfaceRateLimitPurpose } from '../infrastructure/rate-limit/index.js';
 import { registerBrowserAuthRoutes } from './auth/browser-auth-routes.js';
 import { registerBookmarkFaviconRoutes } from './product/bookmark-favicon-routes.js';
-import { registerClientEventRoutes } from './product/client-event-routes.js';
 import { registerBetterAuthRoutes } from './auth/better-auth-routes.js';
 import { registerOauthAuthorizationServerMetadataRoute } from './auth/oauth-authorization-server-routes.js';
 import { registerCollectionRoutes } from './product/collection-routes.js';
@@ -194,8 +193,6 @@ export function registerProductSurfaces(
       });
     }
   }
-  // R15-13: web client errors and Web Vitals, logged as `client_event`.
-  registerClientEventRoutes(app, { allowedOrigins: config.allowedOrigins, rateLimiter: publicObjectAdmissionRateLimiter });
   if (identityUnitOfWork && productSyncCenterUnitOfWork) {
     registerProductSyncCenterRoutes(app, { config, identityUnitOfWork, unitOfWork: productSyncCenterUnitOfWork });
   }

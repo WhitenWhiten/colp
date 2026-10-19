@@ -2,8 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { RootErrorBoundary } from './components/RootErrorBoundary'
-import { installClientTelemetry, reportClientError } from './lib/clientTelemetry'
-import { isChunkLoadError, reloadOnce } from './lib/lazyWithRetry'
+import { reloadOnce } from './lib/lazyWithRetry'
 
 /*
  * CSS Architecture — explicit cascade layers (order declared in tokens.css):
@@ -120,9 +119,6 @@ import './styles/edition.css'
 // this module runs, already uses it.
 document.documentElement.dataset.edition = 'self-hosted'
 
-// R15-13: errors and Web Vitals to /api/v1/client-events (production only).
-installClientTelemetry()
-
 /* R15-19: a failed preload (a route's JS or CSS dependency) would otherwise
    throw inside the import; reload once instead so the new request can
    succeed. lazyWithRetry guards route imports the same way. */
@@ -131,14 +127,7 @@ window.addEventListener('vite:preloadError', (event) => {
   reloadOnce('preload')
 })
 
-function reportRenderError(error: unknown) {
-  reportClientError(isChunkLoadError(error) ? 'chunk_load_error' : 'render_error', error)
-}
-
-createRoot(document.getElementById('root')!, {
-  onCaughtError: reportRenderError,
-  onUncaughtError: reportRenderError,
-}).render(
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RootErrorBoundary>
       <App />
