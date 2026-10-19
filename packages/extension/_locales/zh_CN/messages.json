@@ -7712,7 +7712,7 @@
     "description": "Always"
   },
   "risk_exceptDomain": {
-    "message": "$1 全部",
+    "message": "整个 $1",
     "description": "All of $1"
   },
   "risk_exceptDuration": {
@@ -7924,7 +7924,7 @@
     "description": "Report a mistake"
   },
   "risk_scopeDomain": {
-    "message": "$1 全部",
+    "message": "整个 $1",
     "description": "all of $1"
   },
   "risk_scopeHost": {

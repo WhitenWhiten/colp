@@ -88,6 +88,13 @@ describe('the popup’s risk notice', () => {
       ['domain', 'All of login-example-support.com']]);
     expect(Array.from(duration!.options).map((option) => option.value)).toEqual(['session', 'always']);
     scope!.value = 'domain'; duration!.value = 'always';
+    // Cancel goes back to the notice's actions.
+    Array.from(notice.querySelectorAll('button')).find((button) => text(button) === 'Cancel')!.click();
+    expect(notice.querySelector('.risk-notice-except')).toBeNull();
+    expect(notice.querySelector<HTMLElement>('.risk-notice-body > .risk-notice-actions')!.hidden).toBe(false);
+    Array.from(notice.querySelectorAll('button')).find((button) => text(button) === 'Add exception')!.click();
+    const [scopeAgain, durationAgain] = Array.from(notice.querySelectorAll('select'));
+    scopeAgain!.value = 'domain'; durationAgain!.value = 'always';
     Array.from(notice.querySelectorAll('button')).find((button) => text(button) === 'Add')!.click();
     await vi.waitFor(() => expect(text(notice)).toBe('No more risk alerts for login-example-support.com.'));
     expect(sent.at(-1)).toEqual({ kind: 'known.risk.exception.add', scope: 'domain', value: 'login-example-support.com', duration: 'always' });

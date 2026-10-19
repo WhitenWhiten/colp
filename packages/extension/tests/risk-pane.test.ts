@@ -59,9 +59,9 @@ describe('Risk alerts in Options', () => {
     const pane = await render();
     const meta = (id: string) => pane.querySelector(`[data-risk-list="${id}"] .list-row-meta`)!;
     expect(text(meta('a'))).toMatch(/^Example · 1,204 entries · version 7 · checked /u);
-    expect(meta('a').getAttribute('data-tone')).toBeNull();
+    expect(meta('a').querySelector('.risk-status')!.getAttribute('data-tone')).toBeNull();
     expect(text(meta('b'))).toContain('stale: last updated');
-    expect(meta('b').getAttribute('data-tone')).toBe('warning');
+    expect(meta('b').querySelector('.risk-status')!.getAttribute('data-tone')).toBe('warning');
     expect(text(meta('c'))).toContain('out of date: last updated');
     expect(text(meta('c'))).toContain('its alerts say “unknown”');
     expect(text(meta('d'))).toContain('Not ready: Couldn’t fetch it from lists.example.org (HTTP 503)');

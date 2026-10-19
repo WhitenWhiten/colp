@@ -275,9 +275,12 @@ body[data-capture-error] .pp-page, body[data-capture-error] #pp-fields { display
 .risk-notice-hint { color: var(--muted); font-size: var(--text-xs); }
 .risk-notice-link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-heavy); text-underline-offset: 2px; }
 .risk-notice-link:hover { text-decoration-color: currentColor; }
-.risk-notice-actions, .risk-notice-except { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hair-40); margin-top: var(--hair-20); }
+.risk-notice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hair-40); margin-top: var(--hair-20); }
+/* Add exception: which sites, then for how long, each the notice's width so neither is cut short. */
+.risk-notice-except { display: grid; gap: var(--hair-40); margin-top: var(--hair-20); }
+.risk-notice-except > .risk-notice-actions { margin-top: 0; }
 .risk-notice-actions[hidden] { display: none; }
-.risk-notice-select { flex: 1 1 8rem; min-width: 0; min-height: 1.875rem; padding: 0.25rem var(--space-5) 0.25rem 0.5rem; border: 1px solid var(--line-strong);
+.risk-notice-select { width: 100%; min-width: 0; min-height: 1.875rem; padding: 0.25rem var(--space-5) 0.25rem 0.5rem; border: 1px solid var(--line-strong);
   border-radius: var(--radius); color: var(--ink-2); background-color: var(--surface-raised); font-size: var(--text-xs);
   appearance: none; background-image: var(--select-chevron); background-repeat: no-repeat; background-position: right var(--hair-55) center; background-size: 0.6rem auto; }
 .risk-notice-select:focus-visible { border-color: var(--ink); }

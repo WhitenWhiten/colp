@@ -69,7 +69,10 @@ export function bindPopupRisk(host: { readonly notice: HTMLElement; readonly pag
             : t('risk_exceptedSession', 'No risk alerts for $1 until the browser closes.', value));
         });
     }, 'btn btn-primary btn-sm');
-    form.append(scope, duration, add);
+    const cancel = button(t('common_cancel', 'Cancel'), () => { form.remove(); actions.hidden = false; }, 'btn btn-ghost btn-sm');
+    const buttons = document.createElement('div'); buttons.className = 'risk-notice-actions';
+    buttons.append(add, cancel);
+    form.append(scope, duration, buttons);
     actions.hidden = true;
     return form;
   }

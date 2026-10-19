@@ -40,6 +40,8 @@
 //     browser-imported (with browser-set: the set came from a rule-set file; one of its roles has no folder yet; doc 17 RW-10)
 //     browser-subscribed (a subscribed rule set with a version waiting for review; doc 17 RW-13, RW-14),
 //     browser-sub-failed (the same, not ready: its first fetch got HTTP 503)
+//     risk (risk alerts on for saves: three lists — fresh, stale, not ready — and two exceptions; in the popup, a page two lists name),
+//     risk-browse (with risk: on while browsing too; doc 17 RW-15 – RW-17)
 //   Popup only: existing, suggest, suggesting, retrying, local, longtitle, longfolder, nofavicon, perm, attention, stuck,
 //   autoline, autonoline, autoboot, autolocal, autoattention, autowaiting, autoexisting (auto* = automatic card),
 //   digest (one new digest), digests-stale (two, last read 3 h ago).
@@ -416,6 +418,26 @@ export function installStub(messages) {
       case 'known.automation.match':
         return { ok: true, match: has('rule') ? { outcome: 'placed', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: 'f-academic', folderTitle: 'Academic' }
           : has('ruleblocked') ? { outcome: 'blocked', ruleName: 'arXiv papers', ruleCount: 1, folderNativeId: null, folderTitle: null } : null };
+      // Risk alerts (doc 17 RW-15 – RW-17): Options' section and the popup's notice.
+      case 'known.risk.state': {
+        const list = (id, name, over = {}) => ({ id, url: `https://lists.example.org/${id}.json`, origin: 'https://lists.example.org', name,
+          publisher: { name: 'Example Security Group', url: 'https://example.org', feedbackUrl: 'https://example.org/report' }, state: 'ready', refreshIntervalHours: 6,
+          paused: false, currentVersion: '2026-10-19T06:00:00Z', lastAttemptAt: now - 2 * 3600e3, lastSuccessAt: now - 2 * 3600e3, lastFailure: null, freshness: 'fresh', entries: 41_208, ...over });
+        return { ok: true, state: !has('risk') ? { mode: 'off', lists: [], exceptions: [] } : { mode: has('risk-browse') ? 'onSaveAndBrowse' : 'onSave',
+          lists: [list('phish', 'Example phishing list'), list('scam', 'Community scam reports', { publisher: { name: 'Scam Watch', url: null, feedbackUrl: null },
+            freshness: 'stale', lastSuccessAt: now - 9 * 86400e3, currentVersion: '2026-10-10', entries: 3_912 }),
+          list('malware', 'Malware hosts', { state: 'notReady', currentVersion: null, freshness: null, entries: null, lastSuccessAt: null,
+            lastFailure: { code: 'http', status: 503, at: now - 5 * 60e3 } })],
+          exceptions: [{ id: 'x1', scope: 'domain', value: 'example-bank.com', duration: 'always', createdAt: now - 86400e3 },
+            { id: 'x2', scope: 'host', value: 'login.example-support.com', duration: 'session', createdAt: now - 600e3 }] } };
+      }
+      case 'known.risk.check':
+        return { ok: true, check: !has('risk') ? { mode: 'off', matches: [], site: null } : { mode: 'onSave', site: { host: 'www.login-example-support.com', domain: 'login-example-support.com' },
+          matches: [{ listId: 'phish', listName: 'Example phishing list', scope: 'domain', value: 'login-example-support.com', kind: 'phishing',
+            since: '2026-10-17T00:00:00Z', expires: null, evidenceUrl: 'https://example.org/r/1', expired: false, freshness: 'fresh' },
+          { listId: 'scam', listName: 'Community scam reports', scope: 'urlPrefix', value: 'https://www.login-example-support.com/account/', kind: 'scam',
+            since: '2026-10-09T00:00:00Z', expires: null, evidenceUrl: null, expired: false, freshness: 'stale' }] } };
+      case 'known.risk.mode': case 'known.risk.exception.add': case 'known.risk.exception.remove': case 'known.risk.remove': return { ok: true };
       case 'known.automation.digest':
         return { ok: true, digest: has('digest') ? { count: 1, digests: true, url: 'https://known.example/automations/runs/run-3', ruleName: 'Weekly reading digest', fetchedAt: now - 60e3, stale: false }
           : has('digests-stale') ? { count: 2, digests: true, url: 'https://known.example/automations/digests', ruleName: null, fetchedAt: now - 3 * 3600e3, stale: true } : null };

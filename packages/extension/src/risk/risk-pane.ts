@@ -157,8 +157,11 @@ function listRow(view: RiskListView): HTMLLIElement {
   const main = el('div', undefined, 'list-row-main');
   const title = el('p', view.name, 'list-row-title');
   const status = listStatus(view);
-  const meta = el('p', [view.publisher?.name ?? site(view.url), status.text].join(' · '), 'list-row-meta');
-  if (status.tone) meta.dataset.tone = status.tone;
+  const meta = el('p', undefined, 'list-row-meta');
+  // Only how it stands takes the warning tone; who keeps it stays quiet.
+  const words = el('span', status.text, 'risk-status');
+  if (status.tone) words.dataset.tone = status.tone;
+  meta.append(`${view.publisher?.name ?? site(view.url)} · `, words);
   main.append(title, meta);
   const tail = el('div', undefined, 'list-row-tail');
   // Opened only when clicked: nothing is sent to the publisher by this browser (RS-15.4).

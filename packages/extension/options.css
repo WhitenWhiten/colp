@@ -1574,8 +1574,8 @@ button.tree-twisty:hover:not(:disabled) { color: var(--ink); }
 .risk-mode { padding: var(--space-3) var(--space-4); }
 .risk-list-items { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .risk-list-items > li + li { border-top: 1px solid var(--line); }
-.risk-list-row .list-row-meta { white-space: normal; }
-.risk-list-row .list-row-meta[data-tone="warning"] { color: var(--warning); }
+.risk-list-row .list-row-meta { display: block; white-space: normal; }
+.risk-status[data-tone="warning"] { color: var(--warning); }
 .risk-exception-row { grid-template-columns: minmax(0, 1fr) auto; }
 .automation-config-folders { display: grid; gap: var(--space-3); }
 .automation-config-path { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: var(--leading-body); overflow-wrap: anywhere; }

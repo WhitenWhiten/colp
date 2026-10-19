@@ -145,6 +145,11 @@ const STATES = [
   ['automations-browser-sub-settings', 'options.html?shot=signedout,browser-subscribed#automations', async (p) => {
     await p.hover('.automation-subscription > .rule-set-head'); await p.click('.automation-subscription > .rule-set-head button:has(svg[data-icon="settings"])');
     await p.waitForTimeout(300); }, false],
+  // Risk alerts (doc 17 RW-15 – RW-17): the section with its lists and exceptions, on while browsing, and Subscribe.
+  ['automations-risk', 'options.html?shot=signedout,risk#automations'],
+  ['automations-risk-browse', 'options.html?shot=signedout,risk,risk-browse#automations'],
+  ['automations-risk-subscribe', 'options.html?shot=signedout,risk#automations', async (p) => {
+    await p.click('[data-risk-subscribe]'); await p.fill('dialog input[type="url"]', 'https://lists.example.org/phish.json'); await p.waitForTimeout(300); }, false],
   // A rule filed a page starred in the browser while Know-N was in front (AW-20).
   ['automations-notice', 'options.html#automations', (p) => p.evaluate(() => window.__workerMessage({ kind: 'known.automation.notice',
     text: 'Moved “Attention Is All You Need” to Academic by rule “arXiv papers”.', attention: false }))],
@@ -342,6 +347,9 @@ for (const width of widths) {
   const suggest = async (p) => { await p.click('#folder-suggest'); await p.waitForTimeout(500); };
   // Manual capture
   await popup('manual', 'manual');
+  // A page two of the Owner's risk lists name (doc 17 RW-16), and its exception choices.
+  await popup('risk', 'manual,risk');
+  await popup('risk-except', 'manual,risk', async (p) => { await p.click('#risk-notice .risk-notice-actions button >> nth=1'); await p.waitForTimeout(200); });
   await popup('sync-progress', 'manual,syncrun');
   await popup('sync-progress-paused', 'manual,syncrun,ps-paused');
   await popup('manual-signedout', 'manual,signedout');
