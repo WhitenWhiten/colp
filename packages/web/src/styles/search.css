@@ -337,10 +337,9 @@ a.search-product-result.is-active {
   margin-top: var(--hair-125);
 }
 
+/* One of three, like every other filter on the owner's pages: the
+   segmented track, not a row of chips. */
 .search-product-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
   margin-top: var(--space-4);
 }
 

@@ -121,6 +121,7 @@ export function Search() {
     <PageShell className="search-product-page" data-testid="search-workspace">
       <header className="search-product-header">
         <PageHead
+          variant="workbench"
           eyebrow="Library"
           title={SEARCH_PAGE_TITLE}
           lede="Titles, links, folders, and notes in your library."
@@ -143,9 +144,10 @@ export function Search() {
             <button type="submit" className="btn btn-primary btn-sm">Search</button>
           </form>
           <FilterRail
+            variant="segments"
             label="Result type"
             testId="search-type-filter"
-            className="search-product-filters"
+            className="view-switch search-product-filters"
             value={filter ?? 'all'}
             options={filters.map((item) => ({ value: item.value ?? 'all', label: item.label }))}
             onChange={(value) => setFilter(value === 'all' ? undefined : value as SearchResourceType)}
