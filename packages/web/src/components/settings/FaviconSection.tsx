@@ -213,36 +213,47 @@ export function FaviconSection({ onDirtyChange, onJobStarted }: {
             </p>
           </div>
 
-          <div className="option-group">
-            <label className="option-row">
-              <input
-                type="checkbox"
-                data-testid="favicon-fill-missing"
-                checked={current?.fillMissing === true}
-                disabled={busy}
-                onChange={(event) => void toggleFill(event.target.checked)}
-              />
-              <span>
-                Fill missing icons
-                <span className="meta">Capture provider icons for bookmarks without one (except those set to none).</span>
-              </span>
-            </label>
-            <label className="option-row">
-              <input
-                type="checkbox"
-                data-testid="favicon-force-online"
-                checked={current?.forceAllOnline === true}
-                disabled={busy}
-                onChange={(event) => void toggleForce(event.target.checked)}
-              />
-              <span>
-                Force all icons online
-                <span className="meta">
-                  Temporarily replace every icon (including uploaded) with the provider icon; disabling restores the
-                  original images.
+          {/* Each applies when switched, like the switches in Bookmarks. */}
+          <div className="settings-rows">
+            <div className="toggle-row">
+              <div>
+                <strong id="favicon-fill-missing-label">Fill missing icons</strong>
+                <span className="meta" id="favicon-fill-missing-hint">
+                  Capture provider icons for bookmarks without one (except those set to none).
                 </span>
-              </span>
-            </label>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                className="toggle"
+                data-testid="favicon-fill-missing"
+                aria-checked={current?.fillMissing === true}
+                aria-labelledby="favicon-fill-missing-label"
+                aria-describedby="favicon-fill-missing-hint"
+                disabled={busy}
+                onClick={() => toggleFill(current?.fillMissing !== true)}
+              />
+            </div>
+            <div className="toggle-row">
+              <div>
+                <strong id="favicon-force-online-label">Force all icons online</strong>
+                <span className="meta" id="favicon-force-online-hint">
+                  Temporarily replace every icon (including uploaded) with the provider icon; turning it off restores
+                  the original images.
+                </span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                className="toggle"
+                data-testid="favicon-force-online"
+                aria-checked={current?.forceAllOnline === true}
+                aria-labelledby="favicon-force-online-label"
+                aria-describedby="favicon-force-online-hint"
+                disabled={busy}
+                onClick={() => toggleForce(current?.forceAllOnline !== true)}
+              />
+            </div>
           </div>
 
           {notice !== null && (

@@ -142,13 +142,13 @@ describe('Settings FaviconSection', () => {
     expect(mocks.updateMyFaviconPolicy).toHaveBeenLastCalledWith(
       { newDefault: 'online' }, '"favicon-policy:1"', expect.anything())
 
-    const fill = document.querySelector<HTMLInputElement>('[data-testid="favicon-fill-missing"]')!
+    const fill = document.querySelector<HTMLButtonElement>('[data-testid="favicon-fill-missing"]')!
     await act(async () => { fill.click() })
     await flushAsync()
     expect(mocks.updateMyFaviconPolicy).toHaveBeenLastCalledWith(
       { fillMissing: true }, '"favicon-policy:2"', expect.anything())
 
-    const force = document.querySelector<HTMLInputElement>('[data-testid="favicon-force-online"]')!
+    const force = document.querySelector<HTMLButtonElement>('[data-testid="favicon-force-online"]')!
     await act(async () => { force.click() })
     await flushAsync()
     expect(mocks.updateMyFaviconPolicy).toHaveBeenLastCalledWith(
@@ -178,7 +178,7 @@ describe('Settings FaviconSection', () => {
     const onJobStarted = vi.fn()
     mountTree(<FaviconSection onJobStarted={onJobStarted} />)
     await flushAsync()
-    await act(async () => { document.querySelector<HTMLInputElement>('[data-testid="favicon-fill-missing"]')!.click() })
+    await act(async () => { document.querySelector<HTMLButtonElement>('[data-testid="favicon-fill-missing"]')!.click() })
     await flushAsync()
     expect(onJobStarted).toHaveBeenCalledWith('job-started')
   })
@@ -246,7 +246,7 @@ describe('Settings FaviconSection', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(onDirtyChange).toHaveBeenLastCalledWith(true)
-    await act(async () => { document.querySelector<HTMLInputElement>('[data-testid="favicon-fill-missing"]')!.click() })
+    await act(async () => { document.querySelector<HTMLButtonElement>('[data-testid="favicon-fill-missing"]')!.click() })
     await flushAsync()
     expect(input.value).toBe('https://draft.example/{hostname}')
     expect(onDirtyChange).toHaveBeenLastCalledWith(true)
