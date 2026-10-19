@@ -65,7 +65,8 @@ const manifest = JSON.parse(await readFile(resolve(root, 'manifest.base.json'), 
 // "favicon" only exposes the read-only /_favicon/ resource to extension pages
 // (bookmark manager rows) and carries no install-time warning.
 if (JSON.stringify(manifest.permissions) !== JSON.stringify(['cookies', 'storage', 'unlimitedStorage', 'alarms', 'activeTab', 'favicon', 'contextMenus'])
-  || JSON.stringify(manifest.optional_permissions) !== JSON.stringify(['bookmarks', 'tabs'])) {
+  // webNavigation is asked for only when risk alerts are switched on while browsing (doc 17 RW-17).
+  || JSON.stringify(manifest.optional_permissions) !== JSON.stringify(['bookmarks', 'tabs', 'webNavigation'])) {
   throw new Error('manifest permission contract invalid');
 }
 // Required host_permissions stay the pinned Know-N server and issuer, replaced

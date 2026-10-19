@@ -8,7 +8,7 @@ import { relativeText, t, tn } from '../i18n.js';
 import { button, el, grouped, iconButton, selectOf } from '../library-dom.js';
 import { showToast } from '../toast.js';
 import type { RiskCommand, RiskExceptionView, RiskListView, RiskResponse, RiskStateView } from './risk-messages.js';
-import type { RiskMode } from './risk-settings.js';
+import { BROWSE_PERMISSIONS, type RiskMode } from './risk-settings.js';
 
 /**
  * Options › Automations › Risk alerts (doc 17 §9, RS-16, RS-17): whether this browser warns when a page
@@ -144,7 +144,9 @@ function modeField(mode: RiskMode, change: (mode: RiskMode) => void): HTMLElemen
     return label;
   };
   choices.append(option('off', t('risk_modeOff', 'Off'), t('risk_modeOffHint', 'No lists are checked and none are fetched by themselves.')),
-    option('onSave', t('risk_modeOnSave', 'When I save a page'), t('risk_modeOnSaveHint', 'The popup says when the page is on one of your lists. You can still save it.')));
+    option('onSave', t('risk_modeOnSave', 'When I save a page'), t('risk_modeOnSaveHint', 'The popup says when the page is on one of your lists. You can still save it.')),
+    option('onSaveAndBrowse', t('risk_modeBrowse', 'When I save, and while I browse'),
+      t('risk_modeBrowseHint', 'The Know-N button shows ! on a page from your lists. Asks to see the pages you open; they are checked here and sent nowhere.')));
   return choices;
 }
 
@@ -195,8 +197,20 @@ function exceptionRow(item: RiskExceptionView, reload: () => void): HTMLLIElemen
 
 export function riskBody(state: RiskStateView, reload: () => void): HTMLElement[] {
   const mode = el('div', undefined, 'set-card risk-mode');
+  const send = (next: RiskMode) => sendRiskCommand({ kind: 'known.risk.mode', mode: next });
   mode.append(modeField(state.mode, (next) => {
-    void sendRiskCommand({ kind: 'known.risk.mode', mode: next }).then((reply) => {
+    if (next === 'onSaveAndBrowse') {
+      // Asked in the switch, before anything is awaited (RS-16.3); without them alerts stay on for saves.
+      void chrome.permissions.request({ permissions: BROWSE_PERMISSIONS }).catch(() => false).then(async (granted) => {
+        const reply = await send(granted ? 'onSaveAndBrowse' : 'onSave');
+        if (!reply.ok) failed();
+        else if (!granted) showToast(t('risk_browseDenied', 'Alerts while browsing need to see the pages you open. They stay on for pages you save.'), 'error', { announce: true });
+        else showToast(t('risk_modeTurnedOnBrowse', 'The Know-N button now shows ! on pages from your lists, and the popup says which.'), 'ok', { announce: true });
+        reload();
+      });
+      return;
+    }
+    void send(next).then((reply) => {
       if (!reply.ok) { failed(); reload(); return; }
       showToast(next === 'off' ? t('risk_modeTurnedOff', 'Risk alerts are off.') : t('risk_modeTurnedOn', 'The popup now warns when a page you save is on one of your lists.'), 'ok', { announce: true });
       reload();

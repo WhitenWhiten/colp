@@ -56,7 +56,7 @@ export type RiskResponse = { readonly ok: true; readonly list?: RiskListView; re
   readonly exception?: RiskExceptionView }
   | { readonly ok: false; readonly error: RiskError; readonly status?: number };
 
-const ID = /^[\w-]{1,128}$/u, MODES = new Set<unknown>(['off', 'onSave']);
+const ID = /^[\w-]{1,128}$/u, MODES = new Set<unknown>(['off', 'onSave', 'onSaveAndBrowse']);
 const url = (value: unknown) => typeof value === 'string' && value.length > 0 && value.length <= 8_192;
 export function validRiskCommand(message: unknown): message is RiskCommand {
   if (!message || typeof message !== 'object' || Array.isArray(message)) return false;

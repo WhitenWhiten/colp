@@ -81,6 +81,20 @@ describe('Risk alerts in Options', () => {
     await vi.waitFor(() => expect(sent.at(-1)).toEqual({ kind: 'known.risk.exception.remove', id: 'x2' }));
   });
 
+  it('asks for tabs and webNavigation in the switch to while-browsing; denied, alerts stay on for saves (RS-16.3)', async () => {
+    const pane = await render();
+    const browse = () => pane.querySelector<HTMLInputElement>('.risk-mode input[value="onSaveAndBrowse"]')!;
+    granted = false;
+    browse().checked = true; browse().dispatchEvent(new Event('change'));
+    expect(request).toHaveBeenCalledWith({ permissions: ['tabs', 'webNavigation'] });
+    expect(sent).toEqual([]);
+    await vi.waitFor(() => expect(sent).toEqual([{ kind: 'known.risk.mode', mode: 'onSave' }]));
+    await vi.waitFor(() => expect(text(document.querySelector('[role="status"], .toast'))).toContain('Alerts while browsing need to see the pages you open'));
+    granted = true; sent = [];
+    browse().checked = true; browse().dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(sent).toEqual([{ kind: 'known.risk.mode', mode: 'onSaveAndBrowse' }]));
+  });
+
   it('asks for the list’s site in the Subscribe click, before anything is awaited (R14)', async () => {
     const pane = await render();
     pane.querySelector<HTMLButtonElement>('[data-risk-subscribe]')!.click();

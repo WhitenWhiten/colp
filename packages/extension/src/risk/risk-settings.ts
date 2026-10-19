@@ -11,6 +11,8 @@ import type { RiskException } from './risk-check.js';
 export const RISK_SETTINGS_KEY = 'known.risk.settings.v1';
 export const RISK_SESSION_EXCEPTIONS_KEY = 'known.risk.sessionExceptions';
 export const RISK_EXCEPTION_LIMIT = 500;
+/** Browsing alerts read each page's address as it commits: both asked for in the mode switch (RS-16.3). */
+export const BROWSE_PERMISSIONS = ['tabs', 'webNavigation'];
 export type RiskMode = 'off' | 'onSave' | 'onSaveAndBrowse';
 export interface StoredRiskException extends RiskException { readonly id: string; readonly createdAt: number }
 export interface RiskSettings { readonly mode: RiskMode; readonly exceptions: readonly StoredRiskException[] }

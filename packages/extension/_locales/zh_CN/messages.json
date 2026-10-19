@@ -7667,6 +7667,10 @@
     "message": "请使用 https 地址，例如 https://example.org/risklist.json。",
     "description": "Use an https address, such as https://example.org/risklist.json."
   },
+  "risk_browseDenied": {
+    "message": "浏览时提醒需要查看你打开的页面。保存页面时的提醒保持开启。",
+    "description": "Alerts while browsing need to see the pages you open. They stay on for pages you save."
+  },
   "risk_changeFailed": {
     "message": "无法更改风险提醒，请重试。",
     "description": "Couldn’t change risk alerts. Try again."
@@ -7823,6 +7827,14 @@
     "message": "未知，列表已过期",
     "description": "unknown, list out of date"
   },
+  "risk_modeBrowse": {
+    "message": "保存时，以及浏览时",
+    "description": "When I save, and while I browse"
+  },
+  "risk_modeBrowseHint": {
+    "message": "页面在你的列表上时，Know-N 按钮显示 !。需要查看你打开的页面；页面只在本地检查，不会发送到任何地方。",
+    "description": "The Know-N button shows ! on a page from your lists. Asks to see the pages you open; they are checked here and sent nowhere."
+  },
   "risk_modeLabel": {
     "message": "提醒方式",
     "description": "Warn me"
@@ -7850,6 +7862,10 @@
   "risk_modeTurnedOn": {
     "message": "现在，保存的页面在你的列表上时，弹出窗口会提醒你。",
     "description": "The popup now warns when a page you save is on one of your lists."
+  },
+  "risk_modeTurnedOnBrowse": {
+    "message": "现在，页面在你的列表上时 Know-N 按钮会显示 !，弹出窗口会说明是哪个列表。",
+    "description": "The Know-N button now shows ! on pages from your lists, and the popup says which."
   },
   "risk_needsAccess": {
     "message": "允许读取 $1 才能下载这个列表。",

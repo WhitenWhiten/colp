@@ -5957,6 +5957,9 @@
   "risk_badUrl": {
     "message": "Use an https address, such as https://example.org/risklist.json."
   },
+  "risk_browseDenied": {
+    "message": "Alerts while browsing need to see the pages you open. They stay on for pages you save."
+  },
   "risk_changeFailed": {
     "message": "Couldn’t change risk alerts. Try again."
   },
@@ -6077,6 +6080,12 @@
   "risk_matchUnknown": {
     "message": "unknown, list out of date"
   },
+  "risk_modeBrowse": {
+    "message": "When I save, and while I browse"
+  },
+  "risk_modeBrowseHint": {
+    "message": "The Know-N button shows ! on a page from your lists. Asks to see the pages you open; they are checked here and sent nowhere."
+  },
   "risk_modeLabel": {
     "message": "Warn me"
   },
@@ -6097,6 +6106,9 @@
   },
   "risk_modeTurnedOn": {
     "message": "The popup now warns when a page you save is on one of your lists."
+  },
+  "risk_modeTurnedOnBrowse": {
+    "message": "The Know-N button now shows ! on pages from your lists, and the popup says which."
   },
   "risk_needsAccess": {
     "message": "Allow reading $1 to fetch this list."

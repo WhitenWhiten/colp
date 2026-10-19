@@ -121,6 +121,16 @@ declare namespace chrome {
     function create(createProperties: { url: string; active?: boolean }): Promise<Tab>;
     function get(tabId: number): Promise<Tab>;
     function query(queryInfo: { active?: boolean; currentWindow?: boolean; highlighted?: boolean; windowId?: number }): Promise<Tab[]>;
+    const onRemoved: { addListener(callback: (tabId: number) => void): void };
+  }
+  /** Optional permission: present only while it is granted. */
+  namespace webNavigation {
+    interface CommitDetails { readonly tabId: number; readonly frameId: number; readonly url: string; readonly timeStamp: number }
+    const onCommitted: {
+      addListener(callback: (details: CommitDetails) => void): void;
+      removeListener(callback: (details: CommitDetails) => void): void;
+      hasListener(callback: (details: CommitDetails) => void): boolean;
+    };
   }
   namespace commands {
     interface Command { readonly name?: string; readonly description?: string; readonly shortcut?: string }
@@ -142,8 +152,9 @@ declare namespace chrome {
   namespace action {
     function setPopup(details: { popup: string }): Promise<void>;
     function openPopup(): Promise<void>;
-    function setBadgeText(details: { text: string }): Promise<void>;
-    function setBadgeBackgroundColor(details: { color: string }): Promise<void>;
+    /** With `tabId`, for that tab only; `null` there hands the tab back to the global text. */
+    function setBadgeText(details: { text: string } | { tabId: number; text: string | null }): Promise<void>;
+    function setBadgeBackgroundColor(details: { color: string; tabId?: number }): Promise<void>;
     function setTitle(details: { title: string }): Promise<void>;
     function getBadgeText(details?: { tabId?: number }): Promise<string>;
     const onClicked: { addListener(callback: () => void): void };

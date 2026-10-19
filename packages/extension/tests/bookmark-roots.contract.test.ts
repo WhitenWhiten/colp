@@ -39,7 +39,7 @@ describe('P3-29 static privacy and worker boundary contract', () => {
     const permissionSettings = await readFile(resolve('src/permissions-settings.ts'), 'utf8');
     const types = await readFile(resolve('src/types.ts'), 'utf8');
     assert.deepEqual(manifest.permissions, ['cookies', 'storage', 'unlimitedStorage', 'alarms', 'activeTab', 'favicon', 'contextMenus']);
-    assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs']);
+    assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs', 'webNavigation']);
     assert.match(options, /chrome\.permissions\.contains/);
     assert.match(options, /chrome\.permissions\.request/);
     assert.match(permissionSettings, /chrome\.permissions\[operation\]/);

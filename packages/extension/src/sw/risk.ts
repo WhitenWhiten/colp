@@ -6,7 +6,8 @@ import type { SubscriptionRecord } from '../automation/subscription-store.js';
 import { checkRisk, freshness } from '../risk/risk-check.js';
 import type { RiskIndex } from '../risk/risk-index.js';
 import type { RiskCheckView, RiskCommand, RiskExceptionView, RiskListView, RiskResponse } from '../risk/risk-messages.js';
-import { exceptionValue, parseSessionExceptions, RISK_EXCEPTION_LIMIT, RISK_SESSION_EXCEPTIONS_KEY, type StoredRiskException } from '../risk/risk-settings.js';
+import { BROWSE_PERMISSIONS, exceptionValue, parseSessionExceptions, RISK_EXCEPTION_LIMIT, RISK_SESSION_EXCEPTIONS_KEY, type RiskMode,
+  type StoredRiskException } from '../risk/risk-settings.js';
 import { createRiskStore, type RiskStore } from '../risk/risk-store.js';
 import { RISKLIST_MAX_BYTES } from '../risk/risklist-format.js';
 
@@ -66,12 +67,17 @@ export async function refreshDueRiskLists(now = Date.now()): Promise<readonly st
   return due.map((record) => record.id);
 }
 
+/** This session's exceptions (R12). */
+export const riskExceptions = (): Promise<StoredRiskException[]> => sessionExceptions();
 async function sessionExceptions(): Promise<StoredRiskException[]> {
   try { return parseSessionExceptions((await chrome.storage.session.get(RISK_SESSION_EXCEPTIONS_KEY))[RISK_SESSION_EXCEPTIONS_KEY]); } catch { return []; }
 }
 function siteOf(url: string): RiskCheckView['site'] {
   try { const host = normalizeHost(new URL(url).hostname); return host ? { host, domain: registrableDomain(host) } : null; } catch { return null; }
 }
+let modeListener: ((mode: RiskMode) => Promise<void>) | null = null;
+/** Browsing alerts (risk-browse.ts) follow the mode as it changes. */
+export function onRiskMode(listener: (mode: RiskMode) => Promise<void>): void { modeListener = listener; }
 const exceptionView = (item: StoredRiskException, duration: RiskExceptionView['duration']): RiskExceptionView =>
   ({ id: item.id, scope: item.scope, value: item.value, duration, createdAt: item.createdAt });
 
@@ -125,7 +131,15 @@ export async function handleRiskCommand(command: RiskCommand): Promise<RiskRespo
     return { ok: true, state: { mode: settings.mode, lists: records.map((record) => riskListView(record, indexes.get(record.id) ?? null)),
       exceptions: [...settings.exceptions.map((item) => exceptionView(item, 'always')), ...session.map((item) => exceptionView(item, 'session'))] } };
   }
-  if (command.kind === 'known.risk.mode') { await store.setMode(command.mode); return { ok: true }; }
+  if (command.kind === 'known.risk.mode') {
+    // While browsing needs both permissions, asked for in Options' click (RS-16.3).
+    if (command.mode === 'onSaveAndBrowse' && !await chrome.permissions.contains({ permissions: BROWSE_PERMISSIONS }).catch(() => false)) {
+      return { ok: false, error: 'permission' };
+    }
+    await store.setMode(command.mode);
+    await modeListener?.(command.mode);
+    return { ok: true };
+  }
   if (command.kind === 'known.risk.exception.add' || command.kind === 'known.risk.exception.remove') return exceptionCommand(command);
   if (command.kind === 'known.risk.remove') return await store.remove(command.id) ? { ok: true } : { ok: false, error: 'notFound' };
   if (command.kind === 'known.risk.refresh') {

@@ -13,7 +13,8 @@ describe('P3-27 release artifact contract', () => {
     // "favicon" only exposes the read-only /_favicon/ resource to extension
     // pages (bookmark manager rows); it carries no install-time warning.
     assert.deepEqual(manifest.permissions, ['cookies', 'storage', 'unlimitedStorage', 'alarms', 'activeTab', 'favicon', 'contextMenus']);
-    assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs']);
+    // webNavigation: asked for only when risk alerts are switched on while browsing (doc 17 RW-17).
+    assert.deepEqual(manifest.optional_permissions, ['bookmarks', 'tabs', 'webNavigation']);
     assert.equal(manifest.options_ui.open_in_tab, true);
     assert.equal(manifest.storage.managed_schema, 'managed-storage-schema.json');
     assert.deepEqual(manifest.content_security_policy, { extension_pages: "script-src 'self'; object-src 'none'; base-uri 'none'; img-src 'self' blob: data: https:" });

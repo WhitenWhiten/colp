@@ -89,6 +89,7 @@ import { handleRunCommand } from './sw/automation-run.js';
 import { handleSubscriptionCommand, installRuleSubscriptions, refreshDueSubscriptions, RULE_SUBSCRIPTION_ALARM } from './sw/automation-subscriptions.js';
 import { isSubscriptionCommand } from './automation/subscription-messages.js';
 import { handleRiskCommand, refreshDueRiskLists } from './sw/risk.js';
+import { installRiskBrowsing } from './sw/risk-browse.js';
 import { POPUP_RISK_KINDS, validRiskCommand } from './risk/risk-messages.js';
 import { accountLink, AUTOMATION_ALARM, handleAutomationRequest, installAutomationRuntime, refreshAutomation } from './sw/automation.js';
 import { installObservedCreates, resumeObservedCreates } from './sw/automation-observed.js';
@@ -112,6 +113,7 @@ void initI18n();
 installNativeSaveEntries();
 installAutomationRuntime();
 installRuleSubscriptions();
+installRiskBrowsing();
 installObservedCreates();
 void wakeLocalImports().catch(() => undefined);
 chrome.runtime.onStartup.addListener(() => {
