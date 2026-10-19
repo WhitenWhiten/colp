@@ -452,6 +452,8 @@
   background: var(--surface);
   color: var(--muted);
   font: inherit;
+  /* A control, so the UI face even beside a monospace value (About). */
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   white-space: nowrap;
