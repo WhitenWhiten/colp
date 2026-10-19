@@ -246,6 +246,7 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   mount_scope_invalid: entry('replica', 'stop'),
   mount_status_invalid: entry('replica', 'stop'),
   move_predecessor_pending: entry('transient', 'retry'),
+  managed_not_writable: entry('item', 'decide', SETS_ASIDE),
   native_call_failed: entry('transient', 'retry'),
   native_result_cas: entry('transient', 'retry'),
   native_result_confirmation_invalid: entry('replica', 'stop'),

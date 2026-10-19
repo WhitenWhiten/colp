@@ -298,7 +298,7 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
      * subscription entry already in the list is not added twice; an import past a limit is refused whole.
      */
     importEntries(entries: readonly ListEntry[], replace: boolean, extra: { readonly writes?: Readonly<Record<string, unknown>>;
-      readonly dropped?: (subscriptionId: string) => readonly string[] } = {}): Promise<ListChangeResult> {
+      readonly dropped?: (subscriptionId: string) => readonly string[]; readonly enabled?: boolean } = {}): Promise<ListChangeResult> {
       return update((list): Change<ListChangeResult> => {
         const kept = replace ? [] : list.entries;
         const present = new Set(kept.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []));
@@ -308,7 +308,7 @@ export function createRuleListStore(area: AtomicStateArea, options: { readonly i
         const staying = new Set(next.flatMap((entry) => entry.kind === 'subscription' ? [entry.subscriptionId] : []));
         const deletes = list.entries.flatMap((entry) => entry.kind === 'subscription' && !staying.has(entry.subscriptionId)
           ? extra.dropped?.(entry.subscriptionId) ?? [] : []);
-        return { result: { ok: true, revision: list.revision + 1 }, entries: next, ...(replace ? { notice: 'dismiss' as const } : {}),
+        return { result: { ok: true, revision: list.revision + 1 }, entries: next, ...(replace ? { notice: 'dismiss' as const, ...(extra.enabled === undefined ? {} : { enabled: extra.enabled }) } : {}),
           ...(extra.writes ? { writes: extra.writes } : {}), ...(deletes.length ? { deletes } : {}) };
       });
     },

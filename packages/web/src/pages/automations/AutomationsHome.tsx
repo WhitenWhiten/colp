@@ -421,10 +421,11 @@ export function AutomationsHome() {
                       type="button"
                       className="btn btn-ghost btn-sm automations-section-action"
                       disabled={exporting}
+                      title="Export current rules; archived history is excluded"
                       onClick={() => void exportRules()}
                     >
                       <Icon name="download" />
-                      Export
+                      Export current rules
                     </button>
                   </>
                 )}

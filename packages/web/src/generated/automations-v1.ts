@@ -917,8 +917,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Export rules and folder bindings by path, without secrets
-         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Used by the web Export menu and colp-server export. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
+         * Export current rules and folder bindings by path, without secrets
+         * @description Apply current tenant, ownership, resource and feature-flag checks. All DTOs are private and bounded. Exports unarchived rule configuration; archived history remains in the database and does not consume the 500-rule limit. Used by the web Export menu and colp-server export. Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.
          */
         get: operations["exportAutomations"];
         put?: never;

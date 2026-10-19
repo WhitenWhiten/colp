@@ -90,7 +90,7 @@ M1 records deterministic placement effects and permits a proven compensating mov
 
 ### Export (M1)
 
-`GET /api/v1/me/automations/export` returns PortableRuleDefinition with symbolic collection/target slots and optional private folder-path hints, without live target IDs, secrets or pairing codes, for the web Export menu and `colp-server export`.
+`GET /api/v1/me/automations/export` returns the Owner’s current, unarchived rule configuration as PortableRuleDefinition with symbolic collection/target slots and optional private folder-path hints, without live target IDs, secrets or pairing codes, for the web Export menu and `colp-server export`. Archived history remains in the database and is excluded from this configuration export, so historical rules do not consume the 500-rule export limit.
 
 ### Wake-up (M2)
 

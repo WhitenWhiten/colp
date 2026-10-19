@@ -72,6 +72,27 @@ describeWithPostgres('BE-1 migrations, immutable persistence and recovery', () =
     expect(encoded).not.toContain('collectionId'); expect(encoded).not.toContain('bindingSetId'); expect(encoded).not.toContain('targetIds');
     expect(exported.rules[0]?.desiredState).toBe('draft');
   });
+  test('exports current configuration even after more than 500 rules have been archived', async () => {
+    const db = isolated.runtime.db;
+    await db.transaction().execute(async tx => {
+      await sql`INSERT INTO automation_rules (id,owner_id,current_revision_id,desired_state)
+        SELECT 'export-archived-' || n, 'owner', NULL, 'archived' FROM generate_series(1,501) n`.execute(tx);
+      await sql`INSERT INTO automation_rule_revisions
+        (id,rule_id,owner_id,revision,definition_json,binding_set_id,execution_policy_id,template_ref,semantic_digest)
+        SELECT 'export-revision-' || n, 'export-archived-' || n, 'owner', 1,
+          ${JSON.stringify(definition)}::jsonb, 'bindings', NULL, NULL, ${automationDigest(definition)}
+        FROM generate_series(1,501) n`.execute(tx);
+      await sql`UPDATE automation_rules SET current_revision_id='export-revision-' || n
+        FROM generate_series(1,501) n WHERE id='export-archived-' || n`.execute(tx);
+    });
+    const exported = await exportAutomations(db, 'owner');
+    expect(exported.rules).toHaveLength(1);
+    expect(exported.rules[0]?.desiredState).toBe('draft');
+    expect(validateAutomation('AutomationExport', exported).valid).toBe(true);
+    expect(Number((await db.selectFrom('automation_rules').select(eb => eb.fn.countAll().as('n'))
+      .where('owner_id', '=', 'owner').where('desired_state', '=', 'archived').executeTakeFirstOrThrow()).n)).toBe(501);
+  });
+
   test('review: old revisions cannot be deleted while their configuration exists; erasure still cascades', async () => {
     const db = isolated.runtime.db;
     async function configuration(prefix: string) {

@@ -1,5 +1,6 @@
+import { compilePredicate, type Predicate } from '@know-n/colp/automation';
 import { record } from './closed-value.js';
-import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, VALUE_LIMIT, checkRuleDraft, collectionRef, type CollectionLookup, type RuleAction,
+import { CONDITION_KINDS, CONDITION_LIMIT, NAME_LIMIT, VALUE_LIMIT, checkRuleDraft, collectionRef, definitionFor, type CollectionLookup, type RuleAction,
   type RuleCondition } from './rule-conditions.js';
 import { LIST_LIMITS, ruleFolderNativeId, type ListEntry, type LocalRule, type LocalSet, type RuleListRecord, type SetOrigin } from './rule-list-store.js';
 import { subscriptionAddress } from './subscription-fetch.js';
@@ -10,7 +11,7 @@ import { RISK_LIST_LIMIT } from '../risk/risk-store.js';
 
 /**
  * `known-rules-config/v1` (doc 17 §5.3, RS-19.3): this browser's rule list in a file the Owner keeps,
- * apart from the bookmark backup. It holds the list (conditions, actions, sets with their origin, roles
+ * apart from the bookmark backup. It holds the list (conditions or a finite predicate, actions, sets with their origin, roles
  * and bindings, subscriptions with their address, settings and adjustments but none of their content),
  * and a folder table naming every folder an action or binding uses by its title and path. Folder ids in
  * a file are another browser's: an import maps every folder in the table to one here, suggested by an
@@ -30,6 +31,8 @@ export interface ConfigRule {
   readonly name: string;
   readonly combinator: 'all' | 'any';
   readonly conditions: readonly RuleCondition[];
+  /** Finite predicate for imported rules the condition editor cannot express. */
+  readonly match?: Predicate;
   /** A folder named by its id in the folder table, a role of its set, or keep where saved. */
   readonly action: RuleAction;
 }
@@ -74,7 +77,7 @@ export interface RulesConfig {
 }
 
 const ruleOf = (rule: LocalRule): ConfigRule => ({ id: rule.id, enabled: rule.enabled, name: rule.name, combinator: rule.combinator,
-  conditions: rule.conditions, action: rule.action });
+  conditions: rule.conditions, action: rule.action, ...(rule.conditions.length ? {} : { match: rule.definition.match }) });
 
 type Subscribed = (id: string) => { readonly record: SubscriptionRecord; readonly local: LocalAdjustments } | null;
 
@@ -85,7 +88,7 @@ type Subscribed = (id: string) => { readonly record: SubscriptionRecord; readonl
 export async function buildRulesConfig(list: RuleListRecord, folder: (nativeId: string) => Promise<{ readonly title: string; readonly path: readonly string[] } | null>,
   now: number, subscribed: Subscribed = () => null, risk?: ConfigRisk): Promise<RulesConfig> {
   const entries = list.entries.flatMap((entry): ConfigEntry[] => {
-    if (entry.kind === 'rule') return entry.rule.conditions.length ? [{ kind: 'rule', rule: ruleOf(entry.rule) }] : [];
+    if (entry.kind === 'rule') return [{ kind: 'rule', rule: ruleOf(entry.rule) }];
     if (entry.kind === 'subscription') {
       const found = subscribed(entry.subscriptionId);
       if (!found) return [];
@@ -95,7 +98,7 @@ export async function buildRulesConfig(list: RuleListRecord, folder: (nativeId: 
         exceptions: local.exceptions.map(({ scope, value }) => ({ scope, value })), bindings: local.bindings } }];
     }
     const { id, name, enabled, origin, roles, bindings, rules } = entry.set;
-    return [{ kind: 'set', set: { id, name, enabled, origin, roles, bindings, rules: rules.filter((rule) => rule.conditions.length).map(ruleOf) } }];
+    return [{ kind: 'set', set: { id, name, enabled, origin, roles, bindings, rules: rules.map(ruleOf) } }];
   });
   const ids = new Set<string>();
   for (const entry of list.entries) {
@@ -138,15 +141,17 @@ function parseAction(value: unknown): RuleAction {
   throw new Error('config_invalid');
 }
 function parseRule(value: unknown): ConfigRule {
-  const raw = object(value, ['id', 'enabled', 'name', 'combinator', 'conditions', 'action']);
+  const raw = object(value, ['id', 'enabled', 'name', 'combinator', 'conditions', 'action'], ['match']);
   if (raw.combinator !== 'all' && raw.combinator !== 'any') throw new Error('config_invalid');
   const conditions = list(raw.conditions, CONDITION_LIMIT).map((item) => {
     const condition = object(item, ['kind', 'value']);
     if (!CONDITION_KINDS.includes(condition.kind as RuleCondition['kind'])) throw new Error('config_invalid');
     return { kind: condition.kind as RuleCondition['kind'], value: text(condition.value, VALUE_LIMIT) };
   });
+  const compiled = raw.match === undefined ? undefined : compilePredicate(raw.match as Predicate);
+  if (compiled && (!compiled.valid || conditions.length)) throw new Error('config_invalid');
   return { id: text(raw.id, 128, ID), enabled: flag(raw.enabled), name: text(raw.name, NAME_LIMIT), combinator: raw.combinator, conditions,
-    action: parseAction(raw.action) };
+    action: parseAction(raw.action), ...(compiled?.valid ? { match: compiled.normalizedPredicate } : {}) };
 }
 function parseOrigin(value: unknown): SetOrigin {
   const raw = object(value, ['kind'], ['sourceId', 'sourceName', 'sourceVersion', 'publisher', 'importedAt']);
@@ -267,6 +272,12 @@ export function configEntries(config: RulesConfig, remap: Readonly<Record<string
   let skipped = 0;
   const rule = (item: ConfigRule): LocalRule | null => {
     const action: RuleAction = item.action.kind === 'file' && 'folderNativeId' in item.action ? { kind: 'file', folderNativeId: remap[item.action.folderNativeId]! } : item.action;
+    if (item.match) {
+      const compiled = compilePredicate(item.match);
+      if (!compiled.valid || item.conditions.length) { skipped += 1; return null; }
+      return { id: newId(), enabled: item.enabled, name: item.name, combinator: item.combinator, conditions: [], action,
+        definition: definitionFor(item.name, compiled.normalizedPredicate), compiledFrom: { contentVersions: {} }, createdAt: now, updatedAt: now };
+    }
     const pending = item.conditions.some((condition) => condition.kind === 'siteCollection' && collectionRef(condition.value));
     const checked = checkRuleDraft({ name: item.name, combinator: item.combinator, conditions: item.conditions, action }, pending ? PENDING : undefined);
     if (!checked.ok) { skipped += 1; return null; }

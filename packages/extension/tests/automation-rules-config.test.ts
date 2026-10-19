@@ -15,6 +15,7 @@ vi.mock('../src/bookmark-folder-policy.js', () => ({ assertBookmarkFolderAllowed
 vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ isSubscriptionExcluded: async (id: string) => id === 'managed' }));
 
 import { handleConfigCommand } from '../src/sw/automation-config.js';
+import { handleRulesetCommand } from '../src/sw/automation-ruleset.js';
 import { riskStore } from '../src/sw/risk.js';
 import { browserRuleStore, browserSubscriptionStore, handleBrowserRuleCommand } from '../src/sw/automation-browser.js';
 
@@ -46,6 +47,18 @@ let next = 0;
 const newId = () => `new-${++next}`;
 
 describe('the file', () => {
+  it('validates raw predicates and refuses ambiguous or executable rule payloads', () => {
+    const raw = { id: 'advanced', enabled: true, name: 'Docs', combinator: 'all', conditions: [], action: { kind: 'keepHere' },
+      match: { kind: 'field', field: 'bookmark.url.path', op: 'startsWith', value: '/docs' } };
+    const config = (rule: unknown) => ({ format: 'known-rules-config/v1', exportedAt: NOW,
+      folders: [], list: { enabled: true, entries: [{ kind: 'rule', rule }] } });
+    expect(parseRulesConfig(config(raw)).list.entries).toHaveLength(1);
+    expect(() => parseRulesConfig(config({ ...raw, conditions: [{ kind: 'siteIs', value: 'example.org' }] }))).toThrow('config_invalid');
+    expect(() => parseRulesConfig(config({ ...raw, match: { ...raw.match, op: 'matches' } }))).toThrow('config_invalid');
+    expect(() => parseRulesConfig(config({ ...raw, match: { ...raw.match, script: 'alert(1)' } }))).toThrow('config_invalid');
+    expect(() => parseRulesConfig(config({ ...raw, definition: { tasks: [] } }))).toThrow('config_invalid');
+  });
+
   it('round-trips the list: order, switches, conditions, actions, a set’s origin, roles and bindings, and subscription entries', async () => {
     const file = JSON.parse(JSON.stringify(await exported())) as unknown;
     const config = parseRulesConfig(file);
@@ -134,6 +147,35 @@ describe('the worker', () => {
       action: { kind: 'file', folderNativeId: '30' } } });
   });
   afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('preserves an imported path predicate and its destination across full backup and replacement', async () => {
+    const text = JSON.stringify({ format: 'colp.ruleset/v1', id: 'docs', name: 'Docs', version: '1',
+      roles: [{ key: 'docs', description: 'Documentation' }], sites: [{ id: 'site', name: 'Site', addresses: [
+        { host: 'example.org', scope: 'exact', status: 'current', pathPrefix: '/docs' },
+      ] }], entries: [{ id: 'docs', site: 'site', role: 'docs' }] });
+    const added = await handleRulesetCommand({ kind: 'known.automation.browser.import', text, bindings: { docs: '30' } });
+    if (!added.ok || !('set' in added) || !added.set) throw new Error('not imported');
+    expect(added.set.rules[0]!.conditions).toEqual([]);
+    const match = added.set.rules[0]!.definition.match;
+    const out = await handleConfigCommand({ kind: 'known.automation.browser.config.export' });
+    if (!out.ok || !('config' in out)) throw new Error('not exported');
+    expect(await handleConfigCommand({ kind: 'known.automation.browser.config.import', text: out.config.content,
+      folders: { 30: '70' }, replace: true })).toMatchObject({ ok: true, imported: { rules: 2, skipped: 0 } });
+    const set = (await browserRuleStore().load()).entries.find(entry => entry.kind === 'set');
+    expect(set).toMatchObject({ kind: 'set', set: { bindings: { docs: '70' }, rules: [{ conditions: [], definition: { match } }] } });
+  });
+
+  it.each([true, false])('replacement restores the exported list switch (%s), append preserves the local switch', async enabled => {
+    await browserRuleStore().setListEnabled(enabled);
+    const out = await handleConfigCommand({ kind: 'known.automation.browser.config.export' });
+    if (!out.ok || !('config' in out)) throw new Error('not exported');
+    await browserRuleStore().setListEnabled(!enabled);
+    const command = { kind: 'known.automation.browser.config.import' as const, text: out.config.content, folders: { 30: '70' } };
+    expect(await handleConfigCommand({ ...command, replace: false })).toMatchObject({ ok: true });
+    expect((await browserRuleStore().load()).enabled).toBe(!enabled);
+    expect(await handleConfigCommand({ ...command, replace: true })).toMatchObject({ ok: true });
+    expect((await browserRuleStore().load()).enabled).toBe(enabled);
+  });
 
   it('exports the list with its folders’ paths, and imports it below the list or in its place', async () => {
     const out = await handleConfigCommand({ kind: 'known.automation.browser.config.export' });

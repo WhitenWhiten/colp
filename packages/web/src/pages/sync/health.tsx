@@ -49,6 +49,7 @@ const STOP_REASONS: Readonly<Record<string, string>> = {
   snapshot_graph_incomplete: 'the server’s Snapshot has an incomplete library graph.',
   snapshot_chain_invalid: 'the server’s Snapshot pages do not form a valid chain.',
   replica_rebuilt: 'its sync was reset.',
+  sync_diagnostics_unavailable: 'it can’t read its local sync status. It will retry reporting automatically.',
 }
 
 /** The reason a browser gave for stopping, in plain words; the code only when it is new to us. */
@@ -73,6 +74,7 @@ export function issueSummary(issue: SyncReplicaIssue): string {
     case 'deletion_identity_unproven': return 'Deleted on that browser, but it couldn’t be matched, so nothing else was deleted'
     case 'delete_subtree_changed': return 'Deleted on that browser, but the folder changed elsewhere first. Retry deletes it anyway, with those changes'
     case 'record_too_large': return 'Too large for this browser to store'
+    case 'managed_not_writable': return 'This bookmark is managed by the browser and cannot be changed here'
     case 'bounded_string_invalid': return 'A field is too long for this browser to store'
     case 'native_result_unknown': return 'Waiting for a decision in the browser'
     case 'local_merge_difference': return 'Review this local merge difference in the extension’s Sync → Folders list. It is not a server conflict.'

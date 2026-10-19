@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { automationDatabase } from '../src/automation/indexeddb-store.js';
 import { RISK_SESSION_EXCEPTIONS_KEY } from '../src/risk/risk-settings.js';
 import type { RiskEntry } from '../src/risk/risklist-format.js';
-import { handleRiskCommand } from '../src/sw/risk.js';
+import { handleRiskCommand, riskStore } from '../src/sw/risk.js';
 import { applyBrowsing, handleCommitted, installRiskBrowsing, RISK_RECENT_ALERTS_KEY } from '../src/sw/risk-browse.js';
 import { NOW } from './automation-fixture.js';
 
@@ -83,6 +83,52 @@ describe('alerts while browsing', () => {
     badges.length = 0;
     expect(await commit(9, 'https://example.org/')).toBe(false);
     expect(badges).toEqual([]);
+  });
+
+  it.each([false, true])('ignores an older navigation that finishes last (old page risky: %s)', async oldRisky => {
+    const store = riskStore(), sources = await store.sources();
+    let finish!: (value: typeof sources) => void;
+    let entered!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const spy = vi.spyOn(store, 'sources').mockImplementationOnce(() => {
+      entered(); return new Promise(resolve => { finish = resolve; });
+    });
+    try {
+      const risky = 'https://login-example-support.com/', safe = 'https://example.org/';
+      const old = commit(7, oldRisky ? risky : safe);
+      await started;
+      await commit(7, oldRisky ? safe : risky);
+      finish(sources);
+      await old;
+      expect(shown(7)).toBe(oldRisky ? null : '!');
+      expect(Boolean((session[RISK_RECENT_ALERTS_KEY] as Record<string, unknown> | undefined)?.['7'])).toBe(!oldRisky);
+    } finally { spy.mockRestore(); }
+  });
+
+  it('invalidates an in-flight check when browsing alerts are disabled', async () => {
+    const store = riskStore(), sources = await store.sources();
+    let finish!: (value: typeof sources) => void;
+    let entered!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const spy = vi.spyOn(store, 'sources').mockImplementationOnce(() => {
+      entered(); return new Promise(resolve => { finish = resolve; });
+    });
+    try {
+      const pending = commit(7, 'https://login-example-support.com/');
+      await started;
+      await applyBrowsing('off');
+      finish(sources);
+      await pending;
+      expect(shown(7)).toBeNull();
+      expect(session[RISK_RECENT_ALERTS_KEY]).toEqual({});
+    } finally { spy.mockRestore(); }
+  });
+
+  it('clears a warning when the same tab navigates to a non-web page', async () => {
+    await commit(7, 'https://login-example-support.com/');
+    await commit(7, 'chrome://newtab/');
+    expect(shown(7)).toBeNull();
+    expect(session[RISK_RECENT_ALERTS_KEY]).toEqual({});
   });
 
   it('says what the lists call the page, and changes when another list names it', async () => {

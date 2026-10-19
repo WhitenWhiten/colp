@@ -1,3 +1,4 @@
+import { BookmarkApiError } from './bookmark-api-error.js';
 import { pullDeferral } from './pull-deferral.js';
 import { projectNativeWaits } from './native-wait.js';
 import { setsAsidePullItem, syncFailureCode, classifySyncFailure } from './sync-failure-class.js';
@@ -128,19 +129,27 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
  * anything is set aside with that node; the rest of the page applies and the
  * cursor moves on. Only an event that entered this pass staged or prepared
  * qualifies, and it must still be in one of those states at failure. A started
- * browser call may already have changed the browser in this or an earlier pass. Any other failure keeps its class (`freezesPull` or retry).
+ * browser call may already have changed the browser in this or an earlier pass.
+ * An explicit managed-bookmark rejection of a single content update can also
+ * settle a started call; the store still refuses any success or partial-effect
+ * evidence. Uncertain creates and subtree mutations never use this exception.
+ * Any other failure keeps its class (`freezesPull` or retry).
  * Returns true when the event is settled.
  */
 export async function setAsideFailedPullItem(options: PullApplierOptions,
   entered: { readonly eventId?: unknown; readonly state?: unknown }, event: OpEvent, error: unknown,
   now: number): Promise<boolean> {
-  const code = syncFailureCode(error);
+  const nativeRejection = event.effect.kind === 'node_content_updated' && error instanceof BookmarkApiError
+    && error.failureClass === 'managed_not_writable' ? 'managed_not_writable' as const : undefined;
+  const code = nativeRejection ?? syncFailureCode(error);
   const subject = subjectOf(event); const eventId = String(entered.eventId);
-  if (!subject || !setsAsidePullItem(code, { nodeId: subject.nodeId, eventId }) || !['staged', 'intent_prepared'].includes(String(entered.state))) return false;
+  if (!subject || (!nativeRejection && (!setsAsidePullItem(code, { nodeId: subject.nodeId, eventId })
+      || !['staged', 'intent_prepared'].includes(String(entered.state))))) return false;
   const current = await options.store.getPullEvent(options.scope, eventId);
-  if (!current || !['staged', 'intent_prepared'].includes(String(current.state))) return false;
+  if (!current || !(nativeRejection ? ['staged', 'intent_prepared', 'browser_call_started']
+    : ['staged', 'intent_prepared']).includes(String(current.state))) return false;
   const title = typeof subject.node?.title === 'string' ? subject.node.title : undefined;
-  await options.store.setAsidePullEvent(options.scope, eventId, { code, nodeId: subject.nodeId, now,
+  await options.store.setAsidePullEvent(options.scope, eventId, { code, nodeId: subject.nodeId, now, ...(nativeRejection ? { nativeRejection } : {}),
     ...(title ? { title } : {}) });
   return true;
 }

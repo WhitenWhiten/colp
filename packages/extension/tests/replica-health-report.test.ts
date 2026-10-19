@@ -90,6 +90,36 @@ describe('replica health report', () => {
       setResponse: (value: (body: any) => Response) => { respond = value; } };
   }
 
+  test('diagnostic storage failure sends a minimal report and later clears it after recovery', async () => {
+    const h = await harness();
+    try {
+      const failedStore = { ...h.fixture.store, listPullIssues: async () => { throw new Error('indexeddb_unavailable'); } };
+      assert.equal(await sendReplicaHealthReport({ ...h.deps(), store: failedStore }), 'sent');
+      assert.deepEqual([h.bodies()[0]!.state, h.bodies()[0]!.code, h.bodies()[0]!.actions],
+        ['stopped', 'sync_diagnostics_unavailable', []]);
+      h.clock.now += 1_000;
+      assert.equal(await sendReplicaHealthReport(h.deps()), 'sent');
+      assert.equal(h.bodies()[1]!.state, 'syncing');
+    } finally { h.fixture.store.close(); }
+  });
+
+  test('an unsent diagnostic failure survives recovery until the server accepts it', async () => {
+    const h = await harness();
+    try {
+      const failedStore = { ...h.fixture.store, listPullIssues: async () => { throw new Error('indexeddb_unavailable'); } };
+      h.setResponse(() => new Response('{}', { status: 503 }));
+      assert.equal(await sendReplicaHealthReport({ ...h.deps(), store: failedStore }), 'failed');
+      h.setResponse(body => new Response(JSON.stringify({ replicaId: body.replicaId, revision: body.revision, accepted: true, commands: [] }),
+        { headers: { 'Content-Type': 'application/json' } }));
+      h.clock.now += 60_000;
+      assert.equal(await sendReplicaHealthReport(h.deps()), 'sent');
+      assert.equal(h.bodies()[1]!.code, 'sync_diagnostics_unavailable');
+      h.clock.now += 1_000;
+      assert.equal(await sendReplicaHealthReport(h.deps()), 'sent');
+      assert.equal(h.bodies()[2]!.state, 'syncing');
+    } finally { h.fixture.store.close(); }
+  });
+
   test('a frozen engine makes no sync request; its only request is the report naming why it stopped', async () => {
     const h = await harness();
     await freezeScopeRecovery(h.fixture.store, scope, 'create_placement_unproven', () => h.fixture.clock.now);

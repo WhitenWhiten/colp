@@ -1,6 +1,12 @@
 import { expect, test } from 'vitest'
 import { stopReason, commandNote, issueSummary } from './health'
 
+test('diagnostic failures and browser-managed nodes have actionable human-readable reasons', () => {
+  expect(stopReason('sync_diagnostics_unavailable')).toContain('retry reporting automatically')
+  expect(issueSummary({ issueId: 'i', direction: 'pull', count: 1, firstSeenAt: 'now', lastSeenAt: 'now',
+    code: 'managed_not_writable', actions: [] })).toContain('managed by the browser')
+})
+
 test('global issue ceiling explains the stop without claiming bookmarks are missing', () => {
   expect(stopReason('sync_issue_ceiling')).toBe('it has too many unresolved items to keep syncing safely.')
 })

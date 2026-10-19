@@ -4,6 +4,8 @@ import { describe, test } from 'vitest';
 import { replicaIssuesFromPull } from '../src/sw/replica-health-report.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 import { installKns05IndexedDb, scope, setup } from './kns-05-pull-harness.js';
+import { BookmarkApiError } from '../src/bookmark-api-error.js';
+import { pullAckWarnings } from '../src/pull-item-set-aside.js';
 
 installKns05IndexedDb();
 
@@ -13,6 +15,45 @@ const create = (sequence: number, input: { kind?: 'Bookmark' | 'Folder'; title?:
     parentId: input.parentId ?? 'root-colp', ...(input.title ? { title: input.title } : {}) });
 
 describe('C2 a remote record this browser cannot store is one item, not a stop', () => {
+  test('a managed bookmark update is held with evidence while siblings and later pages advance', async () => {
+    const f = await setup();
+    try {
+      const update = f.api.update.bind(f.api);
+      f.api.update = async (id, changes) => {
+        if (id === 'native-node') throw new BookmarkApiError('managed_not_writable', "Can't modify a managed bookmark.");
+        return update(id, changes);
+      };
+      const change = (sequence: number) => pullFixtures.mutationEvent({ kind: 'update', sequence,
+        collectionId: scope.collectionId, targetId: 'node-1', parentId: 'root-colp' });
+      await f.applier.stage(f.page([change(91), create(92)], 'cursor-managed-1'));
+      await f.applier.resume();
+      assert.ok(await f.store.getMappingByColpId(scope, 'node-created-92'));
+      assert.equal(f.api.getNode('native-node')?.title, 'node-1');
+      assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-managed-1');
+      assert.deepEqual((await f.store.listPullIssues(scope)).map(row => [row.nodeId, row.code]), [['node-1', 'managed_not_writable']]);
+      assert.equal((await pullAckWarnings(f.store, scope))[0]?.nodeId, 'node-1');
+      const intent = (await f.store.listApplyIntents(scope)).find(row => row.apiResultEvidence?.nativeRejection);
+      assert.equal(intent?.apiResultEvidence?.nativeRejection, 'managed_not_writable');
+      // A later change to the held node follows its issue; an independent page still advances.
+      await f.applier.stage(f.page([change(93), create(94)], 'cursor-managed-2'));
+      await f.applier.resume();
+      assert.ok(await f.store.getMappingByColpId(scope, 'node-created-94'));
+      assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-managed-2');
+    } finally { f.store.close(); }
+  });
+
+  test('global permission loss does not get acknowledged as a managed-node rejection', async () => {
+    const f = await setup();
+    try {
+      f.api.update = async () => { throw new BookmarkApiError('permission_denied', 'Permission revoked'); };
+      await f.applier.stage(f.page([pullFixtures.mutationEvent({ kind: 'update', sequence: 91,
+        collectionId: scope.collectionId, targetId: 'node-1', parentId: 'root-colp' }), create(92)], 'cursor-denied'));
+      await assert.rejects(f.applier.resume(), /Permission revoked/);
+      assert.deepEqual(await f.store.listPullIssues(scope), []);
+      assert.notEqual((await f.store.getCursor(scope))?.cursor, 'cursor-denied');
+    } finally { f.store.close(); }
+  });
+
   test('a bookmark with a title too long to store is set aside while the rest of the page applies', async () => {
     const fixture = await setup();
     await fixture.applier.stage(fixture.page([create(91), create(92, { title: LONG }), create(93)], 'cursor-1'));

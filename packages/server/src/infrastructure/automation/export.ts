@@ -4,7 +4,7 @@ import type { DatabaseSchema } from '../database/runtime.js';
 import { createPostgresCollectionExportReadPort } from '../collections/collection-export-postgres.js';
 import { buildAutomationExport } from '../../modules/automation/index.js';
 
-/** Owner-private export; folder paths are non-authoritative installation hints only. */
+/** Owner-private export of current configuration (archived history does not consume a rule slot); folder paths are non-authoritative installation hints only. */
 export async function exportAutomations(db: Kysely<DatabaseSchema>, ownerId: string): Promise<AutomationExport> {
   if (!db.isTransaction) return db.transaction().setIsolationLevel('repeatable read').execute((tx) => exportAutomations(tx, ownerId));
   const owner = await db.selectFrom('accounts').select(['subject_id', 'status']).where('id', '=', ownerId).executeTakeFirst();
@@ -14,7 +14,7 @@ export async function exportAutomations(db: Kysely<DatabaseSchema>, ownerId: str
     .innerJoin('automation_binding_sets as b', 'b.id', 'v.binding_set_id')
     .innerJoin('automation_binding_revisions as br', (join) => join.onRef('br.binding_set_id', '=', 'b.id').onRef('br.revision', '=', 'b.current_revision'))
     .select(['v.definition_json', 'r.desired_state', 'br.values_json']).where('r.owner_id', '=', ownerId)
-    .where('b.owner_id', '=', ownerId).orderBy('r.created_at').orderBy('r.id').limit(501).execute();
+    .where('b.owner_id', '=', ownerId).where('r.desired_state', '!=', 'archived').orderBy('r.created_at').orderBy('r.id').limit(501).execute();
   const reads = createPostgresCollectionExportReadPort(db);
   const rows = [];
   for (const row of rules) {

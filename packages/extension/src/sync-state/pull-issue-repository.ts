@@ -8,7 +8,7 @@ import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { SyncStateError, type MappingInput, type SyncScope, type UnknownRecord, type BookmarkEventRecord } from './types.js';
 
-/** A remote node this browser could not take in. Its events were committed without touching the browser. */
+/** A remote node this browser could not take in. Its events retain the reason native application was skipped or rejected. */
 export interface PullIssueRecord {
   readonly nodeId: string;
   readonly code: string;
@@ -66,6 +66,8 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
   async function setAsidePullEvent(input: SyncScope, eventId: string, issue: {
     readonly code: string; readonly nodeId: string; readonly title?: string;
     readonly conflictOpIds?: readonly string[];
+    /** A typed browser rejection of a single idempotent update, never an uncertain create or subtree mutation. */
+    readonly nativeRejection?: 'managed_not_writable';
     readonly now: number;
   }): Promise<void> {
     ctx.assertWritable(); const key = scopeKey(validateScope(input));
@@ -77,7 +79,10 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
       STORES.diagnostics], 'readwrite', async (tx) => {
         await requireActiveScope(tx, key); const events = tx.objectStore(STORES.pullEvents);
         const event = await requestValue(events.get([key, boundedString(eventId, 'eventId')])) as UnknownRecord | undefined;
-        if (!event || !SET_ASIDE_STATES.has(String(event.state))
+        const effect = (event?.payload as { effect?: { kind?: string; node?: { id?: string } } } | undefined)?.effect;
+        const rejectedUpdate = issue.nativeRejection === 'managed_not_writable' && code === issue.nativeRejection
+          && effect?.kind === 'node_content_updated' && effect.node?.id === nodeId;
+        if (!event || !(SET_ASIDE_STATES.has(String(event.state)) || rejectedUpdate && event.state === 'browser_call_started')
             || event.apiResultEvidence || event.nativeEventEvidence
             || ['pendingMappings', 'pendingObservations', 'pendingDeleteNativeIds'].some(field =>
               Array.isArray(event[field]) && (event[field] as unknown[]).length > 0)) {
@@ -87,15 +92,15 @@ export function createPullIssueRepository(ctx: SyncStoreRuntime) {
           const intents = tx.objectStore(STORES.intents);
           const intent = await requestValue(intents.get([key, event.intentId])) as UnknownRecord | undefined;
           if (intent && (intent.apiResultEvidence || intent.nativeEventEvidence
-            || intent.apiPhase === 'browser_call_started' || intent.nativeResult === 'applied_with_evidence'
-            || intent.replayState === 'started' || intent.replayState === 'awaiting_receipt')) {
+            || (!rejectedUpdate && (intent.apiPhase === 'browser_call_started' || intent.replayState === 'started'))
+            || intent.nativeResult === 'applied_with_evidence' || intent.replayState === 'awaiting_receipt')) {
             throw new SyncStateError('pull_event_state_invalid');
           }
           if (intent) intents.put({ ...intent, state: 'authority_committed', apiPhase: 'authority_committed',
-            apiResultEvidence: { setAside: code } });
+            apiResultEvidence: { setAside: code, ...(rejectedUpdate ? { nativeRejection: issue.nativeRejection } : {}) } });
         }
         const committed = { ...event, state: 'authority_committed', pendingMappings: [], pendingObservations: [],
-          pendingDeleteNativeIds: [], apiResultEvidence: { setAside: code, nodeId } };
+          pendingDeleteNativeIds: [], apiResultEvidence: { setAside: code, nodeId, ...(rejectedUpdate ? { nativeRejection: issue.nativeRejection } : {}) } };
         events.put(committed); putPullTerminalFacts(tx, key, committed);
         await putPullIssueFact(tx, key, { code, nodeId, eventId, ...(title ? { title } : {}),
           ...(conflictOpIds?.length ? { conflictOpIds } : {}), now });

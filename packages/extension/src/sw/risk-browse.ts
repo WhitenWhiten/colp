@@ -32,6 +32,7 @@ async function readRecent(): Promise<Recent> {
 }
 /** One change to the tabs' badges at a time, so two commits in a row read each other's write. */
 const exclusive = createLane();
+const navigations = new Map<number, symbol>();
 function changeRecent<T>(change: (recent: Recent) => { readonly next: Recent | null; readonly result: T }): Promise<T> {
   return exclusive(async () => {
     const { next, result } = change(await readRecent());
@@ -56,23 +57,29 @@ async function badge(tabId: number, on: boolean): Promise<void> {
 
 /** One main-frame commit: true when the tab now shows the badge. */
 export async function handleCommitted(details: chrome.webNavigation.CommitDetails, now = Date.now()): Promise<boolean> {
-  if (details.frameId !== 0 || details.tabId < 0 || !/^https?:/u.test(details.url)) return false;
+  if (details.frameId !== 0 || details.tabId < 0) return false;
+  const token = Symbol();
+  navigations.set(details.tabId, token);
+  const current = () => navigations.get(details.tabId) === token;
   const store = riskStore(), settings = await store.settings();
-  if (settings.mode !== 'onSaveAndBrowse') return false;
-  const matches = checkRisk(details.url, await store.sources(), { now, exceptions: [...settings.exceptions, ...await riskExceptions()] })
-    .filter((match) => !match.expired && match.freshness !== 'outOfDate');
+  if (settings.mode !== 'onSaveAndBrowse' || !current()) return false;
+  const matches = /^https?:/u.test(details.url)
+    ? checkRisk(details.url, await store.sources(), { now, exceptions: [...settings.exceptions, ...await riskExceptions()] })
+      .filter((match) => !match.expired && match.freshness !== 'outOfDate') : [];
   let host: string | null = null;
-  try { host = normalizeHost(new URL(details.url).hostname) ?? null; } catch { /* not checked above */ }
-  if (!matches.length || !host) {
-    // Only a tab whose badge was on has one to take off.
-    const had = await changeRecent((recent) => ({ next: forget(recent, details.tabId), result: String(details.tabId) in recent }));
-    if (had) await badge(details.tabId, false);
-    return false;
-  }
-  const next: RecentAlert = { domain: registrableDomain(host) ?? host, kind: [...new Set(matches.map((match) => match.kind))].sort().join(','), at: now };
-  await changeRecent((recent) => ({ next: { ...recent, [details.tabId]: next }, result: undefined }));
-  await badge(details.tabId, true);
-  return true;
+  try { host = normalizeHost(new URL(details.url).hostname) ?? null; } catch { /* non-web page */ }
+  const next: RecentAlert | null = matches.length && host ? { domain: registrableDomain(host) ?? host,
+    kind: [...new Set(matches.map((match) => match.kind))].sort().join(','), at: now } : null;
+  // Serialize publication, including the badge call, and discard superseded reads.
+  return exclusive(async () => {
+    const recent = await readRecent();
+    if (!current()) return false;
+    const changed = next ? { ...recent, [details.tabId]: next } : forget(recent, details.tabId);
+    if (changed) await chrome.storage.session.set({ [RISK_RECENT_ALERTS_KEY]: changed });
+    if (!current()) return false;
+    if (next || changed) await badge(details.tabId, next !== null);
+    return next !== null;
+  });
 }
 
 const onCommitted = (details: chrome.webNavigation.CommitDetails) => { void handleCommitted(details).catch(() => false); };
@@ -80,12 +87,17 @@ const navigation = () => (chrome as { webNavigation?: typeof chrome.webNavigatio
 
 /** Listening follows the mode: on with *while I browse* and the permissions granted, otherwise off with every badge cleared. */
 export async function applyBrowsing(mode: RiskMode): Promise<void> {
+  if (mode !== 'onSaveAndBrowse') navigations.clear();
   const events = navigation()?.onCommitted;
   const browse = mode === 'onSaveAndBrowse' && Boolean(events) && await chrome.permissions.contains({ permissions: BROWSE_PERMISSIONS }).catch(() => false);
   if (browse) { if (!events!.hasListener(onCommitted)) events!.addListener(onCommitted); return; }
+  navigations.clear();
   events?.removeListener(onCommitted);
-  const tabs = await changeRecent((recent) => ({ next: {}, result: Object.keys(recent) }));
-  await Promise.all(tabs.map((tab) => badge(Number(tab), false)));
+  await exclusive(async () => {
+    const tabs = Object.keys(await readRecent());
+    await chrome.storage.session.set({ [RISK_RECENT_ALERTS_KEY]: {} });
+    await Promise.all(tabs.map((tab) => badge(Number(tab), false)));
+  });
 }
 
 /**
@@ -97,6 +109,7 @@ export function installRiskBrowsing(): void {
   onRiskMode(applyBrowsing);
   void riskStore().settings().then((settings) => applyBrowsing(settings.mode)).catch(() => undefined);
   chrome.tabs.onRemoved.addListener((tabId) => {
+    navigations.delete(tabId);
     void changeRecent((recent) => ({ next: forget(recent, tabId), result: undefined })).catch(() => undefined);
   });
   chrome.permissions.onRemoved.addListener((removed) => {

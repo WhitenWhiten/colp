@@ -148,14 +148,19 @@ export async function sendReplicaHealthReport(deps: ReplicaHealthReporterDeps): 
   const delivery = await createHealthDelivery({ scope: deps.scope, storage: deps.storage, now: deps.now,
     post: (body, scope) => post({ ...deps, scope }, body), receiptTimeoutMilliseconds: deps.requestTimeoutMilliseconds, archive: deps.store.exportArchive });
   deps = { ...deps, storage: delivery.storage };
-  const projection = await readProjection(deps);
+  const stored = (await deps.storage.get(REPLICA_HEALTH_RECORD_KEY))[REPLICA_HEALTH_RECORD_KEY] as SentRecord | undefined;
+  const record: SentRecord = stored?.replicaId === deps.scope.replicaId ? stored : { replicaId: deps.scope.replicaId };
+  // Diagnostics use IndexedDB; delivery uses the separate Chrome storage journal.
+  // Preserve an unsent diagnostic failure even if IndexedDB recovers before retry.
+  const unavailable: ReplicaHealthProjection = { state: 'stopped', code: 'sync_diagnostics_unavailable',
+    issues: { total: 0, items: [] }, actions: [] };
+  const projection = record.failed && record.observed?.code === unavailable.code ? unavailable
+    : await readProjection(deps).catch(() => unavailable);
   // Times are display facts: a report that only moved a clock is not a change.
   const digest = digestJson({ state: projection.state, code: projection.code ?? null, total: projection.issues.total,
     items: projection.issues.items.map((item) => [item.issueId, item.code, item.title ?? null, item.count, ...item.actions]),
     actions: [...projection.actions] });
   const now = deps.now();
-  const stored = (await deps.storage.get(REPLICA_HEALTH_RECORD_KEY))[REPLICA_HEALTH_RECORD_KEY] as SentRecord | undefined;
-  const record: SentRecord = stored?.replicaId === deps.scope.replicaId ? stored : { replicaId: deps.scope.replicaId };
   const same = record.observed?.state === projection.state && record.observed.code === projection.code;
   const observed = same && record.observed && Number.isFinite(record.observed.since) ? record.observed
     : { state: projection.state, ...(projection.code ? { code: projection.code } : {}), since: now };

@@ -55,7 +55,7 @@ async function importConfig(command: Extract<BrowserConfigCommand, { kind: 'know
     writes[keys.local] = local;
   }
   const entries = made.entries.filter((entry) => entry.kind !== 'subscription' || !left.has(entry.subscriptionId));
-  const result = await browserRuleStore().importEntries(entries, command.replace, { writes, dropped: subscriptionKeyList });
+  const result = await browserRuleStore().importEntries(entries, command.replace, { writes, dropped: subscriptionKeyList, enabled: config.list.enabled });
   if (!result.ok) return result;
   // Risk lists and exceptions are added beside what is here; the file's mode is taken only with its list (sw/risk.ts).
   const riskLists = config.risk ? await importRiskConfig(config.risk, { takeMode: command.replace }, now) : 0;
