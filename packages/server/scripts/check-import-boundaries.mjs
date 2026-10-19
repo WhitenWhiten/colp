@@ -609,6 +609,8 @@ const transportTargets = new Set([
   'modules/automation/index.ts',
   'transport/product/automation-rule-routes.ts',
   'transport/product/automation-pagination.ts',
+  // Dependency-free page-limit parser shared by product routes.
+  'transport/product/query-limit.ts',
   'transport/product/automation-health-routes.ts',
   'transport/product/automation-policy-routes.ts',
   'transport/product/automation-job-routes.ts',

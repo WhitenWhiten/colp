@@ -16,6 +16,7 @@ import { productErrorStatus } from '../product-codes.js';
 import { ProductHttpError } from '../product-error.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
 import { requireSessionActor } from '../session-auth.js';
+import { parseProductLimit } from './query-limit.js';
 
 const ROUTE = '/api/v1/me/shared-collections';
 const KINDS = new Set(['bookmarks', 'reading_path', 'knowledge_collection', 'mixed']);
@@ -78,8 +79,9 @@ function parseSharedQuery(request: FastifyRequest): {
     result.visibility = query.visibility as SharedCollectionFact['visibility'];
   }
   if (present('limit')) {
-    if (typeof query.limit !== 'string' || !/^(?:[1-9]|[1-9][0-9]|100)$/u.test(query.limit)) throw invalidQuery();
-    result.limit = Number(query.limit);
+    const limit = parseProductLimit(query.limit, 100);
+    if (!limit.ok || limit.value === undefined) throw invalidQuery();
+    result.limit = limit.value;
   }
   return result;
 }

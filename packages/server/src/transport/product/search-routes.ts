@@ -19,6 +19,7 @@ import { productErrorStatus } from '../product-codes.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
 import { negotiatePublicationRead } from './publication-read-negotiation.js';
 import type { SearchRateLimiter, SearchRateLimitSubject } from '../../infrastructure/rate-limit/index.js';
+import { parseProductLimit } from './query-limit.js';
 
 const SEARCH_CURSOR_MAX_LENGTH = 4_096;
 
@@ -245,9 +246,9 @@ function parseSearchQuery(query: Record<string, string | readonly string[]>): {
   const types = Object.freeze(ALL_TYPES.filter((type) => selected.has(type)));
   let pageSize: number | undefined;
   if (query.limit !== undefined) {
-    if (typeof query.limit !== 'string' || !/^[1-9][0-9]*$/u.test(query.limit)) throw invalidQuery();
-    pageSize = Number(query.limit);
-    if (!Number.isSafeInteger(pageSize) || pageSize > 100) throw invalidQuery();
+    const limit = parseProductLimit(query.limit, 100);
+    if (!limit.ok || limit.value === undefined) throw invalidQuery();
+    pageSize = limit.value;
   }
   let cursor: string | undefined;
   if (query.cursor !== undefined) {

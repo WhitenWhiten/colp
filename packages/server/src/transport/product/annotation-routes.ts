@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { parseProductLimit } from './query-limit.js';
 import {
   ANNOTATION_PAGE_MAX_LIMIT,
   AnnotationCreateError,
@@ -205,11 +206,9 @@ function parseSubjectPaging(query: Record<string, string>) {
     if (query.cursor.length === 0 || query.cursor.length > 2048) throw invalidCursor();
     return { ...subject, cursor: query.cursor };
   }
-  if (query.limit === undefined) return subject;
-  if (!/^[1-9][0-9]*$/u.test(query.limit)) throw invalidQuery();
-  const limit = Number(query.limit);
-  if (!Number.isInteger(limit) || limit > ANNOTATION_PAGE_MAX_LIMIT) throw invalidQuery();
-  return { ...subject, limit };
+  const parsed = parseProductLimit(query.limit, ANNOTATION_PAGE_MAX_LIMIT);
+  if (!parsed.ok) throw invalidQuery();
+  return parsed.value === undefined ? subject : { ...subject, limit: parsed.value };
 }
 
 function parseCreateBody(value: unknown): Omit<ProductAnnotationCreateInput, 'subject'> {

@@ -11,6 +11,7 @@ import { productRouteMetadata } from '../product-route-manifest.js';
 import { requireSessionActor } from '../session-auth.js';
 import { requireMutationActor } from '../mutation-actor.js';
 import { registerProductSyncTrashRoutes } from './product-sync-trash-routes.js';
+import { parseProductLimit } from './query-limit.js';
 
 const STATUS = '/api/v1/sync/status'; const CONFLICTS = '/api/v1/sync/conflicts';
 const RESOLUTION = '/api/v1/sync/conflicts/:conflictId/resolution'; const REPLICA = '/api/v1/sync/replicas/:replicaId';
@@ -31,7 +32,11 @@ export function registerProductSyncCenterRoutes(app: FastifyInstance, deps: Prod
     const { account } = await requireSessionActor(request, deps.identityUnitOfWork, { touch: false });
     const query = request.query as Record<string,string>; let limit = 20;
     if (query.cursor !== undefined && (query.limit !== undefined || query.cursor.length < 1 || query.cursor.length > 2048)) throw invalidQuery();
-    if (query.limit !== undefined) { if (!/^[1-9][0-9]*$/u.test(query.limit) || Number(query.limit) > 100) throw invalidQuery(); limit = Number(query.limit); }
+    if (query.limit !== undefined) {
+      const parsedLimit = parseProductLimit(query.limit, 100);
+      if (!parsedLimit.ok || parsedLimit.value === undefined) throw invalidQuery();
+      limit = parsedLimit.value;
+    }
     try { return reply.code(200).type('application/json; charset=utf-8').send(await deps.unitOfWork.execute((ports) =>
       ports.getConflicts({ accountId: account.id, limit, ...(query.cursor ? { cursor: query.cursor } : {}) })));
     } catch (error) { if (code(error) === 'invalid_cursor') throw new ProductHttpError({ statusCode: 400, code: 'invalid_cursor',

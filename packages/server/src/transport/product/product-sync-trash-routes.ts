@@ -10,6 +10,7 @@ import { productRouteMetadata } from '../product-route-manifest.js';
 import { requireSessionActor } from '../session-auth.js';
 import { requireMutationActor } from '../mutation-actor.js';
 import { registerProductSyncTrashBatchRoutes } from './product-sync-trash-batch-routes.js';
+import { parseProductLimit } from './query-limit.js';
 
 const LIST = '/api/v1/sync/trash';
 const ITEM = '/api/v1/sync/trash/:deletionId';
@@ -38,8 +39,9 @@ export function registerProductSyncTrashRoutes(app: FastifyInstance, deps: Produ
       throw invalidQuery();
     }
     if (query.limit !== undefined) {
-      if (!/^[1-9][0-9]*$/u.test(query.limit) || Number(query.limit) > 100) throw invalidQuery();
-      limit = Number(query.limit);
+      const parsedLimit = parseProductLimit(query.limit, 100);
+      if (!parsedLimit.ok || parsedLimit.value === undefined) throw invalidQuery();
+      limit = parsedLimit.value;
     }
     try {
       return reply.code(200).type('application/json; charset=utf-8').send(await deps.unitOfWork.execute((ports) =>

@@ -21,6 +21,7 @@ import { ProductHttpError } from '../product-error.js';
 import { productRouteMetadata } from '../product-route-manifest.js';
 import { requireSessionActor } from '../session-auth.js';
 import { requireMutationActor } from '../mutation-actor.js';
+import { parseProductLimit } from './query-limit.js';
 
 const ROUTE = '/api/v1/me/link-health';
 const CHECKS = '/api/v1/me/link-health/checks';
@@ -172,8 +173,9 @@ function parseLinkHealthQuery(request: FastifyRequest): {
     result.duplicate = query.duplicate === 'true';
   }
   if (present('limit')) {
-    if (typeof query.limit !== 'string' || !/^(?:[1-9]|[1-9][0-9]|100)$/u.test(query.limit)) throw invalidQuery();
-    result.limit = Number(query.limit);
+    const limit = parseProductLimit(query.limit, 100);
+    if (!limit.ok || limit.value === undefined) throw invalidQuery();
+    result.limit = limit.value;
   }
   return result;
 }

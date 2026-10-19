@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Relation } from '@know-n/colp/types';
+import { parseProductLimit } from './query-limit.js';
 import { RELATION_PAGE_MAX_LIMIT, RelationCreateError, RelationDeleteError, RelationProductReadError,
   RelationUpdateError, createRelation, deleteRelation, getProductRelation, getProductRelationPage,
   toProductRelationView, updateRelation, type CreateRelationResult, type DeleteRelationResult,
@@ -96,9 +97,9 @@ function parseList(query: Record<string, string>) {
   const parsed = { nodeId: query.nodeId, direction: query.direction as 'incoming' | 'outgoing' | 'both',
     types: enumList(query.type, types), visibilities: enumList(query.visibility, visibilities) };
   if (query.cursor !== undefined) { if (!query.cursor || query.cursor.length > 2048 || query.limit !== undefined) throw invalidQuery(); return { ...parsed, cursor: query.cursor }; }
-  if (query.limit === undefined) return parsed;
-  if (!/^[1-9][0-9]*$/u.test(query.limit) || Number(query.limit) > RELATION_PAGE_MAX_LIMIT) throw invalidQuery();
-  return { ...parsed, limit: Number(query.limit) };
+  const limit = parseProductLimit(query.limit, RELATION_PAGE_MAX_LIMIT);
+  if (!limit.ok) throw invalidQuery();
+  return limit.value === undefined ? parsed : { ...parsed, limit: limit.value };
 }
 function enumList<T extends string>(raw: string | undefined, allowed: ReadonlySet<T>): readonly T[] {
   if (raw === undefined) return []; if (!raw) throw invalidQuery(); const values = raw.split(',');
