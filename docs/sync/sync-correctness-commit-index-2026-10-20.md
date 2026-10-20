@@ -1,6 +1,6 @@
 # 同步审计逐任务提交索引 — 2026-10-20
 
-此索引覆盖集成基线 `a7800c8877edb51179a6137376834bb02b3ed03a` 之后、审查代码提交 `0922c112bd649f5e0ddf75d7ee6c319579359b86` 为止的 **269 个独立提交**。提交数包括复现、产品修复、补测、审查后修正和发布检查，不代表相同数量的独立缺陷。生成此索引的文档提交不包含在计数内。
+此索引覆盖集成基线 `a7800c8877edb51179a6137376834bb02b3ed03a` 之后、审查代码提交 `0922c112bd649f5e0ddf75d7ee6c319579359b86` 为止、沿第一父链追踪的 **269 个独立提交**。提交数包括复现、产品修复、补测、审查后修正和发布检查，不代表相同数量的独立缺陷。5 个保留的既有 PR 分支提交单列于末尾附录；报告和文档校正提交也不包含在上表计数内。
 
 每项 S01–S25 均有单独的主修复提交；多个任务共享的后续边界修复列出全部相关编号。未在标题中标记编号的独立审查测试，按验证行为归入对应任务。原始失败复现和后续修正分别保留，没有 squash。
 
@@ -36,7 +36,7 @@
 
 相关提交可交叉归属，不能把各行相加作为总提交数。
 
-## 完整线性提交序列
+## 本轮第一父链提交序列
 
 | 序号 | 任务 | 提交 | 提交主题 |
 |---:|---|---|---|
@@ -309,3 +309,16 @@
 | 267 | S07 | [fd6a05b377d2](https://github.com/WhitenWhiten/colp/commit/fd6a05b377d2ab804b5dafc00bbcf480956e0a30) | [S07][R5] preserve concurrent invocation facts at move call admission |
 | 268 | S07 | [e75aafcc7f71](https://github.com/WhitenWhiten/colp/commit/e75aafcc7f718ccc61286ca2e71d815d2ebdb387) | [S07][R5] classify a competing move start as a retryable CAS |
 | 269 | S07 | [0922c112bd64](https://github.com/WhitenWhiten/colp/commit/0922c112bd649f5e0ddf75d7ee6c319579359b86) | [S07][R5] preserve captured title and URL edits across move retries |
+
+
+## 保留的既有 PR 分支历史
+
+首次集成提交 a798a996 保留第二父分支的以下 5 个提交。它们不属于上表的本轮主线任务计数，但属于 Git 从 main 比较到 PR 的完整可达历史。源码提交 0922c112 的完整图差异因此为 274 个提交：本轮追踪的 269 个，加上这里保留的 5 个。后续报告及文档校正提交另计。
+
+| 既有提交 | 原提交主题 |
+|---|---|
+| [807412864045](https://github.com/WhitenWhiten/colp/commit/80741286404568cd7e65218617f9ce3bed01c9a5) | fix(extension): reject unsuccessful range confirmations (#20) |
+| [aadf11772860](https://github.com/WhitenWhiten/colp/commit/aadf11772860a9cdba9aacd820f9dd6f02d9f1f0) | chore(sync-audit): prepare reproducible offline validation workspace |
+| [5627640bccba](https://github.com/WhitenWhiten/colp/commit/5627640bccba0cb248bda3126d528ee7b4d1742f) | chore(sync-audit): provision real PostgreSQL and Chromium test binaries |
+| [13988261d6b4](https://github.com/WhitenWhiten/colp/commit/13988261d6b43c8bf066976fe00bd28a0b245d65) | chore(sync-audit): install lease-checked commit delivery |
+| [88b8d2955cc4](https://github.com/WhitenWhiten/colp/commit/88b8d2955cc4bd717297ff04b097fffd449c2d68) | [S22] Remove three temporary audit workflows |
