@@ -41,7 +41,8 @@ async function setup(materialized = false) {
   expect(worker.bookmarkListenerLifecycle.install()).toBe(true);
   const { createPullApplier } = await import('../src/pull-applier.js');
   const { createChromePullBookmarkApi } = await import('../src/pull-bookmark-api.js');
-  const applier = () => createPullApplier({ scope, store, api: createChromePullBookmarkApi(),
+  const applier = (crash?: (boundary: string) => void) => createPullApplier({ scope, store, api: createChromePullBookmarkApi(),
+    ...(crash ? { crash } : {}),
     session: { acceptedProtocolVersion: '0.2', sessionId: 'root-create-events', collectionId: scope.collectionId,
       conversionPolicy: { separator: 'preserve_remote' } },
     effectPageTemplate: `${scope.serverOrigin}/effects/{effectId}/pages/{pageNumber}`, effectPageAuthority: scope.serverOrigin });
@@ -191,12 +192,44 @@ test.each(['ordinary', 'child'] as const)('%s competing candidates never prove a
   expect(before?.nativeEventEvidence).toMatchObject({ nativeId: race.manualId });
   expect(before?.apiResultEvidence ?? null).toBeNull();
   create.mockRestore(); f.store.close(); await f.store.open();
-  if (f.materialized) await expect(f.applier().resume()).rejects.toThrow('native_result_unknown');
-  else await f.applier().resume(); // Ordinary creates park their own item and can publish the rest of the page.
+  await expect(f.applier().resume()).rejects.toThrow('native_result_unknown');
   const wait = (await f.send({ kind: 'known.nativeWait.list' })).waits.find((row: { intentId: string }) => row.intentId === race.intentId);
   expect(wait).toMatchObject({ intentId: race.intentId });
   expect((await f.store.getApplyIntent(f.scope, race.intentId))?.nativeResultConfirmation?.kind).toBe('unknown');
   expect(await f.store.getMappingByNativeId(f.scope, ownId)).toBeNull();
   expect(await f.store.getMappingByNativeId(f.scope, race.manualId)).toBeNull();
   expect(f.api.calls.filter(call => call.kind === 'create')).toHaveLength(f.materialized ? 3 : 2);
+  expect(wait.candidates).toContainEqual({ nativeId: race.manualId });
+  expect(await f.send({ kind: 'known.nativeWait.confirm', action: 'bind', userGesture: true,
+    waitRef: wait.waitRef, intentId: wait.intentId, generation: wait.generation, nativeId: race.manualId }))
+    .toMatchObject({ ok: true, result: 'bound' });
+  await f.applier().resume();
+  expect((await f.store.getMappingByColpId(f.scope, f.colpId))?.nativeId).toBe(race.manualId);
+  expect((await f.store.getApplyIntent(f.scope, race.intentId))?.nativeResultConfirmation)
+    .toEqual({ kind: 'candidate_event', nativeId: race.manualId });
+  expect(f.api.getNode(ownId)).toBeDefined();
+  expect(f.api.calls.filter(call => call.kind === 'create')).toHaveLength(f.materialized ? 3 : 2);
+});
+
+test('a real API receipt wins over the earlier manual candidate after interruption and reopen', async () => {
+  const f = await setup(); const race = await manualDuringFinalRead(f); let ownId = '';
+  vi.spyOn(chrome.bookmarks, 'create').mockImplementation(async details => {
+    ownId = (await race.rawCreate(details)).id; await f.emitCreated(ownId);
+    return f.api.getNode(ownId) as unknown as chrome.bookmarks.BookmarkTreeNode;
+  });
+  await expect(f.applier(boundary => {
+    if (boundary === 'after_evidence_before_mapping') throw new Error('worker_crash');
+  }).resume()).rejects.toThrow('worker_crash');
+  const partial = await f.store.getApplyIntent(f.scope, race.intentId);
+  expect(partial?.nativeEventEvidence).toMatchObject({ nativeId: race.manualId });
+  expect(partial?.nativeResultConfirmation).toEqual({ kind: 'api_return', nativeId: ownId });
+  expect(await f.store.getMappingByNativeId(f.scope, ownId)).toBeNull();
+  f.store.close(); await f.store.open(); await f.applier().resume();
+  expect((await f.store.getMappingByColpId(f.scope, f.colpId))?.nativeId).toBe(ownId);
+  await f.reconcile();
+  expect((await f.store.getMappingByNativeId(f.scope, ownId))?.colpId).toBe(f.colpId);
+  expect(await f.store.listBookmarkEventsByNative(f.scope, ownId, 0, 100)).toHaveLength(0);
+  expect((await f.store.listBookmarkEventsByNative(f.scope, race.manualId, 0, 100)).filter(row => row.kind === 'create')).toHaveLength(1);
+  expect((await f.store.getApplyIntent(f.scope, race.intentId))?.nativeResultConfirmation).toEqual(partial?.nativeResultConfirmation);
+  expect(f.api.calls.filter(call => call.kind === 'create')).toHaveLength(2);
 });
