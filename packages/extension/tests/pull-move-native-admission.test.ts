@@ -27,7 +27,7 @@ test.each(['local-move', 'destination-private', 'destination-order', 'detach'] a
       .toHaveLength(changed === 'local-move' ? 1 : 0);
     expect(f.native.getNode('2')?.parentId).toBe('1');
     const intent = (await f.store.listApplyIntents(f.scope))[0]!;
-    expect(intent).toMatchObject({ state: 'intent_prepared', nativeResult: 'not_started', replayState: 'not_started',
+    expect(intent).toMatchObject({ state: 'intent_prepared', apiPhase: 'intent_prepared', nativeResult: 'not_started', replayState: 'not_started',
       anchors: { nativePreimage: { id: '2', parentId: '1', index: 1, title: 'Target' } } });
     expect(intent.apiResultEvidence).toBeNull();
     expect((await f.store.getCursor(f.scope))?.cursor).not.toBe('next');

@@ -18,7 +18,7 @@ test('a refused Pull update persists not-started and captures the exact local ti
     const events = await f.store.listPullEvents(f.scope), event = events[0]!;
     expect(event.state).toBe('intent_prepared');
     expect(await f.store.getApplyIntent(f.scope, String(event.intentId))).toMatchObject({
-      nativeResult: 'not_started', replayState: 'not_started', state: 'intent_prepared',
+      nativeResult: 'not_started', replayState: 'not_started', state: 'intent_prepared', apiPhase: 'intent_prepared',
     });
     expect((await f.store.getApplyIntent(f.scope, String(event.intentId)))?.apiResultEvidence).toBeNull();
     expect((await f.store.getCursor(f.scope))?.cursor).not.toBe('next');
@@ -72,7 +72,8 @@ test.each(['private-ancestor', 'private-identity-loss', 'detach', 'boundary-vers
     expect(await f.store.listAckIntents(f.scope)).toEqual([]);
     f.restart();
     expect((await f.store.listPullEvents(f.scope))[0]?.state).toBe('intent_prepared');
-    expect((await f.store.listApplyIntents(f.scope))[0]).toMatchObject({ nativeResult: 'not_started', replayState: 'not_started' });
+    expect((await f.store.listApplyIntents(f.scope))[0]).toMatchObject({ nativeResult: 'not_started', replayState: 'not_started',
+      apiPhase: 'intent_prepared' });
   } finally { f.close(); }
 });
 
@@ -104,6 +105,7 @@ test('a genuine raw update failure retains its started evidence and is never lab
     await expect(applier.resume()).rejects.toThrow('worker_crash');
     expect(f.native.calls).toEqual([{ kind: 'update', nativeId: '2' }]);
     expect((await f.store.listPullEvents(f.scope))[0]?.state).toBe('browser_call_started');
+    expect((await f.store.listApplyIntents(f.scope))[0]?.apiPhase).toBe('browser_call_started');
     expect((await f.store.listApplyIntents(f.scope))[0]?.replayState).not.toBe('not_started');
     f.restart(); await (await f.applier()).resume();
     expect(f.native.calls).toEqual([{ kind: 'update', nativeId: '2' }]);

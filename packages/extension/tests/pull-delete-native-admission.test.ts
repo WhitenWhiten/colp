@@ -17,7 +17,7 @@ test('a late local title refuses delete, persists not-started and survives resta
     expect(injected()).toBe(true);
     expect(f.native.calls).toEqual([{ kind: 'update', nativeId: '2' }]);
     expect((await f.store.listPullEvents(f.scope))[0]?.state).toBe('intent_prepared');
-    expect((await f.store.listApplyIntents(f.scope))[0]).toMatchObject({ state: 'intent_prepared',
+    expect((await f.store.listApplyIntents(f.scope))[0]).toMatchObject({ state: 'intent_prepared', apiPhase: 'intent_prepared',
       nativeResult: 'not_started', replayState: 'not_started',
       anchors: { deleteMemberResults: { target: 'not_started' },
         deletePreimages: { target: { nativeId: '2', title: 'Target', url: 'https://target.test/', parentId: '1' } } } });
@@ -53,7 +53,7 @@ test.each(['private', 'detach', 'local-exclusion'] as const)
     expect((await f.store.getCursor(f.scope))?.cursor).not.toBe('next');
     expect(await f.store.listAckIntents(f.scope)).toEqual([]);
     f.restart();
-    expect((await f.store.listApplyIntents(f.scope))[0]).toMatchObject({ state: 'intent_prepared',
+    expect((await f.store.listApplyIntents(f.scope))[0]).toMatchObject({ state: 'intent_prepared', apiPhase: 'intent_prepared',
       nativeResult: 'not_started', replayState: 'not_started' });
   } finally { f.close(); }
 });
@@ -72,7 +72,7 @@ test('a partial subtree delete retains its completed ledger when the remaining p
     expect(injected).toBe(true);
     expect(f.native.calls).toEqual([{ kind: 'delete', nativeId: '6' }, { kind: 'update', nativeId: '2' }]);
     expect((await f.store.listPullEvents(f.scope))[0]?.state).toBe('browser_call_started');
-    expect((await f.store.listApplyIntents(f.scope))[0]).toMatchObject({ replayState: 'started',
+    expect((await f.store.listApplyIntents(f.scope))[0]).toMatchObject({ replayState: 'started', apiPhase: 'browser_call_started',
       anchors: { deleteMemberResults: { child: 'applied', target: 'not_started' } } });
     expect((await f.store.getCursor(f.scope))?.cursor).not.toBe('next');
     expect(await f.store.listAckIntents(f.scope)).toEqual([]);
@@ -117,6 +117,7 @@ test('a later admission refusal never rewrites evidence of an older raw remove i
     expect(injected()).toBe(true); expect(remove).toHaveBeenCalledOnce();
     expect((await f.store.listPullEvents(f.scope))[0]?.state).toBe('browser_call_started');
     expect((await f.store.listApplyIntents(f.scope))[0]?.replayState).toBe('started');
+    expect((await f.store.listApplyIntents(f.scope))[0]?.apiPhase).toBe('browser_call_started');
     expect(f.native.getNode('2')?.title).toBe('After restart edit');
     expect((await f.store.getCursor(f.scope))?.cursor).not.toBe('next');
   } finally { f.close(); }
