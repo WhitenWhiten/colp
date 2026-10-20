@@ -6,18 +6,15 @@ import { KNS08_BINDINGS, confirmFirstRun, evidence, grantBookmarks, launchPersis
   login, optionsPage, runtimeMessage, specialRoots, startRealStack, terminateWorker,
   waitFirstRunProductQuiet, waitQueueQuiet, wakeEngine } from './kns-08-harness.js';
 import { showOptionsPane } from './extension-auth.js';
+import type { createSyncStateStore } from '../src/sync-state-store.js';
+
+type Export = Awaited<ReturnType<ReturnType<typeof createSyncStateStore>['exportScope']>>;
 
 test('paused native folder deletion reconciles with another browser and Keep cloud survives worker and profile restart', async () => {
   test.setTimeout(300_000);
   const stack = await startRealStack();
   const profiles = await Promise.all(['a', 'b'].map(id => mkdtemp(resolve(tmpdir(), `colp-rejoin-delete-${id}-`))));
   let a: BrowserContext | undefined; let b: BrowserContext | undefined;
-  type Export = { mappings: { nativeId: string; colpId: string }[];
-    mountBindings: { mountId: string; nativeRootId: string; status: string }[];
-    queue: { opId: string; digest: string; payload: { type: string } }[];
-    scopeCommandPlans: { commandId: string; phase: string }[];
-    remoteObservations: { colpId: string; kind: string;
-      payload: { parentId?: string; beforeId?: string | null } }[] };
   try {
     a = await launchPersistent(profiles[0]!, stack.browserHostResolverRules);
     let pageA = await optionsPage(a); await login(pageA, KNS08_BINDINGS[0]); await grantBookmarks(pageA);
@@ -68,38 +65,42 @@ test('paused native folder deletion reconciles with another browser and Keep clo
     const panel = pageA.locator('#rejoin-decisions');
     await expect(panel.locator('[data-rejoin-action="keep_remote"]')).toBeVisible({ timeout: 30_000 });
     const reviewed = await evidence<Export>(pageA, 'exportOutboundPushEvidence');
+    const frames: Record<string, ReturnType<typeof rejoinSummary>> = {
+      before: rejoinSummary(before, mount.mountId, folderA.id),
+      reviewed: rejoinSummary(reviewed, mount.mountId, folderA.id),
+    };
     await panel.locator('[data-rejoin-action="keep_remote"]').click();
     try {
       await expect.poll(() => find(pageA, 'Rejoin cloud folder'), { timeout: 60_000 }).toHaveLength(1);
+      const [restored] = await find(pageA, 'Rejoin cloud folder');
+      expect(restored!.id).not.toBe(folderA.id);
+      expect(await pageA.evaluate(id => chrome.bookmarks.getChildren(id).then(rows => rows.map(row => row.title)), restored!.id))
+        .toEqual(['Z cloud child', 'A cloud child']);
+      frames.materialized = rejoinSummary(await evidence<Export>(pageA, 'exportOutboundPushEvidence'), mount.mountId, folderA.id, restored!.id);
+      await terminateWorker(a, pageA);
+      await runtimeMessage(pageA, { kind: 'known.sync.rejoinDecisions.get' });
+      frames.workerRestart = rejoinSummary(await evidence<Export>(pageA, 'exportOutboundPushEvidence'), mount.mountId, folderA.id, restored!.id);
+      await a.close(); a = await launchPersistent(profiles[0]!, stack.browserHostResolverRules); pageA = await optionsPage(a);
+      await runtimeMessage(pageA, { kind: 'known.sync.rejoinDecisions.get' });
+      expect((await find(pageA, 'Rejoin cloud folder')).map(row => row.id)).toEqual([restored!.id]);
+      expect(await pageA.evaluate(id => chrome.bookmarks.getChildren(id).then(rows => rows.map(row => row.title)), restored!.id))
+        .toEqual(['Z cloud child', 'A cloud child']);
+      await waitQueueQuiet(pageA, stack, KNS08_BINDINGS[0]);
+      const after = await evidence<Export>(pageA, 'exportOutboundPushEvidence');
+      frames.profileRestart = rejoinSummary(after, mount.mountId, folderA.id, restored!.id);
+      expect(after.mountBindings.find(row => row.mountId === mount.mountId)?.status).toBe('active');
+      expect(after.queue.map(row => ({ opId: row.opId, digest: row.digest })))
+        .toEqual(before.queue.map(row => ({ opId: row.opId, digest: row.digest })));
+      expect((await liveCanonical(stack)).filter(row => row.url === 'https://example.test/rejoin/a')).toHaveLength(1);
+      expect((await liveCanonical(stack)).filter(row => row.url === 'https://example.test/rejoin/z')).toHaveLength(1);
     } catch (error) {
       // Preserve the actual failed choice. Reading the export cannot retry it,
       // accept a newer token, mutate native state, or manufacture a receipt.
-      const snapshot = await evidence<Record<string, unknown>>(pageA, 'exportOutboundPushEvidence');
-      const diagnostic = { feedback: await panel.textContent(), mappings: snapshot.mappings,
-        mountBindings: snapshot.mountBindings, scopeCommandPlans: snapshot.scopeCommandPlans,
-        reviewedPlans: reviewed.scopeCommandPlans, reviewedObservations: reviewed.remoteObservations,
-        finalCloudOrder: await stack.canonicalSiblingOrder(folderColpId), remoteObservations: snapshot.remoteObservations,
-        intents: snapshot.intents, queue: snapshot.queue };
-      throw new Error(`Keep cloud did not materialize: ${JSON.stringify(diagnostic).slice(0, 24_000)}`, { cause: error });
+      frames.failure = rejoinSummary(await evidence<Export>(pageA, 'exportOutboundPushEvidence'), mount.mountId, folderA.id);
+      // Only states, counts and identity relationships are emitted. Bookmark
+      // content, IDs, immutable request bodies and credentials stay out of the log.
+      throw new Error(`Keep cloud did not complete: ${JSON.stringify(frames)}`, { cause: error });
     }
-    const [restored] = await find(pageA, 'Rejoin cloud folder');
-    expect(restored!.id).not.toBe(folderA.id);
-    expect(await pageA.evaluate(id => chrome.bookmarks.getChildren(id).then(rows => rows.map(row => row.title)), restored!.id))
-      .toEqual(['Z cloud child', 'A cloud child']);
-    await terminateWorker(a, pageA);
-    await runtimeMessage(pageA, { kind: 'known.sync.rejoinDecisions.get' });
-    await a.close(); a = await launchPersistent(profiles[0]!, stack.browserHostResolverRules); pageA = await optionsPage(a);
-    await runtimeMessage(pageA, { kind: 'known.sync.rejoinDecisions.get' });
-    expect((await find(pageA, 'Rejoin cloud folder')).map(row => row.id)).toEqual([restored!.id]);
-    expect(await pageA.evaluate(id => chrome.bookmarks.getChildren(id).then(rows => rows.map(row => row.title)), restored!.id))
-      .toEqual(['Z cloud child', 'A cloud child']);
-    await waitQueueQuiet(pageA, stack, KNS08_BINDINGS[0]);
-    const after = await evidence<Export>(pageA, 'exportOutboundPushEvidence');
-    expect(after.mountBindings.find(row => row.mountId === mount.mountId)?.status).toBe('active');
-    expect(after.queue.map(row => ({ opId: row.opId, digest: row.digest })))
-      .toEqual(before.queue.map(row => ({ opId: row.opId, digest: row.digest })));
-    expect((await liveCanonical(stack)).filter(row => row.url === 'https://example.test/rejoin/a')).toHaveLength(1);
-    expect((await liveCanonical(stack)).filter(row => row.url === 'https://example.test/rejoin/z')).toHaveLength(1);
   } finally {
     await a?.close(); await b?.close(); await stack.close();
     await Promise.all(profiles.map(path => rm(path, { recursive: true, force: true })));
@@ -107,4 +108,33 @@ test('paused native folder deletion reconciles with another browser and Keep clo
 });
 async function find(page: Page, title: string) {
   return page.evaluate(title => chrome.bookmarks.search({ title }), title);
+}
+
+function rejoinSummary(value: Export, mountId: string, oldNativeId: string, restoredNativeId?: string) {
+  const code = (input: unknown) => typeof input === 'string' && /^[a-z][a-z0-9_:-]{0,63}$/u.test(input) ? input : undefined;
+  return {
+    scope: { lifecycle: code(value.scope?.lifecycle), rootStatus: code(value.scope?.rootStatus),
+      firstRun: code(value.scope?.firstRun), recovery: code(value.scope?.metadata?.recoveryCode) },
+    mount: value.mountBindings.filter(row => row.mountId === mountId).map(row => ({ status: row.status,
+      materialized: row.materialized, pause: row.pauseBaseline?.completeness })),
+    commands: value.scopeCommandPlans.map(row => ({ kind: row.kind, phase: row.phase, sameMount: row.mountId === mountId,
+      retry: code(row.retryReason), decision: code(row.rejoinDecision?.kind),
+      affectedCount: typeof row.rejoinDecision?.affectedCount === 'number' ? row.rejoinDecision.affectedCount : undefined,
+      blocked: code(row.rejoinDecision?.blockedReason), superseded: !!row.rejoinDecision?.supersededBy,
+      dependencies: row.dependencies.length, dependencyStates: row.dependencies.map(id =>
+        value.scopeCommandPlans.find(candidate => candidate.commandId === id)?.phase ?? 'other') })),
+    resolutions: value.diagnostics.filter(row => row.kind === 'rejoin_queue_resolution').length,
+    mappings: { count: value.mappings.length, oldFolderPresent: value.mappings.some(row => row.nativeId === oldNativeId),
+      restoredFolderMapped: restoredNativeId === undefined ? undefined : value.mappings.some(row => row.nativeId === restoredNativeId),
+      virtual: value.mappings.filter(row => row.nativeId.startsWith('unmounted:')).length },
+    intents: value.intents.map(row => ({ kind: code(row.expected.kind), state: code(row.state), apiPhase: code(row.apiPhase),
+      nativeResult: code(row.nativeResult), confirmation: code(row.nativeResultConfirmation?.kind),
+      wait: code(row.waitReason), oldTarget: row.expected.nativeId === oldNativeId,
+      restoredTarget: restoredNativeId === undefined ? undefined : row.expected.nativeId === restoredNativeId })),
+    queue: value.queue.map(row => ({ type: code(row.payload.type), status: row.status, recovery: code(row.recovery?.code),
+      echoApplied: row.echoApplied === true })),
+    captures: value.bookmarkEvents.map(row => ({ kind: code(row.kind), status: code(row.status) })),
+    observations: value.remoteObservations.map(row => ({ kind: row.kind,
+      mapped: value.mappings.some(mapping => mapping.colpId === row.colpId) })),
+  };
 }
