@@ -6,6 +6,7 @@ import { scheduleSyncEngineWake } from './engine.js';
 import { pendingRejoinAdmission, rejoinNative } from './rejoin-native.js';
 import { hasBookmarkPermission, syncState, workCoordinator } from './runtime.js';
 import { currentSyncScope } from './scope.js';
+import { replicaRebuilder } from './scope-rebuild.js';
 import { handleSyncAttentionRequest } from './sync-attention.js';
 
 /** GET can resume a durable accepted choice. Both reads and explicit decisions
@@ -21,7 +22,8 @@ export async function handleRejoinDecisionRequest(message: RejoinDecisionRequest
       const input = { store: syncState, scope, recoveryAvailability: async () => {
         // The same production retirement adapter and capability gate own the
         // existing attention panel. No decision may invent an available reset.
-        const deps = { scope: async () => scope, store: syncState, serverRetirement: true };
+        const deps = { scope: async () => scope, store: syncState, serverRetirement: true,
+          rebuildPending: () => replicaRebuilder().pendingStatus() };
         const response = await handleSyncAttentionRequest(deps);
         return { retryAvailable: response.ok && response.attention.retryAvailable === true,
           resetAvailable: response.ok && response.attention.rebuildAvailable === true };

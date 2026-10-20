@@ -21,6 +21,7 @@ import type { RejoinNative } from '../src/scope-rejoin-mutation.js';
 import { endpoints } from './outbound-push-worker-harness.js';
 import type { ChromeBookmarkNode } from '../src/chrome-bookmark-tree.js';
 import { validRejoinDecisionRequest, type PublicRejoinDecision, type RejoinDecisionRequest } from '../src/scope-rejoin-decisions.js';
+import { REPLICA_REBUILD_JOURNAL } from '../src/replica-rebuild.js';
 
 const state = vi.hoisted(() => ({ fixture: undefined as unknown as Awaited<ReturnType<typeof fixture>>,
   storage: undefined as unknown as MemoryStorageArea, permission: true, wakes: 0 }));
@@ -38,6 +39,7 @@ vi.mock('../src/sw/runtime.js', async () => {
   DEFAULT_SYNC_FOLDER_TITLE: 'Know-N' };
 });
 vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => scope,
+  pushSessionAuthority: async () => { throw new Error('unexpected_authority_refresh'); },
   loadConfig: async () => ({ serverOrigin: scope.serverOrigin, manifestUrl: `${scope.serverOrigin}/manifest.json` }) }));
 vi.mock('../src/sw/engine.js', () => ({ scheduleSyncEngineWake: () => { state.wakes++; } }));
 vi.mock('../src/sw/bookmarks.js', () => ({ bookmarkListenerLifecycle: { install: () => {} }, recoverBookmarkEvents: async () => {} }));
@@ -308,8 +310,11 @@ test.each(['pending', 'unknown', 'applied'] as const)
   const before = await f.getStore().listQueue(scope), receipts = await Promise.all(before.map(row => f.getStore().getQueueReceipt(scope, row.sequence)));
   expect(before).toHaveLength(1); expect(before[0]?.echoApplied).not.toBe(true);
   if (result === 'unknown') expect(before[0]?.attempt?.body).toBeTypeOf('string');
+  const journalRead = vi.spyOn(state.storage, 'get');
   const value = await decision(); expect(value).toMatchObject({ kind: 'remote_delete',
     blockedReason: result === 'unknown' ? 'unknown_upload' : 'pending_upload' });
+  expect(journalRead).toHaveBeenCalledWith(REPLICA_REBUILD_JOURNAL);
+  journalRead.mockRestore();
   for (const choice of ['keep_local', 'apply_remote_delete'] as const) {
     expect(await handleRejoinDecisionRequest(choose(value, choice))).toEqual({ ok: false, error: 'rejoin_dependency_pending' });
   }
