@@ -21,7 +21,7 @@ import { createFirstRunConfirmationSession, createFirstRunInputLock, firstRunMes
 import { observeFirstRunResponse, type FirstRunObservation } from './first-run-observation.js';
 import { rejectedWorkCopy, syncAttentionTerminalCode, terminalFreezeReasonCopy } from './sync-attention-ui.js';
 import type {
-  FirstRunConfirmRequest, FirstRunOrScopeResponse, PublicRootView,
+  FirstRunConfirmRequest, FirstRunOrScopeResponse, FirstRunRequest, PublicRootView,
 } from './types.js'; import { t } from './i18n.js';
 
 export {
