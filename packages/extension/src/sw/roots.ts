@@ -139,7 +139,7 @@ export async function loadRootView(scope: SyncScope, preselectFolderId?: string)
     .filter((row, index, all) => all.some((other, otherIndex) => otherIndex !== index && other.rootKind === row.rootKind))
     .map(row => row.rootKind));
   const roots = flattened.map(({ node, rootKind, depth, ancestorNativeIds }): PublicRootNode => {
-    const ref = digestJson([rootScopeKey(scope), node.nativeId]).slice(7); tokens.set(ref, { nativeId: node.nativeId, ancestorNativeIds });
+    const ref = rootFolderRef(scope, node.nativeId); tokens.set(ref, { nativeId: node.nativeId, ancestorNativeIds });
     const colpId = byNative.get(node.nativeId);
     const counts = countFolderContents(node);
     /* R13 D-21: a deep-linked folder arrives checked so the user only has to
@@ -170,6 +170,12 @@ export async function loadRootView(scope: SyncScope, preselectFolderId?: string)
     && sameDiscovered(discovered, [...previous.entries.values()]) ? previous.viewId : crypto.randomUUID();
   sw.rootViewTokens = { viewId, scopeKey: rootScopeKey(scope), entries: tokens };
   return { viewId, status: authority.rootStatus, roots };
+}
+
+/** Stable within one exact scope; the live view or durable preview decides
+ * which native identities this opaque ref may currently authorize. */
+export function rootFolderRef(scope: SyncScope, nativeId: string): string {
+  return digestJson([rootScopeKey(scope), nativeId]).slice(7);
 }
 
 async function firstRunPreviewNativeIds(scope: SyncScope, firstRun: ScopeRecord['firstRun']): Promise<Set<string> | undefined> {

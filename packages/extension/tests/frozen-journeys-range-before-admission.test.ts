@@ -8,6 +8,8 @@ import type { RootRequest } from '../src/types.js';
 import type { SyncScope } from '../src/sync-state-store.js';
 import { recoveryNode, recoveryRoot } from './kns-03-bootstrap-harness.js';
 import { REJOIN_TOKEN, rejoinSession } from './rejoin-http-fixture.js';
+import { recordMoveOutOfBoundaryShift } from '../src/scope-range-shift.js';
+import type { PreparedRangeCommand } from '../src/sw/range-command.js';
 
 // Browser and wake scheduling are external ports. Admission, phase execution,
 // bootstrap, immutable queue entries and IndexedDB reopen are the shipped code.
@@ -103,4 +105,105 @@ test.each(['live', 'restarted'] as const)('durable reviewed range confirmation s
   const queue = await syncState.listQueue(scope);
   expect(queue.filter(row => row.payload.type === 'delete_subtree').map(row => row.payload.targetId)).toEqual(['remote-10']);
   expect((await syncState.getScopePreview(scope, request.previewId))?.treeDigest).toBe(previewBefore?.treeDigest);
+  const command = (await syncState.getBoundaryCommand(scope, request.confirmationId))!;
+  expect((command.payload as unknown as PreparedRangeCommand).preview.removals.map(row => row.ref))
+    .toEqual(request.remoteDeleteRefs);
+  syncState.close(); sw.rootViewTokens = undefined;
+  expect(await handleRootRequest(request)).toMatchObject({ ok: true, confirmation: { state: 'committed' } });
+  expect(await syncState.listQueue(scope)).toEqual(queue);
+  expect((await syncState.exportScope(scope)).receipts).toEqual([]);
+  expect(raw).toEqual(nativeBefore);
+});
+
+async function reviewShift(choice: 'keep' | 'unmount') {
+  const root = raw[0]!, bar = root.children![0]!, other = root.children![1]!;
+  const moved = { ...bar.children![0]!, parentId: other.id };
+  raw = [{ ...root, children: [{ ...bar, children: bar.children!.slice(1) },
+    { ...other, children: [...other.children!, moved] }] }];
+  await recordMoveOutOfBoundaryShift(syncState, scope, { nativeId: moved.id, colpId: 'remote-10',
+    fromParentNativeId: bar.id, toParentNativeId: other.id, boundaryVersion: '0' });
+  const view = await loadRootView(scope);
+  const result = await handleRootRequest({ kind: 'known.roots.preview', viewId: view.viewId,
+    selectedRefs: [view.roots.find(row => row.kind === 'bookmarks_bar')!.ref], privateRefs: [] });
+  if (!result.ok || !('preview' in result)) throw new Error('shift_preview_missing');
+  expect(result.preview.shifts).toHaveLength(1);
+  const ref = result.preview.shifts[0]!.ref;
+  return { kind: 'known.roots.confirm' as const, previewId: result.preview.previewId,
+    treeDigest: result.preview.treeDigest, confirmationId: crypto.randomUUID(),
+    shiftActions: [{ ref, action: choice }], ...(choice === 'unmount' ? { remoteDeleteRefs: [ref] } : {}) };
+}
+
+test.each(['keep', 'unmount'] as const)('reviewed %s shift survives full IDB reopen and commits only its frozen action', async choice => {
+  const request = await reviewShift(choice), nativeBefore = structuredClone(raw);
+  const previewBefore = await syncState.getScopePreview(scope, request.previewId);
+  expect(previewBefore?.shiftNativeIds).toEqual(['10']);
+  syncState.close(); sw.rootViewTokens = undefined;
+  expect(await handleRootRequest(request)).toMatchObject({ ok: true, confirmation: { state: 'committed' } });
+  const mounts = await syncState.listMountBindings(scope);
+  expect(mounts.find(row => row.nativeRootId === '10')).toMatchObject({ status: choice === 'keep' ? 'active' : 'detached',
+    remoteMountNodeId: 'remote-10' });
+  expect(mounts.find(row => row.nativeRootId === '10')?.pendingShift).toBeUndefined();
+  expect((await syncState.getScope(scope))?.selectedRoots).toEqual(choice === 'keep' ? ['remote-1', 'remote-10'] : ['remote-1']);
+  const queue = await syncState.listQueue(scope);
+  expect(queue.filter(row => row.payload.type === 'delete_subtree').map(row => row.payload.targetId))
+    .toEqual(choice === 'unmount' ? ['remote-10'] : []);
+  expect((await syncState.getMappingByNativeId(scope, '10'))?.colpId).toBe('remote-10');
+  const command = (await syncState.getBoundaryCommand(scope, request.confirmationId))!;
+  const payload = command.payload as unknown as PreparedRangeCommand;
+  expect(payload.preview.shifts.map(row => row.ref)).toEqual(request.shiftActions.map(row => row.ref));
+  expect(payload.keepNativeIds).toEqual(choice === 'keep' ? ['10'] : []);
+  expect(payload.unmountNativeIds).toEqual(choice === 'unmount' ? ['10'] : []);
+  syncState.close(); sw.rootViewTokens = undefined;
+  expect(await handleRootRequest(request)).toMatchObject({ ok: true, confirmation: { state: 'committed' } });
+  expect(await syncState.listQueue(scope)).toEqual(queue);
+  expect((await syncState.exportScope(scope)).receipts).toEqual([]);
+  expect(raw).toEqual(nativeBefore);
+  for (const name of ['create', 'update', 'move', 'remove', 'removeTree'] as const)
+    expect(chrome.bookmarks[name]).not.toHaveBeenCalled();
+});
+
+test.each(['foreign-ref', 'outside-preview', 'expired', 'changed-tree', 'changed-boundary'] as const)
+('reopened deletion review rejects %s without admission or native/queue effects', async cause => {
+  let request = await review();
+  if (cause === 'foreign-ref') {
+    const foreign = { ...scope, browserProfileId: 'foreign-profile', replicaId: 'foreign-replica' };
+    const current = (await syncState.getScope(scope))!;
+    await syncState.registerScope({ ...foreign, lifecycle: 'active', lease: current.lease, checkpoint: current.checkpoint,
+      selectedRoots: [], privateRoots: [], firstRun: 'completed' });
+    const view = await loadRootView(foreign);
+    request = { ...request, remoteDeleteRefs: [view.roots.find(row => row.kind === 'bookmarks_bar')!.ref] };
+  }
+  if (cause === 'outside-preview') {
+    const view = await loadRootView(scope);
+    request = { ...request, remoteDeleteRefs: [view.roots.find(row => row.kind === 'other')!.ref] };
+  }
+  if (cause === 'expired') {
+    const preview = (await syncState.getScopePreview(scope, request.previewId))!;
+    vi.spyOn(Date, 'now').mockReturnValue(preview.expiresAt + 1);
+  }
+  if (cause === 'changed-tree') raw = raw.map(root => ({ ...root, children: root.children?.map(parent => ({
+    ...parent, children: parent.children?.map(node => node.id === '10' ? { ...node, title: 'Changed after review' } : node),
+  })) }));
+  if (cause === 'changed-boundary') await syncState.bumpBoundaryVersion(scope);
+  syncState.close(); sw.rootViewTokens = undefined;
+  const before = await syncState.exportScope(scope), nativeBefore = structuredClone(raw);
+  const error = cause === 'foreign-ref' || cause === 'outside-preview' ? 'request_invalid' : 'preview_stale';
+  expect(await handleRootRequest(request)).toEqual({ ok: false, error });
+  expect(await syncState.exportScope(scope)).toEqual(before);
+  expect(await syncState.getBoundaryCommand(scope, request.confirmationId)).toBeNull();
+  expect(raw).toEqual(nativeBefore);
+  for (const name of ['create', 'update', 'move', 'remove', 'removeTree'] as const)
+    expect(chrome.bookmarks[name]).not.toHaveBeenCalled();
+});
+
+test.each(['duplicate-shift', 'kept-cloud-delete'] as const)('reopened shift consent cannot authorize %s', async cause => {
+  let request = await reviewShift('keep');
+  request = cause === 'duplicate-shift' ? { ...request, shiftActions: [...request.shiftActions, ...request.shiftActions] }
+    : { ...request, remoteDeleteRefs: request.shiftActions.map(row => row.ref) };
+  syncState.close(); sw.rootViewTokens = undefined;
+  const before = await syncState.exportScope(scope), nativeBefore = structuredClone(raw);
+  expect(await handleRootRequest(request)).toEqual({ ok: false, error: 'request_invalid' });
+  expect(await syncState.exportScope(scope)).toEqual(before);
+  expect(await syncState.getBoundaryCommand(scope, request.confirmationId)).toBeNull();
+  expect(raw).toEqual(nativeBefore);
 });

@@ -13,7 +13,7 @@ import { recoverBookmarkEvents } from './bookmarks.js';
 import { scheduleSyncEngineWake } from './engine.js';
 import { hasBookmarkPermission, rootScopeKey, sw, syncState } from './runtime.js';
 import { currentSyncScope } from './scope.js';
-import { readRootFolders, sameDiscovered } from './roots.js';
+import { readRootFolders, rootFolderRef, sameDiscovered } from './roots.js';
 import { rangePreviewChanges, type RangePreviewChanges } from '../range-preview-changes.js';
 import { captureBoundaryAttempt, type BoundaryAttempt } from './boundary-attempt.js';
 import { digestJson } from '../bookmark-event-codec.js';
@@ -54,7 +54,7 @@ export async function handleRangePreview(message: PreviewRequest): Promise<RootR
     throw error;
   }
   const { preview, scan, diff, changes } = previewResult;
-  return { ok: true, preview: publicPreview(preview, scan.warnings, diff, tree.roots, changes) };
+  return { ok: true, preview: publicPreview(scope, preview, scan.warnings, diff, tree.roots, changes) };
 }
 
 export type RangeConfirmResult = { readonly ok: true } | Extract<RootResponse, { readonly ok: false }>;
@@ -115,9 +115,9 @@ async function confirmRange(message: ConfirmRequest, scope: SyncScope, attempt: 
     existingMounts: await syncState.listMountBindings(scope),
   });
   if (rangeTreeDigest(tree.roots, scan) !== preview.treeDigest) return { ok: false, error: 'preview_stale' };
-  const keepNativeIds = resolveActionNativeIds(message.shiftActions, 'keep', preview.shiftNativeIds ?? []);
-  const unmountNativeIds = resolveActionNativeIds(message.shiftActions, 'unmount', preview.shiftNativeIds ?? []);
-  const remoteDeleteNativeIds = resolveRemoteDeleteNativeIds(message.remoteDeleteRefs, preview, unmountNativeIds ?? []);
+  const keepNativeIds = resolveActionNativeIds(scope, message.shiftActions, 'keep', preview.shiftNativeIds ?? []);
+  const unmountNativeIds = resolveActionNativeIds(scope, message.shiftActions, 'unmount', preview.shiftNativeIds ?? []);
+  const remoteDeleteNativeIds = resolveRemoteDeleteNativeIds(scope, message.remoteDeleteRefs, preview, unmountNativeIds ?? []);
   if (!keepNativeIds || !unmountNativeIds || !remoteDeleteNativeIds) return { ok: false, error: 'request_invalid' };
   const stopped = new Set(unmountNativeIds);
   const selectedNativeIds = unique([...scan.selectedNativeIds.filter(id => !stopped.has(id)), ...keepNativeIds]);
@@ -137,7 +137,7 @@ async function confirmRange(message: ConfirmRequest, scope: SyncScope, attempt: 
   const previousScan = scanBoundary({ roots: tree.roots, privateNativeIds: previousPrivateNativeIds,
     selectedNativeIds: mounts.filter(row => row.status !== 'detached' && !row.pendingShift).map(row => row.nativeRootId),
     existingMounts: mounts });
-  const uiPreview = publicPreview(preview, preview.warnings, { addedNativeIds: preview.addedNativeIds ?? [],
+  const uiPreview = publicPreview(scope, preview, preview.warnings, { addedNativeIds: preview.addedNativeIds ?? [],
     removedNativeIds: preview.removedNativeIds ?? [], shiftNativeIds: preview.shiftNativeIds ?? [] }, tree.roots, rangePreviewChanges(tree.roots, previousScan, scan));
   const payload: PreparedRangeCommand = { request: message, libraryId: scope.collectionId,
     // Counts and opaque refs are enough to reopen an already confirmed change.
@@ -203,7 +203,7 @@ export async function pendingRangeDescription(scope: SyncScope) {
   resume: { libraryId: scope.collectionId, request: payload.request, preview: payload.preview } };
 }
 
-function publicPreview(preview: ScopePreviewRecord, warnings: readonly { readonly code: string }[],
+function publicPreview(scope: SyncScope, preview: ScopePreviewRecord, warnings: readonly { readonly code: string }[],
   diff: { readonly addedNativeIds: readonly string[]; readonly removedNativeIds: readonly string[];
     readonly shiftNativeIds: readonly string[] },
   roots: readonly { readonly nativeId: string; readonly title: string; readonly kind: string;
@@ -211,10 +211,10 @@ function publicPreview(preview: ScopePreviewRecord, warnings: readonly { readonl
   const byNative = indexFolders(roots);
   const counts = new Map((preview.remoteDeleteEvidence ?? []).map((row) => [row.nativeRootId, row.affectedCount]));
   const row = (nativeId: string): PublicRangeChangeRow | undefined => {
-    const ref = refForNative(nativeId);
-    if (!ref) return undefined;
     const node = byNative.get(nativeId);
-    const counted = node ? countFolderContents(node) : { bookmarkCount: 0, folderCount: 0 };
+    if (!node) return undefined;
+    const ref = rootFolderRef(scope, nativeId);
+    const counted = countFolderContents(node);
     return {
       ref, title: node?.title ?? '',
       bookmarkCount: counted.bookmarkCount, folderCount: counted.folderCount,
@@ -225,10 +225,8 @@ function publicPreview(preview: ScopePreviewRecord, warnings: readonly { readonl
     previewId: preview.previewId, boundaryVersion: preview.boundaryVersion, treeDigest: preview.treeDigest,
     bookmarkCount: preview.bookmarkCount, folderCount: preview.folderCount, skippedCount: preview.skippedCount,
     addedCount: changes.addedFolders.length, addedBookmarkCount: changes.addedBookmarkCount,
-    additions: changes.addedFolders.flatMap(folder => {
-      const ref = refForNative(folder.nativeId);
-      return ref ? [{ ref, title: folder.title, path: folder.path, bookmarkCount: folder.bookmarkCount }] : [];
-    }), removedCount: diff.removedNativeIds.length,
+    additions: changes.addedFolders.map(folder => ({ ref: rootFolderRef(scope, folder.nativeId),
+      title: folder.title, path: folder.path, bookmarkCount: folder.bookmarkCount })), removedCount: diff.removedNativeIds.length,
     shiftCount: diff.shiftNativeIds.length, expiresAt: preview.expiresAt, warnings,
     shifts: diff.shiftNativeIds.map(row).filter((item): item is PublicRangeChangeRow => Boolean(item)),
     removals: diff.removedNativeIds.map(row).filter((item): item is PublicRangeChangeRow => Boolean(item)),
@@ -249,18 +247,6 @@ function indexFolders(nodes: readonly { readonly nativeId: string; readonly titl
   return out;
 }
 
-function refForNative(nativeId: string): string | undefined {
-  if (!sw.rootViewTokens) return undefined;
-  for (const [ref, entry] of sw.rootViewTokens.entries) {
-    if (entry.nativeId === nativeId) return ref;
-  }
-  return undefined;
-}
-
-function nativeForRef(ref: string): string | undefined {
-  return sw.rootViewTokens?.entries.get(ref)?.nativeId;
-}
-
 function resolveRefs(scope: SyncScope, viewId: string, refs: readonly string[]) {
   if (!Array.isArray(refs) || refs.length > 128 || refs.some((ref) => typeof ref !== 'string')) return null;
   if (!sw.rootViewTokens || sw.rootViewTokens.viewId !== viewId || sw.rootViewTokens.scopeKey !== rootScopeKey(scope)) {
@@ -270,39 +256,44 @@ function resolveRefs(scope: SyncScope, viewId: string, refs: readonly string[]) 
   return resolved.some((value) => !value) ? null : resolved as string[];
 }
 
-function resolveActionNativeIds(actions: readonly PublicRangeShiftAction[] | undefined, action: 'keep' | 'unmount',
+function resolveActionNativeIds(scope: SyncScope, actions: readonly PublicRangeShiftAction[] | undefined, action: 'keep' | 'unmount',
   allowed: readonly string[]): string[] | null {
   if (!actions) return action === 'keep' ? [] : [...allowed];
-  const allowedSet = new Set(allowed);
+  const allowedByRef = previewRefs(scope, allowed);
   const seen = new Set<string>();
   const out: string[] = [];
   for (const row of actions) {
-    const nativeId = nativeForRef(row.ref);
-    if (!nativeId || !allowedSet.has(nativeId) || seen.has(nativeId)) return null;
+    const nativeId = allowedByRef.get(row.ref);
+    if (!nativeId || seen.has(nativeId)) return null;
     seen.add(nativeId);
     if (row.action !== action) continue;
     out.push(nativeId);
   }
   if (action === 'unmount') {
-    const keep = new Set(actions.filter((row) => row.action === 'keep').map((row) => nativeForRef(row.ref)));
+    const keep = new Set(actions.filter((row) => row.action === 'keep').map((row) => allowedByRef.get(row.ref)));
     for (const nativeId of allowed) if (!keep.has(nativeId) && !out.includes(nativeId)) out.push(nativeId);
   }
   return out;
 }
 
-function resolveRemoteDeleteNativeIds(refs: readonly string[] | undefined, preview: ScopePreviewRecord,
+function resolveRemoteDeleteNativeIds(scope: SyncScope, refs: readonly string[] | undefined, preview: ScopePreviewRecord,
   unmountNativeIds: readonly string[]): string[] | null {
   if (!refs || refs.length === 0) return [];
-  const allowed = new Set([...(preview.removedNativeIds ?? []), ...unmountNativeIds]);
+  const allowed = previewRefs(scope, [...(preview.removedNativeIds ?? []), ...unmountNativeIds]);
   const out: string[] = [];
   for (const ref of refs) {
-    const nativeId = nativeForRef(ref);
-    if (!nativeId || !allowed.has(nativeId)) return null;
+    const nativeId = allowed.get(ref);
+    if (!nativeId) return null;
     out.push(nativeId);
   }
   return out;
 }
 
+/** Confirmation reuses the reviewed native set even after a worker restart.
+ * New previews still require a current view; these refs cannot expand consent. */
+function previewRefs(scope: SyncScope, nativeIds: readonly string[]): ReadonlyMap<string, string> {
+  return new Map(nativeIds.map(nativeId => [rootFolderRef(scope, nativeId), nativeId]));
+}
 
 function unique(ids: readonly string[]): string[] {
   return [...new Set(ids)];
