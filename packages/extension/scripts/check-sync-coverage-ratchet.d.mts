@@ -1,8 +1,11 @@
 export const SYNC_CORE_COVERAGE_FILES: readonly string[];
+export const SYNC_AUDIT_COVERAGE_FILES: readonly string[];
+export const SYNC_COVERAGE_METRICS: readonly string[];
 export const SYNC_PULL_COVERAGE_FILES: readonly string[];
 export const SYNC_PULL_BRANCH_MINIMUM: number;
 export const SYNC_NEW_COVERAGE_FILES: readonly string[];
 export const SYNC_NEW_BRANCH_MINIMUM: number;
+export const SYNC_NEW_COVERAGE_MINIMUM: number;
 
 export type SyncCoverageMetrics = Readonly<{
   lines: number;

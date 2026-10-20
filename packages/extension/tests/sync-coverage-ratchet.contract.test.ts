@@ -5,7 +5,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   evaluateSyncCoverageRatchet,
+  SYNC_AUDIT_COVERAGE_FILES,
+  SYNC_COVERAGE_METRICS,
   SYNC_CORE_COVERAGE_FILES,
+  SYNC_NEW_COVERAGE_MINIMUM,
   SYNC_NEW_BRANCH_MINIMUM,
   SYNC_NEW_COVERAGE_FILES,
   SYNC_PULL_BRANCH_MINIMUM,
@@ -77,6 +80,29 @@ describe('Extension Sync coverage ratchet [SYNC-Q-021]', () => {
     expect(evaluateSyncCoverageRatchet(summary, baseline)).toEqual([
       `${path}: lines ${floors!.lines - 1}% dropped below ${floors!.lines}%`,
     ]);
+  });
+
+  it.each(['lines', 'branches', 'functions', 'statements'] as const)(
+    'rejects an audit owner below 80%% %s even inside the old rounding margin', metric => {
+      const path = SYNC_AUDIT_COVERAGE_FILES[0]!;
+      const summary = Object.fromEntries(SYNC_CORE_COVERAGE_FILES.map(file => [file,
+        Object.fromEntries(SYNC_COVERAGE_METRICS.map(name => [name, { pct: 100 }]))]));
+      summary[path]![metric] = { pct: 79.99 };
+      expect(evaluateSyncCoverageRatchet(summary, baseline)).toContain(
+        `${path}: ${metric} 79.99% below new-file minimum ${SYNC_NEW_COVERAGE_MINIMUM}%`);
+      for (const file of SYNC_AUDIT_COVERAGE_FILES) {
+        expect(baseline.files[file]?.[metric]).toBeGreaterThanOrEqual(SYNC_NEW_COVERAGE_MINIMUM);
+      }
+    });
+
+  it('includes production dispatch and durable decision owners without duplicate ownership', () => {
+    expect(new Set(SYNC_CORE_COVERAGE_FILES).size).toBe(SYNC_CORE_COVERAGE_FILES.length);
+    for (const file of ['src/options.ts', 'src/service-worker.ts', 'src/sw/range-command.ts',
+      'src/sw/rejoin-decisions.ts', 'src/sync-state/boundary-command-repository.ts',
+      'src/sync-state/scope-command-evidence.ts', 'src/sync-state/rejoin-resolution-repository.ts',
+      'src/scope-rejoin-order-progress.ts', 'src/sync-status-queue.ts']) {
+      expect(SYNC_AUDIT_COVERAGE_FILES).toContain(file);
+    }
   });
 
   it('does not pass on a global average when a listed file is missing', () => {
