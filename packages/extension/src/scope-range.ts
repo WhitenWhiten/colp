@@ -82,12 +82,13 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   readonly preview: ScopePreviewRecord; readonly scan: BoundaryScan; readonly diff: RangeDiff;
   readonly changes: RangePreviewChanges;
 }> {
+  const liveMounts = await store.listMountBindings(scope);
   const scan = scanBoundary({
     roots: input.roots, selectedNativeIds: input.selectedNativeIds,
     excludedNativeIds: input.excludedNativeIds ?? [], privateNativeIds: input.privateNativeIds ?? [],
+    existingMounts: liveMounts,
   });
   const recorded = await store.getScope(scope);
-  const liveMounts = await store.listMountBindings(scope);
   const mappings = await store.listMappings(scope);
   const discovered = input.discovered ?? discoveredFromRoots(input.roots);
   const previousPrivate = new Set((recorded?.privateRoots ?? []).map(id => mappings.find(row => row.colpId === id)?.nativeId).filter((id): id is string => Boolean(id)));

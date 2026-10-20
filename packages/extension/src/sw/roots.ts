@@ -1,6 +1,7 @@
 import { personalTreeApi } from '../bookmark-subscriptions/personal-boundary.js';
 import { personalBookmarks } from '../bookmark-subscriptions/guards.js';
 import { countFolderContents } from '../bookmark-boundary.js';
+import { browserRootDisplayTitle } from '../browser-root-identity.js';
 import { digestJson } from '../bookmark-event-codec.js';
 import { BookmarkTreeError, createChromeBookmarkTreeAdapter, customSourceKeyForFolder,
   type NormalizedBookmarkNode } from '../chrome-bookmark-tree.js';
@@ -147,6 +148,9 @@ export async function loadRootView(scope: SyncScope, preselectFolderId?: string)
       .filter((mount) => mount.status !== 'detached').map((mount) => mount.nativeRootId))
     : undefined;
   const tokens = new Map<string, { nativeId: string; ancestorNativeIds: readonly string[] }>();
+  const repeatedRootKinds = new Set(flattened.filter(row => row.depth === 0 && !row.node.managed)
+    .filter((row, index, all) => all.some((other, otherIndex) => otherIndex !== index && other.rootKind === row.rootKind))
+    .map(row => row.rootKind));
   const roots = flattened.map(({ node, rootKind, depth, ancestorNativeIds }): PublicRootNode => {
     const ref = digestJson([rootScopeKey(scope), node.nativeId]).slice(7); tokens.set(ref, { nativeId: node.nativeId, ancestorNativeIds });
     const colpId = byNative.get(node.nativeId);
@@ -162,7 +166,9 @@ export async function loadRootView(scope: SyncScope, preselectFolderId?: string)
           managed: node.managed, depth, bookmarkCount: counts.bookmarkCount, folderCount: counts.folderCount,
           firstRun: recorded?.firstRun, hasCommittedSelection,
         }));
-    return { ref, title: node.title || rootLabel(rootKind), kind: rootKind, depth, selected,
+    const title = node.title || rootLabel(rootKind);
+    return { ref, title: depth === 0 ? browserRootDisplayTitle(title, node.syncing, repeatedRootKinds.has(rootKind)) : title,
+      kind: rootKind, depth, selected,
       privateLocal: colpId !== undefined && authority.privateRoots.includes(colpId), managed: node.managed,
       bookmarkCount: counts.bookmarkCount, folderCount: counts.folderCount,
       ...(flagged ? { preselected: true as const } : {}),

@@ -2,11 +2,12 @@ import { scanBoundary } from '../bookmark-boundary.js';
 import { folderRoleForBrowserRoot, type NormalizedBookmarkNode, type NormalizedBookmarkRoot } from '../chrome-bookmark-tree.js';
 import type { BookmarkEventRecord } from '../sync-state/types.js';
 import type { LocalNodeFact } from './matcher.js';
+import type { ExistingBrowserMount } from '../browser-root-identity.js';
 
 export function localFactsFromRoots(roots: readonly NormalizedBookmarkRoot[],
   selectedNativeIds: readonly string[], excludedNativeIds: readonly string[] = [],
-  privateNativeIds: readonly string[] = []): LocalNodeFact[] {
-  const scan = scanBoundary({ roots, selectedNativeIds, excludedNativeIds, privateNativeIds });
+  privateNativeIds: readonly string[] = [], existingMounts: readonly ExistingBrowserMount[] = []): LocalNodeFact[] {
+  const scan = scanBoundary({ roots, selectedNativeIds, excludedNativeIds, privateNativeIds, existingMounts });
   const selected = new Set(scan.selectedNativeIds);
   const structural = new Set<string>();
   const findAncestors = (node: NormalizedBookmarkNode, ancestors: readonly string[]) => {
@@ -30,7 +31,15 @@ export function localFactsFromRoots(roots: readonly NormalizedBookmarkRoot[],
       ...(rootRole && rootRole !== 'custom' && rootRole !== 'managed-bookmarks' ? { folderRole: rootRole } : {}) });
     for (const child of node.children) visit(child, [...ancestors, node.nativeId], root);
   };
-  for (const root of roots) visit(root, [], root);
+  for (const root of roots) {
+    // A second browser root is an independent custom container, even when empty.
+    if (selected.has(root.nativeId) && scan.mounts.some(row => row.nativeRootId === root.nativeId
+      && row.customSourceKey && !row.materialized)) {
+      facts.push({ nativeId: root.nativeId, mountNativeRootId: root.nativeId, parentNativeId: null,
+        kind: 'folder', title: root.title });
+    }
+    visit(root, [], root);
+  }
   return facts;
 }
 

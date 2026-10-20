@@ -7418,6 +7418,12 @@
   "sync_bookmarksBar": {
     "message": "Bookmarks bar"
   },
+  "sync_browserAccountRoot": {
+    "message": "$1 (Browser account)"
+  },
+  "sync_browserDeviceRoot": {
+    "message": "$1 (On this device)"
+  },
   "sync_changesPreviewed": {
     "message": "Changes are previewed before anything syncs."
   },

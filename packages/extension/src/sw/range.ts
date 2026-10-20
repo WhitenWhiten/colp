@@ -90,6 +90,7 @@ async function confirmRange(message: ConfirmRequest, scope: SyncScope): Promise<
     roots: tree.roots, selectedNativeIds: [...preview.boundary.selectedNativeIds],
     excludedNativeIds: [...preview.boundary.excludedNativeIds],
     privateNativeIds: preview.privateNativeIds ?? [],
+    existingMounts: await syncState.listMountBindings(scope),
   });
   if (rangeTreeDigest(tree.roots, scan) !== preview.treeDigest) return { ok: false, error: 'preview_stale' };
   const keepNativeIds = resolveActionNativeIds(message.shiftActions, 'keep', preview.shiftNativeIds ?? []);
@@ -102,7 +103,8 @@ async function confirmRange(message: ConfirmRequest, scope: SyncScope): Promise<
   const privateNativeIds = unique([...(preview.privateNativeIds ?? []), ...unmountNativeIds.filter(id =>
     (discoveredTree.get(id) ?? []).some(ancestor => selectedNativeIds.includes(ancestor)))]);
   const confirmedScan = scanBoundary({ roots: tree.roots, selectedNativeIds,
-    excludedNativeIds: preview.boundary.excludedNativeIds, privateNativeIds });
+    excludedNativeIds: preview.boundary.excludedNativeIds, privateNativeIds,
+    existingMounts: await syncState.listMountBindings(scope) });
   try {
     if (!await rangeRemoteDeletesMatch(syncState, scope, preview, remoteDeleteNativeIds)) return { ok: false, error: 'preview_stale' };
   } catch { return { ok: false, error: 'preview_stale' }; }
@@ -125,7 +127,8 @@ async function confirmRange(message: ConfirmRequest, scope: SyncScope): Promise<
     const started = await confirmAddRange(syncState, scope, {
       previewId: preview.previewId, confirmationId: message.confirmationId, treeDigest: preview.treeDigest,
       consumePreview: false,
-      localFacts: localFactsFromRoots(tree.roots, selectedNativeIds, preview.boundary.excludedNativeIds, privateNativeIds),
+      localFacts: localFactsFromRoots(tree.roots, selectedNativeIds, preview.boundary.excludedNativeIds, privateNativeIds,
+        await syncState.listMountBindings(scope)),
       ...(remoteDeleteNativeIds.length ? { preserveBoundaryNativeIds: remoteDeleteNativeIds } : {}),
       ...(await collectionRootNodeId(scope)),
     });

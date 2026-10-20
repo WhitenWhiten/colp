@@ -9587,6 +9587,14 @@
     "message": "书签栏",
     "description": "Bookmarks bar"
   },
+  "sync_browserAccountRoot": {
+    "message": "$1（浏览器账号）",
+    "description": "$1 (Browser account)"
+  },
+  "sync_browserDeviceRoot": {
+    "message": "$1（此设备）",
+    "description": "$1 (On this device)"
+  },
   "sync_changesPreviewed": {
     "message": "任何内容同步前，都会先预览更改。",
     "description": "Changes are previewed before anything syncs."

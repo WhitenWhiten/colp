@@ -37,7 +37,8 @@ export async function handleSyncProgressRequest(): Promise<SyncProgressResponse>
   // capability-wrapped port: a paused sync must still report how far it got.
   const tree = await createChromeBookmarkTreeAdapter(personalTreeApi()).read();
   const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: selected,
-    excludedNativeIds: preview?.boundary.excludedNativeIds ?? [], privateNativeIds });
+    excludedNativeIds: preview?.boundary.excludedNativeIds ?? [], privateNativeIds,
+    existingMounts: await syncState.listMountBindings(scope) });
   let liveWork = false;
   for (const status of LIVE_STATUSES) {
     if ((await syncState.listQueue(scope, status, 0, 1)).length > 0) { liveWork = true; break; }

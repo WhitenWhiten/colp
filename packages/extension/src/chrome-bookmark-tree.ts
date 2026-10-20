@@ -32,6 +32,8 @@ export interface NormalizedBookmarkNode {
   readonly title: string;
   readonly kind: BookmarkNodeKind;
   readonly managed: boolean;
+  /** Browser account storage; not COLP's selected/private synchronization boundary. */
+  readonly syncing?: boolean;
   readonly url?: string;
   readonly children: readonly NormalizedBookmarkNode[];
 }
@@ -116,6 +118,7 @@ function normalize(value: ChromeBookmarkNode, seen: Set<string>, active: Set<obj
   const kind = value.type === 'separator' ? 'separator' : typeof value.url === 'string' ? 'bookmark' : 'folder';
   if (kind !== 'folder' && children.length) throw new Error('leaf_has_children');
   return { nativeId: value.id, title: value.title, kind, managed: value.unmodifiable === 'managed', children,
+    ...(typeof value.syncing === 'boolean' ? { syncing: value.syncing } : {}),
     ...(kind === 'bookmark' && typeof value.url === 'string' ? { url: value.url } : {}) };
 }
 function validateBase(value: unknown): asserts value is ChromeBookmarkNode {
@@ -123,6 +126,7 @@ function validateBase(value: unknown): asserts value is ChromeBookmarkNode {
   const node = value as Partial<ChromeBookmarkNode>;
   if (typeof node.id !== 'string' || !node.id || typeof node.title !== 'string') throw new Error('node_invalid');
   if (node.url !== undefined && typeof node.url !== 'string') throw new Error('url_invalid');
+  if (node.syncing !== undefined && typeof node.syncing !== 'boolean') throw new Error('syncing_invalid');
   if (node.children !== undefined && !Array.isArray(node.children)) throw new Error('children_invalid');
 }
 function rootKind(node: ChromeBookmarkNode): BrowserRootKind {

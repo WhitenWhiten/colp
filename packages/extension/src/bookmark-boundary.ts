@@ -8,6 +8,7 @@ import {
 } from './chrome-bookmark-tree.js';
 import { canonicalJson } from './sync-state/codec.js';
 import { normalizeBoundaries } from './sync-state/scope-key.js';
+import { browserRoleOwners, type ExistingBrowserMount } from './browser-root-identity.js';
 
 export type BoundaryNodeClass = 'collection-root' | 'special-root' | 'ordinary-folder'
   | 'managed' | 'private-local' | 'out-of-boundary' | 'unsupported';
@@ -35,6 +36,7 @@ export interface ScanBoundaryInput {
   readonly excludedNativeIds?: readonly string[];
   readonly privateNativeIds?: readonly string[];
   readonly unsupportedRoles?: readonly ColpFolderRole[];
+  readonly existingMounts?: readonly ExistingBrowserMount[];
 }
 
 interface IndexedNode {
@@ -84,7 +86,8 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     else if (inBoundary && item.node.kind === 'folder') folderCount += 1;
     else skippedCount += 1;
     if (inBoundary) {
-      digestNodes.push({ nativeId, kind: item.node.kind, title: item.node.title, parentNativeId: item.ancestorNativeIds.at(-1) ?? null,
+      digestNodes.push({ nativeId, kind: item.node.kind, title: item.node.title,
+        ...(item.node.syncing === undefined ? {} : { syncing: item.node.syncing }), parentNativeId: item.ancestorNativeIds.at(-1) ?? null,
         url: item.node.url ?? null, children: item.node.children.map((child) => child.nativeId) });
     }
   }
@@ -95,7 +98,9 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     digestNodes.push({ nativeId: item.node.nativeId, kind: 'folder', title: item.node.title,
       parentNativeId: item.ancestorNativeIds.at(-1) ?? null, children: [] });
   }
-  const mounts = planMounts(indexed, selected, classifications, warnings, input.unsupportedRoles ?? []);
+  const existing = input.existingMounts ?? [];
+  const mounts = planMounts(indexed, selected, classifications, warnings, input.unsupportedRoles ?? [],
+    existing, browserRoleOwners(input.roots, existing));
   const treeDigest = `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson({
     selected: selectedNativeIds, excluded: [...excluded].sort(), nodes: digestNodes,
   }))))}`;
@@ -107,7 +112,8 @@ export function planMountsFromScan(scan: BoundaryScan): readonly PlannedMount[] 
 
 function planMounts(indexed: readonly IndexedNode[], selected: ReadonlySet<string>,
   classifications: ReadonlyMap<string, BoundaryNodeClass>, warnings: Array<{ readonly code: string }>,
-  unsupportedRoles: readonly ColpFolderRole[]): PlannedMount[] {
+  unsupportedRoles: readonly ColpFolderRole[], existing: readonly ExistingBrowserMount[],
+  roleOwners: ReadonlyMap<SpecialFolderRole, string>): PlannedMount[] {
   const mounts: PlannedMount[] = [];
   const other = indexed.find((item) => item.isSpecialRoot && item.rootKind === 'other' && !item.node.managed);
   for (const item of indexed) {
@@ -117,8 +123,11 @@ function planMounts(indexed: readonly IndexedNode[], selected: ReadonlySet<strin
     const role = folderRoleForBrowserRoot(item.rootKind, item.node.managed);
     if (role === 'managed-bookmarks') continue;
     if (item.isSpecialRoot && role !== 'custom') {
-      mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false,
-        rootRole: role as SpecialFolderRole });
+      const prior = existing.find(mount => mount.nativeRootId === item.node.nativeId);
+      const identity = roleOwners.get(role) === item.node.nativeId
+        ? { rootRole: role as SpecialFolderRole }
+        : { customSourceKey: prior?.customSourceKey ?? customSourceKeyForFolder(item.node.nativeId) };
+      mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false, ...identity });
       continue;
     }
     if (item.isSpecialRoot && role === 'custom') {
