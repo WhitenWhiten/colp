@@ -279,7 +279,7 @@ async function laterSelfCreateFixture() {
 }
 
 for (const mismatch of ['older_sequence', 'different_payload'] as const) {
-  test(`lost provisional mapping refuses a ${mismatch} response bound to an unknown create`, async () => {
+  test(`absent provisional mapping refuses a ${mismatch} response bound to an unknown create`, async () => {
     const f = await laterSelfCreateFixture();
     try {
       const queued = await losePushResponse(f);
@@ -293,29 +293,33 @@ for (const mismatch of ['older_sequence', 'different_payload'] as const) {
       const response = { ...f.event, operation, effect: { ...effect,
         effectDigest: canonicalAuthoritativeEffectDigest(effect) } };
       const page = pullFixtures.page({ events: [response], nextCursor: 'cursor-next', collectionRevision: 'revision-next' });
-      const event = page.events[0] as Extract<SyncPullEventV02, { kind: 'operation' }>;
-      // These responses have internally valid digests; they do not match the actual request.
-      // A prepared provisional projection can survive a crash before its mapping is lost.
+      // The response is internally valid but contradicts the actual unknown request.
+      // Lose the provisional row before admission; do not rely on accepting a bad
+      // response to manufacture a prepared intent for this fallback regression.
       if (mismatch === 'different_payload') await f.api.update(f.node.id, { title });
       assert.equal(queued.sequence, 2);
       assert.notEqual(canonicalOperationDigest(queued.payload as unknown as Operation), effect.operationDigest);
-      await prepareAndStop({ ...f, page, event });
       assert.equal(await f.store.deleteMapping(scope, f.node.id), true);
       const nativeBefore = await f.api.get(f.node.id);
+      const cursorBefore = await f.store.getCursor(scope);
       f.store.close();
       const eventBefore = await f.store.getPullEvent(scope, f.eventId);
       const intentBefore = await f.store.getApplyIntent(scope, `intent:${f.eventId}`);
-      assert.equal(eventBefore?.state, 'intent_prepared'); assert.equal(intentBefore?.apiResultEvidence, null);
-      await assert.rejects(createPullApplier(f.options).resume(), /pull_source_binding_invalid/);
-      assert.notEqual((await f.store.getCursor(scope))?.cursor, 'cursor-next');
+      await assert.rejects(async () => {
+        const applier = createPullApplier(f.options);
+        await applier.stage(page); await applier.resume();
+      }, /pull_source_binding_invalid/);
+      assert.deepEqual(await f.store.getCursor(scope), cursorBefore);
       assert.equal(f.api.calls.filter(call => call.kind === 'create').length, 0);
       assert.deepEqual(await f.api.get(f.node.id), nativeBefore);
+      assert.equal(await f.store.getMappingByColpId(scope, f.remote.id), null);
       assert.deepEqual(await f.store.getPullEvent(scope, f.eventId), eventBefore);
       assert.deepEqual(await f.store.getApplyIntent(scope, `intent:${f.eventId}`), intentBefore);
       assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), queued);
       assert.equal(await f.store.getQueueReceipt(scope, queued.sequence), null);
       f.store.close();
       assert.equal(await f.store.getMappingByNativeId(scope, f.node.id), null);
+      assert.equal(await f.store.getMappingByColpId(scope, f.remote.id), null);
       assert.deepEqual(await f.store.getPullEvent(scope, f.eventId), eventBefore);
       assert.deepEqual(await f.store.getApplyIntent(scope, `intent:${f.eventId}`), intentBefore);
       assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), queued);
