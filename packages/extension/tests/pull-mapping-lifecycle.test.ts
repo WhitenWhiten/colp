@@ -516,8 +516,13 @@ for (const proofRead of [1, 2]) {
         sessionId: 'session-lifecycle', collectionId: scope.collectionId, conversionPolicy: { separator: 'preserve_remote' } },
         effectPageTemplate: 'https://known.example/effects/{effectId}/pages/{pageNumber}',
         effectPageAuthority: 'https://known.example' });
-      await applier.stage(pullFixtures.page({ events: [pullFixtures.mutationEvent({ kind: 'move', sequence: 40,
-        collectionId: scope.collectionId, targetId: 'node-existing', parentId: 'folder-b' })],
+      const moved = pullFixtures.mutationEvent({ kind: 'move', sequence: 40,
+        collectionId: scope.collectionId, targetId: 'node-existing', parentId: 'folder-b' });
+      assert.ok(moved.kind === 'operation' && moved.effect.kind === 'node_moved');
+      // A placement-only server event retains the seeded bookmark's content.
+      const effect = { ...moved.effect, node: { ...moved.effect.node, title: 'Existing' } };
+      await applier.stage(pullFixtures.page({ events: [{ ...moved,
+        effect: { ...effect, effectDigest: canonicalAuthoritativeEffectDigest(effect) } }],
       nextCursor: 'cursor-placement-race', collectionRevision: 'revision-placement-race' }));
       await assert.rejects(() => applier.resume(), NativeWriteNotStartedError);
       assert.equal(injected, true);
