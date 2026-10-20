@@ -179,6 +179,46 @@ test('cloud growth invalidates an old destructive preview, then a fresh preview 
     .toEqual(['remote-10', 'remote-cloud-new']);
 });
 
+test('FRR-04: production confirmation freezes reviewed deletion authority across a lost checkpoint and later cloud growth', async () => {
+  await acknowledgeSnapshot();
+  const beforeNative = structuredClone(raw);
+  const stale = await review();
+  const observeCloudChild = (id: string) => syncState.putRemoteObservation(scope, {
+    colpId: id, remoteRevision: `r-${id}`, sourceDigest: `sha256:${id}`, cursor: `cursor-${id}`,
+    kind: 'content', observedAt: Date.now(), payload: { kind: 'bookmark', parentId: 'remote-1',
+      title: id, url: `https://example.test/${id}` },
+  });
+  await observeCloudChild('reviewed-cloud-child');
+  expect(await handleRootRequest(stale)).toEqual({ ok: false, error: 'preview_stale' });
+  expect(await syncState.listQueue(scope)).toEqual([]);
+  expect(await syncState.getBoundaryCommand(scope, stale.confirmationId)).toBeNull();
+
+  const reviewed = await review();
+  const preview = (await syncState.getScopePreview(scope, reviewed.previewId))!;
+  expect(preview.remoteDeleteEvidence?.[0]?.affectedCount).toBe(3);
+  const advance = syncState.advanceBoundaryCommand.bind(syncState);
+  const lostCheckpoint = vi.spyOn(syncState, 'advanceBoundaryCommand').mockImplementation(async (target, id, patch) => {
+    if (patch.step === 'remote-delete:1') throw new Error('checkpoint_response_lost');
+    return advance(target, id, patch);
+  });
+  expect(await handleRootRequest(reviewed)).toMatchObject({ ok: false, error: 'confirmation_pending' });
+  const frozenRows = await syncState.listQueue(scope);
+  expect(frozenRows.filter(row => String(row.payload.type).startsWith('delete_')).map(row => row.payload.targetId).sort())
+    .toEqual(['remote-10', 'reviewed-cloud-child']);
+  const admitted = (await syncState.getBoundaryCommand(scope, reviewed.confirmationId))!;
+  expect(admitted.completedSteps).not.toContain('remote-delete:1');
+  lostCheckpoint.mockRestore();
+
+  await observeCloudChild('later-unreviewed-cloud-child');
+  syncState.close();
+  expect(await handleRootRequest(reviewed)).toMatchObject({ ok: true, confirmation: { state: 'committed' } });
+  expect(await syncState.listQueue(scope)).toEqual(frozenRows);
+  expect((await syncState.getScopePreview(scope, reviewed.previewId))?.remoteDeleteEvidence).toEqual(preview.remoteDeleteEvidence);
+  expect((await syncState.getBoundaryCommand(scope, reviewed.confirmationId))?.payload).toEqual(admitted.payload);
+  expect(raw).toEqual(beforeNative);
+  for (const method of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[method]).not.toHaveBeenCalled();
+});
+
 test('more than 500 role children keep the command small and every frozen deletion is queued once after reopen', async () => {
   await acknowledgeSnapshot();
   for (let index = 0; index < 520; index += 1) await syncState.putRemoteObservation(scope, {
