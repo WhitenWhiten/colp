@@ -217,23 +217,26 @@ test('does not swallow update failures and leaves a retryable recovery intent', 
   await store.registerScope({
     ...scope, lifecycle: 'active',
     lease: { leaseId: 'lease-recovery', expiresAt: Date.parse('2099-01-01T00:00:00Z') },
-    checkpoint: { serverRevision: 'r1', cursor: 'c0' }, selectedRoots: [], rootStatus: 'ready',
+    checkpoint: { serverRevision: 'r1', cursor: 'c0' }, selectedRoots: ['root'], rootStatus: 'ready',
   });
   const root: MappingInput = {
     nativeId: '1', colpId: 'root', rootNativeId: '1', nodeKind: 'folder',
     projection: { revision: 'r1', digest: 'd-root', content: { title: 'Root' } },
   };
-  await store.putMapping(scope, root);
+  const child: MappingInput = { ...root, nativeId: '2', colpId: 'child', parentNativeId: '1', parentColpId: 'root',
+    projection: { revision: 'r1', digest: 'child', content: { title: 'Child' } } };
+  await store.putMapping(scope, root); await store.putMapping(scope, child);
   await store.replaceProjectionIntents(scope, [{
-    intentId: 'update:root', kind: 'update', colpId: 'root', order: 1,
-    suppression: 'recovery:update:root', generation: scope.generation, state: 'pending',
-    nativeId: '1', title: 'Renamed',
+    intentId: 'update:child', kind: 'update', colpId: 'child', order: 1,
+    suppression: 'recovery:update:child', generation: scope.generation, state: 'pending',
+    nativeId: '2', title: 'Renamed',
   }]);
-  const chrome = fakeChrome([{ id: '1', title: 'Root' }]); chrome.crashOn.update = 1;
+  const chrome = fakeChrome([{ id: '1', title: 'Root' }, { id: '2', parentId: '1', title: 'Child' }]); chrome.crashOn.update = 1;
   await assert.rejects(() => executeProjectionIntents({
-    scope, store, api: chrome.api, selectedRootNativeId: '1', seedMappings: [root],
+    scope, store, api: chrome.api, selectedRootNativeId: '1', seedMappings: [root, child],
   }), /chrome_crash/);
   assert.equal((await store.listProjectionIntents(scope))[0]?.state, 'recovery');
+  assert.equal(chrome.nodes.get('1')?.title, 'Root');
 });
 
 test('replans virtual children when leftover terminal projection intents would skip Chrome create', async () => {
@@ -370,16 +373,19 @@ test('terminal projection history cannot overwrite a later restored native ident
 
 test('new projection of the same Node executes its new desired state after an earlier terminal plan', async () => {
   const store = createSyncStateStore({ indexedDB });
-  await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: 99_999 }, checkpoint: null, selectedRoots: [] });
+  await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: 99_999 }, checkpoint: null, selectedRoots: ['root'] });
   const root: MappingInput = { ...lifecycleMapping('1', 'root'), nodeKind: 'folder',
+    projection: { revision: 'r1', digest: 'root', content: { title: 'Root' } } };
+  const child: MappingInput = { ...root, nativeId: '2', colpId: 'child', parentNativeId: '1', parentColpId: 'root',
     projection: { revision: 'r1', digest: 'original', content: { title: 'Original' } } };
-  await store.putMapping(scope, root);
-  const chrome = fakeChrome([{ id: '1', title: 'Original' }]);
+  await store.putMapping(scope, root); await store.putMapping(scope, child);
+  const chrome = fakeChrome([{ id: '1', title: 'Root' }, { id: '2', parentId: '1', title: 'Original' }]);
   for (const title of ['First state', 'Second state']) {
-    await store.replaceProjectionIntents(scope, [{ intentId: 'update:root', kind: 'update', colpId: 'root', order: 1,
-      suppression: 'update-root', generation: 1, state: 'pending', nativeId: '1', title }]);
-    await executeProjectionIntents({ scope, store, api: chrome.api, selectedRootNativeId: '1', seedMappings: [root] });
-    assert.equal(chrome.nodes.get('1')?.title, title);
+    await store.replaceProjectionIntents(scope, [{ intentId: 'update:child', kind: 'update', colpId: 'child', order: 1,
+      suppression: 'update-child', generation: 1, state: 'pending', nativeId: '2', title }]);
+    await executeProjectionIntents({ scope, store, api: chrome.api, selectedRootNativeId: '1', seedMappings: [root, child] });
+    assert.equal(chrome.nodes.get('2')?.title, title);
+    assert.equal(chrome.nodes.get('1')?.title, 'Root');
   }
 });
 
