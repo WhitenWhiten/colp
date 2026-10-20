@@ -59,9 +59,9 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
     { resolvingRestoreOpId: event.operation.opId, excludeQueueOpIds: excluded });
   const open = new Map(issues.pull.map(issue => [issue.nodeId, issue]));
   const node = subject.node; const title = typeof node?.title === 'string' ? node.title : undefined;
-  const mappings = await options.store.listMappings(options.scope);
   const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : []), ...subject.anchors ?? []];
-  if (!subject.deleted) {
+  if (!subject.deleted && issues.deletes.length) {
+    const mappings = await options.store.listMappings(options.scope);
     const pendingDelete = issues.deletes.find(row => row.restoreOpId !== event.operation.opId && dependsOnIssue(targets, new Set([row.targetId]), issueAncestry(mappings)));
     if (pendingDelete) {
       await options.store.deferPullForRemoteDelete(options.scope, eventId, pendingDelete.decisionId);
@@ -71,17 +71,20 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
   // Native waits defer their actual closure instead of creating permanent
   // item failures. Once the original invocation is confirmed, replay resumes.
   const nativeWaits = await projectNativeWaits(options.store, options.scope);
-  const deferredEvents = await options.store.listPullEvents(options.scope, ['awaiting_confirmation']);
-  for (const wait of nativeWaits) {
-    const roots = new Set([wait.colpId]);
-    for (const deferred of deferredEvents) {
-      const binding = pullDeferral(deferred);
-      const effect = (deferred.payload as unknown as OpEvent)?.effect;
-      if (binding?.kind === 'native_result' && binding.id === wait.intentId && effect && 'node' in effect) roots.add(effect.node.id);
-    }
-    if (dependsOnIssue([...targets, ...subject.deleted ?? []], roots, issueAncestry(mappings, issues.queue))) {
-      await options.store.deferPullForNativeWait(options.scope, eventId, wait.intentId);
-      return true;
+  if (nativeWaits.length) {
+    const mappings = await options.store.listMappings(options.scope);
+    const deferredEvents = await options.store.listPullEvents(options.scope, ['awaiting_confirmation']);
+    for (const wait of nativeWaits) {
+      const roots = new Set([wait.colpId]);
+      for (const deferred of deferredEvents) {
+        const binding = pullDeferral(deferred);
+        const effect = (deferred.payload as unknown as OpEvent)?.effect;
+        if (binding?.kind === 'native_result' && binding.id === wait.intentId && effect && 'node' in effect) roots.add(effect.node.id);
+      }
+      if (dependsOnIssue([...targets, ...subject.deleted ?? []], roots, issueAncestry(mappings, issues.queue))) {
+        await options.store.deferPullForNativeWait(options.scope, eventId, wait.intentId);
+        return true;
+      }
     }
   }
   const self = open.get(subject.nodeId);
@@ -95,7 +98,7 @@ export async function setAsidePullItem(options: PullApplierOptions, eventId: str
       ...(self.conflictOpIds ? { conflictOpIds: self.conflictOpIds } : {}), now });
     return true;
   }
-  if (!subject.deleted) {
+  if (!subject.deleted && issues.roots.size) {
     const mappings = await options.store.listMappings(options.scope);
     const targets = [subject.nodeId, ...(subject.parentId ? [subject.parentId] : []), ...subject.anchors ?? []];
     if (dependsOnIssue(targets, issues.roots, issueAncestry(mappings, issues.queue))) {
