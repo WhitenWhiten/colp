@@ -176,7 +176,7 @@ test('an interrupted indexed read rejects instead of returning cached or partial
   const getAll = IDBIndex.prototype.getAll;
   vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function (this: IDBIndex, ...args) {
     const request = getAll.apply(this, args);
-    if ([INDEXES.pullEventByState, INDEXES.pullPageByState].includes(this.name)) {
+    if (this.name === INDEXES.pullEventByState || this.name === INDEXES.pullPageByState) {
       request.addEventListener('success', () => this.objectStore.transaction.abort(), { once: true });
     }
     return request;
