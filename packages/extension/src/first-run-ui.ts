@@ -240,7 +240,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     confirm.dataset.treeDigest = response.treeDigest;
     paintPreviewTotals(totals, response, () => previewSession.preview?.previewId, say);
     start.disabled = advancedMode !== 'merge' || !canStartFirstSync({
-      libraryId, preview: response, view, selectedCount: host.rootTree.querySelectorAll('.root-select input:checked').length,
+      libraryId, preview: response, view, selectedCount: selection.selectedRefs.length,
     });
     renderAdvancedPreview();
   }
