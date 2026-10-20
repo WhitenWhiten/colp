@@ -1,4 +1,4 @@
-import { t, tn } from './i18n.js';
+import { t, tn, uiLanguage } from './i18n.js';
 import { el } from './library-dom.js';
 import { SYNC_ATTENTION_SHOW_EVENT } from './sync-attention-ui.js';
 import type { PublicRejoinDecision, RejoinDecisionChoice, RejoinDecisionRequest,
@@ -25,6 +25,7 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
   panel.setAttribute('aria-labelledby', heading.id);
   let libraryId = '', connected = false, disposed = false, busy = false, owner = 0, readTurn = 0, renderTurn = 0;
   let awaitingResult: string | undefined;
+  let renderedLanguage = uiLanguage();
   let rows: readonly PublicRejoinDecision[] = [];
   const cancellations = new Set<() => void>();
   const isCurrent = (version: number) => !disposed && version === owner && connected && !!libraryId;
@@ -49,6 +50,7 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
   }
   function render() {
     const version = owner, controls = ++renderTurn;
+    renderedLanguage = uiLanguage();
     heading.textContent = t('rejoin_heading', 'Review changes made while sync was paused');
     intro.textContent = t('rejoin_intro', 'Choose how these items should sync again. Each choice applies only to the items shown.');
     retry.textContent = t('common_refresh', 'Refresh'); retry.disabled = busy;
@@ -66,7 +68,7 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
     if (!response.ok) { rows = []; render(); setFeedback(errorCopy(response.error)); return; }
     // Polling the same reviewed facts must not erase keyboard focus or a
     // checkbox just before the user clicks. Changed evidence gets new controls.
-    const unchanged = rows.length === response.decisions.length
+    const unchanged = renderedLanguage === uiLanguage() && rows.length === response.decisions.length
       && rows.every((row, index) => sameDecision(row, response.decisions[index]!));
     rows = response.decisions;
     if (!unchanged) render();
