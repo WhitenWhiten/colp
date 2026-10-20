@@ -43,6 +43,22 @@ event: Extract<SyncPullEventV02, { kind: 'operation' }>): Promise<boolean> {
   return object(latest?.payload.payload)?.newParentId === parent.colpId;
 }
 
+/** Prepared move events must not overwrite an invocation reported by another
+ * wake. The writer compares this entire admitted intent in its transaction. */
+export async function markUnstartedMoveCall(store: ReturnType<typeof createSyncStateStore>,
+  scope: SyncScope, eventId: string): Promise<void> {
+  const intent = await store.getApplyIntent(scope, `intent:${eventId}`);
+  if (!intent || intent.state !== 'intent_prepared' || intent.apiPhase !== 'intent_prepared'
+      || intent.nativeResult !== 'not_started' || intent.replayState !== 'not_started'
+      || intent.generation !== scope.generation || intent.expected.kind !== 'move'
+      || intent.anchors?.rangeAction !== 'native_move' || intent.anchors.chromeMutation !== true
+      || intent.apiResultEvidence || intent.nativeEventEvidence || intent.nativeResultConfirmation
+      || intent.nativeWaitDecision || intent.waitReason) {
+    throw new NativeWriteNotStartedError(new SyncFailureError('concurrent_local_mutation'));
+  }
+  await store.markPullBrowserCallStarted(scope, eventId, intent);
+}
+
 /** A proven non-call may admit a newer captured placement on its next wake.
  * Keep the old content/identity preimage: a move capture proves only placement.
  * The repository rechecks the complete intent before replacing those anchors. */

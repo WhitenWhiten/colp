@@ -214,13 +214,14 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
       });
   }
 
-  async function markPullBrowserCallStarted(input: SyncScope, eventId: string): Promise<void> {
+  async function markPullBrowserCallStarted(input: SyncScope, eventId: string, expected?: IntentRecord): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const db = await writableDatabase();
     await runTransaction(db, [STORES.pullEvents, STORES.intents], 'readwrite', async (tx) => {
       const events = tx.objectStore(STORES.pullEvents); const event = await requestValue(events.get([key, eventId])) as UnknownRecord | undefined;
       if (!event || event.state !== 'intent_prepared') throw new SyncStateError('pull_event_state_invalid');
       const intents = tx.objectStore(STORES.intents); const intent = await requestValue(intents.get([key, event.intentId as string])) as IntentRecord;
       if (!intent) throw new SyncStateError('intent_not_found');
+      if (expected && canonicalJson(intent) !== canonicalJson(expected)) throw new SyncStateError('native_result_cas');
       intents.put({ ...intent, state: 'browser_call_started', apiPhase: 'browser_call_started' });
       events.put({ ...event, state: 'browser_call_started' });
     });

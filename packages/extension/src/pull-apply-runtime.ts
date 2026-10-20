@@ -41,7 +41,7 @@ import { commitSupersededByLocalDelete } from './pull-local-delete-supersede.js'
 import { logBackgroundFailure } from './sw/background-failure.js';
 import { nativeWritePreimage, recordUnstartedPullRefusal } from './pull-native-write-boundary.js';
 import { createCheckedPullNative } from './pull-native-create-boundary.js';
-import { readmitCapturedLocalMove } from './pull-local-placement.js';
+import { markUnstartedMoveCall, readmitCapturedLocalMove } from './pull-local-placement.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -365,7 +365,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (plan.action !== 'materialize_independent') {
         const live = await options.store.getPullEvent(options.scope, eventId);
         if (live?.state === 'intent_prepared') {
-          await options.store.markPullBrowserCallStarted(options.scope, eventId);
+          if (plan.action === 'native_move') await markUnstartedMoveCall(options.store, options.scope, eventId);
+          else await options.store.markPullBrowserCallStarted(options.scope, eventId);
         }
       }
       const applied = await applyPlannedMove({

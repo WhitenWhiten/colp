@@ -745,3 +745,66 @@ for (const flushCaptured of [false, true]) {
     } finally { f.store.close(); }
   });
 }
+
+test('a captured move readmission resumes after its call-started write survives a worker crash', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    let started = false;
+    const store = { ...f.store,
+      markPullBrowserCallStarted: async (...args: Parameters<typeof f.store.markPullBrowserCallStarted>) => {
+        await f.store.markPullBrowserCallStarted(...args);
+        started = true; throw new Error('worker_crash_after_move_started');
+      } };
+    const calls = f.calls.length;
+    const native = structuredClone(f.nodes.get('native-existing'));
+    await assert.rejects(() => f.applier(store).resume(), /worker_crash_after_move_started/);
+    assert.equal(started, true);
+    const admitted = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+    assert.equal(admitted.state, 'browser_call_started');
+    assert.equal(admitted.apiPhase, 'browser_call_started');
+    assert.equal(admitted.nativeResult, 'not_started');
+    assert.equal(admitted.replayState, 'not_started');
+    assert.deepEqual(admitted.anchors?.nativePreimage,
+      { ...f.intent.anchors?.nativePreimage as JsonObject, parentId: 'native-d', index: 0 });
+    assert.equal(admitted.apiResultEvidence, null);
+    assert.equal(admitted.nativeEventEvidence, null);
+    assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+    f.store.close();
+    await assert.doesNotReject(() => f.applier().resume());
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+    const mapping = await f.store.getMappingByColpId(scope, 'node-existing');
+    assert.equal(mapping?.parentNativeId, 'native-d');
+    assert.equal(mapping?.parentColpId, 'folder-b');
+    assert.deepEqual(f.nodes.get('native-existing'), native);
+    assert.equal(f.calls.length, calls);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+  } finally { f.store.close(); }
+});
+
+test('an unknown native result committed at call admission wins over the prepared move snapshot', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    let attempted = false, protectedIntent = f.intent;
+    const store = { ...f.store,
+      markPullBrowserCallStarted: async (...args: Parameters<typeof f.store.markPullBrowserCallStarted>) => {
+        attempted = true;
+        await f.store.persistApplyIntentFacts(scope, f.intent.intentId, { nativeResult: 'result_unknown',
+          nativeResultConfirmation: { kind: 'unknown', code: 'concurrent-invocation-result' } });
+        protectedIntent = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+        return f.store.markPullBrowserCallStarted(...args);
+      } };
+    const calls = f.calls.length;
+    const native = structuredClone(f.nodes.get('native-existing'));
+    await assert.rejects(() => f.applier(store).resume(), /native_result_cas/);
+    assert.equal(attempted, true);
+    assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), protectedIntent);
+    assert.equal((await f.store.getPullEvent(scope, f.eventId))?.state, 'intent_prepared');
+    assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+    assert.deepEqual(await f.store.getMappingByColpId(scope, 'node-existing'), f.mappingBefore);
+    assert.deepEqual(f.nodes.get('native-existing'), native);
+    assert.equal(f.calls.length, calls);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+  } finally { f.store.close(); }
+});
