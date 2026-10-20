@@ -1,6 +1,6 @@
 # 同步审计逐任务提交索引 — 2026-10-20
 
-此索引覆盖集成基线 `a7800c8877edb51179a6137376834bb02b3ed03a` 之后、审查代码提交 `0922c112bd649f5e0ddf75d7ee6c319579359b86` 为止、沿第一父链追踪的 **269 个独立提交**。提交数包括复现、产品修复、补测、审查后修正和发布检查，不代表相同数量的独立缺陷。5 个保留的既有 PR 分支提交单列于末尾附录；报告和文档校正提交也不包含在上表计数内。
+此索引覆盖集成基线 `a7800c8877edb51179a6137376834bb02b3ed03a` 之后、审查代码提交 `1364ad54055df29cff2e36e5f557ebd00990306a` 为止、沿第一父链追踪的 **284 个独立提交**。提交数包括复现、产品修复、补测、审查后修正、审计文档和发布检查，不代表相同数量的独立缺陷。5 个保留的既有 PR 分支提交单列于末尾附录；生成此索引的文档提交不包含在上表计数内。
 
 每项 S01–S25 均有单独的主修复提交；多个任务共享的后续边界修复列出全部相关编号。未在标题中标记编号的独立审查测试，按验证行为归入对应任务。原始失败复现和后续修正分别保留，没有 squash。
 
@@ -13,9 +13,9 @@
 | S03 | URL 身份 | [8e2d77267bac](https://github.com/WhitenWhiten/colp/commit/8e2d77267baca15cf1f494a45362260195c8ff81) | 3 |
 | S04 | 多字段编辑与合并 | [bc175058a1fd](https://github.com/WhitenWhiten/colp/commit/bc175058a1fda06755eed2cb384a8c76b217002d) | 4 |
 | S05 | 远端删除与本地未完成工作 | [b69a0bb605e0](https://github.com/WhitenWhiten/colp/commit/b69a0bb605e023c28b8817ee429b424c209f7628) | 14 |
-| S06 | 浏览器 create 回声身份 | [d3c8e85b8301](https://github.com/WhitenWhiten/colp/commit/d3c8e85b83012740fad7fa6a267001a7f336c2fc) | 3 |
-| S07 | 回声后的连续用户编辑 | [324b227b263e](https://github.com/WhitenWhiten/colp/commit/324b227b263ead2ccea91e3325c3d0941ec14b44) | 32 |
-| S08 | 排序、历史增长与首次同步性能 | [6cc821223b98](https://github.com/WhitenWhiten/colp/commit/6cc821223b9801fc4f818a9767a3552ccf121e09) | 14 |
+| S06 | 浏览器 create 回声身份 | [d3c8e85b8301](https://github.com/WhitenWhiten/colp/commit/d3c8e85b83012740fad7fa6a267001a7f336c2fc) | 6 |
+| S07 | 回声后的连续用户编辑 | [324b227b263e](https://github.com/WhitenWhiten/colp/commit/324b227b263ead2ccea91e3325c3d0941ec14b44) | 34 |
+| S08 | 排序、历史增长与首次同步性能 | [6cc821223b98](https://github.com/WhitenWhiten/colp/commit/6cc821223b9801fc4f818a9767a3552ccf121e09) | 19 |
 | S09 | 暂停、重新加入与删除决策 | [c7e2c7cb3e39](https://github.com/WhitenWhiten/colp/commit/c7e2c7cb3e391b4b04aefa27e10fcf17d482f572) | 35 |
 | S10 | 账号、设备和浏览器根目录隔离 | [49468a1391dc](https://github.com/WhitenWhiten/colp/commit/49468a1391dca8d7da465088623f900714e0f28f) | 5 |
 | S11 | 空书签标题 | [3c9e86ea246d](https://github.com/WhitenWhiten/colp/commit/3c9e86ea246de9ccd0c0f32051326be1067bb961) | 4 |
@@ -29,7 +29,7 @@
 | S19 | 多个设置页并发 | [ed71342c2e40](https://github.com/WhitenWhiten/colp/commit/ed71342c2e406ba49c7123b83325c2318d4c4b12) | 4 |
 | S20 | 保存完成反馈 | [07da80a3c176](https://github.com/WhitenWhiten/colp/commit/07da80a3c1761c8be8b855714d30267ebc4ee34c) | 2 |
 | S21 | 进度、问题提示与恢复入口 | [efd457189d56](https://github.com/WhitenWhiten/colp/commit/efd457189d5644532a714f4d2c21b295bf24431c) | 5 |
-| S22 | 真实场景与发布检查 | [a7719218002b](https://github.com/WhitenWhiten/colp/commit/a7719218002bc694ae3bae46764fadb43cdc391f) | 79 |
+| S22 | 真实场景与发布检查 | [a7719218002b](https://github.com/WhitenWhiten/colp/commit/a7719218002bc694ae3bae46764fadb43cdc391f) | 84 |
 | S23 | 不支持的恢复位置 | [de3ad96c677a](https://github.com/WhitenWhiten/colp/commit/de3ad96c677a20739ff9c47cd221e16819519ba0) | 1 |
 | S24 | 范围命令中断恢复 | [741c9f2c0bf1](https://github.com/WhitenWhiten/colp/commit/741c9f2c0bf1d538ed2266ff2ffcc782015d6ed7) | 21 |
 | S25 | 本地不支持的 URL | [56abbcec539b](https://github.com/WhitenWhiten/colp/commit/56abbcec539b83d614403c4a37024ec9f3516f22) | 2 |
@@ -309,11 +309,26 @@
 | 267 | S07 | [fd6a05b377d2](https://github.com/WhitenWhiten/colp/commit/fd6a05b377d2ab804b5dafc00bbcf480956e0a30) | [S07][R5] preserve concurrent invocation facts at move call admission |
 | 268 | S07 | [e75aafcc7f71](https://github.com/WhitenWhiten/colp/commit/e75aafcc7f718ccc61286ca2e71d815d2ebdb387) | [S07][R5] classify a competing move start as a retryable CAS |
 | 269 | S07 | [0922c112bd64](https://github.com/WhitenWhiten/colp/commit/0922c112bd649f5e0ddf75d7ee6c319579359b86) | [S07][R5] preserve captured title and URL edits across move retries |
+| 270 | S22 | [b4c4f596a1a2](https://github.com/WhitenWhiten/colp/commit/b4c4f596a1a2d1f3b8453064b2b401a6401eb3b3) | [S22] Record synchronization audit repairs and independent review evidence |
+| 271 | S22 | [b0bda063d4e1](https://github.com/WhitenWhiten/colp/commit/b0bda063d4e129520664e8a1bce734aae98961b7) | [S22] Distinguish retained PR history from the audit task ledger |
+| 272 | S06 | [239ee14d85b3](https://github.com/WhitenWhiten/colp/commit/239ee14d85b316c52b34eb55ae6d19fcba038e9b) | [S06][R5] Preserve restore recovery when provisional self-create is inapplicable |
+| 273 | S08 | [27227944cb77](https://github.com/WhitenWhiten/colp/commit/27227944cb7773f242980422b97c352a575b7552) | [S08][R5] Exercise post-create recovery through the coherent mapping reader |
+| 274 | S07 | [3f9a8609c09d](https://github.com/WhitenWhiten/colp/commit/3f9a8609c09dfe26b28ec8012c1f0efb1ad2f30f) | [S07][R5] Require queue identity binding before retaining a captured placement |
+| 275 | S07 | [d7936e7c9e76](https://github.com/WhitenWhiten/colp/commit/d7936e7c9e7646f1736ba0b3bfe0f3010e87c0f0) | [S07][R5] Give the stamped-move positive fixture its new operation ID |
+| 276 | S08 | [6f6faf075623](https://github.com/WhitenWhiten/colp/commit/6f6faf075623fe79052ea0fca97803195fe8cf70) | [S08][R6] Resolve provisional create parents only when fallback needs them |
+| 277 | S08 | [95b370668afb](https://github.com/WhitenWhiten/colp/commit/95b370668afb08d743053a76628effd454a7cb61) | [S08][R6] Keep fallback identity checks after the deferred parent read |
+| 278 | S08 | [ff4ba1f84a61](https://github.com/WhitenWhiten/colp/commit/ff4ba1f84a61fdccd8e389e3c3147cbecb0198a1) | [S08][R6] Distinguish prepared item holds from started create refusal in read regressions |
+| 279 | S22 | [b7670e0b9afa](https://github.com/WhitenWhiten/colp/commit/b7670e0b9afa348d4bd94b10afbb96c5a71f88b5) | [S22][R6] Gate the provisional self-create owner on all four coverage metrics |
+| 280 | S22 | [113ff442cb01](https://github.com/WhitenWhiten/colp/commit/113ff442cb0197b1920ac28aacb7d9c358a160d5) | [S22][R6] Exercise late fallback collisions and unknown create response binding |
+| 281 | S08 | [32bfbfec1b8a](https://github.com/WhitenWhiten/colp/commit/32bfbfec1b8a98d06d95d7443ca5237389be9e3f) | [S08][R6] Probe self-create binding with a retained provisional mapping |
+| 282 | S06 | [0bb094d0ea52](https://github.com/WhitenWhiten/colp/commit/0bb094d0ea5264cfcea1d0a795653654c3c0fd7d) | [S06][R6] Bind provisional self echoes to their durable queued source |
+| 283 | S06 | [7e30eebfbbe7](https://github.com/WhitenWhiten/colp/commit/7e30eebfbbe7eaea29bc103f3f1dbb5c1119f597) | [S06][R6] Exercise missing provisional source checks before admitting the bad response |
+| 284 | S22 | [1364ad54055d](https://github.com/WhitenWhiten/colp/commit/1364ad54055df29cff2e36e5f557ebd00990306a) | [S22][R5] Assert full range preview counts in reconnect journey |
 
 
 ## 保留的既有 PR 分支历史
 
-首次集成提交 a798a996 保留第二父分支的以下 5 个提交。它们不属于上表的本轮主线任务计数，但属于 Git 从 main 比较到 PR 的完整可达历史。源码提交 0922c112 的完整图差异因此为 274 个提交：本轮追踪的 269 个，加上这里保留的 5 个。后续报告及文档校正提交另计。
+首次集成提交 a798a996 保留第二父分支的以下 5 个提交。它们不属于上表的本轮主线任务计数，但属于 Git 从 main 比较到 PR 的完整可达历史。本索引来源 1364ad54055d 的完整图差异经 Git 比较确认为 289 个提交：本轮追踪的 284 个，加上这里保留的 5 个。生成本索引的最后文档提交另计。
 
 | 既有提交 | 原提交主题 |
 |---|---|
