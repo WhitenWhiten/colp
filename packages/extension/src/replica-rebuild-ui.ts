@@ -36,7 +36,7 @@ export function bindReplicaRebuildButton(hostId: string): void {
   async function send(message: ReplicaRebuildRequest): Promise<ReplicaRebuildResponse> {
     return chrome.runtime.sendMessage(message) as Promise<ReplicaRebuildResponse>;
   }
-  function askConfirmation(hostButton: HTMLButtonElement, feedbackElement: HTMLElement, question: string): Promise<boolean> {
+  function askConfirmation(feedbackElement: HTMLElement, question: string): Promise<{ proceed: boolean; restoreFocus: boolean }> {
     return new Promise((resolve) => {
       const strip = document.createElement('div'); strip.className = 'rebuild-confirm';
       const copy = document.createElement('p'); copy.className = 'rebuild-confirm-copy'; copy.textContent = question;
@@ -45,7 +45,13 @@ export function bindReplicaRebuildButton(hostId: string): void {
       confirmButton.className = 'btn btn-danger btn-sm'; confirmButton.textContent = REBUILD_CONFIRM_LABEL;
       const cancelButton = document.createElement('button'); cancelButton.type = 'button';
       cancelButton.className = 'btn btn-ghost btn-sm'; cancelButton.textContent = REBUILD_CANCEL_LABEL;
-      const settle = (proceed: boolean) => { strip.remove(); if (!proceed) hostButton.focus(); resolve(proceed); };
+      let settled = false;
+      const settle = (proceed: boolean) => {
+        if (settled) return;
+        settled = true;
+        const restoreFocus = !proceed && strip.contains(document.activeElement);
+        strip.remove(); resolve({ proceed, restoreFocus });
+      };
       confirmButton.addEventListener('click', () => settle(true));
       cancelButton.addEventListener('click', () => settle(false));
       strip.addEventListener('keydown', (event) => { if (event.key === 'Escape') settle(false); });
@@ -56,13 +62,14 @@ export function bindReplicaRebuildButton(hostId: string): void {
   async function rebuild(): Promise<void> {
     if (!button || !feedback || button.disabled) return;
     button.disabled = true;
+    let restoreFocus = false;
     try {
       const preview = await send({ kind: 'known.scope.rebuild.preview' });
       if (!preview.ok) throw new Error(preview.code);
       if (!('preview' in preview)) throw new Error('request_invalid');
-      const proceed = await askConfirmation(button, feedback, replicaRebuildConfirmation(preview.preview.queuedOperations,
+      const confirmation = await askConfirmation(feedback, replicaRebuildConfirmation(preview.preview.queuedOperations,
         preview.preview.retirementRequired));
-      if (!proceed) return;
+      if (!confirmation.proceed) { restoreFocus = confirmation.restoreFocus; return; }
       const result = await send({ kind: 'known.scope.rebuild.confirm', userGesture: true,
         replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision, targetFence: preview.preview.targetFence });
       if (!result.ok) throw new Error(result.code);
@@ -74,6 +81,12 @@ export function bindReplicaRebuildButton(hostId: string): void {
       feedback.hidden = false;
       const code = reasonCode(error, 'rebuild_failed');
       feedback.textContent = replicaRebuildFailureCopy(code);
-    } finally { button.disabled = false; }
+    } finally {
+      button.disabled = false;
+      // The disabled trigger cannot receive focus while the dialog settles.
+      // Restore it only if this view and its vacated focus still belong to us.
+      if (restoreFocus && button.isConnected && document.getElementById(`${hostId}-rebuild`) === button
+          && document.getElementById(`${hostId}-feedback`) === feedback && document.activeElement === document.body) button.focus();
+    }
   }
 }
