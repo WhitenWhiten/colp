@@ -9,19 +9,36 @@ type Input = RejoinChrome & { store: ReturnType<typeof createSyncStateStore>; sc
 export async function assertRejoinBoundary(input: Input, mapping: MappingInput, options: {
   readonly parentNativeId?: string; readonly expectedBoundary?: string; readonly allowMissing?: boolean;
   readonly extraMappings?: readonly MappingInput[]; readonly virtualOnly?: boolean;
+  readonly lookupNativeIds?: readonly string[];
 } = {}): Promise<void> {
   const recorded = await input.store.getScope(input.scope);
   if (!recorded || recorded.lifecycle !== 'active' || !['ready', 'nested_normalized'].includes(recorded.rootStatus ?? '')
     || options.expectedBoundary && rejoinBoundaryDigest(recorded) !== options.expectedBoundary) fail();
-  const all = options.extraMappings ?? await input.store.listMappings(input.scope);
-  const byColp = new Map(all.map(row => [row.colpId, row]));
-  const byNative = new Map(all.map(row => [row.nativeId, row]));
+  // A separate current read is required for every mutation. Read only its
+  // actual ancestry instead of rescanning the entire library for each member
+  // of a wide deletion. These lookup maps live for this one check only.
+  const hinted = options.extraMappings ?? (options.lookupNativeIds
+    ? await input.store.readRejoinBoundaryMappings(input.scope, options.lookupNativeIds, recorded.privateRoots ?? []) : []);
+  const byColp = new Map<string, MappingInput | undefined>(hinted.map(row => [row.colpId, row]));
+  const byNative = new Map<string, MappingInput | undefined>(hinted.map(row => [row.nativeId, row]));
+  const remember = (row: MappingInput | null) => {
+    if (row) { byColp.set(row.colpId, row); byNative.set(row.nativeId, row); }
+    return row ?? undefined;
+  };
+  const findColp = async (id: string) => {
+    if (!byColp.has(id) && !options.extraMappings) byColp.set(id, remember(await input.store.getMappingByColpId(input.scope, id)));
+    return byColp.get(id);
+  };
+  const findNative = async (id: string) => {
+    if (!byNative.has(id) && !options.extraMappings) byNative.set(id, remember(await input.store.getMappingByNativeId(input.scope, id)));
+    return byNative.get(id);
+  };
   const excluded = await input.store.listLocalSyncExclusions(input.scope);
   const privateIds = new Set(recorded.privateRoots ?? []);
   const forbiddenNative = new Set(excluded.map(row => row.nativeId));
   const forbiddenColp = new Set(excluded.flatMap(row => row.priorColpId ? [row.priorColpId] : []));
   for (const id of privateIds) {
-    const privateMapping = byColp.get(id);
+    const privateMapping = await findColp(id);
     if (!privateMapping) fail();
     forbiddenNative.add(privateMapping.nativeId); forbiddenColp.add(id);
   }
@@ -33,8 +50,8 @@ export async function assertRejoinBoundary(input: Input, mapping: MappingInput, 
     if (forbiddenColp.has(current.colpId) || forbiddenNative.has(current.nativeId)) fail();
     if (recorded.selectedRoots.includes(current.colpId)
       || input.admittedNativeRootIds?.includes(current.nativeId)) selected = true;
-    current = current.parentColpId ? byColp.get(current.parentColpId)
-      : current.parentNativeId ? byNative.get(current.parentNativeId) : undefined;
+    current = current.parentColpId ? await findColp(current.parentColpId)
+      : current.parentNativeId ? await findNative(current.parentNativeId) : undefined;
   }
   if (options.virtualOnly) return;
   let nativeId = options.parentNativeId ?? mapping.nativeId;
@@ -45,7 +62,7 @@ export async function assertRejoinBoundary(input: Input, mapping: MappingInput, 
     if (nativeSeen.has(nativeId)) fail();
     nativeSeen.add(nativeId);
     if (forbiddenNative.has(nativeId)) fail();
-    const mapped = byNative.get(nativeId);
+    const mapped = await findNative(nativeId);
     if (mapped && forbiddenColp.has(mapped.colpId)) fail();
     if (mapped && recorded.selectedRoots.includes(mapped.colpId)
       || input.admittedNativeRootIds?.includes(nativeId)) liveSelected = true;
@@ -57,7 +74,7 @@ export async function assertRejoinBoundary(input: Input, mapping: MappingInput, 
     nativeId = native.parentId ?? '';
   }
   if (!selected && !liveSelected || !liveSelected) fail();
-  const root = byNative.get(input.mount?.nativeRootId ?? mapping.rootNativeId);
+  const root = await findNative(input.mount?.nativeRootId ?? mapping.rootNativeId);
   if (!root || input.mount && root.colpId !== input.mount.remoteMountNodeId) fail();
 }
 function fail(): never { throw new Error('rejoin_boundary_changed'); }

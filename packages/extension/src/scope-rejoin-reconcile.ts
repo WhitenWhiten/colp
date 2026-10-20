@@ -6,7 +6,7 @@ import { captureRejoinParents, createRejoinQueue } from './scope-rejoin-parents.
 import { reconcileRejoinOrders } from './scope-rejoin-order.js';
 import { digestJson } from './bookmark-event-codec.js';
 import { queueRejoinOperation } from './scope-rejoin-queue.js';
-import { assertRejoinDeletionTree, protectedRejoinDeletions, rejoinDeletionMembers, rejoinPlacement } from './scope-rejoin-placement.js';
+import { protectedRejoinDeletions, rejoinDeletionMembers, rejoinPlacement, removeRejoinDeletionMembers } from './scope-rejoin-placement.js';
 import { materializeUnmountedRejoinMembers, rejoinMemberMappings } from './scope-rejoin-materialize.js';
 import { parentFirst } from './scope-rejoin-members.js';
 import { isNonChromeNativeId } from './pull-mount-apply.js';
@@ -102,53 +102,31 @@ export async function applyRejoinObservations(input: {
     if (outcome === 'retain_local_edit' || outcome === 'apply_delete_policy') {
       const policy = (await store.getRemoteDeletePolicy(scope)).policy;
       if (localEdited || protectedDeletions.has(mapping.nativeId) || policy === 'confirm') { conflicts++; continue; }
-      let authority;
       if (policy === 'keep_local') {
         await store.putLocalSyncExclusion(scope, { nativeId: mapping.nativeId, decisionId: commandId,
           rootNativeId: mount.nativeRootId, generation: scope.generation, priorColpId: mapping.colpId });
-      } else if (mapping.nodeKind === 'folder') {
+      } else {
         if (native && !input.removeNative) { unknown++; continue; }
         try {
           const members = rejoinDeletionMembers(protection.evidence, mapping.nativeId);
           // A descendant may have moved out remotely before its former
-          // ancestor was deleted. removeTree needs a tombstone for every
-          // native identity it would erase, not just the ancestor's fact.
+          // ancestor was deleted. Each frozen native identity needs its own
+          // tombstone before the family is eligible for automatic deletion.
           if (members.some(row => observations.get(row.colpId)?.kind !== 'tombstone')
             || !native && members.some(row => protection.evidence.facts.get(row.nativeId)?.native)) {
             conflicts++; continue;
           }
-          const deletion = { members, boundary: protection.evidence.boundary };
-          if (native) authority = await applyRejoinMutation(input, mapping, 'remove', {}, native, async current => {
-            await assertRejoinDeletionTree(input, protection.evidence, members);
-            await store.assertRejoinMutation(scope, current);
-          }, deletion);
-          else {
-            // A crash may occur after removeTree but before the mapping
-            // transaction. Prove the entire known family is still absent,
-            // then publish its identity cleanup together without another API call.
-            authority = { ...await rejoinMutationAuthority(input, mapping), deletion,
-              exclusionDigest: deletion.boundary.exclusionDigest };
-            await assertRejoinDeletionTree(input, protection.evidence, members);
+          await removeRejoinDeletionMembers(input, protection.evidence, members);
+          for (const removed of members) {
+            removedNativeIds.add(removed.nativeId); considered.push(removed.colpId);
           }
+          applied++; continue;
         } catch (error) {
           if (!(error instanceof Error) || error.message !== 'rejoin_boundary_changed') throw error;
           deletionChanged = true; conflicts++; break;
         }
-      } else if (native) {
-        if (!input.removeNative) { unknown++; continue; }
-        authority = await applyRejoinMutation(input, mapping, 'remove', {}, native);
       }
-      await store.commitRejoinProjection(scope, authority ?? await rejoinMutationAuthority(input, mapping), null);
-      for (const removed of authority?.deletion?.members ?? []) {
-        removedNativeIds.add(removed.nativeId); considered.push(removed.colpId);
-      }
-      if (!native && authority?.deletion) for (const intent of await store.listApplyIntents(scope)) {
-        if (intent.liveWorkKind === 'rejoin' && intent.colpId === mapping.colpId
-          && intent.nativeTargetId === mapping.nativeId && intent.expected.kind === 'remove'
-          && intent.state === 'browser_call_started') {
-          await store.persistApplyIntentFacts(scope, intent.intentId, { state: 'page_complete' });
-        }
-      }
+      await store.commitRejoinProjection(scope, await rejoinMutationAuthority(input, mapping), null);
       applied++; continue;
     }
     if (!local || !native) { if (!deletions.handled.has(mapping.colpId)) unknown++; continue; }

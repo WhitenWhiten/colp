@@ -177,6 +177,21 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
   }
   const mutationStores = [STORES.scopes, STORES.mounts, STORES.mappings, STORES.localSyncExclusions,
     STORES.sequences, STORES.metadata, STORES.queue, STORES.bookmarkEvents, STORES.remoteDeletePolicies];
+  /** Lookup hints select keys, never authorize them. Re-read the entire hinted
+   * ancestry in one current transaction before each native member mutation. */
+  async function readRejoinBoundaryMappings(scope: SyncScope, nativeIds: readonly string[], colpIds: readonly string[]): Promise<MappingInput[]> {
+    const key = keyFor(scope); const tx = (await ctx.open()).transaction([STORES.scopes, STORES.mappings], 'readonly');
+    const done = transactionDone(tx);
+    try {
+      await requireActiveScope(tx, key);
+      const mappings = tx.objectStore(STORES.mappings);
+      const rows = await Promise.all([
+        ...[...new Set(nativeIds)].map(id => requestValue(mappings.get([key, id]))),
+        ...[...new Set(colpIds)].map(id => requestValue(mappings.index(INDEXES.mappingByColpId).get([key, id]))),
+      ]);
+      return rows.filter(row => row !== undefined).map(row => validateMappingRecord(key, row, ctx.maxRecordBytes));
+    } finally { await done; }
+  }
   /** Capture these before reading the deletion comparison, never from the
    * already-changing tree immediately before removeTree. */
   async function readRejoinDeletionBoundary(scope: SyncScope): Promise<RejoinDeletionBoundary> {
@@ -254,7 +269,7 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
     });
   }
   return { confirmRejoinDecision, prepareRejoinRestore, assertRejoinMaterialization, commitRejoinMaterialization,
-    readRejoinDeletionBoundary, assertRejoinMutation, commitRejoinProjection };
+    readRejoinBoundaryMappings, readRejoinDeletionBoundary, assertRejoinMutation, commitRejoinProjection };
 }
 
 function mappingIdentityDigest(value: MappingInput): string {

@@ -44,10 +44,11 @@ export function rejoinNativeDigest(value: RejoinNative): string {
     index: value.index ?? null, type: value.type ?? null, unmodifiable: value.unmodifiable ?? null, folderType: value.folderType ?? null });
 }
 
-/** Persist callback suppression before Chrome; retries compare the actual post-state before calling again. */
-export async function applyRejoinMutation(input: MutationInput,
+/** Freeze the original authority and callback suppression before any native work. */
+export async function prepareRejoinMutation(input: MutationInput,
   mapping: MappingInput, kind: 'change' | 'remove' | 'move', target: JsonObject, before: RejoinNative,
-  beforeNative?: (authority: RejoinMutationAuthority) => Promise<void>, deletion?: RejoinMutationAuthority['deletion']) {
+  beforeNative?: (authority: RejoinMutationAuthority) => Promise<void>, deletion?: RejoinMutationAuthority['deletion'],
+  lookupNativeIds?: readonly string[]) {
   const authority = { ...await rejoinMutationAuthority(input, mapping, kind === 'move' ? String(target.parentId) : undefined),
     ...(deletion ? { deletion, exclusionDigest: deletion.boundary.exclusionDigest } : {}) };
   const details = kind === 'remove' ? { parentId: before.parentId ?? '', index: before.index ?? 0 }
@@ -62,7 +63,7 @@ export async function applyRejoinMutation(input: MutationInput,
       expectedPostState: { digest: digestJson(target), ...(kind === 'change' ? { nativeContent: target } : {}) } });
   }
   input.crash?.('after_rejoin_intent');
-  await assertRejoinBoundary(input, mapping);
+  await assertRejoinBoundary(input, mapping, { lookupNativeIds });
   if (kind === 'move') await assertRejoinBoundary(input, mapping, { parentNativeId: String(target.parentId) });
   // Preserve the actionable order-conflict classification when a user has
   // already reordered; the same fingerprint is checked again below.
@@ -73,9 +74,30 @@ export async function applyRejoinMutation(input: MutationInput,
   // Order operations carry a full sibling fingerprint, which must be the final
   // native check rather than a preflight invalidated by our own async reads.
   await beforeNative?.(authority);
+  return { authority, intentId: `rejoin:${correlationId}` };
+}
+
+/** Persist callback suppression before Chrome; retries compare the actual post-state before calling again. */
+export async function applyRejoinMutation(input: MutationInput,
+  mapping: MappingInput, kind: 'change' | 'remove' | 'move', target: JsonObject, before: RejoinNative,
+  beforeNative?: (authority: RejoinMutationAuthority) => Promise<void>, deletion?: RejoinMutationAuthority['deletion'],
+  lookupNativeIds?: readonly string[]) {
+  const { authority, intentId } = await prepareRejoinMutation(input, mapping, kind, target, before, beforeNative, deletion, lookupNativeIds);
   if (kind === 'change') await input.updateNative!(mapping.nativeId, target);
-  else if (kind === 'remove') await input.removeNative!(mapping.nativeId, mapping.nodeKind === 'folder');
+  else if (kind === 'remove') {
+    try { await input.removeNative!(mapping.nativeId, false); }
+    catch (error) {
+      // Chrome refuses a nonempty folder. A child arriving after every read
+      // must survive; never turn this refusal into a recursive fallback.
+      let hasChildren = false;
+      if (mapping.nodeKind === 'folder' && input.getChildren) {
+        try { hasChildren = (await input.getChildren(mapping.nativeId)).length > 0; } catch { throw error; }
+      }
+      if (hasChildren) throw new Error('rejoin_boundary_changed');
+      throw error;
+    }
+  }
   else await input.moveNative!(mapping.nativeId, target as { parentId: string; index: number });
-  await input.store.persistApplyIntentFacts(input.scope, `rejoin:${correlationId}`, { state: 'page_complete' });
+  await input.store.persistApplyIntentFacts(input.scope, intentId, { state: 'page_complete' });
   return authority;
 }
