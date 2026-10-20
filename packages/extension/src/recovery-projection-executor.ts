@@ -6,6 +6,7 @@ import { isSpecialMountRole } from './pull-mount-apply.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { applySnapshotContent, planSnapshotContentUpdates, type RecoveryContentStore } from './recovery-content.js';
 import { applySnapshotPlacement, planSnapshotPlacementUpdates } from './recovery-placement.js';
+import { applySnapshotDeletion } from './recovery-delete.js';
 import {
   occupancyByNative, resolveCreateIdentity, virtualNativeId,
 } from './projection-native-occupancy.js';
@@ -499,24 +500,8 @@ async function perform(
     return intent.nativeId;
   }
   if (intent.kind === 'delete' && intent.nativeId) {
-    // A missing delete target is an idempotent success. Other failures must
-    // remain visible to the executor and leave the intent in recovery state.
-    const existing = await lookupBookmark(id => api.get(id), intent.nativeId);
-    if (existing.class !== 'present' && existing.class !== 'not_found') throw new Error(existing.message);
-    if (existing.class === 'present') {
-      const beforeNative = async () => {
-        const target = await ctx.store.getMappingByColpId(ctx.scope, intent.colpId);
-        if (!target || target.nativeId !== intent.nativeId) throw new SyncFailureError('need_authority');
-        await assertSnapshotNativeBoundary({ store: ctx.store, scope: ctx.scope, api, mapping: target,
-          kind: 'delete', legacyRootNativeId: ctx.selectedRootNativeId });
-      };
-      await beforeNative();
-      // The plan already orders explicit member deletes child-first. Recursive
-      // removal would also erase local-only or newly arrived descendants that
-      // the plan never authorized. Chrome's atomic non-empty check keeps those
-      // copies intact and leaves the intent recoverable until they move away.
-      await api.remove(intent.nativeId, beforeNative);
-    }
+    await applySnapshotDeletion({ store: ctx.store, scope: ctx.scope, api, colpId: intent.colpId,
+      nativeId: intent.nativeId, selectedRootNativeId: ctx.selectedRootNativeId });
     return intent.nativeId;
   }
   return intent.nativeId;
