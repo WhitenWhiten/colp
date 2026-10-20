@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { setTimeout } from 'node:timers/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, test } from 'vitest';
 import {
   RESOURCE_PAYLOAD_SCHEMA_VERSION,
@@ -17,6 +17,7 @@ import {
 import { createPostgresSyncConflictResolutionApplication } from '../../../src/infrastructure/sync/sync-conflict-resolution-postgres.js';
 import { createPostgresProductSyncCenterUnitOfWork } from '../../../src/infrastructure/sync/product-sync-center-postgres.js';
 import { encryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
+import type { PrivateConflictPayload } from '../../../src/infrastructure/sync/sync-conflict-private-payload.js';
 import { stableJson } from '../../../src/infrastructure/sync/sync-conflict-json.js';
 import { mintVerifiedExtensionCredentialFixture } from '../../support/extension-credential.js';
 import { insertTestOperation } from '../../support/ledger-split-writes.js';
@@ -391,6 +392,50 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     assert.deepEqual(after.conflict.pull_wire_json, before.conflict.pull_wire_json);
   });
 
+  test('a historical metadata-only conflict with no Base history remains blocked without guessing from Current', async () => {
+    const currentUrl = 'https://example.test/';
+    const id = await openConflict('missing-metadata-context', 'missing-metadata-operation', 1, 'concurrent_field_update', {
+      fullMenu: true, baseRevision: 'unavailable-historical-base', privatePayload: { nodeKind: 'bookmark',
+        base: { title: 'Target', urlHash: null }, current: { title: 'Target', urlHash: null },
+        incoming: { title: 'Retained offline title', urlHash: `sha-256=:${createHash('sha256').update(currentUrl).digest('base64')}:` } },
+    });
+    const product = productWithManagedWrites(false);
+    const decision = (await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items[0]!;
+    assert.deepEqual(decision.allowedResolutions, []);
+    assert.equal(decision.resolutionBlockedReason, 'resource_not_found');
+    assert.equal(decision.summary.incoming, 'Retained offline title');
+    const before = await resolutionState(id);
+    for (const resolution of ['server', 'incoming', 'custom', 'both'] as const) {
+      const request = { accountId: ACCOUNT, subjectId: SUBJECT, conflictId: id, resolution,
+        commandId: randomUUID(), fingerprint: `missing-source-${resolution}`,
+        ...(resolution === 'custom' ? { value: 'Custom title' } : {}) };
+      for (const [revision, code] of [['conflict-r1', 'precondition_failed'], [decision.revision, 'resource_not_found']]) {
+        await assert.rejects(product.execute(ports => ports.resolveConflict({ ...request, expectedRevision: revision! })),
+          (error: unknown) => error instanceof SyncConflictResolutionError && error.code === code);
+      }
+      assert.deepEqual(await resolutionState(id), before);
+    }
+    // A missing validation context cannot bypass managed ancestry. Accepting
+    // an already deleted node remains the sole canonical no-op choice.
+    const parentId = await moveTargetIntoManagedParent();
+    for (const targetId of [TARGET, parentId]) await isolated.runtime.pool.query(`update nodes
+      set deleted_at=now(),deleted_commit_ordinal=1,
+        payload_json=jsonb_set(jsonb_set(payload_json,'{deletedAt}',to_jsonb(now())),
+          '{deletedCommitOrdinal}','"1"') where id=$1`, [targetId]);
+    const deleted = (await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items[0]!;
+    assert.deepEqual(deleted.allowedResolutions, ['server']);
+    const beforeDismissal = await resolutionState(id);
+    assert.equal((await product.execute(ports => ports.resolveConflict({ accountId: ACCOUNT, subjectId: SUBJECT,
+      conflictId: id, expectedRevision: deleted.revision, commandId: randomUUID(), fingerprint: 'missing-source-dismissal',
+      resolution: 'server' }))).kind, 'committed');
+    const after = await resolutionState(id);
+    assert.deepEqual(after.node, beforeDismissal.node);
+    assert.equal(after.effects, beforeDismissal.effects);
+    assert.deepEqual(after.conflict.private_payload_ciphertext, before.conflict.private_payload_ciphertext);
+    assert.equal(after.conflict.private_payload_digest, before.conflict.private_payload_digest);
+    assert.deepEqual(after.conflict.pull_wire_json, before.conflict.pull_wire_json);
+  });
+
   function productWithManagedWrites(enabled: boolean) {
     return createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
       cursorSecret: 'managed-conflict-policy-cursor-secret-long-enough', conflictPayloadKeyring: KEYRING,
@@ -602,7 +647,8 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
   /** Inserts a conflict whose private payload is genuinely decryptable. */
   async function openConflict(conflictId: string, operationId: string, ordinal: number,
     type: 'concurrent_field_update' | 'delete_update' | 'unprovable_base' = 'concurrent_field_update',
-    options: { readonly fullMenu?: boolean; readonly independentDescription?: boolean } = {}): Promise<string> {
+    options: { readonly fullMenu?: boolean; readonly independentDescription?: boolean;
+      readonly baseRevision?: string; readonly privatePayload?: PrivateConflictPayload } = {}): Promise<string> {
     await isolated.runtime.pool.query(
       "insert into resource_id_ledger(resource_id,resource_type) values ($1,'activity') on conflict do nothing",
       [`${conflictId}-seed`],
@@ -627,17 +673,18 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
       'select lease_generation from sync_session_bindings where session_id = $1', [sessionId],
     )).rows[0];
     const leaseGeneration = String(binding.lease_generation);
-    const plaintext = stableJson(type === 'unprovable_base' ? { nodeKind: 'bookmark', base: {}, current: {}, incoming: {} } : {
+    const baseRevision = options.baseRevision ?? 'target-r1';
+    const plaintext = stableJson(options.privatePayload ?? (type === 'unprovable_base' ? { nodeKind: 'bookmark', base: {}, current: {}, incoming: {} } : {
       base: { title: 'Target', ...(options.independentDescription ? { description: null } : {}) },
       current: { title: 'Target', ...(options.independentDescription ? { description: null } : {}) },
       incoming: { title: 'Stale-epoch edit', ...(options.independentDescription ? { description: 'Independent offline note' } : {}) },
       nodeKind: 'bookmark',
-    }, invalid);
+    }), invalid);
     const encrypted = encryptPrivatePayload(plaintext, KEYRING.active, {
       collectionId: COLLECTION, replicaId, leaseGeneration, sessionId, operationId,
       targetId: TARGET, conflictId, commitOrdinal: String(ordinal),
       conflictType: type, conflictingFields: stableJson(conflictingFields, invalid),
-      nodeKind: 'bookmark', baseRevision: 'target-r1', currentRevision: 'target-r1',
+      nodeKind: 'bookmark', baseRevision, currentRevision: 'target-r1',
       keyVersion: '7',
     });
     const pullWire = {
@@ -652,13 +699,13 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
        current_projection,incoming_projection,private_payload_ciphertext,private_payload_iv,
        private_payload_auth_tag,private_payload_key_version,private_payload_digest,
        allowed_resolutions,pull_wire_json,status,revision,commit_ordinal)
-      values ($1,$2,$3,$4,$5,$6,'target-r1',null,'target-r1',$15,$7,
+      values ($1,$2,$3,$4,$5,$6,$16,null,'target-r1',$15,$7,
        '{"fields":["/title"]}','{"fields":["/title"]}','{"fields":["/title"]}',
        $8,$9,$10,7,$11,$12,$13,'open','conflict-r1',$14)`,
     [
       conflictId, COLLECTION, replicaId, sessionId, operationId, TARGET,
       JSON.stringify(conflictingFields), encrypted.ciphertext, encrypted.iv, encrypted.authTag,
-      encrypted.digest, JSON.stringify(menu), pullWire, ordinal, type,
+      encrypted.digest, JSON.stringify(menu), pullWire, ordinal, type, baseRevision,
     ]);
     await isolated.runtime.pool.query(`update collections set commit_ordinal=greatest(commit_ordinal,$2),
       payload_json=jsonb_set(payload_json,'{commitOrdinal}',to_jsonb(greatest(commit_ordinal,$2)::text)) where id=$1`, [COLLECTION, ordinal]);

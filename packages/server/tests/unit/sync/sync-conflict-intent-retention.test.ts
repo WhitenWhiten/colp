@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'vitest';
 import { Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler,
   type CompiledQuery, type DatabaseConnection, type Driver } from 'kysely';
@@ -11,7 +12,9 @@ import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-updat
 // Execute the production conflict serializer, capture its SQL
 // values, and authenticate/decrypt them with the production reader. This does
 // not substitute for PostgreSQL concurrency or constraint integration tests.
-test.each([false, true])('conflicts retain the complete authenticated incoming edit (deleted=%s)', async deleted => {
+test.each([{ deleted: false, metadataOnly: false }, { deleted: true, metadataOnly: false },
+  { deleted: false, metadataOnly: true }, { deleted: true, metadataOnly: true }])(
+  'conflicts retain authenticated authored fields and separate URL context (%j)', async ({ deleted, metadataOnly }) => {
   const before = 'https://example.test/before';
   const incomingUrl = 'https://example.test/after';
   const base: TrustedSyncNodeRevision = {
@@ -21,9 +24,11 @@ test.each([false, true])('conflicts retain the complete authenticated incoming e
   };
   const current: TrustedSyncNodeRevision = { ...base, deleted, revision: 'update-node-r2',
     payload: { ...base.payload, title: 'Remote title' } };
-  const operation = syncNodeUpdatePushRequest({
-    base: { title: 'Original', url: before }, value: { title: 'Local title', url: incomingUrl },
-  }).operations[0]!;
+  const metadata = { urlHash: `sha-256=:${createHash('sha256').update(before).digest('base64')}:`,
+    canonicalUrl: 'https://canonical.test/before' };
+  const operation = syncNodeUpdatePushRequest(metadataOnly
+    ? { base: { title: 'Original', urlHash: null, canonicalUrl: null }, value: { title: 'Local title', ...metadata } }
+    : { base: { title: 'Original', url: before }, value: { title: 'Local title', url: incomingUrl } }).operations[0]!;
   const evaluation = evaluateSyncNodeUpdate(operation, base, current);
   assert.equal(evaluation.status, 'conflict');
   if (evaluation.status !== 'conflict') throw new Error('expected title conflict');
@@ -79,7 +84,8 @@ test.each([false, true])('conflicts retain the complete authenticated incoming e
       faultInjector: { afterPhase(phase) { if (phase === 'conflict') throw stop; } },
     })), error => error === stop);
     assert.ok(saved, 'production conflict insert should be captured');
-    assert.deepEqual(saved.conflicting_fields, deleted ? ['/deletedAt', '/title', '/url'] : ['/title']);
+    assert.deepEqual(saved.conflicting_fields, deleted
+      ? metadataOnly ? ['/canonicalUrl', '/deletedAt', '/title', '/urlHash'] : ['/deletedAt', '/title', '/url'] : ['/title']);
     // The SQL driver returns named values from the schema-typed production
     // INSERT. Only the database boundary needs this row assertion; the real
     // reader authenticates every identity and retained-content byte below.
@@ -87,7 +93,14 @@ test.each([false, true])('conflicts retain the complete authenticated incoming e
     const decrypted = decryptPrivatePayload(row, { active: encryption, retained: [] }, 'bookmark', 1n,
       () => { throw new Error('decryption failed'); });
     assert.equal(decrypted.incoming.title, 'Local title');
-    assert.equal(decrypted.incoming.url, incomingUrl,
+    assert.deepEqual(decrypted.bookmarkUrlContext, { baseUrl: before });
+    if (metadataOnly) {
+      for (const projection of [decrypted.base, decrypted.current, decrypted.incoming]) {
+        assert.equal(Object.hasOwn(projection, 'url'), false, 'validation context cannot author URL content');
+      }
+      assert.equal(decrypted.incoming.urlHash, metadata.urlHash);
+      assert.equal(decrypted.incoming.canonicalUrl, metadata.canonicalUrl);
+    } else assert.equal(decrypted.incoming.url, incomingUrl,
       'the non-conflicting URL was not applied, so it must remain available to conflict resolution');
   } finally { await db.destroy(); }
 });

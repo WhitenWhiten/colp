@@ -3,7 +3,8 @@ import { preserveExtensions } from '@know-n/colp/schema';
 import { validateBookmarkUrlHashSemantics } from '@know-n/colp/semantic';
 import {
   mergeSyncNodeContentFields, mergeSyncExtensionNamespaces, SyncConflictResolutionError,
-  validIncomingBookmarkUrlHash, reconcileSyncBookmarkMetadata,
+  validIncomingBookmarkUrlHash, reconcileSyncBookmarkMetadata, incomingBookmarkMetadataForCurrent,
+  hasIncomingBookmarkUrlMetadata,
   type ValidatedSyncConflictResolutionCommand,
 } from '../../modules/sync/index.js';
 import {
@@ -12,13 +13,30 @@ import {
   isEquivalentBookmarkUrlRewrite,
 } from '../../modules/collections/index.js';
 import { assertPlainCustomObject, isRecord } from './sync-conflict-json.js';
-import type { PrivateConflictPayload } from './sync-conflict-private-payload.js';
+import { conflictBookmarkBaseUrl, type PrivateConflictPayload } from './sync-conflict-private-payload.js';
 
 function invalid(): never { throw new SyncConflictResolutionError('invalid_document'); }
 function fieldValue(payload: Readonly<Record<string, unknown>>, field: string): unknown {
   if (field === 'extensions') return payload[field] ?? {};
   if (field === 'canonicalUrl' || field === 'urlHash') return payload[field] ?? null;
   return payload[field];
+}
+
+function validatedBookmarkBaseUrl(payload: PrivateConflictPayload): unknown {
+  const baseUrl = conflictBookmarkBaseUrl(payload);
+  if (payload.nodeKind !== 'bookmark') return baseUrl;
+  if (hasIncomingBookmarkUrlMetadata(payload.incoming)
+    && typeof payload.incoming.url !== 'string' && typeof baseUrl !== 'string') {
+    throw new SyncConflictResolutionError('resource_not_found');
+  }
+  if (!validIncomingBookmarkUrlHash(payload.base, payload.incoming, baseUrl)) invalid();
+  return baseUrl;
+}
+
+function currentMergePayload(current: Readonly<Record<string, unknown>>, payload: PrivateConflictPayload,
+  baseUrl: unknown): PrivateConflictPayload {
+  return payload.nodeKind === 'bookmark' ? { ...payload,
+    incoming: incomingBookmarkMetadataForCurrent(current, payload.base, payload.incoming, baseUrl) } : payload;
 }
 
 /** Settle only the advertised conflicting fields by the user's choice; all
@@ -29,8 +47,8 @@ export function selectedResolutionFields(
   privatePayload: PrivateConflictPayload,
   pointers: readonly string[],
 ): Readonly<{ base: Record<string, unknown>; value: Record<string, unknown> }> {
-  if (privatePayload.nodeKind === 'bookmark' && !validIncomingBookmarkUrlHash(privatePayload.base,
-    privatePayload.incoming, privatePayload.base.url ?? current.url)) invalid();
+  const baseUrl = validatedBookmarkBaseUrl(privatePayload);
+  const mergePayload = currentMergePayload(current, privatePayload, baseUrl);
   const fields = pointers.map(pointer => pointer.slice(1))
     .filter(field => !['baseRevision', 'deletedAt'].includes(field));
   if (fields.length < 1) {
@@ -57,7 +75,7 @@ export function selectedResolutionFields(
   }
   for (const field of Object.keys(privatePayload.incoming)) {
     if (fields.includes(field)) continue;
-    const merged = mergeRetainedField(field, current, privatePayload);
+    const merged = mergeRetainedField(field, current, mergePayload);
     // A later edit may turn an originally independent field into a new
     // conflict. Keep the encrypted intent open instead of overwriting it.
     if (merged.status !== 'merged') {
@@ -68,7 +86,7 @@ export function selectedResolutionFields(
   }
   if (privatePayload.nodeKind !== 'bookmark') return { base, value };
   selectBookmarkDecisionMetadata(current, privatePayload, fields, value);
-  const normalized = reconcileSyncBookmarkMetadata(current, value, privatePayload.base, privatePayload.incoming);
+  const normalized = reconcileSyncBookmarkMetadata(current, value, privatePayload.base, privatePayload.incoming, baseUrl);
   return {
     base: Object.fromEntries(Object.keys(normalized).map(field => [field, fieldValue(current, field)])),
     value: { ...normalized },
@@ -116,18 +134,18 @@ export function duplicateNodeDocument(
   privatePayload: PrivateConflictPayload,
   pointers: readonly string[],
 ): NodeCreate {
-  if (privatePayload.nodeKind === 'bookmark' && !validIncomingBookmarkUrlHash(privatePayload.base,
-    privatePayload.incoming, privatePayload.base.url ?? current.url)) invalid();
+  const baseUrl = validatedBookmarkBaseUrl(privatePayload);
+  const mergePayload = currentMergePayload(current, privatePayload, baseUrl);
   const selected: Record<string, unknown> = {};
   for (const field of Object.keys(privatePayload.incoming)) {
-    const merged = mergeRetainedField(field, current, privatePayload);
+    const merged = mergeRetainedField(field, current, mergePayload);
     selected[field] = field === 'extensions'
       ? selectedExtensionNamespaces(current, privatePayload, privatePayload.incoming.extensions)
       : pointers.includes(`/${field}`) || merged.status === 'conflict'
       ? privatePayload.incoming[field] : merged.value[field];
   }
   const content = { ...current, ...(privatePayload.nodeKind === 'bookmark'
-    ? reconcileSyncBookmarkMetadata(current, selected, privatePayload.base, privatePayload.incoming) : selected) };
+    ? reconcileSyncBookmarkMetadata(current, selected, privatePayload.base, privatePayload.incoming, baseUrl) : selected) };
   const description = assertValidNodeDescription(content.description as string | null | undefined ?? null);
   const tags = assertValidNodeTags(content.tags as readonly string[] | undefined ?? []);
   const visibility = assertValidNodeVisibility(content.visibility as string | undefined ?? 'inherit');

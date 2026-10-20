@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { deepEqualSyncMergeValue } from '@know-n/colp/sync';
 import type { Selectable } from 'kysely';
-import { mergeSyncNodeContentFields, SyncConflictResolutionError,
+import { mergeSyncNodeContentFields, SyncConflictResolutionError, incomingBookmarkMetadataForCurrent,
+  hasIncomingBookmarkUrlMetadata, validIncomingBookmarkUrlHash,
   type ProductConflictResolutionBlockedReason } from '../../modules/sync/index.js';
 import type { SyncConflictTable } from '../database/runtime.js';
 import { executableSyncConflictResolutions } from './sync-conflict-postgres.js';
-import type { PrivateConflictPayload } from './sync-conflict-private-payload.js';
+import { conflictBookmarkBaseUrl, type PrivateConflictPayload } from './sync-conflict-private-payload.js';
 import { stableJson } from './sync-conflict-json.js';
 
 type Admission = Pick<Selectable<SyncConflictTable>, 'conflict_id' | 'revision' | 'current_revision'
@@ -32,13 +33,19 @@ export function planSyncConflictDecision(admission: Admission, retained: Private
   current: CurrentConflictNode) {
   const fields = new Set(admission.conflicting_fields);
   const retainedFields = Object.keys(retained.incoming).filter(contentField);
+  const baseUrl = conflictBookmarkBaseUrl(retained);
+  const hasMetadata = current.kind === 'bookmark' && hasIncomingBookmarkUrlMetadata(retained.incoming);
+  const metadataContextAvailable = !hasMetadata || ((typeof retained.incoming.url === 'string' || typeof baseUrl === 'string')
+    && validIncomingBookmarkUrlHash(retained.base, retained.incoming, baseUrl));
+  const incoming = current.kind === 'bookmark' && current.payload
+    ? incomingBookmarkMetadataForCurrent(current.payload, retained.base, retained.incoming, baseUrl) : retained.incoming;
   const relevantFields = new Set([...retainedFields, ...admission.conflicting_fields
     .map(pointer => pointer.slice(1)).filter(contentField)]);
   if (current.deleted) fields.add('/deletedAt');
   if (current.payload && !current.deleted) {
     for (const field of retainedFields) {
       const merged = mergeSyncNodeContentFields({ [field]: valueAt(retained.base, field) },
-        { [field]: valueAt(current.payload, field) }, { [field]: valueAt(retained.incoming, field) });
+        { [field]: valueAt(current.payload, field) }, { [field]: valueAt(incoming, field) });
       if (merged.status === 'conflict') fields.add(`/${field}`);
     }
   }
@@ -46,20 +53,20 @@ export function planSyncConflictDecision(admission: Admission, retained: Private
   const supported = executableSyncConflictResolutions({ ...admission, conflict_type: type },
     current.kind, current.payload !== null && retainedFields.length > 0);
   const writeBlockedReason = current.resolutionWriteBlockedReason
-    ?? (current.payload === null ? 'resource_not_found' : null);
+    ?? (current.payload === null || !metadataContextAvailable ? 'resource_not_found' : null);
   // Live server choices still merge independent incoming fields and emit a
   // canonical write. Only accepting an existing tombstone is a true no-op.
   const allowedResolutions = Object.freeze(supported.filter(resolution => writeBlockedReason === null
     || (current.deleted && resolution === 'server')));
   const resolutionBlockedReason = allowedResolutions.length === 0 ? writeBlockedReason : null;
-  const changed = writeBlockedReason !== null
+  const changed = writeBlockedReason !== null || (hasMetadata && !Object.hasOwn(retained.incoming, 'url'))
     || current.deleted !== (admission.conflict_type === 'delete_update') || current.payload === null
     || [...relevantFields].some(field => !deepEqualSyncMergeValue(
       valueAt(current.payload!, field), valueAt(retained.current, field)));
   const conflictingFields = Object.freeze([...fields].sort());
-  // A move or an edit outside the retained decision domain leaves its tag
-  // unchanged. Once a relevant value changes, the canonical revision also
-  // fences another concurrent write between refresh and confirmation.
+  // Metadata-only edits depend on the URL without authoring it. Fence their
+  // current canonical revision too, without inventing a conflicting URL field.
+  // Other unrelated changes leave the retained decision domain unchanged.
   const revision = changed ? `conflict-decision-${createHash('sha256').update(stableJson({
     conflictId: admission.conflict_id, admissionRevision: admission.revision,
     nodeRevision: current.resourceRevision, type, fields: conflictingFields,

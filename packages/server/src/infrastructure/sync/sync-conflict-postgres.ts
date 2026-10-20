@@ -202,6 +202,8 @@ export async function appendOpenSyncConflict(
     current: projectRawValues(input.current.payload, retainedFields),
     incoming: projectRawValues(update.value, retainedFields),
     nodeKind: input.current.kind,
+    ...(input.current.kind === 'bookmark' && typeof input.trustedBase?.payload.url === 'string'
+      ? { bookmarkUrlContext: { baseUrl: input.trustedBase.payload.url } } : {}),
   });
   const encrypted = encryptPrivatePayload(privatePayload, conflictPayloadEncryption, {
     collectionId: transaction.authority.collectionId,

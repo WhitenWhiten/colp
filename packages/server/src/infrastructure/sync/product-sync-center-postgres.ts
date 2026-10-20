@@ -132,6 +132,10 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       let query = transaction.selectFrom('sync_conflicts as conflict')
         .innerJoin('sync_replicas as replica', 'replica.replica_id', 'conflict.replica_id')
         .innerJoin('nodes as node', 'node.id', 'conflict.target_id')
+        .leftJoin('sync_node_revision_history as history', join => join
+          .onRef('history.collection_id', '=', 'conflict.collection_id')
+          .onRef('history.resource_id', '=', 'conflict.target_id')
+          .onRef('history.revision', '=', 'conflict.base_revision').on('history.kind', '=', 'bookmark'))
         .innerJoin('sync_session_bindings as binding', join => join
           .onRef('binding.session_id', '=', 'conflict.session_id')
           .onRef('binding.replica_id', '=', 'conflict.replica_id')
@@ -140,6 +144,7 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
         .select(['binding.lease_generation', 'node.kind as node_kind', 'node.resource_revision as node_revision',
           'node.deleted_at as node_deleted_at', 'node.payload_json as node_payload',
           'replica.capabilities_json as replica_capabilities'])
+        .select(sql<string | null>`history.payload_json->>'url'`.as('historical_base_url'))
         .select(managedAncestrySnapshotSql({ collectionId: sql.ref<string>('conflict.collection_id'),
           startId: sql.ref<string>('conflict.target_id'),
           retainedTombstones: sql<boolean>`node.deleted_at is not null` }).as('managed_ancestry'))
@@ -157,7 +162,7 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
             resolutionWriteBlockedReason: managedAncestryWriteBlockedReason(conflict.managed_ancestry,
               conflict.target_id, { managedBookmarkWrites: options.managedBookmarkWrites === true,
                 replicaWrite: conflict.replica_capabilities.write === true },
-              { retainedTombstones: conflict.node_deleted_at !== null }) });
+              { retainedTombstones: conflict.node_deleted_at !== null }) }, conflict.historical_base_url);
         const field = decision.conflictingFields.length === 1 ? decision.conflictingFields[0] ?? null : null;
         return Object.freeze({ id: conflict.conflict_id,
           collectionId: conflict.collection_id, targetId: conflict.target_id, type: decision.type, field,

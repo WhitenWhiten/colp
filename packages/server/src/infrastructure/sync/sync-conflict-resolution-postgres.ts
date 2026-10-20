@@ -31,6 +31,7 @@ import {
 } from './sync-conflict-json.js';
 import {
   decryptPrivatePayload as decryptPrivatePayloadValue,
+  withHistoricalBookmarkUrlContext,
   type PrivateConflictPayload,
 } from './sync-conflict-private-payload.js';
 import { selectedResolutionFields, duplicateNodeDocument } from './sync-conflict-content.js';
@@ -173,9 +174,16 @@ async function resolveInTransaction(
   const conflictBinding = await transaction.selectFrom('sync_session_bindings').select('lease_generation')
     .where('session_id', '=', conflict.session_id).executeTakeFirst();
   if (!conflictBinding) deny('internal_error');
-  const privatePayload = decryptPrivatePayload(
+  const retainedPayload = decryptPrivatePayload(
     conflict, options.conflictPayloadKeyring, current.kind, conflictBinding.lease_generation,
   );
+  // Collection and canonical node locks are already held. Restore only an
+  // old payload's validation context from its exact immutable Base revision.
+  const historicalBase = await transaction.selectFrom('sync_node_revision_history')
+    .select(sql<string | null>`payload_json->>'url'`.as('url'))
+    .where('collection_id', '=', conflict.collection_id).where('resource_id', '=', conflict.target_id)
+    .where('revision', '=', conflict.base_revision).where('kind', '=', 'bookmark').executeTakeFirst();
+  const privatePayload = withHistoricalBookmarkUrlContext(retainedPayload, historicalBase?.url);
   const managedCapabilities = {
     managedBookmarkWrites: options.managedBookmarkWrites === true,
     replicaWrite: authority.replicaWrite ?? await conflictReplicaWriteCapability(transaction, conflict.replica_id),
@@ -620,9 +628,10 @@ export function readProductConflictResolutions(
 }
 
 export function readProductConflictDecision(conflict: Selectable<SyncConflictTable>,
-  keyring: SyncConflictPayloadKeyring, leaseGeneration: bigint, current: CurrentConflictNode) {
+  keyring: SyncConflictPayloadKeyring, leaseGeneration: bigint, current: CurrentConflictNode,
+  historicalBaseUrl?: unknown) {
   const payload = decryptPrivatePayload(conflict, keyring, current.kind, leaseGeneration);
-  return planSyncConflictDecision(conflict, payload, current);
+  return planSyncConflictDecision(conflict, withHistoricalBookmarkUrlContext(payload, historicalBaseUrl), current);
 }
 
 async function databaseNow(transaction: DatabaseTransaction): Promise<Date> {

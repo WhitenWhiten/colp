@@ -55,6 +55,9 @@ import {
 import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-update.js';
 import { syncNodeCreatePushRequest } from '../../fixtures/phase3/sync-push-admission.js';
 import { createPostgresProductSyncCenterUnitOfWork } from '../../../src/infrastructure/sync/product-sync-center-postgres.js';
+import { encryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
+import { decryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-private-payload.js';
+import { stableJson } from '../../../src/infrastructure/sync/sync-conflict-json.js';
 import { syncNodeMovePushRequest } from '../../fixtures/phase3/sync-node-move.js';
 import { syncNodeDeletePushRequest } from '../../fixtures/phase3/sync-node-delete.js';
 import { observeSubtree } from '../../support/subtree-observation.js';
@@ -398,12 +401,13 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     readonly incoming?: Record<string, unknown>;
     readonly claimedBase?: Record<string, unknown>;
     readonly unavailableBase?: boolean;
+    readonly nodeUrl?: string;
   } = {}) {
     const kind = input.kind ?? 'bookmark';
     const base = input.base ?? { title: 'P3-18 base' };
     const node = await seedNode(kind, {
       title: kind === 'separator' ? undefined : String(base.title ?? 'P3-18 base'),
-      url: kind === 'bookmark' ? String(base.url ?? 'https://example.test/p3-18-base') : undefined,
+      url: kind === 'bookmark' ? input.nodeUrl ?? String(base.url ?? 'https://example.test/p3-18-base') : undefined,
       description: typeof base.description === 'string' ? base.description : null,
       extensions: (base.extensions ?? {}) as Record<string, unknown>,
     });
@@ -824,6 +828,39 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     assert.notEqual(effect.node.id, opened.node.id);
     assert.deepEqual((await facts(opened.value.replica.replicaId, opened.node.id)).node, before);
     assert.deepEqual(await app.resolve(request), resolved);
+  });
+
+  test.each([false, true])('a real metadata-only Push preserves Current URL and its enrichment in receipt and Pull (enriched=%s)', async enriched => {
+    const url = 'https://example.test/metadata-source', currentUrl = 'https://example.test/metadata-current';
+    const hash = (value: string) => `sha-256=:${createHash('sha256').update(value).digest('base64')}:`;
+    const seeded = await seedNode('bookmark', { url });
+    await setCurrent(seeded, { url: currentUrl, ...(enriched ? { urlHash: hash(currentUrl),
+      canonicalUrl: 'https://canonical.test/metadata-current' } : {}) });
+    const value = await context(), server = await start(value);
+    const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId,
+      replicaId: value.replica.replicaId, collectionId: COLLECTION, targetId: seeded.id,
+      baseRevision: seeded.revision, opId: `metadata-only-${randomUUID()}`,
+      base: { urlHash: null, canonicalUrl: null },
+      value: { urlHash: hash(url), canonicalUrl: 'https://canonical.test/metadata-source' } });
+    const idempotencyKey = `metadata-only-${randomUUID()}`;
+    const response = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const applied = result(response.body).results[0]!;
+    assert.equal(applied.status, 'rebased');
+    assert.deepEqual(applied.transform, { urlHash: enriched ? hash(currentUrl) : null,
+      canonicalUrl: enriched ? 'https://canonical.test/metadata-current' : null });
+    const row = (await facts(value.replica.replicaId, seeded.id)).node;
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    const pulled = await pulledOperationNode(request.operations[0]!.opId);
+    for (const content of [row.payload_json, effect.node, pulled]) {
+      assert.equal(content.url, currentUrl);
+      assert.equal(content.urlHash, enriched ? hash(currentUrl) : undefined);
+      assert.equal(content.canonicalUrl, enriched ? 'https://canonical.test/metadata-current' : undefined);
+    }
+    const beforeReplay = await facts(value.replica.replicaId, seeded.id);
+    assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, response.body);
+    assert.deepEqual(await facts(value.replica.replicaId, seeded.id), beforeReplay);
   });
 
   test('browser tag sync removes only observed members, preserves concurrent additions and exactly replays its receipt', async () => {
@@ -2347,6 +2384,87 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     assert.deepEqual(await app.resolve(request), resolved);
     assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
   });
+
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'new and historical metadata-only conflicts execute the advertised %s choice after a real URL Push', async resolution => {
+      const url = 'https://example.test/retained-metadata-source', nextUrl = 'https://example.test/retained-metadata-current';
+      const hash = (value: string) => `sha-256=:${createHash('sha256').update(value).digest('base64')}:`;
+      for (const legacy of [false, true]) {
+        const opened = await openConflict({ nodeUrl: url, base: { title: 'Base', urlHash: null, canonicalUrl: null },
+          current: { title: 'Server' }, incoming: { title: 'Incoming', urlHash: hash(url),
+            canonicalUrl: 'https://canonical.test/retained-metadata-source' } });
+        const keyring = { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] };
+        const row = await isolated.runtime.db.selectFrom('sync_conflicts').selectAll()
+          .where('conflict_id', '=', opened.conflictId).executeTakeFirstOrThrow();
+        const binding = await isolated.runtime.db.selectFrom('sync_session_bindings').select('lease_generation')
+          .where('session_id', '=', row.session_id).executeTakeFirstOrThrow();
+        const invalid = (): never => { throw new Error('invalid private conflict fixture'); };
+        const privatePayload = decryptPrivatePayload(row, keyring, 'bookmark', binding.lease_generation, invalid);
+        assert.deepEqual(privatePayload.bookmarkUrlContext, { baseUrl: url });
+        for (const projection of [privatePayload.base, privatePayload.current, privatePayload.incoming]) {
+          assert.equal(Object.hasOwn(projection, 'url'), false, 'metadata-only refreshes do not author the URL');
+        }
+        if (legacy) {
+          const { bookmarkUrlContext: _context, ...oldPayload } = privatePayload;
+          const encrypted = encryptPrivatePayload(stableJson(oldPayload, invalid), keyring.active, {
+            collectionId: row.collection_id, replicaId: row.replica_id, leaseGeneration: binding.lease_generation.toString(),
+            sessionId: row.session_id, operationId: row.operation_id, targetId: row.target_id, conflictId: row.conflict_id,
+            commitOrdinal: row.commit_ordinal.toString(), conflictType: row.conflict_type,
+            conflictingFields: stableJson(row.conflicting_fields, invalid), nodeKind: 'bookmark',
+            baseRevision: row.base_revision, currentRevision: row.current_revision, keyVersion: String(row.private_payload_key_version),
+          });
+          await isolated.runtime.db.updateTable('sync_conflicts').set({ private_payload_ciphertext: encrypted.ciphertext,
+            private_payload_iv: encrypted.iv, private_payload_auth_tag: encrypted.authTag,
+            private_payload_digest: encrypted.digest }).where('conflict_id', '=', opened.conflictId).execute();
+        }
+        const immutable = (await isolated.runtime.pool.query(`select pull_wire_json,private_payload_digest,
+          private_payload_ciphertext,current_revision,conflict_type,conflicting_fields from sync_conflicts where conflict_id=$1`,
+        [opened.conflictId])).rows[0];
+        const initial = await advertisedDecision(opened.conflictId);
+        assert.ok(initial.allowedResolutions.includes(resolution));
+        const peer = await context(), peerServer = await start(peer);
+        const changed = await blackBox(peerServer.origin).push({ idempotencyKey: `metadata-url-change-${randomUUID()}`,
+          request: syncNodeUpdatePushRequest({ sessionId: peer.session.sessionId, replicaId: peer.replica.replicaId,
+            collectionId: COLLECTION, targetId: opened.node.id, baseRevision: row.current_revision,
+            opId: `metadata-url-change-${randomUUID()}`, base: { url, urlHash: null, canonicalUrl: null },
+            value: { url: nextUrl, urlHash: hash(nextUrl), canonicalUrl: 'https://canonical.test/retained-metadata-current' } }) });
+        assert.equal(changed.status, 200, JSON.stringify(changed.body));
+        assert.equal(result(changed.body).results[0]?.status, 'applied');
+        const app = resolver(opened.value), beforeStale = await facts(opened.value.replica.replicaId, opened.node.id);
+        await assert.rejects(() => app.resolve(resolveInput({ ...opened, revision: initial.revision }, {
+          resolution, baseConflictRevision: initial.revision, ...(resolution === 'custom' ? { value: 'Custom' } : {}) })),
+        error => error instanceof SyncConflictResolutionError && error.code === 'precondition_failed');
+        assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), beforeStale);
+        const decision = await advertisedDecision(opened.conflictId);
+        assert.notEqual(decision.revision, initial.revision);
+        assert.equal(decision.field, '/title');
+        assert.ok(decision.allowedResolutions.includes(resolution));
+        const request = resolveInput({ ...opened, revision: decision.revision }, {
+          resolution, baseConflictRevision: decision.revision, ...(resolution === 'custom' ? { value: 'Custom' } : {}) });
+        const resolved = await app.resolve(request);
+        if (resolution !== 'both') assert.equal(Object.hasOwn(resolved.operation.payload!.value!, 'url'), false);
+        const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+          [resolved.operation.opId])).rows[0].effect_json;
+        const canonical = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [effect.node.id])).rows[0].payload_json;
+        const pulled = await pulledOperationNode(resolved.operation.opId);
+        for (const content of [canonical, effect.node, pulled]) {
+          assert.equal(content.url, nextUrl);
+          assert.equal(content.urlHash, hash(nextUrl));
+          assert.equal(content.canonicalUrl, 'https://canonical.test/retained-metadata-current');
+          assert.equal(content.title, resolution === 'server' ? 'Server' : resolution === 'custom' ? 'Custom' : 'Incoming');
+        }
+        if (resolution === 'both') {
+          assert.notEqual(effect.node.id, opened.node.id);
+          assert.deepEqual((await facts(opened.value.replica.replicaId, opened.node.id)).node, beforeStale.node);
+        }
+        const beforeReplay = await facts(opened.value.replica.replicaId, opened.node.id);
+        assert.deepEqual(await app.resolve(request), resolved);
+        assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), beforeReplay);
+        assert.deepEqual((await isolated.runtime.pool.query(`select pull_wire_json,private_payload_digest,
+          private_payload_ciphertext,current_revision,conflict_type,conflicting_fields from sync_conflicts where conflict_id=$1`,
+        [opened.conflictId])).rows[0], immutable);
+      }
+    });
 
   async function advertisedDecision(conflictId: string, managedBookmarkWrites = false) {
     const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
