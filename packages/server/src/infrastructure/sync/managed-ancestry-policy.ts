@@ -73,22 +73,28 @@ export function assertManagedAncestryWritable(
  * rows are locked FOR UPDATE in stable ID order. Abnormal chains — missing
  * start row, deleted chain member, cycle, depth overflow, dangling parent or a
  * chain that does not terminate at the live collection root — fail closed with
- * `resource_not_found`.
+ * `resource_not_found`. Conflict admission/recovery may inspect retained
+ * tombstones, but must still prove the complete chain and a live root; the
+ * managed policy sees the deleted ancestors too. Live writes use the default.
  */
 export async function loadLockedManagedAncestryChain(
   tx: DatabaseTransaction,
   collectionId: string,
   startId: string,
+  options: { readonly retainedTombstones?: boolean } = {},
 ): Promise<readonly ManagedAncestryNodeFact[]> {
+  const retainedTombstones = options.retainedTombstones === true;
   const discovered = await sql<{ id: string; parent_id: string | null }>`
     with recursive ancestry(id, parent_id, depth, path) as (
       select id, parent_id, 0, array[id]
-      from nodes where collection_id = ${collectionId} and id = ${startId} and deleted_at is null
+      from nodes where collection_id = ${collectionId} and id = ${startId}
+        and (${retainedTombstones} or deleted_at is null)
       union all
       select parent.id, parent.parent_id, child.depth + 1, child.path || parent.id
       from ancestry child
       join nodes parent on parent.collection_id = ${collectionId} and parent.id = child.parent_id
-      where child.depth < 255 and parent.deleted_at is null and not parent.id = any(child.path)
+      where child.depth < 255 and (${retainedTombstones} or parent.deleted_at is null)
+        and not parent.id = any(child.path)
     )
     select id, parent_id from ancestry order by depth
   `.execute(tx);
@@ -107,7 +113,9 @@ export async function loadLockedManagedAncestryChain(
     if (seen.has(currentId) || seen.size >= 256) throw new ManagedAncestryPolicyError('resource_not_found');
     seen.add(currentId);
     const current = byId.get(currentId);
-    if (!current || current.deleted_at !== null) throw new ManagedAncestryPolicyError('resource_not_found');
+    if (!current || (current.deleted_at !== null && (!retainedTombstones || current.is_root))) {
+      throw new ManagedAncestryPolicyError('resource_not_found');
+    }
     chain.push(managedAncestryNodeFact(current));
     if (current.is_root) break;
     currentId = current.parent_id;

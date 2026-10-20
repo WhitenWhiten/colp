@@ -71,6 +71,11 @@ describe('SYNC-R02 managed ancestry policy guard', () => {
         fact({ id: 'managed', parentId: 'root', kind: 'folder', folderRole: 'managed-bookmarks' }),
         fact({ id: 'root', parentId: null, isRoot: true, kind: 'folder' }),
       ]],
+      ['retained deleted descendant', [
+        fact({ id: 'deleted-child', parentId: 'deleted-managed', deleted: true }),
+        fact({ id: 'deleted-managed', parentId: 'root', kind: 'folder', folderRole: 'managed-bookmarks', deleted: true }),
+        fact({ id: 'root', parentId: null, isRoot: true, kind: 'folder' }),
+      ]],
     ];
     for (const [label, chain] of chains) {
       expectReadOnly(() => assertManagedAncestryWritable(chain,

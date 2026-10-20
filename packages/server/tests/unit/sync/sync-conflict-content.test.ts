@@ -48,3 +48,15 @@ test('a later conflict on a retained URL cannot be overwritten; both still prese
   assert.equal(duplicate.kind, 'bookmark');
   assert.equal(duplicate.url, 'https://example.test/after');
 });
+
+test.each(['folder', 'separator'] as const)('recovers the edited %s content without copying system roles or deletion state', kind => {
+  const deleted = { title: 'Before', description: 'Before note', deletedAt: '2026-10-17T00:00:00Z',
+    folderRole: 'recovered' };
+  const privatePayload: PrivateConflictPayload = { nodeKind: kind, base: { description: 'Before note' },
+    current: deleted, incoming: { description: 'Unique offline note' } };
+  const recovered = duplicateNodeDocument(deleted, privatePayload, ['/deletedAt', '/description']);
+  assert.equal(recovered.kind, kind);
+  assert.equal(recovered.description, 'Unique offline note');
+  assert.equal('folderRole' in recovered, false);
+  assert.equal('deletedAt' in recovered, false);
+});

@@ -60,8 +60,8 @@ function mergeRetainedField(field: string, current: Readonly<Record<string, unkn
     { [field]: fieldValue(current, field) }, { [field]: fieldValue(payload.incoming, field) });
 }
 
-/** A separate bookmark keeps the full incoming edit, including fields that
- * were independent at admission. The original live bookmark stays untouched. */
+/** A separate node keeps the full incoming edit, including fields that were
+ * independent at admission. Existing live nodes and tombstones stay intact. */
 export function duplicateNodeDocument(
   current: Readonly<Record<string, unknown>>,
   privatePayload: PrivateConflictPayload,
@@ -73,8 +73,6 @@ export function duplicateNodeDocument(
     content[field] = pointers.includes(`/${field}`) || merged.status === 'conflict'
       ? privatePayload.incoming[field] : merged.value[field];
   }
-  const title = assertValidNodeTitle(content.title as string);
-  const url = assertValidHttpUrlNoUserInfo(content.url as string);
   const description = assertValidNodeDescription(content.description as string | null | undefined ?? null);
   const tags = assertValidNodeTags(content.tags as readonly string[] | undefined ?? []);
   const visibility = assertValidNodeVisibility(content.visibility as string | undefined ?? 'inherit');
@@ -82,8 +80,13 @@ export function duplicateNodeDocument(
   const preserved = preserveExtensions((content.extensions ?? {}) as Parameters<typeof preserveExtensions>[0],
     { surface: 'sync-server', path: '/payload/node' });
   if (preserved.removals.length !== 0) invalid();
-  return { kind: 'bookmark', title, url, tags: [...tags], visibility,
-    extensions: preserved.extensions, ...(description === null ? {} : { description }),
+  const common = { tags: [...tags], visibility, extensions: preserved.extensions,
+    ...(description === null ? {} : { description }) };
+  if (privatePayload.nodeKind === 'separator') return { ...common, kind: 'separator' };
+  const title = assertValidNodeTitle(content.title as string);
+  if (privatePayload.nodeKind === 'folder') return { ...common, kind: 'folder', title };
+  const url = assertValidHttpUrlNoUserInfo(content.url as string);
+  return { ...common, kind: 'bookmark', title, url,
     ...(typeof content.canonicalUrl === 'string'
       ? { canonicalUrl: assertValidHttpUrlNoUserInfo(content.canonicalUrl) as HttpUrl } : {}),
     ...(typeof content.urlHash === 'string' ? { urlHash: content.urlHash } : {}),

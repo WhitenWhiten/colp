@@ -35,6 +35,7 @@ import {
   type PrivateConflictPayload,
 } from './sync-conflict-private-payload.js';
 import { selectedResolutionFields, duplicateNodeDocument } from './sync-conflict-content.js';
+import { resolveRestorePlacement } from './sync-node-restore-postgres.js';
 import { createUnitOfWork, type DatabaseTransaction } from '../database/unit-of-work.js';
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import type { PostgresSyncSessionIssuer } from './sync-session-postgres.js';
@@ -196,13 +197,14 @@ async function resolveInTransaction(
     .where('collection_id', '=', conflict.collection_id)
     .where('id', '=', conflict.target_id).forUpdate().executeTakeFirst();
   if (!current || !current.payload_json) deny('resource_not_found');
+  const recoveringDeleted = current.deleted_at !== null && command.resolution === 'incoming';
   if (current.deleted_at !== null) {
-    // FIX-M-015: only a historical delete_update may resolve a deleted target;
-    // all other conflict menus remain concealed/unsupported as originally advertised.
     if (conflict.conflict_type !== 'delete_update') deny('resource_not_found');
-    if (command.resolution !== 'server') deny('unsupported_operation');
-    return dismissDeleteUpdateConflict(transaction, { ...input, replicaId: author.replicaId }, command, options, authority,
-      conflict, current, operationId, claimedSequence, requestDigest, occurredAt);
+    if (command.resolution === 'server') {
+      return dismissDeleteUpdateConflict(transaction, { ...input, replicaId: author.replicaId }, command, options, authority,
+        conflict, current, operationId, claimedSequence, requestDigest, occurredAt);
+    }
+    if (!recoveringDeleted) deny('unsupported_operation');
   }
   const conflictBinding = await transaction.selectFrom('sync_session_bindings').select('lease_generation')
     .where('session_id', '=', conflict.session_id).executeTakeFirst();
@@ -214,9 +216,10 @@ async function resolveInTransaction(
   // A Conflict revision does not advance when another node update commits.
   // Reject an obsolete overwriting decision, while allowing unrelated fields
   // to change and an incoming value that has already converged on the server.
-  if (current.resource_revision !== conflict.current_revision
+  if (!recoveringDeleted && current.resource_revision !== conflict.current_revision
       && (command.resolution === 'incoming' || command.resolution === 'custom')) {
-    const stale = conflict.conflicting_fields.map(pointer => pointer.slice(1)).some(field =>
+    const stale = conflict.conflicting_fields.map(pointer => pointer.slice(1))
+      .filter(field => !['deletedAt', 'baseRevision'].includes(field)).some(field =>
       !deepEqualSyncMergeValue(current.payload_json![field], privatePayload.current[field])
       && !(command.resolution === 'incoming'
         && deepEqualSyncMergeValue(current.payload_json![field], privatePayload.incoming[field])));
@@ -226,24 +229,39 @@ async function resolveInTransaction(
   let mutation: CanonicalMutationResult;
   let wireOperation: Operation;
   let effectTargetId: string | undefined;
-  if (command.resolution === 'both') {
-    if (current.kind !== 'bookmark' || privatePayload.nodeKind !== 'bookmark'
+  if (command.resolution === 'both' || recoveringDeleted) {
+    if (!recoveringDeleted && (current.kind !== 'bookmark' || privatePayload.nodeKind !== 'bookmark'
         || conflict.conflict_type !== 'concurrent_field_update'
-        || conflict.conflicting_fields.some((field) => field !== '/title' && field !== '/url')) {
+        || conflict.conflicting_fields.some((field) => field !== '/title' && field !== '/url'))) {
       deny('unsupported_operation');
     }
+    if (recoveringDeleted && Object.keys(privatePayload.incoming).length === 0) deny('unsupported_operation');
     // SYNC-R02: lock the inherited parent-to-root chain and enforce the
     // managed-bookmarks policy before any ledger claim or mutation.
     const parentChain = await loadLockedManagedAncestryChain(
-      transaction, input.collectionId, current.parent_id!,
+      transaction, input.collectionId, recoveringDeleted ? current.id : current.parent_id!,
+      { retainedTombstones: recoveringDeleted },
     );
-    if (parentChain.some((fact) => fact.kind !== 'folder')) deny('resource_not_found');
-    assertManagedAncestryWritable(parentChain, {
+    if (parentChain.some((fact) => fact.id !== current.id && fact.kind !== 'folder')) deny('resource_not_found');
+    const managedCapabilities = {
       managedBookmarkWrites: options.managedBookmarkWrites === true,
       replicaWrite: authority.replicaWrite ?? await conflictReplicaWriteCapability(
         transaction, conflict.replica_id,
       ),
-    });
+    };
+    assertManagedAncestryWritable(parentChain, managedCapabilities);
+    let parentId = current.parent_id!;
+    if (recoveringDeleted) {
+      const collection = await transaction.selectFrom('collections').select('root_node_id')
+        .where('id', '=', input.collectionId).executeTakeFirst();
+      if (!collection) deny('resource_not_found');
+      parentId = (await resolveRestorePlacement(transaction, {
+        collectionId: input.collectionId, rootNodeId: collection.root_node_id,
+        actorPrincipalId: authority.accountId, node: current, now: occurredAt,
+        managedCapabilities, nodeId: () => generatedId('recovered-'),
+        reportSourceInvalidation: options.reportSourceInvalidation,
+      })).parentId;
+    }
     const nodeId = validGeneratedId(options.nodeId?.() ?? generatedId('node-'));
     const node = duplicateNodeDocument(current.payload_json, privatePayload, conflict.conflicting_fields);
     // T-10 / ADR-0027: `both` duplicates a live bookmark, so it must pass the
@@ -256,7 +274,7 @@ async function resolveInTransaction(
       opId: operationId, replicaId: author.replicaId, sequence: claimedSequence,
       collectionId: input.collectionId, type: 'create_node', baseRevision: null,
       occurredAt: occurredAt.toISOString(), dependencies: [conflict.operation_id],
-      payload: { parentId: current.parent_id!, afterId: current.id, node },
+      payload: { parentId, ...(!recoveringDeleted ? { afterId: current.id } : {}), node },
       source: { adapterProfile: 'known-conflict-resolution', extensions: {
         'https://known.example/extensions/sync-conflict-resolution': { createdNodeId: nodeId },
       } },

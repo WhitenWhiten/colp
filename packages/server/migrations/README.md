@@ -32,6 +32,17 @@ table holds avatar images when no `AVATAR_R2_*` bucket is configured; the existi
 `avatar_objects` lifecycle rows still track ownership and cleanup. Previous binaries
 ignore the table; dropping it loses avatars uploaded without R2.
 
+## Deleted conflict recovery
+
+Apply `202611010500_sync_deleted_conflict_recovery` before deploying the new
+conflict writer/resolver. New delete/update conflicts offer `server` to accept
+the deletion or `incoming` to save the retained edit as a separate live node.
+Historical immutable conflict menus stay unchanged because old encrypted
+payloads may not contain the incoming title/URL. N-1 readers can read the
+expanded menu but cannot execute its recovery action; route conflict writes
+and resolutions to the upgraded fleet together. Keep the additive constraint
+on application rollback; the down migration refuses while new menus remain.
+
 ## Favicon provider result cache
 
 Apply `202610311400_favicon_provider_cache` before deploying the favicon worker

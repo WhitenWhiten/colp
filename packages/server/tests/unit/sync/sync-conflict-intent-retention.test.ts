@@ -11,7 +11,7 @@ import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-updat
 // Execute the production conflict serializer, capture its SQL
 // values, and authenticate/decrypt them with the production reader. This does
 // not substitute for PostgreSQL concurrency or constraint integration tests.
-test('partial-field conflicts retain independent incoming fields in authenticated private content', async () => {
+test.each([false, true])('conflicts retain the complete authenticated incoming edit (deleted=%s)', async deleted => {
   const before = 'https://example.test/before';
   const incomingUrl = 'https://example.test/after';
   const base: TrustedSyncNodeRevision = {
@@ -19,7 +19,7 @@ test('partial-field conflicts retain independent incoming fields in authenticate
     kind: 'bookmark', deleted: false,
     payload: { kind: 'bookmark', title: 'Original', url: before, extensions: {} },
   };
-  const current: TrustedSyncNodeRevision = { ...base, revision: 'update-node-r2',
+  const current: TrustedSyncNodeRevision = { ...base, deleted, revision: 'update-node-r2',
     payload: { ...base.payload, title: 'Remote title' } };
   const operation = syncNodeUpdatePushRequest({
     base: { title: 'Original', url: before }, value: { title: 'Local title', url: incomingUrl },
@@ -27,7 +27,7 @@ test('partial-field conflicts retain independent incoming fields in authenticate
   const evaluation = evaluateSyncNodeUpdate(operation, base, current);
   assert.equal(evaluation.status, 'conflict');
   if (evaluation.status !== 'conflict') throw new Error('expected title conflict');
-  assert.deepEqual(evaluation.fields, ['title']);
+  assert.deepEqual(evaluation.fields, deleted ? ['deletedAt'] : ['title']);
   let saved: Record<string, unknown> | undefined;
   const connection: DatabaseConnection = {
     async executeQuery<R>(query: CompiledQuery) {
@@ -79,7 +79,7 @@ test('partial-field conflicts retain independent incoming fields in authenticate
       faultInjector: { afterPhase(phase) { if (phase === 'conflict') throw stop; } },
     })), error => error === stop);
     assert.ok(saved, 'production conflict insert should be captured');
-    assert.deepEqual(saved.conflicting_fields, ['/title']);
+    assert.deepEqual(saved.conflicting_fields, deleted ? ['/deletedAt', '/title', '/url'] : ['/title']);
     // The SQL driver returns named values from the schema-typed production
     // INSERT. Only the database boundary needs this row assertion; the real
     // reader authenticates every identity and retained-content byte below.

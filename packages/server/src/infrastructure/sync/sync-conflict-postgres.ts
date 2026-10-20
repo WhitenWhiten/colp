@@ -13,19 +13,15 @@ export type SyncConflictType = 'concurrent_field_update' | 'unprovable_base'
 export type SyncConflictResolutionName = 'server' | 'incoming' | 'custom' | 'both';
 
 /**
- * FIX-M-015 (SYNC-R10): the external menu only ever advertises executable
- * choices. A `delete_update` Conflict (a client update raced a server delete)
- * advertises exactly `server` — dismiss keeps the tombstone and closes the
- * Conflict; restoring the node would require a dedicated canonical restore
- * mutation that is not deployed, and `both` has no meaning for a deleted
- * current. Other Conflict types keep the historical menu (bookmarks
- * additionally support `both`).
+ * Delete/update decisions either keep the deletion or save the retained
+ * incoming edit as a new node. Neither choice silently resurrects the deleted
+ * subtree. Historical conflicts keep their immutable, older menus.
  */
 export function allowedSyncConflictResolutions(
   conflictType: SyncConflictType,
   nodeKind: TrustedSyncNodeRevision['kind'],
 ): readonly SyncConflictResolutionName[] {
-  if (conflictType === 'delete_update') return Object.freeze(['server'] as const);
+  if (conflictType === 'delete_update') return Object.freeze(['server', 'incoming'] as const);
   return nodeKind === 'bookmark'
     ? Object.freeze(['server', 'incoming', 'custom', 'both'] as const)
     : Object.freeze(['server', 'incoming', 'custom'] as const);
@@ -322,9 +318,9 @@ function normalizedConflictFields(
   type: SyncConflictType,
   base: Readonly<Record<string, unknown>>,
 ): readonly string[] {
-  const fields = source.length > 0 ? source : type === 'delete_update'
-    ? ['deletedAt', ...Object.keys(base)]
-    : type === 'unprovable_base' ? ['baseRevision', ...Object.keys(base)] : Object.keys(base);
+  const fields = type === 'delete_update' ? ['deletedAt', ...source, ...Object.keys(base)]
+    : source.length > 0 ? source
+      : type === 'unprovable_base' ? ['baseRevision', ...Object.keys(base)] : Object.keys(base);
   const normalized = [...new Set(fields.map((field) => field.startsWith('/') ? field : `/${field}`))].sort();
   if (normalized.length < 1 || normalized.some((field) => !/^\/[A-Za-z][A-Za-z0-9]*$/u.test(field))) {
     persistenceError('invalid_document');

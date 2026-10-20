@@ -1698,6 +1698,70 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       where root_target_id=$1`, [folder.id])).rows[0].count, members.length);
   }, 20_000);
 
+  test.each(['bookmark', 'folder', 'separator'] as const)(
+    'preserves an offline %s edit after its parent subtree was deleted and recovers a separate copy', async kind => {
+      const folder = await seedNode('folder');
+      const node = await seedNode(kind, { parentId: folder.id });
+      const offline = await context();
+      const deleter = await context();
+      const deleteServer = await start(deleter);
+      const deletion = await blackBox(deleteServer.origin).push({ idempotencyKey: `delete-parent-${randomUUID()}`,
+        request: syncNodeDeletePushRequest({ sessionId: deleter.session.sessionId,
+          replicaId: deleter.replica.replicaId, collectionId: COLLECTION, targetId: folder.id,
+          baseRevision: folder.revision, subtree: true, opId: `delete-parent-${randomUUID()}`,
+          source: await observeSubtree(isolated.runtime.db, folder.id) }) });
+      assert.equal(deletion.status, 200);
+      const server = await start(offline);
+      const base = kind === 'bookmark' ? { title: node.payload.title, url: node.payload.url }
+        : kind === 'folder' ? { title: node.payload.title } : { description: null };
+      const incoming = kind === 'bookmark' ? { title: 'Unique offline edit', url: 'https://example.test/offline-unique' }
+        : kind === 'folder' ? { title: 'Unique offline edit' } : { description: 'Unique offline edit' };
+      const response = await blackBox(server.origin).push({ idempotencyKey: `offline-${randomUUID()}`,
+        request: syncNodeUpdatePushRequest({ sessionId: offline.session.sessionId,
+          replicaId: offline.replica.replicaId, collectionId: COLLECTION, targetId: node.id,
+          baseRevision: node.revision, opId: `offline-${randomUUID()}`, base, value: incoming }) });
+      assert.equal(response.status, 200);
+      assert.equal(result(response.body).results[0]!.status, 'conflicted');
+      const conflictId = result(response.body).results[0]!.conflictId!;
+      const opened = { node, value: offline, conflictId, revision: 'conflict-r1' as const };
+      const request = resolveInput(opened, { resolution: 'incoming', baseConflictRevision: opened.revision });
+      const app = resolver(offline);
+      const resolved = await app.resolve(request);
+      assert.equal(resolved.operation.type, 'create_node');
+      const effect = (await isolated.runtime.pool.query(
+        'select effect_json from sync_operation_effects where operation_id=$1', [resolved.operation.opId],
+      )).rows[0].effect_json;
+      assert.notEqual(effect.node.id, node.id);
+      assert.equal(effect.node.kind, kind);
+      for (const [field, value] of Object.entries(incoming)) assert.deepEqual(effect.node[field], value);
+      const recovered = (await isolated.runtime.pool.query(`select child.deleted_at,parent.payload_json->>'folderRole' as folder_role
+        from nodes child join nodes parent on parent.id=child.parent_id where child.id=$1`, [effect.node.id])).rows[0];
+      assert.equal(recovered.deleted_at, null);
+      assert.equal(recovered.folder_role, 'recovered');
+      const tombstoned = (await isolated.runtime.pool.query(
+        'select count(*)::int count from nodes where id=any($1::text[]) and deleted_at is not null', [[folder.id, node.id]],
+      )).rows[0].count;
+      assert.equal(tombstoned, 2);
+      assert.deepEqual(await app.resolve(request), resolved);
+    });
+
+  test('a deleted managed ancestor still forbids offline conflict admission without both write capabilities', async () => {
+    const managed = await seedNode('folder');
+    const child = await seedNode('bookmark', { parentId: managed.id });
+    await setCurrent(managed, { folderRole: 'managed-bookmarks' }, true);
+    await setCurrent(child, {}, true);
+    const value = await context();
+    const server = await start(value);
+    const before = await facts(value.replica.replicaId, child.id);
+    const response = await blackBox(server.origin).push({ idempotencyKey: `deleted-managed-${randomUUID()}`,
+      request: syncNodeUpdatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, targetId: child.id, baseRevision: child.revision,
+        opId: `deleted-managed-${randomUUID()}`, base: { title: child.payload.title as string },
+        value: { title: 'Unauthorized recovery' } }) });
+    assert.equal((response.body as Problem).code, 'node_read_only');
+    assert.deepEqual(await facts(value.replica.replicaId, child.id), before);
+  });
+
   test('P3-15 rejects stale/non-empty/oversized deletes and keeps the complete old tree readable', async () => {
     const folder = await seedNode('folder', { title: 'Protected subtree' });
     const child = await seedNode('bookmark', { title: 'Child', url: 'https://example.test/child', parentId: folder.id });

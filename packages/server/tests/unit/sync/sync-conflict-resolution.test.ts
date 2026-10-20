@@ -111,9 +111,9 @@ describe('FIX-M-011 conflict payload keyring selection and validation', () => {
 });
 
 describe('FIX-M-015 per-type Conflict resolution menus', () => {
-  test('delete_update advertises only the executable dismiss choice for every node kind', () => {
+  test('new delete_update conflicts offer dismiss or a recovered incoming copy for every node kind', () => {
     for (const kind of ['folder', 'bookmark', 'separator'] as const) {
-      assert.deepEqual(allowedSyncConflictResolutions('delete_update', kind), ['server']);
+      assert.deepEqual(allowedSyncConflictResolutions('delete_update', kind), ['server', 'incoming']);
     }
   });
 
