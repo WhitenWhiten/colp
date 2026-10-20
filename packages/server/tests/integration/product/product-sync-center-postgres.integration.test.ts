@@ -287,6 +287,13 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       const replay = await api.inject(confirmedRequest);
       assert.equal(replay.statusCode, 200, replay.body);
       assert.equal(replay.body, confirmed.body);
+      // Keep entry verification observable: the external resolver deliberately
+      // maps authority errors to resource_not_found, which would otherwise hide
+      // whether this replay fixture has a valid session before its core receipt
+      // assertion runs. Never bypass the production verifier for this check.
+      const verifiedReplaySession = await sync.issuer.verify({ credential: sync.credential,
+        sessionId: sync.session.sessionId, replicaId: sync.replica.replicaId, collectionId: owned.collectionId });
+      assert.ok(verifiedReplaySession.authorizationScopes.includes('sync:push'));
       const core = createPostgresSyncConflictResolutionApplication(runtime.db, sync.issuer,
         { conflictPayloadKeyring: ACTIVE_V7_KEYRING });
       assert.deepEqual(await core.resolve({ credential: sync.credential, sessionId: sync.session.sessionId,
