@@ -240,7 +240,7 @@ test.each([{ depth: 2, after: 1 }, { depth: 2, after: 4 }, { depth: 160, after: 
   } finally { f.store.close(); }
 });
 
-test('a child arriving at the browser delete entry point survives after every prior read completed', async () => {
+test.each([false, true])('a child arriving at the browser delete entry point survives, then resumes with review commit crash=%s', async crash => {
   const f = await folderFixture();
   try {
     let added: string | undefined;
@@ -264,12 +264,33 @@ test('a child arriving at the browser delete entry point survives after every pr
     assert.equal((await f.store.getScopeCommandPlan(scope, 'rejoin:mount-bar'))?.phase, 'pending');
     assert.equal(f.api.getNode(added)?.title, 'Arrived after every read');
     assert.deepEqual(f.api.calls.filter(row => row.kind === 'delete'), previousCalls);
+    const review = (await f.store.listScopeCommandPlans(scope)).find(row => row.rejoinDecision?.kind === 'remote_delete');
+    assert.equal(review?.phase, 'pending');
     // A subsequent explicit user removal clears the remaining conflict. No
     // member already deleted by this attempt may be deleted a second time.
     await f.api.remove(added);
+    if (crash) {
+      const put = IDBObjectStore.prototype.put;
+      const fault = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value, key) {
+        if (value?.commandId === review!.commandId && value.phase === 'failed') throw new Error('worker_crash');
+        return key === undefined ? put.call(this, value) : put.call(this, value, key);
+      });
+      try { await assert.rejects(rejoinScopeMount(f.store, scope, 'mount-bar', new Set(), [], f.native), /worker_crash/); }
+      finally { fault.mockRestore(); }
+      assert.equal(f.api.getNode(f.folders[0]!), undefined);
+      assert.ok(await f.store.getMappingByNativeId(scope, f.folders[0]!));
+      assert.equal((await f.store.getScopeCommandPlan(scope, review!.commandId))?.phase, 'pending');
+      f.store.close();
+    }
     const resumed = await rejoinScopeMount(f.store, scope, 'mount-bar', new Set(), [], f.native);
     assert.equal(resumed.mount.status, 'active');
     assert.equal(await f.store.getMappingByNativeId(scope, f.folders[0]!), null);
+    const retiredReview = (await f.store.getScopeCommandPlan(scope, review!.commandId))!;
+    assert.equal(retiredReview.phase, 'failed');
+    assert.equal(retiredReview.rejoinDecision?.supersededBy, 'rejoin:mount-bar');
+    assert.equal(retiredReview.baselineDigest, review!.baselineDigest);
+    assert.deepEqual(retiredReview.rejoinDecision?.remoteDeletion, review!.rejoinDecision?.remoteDeletion);
+    assert.equal((await f.store.listQueue(scope)).length, 0);
     assert.deepEqual(f.api.calls.filter(row => row.kind === 'delete' && f.family.includes(row.nativeId!)),
       [...f.family].reverse().map(nativeId => ({ kind: 'delete', nativeId })));
   } finally { f.store.close(); }

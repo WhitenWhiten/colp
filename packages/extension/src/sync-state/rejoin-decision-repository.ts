@@ -34,6 +34,9 @@ export interface RejoinRemoteDeleteMember {
   readonly nativeId: string; readonly native: RejoinNative | null; readonly mapping: MappingInput | null;
   readonly children: readonly string[] | null;
 }
+export function remoteDeleteReviewPrefix(mountId: string, rootId: string, attemptDigest: string): string {
+  return `rejoin-remote-delete:${digestJson({ mountId, rootId, attemptDigest }).slice(7)}:`;
+}
 export interface RejoinRemoteDeleteEvidence {
   readonly authority: RejoinMutationAuthority; readonly members: readonly RejoinRemoteDeleteMember[];
 }
@@ -334,6 +337,7 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
         if ([row.nativeId, details.parentId, details.oldParentId].some(id => typeof id === 'string' && nativeIds.has(id))) failMaterialization();
       }
     }
+    return scope;
   }
   async function assertRejoinMutation(scope: SyncScope, input: RejoinMutationAuthority): Promise<void> {
     const key = keyFor(scope); const tx = (await ctx.open()).transaction(mutationStores, 'readonly');
@@ -346,10 +350,29 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
     const mapping = after && validateMapping(key, after, ctx.maxRecordBytes);
     if (mapping && (mapping.nativeId !== input.before.nativeId || mapping.colpId !== input.before.colpId)) failMaterialization();
     await runTransaction(await ctx.writableDatabase(), mutationStores, 'readwrite', async tx => {
-      await requireMutation(tx, key, input);
+      const recorded = await requireMutation(tx, key, input);
       const mappings = tx.objectStore(STORES.mappings);
       if (mapping) mappings.put(mapping);
-      else for (const removed of input.deletion?.members ?? [input.before]) mappings.delete([key, removed.nativeId]);
+      else for (const removed of input.deletion?.members ?? [input.before]) {
+        mappings.delete([key, removed.nativeId]);
+        if (!input.deletion || input.decision) continue;
+        // A later comparison can prove the conflict disappeared (for example,
+        // the user removed an unknown child). Retire only an unaccepted review
+        // for this exact identity/attempt, atomically with its actual removal.
+        // Accepted choices and every upload/receipt remain independent facts.
+        const attempt = rejoinAttemptDigest(input.mount, recorded);
+        const prefix = remoteDeleteReviewPrefix(input.mount.mountId, removed.colpId, attempt);
+        const rows = await requestValue<ScopeCommandPlanRecord[]>(tx.objectStore(STORES.scopeCommandPlans)
+          .getAll(IDBKeyRange.bound([key, prefix], [key, `${prefix}\uffff`])));
+        for (const raw of rows) {
+          const plan = await readScopeCommandRecord(tx, key, raw, ctx.maxRecordBytes);
+          if (plan.phase !== 'pending' || plan.rejoinDecision?.kind !== 'remote_delete'
+            || plan.rejoinDecision.attemptDigest !== attempt || plan.rejoinDecision.rootId !== removed.colpId
+            || plan.rejoinDecision.supersededBy) continue;
+          await writeScopeCommandRecord(tx, key, { ...plan, phase: 'failed', updatedAt: Date.now(),
+            rejoinDecision: { ...plan.rejoinDecision, supersededBy: `rejoin:${input.mount.mountId}` } }, ctx.maxRecordBytes);
+        }
+      }
     });
   }
   /** Unbind exactly the confirmed identities and publish the actual local

@@ -4,7 +4,7 @@ import { rejoinAuthority, rejoinAttemptDigest, rejoinBoundaryDigest } from './sc
 import { rejoinMutationAuthority, rejoinNativeDigest, type RejoinNative } from './scope-rejoin-mutation.js';
 import { isNonChromeNativeId } from './pull-mount-apply.js';
 import { remoteDescendantIds } from './scope-rejoin-members.js';
-import { remoteDeleteEvidence, remoteDeleteMemberIntentId, type RejoinRemoteDeleteEvidence,
+import { remoteDeleteEvidence, remoteDeleteMemberIntentId, remoteDeleteReviewPrefix, type RejoinRemoteDeleteEvidence,
   type RejoinRemoteDeleteMember } from './sync-state/rejoin-decision-repository.js';
 import type { RejoinQueueReference } from './sync-state/rejoin-queue-resolution.js';
 import type { RejoinOrderInput } from './scope-rejoin-order.js';
@@ -69,7 +69,7 @@ export async function remoteRejoinDeleteCandidate(input: RejoinOrderInput, root:
     parents: authority.parents as unknown as JsonObject[],
     exclusionDigest: boundary.exclusionDigest, policyVersion: boundary.policyVersion,
     work: work.fingerprint, blockedReason: blockedReason ?? null });
-  const commandId = `rejoin-remote-delete:${digestJson({ mountId: input.mount.mountId, rootId: root.colpId, attemptDigest }).slice(7)}:${token.slice(7, 23)}`;
+  const commandId = `${remoteDeleteReviewPrefix(input.mount.mountId, root.colpId, attemptDigest)}${token.slice(7, 23)}`;
   return { root, commandId, token, attemptDigest, boundaryDigest, evidence,
     affectedCount: members.filter(row => row.native).length, rejectedReferences: work.rejectedReferences,
     ...(blockedReason ? { blockedReason } : {}) };
