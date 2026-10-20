@@ -22,7 +22,8 @@ export type IngressBoundary = {
 
 type Store = ReturnType<typeof createSyncStateStore>;
 
-export async function resolveIngressBoundary(store: Store, scope: SyncScope): Promise<IngressBoundary> {
+export async function resolveIngressBoundary(store: Store, scope: SyncScope,
+  subscriptionExclusions?: ReadonlySet<string>): Promise<IngressBoundary> {
   const recorded = await store.getScope(scope);
   const mounts = await store.listMountBindings(scope);
   // Dispatch resolves only today's boundary identities. Reading every mapped
@@ -57,7 +58,7 @@ export async function resolveIngressBoundary(store: Store, scope: SyncScope): Pr
   const selectedFromRoots = new Set(recorded?.selectedRoots.map((id) => byColp.get(id)).filter((id): id is string => Boolean(id)));
   return {
     selectedNative: mounts.length > 0 ? mountNative : selectedFromRoots,
-    privateNative: new Set([...(await exclusionIds()), ...(recorded?.privateRoots ?? []).map((id) => byColp.get(id)).filter((id): id is string => Boolean(id))]),
+    privateNative: new Set([...(subscriptionExclusions ?? await exclusionIds()), ...(recorded?.privateRoots ?? []).map((id) => byColp.get(id)).filter((id): id is string => Boolean(id))]),
     rootStatus: recorded?.rootStatus ?? 'corrupt',
   };
 }

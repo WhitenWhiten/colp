@@ -1,4 +1,5 @@
 import { createRejoinResolutionRepository } from './sync-state/rejoin-resolution-repository.js';
+import { createQueuedUploadBoundaryRepository } from './sync-state/queued-upload-boundary-repository.js';
 import { createRejoinDecisionRepository } from './sync-state/rejoin-decision-repository.js';
 import { createPullNativeDeferralRepository } from './sync-state/pull-native-deferral-repository.js';
 import { createQueueBatchRepository } from './sync-state/queue-batch-repository.js';
@@ -64,6 +65,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
   const batch = createBatchRepository(ctx);
   const facts = createScopeFactsRepository(ctx);
   return Object.freeze({
+    ...createQueuedUploadBoundaryRepository(ctx),
     ...createLocalPlacementRecoveryRepository(ctx), ...createPullNativeDeferralRepository(ctx),
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
     ...createNativeMutationRepository(ctx),

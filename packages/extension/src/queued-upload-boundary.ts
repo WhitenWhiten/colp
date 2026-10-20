@@ -20,6 +20,8 @@ export class QueuedUploadExcludedError extends Error {
 export async function assertQueuedUploadAllowed(input: {
   readonly store: Store; readonly scope: SyncScope; readonly queue: QueueOperation;
   readonly parentOf: (nativeId: string) => Promise<string | undefined>;
+  /** Only the batch proof supplies this, and rechecks it before returning. */
+  readonly subscriptionExclusions?: ReadonlySet<string>;
 }): Promise<void> {
   const { store, scope, queue } = input;
   const payload = object(queue.payload.payload);
@@ -36,7 +38,7 @@ export async function assertQueuedUploadAllowed(input: {
   for (const id of recorded.privateRoots ?? []) {
     if (!await store.getMappingByColpId(scope, id)) throw new Error('upload_boundary_unavailable');
   }
-  const boundary = await resolveIngressBoundary(store, scope);
+  const boundary = await resolveIngressBoundary(store, scope, input.subscriptionExclusions);
   const mounts = await store.listMountBindings(scope);
   const sources = new Set<string>();
   const events: BookmarkEventRecord[] = [];

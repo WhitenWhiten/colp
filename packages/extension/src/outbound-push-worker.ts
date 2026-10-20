@@ -73,6 +73,8 @@ interface WorkerOptions {
   readonly dispatchBatch?: (rows: readonly QueueOperation[], send: () => Promise<Response>) => Promise<Response>;
   readonly beforeDispatch?: (queue: QueueOperation) => Promise<void>;
   readonly assertUploadAllowed?: (queue: QueueOperation) => Promise<void>;
+  /** A fresh proof per batch phase; never shared with preparation or retries. */
+  readonly assertBatchUploadAllowed?: (rows: readonly QueueOperation[]) => Promise<void>;
   readonly onTerminal?: (queue: QueueOperation) => Promise<void>;
   /** Pull/mapping refresh before rebasing a retried move_node. Lost-response retries keep `attempt`. */
   readonly refreshPlacement?: () => Promise<PlacementRefreshOutcome | void>;
@@ -196,8 +198,12 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         store: options.store, scope: options.scope, ownerId, fence: lease.fence, now,
         ...authority, endpoint, fetch: fetcher,
         origin: options.origin, timeoutMs: requestTimeout, dispatch: options.dispatchBatch,
-        beforeDispatch: async row => { await options.beforeDispatch?.(row); await options.assertUploadAllowed?.(row); }, onNetworkResponse,
+        beforePrepare: options.assertBatchUploadAllowed,
+        beforeDispatch: async row => { await options.beforeDispatch?.(row);
+          if (!options.assertBatchUploadAllowed) await options.assertUploadAllowed?.(row); },
+        beforeDispatchBatch: options.assertBatchUploadAllowed, onNetworkResponse,
         assertDispatchAllowed: options.assertUploadAllowed,
+        assertBatchDispatchAllowed: options.assertBatchUploadAllowed,
         onDispatchStarted: rows => { for (const row of rows) unsentAttempts.delete(row.opId); },
         notDispatched: async row => {
           try { await options.assertUploadAllowed?.(row); }
@@ -206,7 +212,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         },
         barrier: () => pushRecoveryBarrierActive(options.store, options.scope, options.allowRecoveryFrozenPush),
         prepare: async row => {
-          await options.assertUploadAllowed?.(row);
+          if (!options.assertBatchUploadAllowed) await options.assertUploadAllowed?.(row);
           await options.boundary?.('before_attempt_persist', row);
           const rebased = await rebasePlacement(row, lease.fence);
           if (typeof rebased === 'string') throw new SyncFailureError('push_batch_placement_changed');

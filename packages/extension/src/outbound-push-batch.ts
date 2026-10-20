@@ -38,8 +38,11 @@ export async function sendBootstrapCreateBatch(input: {
   readonly settle: (row: QueueOperation, response: Response) => Promise<BatchOutcome>;
   readonly unknown: (row: QueueOperation, code: string, retryAfter?: string | null) => Promise<unknown>;
   readonly barrier: () => Promise<boolean>;
+  readonly beforePrepare?: (rows: readonly QueueOperation[]) => Promise<void>;
   readonly beforeDispatch?: (queue: QueueOperation) => Promise<void>;
+  readonly beforeDispatchBatch?: (rows: readonly QueueOperation[]) => Promise<void>;
   readonly assertDispatchAllowed?: (queue: QueueOperation) => Promise<void>;
+  readonly assertBatchDispatchAllowed?: (rows: readonly QueueOperation[]) => Promise<void>;
   readonly dispatch?: (rows: readonly QueueOperation[], send: () => Promise<Response>) => Promise<Response>;
   readonly onNetworkResponse?: () => void | Promise<void>;
   readonly onDispatchStarted?: (rows: readonly QueueOperation[]) => void;
@@ -57,6 +60,7 @@ export async function sendBootstrapCreateBatch(input: {
   const rows = [input.first, ...following]; let settled = 0; let retryAfter: string | null = null; let dispatched = false;
   const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    await input.beforePrepare?.(rows);
     for (let index = 1; index < rows.length; index += 1) {
       rows[index] = await input.prepare(rows[index]!);
       if (!batchableBootstrapCreate(rows[index]!)) throw new SyncFailureError('push_batch_placement_changed');
@@ -73,13 +77,15 @@ export async function sendBootstrapCreateBatch(input: {
     }, input.timeoutMs); });
     const idempotencyKey = `batch.${crypto.randomUUID()}`;
     const send = async () => {
-      for (const row of rows) await input.assertDispatchAllowed?.(row);
+      if (input.assertBatchDispatchAllowed) await input.assertBatchDispatchAllowed(rows);
+      else for (const row of rows) await input.assertDispatchAllowed?.(row);
       controller.signal.throwIfAborted(); dispatched = true; input.onDispatchStarted?.(rows); return input.fetch(input.endpoint, { method: 'POST', redirect: 'error', credentials: 'omit',
       signal: controller.signal, headers: { Accept: 'application/json', 'Content-Type': 'application/json',
         ...colpCredentialHeaders(input.credential.accessToken), 'Idempotency-Key': idempotencyKey,
         ...(input.origin ? { Origin: input.origin } : {}) }, body }); };
     const dispatch = async () => {
       for (const row of rows) await input.beforeDispatch?.(row);
+      await input.beforeDispatchBatch?.(rows);
       if (await input.barrier()) throw new SyncFailureError('push_batch_recovery_barrier');
       return input.dispatch ? input.dispatch(rows, send) : send();
     };

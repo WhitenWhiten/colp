@@ -336,7 +336,7 @@ function validatePendingShift(value: unknown): NonNullable<MountBindingRecord['p
       toParentNativeId: boundedString(row.toParentNativeId, 'toParentNativeId') }) };
 }
 
-function validateScopePreview(key: string, input: unknown, maxBytes: number): ScopePreviewRecord {
+export function validateScopePreview(key: string, input: unknown, maxBytes: number): ScopePreviewRecord {
   const value = strictObject(clone(input), ['scopeKey', 'previewId', 'boundaryVersion', 'treeDigest',
     'bookmarkCount', 'folderCount', 'skippedCount', 'expiresAt', 'warnings', 'boundary', 'kind',
     'consumedAt', 'consumedBy', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds', 'privateNativeIds',
@@ -406,7 +406,7 @@ function validatePreviewMount(input: unknown): ScopePreviewRecord['boundary']['m
     ...(value.customSourceKey === undefined ? {} : { customSourceKey: boundedString(value.customSourceKey, 'customSourceKey') }) };
 }
 
-function validateBootstrapRun(key: string, input: unknown, maxBytes: number): BootstrapRunRecord {
+export function validateBootstrapRun(key: string, input: unknown, maxBytes: number): BootstrapRunRecord {
   const value = strictObject(clone(input), ['scopeKey', 'runId', 'phase', 'bootstrapMode', 'confirmationId',
     'updatedAt', 'reportDigest', 'snapshotCursor', 'resumeCursor', 'confirmationVersion', 'previewId',
     'treeDigest', 'libraryId', 'retryReason', 'mountResolveRequest', 'previewOnly', 'destructiveConfirmed',

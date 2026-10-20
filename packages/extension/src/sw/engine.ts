@@ -2,6 +2,7 @@ import { createQueueRecapture } from '../queue-recapture.js';
 import { repairOwnCreateFromNative } from '../bookmark-own-create-repair.js';
 import { recoverLocalSaveFreeze, recoverMappedIdentityFreeze } from '../local-save-freeze-recovery.js';
 import { assertQueuedUploadAllowed } from '../queued-upload-boundary.js';
+import { assertQueuedUploadBatchAllowed } from '../queued-upload-batch-boundary.js';
 import { withSubscriptionRead } from '../bookmark-subscriptions/barrier.js';
 import { assertSubscriptionUploadAllowed } from '../bookmark-subscriptions/personal-boundary.js';
 import { BookmarkApiError, bookmarkApiErrorFromUnknown, classifyBookmarkApiFailure } from '../bookmark-api-error.js';
@@ -137,12 +138,20 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
       if (!nodes[0]) throw new Error('bootstrap_boundary_unavailable');
       return nodes[0].parentId;
     } });
+  const assertBootstrapBatchBoundary = (rows: readonly QueueOperation[]) => assertQueuedUploadBatchAllowed({
+    store: syncState, scope, rows, getMany: ids => readPermittedBookmarkApi(() => chrome.bookmarks.get([...ids])),
+    parentOf: async id => {
+      const nodes = await readPermittedBookmarkApi(() => chrome.bookmarks.get(id));
+      if (!nodes[0]) throw new Error('bootstrap_boundary_unavailable');
+      return nodes[0].parentId;
+    } });
   const worker = createOutboundPushWorker({ scope, store: syncState, endpoints, sessions, fetch: effects.fetch,
-    origin: extensionOrigin(), assertUploadAllowed: assertBootstrapBoundary,
+    origin: extensionOrigin(), assertUploadAllowed: assertBootstrapBoundary, assertBatchUploadAllowed: assertBootstrapBatchBoundary,
     recaptureHeld: createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission }),
     dispatch: (queue,send) => withSubscriptionRead(async()=>{await assertSubscriptionUploadAllowed(syncState,scope,queue);await assertBootstrapBoundary(queue);return send();}),
     dispatchBatch: (rows, send) => withSubscriptionRead(async () => {
-      for (const row of rows) { await assertSubscriptionUploadAllowed(syncState, scope, row); await assertBootstrapBoundary(row); }
+      for (const row of rows) await assertSubscriptionUploadAllowed(syncState, scope, row);
+      await assertBootstrapBatchBoundary(rows);
       return send();
     }),
     readChildrenOrder: async (parentId) => (await readPermittedBookmarkApi(
