@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { withSyncFailureDetails } from './sync-failure-diagnostics.js';
 import {
   FIXTURE_COLLECTION_ID, KNS08_BINDINGS, captureReplayFacts, launchPersistent, liveCanonical,
   previewFirstRun, optionsPage, login, grantBookmarks, runtimeMessage, saveReplayFixture, specialRoots, startRealStack,
@@ -29,7 +30,7 @@ for (const mode of ['normal', 'lost-batch-response'] as const) {
       expect(await runtimeMessage(page, { kind: 'known.firstRun.confirm', previewId: preview.previewId,
         confirmationId: crypto.randomUUID(), libraryId: FIXTURE_COLLECTION_ID })).toMatchObject({ ok: true });
       const activePage = page;
-      await expect.poll(async () => {
+      await withSyncFailureDetails(activePage, `first-sync-${mode}: await 958-bookmark convergence`, () => expect.poll(async () => {
         const status = await runtimeMessage<{ ok: boolean; phase?: string; error?: string }>(activePage,
           { kind: 'known.firstRun.status' });
         const response = await runtimeMessage<{ ok: boolean; engine?: { recoveryFrozen: boolean;
@@ -38,7 +39,7 @@ for (const mode of ['normal', 'lost-batch-response'] as const) {
         return { phase: status.phase ?? status.error, frozen: response.engine?.recoveryFrozen,
           queue: response.engine?.queueProjection, aligned: response.engine?.cursorsConverged };
       }, { timeout: 240_000, intervals: [1_000, 2_000, 5_000] }).toEqual({ phase: 'completed',
-        frozen: false, queue: 'idle', aligned: true });
+        frozen: false, queue: 'idle', aligned: true }));
       const settled = await scopeFacts(page, stack, KNS08_BINDINGS[0]);
       expect(settled.queueStatuses.every(status => status === 'terminal')).toBe(true);
       expect(settled.pendingAckCount).toBe(0);

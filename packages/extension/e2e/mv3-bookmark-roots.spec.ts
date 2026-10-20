@@ -9,6 +9,7 @@ import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 import { confirmFirstRun, specialRoots, waitFirstRunProductQuiet } from './kns-08-harness.js';
+import { withSyncFailureDetails } from './sync-failure-diagnostics.js';
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const PRIVATE_TITLE = 'PRIVATE-LOCAL-SENTINEL';
@@ -263,9 +264,9 @@ test('stale folder tokens fail closed after the native tree changes', async () =
     await expect(page.locator('#range-preview')).toBeVisible();
     expect(await boundaryFacts()).toEqual(before);
     await page.locator('#range-confirm').click();
-    await expect.poll(async () => (await boundaryFacts()).journal.filter(row =>
+    await withSyncFailureDetails(page, 'roots: commit explicitly reviewed replacement token', () => expect.poll(async () => (await boundaryFacts()).journal.filter(row =>
       !before.journal.some(prior => prior.confirmationId === row.confirmationId)
-      && row.state === 'committed').length).toBe(1);
+      && row.state === 'committed').length).toBe(1));
     const after = await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main));
     const selected = after.mappings.find((row: { nativeId: string }) => row.nativeId === folderId);
     expect(selected?.colpId).toBeTruthy();
@@ -323,7 +324,7 @@ async function openOptions(context: BrowserContext): Promise<Page> {
 async function connect(page: Page, grantBookmarks = true, binding = profileBindings.main) {
   if (!stack || !binding) throw new Error('real stack unavailable');
   await page.evaluate((value) => chrome.storage.local.set({ 'known.auth.binding.v1': value }), binding);
-  await signInExtension(page);
+  await withSyncFailureDetails(page, 'roots: establish account session', () => signInExtension(page));
   await showOptionsPane(page, 'folders');
   await expect(page.locator('#folder-card')).toBeVisible();
   if (grantBookmarks && !await permissionState(page)) {
@@ -331,7 +332,7 @@ async function connect(page: Page, grantBookmarks = true, binding = profileBindi
   }
 }
 async function grantBookmarkPermission(page: Page) {
-  await grantOptionalBookmarks(page, 'Allow bookmark access', 'Known permission');
+  await withSyncFailureDetails(page, 'roots: grant native bookmark permission', () => grantOptionalBookmarks(page, 'Allow bookmark access', 'Known permission'));
 }
 async function launch(profile = ''): Promise<BrowserContext> {
   if (!stack) throw new Error('real stack unavailable');
@@ -361,8 +362,9 @@ async function finishFirstRun(page: Page, selectedTitles: readonly string[], exc
   // onboarding handshake before using its privacy/settings controls.
   const binding = await page.evaluate(async () => (await chrome.storage.local.get('known.auth.binding.v1'))
     ['known.auth.binding.v1']) as RealStack['extensionBinding'];
-  await confirmFirstRun(page, selectedTitles, undefined, excludedTitles);
-  await waitFirstRunProductQuiet(page, stack, binding);
+  await withSyncFailureDetails(page, 'roots: admit first-run selection', () => confirmFirstRun(page, selectedTitles, undefined, excludedTitles));
+  const currentStack = stack;
+  await withSyncFailureDetails(page, 'roots: await first-run native and canonical convergence', () => waitFirstRunProductQuiet(page, currentStack, binding));
   await page.reload();
   await showOptionsPane(page, 'folders');
   await expect(page.locator('body')).toHaveAttribute('data-first-run', '');
@@ -376,8 +378,10 @@ async function configure(page: Page, selectedTitle: string, privateTitle: string
   await page.getByRole('button', { name: 'Review changes' }).click();
   const confirm = page.getByRole('button', { name: 'Confirm folder changes' });
   await expect(confirm).toBeVisible({ timeout: 15_000 });
-  await confirm.click();
-  await expect(page.getByText('Folder settings saved')).toBeVisible();
+  await withSyncFailureDetails(page, 'roots: confirm selected and private folder boundaries', async () => {
+    await confirm.click();
+    await expect(page.getByText('Folder settings saved')).toBeVisible();
+  });
 }
 async function expectConfigured(page: Page, selectedTitle: string, privateTitle: string) {
   await showOptionsPane(page, 'account');

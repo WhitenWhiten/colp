@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { showOptionsPane } from './extension-auth.js';
+import { withSyncFailureDetails } from './sync-failure-diagnostics.js';
 import {
   KNS08_BINDINGS, PUBLIC_URL, assertQueueTerminal, captureReplayFacts, collectLogs, evidence,
   grantBookmarks, launchPersistent, liveCanonical, liveTitles, login, optionsPage, saveReplayFixture,
@@ -72,7 +73,7 @@ test('P1-01 upload uses the UI, lists cloud deletions, and resumes after lost re
     b = await launchPersistent(dirs.b, stack.browserHostResolverRules);
     const pageB2 = await optionsPage(b);
     await expect(pageB2.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 30_000 });
-    await waitAdvancedQuiet(pageB2, 150_000);
+    await withSyncFailureDetails(pageB2, 'advanced-upload: await resumed native and canonical convergence', () => waitAdvancedQuiet(pageB2, 150_000));
     await expectAdvancedComplete(pageB2);
 
     await waitTitlesGone(pageA, ['P1 cloud folder', 'P1 cloud bookmark'], 120_000);
@@ -132,7 +133,7 @@ test('P1-01 download uses the UI and binds the original remote Node while deleti
     const afterPreview = await observationBaseline(pageB, stack);
     expect(afterPreview.exported).toEqual(before.exported); expect(afterPreview.tree).toEqual(before.tree);
     await confirmAdvancedThroughUi(pageB);
-    await waitAdvancedQuiet(pageB, 120_000);
+    await withSyncFailureDetails(pageB, 'advanced-download: await native and canonical convergence', () => waitAdvancedQuiet(pageB, 120_000));
     await expectAdvancedComplete(pageB);
     await expect.poll(async () => (await nativeTree(pageB)).titles, { timeout: 60_000 })
       .toEqual(expect.arrayContaining(['P1 remote folder', 'P1 remote bookmark', 'P1 download sentinel']));
