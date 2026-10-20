@@ -47,7 +47,7 @@ test('P1-01 upload uses the UI, lists cloud deletions, and resumes after lost re
     await pageB.locator('#first-run-advanced summary').click();
     await pageB.locator('#first-run-advanced-mode').selectOption('preview-only');
     await pageB.locator('#first-run-advanced-preview').click();
-    await expect(pageB.locator('#first-run-advanced-hint')).toContainText('matched items');
+    await expect(pageB.locator('#first-run-advanced-hint')).toContainText('1 matched item');
     await expect(pageB.locator('#first-run-advanced-confirm')).toBeHidden();
     expect(await observationBaseline(pageB, stack)).toEqual(before);
     const deleteLabels = await openAdvancedPreview(pageB, 'upload');
