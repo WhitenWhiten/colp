@@ -36,7 +36,11 @@ export async function assertRejoinBoundary(input: Input, mapping: MappingInput, 
   const excluded = await input.store.listLocalSyncExclusions(input.scope);
   const privateIds = new Set(recorded.privateRoots ?? []);
   const forbiddenNative = new Set(excluded.map(row => row.nativeId));
-  const forbiddenColp = new Set(excluded.flatMap(row => row.priorColpId ? [row.priorColpId] : []));
+  // Range exit retains one native copy. A later independently materialized
+  // copy may own the same canonical ID; only the retained native subtree is
+  // private. Explicit private roots and remote-delete decisions remain bound
+  // to their canonical identities as well.
+  const forbiddenColp = new Set(excluded.flatMap(row => row.sourceKind !== 'range_exit' && row.priorColpId ? [row.priorColpId] : []));
   for (const id of privateIds) {
     const privateMapping = await findColp(id);
     if (!privateMapping) fail();
@@ -87,7 +91,8 @@ export async function assertRejoinCanonicalBoundary(input: Input, mappings: read
   const byColp = new Map(mappings.map(row => [row.colpId, row]));
   const byNative = new Map(mappings.map(row => [row.nativeId, row]));
   const excluded = await input.store.listLocalSyncExclusions(input.scope);
-  const forbidden = new Set([...(recorded.privateRoots ?? []), ...excluded.flatMap(row => row.priorColpId ? [row.priorColpId] : [])]);
+  const forbidden = new Set([...(recorded.privateRoots ?? []),
+    ...excluded.flatMap(row => row.sourceKind !== 'range_exit' && row.priorColpId ? [row.priorColpId] : [])]);
   const forbiddenNative = new Set(excluded.map(row => row.nativeId));
   for (const id of recorded.privateRoots ?? []) if (!byColp.has(id)) fail();
   const safe = new Set<string>();
