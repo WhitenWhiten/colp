@@ -37,6 +37,7 @@ import { hasBookmarkPermission, extensionOrigin, safeError, store, sw, syncState
 import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAuthority, restoredSyncScope } from './scope.js';
 import { createSyncAlarmScheduler } from '../sync-alarm.js';
 import { reportReplicaHealth } from './replica-health.js';
+import { readUnresolvedQueuePage } from '../sync-status-queue.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
@@ -395,7 +396,7 @@ async function projectSnapshotNode(scope: SyncScope, context: AuthorityContext,
   return projected;
 }
 
-/** The statuses `pendingDurableWorkFacts` scans; a page of each, ordered by sequence. */
+/** The statuses scanned; one page of unresolved rows each, ordered by sequence. */
 const LIVE_QUEUE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected', 'set_aside'] as const;
 
 async function pendingDurableWorkFacts(scope: SyncScope) {
@@ -405,7 +406,7 @@ async function pendingDurableWorkFacts(scope: SyncScope) {
   let oldestLiveOccurredAt: number | null = null;
   const live: Array<{ readonly status?: string; readonly recovery?: { readonly code?: string } }> = [];
   for (const status of LIVE_QUEUE_STATUSES) {
-    const rows = await syncState.filterResolvedQueueIssues(scope, await syncState.listQueue(scope, status, 0, 1_000));
+    const rows = await readUnresolvedQueuePage(syncState, scope, status);
     live.push(...rows);
     hasPendingWork ||= hasRecoverableQueueWork(rows);
     conflictPending ||= hasConflictBarrier(rows);
