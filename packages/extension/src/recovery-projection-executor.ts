@@ -19,6 +19,7 @@ import {
   type RecoveryOverlayNode,
 } from './recovery-overlay.js';
 import { executeNativeCreate } from './native-create-executor.js';
+import { eligibleSnapshotCreates, snapshotCreateAllowed } from './snapshot-create-boundary.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import { pendingLocalDeletionIds, retainedDeletionMappings } from './recovery-local-deletes.js';
 import type { MappingInput, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -155,15 +156,18 @@ export async function projectVirtualSnapshotChildren(input: {
   }
   const seed = inheritBoundNativeParents([...[...bound.values()].filter(row => !deleted.has(row.colpId)),
     ...retainedDeletionMappings(allLive, input.bound, deleted)]);
+  const eligible = await eligibleSnapshotCreates(input.store, input.scope, seed);
   const existing = await input.store.listProjectionIntents(input.scope);
-  const held = existing.filter(item => item.state !== 'terminal' && protectedIds.has(item.colpId));
-  const pending = existing.filter(item => item.state !== 'terminal' && !protectedIds.has(item.colpId));
+  const held = existing.filter(item => item.state !== 'terminal' && (protectedIds.has(item.colpId)
+    || item.kind === 'create' && item.state === 'pending' && eligible && !eligible.has(item.colpId)));
+  const heldIds = new Set(held.map(item => item.intentId));
+  const pending = existing.filter(item => item.state !== 'terminal' && !heldIds.has(item.intentId));
   if (pending.length === 0 && input.recoveryOnly) return seed;
   if (pending.length === 0) {
     const live = await input.store.listMappings(input.scope);
     const intents = [...planVirtualChildCreates(seed),
       ...planSnapshotPlacementUpdates(seed, live), ...planSnapshotContentUpdates(seed, live)]
-      .filter(intent => !protectedIds.has(intent.colpId))
+      .filter(intent => !protectedIds.has(intent.colpId) && (intent.kind !== 'create' || !eligible || eligible.has(intent.colpId)))
       .map((intent, index) => ({ ...intent, order: index + 1 }));
     if (intents.length === 0) return seed;
     await input.store.replaceProjectionIntents(input.scope, [...held, ...intents.map((intent) => ({
@@ -239,6 +243,8 @@ export async function executeProjectionIntents(input: {
       continue;
     }
     if (intent.generation !== input.scope.generation) throw new SyncFailureError('projection_generation_fenced');
+    if (intent.kind === 'create' && intent.state === 'pending'
+        && !await snapshotCreateAllowed(input.store, input.scope, mappings, intent.colpId)) continue;
     await input.store.settleProjectionIntent(input.scope, intent.intentId, { state: 'executing' });
     let observed: string | undefined | 'ambiguous';
     let activeIntent = intent;
@@ -450,11 +456,11 @@ async function perform(
       },
       parentNativeId, expected: { title: intent.title ?? '', ...(intent.url ? { url: intent.url } : {}) },
       liveWorkKind: 'create',
-      create: async () => api.create({
-        parentId: parentNativeId, title: intent.title ?? '',
-        ...(intent.url ? { url: intent.url } : {}),
-        ...(index === undefined ? {} : { index }),
-      }),
+      create: async () => {
+        if (!await snapshotCreateAllowed(ctx.store, ctx.scope, mappings, intent.colpId)) throw new SyncFailureError('need_authority');
+        return api.create({ parentId: parentNativeId, title: intent.title ?? '',
+          ...(intent.url ? { url: intent.url } : {}), ...(index === undefined ? {} : { index }) });
+      },
     });
     if (outcome.result !== 'applied_with_evidence') return 'ambiguous';
     return outcome.nativeId;
@@ -520,8 +526,10 @@ function planVirtualChildCreates(seed: readonly MappingInput[]): ProjectionInten
   return intents;
 }
 
-export function hasProjectableVirtualChildren(mappings: readonly MappingInput[], protectedIds: ReadonlySet<string> = new Set()): boolean {
-  return planVirtualChildCreates(inheritBoundNativeParents(mappings)).some(intent => !protectedIds.has(intent.colpId));
+export function hasProjectableVirtualChildren(mappings: readonly MappingInput[], protectedIds: ReadonlySet<string> = new Set(),
+  eligible?: ReadonlySet<string>): boolean {
+  return planVirtualChildCreates(inheritBoundNativeParents(mappings)).some(intent => !protectedIds.has(intent.colpId)
+    && (!eligible || eligible.has(intent.colpId)));
 }
 
 function skipVirtualChromeCreate(mapping: MappingInput): boolean {

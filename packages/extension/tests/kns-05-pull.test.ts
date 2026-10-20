@@ -202,13 +202,13 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
     assert.equal(JSON.stringify(projected).includes('pending-'), false);
   });
 
-  test('projects snapshot children under a bound mount without creating the mount folder', async () => {
+  test.each(['active', 'pending'] as const)('projects snapshot children only under a confirmed active mount (%s)', async status => {
     const store = createSyncStateStore({ indexedDB });
     await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease-kns05',
       expiresAt: Date.parse('2099-01-01T00:00:00Z') }, checkpoint: { serverRevision: 'revision-old', cursor: 'cursor-old' },
       selectedRoots: [], rootStatus: 'ready', firstRun: 'running' });
     await store.putMountBinding(scope, { mountId: 'mount-bar', nativeRootId: 'bar', remoteMountNodeId: null,
-      boundaryVersion: '1', materialized: false, status: 'pending', rootRole: 'bookmarks-bar' });
+      boundaryVersion: '1', materialized: false, status, rootRole: 'bookmarks-bar' });
     const staged: MappingInput[] = [{
       nativeId: 'recovery:root-colp', colpId: 'root-colp', rootNativeId: 'recovery:root', nodeKind: 'folder' as const,
       projection: { revision: 'r-root', childrenRevision: 'children-root', digest: 'sha256:root',
@@ -226,13 +226,18 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
     const api = fakeApi(); api.seed({ id: 'bar', index: 0, title: 'Bookmarks bar' });
     const projected = await recoverVerifiedOrFreeze({ scope, store, staged, api, freezeUnprovenIdentity: true });
     const children = await api.getChildren('bar');
-    assert.equal(api.calls.filter((call) => call.kind === 'create').length >= 1, true);
+    assert.equal(api.calls.filter((call) => call.kind === 'create').length, status === 'active' ? 1 : 0);
     assert.equal(children.some((node) => node.title === 'Bar'), false);
-    assert.equal(children.some((node) => node.title === 'Child'), true);
+    assert.equal(children.some((node) => node.title === 'Child'), status === 'active');
     assert.equal(projected.find((row) => row.colpId === 'mount-bar')?.nativeId, 'bar');
     const child = projected.find((row) => row.colpId === 'child-a');
-    assert.ok(child?.nativeId && !child.nativeId.startsWith('recovery:'));
-    assert.equal((await api.get(child!.nativeId))[0]?.parentId, 'bar');
+    if (status === 'active') {
+      assert.ok(child?.nativeId && !child.nativeId.startsWith('recovery:'));
+      assert.equal((await api.get(child!.nativeId))[0]?.parentId, 'bar');
+    } else {
+      assert.equal(child?.nativeId, 'recovery:child-a');
+      assert.deepEqual(await store.listProjectionIntents(scope), []);
+    }
   });
 
   test('applies node_created under a bound mount whose mapping is still recovery:*', async () => {

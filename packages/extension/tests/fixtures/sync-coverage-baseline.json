@@ -666,6 +666,12 @@
       "functions": 80,
       "statements": 80
     },
+    "src/snapshot-create-boundary.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/sw/advanced-first-run.ts": {
       "lines": 80,
       "branches": 80,

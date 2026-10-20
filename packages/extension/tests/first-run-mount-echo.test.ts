@@ -33,20 +33,35 @@ test.each(['current', 'another-profile-cloud-root', 'admitted-preview-expired', 
       revision: 'profile-a-revision', childrenRevision: 'profile-a-children' }] : remote;
   let session = { ...(await store.loadSession())!, snapshotRequired: true };
   await store.saveSession(session);
+  const { scopeKey: _scopeKey, ...registered } = (await syncState.getScope(scope))!;
+  await syncState.registerScope({ ...registered, lease: { leaseId: session.replicaLease.leaseId,
+    generation: session.replicaLease.generation, expiresAt: Date.parse(session.replicaLease.expiresAt) } });
   const beforeNative = structuredClone(tree), clock = { now: Date.now() }, acked: string[] = [];
-  const snapshotRequests = installRejoinHttp(() => scope, () => initialRemote), snapshotFetch = fetch;
+  let snapshotFacts = initialRemote, snapshotEpoch = 0;
+  const snapshotRequests = installRejoinHttp(() => scope, () => snapshotFacts), snapshotFetch = fetch;
   const events: Extract<SyncPullEventV02, { kind: 'operation' }>[] = [];
   const canonical = new Map(initialRemote.map(row => [row.nodeId, { ...row }]));
   let delivered = 0;
   const transport: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
-    if (url.pathname === '/manifest.json' || url.pathname === '/v1/snapshot') return snapshotFetch(input, init);
+    if (url.pathname === '/manifest.json') return snapshotFetch(input, init);
+    if (url.pathname === '/v1/snapshot') {
+      const response = await snapshotFetch(input, init);
+      if (!snapshotEpoch) return response;
+      const page = await response.json();
+      return Response.json({ ...page, snapshotId: `cloud-snapshot-${snapshotEpoch}`, revision: `cloud-${snapshotEpoch}`,
+        collection: { ...page.collection, revision: `cloud-${snapshotEpoch}` }, syncCursor: `snapshot-${snapshotEpoch}`,
+        ...(page.page.hasMore ? {} : { recoveryCapability: `src1.cloud-${snapshotEpoch}` }) });
+    }
     if (url.pathname === '/v1/snapshot/conflicts') return Response.json({
-      snapshotId: 'rejoin-snapshot', offset: 0, nextOffset: null, conflictCount: 0, conflicts: [] });
+      snapshotId: snapshotEpoch ? `cloud-snapshot-${snapshotEpoch}` : 'rejoin-snapshot',
+      offset: 0, nextOffset: null, conflictCount: 0, conflicts: [] });
     if (url.pathname === '/v1/ack') {
       const body = JSON.parse(String(init?.body));
       expect(await syncState.getPendingAckIntent(scope)).toMatchObject({ cursor: body.cursor, state: 'pending' });
-      acked.push(body.cursor); session = { ...session, snapshotRequired: false };
+      acked.push(body.cursor); session = { ...session, snapshotRequired: false,
+        ...(snapshotEpoch ? { collection: { ...session.collection, serverCursor: `active-snapshot-${snapshotEpoch}`,
+          serverRevision: `cloud-${snapshotEpoch}` } } : {}) };
       await store.saveSession(session);
       return Response.json({ replicaId: scope.replicaId, ackedCursor: body.cursor, ackedAt: new Date().toISOString() });
     }
@@ -69,13 +84,14 @@ test.each(['current', 'another-profile-cloud-root', 'admitted-preview-expired', 
       effect.effectDigest = canonicalAuthoritativeEffectDigest(effect);
       events.push({ ...template, operation, effect });
       canonical.set(effect.node.id, { nodeId: effect.node.id, parentId: effect.node.parentId,
-        kind: effect.node.kind === 'bookmark' ? 'bookmark' : 'folder', title: effect.node.title ?? '', revision: effect.node.revision });
+        kind: effect.node.kind === 'bookmark' ? 'bookmark' : 'folder', title: effect.node.title ?? '', revision: effect.node.revision,
+        ...(effect.node.kind === 'bookmark' ? { url: effect.node.url } : { childrenRevision: effect.nodeChildrenRevision ?? undefined }) });
       return Response.json({ batchId: body.batchId, serverCursor: template.cursor, results: [{
         opId: operation.opId, sequence: operation.sequence, status: 'applied', targetId: effect.node.id,
         revision: effect.node.revision, cursor: template.cursor, warnings: [] }] });
     }
     if (url.pathname === '/v1/pull') {
-      const page = pullFixtures.page({ events: events.slice(delivered), nextCursor: `echo-${events.length}`,
+      const page = pullFixtures.page({ events: events.slice(delivered), nextCursor: `${snapshotEpoch ? `snapshot-${snapshotEpoch}-` : ''}echo-${events.length}`,
         collectionRevision: `after-create-${events.length}` });
       delivered = events.length; return Response.json(page);
     }
@@ -151,6 +167,7 @@ test.each(['current', 'another-profile-cloud-root', 'admitted-preview-expired', 
   // A terminal Push receipt is identity evidence, not permission to invent roots.
   syncState.close(); clock.now += 2_000;
   await engine().wake('manual');
+  if (scenario === 'another-profile-cloud-root') expect(chrome.bookmarks.create).not.toHaveBeenCalled();
   if (!allowed) {
     expect(await syncState.getEngineState(scope)).toMatchObject({ recoveryFrozen: true, lastError: 'need_authority' });
     expect(acked).toEqual(['cloud-cursor']);
@@ -198,4 +215,85 @@ test.each(['current', 'another-profile-cloud-root', 'admitted-preview-expired', 
     expect(sharedCloudCopy?.nativeId).toMatch(/^(recovery|unmounted):/u);
   }
   for (const name of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[name]).not.toHaveBeenCalled();
+  if (scenario !== 'another-profile-cloud-root') return;
+
+  // A later complete Snapshot contains both selected descendants and a foreign
+  // sibling subtree. Reprojection must download the former while retaining the
+  // latter as canonical-only state, even though both have known native ancestors.
+  let nextNative = 30;
+  vi.mocked(chrome.bookmarks.create).mockImplementation(async input => {
+    const parent = node(input.parentId!);
+    const created = { id: String(nextNative++), parentId: parent.id, title: input.title ?? '',
+      ...(input.url ? { url: input.url } : { children: [] }), index: input.index ?? parent.children?.length ?? 0 };
+    const children = [...parent.children ?? []]; children.splice(created.index, 0, created);
+    Object.assign(parent, { children });
+    return structuredClone(created);
+  });
+  for (const row of [
+    { nodeId: 'selected-cloud-folder', parentId: 'created-1', kind: 'folder' as const, title: 'Selected cloud folder',
+      revision: 'selected-folder-r', childrenRevision: 'selected-folder-c' },
+    { nodeId: 'selected-cloud-bookmark', parentId: 'selected-cloud-folder', kind: 'bookmark' as const,
+      title: 'Selected cloud bookmark', url: 'https://selected-cloud.example/', revision: 'selected-bookmark-r' },
+    { nodeId: 'profile-a-child', parentId: 'profile-a-folder', kind: 'bookmark' as const,
+      title: 'Other profile cloud child', url: 'https://other-profile.example/', revision: 'a-child-r' },
+  ]) canonical.set(row.nodeId, row);
+  snapshotFacts = [...canonical.values()]; snapshotEpoch++;
+  session = { ...session, snapshotRequired: true };
+  await store.saveSession(session);
+  syncState.close(); clock.now += 2_000;
+  await engine().wake('manual');
+  expect((await syncState.getEngineState(scope))?.lastError).toBeUndefined();
+  expect(await syncState.getEngineState(scope)).toMatchObject({ recoveryFrozen: false });
+  expect(acked.at(-1)).toBe('snapshot-1');
+  const downloadedFolder = (await syncState.getMappingByColpId(scope, 'selected-cloud-folder'))!;
+  const downloadedChild = (await syncState.getMappingByColpId(scope, 'selected-cloud-bookmark'))!;
+  expect(node(downloadedFolder.nativeId)).toMatchObject({ title: 'Selected cloud folder', parentId: '10' });
+  expect(node(downloadedChild.nativeId)).toMatchObject({ title: 'Selected cloud bookmark', parentId: downloadedFolder.nativeId });
+  expect((await loadRootView(scope)).roots.some(row => row.title === 'Profile A root')).toBe(false);
+  expect(chrome.bookmarks.create).toHaveBeenCalledTimes(2);
+  expect((await syncState.getMappingByColpId(scope, 'profile-a-child'))?.nativeId).toMatch(/^(recovery|unmounted):/u);
+  expect((await syncState.listProjectionIntents(scope)).filter(row => row.colpId.startsWith('profile-a'))).toEqual([]);
+  expect((await syncState.listProjectionIntents(scope)).filter(row => row.colpId.startsWith('selected-cloud')))
+    .toEqual([expect.objectContaining({ kind: 'create', state: 'terminal' }), expect.objectContaining({ kind: 'create', state: 'terminal' })]);
+
+  // Ordinary Pull creates outside the chosen root stay remote-only. A canonical
+  // move into it is a new in-range copy; moving out later retains that local copy
+  // and its exclusion rather than expanding the selected roots after restart.
+  const outside = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 100, collectionId: scope.collectionId,
+    parentId: 'remote-1', replicaId: 'profile-a-replica', title: 'Outside range child' });
+  if (outside.kind !== 'operation' || outside.effect.kind !== 'node_created') throw new Error('outside_create_missing');
+  events.push(outside);
+  syncState.close(); clock.now += 2_000; await engine().wake('manual');
+  expect((await syncState.getMappingByColpId(scope, outside.effect.node.id))?.nativeId).toMatch(/^unmounted:/u);
+  expect(chrome.bookmarks.create).toHaveBeenCalledTimes(2);
+  for (const [index, parentId] of ['created-1', 'remote-1'].entries()) {
+    const moved = pullFixtures.mutationEvent({ kind: 'move', sequence: 101 + index, collectionId: scope.collectionId,
+      targetId: 'profile-a-folder', targetKind: 'folder', parentId, replicaId: 'profile-a-replica' });
+    if (moved.kind !== 'operation' || moved.operation.type !== 'move_node'
+      || moved.effect.kind !== 'node_moved' || moved.effect.node.kind !== 'folder') throw new Error('move_missing');
+    const effect = { ...moved.effect, node: { ...moved.effect.node, title: 'Profile A root' },
+      parentRevisions: [index === 0 ? 'remote-1' : 'created-1', parentId]
+        .map(id => ({ parentId: id, childrenRevision: `moved-${index}-${id}` })),
+      effectDigest: '' };
+    effect.effectDigest = canonicalAuthoritativeEffectDigest(effect);
+    events.push({ kind: 'operation', cursor: moved.cursor, operation: moved.operation, effect });
+    syncState.close(); clock.now += 2_000; await engine().wake('manual');
+    expect((await syncState.getEngineState(scope))?.lastError).toBeUndefined();
+    expect(await syncState.getEngineState(scope)).toMatchObject({ recoveryFrozen: false });
+    expect((await syncState.getScope(scope))?.selectedRoots).toEqual(['created-1']);
+    if (index === 0) {
+      const inside = (await syncState.getMappingByColpId(scope, 'profile-a-folder'))!;
+      expect(node(inside.nativeId)).toMatchObject({ title: 'Profile A root', parentId: '10' });
+      expect(node((await syncState.getMappingByColpId(scope, 'profile-a-child'))!.nativeId)).toMatchObject({ parentId: inside.nativeId });
+    }
+  }
+  const localCopy = node('10').children!.find(row => row.title === 'Profile A root')!;
+  expect(localCopy).toBeDefined();
+  expect(await syncState.getLocalSyncExclusion(scope, localCopy.id)).toMatchObject({ sourceKind: 'range_exit', priorColpId: 'profile-a-folder' });
+  expect((await syncState.getMappingByColpId(scope, 'profile-a-folder'))?.nativeId).toMatch(/^unmounted:/u);
+  syncState.close(); clock.now += 2_000; await engine().wake('startup');
+  expect(chrome.bookmarks.create).toHaveBeenCalledTimes(4);
+  expect(node('10').children!.filter(row => row.title === 'Profile A root')).toHaveLength(1);
+  expect((await syncState.listQueue(scope)).filter(row => row.status !== 'terminal')).toEqual([]);
+  expect(await syncState.getScope(scope)).toMatchObject({ firstRun: 'completed', selectedRoots: ['created-1'] });
 });
