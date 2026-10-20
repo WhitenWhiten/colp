@@ -10,13 +10,14 @@ test('missing diagnostic database remains missing and does not create or upgrade
   expect(await indexedDB.databases()).toEqual([]);
 });
 
-test('failure observation reads real IDB states without exposing bookmark, native or credential content', async () => {
+test.each(['active', 'recovery_required', 'expired', 'new'])('failure observation includes %s IDB state without exposing bookmark, native or credential content', async lifecycle => {
   const indexedDB = new IDBFactory(); vi.stubGlobal('indexedDB', indexedDB);
   const request = indexedDB.open('known-phase3-indexeddb-entry', 21);
   const scopeKey = 'PRIVATE-SCOPE-ID';
   const tables = {
-    sync_scopes: [{ scopeKey, lifecycle: 'active', firstRun: 'running', rootStatus: 'ready', generation: 1,
-      selectedRoots: ['PRIVATE-NATIVE-ID'], metadata: { recoveryCode: 'create_ambiguous' } }],
+    sync_scopes: [{ scopeKey, lifecycle, firstRun: 'running', rootStatus: 'ready', generation: 1,
+      selectedRoots: ['PRIVATE-NATIVE-ID'], metadata: { recoveryCode: 'create_ambiguous' } },
+    { scopeKey: 'retired-scope', lifecycle: 'retired', firstRun: 'completed' }],
     sync_engine: [{ scopeKey, phase: 'recovery', lastError: 'recovery_required', recoveryFrozen: true,
       lastPublishedCursor: 'private-cursor', lastAckedCursor: 'private-cursor' }],
     outbound_queue: [{ scopeKey, sequence: 7, status: 'unknown', recovery: { code: 'network_unavailable' },
@@ -38,7 +39,8 @@ test('failure observation reads real IDB states without exposing bookmark, nativ
   const transaction = vi.spyOn(Object.getPrototypeOf(db), 'transaction');
   const snapshot = await readSyncDiagnosticSnapshot();
   expect(transaction.mock.calls.map(args => args[1])).toEqual(['readonly']);
-  expect(snapshot).toMatchObject({ scopes: [{ firstRun: 'running', recoveryCode: 'create_ambiguous',
+  expect(snapshot).toMatchObject({ lifecycleCounts: { [lifecycle]: 1, retired: 1 },
+    scopes: [{ lifecycle, firstRun: 'running', recoveryCode: 'create_ambiguous',
     engine: { phase: 'recovery', frozen: true, cursorsEqual: true }, queue: { unknown: 1 },
     unsettledQueue: [{ sequence: 7, type: 'create_node', status: 'unknown', attempts: 2, hasTransportAttempt: true }],
     intents: [{ state: 'browser_call_started', kind: 'create', nativeResult: 'result_unknown' }],

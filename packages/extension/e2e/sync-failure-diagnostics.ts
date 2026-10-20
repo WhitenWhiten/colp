@@ -45,11 +45,14 @@ export async function readSyncDiagnosticSnapshot() {
     const count = (rows: Row[], key: string) => rows.reduce<Record<string, number>>((counts, row) => {
       const state = code(row[key]) ?? 'unspecified'; counts[state] = (counts[state] ?? 0) + 1; return counts;
     }, {});
-    return { scopes: (all.sync_scopes ?? []).filter(scope => scope.lifecycle === 'active').map(scope => {
+    // A frozen or expired live replica is precisely what a failed convergence
+    // check needs to show. Only retired archives belong outside this snapshot.
+    return { lifecycleCounts: count(all.sync_scopes ?? [], 'lifecycle'),
+      scopes: (all.sync_scopes ?? []).filter(scope => scope.lifecycle !== 'retired').map(scope => {
       const rows = (store: string) => (all[store] ?? []).filter(row => row.scopeKey === scope.scopeKey);
       const engine = rows('sync_engine')[0];
       return {
-        firstRun: code(scope.firstRun), rootStatus: code(scope.rootStatus), recoveryCode: code(scope.metadata?.recoveryCode),
+        lifecycle: code(scope.lifecycle), firstRun: code(scope.firstRun), rootStatus: code(scope.rootStatus), recoveryCode: code(scope.metadata?.recoveryCode),
         generation: number(scope.generation), selectedCount: scope.selectedRoots?.length, privateCount: scope.privateRoots?.length,
         engine: engine ? { phase: code(engine.phase), error: code(engine.lastError), frozen: engine.recoveryFrozen === true,
           authorityRefreshRequired: engine.authorityRefreshRequired === true, cursorPresent: typeof engine.lastPublishedCursor === 'string',
