@@ -9,8 +9,11 @@ import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { validateIntent } from './pull-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
+import { assertMaterializationWaitAuthority, MATERIALIZATION_WAIT_STORES,
+  type MaterializationWaitAuthority } from './materialization-wait-authority.js';
 
 export interface ApplyIntentFactsPatch {
+  readonly expectedMaterialization?: MaterializationWaitAuthority;
   readonly nativeWaitDecision?: import('./types.js').NativeWaitDecision;
   readonly nativeEventEvidence?: JsonObject | null;
   readonly state?: PullApplyState;
@@ -52,7 +55,8 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
     const id = boundedString(intentId, 'intentId');
     const db = await writableDatabase();
     let saved: IntentRecord | undefined;
-    await runTransaction(db, [STORES.scopes, STORES.intents, STORES.pullEvents, STORES.diagnostics], 'readwrite', async (tx) => {
+    await runTransaction(db, [STORES.scopes, STORES.intents, STORES.pullEvents, STORES.diagnostics,
+      ...(patch.expectedMaterialization ? MATERIALIZATION_WAIT_STORES : [])], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key);
       const intents = tx.objectStore(STORES.intents);
       const intent = await requestValue(intents.get([key, id])) as IntentRecord | undefined;
@@ -70,6 +74,7 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
       if (patch.expectedNativeResult !== undefined && intent.nativeResult !== patch.expectedNativeResult) {
         throw new SyncStateError('native_result_cas');
       }
+      if (patch.expectedMaterialization) await assertMaterializationWaitAuthority(tx, key, patch.expectedMaterialization);
       const { scopeKey: _scopeKey, ...row } = intent;
       const merged = {
         ...row,

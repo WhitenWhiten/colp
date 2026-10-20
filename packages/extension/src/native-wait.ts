@@ -6,6 +6,7 @@ import { projectUnresolvedNativeWait } from './native-wait-open.js';
 import { collectNativeOccupancy, executeNativeCreate, type NativeWaitProjection } from './native-create-executor.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import { validNativeWaitTarget } from './native-wait-target.js';
+import { confirmMaterializationWait } from './native-wait-materialization.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import type { IntentRecord, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -17,7 +18,8 @@ export type NativeWaitStore = Pick<ReturnType<typeof createSyncStateStore>,
   | 'listMountBindings' | 'getMappingByColpId' | 'putMapping' | 'listMappings'
   | 'listProjectionIntents' | 'listLocalSyncExclusions' | 'createApplyIntent'
   | 'findApplyIntent' | 'getPullEvent' | 'markPullBrowserCallStarted' | 'recordPullApiEvidence'
-  | 'getMappingByNativeId'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listNativeWaitIntents'>>;
+  | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listPullEvents'>
+  & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listNativeWaitIntents'>>;
 
 export type ConfirmNativeWaitAction = 'bind' | 'keep_local_and_create' | 'cancel';
 
@@ -112,6 +114,8 @@ export async function confirmNativeWait(input: ConfirmNativeWaitInput): Promise<
       });
       return { ok: true, result: 'cancelled' };
     }
+    const materialization = await confirmMaterializationWait(input, intent);
+    if (materialization) return materialization;
     if (input.action === 'bind') return await bindCandidate(input, intent, mounts);
     return await keepLocalAndCreate(input, intent);
   } catch (error) {

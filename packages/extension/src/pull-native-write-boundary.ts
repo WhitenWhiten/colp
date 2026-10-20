@@ -150,11 +150,19 @@ async function boundary(input: Input) {
           || receipt.commandId !== proof.commandId || receipt.liveWorkKind !== 'create'
           || receipt.substep !== (rootReceipt ? 'create' : 'range-materialize')
           || receipt.nativeParentId !== mapping.parentNativeId || receipt.nativeResult !== 'applied_with_evidence'
-          || receipt.apiResultEvidence?.nativeId !== mapping.nativeId
-          || receipt.nativeResultConfirmation?.kind !== 'api_return'
-          || receipt.nativeResultConfirmation.nativeId !== mapping.nativeId) denied();
+          || receipt.nativeResultConfirmation?.nativeId !== mapping.nativeId) denied();
+      const apiReceipt = receipt.nativeResultConfirmation!.kind === 'api_return'
+        && receipt.apiResultEvidence?.nativeId === mapping.nativeId;
+      const userConfirmed = receipt.nativeResultConfirmation!.kind === 'candidate_event'
+        && receipt.nativeWaitDecision?.action === 'bind'
+        && receipt.nativeEventEvidence?.nativeId === mapping.nativeId
+        && typeof receipt.suspendedCorrelationId === 'string'
+        && receipt.nativeEventEvidence?.eventDigest === receipt.suspendedCorrelationId
+        && (!rootReceipt || receipt.anchors?.rangeAction === 'materialize_independent');
+      if (!apiReceipt && !userConfirmed) denied();
       proofIdentity = JSON.stringify([receipt.intentId, receipt.generation, receipt.commandId, receipt.colpId,
-        receipt.nativeParentId, receipt.nativeResult, receipt.apiResultEvidence, receipt.nativeResultConfirmation]);
+        receipt.nativeParentId, receipt.nativeResult, receipt.apiResultEvidence, receipt.nativeResultConfirmation,
+        receipt.nativeEventEvidence, receipt.nativeWaitDecision]);
     }
   } else if (!current || mappingIdentity(current) !== mappingIdentity(mapping)) changed();
   if (mount) {

@@ -375,10 +375,6 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       });
       mappings.push(...applied.mappings); deleteNativeIds.push(...applied.deleteNativeIds);
       if (applied.observations) observations.push(...applied.observations);
-      if (applied.createdNativeId) {
-        await options.store.recordPullApiEvidence(options.scope, eventId, { operationId: event.operation.opId,
-          nativeId: applied.createdNativeId });
-      }
       rangeExit = applied.rangeExit;
     } else if (effect.kind === 'node_deleted' || effect.kind === 'subtree_deleted') {
       const applied = await applyRemoteDeletion({
@@ -393,10 +389,13 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     if (live?.state === 'intent_prepared') {
       await options.store.markPullBrowserCallStarted(options.scope, eventId);
     }
-    await options.store.recordPullApiEvidence(options.scope, eventId, { operationId: event.operation.opId,
+    const confirmed = await options.store.getApplyIntent(options.scope, `intent:${eventId}`);
+    if (confirmed?.nativeResultConfirmation?.kind !== 'candidate_event') {
+      await options.store.recordPullApiEvidence(options.scope, eventId, { operationId: event.operation.opId,
       ...((effect.kind === 'node_created' || effect.kind === 'node_restored' || effect.kind === 'node_moved')
         && mappings[0] ? { nativeId: mappings[0].nativeId } : {}),
       resultDigest: digest({ mappings: mappings.map((mapping) => mapping.nativeId), deleteNativeIds }) });
+    }
     options.crash?.('after_browser_call');
     options.crash?.('after_api_evidence');
     await options.store.commitPullEvent(options.scope, eventId, { mappings, deleteNativeIds, observations,
