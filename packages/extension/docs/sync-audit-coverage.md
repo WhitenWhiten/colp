@@ -8,7 +8,7 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 126 executable owners, for 181 total.
+This pass adds 131 executable owners, for 186 total.
 
 The recovery owners include the native content and placement barriers, ordinary range moves,
 and confirmation of an earlier unknown native create after a newer Snapshot. Their behavior
@@ -17,6 +17,9 @@ decisions across IDB reopen; a recovered cursor alone is not evidence of correct
 Create, restore, and range materialization adapters are included because they retain distinct
 API receipts, user confirmations, and unresolved results while deciding whether another native
 write is permitted. Their tests exercise actual Chrome-port results and durable recovery.
+The final native write and create checks, range-copy wait decisions, atomic confirmation
+authority, and service-worker dispatch are separately measured. User-selected candidates
+remain explicit confirmation evidence; they never become fabricated API return receipts.
 
 The manifest capability parser, advanced first-run execution, native event codec, and Reset
 confirmation UI are executable owners too. The generated browser title validator is measured
@@ -50,6 +53,7 @@ of each requested operation and its receipt while bootstrap checks fresh durable
 - `src/manifest-client.ts`
 - `src/metadata-sync-policy.ts`
 - `src/native-call-result.ts`
+- `src/native-wait-materialization.ts`
 - `src/options.ts`
 - `src/outbound-push-batch.ts`
 - `src/outbound-push-encoding.ts`
@@ -60,7 +64,9 @@ of each requested operation and its receipt while bootstrap checks fresh durable
 - `src/pull-delete-apply.ts`
 - `src/pull-item-set-aside.ts`
 - `src/pull-native-content-barrier.ts`
+- `src/pull-native-create-boundary.ts`
 - `src/pull-native-snapshot-resume.ts`
+- `src/pull-native-write-boundary.ts`
 - `src/pull-range-materialize.ts`
 - `src/pull-range-move.ts`
 - `src/pull-restore-apply.ts`
@@ -111,6 +117,7 @@ of each requested operation and its receipt while bootstrap checks fresh durable
 - `src/sw/first-run.ts`
 - `src/sw/messages.ts`
 - `src/sw/native-chrome.ts`
+- `src/sw/native-wait.ts`
 - `src/sw/range-command.ts`
 - `src/sw/range-remote-commands.ts`
 - `src/sw/range.ts`
@@ -134,6 +141,7 @@ of each requested operation and its receipt while bootstrap checks fresh durable
 - `src/sync-state/bookmark-event-repository.ts`
 - `src/sync-state/boundary-command-repository.ts`
 - `src/sync-state/issue-dependencies.ts`
+- `src/sync-state/materialization-wait-authority.ts`
 - `src/sync-state/mount-repository.ts`
 - `src/sync-state/pull-mapping-writes.ts`
 - `src/sync-state/pull-workset.ts`

@@ -486,6 +486,12 @@
       "functions": 80,
       "statements": 80
     },
+    "src/native-wait-materialization.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/options.ts": {
       "lines": 80,
       "branches": 80,
@@ -546,7 +552,19 @@
       "functions": 80,
       "statements": 80
     },
+    "src/pull-native-create-boundary.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/pull-native-snapshot-resume.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/pull-native-write-boundary.ts": {
       "lines": 80,
       "branches": 80,
       "functions": 80,
@@ -852,6 +870,12 @@
       "functions": 80,
       "statements": 80
     },
+    "src/sw/native-wait.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/sw/range-command.ts": {
       "lines": 80,
       "branches": 80,
@@ -985,6 +1009,12 @@
       "statements": 80
     },
     "src/sync-state/issue-dependencies.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/sync-state/materialization-wait-authority.ts": {
       "lines": 80,
       "branches": 80,
       "functions": 80,
