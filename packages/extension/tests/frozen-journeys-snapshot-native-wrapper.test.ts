@@ -3,6 +3,7 @@ import { subscriptionStore } from '../src/bookmark-subscriptions/store.js';
 import { createChromePullBookmarkApi } from '../src/pull-bookmark-api.js';
 import { recoverVerifiedOrFreeze } from '../src/recovery-guard.js';
 import type { MappingInput } from '../src/sync-state-store.js';
+import type { NativeWriteCheck } from '../src/native-call-result.js';
 import { snapshotNativeFixture } from './snapshot-native-authority-fixture.js';
 
 afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllGlobals(); await subscriptionStore.close(); });
@@ -14,8 +15,8 @@ async function nativeApi(f: Awaited<ReturnType<typeof snapshotNativeFixture>>) {
   // Compose the same authority -> production wrapper -> Chrome path as the
   // worker. Keep the real subscription guard and its real IndexedDB queries.
   return { ...effects.api,
-    create: (input: Parameters<typeof production.create>[0]) => effects.run(() => production.create(input)),
-    remove: (id: string) => effects.run(() => production.remove(id)),
+    create: (input: Parameters<typeof production.create>[0], beforeNative?: NativeWriteCheck) => effects.run(() => production.create(input, beforeNative)),
+    remove: (id: string, beforeNative?: NativeWriteCheck) => effects.run(() => production.remove(id, beforeNative)),
   };
 }
 

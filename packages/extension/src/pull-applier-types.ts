@@ -1,13 +1,17 @@
 import type { StrictNode } from '@know-n/colp/types';
 import type { JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
+import type { NativeWriteCheck } from './native-call-result.js';
+
 export interface PullBookmarkApi {
+  /** This adapter accepts a final check after its own asynchronous admission. */
+  readonly nativeWriteChecks?: true;
   create(input: { parentId?: string; index?: number; title?: string; url?: string;
-  }): Promise<{ readonly id: string }>;
-  update(id: string, changes: { title?: string; url?: string }): Promise<unknown>;
-  move(id: string, destination: { parentId?: string; index?: number }): Promise<unknown>;
-  remove(id: string): Promise<void>;
-  removeTree(id: string): Promise<void>;
+  }, beforeNative?: NativeWriteCheck): Promise<{ readonly id: string }>;
+  update(id: string, changes: { title?: string; url?: string }, beforeNative?: NativeWriteCheck): Promise<unknown>;
+  move(id: string, destination: { parentId?: string; index?: number }, beforeNative?: NativeWriteCheck): Promise<unknown>;
+  remove(id: string, beforeNative?: NativeWriteCheck): Promise<void>;
+  removeTree(id: string, beforeNative?: NativeWriteCheck): Promise<void>;
   get(id: string): Promise<readonly { readonly id: string; readonly parentId?: string; readonly index?: number;
     readonly title?: string; readonly url?: string; readonly unmodifiable?: string }[]>;
   getChildren(id: string): Promise<readonly { readonly id: string; readonly parentId?: string; readonly index?: number;

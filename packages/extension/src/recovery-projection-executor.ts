@@ -467,14 +467,17 @@ async function perform(
       parentNativeId, expected: { title: intent.title ?? '', ...(intent.url ? { url: intent.url } : {}) },
       liveWorkKind: 'create',
       create: async () => {
-        if (!await snapshotCreateAllowed(ctx.store, ctx.scope, mappings, intent.colpId)) throw new SyncFailureError('need_authority');
-        const parent = intent.parentColpId ? mappings.get(intent.parentColpId)
-          : [...mappings.values()].find(row => row.nativeId === parentNativeId);
-        if (!parent || parent.nativeId !== parentNativeId) throw new SyncFailureError('snapshot_parent_mapping_missing');
-        await assertSnapshotNativeBoundary({ store: ctx.store, scope: ctx.scope, api, mapping: parent,
-          kind: 'create', legacyRootNativeId: ctx.selectedRootNativeId });
+        const beforeNative = async () => {
+          if (!await snapshotCreateAllowed(ctx.store, ctx.scope, mappings, intent.colpId)) throw new SyncFailureError('need_authority');
+          const parent = intent.parentColpId ? mappings.get(intent.parentColpId)
+            : [...mappings.values()].find(row => row.nativeId === parentNativeId);
+          if (!parent || parent.nativeId !== parentNativeId) throw new SyncFailureError('snapshot_parent_mapping_missing');
+          await assertSnapshotNativeBoundary({ store: ctx.store, scope: ctx.scope, api, mapping: parent,
+            kind: 'create', legacyRootNativeId: ctx.selectedRootNativeId });
+        };
+        await beforeNative();
         return api.create({ parentId: parentNativeId, title: intent.title ?? '',
-          ...(intent.url ? { url: intent.url } : {}), ...(index === undefined ? {} : { index }) });
+          ...(intent.url ? { url: intent.url } : {}), ...(index === undefined ? {} : { index }) }, beforeNative);
       },
     });
     if (outcome.result !== 'applied_with_evidence') return 'ambiguous';
@@ -501,15 +504,18 @@ async function perform(
     const existing = await lookupBookmark(id => api.get(id), intent.nativeId);
     if (existing.class !== 'present' && existing.class !== 'not_found') throw new Error(existing.message);
     if (existing.class === 'present') {
-      const target = await ctx.store.getMappingByColpId(ctx.scope, intent.colpId);
-      if (!target || target.nativeId !== intent.nativeId) throw new SyncFailureError('need_authority');
-      await assertSnapshotNativeBoundary({ store: ctx.store, scope: ctx.scope, api, mapping: target,
-        kind: 'delete', legacyRootNativeId: ctx.selectedRootNativeId });
+      const beforeNative = async () => {
+        const target = await ctx.store.getMappingByColpId(ctx.scope, intent.colpId);
+        if (!target || target.nativeId !== intent.nativeId) throw new SyncFailureError('need_authority');
+        await assertSnapshotNativeBoundary({ store: ctx.store, scope: ctx.scope, api, mapping: target,
+          kind: 'delete', legacyRootNativeId: ctx.selectedRootNativeId });
+      };
+      await beforeNative();
       // The plan already orders explicit member deletes child-first. Recursive
       // removal would also erase local-only or newly arrived descendants that
       // the plan never authorized. Chrome's atomic non-empty check keeps those
       // copies intact and leaves the intent recoverable until they move away.
-      await api.remove(intent.nativeId);
+      await api.remove(intent.nativeId, beforeNative);
     }
     return intent.nativeId;
   }

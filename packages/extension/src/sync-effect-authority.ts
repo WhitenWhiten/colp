@@ -4,6 +4,7 @@ import { configuredPersonalSyncPolicy } from './personal-sync-fetch.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import type { SyncScope } from './sync-state-store.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
+import type { NativeWriteCheck } from './native-call-result.js';
 
 /** One live capability for ordinary Pull and snapshot projection, including resumed work. */
 export function createSyncEffectAuthority(options: {
@@ -27,12 +28,23 @@ export function createSyncEffectAuthority(options: {
     (await admitted)?.assertLive();
     return work();
   }
+  function beforeWrite(check?: NativeWriteCheck): NativeWriteCheck {
+    return async () => {
+      await assertCurrent();
+      const lease = await admitted;
+      lease?.assertLive();
+      await check?.();
+      lease?.assertLive();
+      if (options.context.signal.aborted) throw new AuthorityFencedError();
+    };
+  }
   const api: PullBookmarkApi = {
-    create: input => run(() => options.api.create(input)),
-    update: (id, changes) => run(() => options.api.update(id, changes)),
-    move: (id, destination) => run(() => options.api.move(id, destination)),
-    remove: id => run(() => options.api.remove(id)),
-    removeTree: id => run(() => options.api.removeTree(id)),
+    ...(options.api.nativeWriteChecks ? { nativeWriteChecks: true } : {}),
+    create: (input, check) => run(() => options.api.create(input, beforeWrite(check))),
+    update: (id, changes, check) => run(() => options.api.update(id, changes, beforeWrite(check))),
+    move: (id, destination, check) => run(() => options.api.move(id, destination, beforeWrite(check))),
+    remove: (id, check) => run(() => options.api.remove(id, beforeWrite(check))),
+    removeTree: (id, check) => run(() => options.api.removeTree(id, beforeWrite(check))),
     get: id => run(() => options.api.get(id)),
     getChildren: id => run(() => options.api.getChildren(id)),
   };

@@ -9,6 +9,7 @@ import { sessionMatchesCredentialAuthority } from '../src/session-client.js';
 import { createSyncEffectAuthority } from '../src/sync-effect-authority.js';
 import { createSyncStateStore, type MappingInput, type SyncScope } from '../src/sync-state-store.js';
 import { fakeChrome } from './recovery-projection-chrome-fixture.js';
+import type { PullBookmarkApi } from '../src/pull-applier-types.js';
 import { REJOIN_TOKEN, rejoinSession } from './rejoin-http-fixture.js';
 
 // Only browser storage/IndexedDB and the external native API are substituted.
@@ -66,7 +67,7 @@ export async function snapshotNativeFixture() {
     async getChildren(id: string) { const result = await chrome.api.getChildren(id); await ports.afterChildren?.(id); return result; },
     async remove(id: string) { removals.push(id); await chrome.api.remove(id); } };
 
-  async function effects() {
+  async function effects(api: PullBookmarkApi = nativeApi) {
     const currentScope = async (): Promise<SyncScope> => {
       const [credential, currentSession, currentBinding, recorded] = await Promise.all([
         credentials.loadCredential(), credentials.loadSession(), credentials.loadBinding(), store.getScope(scope),
@@ -81,7 +82,7 @@ export async function snapshotNativeFixture() {
         browserProfileId: currentBinding!.browserProfileId, replicaId: currentBinding!.replicaId,
         generation: Number(currentBinding!.generation) };
     };
-    return createSyncEffectAuthority({ scope, context: await credentials.fence.capture(), api: nativeApi,
+    return createSyncEffectAuthority({ scope, context: await credentials.fence.capture(), api,
       assertWritable: generation => credentials.assertWritable(generation), currentScope });
   }
   async function stage(rows: readonly MappingInput[]) {

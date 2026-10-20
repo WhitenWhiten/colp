@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { createPersonalSyncPolicyStore } from '../src/personal-sync-policy.js';
 import type { NativeWriteCheck } from '../src/native-call-result.js';
+import type { SyncScope } from '../src/sync-state-store.js';
 
 const identity = { serverOrigin: 'https://known.test', accountId: 'native-boundary', collectionId: 'bookmarks' };
 beforeEach(() => { vi.resetModules(); });
@@ -77,4 +78,46 @@ test('an actual raw Chrome rejection is never labeled as a proven non-call', asy
   f.raw.mockRejectedValueOnce(failure);
   await expect(f.native.createNative({ parentId: '1' }, async () => {})).rejects.toBe(failure);
   expect(failure).not.toBeInstanceOf(f.NativeWriteNotStartedError); expect(f.raw).toHaveBeenCalledTimes(1);
+});
+
+async function effectFixture() {
+  const f = await fixture();
+  const { createChromePullBookmarkApi } = await import('../src/pull-bookmark-api.js');
+  const { createSyncEffectAuthority } = await import('../src/sync-effect-authority.js');
+  const { createAuthorityFence } = await import('../src/authority-fence.js');
+  const fence = createAuthorityFence(new MemoryStorageArea()), context = await fence.capture();
+  const scope: SyncScope = { ...identity, environment: 'production', serverId: 'server',
+    browserProfileId: 'profile', replicaId: 'replica', generation: 1 };
+  const effects = createSyncEffectAuthority({ scope, context, api: createChromePullBookmarkApi(),
+    currentScope: async () => scope, assertWritable: generation => fence.assertWritable(generation) });
+  const api = await f.personalSyncNativeApi(scope, effects.api, () => effects.assertCurrent());
+  return { ...f, api, fence };
+}
+
+test.each(['create', 'update', 'move', 'remove', 'removeTree'] as const)
+('the production Pull %s port preserves the final check through both outer authority adapters', async kind => {
+  const f = await effectFixture();
+  const check = vi.fn(async () => { expect(f.log).toContain('subscription'); f.log.push('check'); });
+  if (kind === 'create') await f.api.create({ parentId: '1' }, check);
+  else if (kind === 'update') await f.api.update('4', { title: 'New' }, check);
+  else if (kind === 'move') await f.api.move('4', { parentId: '1', index: 0 }, check);
+  else await f.api[kind]('4', check);
+  expect(check).toHaveBeenCalledTimes(1); expect(f.raw).toHaveBeenCalledTimes(1);
+  expect(f.log.slice(-2)).toEqual(['check', 'chrome']);
+});
+
+test('authority revoked inside Pull subscription admission cannot reach its core check or raw Chrome', async () => {
+  const f = await effectFixture();
+  f.observed.mockImplementationOnce(async () => { const rows = await f.read(); await f.fence.revoke(); return rows; });
+  const check = vi.fn(async () => {});
+  await expect(f.api.remove('4', check)).rejects.toBeInstanceOf(f.NativeWriteNotStartedError);
+  expect(check).not.toHaveBeenCalled(); expect(f.raw).not.toHaveBeenCalled();
+});
+
+test('the generic authority proxy never passes a check as a callback to an unadapted browser API', async () => {
+  const f = await fixture();
+  const raw = { create: vi.fn(async (input: object) => ({ id: '5', ...input })) };
+  const api = await f.personalSyncNativeApi(identity, raw, async () => {});
+  const input = { parentId: '1', title: 'Native' }; await api.create(input);
+  expect(raw.create).toHaveBeenCalledExactlyOnceWith(input);
 });

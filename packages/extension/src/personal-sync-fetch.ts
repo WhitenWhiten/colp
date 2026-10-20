@@ -38,7 +38,9 @@ export async function personalSyncNativeApi<T extends object>(identity: Personal
       return async (...args: unknown[]) => {
         await assertAttempt?.();
         await lease?.assertCurrent(); lease?.assertLive();
-        const checkIndex = ({ createNative: 1, updateNative: 2, moveNative: 2, removeNative: 2 } as Record<string, number>)[String(property)];
+        const checkIndex = ({ createNative: 1, updateNative: 2, moveNative: 2, removeNative: 2,
+          ...(Reflect.get(target, 'nativeWriteChecks') === true ? { create: 1, update: 2, move: 2, remove: 1, removeTree: 1 } : {}),
+        } as Record<string, number>)[String(property)];
         const finalCheck = checkIndex === undefined ? undefined : args[checkIndex];
         if (checkIndex !== undefined) args[checkIndex] = async () => {
           // Subscription/folder admission inside the native adapter may yield
