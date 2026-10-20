@@ -65,7 +65,10 @@ export async function materializeIndependentSubtree(input: {
         || wait?.generation === input.scope.generation && wait.commandId === input.plan.commandId
         && wait.substep === 'range-materialize' && wait.nativeWaitDecision?.action === 'cancel') declined.add(node.colpId);
     const created = declined.has(node.colpId) ? `unmounted:${node.colpId}` : await createDestNative(input, node, parentNativeId, parent);
-    if (created === node.sourceNativeId) throw new SyncFailureError('native_result_unknown');
+    if (created === node.sourceNativeId
+        && !(node.nodeKind === 'separator' && created === `sidecar:${node.colpId}`)) {
+      throw new SyncFailureError('native_result_unknown');
+    }
     destByColp.set(node.colpId, created);
     destMappings.push(destMapping(input, node, created, parentNativeId, byColp.get(node.colpId)));
     if (node.colpId !== effect.node.id) {

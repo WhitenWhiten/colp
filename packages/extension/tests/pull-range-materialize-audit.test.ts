@@ -119,3 +119,18 @@ test('a child call interrupted after Chrome creation waits without duplicating e
     expect(calls).toBe(2); expect(await f.store.listQueue(f.scope)).toEqual([]);
   } finally { f.close(); }
 });
+
+test('an inconsistent native create return cannot reuse the old concrete source identity', async () => {
+  const f = await subtree();
+  try {
+    // External-port fault: even a returned ID must not turn a copy into a
+    // reassignment of the user's old, deliberately detached native folder.
+    const raw = vi.spyOn(f.native, 'create').mockImplementationOnce(async () => ({ id: '2' }));
+    const runtime = await adapterRuntime(f); await runtime.applier.stage(moved(f.scope.collectionId));
+    await expect(runtime.applier.resume()).rejects.toThrow('native_result_unknown');
+    expect(raw).toHaveBeenCalledOnce();
+    expect((await f.store.getMappingByColpId(f.scope, 'target'))?.nativeId).toBe('2');
+    expect(f.native.getNode('2')?.parentId).toBe('1'); expect(f.native.getNode('5')?.parentId).toBe('2');
+    expect((await f.store.getCursor(f.scope))?.cursor).not.toBe('moved-cursor');
+  } finally { f.close(); }
+});
