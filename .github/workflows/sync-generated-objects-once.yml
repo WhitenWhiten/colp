@@ -1,0 +1,171 @@
+# Temporary object materialization for S11 only. Remove this file after success.
+# Creates exactly three reviewed blobs. It never creates commits or updates refs.
+name: Materialize reviewed S11 OpenAPI blobs
+on:
+  push:
+    branches: [codex/sync-generated-20261020]
+    paths: [.github/workflows/sync-generated-objects-once.yml]
+permissions: {}
+concurrency:
+  group: sync-generated-objects-20261020
+  cancel-in-progress: false
+jobs:
+  materialize:
+    if: github.repository == 'WhitenWhiten/colp' && github.ref == 'refs/heads/codex/sync-generated-20261020' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Read only the exact S11 parent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # Same pin as existing repository CI
+        with:
+          ref: 2f732da12f328e03559e8b70340b0f6aedfd3100
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Confirm the checkout identity
+        shell: bash
+        run: |
+          python3 -I - <<'PY'
+          import subprocess
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() != '2f732da12f328e03559e8b70340b0f6aedfd3100':
+              raise SystemExit('Unexpected S11 parent commit')
+          PY
+      - name: Apply fixed data-only diff and verify all four exact blobs
+        shell: bash
+        run: |
+          python3 -I - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import subprocess
+
+          # This patch contains only the reviewed S11 data changes, from local commit
+          # 9cdba84996bd2b0081b9c78e11299c6c97e9d7ef; no repository code is executed.
+          ORIGINALS = {'packages/server/generated/openapi/product-v1.bundle.yaml': '4fa4e25ab3094f2de4ac68811212c0503c239d88', 'packages/server/generated/openapi/product-v1.ts': '9a864267d8d92faae4973c31315d6d8ed2e141eb', 'packages/server/openapi/product-v1.yaml': '4216f998fa5cb2b56a856057b5181f49aad5873e'}
+          EXPECTED = {'packages/server/generated/openapi/product-v1.bundle.yaml': '0094fe21b4d5ae6f80e0d8a0c682033da531981b', 'packages/server/generated/openapi/product-v1.ts': '6f0964b3dbe565c6f0fe923d2a6c210497eaea9e', 'packages/server/openapi/product-v1.yaml': '38105fb3dd9af0d449fb5b3a0304f88513fa53e3'}
+          BASELINE = 'packages/server/openapi/baselines/product-v1.1.99.0.yaml'
+          PATCH = r"""diff --git a/packages/server/generated/openapi/product-v1.bundle.yaml b/packages/server/generated/openapi/product-v1.bundle.yaml
+          index 4fa4e25a..0094fe21 100644
+          --- a/packages/server/generated/openapi/product-v1.bundle.yaml
+          +++ b/packages/server/generated/openapi/product-v1.bundle.yaml
+          @@ -4 +4 @@ info:
+          -  version: 1.98.0
+          +  version: 1.99.0
+          @@ -32945 +32945 @@ components:
+          -          minLength: 1
+          +          minLength: 0
+          @@ -32946,0 +32947 @@ components:
+          +          description: Empty preserves a favicon-only browser bookmark.
+          @@ -34427 +34428 @@ components:
+          -          minLength: 1
+          +          minLength: 0
+          @@ -34496 +34497 @@ components:
+          -          minLength: 1
+          +          minLength: 0
+          @@ -34497,0 +34499 @@ components:
+          +          description: Empty is accepted only when the existing node is a bookmark.
+          diff --git a/packages/server/generated/openapi/product-v1.ts b/packages/server/generated/openapi/product-v1.ts
+          index 9a864267..6f0964b3 100644
+          --- a/packages/server/generated/openapi/product-v1.ts
+          +++ b/packages/server/generated/openapi/product-v1.ts
+          @@ -9160,0 +9161 @@ export interface components {
+          +            /** @description Empty preserves a favicon-only browser bookmark. */
+          @@ -9647,0 +9649 @@ export interface components {
+          +            /** @description Empty is accepted only when the existing node is a bookmark. */
+          diff --git a/packages/server/openapi/product-v1.yaml b/packages/server/openapi/product-v1.yaml
+          index 4216f998..38105fb3 100644
+          --- a/packages/server/openapi/product-v1.yaml
+          +++ b/packages/server/openapi/product-v1.yaml
+          @@ -5 +5 @@ info:
+          -  version: 1.98.0
+          +  version: 1.99.0
+          @@ -28618 +28618 @@ components:
+          -        title: { type: string, minLength: 1, maxLength: 512 }
+          +        title: { type: string, minLength: 0, maxLength: 512, description: Empty preserves a favicon-only browser bookmark. }
+          @@ -29627 +29627 @@ components:
+          -        title: { type: string, minLength: 1, maxLength: 512 }
+          +        title: { type: string, minLength: 0, maxLength: 512 }
+          @@ -29670 +29670 @@ components:
+          -        title: { type: string, minLength: 1, maxLength: 512 }
+          +        title: { type: string, minLength: 0, maxLength: 512, description: Empty is accepted only when the existing node is a bookmark. }
+          """
+
+          def blob_sha(data):
+              return hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+
+          for path, expected in ORIGINALS.items():
+              if blob_sha(Path(path).read_bytes()) != expected:
+                  raise SystemExit('S11 parent blob mismatch: ' + path)
+          if Path(BASELINE).exists():
+              raise SystemExit('S11 new baseline already exists')
+          subprocess.run(['git', 'apply', '--check', '--unidiff-zero', '-'], input=PATCH.encode(), check=True)
+          subprocess.run(['git', 'apply', '--unidiff-zero', '-'], input=PATCH.encode(), check=True)
+          Path(BASELINE).write_bytes(Path('packages/server/generated/openapi/product-v1.bundle.yaml').read_bytes())
+          for path, expected in {**EXPECTED, BASELINE: EXPECTED['packages/server/generated/openapi/product-v1.bundle.yaml']}.items():
+              if blob_sha(Path(path).read_bytes()) != expected:
+                  raise SystemExit('S11 output blob mismatch: ' + path)
+          PY
+      - name: Create only the three preverified Git objects
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I - <<'PY'
+          from pathlib import Path
+          import base64
+          import hashlib
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          EXPECTED = {'packages/server/generated/openapi/product-v1.bundle.yaml': '0094fe21b4d5ae6f80e0d8a0c682033da531981b', 'packages/server/generated/openapi/product-v1.ts': '6f0964b3dbe565c6f0fe923d2a6c210497eaea9e', 'packages/server/openapi/product-v1.yaml': '38105fb3dd9af0d449fb5b3a0304f88513fa53e3'}
+          BASELINE = 'packages/server/openapi/baselines/product-v1.1.99.0.yaml'
+          API = 'https://api.github.com/repos/WhitenWhiten/colp/git/blobs'
+
+          def blob_sha(data):
+              return hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+
+          # Validate every output before the first API write. Read only the three fixed
+          # reviewed data files; the fourth file is the exact same bundle blob.
+          payloads = []
+          for path, expected in EXPECTED.items():
+              data = Path(path).read_bytes()
+              if blob_sha(data) != expected:
+                  raise SystemExit('S11 output blob mismatch: ' + path)
+              payloads.append((expected, data))
+          if blob_sha(Path(BASELINE).read_bytes()) != EXPECTED['packages/server/generated/openapi/product-v1.bundle.yaml']:
+              raise SystemExit('S11 baseline blob mismatch')
+          if os.environ.get('GITHUB_REPOSITORY') != 'WhitenWhiten/colp' or os.environ.get('GITHUB_REF') != 'refs/heads/codex/sync-generated-20261020':
+              raise SystemExit('Unexpected repository or branch')
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, fp, code, message, headers, new_url):
+                  return None
+
+          client = urllib.request.build_opener(NoRedirect())
+          verified = []
+          for expected, data in payloads:
+              request = urllib.request.Request(API, method='POST',
+                  data=json.dumps({'encoding': 'base64', 'content': base64.b64encode(data).decode('ascii')}).encode(),
+                  headers={'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json',
+                           'X-GitHub-Api-Version': '2026-03-10',
+                           'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN']})
+              try:
+                  with client.open(request, timeout=45) as response:
+                      if response.status != 201:
+                          raise SystemExit('Unexpected create-blob response status')
+                      result = json.load(response)
+              except urllib.error.HTTPError as error:
+                  # Never print response bodies, request headers, credentials or file contents.
+                  raise SystemExit('GitHub create-blob HTTP ' + str(error.code)) from None
+              except urllib.error.URLError:
+                  raise SystemExit('GitHub create-blob transport failed') from None
+              if result.get('sha') != expected:
+                  raise SystemExit('GitHub created an unexpected blob SHA')
+              verified.append(expected)
+          for sha in verified:
+              print(sha)
+          PY
