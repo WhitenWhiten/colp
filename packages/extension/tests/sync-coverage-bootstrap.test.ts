@@ -77,7 +77,7 @@ describe('sync coverage baseline bootstrap', () => {
     expect(run(root, ['--bootstrap-baseline']).status).toBe(0);
     const before = readFileSync(baselinePath, 'utf8');
     const again = run(root, ['--bootstrap-baseline']);
-    expect(again.status).not.toBe(0);
+    expect(again.status).toBe(1);
     expect(again.stderr).toContain('refuses to overwrite');
     expect(readFileSync(baselinePath, 'utf8')).toBe(before);
   });
@@ -85,7 +85,9 @@ describe('sync coverage baseline bootstrap', () => {
   it('still requires the reviewed baseline for an ordinary --write-baseline', () => {
     const { root, baselinePath } = scaffold(complete());
     const write = run(root, ['--write-baseline']);
-    expect(write.status).not.toBe(0);
+    expect(write.status).toBe(1);
+    expect(write.stderr).toContain('ENOENT');
+    expect(write.stderr).toContain(baselinePath);
     expect(existsSync(baselinePath)).toBe(false);
   });
 
@@ -100,7 +102,9 @@ describe('sync coverage baseline bootstrap', () => {
       if (kind === 'out-of-range') summary[first]!.lines = { pct: 101 };
       const { root, baselinePath } = scaffold(summary);
       const result = run(root, ['--bootstrap-baseline']);
-      expect(result.status).not.toBe(0);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(kind === 'missing-file'
+        ? `${first}: missing from coverage report` : `${first}: lines coverage is invalid`);
       expect(existsSync(baselinePath)).toBe(false);
     });
 });
