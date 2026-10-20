@@ -4,6 +4,7 @@ import { Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler,
   type CompiledQuery, type DatabaseConnection, type Driver } from 'kysely';
 import { appendOpenSyncConflict } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
 import { decryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-private-payload.js';
+import type { DatabaseSchema } from '../../../src/infrastructure/database/runtime.js';
 import { evaluateSyncNodeUpdate, type TrustedSyncNodeRevision } from '../../../src/modules/sync/sync-node-update.js';
 import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-update.js';
 
@@ -27,7 +28,7 @@ test('partial-field conflicts retain independent incoming fields in authenticate
   assert.equal(evaluation.status, 'conflict');
   if (evaluation.status !== 'conflict') throw new Error('expected title conflict');
   assert.deepEqual(evaluation.fields, ['title']);
-  let saved: Record<string, any> | undefined;
+  let saved: Record<string, unknown> | undefined;
   const connection: DatabaseConnection = {
     async executeQuery<R>(query: CompiledQuery) {
       let rows: unknown[] = [];
@@ -43,7 +44,8 @@ test('partial-field conflicts retain independent incoming fields in authenticate
         const columns = query.sql.match(/^insert into "sync_conflicts" \(([^)]+)\)/)![1]!
           .split(',').map(column => column.trim().replaceAll('"', ''));
         saved = Object.fromEntries(columns.map((column, index) => [column, query.parameters[index]]));
-        saved.conflicting_fields = JSON.parse(saved.conflicting_fields);
+        assert.ok(typeof saved.conflicting_fields === 'string');
+        saved.conflicting_fields = JSON.parse(saved.conflicting_fields) as unknown;
       }
       return { rows: rows as R[], numAffectedRows: 1n };
     },
@@ -53,25 +55,36 @@ test('partial-field conflicts retain independent incoming fields in authenticate
     async init() {}, async destroy() {}, async acquireConnection() { return connection; },
     async releaseConnection() {}, async beginTransaction() {}, async commitTransaction() {}, async rollbackTransaction() {},
   };
-  const db = new Kysely<any>({ dialect: {
+  const db = new Kysely<DatabaseSchema>({ dialect: {
     createAdapter: () => new PostgresAdapter(), createDriver: () => driver,
     createQueryCompiler: () => new PostgresQueryCompiler(), createIntrospector: d => new PostgresIntrospector(d),
   } });
   const encryption = { key: Buffer.alloc(32, 29), keyVersion: 1 };
   const stop = new Error('review_stop_after_conflict_sql');
+  const unexpected = async (): Promise<never> => { throw new Error('unexpected sequence coordinator call'); };
   try {
-    await assert.rejects(appendOpenSyncConflict({
-      transaction: { databaseTransaction: db,
+    await assert.rejects(db.transaction().execute(databaseTransaction => appendOpenSyncConflict({
+      transaction: { databaseTransaction,
         authority: { accountId: 'review-account', collectionId: operation.collectionId!,
           replicaId: operation.replicaId, leaseGeneration: '1' },
         idReservations: { async reserveAll() { return { state: 'reserved' }; } },
-      } as any,
+        operationClaims: { load: unexpected, save: unexpected },
+        reuseAudits: { append: unexpected, load: unexpected },
+        receipts: { load: unexpected, save: unexpected },
+        loadLaneState: unexpected, saveLaneState: unexpected, readReceipt: unexpected,
+        claimOperation: unexpected, finalizeReceipt: unexpected,
+      },
       sessionId: 'review-session', operation, code: evaluation.code, conflictingFields: evaluation.fields,
       trustedBase: base, current, conflictPayloadEncryption: encryption,
       faultInjector: { afterPhase(phase) { if (phase === 'conflict') throw stop; } },
-    }), error => error === stop);
+    })), error => error === stop);
     assert.ok(saved, 'production conflict insert should be captured');
-    const decrypted = decryptPrivatePayload(saved as any, { active: encryption, retained: [] }, 'bookmark', 1n,
+    assert.deepEqual(saved.conflicting_fields, ['/title']);
+    // The SQL driver returns named values from the schema-typed production
+    // INSERT. Only the database boundary needs this row assertion; the real
+    // reader authenticates every identity and retained-content byte below.
+    const row = saved as unknown as Parameters<typeof decryptPrivatePayload>[0];
+    const decrypted = decryptPrivatePayload(row, { active: encryption, retained: [] }, 'bookmark', 1n,
       () => { throw new Error('decryption failed'); });
     assert.equal(decrypted.incoming.title, 'Local title');
     assert.equal(decrypted.incoming.url, incomingUrl,
