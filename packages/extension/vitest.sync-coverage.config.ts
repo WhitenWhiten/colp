@@ -23,7 +23,8 @@ export default defineConfig({
     testTimeout: 15_000,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json-summary', 'html'],
+      reporter: ['text', 'json', 'json-summary', 'html'],
+      reportOnFailure: true,
       reportsDirectory: 'coverage/sync',
       include: [...SYNC_CORE_COVERAGE_FILES],
       thresholds: { branches: 80 },

@@ -505,6 +505,18 @@ jobs:
       - name: Sync core per-file coverage ratchet
         run: npm run test:coverage:sync
         working-directory: packages/extension
+      - name: Check any completed measurement after a failed test run
+        if: failure() && hashFiles('packages/extension/coverage/sync/coverage-summary.json') != ''
+        run: node scripts/check-sync-coverage-ratchet.mjs
+        working-directory: packages/extension
+      - name: Upload extension sync coverage measurement
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: extension-sync-coverage
+          path: packages/extension/coverage/sync/
+          if-no-files-found: error
+          retention-days: 14
 
   extension-mv3:
     needs: changes

@@ -120,9 +120,23 @@ describe('Extension Sync coverage ratchet [SYNC-Q-021]', () => {
     expect(coverageConfig).toContain("reportsDirectory: 'coverage/sync'");
     expect(coverageConfig).toContain('include: [...SYNC_CORE_COVERAGE_FILES]');
     expect(coverageConfig).toContain('thresholds: { branches: 80 }');
+    expect(coverageConfig).toContain('reportOnFailure: true');
+    expect(coverageConfig).toContain("reporter: ['text', 'json', 'json-summary', 'html']");
     expect(Object.keys(baseline.files)).toEqual([...SYNC_CORE_COVERAGE_FILES]);
     expect(workflow).toContain('extension-coverage:');
     expect(workflow).toContain('run: npm run test:coverage:sync');
     expect(workflow).toContain('- extension-coverage');
+  });
+
+  it('retains failure measurements without allowing tests or coverage to become advisory', () => {
+    const job = workflow.split('  extension-coverage:')[1]!.split('  extension-mv3:')[0]!;
+    expect(job).toContain('run: npm run test:coverage:sync');
+    expect(job).toContain("if: failure() && hashFiles('packages/extension/coverage/sync/coverage-summary.json') != ''");
+    expect(job).toContain('run: node scripts/check-sync-coverage-ratchet.mjs');
+    expect(job).toMatch(/Upload extension sync coverage measurement\n\s+if: always\(\)\n\s+uses: actions\/upload-artifact@/u);
+    expect(job).toContain('path: packages/extension/coverage/sync/');
+    expect(job).toContain('if-no-files-found: error');
+    expect(job).not.toContain('continue-on-error:');
+    expect(job).not.toContain('|| true');
   });
 });
