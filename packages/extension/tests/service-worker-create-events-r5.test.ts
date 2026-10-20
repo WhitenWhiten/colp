@@ -233,3 +233,45 @@ test('a real API receipt wins over the earlier manual candidate after interrupti
   expect((await f.store.getApplyIntent(f.scope, race.intentId))?.nativeResultConfirmation).toEqual(partial?.nativeResultConfirmation);
   expect(f.api.calls.filter(call => call.kind === 'create')).toHaveLength(2);
 });
+
+test.each(['rename', 'delete'] as const)('a user %s after the receipt survives interruption before mapping publication', async action => {
+  const f = await setup(); const race = await manualDuringFinalRead(f); let ownId = '';
+  let original: chrome.bookmarks.BookmarkTreeNode | undefined;
+  vi.spyOn(chrome.bookmarks, 'create').mockImplementation(async details => {
+    ownId = (await race.rawCreate(details)).id;
+    original = structuredClone(f.api.getNode(ownId)) as unknown as chrome.bookmarks.BookmarkTreeNode;
+    await f.emitCreated(ownId); return original;
+  });
+  await expect(f.applier(boundary => {
+    if (boundary === 'after_evidence_before_mapping') throw new Error('worker_crash');
+  }).resume()).rejects.toThrow('worker_crash');
+  const receipt = (await f.store.getApplyIntent(f.scope, race.intentId))?.nativeResultConfirmation;
+  expect(receipt).toEqual({ kind: 'api_return', nativeId: ownId });
+  expect(await f.store.getMappingByNativeId(f.scope, ownId)).toBeNull();
+  if (action === 'rename') {
+    await f.api.update(ownId, { title: 'User edit during interruption' });
+    f.nativeEvents.onChanged.emit(ownId, { title: 'User edit during interruption' });
+  } else {
+    await f.api.remove(ownId);
+    f.nativeEvents.onRemoved.emit(ownId, { parentId: original!.parentId, index: original!.index, node: original });
+  }
+  await f.settled();
+  f.store.close(); await f.store.open();
+  // Chrome's delayed onCreated retains the original event snapshot, even
+  // though the current native state has since changed or disappeared.
+  f.nativeEvents.onCreated.emit(ownId, original); await f.settled();
+  await f.applier().resume(); await f.reconcile();
+  const events = await f.store.listBookmarkEventsByNative(f.scope, ownId, 0, 100);
+  expect(events.filter(row => row.kind === 'create')).toHaveLength(0);
+  const changed = events.find(row => row.kind === (action === 'rename' ? 'change' : 'remove'));
+  expect(changed?.opId).toBeTypeOf('string');
+  const queued = await f.store.getQueueByOpId(f.scope, changed!.opId!);
+  expect(queued?.payload).toMatchObject({ type: action === 'rename' ? 'update_node_content' : 'delete_node', targetId: f.colpId });
+  if (action === 'rename') {
+    expect(f.api.getNode(ownId)?.title).toBe('User edit during interruption');
+    expect(queued?.payload).toMatchObject({ payload: { value: { title: 'User edit during interruption' } } });
+  } else expect(f.api.getNode(ownId)).toBeUndefined();
+  expect((await f.store.getApplyIntent(f.scope, race.intentId))?.nativeResultConfirmation).toEqual(receipt);
+  expect((await f.store.listBookmarkEventsByNative(f.scope, race.manualId, 0, 100)).filter(row => row.kind === 'create')).toHaveLength(1);
+  expect(f.api.calls.filter(call => call.kind === 'create')).toHaveLength(2);
+});
