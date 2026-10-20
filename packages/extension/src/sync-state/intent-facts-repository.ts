@@ -140,8 +140,9 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
       await requireActiveScope(tx, key);
       const intents = tx.objectStore(STORES.intents);
       const intent = await requestValue(intents.get([key, boundedString(expected.intentId, 'intentId')])) as IntentRecord | undefined;
-      const event = intent?.eventId ? await requestValue(tx.objectStore(STORES.pullEvents).get([key, intent.eventId]))
-        as { readonly state?: string; readonly intentId?: string } | undefined : undefined;
+      const event = intent?.eventId ? await requestValue<{
+        readonly state?: string; readonly intentId?: string;
+      } | undefined>(tx.objectStore(STORES.pullEvents).get([key, intent.eventId])) : undefined;
       if (!intent || !event || event.intentId !== intent.intentId || event.state !== 'intent_prepared'
           || intent.state !== 'intent_prepared' || intent.apiPhase !== 'intent_prepared'
           || intent.nativeResult !== 'not_started' || intent.replayState !== 'not_started'
