@@ -227,7 +227,7 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
     assert.match(await readFromPackage('src/first-run-ui.ts'), /同步引擎尚未就绪|FIRST_RUN_ENGINE_NOT_READY/);
   });
 
-  test('startFirstRun and hydrate poll first-run status without sending confirm again', async () => {
+  test('ordinary status polls are read-only and pending polls ask for their command receipt', async () => {
     const ui = await readFromPackage('src/first-run-ui.ts');
     assert.match(ui, /setInterval\(\(\) => \{ void pollFirstRunStatus\(\); \}, STATUS_POLL_MS\)/);
     const hydrate = ui.slice(ui.indexOf('async function hydrate'), ui.indexOf('function applyRangeChrome'));
@@ -237,7 +237,7 @@ describe('KNS-02 UI wiring and confirm-before-upload', () => {
     assert.match(hydrate, /pollIfSyncing: true/);
     assert.match(hydrate, /kind: 'known\.firstRun\.status'/);
     assert.match(start, /pollIfSyncing: true/);
-    assert.match(poll, /kind: 'known\.firstRun\.status'/);
+    assert.match(poll, /firstRunMessage\(submission\.statusRequest\(\)\)/);
     assert.doesNotMatch(poll, /known\.firstRun\.confirm|buildFirstRunConfirm/);
     assert.match(start, /buildFirstRunConfirm/);
   });

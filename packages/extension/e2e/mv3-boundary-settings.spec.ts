@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { KNS08_BINDINGS, evidence, grantBookmarks, launchPersistent, login, optionsPage,
-  liveCanonical, previewFirstRun, specialRoots, startRealStack, terminateWorker, waitFirstRunProductQuiet } from './kns-08-harness.js';
+  liveCanonical, previewFirstRun, specialRoots, startRealStack, terminateWorker, waitFirstRunProductQuiet, wakeEngine } from './kns-08-harness.js';
 import { showOptionsPane } from './extension-auth.js';
 
 test.describe.configure({ timeout: 180_000 });
@@ -79,5 +79,65 @@ test('an older options-page confirmation and a replay after worker restart canno
     expect(after.scope.selectedRoots).toEqual([]);
     expect(after.scope.boundaryVersion).toBe(cleared.scope.boundaryVersion);
     expect(after.mountBindings).toEqual(cleared.mountBindings);
+  } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
+});
+
+test('closing options after Start resumes one durable confirmation when reopened', async () => {
+  const stack = await startRealStack(); const profile = await mkdtemp(resolve(tmpdir(), 'known-confirm-close-ui-'));
+  let context: BrowserContext | undefined;
+  try {
+    context = await launchPersistent(profile, stack.browserHostResolverRules);
+    const page = await optionsPage(context); await login(page, KNS08_BINDINGS[0]); await grantBookmarks(page);
+    const roots = await specialRoots(page);
+    await page.evaluate(parentId => chrome.bookmarks.create({ parentId, title: 'Close options during confirmation',
+      url: 'https://example.test/confirmation-close' }), roots.barId);
+    await page.reload(); await showOptionsPane(page, 'folders');
+    await expect(page.locator('#first-run-start')).toBeEnabled({ timeout: 15_000 });
+    stack.setSyncOffline(true);
+    await page.locator('#first-run-start').click();
+    await expect(page.locator('#first-run-later')).toBeDisabled();
+    await expect(page.locator('#refresh-roots')).toBeDisabled();
+    await expect(page.locator('.root-select input:not(:disabled)')).toHaveCount(0);
+    await page.close();
+    const reopened = await optionsPage(context); await showOptionsPane(reopened, 'folders');
+    await expect(reopened.locator('body')).toHaveAttribute('data-first-run', 'syncing', { timeout: 30_000 });
+    stack.setSyncOffline(false); await wakeEngine(reopened);
+    await waitFirstRunProductQuiet(reopened, stack, KNS08_BINDINGS[0]);
+    await expect(reopened.locator('#first-run-confirm')).toBeHidden({ timeout: 15_000 });
+    expect((await liveCanonical(stack)).filter(node => node.url === 'https://example.test/confirmation-close')).toHaveLength(1);
+  } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
+});
+
+test('Start recovers an undelivered hanging message in the open page with the same confirmation id', async () => {
+  const stack = await startRealStack(); const profile = await mkdtemp(resolve(tmpdir(), 'known-confirm-retry-ui-'));
+  let context: BrowserContext | undefined;
+  try {
+    context = await launchPersistent(profile, stack.browserHostResolverRules);
+    const page = await optionsPage(context); await login(page, KNS08_BINDINGS[0]); await grantBookmarks(page);
+    const roots = await specialRoots(page);
+    await page.evaluate(parentId => chrome.bookmarks.create({ parentId, title: 'Retry the reviewed command',
+      url: 'https://example.test/confirmation-undelivered' }), roots.barId);
+    await page.reload(); await showOptionsPane(page, 'folders');
+    await expect(page.locator('#first-run-start')).toBeEnabled({ timeout: 15_000 });
+    await page.evaluate(() => {
+      const runtime = chrome.runtime as unknown as { sendMessage(request: { kind: string; confirmationId?: string }): Promise<unknown> };
+      const send = runtime.sendMessage.bind(runtime); const attempts: string[] = [];
+      (window as unknown as { confirmationAttempts: string[] }).confirmationAttempts = attempts;
+      runtime.sendMessage = request => {
+        if (request.kind === 'known.firstRun.confirm') {
+          attempts.push(request.confirmationId!);
+          if (attempts.length === 1) return new Promise(() => {});
+        }
+        return send(request);
+      };
+    });
+    await page.locator('#first-run-start').click();
+    await expect(page.locator('#first-run-later')).toBeDisabled();
+    await waitFirstRunProductQuiet(page, stack, KNS08_BINDINGS[0]);
+    const attempts = await page.evaluate(() => (window as unknown as { confirmationAttempts: string[] }).confirmationAttempts);
+    expect(attempts.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(attempts).size).toBe(1);
+    expect((await liveCanonical(stack)).filter(node => node.url === 'https://example.test/confirmation-undelivered')).toHaveLength(1);
+    await expect(page.locator('#first-run-confirm')).toBeHidden();
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });

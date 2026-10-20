@@ -207,7 +207,7 @@ export type FirstRunConfirmRequest = {
   readonly advancedConfirmation?: AdvancedFirstRunConfirmation;
   readonly libraryId: string;
 };
-export type FirstRunStatusRequest = { readonly kind: 'known.firstRun.status' };
+export type FirstRunStatusRequest = { readonly kind: 'known.firstRun.status'; readonly confirmationId?: string };
 export type FirstRunLaterRequest = { readonly kind: 'known.firstRun.later' };
 export type FirstRunAttentionGetRequest = {
   readonly kind: 'known.firstRun.attention.get'; readonly reportId: string; readonly cursor?: string;
@@ -342,6 +342,7 @@ export type FirstRunConfirmStale = {
 export type FirstRunOrScopeResponse =
   | FirstRunPreviewOk
   | { readonly ok: true; readonly phase: FirstRunDurablePhase; readonly firstRun: FirstRunScopeState;
+    readonly confirmation?: { readonly confirmationId: string; readonly state: 'missing' | 'pending' | 'failed' | 'committed' };
     readonly attention?: PublicAttentionSummary;
     readonly items?: readonly PublicAttentionItem[]; readonly nextCursor?: string;
     readonly conflictHref?: string }

@@ -252,9 +252,11 @@ function boundedRefList(value: unknown): value is readonly string[] {
 export function validFirstRunRequest(value: unknown): value is FirstRunRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const request = value as Record<string, unknown>;
-  if (request.kind === 'known.firstRun.status' || request.kind === 'known.firstRun.later') {
-    return Object.keys(request).length === 1;
+  if (request.kind === 'known.firstRun.status') {
+    return Object.keys(request).every((key) => key === 'kind' || key === 'confirmationId')
+      && (request.confirmationId === undefined || boundedId(request.confirmationId));
   }
+  if (request.kind === 'known.firstRun.later') return Object.keys(request).length === 1;
   if (request.kind === 'known.firstRun.attention.get') {
     const keys = Object.keys(request);
     return (keys.length === 2 || keys.length === 3)

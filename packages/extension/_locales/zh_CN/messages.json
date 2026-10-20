@@ -5423,6 +5423,14 @@
     "message": "请先确认要同步哪些书签文件夹。",
     "description": "Confirm which bookmark folders to sync first."
   },
+  "firstRun_confirmationUnknown": {
+    "message": "暂时无法获取确认结果。请再次检查，以继续处理同一条请求。",
+    "description": "The confirmation result is not available yet. Check again to resume the same request."
+  },
+  "firstRun_confirmingSelection": {
+    "message": "正在确认您选择的目录。您可以重新打开此页面查看确认结果。",
+    "description": "Confirming your folder selection. You can reopen this page to check its result."
+  },
   "firstRun_conflicts_other": {
     "message": "$1 个冲突",
     "description": "$1 conflicts"
@@ -5582,6 +5590,10 @@
   "firstRun_selectBookmarkFoldersSync": {
     "message": "请选择要同步的书签文件夹。",
     "description": "Select the bookmark folders to sync."
+  },
+  "firstRun_selectionSuperseded": {
+    "message": "另一个页面已确认不同的目录范围。现在显示当前同步设置。",
+    "description": "Another page confirmed a different folder selection. Showing the current sync settings."
   },
   "firstRun_sideBrowser": {
     "message": "浏览器",

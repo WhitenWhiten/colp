@@ -213,6 +213,8 @@ export function buildFirstRunConfirm(input: {
 }
 
 export function confirmFailureCopy(response: FirstRunOrScopeResponse): string {
+  if (!response.ok && response.error === 'confirmation_superseded') return t('firstRun_selectionSuperseded',
+    'Another page confirmed a different folder selection. Showing the current sync settings.');
   if (response.ok) return '';
   if (response.error === 'not_implemented') return FIRST_RUN_ENGINE_NOT_READY;
   if (response.error === 'preview_stale') return t('firstRun_bookmarkFoldersChangedReview', 'Bookmark folders changed. Review the change list again before confirming.');

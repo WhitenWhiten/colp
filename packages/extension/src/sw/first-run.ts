@@ -33,7 +33,7 @@ let lastAttentionStatusRead: { scopeKey: string; at: number } | undefined;
 export async function handleFirstRunRequest(message: FirstRunRequest): Promise<FirstRunOrScopeResponse> {
   if (message.kind === 'known.firstRun.preview') return handleFirstRunPreview(message);
   if (message.kind === 'known.firstRun.later') return handleFirstRunLater();
-  if (message.kind === 'known.firstRun.status') return handleFirstRunStatus();
+  if (message.kind === 'known.firstRun.status') return handleFirstRunStatus(message.confirmationId);
   if (message.kind === 'known.firstRun.confirm') return handleFirstRunConfirm(message);
   if (message.kind === 'known.firstRun.attention.get' || message.kind === 'known.firstRun.attention.decide') {
     return handleAttentionMessage(message);
@@ -117,12 +117,24 @@ async function handleFirstRunLater(): Promise<FirstRunOrScopeResponse> {
   return { ok: true, phase: 'draft', firstRun: 'deferred' };
 }
 
-async function handleFirstRunStatus(): Promise<FirstRunOrScopeResponse> {
+async function handleFirstRunStatus(confirmationId?: string): Promise<FirstRunOrScopeResponse> {
   let scope: SyncScope;
   // Options can ask before anything restored the credential after a restart;
   // answering not_connected then reopened the first-run card on a synced browser.
   try { scope = await restoredSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
   await resumePendingFirstRunConfirmation(scope);
+  const status = await readFirstRunStatus(scope);
+  if (!confirmationId || !status.ok || !('firstRun' in status)) return status;
+  const command = await syncState.getBoundaryCommand(scope, confirmationId);
+  const plan = (await syncState.listAdvancedPlans(scope))
+    .find((candidate) => candidate.metadata.confirmationId === confirmationId);
+  // The global run may belong to another options page. Only this persisted
+  // receipt is evidence that the command being checked was admitted.
+  const state = command?.kind === 'first-run' ? command.state : plan ? 'committed' : 'missing';
+  return { ...status, confirmation: { confirmationId, state } };
+}
+
+async function readFirstRunStatus(scope: SyncScope): Promise<FirstRunOrScopeResponse> {
   const engine = await syncState.getEngineState(scope);
   const recorded = await syncState.getScope(scope);
   const recoveryCode = typeof recorded?.metadata?.recoveryCode === 'string' ? recorded.metadata.recoveryCode : undefined;

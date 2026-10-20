@@ -4241,6 +4241,12 @@
   "firstRun_confirmWhichBookmarkFolders": {
     "message": "Confirm which bookmark folders to sync first."
   },
+  "firstRun_confirmationUnknown": {
+    "message": "The confirmation result is not available yet. Check again to resume the same request."
+  },
+  "firstRun_confirmingSelection": {
+    "message": "Confirming your folder selection. You can reopen this page to check its result."
+  },
   "firstRun_conflicts_one": {
     "message": "$1 conflict"
   },
@@ -4384,6 +4390,9 @@
   },
   "firstRun_selectBookmarkFoldersSync": {
     "message": "Select the bookmark folders to sync."
+  },
+  "firstRun_selectionSuperseded": {
+    "message": "Another page confirmed a different folder selection. Showing the current sync settings."
   },
   "firstRun_sideBrowser": {
     "message": "Browser"

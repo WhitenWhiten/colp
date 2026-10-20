@@ -126,3 +126,19 @@ test('status recovers an admitted command without changing library selection', a
   await handleFirstRunRequest({ kind: 'known.firstRun.status' });
   expect(await syncState.listBootstrapRuns(scope)).toHaveLength(1);
 });
+
+
+test('command status distinguishes the admitted selection from another options page command', async () => {
+  await syncState.setFirstRun(scope, 'none');
+  const view = await loadRootView(scope);
+  const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
+    selectedRefs: [view.roots[0]!.ref], excludedRefs: [] });
+  if (!preview.ok || !('previewId' in preview)) throw new Error('missing preview');
+  const confirmationId = crypto.randomUUID();
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.confirm', confirmationId,
+    previewId: preview.previewId, libraryId: scope.collectionId })).toMatchObject({ ok: true });
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.status', confirmationId }))
+    .toMatchObject({ ok: true, confirmation: { confirmationId, state: 'committed' } });
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.status', confirmationId: 'unadmitted-other-page' }))
+    .toMatchObject({ ok: true, firstRun: 'running', confirmation: { confirmationId: 'unadmitted-other-page', state: 'missing' } });
+});

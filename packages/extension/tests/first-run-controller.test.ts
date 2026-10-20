@@ -122,9 +122,9 @@ test('the merge button prevents duplicate submissions and retries the same revie
     return { ok: false, error: 'unexpected' };
   });
   f.ui.onRootsRendered(view('ready'), true, true); await vi.waitFor(() => expect(f.start.disabled).toBe(false));
-  f.start.click(); f.start.click(); expect(confirmations).toHaveLength(1);
+  f.start.click(); f.start.click(); await vi.waitFor(() => expect(confirmations).toHaveLength(1));
   finish({ ok: false, error: 'offline' }); await vi.waitFor(() => expect(f.start.disabled).toBe(false));
-  f.start.click(); expect(confirmations).toHaveLength(2);
+  f.start.click(); await vi.waitFor(() => expect(confirmations).toHaveLength(2));
   expect(confirmations[1]?.confirmationId).toBe(confirmations[0]?.confirmationId);
   finish({ ok: false, error: 'offline' }); await vi.waitFor(() => expect(f.start.disabled).toBe(false));
 });
