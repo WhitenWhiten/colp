@@ -1,3 +1,4 @@
+import { unresolvedRejoinQueueRows } from './rejoin-queue-resolution.js';
 import { withReceiptOutcome } from './open-issue-facts.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
@@ -24,7 +25,7 @@ export async function consumedRejectionRows(tx: IDBTransaction, key: string, max
       if (validated.status === 'terminal' && validated.recovery?.resultStatus === 'rejected') rows.push(validated);
     }
   }
-  return rows;
+  return unresolvedRejoinQueueRows(tx, key, rows);
 }
 export function createQueueIssueRepository(ctx: SyncStoreRuntime) {
   /** One bounded, restartable adoption sweep per scope. New receipts write their own projection atomically. */

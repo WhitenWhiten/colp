@@ -59,6 +59,8 @@ export interface BookmarkEventApi {
 }
 interface QueueOptions {
   readonly scope: SyncScope; readonly store: ReturnType<typeof createSyncStateStore>; readonly api: BookmarkEventApi;
+  /** A new confirmed recovery is distinct from the identical, refused historical capture. */
+  readonly captureContext?: string;
   readonly now?: () => string; readonly uuid?: () => string; readonly autoFlush?: boolean;
   readonly childLookupRetryDelaysMs?: readonly number[]; readonly fault?: 'after_sequence' | 'after_queue' | 'after_event';
   readonly reorderDebounceMs?: number; readonly scheduleReorderFlush?: (flush: () => void, delayMs: number) => void;
@@ -307,6 +309,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     if (await kns09Paused('ingress')) { recordKns09PausedDrop(); return { outcome: 'filtered' }; }
     const occurredAt = now(); assertOperationCandidate(asObject(details.operation, 'operation'));
     const dedupeKey = digestJson({ kind, nativeId, exactCorrelation: exactCorrelation ?? null,
+      ...(options.captureContext ? { captureContext: options.captureContext } : {}),
       operation: details.operation as JsonValue });
     let result;
     try {

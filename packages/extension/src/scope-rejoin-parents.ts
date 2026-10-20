@@ -45,8 +45,8 @@ export async function captureRejoinParents(input: Input, mappings: readonly Mapp
   await queue.flush();
 }
 
-export function createRejoinQueue(input: Input) {
-  return createBookmarkEventQueue({ store: input.store, scope: input.scope, autoFlush: false, api: {
+export function createRejoinQueue(input: Input, captureContext?: string) {
+  return createBookmarkEventQueue({ store: input.store, scope: input.scope, autoFlush: false, captureContext, api: {
     get: async id => {
       const native = await input.getNative(id);
       if (!native) throw new Error(`Can't find bookmark for id. ${id}`);

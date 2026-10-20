@@ -18,7 +18,7 @@ export interface RejoinOrderPlan {
 
 /** Compare relative ordering as a separate domain from bookmark title/url and parent identity. */
 export async function planRejoinOrders(input: RejoinOrderInput, mappings: readonly MappingInput[],
-  observations: readonly RemoteObservationRecord[]): Promise<RejoinOrderPlan[]> {
+  observations: readonly RemoteObservationRecord[], includeParentId?: string): Promise<RejoinOrderPlan[]> {
   if (!input.getChildren) return [];
   const byColp = new Map(mappings.map(row => [row.colpId, row]));
   const snapshot = await rejoinAuthority(input);
@@ -42,7 +42,7 @@ export async function planRejoinOrders(input: RejoinOrderInput, mappings: readon
       return mapping && !isNonChromeNativeId(mapping.nativeId) ? [mapping.nativeId] : [];
     }) ?? [];
     const authorityDigest = children && remoteParent ? remoteFactsDigest([remoteParent, ...children]) : null;
-    if (authorityDigest && !relativeChildOrderChanged(baseline, remote)) continue;
+    if (authorityDigest && !relativeChildOrderChanged(baseline, remote) && parent.colpId !== includeParentId) continue;
     const conflict = !authorityDigest || relativeChildOrderChanged(baseline, local) && relativeChildOrderChanged(remote, local);
     plans.push({ parent, baseline, local, remote, conflict, authorityDigest, boundaryDigest,
       ...(remoteParent?.childrenRevision ? { childrenRevision: remoteParent.childrenRevision } : {}),

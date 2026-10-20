@@ -84,7 +84,7 @@ export async function stageMissingRejoinDelete(input: RejoinOrderInput, group: M
   if (group.remote && !remoteRoot) throw new Error('preview_stale');
   const payload = { type: deletionOperationType(remoteRoot?.kind ?? group.root.nodeKind), opId,
     targetId: group.root.colpId, baseRevision: revision, occurredAt: new Date().toISOString(), dependencies: [],
-    payload: { reason: 'rejoin_local_delete', decisionId: group.commandId, decisionToken: group.token }, source: mappedSubtreeDeleteSource(group.root.colpId, mappings) };
+    payload: { reason: 'rejoin_local_delete' }, source: mappedSubtreeDeleteSource(group.root.colpId, mappings) };
   await input.store.allocateSequenceAndEnqueue(input.scope, { opId, batchId: opId, idempotencyKey: opId,
     digest: digestJson(payload), endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: revision,
     operationRevision: `local-${opId}`, status: 'pending', retry: { attempt: 0, notBefore: 0 }, payload }, COLP_QUEUE_STAMP);
@@ -98,7 +98,12 @@ export async function reconcileMissingRejoinDeletes(input: RejoinOrderInput, map
     for (const member of group.members) handled.add(member.colpId);
     if (group.members.some(row => row.projection.revision.startsWith('local-'))) { conflicts++; continue; }
     const prior = await input.store.getScopeCommandPlan(input.scope, group.commandId);
-    if (prior && prior.phase !== 'pending') { if (prior.phase !== 'active') conflicts++; continue; }
+    if (prior && prior.phase !== 'pending') {
+      const successor = typeof prior.rejoinDecision?.supersededBy === 'string'
+        ? await input.store.getScopeCommandPlan(input.scope, prior.rejoinDecision.supersededBy) : undefined;
+      if ((successor ?? prior).phase !== 'active') conflicts++;
+      continue;
+    }
     if (group.remote?.length === 0) {
       for (const member of group.members) await input.store.deleteMapping(input.scope, member.nativeId);
       applied++; continue;

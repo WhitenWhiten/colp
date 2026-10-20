@@ -1,4 +1,5 @@
-import { missingRejoinGroups, reconcileMissingRejoinDeletes, rejoinDeleteOperationId,
+import { retryRejoinCandidate, renewRejectedRejoin, rejoinCandidateFields } from './scope-rejoin-rejection.js';
+import { missingRejoinGroups, rejoinDeleteOperationId,
   stageMissingRejoinDelete, type MissingRejoinGroup } from './scope-rejoin-deletion.js';
 import { applyRejoinOrder, planRejoinOrders, type RejoinOrderInput, type RejoinOrderPlan } from './scope-rejoin-order.js';
 import { cachedRejoinAuthority, rejoinBoundaryDigest, rejoinAttemptDigest } from './scope-rejoin-authority.js';
@@ -44,11 +45,14 @@ async function facts(input: RejoinDecisionInput, record: ScopeCommandPlanRecord)
   const mappings = rejoinMemberMappings(await input.store.listMappings(input.scope), mount);
   const observations = (await input.store.listRemoteObservations(input.scope))
     .filter(row => observationValidForPause(row, mount.pauseBaseline));
-  return record.rejoinDecision?.kind === 'local_delete'
+  const current: DecisionFacts = record.rejoinDecision?.kind === 'local_delete'
     ? { input: scoped, mappings, group: (await missingRejoinGroups(scoped, mappings, observations))
-      .find(row => row.commandId === record.commandId) }
-    : { input: scoped, mappings, order: (await planRejoinOrders(scoped, mappings, observations))
-      .find(row => row.commandId === record.commandId) };
+      .find(row => row.root.colpId === record.rejoinDecision?.rootId) }
+    : { input: scoped, mappings, order: (await planRejoinOrders(scoped, mappings, observations,
+      record.rejoinDecision?.rejectedReferences ? String(record.rejoinDecision.parentId) : undefined))
+      .find(row => row.parent.colpId === record.rejoinDecision?.parentId) };
+  return { ...current, ...(current.group ? { group: retryRejoinCandidate(current.group, record) } : {}),
+    ...(current.order ? { order: retryRejoinCandidate(current.order, record) } : {}) };
 }
 
 /** Stored accepted evidence, rather than partly mutated live state, owns the public choice. */
@@ -79,8 +83,9 @@ export async function resolveRejoinDecision(input: RejoinDecisionInput,
     const current = await facts(input, record);
     const candidate = current.group ?? current.order;
     if (!candidate || record.baselineDigest !== request.token || candidate.token !== request.token) {
-      if (current.group) await reconcileMissingRejoinDeletes(current.input, current.mappings,
-        await input.store.listRemoteObservations(input.scope));
+      if (candidate) await putPlan(input, record, { baselineDigest: candidate.token,
+        rejoinDecision: { ...record.rejoinDecision, ...rejoinCandidateFields(candidate),
+          authorityDigest: candidate.authorityDigest, boundaryDigest: candidate.boundaryDigest } });
       throw new Error('preview_stale');
     }
     const allowed = current.group ? ['keep_remote', 'delete_remote'] : ['keep_local_order', 'keep_remote_order'];
@@ -96,9 +101,11 @@ export async function resolveRejoinDecision(input: RejoinDecisionInput,
       await assertRejoinBoundary(current.input, current.group.root, { allowMissing: true,
         expectedBoundary: current.group.boundaryDigest });
       dependencies = [rejoinDeleteOperationId(current.group)];
-      evidence = { deletion: current.group as unknown as JsonObject };
+      const { token: previewDigest, ...deletion } = current.group;
+      evidence = { deletion: { ...deletion, previewDigest } as unknown as JsonObject };
     } else {
-      evidence = { order: current.order as unknown as JsonObject };
+      const { token: previewDigest, ...order } = current.order!;
+      evidence = { order: { ...order, previewDigest } as unknown as JsonObject };
     }
     record = await input.store.confirmRejoinDecision(input.scope, { commandId: record.commandId,
       token: request.token, choice: request.choice, dependencies, evidence });
@@ -124,8 +131,7 @@ export async function refreshRejoinDecisions(input: RejoinDecisionInput): Promis
         : record.retryReason === 'delete_remote' ? await resumeDelete(scoped, record)
           : await resumeOrder(scoped, record);
       if (complete) {
-        const latest = (await input.store.getScopeCommandPlan(input.scope, record.commandId))!;
-        await putPlan(input, latest, { phase: 'active' }); touched.add(mount.mountId);
+        await input.store.completeRejoinDecision(input.scope, record.commandId); touched.add(mount.mountId);
       }
     } catch (error) {
       if (error instanceof Error && ['rejoin_boundary_changed', 'preview_stale', 'scope_not_found', 'scope_retired'].includes(error.message)) {
@@ -175,6 +181,7 @@ async function resumeRestore(input: RejoinOrderInput, record: ScopeCommandPlanRe
 async function resumeDelete(input: RejoinOrderInput, record: ScopeCommandPlanRecord): Promise<boolean> {
   const opId = record.dependencies[0];
   if (!opId) throw new Error('command_decision_invalid');
+  await input.store.authorizeRejoinRecovery(input.scope, record.commandId);
   if (!await input.store.getQueueByOpId(input.scope, opId)) {
     const current = await facts(input, record);
     if (!current.group || current.group.token !== record.baselineDigest) throw new Error('preview_stale');
@@ -188,10 +195,11 @@ async function resumeOrder(input: RejoinOrderInput, record: ScopeCommandPlanReco
   const order = record.rejoinDecision?.order as unknown as RejoinOrderPlan | undefined;
   if (!order) throw new Error('command_decision_invalid');
   await assertRejoinBoundary(input, order.parent, { expectedBoundary: order.boundaryDigest });
+  await input.store.restoreRejectedRejoinBaselines(input.scope, record.commandId);
   if (record.retryReason === 'keep_remote_order') {
     await applyRejoinOrder(input, order, order.remote); return true;
   }
-  const queue = createRejoinQueue(input);
+  const queue = createRejoinQueue(input, record.commandId);
   if (record.phase === 'confirmed') {
     const parent = await input.store.getMappingByNativeId(input.scope, order.parent.nativeId);
     if (!parent || !input.getChildren) throw new Error('rejoin_order_changed');
@@ -206,31 +214,31 @@ async function resumeOrder(input: RejoinOrderInput, record: ScopeCommandPlanReco
     if (!pending) return true;
     record = await putPlan(input, record, { phase: 'applying', dependencies: pending.moves.map(row => row.eventId) });
   }
+  await input.store.authorizeRejoinRecovery(input.scope, record.commandId);
   await queue.flush();
   return dependenciesComplete(input, record);
 }
 
 async function dependenciesComplete(input: RejoinOrderInput, record: ScopeCommandPlanRecord): Promise<boolean> {
   let complete = true;
+  const rows = [];
   for (const id of record.dependencies) {
     const event = await input.store.getBookmarkEvent(input.scope, id);
     const opId = event?.opId ?? id;
-    const row = await input.store.getQueueByOpId(input.scope, opId);
-    if (row?.status === 'rejected' || row?.status === 'terminal' && (row.recovery?.resultStatus === 'rejected'
-      || row.recovery?.code === 'conflict_pending')) {
-      // Preserve immutable queue history. A fresh preview is required after a consumed rejection.
-      await putPlan(input, record, { phase: 'failed', retryReason: 'rejoin_upload_rejected' }); return false;
-    }
-    if (!row || row.status !== 'terminal'
+    const row = await input.store.getQueueByOpId(input.scope, opId); rows.push(row);
+    if (!row || row.status !== 'terminal' || row.recovery?.resultStatus === 'rejected'
+      || row.recovery?.code === 'conflict_pending'
       || !(row.echoApplied || (await input.store.pullOperationsCovered(input.scope, [opId])).includes(opId))) complete = false;
   }
+  if (!complete) await renewRejectedRejoin(input, record, rows);
   return complete;
 }
 async function putPlan(input: RejoinDecisionInput, record: ScopeCommandPlanRecord,
   patch: Partial<ScopeCommandPlanRecord>): Promise<ScopeCommandPlanRecord> {
-  const { scopeKey: _key, ...value } = { ...record, ...patch, updatedAt: Date.now() };
+  const latest = await input.store.getScopeCommandPlan(input.scope, record.commandId) ?? record;
+  const { scopeKey: _key, ...value } = { ...latest, ...patch, updatedAt: Date.now() };
   await input.store.putScopeCommandPlan(input.scope, value);
-  return { ...record, ...patch, updatedAt: value.updatedAt };
+  return { ...latest, ...patch, updatedAt: value.updatedAt };
 }
 async function failDecision(input: RejoinDecisionInput, record: ScopeCommandPlanRecord, reason: string) {
   await putPlan(input, record, { phase: 'failed', retryReason: reason });
@@ -240,5 +248,5 @@ async function failDecision(input: RejoinDecisionInput, record: ScopeCommandPlan
 export async function currentRejoinDependencies(input: RejoinOrderInput): Promise<ScopeCommandPlanRecord[]> {
   const attempt = rejoinAttemptDigest(input.mount, await input.store.getScope(input.scope));
   return (await input.store.listScopeCommandPlans(input.scope)).filter(record => isDecision(record)
-    && record.mountId === input.mount.mountId && record.rejoinDecision?.attemptDigest === attempt);
+    && record.mountId === input.mount.mountId && record.rejoinDecision?.attemptDigest === attempt && !record.rejoinDecision?.supersededBy);
 }

@@ -2,7 +2,7 @@ import { digestJson } from './bookmark-event-codec.js';
 import type { JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>, 'listQueueByTarget' | 'getQueueReceipt'
-  | 'pullOperationsCovered' | 'listBookmarkEventsByNative'>;
+  | 'pullOperationsCovered' | 'listBookmarkEventsByNative'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'filterResolvedQueueIssues'>>;
 
 /** An optimistic projection is not evidence that a local edit reached the server. */
 export async function hasUnsettledDeleteEdits(store: Store, scope: SyncScope, mapping: MappingInput,
@@ -10,8 +10,9 @@ export async function hasUnsettledDeleteEdits(store: Store, scope: SyncScope, ma
   const current = { ...mapping.projection.content,
     ...(native.title === undefined ? {} : { title: native.title }),
     ...(native.url === undefined ? {} : { url: native.url }) };
-  const rows = (await store.listQueueByTarget(scope, mapping.colpId)).filter(row => !row.echoApplied
+  const candidates = (await store.listQueueByTarget(scope, mapping.colpId)).filter(row => !row.echoApplied
     && (row.payload.type === 'update_node_content' || row.payload.type === 'move_node'));
+  const rows = store.filterResolvedQueueIssues ? await store.filterResolvedQueueIssues(scope, candidates) : candidates;
   const covered = new Set(await store.pullOperationsCovered(scope, rows.map(row => row.opId)));
   for (const row of rows) {
     if (covered.has(row.opId)) continue;

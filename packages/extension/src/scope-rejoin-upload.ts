@@ -1,19 +1,20 @@
 import { classifyBookmarkApiFailure } from './bookmark-api-error.js';
 import { rejoinBoundaryDigest } from './scope-rejoin-authority.js';
 import { assertRejoinCanonicalBoundary } from './scope-rejoin-boundary.js';
-import type { JsonObject, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import { rejoinDeleteOperationId } from './scope-rejoin-deletion.js';
+import type { QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 /** The missing source is authorized by its durable rejoin decision, never by a cloud-delete bypass. */
 export async function assertRejoinDeleteUpload(input: {
   store: ReturnType<typeof createSyncStateStore>; scope: SyncScope; queue: QueueOperation;
   parentOf: (id: string) => Promise<string | undefined>;
 }): Promise<void> {
-  const payload = input.queue.payload.payload as JsonObject;
-  const decision = typeof payload.decisionId === 'string'
-    ? await input.store.getScopeCommandPlan(input.scope, payload.decisionId) : null;
+  const decision = (await input.store.listScopeCommandPlans(input.scope)).find(plan =>
+    plan.kind === 'rejoin' && plan.rejoinDecision?.kind === 'local_delete' && plan.dependencies.includes(input.queue.opId));
   const recorded = await input.store.getScope(input.scope);
   if (!decision || decision.kind !== 'rejoin' || decision.retryReason !== 'delete_remote'
-    || !['confirmed', 'applying'].includes(decision.phase) || decision.baselineDigest !== payload.decisionToken
+    || !['confirmed', 'applying'].includes(decision.phase) || !decision.baselineDigest
+    || rejoinDeleteOperationId({ commandId: decision.commandId, token: decision.baselineDigest }) !== input.queue.opId
     || !decision.dependencies.includes(input.queue.opId) || decision.rejoinDecision?.rootId !== input.queue.payload.targetId
     || decision.rejoinDecision?.boundaryDigest !== rejoinBoundaryDigest(recorded)) throw new Error('queued_upload_excluded');
   const mappings = await input.store.listMappings(input.scope);
