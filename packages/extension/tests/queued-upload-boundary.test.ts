@@ -106,7 +106,7 @@ test('a stopped mount rejects ordinary queued content while keeping it on the de
   } finally { f.store.close(); }
 });
 
-test('advanced create provenance checks the native source as well as its selected destination', async () => {
+test('an advanced-looking id cannot borrow an ordinary queue row or a fabricated plan source', async () => {
   const f = await setup();
   try {
     const planId = 'advanced-plan', stepId = 'advanced-step';
@@ -115,7 +115,7 @@ test('advanced create provenance checks the native source as well as its selecte
     const original = (await f.store.listQueue(scope))[0]!;
     const opId = `ab.${digestJson({ planId, stepId }).slice(7)}`;
     f.movePrivate();
-    await assert.rejects(f.guard({ ...original, opId }), /queued_upload_excluded/);
+    await assert.rejects(f.guard({ ...original, opId }), /upload_boundary_unavailable/);
   } finally { f.store.close(); }
 });
 
