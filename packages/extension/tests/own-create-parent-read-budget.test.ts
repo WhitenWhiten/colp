@@ -324,3 +324,84 @@ for (const mismatch of ['older_sequence', 'different_payload'] as const) {
     } finally { f.store.close(); }
   });
 }
+
+for (const mismatch of ['older_sequence', 'different_payload'] as const) {
+  test(`retained provisional mapping refuses a ${mismatch} response before publishing identity`, async () => {
+    const f = await laterSelfCreateFixture();
+    try {
+      const queued = await losePushResponse(f);
+      assert.ok(f.event.operation.type === 'create_node' && f.event.effect.kind === 'node_created');
+      const title = 'Different echoed title';
+      const operation = mismatch === 'older_sequence' ? { ...f.event.operation, sequence: 1 }
+        : { ...f.event.operation, payload: { ...f.event.operation.payload,
+          node: { ...f.event.operation.payload.node, title } } };
+      const effect = { ...f.event.effect, sequence: operation.sequence,
+        operationDigest: canonicalOperationDigest(operation),
+        node: mismatch === 'different_payload' ? { ...f.event.effect.node, title } : f.event.effect.node };
+      const response = { ...f.event, operation, effect: { ...effect,
+        effectDigest: canonicalAuthoritativeEffectDigest(effect) } };
+      const page = pullFixtures.page({ events: [response], nextCursor: 'cursor-next',
+        collectionRevision: 'revision-next' });
+      // The response is internally valid but contradicts the actual unknown request.
+      // Keep the provisional mapping: its presence must not weaken source binding.
+      if (mismatch === 'different_payload') await f.api.update(f.node.id, { title });
+      assert.equal(queued.sequence, 2);
+      assert.notEqual(canonicalOperationDigest(queued.payload as unknown as Operation), effect.operationDigest);
+      const mappingBefore = await f.store.getMappingByNativeId(scope, f.node.id);
+      assert.equal(mappingBefore?.colpId, `pending-${f.opId}`);
+      const cursorBefore = await f.store.getCursor(scope);
+      const nativeBefore = await f.api.get(f.node.id);
+      const mutationCount = f.api.calls.length;
+      f.store.close();
+      let refusal: unknown;
+      let boundary = 'stage';
+      try {
+        const applier = createPullApplier({ ...f.options, crash: point => {
+          if (point === 'after_intent') throw new Error('pending_binding_review_crash');
+        } });
+        await applier.stage(page);
+        boundary = 'prepare';
+        try { await applier.resume(); } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'pending_binding_review_crash') throw error;
+        }
+        f.store.close();
+        boundary = 'reopen_resume';
+        await createPullApplier(f.options).resume();
+      } catch (error) { refusal = error; }
+      f.store.close();
+      const mappingAfter = await f.store.getMappingByNativeId(scope, f.node.id);
+      const canonical = await f.store.getMappingByColpId(scope, f.remote.id);
+      const after = await f.store.getQueueByOpId(scope, f.opId);
+      const cursorAfter = await f.store.getCursor(scope);
+      const eventAfter = await f.store.getPullEvent(scope, f.eventId);
+      // Report the final observable state together; a missing rejection alone
+      // would not demonstrate whether a wrong identity or echo was published.
+      assert.deepEqual({
+        refusal: refusal instanceof Error ? refusal.message : null,
+        colpId: mappingAfter?.colpId ?? null,
+        canonicalNativeId: canonical?.nativeId ?? null,
+        echoApplied: after?.echoApplied ?? false,
+        cursor: cursorAfter?.cursor ?? null,
+        published: eventAfter?.state === 'page_complete',
+        apiEvidence: eventAfter?.apiResultEvidence ?? null,
+      }, {
+        refusal: 'pull_source_binding_invalid',
+        colpId: mappingBefore?.colpId ?? null,
+        canonicalNativeId: null,
+        echoApplied: queued.echoApplied ?? false,
+        cursor: cursorBefore?.cursor ?? null,
+        published: false,
+        apiEvidence: null,
+      }, JSON.stringify({ boundary, eventState: eventAfter?.state ?? null, queueState: after?.status ?? null }));
+      assert.deepEqual(mappingAfter, mappingBefore);
+      assert.deepEqual(after, queued);
+      assert.deepEqual(cursorAfter, cursorBefore);
+      assert.notEqual(eventAfter?.state, 'page_complete');
+      assert.equal(eventAfter?.apiResultEvidence ?? null, null);
+      assert.equal(f.api.calls.length, mutationCount);
+      assert.deepEqual(await f.api.get(f.node.id), nativeBefore);
+      assert.equal(await f.store.getQueueReceipt(scope, queued.sequence), null);
+      assert.deepEqual(await f.store.getQueueReceipt(scope, f.earlierSequence), f.earlierReceipt);
+    } finally { f.store.close(); }
+  });
+}
