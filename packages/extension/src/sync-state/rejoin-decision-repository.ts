@@ -21,6 +21,15 @@ export interface RejoinMaterializationAuthority {
   readonly before: MappingInput; readonly parent: MappingInput; readonly mount: MountBindingRecord;
   readonly boundaryDigest: string; readonly commandId?: string; readonly baselineDigest?: string | null;
 }
+export interface RejoinMutationAuthority {
+  readonly before: MappingInput; readonly mount: MountBindingRecord; readonly parents: readonly MappingInput[];
+  readonly boundaryDigest: string; readonly exclusionDigest: string;
+}
+export function exclusionEvidenceDigest(rows: readonly unknown[]): string {
+  return digestJson(rows.map(raw => {
+    const { scopeKey: _key, ...value } = raw as UnknownRecord; return value;
+  }).sort((left, right) => String(left.nativeId).localeCompare(String(right.nativeId))) as JsonObject[]);
+}
 export function restoreEvidence(record: ScopeCommandPlanRecord): RejoinRestoreEvidence {
   const value = record.rejoinDecision?.restore;
   if (!value || typeof value !== 'object' || Array.isArray(value)
@@ -161,7 +170,43 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
       mappings.delete([key, input.before.nativeId]); mappings.put(mapping);
     });
   }
-  return { confirmRejoinDecision, prepareRejoinRestore, assertRejoinMaterialization, commitRejoinMaterialization };
+  const mutationStores = [STORES.scopes, STORES.mounts, STORES.mappings, STORES.localSyncExclusions];
+  async function requireMutation(tx: IDBTransaction, key: string, input: RejoinMutationAuthority) {
+    const scope = await requireActiveScope(tx, key);
+    const mount = await requestValue<MountBindingRecord | undefined>(tx.objectStore(STORES.mounts).get([key, input.mount.mountId]));
+    if (!['ready', 'nested_normalized'].includes(scope.rootStatus ?? '') || rejoinBoundaryDigest(scope) !== input.boundaryDigest
+      || !mount || mount.status !== input.mount.status || mount.boundaryVersion !== input.mount.boundaryVersion
+      || rejoinAttemptDigest(mount, scope) !== rejoinAttemptDigest(input.mount, scope)
+      || digestJson(mount.pendingRemoteDelete ? { ...mount.pendingRemoteDelete } : null)
+        !== digestJson(input.mount.pendingRemoteDelete ? { ...input.mount.pendingRemoteDelete } : null)) failMaterialization();
+    const mappings = tx.objectStore(STORES.mappings);
+    const raw = await requestValue(mappings.get([key, input.before.nativeId]));
+    if (!raw || mappingEvidenceDigest(validateMappingRecord(key, raw, ctx.maxRecordBytes)) !== mappingEvidenceDigest(input.before)) failMaterialization();
+    for (const expected of input.parents) {
+      const parent = await requestValue(mappings.get([key, expected.nativeId]));
+      if (!parent || mappingIdentityDigest(validateMappingRecord(key, parent, ctx.maxRecordBytes)) !== mappingIdentityDigest(expected)) failMaterialization();
+    }
+    const exclusions = await requestValue(tx.objectStore(STORES.localSyncExclusions).getAll(scopeRowsRange(key)));
+    if (exclusionEvidenceDigest(exclusions) !== input.exclusionDigest) failMaterialization();
+  }
+  async function assertRejoinMutation(scope: SyncScope, input: RejoinMutationAuthority): Promise<void> {
+    const key = keyFor(scope); const tx = (await ctx.open()).transaction(mutationStores, 'readonly');
+    const done = transactionDone(tx);
+    try { await requireMutation(tx, key, input); } finally { await done; }
+  }
+  /** A browser result cannot overwrite an intervening capture or resurrect a removed identity. */
+  async function commitRejoinProjection(scope: SyncScope, input: RejoinMutationAuthority, after: MappingInput | null): Promise<void> {
+    ctx.assertWritable(); const key = keyFor(scope);
+    const mapping = after && validateMapping(key, after, ctx.maxRecordBytes);
+    if (mapping && (mapping.nativeId !== input.before.nativeId || mapping.colpId !== input.before.colpId)) failMaterialization();
+    await runTransaction(await ctx.writableDatabase(), mutationStores, 'readwrite', async tx => {
+      await requireMutation(tx, key, input);
+      const mappings = tx.objectStore(STORES.mappings);
+      if (mapping) mappings.put(mapping); else mappings.delete([key, input.before.nativeId]);
+    });
+  }
+  return { confirmRejoinDecision, prepareRejoinRestore, assertRejoinMaterialization, commitRejoinMaterialization,
+    assertRejoinMutation, commitRejoinProjection };
 }
 
 function mappingIdentityDigest(value: MappingInput): string {
