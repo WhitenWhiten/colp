@@ -546,6 +546,12 @@
       "functions": 80,
       "statements": 80
     },
+    "src/pull-local-placement.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/pull-native-content-barrier.ts": {
       "lines": 80,
       "branches": 80,

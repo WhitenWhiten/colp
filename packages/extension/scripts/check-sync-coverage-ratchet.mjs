@@ -40,6 +40,7 @@ export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
   'src/pull-create-evidence.ts',
   'src/pull-delete-apply.ts',
   'src/pull-item-set-aside.ts',
+  'src/pull-local-placement.ts',
   'src/pull-native-content-barrier.ts',
   'src/pull-native-create-boundary.ts',
   'src/pull-native-snapshot-resume.ts',

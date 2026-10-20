@@ -9,6 +9,7 @@ import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
 import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
 import { recoverVerifiedOrFreeze, leftoverVirtualChildrenNeedReproject } from '../src/recovery-guard.js';
 import { CHROME_BOOKMARK_NOT_FOUND } from '../src/bookmark-api-error.js';
+import { NativeWriteNotStartedError } from '../src/native-call-result.js';
 import { createSyncStateStore, type JsonObject, type MappingInput, type SyncScope } from '../src/sync-state-store.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 import { endpoints, json, problem } from './outbound-push-worker-harness.js';
@@ -200,8 +201,14 @@ for (const refreshed of [undefined, 'folder-d', 'folder-b']) {
       assert.equal(bodies[0]!.operations[0]!.payload.baseSourceParentRevision, 'children-old');
       assert.equal(bodies[0]!.operations[0]!.payload.baseTargetParentRevision, 'children-folder-b');
       if (refreshed) {
+        const exactUnsettled = await f.store.getQueueByOpId(scope, queued[0]!.opId);
+        const callsBeforeRefresh = f.calls.length;
         await f.apply([pullFixtures.mutationEvent({ kind: 'move', sequence: 40, collectionId: scope.collectionId,
           targetId: 'node-existing', parentId: refreshed })]);
+        assert.equal(f.nodes.get('native-existing')?.parentId, 'native-c', 'older remote authority cannot undo the captured second move');
+        assert.equal(f.calls.length, callsBeforeRefresh, 'authority refresh performs no native move');
+        assert.deepEqual(await f.store.getQueueByOpId(scope, queued[0]!.opId), exactUnsettled,
+          'the unresolved first attempt is neither acknowledged nor rewritten by Pull');
         await queue.flush();
         assert.equal((await f.store.listQueue(scope)).length, 1, 'a Pull refresh must not release the later move before the first receipt');
         assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentColpId, refreshed);
@@ -213,8 +220,11 @@ for (const refreshed of [undefined, 'folder-d', 'folder-b']) {
       accept = true;
       clock.now = Math.max(clock.now, (await f.store.getQueueByOpId(scope, queued[0]!.opId))!.retry.notBefore);
       assert.equal((await worker.drain()).outcome, 'terminal');
+      const callsBeforeEcho = f.calls.length;
       await f.apply([pullFixtures.mutationEvent({ kind: 'move', sequence: 41, collectionId: scope.collectionId,
         targetId: 'node-existing', parentId: 'folder-b' })]);
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-c');
+      assert.equal(f.calls.length, callsBeforeEcho, 'the first receipt cannot move the browser back to B');
       await queue.flush();
       const tail = (await f.store.listQueue(scope))[1]!;
       assert.equal(tail.status, 'pending'); assert.equal(tail.attempt, undefined); assert.equal(tail.sequence, 2);
@@ -226,6 +236,40 @@ for (const refreshed of [undefined, 'folder-d', 'folder-b']) {
         targetId: 'node-existing', parentId: 'folder-c' })]);
       assert.equal(f.nodes.get('native-existing')?.parentId, 'native-c');
       assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 0);
+    } finally { f.store.close(); }
+  });
+}
+
+for (const changed of ['uncaptured', 'different-capture', 'private'] as const) {
+  test(`a local move cannot borrow an older placement proof after ${changed}`, async () => {
+    const f = await setup();
+    try {
+      await f.seed('node-existing');
+      await addFolder(f, 'native-b', 'folder-b'); await addFolder(f, 'native-c', 'folder-c');
+      const queue = createBookmarkEventQueue({ scope, store: f.store, autoFlush: false, api: {
+        get: async id => (await f.api.get(id)).map(row => ({ ...row, title: row.title ?? '' })),
+        getChildren: async id => (await f.api.getChildren(id)).map(row => ({ ...row, title: row.title ?? '' })),
+      } });
+      if (changed === 'different-capture') {
+        await f.api.move('native-existing', { parentId: 'native-b', index: 0 });
+        await queue.moved('native-existing', { parentId: 'native-b', oldParentId: '1', index: 0, oldIndex: 0 });
+      }
+      await f.api.move('native-existing', { parentId: 'native-c', index: 0 });
+      if (changed === 'private') {
+        await queue.moved('native-existing', { parentId: 'native-c', oldParentId: '1', index: 0, oldIndex: 0 });
+        await f.store.configureBrowserRoots(scope, { status: 'ready', selectedNativeIds: ['1'], privateNativeIds: ['native-c'],
+          discovered: [{ nativeId: '1', ancestorNativeIds: [] }, { nativeId: 'native-b', ancestorNativeIds: ['1'] },
+            { nativeId: 'native-c', ancestorNativeIds: ['1'] }] });
+      }
+      const before = await f.store.listBookmarkEventsByStatus(scope, 'pending');
+      const mutations = f.calls.length;
+      await assert.rejects(() => f.apply([pullFixtures.mutationEvent({ kind: 'move', sequence: 40,
+        collectionId: scope.collectionId, targetId: 'node-existing', parentId: 'folder-b' })]), NativeWriteNotStartedError);
+      assert.equal(f.calls.length, mutations);
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-c');
+      assert.deepEqual(await f.store.listBookmarkEventsByStatus(scope, 'pending'), before);
+      assert.equal((await f.store.listApplyIntents(scope))[0]?.nativeResult, 'not_started');
+      assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
     } finally { f.store.close(); }
   });
 }

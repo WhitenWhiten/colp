@@ -17,6 +17,7 @@ import { buildIndependentPlan } from './pull-range-plan.js';
 import { performCheckedNativeWrite, prepareNativeWriteCheck, storedNativeWritePreimage } from './pull-native-write-boundary.js';
 import { NativeWriteNotStartedError } from './native-call-result.js';
 import { currentPullMapping } from './pull-mapping-view.js';
+import { pendingLocalMoveForEvent } from './pull-local-placement.js';
 
 const FROZEN_RANGE_ACTIONS: ReadonlySet<RangeTransitionAction> = new Set([
   'retain_local_copy', 'observe_only', 'await_dependency',
@@ -174,6 +175,27 @@ export async function applyPlannedMove(input: {
     const source = await presentNative(input.api, input.mapping.nativeId);
     const intent = await input.store.getApplyIntent(input.scope, `intent:${input.eventId}`);
     const preimage = storedNativeWritePreimage(intent?.anchors?.nativePreimage) ?? source;
+    const localParent = source.parentId ? await input.store.getMappingByNativeId(input.scope, source.parentId) : null;
+    if (localParent && localParent.rootNativeId === input.mapping.rootNativeId
+        && await pendingLocalMoveForEvent(input.store, input.scope, input.mapping, localParent, input.event)) {
+      const parentCheck = await prepareNativeWriteCheck({ store: input.store, scope: input.scope, api: input.api, mapping: localParent,
+        preimage: await presentNative(input.api, localParent.nativeId), parent: true });
+      const sourceCheck = await prepareNativeWriteCheck({ store: input.store, scope: input.scope, api: input.api,
+        mapping: input.mapping, preimage });
+      try {
+        await parentCheck();
+        if (!await pendingLocalMoveForEvent(input.store, input.scope, input.mapping, localParent, input.event)) {
+          throw new SyncFailureError('concurrent_local_mutation');
+        }
+        await sourceCheck();
+      } catch (error) { throw new NativeWriteNotStartedError(error); }
+      // parentNativeId describes the retained browser placement; parentColpId
+      // and the revision are the server authority needed to rebase the queued
+      // move. Applying this older native move would overwrite the later one.
+      return { mappings: [mappingFor(effect.node, input.mapping.nativeId, localParent.nativeId,
+        input.parent.colpId, input.mapping.projection.childrenRevision ?? null, localParent.rootNativeId), ...revisions],
+      deleteNativeIds: [] };
+    }
     if (source.parentId !== input.mapping.parentNativeId && input.mapping.parentNativeId !== undefined) {
       throw new NativeWriteNotStartedError(new SyncFailureError('concurrent_local_mutation'));
     }
