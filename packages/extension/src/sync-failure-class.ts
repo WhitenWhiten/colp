@@ -54,6 +54,17 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   revision_conflict: entry('transient', 'retry', { pullsOnWake: true }),
   rate_limited: entry('transient', 'retry'),
   concurrent_local_mutation: entry('transient', 'retry'),
+  sync_busy: entry('transient', 'retry'),
+  rejoin_dependency_pending: entry('transient', 'retry'),
+
+  // These commands lost their accepted preview or choice. Replaying the old
+  // body cannot authorize it; the UI must obtain a current visible decision.
+  preview_stale: entry('item', 'confirm'),
+  confirmation_conflict: entry('item', 'confirm'),
+  duplicate_confirm: entry('item', 'confirm'),
+  decision_not_found: entry('item', 'confirm'),
+  decision_already_made: entry('item', 'confirm'),
+  rejoin_boundary_changed: entry('item', 'confirm'),
 
   snapshot_expired: entry('authority', 'refresh', FREEZES),
   sync_cursor_expired: entry('authority', 'refresh', FREEZES),
@@ -152,6 +163,7 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   advanced_step_corrupt: entry('replica', 'stop'),
   advanced_step_stale: entry('replica', 'stop'),
   advanced_step_transition_invalid: entry('replica', 'stop'),
+  boundary_command_invalid: entry('replica', 'stop'),
   archive_not_found: entry('replica', 'stop'),
   attempt_binding_immutable: entry('replica', 'stop'),
   attempt_binding_invalid: entry('replica', 'stop'),

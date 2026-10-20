@@ -31,7 +31,6 @@ test('independent review: a user reorder after durable move intent must survive 
     assert.equal((await f.list())[0]?.state, 'pending');
   } finally { f.getStore().close(); }
 });
-
 test.each(['mount', 'native_parent'])('the final order CAS rejects changed %s authority after intent persistence', async changed => {
   const f = await rejectedOrderFixture();
   let injected = false;
@@ -64,4 +63,3 @@ test.each(['mount', 'native_parent'])('the final order CAS rejects changed %s au
     assert.equal((await f.getStore().getMountBinding(scope, 'mount-bar'))?.status, 'detached');
   } finally { f.getStore().close(); }
 });
-
