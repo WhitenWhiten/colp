@@ -21,6 +21,7 @@ jobs:
   release:
     permissions:
       contents: write
+      actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -30,6 +31,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: packages/extension/package-lock.json
+
+      - name: Require full sync acceptance for this exact release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node packages/extension/scripts/verify-ci-acceptance.mjs
 
       - id: release
         name: Require matching versions and a CHANGELOG section

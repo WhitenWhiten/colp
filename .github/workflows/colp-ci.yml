@@ -40,6 +40,7 @@ jobs:
           filters: |
             workflow:
               - '.github/workflows/colp-ci.yml'
+              - '.github/workflows/colp-extension-release.yml'
             quality:
               - 'packages/node/**'
               - 'packages/conformance/**'
@@ -51,6 +52,7 @@ jobs:
               - 'scripts/**'
               - 'protocol/**'
               - '.github/workflows/colp-ci.yml'
+              - '.github/workflows/colp-extension-release.yml'
       - id: scope
         name: Select full verification scope
         shell: bash
@@ -625,6 +627,64 @@ jobs:
         run: npm run evidence:first-run-sync && npm run evidence:trash-restore
         working-directory: packages/extension
 
+  # Native browser/user journeys omitted by the earlier smoke and first-run
+  # groups. Each lane starts its own real PostgreSQL-backed stack under xvfb.
+  extension-sync-lifecycle:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      matrix:
+        sync-group: [onboarding, recovery, web]
+    env:
+      KNOWN_SYNC_ACCEPTANCE_GROUP: ${{ matrix.sync-group }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/extension/package-lock.json
+            packages/server/package-lock.json
+            packages/web/package-lock.json
+      - name: Frozen extension install
+        run: npm ci
+        working-directory: packages/extension
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/extension
+      - name: Frozen server harness install
+        run: npm ci
+        working-directory: packages/server
+      - name: Build the real web product for the cross-product journey
+        if: matrix.sync-group == 'web'
+        run: npm ci && npm run build
+        working-directory: packages/web
+      - name: Validate the acceptance manifest and exact-commit release gate
+        run: npm run test:sync-acceptance-gate
+        working-directory: packages/extension
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: extension-playwright-chromium-${{ runner.os }}-${{ hashFiles('packages/extension/package-lock.json') }}
+      - name: Install Playwright system dependencies
+        run: npx playwright install-deps chromium
+        working-directory: packages/extension
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+        working-directory: packages/extension
+      - name: Install X11 extension permission driver
+        run: sudo apt-get install --yes --no-install-recommends xdotool
+      - name: Real browser sync lifecycle acceptance
+        run: npm run evidence:sync-lifecycle
+        working-directory: packages/extension
+
   ci-gate:
     if: always() && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     needs:
@@ -646,6 +706,7 @@ jobs:
       - extension-sync-real-stack
       - extension-kns-09-release
       - extension-kns-09-e2e
+      - extension-sync-lifecycle
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -670,10 +731,11 @@ jobs:
           EXTENSION_SYNC_REAL_STACK_RESULT: ${{ needs.extension-sync-real-stack.result }}
           EXTENSION_KNS09_RELEASE_RESULT: ${{ needs.extension-kns-09-release.result }}
           EXTENSION_KNS09_E2E_RESULT: ${{ needs.extension-kns-09-e2e.result }}
+          EXTENSION_SYNC_LIFECYCLE_RESULT: ${{ needs.extension-sync-lifecycle.result }}
         run: |
           for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$WEB_RESULT" \
             "$EXTENSION_RESULT" "$EXTENSION_COVERAGE_RESULT" "$EXTENSION_MV3_RESULT" "$EXTENSION_SYNC_REAL_STACK_RESULT" \
-            "$EXTENSION_KNS09_RELEASE_RESULT" "$EXTENSION_KNS09_E2E_RESULT"; do
+            "$EXTENSION_KNS09_RELEASE_RESULT" "$EXTENSION_KNS09_E2E_RESULT" "$EXTENSION_SYNC_LIFECYCLE_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
               echo "A selected colp-ci job did not pass: $result" >&2
               exit 1
