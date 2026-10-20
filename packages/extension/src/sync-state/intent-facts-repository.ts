@@ -129,11 +129,11 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
     return saved;
   }
 
-  /** Replace only placement after an admission proved that no native call ran.
+  /** Replace placement and independently captured content after a proven non-call.
    * A started phase can retain nativeResult=not_started, so compare both rows
    * and the entire earlier intent inside the same write transaction. */
   async function refreshUnstartedMovePreimage(input: SyncScope, expected: IntentRecord,
-    nativePreimage: JsonObject): Promise<void> {
+    nativePreimage: JsonObject, capturedContent: JsonObject = {}): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input));
     const db = await writableDatabase();
     await runTransaction(db, [STORES.scopes, STORES.intents, STORES.pullEvents], 'readwrite', async tx => {
@@ -157,7 +157,11 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
       if (!prior || typeof prior !== 'object' || Array.isArray(prior)) throw new SyncStateError('native_result_cas');
       const { parentId: _oldParent, index: _oldIndex, ...oldIdentity } = prior;
       const { parentId: _parent, index: _index, ...identity } = nativePreimage;
-      if (canonicalJson(oldIdentity) !== canonicalJson(identity)) throw new SyncStateError('native_result_cas');
+      const admittedContent = Object.fromEntries(['title', 'url'].flatMap(field =>
+        typeof capturedContent[field] === 'string' ? [[field, capturedContent[field]]] : []));
+      if (canonicalJson({ ...oldIdentity, ...admittedContent }) !== canonicalJson(identity)) {
+        throw new SyncStateError('native_result_cas');
+      }
       const { scopeKey: _key, ...row } = intent;
       intents.put(validateIntent(key, { ...row, anchors: { ...intent.anchors, nativePreimage } }, ctx.maxRecordBytes));
     });

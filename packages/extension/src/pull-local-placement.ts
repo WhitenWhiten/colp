@@ -5,6 +5,7 @@ import { lookupBookmark } from './bookmark-api-error.js';
 import { NativeWriteNotStartedError } from './native-call-result.js';
 import { nativeWritePreimage, prepareNativeWriteCheck, storedNativeWritePreimage } from './pull-native-write-boundary.js';
 import { SyncFailureError } from './sync-failure-class.js';
+import { pendingLocalContentForEvent } from './pull-queue-facts.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'listQueueByTarget' | 'listBookmarkEventsByNative' | 'pullOperationsCovered'>;
@@ -60,8 +61,8 @@ export async function markUnstartedMoveCall(store: ReturnType<typeof createSyncS
 }
 
 /** A proven non-call may admit a newer captured placement on its next wake.
- * Keep the old content/identity preimage: a move capture proves only placement.
- * The repository rechecks the complete intent before replacing those anchors. */
+ * Keep identity and uncaptured content from the old preimage. Content changes
+ * require their own latest capture, checked again after native admission reads. */
 export async function readmitCapturedLocalMove(input: {
   readonly store: ReturnType<typeof createSyncStateStore>; readonly scope: SyncScope;
   readonly api: PullBookmarkApi; readonly mapping: MappingInput;
@@ -81,13 +82,23 @@ export async function readmitCapturedLocalMove(input: {
   if (looked.class !== 'present' || looked.nodes.length !== 1) return;
   const source = looked.nodes[0]!;
   if (source.id !== mapping.nativeId || !source.parentId
-      || source.parentId === prior.parentId && source.index === prior.index) return;
+      || source.parentId === prior.parentId && source.index === prior.index
+        && source.title === prior.title && source.url === prior.url) return;
   const parent = await store.getMappingByNativeId(scope, source.parentId);
   if (!parent || parent.rootNativeId !== mapping.rootNativeId
       || !await pendingLocalMoveForEvent(store, scope, mapping, parent, input.event)) return;
   const parentNative = await lookupBookmark(id => api.get(id), parent.nativeId);
   if (parentNative.class !== 'present' || parentNative.nodes.length !== 1) return;
-  const preimage = { ...prior, parentId: source.parentId, index: source.index };
+  const capturedContent = await pendingLocalContentForEvent(store, scope, mapping, input.event);
+  for (const field of ['title', 'url'] as const) {
+    const value = capturedContent[field];
+    if (typeof value === 'string' && value !== source[field]) {
+      throw new NativeWriteNotStartedError(new SyncFailureError('concurrent_local_mutation'));
+    }
+  }
+  const preimage = { ...prior, parentId: source.parentId, index: source.index,
+    ...(typeof capturedContent.title === 'string' ? { title: capturedContent.title } : {}),
+    ...(typeof capturedContent.url === 'string' ? { url: capturedContent.url } : {}) };
   const parentCheck = await prepareNativeWriteCheck({ store, scope, api, mapping: parent,
     preimage: parentNative.nodes[0]!, parent: true });
   const sourceCheck = await prepareNativeWriteCheck({ store, scope, api, mapping, preimage });
@@ -96,9 +107,13 @@ export async function readmitCapturedLocalMove(input: {
     if (!await pendingLocalMoveForEvent(store, scope, mapping, parent, input.event)) {
       throw new SyncFailureError('concurrent_local_mutation');
     }
+    const currentContent = await pendingLocalContentForEvent(store, scope, mapping, input.event);
+    if (['title', 'url'].some(field => currentContent[field] !== capturedContent[field])) {
+      throw new SyncFailureError('concurrent_local_mutation');
+    }
     await sourceCheck();
   } catch (error) { throw new NativeWriteNotStartedError(error); }
-  await store.refreshUnstartedMovePreimage(scope, intent, nativeWritePreimage(preimage));
+  await store.refreshUnstartedMovePreimage(scope, intent, nativeWritePreimage(preimage), capturedContent);
 }
 
 function object(value: unknown): JsonObject | undefined {
