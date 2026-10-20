@@ -128,6 +128,9 @@ export function createReorderUplink(input: ReorderUplinkHost) {
    * stays consistent) without ever authoring an operation.
    */
   async function captureLocalOnly(parentNativeId: string, childIds: readonly string[]): Promise<void> {
+    const mapping = await input.store.getMappingByNativeId(input.scope, parentNativeId);
+    if ((await input.store.listMountBindings(input.scope)).some(mount => mount.status === 'detached'
+      && mount.nativeRootId === (mapping?.rootNativeId ?? parentNativeId))) return;
     await input.store.deletePendingReorder(input.scope, parentNativeId);
     await projectChildrenReordered({ scope: input.scope, store: input.store, parentNativeId,
       childIds: [...childIds] });

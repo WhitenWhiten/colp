@@ -288,6 +288,7 @@ function host(store: Awaited<ReturnType<typeof fixture>>['store'], overrides: Pa
     created: overrides.created ?? (async () => undefined),
     changed: overrides.changed ?? (async () => undefined),
     moved: overrides.moved ?? (async () => undefined),
+    reconcileOrder: overrides.reconcileOrder ?? (async () => undefined),
     stageDelete: overrides.stageDelete ?? (async () => undefined),
     readChildren: overrides.readChildren ?? (async () => [] as BookmarkEventNode[]),
     readNode: overrides.readNode ?? (async () => { throw new Error("Can't find bookmark for id."); }),

@@ -20,6 +20,7 @@ export type ReconcileHost = {
   changed(nativeId: string, changes: { readonly title?: string; readonly url?: string }): Promise<unknown>;
   moved(nativeId: string, move: { readonly parentId: string; readonly index: number;
     readonly oldParentId: string; readonly oldIndex: number }): Promise<unknown>;
+  reconcileOrder(parentNativeId: string): Promise<void>;
   stageDelete(nativeId: string, identity: NodeIdentity, subtree: boolean,
     deleteNativeIds: readonly string[]): Promise<unknown>;
   readChildren(parentNativeId: string): Promise<readonly BookmarkEventNode[]>;
@@ -54,6 +55,7 @@ export async function reconcileBookmarkTree(host: ReconcileHost): Promise<void> 
       }
       if (bookmarkKind(node) === 'folder') await visit(node.id, chain);
     }
+    if (mutateMapped) await host.reconcileOrder(parentNativeId);
   };
   for (const root of selectedNative) await visit(root);
   if (!mutateMapped) return;

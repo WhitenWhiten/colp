@@ -39,9 +39,17 @@ export async function planPullMappingWrites(mappings: IDBObjectStore, key: strin
     }
     const exit = event.pendingRangeExit as { readonly unbindNativeIds?: string[] } | undefined;
     for (const nativeId of exit?.unbindNativeIds ?? []) await remove(nativeId);
-    for (const mapping of (event.pendingMappings as UnknownRecord[] | undefined) ?? []) {
+    for (const raw of (event.pendingMappings as UnknownRecord[] | undefined) ?? []) {
+      let mapping = raw;
       if (preservedMappings.has(String(mapping.nativeId))) continue;
       const nativeId = String(mapping.nativeId); const colpId = String(mapping.colpId);
+      const projection = mapping.projection as UnknownRecord;
+      if (mapping.nodeKind === 'folder' && projection.childrenOrder === undefined) {
+        const current = await requestValue(mappings.get([key, nativeId])) as UnknownRecord | undefined;
+        const previous = current?.projection as UnknownRecord | undefined;
+        if (current?.colpId === colpId && previous?.childrenOrder !== undefined) mapping = { ...mapping,
+          projection: { ...projection, childrenOrder: previous.childrenOrder } };
+      }
       const owner = await ownerNative(colpId); const existingColp = await nativeColp(nativeId);
       if (existingColp && existingColp !== colpId && !virtualPlaceholderNativeId(nativeId)
           && !existingColp.startsWith('pending-')) {

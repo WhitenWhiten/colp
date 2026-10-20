@@ -22,6 +22,7 @@ import { identityFromCreateReceipt } from './bookmark-create-receipt-identity.js
 import { classifyRemovalScope, deletionNodeKind, deletionOperationType, removalNodePresent,
   type DeletionNodeKind } from './bookmark-deletion-scope.js';
 import { reconcileBookmarkTree } from './bookmark-event-reconcile.js';
+import { recoverChildOrder } from './bookmark-child-order.js';
 import { captureMissingNativeRemovals } from './bookmark-removal-reconcile.js';
 import { journalSubtreeNativeIds, persistRemovalJournal } from './deletion-journal.js';
 import { capturePendingSubtreeDeletion } from './subtree-observation.js';
@@ -463,9 +464,14 @@ export function createBookmarkEventQueue(options: QueueOptions) {
 
   async function recover(): Promise<void> { await flush(); await reconcileTree(); await flush(); }
 
+  async function reconcileOrder(parentNativeId: string): Promise<void> {
+    if (!(await privacyFor(parentNativeId, true)).allowOperationCandidate) return;
+    await recoverChildOrder({ store: options.store, scope: options.scope, parentNativeId, readChildren, reordered });
+  }
+
   async function reconcileTree(): Promise<void> {
     await reconcileBookmarkTree({
-      store: options.store, scope: options.scope, identityFor, created, changed, moved, stageDelete,
+      store: options.store, scope: options.scope, identityFor, created, changed, moved, stageDelete, reconcileOrder,
       readChildren, readNode: id => options.api.get(id), listPendingEvents,
     });
   }
@@ -563,6 +569,6 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     }
   }
 
-  return Object.freeze({ created, changed, described, tagged, pinned, moved, removed, reordered, flush, recover, correlationFor,
+  return Object.freeze({ created, changed, described, tagged, pinned, moved, removed, reordered, reconcileOrder, flush, recover, correlationFor,
     captureMissingRemovals: () => captureMissingNativeRemovals({ store: options.store, scope: options.scope, api: options.api, removed }) });
 }

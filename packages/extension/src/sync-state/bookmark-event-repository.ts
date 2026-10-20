@@ -2,6 +2,7 @@ import { validateBookmarkEventInput, validateBookmarkEventRecord } from './bookm
 export { validateBookmarkEventInput, validateBookmarkEventRecord } from './bookmark-event-validation.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { claimIngressDiagnosticSource } from './ingress-diagnostic-source.js';
+import { recordCapturedChildOrder } from './bookmark-event-child-order.js';
 import { bootstrapCreateIdentity } from './bootstrap-create-identity.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt,
   hasPendingMove } from './queue-live-work.js';
@@ -43,8 +44,6 @@ import type { SyncStoreRuntime } from './runtime.js';
  * failure is observable at both call sites: the options worker answers
  * `state_unavailable`, and the quarantine/flush round rejects while the inbox
  * events stay durably staged for the next attempt.
- *
- * Exported so the storage tests pin the boundary.
  */
 export const INGRESS_DIAGNOSTIC_SCAN_LIMIT = 20_000;
 export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
@@ -70,7 +69,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
       if (ordinal === Number.MAX_SAFE_INTEGER) throw new SyncStateError('bookmark_event_ordinal_exhausted');
       metadata.put({ key: counterKey, next: ordinal + 1 });
       const record = validateBookmarkEventRecord({ ...event, scopeKey: key, ordinal, status: 'pending', opId: null }, maxRecordBytes);
-      events.add(record); result = { outcome: 'staged', event: record };
+      events.add(record); await recordCapturedChildOrder(tx, key, record); result = { outcome: 'staged', event: record };
     }); } catch (error) { throw constraintError(error); }
     return clone(result);
   }

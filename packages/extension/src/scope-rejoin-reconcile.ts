@@ -1,4 +1,5 @@
-import { captureRejoinParents } from './scope-rejoin-parents.js';
+import { captureRejoinParents, createRejoinQueue } from './scope-rejoin-parents.js';
+import { reconcileRejoinOrders } from './scope-rejoin-order.js';
 import { digestJson } from './bookmark-event-codec.js';
 import { queueRejoinOperation } from './scope-rejoin-queue.js';
 import { protectedRejoinDeletions, rejoinPlacement } from './scope-rejoin-placement.js';
@@ -44,9 +45,10 @@ export async function applyRejoinObservations(input: {
       current = current.parentNativeId ? byNative.get(current.parentNativeId) : undefined;
     }
   }
-  let applied = materialized.applied; let unknown = materialized.unknown; let conflicts = 0;
-  const considered: string[] = [];
   const baselineKnown = mount.pauseBaseline?.completeness === 'complete' && mount.pauseBaseline.generation === scope.generation;
+  let applied = materialized.applied; let unknown = materialized.unknown;
+  let conflicts = baselineKnown ? await reconcileRejoinOrders(input, mappings, [...observations.values()]) : 0;
+  const considered: string[] = [];
   if (!baselineKnown) unknown++;
   if (baselineKnown) for (const mapping of mappings) {
     if (mapping.nativeId === mount.nativeRootId || mapping.nativeId.startsWith('sidecar:')) continue;
@@ -120,12 +122,19 @@ export async function applyRejoinObservations(input: {
     const { scopeKey: _key, ...rest } = mapping as MappingInput & { scopeKey?: string };
     const parentChanged = after.parentId !== undefined && after.parentId !== mapping.parentNativeId;
     const chromeParent = parentChanged ? all.find(row => row.nativeId === after.parentId) : undefined;
+    const order = (await store.getMappingByNativeId(scope, mapping.nativeId))?.projection.childrenOrder;
     await store.putMapping(scope, { ...rest,
       ...(parentChanged ? { parentNativeId: after.parentId,
         ...(chromeParent ? { parentColpId: chromeParent.colpId } : {}) } : {}),
-      projection: { ...mapping.projection, revision, resourceRevision: revision,
+      projection: { ...mapping.projection, ...(order ? { childrenOrder: order } : {}), revision, resourceRevision: revision,
         content: { ...(mapping.projection.content ?? {}), ...chromeContent }, digest: digestJson(chromeContent) } });
     applied++;
+  }
+  if (!unknown && !conflicts && input.getChildren) {
+    const queue = createRejoinQueue(input);
+    for (const parent of mappings) if (parent.nodeKind === 'folder' && !isNonChromeNativeId(parent.nativeId)
+      && await input.getNative(parent.nativeId)) await queue.reconcileOrder(parent.nativeId);
+    await queue.flush();
   }
   await store.putScopeCommandPlan(scope, { ...plan, phase: unknown || conflicts ? 'pending' : 'active', updatedAt: Date.now() });
   if (!unknown && !conflicts && considered.length) await store.deleteRemoteObservations(scope, considered);

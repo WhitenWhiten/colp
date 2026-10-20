@@ -5,6 +5,7 @@ import { remoteDeleteDeferral, remoteDeleteDeferralMatches } from './remote-dele
 import { SyncFailureError } from './sync-failure-class.js';
 import { setAsideFailedPullItem, setAsidePullItem } from './pull-item-set-aside.js';
 import { createPullBookmarkEvidence, readOptional } from './pull-bookmark-evidence.js';
+import { parentRevisionMappingFor } from './pull-child-order.js';
 import { createExpectation, executePullNativeCreate, recoverCreatedNative, sidecarExpectation } from './pull-create-evidence.js';
 import { applyRemoteDeletion } from './pull-delete-apply.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
@@ -43,6 +44,7 @@ const INTENT_TTL_MS = 5 * 60_000;
 
 export function createPullApplyRuntime(options: PullApplierOptions, api: PullBookmarkApi,
   now: () => number) {
+  const parentRevisionMapping = parentRevisionMappingFor(options);
   async function preflight(event: Extract<SyncPullEventV02, { kind: 'operation' }>, stagedCreates: ReadonlySet<string>): Promise<void> {
     await preflightPullDependencies(options, event, stagedCreates, selfCreateProjection);
   }
@@ -260,14 +262,14 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     readonly observations: readonly Omit<RemoteObservationRecord, 'scopeKey'>[] }> {
     return materializeRestoredNode({ eventId, event, store: options.store, api, options, scope: options.scope,
       generation: options.scope.generation, separatorPolicy: options.session.conversionPolicy?.separator,
-      now, nativeIndex, parentRevisionMapping });
+      now, nativeIndex, parentRevisionMapping: revision => parentRevisionMapping(revision, event) });
   }
 
   async function callAndCommit(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
     if (await commitRemovedSelfProjection(options, eventId, event, now(), parentRevisionMapping)) return;
     options.crash?.('before_event'); const effect = event.effect; const mappings: MappingInput[] = []; const deleteNativeIds: string[] = [];
     if (await missingTerminalSelfDeletion(options, event)) {
-      await commitMissingTerminalSelfDeletion(options, eventId, event, parentRevisionMapping); return; }
+      await commitMissingTerminalSelfDeletion(options, eventId, event, revision => parentRevisionMapping(revision, event)); return; }
     const mounts = await options.store.listMountBindings(options.scope);
     const observations: Omit<RemoteObservationRecord, 'scopeKey'>[] = [];
     let rangeExit: PlannedMoveApply['rangeExit'];
@@ -333,7 +335,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         if (existing && isRecoveryPlaceholder(existing.nativeId)) deleteNativeIds.push(existing.nativeId);
       }
       }
-      mappings.push(await parentRevisionMapping(effect.parentRevision));
+      mappings.push(await parentRevisionMapping(effect.parentRevision, event, mappings[0]?.nativeId));
     } else if (effect.kind === 'node_content_updated') {
       const mapping = await requireMapping(effect.node.id, 'target');
       const applied = await applyRemoteNodeContentUpdate({
@@ -362,7 +364,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         eventId, crash: options.crash,
         permissionGranted: (await options.store.getScope(options.scope))?.rootStatus !== 'permission_required',
         cursor: String((await options.store.getPullEvent(options.scope, eventId))?.cursor ?? '0'),
-        nativeIndex, parentRevisionMapping,
+        nativeIndex, parentRevisionMapping: revision => parentRevisionMapping(revision, event),
         recoverCreated: async () => executePullNativeCreate(options, api, event, parent.nativeId,
           `${event.cursor}:${event.operation.opId}`, async () => api.create({
             parentId: parent.nativeId,
@@ -380,7 +382,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     } else if (effect.kind === 'node_deleted' || effect.kind === 'subtree_deleted') {
       const applied = await applyRemoteDeletion({
         store: options.store, scope: options.scope, event, eventId, mounts, api, requireMapping, now: now(),
-        crash: options.crash, parentRevisionMapping,
+        crash: options.crash, parentRevisionMapping: revision => parentRevisionMapping(revision, event),
       });
       deleteNativeIds.push(...applied.deleteNativeIds); observations.push(...applied.observations);
       mappings.push(...applied.mappings);
@@ -425,7 +427,10 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     existing = await options.store.getMappingByColpId(options.scope, existing.colpId) ?? existing;
     let advanced = !exact && await advancedSelfProjectionIsProven(options.store, options.scope,
       existing, native, parent.nativeId, event.operation.sequence);
-    if (!exact && !advanced && !isVirtualNativeId(existing.nativeId) && options.repairOwnCreate
+    const priorIndex = parent.projection.childrenOrder?.indexOf(existing.nativeId);
+    const orderChanged = native?.parentId === parent.nativeId && priorIndex !== undefined && priorIndex >= 0
+      && native.index !== priorIndex;
+    if ((!exact && !advanced || orderChanged) && !isVirtualNativeId(existing.nativeId) && options.repairOwnCreate
         && await hasQueuedSelfCreate(options, event)) {
       await options.repairOwnCreate(existing, parent);
       native = readOptional(await lookup(existing.nativeId));
@@ -452,7 +457,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         nativeId: provisional.nativeId, recovery: 'self_echo' });
       await options.store.commitPullEvent(options.scope, eventKey, { mappings: [
         await selfCreateProjection(event, provisional, parent),
-        await parentRevisionMapping(effect.parentRevision)],
+        await parentRevisionMapping(effect.parentRevision, event, provisional.nativeId)],
       apiResultEvidence: { operationId: event.operation.opId, recovery: 'self_echo' } });
       return;
     }
@@ -463,7 +468,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       await options.store.recordPullApiEvidence(options.scope, eventId, { operationId: event.operation.opId,
         nativeId: existing.nativeId, recovery: 'self_echo' });
       await options.store.commitPullEvent(options.scope, eventId, { mappings: [mapping,
-      await parentRevisionMapping(effect.parentRevision)], apiResultEvidence: {
+      await parentRevisionMapping(effect.parentRevision, event)], apiResultEvidence: {
         operationId: event.operation.opId, recovery: 'self_echo' } });
       return;
     }
@@ -491,7 +496,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const resumed = await resumeSnapshotDeferredCreate(options, api, eventKey, event, mappingFor(effect.node, nativeId,
       parent.nativeId, parent.colpId, effect.kind === 'node_created' ? effect.nodeChildrenRevision : null, parent.rootNativeId));
     await options.store.commitPullEvent(options.scope, eventKey, { mappings: [resumed.mapping,
-      await parentRevisionMapping(effect.parentRevision)], observations: resumed.rangeExit ? [resumed.rangeExit.observation] : [],
+      await parentRevisionMapping(effect.parentRevision, event, nativeId)], observations: resumed.rangeExit ? [resumed.rangeExit.observation] : [],
       deleteNativeIds: existing && isRecoveryPlaceholder(existing.nativeId) ? [existing.nativeId] : [],
       apiResultEvidence: {
         operationId: event.operation.opId, recovery: 'uncertain_create' } });
@@ -519,14 +524,14 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       resultDigest: digest({ nativeId }) });
     await options.store.commitPullEvent(options.scope, eventId, { mappings: [mappingFor(effect.node, nativeId,
       parent.nativeId, parent.colpId, effect.kind === 'node_created' ? effect.nodeChildrenRevision : null, parent.rootNativeId),
-      await parentRevisionMapping(effect.parentRevision)],
+      await parentRevisionMapping(effect.parentRevision, event, nativeId)],
       apiResultEvidence: { operationId: event.operation.opId, recovery: 'native_event' } });
   }
 
   async function recoverPostState(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
     const effect = event.effect;
     if (await missingTerminalSelfDeletion(options, event)) {
-      await commitMissingTerminalSelfDeletion(options, eventId, event, parentRevisionMapping); return; }
+      await commitMissingTerminalSelfDeletion(options, eventId, event, revision => parentRevisionMapping(revision, event)); return; }
     if (effect.kind === 'node_content_updated') { const mapping = await requireMapping(effect.node.id, 'target');
       if (isVirtualNativeId(mapping.nativeId)) { await callAndCommit(eventId, event); return; }
       const looked = await lookup(mapping.nativeId);
@@ -560,7 +565,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
           recovery: 'post_state' });
         await options.store.commitPullEvent(options.scope, eventId, { mappings: [mappingFor(effect.node,
           mapping.nativeId, parent.nativeId, parent.colpId, mapping.projection.childrenRevision ?? null, parent.rootNativeId),
-          ...(await Promise.all(effect.parentRevisions.map(parentRevisionMapping)))],
+          ...(await Promise.all(effect.parentRevisions.map(revision => parentRevisionMapping(revision, event))))],
           apiResultEvidence: { operationId: event.operation.opId, recovery: 'post_state' } }); return; }
     }
     await callAndCommit(eventId, event);
@@ -568,13 +573,6 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
 
   async function enterRecoveryRequired(code: string) {
     await freezePullApply(options, code);
-  }
-
-  async function parentRevisionMapping(revision: { readonly parentId: string; readonly childrenRevision: string }) {
-    const parent = await requireMapping(revision.parentId, 'parent_revision');
-    const { scopeKey: _scopeKey, ...mapping } = parent as MappingInput & { readonly scopeKey?: string };
-    return { ...mapping, projection: { ...parent.projection,
-      childrenRevision: revision.childrenRevision } } satisfies MappingInput;
   }
 
   async function observe(event: NativeEvent) {

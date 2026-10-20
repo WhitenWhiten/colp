@@ -98,7 +98,7 @@ function scheduleBookmarkEvent(work: (queue: ReturnType<typeof createBookmarkEve
     const frozen = (await syncState.getEngineState(scope))?.recoveryFrozen === true;
     // Snapshot creates have no settled identity yet. Mapped moves and reorders
     // remain durable; the queue filters projection echoes before staging them.
-    // A tree scan cannot recover a same-parent reorder after its callback is lost.
+    // Capture preserves exact event order before a stable recovery scan is available.
     if (frozen && !captureWhileFrozen) return 'recovery_frozen';
     const paused = configuredPersonalSyncPolicy() && !await configuredPersonalSyncPolicy()!.allowed(scope);
     if (!await syncState.hasActiveMounts(scope)) return 'filtered';

@@ -18,15 +18,7 @@ export async function captureRejoinParents(input: Input, mappings: readonly Mapp
     if (events.length < 1_000) break;
     after = events.at(-1)!.ordinal;
   }
-  const queue = createBookmarkEventQueue({ store: input.store, scope: input.scope, autoFlush: false,
-    api: {
-      get: async id => {
-        const native = await input.getNative(id);
-        if (!native) throw new Error(`Can't find bookmark for id. ${id}`);
-        return [{ ...native, id, title: native.title ?? '' }];
-      },
-      getChildren: async id => (await input.getChildren!(id)).map(node => ({ ...node, title: node.title ?? '' })),
-    } });
+  const queue = createRejoinQueue(input);
   for (const mapping of mappings) {
     if (isNonChromeNativeId(mapping.nativeId) || mapping.nativeId === input.mount.nativeRootId) continue;
     const live = await input.getNative(mapping.nativeId);
@@ -51,4 +43,15 @@ export async function captureRejoinParents(input: Input, mappings: readonly Mapp
     }
   }
   await queue.flush();
+}
+
+export function createRejoinQueue(input: Input) {
+  return createBookmarkEventQueue({ store: input.store, scope: input.scope, autoFlush: false, api: {
+    get: async id => {
+      const native = await input.getNative(id);
+      if (!native) throw new Error(`Can't find bookmark for id. ${id}`);
+      return [{ ...native, id, title: native.title ?? '' }];
+    },
+    getChildren: async id => (await input.getChildren!(id)).map(node => ({ ...node, title: node.title ?? '' })),
+  } });
 }
