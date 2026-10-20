@@ -1,0 +1,196 @@
+# Temporary object materialization for S15-R2 only. Remove this file after success.
+# Creates exactly five reviewed blobs. It never creates commits or updates refs.
+name: Materialize reviewed S15-R2 OpenAPI blobs
+on:
+  push:
+    branches: [codex/sync-generated-20261020]
+    paths: [.github/workflows/sync-generated-objects-once.yml]
+permissions: {}
+concurrency:
+  group: sync-generated-objects-20261020
+  cancel-in-progress: false
+jobs:
+  materialize:
+    if: github.repository == 'WhitenWhiten/colp' && github.ref == 'refs/heads/codex/sync-generated-20261020' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Read only the exact S15-R2 parent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # Same pin as existing repository CI
+        with:
+          ref: a7719218002bc694ae3bae46764fadb43cdc391f
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+      - name: Confirm the checkout identity
+        shell: bash
+        run: |
+          python3 -I - <<'PY'
+          import subprocess
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() != 'a7719218002bc694ae3bae46764fadb43cdc391f':
+              raise SystemExit('Unexpected S15-R2 parent commit')
+          PY
+      - name: Apply fixed data-only diff and verify all six exact blobs
+        shell: bash
+        run: |
+          python3 -I - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import subprocess
+
+          # This patch contains only the reviewed S15-R2 data changes, from local commit
+          # 37369592c16974b66e06340734039e352a54f617; no repository code is executed.
+          ORIGINALS = {'packages/server/generated/openapi/product-v1.bundle.yaml': '0094fe21b4d5ae6f80e0d8a0c682033da531981b', 'packages/server/generated/openapi/product-v1.ts': '6f0964b3dbe565c6f0fe923d2a6c210497eaea9e', 'packages/server/openapi/product-v1.yaml': '38105fb3dd9af0d449fb5b3a0304f88513fa53e3', 'packages/server/openapi/colp-server-v1.yaml': '5602f8609130f1c323d85c1c010b2a31307e9a61', 'packages/web/src/generated/colp-server-v1.ts': '558931a979dc635430035688e93dad3db3f7690c'}
+          EXPECTED = {'packages/server/generated/openapi/product-v1.bundle.yaml': '752f8ff917a34e9468df83a622120d53be935587', 'packages/server/generated/openapi/product-v1.ts': 'c57342c7601cddd447e66a7fa8182b3f99e73886', 'packages/server/openapi/product-v1.yaml': '386698cbee72958b6b6257b41de691c99f4d957a', 'packages/server/openapi/colp-server-v1.yaml': '139210d129fe95452cab6ecbce321f8e5b17d6c5', 'packages/web/src/generated/colp-server-v1.ts': 'f4f14e87a16f20e859ed2f5a3107ee53085837e1'}
+          BASELINE = 'packages/server/openapi/baselines/product-v1.1.100.0.yaml'
+          PATCH = r"""diff --git a/packages/server/generated/openapi/product-v1.bundle.yaml b/packages/server/generated/openapi/product-v1.bundle.yaml
+          index 0094fe21..752f8ff9 100644
+          --- a/packages/server/generated/openapi/product-v1.bundle.yaml
+          +++ b/packages/server/generated/openapi/product-v1.bundle.yaml
+          @@ -4 +4 @@ info:
+          -  version: 1.99.0
+          +  version: 1.100.0
+          @@ -27671 +27671 @@ components:
+          -          minItems: 1
+          +          minItems: 0
+          @@ -27680,0 +27681,6 @@ components:
+          +        resolutionBlockedReason:
+          +          type: string
+          +          enum:
+          +            - node_read_only
+          +            - resource_not_found
+          +          description: Present when no current resolution is executable. The retained conflict remains available for review and a later refresh.
+          diff --git a/packages/server/generated/openapi/product-v1.ts b/packages/server/generated/openapi/product-v1.ts
+          index 6f0964b3..c57342c7 100644
+          --- a/packages/server/generated/openapi/product-v1.ts
+          +++ b/packages/server/generated/openapi/product-v1.ts
+          @@ -7529,0 +7530,5 @@ export interface components {
+          +            /**
+          +             * @description Present when no current resolution is executable. The retained conflict remains available for review and a later refresh.
+          +             * @enum {string}
+          +             */
+          +            resolutionBlockedReason?: "node_read_only" | "resource_not_found";
+          diff --git a/packages/server/openapi/colp-server-v1.yaml b/packages/server/openapi/colp-server-v1.yaml
+          index 5602f860..139210d1 100644
+          --- a/packages/server/openapi/colp-server-v1.yaml
+          +++ b/packages/server/openapi/colp-server-v1.yaml
+          @@ -5 +5 @@ info:
+          -  version: 1.93.0
+          +  version: 1.100.0
+          @@ -9723 +9723 @@ components:
+          -          minItems: 1
+          +          minItems: 0
+          @@ -9732,0 +9733,6 @@ components:
+          +        resolutionBlockedReason:
+          +          type: string
+          +          enum:
+          +            - node_read_only
+          +            - resource_not_found
+          +          description: Present when no current resolution is executable. The retained conflict remains available for review and a later refresh.
+          diff --git a/packages/server/openapi/product-v1.yaml b/packages/server/openapi/product-v1.yaml
+          index 38105fb3..386698cb 100644
+          --- a/packages/server/openapi/product-v1.yaml
+          +++ b/packages/server/openapi/product-v1.yaml
+          @@ -5 +5 @@ info:
+          -  version: 1.99.0
+          +  version: 1.100.0
+          @@ -24570 +24570 @@ components:
+          -            minItems: 1,
+          +            minItems: 0,
+          @@ -24574,0 +24575,4 @@ components:
+          +        resolutionBlockedReason:
+          +          type: string
+          +          enum: [ node_read_only, resource_not_found ]
+          +          description: Present when no current resolution is executable. The retained conflict remains available for review and a later refresh.
+          diff --git a/packages/web/src/generated/colp-server-v1.ts b/packages/web/src/generated/colp-server-v1.ts
+          index 558931a9..f4f14e87 100644
+          --- a/packages/web/src/generated/colp-server-v1.ts
+          +++ b/packages/web/src/generated/colp-server-v1.ts
+          @@ -2415,0 +2416,5 @@ export interface components {
+          +            /**
+          +             * @description Present when no current resolution is executable. The retained conflict remains available for review and a later refresh.
+          +             * @enum {string}
+          +             */
+          +            resolutionBlockedReason?: "node_read_only" | "resource_not_found";
+          """
+
+          def blob_sha(data):
+              return hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+
+          for path, expected in ORIGINALS.items():
+              if blob_sha(Path(path).read_bytes()) != expected:
+                  raise SystemExit('S15-R2 parent blob mismatch: ' + path)
+          if Path(BASELINE).exists():
+              raise SystemExit('S15-R2 new baseline already exists')
+          subprocess.run(['git', 'apply', '--check', '--unidiff-zero', '-'], input=PATCH.encode(), check=True)
+          subprocess.run(['git', 'apply', '--unidiff-zero', '-'], input=PATCH.encode(), check=True)
+          Path(BASELINE).write_bytes(Path('packages/server/openapi/product-v1.yaml').read_bytes())
+          for path, expected in {**EXPECTED, BASELINE: EXPECTED['packages/server/openapi/product-v1.yaml']}.items():
+              if blob_sha(Path(path).read_bytes()) != expected:
+                  raise SystemExit('S15-R2 output blob mismatch: ' + path)
+          PY
+      - name: Create only the five preverified Git objects
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I - <<'PY'
+          from pathlib import Path
+          import base64
+          import hashlib
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          EXPECTED = {'packages/server/generated/openapi/product-v1.bundle.yaml': '752f8ff917a34e9468df83a622120d53be935587', 'packages/server/generated/openapi/product-v1.ts': 'c57342c7601cddd447e66a7fa8182b3f99e73886', 'packages/server/openapi/product-v1.yaml': '386698cbee72958b6b6257b41de691c99f4d957a', 'packages/server/openapi/colp-server-v1.yaml': '139210d129fe95452cab6ecbce321f8e5b17d6c5', 'packages/web/src/generated/colp-server-v1.ts': 'f4f14e87a16f20e859ed2f5a3107ee53085837e1'}
+          BASELINE = 'packages/server/openapi/baselines/product-v1.1.100.0.yaml'
+          API = 'https://api.github.com/repos/WhitenWhiten/colp/git/blobs'
+
+          def blob_sha(data):
+              return hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+
+          # Validate every output before the first API write. Read only the five fixed
+          # reviewed data files; the sixth file is the exact same product source blob.
+          payloads = []
+          for path, expected in EXPECTED.items():
+              data = Path(path).read_bytes()
+              if blob_sha(data) != expected:
+                  raise SystemExit('S15-R2 output blob mismatch: ' + path)
+              payloads.append((expected, data))
+          if blob_sha(Path(BASELINE).read_bytes()) != EXPECTED['packages/server/openapi/product-v1.yaml']:
+              raise SystemExit('S15-R2 baseline blob mismatch')
+          if os.environ.get('GITHUB_REPOSITORY') != 'WhitenWhiten/colp' or os.environ.get('GITHUB_REF') != 'refs/heads/codex/sync-generated-20261020':
+              raise SystemExit('Unexpected repository or branch')
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, fp, code, message, headers, new_url):
+                  return None
+
+          client = urllib.request.build_opener(NoRedirect())
+          verified = []
+          for expected, data in payloads:
+              request = urllib.request.Request(API, method='POST',
+                  data=json.dumps({'encoding': 'base64', 'content': base64.b64encode(data).decode('ascii')}).encode(),
+                  headers={'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json',
+                           'X-GitHub-Api-Version': '2026-03-10',
+                           'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN']})
+              try:
+                  with client.open(request, timeout=45) as response:
+                      if response.status != 201:
+                          raise SystemExit('Unexpected create-blob response status')
+                      result = json.load(response)
+              except urllib.error.HTTPError as error:
+                  # Never print response bodies, request headers, credentials or file contents.
+                  raise SystemExit('GitHub create-blob HTTP ' + str(error.code)) from None
+              except urllib.error.URLError:
+                  raise SystemExit('GitHub create-blob transport failed') from None
+              if result.get('sha') != expected:
+                  raise SystemExit('GitHub created an unexpected blob SHA')
+              verified.append(expected)
+          for sha in verified:
+              print(sha)
+          PY
