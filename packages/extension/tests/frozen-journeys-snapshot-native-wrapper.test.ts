@@ -3,21 +3,15 @@ import { subscriptionStore } from '../src/bookmark-subscriptions/store.js';
 import { createChromePullBookmarkApi } from '../src/pull-bookmark-api.js';
 import { recoverVerifiedOrFreeze } from '../src/recovery-guard.js';
 import type { MappingInput } from '../src/sync-state-store.js';
-import type { NativeWriteCheck } from '../src/native-call-result.js';
 import { snapshotNativeFixture } from './snapshot-native-authority-fixture.js';
 
 afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllGlobals(); await subscriptionStore.close(); });
 
 async function nativeApi(f: Awaited<ReturnType<typeof snapshotNativeFixture>>) {
   vi.stubGlobal('chrome', { bookmarks: f.chrome.api });
-  const effects = await f.effects(); await effects.assertCurrent();
-  const production = createChromePullBookmarkApi();
-  // Compose the same authority -> production wrapper -> Chrome path as the
-  // worker. Keep the real subscription guard and its real IndexedDB queries.
-  return { ...effects.api,
-    create: (input: Parameters<typeof production.create>[0], beforeNative?: NativeWriteCheck) => effects.run(() => production.create(input, beforeNative)),
-    remove: (id: string, beforeNative?: NativeWriteCheck) => effects.run(() => production.remove(id, beforeNative)),
-  };
+  // Use production composition, including its explicit final-check capability.
+  const effects = await f.effects(createChromePullBookmarkApi()); await effects.assertCurrent();
+  return effects.api;
 }
 
 function duringSubscriptionRead(change: () => Promise<void>) {
@@ -54,6 +48,21 @@ test.each(['active', 'private'] as const)('Snapshot deletion keeps final native 
       expect((await f.store.listProjectionIntents(f.scope))[0]?.state).not.toBe('terminal');
     }
     expect(await f.store.listQueue(f.scope)).toEqual([]);
+  } finally { f.close(); }
+});
+
+test('an unadapted native port never receives the final-check function as a Chrome callback', async () => {
+  const f = await snapshotNativeFixture();
+  try {
+    const remove = vi.fn(async (id: string, ...optional: unknown[]) => {
+      expect(optional.every(value => value === undefined)).toBe(true);
+      await f.chrome.api.remove(id);
+    });
+    const raw = { ...f.chrome.api, remove };
+    expect('nativeWriteChecks' in raw).toBe(false);
+    const staged = [f.root, f.privateRoot]; await f.stage(staged);
+    await recoverVerifiedOrFreeze({ scope: f.scope, store: f.store, staged, api: raw, freezeUnprovenIdentity: true });
+    expect(remove).toHaveBeenCalledOnce(); expect(f.chrome.nodes.has('2')).toBe(false);
   } finally { f.close(); }
 });
 
