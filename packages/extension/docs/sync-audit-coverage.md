@@ -8,7 +8,12 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 111 executable owners, for 166 total.
+This pass adds 117 executable owners, for 172 total.
+
+The recovery owners include the native content and placement barriers, ordinary range moves,
+and confirmation of an earlier unknown native create after a newer Snapshot. Their behavior
+tests preserve the original native result, current canonical authority, and durable item
+decisions across IDB reopen; a recovered cursor alone is not evidence of correct native state.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
@@ -39,11 +44,17 @@ This pass adds 111 executable owners, for 166 total.
 - `src/pull-child-order.ts`
 - `src/pull-delete-apply.ts`
 - `src/pull-item-set-aside.ts`
+- `src/pull-native-content-barrier.ts`
+- `src/pull-native-snapshot-resume.ts`
+- `src/pull-range-move.ts`
 - `src/push-recovery-barrier.ts`
 - `src/queued-upload-batch-boundary.ts`
 - `src/queued-upload-boundary.ts`
 - `src/range-confirmation-session.ts`
 - `src/range-ui.ts`
+- `src/recovery-content.ts`
+- `src/recovery-delete.ts`
+- `src/recovery-placement.ts`
 - `src/rejoin-decisions-ui.ts`
 - `src/remote-delete-apply.ts`
 - `src/remote-delete-local-work.ts`

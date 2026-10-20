@@ -510,6 +510,24 @@
       "functions": 80,
       "statements": 80
     },
+    "src/pull-native-content-barrier.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/pull-native-snapshot-resume.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/pull-range-move.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/push-recovery-barrier.ts": {
       "lines": 80,
       "branches": 80,
@@ -535,6 +553,24 @@
       "statements": 80
     },
     "src/range-ui.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/recovery-content.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/recovery-delete.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/recovery-placement.ts": {
       "lines": 80,
       "branches": 80,
       "functions": 80,
