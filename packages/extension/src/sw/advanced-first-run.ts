@@ -96,7 +96,7 @@ export async function handleAdvancedFirstRunPreview(message: FirstRunPreviewRequ
     const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
     const privateNativeIds = [...new Set([...await privateNativeIdsFor(scope), ...excluded])];
     const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: selected,
-      excludedNativeIds: excluded, privateNativeIds });
+      excludedNativeIds: excluded, privateNativeIds, existingMounts: await syncState.listMountBindings(scope) });
     const authority = await readSnapshotAuthority(scope);
     const rootNodeId = rootId(authority.snapshot.remoteFacts);
     if (!rootNodeId) return { ok: false, error: 'snapshot_root_invalid' };
@@ -337,7 +337,8 @@ async function rescanAdvanced(scope: SyncScope, cache: CachedAdvancedPreview): P
     }
     const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
     const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: cache.selectedNativeIds,
-      excludedNativeIds: cache.excludedNativeIds, privateNativeIds: [...new Set([...await privateNativeIdsFor(scope), ...cache.excludedNativeIds])] });
+      excludedNativeIds: cache.excludedNativeIds, privateNativeIds: [...new Set([...await privateNativeIdsFor(scope), ...cache.excludedNativeIds])],
+      existingMounts: await syncState.listMountBindings(scope) });
     const localFacts = normalizeMountFacts(advancedLocalFacts(tree.roots, scan), scan.selectedNativeIds);
     const treeDigest = advancedTreeDigest(scan.treeDigest, localFacts);
     const recorded = await syncState.getScope(scope);

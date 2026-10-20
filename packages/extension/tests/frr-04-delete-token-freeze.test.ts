@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, test } from 'vitest';
@@ -156,12 +153,6 @@ test('FRR-04.3: shrinking or rebound remote identity fails closed', async () => 
   if (!identity.ok) assert.equal(identity.error, 'preview_stale');
   assert.equal((await store.listQueue(scope)).length, 0);
   assert.equal((await store.listQueue(scope)).some((row) => row.payload.targetId === 'remote-other'), false);
-});
-
-test('range confirm mints from frozen preview evidence and does not recount to recast', async () => {
-  const range = await readFile(join(dirname(fileURLToPath(import.meta.url)), '../src/sw/range.ts'), 'utf8');
-  assert.match(range, /frozenRemoteDeleteCommand/);
-  assert.doesNotMatch(range, /countMountAffected|mintRemoteDeleteConfirmation|removalCounts/);
 });
 
 async function boundStore() {

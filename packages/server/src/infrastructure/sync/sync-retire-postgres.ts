@@ -13,6 +13,7 @@ import {
   retireReplicaInTransaction,
   type ReplicaLifecycleFaultPhase,
 } from './replica-lifecycle-postgres.js';
+import { reauthorizeReplicaRetirement } from './sync-retire-reauthorization-postgres.js';
 
 export type SyncRetireFaultPhase = 'receipt' | 'replica' | 'sessions' | 'audit';
 
@@ -62,7 +63,7 @@ async function retireExtensionTransaction(
   const nowResult = await sql<{ now: Date }>`select current_timestamp as now`.execute(transaction);
   const now = nowResult.rows[0]?.now;
   if (!(now instanceof Date)) deny('internal_error');
-  if (!account || !credential || !collection || !replica || !binding) deny('resource_not_found');
+  if (!account || !collection || !replica || !binding) deny('resource_not_found');
   const role = collection.owner_subject_id === account.subject_id
     ? 'owner'
     : await transaction.selectFrom('collection_members').select('role')
@@ -74,18 +75,26 @@ async function retireExtensionTransaction(
     && session.expires_at.getTime() > now.getTime()
     && (replica.status !== 'active'
       || BigInt(session.lifecycle_revision) === BigInt(replica.lifecycle_revision));
-  const principalAuthorized = account.status === 'active'
+  const commonAuthority = account.status === 'active'
     && collection.deleted_at === null
-    && collection.policy_revision === session.policy_revision
     && role !== undefined
     && session.account_id === replica.account_id
     && session.collection_id === replica.collection_id
     && session.credential_issuer === input.credential.issuer
-    && session.credential_id === input.credential.credentialId
     // Bind retirement to the exact Origin recorded when this Sync session was
     // issued. The application contract requires callers to provide it.
     && session.origin === input.origin
     && session.oauth_client_id === input.credential.clientId
+    && BigInt(session.account_security_epoch) === BigInt(account.security_epoch)
+    && binding.account_id === account.id
+    && binding.collection_id === replica.collection_id
+    && binding.replica_id === replica.replica_id
+    && BigInt(binding.lease_generation) === BigInt(replica.lease_generation)
+    && BigInt(session.lease_generation) === BigInt(replica.lease_generation)
+    && binding.lease_id === replica.lease_id;
+  const originalCredentialAuthority = credential !== undefined
+    && collection.policy_revision === session.policy_revision
+    && session.credential_id === input.credential.credentialId
     && credential.account_id === account.id
     && credential.subject === input.credential.subject
     && credential.client_id === input.credential.clientId
@@ -95,15 +104,13 @@ async function retireExtensionTransaction(
     && credential.credential_expires_at.getTime() > now.getTime()
     && input.credential.credentialExpiresAt.getTime() > now.getTime()
     && input.credential.evidenceExpiresAt.getTime() > now.getTime()
-    && BigInt(credential.security_epoch) === BigInt(account.security_epoch)
-    && BigInt(session.account_security_epoch) === BigInt(account.security_epoch)
-    && binding.account_id === account.id
-    && binding.collection_id === replica.collection_id
-    && binding.replica_id === replica.replica_id
-    && BigInt(binding.lease_generation) === BigInt(replica.lease_generation)
-    && BigInt(session.lease_generation) === BigInt(replica.lease_generation)
-    && binding.lease_id === replica.lease_id;
-  const authorized = principalAuthorized && sessionMayRetire;
+    && BigInt(credential.security_epoch) === BigInt(account.security_epoch);
+  // An absent proof is exactly the original strict Session contract. The new
+  // path is an explicit current-account authorization, never a 404/expiry guess.
+  const reauthorized = commonAuthority && input.replicaProof !== undefined
+    && await reauthorizeReplicaRetirement(transaction, input, session, credential, now);
+  const principalAuthorized = commonAuthority && (input.replicaProof === undefined ? originalCredentialAuthority : reauthorized);
+  const authorized = principalAuthorized && (reauthorized || sessionMayRetire);
   if (!principalAuthorized) deny('resource_not_found');
 
   const requestDigest = digest(input.requestFingerprint);
@@ -177,7 +184,8 @@ function validateInput(input: SyncRetireApplicationInput): void {
   if (typeof input.origin !== 'string' || input.origin.length < 1 || input.origin.length > 2_048
       || !TOKEN.test(input.sessionId) || !TOKEN.test(input.idempotencyKey)
       || typeof input.requestFingerprint !== 'string' || input.requestFingerprint.length < 1
-      || input.requestFingerprint.length > 4_096) deny('internal_error');
+      || input.requestFingerprint.length > 4_096
+      || (input.replicaProof !== undefined && !TOKEN.test(input.replicaProof))) deny('internal_error');
 }
 
 function digest(value: string): string {

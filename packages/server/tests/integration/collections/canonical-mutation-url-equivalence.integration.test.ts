@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, test } from 'vitest';
 import { runMigrations, type DatabaseRuntime } from '../../../src/infrastructure/database/index.js';
 import { createPostgresCanonicalMutationUnitOfWork } from '../../../src/infrastructure/collections/index.js';
@@ -226,12 +227,12 @@ describeWithPostgres('PostgreSQL canonical mutation url equivalence', () => {
     const generation0 = await generation();
     assert.equal(typeof generation0, 'string');
 
-    // Equivalent spelling (scheme/host case, default port, trailing slash,
-    // fragment) carrying a digest of the unadopted bytes: the stored raw url
+    // Equivalent spelling (scheme/host case and default port) carrying a
+    // digest of the unadopted bytes: the stored raw url
     // wins, the foreign hash is dropped, and the fence does not rotate.
     await executeMutation(await urlWrite(
       '41111111-1111-4111-8111-111111111111',
-      'HTTPS://EXAMPLE.TEST:443/before/#frag',
+      'HTTPS://EXAMPLE.TEST:443/before',
       { urlHash: 'sha-256=:dW5hZG9wdGVkLXNwZWxsaW5n:', canonicalUrl: 'https://example.test/before' },
     ));
     let row = await stored();
@@ -262,5 +263,43 @@ describeWithPostgres('PostgreSQL canonical mutation url equivalence', () => {
     const generation2 = await generation();
     assert.notEqual(generation2, generation1);
     assert.notEqual(generation2, generation0);
+  });
+
+  test('the canonical Product update also invalidates omitted metadata when the raw URL changes', async () => {
+    await resetFixture();
+    const url = 'https://example.test/before';
+    const before = mutation('44444444-4444-4444-8444-444444444444');
+    Object.assign(before.mutation.fields!.kindFields, { url,
+      urlHash: `sha-256=:${createHash('sha256').update(url).digest('base64')}:`,
+      canonicalUrl: 'https://canonical.test/before' });
+    await executeMutation(before);
+    const old = (await runtime.pool.query('select resource_revision,payload_json from nodes where id=$1', [NODE_ID])).rows[0];
+    assert.equal(typeof old.payload_json.urlHash, 'string');
+    await executeMutation(mutation('45555555-5555-4555-8555-555555555555', old.resource_revision));
+    const changed = (await runtime.pool.query('select url,payload_json from nodes where id=$1', [NODE_ID])).rows[0];
+    assert.equal(changed.url, 'https://example.test/after');
+    assert.equal(Object.hasOwn(changed.payload_json, 'urlHash'), false);
+    assert.equal(Object.hasOwn(changed.payload_json, 'canonicalUrl'), false);
+  });
+
+  test.each([
+    ['fragment', 'https://example.test/before#part'],
+    ['hash route', 'https://example.test/before#/projects'],
+    ['path slash', 'https://example.test/before/'],
+  ])('persists a %s edit and rotates the content generation', async (_label, url) => {
+    await resetFixture();
+    const before = (await runtime.pool.query(
+      'select generation from community_bookmark_generations where collection_id=$1 and node_id=$2',
+      [COLLECTION_ID, NODE_ID],
+    )).rows[0].generation;
+    const input = mutation('44444444-4444-4444-8444-444444444444');
+    (input.mutation.fields!.kindFields as Record<string, unknown>).url = url;
+    await executeMutation(input);
+    const row = (await runtime.pool.query(`select n.url, n.payload_json, g.generation
+      from nodes n join community_bookmark_generations g
+        on g.collection_id=n.collection_id and g.node_id=n.id where n.id=$1`, [NODE_ID])).rows[0];
+    assert.equal(row.url, url);
+    assert.equal(row.payload_json.url, url);
+    assert.notEqual(row.generation, before);
   });
 });

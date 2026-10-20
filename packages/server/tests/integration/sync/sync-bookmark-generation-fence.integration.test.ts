@@ -284,10 +284,21 @@ describeWithPostgres('CS-02 bookmark generation fence via sync push', () => {
     // A normalization-equivalent rewrite is pinned to the stored raw URL:
     // the canonical write keeps the original spelling, no DISTINCT url
     // reaches the trigger, and the generation survives.
-    await push(urlA, `${urlA}/`, revA2, 3);
+    const equivalentRevision = await push(urlA, 'HTTPS://SYNC.EXAMPLE:443/original', revA2, 3);
     assert.equal(await storedUrl(node.id), urlA,
       'the equivalent rewrite is pinned to the stored raw spelling');
     assert.equal(await generationOf(node.id), genA2,
       'a normalization-equivalent sync rewrite preserves the generation');
+
+    let previousUrl = urlA, previousRevision = equivalentRevision, previousGeneration = genA2;
+    let sequence = 4;
+    for (const distinctUrl of [`${urlA}/`, `${urlA}/#section`, `${urlA}/#/route`]) {
+      previousRevision = await push(previousUrl, distinctUrl, previousRevision, sequence++);
+      assert.equal(await storedUrl(node.id), distinctUrl, 'path slash and fragment routes retain their exact authored identity');
+      const generation = await generationOf(node.id);
+      assert.notEqual(generation, previousGeneration, 'a different path or fragment must rotate the canonical generation');
+      previousUrl = distinctUrl;
+      previousGeneration = generation;
+    }
   }, 60_000);
 });

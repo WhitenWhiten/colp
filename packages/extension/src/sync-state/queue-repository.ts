@@ -1,4 +1,5 @@
 import { createQueueIssueRepository, putConsumedRejection } from './queue-issue-repository.js';
+import { createQueueReadRepository } from './queue-read-repository.js';
 import { withReceiptOutcome, MAX_SEQUENCE_BLOCKED_RETRIES } from './open-issue-facts.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { parkedOutOfLane } from './queue-set-aside-repository.js';
@@ -11,7 +12,7 @@ import {
 import { boundedString, clone, safeInteger, validateJson } from './codec.js';
 import { constraintError, inject } from './errors.js';
 import {
-  cursorPage, iterateCursor, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone,
+  cursorPage, iterateCursor, requestValue, requireActiveScope, runTransaction, scopeRowsRange,
 } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
@@ -20,7 +21,7 @@ import {
   validateQueueRecord, validateReceipt,
 } from './queue-validate.js';
 import { validateCursor, validateEngineState } from './pull-validate.js';
-import { readAllQueueRowsByTarget, stampColpQueueRecord } from './queue-target.js';
+import { stampColpQueueRecord } from './queue-target.js';
 import { rebindCreateInTransaction, rebindProjectionInTransaction, assertAuthoritativeCreateReceipt,
   assertAuthoritativeProjectionReceipt, validateMapping } from './mapping-repository.js';
 import { settleImportNode, unavailableImportOpIds } from './import-settle.js';
@@ -37,12 +38,8 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
   const maxRecordBytes = ctx.maxRecordBytes;
   const businessIssues = createQueueIssueRepository(ctx);
   const durableCache = ctx.durableCache;
-  const open = () => ctx.open();
   const writableDatabase = () => ctx.writableDatabase();
   const assertWritable = () => ctx.assertWritable();
-  const readOne = (storeName: string, key: IDBValidKey) => ctx.readOne(storeName, key);
-  const factory = ctx.factory;
-  const close = () => ctx.close();
   async function allocateSequenceAndEnqueue(input: SyncScope, operationInput: Omit<QueueOperation, 'sequence' | 'scopeKey'>,
     faults: FaultOptions & {
       readonly validateOperation?: (operation: JsonObject) => boolean;
@@ -118,44 +115,6 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
       if (!counter) throw new SyncStateError('sequence_missing');
       if (counter.next < nextSequence) sequences.put({ scopeKey: key, next: nextSequence });
     });
-  }
-
-  async function listQueue(input: SyncScope, status?: QueueOperation['status'], afterSequence = 0, limit = 100): Promise<QueueOperation[]> {
-    const key = scopeKey(validateScope(input)); safeInteger(afterSequence, 'afterSequence'); boundedLimit(limit);
-    const db = await open(); const tx = db.transaction([STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readonly'); const store = tx.objectStore(STORES.queue);
-    const completion = transactionDone(tx);
-    const source = status ? store.index(INDEXES.queueByStatusSequence) : store.index(INDEXES.queueBySequence);
-    if (afterSequence === Number.MAX_SAFE_INTEGER) return [];
-    const range = status ? IDBKeyRange.bound([key, status, afterSequence + 1], [key, status, Number.MAX_SAFE_INTEGER])
-      : IDBKeyRange.bound([key, afterSequence + 1], [key, Number.MAX_SAFE_INTEGER]);
-    const values = await cursorPage<QueueOperation>(source, range, limit);
-    for (let i = 0; i < values.length; i++) if (values[i]!.status === 'terminal') {
-      const receipt = await requestValue(tx.objectStore(STORES.receipts).index(INDEXES.queueBySequence).get([key, values[i]!.sequence]));
-      values[i] = withReceiptOutcome(values[i]!, receipt as never);
-    }
-    await completion;
-    return values.map((value) => clone(validateQueueRecord(value, maxRecordBytes)));
-  }
-
-  /** One target's rows, paged to completion; see {@link readAllQueueRowsByTarget}. */
-  async function listQueueByTarget(input: SyncScope, targetId: string): Promise<QueueOperation[]> {
-    return clone(await readAllQueueRowsByTarget(await open(), input, targetId, maxRecordBytes));
-  }
-
-  async function getQueueByOpId(input: SyncScope, opId: string): Promise<QueueOperation | null> {
-    const key = scopeKey(validateScope(input)); boundedString(opId, 'opId');
-    const db = await open(); const tx = db.transaction([STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readonly'); const completion = transactionDone(tx);
-    let value = await requestValue<QueueOperation | undefined>(tx.objectStore(STORES.queue).index(INDEXES.queueByOpId).get([key, opId]));
-    if (value?.status === 'terminal') value = withReceiptOutcome(value,
-      await requestValue(tx.objectStore(STORES.receipts).index(INDEXES.queueBySequence).get([key, value.sequence])));
-    await completion; return value ? clone(validateQueueRecord(value, maxRecordBytes)) : null;
-  }
-
-  async function getQueueReceipt(input: SyncScope, sequence: number) {
-    const key = scopeKey(validateScope(input)); safeInteger(sequence, 'sequence', 1);
-    const db = await open(); const tx = db.transaction(STORES.receipts, 'readonly'); const completion = transactionDone(tx);
-    const value = await requestValue(tx.objectStore(STORES.receipts).index('by_scope_sequence').get([key, sequence]));
-    await completion; return value ? clone(validateReceipt(key, sequence, value, maxRecordBytes)) : null;
   }
 
   async function completeQueueWithReceipt(input: SyncScope, sequence: number, receiptInput: ReceiptInput,
@@ -565,7 +524,7 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
     });
   }
 
-  return { ...businessIssues, allocateSequenceAndEnqueue, advanceSequenceFloor, listQueue, listQueueByTarget, getQueueByOpId, getQueueReceipt,
+  return { ...businessIssues, ...createQueueReadRepository(ctx), allocateSequenceAndEnqueue, advanceSequenceFloor,
     completeQueueWithReceipt, completeClaimedQueueWithReceipt, publishCursor,
     acquireLease, renewLease, claimQueue, claimNextQueue, realignQueueAfterGap, bindPushAttempt, rebaseClaimedPush,
     settleClaimedPush, repairSequenceReuseRow };

@@ -144,7 +144,7 @@ function mapConsumedTombstone(row: {
   };
 }
 
-async function resolveRestorePlacement(
+export async function resolveRestorePlacement(
   tx: DatabaseTransaction,
   input: {
     readonly collectionId: string; readonly rootNodeId: string; readonly actorPrincipalId: string;

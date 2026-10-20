@@ -56,6 +56,7 @@ export async function plannedCreateOpIdForNative(store: Store, scope: SyncScope,
   Promise<string | null> {
   if (!liveCreateNativeId(nativeId)) return null;
   const queued = await findCreateQueueForNative(store, scope, nativeId);
+  if (queued?.status === 'rejected' && queued.recovery?.code === 'queued_upload_excluded') return null;
   if (queued?.status === 'terminal') {
     const receipt = await store.getQueueReceipt(scope, queued.sequence);
     const applied = receiptAppliedTarget(receipt?.result);
@@ -75,7 +76,8 @@ export async function inFlightCreateEvidence(store: Store, scope: SyncScope, nat
   }
   if (!create.opId || !mapping) return null;
   const queued = await store.getQueueByOpId(scope, create.opId);
-  if (!queued || queued.status === 'terminal') return null;
+  if (!queued || queued.status === 'terminal'
+      || queued.status === 'rejected' && queued.recovery?.code === 'queued_upload_excluded') return null;
   return { eventId: create.eventId, identity: identityFromMapping(mapping) };
 }
 

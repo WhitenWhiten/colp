@@ -47,7 +47,7 @@ async function registerActive(store: Store, targetScope: SyncScope = scope): Pro
     lifecycle: 'active',
     lease: { leaseId: 'advanced-test-lease', expiresAt: 10_000 },
     checkpoint: { serverRevision: 'base-revision', cursor: 'base-cursor' },
-    selectedRoots: [],
+    selectedRoots: [], boundaryVersion: metadataValues.boundaryVersion,
   });
 }
 
@@ -222,7 +222,6 @@ test('detached mount cannot be reactivated after the plan was already activated'
 test('changed boundaryVersion cannot reactivate the already activated plan', async () => {
   const { store, committed } = await fixture();
   await activateAdvancedPlan(store, scope, committed);
-  await store.bumpBoundaryVersion(scope);
   await store.bumpBoundaryVersion(scope);
   assert.equal((await store.getScope(scope))?.boundaryVersion, '2');
   const before = scopeExportPart(await store.exportScope(scope));

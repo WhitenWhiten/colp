@@ -7,6 +7,7 @@ import { parseBuildConfig } from '../src/config.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { credentialAuthorityDigest } from '../src/session-client.js';
 import type { SyncScope } from '../src/sync-state-store.js';
+import { REPLICA_REBUILD_JOURNAL } from '../src/replica-rebuild.js';
 
 /** Server requests only: e2e-fixture builds also read the packaged e2e-origin.json (D6). */
 function serverCalls(network: { mock: { calls: readonly (readonly unknown[])[] } }): number {
@@ -75,6 +76,28 @@ test('a restart that emptied the session area restores the credential instead of
   await assert.rejects(f.api.currentSyncScope(), /not_connected/);
   // No browser cookie here, so the Session lane's restore is what fails, not the scope read.
   await assert.rejects(f.api.restoredSyncScope(), /authentication_required/);
+});
+
+test('the real Session lane cannot reuse or mint an old-replica Session while a pinned retirement is pending', async () => {
+  const f = await disconnectedSession();
+  await f.store.saveSession({ sessionId: 'pinned-retirement-session', expiresAt: '2099-01-01T00:00:00Z',
+    credentialAuthorityDigest: await credentialAuthorityDigest(f.credential.accessToken), scope: 'collection', snapshotRequired: false,
+    collection: { collectionId: f.scope.collectionId, serverCursor: 'cursor0', serverRevision: 'r0' },
+    replicaLease: { leaseId: 'lease', generation: '1', state: 'active', expiresAt: '2099-01-01T00:00:00Z' } });
+  const nextBinding = { ...f.binding, replicaId: 'replica-new-reset' };
+  await f.local.set({ [REPLICA_REBUILD_JOURNAL]: { scope: f.scope, authorityGeneration: 0, nextBinding,
+    retirement: { version: 1, endpoint: 'https://known.example/extensions/sync-retire',
+      origin: 'chrome-extension://pplpnpegpnghcddhmpgkbfkdfadjiaen', sessionId: 'pinned-retirement-session', idempotencyKey: 'pinned-reset' } } });
+  await assert.rejects(f.api.pushSessionAuthority(), /replica_rebuild_pending/);
+  await f.store.clearSession();
+  await assert.rejects(f.api.pushSessionAuthority(), /replica_rebuild_pending/);
+  assert.equal(serverCalls(f.network), 0);
+  assert.deepEqual(await f.api.currentSyncScope(), f.scope);
+  // After publishing the new binding, its new Session is allowed through the
+  // ordinary authority lane. The old request still cannot be re-minted.
+  await f.store.replaceBindingForRebuild(0, f.scope.replicaId, nextBinding);
+  await assert.rejects(f.api.pushSessionAuthority(), /Failed to fetch/);
+  assert.equal(serverCalls(f.network), 1);
 });
 
 /** The manifest the e2e-fixture config points at, as the server serves it. */
@@ -191,6 +214,7 @@ test('the scope refuses a Session that authenticates another Collection', async 
     replicaLease: { leaseId: 'cross-lease', generation: '1', state: 'active', expiresAt: '2999-01-01T00:00:00Z' } });
   await f.local.set({ [f.COLLECTION_BINDING]: 'reconnect-collection' })
   await assert.rejects(f.api.currentSyncScope(), /not_connected/)
+  await assert.rejects(f.api.currentSyncScope({ allowUnregistered: true }), /not_connected/)
 });
 
 test('explicit scope hydration still tries to mint the missing Session', async () => {
@@ -214,3 +238,101 @@ for (const boundary of ['no durable scope', 'no credential', 'different collecti
     assert.equal(serverCalls(f.network), 0);
   });
 }
+
+for (const change of ['generation', 'collection', 'unchanged'] as const) {
+  test(`real Rebuild restart validates ${change} target before any server request`, async () => {
+    const f = await disconnectedSession();
+    await f.syncState.transitionEngine(f.scope, { phase: 'recovery', recoveryFrozen: true,
+      authorityRefreshRequired: true, updatedAt: Date.now(), notBefore: 0, lastError: 'payload_too_large' });
+    const { replicaRebuilder } = await import('../src/sw/scope-rebuild.js');
+    const preview = await replicaRebuilder().handle({ kind: 'known.scope.rebuild.preview' });
+    assert.ok(preview.ok && 'preview' in preview);
+    const { replicaId, generation, revision, targetFence } = preview.preview;
+    const result = await replicaRebuilder().handle({ kind: 'known.scope.rebuild.confirm', userGesture: true,
+      replicaId, generation, revision, targetFence });
+    assert.equal(result.ok, false, 'the external registration is offline');
+    assert.equal(serverCalls(f.network), 1);
+    const archive = await f.syncState.exportArchive(f.scope);
+    const journal = await f.local.get(REPLICA_REBUILD_JOURNAL);
+    if (change === 'generation') await f.store.bumpBindingGeneration(0);
+    else if (change === 'collection') await f.local.set({ [f.COLLECTION_BINDING]: 'another-collection' });
+    const binding = await f.store.loadBinding();
+    f.network.mockClear();
+    await assert.rejects(replicaRebuilder().resume(), change === 'unchanged' ? /Failed to fetch/u : /stale_ref/u);
+    assert.equal(serverCalls(f.network), change === 'unchanged' ? 1 : 0);
+    assert.equal(await f.store.loadSession(), null);
+    assert.deepEqual(await f.store.loadBinding(), binding);
+    assert.deepEqual(await f.local.get(REPLICA_REBUILD_JOURNAL), journal);
+    assert.deepEqual(await f.syncState.exportArchive(f.scope), archive);
+  });
+}
+
+test('reading an unregistered Rebuild address does not grant current Session or scope authority', async () => {
+  const f = await disconnectedSession(false);
+  assert.deepEqual(await f.api.currentSyncScope({ allowUnregistered: true }), f.scope);
+  await assert.rejects(f.api.currentSyncScope(), /not_connected/u);
+  await assert.rejects(f.api.currentSyncStatusAuthority(), /not_connected/u);
+  assert.equal(await f.syncState.getScope(f.scope), null);
+  assert.equal(await f.store.loadSession(), null);
+  await f.store.clearCredential();
+  await assert.rejects(f.api.currentSyncScope({ allowUnregistered: true }), /not_connected/u);
+  assert.equal(serverCalls(f.network), 0);
+});
+
+test('independent review: real Rebuild registers the planned replacement after archive with no Session or IDB scope', async () => {
+  const f = await disconnectedSession();
+  await f.syncState.transitionEngine(f.scope, { phase: 'recovery', recoveryFrozen: true,
+    authorityRefreshRequired: true, updatedAt: Date.now(), notBefore: 0, lastError: 'payload_too_large' });
+  const { replicaRebuilder } = await import('../src/sw/scope-rebuild.js');
+  const preview = await replicaRebuilder().handle({ kind: 'known.scope.rebuild.preview' });
+  assert.ok(preview.ok && 'preview' in preview);
+  const { replicaId, generation, revision, targetFence } = preview.preview;
+  assert.equal((await replicaRebuilder().handle({ kind: 'known.scope.rebuild.confirm', userGesture: true,
+    replicaId, generation, revision, targetFence })).ok, false);
+  const archive = await f.syncState.exportArchive(f.scope);
+  const binding = (await f.store.loadBinding())!;
+  const next = { ...f.scope, replicaId: binding.replicaId, generation: Number(binding.generation) };
+  assert.notEqual(next.replicaId, f.scope.replicaId);
+  assert.equal(await f.store.loadSession(), null);
+  assert.equal(await f.syncState.getScope(next), null);
+  assert.ok((await f.local.get(REPLICA_REBUILD_JOURNAL))[REPLICA_REBUILD_JOURNAL]);
+
+  const config = await fixtureConfig(); let sessionPosts = 0;
+  const network = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url === config.manifestUrl) return new Response(JSON.stringify(fixtureManifest()), { status: 200,
+      headers: { 'content-type': 'application/vnd.collection-protocol.manifest+json;version=0.2' } });
+    if (url.endsWith('/v1/session')) {
+      sessionPosts++;
+      const request = JSON.parse(String(init?.body));
+      assert.equal(request.replica.replicaId, next.replicaId);
+      assert.equal(request.replica.binding.generation, String(next.generation));
+      assert.equal(request.collection.collectionId, next.collectionId);
+      assert.equal(request.collection.bootstrapMode, 'merge');
+      const now = new Date().toISOString(), expiresAt = new Date(Date.now() + 600_000).toISOString();
+      return new Response(JSON.stringify({ sessionId: 'replacement-session', expiresAt,
+        serverTime: now, clockSkewMilliseconds: 0, acceptedProtocolVersion: '0.2', scope: 'collection',
+        maxBatchOperations: 1, tombstoneRetentionSeconds: 86400,
+        collection: { collectionId: next.collectionId, snapshotRequired: true,
+          serverCursor: 'replacement-cursor', serverRevision: 'replacement-revision' },
+        replicaLease: { leaseId: 'replacement-lease', generation: String(next.generation), state: 'active',
+          lastSeenAt: now, expiresAt, acknowledgedCursor: null },
+        conversionPolicy: { alias: 'duplicate', separator: 'preserve_remote', unknownExtensions: 'sidecar' } }),
+      { status: 201, headers: { 'content-type': 'application/json' } });
+    }
+    throw new TypeError('unexpected HTTP request');
+  });
+  vi.stubGlobal('fetch', network);
+  assert.equal(await replicaRebuilder().resume(), true);
+  assert.equal(sessionPosts, 1);
+  assert.deepEqual(await f.api.currentSyncScope(), next);
+  assert.deepEqual(await f.store.loadBinding(), binding);
+  assert.equal((await f.store.loadSession())?.sessionId, 'replacement-session');
+  const registered = await f.syncState.getScope(next);
+  assert.ok(registered); assert.deepEqual(registered.selectedRoots, []);
+  assert.equal(registered.firstRun, 'none');
+  assert.deepEqual(await f.syncState.exportArchive(f.scope), archive);
+  assert.equal((await f.local.get(REPLICA_REBUILD_JOURNAL))[REPLICA_REBUILD_JOURNAL], undefined);
+  assert.equal(await replicaRebuilder().resume(), false);
+  assert.equal(sessionPosts, 1);
+});

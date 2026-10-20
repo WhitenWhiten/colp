@@ -53,3 +53,17 @@ test('reaffirming consent cannot revive a metadata fetch created under the old c
   assert.equal((await fresh('https://known.test/api/v1/collections/one/annotations')).ok, true);
   assert.equal(calls, 1);
 });
+
+test('a metadata transport captured while consent is absent never reaches the request', async () => {
+  const scope = { serverOrigin: 'https://known.test', accountId: 'unconfigured-owner', collectionId: 'one' };
+  const metadata = createMetadataSyncPolicyStore(new MemoryStorageArea());
+  let calls = 0;
+  const old = metadataSyncFetch(scope, async () => { calls++; return new Response('{}'); }, metadata);
+  await assert.rejects(old('https://known.test/api/v1/collections/one/annotations'), /metadata_sync_disabled/);
+  await metadata.write(scope, true);
+  await assert.rejects(old('https://known.test/api/v1/collections/one/annotations'), /metadata_sync_disabled/);
+  assert.equal(calls, 0);
+  const current = metadataSyncFetch(scope, async () => { calls++; return new Response('{}'); }, metadata);
+  assert.equal((await current('https://known.test/api/v1/collections/one/annotations')).ok, true);
+  assert.equal(calls, 1);
+});

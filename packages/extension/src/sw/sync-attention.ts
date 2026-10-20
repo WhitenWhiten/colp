@@ -1,5 +1,6 @@
 import { readReplicaRepairCapability } from '../replica-repair-capability.js';
-import { isSettledRejection } from '../sync-state/open-issue-facts.js';
+import type { PendingReplicaRebuild } from '../replica-rebuild.js';
+import { readUnresolvedQueuePage } from '../sync-status-queue.js';
 import { snapshotSyncIssues, localIssueId } from '../sync-issue-snapshot.js';
 import { readOpenSyncIssues, type OpenSyncIssues } from '../sync-issues.js';
 /** Shared attention facts and action capabilities. Reading may restore derived issue
@@ -11,24 +12,27 @@ import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'filterResolvedQueueIssues' | 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
   readonly store: SyncAttentionStore;
   readonly openIssues?: OpenSyncIssues;
-  readonly rebuildPending?: () => Promise<boolean>;
+  readonly rebuildPending?: () => Promise<boolean | PendingReplicaRebuild>;
+  readonly serverRetirement?: boolean;
 }
 
-/** Same status set `pendingDurableWorkFacts` live-scans (engine.ts), bounded to one page each. */
+/** Same status set as the engine, bounded to one page of unresolved rows each. */
 const LIVE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected', 'set_aside'] as const;
 const QUEUE_PAGE = 1_000;
 
 export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promise<SyncAttentionResponse> {
-  if (await deps.rebuildPending?.()) return { ok: true, attention: {
+  const pending = await deps.rebuildPending?.();
+  if (pending) return { ok: true, attention: {
     recoveryFrozen: true, queueProjection: 'idle', conflictPending: false, rejectedPending: false,
     nativeWaitPending: false, waitCount: 0, terminal: true, terminalCode: 'replica_rebuild_pending', phase: 'recovery',
-    lastError: 'replica_rebuild_pending', rebuildAvailable: true,
+    lastError: 'replica_rebuild_pending', rebuildAvailable: pending === true || pending.available,
+    ...(pending !== true && pending.reason ? { rebuildUnavailableReason: pending.reason } : {}),
   } };
   let scope: SyncScope;
   try { scope = await deps.scope(); } catch { return { ok: false, error: 'not_connected' }; }
@@ -42,7 +46,7 @@ export async function handleSyncAttentionRequest(deps: SyncAttentionDeps): Promi
     const lastError = engine?.lastError;
     const terminalCode = syncAttentionTerminalCode(lastError, recoveryCode);
     const open = deps.openIssues ?? await readOpenSyncIssues(deps.store, scope);
-    const capability = await readReplicaRepairCapability(deps.store, scope, open);
+    const capability = await readReplicaRepairCapability(deps.store, scope, open, { serverRetirement: deps.serverRetirement });
     const waits = open.waits;
     const { stalled, ...queue } = await queueFacts(deps.store, scope, open);
     const issues = snapshotSyncIssues(open).map(issue => {
@@ -84,14 +88,14 @@ async function queueFacts(store: SyncAttentionStore, scope: SyncScope, open: Ope
     rejectedPending: hasRejectedBarrier(facts), stalled: stalledUploadHead(live) };
 }
 
-/** One page of each live status, the same scan `pendingDurableWorkFacts` makes. */
-async function liveQueueRows(store: Pick<SyncAttentionStore, 'listQueue'>, scope: SyncScope): Promise<QueueOperation[]> {
+/** The engine and attention panel skip resolved history using the same cursor scan. */
+async function liveQueueRows(store: Pick<SyncAttentionStore, 'listQueue' | 'filterResolvedQueueIssues'>, scope: SyncScope): Promise<QueueOperation[]> {
   const live: QueueOperation[] = [];
-  for (const status of LIVE_STATUSES) live.push(...(await store.listQueue(scope, status, 0, QUEUE_PAGE)).filter(row => !isSettledRejection(row)));
+  for (const status of LIVE_STATUSES) live.push(...await readUnresolvedQueuePage(store, scope, status, QUEUE_PAGE));
   return live;
 }
 
 /** The sent upload at the head of the lane that the server has kept unsettled for many tries, if any. */
-export async function readStalledUpload(store: Pick<SyncAttentionStore, 'listQueue'>, scope: SyncScope) {
+export async function readStalledUpload(store: Pick<SyncAttentionStore, 'listQueue' | 'filterResolvedQueueIssues'>, scope: SyncScope) {
   try { return stalledUploadHead(await liveQueueRows(store, scope)); } catch { return undefined; }
 }

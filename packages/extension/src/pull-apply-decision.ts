@@ -10,6 +10,7 @@ import { remoteDeleteMemberIds } from './remote-delete-policy.js';
 import { provisionalSelfCreateMapping } from './pull-self-create.js';
 import { removedSelfProjectionIsProven } from './pull-local-projection-evidence.js';
 import { digest } from './pull-codec.js';
+import type { BookmarkLookup } from './bookmark-api-error.js';
 
 type OpEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
 type MappingRole = 'anchor' | 'deletion' | 'parent' | 'parent_revision' | 'target';
@@ -44,6 +45,7 @@ export async function requirePullAnchor(options: PullApplierOptions, colpId: str
 export async function preflightPullDependencies(options: PullApplierOptions, event: OpEvent,
   stagedCreates: ReadonlySet<string>,
   selfCreateProjection: (event: OpEvent, existing: MappingInput, parent: MappingInput) => Promise<MappingInput>,
+  lookup: (nativeId: string) => Promise<BookmarkLookup>,
 ): Promise<void> {
   const effect = event.effect;
   if (await missingTerminalSelfDeletion(options, event)
@@ -74,7 +76,7 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
     return;
   }
   if (effect.kind === 'node_created') {
-    const plan = await planCreated(options.store, options.scope, event);
+    const plan = await planCreated(options.store, options.scope, event, lookup);
     if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
     if (plan.kind === 'skip_unmounted' || plan.kind === 'bind_structure' || plan.kind === 'bind_mount' || plan.kind === 'recovered_folder') return;
     const parent = await preflightPullMapping(options, effect.placement.parentId, stagedCreates, 'parent');

@@ -53,6 +53,15 @@ function expectCode(action: () => unknown, code: SyncNodeUpdateError['code']): v
 }
 
 describe('P3-13 typed Node update evaluator', () => {
+  test('clears a bookmark title without allowing an unnamed folder', () => {
+    const op = operation({ base: { title: 'Before' }, value: { title: '' } });
+    const result = evaluateSyncNodeUpdate(op, revision(), revision());
+    assert.equal(result.status, 'merged');
+    assert.equal(result.fields.kindFields.title, '');
+    const folder = revision({ kind: 'folder', payload: { ...revision().payload, kind: 'folder', url: null } });
+    expectCode(() => evaluateSyncNodeUpdate(op, folder, folder), 'invalid_document');
+  });
+
   test('uses the public COLP three-way merge for Base=Current and marks a stale automatic merge rebased', () => {
     const direct = evaluateSyncNodeUpdate(operation({
       base: { title: 'Before', url: 'https://example.test/before' },
@@ -232,9 +241,19 @@ describe('P3-13 typed Node update evaluator', () => {
   test('validates the merged Bookmark URL and hash as one canonical result', () => {
     const beforeUrl = 'https://example.test/before';
     const beforeHash = `sha-256=:${createHash('sha256').update(beforeUrl).digest('base64')}:`;
-    const hashed = revision({ payload: { ...revision().payload, url: beforeUrl, urlHash: beforeHash } });
-    expectCode(() => evaluateSyncNodeUpdate(operation({
+    const hashed = revision({ payload: { ...revision().payload, url: beforeUrl, urlHash: beforeHash,
+      canonicalUrl: 'https://canonical.test/before' } });
+    const nativeEdit = evaluateSyncNodeUpdate(operation({
       base: { url: beforeUrl }, value: { url: 'https://example.test/after' },
+    }), hashed, hashed);
+    assert.equal(nativeEdit.status, 'merged');
+    assert.deepEqual(nativeEdit.fields.kindFields, {
+      url: 'https://example.test/after', urlHash: null, canonicalUrl: null,
+    });
+    assert.deepEqual(JSON.parse(JSON.stringify(nativeEdit.merged)), nativeEdit.fields.kindFields);
+    expectCode(() => evaluateSyncNodeUpdate(operation({
+      base: { url: beforeUrl, urlHash: beforeHash },
+      value: { url: 'https://example.test/after', urlHash: beforeHash },
     }), hashed, hashed), 'invalid_document');
 
     const cleared = evaluateSyncNodeUpdate(operation({
@@ -243,15 +262,22 @@ describe('P3-13 typed Node update evaluator', () => {
     }), hashed, hashed);
     assert.equal(cleared.status, 'merged');
     assert.deepEqual(cleared.fields.kindFields, {
-      url: 'https://example.test/after', urlHash: null,
+      url: 'https://example.test/after', urlHash: null, canonicalUrl: null,
     });
+    const afterHash = `sha-256=:${createHash('sha256').update('https://example.test/after').digest('base64')}:`;
+    const explicit = evaluateSyncNodeUpdate(operation({
+      base: { url: beforeUrl, urlHash: beforeHash },
+      value: { url: 'https://example.test/after', urlHash: afterHash },
+    }), hashed, hashed);
+    assert.equal(explicit.status, 'merged');
+    assert.equal(explicit.fields.kindFields.urlHash, afterHash);
   });
 
   test('a normalization-equivalent merged url pins the stored spelling and hash pair', () => {
     const beforeUrl = 'https://example.test/before';
     const beforeHash = `sha-256=:${createHash('sha256').update(beforeUrl).digest('base64')}:`;
     const hashed = revision({ payload: { ...revision().payload, url: beforeUrl, urlHash: beforeHash } });
-    const equivalent = 'HTTPS://EXAMPLE.TEST:443/before/#frag';
+    const equivalent = 'HTTPS://EXAMPLE.TEST:443/before';
     const foreignHash = `sha-256=:${createHash('sha256').update(equivalent).digest('base64')}:`;
 
     // Equivalent spelling carrying its own digest: both pin back to the stored
@@ -281,5 +307,38 @@ describe('P3-13 typed Node update evaluator', () => {
     }), bare, bare);
     assert.equal(pinnedBare.status, 'merged');
     assert.deepEqual(pinnedBare.fields.kindFields, { url: beforeUrl });
+  });
+
+  test.each([false, true])('equivalent URL pin does not repair an explicitly invalid digest (stored hash: %s)', stored => {
+    const url = 'https://example.test/before';
+    const hash = (value: string) => `sha-256=:${createHash('sha256').update(value).digest('base64')}:`;
+    const node = revision({ payload: { ...revision().payload, url, ...(stored ? { urlHash: hash(url) } : {}) } });
+    expectCode(() => evaluateSyncNodeUpdate(operation({ base: { url, urlHash: stored ? hash(url) : null },
+      value: { url: 'HTTPS://EXAMPLE.TEST:443/before', urlHash: hash('https://other.test/') } }), node, node),
+    'invalid_document');
+  });
+
+  test('equivalent URL pin preserves an explicit hash clear', () => {
+    const url = 'https://example.test/before';
+    const urlHash = `sha-256=:${createHash('sha256').update(url).digest('base64')}:`;
+    const node = revision({ payload: { ...revision().payload, url, urlHash } });
+    const merged = evaluateSyncNodeUpdate(operation({ base: { url, urlHash },
+      value: { url: 'HTTPS://EXAMPLE.TEST:443/before', urlHash: null } }), node, node);
+    assert.equal(merged.status, 'merged');
+    assert.deepEqual(merged.merged, { url, urlHash: null });
+    assert.deepEqual(merged.fields.kindFields, { url, urlHash: null });
+  });
+
+  test('an independently added server hash is not validated as an authored incoming hash', () => {
+    const base = revision();
+    const url = base.payload.url as string;
+    const urlHash = `sha-256=:${createHash('sha256').update(url).digest('base64')}:`;
+    const current = revision({ revision: 'update-node-r2', payload: { ...base.payload, urlHash } });
+    const merged = evaluateSyncNodeUpdate(operation({ base: { url, urlHash: null },
+      value: { url: 'HTTPS://EXAMPLE.TEST:443/before', urlHash: null } }), base, current);
+    assert.equal(merged.status, 'merged');
+    assert.equal(merged.resultStatus, 'rebased');
+    assert.deepEqual(merged.merged, { url, urlHash });
+    assert.deepEqual(merged.fields.kindFields, { url, urlHash });
   });
 });

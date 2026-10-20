@@ -7,10 +7,11 @@ export async function persistFirstRunBrowserRoots(store: Store, scope: SyncScope
   readonly discovered: readonly { nativeId: string; ancestorNativeIds: readonly string[] }[];
   readonly selectedNativeIds: readonly string[];
   readonly privateNativeIds?: readonly string[];
+  readonly expectedBoundaryVersion?: string;
 }): Promise<void> {
   const selected = new Set(input.selectedNativeIds);
   for (const mount of await store.listMountBindings(scope)) {
-    if (!selected.has(mount.nativeRootId) || !mount.remoteMountNodeId) continue;
+    if (!selected.has(mount.nativeRootId) || !mount.remoteMountNodeId || mount.status === 'detached') continue;
     await store.bindMountMapping(scope, {
       nativeId: mount.nativeRootId, colpId: mount.remoteMountNodeId, mountId: mount.mountId,
       ...(mount.rootRole ? { rootRole: mount.rootRole } : {}),
@@ -20,5 +21,6 @@ export async function persistFirstRunBrowserRoots(store: Store, scope: SyncScope
   await store.configureBrowserRoots(scope, {
     discovered: input.discovered, selectedNativeIds: input.selectedNativeIds,
     privateNativeIds: input.privateNativeIds ?? [], status: 'ready',
+    ...(input.expectedBoundaryVersion === undefined ? {} : { expectedBoundaryVersion: input.expectedBoundaryVersion }),
   });
 }

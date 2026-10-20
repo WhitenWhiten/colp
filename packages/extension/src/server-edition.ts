@@ -1,7 +1,4 @@
-import { readBoundedJson } from './json-response.js';
-
-const MANIFEST_MAX_BYTES = 512 * 1_024;
-const REQUEST_TIMEOUT_MS = 8_000;
+import { readPublicServerManifest } from './public-server-manifest.js';
 
 /** `features.edition.version` from a Collection Protocol manifest, mount or top level. */
 export function readEditionVersion(manifest: unknown): string | undefined {
@@ -18,31 +15,7 @@ export function readEditionVersion(manifest: unknown): string | undefined {
 }
 
 export async function fetchEditionVersion(origin: string, fetcher: typeof fetch = fetch): Promise<string | undefined> {
-  let manifestUrl: URL;
-  try {
-    const base = new URL(origin);
-    if (base.protocol !== 'https:' && base.protocol !== 'http:') return undefined;
-    manifestUrl = new URL('/.well-known/collection-protocol', base.origin);
-  } catch {
-    return undefined;
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const response = await fetcher(manifestUrl, {
-      redirect: 'error', cache: 'no-store', signal: controller.signal, credentials: 'omit',
-      headers: {
-        Accept: 'application/vnd.collection-protocol.manifest+json;version=0.2',
-        'Collection-Protocol-Version': '0.2',
-      },
-    });
-    if (!response.ok) return undefined;
-    return readEditionVersion(await readBoundedJson(response, MANIFEST_MAX_BYTES, 'manifest_invalid', { signal: controller.signal }));
-  } catch {
-    return undefined;
-  } finally {
-    clearTimeout(timer);
-  }
+  return readEditionVersion(await readPublicServerManifest(origin, fetcher));
 }
 
 function editionVersion(features: unknown): string | undefined {

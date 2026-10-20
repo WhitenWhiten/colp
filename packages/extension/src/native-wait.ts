@@ -6,6 +6,7 @@ import { projectUnresolvedNativeWait } from './native-wait-open.js';
 import { collectNativeOccupancy, executeNativeCreate, type NativeWaitProjection } from './native-create-executor.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import { validNativeWaitTarget } from './native-wait-target.js';
+import { confirmMaterializationWait, observedNativeWaitCandidate } from './native-wait-materialization.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import type { IntentRecord, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -17,7 +18,8 @@ export type NativeWaitStore = Pick<ReturnType<typeof createSyncStateStore>,
   | 'listMountBindings' | 'getMappingByColpId' | 'putMapping' | 'listMappings'
   | 'listProjectionIntents' | 'listLocalSyncExclusions' | 'createApplyIntent'
   | 'findApplyIntent' | 'getPullEvent' | 'markPullBrowserCallStarted' | 'recordPullApiEvidence'
-  | 'getMappingByNativeId'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listNativeWaitIntents'>>;
+  | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listPullEvents' | 'getCurrentPullMapping'>
+  & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listNativeWaitIntents'>>;
 
 export type ConfirmNativeWaitAction = 'bind' | 'keep_local_and_create' | 'cancel';
 
@@ -68,7 +70,12 @@ export async function projectNativeWaits(store: Store, scope: SyncScope): Promis
 }
 
 async function resolveIntentNodeInfo(store: Store, scope: SyncScope, intent: IntentRecord): Promise<{ title?: string; url?: string }> {
-  if (!intent.eventId) return {};
+  if (!intent.eventId) {
+    const content = intent.anchors?.rangeCreateContent;
+    return content && typeof content === 'object' && !Array.isArray(content) ? {
+      ...(typeof content.title === 'string' ? { title: content.title } : {}),
+      ...(typeof content.url === 'string' ? { url: content.url } : {}) } : {};
+  }
   try {
     const event = await store.getPullEvent(scope, intent.eventId);
     const effect = (event?.payload as { readonly effect?: unknown } | undefined)?.effect;
@@ -99,6 +106,8 @@ export async function confirmNativeWait(input: ConfirmNativeWaitInput): Promise<
   if (intent.nativeWaitDecision?.action === 'cancel') return { ok: false, code: 'native_result_cas' };
   if (intent.nativeResultConfirmation?.code !== input.waitRef) return { ok: false, code: 'stale_ref' };
   try {
+    const materialization = await confirmMaterializationWait(input, intent);
+    if (materialization) return materialization;
     if (input.action === 'cancel') {
       await input.store.persistApplyIntentFacts(input.scope, input.intentId, {
         expectedWaitRef: input.waitRef, expectedGeneration: input.generation,
@@ -208,6 +217,6 @@ async function putConfirmedMapping(input: ConfirmNativeWaitInput, intent: Intent
 }
 
 function confirmationCandidates(intent: IntentRecord): NativeWaitProjection['candidates'] {
-  const nativeId = intent.nativeResultConfirmation?.nativeId;
+  const nativeId = intent.nativeResultConfirmation?.nativeId ?? observedNativeWaitCandidate(intent);
   return nativeId ? [{ nativeId }] : [];
 }

@@ -351,7 +351,7 @@ describe('KNS-10 scope detach, deletion journal and recovery', () => {
     assert.match(firstRun, /executeRemoteDelete/);
     assert.doesNotMatch(firstRun, /bookmarks\.(create|update|move|remove)/);
     assert.match(schema, /deletionJournal: 'deletion_journal'/);
-    assert.match(schema, /DATABASE_VERSION = 20/);
+    assert.match(schema, /DATABASE_VERSION = 21/);
   });
 });
 

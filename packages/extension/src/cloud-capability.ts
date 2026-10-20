@@ -2,8 +2,7 @@
  * Self-hosted COLP sets `features.cloud` false on the publication mount and
  * reports capture automation off. Hosted manifests omit the key.
  */
-import { readBoundedJson } from './json-response.js';
-const MANIFEST_PATH = '/.well-known/collection-protocol';
+import { readPublicServerManifest } from './public-server-manifest.js';
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -28,7 +27,7 @@ export function captureCloudEnabled(body: unknown): boolean {
 
 let cachedOrigin = '';
 let cachedCloud: boolean | undefined;
-let pendingCloud: Promise<boolean> | undefined;
+let pendingCloud: Promise<boolean | undefined> | undefined;
 
 /** False only after a manifest read for this origin said cloud is off. Unknown stays on. */
 export function manifestCloudIsOn(): boolean {
@@ -45,27 +44,19 @@ export function resetManifestCloudCache(): void {
 export async function loadManifestCloud(origin: string, fetcher: typeof fetch = fetch): Promise<boolean> {
   if (!origin) return true;
   if (origin === cachedOrigin && cachedCloud !== undefined) return cachedCloud;
-  if (origin === cachedOrigin && pendingCloud) return pendingCloud;
+  if (origin === cachedOrigin && pendingCloud) return (await pendingCloud) ?? true;
   cachedOrigin = origin;
   cachedCloud = undefined;
   const operation = readManifestCloud(origin, fetcher);
   pendingCloud = operation;
   const cloud = await operation;
   if (pendingCloud === operation) { cachedCloud = cloud; pendingCloud = undefined; }
-  return cloud;
+  return cloud ?? true;
 }
 
-async function readManifestCloud(origin: string, fetcher: typeof fetch): Promise<boolean> {
-  try {
-    const signal = AbortSignal.timeout(5_000);
-    const response = await fetcher(`${origin.replace(/\/$/u, '')}${MANIFEST_PATH}`, {
-      redirect: 'error', cache: 'no-store',
-      headers: { Accept: 'application/vnd.collection-protocol.manifest+json' },
-      signal,
-    });
-    if (!response.ok) return true;
-    return manifestCloudEnabled(await readBoundedJson(response, 512 * 1_024, 'manifest_invalid', { signal }));
-  } catch { return true; }
+async function readManifestCloud(origin: string, fetcher: typeof fetch): Promise<boolean | undefined> {
+  const body = await readPublicServerManifest(origin, fetcher, AbortSignal.timeout(5_000));
+  return body === undefined ? undefined : manifestCloudEnabled(body);
 }
 
 export interface CloudOptionVisibility {

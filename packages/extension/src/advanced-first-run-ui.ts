@@ -1,5 +1,5 @@
 import type {
-  AdvancedFirstRunConfirmation, FirstRunPreviewOk, FirstRunPreviewRequest, FirstRunRequest,
+  AdvancedFirstRunConfirmation, FirstRunPreviewOk, FirstRunPreviewRequest, FirstRunConfirmRequest,
 } from './types.js';
 import { localized, listCopy, t, tn } from './i18n.js';
 
@@ -51,7 +51,7 @@ export function advancedPreviewRequest(input: {
 export function advancedConfirmationRequest(input: {
   readonly previewId: string; readonly confirmationId: string; readonly libraryId: string;
   readonly confirmation: AdvancedFirstRunConfirmation;
-}): FirstRunRequest {
+}): FirstRunConfirmRequest {
   const { scopeFingerprint, treeDigest, mode, remoteSnapshotId, remoteRevision, remoteCursor,
     destructivePlanDigest, confirmationProof } = input.confirmation;
   return { kind: 'known.firstRun.confirm', previewId: input.previewId, confirmationId: input.confirmationId,

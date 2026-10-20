@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, test } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type {
@@ -12,9 +12,14 @@ import type {
 } from '@know-n/colp/types';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import { validateAuthoritativePullEvent } from '@know-n/colp/sync';
-import { runMigrations } from '../../../src/infrastructure/database/index.js';
+import {
+  createAttachmentExposurePolicyAdapter,
+  createPostgresSharedExposureFactsPort,
+  runMigrations,
+} from '../../../src/infrastructure/database/index.js';
 import {
   createPostgresReplicaStore,
+  createPostgresSyncBootstrapSnapshotApplication,
   createPostgresSyncConflictResolutionApplication,
   createPostgresSyncPullReadPort,
   createPostgresSyncPushApplication,
@@ -46,6 +51,7 @@ import { registerSyncPushRoutes } from '../../../src/transport/colp-sync/sync-pu
 import { registerSyncConflictRoutes } from '../../../src/transport/colp-sync/sync-conflict-routes.js';
 import { registerSyncPullRoutes } from '../../../src/transport/colp-sync/sync-pull-routes.js';
 import { registerSyncSessionRoutes } from '../../../src/transport/colp-sync/sync-session-routes.js';
+import { registerSyncSnapshotRoutes } from '../../../src/transport/colp-sync/sync-snapshot-routes.js';
 import {
   canonicalSyncSequenceDigest,
   canonicalSyncSequenceResultDigest,
@@ -53,6 +59,11 @@ import {
   SyncConflictResolutionError,
 } from '../../../src/modules/sync/index.js';
 import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-update.js';
+import { syncNodeCreatePushRequest } from '../../fixtures/phase3/sync-push-admission.js';
+import { createPostgresProductSyncCenterUnitOfWork } from '../../../src/infrastructure/sync/product-sync-center-postgres.js';
+import { encryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
+import { decryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-private-payload.js';
+import { stableJson } from '../../../src/infrastructure/sync/sync-conflict-json.js';
 import { syncNodeMovePushRequest } from '../../fixtures/phase3/sync-node-move.js';
 import { syncNodeDeletePushRequest } from '../../fixtures/phase3/sync-node-delete.js';
 import { observeSubtree } from '../../support/subtree-observation.js';
@@ -188,6 +199,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
   async function context(
     role: 'owner' | 'editor' | 'viewer' = 'owner',
     protocolVersion: '0.1' | '0.2' = '0.1',
+    options: { readonly bootstrap?: boolean } = {},
   ) {
     const suffix = randomUUID();
     const accountId = role === 'owner' ? ACCOUNT : `p3-13-${role}-${suffix}`;
@@ -228,7 +240,8 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       credential, idempotencyKey: `p3-13-session-${suffix}`, requestFingerprint: `p3-13-fingerprint-${suffix}`,
       collectionId: COLLECTION, replicaId: replica.replicaId,
       expectedLeaseGeneration: replica.leaseGeneration, expectedLifecycleRevision: replica.lifecycleRevision,
-      binding: replica.binding, requestedScopes: role === 'viewer' ? ['sync:pull'] : ['sync:push', 'sync:pull'], origin: ORIGIN,
+      binding: replica.binding, requestedScopes: role === 'viewer' ? ['sync:pull']
+        : options.bootstrap ? ['sync:bootstrap', 'sync:push', 'sync:pull'] : ['sync:push', 'sync:pull'], origin: ORIGIN,
       protocolVersion,
     });
     return { credential, replica, issuer, session: issued.session };
@@ -304,6 +317,19 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       responseBudgetBytes: 262_144, requestTimeoutMs: 5_000, recommendedPullAfterSeconds: 30,
       allowInsecureLoopback: true,
     });
+    registerSyncSnapshotRoutes(app, {
+      path: '/private-entry/bootstrap-snapshot', allowedOrigins: [ORIGIN],
+      credentialVerifier: { async verify({ authorization }) {
+        if (authorization !== AUTHORIZATION) throw new Error('invalid credential');
+        return value.credential;
+      } },
+      application: createPostgresSyncBootstrapSnapshotApplication(isolated.runtime, {
+        cursorSecret: Buffer.alloc(32, 93), cursorKeyId: 'empty-title-snapshot-v1', cursorTtlMs: 300_000,
+        pullCursorKeyring: pullKeys,
+        attachmentExposure: createAttachmentExposurePolicyAdapter(createPostgresSharedExposureFactsPort(isolated.runtime)),
+      }),
+      rateLimit: { maxRequests: 100, windowMs: 60_000 }, allowInsecureLoopback: true,
+    });
     app.addHook('onClose', async () => pullKeys.destroy());
     app.get('/.well-known/collection-protocol', async () => manifestFor(app));
     await app.listen({ host: '127.0.0.1', port: 0 });
@@ -349,25 +375,71 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     `, [replicaId, COLLECTION, nodeId])).rows[0];
   }
 
+  async function pulledOperationNode(operationId: string) {
+    const receiver = await context('owner', '0.2');
+    const ordinal = (await isolated.runtime.pool.query('select commit_ordinal from operations where operation_id=$1',
+      [operationId])).rows[0].commit_ordinal;
+    const predecessor = (await isolated.runtime.pool.query<{
+      commit_ordinal: string; stream_kind: number; stable_id: string;
+    }>(`select commit_ordinal::text, stream_kind, stable_id from (
+      select commit_ordinal,sync_stream_kind stream_kind,operation_id stable_id from operations
+      where collection_id=$1 and sync_wire_present
+      union all
+      select commit_ordinal,sync_stream_kind stream_kind,conflict_id stable_id from sync_conflicts
+      where collection_id=$1
+    ) stream where commit_ordinal < $2
+      order by stream.commit_ordinal desc,stream_kind desc,stable_id collate "C" desc limit 1`,
+    [COLLECTION, ordinal])).rows[0];
+    const keys = createSyncPullCursorKeyring({
+      active: { id: 'metadata-regression-pull', secret: Buffer.alloc(32, 92).toString('base64') },
+      retained: [], ttlMs: 60_000,
+    });
+    try {
+      const cursor = keys.sign({ replicaId: receiver.replica.replicaId, collectionId: COLLECTION,
+        leaseGeneration: BigInt(receiver.replica.leaseGeneration).toString(), sessionId: receiver.session.sessionId,
+        principalId: ACCOUNT, protocolVersion: '0.2', policyRevision: 'policy-r1',
+        purgeBoundary: { commitOrdinal: '0', streamKind: 'operation', stableId: '' }, limit: 1,
+        tuple: predecessor ? { commitOrdinal: predecessor.commit_ordinal,
+          streamKind: predecessor.stream_kind === 0 ? 'operation' : 'conflict', stableId: predecessor.stable_id }
+          : { commitOrdinal: '0', streamKind: 'operation', stableId: '' },
+      });
+      const page = await createPostgresSyncPullReadPort(isolated.runtime.db, keys).read({ origin: ORIGIN,
+        credential: receiver.credential, sessionId: receiver.session.sessionId, collectionId: COLLECTION,
+        replicaId: receiver.replica.replicaId, cursor, limit: 1 });
+      assert.ok(!('recoveryRequired' in page));
+      const event = page.events.find(item => item.kind === 'operation' && item.operation.opId === operationId);
+      assert.ok(event && event.kind === 'operation' && 'effect' in event);
+      assert.doesNotThrow(() => validateAuthoritativePullEvent(event as never, '0.2'));
+      assert.ok('node' in event.effect);
+      return event.effect.node;
+    } finally { keys.destroy(); }
+  }
+
   async function openConflict(input: {
     readonly kind?: NodeKind;
     readonly base?: Record<string, unknown>;
     readonly current?: Record<string, unknown>;
     readonly incoming?: Record<string, unknown>;
+    readonly claimedBase?: Record<string, unknown>;
+    readonly unavailableBase?: boolean;
+    readonly nodeUrl?: string;
   } = {}) {
     const kind = input.kind ?? 'bookmark';
     const base = input.base ?? { title: 'P3-18 base' };
     const node = await seedNode(kind, {
       title: kind === 'separator' ? undefined : String(base.title ?? 'P3-18 base'),
-      url: kind === 'bookmark' ? String(base.url ?? 'https://example.test/p3-18-base') : undefined,
+      url: kind === 'bookmark' ? input.nodeUrl ?? String(base.url ?? 'https://example.test/p3-18-base') : undefined,
+      description: typeof base.description === 'string' ? base.description : null,
+      extensions: (base.extensions ?? {}) as Record<string, unknown>,
     });
     await setCurrent(node, input.current ?? { title: 'P3-18 server' });
     const value = await context();
     const server = await start(value);
     const request = syncNodeUpdatePushRequest({
       sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
-      collectionId: COLLECTION, targetId: node.id, baseRevision: node.revision,
-      opId: `p3-18-conflict-${randomUUID()}`, base,
+      collectionId: COLLECTION, targetId: node.id,
+      baseRevision: input.unavailableBase ? `unavailable-${randomUUID()}` : node.revision,
+      opId: `p3-18-conflict-${randomUUID()}`, base: input.claimedBase ?? base,
       value: input.incoming ?? { title: 'P3-18 incoming' },
     });
     const response = await blackBox(server.origin).push({
@@ -523,7 +595,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     opened: {
       readonly value: Awaited<ReturnType<typeof context>>;
       readonly conflictId: string;
-      readonly revision: 'conflict-r1';
+      readonly revision: string;
     },
     request: ConflictResolutionRequest,
     idempotencyKey = `p3-18-resolve-${randomUUID()}`,
@@ -617,6 +689,306 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     }
     assert.equal(new Set(ordered.map((row) => row.private_iv)).size, ordered.length);
     recordPhase3SyncPushScenario('typed_update');
+  });
+
+  test('a Push/Pull session cannot bootstrap a Snapshot without its separate grant', async () => {
+    const value = await context('owner', '0.2'), server = await start(value);
+    assert.equal(value.session.authorizationScopes.includes('sync:bootstrap'), false);
+    await assert.rejects(blackBox(server.origin).snapshot({ sessionId: value.session.sessionId, limit: 100 }),
+      /syncSnapshot returned unexpected status 404 \(resource_not_found\)/u);
+    const snapshots = await isolated.runtime.pool.query(
+      'select count(*)::int count from sync_bootstrap_snapshots where session_id=$1', [value.session.sessionId]);
+    assert.equal(snapshots.rows[0].count, 0);
+  });
+
+  test('favicon-only bookmark creation survives real Snapshot, Pull, URL update, receipt and replay with its exact empty title', async () => {
+    // Snapshot has its own grant. The ordinary Push/Pull fixture deliberately
+    // lacks sync:bootstrap and must not acquire Snapshot authority implicitly.
+    const value = await context('owner', '0.2', { bootstrap: true }), server = await start(value);
+    assert.ok(value.session.authorizationScopes.includes('sync:bootstrap'));
+    const client = blackBox(server.origin);
+    const createRequest = syncNodeCreatePushRequest({
+      sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+      collectionId: COLLECTION, parentId: ROOT, opId: `favicon-create-${randomUUID()}`,
+      node: { kind: 'bookmark', title: '', url: 'https://example.test/favicon-before' },
+    });
+    const createKey = `favicon-create-${randomUUID()}`;
+    const created = await client.push({ idempotencyKey: createKey, request: createRequest });
+    assert.equal(created.status, 200);
+    const appliedCreate = result(created.body).results[0]!;
+    assert.equal(appliedCreate.status, 'applied');
+    assert.ok(appliedCreate.targetId);
+    assert.ok(appliedCreate.revision);
+    let snapshot = await client.snapshot({ sessionId: value.session.sessionId, limit: 100 });
+    assert.equal(snapshot.protocolVersion, '0.2');
+    const snapshotId = snapshot.snapshotId;
+    const snapshotNodes = [...snapshot.nodes];
+    const seenPages = new Set<string>();
+    while (snapshot.page?.hasMore) {
+      const pageCursor = snapshot.page.nextCursor;
+      assert.ok(pageCursor);
+      assert.equal(seenPages.has(pageCursor), false, 'Snapshot pagination must make progress');
+      seenPages.add(pageCursor);
+      snapshot = await client.snapshot({ sessionId: value.session.sessionId, limit: 100, pageCursor });
+      assert.equal(snapshot.snapshotId, snapshotId);
+      snapshotNodes.push(...snapshot.nodes);
+    }
+    const snapshotNode = snapshotNodes.find(node => node.id === appliedCreate.targetId);
+    assert.ok(snapshotNode && snapshotNode.kind === 'bookmark');
+    assert.equal(snapshotNode.title, '');
+    assert.equal(snapshotNode.url, 'https://example.test/favicon-before');
+    assert.ok(snapshot.syncCursor);
+    const createdPullNode = await pulledOperationNode(createRequest.operations[0]!.opId);
+    assert.equal(createdPullNode.title, '');
+    assert.equal(createdPullNode.url, snapshotNode.url);
+    const createdFacts = await facts(value.replica.replicaId, appliedCreate.targetId);
+    assert.equal(createdFacts.node.title, '');
+    assert.equal(createdFacts.node.payload_json.title, '');
+    assert.deepEqual(createdFacts.receipt, created.body);
+    assert.deepEqual((await client.push({ idempotencyKey: createKey, request: createRequest })).body, created.body);
+    assert.deepEqual(await facts(value.replica.replicaId, appliedCreate.targetId), createdFacts);
+    const request = syncNodeUpdatePushRequest({
+      sessionId: value.session.sessionId, replicaId: value.replica.replicaId, sequence: 2,
+      collectionId: COLLECTION, targetId: appliedCreate.targetId, baseRevision: appliedCreate.revision,
+      opId: `favicon-update-${randomUUID()}`, base: { url: 'https://example.test/favicon-before' },
+      value: { url: 'https://example.test/favicon-after' },
+    });
+    const idempotencyKey = `favicon-update-${randomUUID()}`;
+    const updated = await client.push({ idempotencyKey, request });
+    assert.equal(updated.status, 200);
+    assert.equal(result(updated.body).results[0]?.status, 'applied');
+    const after = await facts(value.replica.replicaId, appliedCreate.targetId);
+    assert.equal(after.node.title, '');
+    assert.equal(after.node.payload_json.title, '');
+    assert.equal(after.node.payload_json.url, 'https://example.test/favicon-after');
+    const effects = await isolated.runtime.pool.query(`select effect_json from sync_operation_effects where operation_id=$1`, [request.operations[0]!.opId]);
+    assert.equal(effects.rows[0].effect_json.node.title, '');
+    assert.deepEqual(after.receipt, updated.body);
+    const pulled = await client.pull({ sessionId: value.session.sessionId, cursor: snapshot.syncCursor, limit: 100 });
+    const event = pulled.events.find(item => item.kind === 'operation' && item.operation.opId === request.operations[0]!.opId);
+    assert.ok(event && event.kind === 'operation' && 'effect' in event);
+    assert.doesNotThrow(() => validateAuthoritativePullEvent(event as never, '0.2'));
+    assert.ok('node' in event.effect);
+    assert.deepEqual(event.effect, effects.rows[0].effect_json);
+    assert.equal(event.effect.node.title, '');
+    assert.equal(event.effect.node.url, 'https://example.test/favicon-after');
+    const replay = await client.push({ idempotencyKey, request });
+    assert.equal(replay.status, 200);
+    assert.deepEqual(replay.body, updated.body);
+    assert.deepEqual(await facts(value.replica.replicaId, appliedCreate.targetId), after);
+  });
+
+  test('empty folder titles are still rejected before create or update consumes a sequence or mutates canonical state', async () => {
+    const value = await context(), server = await start(value);
+    const folder = await seedNode('folder', { title: 'Keep the folder name' });
+    const before = await facts(value.replica.replicaId, folder.id);
+    const requests = [
+      syncNodeCreatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, parentId: ROOT, opId: `empty-folder-create-${randomUUID()}`,
+        node: { kind: 'folder', title: '' } }),
+      syncNodeUpdatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, targetId: folder.id, baseRevision: folder.revision,
+        opId: `empty-folder-update-${randomUUID()}`, base: { title: 'Keep the folder name' }, value: { title: '' } }),
+    ];
+    for (const request of requests) {
+      // Send the invalid wire document to the real route, bypassing only the
+      // black-box client's local preflight validator, never server validation.
+      const response = await server.app.inject({ method: 'POST', url: '/private-entry/canonical-update',
+        headers: { authorization: AUTHORIZATION, origin: ORIGIN, 'content-type': 'application/json',
+          'idempotency-key': `empty-folder-${randomUUID()}` }, payload: request });
+      assert.equal(response.statusCode, 422, response.body);
+      assert.equal(response.json<Problem>().code, 'invalid_document');
+      assert.deepEqual(await facts(value.replica.replicaId, folder.id), before);
+      assert.equal((await isolated.runtime.pool.query(
+        'select count(*)::int count from sync_operation_effects where operation_id=$1',
+        [request.operations[0]!.opId])).rows[0].count, 0);
+    }
+  });
+
+  test('an explicit empty bookmark title replaces a previous name in canonical content, receipt and authoritative Pull', async () => {
+    const node = await seedNode('bookmark', { title: 'Name to clear' });
+    const value = await context('owner', '0.2'), server = await start(value);
+    const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId,
+      replicaId: value.replica.replicaId, collectionId: COLLECTION, targetId: node.id,
+      baseRevision: node.revision, opId: `clear-bookmark-title-${randomUUID()}`,
+      base: { title: 'Name to clear' }, value: { title: '' } });
+    const idempotencyKey = `clear-bookmark-title-${randomUUID()}`;
+    const updated = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(updated.status, 200);
+    assert.equal(result(updated.body).results[0]?.status, 'applied');
+    assert.equal(result(updated.body).results[0]?.transform?.title, '');
+    const pulled = await pulledOperationNode(request.operations[0]!.opId);
+    const after = await facts(value.replica.replicaId, node.id);
+    const effect = (await isolated.runtime.pool.query(
+      'select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    assert.equal(after.node.title, '');
+    for (const content of [after.node.payload_json, effect.node, pulled]) {
+      assert.equal(content.title, '');
+      assert.equal(content.url, node.payload.url);
+    }
+    assert.deepEqual(after.receipt, updated.body);
+    assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, updated.body);
+    assert.deepEqual(await facts(value.replica.replicaId, node.id), after);
+  });
+
+  test('a browser URL-only edit clears old metadata on a bookmark created by a hash-aware peer', async () => {
+    const value = await context(), server = await start(value);
+    const url = 'https://example.test/hashed-before';
+    const urlHash = `sha-256=:${createHash('sha256').update(url).digest('base64')}:`;
+    const created = await blackBox(server.origin).push({ idempotencyKey: `hash-create-${randomUUID()}`,
+      request: syncNodeCreatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, parentId: ROOT, opId: `hash-create-${randomUUID()}`,
+        node: { kind: 'bookmark', title: 'Hashed peer bookmark', url, urlHash,
+          canonicalUrl: 'https://canonical.test/hashed-before' as never } }) });
+    assert.equal(created.status, 200);
+    const target = result(created.body).results[0]!;
+    assert.equal((await facts(value.replica.replicaId, target.targetId!)).node.payload_json.urlHash, urlHash);
+    const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+      collectionId: COLLECTION, sequence: 2, targetId: target.targetId!, baseRevision: target.revision!,
+      opId: `hash-edit-${randomUUID()}`, base: { url }, value: { url: 'https://example.test/hashed-after#section' } });
+    const idempotencyKey = `hash-edit-${randomUUID()}`;
+    const updated = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(updated.status, 200);
+    assert.equal(result(updated.body).results[0]?.status, 'applied');
+    const after = await facts(value.replica.replicaId, target.targetId!);
+    assert.equal(after.node.url, 'https://example.test/hashed-after#section');
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    for (const payload of [after.node.payload_json, effect.node]) {
+      assert.equal(Object.hasOwn(payload, 'urlHash'), false);
+      assert.equal(Object.hasOwn(payload, 'canonicalUrl'), false);
+      assert.equal(payload.url, after.node.url);
+    }
+    assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, updated.body);
+    assert.deepEqual(await facts(value.replica.replicaId, target.targetId!), after);
+  });
+
+  test.each(['valid', 'invalid', 'clear', 'current-added'] as const)(
+    'equivalent browser URL edit handles %s hash through real Push, canonical effect and replay', async choice => {
+      const url = 'https://example.test/equivalent', spelling = 'HTTPS://EXAMPLE.TEST:443/equivalent';
+      const hash = (value: string) => `sha-256=:${createHash('sha256').update(value).digest('base64')}:`;
+      const seeded = await seedNode('bookmark', { url });
+      const current = await setCurrent(seeded, { urlHash: hash(url) });
+      const base = choice === 'current-added' ? seeded : current;
+      const value = await context(), server = await start(value);
+      const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId,
+        replicaId: value.replica.replicaId, collectionId: COLLECTION, targetId: base.id,
+        baseRevision: base.revision, opId: `equivalent-hash-${randomUUID()}`,
+        base: { url, urlHash: choice === 'current-added' ? null : hash(url) },
+        value: { url: spelling, urlHash: choice === 'clear' || choice === 'current-added' ? null
+          : hash(choice === 'valid' ? spelling : 'https://invalid.test/') } });
+      const idempotencyKey = `equivalent-hash-${randomUUID()}`;
+      const before = await facts(value.replica.replicaId, base.id);
+      const response = await blackBox(server.origin).push({ idempotencyKey, request });
+      if (choice === 'invalid') {
+        assert.notEqual(response.status, 200);
+        assert.equal((response.body as Problem).code, 'invalid_document');
+        assert.deepEqual(await facts(value.replica.replicaId, base.id), before);
+        assert.equal((await isolated.runtime.pool.query(
+          'select count(*)::int count from sync_operation_effects where operation_id=$1',
+          [request.operations[0]!.opId])).rows[0].count, 0);
+        return;
+      }
+      assert.equal(response.status, 200);
+      assert.equal(result(response.body).results[0]!.status, choice === 'current-added' ? 'rebased' : 'applied');
+      const after = await facts(value.replica.replicaId, base.id);
+      const effect = (await isolated.runtime.pool.query(
+        'select effect_json from sync_operation_effects where operation_id=$1', [request.operations[0]!.opId])).rows[0].effect_json;
+      assert.equal(after.node.url, url);
+      for (const content of [after.node.payload_json, effect.node]) {
+        assert.equal(content.url, url);
+        assert.equal(content.urlHash, choice === 'clear' ? undefined : hash(url));
+      }
+      assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, response.body);
+      assert.deepEqual(await facts(value.replica.replicaId, base.id), after);
+    });
+
+  test('a real URL edit clears Current-only metadata in canonical content, receipt transform and authoritative Pull', async () => {
+    const url = 'https://example.test/current-only-before', nextUrl = 'https://example.test/current-only-after';
+    const seeded = await seedNode('bookmark', { url });
+    await setCurrent(seeded, { urlHash: `sha-256=:${createHash('sha256').update(url).digest('base64')}:`,
+      canonicalUrl: 'https://canonical.test/current-only-before' });
+    const value = await context(), server = await start(value);
+    const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId,
+      replicaId: value.replica.replicaId, collectionId: COLLECTION, targetId: seeded.id,
+      baseRevision: seeded.revision, opId: `current-only-metadata-${randomUUID()}`,
+      base: { url, urlHash: null, canonicalUrl: null }, value: { url: nextUrl, urlHash: null, canonicalUrl: null } });
+    const idempotencyKey = `current-only-metadata-${randomUUID()}`;
+    const response = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const applied = result(response.body).results[0]!;
+    assert.equal(applied.status, 'rebased');
+    assert.deepEqual(applied.transform, { url: nextUrl, urlHash: null, canonicalUrl: null });
+    const after = await facts(value.replica.replicaId, seeded.id);
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    const pulled = await pulledOperationNode(request.operations[0]!.opId);
+    for (const content of [after.node.payload_json, effect.node, pulled]) {
+      assert.equal(content.url, nextUrl);
+      assert.equal(Object.hasOwn(content, 'urlHash'), false);
+      assert.equal(Object.hasOwn(content, 'canonicalUrl'), false);
+    }
+    const beforeReplay = await facts(value.replica.replicaId, seeded.id);
+    assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, response.body);
+    assert.deepEqual(await facts(value.replica.replicaId, seeded.id), beforeReplay);
+  });
+
+  test('both recovers a real URL edit without binding Current-only metadata to its new URL', async () => {
+    const url = 'https://example.test/current-copy-before', nextUrl = 'https://example.test/current-copy-after';
+    const opened = await openConflict({ base: { title: 'Base', url, urlHash: null, canonicalUrl: null },
+      current: { title: 'Server', urlHash: `sha-256=:${createHash('sha256').update(url).digest('base64')}:`,
+        canonicalUrl: 'https://canonical.test/current-copy-before' },
+      incoming: { title: 'Incoming', url: nextUrl, urlHash: null, canonicalUrl: null } });
+    const before = (await facts(opened.value.replica.replicaId, opened.node.id)).node;
+    const app = resolver(opened.value);
+    const request = resolveInput(opened, { resolution: 'both', baseConflictRevision: opened.revision });
+    const resolved = await app.resolve(request);
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [resolved.operation.opId])).rows[0].effect_json;
+    const row = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [effect.node.id])).rows[0];
+    const pulled = await pulledOperationNode(resolved.operation.opId);
+    for (const content of [row.payload_json, effect.node, pulled]) {
+      assert.equal(content.url, nextUrl);
+      assert.equal(Object.hasOwn(content, 'urlHash'), false);
+      assert.equal(Object.hasOwn(content, 'canonicalUrl'), false);
+    }
+    assert.notEqual(effect.node.id, opened.node.id);
+    assert.deepEqual((await facts(opened.value.replica.replicaId, opened.node.id)).node, before);
+    assert.deepEqual(await app.resolve(request), resolved);
+  });
+
+  test.each([false, true])('a real metadata-only Push preserves Current URL and its enrichment in receipt and Pull (enriched=%s)', async enriched => {
+    const url = 'https://example.test/metadata-source', currentUrl = 'https://example.test/metadata-current';
+    const hash = (value: string) => `sha-256=:${createHash('sha256').update(value).digest('base64')}:`;
+    const seeded = await seedNode('bookmark', { url });
+    await setCurrent(seeded, { url: currentUrl, ...(enriched ? { urlHash: hash(currentUrl),
+      canonicalUrl: 'https://canonical.test/metadata-current' } : {}) });
+    const value = await context(), server = await start(value);
+    const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId,
+      replicaId: value.replica.replicaId, collectionId: COLLECTION, targetId: seeded.id,
+      baseRevision: seeded.revision, opId: `metadata-only-${randomUUID()}`,
+      base: { urlHash: null, canonicalUrl: null },
+      value: { urlHash: hash(url), canonicalUrl: 'https://canonical.test/metadata-source' } });
+    const idempotencyKey = `metadata-only-${randomUUID()}`;
+    const response = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const applied = result(response.body).results[0]!;
+    assert.equal(applied.status, 'rebased');
+    assert.deepEqual(applied.transform, { urlHash: enriched ? hash(currentUrl) : null,
+      canonicalUrl: enriched ? 'https://canonical.test/metadata-current' : null });
+    const row = (await facts(value.replica.replicaId, seeded.id)).node;
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    const pulled = await pulledOperationNode(request.operations[0]!.opId);
+    for (const content of [row.payload_json, effect.node, pulled]) {
+      assert.equal(content.url, currentUrl);
+      assert.equal(content.urlHash, enriched ? hash(currentUrl) : undefined);
+      assert.equal(content.canonicalUrl, enriched ? 'https://canonical.test/metadata-current' : undefined);
+    }
+    const beforeReplay = await facts(value.replica.replicaId, seeded.id);
+    assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, response.body);
+    assert.deepEqual(await facts(value.replica.replicaId, seeded.id), beforeReplay);
   });
 
   test('browser tag sync removes only observed members, preserves concurrent additions and exactly replays its receipt', async () => {
@@ -1698,6 +2070,86 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       where root_target_id=$1`, [folder.id])).rows[0].count, members.length);
   }, 20_000);
 
+  test.each(['bookmark', 'folder', 'separator'] as const)(
+    'preserves an offline %s edit after its parent subtree was deleted and recovers a separate copy', async kind => {
+      const folder = await seedNode('folder');
+      const initial = await seedNode(kind, { parentId: folder.id });
+      const node = kind === 'bookmark' ? await setCurrent(initial, {
+        canonicalUrl: 'https://canonical.test/deleted-before',
+        urlHash: `sha-256=:${createHash('sha256').update(initial.payload.url as string).digest('base64')}:`,
+      }) : initial;
+      const offline = await context();
+      const deleter = await context();
+      const deleteServer = await start(deleter);
+      const deletion = await blackBox(deleteServer.origin).push({ idempotencyKey: `delete-parent-${randomUUID()}`,
+        request: syncNodeDeletePushRequest({ sessionId: deleter.session.sessionId,
+          replicaId: deleter.replica.replicaId, collectionId: COLLECTION, targetId: folder.id,
+          baseRevision: folder.revision, subtree: true, opId: `delete-parent-${randomUUID()}`,
+          source: await observeSubtree(isolated.runtime.db, folder.id) }) });
+      assert.equal(deletion.status, 200);
+      const server = await start(offline);
+      const base = kind === 'bookmark' ? { title: node.payload.title, url: node.payload.url }
+        : kind === 'folder' ? { title: node.payload.title } : { description: null };
+      const incoming = kind === 'bookmark' ? { title: 'Unique offline edit', url: 'https://example.test/offline-unique' }
+        : kind === 'folder' ? { title: 'Unique offline edit' } : { description: 'Unique offline edit' };
+      const response = await blackBox(server.origin).push({ idempotencyKey: `offline-${randomUUID()}`,
+        request: syncNodeUpdatePushRequest({ sessionId: offline.session.sessionId,
+          replicaId: offline.replica.replicaId, collectionId: COLLECTION, targetId: node.id,
+          baseRevision: node.revision, opId: `offline-${randomUUID()}`, base, value: incoming }) });
+      assert.equal(response.status, 200);
+      assert.equal(result(response.body).results[0]!.status, 'conflicted');
+      const conflictId = result(response.body).results[0]!.conflictId!;
+      const opened = { node, value: offline, conflictId, revision: 'conflict-r1' as const };
+      const request = resolveInput(opened, { resolution: 'incoming', baseConflictRevision: opened.revision });
+      const app = resolver(offline);
+      const resolved = await app.resolve(request);
+      assert.equal(resolved.operation.type, 'create_node');
+      const effect = (await isolated.runtime.pool.query(
+        'select effect_json from sync_operation_effects where operation_id=$1', [resolved.operation.opId],
+      )).rows[0].effect_json;
+      assert.notEqual(effect.node.id, node.id);
+      assert.equal(effect.node.kind, kind);
+      for (const [field, value] of Object.entries(incoming)) assert.deepEqual(effect.node[field], value);
+      if (kind === 'bookmark') {
+        assert.equal(Object.hasOwn(effect.node, 'urlHash'), false);
+        assert.equal(Object.hasOwn(effect.node, 'canonicalUrl'), false);
+      }
+      const recovered = (await isolated.runtime.pool.query(`select child.deleted_at,parent.payload_json->>'folderRole' as folder_role
+        from nodes child join nodes parent on parent.id=child.parent_id where child.id=$1`, [effect.node.id])).rows[0];
+      assert.equal(recovered.deleted_at, null);
+      assert.equal(recovered.folder_role, 'recovered');
+      const tombstoned = (await isolated.runtime.pool.query(
+        'select count(*)::int count from nodes where id=any($1::text[]) and deleted_at is not null', [[folder.id, node.id]],
+      )).rows[0].count;
+      assert.equal(tombstoned, 2);
+      assert.deepEqual(await app.resolve(request), resolved);
+    });
+
+  test('a deleted managed ancestor still forbids offline conflict admission without both write capabilities', async () => {
+    const managed = await setCurrent(await seedNode('folder'), { folderRole: 'managed-bookmarks' });
+    const child = await seedNode('bookmark', { parentId: managed.id });
+    const value = await context();
+    const deleter = await context();
+    const deleteServer = await start(deleter, { managedBookmarkWrites: true });
+    const deletion = await blackBox(deleteServer.origin).push({ idempotencyKey: `delete-managed-parent-${randomUUID()}`,
+      request: syncNodeDeletePushRequest({ sessionId: deleter.session.sessionId,
+        replicaId: deleter.replica.replicaId, collectionId: COLLECTION, targetId: managed.id,
+        baseRevision: managed.revision, subtree: true, opId: `delete-managed-parent-${randomUUID()}`,
+        source: await observeSubtree(isolated.runtime.db, managed.id) }) });
+    assert.equal(deletion.status, 200);
+    assert.equal((await isolated.runtime.pool.query(`select count(*)::int count from sync_node_tombstones
+      where target_id=any($1::text[])`, [[managed.id, child.id]])).rows[0].count, 2);
+    const server = await start(value);
+    const before = await facts(value.replica.replicaId, child.id);
+    const response = await blackBox(server.origin).push({ idempotencyKey: `deleted-managed-${randomUUID()}`,
+      request: syncNodeUpdatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, targetId: child.id, baseRevision: child.revision,
+        opId: `deleted-managed-${randomUUID()}`, base: { title: child.payload.title as string },
+        value: { title: 'Unauthorized recovery' } }) });
+    assert.equal((response.body as Problem).code, 'node_read_only');
+    assert.deepEqual(await facts(value.replica.replicaId, child.id), before);
+  });
+
   test('P3-15 rejects stale/non-empty/oversized deletes and keeps the complete old tree readable', async () => {
     const folder = await seedNode('folder', { title: 'Protected subtree' });
     const child = await seedNode('bookmark', { title: 'Child', url: 'https://example.test/child', parentId: folder.id });
@@ -1880,20 +2332,437 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     }
   }, 30_000);
 
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'retains a simultaneous independent URL edit through %s conflict resolution and replay', async resolution => {
+      const opened = await openConflict({
+        base: { title: 'Base', url: 'https://example.test/before' },
+        current: { title: 'Server', canonicalUrl: 'https://canonical.test/before',
+          urlHash: `sha-256=:${createHash('sha256').update('https://example.test/before').digest('base64')}:` },
+        incoming: { title: 'Incoming', url: 'https://example.test/after' },
+      });
+      const request = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: 'Custom' } : {}) });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query(
+        'select effect_json from sync_operation_effects where operation_id=$1', [resolved.operation.opId],
+      )).rows[0].effect_json;
+      assert.equal(effect.node.url, 'https://example.test/after');
+      assert.equal(effect.node.title, resolution === 'server' ? 'Server'
+        : resolution === 'custom' ? 'Custom' : 'Incoming');
+      const canonical = (await isolated.runtime.pool.query(
+        'select url,payload_json from nodes where id=$1', [effect.node.id],
+      )).rows[0];
+      assert.equal(canonical.url, effect.node.url);
+      assert.equal(canonical.payload_json.url, effect.node.url);
+      for (const payload of [canonical.payload_json, effect.node]) {
+        assert.equal(Object.hasOwn(payload, 'urlHash'), false);
+        assert.equal(Object.hasOwn(payload, 'canonicalUrl'), false);
+      }
+      if (resolution === 'both') {
+        assert.notEqual(effect.node.id, opened.node.id);
+        const original = (await isolated.runtime.pool.query(
+          'select title,url from nodes where id=$1', [opened.node.id],
+        )).rows[0];
+        assert.deepEqual(original, { title: 'Server', url: 'https://example.test/before' });
+      }
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.equal((await isolated.runtime.pool.query(
+        'select count(*)::int count from sync_operation_effects where operation_id=$1', [resolved.operation.opId],
+      )).rows[0].count, 1);
+    });
+
+  test.each(['incoming', 'custom', 'custom-remove'] as const)(
+    'persists the %s extensions choice, independent local title and remote note in effect and exact replay', async choice => {
+      const namespace = 'https://extensions.example/resolved';
+      const opened = await openConflict({
+        base: { title: 'Base title', extensions: { [namespace]: { value: 1 } } },
+        current: { description: 'Unrelated server note', extensions: { [namespace]: { value: 2 } } },
+        incoming: { title: 'Independent local title', extensions: { [namespace]: { value: 3 } } },
+      });
+      const extensions = choice === 'custom-remove' ? {} : { [namespace]: { value: choice === 'incoming' ? 3 : 4 } };
+      const command = resolveInput(opened, choice === 'incoming'
+        ? { resolution: 'incoming', baseConflictRevision: opened.revision }
+        : { resolution: 'custom', value: extensions, baseConflictRevision: opened.revision });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(command);
+      const row = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [opened.node.id])).rows[0];
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      for (const payload of [row.payload_json, effect.node]) {
+        assert.deepEqual(payload.extensions, extensions);
+        assert.equal(payload.title, 'Independent local title');
+        assert.equal(payload.description, 'Unrelated server note');
+      }
+      const after = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(await app.resolve(command), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+    });
+
+  test.each(['server', 'incoming', 'custom'] as const)(
+    '%s title resolution persists both independent extension namespaces', async resolution => {
+      const local = 'https://extensions.example/local', remote = 'https://extensions.example/remote';
+      const opened = await openConflict({ base: { title: 'Base', extensions: {} },
+        current: { title: 'Server', extensions: { [remote]: { value: 2 } } },
+        incoming: { title: 'Incoming', extensions: { [local]: { value: 1 } } } });
+      const command = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: 'Custom' } : {}) });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(command);
+      const row = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [opened.node.id])).rows[0];
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      for (const payload of [row.payload_json, effect.node]) {
+        assert.deepEqual(payload.extensions, { [local]: { value: 1 }, [remote]: { value: 2 } });
+        assert.equal(payload.title, resolution === 'server' ? 'Server' : resolution === 'custom' ? 'Custom' : 'Incoming');
+      }
+      assert.deepEqual(await app.resolve(command), resolved);
+    });
+
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    '%s namespace conflict keeps independent changes in canonical state, effect and exact receipt', async resolution => {
+      const ns = (name: string) => `https://extensions.example/${name}`;
+      const opened = await openConflict({
+        base: { extensions: { [ns('competing')]: 1, [ns('local-removal')]: 'local',
+          [ns('remote-removal')]: 'remote', [ns('null')]: 'old' } },
+        current: { extensions: { [ns('competing')]: 2, [ns('local-removal')]: 'local',
+          [ns('null')]: 'old', [ns('remote-addition')]: { source: 'server' } } },
+        incoming: { extensions: { [ns('competing')]: 3, [ns('remote-removal')]: 'remote',
+          [ns('null')]: null, [ns('local-addition')]: { source: 'browser' } } },
+      });
+      const request = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: { [ns('competing')]: 4 } } : {}) });
+      const app = resolver(opened.value);
+      const before = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1',
+        [opened.node.id])).rows[0].payload_json;
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      const canonical = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1',
+        [effect.node.id])).rows[0].payload_json;
+      const expected = { [ns('competing')]: resolution === 'server' ? 2 : resolution === 'custom' ? 4 : 3,
+        [ns('null')]: null, [ns('local-addition')]: { source: 'browser' },
+        [ns('remote-addition')]: { source: 'server' } };
+      for (const content of [canonical, effect.node]) assert.deepEqual(content.extensions, expected);
+      assert.equal(effect.kind, resolution === 'both' ? 'node_created' : 'node_content_updated');
+      if (resolution === 'both') {
+        assert.notEqual(effect.node.id, opened.node.id);
+        assert.deepEqual((await isolated.runtime.pool.query('select payload_json from nodes where id=$1',
+          [opened.node.id])).rows[0].payload_json, before);
+      }
+      const after = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+    });
+
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'an advertised %s URL decision keeps its own metadata in canonical content, receipt and Pull', async resolution => {
+      const baseUrl = 'https://example.test/url-choice-base', serverUrl = 'https://example.test/url-choice-server';
+      const incomingUrl = 'https://example.test/url-choice-incoming', customUrl = 'https://example.test/url-choice-custom';
+      const incomingHash = `sha-256=:${createHash('sha256').update(incomingUrl).digest('base64')}:`;
+      const opened = await openConflict({ base: { url: baseUrl, urlHash: null, canonicalUrl: null },
+        current: { url: serverUrl }, incoming: { url: incomingUrl, urlHash: incomingHash,
+          canonicalUrl: 'https://canonical.test/url-choice-incoming' } });
+      const immutable = (await isolated.runtime.pool.query(`select pull_wire_json,private_payload_digest,
+        private_payload_ciphertext,current_revision,conflict_type,conflicting_fields from sync_conflicts where conflict_id=$1`,
+      [opened.conflictId])).rows[0];
+      const decision = await advertisedDecision(opened.conflictId);
+      assert.deepEqual(immutable.conflicting_fields, ['/url']);
+      assert.ok(decision.allowedResolutions.includes(resolution));
+      const request = resolveInput({ ...opened, revision: decision.revision }, {
+        resolution, baseConflictRevision: decision.revision, ...(resolution === 'custom' ? { value: customUrl } : {}) });
+      const app = resolver(opened.value), resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      const row = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [effect.node.id])).rows[0];
+      const pulled = await pulledOperationNode(resolved.operation.opId);
+      const incomingSelected = resolution === 'incoming' || resolution === 'both';
+      for (const content of [row.payload_json, effect.node, pulled]) {
+        assert.equal(content.url, incomingSelected ? incomingUrl : resolution === 'server' ? serverUrl : customUrl);
+        assert.equal(content.urlHash, incomingSelected ? incomingHash : undefined);
+        assert.equal(content.canonicalUrl, incomingSelected ? 'https://canonical.test/url-choice-incoming' : undefined);
+      }
+      const beforeReplay = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), beforeReplay);
+      assert.deepEqual((await isolated.runtime.pool.query(`select pull_wire_json,private_payload_digest,
+        private_payload_ciphertext,current_revision,conflict_type,conflicting_fields from sync_conflicts where conflict_id=$1`,
+      [opened.conflictId])).rows[0], immutable);
+    });
+
+  test('a server title decision applies the retained URL edit without reauthoring Current-only URL metadata', async () => {
+    const url = 'https://example.test/title-choice-base', nextUrl = 'https://example.test/title-choice-incoming';
+    const opened = await openConflict({ base: { title: 'Base', url, urlHash: null, canonicalUrl: null },
+      current: { title: 'Server', urlHash: `sha-256=:${createHash('sha256').update(url).digest('base64')}:`,
+        canonicalUrl: 'https://canonical.test/title-choice-base' },
+      incoming: { title: 'Incoming', url: nextUrl, urlHash: null, canonicalUrl: null } });
+    const decision = await advertisedDecision(opened.conflictId);
+    assert.ok(decision.allowedResolutions.includes('server'));
+    const request = resolveInput({ ...opened, revision: decision.revision },
+      { resolution: 'server', baseConflictRevision: decision.revision });
+    const app = resolver(opened.value), resolved = await app.resolve(request);
+    const pulled = await pulledOperationNode(resolved.operation.opId);
+    const after = await facts(opened.value.replica.replicaId, opened.node.id);
+    for (const content of [after.node.payload_json, pulled]) {
+      assert.equal(content.title, 'Server');
+      assert.equal(content.url, nextUrl);
+      assert.equal(Object.hasOwn(content, 'urlHash'), false);
+      assert.equal(Object.hasOwn(content, 'canonicalUrl'), false);
+    }
+    assert.deepEqual(await app.resolve(request), resolved);
+    assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+  });
+
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'new and historical metadata-only conflicts execute the advertised %s choice after a real URL Push', async resolution => {
+      const url = 'https://example.test/retained-metadata-source', nextUrl = 'https://example.test/retained-metadata-current';
+      const hash = (value: string) => `sha-256=:${createHash('sha256').update(value).digest('base64')}:`;
+      for (const legacy of [false, true]) {
+        const opened = await openConflict({ nodeUrl: url, base: { title: 'Base', urlHash: null, canonicalUrl: null },
+          current: { title: 'Server' }, incoming: { title: 'Incoming', urlHash: hash(url),
+            canonicalUrl: 'https://canonical.test/retained-metadata-source' } });
+        const keyring = { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] };
+        const row = await isolated.runtime.db.selectFrom('sync_conflicts').selectAll()
+          .where('conflict_id', '=', opened.conflictId).executeTakeFirstOrThrow();
+        const binding = await isolated.runtime.db.selectFrom('sync_session_bindings').select('lease_generation')
+          .where('session_id', '=', row.session_id).executeTakeFirstOrThrow();
+        const invalid = (): never => { throw new Error('invalid private conflict fixture'); };
+        const privatePayload = decryptPrivatePayload(row, keyring, 'bookmark', binding.lease_generation, invalid);
+        assert.deepEqual(privatePayload.bookmarkUrlContext, { baseUrl: url });
+        for (const projection of [privatePayload.base, privatePayload.current, privatePayload.incoming]) {
+          assert.equal(Object.hasOwn(projection, 'url'), false, 'metadata-only refreshes do not author the URL');
+        }
+        if (legacy) {
+          const { bookmarkUrlContext: _context, ...oldPayload } = privatePayload;
+          const encrypted = encryptPrivatePayload(stableJson(oldPayload, invalid), keyring.active, {
+            collectionId: row.collection_id, replicaId: row.replica_id, leaseGeneration: binding.lease_generation.toString(),
+            sessionId: row.session_id, operationId: row.operation_id, targetId: row.target_id, conflictId: row.conflict_id,
+            commitOrdinal: row.commit_ordinal.toString(), conflictType: row.conflict_type,
+            conflictingFields: stableJson(row.conflicting_fields, invalid), nodeKind: 'bookmark',
+            baseRevision: row.base_revision, currentRevision: row.current_revision, keyVersion: String(row.private_payload_key_version),
+          });
+          await isolated.runtime.db.updateTable('sync_conflicts').set({ private_payload_ciphertext: encrypted.ciphertext,
+            private_payload_iv: encrypted.iv, private_payload_auth_tag: encrypted.authTag,
+            private_payload_digest: encrypted.digest }).where('conflict_id', '=', opened.conflictId).execute();
+        }
+        const immutable = (await isolated.runtime.pool.query(`select pull_wire_json,private_payload_digest,
+          private_payload_ciphertext,current_revision,conflict_type,conflicting_fields from sync_conflicts where conflict_id=$1`,
+        [opened.conflictId])).rows[0];
+        const initial = await advertisedDecision(opened.conflictId);
+        assert.ok(initial.allowedResolutions.includes(resolution));
+        const peer = await context(), peerServer = await start(peer);
+        const changed = await blackBox(peerServer.origin).push({ idempotencyKey: `metadata-url-change-${randomUUID()}`,
+          request: syncNodeUpdatePushRequest({ sessionId: peer.session.sessionId, replicaId: peer.replica.replicaId,
+            collectionId: COLLECTION, targetId: opened.node.id, baseRevision: row.current_revision,
+            opId: `metadata-url-change-${randomUUID()}`, base: { url, urlHash: null, canonicalUrl: null },
+            value: { url: nextUrl, urlHash: hash(nextUrl), canonicalUrl: 'https://canonical.test/retained-metadata-current' } }) });
+        assert.equal(changed.status, 200, JSON.stringify(changed.body));
+        assert.equal(result(changed.body).results[0]?.status, 'applied');
+        const app = resolver(opened.value), beforeStale = await facts(opened.value.replica.replicaId, opened.node.id);
+        await assert.rejects(() => app.resolve(resolveInput({ ...opened, revision: initial.revision }, {
+          resolution, baseConflictRevision: initial.revision, ...(resolution === 'custom' ? { value: 'Custom' } : {}) })),
+        error => error instanceof SyncConflictResolutionError && error.code === 'precondition_failed');
+        assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), beforeStale);
+        const decision = await advertisedDecision(opened.conflictId);
+        assert.notEqual(decision.revision, initial.revision);
+        assert.equal(decision.field, '/title');
+        assert.ok(decision.allowedResolutions.includes(resolution));
+        const request = resolveInput({ ...opened, revision: decision.revision }, {
+          resolution, baseConflictRevision: decision.revision, ...(resolution === 'custom' ? { value: 'Custom' } : {}) });
+        const resolved = await app.resolve(request);
+        if (resolution !== 'both') assert.equal(Object.hasOwn(resolved.operation.payload!.value!, 'url'), false);
+        const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+          [resolved.operation.opId])).rows[0].effect_json;
+        const canonical = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [effect.node.id])).rows[0].payload_json;
+        const pulled = await pulledOperationNode(resolved.operation.opId);
+        for (const content of [canonical, effect.node, pulled]) {
+          assert.equal(content.url, nextUrl);
+          assert.equal(content.urlHash, hash(nextUrl));
+          assert.equal(content.canonicalUrl, 'https://canonical.test/retained-metadata-current');
+          assert.equal(content.title, resolution === 'server' ? 'Server' : resolution === 'custom' ? 'Custom' : 'Incoming');
+        }
+        if (resolution === 'both') {
+          assert.notEqual(effect.node.id, opened.node.id);
+          assert.deepEqual((await facts(opened.value.replica.replicaId, opened.node.id)).node, beforeStale.node);
+        }
+        const beforeReplay = await facts(opened.value.replica.replicaId, opened.node.id);
+        assert.deepEqual(await app.resolve(request), resolved);
+        assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), beforeReplay);
+        assert.deepEqual((await isolated.runtime.pool.query(`select pull_wire_json,private_payload_digest,
+          private_payload_ciphertext,current_revision,conflict_type,conflicting_fields from sync_conflicts where conflict_id=$1`,
+        [opened.conflictId])).rows[0], immutable);
+      }
+    });
+
+  async function advertisedDecision(conflictId: string, managedBookmarkWrites = false) {
+    const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
+      cursorSecret: 'p3-actions-cursor-secret-at-least-thirty-two-characters',
+      conflictPayloadKeyring: { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] },
+      managedBookmarkWrites,
+    });
+    const page = await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 100 }));
+    const item = page.items.find(item => item.id === conflictId);
+    assert.ok(item, 'the conflict must be visible to its owner');
+    return item;
+  }
+
+  async function advertisedActions(conflictId: string) {
+    return (await advertisedDecision(conflictId)).allowedResolutions;
+  }
+
+  test.each(['server', 'incoming', 'custom'] as const)(
+    'a freshly advertised %s choice resolves a retained field that another real Push made competing', async resolution => {
+      const opened = await openConflict({ base: { title: 'Base', description: 'Base note' },
+        current: { title: 'Server' }, incoming: { title: 'Incoming', description: 'Incoming note' } });
+      const peer = await context(), server = await start(peer);
+      const current = (await isolated.runtime.pool.query('select resource_revision from nodes where id=$1',
+        [opened.node.id])).rows[0];
+      const changed = await blackBox(server.origin).push({ idempotencyKey: `new-field-${randomUUID()}`,
+        request: syncNodeUpdatePushRequest({ sessionId: peer.session.sessionId, replicaId: peer.replica.replicaId,
+          collectionId: COLLECTION, targetId: opened.node.id, baseRevision: current.resource_revision,
+          opId: `new-field-${randomUUID()}`, base: { description: 'Base note' }, value: { description: 'New server note' } }) });
+      assert.equal(changed.status, 200);
+      assert.equal(result(changed.body).results[0]?.status, 'applied');
+      const app = resolver(opened.value);
+      const before = await facts(opened.value.replica.replicaId, opened.node.id);
+      await assert.rejects(() => app.resolve(resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: 'Custom title' } : {}) })),
+      (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'precondition_failed');
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), before);
+      const decision = await advertisedDecision(opened.conflictId);
+      assert.notEqual(decision.revision, opened.revision);
+      assert.equal(decision.field, null);
+      assert.ok(decision.summary.current?.includes('New server note'));
+      const custom = { title: 'Custom title', description: 'Custom note' };
+      const request = resolveInput({ ...opened, revision: decision.revision }, {
+        resolution, baseConflictRevision: decision.revision, ...(resolution === 'custom' ? { value: custom } : {}) });
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      const canonical = (await facts(opened.value.replica.replicaId, opened.node.id)).node.payload_json;
+      for (const content of [canonical, effect.node]) {
+        assert.equal(content.title, resolution === 'server' ? 'Server' : resolution === 'incoming' ? 'Incoming' : custom.title);
+        assert.equal(content.description, resolution === 'server' ? 'New server note'
+          : resolution === 'incoming' ? 'Incoming note' : custom.description);
+      }
+      const after = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+    });
+
+  test.each(['server', 'incoming'] as const)(
+    'an open content conflict later deleted by real Push exposes an executable %s decision', async resolution => {
+      const opened = await openConflict();
+      const peer = await context(), server = await start(peer);
+      const current = (await isolated.runtime.pool.query('select resource_revision from nodes where id=$1',
+        [opened.node.id])).rows[0];
+      const deleted = await blackBox(server.origin).push({ idempotencyKey: `later-delete-${randomUUID()}`,
+        request: syncNodeDeletePushRequest({ sessionId: peer.session.sessionId, replicaId: peer.replica.replicaId,
+          collectionId: COLLECTION, targetId: opened.node.id, baseRevision: current.resource_revision,
+          opId: `later-delete-${randomUUID()}` }) });
+      assert.equal(deleted.status, 200, JSON.stringify(deleted.body));
+      assert.equal(result(deleted.body).results[0]?.status, 'applied');
+      const app = resolver(opened.value);
+      const before = await facts(opened.value.replica.replicaId, opened.node.id);
+      await assert.rejects(() => app.resolve(resolveInput(opened, { resolution, baseConflictRevision: opened.revision })),
+        (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'precondition_failed');
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), before);
+      const decision = await advertisedDecision(opened.conflictId);
+      assert.equal(decision.type, 'delete_update');
+      assert.deepEqual(decision.allowedResolutions, ['server', 'incoming']);
+      const request = resolveInput({ ...opened, revision: decision.revision }, { resolution, baseConflictRevision: decision.revision });
+      const resolved = await app.resolve(request);
+      const effects = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows;
+      if (resolution === 'server') assert.deepEqual(effects, []);
+      else {
+        assert.equal(effects.length, 1);
+        const effect = effects[0].effect_json;
+        assert.equal(effect.kind, 'node_created');
+        assert.notEqual(effect.node.id, opened.node.id);
+        assert.equal(effect.node.title, 'P3-18 incoming');
+        const recovered = (await isolated.runtime.pool.query('select title,deleted_at from nodes where id=$1',
+          [effect.node.id])).rows[0];
+        assert.deepEqual(recovered, { title: 'P3-18 incoming', deleted_at: null });
+      }
+      const after = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(after.node, before.node);
+      assert.equal(after.tombstones, before.tombstones);
+      assert.equal(resolved.conflict.type, 'delete_update');
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+    });
+
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'the advertised %s action on an unavailable base settles the full explicit operation domain', async resolution => {
+      const opened = await openConflict({ unavailableBase: true,
+        base: { title: 'Base', url: 'https://example.test/base-unavailable' },
+        current: { title: 'Server' }, incoming: { title: 'Incoming', url: 'https://example.test/incoming-unavailable' } });
+      const menu = await advertisedActions(opened.conflictId);
+      assert.ok(menu.includes(resolution));
+      const request = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: { title: 'Custom', url: 'https://example.test/custom-unavailable' } } : {}) });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      assert.equal(effect.node.title, resolution === 'server' ? 'Server' : resolution === 'custom' ? 'Custom' : 'Incoming');
+      assert.equal(effect.node.url, resolution === 'server' ? 'https://example.test/base-unavailable'
+        : resolution === 'custom' ? 'https://example.test/custom-unavailable' : 'https://example.test/incoming-unavailable');
+      assert.equal(effect.node.id === opened.node.id, resolution !== 'both');
+      assert.deepEqual(await app.resolve(request), resolved);
+    });
+
+  test.each(['description', 'extensions', 'untrusted-base'] as const)(
+    'the advertised both action retains complete incoming %s content as a new bookmark', async field => {
+      const namespace = 'https://extensions.example/both';
+      const opened = await openConflict(field === 'untrusted-base'
+        ? { base: { title: 'Base' }, claimedBase: { title: 'Untrusted claim' },
+          current: { title: 'Server' }, incoming: { title: 'Incoming' } }
+        : { base: { [field]: field === 'description' ? 'Base note' : { [namespace]: { value: 1 } } },
+          current: { [field]: field === 'description' ? 'Server note' : { [namespace]: { value: 2 } } },
+          incoming: { [field]: field === 'description' ? 'Incoming note' : { [namespace]: { value: 3 } } } });
+      assert.ok((await advertisedActions(opened.conflictId)).includes('both'));
+      const before = (await facts(opened.value.replica.replicaId, opened.node.id)).node;
+      const request = resolveInput(opened, { resolution: 'both', baseConflictRevision: opened.revision });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      assert.equal(effect.kind, 'node_created');
+      assert.notEqual(effect.node.id, opened.node.id);
+      if (field === 'description') assert.equal(effect.node.description, 'Incoming note');
+      else if (field === 'extensions') assert.deepEqual(effect.node.extensions, { [namespace]: { value: 3 } });
+      else assert.equal(effect.node.title, 'Incoming');
+      assert.deepEqual((await facts(opened.value.replica.replicaId, opened.node.id)).node, before);
+      assert.deepEqual(await app.resolve(request), resolved);
+    });
+
   test('P3-18 blocks conflict both-creation under managed-bookmarks ancestry unless the deployment capability allows', async () => {
     const opened = await openConflict();
     const managedParent = await seedNode('folder', { title: 'Managed both parent' });
     await isolated.runtime.pool.query('update nodes set payload_json=$2 where id=$1',
       [managedParent.id, { ...managedParent.payload, folderRole: 'managed-bookmarks' }]);
-    await isolated.runtime.pool.query('update nodes set parent_id=$2,payload_json=$3 where id=$1',
-      [opened.node.id, managedParent.id, { ...opened.node.payload, parentId: managedParent.id }]);
+    await isolated.runtime.pool.query(`update nodes set parent_id=$2,
+      payload_json=jsonb_set(payload_json,'{parentId}',to_jsonb($2::text),true) where id=$1`,
+    [opened.node.id, managedParent.id]);
 
     const before = await facts(opened.value.replica.replicaId, opened.node.id);
     const childCount = (await isolated.runtime.pool.query(`select count(*)::int count from nodes
       where parent_id=$1`, [managedParent.id])).rows[0].count;
+    const blockedDecision = await advertisedDecision(opened.conflictId);
+    assert.deepEqual(blockedDecision.allowedResolutions, []);
+    assert.equal(blockedDecision.resolutionBlockedReason, 'node_read_only');
+    assert.notEqual(blockedDecision.revision, opened.revision);
     await assert.rejects(
       resolver(opened.value).resolve(resolveInput(opened, {
         resolution: 'both', baseConflictRevision: opened.revision,
+      })),
+      (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'precondition_failed',
+    );
+    await assert.rejects(
+      resolver(opened.value).resolve(resolveInput({ ...opened, revision: blockedDecision.revision }, {
+        resolution: 'both', baseConflictRevision: blockedDecision.revision,
       })),
       (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'node_read_only',
     );
@@ -1906,8 +2775,10 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       from sync_conflict_resolution_receipts where conflict_id=$1`, [opened.conflictId])).rows[0].count, 0);
 
     const enabled = resolver(opened.value, undefined, true);
-    const resolved = await enabled.resolve(resolveInput(opened, {
-      resolution: 'both', baseConflictRevision: opened.revision,
+    const writableDecision = await advertisedDecision(opened.conflictId, true);
+    assert.ok(writableDecision.allowedResolutions.includes('both'));
+    const resolved = await enabled.resolve(resolveInput({ ...opened, revision: writableDecision.revision }, {
+      resolution: 'both', baseConflictRevision: writableDecision.revision,
     }));
     assert.equal(resolved.conflict.status, 'resolved');
     assert.equal(resolved.operation.type, 'create_node');
@@ -1972,8 +2843,30 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
   }, 45_000);
 
   test('P3-21 traverses real Push Operation and Conflict streams with retry and restart stability', async () => {
+    // This suite shares a database to amortize migrations. Page only this
+    // scenario's real events so unrelated cases cannot exhaust its HTTP quota.
+    const previous = (await isolated.runtime.pool.query<{
+      commit_ordinal: string; stream_kind: number; stable_id: string;
+    }>(`select commit_ordinal::text, stream_kind, stable_id from (
+      select commit_ordinal,sync_stream_kind stream_kind,operation_id stable_id from operations
+      where collection_id=$1 and sync_wire_present
+      union all
+      select commit_ordinal,sync_stream_kind stream_kind,conflict_id stable_id from sync_conflicts
+      where collection_id=$1
+    ) stream order by stream.commit_ordinal desc,stream_kind desc,stable_id collate "C" desc limit 1`, [COLLECTION])).rows[0];
+    const startTuple = previous ? { commitOrdinal: previous.commit_ordinal,
+      streamKind: previous.stream_kind === 0 ? 'operation' as const : 'conflict' as const,
+      stableId: previous.stable_id } : { commitOrdinal: '0', streamKind: 'operation' as const, stableId: '' };
     const opened = await openConflict();
     const server = await start(opened.value);
+    const changed = await seedNode('bookmark');
+    const operation = syncNodeUpdatePushRequest({ sessionId: opened.value.session.sessionId,
+      replicaId: opened.value.replica.replicaId, collectionId: COLLECTION, targetId: changed.id,
+      baseRevision: changed.revision, sequence: 2, opId: `p3-21-stream-operation-${randomUUID()}`,
+      base: { title: changed.payload.title as string }, value: { title: 'P3-21 own stream operation' } });
+    const pushed = await blackBox(server.origin).push({ idempotencyKey: `p3-21-own-operation-${randomUUID()}`, request: operation });
+    assert.equal(pushed.status, 200);
+    assert.equal(result(pushed.body).results[0]?.status, 'applied');
     const negotiated = await blackBox(server.origin).create({ idempotencyKey: `p3-21-session-${randomUUID()}`,
       request: pullSessionRequest(opened.value) });
     const initialKeys = createSyncPullCursorKeyring({
@@ -1985,7 +2878,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       leaseGeneration: negotiated.body.replicaLease.generation, sessionId: negotiated.body.sessionId,
       principalId: ACCOUNT, protocolVersion: '0.1', policyRevision: 'policy-r1',
       purgeBoundary: { commitOrdinal: '0', streamKind: 'operation', stableId: '' }, limit: 1,
-      tuple: { commitOrdinal: '0', streamKind: 'operation', stableId: '' },
+      tuple: startTuple,
     });
     initialKeys.destroy();
     const first = await blackBox(server.origin).pull({
@@ -2010,8 +2903,10 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       union all
       select commit_ordinal,sync_stream_kind stream_kind,conflict_id stable_id from sync_conflicts
       where collection_id=$1
-    ) stream order by commit_ordinal,stream_kind,stable_id collate "C"`, [COLLECTION])).rows
+    ) stream where commit_ordinal > $2
+      order by commit_ordinal,stream_kind,stable_id collate "C"`, [COLLECTION, startTuple.commitOrdinal])).rows
       .map((row) => row.stable_id);
+    assert.deepEqual(expected, [opened.conflictId, operation.operations[0]!.opId]);
     assert.deepEqual(seen.map((event) => event.kind === 'operation'
       ? event.operation?.opId : event.conflict?.id), expected);
     assert.equal(new Set(seen.map((event) => event.cursor)).size, seen.length);
@@ -2309,7 +3204,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     await assertInvalidMultiFieldCustom(fresh, extraField, 'r05-multi-extra-field');
 
     for (const [label, value] of [
-      ['empty title', { ...legal, title: '' }],
+      ['whitespace title', { ...legal, title: '   ' }],
       ['unsafe url', { ...legal, url: 'javascript:alert(1)' }],
       ['non-object extensions', { ...legal, extensions: 'not-an-object' }],
     ] as const) {
@@ -2359,6 +3254,7 @@ function manifestFor(app: FastifyInstance): Manifest {
         syncSessions: `${origin}/private-entry/session-negotiation`,
         syncConflict: `${origin}/private-entry/conflicts/{conflictId}/decision`,
         syncPull: `${origin}/private-entry/ordered-pull`,
+        syncSnapshot: `${origin}/private-entry/bootstrap-snapshot`,
       },
       features: { bookmarkUrls: { acceptedSchemes: ['http', 'https'] } },
       auth: { anonymousRead: false, apiKeys: false, oauth: true,

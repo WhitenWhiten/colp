@@ -17,7 +17,10 @@ for (const identity of ['missing', 'ambiguous'] as const) test(`one ${identity} 
     if (identity === 'missing') await f.api.remove('native-node');
     const api = identity === 'missing' ? f.api : { ...f.api, get: async (id: string) => id === 'native-node'
       ? [{ id: 'different-native', title: 'node-1', url: 'https://example.test/' }] : f.api.get(id) };
-    const mappings = await f.store.listMappings(scope);
+    // A verified Snapshot carries the remote parent edge. Without it these
+    // legacy fixture rows describe separate roots, whose titles are protected.
+    const mappings = (await f.store.listMappings(scope)).map(mapping => mapping.parentNativeId === 'native-root'
+      ? { ...mapping, parentColpId: 'root-colp' } : mapping);
     await recoverVerifiedOrFreeze({ scope, store: f.store, api, staged: mappings, freezeUnprovenIdentity: true });
     assert.notEqual((await f.store.getEngineState(scope))?.recoveryFrozen, true);
     const issue = (await readOpenSyncIssues(f.store, scope)).local[0];

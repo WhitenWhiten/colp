@@ -240,7 +240,8 @@ export async function evaluateCanonicalNodeUpdate(
   // subtrees before evaluation or Conflict append can produce any side effect.
   const managedAncestryFacts = currentRow.parent_id === null
     ? []
-    : await loadLockedManagedAncestryChain(tx, transaction.authority.collectionId, currentRow.parent_id);
+    : await loadLockedManagedAncestryChain(tx, transaction.authority.collectionId, currentRow.parent_id,
+      { retainedTombstones: current.deleted });
   assertManagedAncestryWritable(
     [managedAncestryNodeFact(currentRow), ...managedAncestryFacts],
     managedAncestry,

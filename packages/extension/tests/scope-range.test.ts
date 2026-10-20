@@ -58,7 +58,7 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
   });
 
   test.each(['bookmarks_bar', 'browser_root'] as const)(
-    'confirming a %s range replaces the previous mount identity', async (rootKind) => {
+    'confirming a %s range preserves its independently bound custom identity', async (rootKind) => {
       const store = await activeStore();
       try {
         await seedBar(store);
@@ -71,8 +71,11 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
         await applyConfirmedRange(store, scope, { preview, keepNativeIds: [], unmountNativeIds: [] });
 
         const mount = (await store.getMountBinding(scope, 'mount-bar'))!;
-        assert.equal(mount.rootRole, rootKind === 'bookmarks_bar' ? 'bookmarks-bar' : undefined);
-        assert.equal(mount.customSourceKey, rootKind === 'browser_root' ? 'folder:bar' : undefined);
+        // A known custom Chrome bar may be the second account/device root. It
+        // cannot take over a canonical role when the other root is absent.
+        // An ordinary browser folder still sheds an obsolete special role.
+        assert.equal(mount.rootRole, undefined);
+        assert.equal(mount.customSourceKey, rootKind === 'bookmarks_bar' ? 'folder:legacy' : 'folder:bar');
         assert.equal(mount.remoteMountNodeId, prior.remoteMountNodeId);
         assert.equal(mount.status, prior.status);
         assert.equal((await store.getMappingByNativeId(scope, 'bm-1'))?.colpId, 'colp-bm-1');
@@ -139,7 +142,7 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     assert.equal(previewRejection(preview, { now: Date.now(), liveBoundaryVersion: '0', treeDigest: 'wrong' }),
       'preview_stale');
     assert.equal(previewRejection(preview, { now: preview.expiresAt + 1, liveBoundaryVersion: '0' }),
-      'request_invalid');
+      'preview_stale');
     await consumeRangePreview(store, scope, preview);
     const consumed = await store.getScopePreview(scope, preview.previewId);
     assert.equal(previewRejection(consumed, { now: Date.now(), liveBoundaryVersion: '0', treeDigest: preview.treeDigest }),

@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { showOptionsPane } from './extension-auth.js';
+import { withSyncFailureDetails } from './sync-failure-diagnostics.js';
 import {
   KNS08_BINDINGS, PUBLIC_URL, assertQueueTerminal, captureReplayFacts, collectLogs, evidence,
   grantBookmarks, launchPersistent, liveCanonical, liveTitles, login, optionsPage, saveReplayFixture,
@@ -47,7 +48,7 @@ test('P1-01 upload uses the UI, lists cloud deletions, and resumes after lost re
     await pageB.locator('#first-run-advanced summary').click();
     await pageB.locator('#first-run-advanced-mode').selectOption('preview-only');
     await pageB.locator('#first-run-advanced-preview').click();
-    await expect(pageB.locator('#first-run-advanced-hint')).toContainText('matched items');
+    await expect(pageB.locator('#first-run-advanced-hint')).toContainText('1 matched item');
     await expect(pageB.locator('#first-run-advanced-confirm')).toBeHidden();
     expect(await observationBaseline(pageB, stack)).toEqual(before);
     const deleteLabels = await openAdvancedPreview(pageB, 'upload');
@@ -72,7 +73,7 @@ test('P1-01 upload uses the UI, lists cloud deletions, and resumes after lost re
     b = await launchPersistent(dirs.b, stack.browserHostResolverRules);
     const pageB2 = await optionsPage(b);
     await expect(pageB2.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 30_000 });
-    await waitAdvancedQuiet(pageB2, 150_000);
+    await withSyncFailureDetails(pageB2, 'advanced-upload: await resumed native and canonical convergence', () => waitAdvancedQuiet(pageB2, 150_000));
     await expectAdvancedComplete(pageB2);
 
     await waitTitlesGone(pageA, ['P1 cloud folder', 'P1 cloud bookmark'], 120_000);
@@ -132,7 +133,7 @@ test('P1-01 download uses the UI and binds the original remote Node while deleti
     const afterPreview = await observationBaseline(pageB, stack);
     expect(afterPreview.exported).toEqual(before.exported); expect(afterPreview.tree).toEqual(before.tree);
     await confirmAdvancedThroughUi(pageB);
-    await waitAdvancedQuiet(pageB, 120_000);
+    await withSyncFailureDetails(pageB, 'advanced-download: await native and canonical convergence', () => waitAdvancedQuiet(pageB, 120_000));
     await expectAdvancedComplete(pageB);
     await expect.poll(async () => (await nativeTree(pageB)).titles, { timeout: 60_000 })
       .toEqual(expect.arrayContaining(['P1 remote folder', 'P1 remote bookmark', 'P1 download sentinel']));
@@ -185,7 +186,9 @@ test(`P1-01 rejects a second confirmation after the ${changedSide} tree changes`
     const canonicalBeforeConfirmation = await liveCanonical(stack);
     const rejected = await confirmAdvancedThroughUi(pageB, false);
     expect(rejected.error).toBe('preview_stale');
-    await expect(pageB.locator('#first-run-error')).toContainText('Review it again', { timeout: 30_000 });
+    await expect(pageB.locator('#first-run-error')).toContainText(/Review .*again before confirming/u, { timeout: 30_000 });
+    // The UI loads a fresh preview, but still needs a new explicit confirmation.
+    await expect(pageB.locator('#first-run-advanced-confirm')).toBeEnabled();
     const exported = await evidence<Record<string, unknown>>(pageB, 'exportOutboundPushEvidence');
     expect(exported.advancedPlans ?? []).toEqual([]);
     expect(await liveCanonical(stack)).toEqual(canonicalBeforeConfirmation);
@@ -208,11 +211,17 @@ async function ready(context: BrowserContext, binding: ProfileBinding): Promise<
 async function chooseRoots(page: Page, selectedTitles: readonly string[]): Promise<void> {
   await showOptionsPane(page, 'folders'); await page.getByRole('button', { name: 'Refresh folders' }).click();
   await expect(page.locator('#root-tree .root-row').first()).toBeVisible({ timeout: 30_000 });
+  // First-run defaults cover every writable root. A scenario that selects Bar
+  // alone must explicitly clear Other too, or its sentinel is genuinely in scope.
+  await page.locator('#tree-clear-selection').click();
   for (const title of selectedTitles) {
     const checkbox = page.getByRole('checkbox', { name: title, exact: true });
     await expect(checkbox).toBeVisible({ timeout: 30_000 });
     if (!(await checkbox.isChecked())) await checkbox.click();
   }
+  const selected = await page.locator('#root-tree .root-row[data-depth="0"] .root-select input:checked')
+    .evaluateAll(inputs => inputs.map(input => input.getAttribute('aria-label')));
+  expect(selected.sort()).toEqual([...selectedTitles].sort());
   await expect(page.locator('#first-run-start')).toBeEnabled({ timeout: 30_000 });
 }
 

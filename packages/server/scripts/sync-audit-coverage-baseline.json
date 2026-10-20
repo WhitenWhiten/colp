@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "measuredAtCommit": "b07a2b4dc345c82e9ca9666410fd822f89407b03",
+  "measurementRun": "https://github.com/WhitenWhiten/colp/actions/runs/39447653980",
+  "minimums": {
+    "src/modules/sync/sync-node-update.ts": {
+      "statements": 87.64, "branches": 85.47, "functions": 100, "lines": 94.85
+    },
+    "src/modules/sync/sync-node-restore.ts": {
+      "statements": 92.59, "branches": 93.33, "functions": 100, "lines": 100
+    },
+    "src/infrastructure/sync/sync-conflict-postgres.ts": {
+      "statements": 85.56, "branches": 82.11, "functions": 93.54, "lines": 91.09
+    },
+    "src/infrastructure/sync/sync-conflict-resolution-postgres.ts": {
+      "statements": 82.83, "branches": 79.9, "functions": 96.15, "lines": 95.38
+    },
+    "src/infrastructure/sync/product-sync-center-postgres.ts": {
+      "statements": 89.54, "branches": 87.41, "functions": 92.3, "lines": 94.11
+    },
+    "src/infrastructure/sync/managed-ancestry-policy.ts": {
+      "statements": 91.11, "branches": 88.23, "functions": 100, "lines": 97.14
+    },
+    "src/infrastructure/sync/sync-node-restore-postgres.ts": {
+      "statements": 88.04, "branches": 74.39, "functions": 100, "lines": 93.15
+    },
+    "src/infrastructure/sync/postgres/sync-push-create-update-postgres.ts": {
+      "statements": 84.03, "branches": 66.98, "functions": 93.33, "lines": 88.57
+    }
+  }
+}

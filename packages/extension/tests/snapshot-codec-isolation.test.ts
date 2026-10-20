@@ -7,7 +7,7 @@ import { readOpenSyncIssues } from '../src/sync-issues.js';
 
 for (const field of ['title', 'description'] as const) for (const restart of [false, true]) {
   test(`Snapshot quarantines ${field}, retains graph, and projects independent nodes (restart=${restart})`, async () => {
-    const f = await setup({ snapshotRequired: true, emptyCollection: true });
+    const f = await setup({ snapshotRequired: true, emptyCollection: true, confirmedMount: true });
     try {
       const snapshot: any = nonemptyMountSnapshot();
       const bad = snapshot.nodes.find((node: any) => node.id === 'child-a');

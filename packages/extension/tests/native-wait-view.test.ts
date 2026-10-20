@@ -41,12 +41,17 @@ test('a row shows at most two actions and keeps the destructive one in the menu'
   expect(visible(rows()[0]!).filter((button) => button.textContent).length).toBeLessThanOrEqual(2);
   expect(visible(rows()[1]!).map((button) => button.textContent)).toEqual(['Keep both', '']);
   expect(rows()[0]!.querySelector('.native-wait-target')!.textContent).toBe('Bookmark 1');
-  expect(rows()[0]!.querySelector('.native-wait-reason')!.textContent).toBe('site1.example · This browser created the bookmark, but the result was not recorded');
+  expect(rows()[0]!.querySelector('.native-wait-reason')!.textContent).toBe('site1.example · Bookmark creation could not be confirmed. Choose how to continue.');
   expect(document.querySelector('[data-native-wait-action="cancel"]')).toBeNull();
 });
 
 test('Don\'t place asks first; Keep item puts the row back and Don\'t place sends the decision', async () => {
-  const send = await mount((message) => message.kind === 'known.nativeWait.list' ? { ok: true, waits: [wait(1)] } : { ok: true, result: 'cancelled' });
+  let listCount = 0;
+  let releaseRefresh: () => void = () => undefined;
+  const refreshed = new Promise(resolve => { releaseRefresh = () => resolve({ ok: true, waits: [] }); });
+  const send = await mount((message) => message.kind === 'known.nativeWait.list'
+    ? ++listCount === 1 ? { ok: true, waits: [wait(1)] } : refreshed
+    : { ok: true, result: 'cancelled' });
   rows()[0]!.querySelector<HTMLButtonElement>('button[aria-label="More actions"]')!.click();
   document.querySelector<HTMLButtonElement>('.mgr-menu-item')!.click();
   const confirm = rows()[0]!.querySelector('.native-wait-cancel-confirm')!;
@@ -58,7 +63,10 @@ test('Don\'t place asks first; Keep item puts the row back and Don\'t place send
   rows()[0]!.querySelector<HTMLButtonElement>('button[aria-label="More actions"]')!.click();
   document.querySelector<HTMLButtonElement>('.mgr-menu-item')!.click();
   rows()[0]!.querySelector<HTMLButtonElement>('.native-wait-cancel-confirm .btn-danger')!.click();
-  await vi.waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ kind: 'known.nativeWait.confirm', action: 'cancel', userGesture: true })));
+  try {
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ kind: 'known.nativeWait.confirm', action: 'cancel', userGesture: true })));
+    await vi.waitFor(() => expect(document.getElementById('native-wait-feedback')!.textContent).toBe('Stopped retrying this item. Bookmarks already on this device were kept.'));
+  } finally { releaseRefresh(); }
 });
 
 test('a refusal with no code never prints "undefined"', async () => {

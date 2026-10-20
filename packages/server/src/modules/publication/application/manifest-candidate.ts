@@ -308,12 +308,15 @@ function createSyncRetireManifestExtension(href: string) {
   }
   return Object.freeze({
     href: url.href,
+    version: 2 as const,
     method: 'DELETE' as const,
     requiredHeaders: Object.freeze([
       'Authorization', 'Origin', 'Known-Sync-Session', 'Idempotency-Key',
     ] as const),
     requestBody: false as const,
     successStatus: 204 as const,
+    reauthorization: Object.freeze({ proofHeader: 'Known-Sync-Replica-Proof' as const,
+      proof: 'pinned-session' as const, authority: 'current-account-installation' as const }),
   });
 }
 

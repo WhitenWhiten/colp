@@ -40,6 +40,9 @@ export async function setup(overrides: {
   /** Allow the production Snapshot projector to exercise native move replay. */
   allowSnapshotMoves?: boolean;
   seedMount?: boolean;
+  /** Model an already confirmed selection with its real native root. This
+   * fixture does not run onboarding admission; the default grants no creates. */
+  confirmedMount?: boolean;
   requestTimeoutMilliseconds?: number;
   fetch?: typeof globalThis.fetch;
   compactScope?: ReturnType<typeof createSyncStateStore>['compactScope'];
@@ -54,17 +57,25 @@ export async function setup(overrides: {
   await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease-1', expiresAt: 99_999 },
     checkpoint: { serverRevision: 'revision-0', cursor: 'cursor-0' },
     selectedRoots: overrides.emptyCollection ? [] : ['root-old'],
+    ...(overrides.confirmedMount ? { rootStatus: 'ready' as const } : {}),
     ...(overrides.emptyCollection ? { firstRun: 'running' as const, rootStatus: 'ready' as const } : {}) });
   if (!overrides.emptyCollection) await store.putMapping(scope, mapping('native-root', 'root-old', 'revision-0'));
   if (overrides.emptyCollection && overrides.seedMount !== false) {
     await store.putMountBinding(scope, {
       mountId: 'mount-bar', nativeRootId: '1', remoteMountNodeId: null, boundaryVersion: '1',
-      materialized: false, status: 'pending', rootRole: 'bookmarks-bar',
+      materialized: false, status: overrides.confirmedMount ? 'active' : 'pending', rootRole: 'bookmarks-bar',
     });
   }
   const chromeNodes = new Map<string, { id: string; parentId?: string; index?: number; title?: string; url?: string }>([
     ['1', { id: '1', title: 'Bookmarks bar' }],
   ]);
+  if (overrides.confirmedMount && !overrides.emptyCollection) {
+    // An event-carrying Pull requires the mapped parent to exist in Chrome.
+    // The ordinary Ack-only fixture deliberately makes no such admission.
+    chromeNodes.set('native-root', { id: 'native-root', title: 'Confirmed root' });
+    await store.putMountBinding(scope, { mountId: 'mount-existing', nativeRootId: 'native-root',
+      remoteMountNodeId: 'root-old', boundaryVersion: '1', materialized: false, status: 'active', customSourceKey: 'native-root' });
+  }
   let chromeNextId = 1;
   const allocateChromeId = () => {
     do { chromeNextId += 1; } while (chromeNodes.has(String(chromeNextId)));

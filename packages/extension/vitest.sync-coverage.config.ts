@@ -6,7 +6,8 @@ import { SYNC_CORE_COVERAGE_FILES } from './scripts/check-sync-coverage-ratchet.
  * Per-file Sync coverage gate (SYNC-Q-021).
  *
  * The per-file baseline uses Vitest 4's AST-based V8 remapping. Pull and
- * new-file branch floors remain 80% across the coverage-provider migration.
+ * new-file floors remain at least 80%; every new owner must meet this minimum
+ * for lines, branches, functions and statements independently.
  *
  * `coverage.include` is the Sync core list only. Pass/fail is the shrinking
  * per-file ratchet in `scripts/check-sync-coverage-ratchet.mjs`, not a global
@@ -22,7 +23,8 @@ export default defineConfig({
     testTimeout: 15_000,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json-summary', 'html'],
+      reporter: ['text', 'json', 'json-summary', 'html'],
+      reportOnFailure: true,
       reportsDirectory: 'coverage/sync',
       include: [...SYNC_CORE_COVERAGE_FILES],
       thresholds: { branches: 80 },

@@ -19,7 +19,7 @@ describe('P3-28 static IndexedDB contract', () => {
   test('pins database identity, version, stores and required compound indexes', async () => {
     const source = await readSyncStateSource();
     for (const token of [
-      "DATABASE_NAME = 'known-phase3-indexeddb-entry'", 'DATABASE_VERSION = 20',
+      "DATABASE_NAME = 'known-phase3-indexeddb-entry'", 'DATABASE_VERSION = 21',
       "remoteObservations: 'remote_observations'", "scopeCommandPlans: 'scope_command_plans'",
       "batchPlans: 'bookmark_batch_plans'", "batchItems: 'bookmark_batch_items'",
       "scopes: 'sync_scopes'", "mappings: 'native_mappings'", "queue: 'outbound_queue'",
@@ -43,7 +43,7 @@ describe('P3-28 static IndexedDB contract', () => {
       "by_scope_plan_order", "by_scope_updated", "by_scope_root_role",
       'extractOutstandingTarget', 'replaceProjectionIntents', 'projection-intent',
       'p3-36-compaction-v1', 'srg-v15-native-result-v1', 'srg-v16-pull-page-index-v1', 'srg-v17-diagnostic-park-index-v1',
-      'u18-v20-pull-workset-index-v1',
+      'sync-v21-boundary-commands-v1',
       'compactScope', 'listBookmarkEventsByOperation', 'by_scope_event_operation_ordinal', 'listBookmarkEventsByStatus', 'hasQueueRevisionForTarget', 'listPullEventsByPage',
       'allowUnstamped', 'stampColpQueueRecord', 'operation_validator_missing',
     ]) assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));

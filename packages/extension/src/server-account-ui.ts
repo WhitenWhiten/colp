@@ -3,6 +3,8 @@ import { t } from './i18n.js';
 import { fetchEditionVersion } from './server-edition.js';
 import type { ExtensionResponse } from './types.js';
 
+const editionRenders = new WeakMap<HTMLElement, symbol>();
+
 export interface ServerAccountPorts {
   readonly busy: (text: string) => void;
   readonly render: (response: ExtensionResponse) => void;
@@ -16,8 +18,6 @@ export function bindServerAccount(ports: ServerAccountPorts): { refresh(origin: 
   const refresh = (origin: string): void => {
     if (origin === shown) return;
     shown = origin;
-    // A stubbed options page has no extension id, so it must not fetch the manifest.
-    if (!chrome.runtime?.id) return;
     void paintServerEdition(origin);
   };
   button?.addEventListener('click', (event) => {
@@ -42,12 +42,14 @@ export async function paintServerEdition(origin: string, fetcher?: typeof fetch)
   const versionNode = document.getElementById('server-edition-version');
   const notice = document.getElementById('server-edition-notice');
   if (!versionNode || !notice) return;
+  const render = Symbol(); editionRenders.set(versionNode, render);
   const originNode = document.getElementById('server-edition-origin');
   if (originNode) {
     originNode.hidden = !origin;
     originNode.textContent = origin;
   }
   const version = origin ? await fetchEditionVersion(origin, fetcher) : undefined;
+  if (!versionNode.isConnected || editionRenders.get(versionNode) !== render) return;
   paintSignInHint(version);
   if (!version) {
     versionNode.textContent = t('options_serverVersionUnavailable', 'Server version unavailable');

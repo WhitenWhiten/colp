@@ -3,7 +3,8 @@ import {
   isRemoteDeleteEffect, isSelfEchoDelete, remoteDeleteDecisionId, remoteDeleteMemberIds,
   remoteDeleteRevision, remoteDeleteTargetId, type OpEvent,
 } from './remote-delete-policy.js';
-import { lookupBookmarkChildren } from './bookmark-api-error.js';
+import { lookupBookmark, lookupBookmarkChildren } from './bookmark-api-error.js';
+import { hasUnsettledDeleteEdits } from './remote-delete-local-work.js';
 import type { PullApplierOptions, PullBookmarkApi } from './pull-applier-types.js';
 import { mayMutateNative } from './pull-mount-apply.js';
 import type { JsonObject, MappingInput } from './sync-state-store.js';
@@ -29,7 +30,7 @@ export async function interceptStagedRemoteDelete(options: PullApplierOptions, a
   const mappings = await Promise.all(members.map((id) => options.store.getMappingByColpId(options.scope, id)));
   const root = mappings.find((mapping) => mapping?.colpId === remoteDeleteTargetId(event.effect));
   if (!root || !mayMutateNative(root, mounts)) return 'continue';
-  const policy = (await options.store.getRemoteDeletePolicy(options.scope)).policy;
+  let policy = (await options.store.getRemoteDeletePolicy(options.scope)).policy;
   const existing = await options.store.getRemoteDeleteDecision(options.scope, remoteDeleteDecisionId(eventId));
   if (existing) {
     if (existing.state === 'applying') return 'continue';
@@ -42,9 +43,17 @@ export async function interceptStagedRemoteDelete(options: PullApplierOptions, a
     }
     return 'skip';
   }
-  if (policy === 'sync') return 'continue';
   const live: MappingInput[] = [];
   for (const row of mappings) if (row) live.push(row);
+  if (policy === 'sync') {
+    for (const row of live) {
+      const looked = await lookupBookmark(id => api.get(id), row.nativeId);
+      if (looked.class === 'present' && await hasUnsettledDeleteEdits(options.store, options.scope, row, looked.nodes[0]!)) {
+        policy = 'confirm'; break;
+      }
+    }
+    if (policy === 'sync') return 'continue';
+  }
   const nativeIds = await freezeNativeIds(api, live, root);
   const draft = decisionDraft(options, eventId, pageId, event, nativeIds, root, policy, now());
   const parked = await options.store.parkRemoteDelete(options.scope, { decision: draft });

@@ -113,8 +113,15 @@ export async function readFirstRunDraft(): Promise<FirstRunDraft | undefined> {
   }
 }
 
-export async function writeFirstRunDraft(draft: FirstRunDraft): Promise<void> {
-  try { await chrome.storage.local.set({ [FIRST_RUN_DRAFT]: draft }); } catch { /* Draft is best-effort. */ }
+export async function writeFirstRunDraft(draft: FirstRunDraft, required = false): Promise<void> {
+  try { await chrome.storage.local.set({ [FIRST_RUN_DRAFT]: draft }); }
+  catch (error) { if (required) throw error; }
+}
+
+export async function markFirstRunDraftStarted(libraryId: string | undefined): Promise<void> {
+  const draft = await readFirstRunDraft();
+  if (!draft?.deferred || !libraryId || draft.libraryId && draft.libraryId !== libraryId) return;
+  await writeFirstRunDraft({ ...draft, deferred: false });
 }
 
 export function firstRunIncomplete(firstRun: FirstRunScopeState | undefined): boolean {
@@ -213,6 +220,8 @@ export function buildFirstRunConfirm(input: {
 }
 
 export function confirmFailureCopy(response: FirstRunOrScopeResponse): string {
+  if (!response.ok && response.error === 'confirmation_superseded') return t('firstRun_selectionSuperseded',
+    'Another page confirmed a different folder selection. Showing the current sync settings.');
   if (response.ok) return '';
   if (response.error === 'not_implemented') return FIRST_RUN_ENGINE_NOT_READY;
   if (response.error === 'preview_stale') return t('firstRun_bookmarkFoldersChangedReview', 'Bookmark folders changed. Review the change list again before confirming.');
@@ -233,18 +242,20 @@ export function popupFirstRunStatus(input: {
   readonly phase?: FirstRunDurablePhase;
   readonly attention?: PublicAttentionSummary;
   readonly engine?: { readonly phase: string; readonly hasPendingWork: boolean; readonly conflictPending?: boolean;
-    readonly errorCode?: string };
+    readonly rejectedPending?: boolean; readonly errorCode?: string };
 }): import('./sync-status.js').SyncStatusKind {
   if (!input.connected) return 'signed-out';
-  if (projectFirstRunSurface(input) === 'attention') {
+  const surface = projectFirstRunSurface(input);
+  if (surface === 'attention') {
     return input.attention && input.attention.conflictCount > 0 ? 'review-conflicts' : 'action-required';
   }
-  if (input.firstRun === 'running') return 'syncing';
-  const incomplete = firstRunIncomplete(input.firstRun) || input.deferredDraft;
-  if (incomplete) return 'setup-required';
+  if (surface === 'syncing') return 'syncing';
+  // A draft records an earlier choice, not the current durable sync state.
+  if (surface === 'onboarding') return 'setup-required';
   const engine = input.engine;
   if (!engine) return 'syncing';
   if (engine.conflictPending) return 'review-conflicts';
+  if (engine.rejectedPending) return 'action-required';
   // The engine parks every retried failure in its offline phase; only a
   // transport failure is a network wait, the rest is a server or local error.
   if (engine.phase === 'offline') {

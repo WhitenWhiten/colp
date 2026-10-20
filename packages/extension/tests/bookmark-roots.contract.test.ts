@@ -95,6 +95,7 @@ describe('P3-29 static privacy and worker boundary contract', () => {
     assert.match(permission, /Promise\.allSettled/);
     assert.match(permission, /requireXdotool[\s\S]*xdotool[\s\S]*--version/);
     assert.match(permission, /process\.platform === 'linux'[\s\S]{0,100}grantBookmarksPermissionX11/);
-    assert.match(permission, /chrome\.permissions\.contains[\s\S]*throw new Error\('bookmarks_permission_denied'/);
+    // Permission truth/denial is exercised through the actual grant helper in
+    // bookmark-permission-grant.test.ts; source declaration order is irrelevant.
   });
 });

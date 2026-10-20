@@ -22,7 +22,7 @@ export async function grantOptionalBookmarks(page: Page, buttonName: string | Lo
           : pressPermissionKeys(page, attempt);
       const [clicked, interaction] = await Promise.allSettled([click, permissionInteraction]);
       if (clicked.status === 'rejected') throw clicked.reason;
-      const granted = await page.evaluate(value => chrome.permissions.contains(value),permission);
+      const granted = await readOptionalPermissionAfterReload(page, permission);
       // Chromium can remember prior consent and grant immediately, reloading the options
       // page before an X11 permission bubble appears. The actual permission is authoritative.
       if (interaction.status === 'rejected' && !granted) throw interaction.reason;
@@ -38,7 +38,25 @@ export async function grantOptionalBookmarks(page: Page, buttonName: string | Lo
       }
     }
     throw new Error('bookmarks_permission_denied');
-  } finally { await page.evaluate((title) => { document.title = title; }, originalTitle); }
+  } finally {
+    // Restoring the temporary X11 title must not replace an assertion failure
+    // when permission grant itself has reloaded or closed the old document.
+    await page.evaluate((title) => { document.title = title; }, originalTitle).catch(() => undefined);
+  }
+}
+
+export async function readOptionalPermissionAfterReload(page: Pick<Page, 'evaluate' | 'isClosed'>,
+  permission: { permissions?: string[]; origins?: string[] }): Promise<boolean> {
+  let granted = false;
+  await expect.poll(async () => {
+    try { granted = await page.evaluate(value => chrome.permissions.contains(value), permission); return 'read'; }
+    catch (error) {
+      if (!page.isClosed() && error instanceof Error
+        && /Execution context was destroyed|Cannot find context with specified id/u.test(error.message)) return 'reloading';
+      throw error;
+    }
+  }, { timeout: 10_000, message: 'permission state unavailable after options reload' }).toBe('read');
+  return granted;
 }
 
 async function permissionWindowsX11(page: Page, activationTitle: string): Promise<string[]> {

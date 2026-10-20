@@ -1,6 +1,6 @@
 import { SyncFailureError } from './sync-failure-class.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
-import { lookupBookmarkChildren, type BookmarkNode } from './bookmark-api-error.js';
+import { lookupBookmark, lookupBookmarkChildren, type BookmarkNode } from './bookmark-api-error.js';
 import { digest } from './pull-codec.js';
 import { mappingFor } from './pull-projection.js';
 import { classifyMountActivity, decideRangeTransition, isWritableActiveScope } from './scope-transition.js';
@@ -14,6 +14,10 @@ import type { LocalSyncExclusionRecord } from './sync-state/remote-delete-reposi
 import { pauseBindingForMapping } from './sync-state/remote-observation.js';
 import { materializeIndependentSubtree } from './pull-range-materialize.js';
 import { buildIndependentPlan } from './pull-range-plan.js';
+import { performCheckedNativeWrite, prepareNativeWriteCheck, storedNativeWritePreimage } from './pull-native-write-boundary.js';
+import { NativeWriteNotStartedError } from './native-call-result.js';
+import { currentPullMapping } from './pull-mapping-view.js';
+import { pendingLocalMoveForEvent } from './pull-local-placement.js';
 
 const FROZEN_RANGE_ACTIONS: ReadonlySet<RangeTransitionAction> = new Set([
   'retain_local_copy', 'observe_only', 'await_dependency',
@@ -168,10 +172,58 @@ export async function applyPlannedMove(input: {
   const revisions = await Promise.all(effect.parentRevisions.map(input.parentRevisionMapping));
   if (input.plan.action === 'native_move' && input.plan.chromeMutation) {
     await refuseDriftedChromeMove(input);
-    await input.api.move(input.mapping.nativeId, {
-      parentId: input.parent.nativeId,
-      index: await input.nativeIndex(effect.placement.afterId, effect.placement.beforeId),
-    });
+    const source = await presentNative(input.api, input.mapping.nativeId);
+    const intent = await input.store.getApplyIntent(input.scope, `intent:${input.eventId}`);
+    const preimage = storedNativeWritePreimage(intent?.anchors?.nativePreimage) ?? source;
+    const localParent = source.parentId ? await input.store.getMappingByNativeId(input.scope, source.parentId) : null;
+    if (localParent && localParent.rootNativeId === input.mapping.rootNativeId
+        && await pendingLocalMoveForEvent(input.store, input.scope, input.mapping, localParent, input.event)) {
+      const parentCheck = await prepareNativeWriteCheck({ store: input.store, scope: input.scope, api: input.api, mapping: localParent,
+        preimage: await presentNative(input.api, localParent.nativeId), parent: true });
+      const sourceCheck = await prepareNativeWriteCheck({ store: input.store, scope: input.scope, api: input.api,
+        mapping: input.mapping, preimage });
+      try {
+        await parentCheck();
+        if (!await pendingLocalMoveForEvent(input.store, input.scope, input.mapping, localParent, input.event)) {
+          throw new SyncFailureError('concurrent_local_mutation');
+        }
+        await sourceCheck();
+      } catch (error) { throw new NativeWriteNotStartedError(error); }
+      // parentNativeId describes the retained browser placement; parentColpId
+      // and the revision are the server authority needed to rebase the queued
+      // move. Applying this older native move would overwrite the later one.
+      return { mappings: [mappingFor(effect.node, input.mapping.nativeId, localParent.nativeId,
+        input.parent.colpId, input.mapping.projection.childrenRevision ?? null, localParent.rootNativeId), ...revisions],
+      deleteNativeIds: [] };
+    }
+    if (source.parentId !== input.mapping.parentNativeId && input.mapping.parentNativeId !== undefined) {
+      throw new NativeWriteNotStartedError(new SyncFailureError('concurrent_local_mutation'));
+    }
+    const parentNative = await presentNative(input.api, input.parent.nativeId);
+    const children = await lookupBookmarkChildren(id => input.api.getChildren(id), input.parent.nativeId);
+    if (children.class !== 'present') throw new SyncFailureError('range_dependency_pending');
+    const index = await input.nativeIndex(effect.placement.afterId, effect.placement.beforeId);
+    const sourceCheck = await prepareNativeWriteCheck({ store: input.store, scope: input.scope, api: input.api,
+      mapping: input.mapping, preimage });
+    const parentCheck = await prepareNativeWriteCheck({ ...input, mapping: input.parent,
+      preimage: parentNative, parent: true, children: children.nodes });
+    const anchors = await Promise.all([effect.placement.afterId, effect.placement.beforeId].filter(id => id !== null)
+      .map(async colpId => {
+        const mapping = await currentPullMapping(input.store, input.scope, colpId);
+        if (!mapping) throw new NativeWriteNotStartedError(new SyncFailureError('anchor_mapping_missing'));
+        const native = await presentNative(input.api, mapping.nativeId);
+        if (native.parentId !== input.parent.nativeId) {
+          throw new NativeWriteNotStartedError(new SyncFailureError('anchor_parent_mismatch'));
+        }
+        return prepareNativeWriteCheck({ store: input.store, scope: input.scope, api: input.api, mapping, preimage: native });
+      }));
+    const check = async () => {
+      await refuseDriftedChromeMove(input); await parentCheck();
+      for (const anchor of anchors) await anchor();
+      await sourceCheck();
+    };
+    await performCheckedNativeWrite(input.api, check, beforeNative => input.api.move(input.mapping.nativeId,
+      { parentId: input.parent.nativeId, index }, beforeNative));
     return {
       mappings: [mappingFor(effect.node, input.mapping.nativeId, input.parent.nativeId, input.parent.colpId,
         input.mapping.projection.childrenRevision ?? null, input.parent.rootNativeId), ...revisions],
@@ -214,6 +266,14 @@ export async function applyPlannedMove(input: {
     deleteNativeIds: input.plan.persistExclusion ? deleteNativeIds : [],
     rangeExit: input.plan.persistObservation ? rangeExitFacts(input, effect, 'placement', subtree, extras, pause) : undefined,
   };
+}
+
+async function presentNative(api: PullBookmarkApi, id: string): Promise<BookmarkNode> {
+  const looked = await lookupBookmark(nativeId => api.get(nativeId), id);
+  if (looked.class === 'not_found') throw new SyncFailureError('range_dependency_pending');
+  if (looked.class !== 'present') throw new Error(looked.message);
+  if (!looked.nodes[0]) throw new SyncFailureError('range_dependency_pending');
+  return looked.nodes[0];
 }
 
 function mountFor(mapping: MappingInput, mounts: readonly MountBindingRecord[]) {

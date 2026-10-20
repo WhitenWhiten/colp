@@ -18,10 +18,10 @@ import { createRuntimeAuth, currentSyncScope, enforceManagedPolicy, ensureSyncSc
 export async function onExtensionInstalled(details: chrome.runtime.InstalledDetails): Promise<void> {
   await showAutomationBadge({ title: false });
   if (details.reason !== 'install') return;
-  await Promise.allSettled([
-    chrome.storage.local.set({ [WELCOME_FLAG]: 'installed' }),
-    chrome.runtime.openOptionsPage(),
-  ]);
+  // Options consumes this marker during initialization. Opening in parallel
+  // lets it read/remove an absent marker before a late write restores it.
+  await chrome.storage.local.set({ [WELCOME_FLAG]: 'installed' }).catch(() => undefined);
+  await chrome.runtime.openOptionsPage().catch(() => undefined);
 }
 
 export async function handle(message: AuthExtensionRequest, context: AuthorityContext): Promise<ExtensionResponse> {

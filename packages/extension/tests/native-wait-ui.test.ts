@@ -41,8 +41,8 @@ describe('P1 native-wait Options contract', () => {
     assert.equal(nativeWaitTitleCopy({ ...wait, url: 'https://github.com/x' }), 'https://github.com/x');
     assert.equal(nativeWaitTitleCopy(wait), 'Bookmark waiting for confirmation');
     assert.equal(nativeWaitDetailCopy({ ...wait, title: 'GitHub', url: 'https://github.com/x' }),
-      'github.com · This browser created the bookmark, but the result was not recorded');
-    assert.equal(nativeWaitDetailCopy(wait), 'This browser created the bookmark, but the result was not recorded');
+      'github.com · Bookmark creation could not be confirmed. Choose how to continue.');
+    assert.equal(nativeWaitDetailCopy(wait), 'Bookmark creation could not be confirmed. Choose how to continue.');
     assert.equal(nativeWaitActionLabel('bind'), NATIVE_WAIT_BIND_LABEL);
     assert.equal(nativeWaitActionLabel('keep_local_and_create'), NATIVE_WAIT_KEEP_LOCAL_LABEL);
     assert.equal(nativeWaitActionLabel('cancel'), NATIVE_WAIT_CANCEL_LABEL);
@@ -50,19 +50,19 @@ describe('P1 native-wait Options contract', () => {
     assert.match(NATIVE_WAIT_KEEP_LOCAL_LABEL, /Keep on this device and create a new one/);
     assert.match(NATIVE_WAIT_CANCEL_LABEL, /Don't place this cloud item on this device/);
     assert.match(NATIVE_WAIT_NATIVE_ID_REQUIRED, /bookmark/);
-    assert.equal(nativeWaitReasonCopy('native_result_unknown'), 'This browser created the bookmark, but the result was not recorded');
+    assert.equal(nativeWaitReasonCopy('native_result_unknown'), 'Bookmark creation could not be confirmed. Choose how to continue.');
     assert.equal(nativeWaitReasonCopy('waiting_dependency'), 'Waiting for the parent folder');
-    assert.equal(nativeWaitTargetCopy(wait), 'Bookmark waiting for confirmation · This browser created the bookmark, but the result was not recorded');
-    assert.equal(nativeWaitTargetCopy({ ...wait, colpId: '' }), 'Bookmark waiting for confirmation · This browser created the bookmark, but the result was not recorded');
+    assert.equal(nativeWaitTargetCopy(wait), 'Bookmark waiting for confirmation · Bookmark creation could not be confirmed. Choose how to continue.');
+    assert.equal(nativeWaitTargetCopy({ ...wait, colpId: '' }), 'Bookmark waiting for confirmation · Bookmark creation could not be confirmed. Choose how to continue.');
     assert.equal(
       nativeWaitTargetCopy({ ...wait, title: 'GitHub', url: 'https://github.com' }),
-      'GitHub (https://github.com) · This browser created the bookmark, but the result was not recorded',
+      'GitHub (https://github.com) · Bookmark creation could not be confirmed. Choose how to continue.',
     );
     assert.equal(nativeWaitCandidateLabel({ nativeId: 'bm-1', title: 'Remote' }), 'Remote');
     assert.equal(nativeWaitCandidateLabel({ nativeId: 'bm-1' }), 'Bookmark on this device');
     assert.match(nativeWaitResultCopy('bound'), /Bound to an existing bookmark/);
     assert.match(nativeWaitResultCopy('kept_local'), /Kept the local bookmark and created a new one/);
-    assert.match(nativeWaitResultCopy('cancelled'), /Cancelled/);
+    assert.equal(nativeWaitResultCopy('cancelled'), 'Stopped retrying this item. Bookmarks already on this device were kept.');
     assert.match(nativeWaitResultCopy('duplicate'), /already handled/);
   });
 
@@ -72,7 +72,7 @@ describe('P1 native-wait Options contract', () => {
       'extension_unavailable']) {
       const copy = nativeWaitFeedbackCopy(code);
       assert.ok(copy.length > 0 && copy !== code, code);
-      assert.doesNotMatch(copy, /Bound to|Kept the local|Cancelled:/, code);
+      assert.doesNotMatch(copy, /Bound to|Kept the local|Stopped retrying/, code);
     }
     assert.match(nativeWaitFeedbackCopy('stale_ref'), /changed/);
     assert.match(nativeWaitFeedbackCopy('revoked'), /Bookmark permission/);

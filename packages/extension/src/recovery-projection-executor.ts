@@ -6,6 +6,7 @@ import { isSpecialMountRole } from './pull-mount-apply.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { applySnapshotContent, planSnapshotContentUpdates, type RecoveryContentStore } from './recovery-content.js';
 import { applySnapshotPlacement, planSnapshotPlacementUpdates } from './recovery-placement.js';
+import { applySnapshotDeletion } from './recovery-delete.js';
 import {
   occupancyByNative, resolveCreateIdentity, virtualNativeId,
 } from './projection-native-occupancy.js';
@@ -19,6 +20,9 @@ import {
   type RecoveryOverlayNode,
 } from './recovery-overlay.js';
 import { executeNativeCreate } from './native-create-executor.js';
+import { eligibleSnapshotCreates, snapshotCreateAllowed } from './snapshot-create-boundary.js';
+import { planMountedSnapshotDeletes } from './snapshot-mounted-deletes.js';
+import { assertSnapshotNativeBoundary } from './snapshot-native-boundary.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import { pendingLocalDeletionIds, retainedDeletionMappings } from './recovery-local-deletes.js';
 import type { MappingInput, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -153,17 +157,27 @@ export async function projectVirtualSnapshotChildren(input: {
     const { scopeKey: _key, ...mapping } = row as MappingInput & { scopeKey?: string };
     bound.set(row.colpId, mapping);
   }
-  const seed = inheritBoundNativeParents([...[...bound.values()].filter(row => !deleted.has(row.colpId)),
+  let seed = inheritBoundNativeParents([...[...bound.values()].filter(row => !deleted.has(row.colpId)),
     ...retainedDeletionMappings(allLive, input.bound, deleted)]);
+  let eligible = await eligibleSnapshotCreates(input.store, input.scope, seed);
   const existing = await input.store.listProjectionIntents(input.scope);
-  const held = existing.filter(item => item.state !== 'terminal' && protectedIds.has(item.colpId));
-  const pending = existing.filter(item => item.state !== 'terminal' && !protectedIds.has(item.colpId));
+  const held = existing.filter(item => item.state !== 'terminal' && (protectedIds.has(item.colpId)
+    || item.kind === 'create' && item.state === 'pending' && eligible && !eligible.has(item.colpId)));
+  const heldIds = new Set(held.map(item => item.intentId));
+  const pending = existing.filter(item => item.state !== 'terminal' && !heldIds.has(item.intentId));
   if (pending.length === 0 && input.recoveryOnly) return seed;
   if (pending.length === 0) {
-    const live = await input.store.listMappings(input.scope);
+    const live = await input.store.listMappings(input.scope), snapshotIds = new Set(seed.map(row => row.colpId));
+    const removals = await planMountedSnapshotDeletes({ scope: input.scope, store: input.store, live: allLive,
+      snapshot: seed, protectedIds, nativeFacts: root => collectNativeFacts(input.api, root),
+      outstanding: allLive.some(row => !snapshotIds.has(row.colpId)) ? await listOutstanding(input.store, input.scope) : [] });
+    if (removals.retainedMappings.length) {
+      seed = inheritBoundNativeParents([...seed, ...removals.retainedMappings]);
+      eligible = await eligibleSnapshotCreates(input.store, input.scope, seed);
+    }
     const intents = [...planVirtualChildCreates(seed),
-      ...planSnapshotPlacementUpdates(seed, live), ...planSnapshotContentUpdates(seed, live)]
-      .filter(intent => !protectedIds.has(intent.colpId))
+      ...planSnapshotPlacementUpdates(seed, live), ...planSnapshotContentUpdates(seed, live), ...removals.intents]
+      .filter(intent => !protectedIds.has(intent.colpId) && (intent.kind !== 'create' || !eligible || eligible.has(intent.colpId)))
       .map((intent, index) => ({ ...intent, order: index + 1 }));
     if (intents.length === 0) return seed;
     await input.store.replaceProjectionIntents(input.scope, [...held, ...intents.map((intent) => ({
@@ -239,6 +253,8 @@ export async function executeProjectionIntents(input: {
       continue;
     }
     if (intent.generation !== input.scope.generation) throw new SyncFailureError('projection_generation_fenced');
+    if (intent.kind === 'create' && intent.state === 'pending'
+        && !await snapshotCreateAllowed(input.store, input.scope, mappings, intent.colpId)) continue;
     await input.store.settleProjectionIntent(input.scope, intent.intentId, { state: 'executing' });
     let observed: string | undefined | 'ambiguous';
     let activeIntent = intent;
@@ -426,7 +442,8 @@ async function perform(
   api: PullBookmarkApi, intent: ProjectionIntentRecord, mappings: Map<string, MappingInput>,
   snapshotMappings: ReadonlyMap<string, MappingInput>,
   occupancy: ReadonlyMap<string, string>,
-  ctx: { readonly scope: SyncScope; readonly store: RecoveryStore; readonly snapshotCursor?: string },
+  ctx: { readonly scope: SyncScope; readonly store: RecoveryStore; readonly snapshotCursor?: string;
+    readonly selectedRootNativeId: string },
 ): Promise<string | undefined | 'ambiguous'> {
   if (intent.kind === 'create') {
     const parentNativeId = intent.parentNativeId
@@ -450,11 +467,19 @@ async function perform(
       },
       parentNativeId, expected: { title: intent.title ?? '', ...(intent.url ? { url: intent.url } : {}) },
       liveWorkKind: 'create',
-      create: async () => api.create({
-        parentId: parentNativeId, title: intent.title ?? '',
-        ...(intent.url ? { url: intent.url } : {}),
-        ...(index === undefined ? {} : { index }),
-      }),
+      create: async () => {
+        const beforeNative = async () => {
+          if (!await snapshotCreateAllowed(ctx.store, ctx.scope, mappings, intent.colpId)) throw new SyncFailureError('need_authority');
+          const parent = intent.parentColpId ? mappings.get(intent.parentColpId)
+            : [...mappings.values()].find(row => row.nativeId === parentNativeId);
+          if (!parent || parent.nativeId !== parentNativeId) throw new SyncFailureError('snapshot_parent_mapping_missing');
+          await assertSnapshotNativeBoundary({ store: ctx.store, scope: ctx.scope, api, mapping: parent,
+            kind: 'create', legacyRootNativeId: ctx.selectedRootNativeId });
+        };
+        await beforeNative();
+        return api.create({ parentId: parentNativeId, title: intent.title ?? '',
+          ...(intent.url ? { url: intent.url } : {}), ...(index === undefined ? {} : { index }) }, beforeNative);
+      },
     });
     if (outcome.result !== 'applied_with_evidence') return 'ambiguous';
     return outcome.nativeId;
@@ -475,17 +500,8 @@ async function perform(
     return intent.nativeId;
   }
   if (intent.kind === 'delete' && intent.nativeId) {
-    // A missing delete target is an idempotent success. Other failures must
-    // remain visible to the executor and leave the intent in recovery state.
-    const existing = await lookupBookmark(id => api.get(id), intent.nativeId);
-    if (existing.class !== 'present' && existing.class !== 'not_found') throw new Error(existing.message);
-    if (existing.class === 'present') {
-      // The plan already orders explicit member deletes child-first. Recursive
-      // removal would also erase local-only or newly arrived descendants that
-      // the plan never authorized. Chrome's atomic non-empty check keeps those
-      // copies intact and leaves the intent recoverable until they move away.
-      await api.remove(intent.nativeId);
-    }
+    await applySnapshotDeletion({ store: ctx.store, scope: ctx.scope, api, colpId: intent.colpId,
+      nativeId: intent.nativeId, selectedRootNativeId: ctx.selectedRootNativeId });
     return intent.nativeId;
   }
   return intent.nativeId;
@@ -520,8 +536,10 @@ function planVirtualChildCreates(seed: readonly MappingInput[]): ProjectionInten
   return intents;
 }
 
-export function hasProjectableVirtualChildren(mappings: readonly MappingInput[], protectedIds: ReadonlySet<string> = new Set()): boolean {
-  return planVirtualChildCreates(inheritBoundNativeParents(mappings)).some(intent => !protectedIds.has(intent.colpId));
+export function hasProjectableVirtualChildren(mappings: readonly MappingInput[], protectedIds: ReadonlySet<string> = new Set(),
+  eligible?: ReadonlySet<string>): boolean {
+  return planVirtualChildCreates(inheritBoundNativeParents(mappings)).some(intent => !protectedIds.has(intent.colpId)
+    && (!eligible || eligible.has(intent.colpId)));
 }
 
 function skipVirtualChromeCreate(mapping: MappingInput): boolean {

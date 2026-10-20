@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, test, vi } from 'vitest';
+import { afterEach, beforeEach, test, vi } from 'vitest';
 import { parseBuildConfig } from '../src/config.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import type { StoredSession } from '../src/types.js';
@@ -19,7 +19,7 @@ import type { StoredSession } from '../src/types.js';
  * `lifecycle_revision` churn the lane exists to avoid — and the scope import
  * never ran. No behavioural test covered `src/sw/auth.ts` at all.
  */
-const cleanups: Array<() => void> = [];
+const cleanups: Array<() => void | Promise<void>> = [];
 const mocks = vi.hoisted(() => ({ login: vi.fn(), session: vi.fn(), wake: vi.fn(),
   credential: { current: undefined as unknown } }));
 
@@ -56,8 +56,14 @@ vi.mock('../src/sw/engine.js', async (importOriginal) => ({
   scheduleSyncEngineWake: mocks.wake,
 }));
 
-afterEach(() => {
-  for (const close of cleanups.splice(0)) close();
+// Runtime import and external storage setup belong to fixture setup. Keeping
+// the cold module graph outside an individual assertion also makes the install
+// ordering deadline independent of another suite's transform work.
+let fixture: Awaited<ReturnType<typeof loginFixture>>;
+beforeEach(async () => { fixture = await loginFixture(); });
+afterEach(async () => {
+  for (const close of cleanups.splice(0).reverse()) await close();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.resetModules();
   vi.clearAllMocks();
@@ -104,8 +110,70 @@ async function loginFixture() {
   return { ...runtime, api, local, binding, credential, minted, config };
 }
 
+test('install persists its welcome marker before the options document can consume it', async () => {
+  const f = fixture;
+  let release!: () => void, started!: () => void;
+  const writing = new Promise<void>(resolve => { started = resolve; });
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const persist = f.local.set.bind(f.local);
+  const set = vi.spyOn(f.local, 'set').mockImplementation(async values => {
+    if (values[f.WELCOME_FLAG] === 'installed') { started(); await pending; }
+    await persist(values);
+  });
+  const seen: unknown[] = [];
+  const open = vi.fn(async () => {
+    // These are the same external storage reads/removal the options document
+    // performs. The document must never finish before install writes its flag.
+    seen.push((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG]);
+    await f.local.remove(f.WELCOME_FLAG);
+  });
+  Object.assign(chrome.runtime, { openOptionsPage: open });
+  const installation = f.api.onExtensionInstalled({ reason: 'install' });
+  cleanups.push(async () => { release(); await installation; });
+  try {
+    await Promise.race([writing, installation.then(() => { throw new Error('install omitted its marker write'); })]);
+    const openedBeforePersist = open.mock.calls.length;
+    release(); await installation;
+    assert.equal(openedBeforePersist, 0, 'opening must wait for the persisted marker');
+    assert.deepEqual(seen, ['installed']);
+    assert.equal((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG], undefined, 'no late install flag remains');
+  } finally { release(); await installation; set.mockRestore(); }
+});
+
+test('an install marker storage failure still opens options for recovery', async () => {
+  const f = fixture;
+  const persist = f.local.set.bind(f.local);
+  vi.spyOn(f.local, 'set').mockImplementation(async values => {
+    if (values[f.WELCOME_FLAG] === 'installed') throw new Error('storage unavailable');
+    await persist(values);
+  });
+  const open = vi.fn(async () => undefined);
+  Object.assign(chrome.runtime, { openOptionsPage: open });
+  await f.api.onExtensionInstalled({ reason: 'install' });
+  assert.equal(open.mock.calls.length, 1);
+  assert.equal((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG], undefined);
+});
+
+test('an options opening failure keeps the durable install marker for a later document', async () => {
+  const f = fixture;
+  const open = vi.fn(async () => { throw new Error('options unavailable'); });
+  Object.assign(chrome.runtime, { openOptionsPage: open });
+  await f.api.onExtensionInstalled({ reason: 'install' });
+  assert.equal(open.mock.calls.length, 1);
+  assert.equal((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG], 'installed');
+});
+
+test('an extension update neither recreates the welcome marker nor opens options', async () => {
+  const f = fixture;
+  const open = vi.fn(async () => undefined);
+  Object.assign(chrome.runtime, { openOptionsPage: open });
+  await f.api.onExtensionInstalled({ reason: 'update' });
+  assert.equal(open.mock.calls.length, 0);
+  assert.equal((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG], undefined);
+});
+
 test('a login keeps the Session the lane minted for it', async () => {
-  const f = await loginFixture();
+  const f = fixture;
   const before = await f.store.fence.capture();
   await f.api.handle({ kind: 'known.auth.login', method: 'password', userGesture: true,
     email: 'login@example.test', password: 'secret' }, { generation: before.generation, signal: new AbortController().signal });
@@ -123,7 +191,7 @@ const library = { id: 'login-collection', title: 'Bookmarks', library: true,
   rootNodeId: 'login-root', bookmarksBarId: 'login-bar', otherBookmarksId: 'login-other' };
 
 test('signing in again establishes a sync scope with the production policy gate enabled', async () => {
-  const f = await loginFixture();
+  const f = fixture;
   const { browserPersonalSyncPolicy } = await import('../src/personal-sync-policy.js');
   const { configurePersonalSyncTransport } = await import('../src/personal-sync-fetch.js');
   const policy = browserPersonalSyncPolicy();
@@ -138,7 +206,7 @@ test('signing in again establishes a sync scope with the production policy gate 
 });
 
 test('signing in again preserves an explicit user pause', async () => {
-  const f = await loginFixture();
+  const f = fixture;
   const { browserPersonalSyncPolicy } = await import('../src/personal-sync-policy.js');
   const { configurePersonalSyncTransport } = await import('../src/personal-sync-fetch.js');
   const policy = browserPersonalSyncPolicy();
@@ -154,7 +222,7 @@ test('signing in again preserves an explicit user pause', async () => {
 });
 
 test('sign-in automatically binds the library and stores the root from its response', async () => {
-  const f = await loginFixture();
+  const f = fixture;
   await f.local.remove(f.COLLECTION_BINDING);
   const fetcher = vi.fn(async () => Response.json(library)); vi.stubGlobal('fetch', fetcher);
   const authority = await f.store.fence.capture();
@@ -169,7 +237,7 @@ test('sign-in automatically binds the library and stores the root from its respo
 });
 
 test('an unsupported server keeps sign-in usable and does not mint a sync session', async () => {
-  const f = await loginFixture();
+  const f = fixture;
   await f.local.remove(f.COLLECTION_BINDING);
   vi.stubGlobal('fetch', async () => new Response(null, { status: 404 }));
   const response = await f.api.handle({ kind: 'known.auth.login', method: 'password', userGesture: true,

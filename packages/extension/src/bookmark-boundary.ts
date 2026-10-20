@@ -8,6 +8,7 @@ import {
 } from './chrome-bookmark-tree.js';
 import { canonicalJson } from './sync-state/codec.js';
 import { normalizeBoundaries } from './sync-state/scope-key.js';
+import { browserRoleOwners, type ExistingBrowserMount } from './browser-root-identity.js';
 
 export type BoundaryNodeClass = 'collection-root' | 'special-root' | 'ordinary-folder'
   | 'managed' | 'private-local' | 'out-of-boundary' | 'unsupported';
@@ -23,7 +24,7 @@ export interface BoundaryScan {
   readonly nestedNormalized: boolean;
   readonly bookmarkCount: number; readonly folderCount: number; readonly skippedCount: number;
   readonly treeDigest: string;
-  readonly warnings: readonly { readonly code: string }[];
+  readonly warnings: readonly { readonly code: string; readonly count?: number }[];
   readonly mounts: readonly PlannedMount[];
   readonly collectionRootDirectBookmarks: 0;
   readonly classifications: ReadonlyMap<string, BoundaryNodeClass>;
@@ -35,6 +36,7 @@ export interface ScanBoundaryInput {
   readonly excludedNativeIds?: readonly string[];
   readonly privateNativeIds?: readonly string[];
   readonly unsupportedRoles?: readonly ColpFolderRole[];
+  readonly existingMounts?: readonly ExistingBrowserMount[];
 }
 
 interface IndexedNode {
@@ -45,7 +47,9 @@ interface IndexedNode {
 export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
   const indexed = indexTree(input.roots);
   const discovered = new Map(indexed.map((item) => [item.node.nativeId, item.ancestorNativeIds]));
-  const selectedInput = uniqueIds(input.selectedNativeIds).filter((id) => discovered.has(id));
+  const managedRoots = new Set(indexed.filter(item => item.node.managed).map(item => item.node.nativeId));
+  const selectedInput = uniqueIds(input.selectedNativeIds).filter((id) => discovered.has(id)
+    && !managedRoots.has(id) && !discovered.get(id)!.some(ancestor => managedRoots.has(ancestor)));
   const excluded = new Set(uniqueIds(input.excludedNativeIds ?? []).filter((id) => discovered.has(id)));
   const privateLocal = new Set(uniqueIds(input.privateNativeIds ?? []));
   const nestedNormalized = selectedInput.length !== new Set(input.selectedNativeIds).size
@@ -57,14 +61,14 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     const reason = isSpecialRoot || !included ? 'supported' : bookmarkRepresentability({ type: node.kind, title: node.title, url: node.url });
     return reason === 'supported' ? [] : [[node.nativeId, reason] as const];
   }));
-  const warnings: Array<{ readonly code: string }> = [];
+  const warnings: Array<{ readonly code: string; readonly count?: number }> = [];
   if (nestedNormalized) warnings.push({ code: 'nested_normalized' });
   const classifications = new Map<string, BoundaryNodeClass>();
   const digestNodes: Array<Record<string, unknown>> = [];
   let bookmarkCount = 0; let folderCount = 0; let skippedCount = 0;
   for (const item of indexed) {
     const nativeId = item.node.nativeId;
-    const managed = item.node.managed;
+    const managed = item.node.managed || item.ancestorNativeIds.some(id => managedRoots.has(id));
     const excludedHere = folderIsInMount(nativeId, item.ancestorNativeIds, excluded);
     const { selected: inSelected, privateLocal: privateHere } = folderSyncCoverage(nativeId, item.ancestorNativeIds, selected, privateLocal);
     let classification: BoundaryNodeClass;
@@ -73,8 +77,15 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     else if (excludedHere || !inSelected) classification = 'out-of-boundary';
     else if (unsupported.has(nativeId) || item.ancestorNativeIds.some(id => unsupported.has(id))) {
       classification = 'unsupported';
-      const code = unsupported.get(nativeId);
-      if (code && !warnings.some(warning => warning.code === code)) warnings.push({ code });
+      // An unsupported folder also protects its descendants. Count each local
+      // item once under the first inherited reason, as the diagnostic ledger does.
+      const code = item.ancestorNativeIds.map(id => unsupported.get(id)).find(reason => reason !== undefined)
+        ?? unsupported.get(nativeId);
+      if (code) {
+        const prior = warnings.findIndex(warning => warning.code === code);
+        if (prior < 0) warnings.push({ code, count: 1 });
+        else warnings[prior] = { code, count: (warnings[prior]!.count ?? 0) + 1 };
+      }
     }
     else if (item.isSpecialRoot) classification = 'special-root';
     else classification = 'ordinary-folder';
@@ -84,7 +95,8 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     else if (inBoundary && item.node.kind === 'folder') folderCount += 1;
     else skippedCount += 1;
     if (inBoundary) {
-      digestNodes.push({ nativeId, kind: item.node.kind, title: item.node.title, parentNativeId: item.ancestorNativeIds.at(-1) ?? null,
+      digestNodes.push({ nativeId, kind: item.node.kind, title: item.node.title,
+        ...(item.node.syncing === undefined ? {} : { syncing: item.node.syncing }), parentNativeId: item.ancestorNativeIds.at(-1) ?? null,
         url: item.node.url ?? null, children: item.node.children.map((child) => child.nativeId) });
     }
   }
@@ -95,7 +107,9 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     digestNodes.push({ nativeId: item.node.nativeId, kind: 'folder', title: item.node.title,
       parentNativeId: item.ancestorNativeIds.at(-1) ?? null, children: [] });
   }
-  const mounts = planMounts(indexed, selected, classifications, warnings, input.unsupportedRoles ?? []);
+  const existing = input.existingMounts ?? [];
+  const mounts = planMounts(indexed, selected, classifications, warnings, input.unsupportedRoles ?? [],
+    existing, browserRoleOwners(input.roots, existing));
   const treeDigest = `sha256:${bytesToHex(sha256(new TextEncoder().encode(canonicalJson({
     selected: selectedNativeIds, excluded: [...excluded].sort(), nodes: digestNodes,
   }))))}`;
@@ -107,7 +121,8 @@ export function planMountsFromScan(scan: BoundaryScan): readonly PlannedMount[] 
 
 function planMounts(indexed: readonly IndexedNode[], selected: ReadonlySet<string>,
   classifications: ReadonlyMap<string, BoundaryNodeClass>, warnings: Array<{ readonly code: string }>,
-  unsupportedRoles: readonly ColpFolderRole[]): PlannedMount[] {
+  unsupportedRoles: readonly ColpFolderRole[], existing: readonly ExistingBrowserMount[],
+  roleOwners: ReadonlyMap<SpecialFolderRole, string>): PlannedMount[] {
   const mounts: PlannedMount[] = [];
   const other = indexed.find((item) => item.isSpecialRoot && item.rootKind === 'other' && !item.node.managed);
   for (const item of indexed) {
@@ -117,8 +132,11 @@ function planMounts(indexed: readonly IndexedNode[], selected: ReadonlySet<strin
     const role = folderRoleForBrowserRoot(item.rootKind, item.node.managed);
     if (role === 'managed-bookmarks') continue;
     if (item.isSpecialRoot && role !== 'custom') {
-      mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false,
-        rootRole: role as SpecialFolderRole });
+      const prior = existing.find(mount => mount.nativeRootId === item.node.nativeId);
+      const identity = roleOwners.get(role) === item.node.nativeId
+        ? { rootRole: role as SpecialFolderRole }
+        : { customSourceKey: prior?.customSourceKey ?? customSourceKeyForFolder(item.node.nativeId) };
+      mounts.push({ nativeRootId: item.node.nativeId, writable: true, materialized: false, ...identity });
       continue;
     }
     if (item.isSpecialRoot && role === 'custom') {

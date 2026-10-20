@@ -1,3 +1,4 @@
+import { unresolvedRejoinQueueRows, rejoinRecoveryHolders } from './rejoin-queue-resolution.js';
 import { consumedRejectionRows } from './queue-issue-repository.js';
 import { isOpenQueueIssue } from './open-issue-facts.js';
 import { issueAncestry } from '../sync-issues.js';
@@ -51,7 +52,7 @@ export async function laneHolders(queue: IDBObjectStore, key: string, maxRecordB
   const projected = rows.map(value => validateQueueRecord(value, maxRecordBytes))
     .filter(row => isOpenQueueIssue(row) && row.recovery?.code !== 'sequence_blocked');
   projected.push(...await consumedRejectionRows(queue.transaction, key, maxRecordBytes));
-  return projected.sort((left, right) => left.sequence - right.sequence);
+  return (await unresolvedRejoinQueueRows(queue.transaction, key, projected)).sort((left, right) => left.sequence - right.sequence);
 }
 
 /**
@@ -118,7 +119,8 @@ export async function holdIfWaiting(queue: IDBObjectStore, key: string, input: u
   if (!holdable(row)) return row;
   const code = hold && typeof hold === 'object' ? (hold as { readonly code?: unknown }).code : undefined;
   if (typeof code === 'string' && code.length > 0) return asHeld(row, code, maxRecordBytes);
-  const holder = await heldBy(row, await laneHolders(queue, key, maxRecordBytes), await transactionIssueDependencies(queue, key, resolvingEventId));
+  const holders = await rejoinRecoveryHolders(queue.transaction, key, row, await laneHolders(queue, key, maxRecordBytes), maxRecordBytes, resolvingEventId);
+  const holder = await heldBy(row, holders, await transactionIssueDependencies(queue, key, resolvingEventId));
   return holder ? asHeld(row, dependentHold(holder), maxRecordBytes) : row;
 }
 
@@ -137,7 +139,7 @@ export async function holdWaitingRows(queue: IDBObjectStore, key: string, maxRec
   let held = 0;
   for (const value of pending) {
     const row = validateQueueRecord(value, maxRecordBytes);
-    const holder = holdable(row) ? await heldBy(row, holders, graph) : undefined;
+    const holder = holdable(row) ? await heldBy(row, await rejoinRecoveryHolders(queue.transaction, key, row, holders, maxRecordBytes), graph) : undefined;
     if (!holder) continue;
     const updated = asHeld(row, dependentHold(holder), maxRecordBytes);
     queue.put(updated); holders.push(updated); held += 1;

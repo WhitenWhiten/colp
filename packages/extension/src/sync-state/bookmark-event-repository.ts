@@ -2,6 +2,7 @@ import { validateBookmarkEventInput, validateBookmarkEventRecord } from './bookm
 export { validateBookmarkEventInput, validateBookmarkEventRecord } from './bookmark-event-validation.js';
 import { ISSUE_DEPENDENCY_STORES, transactionIssueDependencies } from './issue-dependencies.js';
 import { claimIngressDiagnosticSource } from './ingress-diagnostic-source.js';
+import { recordCapturedChildOrder } from './bookmark-event-child-order.js';
 import { bootstrapCreateIdentity } from './bootstrap-create-identity.js';
 import { enqueueParentIds, enqueueTargetId, findBlockingUnsettledAttempt,
   hasPendingMove } from './queue-live-work.js';
@@ -43,8 +44,6 @@ import type { SyncStoreRuntime } from './runtime.js';
  * failure is observable at both call sites: the options worker answers
  * `state_unavailable`, and the quarantine/flush round rejects while the inbox
  * events stay durably staged for the next attempt.
- *
- * Exported so the storage tests pin the boundary.
  */
 export const INGRESS_DIAGNOSTIC_SCAN_LIMIT = 20_000;
 export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
@@ -60,10 +59,9 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
     readonly outcome: 'staged' | 'duplicate'; readonly event: BookmarkEventRecord }> {
     assertWritable(); const key = scopeKey(validateScope(input)); const event = validateBookmarkEventInput(eventInput, maxRecordBytes);
     const db = await writableDatabase(); let result!: { outcome: 'staged' | 'duplicate'; event: BookmarkEventRecord };
-    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.metadata, STORES.bookmarkEvents], 'readwrite', async (tx) => {
+    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.metadata, STORES.bookmarkEvents, STORES.queue], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const events = tx.objectStore(STORES.bookmarkEvents);
-      const duplicate = await requestValue(events.index(INDEXES.eventByDedupe).get([key, event.dedupeKey])) as
-        BookmarkEventRecord | undefined;
+      const duplicate = await bookmarkEventDuplicate(tx, key, event);
       if (duplicate) { result = { outcome: 'duplicate', event: validateBookmarkEventRecord(duplicate, maxRecordBytes) }; return; }
       const counterKey = `bookmark-event-ordinal:${key}`; const metadata = tx.objectStore(STORES.metadata);
       const counter = await requestValue(metadata.get(counterKey)) as { key: string; next: number } | undefined;
@@ -71,7 +69,7 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
       if (ordinal === Number.MAX_SAFE_INTEGER) throw new SyncStateError('bookmark_event_ordinal_exhausted');
       metadata.put({ key: counterKey, next: ordinal + 1 });
       const record = validateBookmarkEventRecord({ ...event, scopeKey: key, ordinal, status: 'pending', opId: null }, maxRecordBytes);
-      events.add(record); result = { outcome: 'staged', event: record };
+      events.add(record); await recordCapturedChildOrder(tx, key, record); result = { outcome: 'staged', event: record };
     }); } catch (error) { throw constraintError(error); }
     return clone(result);
   }
@@ -138,6 +136,13 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
     await runTransaction(db, [STORES.intents, STORES.bookmarkEvents], 'readwrite', async (tx) => {
       await iterateCursor(tx.objectStore(STORES.intents), scopeRowsRange(key), (raw) => {
         const intent = raw as IntentRecord;
+        if (intent.liveWorkKind === 'rejoin' && intent.commandId?.startsWith('rejoin-remote-delete:')
+          && intent.generation === input.generation && intent.expected.kind === 'remove'
+          && intent.nativeTargetId === target && intent.expected.nativeId === target && intent.state === 'page_complete'
+          && ['absent', 'applied_with_evidence'].includes(intent.nativeResult ?? '')
+          && intent.nativeResultConfirmation?.nativeId === target) {
+          matched = true; return false;
+        }
         if (intent.liveWorkKind !== 'delete' || !intent.anchors) return;
         const members = intent.anchors.deleteMemberSet;
         const results = intent.anchors.deleteMemberResults;
@@ -585,3 +590,4 @@ export function validateBookmarkEventPark(input: unknown): BookmarkEventParkMark
     ...(value.dependencyStamp === undefined ? {} : {
       dependencyStamp: boundedString(value.dependencyStamp, 'parkDependencyStamp') }) };
 }
+import { bookmarkEventDuplicate } from './bookmark-event-dedupe.js';

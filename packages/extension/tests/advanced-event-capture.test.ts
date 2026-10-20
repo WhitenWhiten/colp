@@ -444,7 +444,8 @@ async function createAdvancedFixture(input: {
   const mode = input.mode ?? 'download';
   const mounts = [barMount];
   const confirmationId = `advanced-test-${++confirmationSequence}`;
-  const plan = buildAdvancedPlan({ scope, confirmationId, mode, boundaryVersion: '1', treeDigest: 'tree',
+  const boundaryVersion = (await store.getScope(scope))?.boundaryVersion ?? '0';
+  const plan = buildAdvancedPlan({ scope, confirmationId, mode, boundaryVersion, treeDigest: 'tree',
     remoteSnapshotId: 'snapshot', remoteRevision: 'revision', remoteCursor: 'cursor', local, remote,
     mappings: input.mappings ?? [], mounts, rootNodeId: rootFact.nodeId });
   const definitions = [
@@ -453,7 +454,7 @@ async function createAdvancedFixture(input: {
     ...plan.steps,
   ];
   const metadata = JSON.parse(JSON.stringify({ mode, mounts, confirmationId, treeDigest: 'tree',
-    boundaryVersion: '1', remoteSnapshotId: 'snapshot', remoteRevision: 'revision', remoteCursor: 'cursor' })) as JsonObject;
+    boundaryVersion, remoteSnapshotId: 'snapshot', remoteRevision: 'revision', remoteCursor: 'cursor' })) as JsonObject;
   const committed = await store.commitAdvancedPlan(scope, { planId: plan.planId, metadata,
     steps: JSON.parse(JSON.stringify(definitions)) as JsonObject[], now: 10 });
   await activateAdvancedPlan(store, scope, committed);

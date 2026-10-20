@@ -9,6 +9,7 @@ import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
 import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
 import { recoverVerifiedOrFreeze, leftoverVirtualChildrenNeedReproject } from '../src/recovery-guard.js';
 import { CHROME_BOOKMARK_NOT_FOUND } from '../src/bookmark-api-error.js';
+import { NativeWriteNotStartedError } from '../src/native-call-result.js';
 import { createSyncStateStore, type JsonObject, type MappingInput, type SyncScope } from '../src/sync-state-store.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 import { endpoints, json, problem } from './outbound-push-worker-harness.js';
@@ -200,8 +201,14 @@ for (const refreshed of [undefined, 'folder-d', 'folder-b']) {
       assert.equal(bodies[0]!.operations[0]!.payload.baseSourceParentRevision, 'children-old');
       assert.equal(bodies[0]!.operations[0]!.payload.baseTargetParentRevision, 'children-folder-b');
       if (refreshed) {
+        const exactUnsettled = await f.store.getQueueByOpId(scope, queued[0]!.opId);
+        const callsBeforeRefresh = f.calls.length;
         await f.apply([pullFixtures.mutationEvent({ kind: 'move', sequence: 40, collectionId: scope.collectionId,
           targetId: 'node-existing', parentId: refreshed })]);
+        assert.equal(f.nodes.get('native-existing')?.parentId, 'native-c', 'older remote authority cannot undo the captured second move');
+        assert.equal(f.calls.length, callsBeforeRefresh, 'authority refresh performs no native move');
+        assert.deepEqual(await f.store.getQueueByOpId(scope, queued[0]!.opId), exactUnsettled,
+          'the unresolved first attempt is neither acknowledged nor rewritten by Pull');
         await queue.flush();
         assert.equal((await f.store.listQueue(scope)).length, 1, 'a Pull refresh must not release the later move before the first receipt');
         assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentColpId, refreshed);
@@ -213,8 +220,11 @@ for (const refreshed of [undefined, 'folder-d', 'folder-b']) {
       accept = true;
       clock.now = Math.max(clock.now, (await f.store.getQueueByOpId(scope, queued[0]!.opId))!.retry.notBefore);
       assert.equal((await worker.drain()).outcome, 'terminal');
+      const callsBeforeEcho = f.calls.length;
       await f.apply([pullFixtures.mutationEvent({ kind: 'move', sequence: 41, collectionId: scope.collectionId,
         targetId: 'node-existing', parentId: 'folder-b' })]);
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-c');
+      assert.equal(f.calls.length, callsBeforeEcho, 'the first receipt cannot move the browser back to B');
       await queue.flush();
       const tail = (await f.store.listQueue(scope))[1]!;
       assert.equal(tail.status, 'pending'); assert.equal(tail.attempt, undefined); assert.equal(tail.sequence, 2);
@@ -226,6 +236,40 @@ for (const refreshed of [undefined, 'folder-d', 'folder-b']) {
         targetId: 'node-existing', parentId: 'folder-c' })]);
       assert.equal(f.nodes.get('native-existing')?.parentId, 'native-c');
       assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 0);
+    } finally { f.store.close(); }
+  });
+}
+
+for (const changed of ['uncaptured', 'different-capture', 'private'] as const) {
+  test(`a local move cannot borrow an older placement proof after ${changed}`, async () => {
+    const f = await setup();
+    try {
+      await f.seed('node-existing');
+      await addFolder(f, 'native-b', 'folder-b'); await addFolder(f, 'native-c', 'folder-c');
+      const queue = createBookmarkEventQueue({ scope, store: f.store, autoFlush: false, api: {
+        get: async id => (await f.api.get(id)).map(row => ({ ...row, title: row.title ?? '' })),
+        getChildren: async id => (await f.api.getChildren(id)).map(row => ({ ...row, title: row.title ?? '' })),
+      } });
+      if (changed === 'different-capture') {
+        await f.api.move('native-existing', { parentId: 'native-b', index: 0 });
+        await queue.moved('native-existing', { parentId: 'native-b', oldParentId: '1', index: 0, oldIndex: 0 });
+      }
+      await f.api.move('native-existing', { parentId: 'native-c', index: 0 });
+      if (changed === 'private') {
+        await queue.moved('native-existing', { parentId: 'native-c', oldParentId: '1', index: 0, oldIndex: 0 });
+        await f.store.configureBrowserRoots(scope, { status: 'ready', selectedNativeIds: ['1'], privateNativeIds: ['native-c'],
+          discovered: [{ nativeId: '1', ancestorNativeIds: [] }, { nativeId: 'native-b', ancestorNativeIds: ['1'] },
+            { nativeId: 'native-c', ancestorNativeIds: ['1'] }] });
+      }
+      const before = await f.store.listBookmarkEventsByStatus(scope, 'pending');
+      const mutations = f.calls.length;
+      await assert.rejects(() => f.apply([pullFixtures.mutationEvent({ kind: 'move', sequence: 40,
+        collectionId: scope.collectionId, targetId: 'node-existing', parentId: 'folder-b' })]), NativeWriteNotStartedError);
+      assert.equal(f.calls.length, mutations);
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-c');
+      assert.deepEqual(await f.store.listBookmarkEventsByStatus(scope, 'pending'), before);
+      assert.equal((await f.store.listApplyIntents(scope))[0]?.nativeResult, 'not_started');
+      assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
     } finally { f.store.close(); }
   });
 }
@@ -426,3 +470,464 @@ async function setup() {
       await applier.resume(); },
   };
 }
+
+for (const proofRead of [1, 2]) {
+  test(`a later captured drag during placement proof read ${proofRead} retries from a new native preimage`, async () => {
+    const f = await setup();
+    try {
+      await f.seed('node-existing');
+      await addFolder(f, 'native-b', 'folder-b'); await addFolder(f, 'native-c', 'folder-c');
+      await addFolder(f, 'native-d', 'folder-d');
+      let ids = 0;
+      const queue = createBookmarkEventQueue({ scope, store: f.store, autoFlush: false, uuid: () => `race-${++ids}`,
+        api: { get: async id => (await f.api.get(id)).map(row => ({ ...row, title: row.title ?? '' })),
+          getChildren: async id => (await f.api.getChildren(id)).map(row => ({ ...row, title: row.title ?? '' })) } });
+      for (const [oldParentId, parentId] of [['1', 'native-b'], ['native-b', 'native-c']] as const) {
+        await f.api.move('native-existing', { parentId, index: 0 });
+        await queue.moved('native-existing', { parentId, oldParentId, index: 0, oldIndex: 0 });
+        await queue.flush();
+      }
+      const queued = await f.store.listQueue(scope);
+      assert.equal(queued.length, 1);
+      assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 1);
+      const worker = createOutboundPushWorker({ ...pushOptions(f.store, { now: Date.now() }),
+        fetch: async () => { throw new TypeError('Failed to fetch'); } });
+      assert.equal((await worker.drain()).outcome, 'unknown');
+      const unknown = await f.store.getQueueByOpId(scope, queued[0]!.opId);
+      assert.ok(unknown?.attempt, 'the earlier move has actual unresolved request bytes');
+      const mappingBefore = await f.store.getMappingByColpId(scope, 'node-existing');
+      const callsBefore = f.calls.length;
+      let reads = 0, injected = false;
+      const store = { ...f.store,
+        listBookmarkEventsByNative: async (...args: Parameters<typeof f.store.listBookmarkEventsByNative>) => {
+          const page = await f.store.listBookmarkEventsByNative(...args);
+          if (args[1] === 'native-existing' && ++reads === proofRead) {
+            // Resolve this real repository read with its original snapshot, as
+            // an ordinary user drag may complete while a read is in flight.
+            injected = true;
+            await f.api.move('native-existing', { parentId: 'native-d', index: 0 });
+            const captured = await queue.moved('native-existing', {
+              parentId: 'native-d', oldParentId: 'native-c', index: 0, oldIndex: 0 });
+            assert.ok(captured.eventId, 'the later user drag is durably captured by the actual ingress');
+          }
+          return page;
+        } };
+      const applier = createPullApplier({ scope, store, api: f.api, session: { acceptedProtocolVersion: '0.2',
+        sessionId: 'session-lifecycle', collectionId: scope.collectionId, conversionPolicy: { separator: 'preserve_remote' } },
+        effectPageTemplate: 'https://known.example/effects/{effectId}/pages/{pageNumber}',
+        effectPageAuthority: 'https://known.example' });
+      const moved = pullFixtures.mutationEvent({ kind: 'move', sequence: 40,
+        collectionId: scope.collectionId, targetId: 'node-existing', parentId: 'folder-b' });
+      assert.ok(moved.kind === 'operation' && moved.effect.kind === 'node_moved');
+      // A placement-only server event retains the seeded bookmark's content.
+      const effect = { ...moved.effect, node: { ...moved.effect.node, title: 'Existing' } };
+      await applier.stage(pullFixtures.page({ events: [{ ...moved,
+        effect: { ...effect, effectDigest: canonicalAuthoritativeEffectDigest(effect) } }],
+      nextCursor: 'cursor-placement-race', collectionRevision: 'revision-placement-race' }));
+      await assert.rejects(() => applier.resume(), NativeWriteNotStartedError);
+      assert.equal(injected, true);
+      assert.equal(reads, 2, 'both the initial and final placement proof were checked');
+      assert.deepEqual(f.calls.slice(callsBefore), ['move:native-existing'], 'only the user drag reached the native API');
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-d');
+      assert.deepEqual(await f.store.getMappingByColpId(scope, 'node-existing'), mappingBefore);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, queued[0]!.opId), unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, queued[0]!.sequence), null);
+      const refused = (await f.store.listApplyIntents(scope))[0]!;
+      assert.equal(refused.nativeResult, 'not_started');
+      assert.equal(refused.apiPhase, 'intent_prepared');
+      assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+      assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 2);
+
+      // A transient refusal must not leave the persisted C preimage pinning
+      // every later wake while the known user placement is now D.
+      await assert.doesNotReject(() => applier.resume(), 'ordinary retry must admit the newest captured placement');
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-d');
+      assert.deepEqual(f.calls.slice(callsBefore), ['move:native-existing']);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, queued[0]!.opId), unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, queued[0]!.sequence), null);
+      assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentNativeId, 'native-d');
+      assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentColpId, 'folder-b');
+      assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-placement-race');
+    } finally { f.store.close(); }
+  });
+}
+
+for (const proof of ['captured', 'uncaptured', 'different-capture', 'private', 'uncaptured-content',
+  'started', 'observed', 'api-evidence', 'confirmation', 'unknown', 'legacy-unknown', 'replay-started', 'api-phase'] as const) {
+  test(`a refused move admits only a newer captured placement without invocation evidence (${proof})`, async () => {
+    const f = await refusedMoveFixture();
+    try {
+      if (proof === 'uncaptured') await f.api.move('native-existing', { parentId: 'native-e', index: 0 });
+      if (proof === 'different-capture' || proof === 'uncaptured-content') {
+        if (proof === 'uncaptured-content') await f.api.update('native-existing', { title: 'Uncaptured local title' });
+        await f.api.move('native-existing', { parentId: 'native-e', index: 0 });
+        await f.queue.moved('native-existing', { parentId: 'native-e', oldParentId: 'native-d', index: 0, oldIndex: 0 });
+        if (proof === 'different-capture') await f.api.move('native-existing', { parentId: 'native-d', index: 0 });
+      }
+      if (proof === 'private') await f.store.configureBrowserRoots(scope, { status: 'ready',
+        selectedNativeIds: ['1'], privateNativeIds: ['native-d'], discovered: [
+          { nativeId: '1', ancestorNativeIds: [] }, { nativeId: 'native-d', ancestorNativeIds: ['1'] },
+        ] });
+      if (proof === 'started' || proof === 'observed' || proof === 'api-evidence') {
+        await f.store.markPullBrowserCallStarted(scope, f.eventId);
+        if (proof === 'observed') assert.equal(await f.store.observeApplyIntentEvent(scope, f.intent.correlationId,
+          { eventDigest: f.intent.correlationId, nativeId: 'native-existing' }), true);
+        if (proof === 'api-evidence') await f.store.recordPullApiEvidence(scope, f.eventId,
+          { nativeId: 'native-existing', operationId: f.intent.operationId });
+      }
+      if (proof === 'confirmation') await f.store.persistApplyIntentFacts(scope, f.intent.intentId,
+        { nativeResultConfirmation: { kind: 'unknown', code: 'unresolved-browser-invocation' } });
+      if (proof === 'unknown' || proof === 'legacy-unknown') await f.store.persistApplyIntentFacts(scope, f.intent.intentId,
+        { nativeResult: proof === 'unknown' ? 'result_unknown' : 'unknown' });
+      if (proof === 'replay-started') await f.store.persistApplyIntentFacts(scope, f.intent.intentId, { replayState: 'started' });
+      if (proof === 'api-phase') await f.store.persistApplyIntentFacts(scope, f.intent.intentId, { apiPhase: 'browser_call_started' });
+      const before = await f.store.getApplyIntent(scope, f.intent.intentId);
+      const native = structuredClone(f.nodes.get('native-existing'));
+      const calls = f.calls.length;
+      // The new applier reopens the same database; it cannot inherit an
+      // in-memory permission from the invocation which was refused.
+      f.store.close();
+      if (proof === 'captured') {
+        await assert.doesNotReject(() => f.applier().resume());
+        assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentNativeId, 'native-d');
+        assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentColpId, 'folder-b');
+        assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+        const saved = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+        assert.deepEqual(saved.anchors?.nativePreimage, { ...f.intent.anchors?.nativePreimage as JsonObject, parentId: 'native-d', index: 0 });
+      } else {
+        await assert.rejects(() => f.applier().resume(), NativeWriteNotStartedError);
+        assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), before,
+          'a refusal may not erase prior invocation evidence or adopt an unproven preimage');
+        assert.deepEqual(await f.store.getMappingByColpId(scope, 'node-existing'), f.mappingBefore);
+        assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+      }
+      assert.deepEqual(f.nodes.get('native-existing'), native);
+      assert.equal(f.calls.length, calls, 'retry admission never issues a browser mutation');
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+    } finally { f.store.close(); }
+  });
+}
+
+for (const race of ['call-started', 'native-event', 'api-return', 'different-admission'] as const) {
+  test(`a newer ${race} wins over an in-flight placement readmission transaction`, async () => {
+    const f = await refusedMoveFixture();
+    try {
+      let attempted = false, protectedIntent = f.intent;
+      const store = { ...f.store,
+        refreshUnstartedMovePreimage: async (...args: Parameters<typeof f.store.refreshUnstartedMovePreimage>) => {
+          attempted = true;
+          if (race === 'different-admission') await f.store.persistApplyIntentFacts(scope, f.intent.intentId,
+            { anchors: { ...f.intent.anchors, otherAdmission: 'retained' } });
+          else {
+            await f.store.markPullBrowserCallStarted(scope, f.eventId);
+            if (race === 'native-event') assert.equal(await f.store.observeApplyIntentEvent(scope, f.intent.correlationId,
+              { eventDigest: f.intent.correlationId, nativeId: 'native-existing' }), true);
+            if (race === 'api-return') await f.store.recordPullApiEvidence(scope, f.eventId,
+              { nativeId: 'native-existing', operationId: f.intent.operationId });
+          }
+          protectedIntent = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+          return f.store.refreshUnstartedMovePreimage(...args);
+        } };
+      const calls = f.calls.length;
+      await assert.rejects(() => f.applier(store).resume(), /native_result_cas/);
+      assert.equal(attempted, true);
+      assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), protectedIntent);
+      assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+      assert.equal(f.calls.length, calls);
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-d');
+      assert.deepEqual(await f.store.getMappingByColpId(scope, 'node-existing'), f.mappingBefore);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+    } finally { f.store.close(); }
+  });
+}
+
+test('placement readmission cannot rewrite the durable native content identity', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    await assert.rejects(() => f.store.refreshUnstartedMovePreimage(scope, f.intent, {
+      ...f.intent.anchors?.nativePreimage as JsonObject, parentId: 'native-d', title: 'Forged fresh content',
+    }), /native_result_cas/);
+    assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), f.intent);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+  } finally { f.store.close(); }
+});
+
+async function refusedMoveFixture() {
+  const f = await setup();
+  try {
+    await f.seed('node-existing');
+    for (const letter of ['b', 'c', 'd', 'e']) await addFolder(f, `native-${letter}`, `folder-${letter}`);
+    let ids = 0;
+    const queue = createBookmarkEventQueue({ scope, store: f.store, autoFlush: false, uuid: () => `retry-${++ids}`,
+      api: { get: async id => (await f.api.get(id)).map(row => ({ ...row, title: row.title ?? '' })),
+        getChildren: async id => (await f.api.getChildren(id)).map(row => ({ ...row, title: row.title ?? '' })) } });
+    for (const [oldParentId, parentId] of [['1', 'native-b'], ['native-b', 'native-c']] as const) {
+      await f.api.move('native-existing', { parentId, index: 0 });
+      await queue.moved('native-existing', { parentId, oldParentId, index: 0, oldIndex: 0 }); await queue.flush();
+    }
+    const worker = createOutboundPushWorker({ ...pushOptions(f.store, { now: Date.now() }),
+      fetch: async () => { throw new TypeError('Failed to fetch'); } });
+    assert.equal((await worker.drain()).outcome, 'unknown');
+    const unknown = (await f.store.listQueue(scope))[0]!;
+    assert.ok(unknown.attempt, 'the fixture uses an actual unresolved outbound request');
+    const mappingBefore = await f.store.getMappingByColpId(scope, 'node-existing');
+    const applier = (store = f.store) => createPullApplier({ scope, store, api: f.api,
+      session: { acceptedProtocolVersion: '0.2', sessionId: 'session-lifecycle', collectionId: scope.collectionId,
+        conversionPolicy: { separator: 'preserve_remote' } },
+      effectPageTemplate: 'https://known.example/effects/{effectId}/pages/{pageNumber}',
+      effectPageAuthority: 'https://known.example' });
+    let injected = false;
+    const first = applier({ ...f.store,
+      listBookmarkEventsByNative: async (...args: Parameters<typeof f.store.listBookmarkEventsByNative>) => {
+        const rows = await f.store.listBookmarkEventsByNative(...args);
+        if (args[1] === 'native-existing' && !injected) {
+          injected = true; await f.api.move('native-existing', { parentId: 'native-d', index: 0 });
+          await queue.moved('native-existing', { parentId: 'native-d', oldParentId: 'native-c', index: 0, oldIndex: 0 });
+        }
+        return rows;
+      } });
+    const moved = pullFixtures.mutationEvent({ kind: 'move', sequence: 40, collectionId: scope.collectionId,
+      targetId: 'node-existing', parentId: 'folder-b' });
+    assert.ok(moved.kind === 'operation' && moved.effect.kind === 'node_moved');
+    const effect = { ...moved.effect, node: { ...moved.effect.node, title: 'Existing' } };
+    await first.stage(pullFixtures.page({ events: [{ ...moved, effect: { ...effect,
+      effectDigest: canonicalAuthoritativeEffectDigest(effect) } }],
+    nextCursor: 'cursor-retry-admission', collectionRevision: 'revision-retry-admission' }));
+    await assert.rejects(() => first.resume(), NativeWriteNotStartedError);
+    assert.equal(injected, true);
+    const intent = (await f.store.listApplyIntents(scope))[0]!;
+    assert.equal(intent.nativeResult, 'not_started'); assert.equal(intent.apiPhase, 'intent_prepared');
+    assert.equal((intent.anchors?.nativePreimage as JsonObject).parentId, 'native-c');
+    assert.deepEqual(await f.store.getQueueByOpId(scope, unknown.opId), unknown);
+    return { ...f, queue, applier, intent, eventId: intent.eventId!, unknown, mappingBefore };
+  } catch (error) { f.store.close(); throw error; }
+}
+
+for (const flushCaptured of [false, true]) {
+  test(`a captured rename after a refused move keeps both local edits and resumes Pull (${flushCaptured ? 'flush' : 'inbox'})`, async () => {
+    const f = await refusedMoveFixture();
+    try {
+      const title = 'Renamed after the captured drag';
+      await f.api.update('native-existing', { title });
+      const changed = await f.queue.changed('native-existing', { title }, 'callback');
+      assert.equal(changed.outcome, 'staged');
+      assert.ok(changed.eventId);
+      if (flushCaptured) await f.queue.flush();
+      const captures = await f.store.listBookmarkEventsByNative(scope, 'native-existing', 0, 1_000);
+      const captured = captures.find(row => row.eventId === changed.eventId);
+      assert.ok(captured);
+      const draft = captured.details.draft as JsonObject;
+      assert.equal(draft.type, 'update_node_content');
+      assert.equal(draft.targetId, 'node-existing');
+      assert.equal(((draft.payload as JsonObject).value as JsonObject).title, title);
+      const queued = await f.store.listQueueByTarget(scope, 'node-existing');
+      assert.ok(captured.status === 'pending' || queued.some(row => row.status !== 'rejected'
+        && row.payload.type === 'update_node_content'
+        && ((row.payload.payload as JsonObject).value as JsonObject).title === title),
+      'the exact rename remains durable live work before this wake');
+      const native = structuredClone(f.nodes.get('native-existing'));
+      const calls = f.calls.length;
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+      f.store.close();
+      await assert.doesNotReject(() => f.applier().resume(),
+        'an ordinary wake must preserve the captured move and rename while advancing the older Pull event');
+      assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+      const mapping = await f.store.getMappingByColpId(scope, 'node-existing');
+      assert.equal(mapping?.parentNativeId, 'native-d');
+      assert.equal(mapping?.parentColpId, 'folder-b');
+      assert.deepEqual(f.nodes.get('native-existing'), native);
+      assert.equal(f.calls.length, calls, 'neither captured edit should be undone in the browser');
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+    } finally { f.store.close(); }
+  });
+}
+
+test('a captured move readmission resumes after its call-started write survives a worker crash', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    let started = false;
+    const store = { ...f.store,
+      markPullBrowserCallStarted: async (...args: Parameters<typeof f.store.markPullBrowserCallStarted>) => {
+        await f.store.markPullBrowserCallStarted(...args);
+        started = true; throw new Error('worker_crash_after_move_started');
+      } };
+    const calls = f.calls.length;
+    const native = structuredClone(f.nodes.get('native-existing'));
+    await assert.rejects(() => f.applier(store).resume(), /worker_crash_after_move_started/);
+    assert.equal(started, true);
+    const admitted = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+    assert.equal(admitted.state, 'browser_call_started');
+    assert.equal(admitted.apiPhase, 'browser_call_started');
+    assert.equal(admitted.nativeResult, 'not_started');
+    assert.equal(admitted.replayState, 'not_started');
+    assert.deepEqual(admitted.anchors?.nativePreimage,
+      { ...f.intent.anchors?.nativePreimage as JsonObject, parentId: 'native-d', index: 0 });
+    assert.equal(admitted.apiResultEvidence, null);
+    assert.equal(admitted.nativeEventEvidence, null);
+    assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+    f.store.close();
+    await assert.doesNotReject(() => f.applier().resume());
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+    const mapping = await f.store.getMappingByColpId(scope, 'node-existing');
+    assert.equal(mapping?.parentNativeId, 'native-d');
+    assert.equal(mapping?.parentColpId, 'folder-b');
+    assert.deepEqual(f.nodes.get('native-existing'), native);
+    assert.equal(f.calls.length, calls);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+  } finally { f.store.close(); }
+});
+
+test('an unknown native result committed at call admission wins over the prepared move snapshot', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    let attempted = false, protectedIntent = f.intent;
+    const store = { ...f.store,
+      markPullBrowserCallStarted: async (...args: Parameters<typeof f.store.markPullBrowserCallStarted>) => {
+        attempted = true;
+        await f.store.persistApplyIntentFacts(scope, f.intent.intentId, { nativeResult: 'result_unknown',
+          nativeResultConfirmation: { kind: 'unknown', code: 'concurrent-invocation-result' } });
+        protectedIntent = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+        return f.store.markPullBrowserCallStarted(...args);
+      } };
+    const calls = f.calls.length;
+    const native = structuredClone(f.nodes.get('native-existing'));
+    await assert.rejects(() => f.applier(store).resume(), /native_result_cas/);
+    assert.equal(attempted, true);
+    assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), protectedIntent);
+    assert.equal((await f.store.getPullEvent(scope, f.eventId))?.state, 'intent_prepared');
+    assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+    assert.deepEqual(await f.store.getMappingByColpId(scope, 'node-existing'), f.mappingBefore);
+    assert.deepEqual(f.nodes.get('native-existing'), native);
+    assert.equal(f.calls.length, calls);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+  } finally { f.store.close(); }
+});
+
+test('another wake starting the move before its admitted CAS stays a retryable race', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    let attempted = false, protectedIntent = f.intent;
+    const store = { ...f.store,
+      markPullBrowserCallStarted: async (...args: Parameters<typeof f.store.markPullBrowserCallStarted>) => {
+        attempted = true;
+        await f.store.markPullBrowserCallStarted(scope, f.eventId);
+        protectedIntent = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+        return f.store.markPullBrowserCallStarted(...args);
+      } };
+    const calls = f.calls.length;
+    const native = structuredClone(f.nodes.get('native-existing'));
+    await assert.rejects(() => f.applier(store).resume(), /native_result_cas/);
+    assert.equal(attempted, true);
+    assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), protectedIntent);
+    assert.equal((await f.store.getPullEvent(scope, f.eventId))?.state, 'browser_call_started');
+    assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+    f.store.close();
+    await assert.doesNotReject(() => f.applier().resume());
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+    assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentNativeId, 'native-d');
+    assert.deepEqual(f.nodes.get('native-existing'), native);
+    assert.equal(f.calls.length, calls);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+  } finally { f.store.close(); }
+});
+
+for (const drift of ['latest-title', 'uncaptured-url', 'managed'] as const) {
+  test(`a captured rename cannot authorize ${drift} drift during move readmission`, async () => {
+    const f = await refusedMoveFixture();
+    try {
+      await f.api.update('native-existing', { title: 'Captured title A' });
+      const first = await f.queue.changed('native-existing', { title: 'Captured title A' }, 'callback');
+      assert.equal(first.outcome, 'staged'); assert.ok(first.eventId);
+      if (drift === 'latest-title') {
+        await f.api.update('native-existing', { title: 'Captured title B' });
+        const second = await f.queue.changed('native-existing', { title: 'Captured title B' }, 'callback');
+        assert.equal(second.outcome, 'staged'); assert.ok(second.eventId);
+        const capture = (await f.store.listBookmarkEventsByNative(scope, 'native-existing', 0, 1_000))
+          .find(row => row.eventId === second.eventId)!;
+        const draft = capture.details.draft as JsonObject;
+        assert.equal(((draft.payload as JsonObject).value as JsonObject).title, 'Captured title B');
+        await f.api.update('native-existing', { title: 'Captured title A' });
+      } else if (drift === 'uncaptured-url') {
+        await f.api.update('native-existing', { url: 'https://uncaptured.example/new' });
+      } else Object.assign(f.nodes.get('native-existing')!, { unmodifiable: 'managed' });
+      const native = structuredClone(f.nodes.get('native-existing'));
+      const before = await f.store.getApplyIntent(scope, f.intent.intentId);
+      const mapping = await f.store.getMappingByColpId(scope, 'node-existing');
+      const calls = f.calls.length;
+      f.store.close();
+      await assert.rejects(() => f.applier().resume(), NativeWriteNotStartedError);
+      assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), before);
+      assert.deepEqual(await f.store.getMappingByColpId(scope, 'node-existing'), mapping);
+      assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+      assert.deepEqual(f.nodes.get('native-existing'), native);
+      assert.equal(f.calls.length, calls);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+    } finally { f.store.close(); }
+  });
+}
+
+test('both title and URL captured after a refused move survive the ordinary restart', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    const changes = { title: 'Edited after dragging', url: 'https://captured.example/new' };
+    await f.api.update('native-existing', changes);
+    const capture = await f.queue.changed('native-existing', changes, 'callback');
+    assert.equal(capture.outcome, 'staged'); assert.ok(capture.eventId);
+    const native = structuredClone(f.nodes.get('native-existing'));
+    const calls = f.calls.length;
+    f.store.close();
+    await assert.doesNotReject(() => f.applier().resume());
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+    const admitted = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+    assert.deepEqual(admitted.anchors?.nativePreimage,
+      { ...f.intent.anchors?.nativePreimage as JsonObject, parentId: 'native-d', index: 0, ...changes });
+    assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentNativeId, 'native-d');
+    assert.deepEqual(f.nodes.get('native-existing'), native);
+    assert.equal(f.calls.length, calls);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+  } finally { f.store.close(); }
+});
+
+test('a newer captured rename during native admission invalidates the first content proof', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    await f.api.update('native-existing', { title: 'Before the admission read' });
+    assert.equal((await f.queue.changed('native-existing', { title: 'Before the admission read' }, 'callback')).outcome, 'staged');
+    let injected = false;
+    const store = { ...f.store,
+      getLocalSyncExclusion: async (...args: Parameters<typeof f.store.getLocalSyncExclusion>) => {
+        const row = await f.store.getLocalSyncExclusion(...args);
+        if (args[1] === 'native-d' && !injected) {
+          injected = true;
+          await f.api.update('native-existing', { title: 'After the admission read' });
+          assert.equal((await f.queue.changed('native-existing', { title: 'After the admission read' }, 'callback')).outcome, 'staged');
+        }
+        return row;
+      } };
+    const calls = f.calls.length;
+    await assert.rejects(() => f.applier(store).resume(), NativeWriteNotStartedError);
+    assert.equal(injected, true);
+    assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), f.intent);
+    assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+    assert.deepEqual(f.calls.slice(calls), ['update:native-existing'], 'only the actual later user edit runs');
+    const native = structuredClone(f.nodes.get('native-existing'));
+    f.store.close();
+    await assert.doesNotReject(() => f.applier().resume());
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+    assert.equal(((await f.store.getApplyIntent(scope, f.intent.intentId))?.anchors?.nativePreimage as JsonObject).title,
+      'After the admission read');
+    assert.deepEqual(f.nodes.get('native-existing'), native);
+    assert.equal(f.calls.length, calls + 1);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+  } finally { f.store.close(); }
+});

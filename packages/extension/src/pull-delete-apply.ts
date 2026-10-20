@@ -4,6 +4,7 @@ import { lookupBookmark } from './bookmark-api-error.js';
 import { currentPullMapping } from './pull-mapping-view.js';
 import { recordKns09Stop } from './kns-09-release.js';
 import { remoteDeleteDecisionId, remoteDeleteMemberIds } from './remote-delete-policy.js';
+import { hasUnsettledDeleteEdits } from './remote-delete-local-work.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import { isNonChromeNativeId, isProtectedNativeRoot, mayMutateNative, unmountedNativeId } from './pull-mount-apply.js';
@@ -62,9 +63,9 @@ export async function applyRemoteDeletion(input: {
     };
   }
   const writable = mappings.some(row => !isNonChromeNativeId(row.nativeId) && mayMutateNative(row, mounts));
+  const decision = await store.getRemoteDeleteDecision(scope, remoteDeleteDecisionId(input.eventId));
   if (writable && event.operation.replicaId !== scope.replicaId
       && (await store.getRemoteDeletePolicy(scope)).policy !== 'sync') {
-    const decision = await store.getRemoteDeleteDecision(scope, remoteDeleteDecisionId(`${event.cursor}:${event.operation.opId}`));
     if (decision?.state !== 'applying') {
       recordKns09Stop('unconfirmedDelete', scope); throw new SyncFailureError('remote_delete_confirmation_required');
     }
@@ -72,6 +73,11 @@ export async function applyRemoteDeletion(input: {
   const members: DeleteMember[] = mappings.map((row) => ({ colpId: row.colpId, nativeId: row.nativeId }));
   const outcome = await executeRemoteDeleteMembers({
     store, scope, api, mounts, intentId: `intent:${input.eventId}`, members, mappings, writable,
+    ...(decision?.state === 'applying' ? { confirmedDecision: decision } : {}),
+    ...(decision?.state === 'applying' ? {} : {
+      retainLocalWork: (mapping: MappingInput, native: { readonly title?: string; readonly url?: string }) =>
+        hasUnsettledDeleteEdits(store, scope, mapping, native),
+    }),
     crash: input.crash,
   });
   const revision = effect.kind === 'node_deleted'

@@ -1,9 +1,9 @@
 import { personalTreeApi } from '../bookmark-subscriptions/personal-boundary.js';
-import { personalBookmarks } from '../bookmark-subscriptions/guards.js';
 import { countFolderContents } from '../bookmark-boundary.js';
+import { browserRootDisplayTitle } from '../browser-root-identity.js';
 import { digestJson } from '../bookmark-event-codec.js';
-import { BookmarkTreeError, createChromeBookmarkTreeAdapter, customSourceKeyForFolder,
-  type NormalizedBookmarkNode } from '../chrome-bookmark-tree.js';
+import { BookmarkTreeError, createChromeBookmarkTreeAdapter,
+  type NormalizedBookmarkNode, type BookmarkTreeApi } from '../chrome-bookmark-tree.js';
 import { FIRST_RUN_DRAFT, parseFirstRunDraft, shouldDefaultPreselect } from '../first-run-draft.js';
 import { writeSaveContextCache } from '../save-context-cache.js';
 import { recordKns09PermissionRevoked, recordKns09ReconcileFailure } from '../kns-09-release.js';
@@ -13,10 +13,13 @@ import type { ScopeRecord, SyncScope } from '../sync-state-store.js';
 import type { PublicRootNode, RootRequest, RootResponse } from '../types.js';
 import { bookmarkListenerLifecycle, recoverBookmarkEvents } from './bookmarks.js';
 import { scheduleSyncEngineWake } from './engine.js';
-import { handleRangeConfirm, handleRangePreview } from './range.js';
+import { handleRangeConfirm, handleRangePreview, pendingRangeDescription, resumePendingRangeConfirmation } from './range.js';
 import { DEFAULT_SYNC_FOLDER_TITLE, hasBookmarkPermission, rootScopeKey, sw, syncState } from './runtime.js';
 import { currentSyncScope, requireSyncScope } from './scope.js';
 import { t } from '../i18n.js';
+import { captureBoundaryAttempt } from './boundary-attempt.js';
+import { executeNativeCreate } from '../native-create-executor.js';
+import { createChromePullBookmarkApi } from '../pull-bookmark-api.js';
 
 export async function handleRootRequest(message: RootRequest): Promise<RootResponse> {
   let scope: SyncScope;
@@ -44,51 +47,41 @@ export async function handleRootRequest(message: RootRequest): Promise<RootRespo
     return { ok: true, boundaries: { selected: toNative(stored?.selectedRoots),
       privateLocal: toNative(stored?.privateRoots) } };
   }
-  if (!permissionGranted) {
+  if (!permissionGranted && message.kind !== 'known.roots.confirm') {
     const required = await permissionRequiredView(scope);
     return message.kind === 'known.roots.get' || message.kind === 'known.roots.permissionChanged'
       ? required : { ok: false, error: 'permission_required' };
   }
+  let committed: { readonly confirmationId: string; readonly state: 'committed' } | undefined;
   try {
     if (message.kind === 'known.roots.update') {
-      const selected = resolveRootRefs(scope, message.viewId, message.selectedRefs);
-      const privateLocal = resolveRootRefs(scope, message.viewId, message.privateRefs);
-      if (!selected || !privateLocal) return { ok: false, error: 'request_invalid' };
-      const current = await readRootFolders();
-      if (!sw.rootViewTokens || !sameDiscovered(current.discovered, [...sw.rootViewTokens.entries.values()])) {
-        sw.rootViewTokens = undefined; return { ok: false, error: 'request_invalid' };
-      }
-      try { await commitBrowserRootAuthorityAndWake(scope, current.discovered, selected, privateLocal); }
-      catch { return { ok: false, error: 'root_update_failed' }; }
+      // Older pages must enter the same review/admission protocol. A direct
+      // write would bypass a pending command and its boundary version fence.
+      return { ok: false, error: 'preview_required' };
     }
     if (message.kind === 'known.roots.preview') {
-      return handleRangePreview(message);
+      return await handleRangePreview(message);
     }
     if (message.kind === 'known.roots.confirm') {
       const confirmed = await handleRangeConfirm(message);
       if (!confirmed.ok) return confirmed;
-      return { ok: true, view: await loadRootView(scope) };
+      committed = { confirmationId: message.confirmationId, state: 'committed' };
+      if (!permissionGranted) return { ...await permissionRequiredView(scope), confirmation: committed } as RootResponse;
+      return { ok: true, view: await loadRootView(scope), confirmation: committed };
     }
+    if (message.kind === 'known.roots.get') await resumePendingRangeConfirmation(scope);
     return { ok: true, view: await loadRootView(scope,
-      message.kind === 'known.roots.get' ? message.preselectFolderId : undefined) };
+      message.kind === 'known.roots.get' ? message.preselectFolderId : undefined), ...await pendingRangeDescription(scope) };
   } catch (error) {
     const status = error instanceof BookmarkTreeError ? error.code === 'bookmark_tree_corrupt' ? 'corrupt' : error.code : 'corrupt';
     await syncState.setBrowserRootStatus(scope, status);
     sw.rootViewTokens = undefined;
-    return { ok: true, view: { viewId: crypto.randomUUID(), status, roots: [] } };
+    if (!committed && (message.kind === 'known.roots.confirm' || message.kind === 'known.roots.preview'
+        || message.kind === 'known.roots.update')) return { ok: false,
+      error: error instanceof BookmarkTreeError ? status : 'root_update_failed' };
+    return { ok: true, view: { viewId: crypto.randomUUID(), status, roots: [] },
+      ...(committed ? { confirmation: committed } : {}) };
   }
-}
-
-async function commitBrowserRootAuthorityAndWake(scope: SyncScope,
-  discovered: readonly { nativeId: string; ancestorNativeIds: readonly string[] }[],
-  selectedNativeIds: readonly string[], privateNativeIds: readonly string[]) {
-  const primary = selectedNativeIds[0];
-  await syncState.configureBrowserRoots(scope, { discovered, selectedNativeIds, privateNativeIds, status: 'ready' });
-  if (primary) {
-    await writeSaveContextCache({ collectionId: scope.collectionId, parentNativeId: primary,
-      ...(privateNativeIds[0] ? { privateParentNativeId: privateNativeIds[0] } : {}) }).catch(() => undefined);
-  }
-  scheduleSyncEngineWake('manual');
 }
 
 async function permissionRequiredView(scope: SyncScope): Promise<RootResponse> {
@@ -142,8 +135,11 @@ export async function loadRootView(scope: SyncScope, preselectFolderId?: string)
       .filter((mount) => mount.status !== 'detached').map((mount) => mount.nativeRootId))
     : undefined;
   const tokens = new Map<string, { nativeId: string; ancestorNativeIds: readonly string[] }>();
+  const repeatedRootKinds = new Set(flattened.filter(row => row.depth === 0 && !row.node.managed)
+    .filter((row, index, all) => all.some((other, otherIndex) => otherIndex !== index && other.rootKind === row.rootKind))
+    .map(row => row.rootKind));
   const roots = flattened.map(({ node, rootKind, depth, ancestorNativeIds }): PublicRootNode => {
-    const ref = digestJson([rootScopeKey(scope), node.nativeId]).slice(7); tokens.set(ref, { nativeId: node.nativeId, ancestorNativeIds });
+    const ref = rootFolderRef(scope, node.nativeId); tokens.set(ref, { nativeId: node.nativeId, ancestorNativeIds });
     const colpId = byNative.get(node.nativeId);
     const counts = countFolderContents(node);
     /* R13 D-21: a deep-linked folder arrives checked so the user only has to
@@ -157,14 +153,29 @@ export async function loadRootView(scope: SyncScope, preselectFolderId?: string)
           managed: node.managed, depth, bookmarkCount: counts.bookmarkCount, folderCount: counts.folderCount,
           firstRun: recorded?.firstRun, hasCommittedSelection,
         }));
-    return { ref, title: node.title || rootLabel(rootKind), kind: rootKind, depth, selected,
+    const title = node.title || rootLabel(rootKind);
+    return { ref, title: depth === 0 ? browserRootDisplayTitle(title, node.syncing, repeatedRootKinds.has(rootKind)) : title,
+      kind: rootKind, depth, selected,
       privateLocal: colpId !== undefined && authority.privateRoots.includes(colpId), managed: node.managed,
       bookmarkCount: counts.bookmarkCount, folderCount: counts.folderCount,
       ...(flagged ? { preselected: true as const } : {}),
       ...(node.managed ? { exclusionReason: 'managed' as const } : {}) };
   });
-  const viewId = crypto.randomUUID(); sw.rootViewTokens = { viewId, scopeKey: rootScopeKey(scope), entries: tokens };
+  // This token versions discovered folder identities, not a particular tab.
+  // Opening another options page with the same tree must not revoke the first
+  // page's ability to preview its selection. Confirmation still checks the
+  // durable boundary version and the complete preview digest.
+  const previous = sw.rootViewTokens;
+  const viewId = previous?.scopeKey === rootScopeKey(scope)
+    && sameDiscovered(discovered, [...previous.entries.values()]) ? previous.viewId : crypto.randomUUID();
+  sw.rootViewTokens = { viewId, scopeKey: rootScopeKey(scope), entries: tokens };
   return { viewId, status: authority.rootStatus, roots };
+}
+
+/** Stable within one exact scope; the live view or durable preview decides
+ * which native identities this opaque ref may currently authorize. */
+export function rootFolderRef(scope: SyncScope, nativeId: string): string {
+  return digestJson([rootScopeKey(scope), nativeId]).slice(7);
 }
 
 async function firstRunPreviewNativeIds(scope: SyncScope, firstRun: ScopeRecord['firstRun']): Promise<Set<string> | undefined> {
@@ -182,8 +193,8 @@ async function firstRunPreviewNativeIds(scope: SyncScope, firstRun: ScopeRecord[
   }
 }
 
-export async function readRootFolders() {
-  const tree = await createChromeBookmarkTreeAdapter(personalTreeApi()).read();
+export async function readRootFolders(api: BookmarkTreeApi = personalTreeApi()) {
+  const tree = await createChromeBookmarkTreeAdapter(api).read();
   const discovered: Array<{ nativeId: string; ancestorNativeIds: string[] }> = [];
   const flattened: Array<{ node: NormalizedBookmarkNode; rootKind: PublicRootNode['kind']; depth: number;
     ancestorNativeIds: string[] }> = [];
@@ -199,13 +210,6 @@ function flattenFolders(node: NormalizedBookmarkNode, rootKind: PublicRootNode['
   output.push({ node, rootKind: depth === 0 ? rootKind : 'folder', depth, ancestorNativeIds: ancestors });
   discovered.push({ nativeId: node.nativeId, ancestorNativeIds: ancestors });
   for (const child of node.children) flattenFolders(child, 'folder', depth + 1, [...ancestors, node.nativeId], output, discovered);
-}
-
-function resolveRootRefs(scope: SyncScope, viewId: string, refs: readonly string[]) {
-  if (!Array.isArray(refs) || refs.length > 128 || refs.some((ref) => typeof ref !== 'string')) return null;
-  if (!sw.rootViewTokens || sw.rootViewTokens.viewId !== viewId || sw.rootViewTokens.scopeKey !== rootScopeKey(scope)) return null;
-  const resolved = refs.map((ref) => sw.rootViewTokens!.entries.get(ref)?.nativeId);
-  return resolved.some((value) => !value) ? null : resolved as string[];
 }
 
 export function sameDiscovered(left: readonly { nativeId: string; ancestorNativeIds: readonly string[] }[],
@@ -238,23 +242,48 @@ export async function provisionDefaultSyncRoot(scope: SyncScope, options?: {
   if (!canProvisionDefaultSyncRoot(recorded?.firstRun, options?.explicitCreateKnowNFolder)) return undefined;
   if (!await hasBookmarkPermission()) return undefined;
   if (!recorded || recorded.selectedRoots.length > 0) return undefined;
-  const tree = await createChromeBookmarkTreeAdapter(personalTreeApi()).read();
+  if ((await syncState.listPendingBoundaryCommands(scope)).length) return undefined;
+  const attempt = await captureBoundaryAttempt(scope);
+  const tree = await createChromeBookmarkTreeAdapter(await attempt.nativeApi(personalTreeApi())).read();
   const host = tree.roots.find((root) => root.rootKind === 'bookmarks_bar' && !root.managed)
     ?? tree.roots.find((root) => root.rootKind === 'other');
   if (!host || host.managed) return undefined;
   const existing = host.children.find((child) =>
     child.kind === 'folder' && !child.managed && child.title === DEFAULT_SYNC_FOLDER_TITLE);
-  const folderNativeId = existing?.nativeId
-    ?? (await personalBookmarks.create({ parentId: host.nativeId, title: DEFAULT_SYNC_FOLDER_TITLE })).id;
-  const { discovered } = await readRootFolders();
-  if (!discovered.some((item) => item.nativeId === folderNativeId)) return undefined;
-  await syncState.putMountBinding(scope, {
-    mountId: crypto.randomUUID(), nativeRootId: folderNativeId, remoteMountNodeId: null,
-    boundaryVersion: recorded.boundaryVersion ?? '0', materialized: false, status: 'active',
-    customSourceKey: customSourceKeyForFolder(folderNativeId),
-  });
+  const commandId = `provision.${digestJson([recorded.scopeKey, recorded.boundaryVersion ?? '0']).slice(7)}`;
+  const intentId = `${commandId}.create`;
+  // An unknown prior create cannot be identified merely by a matching title.
+  // Keep its native receipt until the same command can be resumed safely.
+  const priorIntent = await syncState.getApplyIntent(scope, intentId);
+  let folderNativeId = !priorIntent ? existing?.nativeId : undefined;
+  if (!folderNativeId) {
+    const api = await attempt.nativeApi(createChromePullBookmarkApi());
+    await attempt.assertCurrent();
+    const created = await executeNativeCreate({ scope, store: syncState, api, intentId,
+      owner: { scopeKey: recorded.scopeKey, generation: attempt.generation, commandId,
+        eventId: commandId, colpId: commandId, substep: 'create-folder' },
+      parentNativeId: host.nativeId, expected: { title: DEFAULT_SYNC_FOLDER_TITLE },
+      create: () => api.create({ parentId: host.nativeId, title: DEFAULT_SYNC_FOLDER_TITLE }),
+    });
+    if (created.result !== 'applied_with_evidence') return undefined;
+    folderNativeId = created.nativeId;
+  }
+  await attempt.assertCurrent();
+  const live = await syncState.getScope(scope);
+  if ((live?.boundaryVersion ?? '0') !== (recorded.boundaryVersion ?? '0') || live?.selectedRoots.length) return undefined;
+  const view = await loadRootView(scope);
+  const ref = [...sw.rootViewTokens?.entries ?? []].find(([, entry]) => entry.nativeId === folderNativeId)?.[0];
+  if (!ref) return undefined;
+  const preview = await handleRangePreview({ kind: 'known.roots.preview', viewId: view.viewId,
+    selectedRefs: [ref], privateRefs: [] });
+  if (!preview.ok || !('preview' in preview)) return undefined;
+  await attempt.assertCurrent();
+  const confirmed = await handleRangeConfirm({ kind: 'known.roots.confirm', previewId: preview.preview.previewId,
+    confirmationId: `${commandId}.range`, treeDigest: preview.preview.treeDigest });
+  if (!confirmed.ok) return undefined;
+  await attempt.assertCurrent();
   bookmarkListenerLifecycle.install();
-  await commitBrowserRootAuthorityAndWake(scope, discovered, [folderNativeId], []);
+  await writeSaveContextCache({ collectionId: scope.collectionId, parentNativeId: folderNativeId }).catch(() => undefined);
   sw.rootViewTokens = undefined;
   return folderNativeId;
 }

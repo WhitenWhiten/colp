@@ -8,7 +8,7 @@ import { localIssueRange, pullIssueRange } from './pull-issue-repository.js';
 import { STORES, INDEXES } from './schema.js';
 import type { IntentRecord, UnknownRecord, BookmarkEventRecord } from './types.js';
 
-export const ISSUE_DEPENDENCY_STORES = [STORES.receipts, STORES.mappings, STORES.diagnostics, STORES.intents, STORES.pullEvents, STORES.bookmarkEvents, STORES.pullPages, STORES.remoteDeleteDecisions] as const;
+export const ISSUE_DEPENDENCY_STORES = [STORES.receipts, STORES.mappings, STORES.diagnostics, STORES.intents, STORES.pullEvents, STORES.bookmarkEvents, STORES.pullPages, STORES.remoteDeleteDecisions, STORES.scopeCommandPlans, STORES.metadata] as const;
 
 const MAX = Number.MAX_SAFE_INTEGER;
 /** Page states that can still carry an unresolved issue. */

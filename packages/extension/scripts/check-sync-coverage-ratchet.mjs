@@ -2,6 +2,145 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** Executable owners added by the sync audit. These include production entry
+ * points, not just extracted helpers, so wiring omissions remain measurable. */
+export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
+  'src/advanced-first-run-ui.ts',
+  'src/bookmark-boundary.ts',
+  'src/bookmark-child-order.ts',
+  'src/bookmark-content-capture.ts',
+  'src/bookmark-event-codec.ts',
+  'src/bookmark-event-ingress.ts',
+  'src/bookmark-event-projection.ts',
+  'src/bookmark-move-echo.ts',
+  'src/bookmark-own-create-repair.ts',
+  'src/bookmark-subscriptions/guards.ts',
+  'src/bootstrap/advanced-run.ts',
+  'src/bootstrap/local-facts.ts',
+  'src/bootstrap/upload-rejection.ts',
+  'src/browser-root-identity.ts',
+  'src/chrome-bookmark-tree.ts',
+  'src/cloud-capability.ts',
+  'src/first-run-confirmation-session.ts',
+  'src/first-run-draft.ts',
+  'src/first-run-preview-copy.ts',
+  'src/first-run-ui.ts',
+  'src/generated/browser-ingress-title.ts',
+  'src/kns-09-release.ts',
+  'src/manifest-client.ts',
+  'src/metadata-sync-policy.ts',
+  'src/native-call-result.ts',
+  'src/native-wait-materialization.ts',
+  'src/options.ts',
+  'src/outbound-push-batch.ts',
+  'src/outbound-push-encoding.ts',
+  'src/personal-sync-fetch.ts',
+  'src/public-server-manifest.ts',
+  'src/pull-child-order.ts',
+  'src/pull-create-evidence.ts',
+  'src/pull-delete-apply.ts',
+  'src/pull-item-set-aside.ts',
+  'src/pull-local-placement.ts',
+  'src/pull-native-content-barrier.ts',
+  'src/pull-native-create-boundary.ts',
+  'src/pull-native-snapshot-resume.ts',
+  'src/pull-native-write-boundary.ts',
+  'src/pull-range-materialize.ts',
+  'src/pull-range-move.ts',
+  'src/pull-restore-apply.ts',
+  'src/pull-self-create.ts',
+  'src/push-recovery-barrier.ts',
+  'src/queued-upload-batch-boundary.ts',
+  'src/queued-upload-boundary.ts',
+  'src/range-confirmation-session.ts',
+  'src/range-ui.ts',
+  'src/recovery-content.ts',
+  'src/recovery-delete.ts',
+  'src/recovery-placement.ts',
+  'src/rejoin-decisions-ui.ts',
+  'src/remote-delete-apply.ts',
+  'src/remote-delete-local-work.ts',
+  'src/replica-rebuild-ui.ts',
+  'src/replica-repair-capability.ts',
+  'src/replica-retirement.ts',
+  'src/scope-range.ts',
+  'src/scope-rejoin-authority.ts',
+  'src/scope-rejoin-boundary.ts',
+  'src/scope-rejoin-decisions.ts',
+  'src/scope-rejoin-deletion.ts',
+  'src/scope-rejoin-echo.ts',
+  'src/scope-rejoin-materialize.ts',
+  'src/scope-rejoin-members.ts',
+  'src/scope-rejoin-mutation.ts',
+  'src/scope-rejoin-order-progress.ts',
+  'src/scope-rejoin-order.ts',
+  'src/scope-rejoin-parents.ts',
+  'src/scope-rejoin-placement.ts',
+  'src/scope-rejoin-reconcile.ts',
+  'src/scope-rejoin-rejection.ts',
+  'src/scope-rejoin-remote-delete.ts',
+  'src/scope-rejoin-restore.ts',
+  'src/scope-rejoin-upload.ts',
+  'src/server-account-ui.ts',
+  'src/server-edition.ts',
+  'src/service-worker.ts',
+  'src/snapshot-create-boundary.ts',
+  'src/snapshot-mounted-deletes.ts',
+  'src/snapshot-native-boundary.ts',
+  'src/sw/advanced-first-run.ts',
+  'src/sw/auth.ts',
+  'src/sw/bookmarks.ts',
+  'src/sw/boundary-attempt.ts',
+  'src/sw/boundary-confirmation.ts',
+  'src/sw/first-run-browser-roots.ts',
+  'src/sw/first-run.ts',
+  'src/sw/messages.ts',
+  'src/sw/native-chrome.ts',
+  'src/sw/native-wait.ts',
+  'src/sw/range-command.ts',
+  'src/sw/range-remote-commands.ts',
+  'src/sw/range.ts',
+  'src/sw/rejoin-decisions.ts',
+  'src/sw/rejoin-native.ts',
+  'src/sw/roots.ts',
+  'src/sw/scope-rebuild.ts',
+  'src/sw/scope.ts',
+  'src/sw/sync-attention.ts',
+  'src/sw/sync-progress.ts',
+  'src/sync-attention-ui.ts',
+  'src/sync-effect-authority.ts',
+  'src/sync-failure-class.ts',
+  'src/sync-fetch-boundary.ts',
+  'src/sync-folders.ts',
+  'src/sync-issues.ts',
+  'src/sync-label.ts',
+  'src/sync-state/advanced-repository.ts',
+  'src/sync-state/bookmark-event-child-order.ts',
+  'src/sync-state/bookmark-event-dedupe.ts',
+  'src/sync-state/bookmark-event-repository.ts',
+  'src/sync-state/boundary-command-repository.ts',
+  'src/sync-state/issue-dependencies.ts',
+  'src/sync-state/materialization-wait-authority.ts',
+  'src/sync-state/mount-repository.ts',
+  'src/sync-state/pull-mapping-read-repository.ts',
+  'src/sync-state/pull-mapping-writes.ts',
+  'src/sync-state/pull-workset.ts',
+  'src/sync-state/queue-hold.ts',
+  'src/sync-state/queue-issue-repository.ts',
+  'src/sync-state/queue-live-work.ts',
+  'src/sync-state/queue-read-repository.ts',
+  'src/sync-state/queued-upload-boundary-repository.ts',
+  'src/sync-state/recovery-repository.ts',
+  'src/sync-state/rejoin-decision-repository.ts',
+  'src/sync-state/rejoin-queue-resolution.ts',
+  'src/sync-state/rejoin-resolution-repository.ts',
+  'src/sync-state/schema.ts',
+  'src/sync-state/scope-command-evidence.ts',
+  'src/sync-state/scope-command-record.ts',
+  'src/sync-state/scope-facts-repository.ts',
+  'src/sync-status-queue.ts',
+]);
+
 export const SYNC_CORE_COVERAGE_FILES = Object.freeze([
   'src/authority-fence.ts',
   'src/bookmark-event-queue.ts',
@@ -65,6 +204,7 @@ export const SYNC_CORE_COVERAGE_FILES = Object.freeze([
   'src/unmounted-range-repair.ts',
   'src/bootstrap/advanced-remote-executor.ts',
   'src/sync-compaction.ts',
+  ...SYNC_AUDIT_COVERAGE_FILES,
 ]);
 
 export const SYNC_COVERAGE_METRICS = Object.freeze(['lines', 'branches', 'functions', 'statements']);
@@ -90,8 +230,10 @@ export const SYNC_NEW_COVERAGE_FILES = Object.freeze([
   'src/bookmark-create-receipt-identity.ts',
   'src/bookmark-event-pages.ts',
   'src/projection-native-occupancy.ts',
+  ...SYNC_AUDIT_COVERAGE_FILES,
 ]);
-export const SYNC_NEW_BRANCH_MINIMUM = 80;
+export const SYNC_NEW_COVERAGE_MINIMUM = 80;
+export const SYNC_NEW_BRANCH_MINIMUM = SYNC_NEW_COVERAGE_MINIMUM;
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const defaultSummaryPath = join(packageRoot, 'coverage/sync/coverage-summary.json');
@@ -142,10 +284,6 @@ export function evaluateSyncCoverageRatchet(summary, baseline) {
         && reportedBranches < SYNC_PULL_BRANCH_MINIMUM) {
       errors.push(`${path}: branches ${reportedBranches}% below hard Pull minimum ${SYNC_PULL_BRANCH_MINIMUM}%`);
     }
-    if (SYNC_NEW_COVERAGE_FILES.includes(path) && reportedBranches !== null
-        && reportedBranches < SYNC_NEW_BRANCH_MINIMUM) {
-      errors.push(`${path}: branches ${reportedBranches}% below new-file minimum ${SYNC_NEW_BRANCH_MINIMUM}%`);
-    }
     for (const metric of SYNC_COVERAGE_METRICS) {
       const floor = floors[metric];
       const actual = metricPct(reported[metric]);
@@ -156,6 +294,9 @@ export function evaluateSyncCoverageRatchet(summary, baseline) {
       if (actual === null) {
         errors.push(`${path}: ${metric} coverage is missing`);
         continue;
+      }
+      if (SYNC_NEW_COVERAGE_FILES.includes(path) && actual < SYNC_NEW_COVERAGE_MINIMUM) {
+        errors.push(`${path}: ${metric} ${actual}% below new-file minimum ${SYNC_NEW_COVERAGE_MINIMUM}%`);
       }
       if (actual + SYNC_COVERAGE_MARGIN_PERCENTAGE_POINTS < floor) {
         errors.push(`${path}: ${metric} ${actual}% dropped below ${floor}%`);
@@ -181,6 +322,9 @@ export function measuredSyncCoverageBaseline(summary, previous) {
     files[path] = Object.fromEntries(SYNC_COVERAGE_METRICS.map((metric) => {
       const pct = metricPct(value[metric]);
       if (pct === null || pct < 0 || pct > 100) throw new Error(`${path}: ${metric} coverage is invalid`);
+      if (SYNC_NEW_COVERAGE_FILES.includes(path) && pct < SYNC_NEW_COVERAGE_MINIMUM) {
+        throw new Error(`${path}: ${metric} ${pct}% below new-file minimum ${SYNC_NEW_COVERAGE_MINIMUM}%`);
+      }
       return [metric, Math.max(previous?.files?.[path]?.[metric] ?? 0, Math.floor(pct * 10) / 10)];
     }));
   }

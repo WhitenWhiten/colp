@@ -124,6 +124,44 @@ describe('disconnect server', () => {
 });
 
 describe('account edition notice', () => {
+  test('an old server response cannot relabel the current server after an origin switch', async () => {
+    document.body.innerHTML = '<p id="server-edition-version"></p><p id="server-edition-origin"></p><p id="server-edition-notice"></p><p id="login-server-hint"></p>';
+    let oldReply!: (response: Response) => void;
+    const fetcher = vi.fn<typeof fetch>(async url => String(url).startsWith('https://old.example/')
+      ? new Promise(resolve => { oldReply = resolve; })
+      : Response.json({ features: { edition: { version: '0.2.0' } } }));
+    const old = paintServerEdition('https://old.example', fetcher);
+    await paintServerEdition('https://new.example', fetcher);
+    oldReply(Response.json({ features: { edition: { version: '0.0.4' } } })); await old;
+    assert.equal(document.getElementById('server-edition-origin')!.textContent, 'https://new.example');
+    assert.equal(document.getElementById('server-edition-version')!.textContent, 'COLP Server 0.2.0');
+    assert.equal(document.getElementById('server-edition-notice')!.hidden, true);
+    assert.equal(document.getElementById('login-server-hint')!.textContent, 'COLP Server 0.2.0');
+  });
+
+  test('a disconnected or unavailable account fragment is safe without fetching or a login hint', async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    document.body.innerHTML = '<p id="server-edition-version"></p>';
+    await paintServerEdition('https://colp.example', fetcher);
+    assert.equal(fetcher.mock.calls.length, 0);
+    document.body.innerHTML = '<p id="server-edition-version"></p><p id="server-edition-notice"></p>';
+    await paintServerEdition('', fetcher);
+    assert.equal(document.getElementById('server-edition-version')!.textContent, 'Server version unavailable');
+    assert.equal(document.getElementById('server-edition-notice')!.hidden, true);
+    assert.equal(fetcher.mock.calls.length, 0);
+  });
+
+  test('a response for a closed account fragment cannot paint a newly mounted sign-in hint', async () => {
+    document.body.innerHTML = '<p id="server-edition-version">Checking</p><p id="server-edition-notice"></p>';
+    const oldVersion = document.getElementById('server-edition-version')!;
+    let respond!: (response: Response) => void;
+    const pending = paintServerEdition('https://old.example', () => new Promise(resolve => { respond = resolve; }));
+    document.body.innerHTML = '<p id="login-server-hint">Current server</p>';
+    respond(Response.json({ features: { edition: { version: '0.0.4' } } })); await pending;
+    assert.equal(oldVersion.textContent, 'Checking');
+    assert.equal(document.getElementById('login-server-hint')!.textContent, 'Current server');
+  });
+
   test('shows the manifest version and a notice only when the minor is older', async () => {
     document.body.innerHTML = '<p id="server-edition-version"></p><p id="server-edition-origin" hidden></p><p id="server-edition-notice" hidden></p><p id="login-server-hint" hidden></p>';
     const manifest = (version: string) => async () => new Response(JSON.stringify({

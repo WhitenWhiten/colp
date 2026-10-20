@@ -4241,6 +4241,12 @@
   "firstRun_confirmWhichBookmarkFolders": {
     "message": "Confirm which bookmark folders to sync first."
   },
+  "firstRun_confirmationUnknown": {
+    "message": "The confirmation result is not available yet. Check again to resume the same request."
+  },
+  "firstRun_confirmingSelection": {
+    "message": "Confirming your folder selection. You can reopen this page to check its result."
+  },
   "firstRun_conflicts_one": {
     "message": "$1 conflict"
   },
@@ -4258,6 +4264,9 @@
   },
   "firstRun_couldNotStartSync": {
     "message": "Could not start sync. Try again in a moment."
+  },
+  "firstRun_deferFailed": {
+    "message": "Could not save your choice. Try Later again."
   },
   "firstRun_deviceWins": {
     "message": "This device wins"
@@ -4385,6 +4394,9 @@
   "firstRun_selectBookmarkFoldersSync": {
     "message": "Select the bookmark folders to sync."
   },
+  "firstRun_selectionSuperseded": {
+    "message": "Another page confirmed a different folder selection. Showing the current sync settings."
+  },
   "firstRun_sideBrowser": {
     "message": "Browser"
   },
@@ -4417,6 +4429,12 @@
   },
   "firstRun_theseFoldersCannotEdited": {
     "message": "These folders cannot be edited and are excluded by default."
+  },
+  "firstRun_unsupportedCount_one": {
+    "message": "$1 item will stay in this browser and will not sync: $2. Other bookmarks will sync."
+  },
+  "firstRun_unsupportedCount_other": {
+    "message": "$1 items will stay in this browser and will not sync: $2. Other bookmarks will sync."
   },
   "firstRun_unsupportedSkipped": {
     "message": "Some items will stay in this browser: $1. Other bookmarks will sync."
@@ -5118,10 +5136,10 @@
     "message": "Bound to an existing bookmark."
   },
   "nativeWait_browserCreatedBookmarkBut": {
-    "message": "This browser created the bookmark, but the result was not recorded"
+    "message": "Bookmark creation could not be confirmed. Choose how to continue."
   },
   "nativeWait_cancelledCloudItemWill": {
-    "message": "Cancelled: this cloud item will not be placed on this device."
+    "message": "Stopped retrying this item. Bookmarks already on this device were kept."
   },
   "nativeWait_chooseBookmarkUse": {
     "message": "Choose the bookmark to use."
@@ -5923,6 +5941,96 @@
   },
   "prefs_useMyClassificationCorrections": {
     "message": "Use my classification corrections"
+  },
+  "rejoin_applyCloudDeletion": {
+    "message": "Apply cloud deletion"
+  },
+  "rejoin_applying": {
+    "message": "Finishing your saved choice…"
+  },
+  "rejoin_applyingSaved": {
+    "message": "Your choice is saved. Sync is finishing this change."
+  },
+  "rejoin_browserOrder": {
+    "message": "Browser order"
+  },
+  "rejoin_changed": {
+    "message": "This decision changed. Review the latest items and choose again."
+  },
+  "rejoin_changedBoundary": {
+    "message": "The sync range changed while local changes were pending. Review sync recovery before choosing what to keep. Your browser copy is preserved."
+  },
+  "rejoin_confirmBrowserDeletion_one": {
+    "message": "I understand this removes $1 item from this browser."
+  },
+  "rejoin_confirmBrowserDeletion_other": {
+    "message": "I understand this removes $1 items from this browser."
+  },
+  "rejoin_deleteLibrary": {
+    "message": "Delete from library"
+  },
+  "rejoin_heading": {
+    "message": "Review changes made while sync was paused"
+  },
+  "rejoin_intro": {
+    "message": "Choose how these items should sync again. Each choice applies only to the items shown."
+  },
+  "rejoin_keepBrowser": {
+    "message": "Keep browser copy"
+  },
+  "rejoin_keepCloud": {
+    "message": "Keep cloud copy"
+  },
+  "rejoin_libraryOrder": {
+    "message": "Library order"
+  },
+  "rejoin_localDelete_one": {
+    "message": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 item. Restore it here, or delete it from your library and other synced browsers."
+  },
+  "rejoin_localDelete_other": {
+    "message": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 items. Restore them here, or delete them from your library and other synced browsers."
+  },
+  "rejoin_nativeUnavailable": {
+    "message": "The current browser copy could not be verified safely. Check bookmark access, then refresh these decisions."
+  },
+  "rejoin_noLongerWaiting": {
+    "message": "This decision is no longer waiting. Check sync status for any remaining steps."
+  },
+  "rejoin_orderChanged": {
+    "message": "The browser and library have different bookmark orders. Choose the order to keep."
+  },
+  "rejoin_paused": {
+    "message": "Resume bookmark sync to review these decisions."
+  },
+  "rejoin_pendingUpload": {
+    "message": "Local changes are still waiting to sync. Check sync status before choosing what to keep. Your browser copy is preserved."
+  },
+  "rejoin_permission": {
+    "message": "Allow bookmark access, then refresh these decisions."
+  },
+  "rejoin_remoteDelete_one": {
+    "message": "This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 item. Keep it here, or apply the cloud deletion to this browser."
+  },
+  "rejoin_remoteDelete_other": {
+    "message": "This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 items. Keep them here, or apply the cloud deletion to this browser."
+  },
+  "rejoin_saved": {
+    "message": "Your choice is saved."
+  },
+  "rejoin_unavailable": {
+    "message": "The result could not be confirmed yet. Refresh to check your saved choice before trying again."
+  },
+  "rejoin_unknownUpload": {
+    "message": "The result of an earlier upload is not confirmed. Check sync status before choosing what to keep. Your browser copy is preserved."
+  },
+  "rejoin_untitled": {
+    "message": "Bookmark changes"
+  },
+  "rejoin_useBrowserOrder": {
+    "message": "Use browser order"
+  },
+  "rejoin_useLibraryOrder": {
+    "message": "Use library order"
   },
   "remoteDelete_bookmarkPermissionRequiredHandle": {
     "message": "Bookmark permission is required to handle this deletion."
@@ -7418,8 +7526,17 @@
   "sync_bookmarksBar": {
     "message": "Bookmarks bar"
   },
+  "sync_browserAccountRoot": {
+    "message": "$1 (Browser account)"
+  },
+  "sync_browserDeviceRoot": {
+    "message": "$1 (On this device)"
+  },
   "sync_changesPreviewed": {
     "message": "Changes are previewed before anything syncs."
+  },
+  "sync_confirmingFolderChange": {
+    "message": "Confirming folder changes. You can reopen this page to check the result."
   },
   "sync_copyDetails": {
     "message": "Copy details"
@@ -7481,6 +7598,15 @@
   "sync_folder": {
     "message": "Folder"
   },
+  "sync_folderChangeIncomplete": {
+    "message": "This folder change is incomplete. Resume it to finish the remaining steps; completed steps are kept."
+  },
+  "sync_folderChangeNeedsReview": {
+    "message": "Folder changes are waiting for review. Resolve the sync attention items, then resume this change."
+  },
+  "sync_folderChangeUnknown": {
+    "message": "The result is not available yet. Resume this change to check or retry the same request."
+  },
   "sync_folderHighlighted": {
     "message": "$1 is highlighted. Check it to include it in sync, then review your changes."
   },
@@ -7498,6 +7624,9 @@
   },
   "sync_folderSettingsSaved": {
     "message": "Folder settings saved"
+  },
+  "sync_folderSettingsSavedTreeUnavailable": {
+    "message": "Folder settings saved. The folder list could not refresh; try refreshing it again."
   },
   "sync_folderTreeChangedRefresh": {
     "message": "Folder tree changed. Refresh and preview again."
@@ -7754,11 +7883,32 @@
   "sync_rebuildConfirm": {
     "message": "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
+  "sync_rebuildConfirmRetirement": {
+    "message": "Reset needs an internet connection to stop the old sync connection on the server. Pending changes will be kept on this device and will not be sent again. Earlier changes may already be in your library. Your bookmarks stay in place. Afterwards, choose which folders sync and review the merge again. Reset sync now?"
+  },
   "sync_rebuildConfirmSetAside": {
     "message": "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
   "sync_rebuildNoLongerAvailable": {
     "message": "Sync state changed. Refresh Status to review the available actions ($1)."
+  },
+  "sync_rebuildRetirementAuthentication": {
+    "message": "Reset needs authorization from the same account. Sign in again, check that you still have access to this library, then review and confirm Reset again. Your pending changes are kept."
+  },
+  "sync_rebuildRetirementDenied": {
+    "message": "The server did not authorize this reset. Signing in again cannot restore revoked library access or invalid device authorization. Your pending changes are kept and will not be sent again. You can continue using bookmarks on this device while the library owner or server administrator reviews access."
+  },
+  "sync_rebuildRetirementLegacy": {
+    "message": "This server cannot authorize the pending reset with this sign-in. Update the server to support reset recovery, or restore the original sign-in. Your pending changes are kept and will not be sent again."
+  },
+  "sync_rebuildRetirementOtherAccount": {
+    "message": "An unfinished reset belongs to another account. Sign in to that account to finish it. Its pending changes have been kept."
+  },
+  "sync_rebuildRetirementPending": {
+    "message": "Waiting for the server to confirm that the old sync connection has stopped. Your pending changes are kept and will not be sent again. Connect to the internet and try Reset again."
+  },
+  "sync_rebuildRetirementTargetChanged": {
+    "message": "The server reset address changed before confirmation. Restore the previous server connection to finish this reset. Your pending changes have been kept."
   },
   "sync_rebuildSetAside_one": {
     "message": "$1 change that has not synced yet will be set aside and not retried."
@@ -7771,6 +7921,9 @@
   },
   "sync_recordedIssues": {
     "message": "Recorded $1 · $2"
+  },
+  "sync_recoveryActionChanged": {
+    "message": "Sync status changed. Review the current details, then refresh your pending decisions."
   },
   "sync_recoveryNextAttempt": {
     "message": "Next attempt: $1."
@@ -7793,6 +7946,9 @@
   "sync_resetSyncDevice": {
     "message": "Reset sync on this device"
   },
+  "sync_resumeFolderChange": {
+    "message": "Resume this change"
+  },
   "sync_retryFailed": {
     "message": "Retry failed items"
   },
@@ -7807,6 +7963,9 @@
   },
   "sync_reviewConflicts": {
     "message": "Review conflicts"
+  },
+  "sync_reviewFolderDecisions": {
+    "message": "Review folder decisions"
   },
   "sync_savingFolderSettings": {
     "message": "Saving folder settings."
@@ -7882,6 +8041,9 @@
   },
   "sync_tooManyItemsSetAside": {
     "message": "Sync on this device has stopped: it set aside too many items to keep syncing safely. The bookmarks in your library are safe. Reset sync on this device to continue."
+  },
+  "sync_uploadBoundaryStopped": {
+    "message": "Further uploads have stopped because your sync range changed. The result of an earlier transfer is unconfirmed. Reset sync on this device to review the selected folders and merge again. Bookmarks on this device and in Know-N are preserved."
   },
   "sync_urlCannotRepresentedMissing": {
     "message": "URL cannot be synced (invalid format, disallowed scheme, or too long)"

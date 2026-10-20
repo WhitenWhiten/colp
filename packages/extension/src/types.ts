@@ -207,7 +207,7 @@ export type FirstRunConfirmRequest = {
   readonly advancedConfirmation?: AdvancedFirstRunConfirmation;
   readonly libraryId: string;
 };
-export type FirstRunStatusRequest = { readonly kind: 'known.firstRun.status' };
+export type FirstRunStatusRequest = { readonly kind: 'known.firstRun.status'; readonly confirmationId?: string };
 export type FirstRunLaterRequest = { readonly kind: 'known.firstRun.later' };
 export type FirstRunAttentionGetRequest = {
   readonly kind: 'known.firstRun.attention.get'; readonly reportId: string; readonly cursor?: string;
@@ -321,7 +321,7 @@ export type FirstRunPreviewOk = {
   readonly bookmarkCount: number;
   readonly folderCount: number;
   readonly skippedCount: number;
-  readonly warnings: readonly { readonly code: string }[];
+  readonly warnings: readonly { readonly code: string; readonly count?: number }[];
   readonly report?: { readonly matched: number; readonly localOnly: number; readonly remoteOnly: number;
     readonly candidates: number; readonly conflicts: number };
   readonly advanced?: AdvancedFirstRunConfirmation & {
@@ -342,6 +342,7 @@ export type FirstRunConfirmStale = {
 export type FirstRunOrScopeResponse =
   | FirstRunPreviewOk
   | { readonly ok: true; readonly phase: FirstRunDurablePhase; readonly firstRun: FirstRunScopeState;
+    readonly confirmation?: { readonly confirmationId: string; readonly state: 'missing' | 'pending' | 'failed' | 'committed' };
     readonly attention?: PublicAttentionSummary;
     readonly items?: readonly PublicAttentionItem[]; readonly nextCursor?: string;
     readonly conflictHref?: string }
@@ -385,15 +386,22 @@ export interface PublicRangePreview {
   readonly removedCount: number;
   readonly shiftCount: number;
   readonly expiresAt: number;
-  readonly warnings: readonly { readonly code: string }[];
+  readonly warnings: readonly { readonly code: string; readonly count?: number }[];
   readonly shifts: readonly PublicRangeChangeRow[];
   readonly removals: readonly PublicRangeChangeRow[];
 }
-export type RootResponse = { readonly ok: true; readonly view: PublicRootView }
+export type PublicBoundaryConfirmation = { readonly confirmationId: string;
+  readonly state: 'pending' | 'failed' | 'committed'; readonly error?: string };
+export type PublicRangeResume = { readonly libraryId: string; readonly preview: PublicRangePreview;
+  readonly request: Extract<RootRequest, { readonly kind: 'known.roots.confirm' }> };
+export type RootResponse = { readonly ok: true; readonly view: PublicRootView;
+    readonly confirmation?: PublicBoundaryConfirmation; readonly resume?: PublicRangeResume }
   | { readonly ok: true; readonly preview: PublicRangePreview }
   | { readonly ok: true; readonly boundaries: PublicRootBoundaries }
-  | { readonly ok: false; readonly error: PublicRootStatus | 'not_connected' | 'request_invalid' | 'root_update_failed'
-    | 'permission_required' | 'preview_stale' | 'duplicate_confirm' | 'sync_paused' | 'sync_busy' };
+  | { readonly ok: false; readonly confirmation?: PublicBoundaryConfirmation;
+    readonly error: PublicRootStatus | 'not_connected' | 'request_invalid' | 'root_update_failed'
+    | 'permission_required' | 'preview_stale' | 'duplicate_confirm' | 'sync_paused' | 'sync_busy'
+    | 'confirmation_pending' | 'confirmation_conflict' | 'preview_required' };
 
 export type ExtensionResponse = { readonly ok: true; readonly state: PublicAuthState }
   | { readonly ok: false; readonly state: PublicAuthState; readonly error: string };
@@ -441,7 +449,7 @@ export interface PublicSyncProgress {
 }
 export type SyncProgressResponse = { readonly ok: true; readonly progress: PublicSyncProgress | null }
   | { readonly ok: false; readonly error: 'state_unavailable' };
-export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebuild_pending' | 'pull_apply_target_missing' | 'pull_apply_evidence_missing'
+export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'upload_boundary_changed' | 'replica_rebuild_pending' | 'pull_apply_target_missing' | 'pull_apply_evidence_missing'
   | 'anchor_mapping_missing' | 'payload_too_large' | 'recovery_identity_unproven'
   | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision'
   | 'create_ambiguous' | 'create_evidence_missing'

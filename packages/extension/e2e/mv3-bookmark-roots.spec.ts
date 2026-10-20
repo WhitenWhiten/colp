@@ -9,6 +9,10 @@ import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 import { confirmFirstRun, specialRoots, waitFirstRunProductQuiet } from './kns-08-harness.js';
+import { withSyncFailureDetails } from './sync-failure-diagnostics.js';
+import { expectProfileMappingBoundary, expectRootAuthorityRejected, readStores, reviewCurrentRootAuthority } from './bookmark-roots-authority.js';
+import type { BoundaryCommandRecord, SyncScope } from '../src/sync-state-store.js';
+import type { PublicRootView } from '../src/types.js';
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const PRIVATE_TITLE = 'PRIVATE-LOCAL-SENTINEL';
@@ -75,8 +79,7 @@ test('optional bookmark permission revokes and recovers real root authority with
 
     await grantBookmarkPermission(page);
     await expectPermission(page, true);
-    await expect(page.getByRole('checkbox', { name: 'Work', exact: true })).toBeChecked();
-    await expect(page.getByRole('checkbox', { name: `Exclude ${PRIVATE_TITLE} from Know-N sync`, exact: true })).toBeChecked();
+    await expectPrivateSelection(page, 'Work', PRIVATE_TITLE);
     const recovered = await evidenceRequest(page, 'exportScope', scope);
     expect(privateAuthority(recovered)).toEqual(privateAuthority(before));
     expect(recovered.scope.rootStatus).toBe('ready');
@@ -121,14 +124,22 @@ test('two persistent Chromium profiles retain isolated root authorities and arch
     expect(fixtureA.selected).not.toBe(fixtureB.selected);
     await configure(pageA, 'Profile A root', PROFILE_A_TITLE);
     await configure(pageB, 'Profile B root', PROFILE_B_TITLE);
-    await expect(pageA.getByText('Profile B root', { exact: true })).toHaveCount(0);
-    await expect(pageB.getByText('Profile A root', { exact: true })).toHaveCount(0);
-
-    const viewA = await getRootView(pageA); const viewB = await getRootView(pageB);
+    const viewA = await expectProfileRootAuthority(pageA, fixtureA, scopeFor(profileBindings.a), 'Profile A root', 'Profile B root');
+    const viewB = await expectProfileRootAuthority(pageB, fixtureB, scopeFor(profileBindings.b), 'Profile B root', 'Profile A root');
     const tokenA = viewA.roots.find((root) => root.title === 'Profile A root')!.ref;
     const tokenB = viewB.roots.find((root) => root.title === 'Profile B root')!.ref;
-    expect(await updateWithToken(pageB, viewB.viewId, tokenA)).toEqual({ ok: false, error: 'request_invalid' });
-    expect(await updateWithToken(pageA, viewA.viewId, tokenB)).toEqual({ ok: false, error: 'request_invalid' });
+    const reviewA = await reviewCurrentRootAuthority(pageA, viewA);
+    const reviewB = await reviewCurrentRootAuthority(pageB, viewB);
+    await expectRootAuthorityRejected(pageB, scopeFor(profileBindings.b), [
+      { ...reviewB.request, selectedRefs: [tokenA] },
+      { kind: 'known.roots.confirm', previewId: reviewA.preview.previewId,
+        treeDigest: reviewA.preview.treeDigest, confirmationId: crypto.randomUUID() },
+    ]);
+    await expectRootAuthorityRejected(pageA, scopeFor(profileBindings.a), [
+      { ...reviewA.request, selectedRefs: [tokenB] },
+      { kind: 'known.roots.confirm', previewId: reviewB.preview.previewId,
+        treeDigest: reviewB.preview.treeDigest, confirmationId: crypto.randomUUID() },
+    ]);
 
     await Promise.all([terminateExtensionWorker(contextA, pageA), terminateExtensionWorker(contextB, pageB)]);
     // Installation can leave an extra welcome tab. Reload the two pages we
@@ -143,15 +154,23 @@ test('two persistent Chromium profiles retain isolated root authorities and arch
     [pageA, pageB] = await Promise.all([openOptions(contextA), openOptions(contextB)]);
     await Promise.all([expectConfigured(pageA, 'Profile A root', PROFILE_A_TITLE),
       expectConfigured(pageB, 'Profile B root', PROFILE_B_TITLE)]);
-    await expect(pageA.getByText('Profile B root', { exact: true })).toHaveCount(0);
-    await expect(pageB.getByText('Profile A root', { exact: true })).toHaveCount(0);
-    const restartedViewA = await getRootView(pageA); const restartedViewB = await getRootView(pageB);
+    const restartedViewA = await expectProfileRootAuthority(pageA, fixtureA, scopeFor(profileBindings.a), 'Profile A root', 'Profile B root');
+    const restartedViewB = await expectProfileRootAuthority(pageB, fixtureB, scopeFor(profileBindings.b), 'Profile B root', 'Profile A root');
     const restartedTokenA = restartedViewA.roots.find((root) => root.title === 'Profile A root')!.ref;
     const restartedTokenB = restartedViewB.roots.find((root) => root.title === 'Profile B root')!.ref;
-    expect(await updateWithToken(pageA, restartedViewA.viewId, tokenA)).toEqual({ ok: false, error: 'request_invalid' });
-    expect(await updateWithToken(pageB, restartedViewB.viewId, tokenB)).toEqual({ ok: false, error: 'request_invalid' });
-    expect(await updateWithToken(pageB, restartedViewB.viewId, restartedTokenA)).toEqual({ ok: false, error: 'request_invalid' });
-    expect(await updateWithToken(pageA, restartedViewA.viewId, restartedTokenB)).toEqual({ ok: false, error: 'request_invalid' });
+    const restartedReviewA = await reviewCurrentRootAuthority(pageA, restartedViewA);
+    const restartedReviewB = await reviewCurrentRootAuthority(pageB, restartedViewB);
+    expect(restartedViewA.viewId).not.toBe(viewA.viewId); expect(restartedViewB.viewId).not.toBe(viewB.viewId);
+    // Refs identify scope + native folder and may remain stable. The stale
+    // worker's viewId is the invalid authority; a ref alone is not an expiry.
+    await expectRootAuthorityRejected(pageA, scopeFor(profileBindings.a), [
+      { ...restartedReviewA.request, viewId: viewA.viewId },
+      { ...restartedReviewA.request, selectedRefs: [restartedTokenB] },
+    ]);
+    await expectRootAuthorityRejected(pageB, scopeFor(profileBindings.b), [
+      { ...restartedReviewB.request, viewId: viewB.viewId },
+      { ...restartedReviewB.request, selectedRefs: [restartedTokenA] },
+    ]);
 
     const scopeA = scopeFor(profileBindings.a); const scopeB = scopeFor(profileBindings.b);
     const exportA = await evidenceRequest(pageA, 'exportScope', scopeA);
@@ -167,13 +186,8 @@ test('two persistent Chromium profiles retain isolated root authorities and arch
       replicaId: profileBindings.b.replicaId, rootStatus: 'ready' });
     expect(exportA.scope.selectedRoots).toHaveLength(1); expect(exportA.scope.privateRoots).toHaveLength(1);
     expect(exportB.scope.selectedRoots).toHaveLength(1); expect(exportB.scope.privateRoots).toHaveLength(1);
-    // Snapshot metadata also tracks the collection root and unmounted remote
-    // roots. Only the selected/private roots may have real Chrome identities.
-    const nativeIds = (value: { mappings: Array<{ nativeId: string }> }) => value.mappings
-      .filter((mapping) => !/^(recovery|unmounted):/u.test(mapping.nativeId))
-      .map((mapping) => mapping.nativeId).sort();
-    expect(nativeIds(exportA)).toEqual([fixtureA.selected, fixtureA.privateRoot].sort());
-    expect(nativeIds(exportB)).toEqual([fixtureB.selected, fixtureB.privateRoot].sort());
+    await expectProfileMappingBoundary(pageA, exportA, fixtureA, exportB.scope.selectedRoots[0]);
+    await expectProfileMappingBoundary(pageB, exportB, fixtureB, exportA.scope.selectedRoots[0]);
     expect(privateAuthority(exportA)).not.toEqual(privateAuthority(exportB));
 
     await showOptionsPane(pageA, 'account');
@@ -242,11 +256,37 @@ test('stale folder tokens fail closed after the native tree changes', async () =
     await page.getByRole('button', { name: 'Refresh folders' }).click();
     await page.getByRole('checkbox', { name: 'Stale boundary', exact: true }).check();
     await page.evaluate(async (id) => { await chrome.bookmarks.create({ parentId: id, title: 'Tree changed' }); }, folderId);
+    const boundaryFacts = async () => {
+      const exported = await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main));
+      const journal = (await readStores(page, ['boundary_confirmation_commands'])).boundary_confirmation_commands as BoundaryCommandRecord[] | undefined;
+      return { selectedRoots: exported.scope.selectedRoots, privateRoots: exported.scope.privateRoots,
+        version: exported.scope.boundaryVersion, queue: exported.queue, receipts: exported.receipts,
+        journal: journal?.filter(row => row.scopeKey === exported.scope.scopeKey) ?? [] };
+    };
+    const before = await boundaryFacts();
     await page.getByRole('button', { name: 'Review changes' }).click();
     await expect(page.locator('#root-alert-copy, #root-feedback').filter({ hasText: /could not be loaded|Folder tree changed/i })).toBeVisible();
-    // A refused token reads as a failed load: the alert offers Retry, which reads the tree again.
+    expect(await boundaryFacts()).toEqual(before);
+    // Retry refreshes the token and keeps the unsaved choice. It grants no
+    // authority: the user must review the changed tree and explicitly confirm.
     await page.locator('#root-retry').click();
-    await expect(page.getByRole('checkbox', { name: 'Stale boundary', exact: true })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Stale boundary', exact: true })).toBeChecked();
+    await expect(page.locator('#range-preview')).toBeHidden();
+    expect(await boundaryFacts()).toEqual(before);
+    await page.getByRole('button', { name: 'Review changes' }).click();
+    await expect(page.locator('#range-preview')).toBeVisible();
+    expect(await boundaryFacts()).toEqual(before);
+    await page.locator('#range-confirm').click();
+    await withSyncFailureDetails(page, 'roots: commit explicitly reviewed replacement token', () => expect.poll(async () => (await boundaryFacts()).journal.filter(row =>
+      !before.journal.some(prior => prior.commandId === row.commandId)
+      && row.kind === 'range' && row.state === 'committed').length).toBe(1));
+    const after = await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main));
+    const selected = after.mappings.find((row: { nativeId: string }) => row.nativeId === folderId);
+    expect(selected?.colpId).toBeTruthy();
+    expect(after.scope.selectedRoots).toContain(selected.colpId);
+    expect(Number(after.scope.boundaryVersion)).toBe(Number(before.version) + 1);
+    expect(await page.evaluate(async id => (await chrome.bookmarks.getSubTree(id))[0]?.children?.map(row => row.title), folderId))
+      .toEqual(['Tree changed']);
   } finally { await context.close(); }
 });
 
@@ -297,7 +337,7 @@ async function openOptions(context: BrowserContext): Promise<Page> {
 async function connect(page: Page, grantBookmarks = true, binding = profileBindings.main) {
   if (!stack || !binding) throw new Error('real stack unavailable');
   await page.evaluate((value) => chrome.storage.local.set({ 'known.auth.binding.v1': value }), binding);
-  await signInExtension(page);
+  await withSyncFailureDetails(page, 'roots: establish account session', () => signInExtension(page));
   await showOptionsPane(page, 'folders');
   await expect(page.locator('#folder-card')).toBeVisible();
   if (grantBookmarks && !await permissionState(page)) {
@@ -305,7 +345,7 @@ async function connect(page: Page, grantBookmarks = true, binding = profileBindi
   }
 }
 async function grantBookmarkPermission(page: Page) {
-  await grantOptionalBookmarks(page, 'Allow bookmark access', 'Known permission');
+  await withSyncFailureDetails(page, 'roots: grant native bookmark permission', () => grantOptionalBookmarks(page, 'Allow bookmark access', 'Known permission'));
 }
 async function launch(profile = ''): Promise<BrowserContext> {
   if (!stack) throw new Error('real stack unavailable');
@@ -335,8 +375,9 @@ async function finishFirstRun(page: Page, selectedTitles: readonly string[], exc
   // onboarding handshake before using its privacy/settings controls.
   const binding = await page.evaluate(async () => (await chrome.storage.local.get('known.auth.binding.v1'))
     ['known.auth.binding.v1']) as RealStack['extensionBinding'];
-  await confirmFirstRun(page, selectedTitles, undefined, excludedTitles);
-  await waitFirstRunProductQuiet(page, stack, binding);
+  await withSyncFailureDetails(page, 'roots: admit first-run selection', () => confirmFirstRun(page, selectedTitles, undefined, excludedTitles));
+  const currentStack = stack;
+  await withSyncFailureDetails(page, 'roots: await first-run native and canonical convergence', () => waitFirstRunProductQuiet(page, currentStack, binding));
   await page.reload();
   await showOptionsPane(page, 'folders');
   await expect(page.locator('body')).toHaveAttribute('data-first-run', '');
@@ -344,21 +385,85 @@ async function finishFirstRun(page: Page, selectedTitles: readonly string[], exc
 
 async function configure(page: Page, selectedTitle: string, privateTitle: string) {
   await finishFirstRun(page, [selectedTitle], [privateTitle]);
-  await page.getByRole('button', { name: 'Refresh folders' }).click();
-  await page.getByRole('checkbox', { name: selectedTitle, exact: true }).check();
-  await page.getByRole('checkbox', { name: `Exclude ${privateTitle} from Know-N sync`, exact: true }).check();
-  await page.getByRole('button', { name: 'Review changes' }).click();
-  const confirm = page.getByRole('button', { name: 'Confirm folder changes' });
-  await expect(confirm).toBeVisible({ timeout: 15_000 });
-  await confirm.click();
-  await expect(page.getByText('Folder settings saved')).toBeVisible();
+  // The production first-run Review + Confirm already persisted this exact
+  // selection. Checking its mixed parent again would explicitly include the
+  // private child, so verify the restored authority without changing the draft.
+  await expectPrivateSelection(page, selectedTitle, privateTitle);
 }
 async function expectConfigured(page: Page, selectedTitle: string, privateTitle: string) {
   await showOptionsPane(page, 'account');
   await expect(page.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 15_000 });
   await showOptionsPane(page, 'folders');
-  await expect(page.getByRole('checkbox', { name: selectedTitle, exact: true })).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: `Exclude ${privateTitle} from Know-N sync`, exact: true })).toBeChecked();
+  await expectPrivateSelection(page, selectedTitle, privateTitle);
+}
+async function expectPrivateSelection(page: Page, selectedTitle: string, privateTitle: string) {
+  await expect(page.getByRole('checkbox', { name: selectedTitle, exact: true })).toHaveJSProperty('indeterminate', true);
+  await expect(page.getByRole('checkbox', { name: privateTitle, exact: true })).not.toBeChecked();
+  const view = await getRootView(page);
+  expect(view.roots.find(root => root.title === selectedTitle)).toMatchObject({ selected: true, privateLocal: false });
+  expect(view.roots.find(root => root.title === privateTitle)).toMatchObject({ selected: false, privateLocal: true });
+}
+async function expectProfileRootAuthority(page: Page, fixture: { selected: string; privateRoot: string },
+  scope: ReturnType<typeof scopeFor>, ownTitle: string, otherTitle: string): Promise<PublicRootView> {
+  // Both profiles intentionally share a cloud library. Its remote folders may
+  // appear elsewhere in options; they must never become this profile's native
+  // root controls or acquire its selected/private native identities.
+  const view = await getRootView(page);
+  const native = await page.evaluate(async ({ ownId, foreignTitle }) => {
+    const visit = (nodes: chrome.bookmarks.BookmarkTreeNode[]): chrome.bookmarks.BookmarkTreeNode[] =>
+      nodes.flatMap(node => [node, ...visit(node.children ?? [])]);
+    const nodes = visit(await chrome.bookmarks.getTree());
+    return { own: nodes.filter(node => node.id === ownId).map(node => ({ id: node.id, title: node.title })),
+      foreign: nodes.filter(node => node.title === foreignTitle).map(node => ({ id: node.id, title: node.title })),
+      nodes: nodes.map(node => ({ id: node.id, parentId: node.parentId })) };
+  }, { ownId: fixture.selected, foreignTitle: otherTitle });
+  const durable = await evidenceRequest(page, 'exportScope', scope);
+  const related = await readStores(page, ['mount_bindings', 'bootstrap_runs', 'sync_engine', 'diagnostics']);
+  const scoped = (name: string) => (related[name] ?? []).filter(row => row.scopeKey === durable.scope?.scopeKey);
+  const mappings: Array<{ colpId: string; nativeId: string; rootNativeId: string; parentColpId?: string;
+    rootRole?: string }> = durable.mappings;
+  const ownMapping = mappings.find(row => row.nativeId === fixture.selected);
+  // Collect all three independent views before any assertion can abort. Log
+  // only fixture relationships/counts: no native ids, view tokens, titles or URLs.
+  console.info('Profile root authority evidence', JSON.stringify({
+    profile: scope.browserProfileId === profileBindings.a.browserProfileId ? 'a' : 'b',
+    view: { status: view.status, own: view.roots.filter(row => row.title === ownTitle).map(({ kind, selected,
+      privateLocal, depth }) => ({ kind, selected, privateLocal, depth })),
+    foreign: view.roots.filter(row => row.title === otherTitle).map(({ kind, selected, privateLocal, depth }) =>
+      ({ kind, selected, privateLocal, depth })) },
+    native: { count: native.nodes.length, ownCount: native.own.length,
+      foreign: native.foreign.map(row => {
+        const mapping = mappings.find(item => item.nativeId === row.id);
+        const parent = native.nodes.find(item => item.id === row.id)?.parentId;
+        return { mapped: Boolean(mapping), selected: durable.scope?.selectedRoots.includes(mapping?.colpId),
+          privateLocal: durable.scope?.privateRoots.includes(mapping?.colpId),
+          parentIsOwn: parent === fixture.selected, parentIsOwnParent: parent !== undefined
+            && parent === native.nodes.find(item => item.id === fixture.selected)?.parentId,
+          sharesOwnCanonicalParent: mapping?.parentColpId !== undefined && mapping.parentColpId === ownMapping?.parentColpId,
+          rootIsOwn: mapping?.rootNativeId === fixture.selected, role: mapping?.rootRole ?? null };
+      }) },
+    durable: { firstRun: durable.scope?.firstRun, rootStatus: durable.scope?.rootStatus,
+      selectedCount: durable.scope?.selectedRoots.length, privateCount: durable.scope?.privateRoots.length,
+      mappingCount: mappings.length, queueCount: durable.queue.length, receiptCount: durable.receipts.length,
+      mounts: scoped('mount_bindings').map(row => ({ status: row.status, bound: row.remoteMountNodeId !== null,
+        rootIsOwn: row.nativeRootId === fixture.selected, materialized: row.materialized, role: row.rootRole ?? null })),
+      runs: scoped('bootstrap_runs').map(row => ({ phase: row.phase, retryReason: row.retryReason ?? null })),
+      engine: scoped('sync_engine').map(row => ({ phase: row.phase, recoveryFrozen: row.recoveryFrozen,
+        errorCode: row.lastError ?? null })),
+      projections: scoped('diagnostics').filter(row => row.kind === 'projection_intent').map(row => ({ kind: row.intentKind, state: row.state,
+        targetsForeign: native.foreign.some(item => mappings.some(mapping => mapping.nativeId === item.id && mapping.colpId === row.colpId)) })) },
+  }));
+  await expect(page.locator('#root-tree').getByText(otherTitle, { exact: true })).toHaveCount(0);
+  expect(view.roots.some(row => row.title === otherTitle)).toBe(false);
+  expect(view.roots.find(row => row.title === ownTitle)).toMatchObject({ selected: true, privateLocal: false });
+  expect(native).toMatchObject({ own: [{ id: fixture.selected, title: ownTitle }], foreign: [] });
+  expect(durable.scope).toMatchObject({ firstRun: 'completed', browserProfileId: scope.browserProfileId,
+    replicaId: scope.replicaId, rootStatus: 'ready' });
+  expect(mappings.filter(row => durable.scope.selectedRoots.includes(row.colpId)).map(row => row.nativeId))
+    .toEqual([fixture.selected]);
+  expect(mappings.filter(row => durable.scope.privateRoots.includes(row.colpId)).map(row => row.nativeId))
+    .toEqual([fixture.privateRoot]);
+  return view;
 }
 async function permissionState(page: Page) {
   return page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }));
@@ -366,15 +471,11 @@ async function permissionState(page: Page) {
 async function expectPermission(page: Page, expected: boolean) {
   await expect.poll(() => permissionState(page)).toBe(expected);
 }
-async function getRootView(page: Page): Promise<{ viewId: string; roots: Array<{ ref: string; title: string }> }> {
+async function getRootView(page: Page): Promise<PublicRootView> {
   const response = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.roots.get' })) as any;
   expect(response.ok).toBe(true); return response.view;
 }
-async function updateWithToken(page: Page, viewId: string, ref: string) {
-  return page.evaluate(({ currentViewId, token }) => chrome.runtime.sendMessage({ kind: 'known.roots.update',
-    viewId: currentViewId, selectedRefs: [token], privateRefs: [] }), { currentViewId: viewId, token: ref });
-}
-function scopeFor(binding: { replicaId: string; browserProfileId: string }) {
+function scopeFor(binding: { replicaId: string; browserProfileId: string }): SyncScope {
   if (!stack) throw new Error('real stack unavailable');
   return { environment: 'production', serverId: 'https://known.example', serverOrigin: 'https://known.example',
     accountId: stack.authUserId, browserProfileId: binding.browserProfileId, collectionId: FIXTURE_COLLECTION_ID,
@@ -402,24 +503,6 @@ async function evidenceRequest(page: Page, method: string, scope: ReturnType<typ
 }
 async function expectEvidenceFailure(page: Page, method: string, scope: ReturnType<typeof scopeFor>, error: string) {
   await expect(evidenceRequest(page, method, scope)).rejects.toThrow(error);
-}
-async function readStores(page: Page, names: string[]): Promise<Record<string, Array<Record<string, unknown>>>> {
-  return page.evaluate(async (storeNames) => {
-    const request = indexedDB.open('known-phase3-indexeddb-entry');
-    const database = await new Promise<IDBDatabase>((resolveRequest, reject) => {
-      request.onsuccess = () => resolveRequest(request.result); request.onerror = () => reject(request.error);
-    });
-    try {
-      const transaction = database.transaction(storeNames, 'readonly');
-      return Object.fromEntries(await Promise.all(storeNames.map(async (name) => {
-        const values = transaction.objectStore(name).getAll();
-        const rows = await new Promise<Record<string, unknown>[]>((resolveRequest, reject) => {
-          values.onsuccess = () => resolveRequest(values.result); values.onerror = () => reject(values.error);
-        });
-        return [name, rows] as const;
-      })));
-    } finally { database.close(); }
-  }, names);
 }
 function matchesScope(value: Record<string, unknown>, scope: ReturnType<typeof scopeFor>) {
   return Object.entries(scope).every(([key, expected]) => value[key] === expected);

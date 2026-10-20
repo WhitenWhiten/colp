@@ -1,8 +1,13 @@
+import { createRejoinResolutionRepository } from './sync-state/rejoin-resolution-repository.js';
+import { createQueuedUploadBoundaryRepository } from './sync-state/queued-upload-boundary-repository.js';
+import { createRejoinDecisionRepository } from './sync-state/rejoin-decision-repository.js';
 import { createPullNativeDeferralRepository } from './sync-state/pull-native-deferral-repository.js';
 import { createQueueBatchRepository } from './sync-state/queue-batch-repository.js';
 import { createLocalPlacementRecoveryRepository } from './sync-state/local-placement-recovery-repository.js';
 import { createNativeMutationRepository } from './sync-state/native-mutation-repository.js';
 import { createClassificationRepository } from './sync-state/classification-repository.js';
+import { createBoundaryCommandRepository } from './sync-state/boundary-command-repository.js';
+export type { BoundaryCommandRecord } from './sync-state/boundary-command-repository.js';
 export {
   DATABASE_NAME, DATABASE_VERSION, LARGE_QUEUE_CONTRACT_SIZE,
 } from './sync-state/schema.js';
@@ -35,6 +40,7 @@ import { createEngineRepository } from './sync-state/engine-repository.js';
 import { createMappingRepository } from './sync-state/mapping-repository.js';
 import { createMountRepository } from './sync-state/mount-repository.js';
 import { createPullRepository } from './sync-state/pull-repository.js';
+import { createPullMappingReadRepository } from './sync-state/pull-mapping-read-repository.js';
 import { createPullIssueRepository } from './sync-state/pull-issue-repository.js';
 import { createQueueRepository } from './sync-state/queue-repository.js';
 import { createQueueSetAsideRepository } from './sync-state/queue-set-aside-repository.js';
@@ -60,9 +66,12 @@ export function createSyncStateStore(options: StoreOptions = {}) {
   const batch = createBatchRepository(ctx);
   const facts = createScopeFactsRepository(ctx);
   return Object.freeze({
+    ...createPullMappingReadRepository(ctx),
+    ...createQueuedUploadBoundaryRepository(ctx),
     ...createLocalPlacementRecoveryRepository(ctx), ...createPullNativeDeferralRepository(ctx),
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
     ...createNativeMutationRepository(ctx),
+    ...createBoundaryCommandRepository(ctx), ...createRejoinDecisionRepository(ctx), ...createRejoinResolutionRepository(ctx),
     ...createQueueBatchRepository(ctx), ...createPullIssueRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),
     registerScope: scope.registerScope, getScope: scope.getScope,
     putMapping: mapping.putMapping, deleteMapping: mapping.deleteMapping, listMappings: mapping.listMappings,
@@ -93,7 +102,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     advanceSequenceFloor: queue.advanceSequenceFloor, listQueue: queue.listQueue,
     listQueueByTarget: queue.listQueueByTarget,
     getQueueByOpId: queue.getQueueByOpId,
-    getQueueReceipt: queue.getQueueReceipt,
+    getQueueReceipt: queue.getQueueReceipt, readQueueEntriesByOpIds: queue.readQueueEntriesByOpIds,
     listConsumedQueueIssues: queue.listConsumedQueueIssues,
     adoptConsumedRejections: queue.adoptConsumedRejections,
     commitImportPlan: engine.commitImportPlan, listImportPlans: engine.listImportPlans,
@@ -105,6 +114,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     publishCursor: queue.publishCursor, createApplyIntent: pull.createApplyIntent,
     findApplyIntent: pull.findApplyIntent, getApplyIntent: pull.getApplyIntent,
     listNativeWaitIntents: intentFacts.listNativeWaitIntents, listApplyIntents: intentFacts.listApplyIntents, persistApplyIntentFacts: intentFacts.persistApplyIntentFacts,
+    refreshUnstartedMovePreimage: intentFacts.refreshUnstartedMovePreimage,
     hasActiveApplyIntentForNativeTarget: pull.hasActiveApplyIntentForNativeTarget,
     commitApplyIntent: pull.commitApplyIntent,
     stagePullPage: pull.stagePullPage, listPullEvents: pull.listPullEvents,

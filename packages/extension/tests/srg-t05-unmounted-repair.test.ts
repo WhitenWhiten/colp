@@ -1,20 +1,23 @@
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
-import { describe, test } from 'vitest';
-import { recoverVerifiedOrFreeze } from '../src/recovery-guard.js';
-import { createSyncStateStore, type MappingInput } from '../src/sync-state-store.js';
+import { describe, test, vi } from 'vitest';
+import type { SnapshotNode } from '@know-n/colp/types';
+import { createSyncStateStore } from '../src/sync-state-store.js';
 import { repairWronglyAckedUnmountedRestore } from '../src/unmounted-restore-repair.js';
-import { fakeApi, indexedDB, installKns05IndexedDb, scope } from './kns-05-pull-harness.js';
+import { indexedDB, installKns05IndexedDb, scope } from './kns-05-pull-harness.js';
+import { ack, emptyPullPage, json, nonemptyMountSnapshot, scope as engineScope, setup } from './durable-sync-engine-harness.js';
 
 installKns05IndexedDb();
 
 describe('T-05 wrongly Acked unmounted restore repair (R-07)', () => {
   test('R-07: snapshot repair keeps original Node identity, user edits, and old receipts', async () => {
-    const store = createSyncStateStore({ indexedDB });
+    const fixture = await setup({ snapshotRequired: true, emptyCollection: true, seedMount: false, useRealPullApplier: true });
+    const store = fixture.store, scope = engineScope;
+    fixture.clock.now = Date.now();
     await store.registerScope({
-      ...scope, lifecycle: 'active', lease: { leaseId: 'lease-r07', expiresAt: Date.parse('2099-01-01T00:00:00Z') },
+      ...scope, lifecycle: 'active', lease: { leaseId: 'lease-1', generation: '1', expiresAt: Date.parse('2099-01-01T00:00:00Z') },
       checkpoint: { serverRevision: 'revision-old', cursor: 'cursor-acked' },
-      selectedRoots: ['root-colp'], rootStatus: 'ready',
+      selectedRoots: ['root-colp'], rootStatus: 'ready', firstRun: 'completed',
     });
     await store.putMountBinding(scope, {
       mountId: 'mount-bar', nativeRootId: 'native-root', remoteMountNodeId: 'root-colp',
@@ -65,37 +68,83 @@ describe('T-05 wrongly Acked unmounted restore repair (R-07)', () => {
     assert.equal((await store.exportScope(scope)).scope?.lifecycle, 'recovery_required');
     assert.deepEqual((await store.exportScope(scope)).receipts, before.receipts);
 
-    const api = fakeApi();
-    api.seed({ id: 'native-root', title: 'Bar' });
-    api.seed({ id: 'native-user', parentId: 'native-root', title: 'User edit', url: 'https://example.test/user' });
-    const staged: MappingInput[] = [{
-      nativeId: 'recovery:root-colp', colpId: 'root-colp', rootNativeId: 'recovery:root', nodeKind: 'folder',
-      rootRole: 'bookmarks-bar',
-      projection: { revision: 'r-root', childrenRevision: 'c-root', digest: 'sha256:root',
-        content: { title: 'Bar', folderRole: 'bookmarks-bar' } },
-    }, {
-      nativeId: 'recovery:rec-missing', colpId: 'rec-missing', rootNativeId: 'recovery:root', nodeKind: 'folder',
-      parentColpId: 'root-colp',
-      projection: { revision: 'r-rec', childrenRevision: 'c-rec', digest: 'sha256:rec',
-        content: { title: 'Recovered', folderRole: 'recovered' } },
-    }, {
-      nativeId: 'recovery:orphan-keep', colpId: 'orphan-keep', rootNativeId: 'recovery:root', nodeKind: 'bookmark',
-      parentColpId: 'rec-missing',
-      projection: { revision: 'r-orphan-new', digest: 'sha256:orphan-new',
-        content: { title: 'Keep me', url: 'https://example.test/keep' } },
-    }];
-    const projected = await recoverVerifiedOrFreeze({ scope, store, staged, api, freezeUnprovenIdentity: false });
+    fixture.chromeNodes.clear();
+    fixture.chromeNodes.set('native-root', { id: 'native-root', title: 'Bar' });
+    fixture.chromeNodes.set('native-user', { id: 'native-user', parentId: 'native-root', title: 'User edit', url: 'https://example.test/user' });
+    const nativeBefore = [...fixture.chromeNodes.values()];
+    const snapshot = repairedSnapshot();
+    fixture.snapshotResponses.push(json(200, snapshot));
+    let releaseAck!: (response: Response) => void;
+    fixture.ackResponses.push(new Promise<Response>(resolve => { releaseAck = resolve; }));
+    fixture.forcedSessions.push(
+      { sessionId: 'session-repair', state: 'active', snapshotRequired: true, cursor: 'cursor-acked' },
+      { sessionId: 'session-repaired', state: 'active', snapshotRequired: false, cursor: 'cursor-recovered' },
+    );
+    fixture.clock.now = Date.now() + 1_000;
+    store.close();
+    const recovering = fixture.reopen().wake('startup');
+    try {
+      await vi.waitFor(() => assert.equal(fixture.ackRequests.length, 1));
+      assert.equal((await store.listAckIntents(scope)).at(-1)?.state, 'pending');
+      assert.deepEqual([...fixture.chromeNodes.values()], nativeBefore,
+        'the real pending Ack boundary grants no native restoration');
+    } finally {
+      releaseAck(json(200, ack(snapshot.syncCursor)));
+      await recovering;
+    }
+    assert.equal((await store.getScope(scope))?.lifecycle, 'active', JSON.stringify({
+      engine: await store.getEngineState(scope), order: fixture.order, snapshots: fixture.snapshotRequests,
+      recovery: await store.getRecoveryHeader(scope),
+    }));
+    assert.equal((await store.listAckIntents(scope)).at(-1)?.state, 'complete');
+    assert.equal(fixture.snapshotRequests.length, 1);
+    assert.equal(JSON.parse(fixture.ackRequests[0]!.body).cursor, snapshot.syncCursor);
+    assert.equal(fixture.ackRequests[0]!.headerSession, 'session-repair');
+    assert.equal(await store.getRecoveryHeader(scope), null);
+    assert.deepEqual([...fixture.chromeNodes.values()], nativeBefore,
+      'native restoration waits for the active-session follow-up');
+    assert.deepEqual((await store.exportScope(scope)).receipts, before.receipts);
+    assert.deepEqual((await store.listQueue(scope)).find(row => row.opId === 'op-user-edit'),
+      before.queue.find(row => row.opId === 'op-user-edit'));
+
+    // Only the engine's acknowledged, active-session follow-up may resume the
+    // canonical virtual children. No test code changes the lifecycle to active.
+    fixture.clock.now += 1_001;
+    fixture.pullResponses.push(json(200, emptyPullPage('cursor-after-repair'), { 'Known-Sync-Cursor-Reissued': 'true' }));
+    fixture.ackResponses.push(json(200, ack('cursor-after-repair')));
+    store.close();
+    await fixture.reopen().wake('startup');
+    const projected = await store.listMappings(scope);
     const rec = projected.find((row) => row.colpId === 'rec-missing');
     const orphan = projected.find((row) => row.colpId === 'orphan-keep');
     assert.ok(rec?.nativeId && !rec.nativeId.startsWith('unmounted:') && !rec.nativeId.startsWith('recovery:'));
-    assert.ok(orphan?.nativeId && !orphan.nativeId.startsWith('unmounted:'));
+    assert.ok(orphan?.nativeId && !/^(?:unmounted:|recovery:)/u.test(orphan.nativeId));
     assert.equal(orphan?.colpId, 'orphan-keep');
     assert.equal(orphan?.parentNativeId, rec?.nativeId);
-    assert.equal((await api.get(orphan!.nativeId))[0]?.title, 'Keep me');
+    assert.equal(fixture.chromeNodes.get(orphan!.nativeId)?.title, 'Keep me');
     assert.equal((await store.getMappingByColpId(scope, 'pending-op-user-edit'))?.nativeId, 'native-user');
     assert.equal((await store.getMappingByColpId(scope, 'pending-op-user-edit'))?.projection.content?.title, 'User edit');
     assert.deepEqual((await store.exportScope(scope)).receipts, before.receipts);
     assert.equal((await store.exportScope(scope)).receipts[0]?.receiptId, 'receipt-old');
+    assert.deepEqual((await store.listQueue(scope)).find(row => row.opId === 'op-user-edit'),
+      before.queue.find(row => row.opId === 'op-user-edit'));
+    assert.equal([...fixture.chromeNodes.values()].filter(node => node.url === 'https://example.test/keep').length, 1);
+    assert.equal(fixture.chromeNodes.get('native-user')?.title, 'User edit');
+    assert.equal((await store.getEngineState(scope))?.recoveryFrozen, false);
+    const nativeAfter = [...fixture.chromeNodes.values()];
+    fixture.pullResponses.push(json(200, emptyPullPage('cursor-after-reopen'), { 'Known-Sync-Cursor-Reissued': 'true' }));
+    fixture.ackResponses.push(json(200, ack('cursor-after-reopen')));
+    fixture.clock.now += 1_001;
+    store.close();
+    await fixture.reopen().wake('startup');
+    assert.equal((await store.getMappingByColpId(scope, 'rec-missing'))?.nativeId, rec.nativeId);
+    assert.equal((await store.getMappingByColpId(scope, 'orphan-keep'))?.nativeId, orphan.nativeId);
+    assert.deepEqual([...fixture.chromeNodes.values()], nativeAfter);
+    assert.equal(fixture.snapshotRequests.length, 1, 'reopening the repaired scope does not need another Snapshot');
+    assert.deepEqual((await store.exportScope(scope)).receipts, before.receipts);
+    assert.deepEqual((await store.listQueue(scope)).find(row => row.opId === 'op-user-edit'),
+      before.queue.find(row => row.opId === 'op-user-edit'));
+    store.close();
   });
 
   test('R-07: legal unmounted peer is not forced into the browser', async () => {
@@ -131,3 +180,27 @@ describe('T-05 wrongly Acked unmounted restore repair (R-07)', () => {
     assert.equal((await store.getMappingByColpId(scope, 'other-child'))?.nativeId, 'unmounted:other-child');
   });
 });
+
+function repairedSnapshot() {
+  const base = nonemptyMountSnapshot(false);
+  const stamp = { collectionId: engineScope.collectionId, createdAt: '2026-07-28T00:00:00Z',
+    updatedAt: '2026-07-28T00:00:00Z', extensions: {} };
+  const nodes: SnapshotNode[] = [{
+    ...stamp, id: 'root-server', parentId: null, position: null, kind: 'root',
+    title: 'root-server', folderRole: 'root', revision: 'revision-root-server',
+  }, {
+    ...stamp, id: 'root-colp', parentId: 'root-server', position: 'p1', kind: 'folder',
+    title: 'Bar', folderRole: 'bookmarks-bar', revision: 'r-root',
+  }, {
+    ...stamp, id: 'rec-missing', parentId: 'root-colp', position: 'p2', kind: 'folder',
+    title: 'Recovered', folderRole: 'recovered', revision: 'r-rec',
+  }, {
+    ...stamp, id: 'orphan-keep', parentId: 'rec-missing', position: 'p3', kind: 'bookmark',
+    title: 'Keep me', url: 'https://example.test/keep', revision: 'r-orphan-new',
+  }];
+  return { ...base, nodes, recoveryCapability: 'src1.repair-capability', parentRevisions: [
+    { parentId: 'root-server', childrenRevision: 'children-root' },
+    { parentId: 'root-colp', childrenRevision: 'c-root' },
+    { parentId: 'rec-missing', childrenRevision: 'c-rec' },
+  ] };
+}

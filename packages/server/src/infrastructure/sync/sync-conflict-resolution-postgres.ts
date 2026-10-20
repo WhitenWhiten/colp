@@ -1,9 +1,8 @@
 import { SnapshotTreeCapacityError } from '../../modules/collections/index.js';
 import { createDecipheriv, createHash, createHmac, hkdfSync, randomBytes } from 'node:crypto';
 import { sql, type Kysely, type Selectable } from 'kysely';
-import type { Conflict, ConflictResolutionResult, NodeCreate, Operation } from '@know-n/colp/types';
-import { deepEqualSyncMergeValue } from '@know-n/colp/sync';
-import { createValidatorRegistry, preserveExtensions } from '@know-n/colp/schema';
+import type { Conflict, ConflictResolutionResult, Operation } from '@know-n/colp/types';
+import { createValidatorRegistry } from '@know-n/colp/schema';
 import {
   canonicalSyncConflictResolutionDigest,
   evaluateSyncNodeUpdate,
@@ -19,11 +18,6 @@ import {
 import {
   CanonicalMutationInvariantError,
   CollectionsError,
-  assertValidHttpUrlNoUserInfo,
-  assertValidNodeDescription,
-  assertValidNodeTags,
-  assertValidNodeTitle,
-  assertValidNodeVisibility,
   createCanonicalMutationApplication,
   type CanonicalMutationResult,
 } from '../../modules/collections/index.js';
@@ -33,14 +27,16 @@ import { appendOperationWithPayload } from '../database/operation-payload-store.
 import { DatabaseOperationError } from '../database/errors.js';
 import { lockCollectionReplicaGate, lockSyncReplicaBeforeCollection } from '../database/lock-order.js';
 import {
-  assertPlainCustomObject as assertPlainCustomObjectValue,
-  isRecord,
   stableJson as stableJsonValue,
 } from './sync-conflict-json.js';
 import {
   decryptPrivatePayload as decryptPrivatePayloadValue,
+  withHistoricalBookmarkUrlContext,
   type PrivateConflictPayload,
 } from './sync-conflict-private-payload.js';
+import { selectedResolutionFields, duplicateNodeDocument } from './sync-conflict-content.js';
+import { planSyncConflictDecision, summarizeConflictContent, type CurrentConflictNode } from './sync-conflict-decision.js';
+import { resolveRestorePlacement } from './sync-node-restore-postgres.js';
 import { createUnitOfWork, type DatabaseTransaction } from '../database/unit-of-work.js';
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import type { PostgresSyncSessionIssuer } from './sync-session-postgres.js';
@@ -50,7 +46,7 @@ import {
   ManagedAncestryPolicyError,
 } from './managed-ancestry-policy.js';
 import type { SyncConflictPayloadKeyring } from './sync-conflict-postgres.js';
-import { encryptPrivatePayload, isSyncConflictPayloadKeyring, selectSyncConflictPayloadKey } from './sync-conflict-postgres.js';
+import { encryptPrivatePayload, executableSyncConflictResolutions, isSyncConflictPayloadKeyring, selectSyncConflictPayloadKey } from './sync-conflict-postgres.js';
 import { persistSyncOperationProjection } from './postgres/sync-pull-postgres.js';
 import { claimResolutionAuthor, hasResolutionClaim } from './sync-resolution-author-postgres.js';
 import {
@@ -169,10 +165,51 @@ async function resolveInTransaction(
         || stableJson(conflict.resolution_result_json) !== stableJson(replay)) deny('internal_error');
     return replay;
   }
-  if (conflict.status !== 'open' || conflict.revision !== command.conflictRevision) {
-    deny('precondition_failed', conflict.revision);
+  if (conflict.status !== 'open') deny('precondition_failed', conflict.revision);
+
+  const current = await transaction.selectFrom('nodes').selectAll()
+    .where('collection_id', '=', conflict.collection_id)
+    .where('id', '=', conflict.target_id).forUpdate().executeTakeFirst();
+  if (!current) deny('resource_not_found');
+  const conflictBinding = await transaction.selectFrom('sync_session_bindings').select('lease_generation')
+    .where('session_id', '=', conflict.session_id).executeTakeFirst();
+  if (!conflictBinding) deny('internal_error');
+  const retainedPayload = decryptPrivatePayload(
+    conflict, options.conflictPayloadKeyring, current.kind, conflictBinding.lease_generation,
+  );
+  // Collection and canonical node locks are already held. Restore only an
+  // old payload's validation context from its exact immutable Base revision.
+  const historicalBase = await transaction.selectFrom('sync_node_revision_history')
+    .select(sql<string | null>`payload_json->>'url'`.as('url'))
+    .where('collection_id', '=', conflict.collection_id).where('resource_id', '=', conflict.target_id)
+    .where('revision', '=', conflict.base_revision).where('kind', '=', 'bookmark').executeTakeFirst();
+  const privatePayload = withHistoricalBookmarkUrlContext(retainedPayload, historicalBase?.url);
+  const managedCapabilities = {
+    managedBookmarkWrites: options.managedBookmarkWrites === true,
+    replicaWrite: authority.replicaWrite ?? await conflictReplicaWriteCapability(transaction, conflict.replica_id),
+  };
+  let resolutionWriteBlockedReason: ManagedAncestryPolicyError['code'] | null = null;
+  try {
+    const chain = await loadLockedManagedAncestryChain(transaction, input.collectionId, current.id,
+      { retainedTombstones: current.deleted_at !== null });
+    assertManagedAncestryWritable(chain, managedCapabilities);
+  } catch (error) {
+    if (!(error instanceof ManagedAncestryPolicyError)) throw error;
+    resolutionWriteBlockedReason = error.code;
   }
-  if (!conflict.allowed_resolutions.includes(command.resolution)) deny('unsupported_operation');
+  const decision = planSyncConflictDecision(conflict, privatePayload, {
+    kind: current.kind, resourceRevision: current.resource_revision,
+    deleted: current.deleted_at !== null, payload: current.payload_json, resolutionWriteBlockedReason,
+  });
+  if (decision.revision !== command.conflictRevision) deny('precondition_failed', decision.revision);
+  const executable = decision.allowedResolutions;
+  if (!executable.includes(command.resolution)) {
+    if (decision.resolutionBlockedReason) deny(decision.resolutionBlockedReason);
+    if (resolutionWriteBlockedReason && !(current.deleted_at !== null && command.resolution === 'server')) {
+      deny(resolutionWriteBlockedReason);
+    }
+    deny('unsupported_operation');
+  }
 
   await transaction.insertInto('sync_conflict_resolution_receipts').values({
     principal_id: authority.accountId,
@@ -198,60 +235,38 @@ async function resolveInTransaction(
     collectionId: input.collectionId, conflictId: conflict.conflict_id, requestDigest });
   const claimedSequence = author.sequence;
 
-  const current = await transaction.selectFrom('nodes').selectAll()
-    .where('collection_id', '=', conflict.collection_id)
-    .where('id', '=', conflict.target_id).forUpdate().executeTakeFirst();
-  if (!current || !current.payload_json) deny('resource_not_found');
+  const recoveringDeleted = current.deleted_at !== null && command.resolution === 'incoming';
   if (current.deleted_at !== null) {
-    // FIX-M-015: only a historical delete_update may resolve a deleted target;
-    // all other conflict menus remain concealed/unsupported as originally advertised.
-    if (conflict.conflict_type !== 'delete_update') deny('resource_not_found');
-    if (command.resolution !== 'server') deny('unsupported_operation');
-    return dismissDeleteUpdateConflict(transaction, { ...input, replicaId: author.replicaId }, command, options, authority,
-      conflict, current, operationId, claimedSequence, requestDigest, occurredAt);
+    if (command.resolution === 'server') {
+      return dismissDeleteUpdateConflict(transaction, { ...input, replicaId: author.replicaId }, command, options, authority,
+        conflict, current, decision, operationId, claimedSequence, requestDigest, occurredAt);
+    }
+    if (!recoveringDeleted) deny('unsupported_operation');
   }
-  const conflictBinding = await transaction.selectFrom('sync_session_bindings').select('lease_generation')
-    .where('session_id', '=', conflict.session_id).executeTakeFirst();
-  if (!conflictBinding) deny('internal_error');
-  const privatePayload = decryptPrivatePayload(
-    conflict, options.conflictPayloadKeyring, current.kind, conflictBinding.lease_generation,
-  );
-
-  // A Conflict revision does not advance when another node update commits.
-  // Reject an obsolete overwriting decision, while allowing unrelated fields
-  // to change and an incoming value that has already converged on the server.
-  if (current.resource_revision !== conflict.current_revision
-      && (command.resolution === 'incoming' || command.resolution === 'custom')) {
-    const stale = conflict.conflicting_fields.map(pointer => pointer.slice(1)).some(field =>
-      !deepEqualSyncMergeValue(current.payload_json![field], privatePayload.current[field])
-      && !(command.resolution === 'incoming'
-        && deepEqualSyncMergeValue(current.payload_json![field], privatePayload.incoming[field])));
-    if (stale) deny('precondition_failed', conflict.revision);
-  }
+  if (!current.payload_json) deny('resource_not_found');
 
   let mutation: CanonicalMutationResult;
   let wireOperation: Operation;
   let effectTargetId: string | undefined;
-  if (command.resolution === 'both') {
-    if (current.kind !== 'bookmark' || privatePayload.nodeKind !== 'bookmark'
-        || conflict.conflict_type !== 'concurrent_field_update'
-        || conflict.conflicting_fields.some((field) => field !== '/title' && field !== '/url')) {
+  if (command.resolution === 'both' || recoveringDeleted) {
+    if (!recoveringDeleted && (current.kind !== 'bookmark' || privatePayload.nodeKind !== 'bookmark')) {
       deny('unsupported_operation');
     }
-    // SYNC-R02: lock the inherited parent-to-root chain and enforce the
-    // managed-bookmarks policy before any ledger claim or mutation.
-    const parentChain = await loadLockedManagedAncestryChain(
-      transaction, input.collectionId, current.parent_id!,
-    );
-    if (parentChain.some((fact) => fact.kind !== 'folder')) deny('resource_not_found');
-    assertManagedAncestryWritable(parentChain, {
-      managedBookmarkWrites: options.managedBookmarkWrites === true,
-      replicaWrite: authority.replicaWrite ?? await conflictReplicaWriteCapability(
-        transaction, conflict.replica_id,
-      ),
-    });
+    if (recoveringDeleted && Object.keys(privatePayload.incoming).length === 0) deny('unsupported_operation');
+    let parentId = current.parent_id!;
+    if (recoveringDeleted) {
+      const collection = await transaction.selectFrom('collections').select('root_node_id')
+        .where('id', '=', input.collectionId).executeTakeFirst();
+      if (!collection) deny('resource_not_found');
+      parentId = (await resolveRestorePlacement(transaction, {
+        collectionId: input.collectionId, rootNodeId: collection.root_node_id,
+        actorPrincipalId: authority.accountId, node: current, now: occurredAt,
+        managedCapabilities, nodeId: () => generatedId('recovered-'),
+        reportSourceInvalidation: options.reportSourceInvalidation,
+      })).parentId;
+    }
     const nodeId = validGeneratedId(options.nodeId?.() ?? generatedId('node-'));
-    const node = duplicateNodeDocument(current.payload_json, privatePayload, conflict.conflicting_fields);
+    const node = duplicateNodeDocument(current.payload_json, privatePayload, decision.conflictingFields);
     // T-10 / ADR-0027: `both` duplicates a live bookmark, so it must pass the
     // same aggregate Snapshot admission as every other node-creating path.
     effectTargetId = nodeId;
@@ -262,7 +277,7 @@ async function resolveInTransaction(
       opId: operationId, replicaId: author.replicaId, sequence: claimedSequence,
       collectionId: input.collectionId, type: 'create_node', baseRevision: null,
       occurredAt: occurredAt.toISOString(), dependencies: [conflict.operation_id],
-      payload: { parentId: current.parent_id!, afterId: current.id, node },
+      payload: { parentId, ...(!recoveringDeleted ? { afterId: current.id } : {}), node },
       source: { adapterProfile: 'known-conflict-resolution', extensions: {
         'https://known.example/extensions/sync-conflict-resolution': { createdNodeId: nodeId },
       } },
@@ -280,7 +295,7 @@ async function resolveInTransaction(
     });
   } else {
     const desired = selectedResolutionFields(command, current.payload_json, privatePayload,
-      conflict.conflicting_fields);
+      decision.conflictingFields);
     wireOperation = {
       opId: operationId, replicaId: author.replicaId, sequence: claimedSequence,
       collectionId: input.collectionId, type: 'update_node_content', targetId: current.id,
@@ -304,6 +319,7 @@ async function resolveInTransaction(
           resourceId: current.id, resourceKind: 'node' },
         parentId: current.parent_id, expectedResourceRevision: current.resource_revision,
         fields: evaluated.fields,
+        trustedFacts: { replaceExtensions: true },
       },
     });
   }
@@ -318,7 +334,7 @@ async function resolveInTransaction(
     ...(effectTargetId ? { targetId: effectTargetId } : {}),
     ...(options.faultInjector ? { faultInjector: options.faultInjector } : {}),
   });
-  const resolvedConflict = resolvedConflictWire(conflict, revision);
+  const resolvedConflict = resolvedConflictWire(conflict, revision, decision);
   const result: ConflictResolutionResult = { conflict: resolvedConflict, operation: wireOperation, cursor };
   if (!validators.validate('conflictResolutionResult', result).valid) deny('internal_error');
   await finalizeConflictResolution(transaction, options, conflict, command, authority,
@@ -345,6 +361,7 @@ async function dismissDeleteUpdateConflict(
   authority: Readonly<{ accountId: string; replicaWrite?: boolean }>,
   conflict: Selectable<SyncConflictTable>,
   current: Selectable<DatabaseSchema['nodes']>,
+  decision: ReturnType<typeof planSyncConflictDecision>,
   operationId: string,
   claimedSequence: number,
   requestDigest: string,
@@ -392,7 +409,7 @@ async function dismissDeleteUpdateConflict(
 
   const revision = `${RESOLUTION_REVISION_PREFIX}${commitOrdinal}`;
   const cursor = `sync-conflict-resolution-${commitOrdinal}`;
-  const resolvedConflict = resolvedConflictWire(conflict, revision);
+  const resolvedConflict = resolvedConflictWire(conflict, revision, decision);
   const result: ConflictResolutionResult = { conflict: resolvedConflict, operation: wireOperation, cursor };
   if (!validators.validate('conflictResolutionResult', result).valid) deny('internal_error');
   await finalizeConflictResolution(transaction, options, conflict, command, authority,
@@ -400,13 +417,14 @@ async function dismissDeleteUpdateConflict(
   return Object.freeze(result);
 }
 
-function resolvedConflictWire(conflict: Selectable<SyncConflictTable>, revision: string): Conflict {
+function resolvedConflictWire(conflict: Selectable<SyncConflictTable>, revision: string,
+  decision: ReturnType<typeof planSyncConflictDecision>): Conflict {
   return {
     id: conflict.conflict_id, collectionId: conflict.collection_id, targetId: conflict.target_id,
-    type: conflict.conflict_type,
-    ...(conflict.conflicting_fields.length === 1 ? { field: conflict.conflicting_fields[0] } : {}),
+    type: decision.type,
+    ...(decision.conflictingFields.length === 1 ? { field: decision.conflictingFields[0] } : {}),
     incomingOpId: conflict.operation_id, createdAt: conflict.created_at.toISOString(),
-    status: 'resolved', allowedResolutions: [...conflict.allowed_resolutions] as Conflict['allowedResolutions'],
+    status: 'resolved', allowedResolutions: [...decision.allowedResolutions] as Conflict['allowedResolutions'],
     revision,
   };
 }
@@ -432,7 +450,7 @@ async function finalizeConflictResolution(
     resolved_at: occurredAt,
   }).where('conflict_id', '=', conflict.conflict_id)
     .where('status', '=', 'open')
-    .where('revision', '=', command.conflictRevision).executeTakeFirst();
+    .where('revision', '=', conflict.revision).executeTakeFirst();
   if (updated.numUpdatedRows !== 1n) deny('precondition_failed', conflict.revision);
   await options.faultInjector?.afterPhase?.('conflict_update');
   await options.faultInjector?.afterPhase?.('before_receipt_finalize');
@@ -579,62 +597,6 @@ async function conflictReplicaWriteCapability(
   return replica.capabilities_json.write === true;
 }
 
-function selectedResolutionFields(
-  command: ValidatedSyncConflictResolutionCommand,
-  current: Readonly<Record<string, unknown>>,
-  privatePayload: PrivateConflictPayload,
-  pointers: readonly string[],
-): Readonly<{ base: Record<string, unknown>; value: Record<string, unknown> }> {
-  const fields = pointers.map((pointer) => pointer.slice(1))
-    .filter((field) => !['baseRevision', 'deletedAt'].includes(field));
-  if (fields.length < 1) deny('unsupported_operation');
-  const base: Record<string, unknown> = {};
-  const value: Record<string, unknown> = {};
-  for (const field of fields) base[field] = current[field];
-  if (command.resolution === 'server') {
-    for (const field of fields) value[field] = current[field];
-  } else if (command.resolution === 'incoming') {
-    for (const field of fields) value[field] = privatePayload.incoming[field];
-  } else {
-    if (fields.length === 1) value[fields[0]!] = command.value;
-    else {
-      const custom = assertPlainCustomObject(command.value, 'custom conflict value');
-      if (fields.some((field) => !Object.hasOwn(custom, field))
-          || Object.keys(custom).some((field) => !fields.includes(field))) deny('invalid_document');
-      for (const field of fields) value[field] = custom[field];
-    }
-  }
-  return { base, value };
-}
-
-function duplicateNodeDocument(
-  current: Readonly<Record<string, unknown>>,
-  privatePayload: PrivateConflictPayload,
-  pointers: readonly string[],
-): NodeCreate {
-  const title = assertValidNodeTitle(
-    pointers.includes('/title') ? privatePayload.incoming.title as string : current.title as string,
-  );
-  const url = assertValidHttpUrlNoUserInfo(
-    pointers.includes('/url') ? privatePayload.incoming.url as string : current.url as string,
-  );
-  const description = assertValidNodeDescription(current.description as string | null | undefined ?? null);
-  const tags = assertValidNodeTags(current.tags as readonly string[] | undefined ?? []);
-  const visibility = assertValidNodeVisibility(current.visibility as string | undefined ?? 'inherit');
-  const rawExtensions = current.extensions ?? {};
-  if (!isRecord(rawExtensions)) deny('internal_error');
-  const preserved = preserveExtensions(
-    rawExtensions as Parameters<typeof preserveExtensions>[0],
-    { surface: 'sync-server', path: '/payload/node' },
-  );
-  if (preserved.removals.length !== 0) deny('internal_error');
-  return {
-    kind: 'bookmark', title, url, tags: [...tags], visibility,
-    extensions: preserved.extensions,
-    ...(description === null ? {} : { description }),
-  };
-}
-
 function decryptPrivatePayload(
   conflict: Selectable<SyncConflictTable>,
   keyring: SyncConflictPayloadKeyring,
@@ -651,16 +613,25 @@ export function readProductConflictSafeSummary(
   leaseGeneration: bigint,
   field: string | null,
 ): { readonly current: string | null; readonly incoming: string | null } {
-  if (field !== '/title' && field !== '/description' && field !== '/visibility') {
-    return { current: null, incoming: null };
-  }
   const payload = decryptPrivatePayload(conflict, keyring, nodeKind, leaseGeneration);
-  const key = field.slice(1);
-  const summarize = (source: Readonly<Record<string, unknown>>): string | null => {
-    const value = source[key];
-    return typeof value === 'string' ? value.slice(0, 256) : null;
-  };
-  return { current: summarize(payload.current), incoming: summarize(payload.incoming) };
+  const fields = field === null ? conflict.conflicting_fields : [field];
+  return { current: summarizeConflictContent(payload.current, fields),
+    incoming: summarizeConflictContent(payload.incoming, fields) };
+}
+
+export function readProductConflictResolutions(
+  conflict: Selectable<SyncConflictTable>, keyring: SyncConflictPayloadKeyring,
+  nodeKind: 'folder' | 'bookmark' | 'separator', leaseGeneration: bigint,
+) {
+  const payload = decryptPrivatePayload(conflict, keyring, nodeKind, leaseGeneration);
+  return executableSyncConflictResolutions(conflict, nodeKind, Object.keys(payload.incoming).length > 0);
+}
+
+export function readProductConflictDecision(conflict: Selectable<SyncConflictTable>,
+  keyring: SyncConflictPayloadKeyring, leaseGeneration: bigint, current: CurrentConflictNode,
+  historicalBaseUrl?: unknown) {
+  const payload = decryptPrivatePayload(conflict, keyring, current.kind, leaseGeneration);
+  return planSyncConflictDecision(conflict, withHistoricalBookmarkUrlContext(payload, historicalBaseUrl), current);
 }
 
 async function databaseNow(transaction: DatabaseTransaction): Promise<Date> {
@@ -748,10 +719,6 @@ function generatedId(prefix: string): string {
 
 function stableJson(value: unknown): string {
   return stableJsonValue(value, invalidDocument);
-}
-
-function assertPlainCustomObject(value: unknown, _label: string): Record<string, unknown> {
-  return assertPlainCustomObjectValue(value, invalidDocument);
 }
 
 function invalidDocument(): never {

@@ -15,6 +15,7 @@ import { createChromePullBookmarkApi } from '../pull-bookmark-api.js';
 import type { PullBookmarkApi, PullNode } from '../pull-applier-types.js';
 import { chromeCreate } from '../pull-projection.js';
 import type { IntentRecord, SyncScope } from '../sync-state-store.js';
+import { materializationChildEventId } from '../sync-state/materialization-wait-authority.js';
 import type {
   NativeWaitConfirmRequest, NativeWaitRequest, NativeWaitResponse, PublicNativeWait, PublicNativeWaitCandidate,
 } from '../types.js';
@@ -76,7 +77,7 @@ async function confirm(scope: SyncScope, message: NativeWaitConfirmRequest,
   if (message.action === 'keep_local_and_create') {
     // A missing intent is left to `confirmNativeWait`, which names `intent_not_found`.
     const intent = await deps.store.getApplyIntent(scope, message.intentId);
-    if (intent) {
+    if (intent && !materializationChildEventId(intent)) {
       const planned = await planUserCreate(deps.store, scope, intent, api);
       if (!planned.ok) return { ok: false, code: planned.code };
       create = planned.create;

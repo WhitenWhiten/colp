@@ -1,5 +1,6 @@
-import { readOpenSyncIssues, issueProtectionIds } from './sync-issues.js';
 import { SyncFailureError } from './sync-failure-class.js';
+import { readOpenSyncIssues, issueProtectionIds } from './sync-issues.js';
+import { eligibleSnapshotCreates } from './snapshot-create-boundary.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { freezeScopeRecovery } from './pull-recovery-freeze.js';
 import type { PullBookmarkApi } from './pull-applier.js';
@@ -62,7 +63,7 @@ export async function recoverVerifiedOrFreeze(input: {
   const staged = input.staged.map(stripScopeKey);
   const mounts = await input.store.listMountBindings(input.scope);
   const bound = bindSnapshotMappings(staged, live, mounts);
-  if (isVirtualSnapshotCutover(staged) || hasProjectableVirtualChildren(bound)
+  if (mounts.length > 0 || isVirtualSnapshotCutover(staged) || hasProjectableVirtualChildren(bound)
       || intents.some((intent) => intent.state !== 'terminal')) {
     for (const mapping of staged) {
       const mount = matchStagedMount(mounts, mapping);
@@ -80,13 +81,14 @@ export async function recoverVerifiedOrFreeze(input: {
   });
 }
 
-export async function leftoverVirtualChildrenNeedReproject(store: Pick<Store, 'listMappings' | 'listMountBindings'>,
+export async function leftoverVirtualChildrenNeedReproject(store: Pick<Store, 'listMappings' | 'listMountBindings' | 'getScope'>,
   scope: SyncScope): Promise<boolean> {
   const [live, mounts] = await Promise.all([store.listMappings(scope), store.listMountBindings(scope)]);
   // A remote-only subtree has no Chrome parent. It is durable sidecar state,
   // not pending native work. Account for mounts bound after Snapshot cutover.
-  return hasProjectableVirtualChildren(bindSnapshotMappings(live, live, mounts),
-    issueProtectionIds(live, (await readOpenSyncIssues(store, scope)).roots));
+  const bound = bindSnapshotMappings(live, live, mounts);
+  return hasProjectableVirtualChildren(bound, issueProtectionIds(live, (await readOpenSyncIssues(store, scope)).roots),
+    await eligibleSnapshotCreates(store, scope, bound));
 }
 
 function stripScopeKey(mapping: MappingInput): MappingInput {
@@ -161,8 +163,10 @@ export async function readNativeIdentity(live: readonly MappingInput[], api: Pic
 }
 
 /** Issue-held native work keeps its original recovery record without claiming ownership of the whole scope. */
-export async function unprotectedProjectionIntents(store: Pick<Store, 'listMappings' | 'listProjectionIntents'>, scope: SyncScope) {
+export async function unprotectedProjectionIntents(store: Pick<Store, 'listMappings' | 'listProjectionIntents' | 'listMountBindings' | 'getScope'>, scope: SyncScope) {
   const [mappings, intents, issues] = await Promise.all([store.listMappings(scope), store.listProjectionIntents(scope), readOpenSyncIssues(store, scope)]);
   const protectedIds = issueProtectionIds(mappings, issues.roots);
-  return intents.filter(intent => intent.state !== 'terminal' && !protectedIds.has(intent.colpId) && !issues.roots.has(intent.colpId));
+  const eligible = await eligibleSnapshotCreates(store, scope, mappings);
+  return intents.filter(intent => intent.state !== 'terminal' && !protectedIds.has(intent.colpId) && !issues.roots.has(intent.colpId)
+    && (intent.kind !== 'create' || intent.state !== 'pending' || !eligible || eligible.has(intent.colpId)));
 }

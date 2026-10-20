@@ -2,7 +2,7 @@ import { digestJson, validateOperation } from '../bookmark-event-codec.js';
 import { deletionOperationType } from '../bookmark-deletion-scope.js';
 import type { createSyncStateStore, JsonObject, MappingInput, SyncScope } from '../sync-state-store.js';
 import type { AdvancedStepRecord } from '../sync-state/advanced-repository.js';
-import type { AdvancedNodeValue, AdvancedParentRef, AdvancedStep } from './advanced-plan-types.js';
+import type { AdvancedNodeValue, AdvancedParentRef, AdvancedRevisionRef, AdvancedStep } from './advanced-plan-types.js';
 import type { StepOutcome } from './advanced-executor.js';
 import type { RemoteNodeFact } from './matcher.js';
 
@@ -207,20 +207,8 @@ async function remoteOperation(store: Store, scope: SyncScope, step: RemoteStep,
   completed: readonly AdvancedStepRecord[], opId: string, now: number,
   refreshRemoteFacts?: () => Promise<readonly RemoteNodeFact[]>): Promise<JsonObject> {
   const common = { opId, occurredAt: new Date(now).toISOString(), dependencies: [] };
-  if (step.action === 'create') return { ...common, type: 'create_node', baseRevision: null,
-    payload: { parentId: resolveAdvancedReference(step.parent, completed, 'targetId'), afterId: null, beforeId: null,
-      node: { ...step.payload.node } } };
-  const ownRevision = [...completed].reverse().find((item) => item.evidence?.targetId === step.target.nodeId
-    && typeof item.evidence.revision === 'string')?.evidence?.revision;
-  const baseRevision = typeof ownRevision === 'string' ? ownRevision : step.payload.baseRevision;
-  if (step.action === 'delete') {
-    // Plans delete child-first. An unstamped subtree request authorizes only
-    // this now-empty root; the server refuses any new concurrent descendant.
-    return { ...common, type: deletionOperationType(step.before.kind), targetId: step.target.nodeId,
-      baseRevision, payload: { reason: 'advanced_bootstrap' } };
-  }
-  if (step.action === 'update') return { ...common, type: 'update_node_content', targetId: step.target.nodeId,
-    baseRevision, payload: { base: { ...step.payload.base }, value: { ...step.payload.value } } };
+  const fields = advancedRemoteOperationFields(step, completed);
+  if (step.action !== 'move') return { ...common, ...fields };
   const parentId = resolveAdvancedReference(step.parent, completed, 'targetId');
   const sourceParent = step.before.parentId ? await store.getMappingByColpId(scope, step.before.parentId) : null;
   const targetParent = await store.getMappingByColpId(scope, parentId);
@@ -229,13 +217,41 @@ async function remoteOperation(store: Store, scope: SyncScope, step: RemoteStep,
   const refreshed = refreshRemoteFacts ? await refreshRemoteFacts() : [];
   const targetRevision = refreshed.find((fact) => fact.nodeId === parentId)?.childrenRevision
     ?? targetParent?.projection.childrenRevision
-    ?? (typeof step.payload.baseTargetParentRevision === 'string' ? step.payload.baseTargetParentRevision
-      : resolveAdvancedReference(step.payload.baseTargetParentRevision, completed, 'childrenRevision'));
-  return { ...common, type: 'move_node', targetId: step.target.nodeId, baseRevision,
-    payload: { newParentId: parentId, afterId: null, beforeId: null,
-      baseSourceParentRevision: refreshed.find((fact) => fact.nodeId === step.before.parentId)?.childrenRevision
-        ?? sourceParent?.projection.childrenRevision ?? step.payload.baseSourceParentRevision,
-      baseTargetParentRevision: targetRevision } };
+    ?? resolveAdvancedRevision(step.payload.baseTargetParentRevision, completed);
+  return { ...common, ...fields, payload: { ...fields.payload as JsonObject,
+    baseSourceParentRevision: refreshed.find((fact) => fact.nodeId === step.before.parentId)?.childrenRevision
+      ?? sourceParent?.projection.childrenRevision ?? step.payload.baseSourceParentRevision,
+    baseTargetParentRevision: targetRevision } };
+}
+
+/** Stable authority shared by the executor and the last outbound boundary.
+ * Parent revision fences are resolved at enqueue time and remain unchanged on
+ * retry; only the server can judge their freshness after an unknown response. */
+export function advancedRemoteOperationFields(step: RemoteStep, completed: readonly AdvancedStepRecord[]): JsonObject {
+  if (step.action === 'create') return { type: 'create_node', baseRevision: null,
+    payload: { parentId: resolveAdvancedReference(step.parent, completed, 'targetId'), afterId: null, beforeId: null,
+      node: { ...step.payload.node } } };
+  const ownRevision = [...completed].reverse().find((item) => item.evidence?.targetId === step.target.nodeId
+    && typeof item.evidence.revision === 'string')?.evidence?.revision;
+  const baseRevision = typeof ownRevision === 'string' ? ownRevision : resolveAdvancedRevision(step.payload.baseRevision, completed);
+  if (step.action === 'delete') {
+    // Plans delete child-first. An unstamped subtree request authorizes only
+    // this now-empty root; the server refuses any new concurrent descendant.
+    return { type: deletionOperationType(step.before.kind), targetId: step.target.nodeId,
+      baseRevision, payload: { reason: 'advanced_bootstrap' } };
+  }
+  if (step.action === 'update') return { type: 'update_node_content', targetId: step.target.nodeId,
+    baseRevision, payload: { base: { ...step.payload.base }, value: { ...step.payload.value } } };
+  const parentId = resolveAdvancedReference(step.parent, completed, 'targetId');
+  return { type: 'move_node', targetId: step.target.nodeId, baseRevision,
+    payload: { newParentId: parentId, afterId: null, beforeId: null } };
+}
+
+function resolveAdvancedRevision(reference: AdvancedRevisionRef, completed: readonly AdvancedStepRecord[]): string {
+  if (typeof reference === 'string') return reference;
+  const result = completed.find(item => item.definition.stepId === reference.stepId)?.evidence?.[reference.field];
+  if (typeof result !== 'string' || !result) throw new Error('advanced_dependency_missing');
+  return result;
 }
 
 export function resolveAdvancedReference(reference: AdvancedParentRef | { readonly kind: 'step'; readonly stepId: string },

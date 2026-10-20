@@ -257,6 +257,8 @@ export function createMountRepository(ctx: SyncStoreRuntime) {
     const db = await writableDatabase();
     await runTransaction(db, [STORES.scopes], 'readwrite', async (tx) => {
       const scope = await requireActiveScope(tx, key);
+      // A stale Later click cannot undo an admission or completion in another page.
+      if (firstRun === 'deferred' && (scope.firstRun === 'running' || scope.firstRun === 'completed')) return;
       tx.objectStore(STORES.scopes).put({ ...scope, firstRun });
     });
   }
@@ -334,12 +336,12 @@ function validatePendingShift(value: unknown): NonNullable<MountBindingRecord['p
       toParentNativeId: boundedString(row.toParentNativeId, 'toParentNativeId') }) };
 }
 
-function validateScopePreview(key: string, input: unknown, maxBytes: number): ScopePreviewRecord {
+export function validateScopePreview(key: string, input: unknown, maxBytes: number): ScopePreviewRecord {
   const value = strictObject(clone(input), ['scopeKey', 'previewId', 'boundaryVersion', 'treeDigest',
     'bookmarkCount', 'folderCount', 'skippedCount', 'expiresAt', 'warnings', 'boundary', 'kind',
-    'consumedAt', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds', 'privateNativeIds',
+    'consumedAt', 'consumedBy', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds', 'privateNativeIds',
     'shiftNativeIds', 'remoteDeleteEvidence'], 'scope preview',
-    ['scopeKey', 'kind', 'consumedAt', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds',
+    ['scopeKey', 'kind', 'consumedAt', 'consumedBy', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds',
       'privateNativeIds', 'shiftNativeIds', 'remoteDeleteEvidence']);
   if (value.scopeKey !== undefined && value.scopeKey !== key) throw new SyncStateError('preview_scope_invalid');
   if (previewHasTitlesOrUrls(value)) throw new SyncStateError('preview_content_forbidden');
@@ -347,8 +349,9 @@ function validateScopePreview(key: string, input: unknown, maxBytes: number): Sc
   if (!Array.isArray(boundary.selectedNativeIds) || !Array.isArray(boundary.excludedNativeIds)
       || !Array.isArray(boundary.mounts)) throw new SyncStateError('preview_boundary_invalid');
   const warnings = Array.isArray(value.warnings) ? value.warnings.map((item) => {
-    const row = strictObject(clone(item), ['code'], 'preview warning');
-    return { code: boundedString(row.code, 'warning.code', 128) };
+    const row = strictObject(clone(item), ['code', 'count'], 'preview warning', ['count']);
+    return { code: boundedString(row.code, 'warning.code', 128),
+      ...(row.count === undefined ? {} : { count: safeInteger(row.count, 'warning.count', 1) }) };
   }) : [];
   if (value.kind !== undefined && value.kind !== 'range') throw new SyncStateError('preview_kind_invalid');
   const ids = (input: unknown, label: string) => Array.isArray(input)
@@ -365,6 +368,7 @@ function validateScopePreview(key: string, input: unknown, maxBytes: number): Sc
       mounts: boundary.mounts.map((mount) => validatePreviewMount(mount)) },
     ...(value.kind === 'range' ? { kind: 'range' as const } : {}),
     ...(value.consumedAt === undefined ? {} : { consumedAt: safeInteger(value.consumedAt, 'consumedAt') }),
+    ...(value.consumedBy === undefined ? {} : { consumedBy: boundedString(value.consumedBy, 'consumedBy') }),
     ...(value.boundaryDigest === undefined ? {} : { boundaryDigest: boundedString(value.boundaryDigest, 'boundaryDigest') }),
     ...(ids(value.addedNativeIds, 'addedNativeId') ? { addedNativeIds: ids(value.addedNativeIds, 'addedNativeId') } : {}),
     ...(ids(value.removedNativeIds, 'removedNativeId') ? { removedNativeIds: ids(value.removedNativeIds, 'removedNativeId') } : {}),
@@ -402,7 +406,7 @@ function validatePreviewMount(input: unknown): ScopePreviewRecord['boundary']['m
     ...(value.customSourceKey === undefined ? {} : { customSourceKey: boundedString(value.customSourceKey, 'customSourceKey') }) };
 }
 
-function validateBootstrapRun(key: string, input: unknown, maxBytes: number): BootstrapRunRecord {
+export function validateBootstrapRun(key: string, input: unknown, maxBytes: number): BootstrapRunRecord {
   const value = strictObject(clone(input), ['scopeKey', 'runId', 'phase', 'bootstrapMode', 'confirmationId',
     'updatedAt', 'reportDigest', 'snapshotCursor', 'resumeCursor', 'confirmationVersion', 'previewId',
     'treeDigest', 'libraryId', 'retryReason', 'mountResolveRequest', 'previewOnly', 'destructiveConfirmed',

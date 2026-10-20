@@ -9,7 +9,9 @@ import { readSyncStateSource } from './read-sync-state-source.js';
  * the facade line budget and acyclicity, the absence of browser-event suppression, the
  * COLP 0.2 page/effect vocabulary and the packaged MV3 pull evidence gate. Apply
  * behaviour is covered by tests/pull-applier.test.ts, tests/pull-apply-integrity.test.ts,
- * tests/pull-page-stager.test.ts and tests/pull-mapping-lifecycle.test.ts.
+ * tests/pull-page-stager.test.ts and tests/pull-mapping-lifecycle.test.ts. All five
+ * native mutations and final admission checks execute through the real adapter in
+ * tests/native-write-boundary.test.ts and tests/pull-bookmark-api-admission.test.ts.
  */
 describe('P3-32 Pull apply static contract', () => {
   test('keeps an acyclic small facade over page staging and apply runtime owners', async () => {
@@ -41,18 +43,11 @@ describe('P3-32 Pull apply static contract', () => {
     assert.doesNotMatch(source, /\/colp\/v0\.[12]\/sync|suppressEvents|console\.(?:log|info|debug)/);
   });
 
-  test('covers precise intent evidence, all native mutations, sidecar separators and crash recovery', async () => {
+  test('pins precise intent evidence, sidecar separators and crash recovery vocabulary', async () => {
     const source = (await Promise.all(['src/pull-applier.ts', 'src/pull-apply-runtime.ts',
       'src/pull-bookmark-api.ts', 'src/pull-page-stager.ts', 'src/pull-codec.ts', 'src/pull-projection.ts']
       .map((file) => readFile(resolve(file), 'utf8')))).join('\n');
     const queue = await readFile(resolve('src/bookmark-event-queue.ts'), 'utf8');
-    // Pull mutations go through the subscription guard (BS-04), which
-    // refuses writes into read-only subscription folders before calling Chrome.
-    const guards = await readFile(resolve('src/bookmark-subscriptions/guards.ts'), 'utf8');
-    for (const method of ['create', 'update', 'move', 'remove', 'removeTree']) {
-      assert.match(source, new RegExp(`${method}: wrap\\([^)]*\\) => personalBookmarks\\.${method}\\(`));
-      assert.match(guards, new RegExp(`return chrome\\.bookmarks\\.${method}\\(`));
-    }
     for (const marker of ['preserve_remote', 'recovery_required',
       'preStateDigest', 'expectedPostState', 'nativeEventEvidence', 'recoverCreatedNative']) assert.match(source, new RegExp(marker));
     assert.match(queue, /observeApplyIntentEvent/);

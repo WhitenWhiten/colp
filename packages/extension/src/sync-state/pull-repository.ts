@@ -18,6 +18,7 @@ import { scopeKey, validateScope } from './scope-key.js';
 import { adoptBlockedPagesAtChainHead } from './recovery-repository.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { planPullMappingWrites } from './pull-mapping-writes.js';
+import { observeMaterializationCandidate } from './materialization-wait-authority.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import { settleResolvedConflictQueue } from './queue-hold.js';
 import { settleConflictPullIssue } from './pull-issue-repository.js';
@@ -213,31 +214,49 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
       });
   }
 
-  async function markPullBrowserCallStarted(input: SyncScope, eventId: string): Promise<void> {
+  async function markPullBrowserCallStarted(input: SyncScope, eventId: string, expected?: IntentRecord): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const db = await writableDatabase();
     await runTransaction(db, [STORES.pullEvents, STORES.intents], 'readwrite', async (tx) => {
       const events = tx.objectStore(STORES.pullEvents); const event = await requestValue(events.get([key, eventId])) as UnknownRecord | undefined;
-      if (!event || event.state !== 'intent_prepared') throw new SyncStateError('pull_event_state_invalid');
+      if (!event || event.state !== 'intent_prepared') {
+        throw new SyncStateError(event && expected ? 'native_result_cas' : 'pull_event_state_invalid');
+      }
       const intents = tx.objectStore(STORES.intents); const intent = await requestValue(intents.get([key, event.intentId as string])) as IntentRecord;
       if (!intent) throw new SyncStateError('intent_not_found');
+      if (expected && canonicalJson(intent) !== canonicalJson(expected)) throw new SyncStateError('native_result_cas');
       intents.put({ ...intent, state: 'browser_call_started', apiPhase: 'browser_call_started' });
       events.put({ ...event, state: 'browser_call_started' });
     });
   }
 
   async function observeApplyIntentEvent(input: SyncScope, correlationId: string, evidence: JsonObject,
-    allowCompletedChangeEcho = true): Promise<boolean> {
+    allowCompletedEcho = true): Promise<boolean> {
     assertWritable(); const key = scopeKey(validateScope(input)); const db = await writableDatabase(); let matched = false;
     await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
       const intents = tx.objectStore(STORES.intents); const intent = await requestValue(intents.index(INDEXES.intentByCorrelation)
         .get([key, boundedString(correlationId, 'correlationId')])) as IntentRecord | undefined;
+      if (!intent) { matched = await observeMaterializationCandidate(tx, key, correlationId, evidence); return; }
       if (!intent || intent.expiresAt <= Date.now() || !['browser_call_started', 'native_event_observed',
         'authority_committed', 'page_complete'].includes(String(intent.state)) || !intent.eventId) return;
-      if (!allowCompletedChangeEcho && intent.expected.kind === 'change' && intent.state === 'page_complete') return;
+      if (!allowCompletedEcho && intent.state === 'page_complete') return;
+      // Content correlation locates a create intent before Chrome returns its
+      // identity. Afterwards only that exact native can supply the echo; a
+      // second identical bookmark is independent user work.
+      if (intent.expected.kind === 'create') {
+        const createdId = intent.nativeResultConfirmation?.nativeId ?? intent.apiResultEvidence?.nativeId;
+        if (typeof createdId === 'string' && evidence.nativeId !== createdId) return;
+      }
       const events = tx.objectStore(STORES.pullEvents); const event = await requestValue(events.get([key, intent.eventId])) as UnknownRecord | undefined;
       if (!event || !['browser_call_started', 'native_event_observed', 'authority_committed',
         'page_complete'].includes(String(event.state))) return;
-      if (intent.nativeEventEvidence && canonicalJson(intent.nativeEventEvidence) !== canonicalJson(evidence)) return;
+      if (intent.nativeEventEvidence && canonicalJson(intent.nativeEventEvidence) !== canonicalJson(evidence)) {
+        // Before an API receipt, correlation reserves concurrent candidates;
+        // it cannot tell which native Chrome created. Keep the first candidate
+        // for explicit recovery, but never enqueue another candidate as a
+        // local create while this call is in flight. Once identity is proven,
+        // the exact-ID check above releases every independent manual create.
+        matched = intent.expected.kind === 'create'; return;
+      }
       const state = intentStateAfterObservation(event.state);
       intents.put({ ...intent, state, apiPhase: state, nativeEventEvidence: clone(evidence) });
       if (event.state === 'browser_call_started') events.put({ ...event, state: 'native_event_observed' }); matched = true;

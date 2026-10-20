@@ -3,8 +3,9 @@ import type { createSyncStateStore, SyncScope, QueueOperation } from './sync-sta
 
 type Store = SyncIssueStore & Pick<ReturnType<typeof createSyncStateStore>, 'listQueue' | 'getEngineState'>
   & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'getQueueReceipt'>>;
-/** Rebuild archives unsent work. It cannot abandon an upload whose execution remains unsettled. */
-export async function readReplicaRepairCapability(store: Store, scope: SyncScope, open?: OpenSyncIssues) {
+/** Unsettled uploads require a server retirement before archive. Native unknowns always block. */
+export async function readReplicaRepairCapability(store: Store, scope: SyncScope, open?: OpenSyncIssues,
+  options: { readonly serverRetirement?: boolean } = {}) {
   const state = await store.getEngineState(scope);
   const issues = open ?? await readOpenSyncIssues(store, scope);
   const live: QueueOperation[] = [];
@@ -20,10 +21,13 @@ export async function readReplicaRepairCapability(store: Store, scope: SyncScope
   for (const row of live) {
     if (row.status === 'set_aside' || row.status === 'pending' && !row.attempt) continue;
     const receipt = await store.getQueueReceipt?.(scope, row.sequence);
-    if (receipt?.kind !== 'terminal' || receipt.opId !== row.opId) { unsettled = true; break; }
+    if (receipt?.kind !== 'terminal' || receipt.scopeKey !== row.scopeKey || receipt.sequence !== row.sequence
+      || receipt.opId !== row.opId || receipt.operationDigest !== row.digest) { unsettled = true; break; }
   }
   const nativeUnknown = issues.waits.some(wait => wait.waitReason === 'native_result_unknown');
   const required = state?.recoveryFrozen === true || issues.operationalTotal - issues.local.filter(issue => issue.recovery === 'automatic').length > 0;
-  return { state, queuedOperations: live.length, rebuildAvailable: required && !unsettled && !nativeUnknown,
-    reason: nativeUnknown ? 'native_outcome_unsettled' : unsettled ? 'upload_outcome_unsettled' : required ? undefined : 'rebuild_not_required' };
+  return { state, queuedOperations: live.length, retirementRequired: unsettled,
+    rebuildAvailable: required && (!unsettled || options.serverRetirement === true) && !nativeUnknown,
+    reason: nativeUnknown ? 'native_outcome_unsettled' : unsettled && !options.serverRetirement
+      ? 'upload_outcome_unsettled' : required ? undefined : 'rebuild_not_required' };
 }

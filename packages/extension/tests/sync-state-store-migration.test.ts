@@ -23,10 +23,12 @@ describe('P3-28 legacy migration and upgrade rollback', () => {
     const database = await store.open();
     // Independently maintained store list. Do not derive from production
     // STORES — this assertion is the check that schema and tests stay in sync.
-    // v15 adds apply_intents indexes and schema_metadata `v15-backfill`, not a store.
+    // v21 adds a durable boundary confirmation journal. Older queue, receipt,
+    // intent and preformal facts above must survive the same upgrade.
     assert.deepEqual(Array.from(database.objectStoreNames), ['ack_intents', 'apply_intents',
       'bookmark_batch_items', 'bookmark_batch_plans', 'bookmark_events',
-      'bootstrap_advanced_plans', 'bootstrap_advanced_steps', 'bootstrap_runs', 'classification_confirmation_intents', 'compact_summaries', 'compaction_watermarks', 'cursors', 'deletion_journal',
+      'bootstrap_advanced_plans', 'bootstrap_advanced_steps', 'bootstrap_runs', 'boundary_confirmation_commands',
+      'classification_confirmation_intents', 'compact_summaries', 'compaction_watermarks', 'cursors', 'deletion_journal',
       'diagnostics', 'durable_sequences',
       'effect_pages', 'import_nodes', 'import_plans', 'local_sync_exclusions', 'mount_bindings', 'native_mappings', 'outbound_queue',
       'pull_events', 'pull_pages', 'receipts', 'recovery_nodes', 'recovery_staging', 'remote_delete_decisions',

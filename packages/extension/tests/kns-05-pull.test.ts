@@ -202,13 +202,13 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
     assert.equal(JSON.stringify(projected).includes('pending-'), false);
   });
 
-  test('projects snapshot children under a bound mount without creating the mount folder', async () => {
+  test.each(['active', 'pending'] as const)('projects snapshot children only under a confirmed active mount (%s)', async status => {
     const store = createSyncStateStore({ indexedDB });
     await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease-kns05',
       expiresAt: Date.parse('2099-01-01T00:00:00Z') }, checkpoint: { serverRevision: 'revision-old', cursor: 'cursor-old' },
       selectedRoots: [], rootStatus: 'ready', firstRun: 'running' });
     await store.putMountBinding(scope, { mountId: 'mount-bar', nativeRootId: 'bar', remoteMountNodeId: null,
-      boundaryVersion: '1', materialized: false, status: 'pending', rootRole: 'bookmarks-bar' });
+      boundaryVersion: '1', materialized: false, status, rootRole: 'bookmarks-bar' });
     const staged: MappingInput[] = [{
       nativeId: 'recovery:root-colp', colpId: 'root-colp', rootNativeId: 'recovery:root', nodeKind: 'folder' as const,
       projection: { revision: 'r-root', childrenRevision: 'children-root', digest: 'sha256:root',
@@ -226,20 +226,30 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
     const api = fakeApi(); api.seed({ id: 'bar', index: 0, title: 'Bookmarks bar' });
     const projected = await recoverVerifiedOrFreeze({ scope, store, staged, api, freezeUnprovenIdentity: true });
     const children = await api.getChildren('bar');
-    assert.equal(api.calls.filter((call) => call.kind === 'create').length >= 1, true);
+    assert.equal(api.calls.filter((call) => call.kind === 'create').length, status === 'active' ? 1 : 0);
     assert.equal(children.some((node) => node.title === 'Bar'), false);
-    assert.equal(children.some((node) => node.title === 'Child'), true);
+    assert.equal(children.some((node) => node.title === 'Child'), status === 'active');
     assert.equal(projected.find((row) => row.colpId === 'mount-bar')?.nativeId, 'bar');
     const child = projected.find((row) => row.colpId === 'child-a');
-    assert.ok(child?.nativeId && !child.nativeId.startsWith('recovery:'));
-    assert.equal((await api.get(child!.nativeId))[0]?.parentId, 'bar');
+    if (status === 'active') {
+      assert.ok(child?.nativeId && !child.nativeId.startsWith('recovery:'));
+      assert.equal((await api.get(child!.nativeId))[0]?.parentId, 'bar');
+    } else {
+      assert.equal(child?.nativeId, 'recovery:child-a');
+      assert.deepEqual(await store.listProjectionIntents(scope), []);
+    }
   });
 
   test('applies node_created under a bound mount whose mapping is still recovery:*', async () => {
     const fixture = await setup();
+    // The collection root is virtual; it cannot also own this native mount.
+    const root = (await fixture.store.getMappingByColpId(scope, 'root-colp'))!;
+    await fixture.store.deleteMapping(scope, 'native-root');
+    await fixture.store.putMapping(scope, { nativeId: 'recovery:root-colp', colpId: root.colpId,
+      rootNativeId: 'recovery:root-colp', nodeKind: 'folder', projection: root.projection });
     await mountBar(fixture, { nativeRootId: 'native-root', remoteMountNodeId: 'mount-bar', rootRole: 'bookmarks-bar' });
     await fixture.store.putMapping(scope, {
-      nativeId: 'recovery:mount-bar', colpId: 'mount-bar', rootNativeId: 'recovery:root', nodeKind: 'folder',
+      nativeId: 'recovery:mount-bar', colpId: 'mount-bar', rootNativeId: 'recovery:root-colp', nodeKind: 'folder',
       parentColpId: 'root-colp', rootRole: 'bookmarks-bar',
       projection: { revision: 'revision-old', childrenRevision: 'children-old', digest: 'sha256:mount',
         content: { title: 'Bookmarks bar', folderRole: 'bookmarks-bar' } },
@@ -255,6 +265,21 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
     assert.equal(mapping?.parentNativeId, 'native-root');
     assert.equal((await fixture.api.get(mapping!.nativeId))[0]?.parentId, 'native-root');
     assert.equal(fixture.api.calls.some((call) => call.kind === 'create'), true);
+  });
+
+  test('a recovery mount cannot borrow a native root occupied by another cloud identity', async () => {
+    const fixture = await setup();
+    await mountBar(fixture, { nativeRootId: 'native-root', remoteMountNodeId: 'mount-bar', rootRole: 'bookmarks-bar' });
+    await fixture.store.putMapping(scope, { nativeId: 'recovery:mount-bar', colpId: 'mount-bar',
+      rootNativeId: 'native-root', nodeKind: 'folder', parentColpId: 'root-colp', rootRole: 'bookmarks-bar',
+      projection: { revision: 'revision-old', childrenRevision: 'children-old', digest: 'sha256:mount',
+        content: { title: 'Bookmarks bar', folderRole: 'bookmarks-bar' } } });
+    await fixture.applier.stage(fixture.page([pullFixtures.createEvent({ kind: 'Bookmark', sequence: 93,
+      collectionId: scope.collectionId, parentId: 'mount-bar' })]));
+    await assert.rejects(() => fixture.applier.resume(), /need_authority/);
+    assert.equal(fixture.api.calls.length, 0);
+    assert.equal(await fixture.store.getMappingByColpId(scope, 'node-created-93'), null);
+    assert.equal((await fixture.store.getMappingByNativeId(scope, 'native-root'))?.colpId, 'root-colp');
   });
 
   test('applies node_created after cutover when the mapping is still virtual', async () => {

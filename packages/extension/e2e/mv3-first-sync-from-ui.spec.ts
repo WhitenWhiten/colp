@@ -193,7 +193,14 @@ test('a directly selected subfolder survives reload and reconnect without duplic
     await expect(later).toBeEnabled();
     await later.check();
     await page.locator('#save-roots').click();
-    await expect(page.locator('#range-preview-totals')).toContainText('1 added');
+    // The retained selected child covers one bookmark; this new folder adds ten.
+    await expect(page.locator('#range-preview-totals')).toHaveText(
+      'Will sync 11 bookmarks in 2 folders. 1 folder and 10 bookmarks will start syncing.');
+    await expect(page.locator('#range-add-list > li')).toHaveCount(1);
+    await expect(page.locator('#range-add-list')).toContainText('Later selected folder: 10 bookmarks directly in this folder.');
+    await expect(page.locator('#range-add-list')).not.toContainText('Selected child');
+    expect(((await stack.observations()).canonicalNodes as CanonicalNode[])
+      .filter(node => node.deleted_at === null).map(node => node.id).sort()).toEqual(before);
     await page.locator('#range-confirm').click();
     await expect(page.locator('#range-preview')).toBeHidden();
     await expect(page.locator('#sync-progress')).toBeVisible({ timeout: 5_000 });

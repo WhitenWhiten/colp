@@ -50,6 +50,7 @@ export {
   assertValidHttpUrlNoUserInfo,
   isAcceptedBookmarkUrl,
   isEquivalentBookmarkUrlRewrite,
+  invalidateOmittedBookmarkUrlMetadata,
   normalizeBookmarkUrl,
 } from './bookmark-url.js';
 export {

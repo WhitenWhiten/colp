@@ -2,11 +2,12 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import type { BootstrapMode, SpecialFolderRole } from '../sync-state/types.js';
 import { canonicalJson } from '../sync-state/codec.js';
+import { virtualNativeId } from '../projection-native-occupancy.js';
 import { bootstrapOpId as opId } from './run-identity.js';
 import { pairCustomMountRoots } from './custom-mount-match.js';
 export { bootstrapOpId, bootstrapRunOpPrefix, mountResolveOpIdMatches } from './run-identity.js';
 import {
-  buildLocalIndex, buildRemoteIndex, encodeFactKey, mappingByNativeMap, matchIndexBuilds,
+  buildLocalIndex, buildRemoteIndex, encodeFactKey, matchIndexBuilds,
   mountsByNativeRoot, SPECIAL_FOLDER_ROLES, type MatchIndexStats,
 } from './match-index.js';
 
@@ -90,11 +91,13 @@ export function matchLocalRemote(input: {
   const localById = localIndex.byId;
   const remoteById = remoteIndex.byId;
   const mountsByRoot = mountsByNativeRoot(input.mounts);
-  const mappingByNative = mappingByNativeMap(input.mappings);
+  const mappingByNative = explicitIdentities(input);
   const consumedL = new Set<string>(); const consumedR = new Set<string>();
   const matched: Array<{ nativeId: string; nodeId: string }> = [];
   const conflicts: MatchConflict[] = [];
   const pair = (nativeId: string, nodeId: string) => {
+    const known = mappingByNative.get(nativeId);
+    if (known && known !== nodeId) return;
     if (consumedL.has(nativeId) || consumedR.has(nodeId)) return;
     const local = localById.get(nativeId); const remote = remoteById.get(nodeId);
     if (!local || !remote) return;
@@ -145,7 +148,7 @@ export function matchLocalRemote(input: {
   for (const row of input.local) {
     if (!row.url || consumedL.has(row.nativeId)) continue;
     const key = encodeFactKey([
-      mountRemoteId(row.mountNativeRootId, input.mounts, remoteIndex, input.rootNodeId, mappingByNative, mountsByRoot),
+      matchingContainer(row, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot),
       row.url,
     ]);
     const group = urlGroups.get(key) ?? { locals: [], remotes: [] };
@@ -191,10 +194,11 @@ export function matchLocalRemote(input: {
     for (const row of remaining) {
       const parentId = row.folderRole ? input.rootNodeId ?? undefined : mappedParent(row, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot);
       if (input.rootNodeId && parentId === input.rootNodeId && row.kind === 'bookmark') continue;
+      const folderRole = row.folderRole ?? (row.structureOnly && row.parentNativeId === null ? 'custom' : undefined);
       planned.push({
         opId: opId(input.confirmationId, 'create', row.nativeId), type: 'create_node', nativeId: row.nativeId,
         ...(parentId ? { parentId } : {}),
-        node: { kind: row.kind, title: row.folderRole ?? row.title, ...(row.url ? { url: row.url } : {}), ...(row.folderRole ? { folderRole: row.folderRole } : {}) }, reason: 'local-only',
+        node: { kind: row.kind, title: row.folderRole ?? row.title, ...(row.url ? { url: row.url } : {}), ...(folderRole ? { folderRole } : {}) }, reason: 'local-only',
       });
     }
   }
@@ -285,7 +289,33 @@ function planMountCreate(mount: MountFact, input: {
 }
 
 function authoritativeColp(id: string | undefined | null): id is string {
-  return typeof id === 'string' && !id.startsWith('mount:') && !id.startsWith('pending-');
+  return typeof id === 'string' && id.length > 0 && !id.startsWith('mount:') && !id.startsWith('pending-');
+}
+
+/** Missing snapshot targets do not revoke identity. Contradictory evidence
+ * cannot be resolved by iteration order or by choosing a similar live node. */
+function explicitIdentities(input: {
+  readonly mappings: readonly MappingFact[]; readonly local: readonly LocalNodeFact[];
+  readonly sidecars?: readonly SidecarFact[]; readonly mounts: readonly MountFact[];
+}): Map<string, string> {
+  const identities = new Map<string, string>();
+  const nativeByRemote = new Map<string, string>();
+  const remember = (nativeId: string, nodeId: string | null | undefined) => {
+    if (!authoritativeColp(nodeId)) return;
+    const prior = identities.get(nativeId);
+    if (prior && prior !== nodeId) throw new Error('mapping_identity_conflict');
+    if (!virtualNativeId(nativeId)) {
+      const occupant = nativeByRemote.get(nodeId);
+      if (occupant && occupant !== nativeId) throw new Error('mapping_identity_conflict');
+      nativeByRemote.set(nodeId, nativeId);
+    }
+    identities.set(nativeId, nodeId);
+  };
+  for (const row of input.mappings) remember(row.nativeId, row.colpId);
+  for (const row of input.local) remember(row.nativeId, row.sourceRefColpId);
+  for (const row of input.sidecars ?? []) remember(row.nativeId, row.colpId);
+  for (const row of input.mounts) remember(row.nativeRootId, row.remoteMountNodeId);
+  return identities;
 }
 
 function pairStructureByParentDepth(
@@ -313,7 +343,9 @@ function pairStructureByParentDepth(
   }
   const byDepth = new Map<number, LocalNodeFact[]>();
   for (const row of input.local) {
-    if (consumedL.has(row.nativeId) || row.kind === 'separator') continue;
+    // An absent known identity can represent a deletion. Structural similarity
+    // is not evidence that a newly created cloud node is that same identity.
+    if (consumedL.has(row.nativeId) || authoritativeColp(mappingByNative.get(row.nativeId)) || row.kind === 'separator') continue;
     const level = depth(row, localIndex.byId);
     const list = byDepth.get(level) ?? [];
     list.push(row);
@@ -358,7 +390,7 @@ function mappedParent(local: LocalNodeFact, mappingByNative: ReadonlyMap<string,
   mounts: readonly MountFact[], rootNodeId: string | null,
   remoteIndex: ReturnType<typeof buildRemoteIndex>,
   mountsByRoot: ReadonlyMap<string, MountFact>): string | undefined {
-  if (local.parentNativeId === null && local.folderRole) return rootNodeId ?? undefined;
+  if (local.parentNativeId === null && (local.folderRole || local.structureOnly)) return rootNodeId ?? undefined;
   if (local.parentNativeId === null || local.parentNativeId === local.mountNativeRootId) {
     const bound = mountsByRoot.get(local.mountNativeRootId)?.remoteMountNodeId
       ?? mounts.find((item) => item.nativeRootId === local.mountNativeRootId)?.remoteMountNodeId;
@@ -381,10 +413,22 @@ function structureKey(local: LocalNodeFact, mappingByNative: ReadonlyMap<string,
   remoteIndex: ReturnType<typeof buildRemoteIndex>,
   mountsByRoot: ReadonlyMap<string, MountFact>): string {
   return encodeFactKey([
-    mountRemoteId(local.mountNativeRootId, mounts, remoteIndex, rootNodeId, mappingByNative, mountsByRoot),
+    matchingContainer(local, mappingByNative, mounts, rootNodeId, remoteIndex, mountsByRoot),
     mappedParent(local, mappingByNative, mounts, rootNodeId, remoteIndex, mountsByRoot),
     local.title, local.url,
   ]);
+}
+
+/** A selected ordinary folder is a range boundary inside a canonical container.
+ * Its already-proved parent determines that container; it does not create a new
+ * special/custom root. Keep mappedParent itself unchanged for operation targets. */
+function matchingContainer(local: LocalNodeFact, mappings: ReadonlyMap<string, string>,
+  mounts: readonly MountFact[], rootNodeId: string | null, remote: ReturnType<typeof buildRemoteIndex>,
+  mountsByRoot: ReadonlyMap<string, MountFact>): string {
+  const mountId = mountRemoteId(local.mountNativeRootId, mounts, remote, rootNodeId, mappings, mountsByRoot);
+  const parentId = mappedParent(local, mappings, mounts, rootNodeId, remote, mountsByRoot);
+  return parentId && parentId !== rootNodeId && remote.mountOf.get(parentId)
+    || remote.mountOf.get(mountId) || mountId;
 }
 
 function depth(row: LocalNodeFact, byId: ReadonlyMap<string, LocalNodeFact>): number {

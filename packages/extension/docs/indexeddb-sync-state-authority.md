@@ -27,7 +27,9 @@ Version 19 adds `bookmark_events` `by_scope_event_operation_ordinal` (`[scopeKey
 Profiles with no subscription ownership, mappings, exclusions or unfinished native operations skip event history reads altogether. With subscription evidence, reads are proportional to the current operation’s matching events, not all historical events.
 Version 20 adds `pull_pages` `by_scope_pull_page_state` (`[scopeKey, state, pageId]`) and `pull_events` `by_scope_pull_operation` (`[scopeKey, operationId]`). Resume and confirmation probes read the pending state range, and local-overlay coverage looks up one operation, instead of scanning retained pull history. Upgrading v19 only `createIndex`; application code does not cursor-scan queue, intents, or pull history. A v19 binary cannot open a v20 database.
 
-KNS-09 rollback must not install a pre-v20 binary over a v20 database; keep the v20 reader, close `known.kns09.mutations.v1`, and drain the queue instead.
+Version 21 adds `boundary_confirmation_commands`, keyed by `[scopeKey, commandId]`, with `by_scope_boundary_command_state` indexed by `[scopeKey, state]`. Admission atomically consumes a preview and records the exact command; retries resume its durable progress and return the same committed result. Upgrading v20 adds this store and index while preserving all existing queue, pull, native intent, and recovery evidence.
+
+KNS-09 rollback must not install a pre-v21 binary over a v21 database; keep the v21 reader, close `known.kns09.mutations.v1`, and drain the queue instead.
 No open, audit, migration, or recovery path automatically deletes or clears a database.
 
 ## Scope
@@ -293,7 +295,7 @@ error code. It never exposes credentials, Session IDs, bookmark titles/URLs, Chr
 
 This section records the historical P0 schema version **10**. KNS-00 froze its spellings; KNS-01 implemented the
 upgrade. A v10 database opened at version 9 failed closed (`VersionError` → `future_schema`). Production is now
-**v20** (see the opening paragraph). Version 11 added advanced-plan stores; its rollback behavior is described
+**v21** (see the opening paragraph). Version 11 added advanced-plan stores; its rollback behavior is described
 with later versions below. Do not treat this P0 freeze as the live schema version.
 
 P0 Session binding (`sessionRequest()`):

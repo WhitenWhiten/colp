@@ -19,6 +19,8 @@ export interface SyncRetireApplicationInput {
   readonly sessionId: string;
   readonly idempotencyKey: string;
   readonly requestFingerprint: string;
+  /** Version 2 opt-in: current account authority plus the pinned installation proof. */
+  readonly replicaProof?: string;
 }
 
 export interface SyncRetireApplication {

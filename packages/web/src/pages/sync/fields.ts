@@ -1,6 +1,12 @@
 import type { SyncConflictSummary, SyncStatusView } from '../../api'
 import { formatMediumInstant } from '../../lib/formatDate'
-import type { ConflictDraft } from './types'
+import { browserIngressTitleIssue, BROWSER_INGRESS_TITLE_MAX_CODE_UNITS, BROWSER_INGRESS_TITLE_MAX_UTF8_BYTES } from '../../generated/browser-ingress-title'
+import type { ConflictDraft, Resolution } from './types'
+
+// Match the server's collection description and bookmark URL byte caps.
+// Count the submitted spelling, not the URL parser's encoded serialization.
+const DESCRIPTION_MAX_UTF8_BYTES = 16_384
+const BOOKMARK_URL_MAX_UTF8_BYTES = 4096
 
 export function formatInstant(value: string | null): string {
   return formatMediumInstant(value)
@@ -34,15 +40,27 @@ export function customField(field: string | null): 'title' | 'url' | 'canonicalU
     || value === 'description' || value === 'tags' || value === 'visibility' ? value : null
 }
 
+/** A refreshed conflict may remove a choice or turn one field into several. */
+export function canResolveConflict(conflict: SyncConflictSummary, resolution: Resolution): boolean {
+  return conflict.allowedResolutions.includes(resolution)
+    && (resolution !== 'custom' || customField(conflict.field) !== null)
+}
+
 export function parseCustomValue(conflict: SyncConflictSummary, text: string): { value?: unknown; error?: string } {
   const field = customField(conflict.field)
   if (!field) return { error: 'Custom editing is unavailable for this conflict field.' }
   if (field === 'title') {
-    if (text.length < 1 || text.length > 512 || text.trim().length === 0) return { error: 'Title must be 1 to 512 characters and cannot be blank.' }
+    // Conflict summaries do not identify the node kind. An exact empty title
+    // may be valid for a bookmark; the server still checks the actual kind.
+    const issue = browserIngressTitleIssue(text, 'bookmark')
+    if (issue === 'whitespace') return { error: 'Title cannot contain only whitespace.' }
+    if (issue) return { error: `Title must fit within ${BROWSER_INGRESS_TITLE_MAX_CODE_UNITS} UTF-16 code units and ${BROWSER_INGRESS_TITLE_MAX_UTF8_BYTES} UTF-8 bytes.` }
     return { value: text }
   }
   if (field === 'description') {
-    if (text.length > 20_000) return { error: 'Description must be at most 20,000 characters.' }
+    if (new TextEncoder().encode(text).byteLength > DESCRIPTION_MAX_UTF8_BYTES) {
+      return { error: 'Description must be at most 16,384 UTF-8 bytes. Shorten it before resolving this conflict.' }
+    }
     return { value: text }
   }
   if (field === 'tags') {
@@ -56,6 +74,9 @@ export function parseCustomValue(conflict: SyncConflictSummary, text: string): {
     return { value: text }
   }
   if (field === 'canonicalUrl' && text === '') return { value: null }
+  if (new TextEncoder().encode(text).byteLength > BOOKMARK_URL_MAX_UTF8_BYTES) {
+    return { error: 'URL must be at most 4,096 UTF-8 bytes. Shorten it before resolving this conflict.' }
+  }
   if (text.length < 8 || text.length > 4096 || /\s/u.test(text)) return { error: 'URL must be an absolute HTTP or HTTPS URL without credentials.' }
   try {
     const parsed = new URL(text)

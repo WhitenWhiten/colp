@@ -11,6 +11,7 @@ import { stableCode } from '../sync-state/errors.js';
 import type { SyncScope } from '../sync-state-store.js';
 import { resumeActiveBatchPlans } from './batch.js';
 import { scheduleSyncEngineWake } from './engine.js';
+import { logBackgroundFailure } from './background-failure.js';
 import { BOOKMARK_RECOVERY_ALARM, hasBookmarkPermission, rootScopeKey, store, sw, syncState,
   workCoordinator } from './runtime.js';
 import { recoverPendingNativeSideEffects } from '../native-repair.js';
@@ -98,7 +99,7 @@ function scheduleBookmarkEvent(work: (queue: ReturnType<typeof createBookmarkEve
     const frozen = (await syncState.getEngineState(scope))?.recoveryFrozen === true;
     // Snapshot creates have no settled identity yet. Mapped moves and reorders
     // remain durable; the queue filters projection echoes before staging them.
-    // A tree scan cannot recover a same-parent reorder after its callback is lost.
+    // Capture preserves exact event order before a stable recovery scan is available.
     if (frozen && !captureWhileFrozen) return 'recovery_frozen';
     const paused = configuredPersonalSyncPolicy() && !await configuredPersonalSyncPolicy()!.allowed(scope);
     if (!await syncState.hasActiveMounts(scope)) return 'filtered';
@@ -107,7 +108,7 @@ function scheduleBookmarkEvent(work: (queue: ReturnType<typeof createBookmarkEve
     if (result.outcome === 'identity_unproven') return 'recovery_frozen';
     if (!paused) {
       if (frozen) scheduleBookmarkRecovery();
-      else scheduleSyncEngineWake('manual');
+      else void scheduleSyncEngineWake('manual').catch(error => logBackgroundFailure('bookmark-capture.sync-engine-wake', error));
     }
     return result.outcome === 'filtered' ? 'filtered' : 'accepted';
   };
@@ -144,7 +145,7 @@ export async function currentBookmarkEventQueue(captureOnly = false) {
       // SR-08: the merged reorder batch commits after the capture's own wake, so
       // the host owes Push one more wake once the moves are durable.
       onReorderFlushFailed: scheduleBookmarkRecovery,
-      onReorderQueued: () => { void scheduleSyncEngineWake('manual').catch(() => undefined); },
+      onReorderQueued: () => { void scheduleSyncEngineWake('manual').catch(error => logBackgroundFailure('bookmark-reorder.sync-engine-wake', error)); },
       ...(__KNOWN_EXTENSION_EVIDENCE__ && queueFault && queueFault !== 'before_stage' ? { fault: queueFault } : {}) });
     sw.bookmarkEventScopeKey = key;
   }
@@ -208,7 +209,7 @@ export async function recoverBookmarkEventsAfterEngineSettles(
     } catch { console.warn('bookmark_recovery_scope_unavailable'); }
   });
   if (reason === 'startup' || reason === 'alarm') void collectAnnotationGarbage().catch(() => undefined);
-  scheduleSyncEngineWake(reason);
+  void scheduleSyncEngineWake(reason).catch(error => logBackgroundFailure('bookmark-recovery.sync-engine-wake', error));
 }
 
 /** Bounded, non-secret error code for the durable recovery signal. */

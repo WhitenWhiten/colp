@@ -67,10 +67,36 @@ export interface EnqueueSubject {
  */
 export async function findBlockingUnsettledAttempt(queue: IDBObjectStore, key: string,
   subject: EnqueueSubject, mappings?: IDBObjectStore): Promise<QueueOperation | null> {
-  for (const row of await unsettledAttempts(queue, key)) {
+  // Canonical enqueue checks only compare the named target and parents. Reading
+  // every never-sent row here made N independent range deletes scan N² rows.
+  // Native overlap still needs the complete candidate set: an in-flight ancestor
+  // can protect a descendant whose canonical identity is not named by the edit.
+  const candidates = mappings && subject.nativeIds?.length
+    ? await unsettledAttempts(queue, key) : await canonicalUnsettledAttempts(queue, key, subject);
+  for (const row of candidates) {
     if (await rowBlocksEnqueue(row, key, subject, mappings)) return row;
   }
   return null;
+}
+
+async function canonicalUnsettledAttempts(queue: IDBObjectStore, key: string,
+  subject: EnqueueSubject): Promise<QueueOperation[]> {
+  const ids = new Set([...(subject.targetId === undefined ? [] : [subject.targetId]), ...(subject.parentIds ?? [])]);
+  const candidates = new Map<string, QueueOperation>();
+  const remember = (row: QueueOperation | undefined) => {
+    if (row && UNSETTLED_STATUSES.some(status => status === row.status)
+        && (row.attempt !== undefined || row.status === 'claimed')) candidates.set(row.opId, row);
+  };
+  for (const id of ids) {
+    await iterateCursor(queue.index(INDEXES.queueByTargetRevision),
+      IDBKeyRange.bound([key, id], [key, id, []]), value => { remember(value as QueueOperation); });
+    // Creates have no payload.targetId until their terminal receipt. Their
+    // provisional identity is the original opId, even after reopen/reclaim.
+    if (id.startsWith('pending-')) remember(await requestValue<QueueOperation | undefined>(
+      queue.index(INDEXES.queueByOpId).get([key, id.slice('pending-'.length)])));
+  }
+  const rank = (row: QueueOperation) => UNSETTLED_STATUSES.findIndex(status => status === row.status);
+  return [...candidates.values()].sort((left, right) => rank(left) - rank(right) || left.sequence - right.sequence);
 }
 
 /** Synchronous pre-filter: only rows that own an attempt can block an enqueue. */

@@ -72,7 +72,7 @@ export async function rejoinScopeMount(store: Store, scope: SyncScope, mountId: 
     const result = await applyRejoinObservations({ store, scope, mount, ...chrome });
     const leftover = unmountedRejoinMembers(await store.listMappings(scope), mount);
     if (!result.unknown && !result.conflicts && leftover.length === 0) {
-      mount = await store.rejoinMount(scope, mountId);
+      mount = await store.completeRejoinMount(scope, mount);
     }
   }
   const mappings = await store.listMappings(scope);
@@ -233,7 +233,12 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
   if (await kns09Paused('coordinator')) return { ok: false, error: 'sync_paused' };
   const recordedScope = await store.getScope(scope);
   const preview = await store.getScopePreview(scope, input.previewId);
-  const rejected = previewRejection(preview, {
+  const admitted = await store.getBoundaryCommand(scope, input.confirmationId);
+  const ownsPreview = admitted?.kind === 'range' && admitted.previewId === input.previewId
+    && admitted.treeDigest === input.treeDigest && preview?.consumedBy === input.confirmationId;
+  const rejected = ownsPreview
+    ? (admitted.boundaryVersion === (recordedScope?.boundaryVersion ?? '0') ? null : 'preview_stale')
+    : previewRejection(preview, {
     now: Date.now(), liveBoundaryVersion: recordedScope?.boundaryVersion ?? '0', treeDigest: input.treeDigest,
   });
   if (rejected === 'duplicate_confirm') return { ok: false, error: 'duplicate_confirm' };
@@ -247,7 +252,7 @@ export async function confirmAddRange(store: Store, scope: SyncScope, input: {
   await mergePreviewMounts(store, scope, existing, preview, input.preserveBoundaryNativeIds);
   const mappings = provenMappings(await store.listMappings(scope), input.localFacts.map((row) => row.nativeId));
   const localFacts = input.localFacts;
-  const mounts = (await store.listMountBindings(scope)).map((mount) => ({
+  const mounts = (await store.listMountBindings(scope)).filter(mount => mount.status !== 'detached').map((mount) => ({
     nativeRootId: mount.nativeRootId, remoteMountNodeId: mount.remoteMountNodeId,
     ...(mount.rootRole ? { rootRole: mount.rootRole } : {}),
     ...(mount.customSourceKey ? { customSourceKey: mount.customSourceKey } : {}),

@@ -1,6 +1,6 @@
 /**
  * `known.sync.progress.get` wiring: the boundary comes from active mount
- * bindings plus the first-sync preview (with its exclusions and private
+ * bindings plus the current in-flight first-sync preview (with its exclusions and private
  * roots), the tree is the personal tree, and queued work marks liveWork.
  */
 import assert from 'node:assert/strict';
@@ -27,16 +27,17 @@ vi.mock('../src/bookmark-subscriptions/personal-boundary.js', () => ({
 vi.mock('../src/sw/runtime.js', () => ({
   hasBookmarkPermission: async () => f.permission,
   syncState: {
-    getScope: async () => ({ firstRun: f.firstRun, selectedRoots: [], privateRoots: ['colp-private'] }),
+    getScope: async () => ({ firstRun: f.firstRun, boundaryVersion: '0', selectedRoots: [], privateRoots: ['colp-private', 'colp-skip'] }),
+    getBoundaryCommand: async () => null,
     listBootstrapRuns: async () => [
       { runId: 'old', phase: 'completed', updatedAt: 1, previewId: 'p-old' },
-      { runId: 'new', phase: f.firstRun === 'completed' ? 'completed' : 'syncing', updatedAt: 2, previewId: 'p-new' },
+      { runId: 'new', confirmationId: 'current-command', confirmationVersion: '0', phase: f.firstRun === 'completed' ? 'completed' : 'syncing', updatedAt: 2, previewId: 'p-new' },
     ],
     getScopePreview: async (_scope: unknown, previewId: string) => previewId === 'p-new'
       ? { boundary: { selectedNativeIds: ['bar'], excludedNativeIds: ['skip'], mounts: [] } } : null,
     listMountBindings: async () => [{ nativeRootId: 'bar', status: 'active' }, { nativeRootId: 'other', status: 'detached' }],
     listMappings: async () => [
-      ...f.extraMappings, { nativeId: 'bar', colpId: 'colp-bar' }, { nativeId: 'a', colpId: 'colp-a' }, { nativeId: 'private', colpId: 'colp-private' },
+      ...f.extraMappings, { nativeId: 'bar', colpId: 'colp-bar' }, { nativeId: 'a', colpId: 'colp-a' }, { nativeId: 'private', colpId: 'colp-private' }, { nativeId: 'skip', colpId: 'colp-skip' },
     ],
     listQueue: async (_scope: unknown, status: string) => (f.queue.includes(status) ? [{ status }] : []),
     getEngineState: async () => ({ recoveryFrozen: f.frozen, lastError: f.lastError,

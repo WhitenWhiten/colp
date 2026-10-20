@@ -42,6 +42,7 @@ export interface RemoteObservationRecord {
   readonly pauseCursor?: string | null;
 }
 export interface ScopeCommandPlanRecord {
+  readonly rejoinDecision?: JsonObject;
   readonly scopeKey: string; readonly commandId: string; readonly kind: ScopeCommandKind;
   readonly confirmationVersion: string; readonly baselineDigest: string | null;
   readonly phase: ScopeCommandPhase; readonly dependencies: readonly string[];
@@ -220,12 +221,12 @@ export interface ScopePreviewRecord {
   readonly scopeKey: string; readonly previewId: string; readonly boundaryVersion: string;
   readonly treeDigest: string; readonly bookmarkCount: number; readonly folderCount: number;
   readonly skippedCount: number; readonly expiresAt: number;
-  readonly warnings: readonly { readonly code: string }[];
+  readonly warnings: readonly { readonly code: string; readonly count?: number }[];
   readonly boundary: { readonly selectedNativeIds: readonly string[];
     readonly excludedNativeIds: readonly string[];
     readonly mounts: readonly { readonly nativeRootId: string; readonly rootRole?: SpecialFolderRole;
       readonly customSourceKey?: string; readonly materialized: boolean; readonly writable: boolean }[] };
-  readonly kind?: 'range'; readonly consumedAt?: number; readonly boundaryDigest?: string;
+  readonly kind?: 'range'; readonly consumedAt?: number; readonly consumedBy?: string; readonly boundaryDigest?: string;
   readonly addedNativeIds?: readonly string[]; readonly removedNativeIds?: readonly string[];
   readonly privateNativeIds?: readonly string[]; readonly shiftNativeIds?: readonly string[];
   readonly remoteDeleteEvidence?: readonly RemoteDeleteFreezeEntry[];
@@ -323,6 +324,7 @@ export class SyncStateError extends Error {
 export interface DiscoveredRoot { readonly nativeId: string; readonly ancestorNativeIds: readonly string[] }
 export interface ConfigureBrowserRootsInput { readonly discovered: readonly DiscoveredRoot[];
   readonly selectedNativeIds: readonly string[]; readonly privateNativeIds: readonly string[];
+  readonly expectedBoundaryVersion?: string;
   readonly status: 'ready' | 'permission_required' | 'tree_unavailable' | 'corrupt' }
 export interface BrowserRootAuthority {
   readonly selectedRoots: readonly string[]; readonly privateRoots: readonly string[];

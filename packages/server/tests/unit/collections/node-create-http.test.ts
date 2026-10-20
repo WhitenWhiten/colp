@@ -804,6 +804,20 @@ describe('POST /api/v1/collections/:collectionId/nodes HTTP contract', () => {
     assertProductError(response, 403, 'insufficient_permission');
   });
 
+  test('creates a favicon-only bookmark with its exact empty title over HTTP', async () => {
+    const harness = createHarness();
+    apps.push(harness.app);
+    const client = await issueSession(harness, 'favicon-only-node', 'favicononly001');
+    seedCollection(harness, { ownerSubjectId: client.subjectId });
+    const response = await harness.app.inject({
+      method: 'POST', url: nodesUrl(),
+      headers: authedHeaders(harness, client, { 'known-command-id': COMMAND_A }),
+      payload: { ...VALID_BOOKMARK_BODY, node: { ...VALID_BOOKMARK_BODY.node, title: '' } },
+    });
+    assert.equal(response.statusCode, 201, response.body);
+    assert.equal(response.json().node.title, '');
+  });
+
   test('201 success: Location, ETag, Cache-Control, CreateNodeResult shape', async () => {
     const harness = createHarness();
     apps.push(harness.app);

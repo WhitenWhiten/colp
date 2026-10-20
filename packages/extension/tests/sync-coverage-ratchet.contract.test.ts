@@ -5,7 +5,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   evaluateSyncCoverageRatchet,
+  SYNC_AUDIT_COVERAGE_FILES,
+  SYNC_COVERAGE_METRICS,
   SYNC_CORE_COVERAGE_FILES,
+  SYNC_NEW_COVERAGE_MINIMUM,
   SYNC_NEW_BRANCH_MINIMUM,
   SYNC_NEW_COVERAGE_FILES,
   SYNC_PULL_BRANCH_MINIMUM,
@@ -79,6 +82,46 @@ describe('Extension Sync coverage ratchet [SYNC-Q-021]', () => {
     ]);
   });
 
+  it.each(['lines', 'branches', 'functions', 'statements'] as const)(
+    'rejects an audit owner below 80%% %s even inside the old rounding margin', metric => {
+      const path = SYNC_AUDIT_COVERAGE_FILES[0]!;
+      const summary = Object.fromEntries(SYNC_CORE_COVERAGE_FILES.map(file => [file,
+        Object.fromEntries(SYNC_COVERAGE_METRICS.map(name => [name, { pct: 100 }]))]));
+      summary[path]![metric] = { pct: 79.99 };
+      expect(evaluateSyncCoverageRatchet(summary, baseline)).toContain(
+        `${path}: ${metric} 79.99% below new-file minimum ${SYNC_NEW_COVERAGE_MINIMUM}%`);
+      for (const file of SYNC_AUDIT_COVERAGE_FILES) {
+        expect(baseline.files[file]?.[metric]).toBeGreaterThanOrEqual(SYNC_NEW_COVERAGE_MINIMUM);
+      }
+    });
+
+  it('includes production dispatch and durable decision owners without duplicate ownership', () => {
+    expect(new Set(SYNC_CORE_COVERAGE_FILES).size).toBe(SYNC_CORE_COVERAGE_FILES.length);
+    for (const file of ['src/options.ts', 'src/service-worker.ts', 'src/sw/range-command.ts',
+      'src/sw/rejoin-decisions.ts', 'src/sync-state/boundary-command-repository.ts',
+      'src/sync-state/scope-command-evidence.ts', 'src/sync-state/rejoin-resolution-repository.ts',
+      'src/scope-rejoin-order-progress.ts', 'src/sync-state/queue-live-work.ts', 'src/sync-status-queue.ts',
+      'src/cloud-capability.ts', 'src/public-server-manifest.ts', 'src/server-account-ui.ts', 'src/server-edition.ts',
+      'src/replica-retirement.ts', 'src/scope-rejoin-remote-delete.ts', 'src/bookmark-event-ingress.ts',
+      'src/bookmark-event-projection.ts', 'src/replica-repair-capability.ts', 'src/scope-rejoin-placement.ts',
+      'src/snapshot-create-boundary.ts', 'src/snapshot-mounted-deletes.ts', 'src/snapshot-native-boundary.ts',
+      'src/native-call-result.ts',
+      'src/bookmark-subscriptions/guards.ts', 'src/metadata-sync-policy.ts',
+      'src/sync-effect-authority.ts', 'src/sync-fetch-boundary.ts',
+      'src/pull-item-set-aside.ts', 'src/sync-state/pull-workset.ts', 'src/sw/scope.ts', 'src/sw/scope-rebuild.ts',
+      'src/pull-native-content-barrier.ts', 'src/pull-native-snapshot-resume.ts', 'src/pull-range-move.ts',
+      'src/pull-create-evidence.ts', 'src/pull-range-materialize.ts', 'src/pull-restore-apply.ts', 'src/pull-self-create.ts',
+      'src/pull-native-create-boundary.ts', 'src/pull-native-write-boundary.ts',
+      'src/native-wait-materialization.ts', 'src/sync-state/materialization-wait-authority.ts', 'src/sw/native-wait.ts',
+      'src/recovery-content.ts', 'src/recovery-delete.ts', 'src/recovery-placement.ts',
+      'src/bookmark-event-codec.ts', 'src/bootstrap/advanced-run.ts', 'src/generated/browser-ingress-title.ts',
+      'src/manifest-client.ts', 'src/replica-rebuild-ui.ts',
+      'src/sync-state/queue-read-repository.ts',
+      'src/queued-upload-batch-boundary.ts', 'src/sync-state/queued-upload-boundary-repository.ts']) {
+      expect(SYNC_AUDIT_COVERAGE_FILES).toContain(file);
+    }
+  });
+
   it('does not pass on a global average when a listed file is missing', () => {
     expect(
       evaluateSyncCoverageRatchet({ total: { lines: { pct: 99 } } }, baseline),
@@ -94,9 +137,23 @@ describe('Extension Sync coverage ratchet [SYNC-Q-021]', () => {
     expect(coverageConfig).toContain("reportsDirectory: 'coverage/sync'");
     expect(coverageConfig).toContain('include: [...SYNC_CORE_COVERAGE_FILES]');
     expect(coverageConfig).toContain('thresholds: { branches: 80 }');
+    expect(coverageConfig).toContain('reportOnFailure: true');
+    expect(coverageConfig).toContain("reporter: ['text', 'json', 'json-summary', 'html']");
     expect(Object.keys(baseline.files)).toEqual([...SYNC_CORE_COVERAGE_FILES]);
     expect(workflow).toContain('extension-coverage:');
     expect(workflow).toContain('run: npm run test:coverage:sync');
     expect(workflow).toContain('- extension-coverage');
+  });
+
+  it('retains failure measurements without allowing tests or coverage to become advisory', () => {
+    const job = workflow.split('  extension-coverage:')[1]!.split('  extension-mv3:')[0]!;
+    expect(job).toContain('run: npm run test:coverage:sync');
+    expect(job).toContain("if: failure() && hashFiles('packages/extension/coverage/sync/coverage-summary.json') != ''");
+    expect(job).toContain('run: node scripts/check-sync-coverage-ratchet.mjs');
+    expect(job).toMatch(/Upload extension sync coverage measurement\n\s+if: always\(\)\n\s+uses: actions\/upload-artifact@/u);
+    expect(job).toContain('path: packages/extension/coverage/sync/');
+    expect(job).toContain('if-no-files-found: error');
+    expect(job).not.toContain('continue-on-error:');
+    expect(job).not.toContain('|| true');
   });
 });

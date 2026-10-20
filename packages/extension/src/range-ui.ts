@@ -1,6 +1,7 @@
-import type { PublicRangePreview, PublicRootView, RootRequest, RootResponse } from './types.js';
-import { syncRootRefs, excludedFolderRefs } from './folder-coverage.js';
+import type { PublicRangePreview, PublicRangeResume, PublicRootView, RootRequest, RootResponse } from './types.js';
+import { syncRootRefs, excludedFolderRefs, replaceFolderSelection } from './folder-coverage.js';
 import { listCopy, t, tn } from './i18n.js';
+import { createRangeConfirmationSession, validRangePreview, validRangeResume } from './range-confirmation-session.js';
 
 export function bindRangeAdjustment(host: {
   readonly saveRoots: HTMLButtonElement;
@@ -12,7 +13,8 @@ export function bindRangeAdjustment(host: {
   onConfirmed(): void;
   isConnected(): boolean;
   renderFailure(code: string): void;
-}): { save(): Promise<void> } {
+}): { save(): Promise<void>; setLibraryId(id: string | undefined): void; onConnection(connected: boolean): void;
+  onRootResponse(response: RootResponse): void } {
   const panel = required('range-preview');
   const totals = required('range-preview-totals');
   const warnings = required('range-preview-warnings');
@@ -24,21 +26,53 @@ export function bindRangeAdjustment(host: {
   const error = required('range-error');
   const cancel = required('range-cancel') as HTMLButtonElement;
   const confirm = required('range-confirm') as HTMLButtonElement;
+  const reviewDecisions = document.createElement('button');
+  reviewDecisions.id = 'range-review-decisions'; reviewDecisions.type = 'button';
+  reviewDecisions.className = 'btn btn-secondary btn-sm'; reviewDecisions.hidden = true;
+  reviewDecisions.textContent = t('sync_reviewFolderDecisions', 'Review folder decisions');
+  confirm.parentElement!.append(reviewDecisions);
   const folderCard = required('folder-card');
   const treeActions = Array.from(folderCard.querySelectorAll<HTMLButtonElement>('.card-bar button'));
   const disabledActions = new Map<HTMLButtonElement, boolean>();
   let preview: PublicRangePreview | undefined;
-  let loading = false;
+  let loading = false, disposed = false, libraryId: string | undefined;
+  let ownerVersion = 0, retryPoll = 0, retryStartedAt = 0;
+  const confirmLabel = confirm.textContent;
+  const submission = createRangeConfirmationSession({ send: rootRequest, pending: showPending, result: finishConfirmation });
+  window.addEventListener('pagehide', () => { disposed = true; resetOwner(); }, { once: true });
+  reviewDecisions.addEventListener('click', () => {
+    window.dispatchEvent(new Event('known.sync.rejoinDecisions.show'));
+  });
 
-  cancel.addEventListener('click', () => { hidePreview(); host.rootFeedback.textContent = ''; });
+  cancel.addEventListener('click', () => { if (!submission.pending) { hidePreview(); host.rootFeedback.textContent = ''; } });
   confirm.addEventListener('click', () => { void confirmPreview(); });
   shiftList.addEventListener('change', updateTrashAvailability);
 
-  return { save };
+  return { save,
+    setLibraryId(id) {
+      if (disposed || libraryId === id) return;
+      resetOwner(); libraryId = id;
+      if (host.isConnected()) void submission.restore(id);
+    },
+    onConnection(connected) {
+      if (disposed) return;
+      if (connected) { void submission.restore(libraryId); return; }
+      resetOwner();
+    },
+    onRootResponse(response) {
+      if (disposed) return;
+      if (submission.pending) { setReviewing(true); return; }
+      if (response.ok && 'view' in response && response.resume
+          && validRangeResume(response.resume) && response.resume.libraryId === libraryId) {
+        preview = response.resume.preview; renderPreview(preview); void submission.submit(response.resume);
+      }
+    },
+  };
 
   async function save(): Promise<void> {
     const view = host.getView();
-    if (!view || loading || preview) return;
+    if (disposed || !host.isConnected() || !view || loading || preview || submission.pending) return;
+    const version = ownerVersion;
     loading = true;
     setReviewing(true);
     host.saveRoots.disabled = true; host.rootFeedback.textContent = t('sync_savingFolderSettings', 'Saving folder settings.');
@@ -48,9 +82,10 @@ export function bindRangeAdjustment(host: {
     const response = await rootRequest({
       kind: 'known.roots.preview', viewId: view.viewId, selectedRefs, privateRefs,
     });
+    if (disposed || version !== ownerVersion) return;
     loading = false;
     if (!response.ok) { hidePreview(); host.renderFailure(response.error); return; }
-    if (!('preview' in response)) { hidePreview(); host.renderFailure('request_invalid'); return; }
+    if (!('preview' in response) || !validRangePreview(response.preview)) { hidePreview(); host.renderFailure('request_invalid'); return; }
     if (host.getView()?.viewId !== view.viewId) {
       hidePreview(); host.rootFeedback.textContent = confirmFailureCopy('preview_stale'); return;
     }
@@ -61,44 +96,107 @@ export function bindRangeAdjustment(host: {
   }
 
   async function confirmPreview(): Promise<void> {
+    if (disposed || !host.isConnected()) return;
+    if (submission.pending) { retryStartedAt = Date.now(); await submission.retry(); return; }
     if (!preview || confirm.disabled) return;
-    confirm.disabled = true; cancel.disabled = true; error.hidden = true;
-    confirm.setAttribute('aria-busy', 'true');
-    const label = confirm.textContent;
-    confirm.textContent = t('common_saving', 'Saving…');
-    host.rootFeedback.textContent = t('sync_savingFolderSettings', 'Saving folder settings.');
     const shiftActions = Array.from(shiftList.querySelectorAll<HTMLSelectElement>('select[data-ref]'))
       .map((select) => ({ ref: select.dataset.ref!, action: select.value === 'keep' ? 'keep' as const : 'unmount' as const }));
     const unmountedShiftRefs = shiftActions.filter((row) => row.action === 'unmount').map((row) => row.ref);
     const remoteDeleteRefs = remoteDelete.checked
       ? preview.removals.map((row) => row.ref).concat(unmountedShiftRefs) : undefined;
-    shiftList.toggleAttribute('inert', true); remoteDelete.disabled = true;
-    const response = await rootRequest({
+    await submission.submit({ libraryId: libraryId ?? '', preview, request: {
       kind: 'known.roots.confirm', previewId: preview.previewId, confirmationId: crypto.randomUUID(),
       treeDigest: preview.treeDigest,
       ...(shiftActions.length ? { shiftActions } : {}),
       ...(remoteDeleteRefs && remoteDeleteRefs.length ? { remoteDeleteRefs } : {}),
-    });
+    } });
+  }
+
+  async function finishConfirmation(resume: PublicRangeResume, response: RootResponse): Promise<void> {
+    clearRetryPoll();
+    const confirmationId = resume.request.confirmationId;
     confirm.disabled = false; cancel.disabled = false; confirm.removeAttribute('aria-busy');
     shiftList.toggleAttribute('inert', false); remoteDelete.disabled = false;
-    confirm.textContent = label;
+    confirm.textContent = confirmLabel;
     if (!response.ok) {
       const message = confirmFailureCopy(response.error);
       error.hidden = false;
       error.textContent = message;
       host.rootFeedback.textContent = message;
-      if (response.error === 'preview_stale' || response.error === 'duplicate_confirm'
-        || response.error === 'permission_required') hidePreview();
+      if (response.error === 'preview_stale') { await refreshStalePreview(message); return; }
+      if (response.error === 'duplicate_confirm' || response.error === 'permission_required') hidePreview();
       host.saveRoots.disabled = !host.isConnected();
       return;
     }
-    if (!('view' in response)) { host.renderFailure('request_invalid'); return; }
+    if (!('view' in response) || response.confirmation?.confirmationId !== confirmationId
+        || response.confirmation.state !== 'committed') {
+      host.rootFeedback.textContent = confirmFailureCopy('request_invalid'); host.renderFailure('request_invalid'); return;
+    }
     hidePreview();
     host.setView(response.view);
-    host.rootFeedback.textContent = t('sync_folderSettingsSaved', 'Folder settings saved');
+    host.rootFeedback.textContent = response.view.status === 'ready' || response.view.status === 'nested_normalized'
+      ? t('sync_folderSettingsSaved', 'Folder settings saved')
+      : t('sync_folderSettingsSavedTreeUnavailable', 'Folder settings saved. The folder list could not refresh; try refreshing it again.');
     host.reloadBoundaries();
     host.onConfirmed();
     host.saveRoots.disabled = !host.isConnected();
+  }
+
+  async function refreshStalePreview(message: string): Promise<void> {
+    const version = ownerVersion;
+    const selected = new Set(syncRootRefs(host.rootTree)), excluded = new Set(excludedFolderRefs(host.rootTree));
+    hidePreview();
+    const response = await rootRequest({ kind: 'known.roots.get' });
+    if (disposed || ownerVersion !== version) return;
+    if (!response.ok || !('view' in response)) { host.renderFailure(response.ok ? 'request_invalid' : response.error); return; }
+    host.setView(response.view);
+    if (response.resume && validRangeResume(response.resume) && response.resume.libraryId === libraryId) {
+      preview = response.resume.preview; renderPreview(preview); void submission.submit(response.resume); return;
+    }
+    const present = new Set(response.view.roots.map(row => row.ref));
+    replaceFolderSelection(host.rootTree, new Set([...selected].filter(ref => present.has(ref))),
+      new Set([...excluded].filter(ref => present.has(ref))));
+    await save();
+    if (ownerVersion === version && !submission.pending) host.rootFeedback.textContent = message;
+  }
+
+  function showPending(response?: RootResponse): void {
+    const resume = submission.resume;
+    if (resume && !preview) { preview = resume.preview; renderPreview(preview); }
+    setReviewing(true); panel.hidden = false; cancel.disabled = true;
+    shiftList.toggleAttribute('inert', true); remoteDelete.disabled = true;
+    confirm.disabled = submission.inFlight || response === undefined;
+    if (submission.inFlight || response === undefined) confirm.setAttribute('aria-busy', 'true');
+    else confirm.removeAttribute('aria-busy');
+    confirm.textContent = submission.inFlight || response === undefined ? t('common_saving', 'Saving…')
+      : t('sync_resumeFolderChange', 'Resume this change');
+    const failed = response && !response.ok ? response.confirmation?.error : undefined;
+    reviewDecisions.hidden = failed !== 'rejoin_pending';
+    const message = failed ? pendingFailureCopy(failed)
+      : t('sync_confirmingFolderChange', 'Confirming folder changes. You can reopen this page to check the result.');
+    error.hidden = !failed; error.textContent = failed ? message : '';
+    host.rootFeedback.textContent = message;
+    if (failed) { clearRetryPoll(); return; }
+    if (retryPoll) return;
+    retryStartedAt = Date.now();
+    retryPoll = window.setInterval(() => {
+      if (!submission.pending) { clearRetryPoll(); return; }
+      if (Date.now() - retryStartedAt >= 90_000) {
+        clearRetryPoll(); confirm.disabled = false; confirm.textContent = t('sync_resumeFolderChange', 'Resume this change');
+        host.rootFeedback.textContent = t('sync_folderChangeUnknown', 'The result is not available yet. Resume this change to check or retry the same request.');
+        return;
+      }
+      if (host.isConnected() && !submission.inFlight) void submission.retry();
+    }, 2_000);
+  }
+
+  function clearRetryPoll(): void { window.clearInterval(retryPoll); retryPoll = 0; }
+
+  function resetOwner(): void {
+    ownerVersion += 1; loading = false; submission.reset(); clearRetryPoll(); hidePreview();
+    confirm.disabled = false; confirm.removeAttribute('aria-busy'); confirm.textContent = confirmLabel;
+    cancel.disabled = false; shiftList.toggleAttribute('inert', false); remoteDelete.disabled = false;
+    error.hidden = true; error.textContent = ''; host.rootFeedback.textContent = '';
   }
 
   function renderPreview(value: PublicRangePreview): void {
@@ -163,6 +261,7 @@ export function bindRangeAdjustment(host: {
   function hidePreview(): void {
     preview = undefined;
     panel.hidden = true;
+    reviewDecisions.hidden = true;
     setReviewing(false);
     remoteDelete.checked = false;
     host.saveRoots.disabled = !host.isConnected();
@@ -184,6 +283,14 @@ export function bindRangeAdjustment(host: {
   }
 }
 
+function pendingFailureCopy(code: string): string {
+  if (code === 'rejoin_pending') return t('sync_folderChangeNeedsReview',
+    'Folder changes are waiting for review. Resolve the sync attention items, then resume this change.');
+  if (code === 'permission_required' || code === 'sync_paused') return confirmFailureCopy(code);
+  return t('sync_folderChangeIncomplete',
+    'This folder change is incomplete. Resume it to finish the remaining steps; completed steps are kept.');
+}
+
 function confirmFailureCopy(code: string): string {
   if (code === 'preview_stale') return t('sync_folderTreeChangedRefresh', 'Folder tree changed. Refresh and preview again.');
   if (code === 'duplicate_confirm') return t('sync_previewAlreadyConfirmed', 'This preview was already confirmed.');
@@ -194,7 +301,7 @@ function confirmFailureCopy(code: string): string {
 
 async function rootRequest(message: RootRequest): Promise<RootResponse> {
   try { return await chrome.runtime.sendMessage(message) as RootResponse; }
-  catch { return { ok: false, error: 'request_invalid' }; }
+  catch { return { ok: false, error: message.kind === 'known.roots.confirm' ? 'confirmation_pending' : 'request_invalid' }; }
 }
 
 function required(id: string): HTMLElement {

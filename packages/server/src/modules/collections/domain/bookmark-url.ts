@@ -124,7 +124,7 @@ export function normalizeBookmarkUrl(value: string): string | null {
 
 /**
  * True when `requested` is a different raw spelling of `stored` that
- * normalizes to the same value — a non-semantic rewrite the caller should
+ * has the same parsed URL — a non-semantic rewrite the caller should
  * pin to the stored string (generation fence). Byte-identical strings and
  * unparseable inputs return false: identical needs no pin, unparseable
  * never compares equal.
@@ -134,6 +134,25 @@ export function isEquivalentBookmarkUrlRewrite(
   requested: string | null,
 ): boolean {
   if (stored === null || requested === null || stored === requested) return false;
-  const normalizedStored = normalizeBookmarkUrl(stored);
-  return normalizedStored !== null && normalizedStored === normalizeBookmarkUrl(requested);
+  if (!isAcceptedBookmarkUrl(stored) || !isAcceptedBookmarkUrl(requested)) return false;
+  // Content identity includes fragment routes and path trailing slashes. The
+  // link-health normalizer deliberately drops these and must never decide
+  // whether to discard a user's bookmark edit. URL serialization only folds
+  // equivalent syntax such as scheme/host case and the default port here.
+  return new URL(stored).href === new URL(requested).href;
+}
+
+/** A URL-only editor cannot maintain metadata derived from the old URL.
+ * Explicitly submitted metadata remains subject to normal validation. Call
+ * after any equivalent-spelling pin so unchanged URLs retain their metadata. */
+export function invalidateOmittedBookmarkUrlMetadata<T extends Readonly<Record<string, unknown>>>(
+  fields: T,
+  current: Readonly<Record<string, unknown>>,
+): T {
+  if (typeof fields.url !== 'string' || fields.url === current.url) return fields;
+  const cleared: Record<string, unknown> = { ...fields };
+  for (const field of ['canonicalUrl', 'urlHash']) {
+    if (!Object.hasOwn(fields, field) && current[field] !== undefined && current[field] !== null) cleared[field] = null;
+  }
+  return cleared as T;
 }

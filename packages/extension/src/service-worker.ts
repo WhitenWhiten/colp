@@ -71,6 +71,8 @@ import { validBatchRequest, validConnectivityRequest, validFaviconRequest, valid
   validSyncProgressRequest,
   validSyncStateEvidenceRequest } from './sw/messages.js';
 import { handleRootRequest, resumeBookmarksAfterPermissionGrant } from './sw/roots.js';
+import { validRejoinDecisionRequest } from './scope-rejoin-decisions.js';
+import { handleRejoinDecisionRequest } from './sw/rejoin-decisions.js';
 import { ensurePeriodicAlarm } from './sw/reconcile-alarm.js';
 import { purgeLegacyLocalAuthority } from './sw/credential-storage.js';
 import { BOOKMARK_RECONCILE_ALARM, BOOKMARK_RECONCILE_PERIOD_MINUTES, BOOKMARK_RECOVERY_ALARM,
@@ -156,7 +158,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     void flushCaptureFeedback().catch((error) => logBackgroundFailure('alarm.capture-feedback', error));
     void flushCaptureReports().catch((error) => logBackgroundFailure('alarm.capture-reports', error));
   }
-  if (alarm.name === 'known-sync-engine') scheduleSyncEngineWake('alarm');
+  if (alarm.name === 'known-sync-engine') void scheduleSyncEngineWake('alarm').catch(error => logBackgroundFailure('alarm.sync-engine-wake', error));
   if (alarm.name === REPLICA_HEALTH_ALARM) void reportReplicaHealth();
   if (alarm.name === FAVICON_SIDECAR_ALARM) void drainFaviconSidecarsForCurrentScope();
   if (alarm.name === BOOKMARK_RECOVERY_ALARM) void recoverBookmarkEventsAfterEngineSettles('alarm');
@@ -174,7 +176,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 self.addEventListener('online', (event) => {
   if (event.isTrusted && navigator.onLine === true) {
     void wakeSubscriptions('online');
-    scheduleSyncEngineWake('online', 0, true);
+    void scheduleSyncEngineWake('online', 0, true).catch(error => logBackgroundFailure('online.sync-engine-wake', error));
     void wakeCaptures().catch((error) => logBackgroundFailure('online.captures', error));
     void wakeCaptureBatches().catch((error) => logBackgroundFailure('online.capture-batches', error));
     void flushBookmarkPreferences().catch((error) => logBackgroundFailure('online.bookmark-preferences', error));
@@ -186,12 +188,12 @@ self.addEventListener('online', (event) => {
 /** S1 / B0-1: production dependencies for the native-wait confirmation handler. */
 const nativeWaitDeps: NativeWaitDeps = {
   scope: currentSyncScope, store: syncState, permissionGranted: hasBookmarkPermission,
-  wake: () => { scheduleSyncEngineWake('manual'); },
+  wake: () => { void scheduleSyncEngineWake('manual').catch(error => logBackgroundFailure('native-wait.sync-engine-wake', error)); },
 };
 
 /** S7 / B2 (SR-09·SR-11·SR-13): the read-only attention read shared by popup and options. */
 const syncAttentionDeps: SyncAttentionDeps = { scope: currentSyncScope, store: syncState,
-  rebuildPending: () => replicaRebuilder().hasPending() };
+  serverRetirement: true, rebuildPending: () => replicaRebuilder().pendingStatus() };
 
 /** SR-10 / A-08: the read-only ingress-diagnostic read behind the options list. */
 const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope, store: syncState };
@@ -404,6 +406,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     void operation.then(respond, () => respond({ ok: false, error: 'request_invalid' } satisfies RootResponse));
     return true;
   }
+  if (validRejoinDecisionRequest(message)) {
+    if (!trustedLifecyclePage(sender, chrome.runtime.id)) return false;
+    void handleRejoinDecisionRequest(message).then(respond,
+      () => respond({ ok: false, error: 'rejoin_unavailable' }));
+    return true;
+  }
   if (validFaviconRequest(message)) {
     if (message.kind === 'known.favicon.save-context-local') {
       void resolveLocalSaveContext().then(respond, () => respond({ ok: false }));
@@ -430,7 +438,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     // known.firstRun.later (KNS-02); known.firstRun.confirm / status (KNS-03 coordinator)
     void handleFirstRunRequest(message).then((response) => {
       bookmarkListenerLifecycle.install();
-      if (firstRunNeedsEngine(message, response)) scheduleSyncEngineWake('manual');
+      if (firstRunNeedsEngine(message, response)) void scheduleSyncEngineWake('manual').catch(error => logBackgroundFailure('first-run.sync-engine-wake', error));
       respond(response);
     }, () => respond({ ok: false, error: 'request_invalid' }));
     return true;
@@ -469,7 +477,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     const operation = handleBatchRequest(message);
     void operation.then((response) => {
       if (response.ok && message.kind !== 'known.batch.preview' && message.kind !== 'known.batch.status') {
-        scheduleSyncEngineWake('manual');
+        void scheduleSyncEngineWake('manual').catch(error => logBackgroundFailure('batch.sync-engine-wake', error));
       }
       respond(response);
     }, (error) => respond({ ok: false, error: safeError(error) } satisfies BatchResponse));

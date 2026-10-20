@@ -32,6 +32,8 @@ export interface NormalizedBookmarkNode {
   readonly title: string;
   readonly kind: BookmarkNodeKind;
   readonly managed: boolean;
+  /** Browser account storage; not COLP's selected/private synchronization boundary. */
+  readonly syncing?: boolean;
   readonly url?: string;
   readonly children: readonly NormalizedBookmarkNode[];
 }
@@ -106,16 +108,18 @@ function validateResult(nodes: readonly ChromeBookmarkNode[]) {
   try { const seen = new Set<string>(); return nodes.map((item) => normalize(item, seen, new Set())); }
   catch (error) { throw new BookmarkTreeError('bookmark_tree_corrupt', error instanceof Error ? error.message : 'invalid'); }
 }
-function normalize(value: ChromeBookmarkNode, seen: Set<string>, active: Set<object>): NormalizedBookmarkNode {
+function normalize(value: ChromeBookmarkNode, seen: Set<string>, active: Set<object>, inheritedManaged = false): NormalizedBookmarkNode {
   validateBase(value);
   if (active.has(value)) throw new Error('bookmark_tree_cycle');
   if (seen.has(value.id)) throw new Error('duplicate_native_id');
   seen.add(value.id); active.add(value);
-  const children = (value.children ?? []).map((child) => normalize(child, seen, active));
+  const managed = inheritedManaged || value.unmodifiable === 'managed';
+  const children = (value.children ?? []).map((child) => normalize(child, seen, active, managed));
   active.delete(value);
   const kind = value.type === 'separator' ? 'separator' : typeof value.url === 'string' ? 'bookmark' : 'folder';
   if (kind !== 'folder' && children.length) throw new Error('leaf_has_children');
-  return { nativeId: value.id, title: value.title, kind, managed: value.unmodifiable === 'managed', children,
+  return { nativeId: value.id, title: value.title, kind, managed, children,
+    ...(typeof value.syncing === 'boolean' ? { syncing: value.syncing } : {}),
     ...(kind === 'bookmark' && typeof value.url === 'string' ? { url: value.url } : {}) };
 }
 function validateBase(value: unknown): asserts value is ChromeBookmarkNode {
@@ -123,6 +127,7 @@ function validateBase(value: unknown): asserts value is ChromeBookmarkNode {
   const node = value as Partial<ChromeBookmarkNode>;
   if (typeof node.id !== 'string' || !node.id || typeof node.title !== 'string') throw new Error('node_invalid');
   if (node.url !== undefined && typeof node.url !== 'string') throw new Error('url_invalid');
+  if (node.syncing !== undefined && typeof node.syncing !== 'boolean') throw new Error('syncing_invalid');
   if (node.children !== undefined && !Array.isArray(node.children)) throw new Error('children_invalid');
 }
 function rootKind(node: ChromeBookmarkNode): BrowserRootKind {

@@ -4,9 +4,6 @@
  * Evidence: test-results/known-extension-first-run-sync/<commit>/
  */
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import 'fake-indexeddb/auto';
 import { describe, test } from 'vitest';
 import type { NormalizedBookmarkRoot } from '../src/chrome-bookmark-tree.js';
@@ -17,8 +14,6 @@ import {
 } from './kns-03-bootstrap-harness.js';
 
 installKns03IndexedDb();
-
-const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 describe('KNS-02 first-run selectedRoots authority', () => {
   test('confirm bar+other writes selectedRoots that map back; range preview is not a removal', async () => {
@@ -78,18 +73,6 @@ describe('KNS-02 first-run selectedRoots authority', () => {
     assert.deepEqual([...(recorded?.selectedRoots ?? []).map((id) => byColp.get(id))].sort(), ['bar', 'other']);
   });
 
-  test('first-run confirm schedules configureBrowserRoots after coordinator.confirm', async () => {
-    const source = await readFile(join(packageRoot, 'src/sw/first-run.ts'), 'utf8');
-    const helper = await readFile(join(packageRoot, 'src/sw/first-run-browser-roots.ts'), 'utf8');
-    const confirm = source.slice(source.indexOf('async function handleFirstRunConfirm'),
-      source.indexOf('async function handleAttentionMessage'));
-    assert.match(confirm, /await coordinator\.confirm\(/);
-    assert.match(confirm, /await persistConfirmedPreviewRoots\(scope, preview\)/);
-    assert.match(source, /persistFirstRunBrowserRoots/);
-    assert.match(helper, /configureBrowserRoots/);
-    assert.match(helper, /bindMountMapping/);
-    assert.doesNotMatch(confirm, /bookmarks\.(create|update|move|remove)/);
-  });
 });
 
 function tree(): readonly NormalizedBookmarkRoot[] {

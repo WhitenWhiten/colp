@@ -1,3 +1,4 @@
+import { isRejoinEcho } from './scope-rejoin-echo.js';
 import { bookmarkKind, bookmarkRepresentability, digestJson, nativeContent, nodeContent, type BookmarkEventNode } from './bookmark-event-codec.js';
 import { validateFolderDescription } from './folder-description-store.js';
 import { sameTags } from './local-metadata-state.js';
@@ -49,7 +50,9 @@ export function createBookmarkContentCapture(options: {
       || !Object.entries(callbackFields).every(([field, value]) => observedNativeContent[field] === value);
     const callbackCorrelationId = correlationFor('change', nativeId, callbackPostState);
     const callbackEvidence = { eventDigest: callbackCorrelationId, nativeId };
-    if (await options.store.observeApplyIntentEvent(options.scope, callbackCorrelationId, callbackEvidence, allowCompletedChangeEcho)
+    if (await isRejoinEcho({ store: options.store, scope: options.scope, kind: 'change', nativeId,
+      correlationId: callbackCorrelationId, allowCompleted: allowCompletedChangeEcho, fields: callbackFields })
+        || await options.store.observeApplyIntentEvent(options.scope, callbackCorrelationId, callbackEvidence, allowCompletedChangeEcho)
         || await options.store.observeApplyIntentPostState(options.scope, nativeId, digestJson(callbackPostState), callbackEvidence, allowCompletedChangeEcho)) {
       return { outcome: 'apply_intent_reserved' };
     }

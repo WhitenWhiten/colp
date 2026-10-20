@@ -22,11 +22,19 @@ export type IngressBoundary = {
 
 type Store = ReturnType<typeof createSyncStateStore>;
 
-export async function resolveIngressBoundary(store: Store, scope: SyncScope): Promise<IngressBoundary> {
+export async function resolveIngressBoundary(store: Store, scope: SyncScope,
+  subscriptionExclusions?: ReadonlySet<string>): Promise<IngressBoundary> {
   const recorded = await store.getScope(scope);
-  const mappings = await store.listMappings(scope);
-  const byColp = new Map(mappings.map((mapping) => [mapping.colpId, mapping.nativeId]));
   const mounts = await store.listMountBindings(scope);
+  // Dispatch resolves only today's boundary identities. Reading every mapped
+  // bookmark here makes each upload phase proportional to the entire library.
+  // These point reads are fresh for this call; no previous dispatch is reused.
+  const boundaryIds = new Set([...(recorded?.privateRoots ?? []), ...(mounts.length ? [] : recorded?.selectedRoots ?? [])]);
+  const mappings = await Promise.all([...boundaryIds].map(id => store.getMappingByColpId(scope, id)));
+  const byColp = new Map(mappings.flatMap(mapping => mapping ? [[mapping.colpId, mapping.nativeId] as const] : []));
+  // Losing a current private-root identity makes the boundary unprovable.
+  // It must never remove that privacy restriction after an earlier check.
+  if (recorded?.privateRoots?.some(id => !byColp.has(id))) throw new Error('upload_boundary_unavailable');
   const firstRun = recorded?.firstRun;
   const bootstrapLive = (await store.listBootstrapRuns(scope)).some((run) => bootstrapRunInFlight(run.phase));
   const rejoinLive = new Set<string>();
@@ -50,7 +58,7 @@ export async function resolveIngressBoundary(store: Store, scope: SyncScope): Pr
   const selectedFromRoots = new Set(recorded?.selectedRoots.map((id) => byColp.get(id)).filter((id): id is string => Boolean(id)));
   return {
     selectedNative: mounts.length > 0 ? mountNative : selectedFromRoots,
-    privateNative: new Set([...(await exclusionIds()), ...(recorded?.privateRoots ?? []).map((id) => byColp.get(id)).filter((id): id is string => Boolean(id))]),
+    privateNative: new Set([...(subscriptionExclusions ?? await exclusionIds()), ...(recorded?.privateRoots ?? []).map((id) => byColp.get(id)).filter((id): id is string => Boolean(id))]),
     rootStatus: recorded?.rootStatus ?? 'corrupt',
   };
 }

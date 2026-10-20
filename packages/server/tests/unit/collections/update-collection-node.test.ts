@@ -55,6 +55,18 @@ import {
 } from '../../support/update-collection-node-memory.js';
 
 describe('updateCollectionNode: legal merge patches', () => {
+  test('a bookmark can clear its title through the Product update application', async () => {
+    const state = createState();
+    seedCollection(state);
+    seedBookmark(state);
+    const ports = createMemoryPorts(state);
+    const updated = assertUpdated(await updateCollectionNode(ports, baseInput({
+      nodeId: BOOKMARK_ID, ifMatch: strongEntityTag(BOOKMARK_RESOURCE_REV), patch: { title: '' },
+    })));
+    assert.equal(updated.node.title, '');
+    assert.equal(state.nodes.get(BOOKMARK_ID)?.title, '');
+  });
+
   test('folder: title, description, tags, visibility merges', async () => {
     const state = createState();
     seedCollection(state);
@@ -128,7 +140,7 @@ describe('updateCollectionNode: legal merge patches', () => {
         baseInput({
           nodeId: BOOKMARK_ID,
           ifMatch: strongEntityTag(BOOKMARK_RESOURCE_REV),
-          patch: { url: 'https://example.com/docs#frag' },
+          patch: { url: 'https://example.com/docs/' },
         }),
       ),
     );
@@ -141,6 +153,19 @@ describe('updateCollectionNode: legal merge patches', () => {
     if (updated.node.kind === 'bookmark') {
       assert.equal(updated.node.url, 'https://Example.COM:443/docs/');
     }
+  });
+
+  test.each(['https://example.com/docs/#part', 'https://example.com/docs/#/projects',
+    'https://example.com/docs'])('bookmark product edits preserve the requested URL %s', async url => {
+    const state = createState();
+    seedCollection(state);
+    seedBookmark(state, { url: 'https://example.com/docs/' });
+    const updated = assertUpdated(await updateCollectionNode(createMemoryPorts(state), baseInput({
+      nodeId: BOOKMARK_ID, ifMatch: strongEntityTag(BOOKMARK_RESOURCE_REV), patch: { url },
+    })));
+    assert.equal(state.nodes.get(BOOKMARK_ID)?.url, url);
+    assert.equal(updated.node.kind, 'bookmark');
+    if (updated.node.kind === 'bookmark') assert.equal(updated.node.url, url);
   });
 
   test('PATCH title keeps a seeded iconUrl (same-origin, not null, not CDN)', async () => {

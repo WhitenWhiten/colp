@@ -304,7 +304,7 @@ describe('KNS-04 push receipts, mount bind and bootstrap snapshot', () => {
 
   test('nonempty snapshotRequired second replica completes bootstrap and unfreezes', async () => {
     const fixture = await setupDurableEngine({
-      snapshotRequired: true, emptyCollection: true, useVerifiedProjector: true,
+      snapshotRequired: true, emptyCollection: true, useVerifiedProjector: true, confirmedMount: true,
     });
     fixture.snapshotResponses.push(json(200, nonemptyMountSnapshot(true)));
     fixture.ackResponses.push(json(200, ack('bootstrap-cursor')));
@@ -404,7 +404,8 @@ describe('KNS-04 push receipts, mount bind and bootstrap snapshot', () => {
       checkpoint: { serverRevision: 'r', cursor: 'c' }, selectedRoots: [], rootStatus: 'ready', firstRun: 'running' });
     await store.putMountBinding(scope, {
       mountId: 'mount-bar', nativeRootId: '1', remoteMountNodeId: null, boundaryVersion: '1',
-      materialized: false, status: 'pending', rootRole: 'bookmarks-bar',
+      // This projection fixture starts after the user's confirmed selection.
+      materialized: false, status: 'active', rootRole: 'bookmarks-bar',
     });
     const staged: MappingInput[] = [{
       nativeId: 'recovery:root-server', colpId: 'root-server', rootNativeId: 'recovery:root', nodeKind: 'folder',

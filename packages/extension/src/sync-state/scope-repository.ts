@@ -1,3 +1,4 @@
+import { archiveScopeCommandEvidence, deleteScopeCommandEvidence, readScopeCommandRecord } from './scope-command-evidence.js';
 import {
   SyncStateError, type AckIntentRecord, type BookmarkEventRecord, type DurableSyncEngineState,
   type ImportNodeRecord, type ImportPlanRecord, type IntentRecord, type LegacyState, type LeaseRecord,
@@ -5,7 +6,7 @@ import {
   type SyncScope, type UnknownRecord, type MountBindingRecord, type ScopePreviewRecord, type BootstrapRunRecord,
   type DeletionJournalRecord, type RemoteObservationRecord, type ScopeCommandPlanRecord,
 } from './types.js';
-import { boundedString, clone, safeInteger, strictObject, validateRecord } from './codec.js';
+import { DEFAULT_MAX_RECORD_BYTES, boundedString, clone, safeInteger, strictObject, validateRecord } from './codec.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { constraintError } from './errors.js';
@@ -22,6 +23,7 @@ import { validateBookmarkEventRecord } from './bookmark-event-repository.js';
 import { validateAckIntent, validateEngineState, validateImportNode, validateImportPlan, validateIntent } from './pull-validate.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
+import type { BoundaryCommandRecord } from './boundary-command-repository.js';
 
 
 /** Bounded corruption evidence: enough records to repair a cluster, never a ledger dump. */
@@ -182,7 +184,7 @@ export function validCursorAuthority(record: UnknownRecord, scopeKeys: ReadonlyS
   }
   return typeof value.snapshotId === 'string' && typeof value.pageDigest === 'string';
 }
-export async function collectExport(tx: IDBTransaction, key: string) { const scope = await requestValue(tx.objectStore(STORES.scopes).get(key)) as ScopeRecord | undefined;
+export async function collectExport(tx: IDBTransaction, key: string, maxBytes = DEFAULT_MAX_RECORD_BYTES, allowUnreadable = false) { const scope = await requestValue(tx.objectStore(STORES.scopes).get(key)) as ScopeRecord | undefined;
   const sequence = await requestValue(tx.objectStore(STORES.sequences).get(key)); const cursor = await requestValue(tx.objectStore(STORES.cursors).get(key));
   const engine = await requestValue(tx.objectStore(STORES.engine).get(key));
   const rows = async <T>(name: string) => { const values: T[] = []; await iterateCursor(tx.objectStore(name), scopeRowsRange(key),
@@ -190,7 +192,7 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
   const [mappings, queue, receipts, intents, recoveryHeaders, recoveryNodes, bookmarkEvents, pullPages, pullEvents,
     effectPages, ackIntents, importPlans, importNodes, compactSummaries, mountBindings, scopePreviews, bootstrapRuns,
     deletionJournal, advancedPlans, advancedSteps, remoteDeleteDecisions, localSyncExclusions,
-    batchPlans, batchItems, remoteObservations, scopeCommandPlans] = await Promise.all([
+    batchPlans, batchItems, remoteObservations, rawCommandPlans, boundaryCommands] = await Promise.all([
     rows<ReturnType<typeof validateMapping>>(STORES.mappings), rows<QueueOperation>(STORES.queue),
     rows<ReceiptRecord>(STORES.receipts), rows<IntentRecord>(STORES.intents), rows<RecoveryHeader>(STORES.recovery),
     rows<RecoveryNodeRecord>(STORES.recoveryNodes), rows<BookmarkEventRecord>(STORES.bookmarkEvents),
@@ -203,7 +205,16 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
     rows<UnknownRecord>(STORES.remoteDeleteDecisions), rows<UnknownRecord>(STORES.localSyncExclusions),
     rows<UnknownRecord>(STORES.batchPlans), rows<UnknownRecord>(STORES.batchItems),
     rows<RemoteObservationRecord>(STORES.remoteObservations),
-    rows<ScopeCommandPlanRecord>(STORES.scopeCommandPlans)]);
+    rows<ScopeCommandPlanRecord>(STORES.scopeCommandPlans), rows<BoundaryCommandRecord>(STORES.boundaryCommands)]);
+  const scopeCommandPlans: ScopeCommandPlanRecord[] = [];
+  const unreadableCommandEvidence: UnknownRecord[] = [];
+  for (const raw of rawCommandPlans) {
+    try { scopeCommandPlans.push(await readScopeCommandRecord(tx, key, raw, maxBytes)); }
+    catch (error) {
+      if (!allowUnreadable) throw error;
+      unreadableCommandEvidence.push(await archiveScopeCommandEvidence(tx, key, raw, error));
+    }
+  }
   const compactionWatermark = await requestValue(tx.objectStore(STORES.compactionWatermarks).get(key));
   const diagnostics = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.diagnostics)
     .index(INDEXES.diagnosticByScope).getAll(IDBKeyRange.bound([key, ''], [key, '\uffff'])));
@@ -213,7 +224,8 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
     engine: engine ?? null, ackIntents, importPlans, importNodes,
     compactionWatermark: compactionWatermark ?? null, compactSummaries, mountBindings, scopePreviews, bootstrapRuns,
     deletionJournal, advancedPlans, advancedSteps, remoteDeletePolicy: remoteDeletePolicy ?? null,
-    remoteDeleteDecisions, localSyncExclusions, batchPlans, batchItems, remoteObservations, scopeCommandPlans };
+    remoteDeleteDecisions, localSyncExclusions, batchPlans, batchItems, remoteObservations, scopeCommandPlans, boundaryCommands,
+    ...(unreadableCommandEvidence.length ? { unreadableCommandEvidence } : {}) };
 }
 
 export function createScopeRepository(ctx: SyncStoreRuntime) {
@@ -318,12 +330,13 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
   async function retireScope(input: SyncScope, retirement: { readonly retiredAt: number; readonly reason: string }) {
     assertWritable(); const key = scopeKey(validateScope(input)); safeInteger(retirement.retiredAt, 'retiredAt');
     boundedString(retirement.reason, 'reason'); const db = await writableDatabase();
-    await runTransaction(db, [...SCOPE_ROW_STORES, STORES.archives, STORES.diagnostics],
+    await runTransaction(db, [...SCOPE_ROW_STORES, STORES.archives, STORES.diagnostics, STORES.metadata],
       'readwrite', async (tx) => {
-      const current = await requireActiveScope(tx, key); const archive = await collectExport(tx, key);
+      const current = await requireActiveScope(tx, key); const archive = await collectExport(tx, key, maxRecordBytes, true);
       tx.objectStore(STORES.archives).add({ ...archive, scopeKey: key, environment: current.environment,
         serverId: current.serverId, accountId: current.accountId, browserProfileId: current.browserProfileId,
         replicaId: current.replicaId, generation: current.generation, lifecycle: 'retired', ...retirement });
+      deleteScopeCommandEvidence(tx, key);
       for (const name of SCOPE_ROW_STORES) {
         await deleteScopeRows(tx.objectStore(name), key);
       }
@@ -334,33 +347,34 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
 
   async function cleanupAccount(account: Pick<SyncScope, 'environment' | 'serverId' | 'accountId' | 'browserProfileId'>) {
     assertWritable(); const fields = validateAccountScope(account); const db = await writableDatabase();
-    const tx = db.transaction(Object.values(STORES), 'readwrite'); const completion = transactionDone(tx);
-    const scopes = tx.objectStore(STORES.scopes);
     const keys: string[] = [];
+    await runTransaction(db, Object.values(STORES), 'readwrite', async tx => {
+    const scopes = tx.objectStore(STORES.scopes);
     await iterateCursor(scopes, null, (value) => { const row = value as ScopeRecord;
       if (row.environment === fields.environment && row.serverId === fields.serverId && row.accountId === fields.accountId
         && row.browserProfileId === fields.browserProfileId && row.lifecycle !== 'retired') keys.push(row.scopeKey); });
     const retiredAt = Date.now();
     for (const key of keys) {
       const current = await requestValue(scopes.get(key)) as ScopeRecord;
-      const archive = await collectExport(tx, key);
+      const archive = await collectExport(tx, key, maxRecordBytes, true);
       tx.objectStore(STORES.archives).add({ ...archive, scopeKey: key, environment: current.environment,
         serverId: current.serverId, accountId: current.accountId, browserProfileId: current.browserProfileId,
         replicaId: current.replicaId, generation: current.generation, lifecycle: 'retired', retiredAt,
         reason: 'logout_cleanup' });
+      deleteScopeCommandEvidence(tx, key);
       for (const name of SCOPE_ROW_STORES) {
         await deleteScopeRows(tx.objectStore(name), key);
       }
       await iterateCursor(tx.objectStore(STORES.diagnostics).index(INDEXES.diagnosticByScope),
         IDBKeyRange.bound([key, ''], [key, '\uffff']), (_row, cursor) => { cursor.delete(); });
     }
-    await completion;
+    });
     for (const key of keys) durableCache.delete(key);
   }
 
   async function exportScope(input: SyncScope) {
     const key = scopeKey(validateScope(input)); const db = await open(); const tx = db.transaction(Object.values(STORES), 'readonly');
-    const completion = transactionDone(tx); const result = await collectExport(tx, key); await completion; return clone(result);
+    const completion = transactionDone(tx); const result = await collectExport(tx, key, maxRecordBytes); await completion; return clone(result);
   }
 
   async function exportArchive(input: SyncScope) {

@@ -13,22 +13,29 @@ export type SyncConflictType = 'concurrent_field_update' | 'unprovable_base'
 export type SyncConflictResolutionName = 'server' | 'incoming' | 'custom' | 'both';
 
 /**
- * FIX-M-015 (SYNC-R10): the external menu only ever advertises executable
- * choices. A `delete_update` Conflict (a client update raced a server delete)
- * advertises exactly `server` — dismiss keeps the tombstone and closes the
- * Conflict; restoring the node would require a dedicated canonical restore
- * mutation that is not deployed, and `both` has no meaning for a deleted
- * current. Other Conflict types keep the historical menu (bookmarks
- * additionally support `both`).
+ * Delete/update decisions either keep the deletion or save the retained
+ * incoming edit as a new node. Neither choice silently resurrects the deleted
+ * subtree. Historical conflicts keep their immutable, older menus.
  */
 export function allowedSyncConflictResolutions(
   conflictType: SyncConflictType,
   nodeKind: TrustedSyncNodeRevision['kind'],
 ): readonly SyncConflictResolutionName[] {
-  if (conflictType === 'delete_update') return Object.freeze(['server'] as const);
+  if (conflictType === 'delete_update') return Object.freeze(['server', 'incoming'] as const);
   return nodeKind === 'bookmark'
     ? Object.freeze(['server', 'incoming', 'custom', 'both'] as const)
     : Object.freeze(['server', 'incoming', 'custom'] as const);
+}
+
+/** Historical rows keep their original wire/receipt bytes. Current decision
+ * surfaces intersect that menu with the content that can actually be read. */
+export function executableSyncConflictResolutions(
+  conflict: { readonly conflict_type: SyncConflictType; readonly allowed_resolutions: readonly SyncConflictResolutionName[] },
+  nodeKind: TrustedSyncNodeRevision['kind'],
+  hasIncomingIntent: boolean,
+): readonly SyncConflictResolutionName[] {
+  const supported = hasIncomingIntent ? allowedSyncConflictResolutions(conflict.conflict_type, nodeKind) : ['server'];
+  return Object.freeze(conflict.allowed_resolutions.filter(choice => supported.includes(choice)));
 }
 
 export type PostgresSyncConflictFaultPhase = 'conflict_ordinal' | 'conflict_operation'
@@ -186,11 +193,17 @@ export async function appendOpenSyncConflict(
 
   const conflictId = await reserveGeneratedId(transaction, 'conflict_');
   const outboxId = await reserveGeneratedId(transaction, 'outbox_');
+  // The operation has not applied any fields. Keep its entire comparison
+  // domain encrypted, independently of the redacted list of conflicting
+  // fields, so resolving a title cannot discard a simultaneous URL edit.
+  const retainedFields = [...new Set([...fields, ...Object.keys(update.base).map(field => `/${field}`)])];
   const privatePayload = stableJson({
-    base: projectRawValues(baseSource, fields),
-    current: projectRawValues(input.current.payload, fields),
-    incoming: projectRawValues(update.value, fields),
+    base: projectRawValues(baseSource, retainedFields),
+    current: projectRawValues(input.current.payload, retainedFields),
+    incoming: projectRawValues(update.value, retainedFields),
     nodeKind: input.current.kind,
+    ...(input.current.kind === 'bookmark' && typeof input.trustedBase?.payload.url === 'string'
+      ? { bookmarkUrlContext: { baseUrl: input.trustedBase.payload.url } } : {}),
   });
   const encrypted = encryptPrivatePayload(privatePayload, conflictPayloadEncryption, {
     collectionId: transaction.authority.collectionId,
@@ -318,9 +331,9 @@ function normalizedConflictFields(
   type: SyncConflictType,
   base: Readonly<Record<string, unknown>>,
 ): readonly string[] {
-  const fields = source.length > 0 ? source : type === 'delete_update'
-    ? ['deletedAt', ...Object.keys(base)]
-    : type === 'unprovable_base' ? ['baseRevision', ...Object.keys(base)] : Object.keys(base);
+  const fields = type === 'delete_update' ? ['deletedAt', ...source, ...Object.keys(base)]
+    : type === 'unprovable_base' ? ['baseRevision', ...source, ...Object.keys(base)]
+      : source.length > 0 ? source : Object.keys(base);
   const normalized = [...new Set(fields.map((field) => field.startsWith('/') ? field : `/${field}`))].sort();
   if (normalized.length < 1 || normalized.some((field) => !/^\/[A-Za-z][A-Za-z0-9]*$/u.test(field))) {
     persistenceError('invalid_document');

@@ -9,10 +9,19 @@ import { virtualNativeId } from './projection-native-occupancy.js';
 
 /** A first-sync create owns a native bookmark even before its Push receipt exists. */
 export async function provisionalSelfCreateMapping(options: PullApplierOptions,
-  event: Extract<SyncPullEventV02, { kind: 'operation' }>, parent: MappingInput) {
+  event: Extract<SyncPullEventV02, { kind: 'operation' }>, parent: MappingInput | (() => Promise<MappingInput>)) {
   if (event.operation.replicaId !== options.scope.replicaId || event.effect.kind !== 'node_created') return null;
   const provisional = await options.store.getMappingByColpId(options.scope, `pending-${event.operation.opId}`);
-  if (provisional) return provisional;
+  if (provisional) {
+    // A native identity cannot override a contradictory durable request.
+    // Legacy mappings without a queue still require the caller's native proof.
+    const queued = await options.store.getQueueByOpId(options.scope, event.operation.opId);
+    if (queued && (queued.payload.type !== 'create_node' || queued.sequence !== event.operation.sequence
+        || canonicalOperationDigest(queued.payload as unknown as Operation) !== event.effect.operationDigest)) {
+      throw new SyncFailureError('pull_source_binding_invalid');
+    }
+    return provisional;
+  }
   const nativeId = plannedCreateNativeId(event.operation.opId);
   if (!nativeId) return null;
   const queued = await options.store.getQueueByOpId(options.scope, event.operation.opId);
@@ -21,6 +30,9 @@ export async function provisionalSelfCreateMapping(options: PullApplierOptions,
       || canonicalOperationDigest(queued.payload as unknown as Operation) !== event.effect.operationDigest) {
     throw new SyncFailureError('pull_source_binding_invalid');
   }
+  // An existing provisional mapping does not consume the parent argument.
+  // Delay fallback construction's read; callers keep their later fresh reads.
+  const resolvedParent = typeof parent === 'function' ? await parent() : parent;
   const current = await options.store.getMappingByNativeId(options.scope, nativeId);
   if (current && current.colpId !== event.effect.node.id && !current.colpId.startsWith('pending-')) {
     throw new SyncFailureError('mapping_identity_collision');
@@ -29,8 +41,8 @@ export async function provisionalSelfCreateMapping(options: PullApplierOptions,
   if (canonical && canonical.nativeId !== nativeId && !virtualNativeId(canonical.nativeId)) {
     throw new SyncFailureError('mapping_identity_collision');
   }
-  return mappingFor(event.effect.node, nativeId, parent.nativeId, parent.colpId,
-    event.effect.nodeChildrenRevision, parent.rootNativeId);
+  return mappingFor(event.effect.node, nativeId, resolvedParent.nativeId, resolvedParent.colpId,
+    event.effect.nodeChildrenRevision, resolvedParent.rootNativeId);
 }
 
 /** Recovery may inspect local edits only when this replica durably authored the create. */

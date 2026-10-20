@@ -104,7 +104,10 @@ export async function projectAdvancedSnapshot(store: Store, scope: SyncScope,
     }
     const isMount = mountByRemote.has(mapping.colpId);
     const parentId = seed?.fact.parentId;
-    const { parentNativeId: _parentNative, parentColpId: _parentColp, ...base } = mapping;
+    // A mounted browser root has no projected native parent, but its canonical
+    // parent remains part of the complete Snapshot graph and the bootstrap Ack
+    // evidence. Dropping it makes a valid cut fail after projection.
+    const { parentNativeId: _parentNative, ...base } = mapping;
     return { ...base, nativeId, rootNativeId: mount.nativeRootId,
       mountId: `mount:${mount.nativeRootId}`, ...(mount.rootRole ? { rootRole: mount.rootRole } : { rootRole: 'custom' }),
       ...(!isMount && parentId ? { parentColpId: parentId,

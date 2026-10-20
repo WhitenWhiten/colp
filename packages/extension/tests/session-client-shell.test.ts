@@ -94,6 +94,32 @@ function manifest() {
 }
 
 describe('P3-27 real Session client', () => {
+  test('retirement v2 remains readable by the existing required-field Manifest parser', () => {
+    const value = manifest();
+    Object.assign(value.mounts[0]!['https://known.example/extensions/sync-retire'], { version: 2,
+      reauthorization: { proofHeader: 'Known-Sync-Replica-Proof', proof: 'pinned-session', authority: 'current-account-installation' } });
+    const found = discoverSyncEndpoints(value, config());
+    assert.equal(found.syncRetire, 'https://known.example/extensions/sync-retire');
+    assert.equal(found.syncSessions, 'https://known.example/v1/session');
+    assert.equal(found.syncPush, 'https://known.example/v1/push');
+    assert.equal(found.syncRetireReauthorization, true);
+  });
+
+  test('unknown, absent and malformed namespace versions never authorize a new proof header', () => {
+    const authorization = { proofHeader: 'Known-Sync-Replica-Proof', proof: 'pinned-session', authority: 'current-account-installation' };
+    for (const declaration of [{}, { version: 1, reauthorization: authorization }, { version: 3, reauthorization: authorization },
+      { version: '2', reauthorization: authorization }, { version: 2 },
+      { version: 2, reauthorization: { ...authorization, proof: 'any-session' } },
+      { version: 2, reauthorization: { ...authorization, proofHeader: 'Authorization' } },
+      { version: 2, reauthorization: { ...authorization, authority: 'any-account' } },
+      { version: 2, reauthorization: { ...authorization, extra: true } }]) {
+      const value = manifest(); Object.assign(value.mounts[0]!['https://known.example/extensions/sync-retire'], declaration);
+      const found = discoverSyncEndpoints(value, config());
+      assert.equal(found.syncRetireReauthorization, undefined);
+      assert.equal(found.syncSessions, 'https://known.example/v1/session');
+    }
+  });
+
   test('serializes authority renewal so a concurrent caller observes the committed Session', async () => {
     const queue = createSessionAuthorityQueue(); const events: string[] = []; let release!: () => void;
     assert.equal(queue.isInFlight(), false);

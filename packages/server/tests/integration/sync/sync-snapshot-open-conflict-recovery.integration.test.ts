@@ -37,6 +37,10 @@ describeWithPostgres('P1-6 snapshot open conflict recovery', () => {
     try {
       await insertWiredOperation(fixture, 'op-visible', 44);
       await insertOpenConflict(fixture, targetId, 'conflict-open', 'op-open', 46, 'delete_update');
+      const immutableConflict = async () => (await isolated.runtime.pool.query(`select
+        conflict_type,conflicting_fields,current_revision,pull_wire_json,private_payload_ciphertext,
+        private_payload_digest from sync_conflicts where conflict_id='conflict-open'`)).rows[0];
+      const admission = await immutableConflict();
       await insertDismissedConflict(fixture, targetId, 'conflict-dismissed', 'op-dismissed', 48, 'op-dismiss', 50);
       await setCommitOrdinal(fixture.collectionId, 50);
       const snapshot = await snapshotApp(keys).query({
@@ -63,6 +67,7 @@ describeWithPostgres('P1-6 snapshot open conflict recovery', () => {
       const resolved = await resolve(fixture, 'conflict-open');
       assert.equal(resolved.outcome, 'resolved', resolved.error);
       assert.equal(resolved.conflictStatus, 'resolved');
+      assert.deepEqual(await immutableConflict(), admission, 'snapshot recovery and dismissal preserve the authenticated admission bytes');
       const after = await pullEvents(keys, fixture, snapshot.syncCursor);
       assert.equal(after.some((event) => mentions(event, 'conflict-open') && mentions(event, 'resolved')), true);
       assert.equal(after.some((event) => mentions(event, 'conflict-dismissed') || mentions(event, 'op-visible')), false);
@@ -277,7 +282,7 @@ async function insertOpenConflict(fixture: RecoveryFixture, targetId: string, co
   const encrypted = encryptPrivatePayload(plaintext, KEYRING.active, {
     collectionId: fixture.collectionId, replicaId: fixture.replicaId,
     leaseGeneration: binding.rows[0].lease_generation, sessionId: fixture.sessionId, operationId,
-    targetId, conflictId, commitOrdinal: String(ordinal), conflictType: 'concurrent_field_update',
+    targetId, conflictId, commitOrdinal: String(ordinal), conflictType: type,
     conflictingFields: stableJson(['/title'], invalid), nodeKind: 'bookmark', baseRevision: 'target-r1',
     currentRevision: 'target-r1', keyVersion: '7',
   });

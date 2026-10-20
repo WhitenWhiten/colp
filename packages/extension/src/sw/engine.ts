@@ -1,7 +1,8 @@
 import { createQueueRecapture } from '../queue-recapture.js';
 import { repairOwnCreateFromNative } from '../bookmark-own-create-repair.js';
 import { recoverLocalSaveFreeze, recoverMappedIdentityFreeze } from '../local-save-freeze-recovery.js';
-import { assertBootstrapUploadAllowed } from '../bootstrap/upload-boundary.js';
+import { assertQueuedUploadAllowed } from '../queued-upload-boundary.js';
+import { assertQueuedUploadBatchAllowed } from '../queued-upload-batch-boundary.js';
 import { withSubscriptionRead } from '../bookmark-subscriptions/barrier.js';
 import { assertSubscriptionUploadAllowed } from '../bookmark-subscriptions/personal-boundary.js';
 import { BookmarkApiError, bookmarkApiErrorFromUnknown, classifyBookmarkApiFailure } from '../bookmark-api-error.js';
@@ -37,6 +38,7 @@ import { hasBookmarkPermission, extensionOrigin, safeError, store, sw, syncState
 import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAuthority, restoredSyncScope } from './scope.js';
 import { createSyncAlarmScheduler } from '../sync-alarm.js';
 import { reportReplicaHealth } from './replica-health.js';
+import { readUnresolvedConsumedQueueIssues, readUnresolvedQueuePage } from '../sync-status-queue.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
@@ -59,14 +61,18 @@ export function scheduleSyncEngineWake(reason: 'startup' | 'alarm' | 'online' | 
       // Every pass, including one a stopped engine returns from at once, tells
       // the Sync center where this browser stands.
       void reportReplicaHealth();
-      if (reason === 'online' && connectivityRestored) {
-        sw.confirmedOnlineWakePending = false;
-        sw.coalescedOnlineWake = undefined;
-      }
     }
   }).catch((error: unknown) => {
     if (error instanceof AuthorityFencedError) return;
     throw error;
+  }).finally(() => {
+    // Admission itself reads the authority fence. A refused storage read can
+    // reject before the work callback starts, and must not pin online wakes to
+    // the rejected promise after the browser's storage becomes available again.
+    if (reason === 'online' && connectivityRestored && sw.coalescedOnlineWake === operation) {
+      sw.confirmedOnlineWakePending = false;
+      sw.coalescedOnlineWake = undefined;
+    }
   });
   if (reason === 'online' && connectivityRestored) sw.coalescedOnlineWake = operation;
   return operation;
@@ -126,18 +132,26 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   // EXT-01: the push network dispatch rides the same live-authority capability
   // as ordinary Pull, so a late Drain cannot POST under a revoked generation.
   const effects = syncEffects(scope, context);
-  const assertBootstrapBoundary = (queue: QueueOperation) => assertBootstrapUploadAllowed({ store: syncState, scope, queue,
+  const assertBootstrapBoundary = (queue: QueueOperation) => assertQueuedUploadAllowed({ store: syncState, scope, queue,
+    parentOf: async id => {
+      const nodes = await readPermittedBookmarkApi(() => chrome.bookmarks.get(id));
+      if (!nodes[0]) throw new Error('bootstrap_boundary_unavailable');
+      return nodes[0].parentId;
+    } });
+  const assertBootstrapBatchBoundary = (rows: readonly QueueOperation[]) => assertQueuedUploadBatchAllowed({
+    store: syncState, scope, rows, getMany: ids => readPermittedBookmarkApi(() => chrome.bookmarks.get([...ids])),
     parentOf: async id => {
       const nodes = await readPermittedBookmarkApi(() => chrome.bookmarks.get(id));
       if (!nodes[0]) throw new Error('bootstrap_boundary_unavailable');
       return nodes[0].parentId;
     } });
   const worker = createOutboundPushWorker({ scope, store: syncState, endpoints, sessions, fetch: effects.fetch,
-    origin: extensionOrigin(), assertUploadAllowed: assertBootstrapBoundary,
+    origin: extensionOrigin(), assertUploadAllowed: assertBootstrapBoundary, assertBatchUploadAllowed: assertBootstrapBatchBoundary,
     recaptureHeld: createQueueRecapture({ store: syncState, scope, api: chrome.bookmarks, permission: hasBookmarkPermission }),
     dispatch: (queue,send) => withSubscriptionRead(async()=>{await assertSubscriptionUploadAllowed(syncState,scope,queue);await assertBootstrapBoundary(queue);return send();}),
     dispatchBatch: (rows, send) => withSubscriptionRead(async () => {
-      for (const row of rows) { await assertSubscriptionUploadAllowed(syncState, scope, row); await assertBootstrapBoundary(row); }
+      for (const row of rows) await assertSubscriptionUploadAllowed(syncState, scope, row);
+      await assertBootstrapBatchBoundary(rows);
       return send();
     }),
     readChildrenOrder: async (parentId) => (await readPermittedBookmarkApi(
@@ -395,7 +409,7 @@ async function projectSnapshotNode(scope: SyncScope, context: AuthorityContext,
   return projected;
 }
 
-/** The statuses `pendingDurableWorkFacts` scans; a page of each, ordered by sequence. */
+/** The statuses scanned; one page of unresolved rows each, ordered by sequence. */
 const LIVE_QUEUE_STATUSES = ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'rejected', 'set_aside'] as const;
 
 async function pendingDurableWorkFacts(scope: SyncScope) {
@@ -405,7 +419,7 @@ async function pendingDurableWorkFacts(scope: SyncScope) {
   let oldestLiveOccurredAt: number | null = null;
   const live: Array<{ readonly status?: string; readonly recovery?: { readonly code?: string } }> = [];
   for (const status of LIVE_QUEUE_STATUSES) {
-    const rows = await syncState.listQueue(scope, status, 0, 1_000);
+    const rows = await readUnresolvedQueuePage(syncState, scope, status);
     live.push(...rows);
     hasPendingWork ||= hasRecoverableQueueWork(rows);
     conflictPending ||= hasConflictBarrier(rows);
@@ -424,6 +438,12 @@ async function pendingDurableWorkFacts(scope: SyncScope) {
       if (!Number.isFinite(occurredAt)) continue;
       oldestLiveOccurredAt = oldestLiveOccurredAt === null ? occurredAt : Math.min(oldestLiveOccurredAt, occurredAt);
     }
+  }
+  // Terminal means the sequence was consumed, not that the user's edit was
+  // accepted. Keep that business refusal visible without calling it backlog.
+  if ((await syncState.getScope(scope))?.lifecycle === 'active') {
+    const consumed = await readUnresolvedConsumedQueueIssues(syncState, scope);
+    live.push(...consumed); rejectedPending ||= hasRejectedBarrier(consumed);
   }
   return { hasPendingWork, conflictPending, rejectedPending, oldestLiveOccurredAt,
     queueProjection: queueStatusProjection(live) };

@@ -5,6 +5,7 @@ import {
   mergeSyncTypedUpdate,
   validateSyncTypedUpdateOperationPayload,
   type SyncTypedUpdateOperation,
+  type SyncTypedMergeResult,
 } from '@know-n/colp/sync';
 import { preserveExtensions } from '@know-n/colp/schema';
 import type { Operation } from '@know-n/colp/types';
@@ -14,12 +15,13 @@ import {
   assertValidNodeTags,
   assertValidNodeTitle,
   assertValidNodeVisibility,
-  isEquivalentBookmarkUrlRewrite,
   type JsonObject,
   type JsonValue,
   type ResourceOwnedFields,
   validBookmarkPinExtension,
 } from '../collections/index.js';
+import { validIncomingBookmarkUrlHash, reconcileSyncBookmarkMetadata,
+  incomingBookmarkMetadataForCurrent } from './sync-bookmark-metadata.js';
 
 export type SyncNodeKind = 'folder' | 'bookmark' | 'separator';
 
@@ -127,18 +129,19 @@ export function evaluateSyncNodeUpdate(
   ));
   if (untrusted.length > 0) return conflict('sync_base_untrusted', untrusted.sort());
 
-  const extensions = fields.includes('extensions')
-    ? mergeExtensionNamespaces(trustedProjection.extensions, currentProjection.extensions, payload.value.extensions)
-    : undefined;
-  const merged = mergeSyncTypedUpdate(extensions === undefined
-    ? { base: trustedProjection, current: currentProjection, incoming: payload.value }
-    : { base: withoutExtensions(trustedProjection), current: withoutExtensions(currentProjection),
-        incoming: withoutExtensions(payload.value) });
+  if (current.kind === 'bookmark'
+      && !validIncomingBookmarkUrlHash(payload.base, payload.value, trustedBase.payload.url)) {
+    deny('invalid_document');
+  }
+
+  const incoming = current.kind === 'bookmark'
+    ? incomingBookmarkMetadataForCurrent(current.payload, payload.base, payload.value, trustedBase.payload.url) : payload.value;
+  const merged = mergeSyncNodeContentFields(trustedProjection, currentProjection, incoming);
   if (merged.status === 'conflict') {
     return conflict('sync_conflict_pending', merged.conflicts.map((item) => item.field).sort());
   }
-  const pinnedMerged = pinEquivalentBookmarkUrlMerge(current,
-    extensions === undefined ? merged.value : Object.freeze({ ...merged.value, extensions }));
+  const pinnedMerged = current.kind === 'bookmark'
+    ? reconcileSyncBookmarkMetadata(current.payload, merged.value, payload.base, payload.value, trustedBase.payload.url) : merged.value;
   assertBudget([pinnedMerged], budget);
   const canonical = canonicalFields(current.kind, pinnedMerged, current.payload);
   return Object.freeze({
@@ -152,13 +155,30 @@ export function evaluateSyncNodeUpdate(
   });
 }
 
+/** The same field/namespace merge is used when settling retained conflict intent. */
+export function mergeSyncNodeContentFields(
+  base: Readonly<Record<string, unknown>>,
+  current: Readonly<Record<string, unknown>>,
+  incoming: Readonly<Record<string, unknown>>,
+): SyncTypedMergeResult {
+  const extensions = Object.hasOwn(base, 'extensions')
+    ? mergeSyncExtensionNamespaces(base.extensions, current.extensions, incoming.extensions) : undefined;
+  const merged = mergeSyncTypedUpdate(extensions === undefined ? { base, current, incoming }
+    : { base: withoutExtensions(base), current: withoutExtensions(current), incoming: withoutExtensions(incoming) });
+  return merged.status === 'merged' && extensions !== undefined
+    ? Object.freeze({ status: 'merged', value: Object.freeze({ ...merged.value, extensions }) }) : merged;
+}
+
 /**
  * Extension namespaces belong to different features (a bookmark pin, an import's
  * attributes), so they merge one namespace at a time: a pin set on one device and
  * another namespace changed elsewhere both land. Undefined means some namespace
  * changed differently on both sides, which stays an `extensions` field conflict.
+ * An explicit resolution supplies only competing namespace values; undefined
+ * removes that namespace without discarding other independent changes.
  */
-function mergeExtensionNamespaces(base: unknown, current: unknown, incoming: unknown): JsonObject | undefined {
+export function mergeSyncExtensionNamespaces(base: unknown, current: unknown, incoming: unknown,
+  resolveConflict?: (namespace: string) => unknown): JsonObject | undefined {
   const sides = [base ?? {}, current ?? {}, incoming ?? {}];
   if (!sides.every((side) => side !== null && typeof side === 'object' && !Array.isArray(side))) return undefined;
   const [b, c, i] = sides as Record<string, unknown>[];
@@ -168,6 +188,7 @@ function mergeExtensionNamespaces(base: unknown, current: unknown, incoming: unk
     let value: unknown;
     if (deepEqualSyncMergeValue(baseValue, incomingValue)) value = currentValue;
     else if (deepEqualSyncMergeValue(baseValue, currentValue) || deepEqualSyncMergeValue(currentValue, incomingValue)) value = incomingValue;
+    else if (resolveConflict) value = resolveConflict(key);
     else return undefined;
     if (value !== undefined) merged[key] = value;
   }
@@ -181,33 +202,6 @@ function withoutExtensions(fields: Readonly<Record<string, unknown>>): Readonly<
 
 function isSupportedKind(value: unknown): value is SyncNodeKind {
   return value === 'folder' || value === 'bookmark' || value === 'separator';
-}
-
-/**
- * CS-01 generation fence: a bookmark `url` whose submitted spelling is
- * normalization-equivalent to the stored one is not a content change.
- * Pinning `url` — and its `urlHash` digest, which binds the preserved raw
- * bytes — to the stored value keeps the receipt/base projection, the
- * canonical write, and the generation fence all on the original URL.
- * Without the pin the stored value and the reflowed merge would diverge
- * and the client's next base would fail `sync_base_untrusted`.
- */
-function pinEquivalentBookmarkUrlMerge(
-  current: TrustedSyncNodeRevision,
-  merged: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, unknown>> {
-  if (current.kind !== 'bookmark') return merged;
-  const storedUrl = current.payload.url;
-  const submitted = merged.url;
-  if (typeof storedUrl !== 'string' || typeof submitted !== 'string') return merged;
-  if (!isEquivalentBookmarkUrlRewrite(storedUrl, submitted)) return merged;
-  const pinned: Record<string, unknown> = { ...merged, url: storedUrl };
-  if (Object.hasOwn(pinned, 'urlHash')) {
-    const storedHash = current.payload.urlHash;
-    if (typeof storedHash === 'string') pinned.urlHash = storedHash;
-    else delete pinned.urlHash;
-  }
-  return Object.freeze(pinned);
 }
 
 function conflict(
@@ -252,7 +246,7 @@ function canonicalFields(
       switch (field) {
         case 'title':
           if (kind === 'separator' || value === null) deny('invalid_document');
-          kindFields.title = assertValidNodeTitle(value as string);
+          kindFields.title = assertValidNodeTitle(value as string, kind === 'bookmark' ? 'bookmark' : 'folder');
           break;
         case 'url':
           if (kind !== 'bookmark' || value === null) deny('invalid_document');

@@ -1,8 +1,11 @@
+import { validateScopeCommandPlan } from './scope-command-record.js';
+export { validateScopeCommandPlan } from './scope-command-record.js';
+import { readScopeCommandRecord, writeScopeCommandRecord } from './scope-command-evidence.js';
 import { mergeRemoteObservation } from './remote-observation.js';
 import {
   SyncStateError, type JsonObject, type LocalExclusionSourceKind, type MappingInput,
   type MountPauseBaseline, type MountPauseCompleteness, type RemoteObservationKind,
-  type RemoteObservationRecord, type ScopeCommandKind, type ScopeCommandPhase,
+  type RemoteObservationRecord,
   type ScopeCommandPlanRecord, type SyncScope, type UnknownRecord,
 } from './types.js';
 import { boundedString, clone, safeInteger, strictObject, validateJson, validateRecord } from './codec.js';
@@ -15,10 +18,6 @@ import { validateLocalSyncExclusion, type LocalSyncExclusionRecord } from './rem
 import type { SyncStoreRuntime } from './runtime.js';
 
 const OBSERVATION_KINDS: readonly RemoteObservationKind[] = ['content', 'placement', 'tombstone'];
-const COMMAND_KINDS: readonly ScopeCommandKind[] = ['detach', 'rejoin', 'remoteDelete', 'rangeExit'];
-const COMMAND_PHASES: readonly ScopeCommandPhase[] = [
-  'preview', 'confirmed', 'fetching', 'comparing', 'applying', 'pending', 'active', 'failed',
-];
 
 export function createScopeFactsRepository(ctx: SyncStoreRuntime) {
   const keyFor = (scope: SyncScope) => scopeKey(validateScope(scope));
@@ -72,12 +71,12 @@ export function createScopeFactsRepository(ctx: SyncStoreRuntime) {
   async function putScopeCommandPlan(scope: SyncScope, row: Omit<ScopeCommandPlanRecord, 'scopeKey'>):
     Promise<ScopeCommandPlanRecord> {
     ctx.assertWritable(); const key = keyFor(scope);
-    const record = validateScopeCommandPlan(key, { ...row, scopeKey: key }, ctx.maxRecordBytes);
+    const record = validateScopeCommandPlan(key, { ...row, scopeKey: key }, Number.MAX_SAFE_INTEGER);
     const db = await ctx.writableDatabase();
     try {
-      await runTransaction(db, [STORES.scopes, STORES.scopeCommandPlans], 'readwrite', async (tx) => {
+      await runTransaction(db, [STORES.scopes, STORES.scopeCommandPlans, STORES.metadata], 'readwrite', async (tx) => {
         await requireActiveScope(tx, key);
-        tx.objectStore(STORES.scopeCommandPlans).put(record);
+        await writeScopeCommandRecord(tx, key, record, ctx.maxRecordBytes);
       });
     } catch (error) { throw constraintError(error); }
     return clone(record);
@@ -85,32 +84,41 @@ export function createScopeFactsRepository(ctx: SyncStoreRuntime) {
 
   async function getScopeCommandPlan(scope: SyncScope, commandId: string): Promise<ScopeCommandPlanRecord | null> {
     const key = keyFor(scope); const id = boundedString(commandId, 'commandId');
-    const db = await ctx.open(); const tx = db.transaction(STORES.scopeCommandPlans, 'readonly');
+    const db = await ctx.open(); const tx = db.transaction([STORES.scopeCommandPlans, STORES.metadata], 'readonly');
     const done = transactionDone(tx);
     const raw = await requestValue(tx.objectStore(STORES.scopeCommandPlans).get([key, id]));
-    await done; return raw ? clone(validateScopeCommandPlan(key, raw, ctx.maxRecordBytes)) : null;
+    const record = raw ? await readScopeCommandRecord(tx, key, raw, ctx.maxRecordBytes) : null;
+    await done; return record ? clone(record) : null;
+  }
+
+  async function listScopeCommandPlans(scope: SyncScope): Promise<ScopeCommandPlanRecord[]> {
+    const key = keyFor(scope); const db = await ctx.open();
+    const tx = db.transaction([STORES.scopeCommandPlans, STORES.metadata], 'readonly'); const done = transactionDone(tx);
+    const raw = await requestValue<unknown[]>(tx.objectStore(STORES.scopeCommandPlans).getAll(scopeRowsRange(key)));
+    const records = await Promise.all(raw.map(row => readScopeCommandRecord(tx, key, row, ctx.maxRecordBytes)));
+    await done; return records.map(clone);
   }
 
   async function beginScopeCommandPlan(scope: SyncScope, row: Omit<ScopeCommandPlanRecord, 'scopeKey'>):
     Promise<ScopeCommandPlanRecord> {
     ctx.assertWritable(); const key = keyFor(scope);
-    const record = validateScopeCommandPlan(key, { ...row, scopeKey: key }, ctx.maxRecordBytes);
+    const record = validateScopeCommandPlan(key, { ...row, scopeKey: key }, Number.MAX_SAFE_INTEGER);
     const db = await ctx.writableDatabase();
     let saved = record;
     try {
-      await runTransaction(db, [STORES.scopes, STORES.scopeCommandPlans], 'readwrite', async (tx) => {
+      await runTransaction(db, [STORES.scopes, STORES.scopeCommandPlans, STORES.metadata], 'readwrite', async (tx) => {
         await requireActiveScope(tx, key);
         const store = tx.objectStore(STORES.scopeCommandPlans);
         const prior = await requestValue(store.get([key, record.commandId])) as ScopeCommandPlanRecord | undefined;
         if (prior) {
-          const existing = validateScopeCommandPlan(key, prior, ctx.maxRecordBytes);
+          const existing = await readScopeCommandRecord(tx, key, prior, ctx.maxRecordBytes);
           const inflight = existing.phase !== 'active' && existing.phase !== 'failed';
           if (inflight && existing.kind === record.kind && existing.confirmationVersion === record.confirmationVersion) {
             saved = existing; return;
           }
           if (inflight) throw new SyncStateError('command_in_flight');
         }
-        store.put(record);
+        await writeScopeCommandRecord(tx, key, record, ctx.maxRecordBytes);
       });
     } catch (error) { throw constraintError(error); }
     return clone(saved);
@@ -191,7 +199,7 @@ export function createScopeFactsRepository(ctx: SyncStoreRuntime) {
 
   return {
     putRemoteObservation, getRemoteObservation, listRemoteObservations, deleteRemoteObservations,
-    putScopeCommandPlan, getScopeCommandPlan, beginScopeCommandPlan, commitRangeExitFacts, commitTombstoneMappingRepair,
+    putScopeCommandPlan, getScopeCommandPlan, listScopeCommandPlans, beginScopeCommandPlan, commitRangeExitFacts, commitTombstoneMappingRepair,
   };
 }
 
@@ -248,27 +256,6 @@ function observationPauseFields(row: UnknownRecord): Pick<RemoteObservationRecor
   };
 }
 
-export function validateScopeCommandPlan(key: string, input: unknown, maxBytes: number): ScopeCommandPlanRecord {
-  const row = strictObject(clone(input), ['scopeKey', 'commandId', 'kind', 'confirmationVersion', 'baselineDigest',
-    'phase', 'dependencies', 'retryReason', 'mountId', 'updatedAt'], 'scope command plan',
-    ['scopeKey', 'retryReason', 'mountId']);
-  if (row.scopeKey !== undefined && row.scopeKey !== key) throw new SyncStateError('command_scope_invalid');
-  const kind = String(row.kind) as ScopeCommandKind;
-  const phase = String(row.phase) as ScopeCommandPhase;
-  if (!COMMAND_KINDS.includes(kind)) throw new SyncStateError('command_kind_invalid');
-  if (!COMMAND_PHASES.includes(phase)) throw new SyncStateError('command_phase_invalid');
-  if (!Array.isArray(row.dependencies)) throw new SyncStateError('command_dependencies_invalid');
-  const record: ScopeCommandPlanRecord = {
-    scopeKey: key, commandId: boundedString(row.commandId, 'commandId'), kind,
-    confirmationVersion: boundedString(row.confirmationVersion, 'confirmationVersion', 64),
-    baselineDigest: row.baselineDigest === null ? null : boundedString(row.baselineDigest, 'baselineDigest'),
-    phase, dependencies: row.dependencies.map((item) => boundedString(item, 'dependency')),
-    updatedAt: safeInteger(row.updatedAt, 'updatedAt', 1),
-    ...(row.retryReason === undefined ? {} : { retryReason: boundedString(row.retryReason, 'retryReason', 128) }),
-    ...(row.mountId === undefined ? {} : { mountId: boundedString(row.mountId, 'mountId') }),
-  };
-  validateRecord(record, maxBytes); return record;
-}
 
 export function exclusionSourceKind(record: { readonly sourceKind?: LocalExclusionSourceKind }):
   LocalExclusionSourceKind {

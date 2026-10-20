@@ -1,5 +1,5 @@
 import { formatMoment, localized, t, tn } from './i18n.js';
-import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
+import { bindReplicaRebuildButton, replicaRebuildFailureCopy } from './replica-rebuild-ui.js';
 /**
  * S7 / B2 (SR-09 popup · SR-11 · SR-04/SR-13): the user-facing exits around a
  * paused or terminally frozen replica.
@@ -29,6 +29,7 @@ import type {
 } from './types.js';
 
 export const SYNC_ATTENTION_OPTIONS_HOST = 'sync-attention-settings';
+export const SYNC_ATTENTION_SHOW_EVENT = 'known.sync.attention.show';
 export let SYNC_ATTENTION_CONFLICT_LABEL: string, SYNC_ATTENTION_CENTER_LABEL: string, SYNC_ATTENTION_COPY_DIAGNOSTICS_LABEL: string, SYNC_ATTENTION_COPIED_COPY: string, SYNC_ATTENTION_COPY_FAILED_COPY: string;
 localized(() => {
   SYNC_ATTENTION_CONFLICT_LABEL = t('firstRun_reviewConflictsSyncCenter', 'Review conflicts in Sync center on the web');
@@ -132,6 +133,9 @@ export function rejectedWorkCopy(): string {
 }
 
 export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode): string {
+  if (code === 'upload_boundary_changed') {
+    return t('sync_uploadBoundaryStopped', 'Further uploads have stopped because your sync range changed. The result of an earlier transfer is unconfirmed. Reset sync on this device to review the selected folders and merge again. Bookmarks on this device and in Know-N are preserved.');
+  }
   if (code === 'metadata_sync_disabled') {
     return t('sync_metadataConsentStopped', 'A queued change contains browser metadata that you have not allowed to sync. Reset sync on this device to set aside queued changes and review the merge again. Your bookmarks and local metadata are preserved.');
   }
@@ -304,6 +308,7 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     feedback: document.getElementById(`${hostId}-feedback`),
   };
   let report = '';
+  let disposed = false;
   nodes.recoveryDiagnostics?.addEventListener('click', () => { void copyDiagnostics(nodes, report); });
   nodes.retry?.addEventListener('click', () => {
     if (!nodes.retry) return;
@@ -320,15 +325,19 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     nodes.copyDiagnostics.addEventListener('click', () => { void copyDiagnostics(nodes, report); });
   }
 
-  const refresh = async (): Promise<void> => {
+  const refresh = async (): Promise<PublicSyncAttention | undefined> => {
+    if (disposed) return undefined;
     const [attention, policy] = await Promise.all([readAttention(), readRemoteDeletePolicy()]);
     const facts = syncAttentionInput(attention, policy);
     const view = describeSyncAttention(attention
       ? facts : withNativeWaitFallback(facts, await readNativeWaitCount()));
+    if (disposed) return undefined;
     report = view.terminal.show ? view.terminal.report : view.recovery.report;
     paintSyncAttention(nodes, view);
     const terminalRepair = document.getElementById(`${hostId}-rebuild`);
     if (terminalRepair) terminalRepair.hidden = attention?.rebuildAvailable !== true;
+    if (attention?.terminalCode === 'replica_rebuild_pending' && attention.rebuildAvailable !== true
+      && attention.rebuildUnavailableReason) showFeedback(nodes.feedback, replicaRebuildFailureCopy(attention.rebuildUnavailableReason));
     let repair = document.getElementById(`${hostId}-issue-repair`);
     if (!repair) {
       repair = document.createElement('div'); repair.id = `${hostId}-issue-repair`;
@@ -338,16 +347,41 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
       repair.append(button, feedback); nodes.host.append(repair); bindReplicaRebuildButton(repair.id);
     }
     repair.hidden = attention?.rebuildAvailable !== true || attention.recoveryFrozen === true;
+    return attention;
   };
+  const show = (event: Event) => {
+    const action: unknown = event instanceof CustomEvent ? event.detail?.action : undefined;
+    if (disposed || !syncPaneOnly || action !== 'retry_sync' && action !== 'reset_sync') return;
+    void refresh().then(attention => {
+      if (disposed) return;
+      const id = action === 'retry_sync' && attention?.retryAvailable === true ? `${hostId}-retry`
+        : action === 'reset_sync' && attention?.rebuildAvailable === true
+          ? `${hostId}-${attention.recoveryFrozen ? '' : 'issue-repair-'}rebuild` : undefined;
+      const control = id ? document.getElementById(id) : null;
+      if (control instanceof HTMLButtonElement && !control.disabled && !control.closest('[hidden]')) control.focus();
+      else {
+        host.hidden = false; host.tabIndex = -1; host.focus();
+        showFeedback(nodes.feedback, t('sync_recoveryActionChanged',
+          'Sync status changed. Review the current details, then refresh your pending decisions.'));
+      }
+    });
+  };
+  window.addEventListener(SYNC_ATTENTION_SHOW_EVENT, show);
   void refresh();
-  setInterval(() => {
+  const timer = setInterval(() => {
     if (!syncPaneOnly || document.body.dataset.pane === 'sync') void refresh();
   }, REFRESH_MS);
+  let observer: MutationObserver | undefined;
   if (!syncPaneOnly) {
     // The popup starts before auth settles: re-read once the panel becomes usable.
-    new MutationObserver(() => { void refresh(); })
-      .observe(document.body, { attributes: true, attributeFilter: ['data-state'] });
+    observer = new MutationObserver(() => { void refresh(); });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-state'] });
   }
+  const dispose = () => {
+    disposed = true; clearInterval(timer); observer?.disconnect();
+    window.removeEventListener(SYNC_ATTENTION_SHOW_EVENT, show); window.removeEventListener('pagehide', dispose);
+  };
+  window.addEventListener('pagehide', dispose);
 }
 
 function paintSyncAttention(nodes: AttentionNodes, view: SyncAttentionView): void {
@@ -417,9 +451,11 @@ async function readRemoteDeletePolicy(): Promise<RemoteDeleteResponse | undefine
 
 /** Bounded like `remote-delete-ui.ts`: a sleeping worker never leaves the panel blank forever. */
 async function send<T>(message: { readonly kind: string }): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const pending = chrome.runtime.sendMessage(message) as Promise<T>;
-    const timeout = new Promise<undefined>((resolve) => { setTimeout(() => resolve(undefined), 8_000); });
+    const timeout = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), 8_000); });
     return await Promise.race([pending, timeout]);
   } catch { return undefined; }
+  finally { if (timer !== undefined) clearTimeout(timer); }
 }

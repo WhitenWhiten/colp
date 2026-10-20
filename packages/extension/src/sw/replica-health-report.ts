@@ -27,6 +27,7 @@ import type { LocalIssueRecord, PullIssueRecord, QueueOperation, SyncScope } fro
 import { refreshesReplicaIntegrity, needsReplicaRebuild, persistentLocalSyncFailure } from '../sync-failure-class.js';
 import type { PublicSyncAttention } from '../types.js';
 import { handleSyncAttentionRequest, readStalledUpload, type SyncAttentionStore } from './sync-attention.js';
+import type { PendingReplicaRebuild } from '../replica-rebuild.js';
 
 export const REPLICA_HEALTH_PATH = '/colp/v0.1/sync/replica-health';
 export const REPLICA_HEALTH_RECORD_KEY = 'known.sync.health.v1';
@@ -121,7 +122,8 @@ export interface ReplicaHealthReporterDeps {
     readonly exportArchive?: (scope: SyncScope) => Promise<{ readonly reason?: unknown }>;
   };
   readonly mode: () => Promise<PersonalSyncMode | undefined>;
-  readonly rebuildPending?: () => Promise<boolean>;
+  readonly rebuildPending?: () => Promise<boolean | PendingReplicaRebuild>;
+  readonly serverRetirement?: boolean;
   readonly credential: () => Promise<{ readonly accessToken: string; readonly serverOrigin: string; readonly subject?: string }>;
   readonly fetch: typeof fetch;
   readonly storage: Pick<StorageArea, 'get' | 'set'>;
@@ -258,6 +260,7 @@ async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaH
   if (!deps.store.listBootstrapRuns) throw new Error('bootstrap_state_unavailable');
   const open = await readOpenSyncIssues(deps.store, deps.scope);
   const response = await handleSyncAttentionRequest({ scope: async () => deps.scope, store: deps.store, openIssues: open,
+    serverRetirement: deps.serverRetirement,
     ...(deps.rebuildPending ? { rebuildPending: deps.rebuildPending } : {}) });
   if (response.ok !== true) throw new Error('scope_unavailable');
   const issues = snapshotSyncIssues(open);

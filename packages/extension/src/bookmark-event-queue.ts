@@ -1,6 +1,8 @@
+import { isRejoinEcho } from './scope-rejoin-echo.js';
 import { isAutomaticIngressWaitCode } from './sync-state/open-issue-facts.js';
 import { classifySyncFailure, syncFailureCode } from './sync-failure-class.js';
 import { createBookmarkPlacement } from './bookmark-event-placement.js';
+import { allowCompletedMoveEcho } from './bookmark-move-echo.js';
 import { hasRunningBootstrap } from './bootstrap/run-identity.js';
 import { folderSyncCoverage } from './bookmark-sync-range.js';
 import { placementDomainKeys } from './bookmark-event-placement-domain.js';
@@ -21,6 +23,7 @@ import { identityFromCreateReceipt } from './bookmark-create-receipt-identity.js
 import { classifyRemovalScope, deletionNodeKind, deletionOperationType, removalNodePresent,
   type DeletionNodeKind } from './bookmark-deletion-scope.js';
 import { reconcileBookmarkTree } from './bookmark-event-reconcile.js';
+import { recoverChildOrder } from './bookmark-child-order.js';
 import { captureMissingNativeRemovals } from './bookmark-removal-reconcile.js';
 import { journalSubtreeNativeIds, persistRemovalJournal } from './deletion-journal.js';
 import { capturePendingSubtreeDeletion } from './subtree-observation.js';
@@ -56,6 +59,8 @@ export interface BookmarkEventApi {
 }
 interface QueueOptions {
   readonly scope: SyncScope; readonly store: ReturnType<typeof createSyncStateStore>; readonly api: BookmarkEventApi;
+  /** A new confirmed recovery is distinct from the identical, refused historical capture. */
+  readonly captureContext?: string;
   readonly now?: () => string; readonly uuid?: () => string; readonly autoFlush?: boolean;
   readonly childLookupRetryDelaysMs?: readonly number[]; readonly fault?: 'after_sequence' | 'after_queue' | 'after_event';
   readonly reorderDebounceMs?: number; readonly scheduleReorderFlush?: (flush: () => void, delayMs: number) => void;
@@ -304,6 +309,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     if (await kns09Paused('ingress')) { recordKns09PausedDrop(); return { outcome: 'filtered' }; }
     const occurredAt = now(); assertOperationCandidate(asObject(details.operation, 'operation'));
     const dedupeKey = digestJson({ kind, nativeId, exactCorrelation: exactCorrelation ?? null,
+      ...(options.captureContext ? { captureContext: options.captureContext } : {}),
       operation: details.operation as JsonValue });
     let result;
     try {
@@ -462,9 +468,14 @@ export function createBookmarkEventQueue(options: QueueOptions) {
 
   async function recover(): Promise<void> { await flush(); await reconcileTree(); await flush(); }
 
+  async function reconcileOrder(parentNativeId: string): Promise<void> {
+    if (!(await privacyFor(parentNativeId, true)).allowOperationCandidate) return;
+    await recoverChildOrder({ store: options.store, scope: options.scope, parentNativeId, readChildren, reordered });
+  }
+
   async function reconcileTree(): Promise<void> {
     await reconcileBookmarkTree({
-      store: options.store, scope: options.scope, identityFor, created, changed, moved, stageDelete,
+      store: options.store, scope: options.scope, identityFor, created, changed, moved, stageDelete, reconcileOrder,
       readChildren, readNode: id => options.api.get(id), listPendingEvents,
     });
   }
@@ -540,7 +551,10 @@ export function createBookmarkEventQueue(options: QueueOptions) {
   }
   async function hasApplyIntent(kind: string, nativeId: string, details: JsonObject) {
     const correlationId = correlationFor(kind, nativeId, details);
-    return options.store.observeApplyIntentEvent(options.scope, correlationId, { eventDigest: correlationId, nativeId });
+    const allowCompletedEcho = kind !== 'move' || await allowCompletedMoveEcho({
+      nativeId, details, api: options.api, identityFor, listPendingEvents });
+    if (await isRejoinEcho({ store: options.store, scope: options.scope, kind, nativeId, correlationId, allowCompleted: allowCompletedEcho })) return true;
+    return options.store.observeApplyIntentEvent(options.scope, correlationId, { eventDigest: correlationId, nativeId }, allowCompletedEcho);
   }
   async function reservedByProjection(kind: 'create' | 'change' | 'move' | 'remove', nativeId: string,
     suppression: string | undefined, changes?: ProjectionChangeFields,
@@ -560,6 +574,6 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     }
   }
 
-  return Object.freeze({ created, changed, described, tagged, pinned, moved, removed, reordered, flush, recover, correlationFor,
+  return Object.freeze({ created, changed, described, tagged, pinned, moved, removed, reordered, reconcileOrder, flush, recover, correlationFor,
     captureMissingRemovals: () => captureMissingNativeRemovals({ store: options.store, scope: options.scope, api: options.api, removed }) });
 }

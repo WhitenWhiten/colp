@@ -91,21 +91,44 @@ export async function probePullState(db: IDBDatabase, scopeKeyValue: string, sta
 
 export async function readOrderedPullEvents(db: IDBDatabase, scopeKeyValue: string,
   states?: readonly string[]): Promise<UnknownRecord[]> {
+  const tx = db.transaction([STORES.pullEvents, STORES.pullPages], 'readonly');
+  const completion = transactionDone(tx);
+  try {
+    const events = await readOrderedPullEventsInTransaction(tx, scopeKeyValue, states);
+    await completion;
+    return events;
+  } catch (error) {
+    await completion.catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Read the event rows and their page-chain order from the caller's single snapshot. */
+export async function readOrderedPullEventsInTransaction(tx: IDBTransaction, scopeKeyValue: string,
+  states?: readonly string[]): Promise<UnknownRecord[]> {
   const wanted = states && states.length > 0 ? states : PULL_EVENT_STATES;
   const events: UnknownRecord[] = [];
-  for (const state of wanted) events.push(...await readStateIndex(db, STORES.pullEvents, INDEXES.pullEventByState,
-    scopeKeyValue, state));
+  for (const state of wanted) events.push(...await readStateIndex(tx, STORES.pullEvents, INDEXES.pullEventByState,
+    scopeKeyValue, state, 'eventId'));
   const pageIds = [...new Set(events.map((event) => String(event.pageId)))];
-  const pages = await readPagesForIds(db, scopeKeyValue, pageIds);
+  const pages = await readPagesForIds(tx, scopeKeyValue, pageIds);
   return orderEventsByPageChain(events, pages);
 }
 
 export async function readPullPagesByState(db: IDBDatabase, scopeKeyValue: string,
   states: readonly string[]): Promise<UnknownRecord[]> {
-  const pages: UnknownRecord[] = [];
-  for (const state of states) pages.push(...await readStateIndex(db, STORES.pullPages, INDEXES.pullPageByState,
-    scopeKeyValue, state));
-  return pages;
+  const tx = db.transaction(STORES.pullPages, 'readonly');
+  const completion = transactionDone(tx);
+  try {
+    const pages: UnknownRecord[] = [];
+    for (const state of states) pages.push(...await readStateIndex(tx, STORES.pullPages, INDEXES.pullPageByState,
+      scopeKeyValue, state, 'pageId'));
+    await completion;
+    return pages;
+  } catch (error) {
+    await completion.catch(() => undefined);
+    throw error;
+  }
 }
 
 /** Authority facts for unfinished pages only, read together in one IDB transaction. */
@@ -272,39 +295,29 @@ export async function pruneCompletedPullPages(tx: IDBTransaction, key: string, l
   return removed;
 }
 
-async function readPagesForIds(db: IDBDatabase, scopeKeyValue: string, pageIds: readonly string[]): Promise<UnknownRecord[]> {
-  if (pageIds.length === 0) return [];
-  const tx = db.transaction(STORES.pullPages, 'readonly');
-  const completion = transactionDone(tx);
+async function readPagesForIds(tx: IDBTransaction, scopeKeyValue: string, pageIds: readonly string[]): Promise<UnknownRecord[]> {
   const store = tx.objectStore(STORES.pullPages); const pages: UnknownRecord[] = [];
   for (const pageId of pageIds) {
     const value = await requestValue(store.get([scopeKeyValue, pageId]));
     if (value) pages.push(value as UnknownRecord);
   }
-  await completion;
   return pages;
 }
 
-async function readStateIndex(db: IDBDatabase, storeName: string, indexName: string, scopeKeyValue: string,
-  state: string): Promise<UnknownRecord[]> {
+async function readStateIndex(tx: IDBTransaction, storeName: string, indexName: string, scopeKeyValue: string,
+  state: string, idField: 'eventId' | 'pageId'): Promise<UnknownRecord[]> {
   const rows: UnknownRecord[] = [];
+  const index = tx.objectStore(storeName).index(indexName);
   let after: string | null = null;
   for (;;) {
-    const tx = db.transaction(storeName, 'readonly');
-    const completion = transactionDone(tx);
-    const index = tx.objectStore(storeName).index(indexName);
     const lower = after === null ? [scopeKeyValue, state] : [scopeKeyValue, state, after];
-    const page: UnknownRecord[] = []; let last: string | null = null;
-    await iterateCursor(index, IDBKeyRange.bound(lower, [scopeKeyValue, state, []]), (value, cursor) => {
-      const cursorKey = cursor.key as unknown as readonly [string, string, string];
-      if (after !== null && cursorKey[2] === after) return undefined;
-      page.push(value as UnknownRecord); last = String(cursorKey[2]);
-      return page.length < PULL_INDEX_PAGE;
-    });
-    await completion;
+    // Both indexes are unique on [scope, state, id]. Read one bounded batch
+    // instead of delivering a browser cursor callback for every historical row.
+    const page = await requestValue(index.getAll(IDBKeyRange.bound(lower,
+      [scopeKeyValue, state, []], after !== null), PULL_INDEX_PAGE)) as UnknownRecord[];
     rows.push(...page);
-    if (page.length < PULL_INDEX_PAGE || last === null) return rows;
-    after = last;
+    if (page.length < PULL_INDEX_PAGE) return rows;
+    after = String(page.at(-1)![idField]);
   }
 }
 

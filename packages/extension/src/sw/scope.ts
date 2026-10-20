@@ -15,6 +15,7 @@ import { resolveSessionBootstrapMode, resolveSessionMountBinding, retireScopeIfQ
 import { COLLECTION_BINDING, extensionOrigin, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { writeAuthSnapshot } from '../auth-snapshot.js';
 import { configuredPersonalSyncPolicy, personalSyncFetch } from '../personal-sync-fetch.js';
+import { pendingRebuildBlocksSession } from '../replica-rebuild.js';
 
 export async function loadConfig(): Promise<BuildConfig> {
   sw.configPromise ??= fetch(chrome.runtime.getURL('generated-config.json'), { cache: 'no-store' })
@@ -150,7 +151,9 @@ export async function ensureSyncScope(config: BuildConfig, credential: StoredCre
   }
 }
 
-export async function currentSyncScope(options: { allowStopped?: boolean } = {}): Promise<SyncScope> {
+export async function currentSyncScope(options: { allowStopped?: boolean; allowArchived?: boolean;
+  /** Read an address for a pending Rebuild's identity check, without granting Session authority. */
+  allowUnregistered?: boolean } = {}): Promise<SyncScope> {
   const config = await loadConfig(); const credential = await store.loadCredential(); const session = await store.loadSession();
   const binding = await store.loadBinding();
   if (!credential?.subject || !binding) throw new Error('not_connected');
@@ -170,9 +173,12 @@ export async function currentSyncScope(options: { allowStopped?: boolean } = {})
   // Expired offline renewal can clear Session authority. Keep only the address
   // of existing durable work; the engine must still mint a valid Session before
   // it can Pull/Push or consume a local projection owner.
-  if (!session) {
+  if (!session && !options.allowUnregistered) {
     const recorded = await syncState.getScope(scope);
-    if (!recorded || recorded.lifecycle === 'retired') throw new Error('not_connected');
+    if (!recorded || recorded.lifecycle === 'retired') {
+      if (!options.allowArchived) throw new Error('not_connected');
+      await syncState.exportArchive(scope);
+    }
   }
   if (!options.allowStopped) await configuredPersonalSyncPolicy()?.capture(scope);
   return scope;
@@ -269,6 +275,9 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
   if (before?.subject && target) await configuredPersonalSyncPolicy()?.capture({ serverOrigin: before.serverOrigin, accountId: before.subject, collectionId: target });
   const effectiveForce = shouldForceSessionRefresh(forceRefresh, observedSessionId, session?.sessionId ?? null);
   const credential = await auth.ensureFreshCredential(effectiveForce); session = await store.loadSession();
+  if (await pendingRebuildBlocksSession(chrome.storage.local, credential, await store.loadBinding())) {
+    throw new Error('replica_rebuild_pending');
+  }
   const sessionMatchesCredential = session ? await sessionMatchesCredentialAuthority(session, credential) : false;
   // A Session is bound to one Collection. Selecting another Collection leaves a
   // stored Session that authenticates a different scope, so reusing it would

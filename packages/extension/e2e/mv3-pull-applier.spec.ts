@@ -1,11 +1,17 @@
-import { test, expect, chromium, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, chromium, type BrowserContext, type CDPSession, type Page } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
-import { installFixtureReplicaBinding, openExtensionOptions, signInExtension } from './extension-auth.js';
+import { installFixtureReplicaBinding, openExtensionOptions, showOptionsPane, signInExtension } from './extension-auth.js';
 import { startRealStack } from './real-stack.js';
 import { fixtureCollectionId } from './external-backend.js';
+import { KNS08_BINDINGS, confirmFirstRun, grantBookmarks as grantRealBookmarks, launchPersistent,
+  login, optionsPage, runtimeMessage, specialRoots, waitFirstRunProductQuiet, waitQueueQuiet } from './kns-08-harness.js';
+import type { createSyncStateStore } from '../src/sync-state-store.js';
+import type { PublicNativeWait } from '../src/types.js';
+
+type ScopeExport = Awaited<ReturnType<ReturnType<typeof createSyncStateStore>['exportScope']>>;
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const extensionPath = resolve(import.meta.dirname, '../dist/production');
@@ -87,6 +93,129 @@ test('real Backend/PostgreSQL effect pages resume across 429 and MV3 worker rest
   } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
+test('real child native-wait binds an onCreated candidate after worker stop and persistent-profile restart', async () => {
+  test.setTimeout(300_000);
+  const stack = await startRealStack();
+  const profiles = await Promise.all(['a', 'b'].map(id => mkdtemp(resolve(tmpdir(), `known-r5-child-wait-${id}-`))));
+  let a: BrowserContext | undefined, b: BrowserContext | undefined;
+  const folderTitle = 'Native wait source folder', childTitle = 'Native wait child';
+  const childUrl = 'https://example.test/native-wait-child';
+  try {
+    a = await launchPersistent(profiles[0]!, stack.browserHostResolverRules);
+    const pageA = await optionsPage(a); await login(pageA, KNS08_BINDINGS[0]); await grantRealBookmarks(pageA);
+    const rootsA = await specialRoots(pageA);
+    const originalA = await pageA.evaluate(async ({ parentId, folderTitle, childTitle, childUrl }) => {
+      const folder = await chrome.bookmarks.create({ parentId, title: folderTitle });
+      const child = await chrome.bookmarks.create({ parentId: folder.id, title: childTitle, url: childUrl });
+      return { folder, child };
+    }, { parentId: rootsA.barId, folderTitle, childTitle, childUrl });
+    await confirmFirstRun(pageA, [rootsA.barTitle, rootsA.otherTitle]);
+    await waitFirstRunProductQuiet(pageA, stack, KNS08_BINDINGS[0]);
+
+    b = await launchPersistent(profiles[1]!, stack.browserHostResolverRules);
+    let pageB = await optionsPage(b); await login(pageB, KNS08_BINDINGS[1]); await grantRealBookmarks(pageB);
+    const rootsB = await specialRoots(pageB);
+    await confirmFirstRun(pageB, [rootsB.barTitle, rootsB.otherTitle]);
+    await waitFirstRunProductQuiet(pageB, stack, KNS08_BINDINGS[1]);
+    const originalB = await pageB.evaluate(async ({ folderTitle, childUrl }) => {
+      const [folder] = await chrome.bookmarks.search({ title: folderTitle });
+      const [child] = await chrome.bookmarks.search({ url: childUrl });
+      return { folder: folder!, child: child! };
+    }, { folderTitle, childUrl });
+    expect(originalB.child.parentId).toBe(originalB.folder.id);
+    const before = await evidence<ScopeExport>(pageB, 'exportOutboundPushEvidence');
+    const folderColp = before.mappings.find(row => row.nativeId === originalB.folder.id)!.colpId;
+    const childColp = before.mappings.find(row => row.nativeId === originalB.child.id)!.colpId;
+    const sourceMount = before.mountBindings.find(row => row.nativeRootId === rootsB.barId)!;
+    expect(await runtimeMessage(pageB, { kind: 'known.scope.detach', mountId: sourceMount.mountId })).toMatchObject({ ok: true });
+
+    const worker = b.serviceWorkers().find(row => row.url() === `chrome-extension://${EXTENSION_ID}/service-worker.js`)!;
+    // The real Chrome call and its onCreated listener run unchanged. Only its
+    // return to the applier is suspended, so stopping MV3 loses the API receipt
+    // without inventing a failure, a candidate event, or durable confirmation.
+    await worker.evaluate(({ childTitle, childUrl }) => {
+      const create = chrome.bookmarks.create.bind(chrome.bookmarks);
+      let held = false;
+      chrome.bookmarks.create = async details => {
+        const native = await create(details);
+        if (!held && details.title === childTitle && details.url === childUrl) {
+          held = true; await new Promise<void>(() => undefined);
+        }
+        return native;
+      };
+    }, { childTitle, childUrl });
+    await pageA.evaluate(({ id, parentId }) => chrome.bookmarks.move(id, { parentId }),
+      { id: originalA.folder.id, parentId: rootsA.otherId });
+    await evidence(pageA, 'drainBookmarkEventCaptureEvidence');
+    await waitQueueQuiet(pageA, stack, KNS08_BINDINGS[0]);
+    // This production request acknowledges the wake before the held engine
+    // cycle finishes; awaiting the evidence wake would wait on the barrier.
+    expect(await runtimeMessage(pageB, { kind: 'known.sync.engine.retry' })).toMatchObject({ ok: true });
+    await expect.poll(async () => {
+      const state = await evidence<ScopeExport>(pageB, 'exportOutboundPushEvidence');
+      return state.intents.find(row => row.colpId === childColp && row.substep === 'range-materialize'
+        && typeof row.nativeEventEvidence?.nativeId === 'string')?.replayState;
+    }, { timeout: 60_000 }).toBe('started');
+    const interrupted = await evidence<ScopeExport>(pageB, 'exportOutboundPushEvidence');
+    const childIntent = interrupted.intents.find(row => row.colpId === childColp && row.substep === 'range-materialize')!;
+    const parentIntent = interrupted.intents.find(row => row.intentId === `intent:${childIntent.operationId}`)!;
+    const childNative = String(childIntent.nativeEventEvidence!.nativeId);
+    const parentNative = String(parentIntent.nativeResultConfirmation!.nativeId);
+    expect(childIntent.apiResultEvidence ?? null).toBeNull();
+    expect(parentIntent.nativeResultConfirmation).toEqual({ kind: 'api_return', nativeId: parentNative });
+    expect(parentNative).not.toBe(childNative);
+    expect(interrupted.mappings.some(row => row.nativeId === parentNative || row.nativeId === childNative)).toBe(false);
+    expect(interrupted.bookmarkEvents.some(row => row.nativeId === childNative && row.kind === 'create')).toBe(false);
+    expect(await pageB.evaluate(id => chrome.bookmarks.get(id), childNative)).toMatchObject([{ parentId: parentNative }]);
+
+    await stopActiveWorker(b, pageB);
+    await b.close(); b = await launchPersistent(profiles[1]!, stack.browserHostResolverRules); pageB = await optionsPage(b);
+    const waits = async () => runtimeMessage<{ ok: boolean; waits: PublicNativeWait[] }>(pageB, { kind: 'known.nativeWait.list' });
+    await expect.poll(async () => (await waits()).waits?.find(row => row.colpId === childColp), { timeout: 60_000 })
+      .toMatchObject({ candidates: [{ nativeId: childNative }] });
+    const resumed = await evidence<ScopeExport>(pageB, 'exportOutboundPushEvidence');
+    const waitingChild = resumed.intents.find(row => row.intentId === childIntent.intentId)!;
+    expect(waitingChild).toMatchObject({ nativeResult: 'result_unknown', nativeResultConfirmation: { kind: 'unknown' } });
+    expect(waitingChild.apiResultEvidence ?? null).toBeNull();
+    expect(resumed.intents.find(row => row.intentId === parentIntent.intentId)?.nativeResultConfirmation)
+      .toEqual(parentIntent.nativeResultConfirmation);
+
+    await showOptionsPane(pageB, 'sync-center');
+    const row = pageB.locator('#native-wait-list [data-sync-node]').filter({ hasText: childTitle });
+    await expect(row.locator('select.native-wait-candidate')).toHaveValue(childNative);
+    await row.locator('[data-native-wait-action="bind"]').click();
+    await expect.poll(async () => (await waits()).waits?.length, { timeout: 60_000 }).toBe(0);
+    await waitQueueQuiet(pageB, stack, KNS08_BINDINGS[1]);
+    const bound = await evidence<ScopeExport>(pageB, 'exportOutboundPushEvidence');
+    expect(bound.mappings.find(row => row.colpId === folderColp)?.nativeId).toBe(parentNative);
+    expect(bound.mappings.find(row => row.colpId === childColp)?.nativeId).toBe(childNative);
+    const boundChild = bound.intents.find(row => row.intentId === childIntent.intentId)!;
+    expect(boundChild.nativeResultConfirmation).toEqual({ kind: 'candidate_event', nativeId: childNative });
+    expect(boundChild.apiResultEvidence ?? null).toBeNull();
+    expect(bound.intents.find(row => row.intentId === parentIntent.intentId)?.nativeResultConfirmation)
+      .toEqual(parentIntent.nativeResultConfirmation);
+
+    await b.close(); b = await launchPersistent(profiles[1]!, stack.browserHostResolverRules); pageB = await optionsPage(b);
+    await waitQueueQuiet(pageB, stack, KNS08_BINDINGS[1]);
+    const final = await evidence<ScopeExport>(pageB, 'exportOutboundPushEvidence');
+    expect(final.mappings.find(row => row.colpId === folderColp)?.nativeId).toBe(parentNative);
+    expect(final.mappings.find(row => row.colpId === childColp)?.nativeId).toBe(childNative);
+    const natives = await pageB.evaluate(async ({ childUrl, sourceFolder, sourceChild, parentNative }) => ({
+      children: await chrome.bookmarks.search({ url: childUrl }),
+      sourceFolder: (await chrome.bookmarks.get(sourceFolder))[0], sourceChild: (await chrome.bookmarks.get(sourceChild))[0],
+      destinationChildren: await chrome.bookmarks.getChildren(parentNative),
+    }), { childUrl, sourceFolder: originalB.folder.id, sourceChild: originalB.child.id, parentNative });
+    expect(natives.children.map(row => row.id).sort()).toEqual([originalB.child.id, childNative].sort());
+    expect(natives.sourceFolder?.parentId).toBe(rootsB.barId);
+    expect(natives.sourceChild?.parentId).toBe(originalB.folder.id);
+    expect(natives.destinationChildren.map(row => row.id)).toEqual([childNative]);
+    expect(await stack.canonicalSiblingOrder(folderColp)).toMatchObject([{ id: childColp, url: childUrl }]);
+  } finally {
+    await a?.close(); await b?.close(); await stack.close();
+    await Promise.all(profiles.map(profile => rm(profile, { recursive: true, force: true })));
+  }
+});
+
 async function launchPersistentContext(profile: string) { return chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium',
   args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`] }); }
 async function launchRealPersistentContext(profile: string, browserHostResolverRules: string) { return chromium.launchPersistentContext(profile, { headless: false,
@@ -114,4 +243,27 @@ async function terminateExtensionWorker(context: BrowserContext, page: Page) { c
   await cdp.send('ServiceWorker.enable'); const targets = await cdp.send('Target.getTargets');
   const target = targets.targetInfos.find((item) => item.type === 'service_worker' && item.url.includes(EXTENSION_ID));
   await cdp.send('Target.closeTarget', { targetId: target!.targetId }); await cdp.detach();
+}
+
+async function stopActiveWorker(context: BrowserContext, page: Page) {
+  const cdp = await context.newCDPSession(page);
+  try {
+    const running = waitForWorkerStatus(cdp, 'running');
+    await cdp.send('ServiceWorker.enable'); const version = await running;
+    const stopped = waitForWorkerStatus(cdp, 'stopped');
+    await cdp.send('ServiceWorker.stopWorker', { versionId: version.versionId }); await stopped;
+  } finally { await cdp.detach(); }
+}
+function waitForWorkerStatus(cdp: CDPSession, status: 'running' | 'stopped') {
+  return new Promise<{ versionId: string }>((resolveWorker, reject) => {
+    const timeout = setTimeout(() => { cdp.off('ServiceWorker.workerVersionUpdated', listener);
+      reject(new Error(`Timed out waiting for service worker ${status}`)); }, 10_000);
+    const listener = (event: { versions: Array<{ versionId: string; scriptURL: string; runningStatus: string }> }) => {
+      const version = event.versions.find(row => row.scriptURL === `chrome-extension://${EXTENSION_ID}/service-worker.js`
+        && row.runningStatus === status);
+      if (!version) return;
+      clearTimeout(timeout); cdp.off('ServiceWorker.workerVersionUpdated', listener); resolveWorker(version);
+    };
+    cdp.on('ServiceWorker.workerVersionUpdated', listener);
+  });
 }

@@ -158,6 +158,20 @@ describe('resource payload materialization (ADR-0007 expand)', () => {
     assert.deepEqual(bookmark.payload.tags, ['a', 'b']);
   });
 
+  test('materializes favicon-only bookmarks while rejecting unnamed folders and roots', () => {
+    const bookmark = materializeNodePayload(baseBookmark({ title: '' }));
+    assert.equal(bookmark.ok, true);
+    if (bookmark.ok) {
+      assert.equal(bookmark.payload.title, '');
+      assert.equal(validateResourcePayload('node', bookmark.payload).ok, true);
+      for (const title of [undefined, null, 0, false]) {
+        assert.equal(validateResourcePayload('node', { ...bookmark.payload, title }).ok, false);
+      }
+    }
+    assert.equal(materializeNodePayload(baseFolder({ title: '' })).ok, false);
+    assert.equal(materializeNodePayload(baseRoot({ title: '' })).ok, false);
+  });
+
   test('rejects malformed legacy rows without fabricating data', () => {
     const badTags = materializeNodePayload(baseBookmark({ tags: { not: 'array' } }));
     assert.equal(badTags.ok, false);

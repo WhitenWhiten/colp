@@ -2,7 +2,7 @@ import { chromium, expect, test, type BrowserContext, type Page } from '@playwri
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { startRealStack } from './real-stack.js';
+import { startRealStack, type PushRequestObservation } from './real-stack.js';
 import { installFixtureReplicaBinding, openExtensionOptions, chooseLibraryMetadata, signInExtension, showOptionsPane, waitForLibraryBinding, EXTENSION_FIXTURE_EMAIL, EXTENSION_FIXTURE_PASSWORD } from './extension-auth.js';
 import type { SyncScope, QueueOperation } from '../src/sync-state-store.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
@@ -180,76 +180,207 @@ test('Pause survives browser restart, reconciles edits on both sides, and discon
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
-test('metadata opt-out holds an immutable old retry until user-confirmed reset archives it', async () => {
+test('metadata opt-out holds immutable bytes until server retirement survives a lost response and browser restart', async () => {
   test.setTimeout(120000);
-  const stack = await startRealStack(), profile = await mkdtemp(resolve(tmpdir(), 'known-metadata-queue-'));
+  const startedAt = Date.now(); let currentStage = 'start'; let completedStage = 'none';
+  async function step<T>(name: string, action: () => Promise<T>): Promise<T> {
+    currentStage = name;
+    console.info('metadata-opt-out-stage', JSON.stringify({ phase: 'start', name, elapsedMs: Date.now() - startedAt }));
+    return test.step(name, async () => {
+      const value = await action(); completedStage = name;
+      console.info('metadata-opt-out-stage', JSON.stringify({ phase: 'complete', name, elapsedMs: Date.now() - startedAt }));
+      return value;
+    });
+  }
+  const stack = await step('start real PostgreSQL and HTTP stack', () => startRealStack());
+  const profile = await mkdtemp(resolve(tmpdir(), 'known-metadata-queue-'));
   let context: BrowserContext | undefined;
+  let diagnosticPage: Page | undefined; let diagnosticScope: SyncScope | undefined;
   try {
-    const canonical = await stack.seedCanonicalFixture();
-    context = await launch(profile, stack.browserHostResolverRules);
-    const page = (await openExtensionOptions(context)).page;
-    await installFixtureReplicaBinding(page, stack.extensionBinding);
-    await signInExtension(page); await showOptionsPane(page, 'folders');
-    await grantOptionalBookmarks(page, 'Allow bookmark access', 'Know-N metadata queue');
-    const local = await page.evaluate(async () => {
+    const canonical = await step('seed canonical bookmark through HTTP Push', () => stack.seedCanonicalFixture());
+    context = await step('launch browser profile', () => launch(profile, stack.browserHostResolverRules));
+    let page = (await step('open extension options', () => openExtensionOptions(context!))).page;
+    diagnosticPage = page;
+    await step('install fixture replica binding', () => installFixtureReplicaBinding(page, stack.extensionBinding));
+    await step('sign in and bind account library', () => signInExtension(page));
+    await step('open folders and grant optional bookmark permission', async () => {
+      await showOptionsPane(page, 'folders');
+      await grantOptionalBookmarks(page, 'Allow bookmark access', 'Know-N metadata queue');
+    });
+    const local = await step('create native bookmark fixture', () => page.evaluate(async () => {
       const bar = (await chrome.bookmarks.getTree())[0]!.children![0]!.id;
       const root = await chrome.bookmarks.create({ parentId: bar, title: 'Metadata selected' });
       const folder = await chrome.bookmarks.create({ parentId: root.id, title: 'Authority folder' });
       const bookmark = await chrome.bookmarks.create({ parentId: root.id, title: 'Authority bookmark', url: 'https://example.test/p3-31/authority' });
       return { root: root.id, folder: folder.id, bookmark: bookmark.id };
-    });
-    await evidence(page, 'drainBookmarkEventCaptureEvidence');
-    await evidence(page, 'configureOutboundCanonicalFixture', local.root, null, local.folder, local.bookmark, canonical);
-    const exported = await evidence(page, 'exportOutboundPushEvidence') as { scope: SyncScope; queue: QueueOperation[] };
+    }));
+    await step('settle native event capture', () => evidence(page, 'drainBookmarkEventCaptureEvidence'));
+    await step('bind native fixture to canonical revisions', () =>
+      evidence(page, 'configureOutboundCanonicalFixture', local.root, null, local.folder, local.bookmark, canonical));
+    const exported = await step('read bound durable scope', () => evidence(page, 'exportOutboundPushEvidence')) as
+      { scope: SyncScope; queue: QueueOperation[] };
     const record = exported.scope;
     const scope: SyncScope = { environment: record.environment, serverId: record.serverId, serverOrigin: record.serverOrigin,
       accountId: record.accountId, browserProfileId: record.browserProfileId, collectionId: record.collectionId, replicaId: record.replicaId, generation: record.generation };
-    await waitForLibraryBinding(page, scope.collectionId);
-  await chooseLibraryMetadata(page, 'sync');
+    diagnosticScope = scope;
+    await step('verify library binding before metadata consent', () => waitForLibraryBinding(page, scope.collectionId));
+    await step('choose metadata sync in the real options dialog', () => chooseLibraryMetadata(page, 'sync'));
     // Seed an old-build queue through the real IndexedDB repository. All sends,
     // refusals, reset confirmation and server observations use production paths.
     stack.setPushFault('service_unavailable_once');
-    await page.evaluate(async ({ scope, canonical }) => {
+    await step('persist legacy metadata and later title queue rows', () => page.evaluate(async ({ scope, canonical }) => {
       const { createSyncStateStore } = await import(chrome.runtime.getURL('sync-state-store.js'));
       const store = createSyncStateStore();
       try {
+        function canonicalJson(value: unknown): string {
+          if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+          if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key =>
+            `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(',')}}`;
+          return JSON.stringify(value);
+        }
         for (const sequence of [1, 2]) {
           const opId = crypto.randomUUID(), payload = sequence === 1
             ? { base: { tags: [] }, value: { tags: ['private-metadata'] } }
             : { base: { title: canonical.bookmarkTitle }, value: { title: 'Later title' } };
+          const operation = { opId, replicaId: scope.replicaId, sequence, collectionId: scope.collectionId,
+            type: 'update_node_content', targetId: canonical.bookmarkId, baseRevision: canonical.bookmarkRevision,
+            occurredAt: new Date().toISOString(), dependencies: [], payload };
+          const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalJson(operation)));
+          const digest = `sha256:${Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('')}`;
           await store.allocateSequenceAndEnqueue(scope, { opId, batchId: opId, idempotencyKey: opId,
-            digest: `sha256:${opId}`, endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: canonical.bookmarkRevision,
+            digest, endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: canonical.bookmarkRevision,
             operationRevision: `local-${opId}`, status: 'pending', retry: { attempt: 0, notBefore: 0 },
-            payload: { opId, replicaId: scope.replicaId, sequence, collectionId: scope.collectionId,
-              type: 'update_node_content', targetId: canonical.bookmarkId, baseRevision: canonical.bookmarkRevision,
-              occurredAt: new Date().toISOString(), dependencies: [], payload } }, { allowUnstamped: true });
+            payload: operation }, { allowUnstamped: true });
         }
       } finally { store.close(); }
-    }, { scope, canonical });
-    await evidence(page, 'wakeOutboundPushEvidence');
-    const before = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
-    expect(before.queue[0]!.status).toBe('unknown'); expect(before.queue[0]!.attempt).toBeDefined();
-    await waitForLibraryBinding(page, scope.collectionId);
-  await chooseLibraryMetadata(page, 'local-only');
-    await expect.poll(() => Date.now() >= before.queue[0]!.retry.notBefore, { timeout: 20000 }).toBe(true);
-    await evidence(page, 'wakeOutboundPushEvidence');
-    const after = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
-    expect(after.queue[0]!.status).toBe('blocked'); expect(after.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
-    expect(after.queue[1]!.status).toBe('pending');
-    expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' }))).toMatchObject({ ok: true, attention: { terminal: true, terminalCode: 'metadata_sync_disabled' } });
-    await showOptionsPane(page, 'sync-center');
-    await expect(page.locator('#sync-attention-settings-terminal-copy')).toContainText('not allowed to sync', { timeout: 12000 });
-    await page.getByRole('button', { name: 'Reset sync on this device', exact: true }).click();
-    await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Reset sync', exact: true }).click()]);
-    await expect(page.locator('body')).toHaveAttribute('data-pane', 'sync');
-    await expect.poll(() => page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1').then(values =>
-      (values['known.auth.binding.v1'] as { replicaId?: string })?.replicaId))).not.toBe(scope.replicaId);
-    const archived = await page.evaluate(async scope => {
+    }, { scope, canonical }));
+    await step('wake Push and observe the forced 503', () => evidence(page, 'wakeOutboundPushEvidence'));
+    const before = await step('verify durable unknown attempt', async () => {
+      const state = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
+      expect(state.queue[0]!.status).toBe('unknown'); expect(state.queue[0]!.attempt).toBeDefined(); return state;
+    });
+    await step('verify library binding before opt-out', () => waitForLibraryBinding(page, scope.collectionId));
+    await step('choose keep metadata local in the real options dialog', () => chooseLibraryMetadata(page, 'local-only'));
+    await step('wait for the persisted retry deadline', () =>
+      expect.poll(() => Date.now() >= before.queue[0]!.retry.notBefore, { timeout: 20000 }).toBe(true));
+    await step('retry the retained metadata operation', () => evidence(page, 'wakeOutboundPushEvidence'));
+    await step('verify metadata refusal and immutable blocked bytes', async () => {
+      const after = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
+      expect(after.queue[0]!.status).toBe('blocked'); expect(after.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
+      expect(after.queue[1]!.status).toBe('pending');
+      expect(await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.attention.get' })))
+        .toMatchObject({ ok: true, attention: { terminal: true, terminalCode: 'metadata_sync_disabled' } });
+    });
+    await step('render the blocked metadata explanation', async () => {
+      await showOptionsPane(page, 'sync-center');
+      await expect(page.locator('#sync-attention-settings-terminal-copy')).toContainText('not allowed to sync', { timeout: 12000 });
+    });
+    await step('open the reset confirmation dialog', () =>
+      page.getByRole('button', { name: 'Reset sync on this device', exact: true }).click());
+    await expect(page.locator('.rebuild-confirm-copy')).toContainText('internet connection');
+    await expect(page.locator('.rebuild-confirm-copy')).toContainText('will not be sent again');
+    const beforeReset = await stack.observations();
+    stack.setRetirementResponseLoss(true);
+    await step('confirm Reset and lose the real committed retirement response', async () => {
+      await page.getByRole('button', { name: 'Reset sync', exact: true }).click();
+      await expect(page.locator('#sync-attention-settings-feedback')).toContainText('Waiting for the server to confirm', { timeout: 20000 });
+      expect((await stack.observations()).replicaStatus).toBe('retired');
+      expect(await page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1').then(values =>
+        (values['known.auth.binding.v1'] as { replicaId?: string })?.replicaId))).toBe(scope.replicaId);
+      const state = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
+      expect(state.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
+      expect(state.queue[0]!.status).toBe('blocked'); expect(state.queue[1]!.status).toBe('pending');
+    });
+    await step('restart the browser with session storage lost and replay the pinned retirement', async () => {
+      await context!.close(); stack.setRetirementResponseLoss(false);
+      context = await launch(profile, stack.browserHostResolverRules);
+      page = (await openExtensionOptions(context)).page; diagnosticPage = page;
+    });
+    await step('verify the new replica binding after reset', async () => {
+      await expect.poll(() => page.evaluate(oldReplica => chrome.storage.local.get('known.auth.binding.v1').then(values => {
+        const current = (values['known.auth.binding.v1'] as { replicaId?: string })?.replicaId;
+        return typeof current === 'string' && current !== oldReplica && current.startsWith('replica-');
+      }), scope.replicaId), { timeout: 20000 }).toBe(true);
+      await showOptionsPane(page, 'sync-center');
+    });
+    const archived = await step('read the old scope archive', () => page.evaluate(async scope => {
       const { createSyncStateStore } = await import(chrome.runtime.getURL('sync-state-store.js'));
       const store = createSyncStateStore(); try { return await store.exportArchive(scope); } finally { store.close(); }
-    }, scope) as { queue: QueueOperation[] };
-    expect(archived.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
-    expect(archived.queue[1]!.status).toBe('pending');
-    expect(await page.evaluate(id => chrome.bookmarks.get(id), local.bookmark)).toHaveLength(1);
+    }, scope)) as { queue: QueueOperation[] };
+    await step('verify archived attempts and preserved Chrome bookmark', async () => {
+      expect(archived.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
+      expect(archived.queue[1]!.status).toBe('pending');
+      expect(await page.evaluate(id => chrome.bookmarks.get(id), local.bookmark)).toHaveLength(1);
+    });
+    await step('verify one retirement, exact replay, no old metadata resend and required fresh setup', async () => {
+      const observed = await stack.observations();
+      const requests = observed.retirementRequests as { commandDigest: string; status: number; bodyAbsent: boolean;
+        proofMatchesSession: boolean; bearerAuthorizationPresent: boolean }[];
+      expect(requests.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(requests.map(request => request.commandDigest)).size).toBe(1);
+      for (const request of requests) expect(request).toMatchObject({ status: 204, bodyAbsent: true,
+        proofMatchesSession: true, bearerAuthorizationPresent: true });
+      expect(observed.retirementReceipts).toHaveLength(1);
+      expect(observed.originalReplicaSessionCount).toBe(beforeReset.originalReplicaSessionCount);
+      expect(observed.pushRequestDigests).toEqual(beforeReset.pushRequestDigests);
+      expect(observed.sequenceReceipts).toEqual(beforeReset.sequenceReceipts);
+      const fresh = await evidence(page, 'exportOutboundPushEvidence') as { scope: { firstRun: string; selectedRoots: string[] } };
+      expect(fresh.scope.firstRun).toBe('none'); expect(fresh.scope.selectedRoots).toEqual([]);
+      const policyKey = 'known.metadata-sync-policy.v1:' + JSON.stringify([scope.serverOrigin, scope.accountId, scope.collectionId]);
+      const policy = await page.evaluate(key => chrome.storage.local.get(key).then(values => values[key]), policyKey);
+      expect(policy).toMatchObject({ mode: 'local-only' });
+    });
+  } catch (error) {
+    console.info('metadata-opt-out-failed-stage', JSON.stringify({ currentStage, completedStage, elapsedMs: Date.now() - startedAt }));
+    const diagnostics = await Promise.allSettled([
+      diagnosticPage ? readMetadataRecoveryDiagnostics(diagnosticPage, diagnosticScope) : Promise.resolve({ page: 'not-open' }),
+      stack.observations().then(observed => ({ serverMutationCount: observed.serverMutationCount,
+        sessions: observed.sessions, replicaStatus: observed.replicaStatus,
+        pushRequests: (observed.pushRequests as readonly PushRequestObservation[]).map(request => ({ fingerprint: request.fingerprint,
+          responseStatus: request.responseStatus, responseCode: request.responseCode })),
+        pushErrors: observed.pushErrors, sequenceReceipts: (observed.sequenceReceipts as readonly {
+          op_id: string; sequence_number: string | number; result_digest: string;
+        }[]).map(row => ({
+          opId: row.op_id, sequence: row.sequence_number, resultDigest: row.result_digest,
+        })) })),
+    ]);
+    console.info('metadata-opt-out-readonly-diagnostics', JSON.stringify(diagnostics.map(result => result.status === 'fulfilled'
+      ? { status: 'fulfilled', value: result.value } : { status: 'rejected', error: String(result.reason) })));
+    throw error;
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
+
+/** Failure evidence reads durable state directly, without waking the worker or retrying a command. */
+async function readMetadataRecoveryDiagnostics(page: Page, scope?: SyncScope) {
+  return page.evaluate(async scope => {
+    const metadataKey = scope ? 'known.metadata-sync-policy.v1:'
+      + JSON.stringify([scope.serverOrigin, scope.accountId, scope.collectionId]) : undefined;
+    const stored = await chrome.storage.local.get(['known.sync.collection.v1', 'known.sync.library.v1',
+      'known.auth.binding.v1', ...(metadataKey ? [metadataKey] : [])]);
+    const binding = stored['known.auth.binding.v1'] as { replicaId?: string; generation?: number } | undefined;
+    const library = stored['known.sync.library.v1'] as { status?: string; library?: { id?: string } } | undefined;
+    const ui = { url: location.href, readyState: document.readyState, pane: document.body.dataset.pane,
+      personalSyncStatus: document.querySelector('#personal-sync-status')?.textContent,
+      metadata: document.querySelector('#library-metadata-configure')?.closest('.set-row')?.textContent,
+      terminal: document.querySelector('#sync-attention-settings-terminal-copy')?.textContent,
+      dialogs: Array.from(document.querySelectorAll('dialog, [role="dialog"]')).map(dialog => dialog.textContent?.slice(0, 2000)) };
+    const result: Record<string, unknown> = { ui, collectionId: stored['known.sync.collection.v1'],
+      library: { status: library?.status, id: library?.library?.id },
+      replica: { replicaId: binding?.replicaId, generation: binding?.generation },
+      metadataPolicy: metadataKey ? stored[metadataKey] : undefined };
+    if (!scope) return result;
+    const { createSyncStateStore } = await import(chrome.runtime.getURL('sync-state-store.js'));
+    const store = createSyncStateStore();
+    const summarize = (state: Record<string, unknown>) => ({ scope: state.scope, engine: state.engine,
+      queue: (state.queue as QueueOperation[] | undefined)?.map(row => ({ opId: row.opId, sequence: row.sequence,
+        status: row.status, digest: row.digest, retry: row.retry, recovery: row.recovery,
+        operationType: row.payload.type, payloadKeys: Object.keys(row.payload), attemptDigest: row.attempt?.bodyDigest })),
+      receiptCount: Array.isArray(state.receipts) ? state.receipts.length : null });
+    try {
+      const states = await Promise.allSettled([store.exportScope(scope), store.exportArchive(scope)]);
+      result.durable = states.map((state, index) => ({ kind: index === 0 ? 'active' : 'archive',
+        ...(state.status === 'fulfilled' ? { state: summarize(state.value) } : { error: String(state.reason) }) }));
+    } finally { store.close(); }
+    return result;
+  }, scope);
+}

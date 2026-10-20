@@ -182,7 +182,7 @@ test.each(['done', 'syncing', 'failed'] as const)('confirming a range immediatel
   const preview: PublicRangePreview = { previewId: 'range', treeDigest: 'tree', boundaryVersion: '2',
     bookmarkCount: 12, folderCount: 5, addedCount: 1, addedBookmarkCount: 12, additions: [], removedCount: 0, shiftCount: 0,
     skippedCount: 0, expiresAt: Date.now() + 60_000, shifts: [], removals: [], warnings: [] };
-  let stage = 'done';
+  let stage = 'done', confirmationId = '';
   let finish!: (response: unknown) => void;
   const host = await mount(message => {
     const kind = (message as { kind: string }).kind;
@@ -194,7 +194,8 @@ test.each(['done', 'syncing', 'failed'] as const)('confirming a range immediatel
     if (kind === 'known.firstRun.status') return { ok: true, firstRun: 'completed', phase: 'completed' };
     if (kind === 'known.sync.engine.status') return { ok: true, engine: { phase: 'sleeping', hasPendingWork: stage !== 'done' } };
     if (message.kind === 'known.roots.preview') return { ok: true, preview };
-    if (message.kind === 'known.roots.confirm') return new Promise(resolve => { finish = resolve; });
+    if (message.kind === 'known.roots.confirm') { confirmationId = message.confirmationId;
+      return new Promise(resolve => { finish = resolve; }); }
     return { ok: true, view: tree() };
   });
   vi.useFakeTimers();
@@ -215,11 +216,12 @@ test.each(['done', 'syncing', 'failed'] as const)('confirming a range immediatel
     await vi.advanceTimersByTimeAsync(1);
     expect(confirm.getAttribute('aria-busy')).toBe('true');
     expect(confirm.textContent).toBe('Saving…');
-    expect(text('root-feedback')).toBe('Saving folder settings.');
+    expect(text('root-feedback')).toBe('Confirming folder changes. You can reopen this page to check the result.');
     expect((document.getElementById('range-cancel') as HTMLButtonElement).disabled).toBe(true);
     expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.filter(([message]) => (message as RootRequest).kind === 'known.roots.confirm')).toHaveLength(1);
     stage = outcome === 'syncing' ? 'syncing' : 'done';
-    finish(outcome === 'failed' ? { ok: false, error: 'preview_stale' } : { ok: true, view: tree() });
+    finish(outcome === 'failed' ? { ok: false, error: 'preview_stale' } : { ok: true, view: tree(),
+      confirmation: { confirmationId, state: 'committed' } });
     await vi.advanceTimersByTimeAsync(1);
     expect(confirm.hasAttribute('aria-busy')).toBe(false);
     expect(confirm.textContent).toBe('Confirm folder changes');

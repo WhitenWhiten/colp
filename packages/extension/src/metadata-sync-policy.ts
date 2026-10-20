@@ -39,6 +39,7 @@ export function parseMetadataPolicy(value: unknown): MetadataSyncPolicy {
 export function createMetadataSyncPolicyStore(storage: MetadataPolicyStorage) {
   const tails = new Map<string, Promise<void>>();
   const denied = new Map<string, number>();
+  const versions = new Map<string, number>();
   let intentVersion = 0;
   function serialized<T>(key: string, work: () => Promise<T>): Promise<T> {
     const previous = tails.get(key) ?? Promise.resolve();
@@ -61,6 +62,7 @@ export function createMetadataSyncPolicyStore(storage: MetadataPolicyStorage) {
     if (typeof enabled !== 'boolean') throw new Error('metadata_policy_invalid');
     const key = metadataPolicyKey(scope);
     const version = ++intentVersion;
+    versions.set(key, version);
     // An off intent denies immediately, even if persistence fails. Only a newer
     // successful affirmative choice can reopen this worker's admission gate.
     if (!enabled) denied.set(key, version);
@@ -77,16 +79,22 @@ export function createMetadataSyncPolicyStore(storage: MetadataPolicyStorage) {
       if (live.mode !== 'sync' || live.revision !== policy.revision) throw new Error('metadata_sync_disabled');
     }, { revision: policy.revision });
   }
-  async function dispatch<T>(scope: MetadataPolicyScope, send: () => Promise<T>, expectedRevision?: string): Promise<T> {
+  async function dispatch<T>(scope: MetadataPolicyScope, send: (assertLive: () => void) => Promise<T>, expectedRevision?: string): Promise<T> {
     // Serialize admission, NOT the response: a stalled server cannot hold the off switch.
     const key = metadataPolicyKey(scope);
     const admitted = await serialized(key, async () => {
+      const version = versions.get(key);
       const permission = await read(scope);
       // read() can resolve one microtask before an off intent is received. The
       // final synchronous check closes that read-to-dispatch admission race.
-      if (permission.mode !== 'sync' || denied.has(key)
-        || expectedRevision !== undefined && permission.revision !== expectedRevision) throw new Error('metadata_sync_disabled');
-      const response = send();
+      const assertLive = () => {
+        if (permission.mode !== 'sync' || denied.has(key) || versions.get(key) !== version
+          || expectedRevision !== undefined && permission.revision !== expectedRevision) throw new Error('metadata_sync_disabled');
+      };
+      assertLive();
+      // A later native-content proof can yield after admission. Keep this
+      // original consent epoch alive at the raw send, including off/on races.
+      const response = send(assertLive);
       // Attach immediately even when an already-rejected promise was returned.
       void response.catch(() => undefined);
       return { response };

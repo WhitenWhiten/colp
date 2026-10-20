@@ -5423,6 +5423,14 @@
     "message": "请先确认要同步哪些书签文件夹。",
     "description": "Confirm which bookmark folders to sync first."
   },
+  "firstRun_confirmationUnknown": {
+    "message": "暂时无法获取确认结果。请再次检查，以继续处理同一条请求。",
+    "description": "The confirmation result is not available yet. Check again to resume the same request."
+  },
+  "firstRun_confirmingSelection": {
+    "message": "正在确认您选择的目录。您可以重新打开此页面查看确认结果。",
+    "description": "Confirming your folder selection. You can reopen this page to check its result."
+  },
   "firstRun_conflicts_other": {
     "message": "$1 个冲突",
     "description": "$1 conflicts"
@@ -5442,6 +5450,10 @@
   "firstRun_couldNotStartSync": {
     "message": "无法开始同步，请稍后重试。",
     "description": "Could not start sync. Try again in a moment."
+  },
+  "firstRun_deferFailed": {
+    "message": "无法保存你的选择。请再次点击“稍后”。",
+    "description": "Could not save your choice. Try Later again."
   },
   "firstRun_deviceWins": {
     "message": "以此设备为准",
@@ -5582,6 +5594,10 @@
   "firstRun_selectBookmarkFoldersSync": {
     "message": "请选择要同步的书签文件夹。",
     "description": "Select the bookmark folders to sync."
+  },
+  "firstRun_selectionSuperseded": {
+    "message": "另一个页面已确认不同的目录范围。现在显示当前同步设置。",
+    "description": "Another page confirmed a different folder selection. Showing the current sync settings."
   },
   "firstRun_sideBrowser": {
     "message": "浏览器",
@@ -6540,12 +6556,12 @@
     "description": "Bound to an existing bookmark."
   },
   "nativeWait_browserCreatedBookmarkBut": {
-    "message": "此浏览器已创建书签，但结果未被记录",
-    "description": "This browser created the bookmark, but the result was not recorded"
+    "message": "无法确认书签的创建结果。请选择如何继续。",
+    "description": "Bookmark creation could not be confirmed. Choose how to continue."
   },
   "nativeWait_cancelledCloudItemWill": {
-    "message": "已取消：此云端项目不会放置到此设备上。",
-    "description": "Cancelled: this cloud item will not be placed on this device."
+    "message": "已停止重试此项目。设备上已有的书签已保留。",
+    "description": "Stopped retrying this item. Bookmarks already on this device were kept."
   },
   "nativeWait_chooseBookmarkUse": {
     "message": "请选择要使用的书签。",
@@ -9587,9 +9603,21 @@
     "message": "书签栏",
     "description": "Bookmarks bar"
   },
+  "sync_browserAccountRoot": {
+    "message": "$1（浏览器账号）",
+    "description": "$1 (Browser account)"
+  },
+  "sync_browserDeviceRoot": {
+    "message": "$1（此设备）",
+    "description": "$1 (On this device)"
+  },
   "sync_changesPreviewed": {
     "message": "任何内容同步前，都会先预览更改。",
     "description": "Changes are previewed before anything syncs."
+  },
+  "sync_confirmingFolderChange": {
+    "message": "正在确认文件夹更改。你可以重新打开此页面查看结果。",
+    "description": "Confirming folder changes. You can reopen this page to check the result."
   },
   "sync_copyDetails": {
     "message": "复制详情",
@@ -9671,6 +9699,18 @@
     "message": "文件夹",
     "description": "Folder"
   },
+  "sync_folderChangeIncomplete": {
+    "message": "文件夹更改尚未完成。继续此更改即可完成剩余步骤；已完成的步骤会保留。",
+    "description": "This folder change is incomplete. Resume it to finish the remaining steps; completed steps are kept."
+  },
+  "sync_folderChangeNeedsReview": {
+    "message": "文件夹更改正在等待审阅。请先处理需要注意的同步项目，然后继续此更改。",
+    "description": "Folder changes are waiting for review. Resolve the sync attention items, then resume this change."
+  },
+  "sync_folderChangeUnknown": {
+    "message": "暂时无法确定结果。继续此更改可查看结果，或重试同一请求。",
+    "description": "The result is not available yet. Resume this change to check or retry the same request."
+  },
   "sync_folderHighlighted": {
     "message": "已突出显示 $1。勾选它即可将其纳入同步，然后检查更改。",
     "description": "$1 is highlighted. Check it to include it in sync, then review your changes."
@@ -9694,6 +9734,10 @@
   "sync_folderSettingsSaved": {
     "message": "文件夹设置已保存",
     "description": "Folder settings saved"
+  },
+  "sync_folderSettingsSavedTreeUnavailable": {
+    "message": "目录设置已保存，但目录列表暂时无法刷新。请再次刷新目录。",
+    "description": "Folder settings saved. The folder list could not refresh; try refreshing it again."
   },
   "sync_folderTreeChangedRefresh": {
     "message": "文件夹树已更改。请刷新并重新预览。",
@@ -10047,6 +10091,10 @@
     "message": "重置此设备上的同步",
     "description": "Reset sync on this device"
   },
+  "sync_resumeFolderChange": {
+    "message": "继续此更改",
+    "description": "Resume this change"
+  },
   "sync_retryFailed": {
     "message": "重试失败的项目",
     "description": "Retry failed items"
@@ -10066,6 +10114,10 @@
   "sync_reviewConflicts": {
     "message": "查看冲突",
     "description": "Review conflicts"
+  },
+  "sync_reviewFolderDecisions": {
+    "message": "审阅文件夹决策",
+    "description": "Review folder decisions"
   },
   "sync_savingFolderSettings": {
     "message": "正在保存文件夹设置。",
@@ -10167,6 +10219,10 @@
     "message": "此设备上的同步已停止：它搁置的项目过多，无法继续安全同步。你书签库中的书签是安全的。请重置此设备上的同步以继续。",
     "description": "Sync on this device has stopped: it set aside too many items to keep syncing safely. The bookmarks in your library are safe. Reset sync on this device to continue."
   },
+  "sync_uploadBoundaryStopped": {
+    "message": "同步范围已更改，后续上传已停止。之前一次传送的结果尚未确认。请重置此设备上的同步，重新检查所选文件夹并预览合并。此设备和 Know-N 中的书签都会保留。",
+    "description": "Further uploads have stopped because your sync range changed. The result of an earlier transfer is unconfirmed. Reset sync on this device to review the selected folders and merge again. Bookmarks on this device and in Know-N are preserved."
+  },
   "sync_urlCannotRepresentedMissing": {
     "message": "此网址无法同步（格式无效、不允许的协议或过长）",
     "description": "URL cannot be synced (invalid format, disallowed scheme, or too long)"
@@ -10266,5 +10322,165 @@
   "welcome_title": {
     "message": "欢迎使用 Know-N",
     "description": "Welcome to Know-N"
+  },
+  "rejoin_heading": {
+    "message": "审查同步暂停期间的更改",
+    "description": "Review changes made while sync was paused"
+  },
+  "rejoin_intro": {
+    "message": "选择如何重新同步这些项目。每项选择仅适用于下方列出的项目。",
+    "description": "Choose how these items should sync again. Each choice applies only to the items shown."
+  },
+  "rejoin_applyingSaved": {
+    "message": "你的选择已保存，正在完成同步更改。",
+    "description": "Your choice is saved. Sync is finishing this change."
+  },
+  "rejoin_saved": {
+    "message": "你的选择已保存。",
+    "description": "Your choice is saved."
+  },
+  "rejoin_noLongerWaiting": {
+    "message": "此项决定已不再等待处理。请查看同步状态以了解是否还有其他步骤。",
+    "description": "This decision is no longer waiting. Check sync status for any remaining steps."
+  },
+  "rejoin_untitled": {
+    "message": "书签更改",
+    "description": "Bookmark changes"
+  },
+  "rejoin_localDelete_one": {
+    "message": "同步暂停期间，此项目已从本浏览器移除。当前云端副本包含 $1 个项目。你可以将其恢复到此处，也可以从书签库及其他已同步浏览器中删除。",
+    "description": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 item. Restore it here, or delete it from your library and other synced browsers."
+  },
+  "rejoin_localDelete_other": {
+    "message": "同步暂停期间，此项目已从本浏览器移除。当前云端副本包含 $1 个项目。你可以将它们恢复到此处，也可以从书签库及其他已同步浏览器中删除。",
+    "description": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 items. Restore them here, or delete them from your library and other synced browsers."
+  },
+  "rejoin_orderChanged": {
+    "message": "本浏览器与书签库中的书签顺序不同。请选择要保留的顺序。",
+    "description": "The browser and library have different bookmark orders. Choose the order to keep."
+  },
+  "rejoin_browserOrder": {
+    "message": "浏览器顺序",
+    "description": "Browser order"
+  },
+  "rejoin_libraryOrder": {
+    "message": "书签库顺序",
+    "description": "Library order"
+  },
+  "rejoin_applying": {
+    "message": "正在完成已保存的选择…",
+    "description": "Finishing your saved choice…"
+  },
+  "rejoin_keepCloud": {
+    "message": "保留云端副本",
+    "description": "Keep cloud copy"
+  },
+  "rejoin_deleteLibrary": {
+    "message": "从书签库删除",
+    "description": "Delete from library"
+  },
+  "rejoin_useBrowserOrder": {
+    "message": "使用浏览器顺序",
+    "description": "Use browser order"
+  },
+  "rejoin_useLibraryOrder": {
+    "message": "使用书签库顺序",
+    "description": "Use library order"
+  },
+  "rejoin_changed": {
+    "message": "此项决定已有变化。请审查最新项目后重新选择。",
+    "description": "This decision changed. Review the latest items and choose again."
+  },
+  "rejoin_permission": {
+    "message": "请允许访问书签，然后刷新这些决定。",
+    "description": "Allow bookmark access, then refresh these decisions."
+  },
+  "rejoin_paused": {
+    "message": "请恢复书签同步后再审查这些决定。",
+    "description": "Resume bookmark sync to review these decisions."
+  },
+  "rejoin_unavailable": {
+    "message": "暂时无法确认结果。请先刷新以检查已保存的选择，再决定是否重试。",
+    "description": "The result could not be confirmed yet. Refresh to check your saved choice before trying again."
+  },
+  "firstRun_unsupportedCount_one": {
+    "message": "$1 个项目将保留在此浏览器中，不会同步：$2。其他书签会正常同步。",
+    "description": "$1 item will stay in this browser and will not sync: $2. Other bookmarks will sync."
+  },
+  "firstRun_unsupportedCount_other": {
+    "message": "$1 个项目将保留在此浏览器中，不会同步：$2。其他书签会正常同步。",
+    "description": "$1 items will stay in this browser and will not sync: $2. Other bookmarks will sync."
+  },
+  "sync_rebuildConfirmRetirement": {
+    "message": "重置需要联网，由服务器确认旧的同步连接已停止。待处理的更改会保留在此设备上，不再重新发送。之前的更改可能已经保存到资料库。现有书签会保留。之后请重新选择同步文件夹并检查合并结果。现在重置同步吗？",
+    "description": "Reset needs an internet connection to stop the old sync connection on the server. Pending changes will be kept on this device and will not be sent again. Earlier changes may already be in your library. Your bookmarks stay in place. Afterwards, choose which folders sync and review the merge again. Reset sync now?"
+  },
+  "sync_rebuildRetirementPending": {
+    "message": "正在等待服务器确认旧的同步连接已停止。待处理的更改会保留，不再重新发送。请连接网络后重试重置。",
+    "description": "Waiting for the server to confirm that the old sync connection has stopped. Your pending changes are kept and will not be sent again. Connect to the internet and try Reset again."
+  },
+  "sync_rebuildRetirementAuthentication": {
+    "message": "重置需要同一账号的授权。请重新登录，确认仍有权访问此资料库，然后重新查看并确认重置。待处理的更改会保留。",
+    "description": "Reset needs authorization from the same account. Sign in again, check that you still have access to this library, then review and confirm Reset again. Your pending changes are kept."
+  },
+  "sync_rebuildRetirementLegacy": {
+    "message": "此服务器无法使用当前登录授权这次尚未完成的重置。请升级服务器以支持重置恢复，或恢复原来的登录。待处理的更改会保留，不再重新发送。",
+    "description": "This server cannot authorize the pending reset with this sign-in. Update the server to support reset recovery, or restore the original sign-in. Your pending changes are kept and will not be sent again."
+  },
+  "sync_rebuildRetirementOtherAccount": {
+    "message": "另一个账号有尚未完成的重置。请登录该账号完成重置。其待处理的更改已保留。",
+    "description": "An unfinished reset belongs to another account. Sign in to that account to finish it. Its pending changes have been kept."
+  },
+  "sync_rebuildRetirementTargetChanged": {
+    "message": "确认前，服务器的重置地址发生了变化。请恢复之前的服务器连接以完成这次重置。待处理的更改已保留。",
+    "description": "The server reset address changed before confirmation. Restore the previous server connection to finish this reset. Your pending changes have been kept."
+  },
+  "sync_rebuildRetirementDenied": {
+    "message": "服务器未授权这次重置。重新登录无法恢复已撤销的资料库权限或失效的设备授权。待处理的更改会保留，不再重新发送。在资料库所有者或服务器管理员核查权限期间，你可以继续使用此设备上的书签。",
+    "description": "The server did not authorize this reset. Signing in again cannot restore revoked library access or invalid device authorization. Your pending changes are kept and will not be sent again. You can continue using bookmarks on this device while the library owner or server administrator reviews access."
+  },
+  "rejoin_applyCloudDeletion": {
+    "message": "应用云端删除",
+    "description": "Apply cloud deletion"
+  },
+  "rejoin_changedBoundary": {
+    "message": "本地更改等待同步期间，同步范围发生了变化。请先检查同步恢复状态，再选择要保留的内容。浏览器副本会保留。",
+    "description": "The sync range changed while local changes were pending. Review sync recovery before choosing what to keep. Your browser copy is preserved."
+  },
+  "rejoin_confirmBrowserDeletion_one": {
+    "message": "我确认这会从当前浏览器移除 $1 个项目。",
+    "description": "I understand this removes $1 item from this browser."
+  },
+  "rejoin_confirmBrowserDeletion_other": {
+    "message": "我确认这会从当前浏览器移除 $1 个项目。",
+    "description": "I understand this removes $1 items from this browser."
+  },
+  "rejoin_keepBrowser": {
+    "message": "保留浏览器副本",
+    "description": "Keep browser copy"
+  },
+  "rejoin_nativeUnavailable": {
+    "message": "无法安全核验当前浏览器副本。请检查书签访问权限，然后刷新这些待处理事项。",
+    "description": "The current browser copy could not be verified safely. Check bookmark access, then refresh these decisions."
+  },
+  "rejoin_pendingUpload": {
+    "message": "本地更改仍在等待同步。请先检查同步状态，再选择要保留的内容。浏览器副本会保留。",
+    "description": "Local changes are still waiting to sync. Check sync status before choosing what to keep. Your browser copy is preserved."
+  },
+  "rejoin_remoteDelete_one": {
+    "message": "暂停同步期间，此项目已从资料库删除，而当前浏览器仍有本地更改。浏览器副本目前包含 $1 个项目。你可以在此保留副本，或将云端删除应用到当前浏览器。",
+    "description": "This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 item. Keep it here, or apply the cloud deletion to this browser."
+  },
+  "rejoin_remoteDelete_other": {
+    "message": "暂停同步期间，此项目已从资料库删除，而当前浏览器仍有本地更改。浏览器副本目前包含 $1 个项目。你可以在此保留副本，或将云端删除应用到当前浏览器。",
+    "description": "This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 items. Keep them here, or apply the cloud deletion to this browser."
+  },
+  "rejoin_unknownUpload": {
+    "message": "此前一次上传的结果尚未确认。请先检查同步状态，再选择要保留的内容。浏览器副本会保留。",
+    "description": "The result of an earlier upload is not confirmed. Check sync status before choosing what to keep. Your browser copy is preserved."
+  },
+  "sync_recoveryActionChanged": {
+    "message": "同步状态发生了变化。请查看当前详情，然后刷新待处理事项。",
+    "description": "Sync status changed. Review the current details, then refresh your pending decisions."
   }
 }

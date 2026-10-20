@@ -8,6 +8,21 @@ import { SYNC_FAILURE_TABLE, classifySyncFailure, freezesPullApply, holdsInbound
   PULL_MAPPING_FAILURE, PULL_PREFLIGHT_FAILURE } from '../src/sync-failure-class.js';
 
 describe('registered sync failure policies', () => {
+  test('boundary decisions require fresh confirmation while incomplete work waits and corrupt journals stop', () => {
+    for (const code of ['preview_stale', 'confirmation_conflict', 'duplicate_confirm',
+      'decision_not_found', 'decision_already_made', 'rejoin_boundary_changed']) {
+      const policy = classifySyncFailure(code, { nodeId: 'affected-node' });
+      assert.equal(policy?.class, 'item'); assert.equal(policy?.exit, 'confirm');
+      assert.notEqual(policy?.setsAsidePull, true);
+      assert.notEqual(policy?.stagesAsItem, true);
+    }
+    for (const code of ['sync_busy', 'rejoin_dependency_pending']) {
+      assert.deepEqual(classifySyncFailure(code), { class: 'transient', exit: 'retry' });
+    }
+    assert.deepEqual(classifySyncFailure('boundary_command_invalid'), { class: 'replica', exit: 'stop' });
+    assert.equal(classifySyncFailure('rejoin_unregistered_failure'), undefined);
+  });
+
   test('all static error emissions at sync and durable-store boundaries have an explicit policy', () => {
     const root = join(import.meta.dirname, '../src');
     const files = readdirSync(root).filter(name => /^(?:pull-|effect-page|durable-sync-engine|outbound-push|snapshot|recovery|native-)/u.test(name)

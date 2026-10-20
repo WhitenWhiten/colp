@@ -2,9 +2,11 @@ import { MAX_SEQUENCE_BLOCKED_RETRIES } from './sync-state/open-issue-facts.js';
 import { startPushLeaseRenewal } from './push-lease-renewal.js';
 import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
+import { dispatchSyncFetch } from './sync-fetch-boundary.js';
 import { holdRepeatedLocalFailure } from './push-local-failure.js';
 import type { RecaptureQueueRow } from './queue-recapture.js';
-import { rejectExcludedBootstrapUpload } from './bootstrap/upload-rejection.js';
+import { settleExcludedQueuedUpload } from './bootstrap/upload-rejection.js';
+import { isUploadExcluded } from './queued-upload-boundary.js';
 import { sendBootstrapCreateBatch } from './outbound-push-batch.js';
 import { createPushWorkBudget, recordPushBatchDecision, MAX_PUSH_DRAIN_OPERATIONS as MAX_DRAIN_OPERATIONS } from './push-work-budget.js';
 import { releaseSettledQueueHolds, settlePushResult } from './outbound-push-settlement.js';
@@ -13,8 +15,7 @@ import { isDeleteOperation, rebaseStaleDelete, settleAlreadyDeleted } from './pu
 import { stopDeniedMetadataAttempt } from './metadata-dispatch-recovery.js';
 import { reasonCode } from './push-error-code.js';
 import { recordKns09Stop } from './kns-09-release.js';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { bytesToHex } from '@noble/hashes/utils.js';
+import { encodeRequest, digestJson, digestBytes } from './outbound-push-encoding.js';
 import { colpCredentialHeaders } from './auth-client.js';
 import { readBoundedJson } from './json-response.js';
 import type { SyncEndpoints } from './manifest-client.js';
@@ -73,6 +74,8 @@ interface WorkerOptions {
   readonly dispatchBatch?: (rows: readonly QueueOperation[], send: () => Promise<Response>) => Promise<Response>;
   readonly beforeDispatch?: (queue: QueueOperation) => Promise<void>;
   readonly assertUploadAllowed?: (queue: QueueOperation) => Promise<void>;
+  /** A fresh proof per batch phase; never shared with preparation or retries. */
+  readonly assertBatchUploadAllowed?: (rows: readonly QueueOperation[]) => Promise<void>;
   readonly onTerminal?: (queue: QueueOperation) => Promise<void>;
   /** Pull/mapping refresh before rebasing a retried move_node. Lost-response retries keep `attempt`. */
   readonly refreshPlacement?: () => Promise<PlacementRefreshOutcome | void>;
@@ -87,6 +90,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
   const leaseDuration = options.leaseDurationMilliseconds ?? DEFAULT_LEASE_MS;
   const requestTimeout = options.requestTimeoutMilliseconds ?? DEFAULT_TIMEOUT_MS;
   const workBudget = createPushWorkBudget(requestTimeout, options.initialBatchOperations);
+  const unsentAttempts = new Set<string>();
   const authorityRecovery = createAuthorityRecovery({ scope: options.scope, store: options.store,
     sessions: options.sessions, persistUnknown: (queue, fence, reason, retryAfter) =>
       persistUnknown(queue, fence, reason, retryAfter ?? null) });
@@ -101,6 +105,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
 
   async function runDrain(repair: { attention: number },
     onNetworkResponse?: () => void | Promise<void>): Promise<DrainOutcome> {
+    unsentAttempts.clear();
     const initial = now(); const lease = await options.store.acquireLease(options.scope, ownerId, initial, leaseDuration);
     if (lease.outcome === 'contended') {
       options.schedule?.(Math.max(1_000, (lease.expiresAt ?? initial + leaseDuration) - now()));
@@ -159,8 +164,9 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         }
       }
       catch (error) {
-        if (reasonCode(error, '') === 'bootstrap_upload_excluded') {
-          await rejectExcluded(queue, lease.fence, error); last = { outcome: 'rejected', sequence: queue.sequence }; continue;
+        if (isUploadExcluded(error)) {
+          const outcome = await rejectExcluded(queue, lease.fence, error); last = { outcome, sequence: queue.sequence };
+          if (outcome === 'recovery') return last; continue;
         }
         const outcome = await persistLocalFailure(queue, lease.fence, reasonCode(error, 'push_attempt_bind_failed'));
         if (outcome === 'terminal') { last = { outcome, sequence: queue.sequence }; continue; }
@@ -188,15 +194,27 @@ export function createOutboundPushWorker(options: WorkerOptions) {
           sequence: queue.sequence };
       }
       const batch = (!options.dispatch || options.dispatchBatch) && await sendBootstrapCreateBatch({
-        first: bound, fresh: !queue.attempt && queue.retry.attempt === 0,
-        limit: batchLimit,
+        first: bound, fresh: !queue.attempt && queue.retry.attempt === 0, limit: batchLimit,
         store: options.store, scope: options.scope, ownerId, fence: lease.fence, now,
         ...authority, endpoint, fetch: fetcher,
         origin: options.origin, timeoutMs: requestTimeout, dispatch: options.dispatchBatch,
-        beforeDispatch: options.beforeDispatch, onNetworkResponse,
+        beforePrepare: options.assertBatchUploadAllowed,
+        beforeDispatch: async row => { await options.beforeDispatch?.(row);
+          if (!options.assertBatchUploadAllowed) await options.assertUploadAllowed?.(row); },
+        beforeDispatchBatch: options.assertBatchUploadAllowed, onNetworkResponse,
+        assertDispatchAllowed: options.assertUploadAllowed,
+        assertBatchDispatchAllowed: options.assertBatchUploadAllowed,
+        onDispatchStarted: rows => { for (const row of rows) unsentAttempts.delete(row.opId); },
+        notDispatched: async (row, error) => {
+          if (await stopDeniedMetadataAttempt({ error, store: options.store, scope: options.scope,
+            queue: row, ownerId, fence: lease.fence, now })) return;
+          try { await options.assertUploadAllowed?.(row); }
+          catch (error) { if (isUploadExcluded(error)) return rejectExcluded(row, lease.fence, error); }
+          return persistUnknown(row, lease.fence, 'push_batch_not_dispatched', null, true);
+        },
         barrier: () => pushRecoveryBarrierActive(options.store, options.scope, options.allowRecoveryFrozenPush),
         prepare: async row => {
-          await options.assertUploadAllowed?.(row);
+          if (!options.assertBatchUploadAllowed) await options.assertUploadAllowed?.(row);
           await options.boundary?.('before_attempt_persist', row);
           const rebased = await rebasePlacement(row, lease.fence);
           if (typeof rebased === 'string') throw new SyncFailureError('push_batch_placement_changed');
@@ -220,13 +238,9 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     } finally { renewal.close(); }
   }
 
-  /**
-   * The repair pass runs at drain start-up. An unconverged row is reported
-   * through the returned attention count and a scope diagnostic; a failed pass
-   * must not vanish into an empty catch either.
-   */
   async function rejectExcluded(queue: QueueOperation, fence: number, error: unknown) {
-    return rejectExcludedBootstrapUpload(options.store, options.scope, queue, ownerId, fence, error);
+    return settleExcludedQueuedUpload(options.store, options.scope, queue, ownerId, fence, error,
+      !queue.attempt || unsentAttempts.has(queue.opId), now);
   }
 
   async function repairSequenceReuse(): Promise<number> {
@@ -289,18 +303,20 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       const withinDeadline = <T>(operation: Promise<T>) => Promise.race([operation, timedOut]);
       let response: Response;
       try {
-        if (!acceptedResponse) await options.beforeDispatch?.(queue);
+        if (!acceptedResponse) { await options.beforeDispatch?.(queue); await options.assertUploadAllowed?.(queue); }
         const send = async () => {
-          const endpoint = (await options.endpoints()).syncPush;
+          const endpoint = (await options.endpoints()).syncPush; let dispatched = false;
           const request: RequestInit = { method: 'POST', redirect: 'error',
             credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json',
               ...colpCredentialHeaders(authority.credential.accessToken),
               'Content-Type': attempt.mediaType, 'Idempotency-Key': attempt.idempotencyKey,
               ...(options.origin ? { Origin: options.origin } : {}) }, body };
-          try { return await withinDeadline(fetcher(endpoint, request)); }
-          catch (error) {
-            // Only fetch/timeout owns network failures; local hooks and endpoint
-            // discovery cannot be classified as network errors by this fallback.
+          try { return await withinDeadline(dispatchSyncFetch(fetcher, endpoint, request, {
+            check: () => options.assertUploadAllowed?.(queue) ?? Promise.resolve(),
+            started: () => { controller.signal.throwIfAborted(); dispatched = true; unsentAttempts.delete(queue.opId); },
+          })); }
+          catch (error) { if (!dispatched) throw error;
+            // Only a started transport owns network-error classification.
             const transport = error instanceof TypeError || error instanceof DOMException
               && ['AbortError', 'NetworkError', 'TimeoutError'].includes(error.name);
             throw new Error(reasonCode(error, transport ? 'push_network_failed' : 'push_dispatch_failed'), { cause: error });
@@ -309,7 +325,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         response = acceptedResponse ?? await (options.dispatch ? options.dispatch(queue,send) : send());
       } catch (error) {
         clearTimeout(timeout);
-        if (reasonCode(error, '') === 'bootstrap_upload_excluded') return rejectExcluded(queue, fence, error);
+        if (isUploadExcluded(error)) return rejectExcluded(queue, fence, error);
         if (await stopDeniedMetadataAttempt({ error, store: options.store, scope: options.scope,
           queue, ownerId, fence, now })) return 'recovery';
         return persistUnknown(queue, fence, reasonCode(error, 'push_dispatch_failed'));
@@ -548,10 +564,11 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     const batchId = `${session.sessionId}.${crypto.randomUUID()}`;
     const body = encodeRequest(queue, session.sessionId, batchId);
     if (queue.attempt) assertUnchangedOperationBytes(queue.attempt.body, body);
-    return options.store.bindPushAttempt(options.scope, queue.sequence, ownerId, fence, {
+    const bound = await options.store.bindPushAttempt(options.scope, queue.sequence, ownerId, fence, {
       sessionId: session.sessionId, batchId, idempotencyKey: queue.idempotencyKey, endpointIdentity: 'syncPush',
       mediaType: 'application/json', body, bodyDigest: digestBytes(body), startedAt: now(),
     }, replaceAfterAuthenticationDenial);
+    unsentAttempts.add(queue.opId); return bound;
   }
   async function scheduleOutstanding() {
     const first = await options.store.firstLaneQueue(options.scope);
@@ -562,16 +579,6 @@ export function createOutboundPushWorker(options: WorkerOptions) {
   return Object.freeze({ drain });
 }
 
-function encodeRequest(queue: QueueOperation, sessionId: string, batchId: string) {
-  return canonicalJson({ sessionId, batchId, atomic: false, operations: [queue.payload] });
-}
-function canonicalJson(value: unknown): string { if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  const encoded = JSON.stringify(value); if (encoded === undefined) throw new SyncFailureError('push_request_invalid'); return encoded; }
-function digestJson(value: unknown) { return bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value)))); }
-function digestBytes(value: string) { return bytesToHex(sha256(new TextEncoder().encode(value))); }
 function jsonContentType(response: Response) { return /^application\/json(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? ''); }
 function problemContentType(response: Response) { return /^application\/problem\+json(?:\s*;|$)/iu.test(response.headers.get('Content-Type') ?? ''); }
 function retryDelay(attempt: number, seconds: number | undefined, header: string | null, current: number,

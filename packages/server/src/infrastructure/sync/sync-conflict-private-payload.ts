@@ -22,6 +22,21 @@ export interface PrivateConflictPayload {
   readonly current: Readonly<Record<string, unknown>>;
   readonly incoming: Readonly<Record<string, unknown>>;
   readonly nodeKind: 'folder' | 'bookmark' | 'separator';
+  /** Validation context, not an authored field and never part of public wire. */
+  readonly bookmarkUrlContext?: Readonly<{ baseUrl: string }>;
+}
+
+export function conflictBookmarkBaseUrl(payload: PrivateConflictPayload): unknown {
+  return payload.bookmarkUrlContext?.baseUrl ?? payload.base.url;
+}
+
+/** Old ciphertext lacks the independent URL context. Its exact immutable Base
+ * revision can supply it in memory; Current's URL can never prove authorship. */
+export function withHistoricalBookmarkUrlContext(payload: PrivateConflictPayload,
+  historicalBaseUrl: unknown): PrivateConflictPayload {
+  if (payload.nodeKind !== 'bookmark' || typeof conflictBookmarkBaseUrl(payload) === 'string'
+    || typeof historicalBaseUrl !== 'string') return payload;
+  return { ...payload, bookmarkUrlContext: { baseUrl: historicalBaseUrl } };
 }
 
 export function decryptPrivatePayload(
@@ -60,5 +75,8 @@ export function decryptPrivatePayload(
   try { parsed = JSON.parse(plaintext.toString('utf8')); } catch { invalid(); }
   if (!isRecord(parsed) || !isRecord(parsed.base) || !isRecord(parsed.current)
       || !isRecord(parsed.incoming) || parsed.nodeKind !== nodeKind) invalid();
+  if (parsed.bookmarkUrlContext !== undefined && (nodeKind !== 'bookmark'
+    || !isRecord(parsed.bookmarkUrlContext) || typeof parsed.bookmarkUrlContext.baseUrl !== 'string'
+    || Object.keys(parsed.bookmarkUrlContext).some(field => field !== 'baseUrl'))) invalid();
   return parsed as unknown as PrivateConflictPayload;
 }

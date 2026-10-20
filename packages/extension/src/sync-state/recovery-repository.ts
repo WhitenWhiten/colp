@@ -1,3 +1,4 @@
+import { unresolvedRejoinQueueRows } from './rejoin-queue-resolution.js';
 import { pullDeferral } from '../pull-deferral.js';
 import { issueProtectionIds } from '../sync-issues.js';
 import { transactionIssueDependencies, ISSUE_DEPENDENCY_STORES } from './issue-dependencies.js';
@@ -356,7 +357,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       if (privateMappings.some((mapping) => !mapping)) throw new SyncStateError('snapshot_root_mapping_missing');
       const queued = await cursorPage<QueueOperation>(tx.objectStore(STORES.queue), scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
       const issueRoots = (await transactionIssueDependencies(tx.objectStore(STORES.queue), key)).roots;
-      addQueueIssueRoots(issueRoots, queued);
+      addQueueIssueRoots(issueRoots, await unresolvedRejoinQueueRows(tx, key, queued));
       const issueProtected = issueProtectionIds(priorMappings, issueRoots);
       const locallyAdvanced = new Set<string>(issueProtected);
       for (const item of queued) {
@@ -517,7 +518,8 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       const byColpId = new Map(mappings.map((mapping) => [mapping.colpId, mapping]));
       const roots = (await transactionIssueDependencies(tx.objectStore(STORES.queue), key)).roots;
       const priorMappings = await requestValue<MappingInput[]>(tx.objectStore(STORES.mappings).getAll(scopeRowsRange(key)));
-      addQueueIssueRoots(roots, await requestValue<QueueOperation[]>(tx.objectStore(STORES.queue).getAll(scopeRowsRange(key))));
+      addQueueIssueRoots(roots, await unresolvedRejoinQueueRows(tx, key,
+        await requestValue<QueueOperation[]>(tx.objectStore(STORES.queue).getAll(scopeRowsRange(key)))));
       const protectedIds = issueProtectionIds(priorMappings, roots);
       const stagedIds = new Set(staged.map(node => node.colpId));
       if (staged.some((node) => !byColpId.has(node.colpId))

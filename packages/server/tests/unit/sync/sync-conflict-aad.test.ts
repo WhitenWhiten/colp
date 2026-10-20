@@ -75,6 +75,24 @@ test('encryption and decryption agree on the builder bytes', () => {
   assert.deepEqual(decoded.current, {});
 });
 
+test('new private URL context is authenticated without changing the historical AAD field set', () => {
+  const payload = { base: { urlHash: null }, current: { urlHash: null }, incoming: { urlHash: null },
+    nodeKind: 'bookmark', bookmarkUrlContext: { baseUrl: 'https://example.test/original' } };
+  const aad = source();
+  const encrypted = encryptPrivatePayload(stableJson(payload, invalid), keyring.active, aad);
+  assert.deepEqual(decryptPrivatePayload(row(encrypted, aad) as never, keyring, 'bookmark', 1n, invalid), payload);
+  assert.deepEqual(Object.keys(buildSyncConflictAad(aad)), [...SYNC_CONFLICT_AAD_FIELDS]);
+});
+
+test.each([null, [], {}, { baseUrl: 1 }, { baseUrl: 'https://example.test/', authored: true }])(
+  'malformed private URL validation context is rejected (%j)', bookmarkUrlContext => {
+    const aad = source();
+    const encrypted = encryptPrivatePayload(stableJson({ base: {}, current: {}, incoming: {},
+      nodeKind: 'bookmark', bookmarkUrlContext }, invalid), keyring.active, aad);
+    assert.throws(() => decryptPrivatePayload(row(encrypted, aad) as never, keyring, 'bookmark', 1n, invalid),
+      /invalid conflict json/);
+  });
+
 test('a different AAD is rejected by GCM even with the same key and ciphertext', () => {
   const encrypted = encryptHistorical('{}', source({ targetId: 'other-target' }));
   assert.throws(() => decryptPrivatePayload(row(encrypted, source()) as never, keyring, 'bookmark', 1n, invalid),

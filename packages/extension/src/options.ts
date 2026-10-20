@@ -24,6 +24,7 @@ import { FIRST_RUN_DRAFT } from './first-run-draft.js';
 import { signedInSyncStatus } from './sync-label.js';
 import { bindOptionsSyncProgress } from './sync-progress-dom.js';
 import { bindRangeAdjustment } from './range-ui.js';
+import { bindRejoinDecisions } from './rejoin-decisions-ui.js';
 import { showToast } from './toast.js';
 import { createIconPolicyFact } from './icon-policy-fact.js';
 import { bindOptionsCredits } from './options-credits.js';
@@ -116,13 +117,19 @@ const refreshEngineStatus = bindSyncChipRefresh(hubChrome, { connected: () => co
   read: async () => { const status = await signedInSyncStatus(); accountView.setSyncStatus(status.label); return status; },
   keys: [FIRST_RUN_DRAFT, COLLECTION_BINDING], keyPrefixes: [PERSONAL_SYNC_PREFIX] });
 const syncProgress = bindOptionsSyncProgress({ connected: () => connected });
+const rejoinDecisions = bindRejoinDecisions({ panel: element('rejoin-decisions'),
+  show: () => showPane('sync-center'), onResolved: () => { void folders.load(); void syncProgress.refresh(); } });
 const NOTICE_PANES = new Set<HubPane>(['saving', 'ai', 'subscriptions']);
-const folders = bindFolders({ isConnected: () => connected, firstRun: () => firstRun });
+const folders = bindFolders({ isConnected: () => connected, firstRun: () => firstRun,
+  onRootResponse: response => rangeAdjustment.onRootResponse(response) });
 const importPane = bindImport({ isConnected: () => connected,
   showStatus: () => showPane('sync-center'), showFolders: () => showPane('folders') });
 let libraryNotice = '';
+let libraryTurn = 0;
 async function refreshLibrary(): Promise<void> {
+  const turn = ++libraryTurn, authTurn = renderTurn;
   const stored = await chrome.storage.local.get([COLLECTION_BINDING, LIBRARY_STATE]);
+  if (turn !== libraryTurn || authTurn !== renderTurn) return;
   const library = connected ? boundLibrary(stored, serverOrigin()) : undefined;
   document.body.dataset.library = library ? 'ready' : parseLibraryState(stored[LIBRARY_STATE])?.status === 'unsupported' ? 'unsupported' : 'unavailable';
   if (connected && document.body.dataset.library === 'unsupported') {
@@ -131,6 +138,9 @@ async function refreshLibrary(): Promise<void> {
     libraryNotice = notice;
   } else libraryNotice = '';
   firstRun.setLibraryId(library?.id);
+  rangeAdjustment.setLibraryId(library?.id);
+  folders.setLibraryId(library?.id);
+  rejoinDecisions.setLibraryId(library?.id);
   // The library's stored title never shows: it is “your library” here as on the web.
   const libraryName = library ? t('common_yourLibraryInline', 'your library') : '';
   accountView.setCollection(libraryName);
@@ -272,7 +282,8 @@ function render(response: ExtensionResponse): void {
   refreshCreditsSummary();
   if (connected) void refreshEngineStatus();
   void syncProgress.refresh();
-  folders.onConnection(connected); importPane.onConnection(connected);
+  rangeAdjustment.onConnection(connected); folders.onConnection(connected); importPane.onConnection(connected);
+  rejoinDecisions.onConnection(connected);
   void personalSync.refresh();
   void bookmarkPreferences.refresh(); void navigation.refreshIdentity();
 }
@@ -335,7 +346,9 @@ function activatePane(route: HubRoute): void {
   /* R13 D-21: the popup deep-links #folders?native=<folderId>; hand it to
      the next roots.get so the worker can mark that row preselected. */
   if (route.pane === 'sync' && route.view === 'folders') folders.setPreselect(route.params.get('native') ?? undefined);
-  if (route.pane === 'sync' && connected) { void refreshLibrary(); void folders.load(); void personalSync.refresh(); }
+  if (route.pane === 'sync' && connected) {
+    void refreshLibrary(); void folders.load(); void personalSync.refresh(); void rejoinDecisions.refresh();
+  }
   if (route.pane === 'bookmarks') void bookmarkManager.activate(); else bookmarkManager.deactivate();
   if (route.pane === 'automations') automations.activate(); else automations.deactivate();
 }

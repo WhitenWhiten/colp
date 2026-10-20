@@ -7,7 +7,7 @@ import {
   applyPreviewToDraft, attentionStatusCopy, buildFirstRunConfirm, canStartFirstSync, collectPreviewSelection,
   confirmFailureCopy, draftPicksFromView, firstRunOnboardingActive, folderCountCopy,
   folderMetaCopy, onlyManagedRoots, popupFirstRunStatus, projectFirstRunSurface, readFirstRunDraft,
-  restoreDraftSelection, writeFirstRunDraft, type FirstRunDraft,
+  restoreDraftSelection, writeFirstRunDraft, markFirstRunDraftStarted, type FirstRunDraft,
 } from './first-run-draft.js';
 import { renderAttentionItems, renderAttentionNavigation, setAttentionConflictLink } from './first-run-attention-ui.js';
 import {
@@ -17,10 +17,11 @@ import {
 } from './advanced-first-run-ui.js';
 import { syncRootRefs, excludedFolderRefs, replaceFolderSelection, ROOTS_REPAINT } from './folder-coverage.js';
 import { createFirstRunPreviewSession } from './first-run-preview-session.js';
+import { createFirstRunConfirmationSession, createFirstRunInputLock, firstRunMessage, boundLibraryId, saveFirstRunDeferral } from './first-run-confirmation-session.js';
 import { observeFirstRunResponse, type FirstRunObservation } from './first-run-observation.js';
 import { rejectedWorkCopy, syncAttentionTerminalCode, terminalFreezeReasonCopy } from './sync-attention-ui.js';
 import type {
-  FirstRunOrScopeResponse, FirstRunRequest, PublicRootView,
+  FirstRunConfirmRequest, FirstRunOrScopeResponse, FirstRunRequest, PublicRootView,
 } from './types.js'; import { t } from './i18n.js';
 
 export {
@@ -28,7 +29,6 @@ export {
   popupFirstRunStatus,
 };
 
-const COLLECTION_BINDING = 'known.sync.collection.v1';
 const PREVIEW_WAIT_MS = 180;
 const STATUS_POLL_MS = 1_000;
 const STATUS_POLL_MAX_MS = 90_000;
@@ -103,11 +103,21 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   let attentionOpen = false;
   let attentionFailed = false;
   let advancedMode: AdvancedUiMode = readAdvancedMode(advancedModeSelect.value);
+  let ownerVersion = 0;
+  const lockInputs = createFirstRunInputLock(host.rootTree);
+  const submission = createFirstRunConfirmationSession({ send: firstRunMessage,
+    pending() {
+      updateAdvancedControls(); startStatusPoll();
+      say(t('firstRun_confirmingSelection', 'Confirming your folder selection. You can reopen this page to check its result.'), 'info');
+    }, result: finishSubmission });
+  window.addEventListener('pagehide', () => { ownerVersion += 1; submission.reset(); clearStatusPoll();
+    window.clearTimeout(previewTimer); lockInputs(false); }, { once: true });
 
   later.addEventListener('click', () => { void deferFirstRun(); });
   start.addEventListener('click', () => { void startFirstRun(); });
   viewAttention.addEventListener('click', () => { void openAttention(); });
   advancedModeSelect.addEventListener('change', () => {
+    if (submission.pending) return;
     window.clearTimeout(previewTimer);
     advancedMode = readAdvancedMode(advancedModeSelect.value);
     invalidateAdvancedPreview();
@@ -118,7 +128,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   advancedPreviewButton.addEventListener('click', () => { void refreshPreview(true); });
   advancedConfirm.addEventListener('click', () => { void confirmAdvancedMode(); });
   host.rootTree.addEventListener('change', () => {
-    if (!rangeActive || !view) return;
+    if (!rangeActive || !view || submission.pending) return;
     invalidateAdvancedPreview();
     window.clearTimeout(previewTimer);
     previewTimer = window.setTimeout(() => { void refreshPreview(); }, PREVIEW_WAIT_MS);
@@ -130,6 +140,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     isRangeActive: () => rangeActive,
     onRootsRendered(next, _connected, hasLibrary) {
       view = next;
+      if (submission.pending) { applyRangeChrome(next); return; }
       invalidateAdvancedPreview();
       if (!hasLibrary) libraryId = undefined;
       if (!rangeActive) {
@@ -141,9 +152,11 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       }
       renderOnboardingView(next);
     },
-    setLibraryId(id) { if (libraryId !== id) { libraryId = id; invalidateAdvancedPreview(); } },
+    setLibraryId(id) { if (libraryId !== id) { ownerVersion += 1; submission.reset(); lockInputs(false);
+      libraryId = id; invalidateAdvancedPreview(); } },
     onSignedIn(connected, hasLibrary) {
-      if (!connected) { confirm.hidden = true; return; }
+      if (!connected) { ownerVersion += 1; submission.reset(); clearStatusPoll(); lockInputs(false);
+        confirm.hidden = true; return; }
       void hydrate().then(() => {
         if (!firstRunOnboardingActive(observation.firstRun)) return;
         host.showPane('folders');
@@ -162,8 +175,13 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   };
 
   async function hydrate(): Promise<void> {
-    libraryId = await boundLibraryId();
+    const version = ownerVersion;
+    const bound = await boundLibraryId();
+    if (version !== ownerVersion) return;
+    libraryId = bound;
     const status = await firstRunMessage({ kind: 'known.firstRun.status' });
+    if (version !== ownerVersion || await submission.restore(libraryId, status)) return;
+    if (version !== ownerVersion) return;
     applyStatusResponse(status, { pollIfSyncing: true, fallbackOnboarding: true });
 
   }
@@ -205,7 +223,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   }
 
   async function refreshPreview(advancedRequest = false): Promise<void> {
-    if (!rangeActive || !view || view.status === 'permission_required' || observation.firstRun === 'running') return;
+    if (!rangeActive || !view || submission.pending || view.status === 'permission_required' || observation.firstRun === 'running') return;
     if (!advancedRequest && advancedMode !== 'merge') return;
     say();
     const selected = new Set(syncRootRefs(host.rootTree));
@@ -240,7 +258,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     confirm.dataset.treeDigest = response.treeDigest;
     paintPreviewTotals(totals, response, () => previewSession.preview?.previewId, say);
     start.disabled = advancedMode !== 'merge' || !canStartFirstSync({
-      libraryId, preview: response, view, selectedCount: host.rootTree.querySelectorAll('.root-select input:checked').length,
+      libraryId, preview: response, view, selectedCount: selection.selectedRefs.length,
     });
     renderAdvancedPreview();
   }
@@ -251,6 +269,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     if (!response.ok) {
       const terminal = syncAttentionTerminalCode(response.error, undefined);
       if (terminal || response.error === 'bootstrap_upload_rejected') {
+        submission.reset(); lockInputs(false);
         clearStatusPoll();
         showHandshakeCopy(terminal ? terminalFreezeReasonCopy(terminal) : rejectedWorkCopy(), 'warning');
         return;
@@ -261,6 +280,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     }
     const previous = observation;
     observation = observeFirstRunResponse(response, observation);
+    if (observation.firstRun === 'running' || observation.firstRun === 'completed') void markFirstRunDraftStarted(libraryId);
     if (observation.firstRun !== previous.firstRun || observation.phase !== previous.phase) {
       host.onSyncStatusChanged?.();
     }
@@ -351,6 +371,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   }
 
   function hideOnboardingChrome(): void {
+    lockInputs(false);
     rangeActive = false; confirm.hidden = true; advancedPanel.hidden = true; attentionHost.hidden = true;
     document.body.dataset.firstRun = '';
     host.folderHeading.textContent = rangeHeading;
@@ -371,12 +392,15 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   }
 
   async function pollFirstRunStatus(): Promise<void> {
+    const version = ownerVersion;
     if (projectFirstRunSurface(observation) !== 'attention' && Date.now() - statusPollStartedAt >= STATUS_POLL_MAX_MS) {
       clearStatusPoll();
       say('', 'info');
       error.replaceChildren();
       const msg = document.createElement('span');
-      msg.textContent = t('firstRun_syncStillRunningBackground', 'Sync is still running in the background. Please refresh or check again.');
+      msg.textContent = submission.pending
+        ? t('firstRun_confirmationUnknown', 'The confirmation result is not available yet. Check again to resume the same request.')
+        : t('firstRun_syncStillRunningBackground', 'Sync is still running in the background. Please refresh or check again.');
       const retryBtn = document.createElement('button');
       retryBtn.type = 'button';
       retryBtn.className = 'btn btn-ghost btn-sm';
@@ -389,11 +413,19 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       error.append(msg, ' ', retryBtn);
       return;
     }
-    const response = await firstRunMessage({ kind: 'known.firstRun.status' });
+    const response = await firstRunMessage(submission.statusRequest());
+    if (version !== ownerVersion) return;
+    if (!response.ok && (syncAttentionTerminalCode(response.error, undefined) || response.error === 'bootstrap_upload_rejected')) {
+      applyStatusResponse(response, { pollIfSyncing: false }); return;
+    }
+    if (submission.observeStatus(response) || await submission.restore(libraryId, response)) return;
+    if (version !== ownerVersion) return;
     applyStatusResponse(response, { pollIfSyncing: false, fallbackOnboarding: true });
   }
 
   async function deferFirstRun(): Promise<void> {
+    if (submission.pending || observation.firstRun === 'running') return;
+    const version = ownerVersion;
     clearStatusPoll();
     const preview = previewSession.preview;
     const selected = new Set(syncRootRefs(host.rootTree));
@@ -406,11 +438,16 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
         bookmarkCount: preview.bookmarkCount, folderCount: preview.folderCount, skippedCount: preview.skippedCount,
       } : {}),
     };
-    await writeFirstRunDraft(draft);
+    const response = await saveFirstRunDeferral(draft);
+    if (version !== ownerVersion) return;
+    if (!response.ok) {
+      say(t('firstRun_deferFailed', 'Could not save your choice. Try Later again.')); return;
+    }
     invalidateAdvancedPreview();
-    const response = await firstRunMessage({ kind: 'known.firstRun.later' });
-    observation = observeFirstRunResponse(response, { firstRun: 'deferred' });
-    say(FIRST_RUN_UNSYNCED, 'info');
+    observation = observeFirstRunResponse(response, observation);
+    if (observation.firstRun === 'running' || observation.firstRun === 'completed') {
+      applyStatusResponse(response, { pollIfSyncing: true });
+    } else say(FIRST_RUN_UNSYNCED, 'info');
   }
 
   function invalidateAdvancedPreview(): void {
@@ -477,7 +514,8 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
   }
 
   function updateAdvancedControls(): void {
-    const preview = previewSession.preview, running = observation.firstRun === 'running' || previewSession.phase === 'confirming';
+    const preview = previewSession.preview, running = observation.firstRun === 'running' || submission.pending;
+    lockInputs(running);
     later.disabled = running;
     advancedModeSelect.disabled = running;
     advancedPreviewButton.disabled = running || previewSession.phase === 'reading' || !view || view.status !== 'ready';
@@ -491,25 +529,8 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     if (!libraryId || !preview || !advancedConfirmationReady(advancedMode, preview)
         || !preview.advanced || observation.firstRun === 'running') return;
     const reviewed = previewSession.confirm(currentSelectionFingerprint()); if (!reviewed) return;
-    updateAdvancedControls(); say();
-    const response = await firstRunMessage(advancedConfirmationRequest({ previewId: reviewed.preview.previewId,
+    await submission.submit(advancedConfirmationRequest({ previewId: reviewed.preview.previewId,
       confirmationId: reviewed.commandId, libraryId, confirmation: preview.advanced }));
-    if (!previewSession.finish(reviewed.commandId)) return;
-    if (response.ok) {
-      applyStatusResponse(response, { pollIfSyncing: true });
-      if (projectFirstRunSurface(observation) !== 'onboarding') {
-        return;
-      }
-    }
-    if (!response.ok && response.error === 'preview_stale') {
-      invalidateAdvancedPreview();
-      await refreshPreview(true);
-      // The new list replaces the old one; the line saying why stays on screen.
-      say(confirmFailureCopy({ ok: false, error: 'bootstrap_confirmation_stale' }));
-    } else {
-      say(!response.ok ? confirmFailureCopy(response) : FIRST_RUN_ENGINE_NOT_READY);
-    }
-    updateAdvancedControls();
   }
 
   async function startFirstRun(): Promise<void> {
@@ -528,12 +549,20 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
       return;
     }
     const reviewed = previewSession.confirm(currentSelectionFingerprint()); if (!reviewed) return;
-    start.disabled = true;
-    say();
-    const response = await firstRunMessage(buildFirstRunConfirm({
+    await submission.submit(buildFirstRunConfirm({
       previewId: reviewed.preview.previewId, libraryId, confirmationId: reviewed.commandId,
     }));
-    if (!previewSession.finish(reviewed.commandId)) return;
+  }
+
+  async function finishSubmission(request: FirstRunConfirmRequest, response: FirstRunOrScopeResponse,
+    authority?: FirstRunOrScopeResponse): Promise<void> {
+    previewSession.finish(request.confirmationId);
+    clearStatusPoll(); updateAdvancedControls();
+    if (authority) {
+      applyStatusResponse(authority, { pollIfSyncing: true });
+      host.onSyncStatusChanged?.();
+      say(confirmFailureCopy(response)); return;
+    }
     if (response.ok) {
       applyStatusResponse(response, { pollIfSyncing: true });
       if (projectFirstRunSurface(observation) !== 'onboarding') {
@@ -543,27 +572,14 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     say(!response.ok ? confirmFailureCopy(response) : FIRST_RUN_ENGINE_NOT_READY);
     if (!response.ok && response.error === 'preview_stale') {
       previewSession.invalidate();
-      await refreshPreview();
+      await refreshPreview(request.advancedConfirmation !== undefined);
+      say(confirmFailureCopy(response));
+    } else {
+      start.disabled = advancedMode !== 'merge' || !canStartFirstSync({ libraryId, preview: previewSession.preview,
+        view, selectedCount: syncRootRefs(host.rootTree).length });
     }
-    start.disabled = false;
+    updateAdvancedControls();
   }
-
-
-}
-
-async function firstRunMessage(message: FirstRunRequest): Promise<FirstRunOrScopeResponse> {
-  try {
-    const value: unknown = await chrome.runtime.sendMessage(message);
-    return value && typeof value === 'object' && 'ok' in value ? value as FirstRunOrScopeResponse : { ok: false, error: 'extension_unavailable' };
-  }
-  catch { return { ok: false, error: 'extension_unavailable' }; }
-}
-
-async function boundLibraryId(): Promise<string | undefined> {
-  try {
-    const value = (await chrome.storage.local.get(COLLECTION_BINDING))[COLLECTION_BINDING];
-    return typeof value === 'string' && value.length > 0 ? value : undefined;
-  } catch { return undefined; }
 }
 
 function required(id: string): HTMLElement {

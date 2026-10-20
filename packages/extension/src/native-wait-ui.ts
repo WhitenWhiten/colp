@@ -70,7 +70,7 @@ function hostOf(url: string): string {
 export function nativeWaitReasonCopy(reason: PublicNativeWait['waitReason']): string {
   return reason === 'waiting_dependency'
     ? t('nativeWait_waitingParentFolder', 'Waiting for the parent folder')
-    : t('nativeWait_browserCreatedBookmarkBut', 'This browser created the bookmark, but the result was not recorded');
+    : t('nativeWait_browserCreatedBookmarkBut', 'Bookmark creation could not be confirmed. Choose how to continue.');
 }
 
 export function nativeWaitTargetCopy(wait: PublicNativeWait): string {
@@ -92,7 +92,7 @@ export function nativeWaitCandidateLabel(candidate: PublicNativeWaitCandidate): 
 export function nativeWaitResultCopy(result: 'bound' | 'kept_local' | 'cancelled' | 'duplicate'): string {
   if (result === 'bound') return t('nativeWait_boundExistingBookmark', 'Bound to an existing bookmark.');
   if (result === 'kept_local') return t('nativeWait_keptLocalBookmarkCreated', 'Kept the local bookmark and created a new one.');
-  if (result === 'cancelled') return t('nativeWait_cancelledCloudItemWill', 'Cancelled: this cloud item will not be placed on this device.');
+  if (result === 'cancelled') return t('nativeWait_cancelledCloudItemWill', 'Stopped retrying this item. Bookmarks already on this device were kept.');
   return t('nativeWait_itemAlreadyHandledNo', 'This item was already handled. No further confirmation is needed.');
 }
 

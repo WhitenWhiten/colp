@@ -2,7 +2,7 @@ import { digestJson } from '../bookmark-event-codec.js';
 import { boundedString, clone, safeInteger, strictObject, validateJson, validateRecord } from './codec.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
 import type { SyncStoreRuntime } from './runtime.js';
-import { STORES } from './schema.js';
+import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { SyncStateError, type JsonObject, type SyncScope } from './types.js';
 
@@ -45,14 +45,22 @@ export function createAdvancedRepository(ctx: SyncStoreRuntime) {
       metadata: clone(input.metadata), stepCount: steps.length, state: 'active', updatedAt: input.now,
     }, key, ctx.maxRecordBytes);
     const db = await ctx.writableDatabase();
-    await runTransaction(db, [STORES.scopes, STORES.advancedPlans, STORES.advancedSteps], 'readwrite', async (tx) => {
-      await requireActiveScope(tx, key);
+    await runTransaction(db, [STORES.scopes, STORES.advancedPlans, STORES.advancedSteps, STORES.boundaryCommands], 'readwrite', async (tx) => {
+      const recorded = await requireActiveScope(tx, key);
       const plans = tx.objectStore(STORES.advancedPlans);
       const prior = await requestValue(plans.get([key, input.planId]));
       if (prior) {
         result = readPlan(prior, key, ctx.maxRecordBytes);
         if (result.digest !== digest) throw new SyncStateError('advanced_plan_changed');
         return;
+      }
+      const confirmations = tx.objectStore(STORES.boundaryCommands).index(INDEXES.boundaryCommandByState);
+      const pending = (await Promise.all(['pending', 'failed'].map(state =>
+        cursorPage(confirmations, IDBKeyRange.only([key, state]), 1)))).flat();
+      if (pending.length) throw new SyncStateError('sync_busy');
+      if (typeof input.metadata.boundaryVersion === 'string') {
+        if ((recorded.boundaryVersion ?? '0') !== input.metadata.boundaryVersion) throw new SyncStateError('preview_stale');
+        if (recorded.firstRun === 'running' || recorded.firstRun === 'completed') throw new SyncStateError('sync_busy');
       }
       const all = await cursorPage<AdvancedPlanRecord>(plans, scopeRowsRange(key), 100_001);
       if (all.some((plan) => readPlan(plan, key, ctx.maxRecordBytes).state !== 'completed')) {

@@ -4,6 +4,18 @@
  */
 import type { IntentRecord, NativeCallResult, PersistedNativeCallResult } from './sync-state/types.js';
 
+/** A mutation adapter must run this after its asynchronous admission gates,
+ * immediately before the raw native call. It carries the original preimage. */
+export type NativeWriteCheck = () => Promise<void>;
+
+/** Only the adapter can prove that its admission failed before calling Chrome. */
+export class NativeWriteNotStartedError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = 'NativeWriteNotStartedError';
+  }
+}
+
 export interface NativeCallFacts {
   readonly intentExists: boolean;
   readonly callStarted: boolean;

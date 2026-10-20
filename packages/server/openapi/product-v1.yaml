@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.98.0
+  version: 1.100.0
   description: >-
     Version 1.70.0 intentionally removes browser credential management: parent
     keys are provisioned only through the database for official bots. Credential
@@ -24567,11 +24567,15 @@ components:
         allowedResolutions:
           {
             type: array,
-            minItems: 1,
+            minItems: 0,
             maxItems: 4,
             uniqueItems: true,
             items: { type: string, enum: [ server, incoming, custom, both ] }
           }
+        resolutionBlockedReason:
+          type: string
+          enum: [ node_read_only, resource_not_found ]
+          description: Present when no current resolution is executable. The retained conflict remains available for review and a later refresh.
         revision: { $ref: '#/components/schemas/Revision' }
         etag: { $ref: '#/components/schemas/EntityTag' }
         createdAt: { type: string, format: date-time }
@@ -28615,7 +28619,7 @@ components:
         kind: { type: string, const: bookmark }
         parentId: { $ref: '#/components/schemas/OpaqueId' }
         position: { $ref: '#/components/schemas/Position' }
-        title: { type: string, minLength: 1, maxLength: 512 }
+        title: { type: string, minLength: 0, maxLength: 512, description: Empty preserves a favicon-only browser bookmark. }
         url: { $ref: '#/components/schemas/HttpUrlNoUserInfo' }
         description: { type: [ string, 'null' ], maxLength: 20000 }
         tags:
@@ -29624,7 +29628,7 @@ components:
       additionalProperties: false
       properties:
         kind: { type: string, const: bookmark }
-        title: { type: string, minLength: 1, maxLength: 512 }
+        title: { type: string, minLength: 0, maxLength: 512 }
         url: { $ref: '#/components/schemas/HttpUrlNoUserInfo' }
         description: { type: [ string, 'null' ], maxLength: 20000 }
         tags:
@@ -29667,7 +29671,7 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
-        title: { type: string, minLength: 1, maxLength: 512 }
+        title: { type: string, minLength: 0, maxLength: 512, description: Empty is accepted only when the existing node is a bookmark. }
         url: { $ref: '#/components/schemas/HttpUrlNoUserInfo' }
         description: { type: [ string, 'null' ], maxLength: 20000 }
         tags:

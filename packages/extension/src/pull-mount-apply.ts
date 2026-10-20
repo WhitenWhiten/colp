@@ -1,11 +1,16 @@
-import type { SyncPullEventV02 } from '@know-n/colp/types';
+import { canonicalOperationDigest } from '@know-n/colp/sync/canonical';
+import type { Operation, SyncPullEventV02 } from '@know-n/colp/types';
 import { mountResolveOpIdMatches } from './bootstrap/matcher.js';
+import { bootstrapOpId, bootstrapRunInFlight } from './bootstrap/run-identity.js';
+import { digestJson } from './bookmark-event-codec.js';
 import type { PullNode } from './pull-applier-types.js';
 import { mappingFor } from './pull-projection.js';
 import { currentPullMapping } from './pull-mapping-view.js';
 import { virtualNativeId } from './projection-native-occupancy.js';
 import { isWritableActiveScope } from './scope-transition.js';
-import type { MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { BookmarkLookup } from './bookmark-api-error.js';
+import { SyncFailureError } from './sync-failure-class.js';
+import type { MappingInput, MountBindingRecord, ScopeRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export const UNMOUNTED_PREFIX = 'unmounted:';
 const SPECIAL = new Set(['bookmarks-bar', 'other-bookmarks', 'mobile-bookmarks']);
@@ -61,15 +66,29 @@ export function unmountedNativeId(colpId: string) {
   return `${UNMOUNTED_PREFIX}${colpId}`;
 }
 
-export async function planCreated(store: Store, scope: SyncScope, event: OpEvent): Promise<CreatedPlan> {
-  if (event.effect.kind !== 'node_created') return { kind: 'chrome' };
-  const role = folderRoleOf(event.effect.node);
+export async function planCreated(store: Store, scope: SyncScope, event: OpEvent,
+  lookup?: (nativeId: string) => Promise<BookmarkLookup>): Promise<CreatedPlan> {
+  const effect = event.effect;
+  if (effect.kind !== 'node_created') return { kind: 'chrome' };
+  const role = folderRoleOf(effect.node);
   const mounts = await store.listMountBindings(scope);
+  if (effect.node.kind === 'folder' && role === undefined) {
+    // A selected descendant is an ordinary canonical folder. Its exact mount
+    // identity authorizes this root even when its structural parent is outside
+    // the selected range; inheriting that parent's coverage would lose the
+    // root's native identity before this page applies its children.
+    const bound = mounts.find((mount) => mount.remoteMountNodeId === effect.node.id);
+    if (bound) {
+      if (bound.status !== 'active') return { kind: 'skip_unmounted' };
+      return await ordinaryMountAuthority(store, scope, event, bound, lookup)
+        ? { kind: 'bind_mount', mount: bound } : { kind: 'need_authority' };
+    }
+  }
   if (isSpecialMountRole(role) || role === 'custom') {
     const ownOpId = event.operation.replicaId === scope.replicaId ? operationOpId(event) : undefined;
-    const match = matchMount(mounts, role, event.effect.node.id, ownOpId);
+    const match = matchMount(mounts, role, effect.node.id, ownOpId);
     if (match && match.status !== 'detached') return { kind: 'bind_mount', mount: match };
-    const existing = await mappingByColp(store, scope, event.effect.node.id);
+    const existing = await mappingByColp(store, scope, effect.node.id);
     const own = ownOpId ? await store.getQueueByOpId(scope, ownOpId) : null;
     if (existing && !isNonChromeNativeId(existing.nativeId) && existing.nodeKind === 'folder'
         && (isSpecialMountRole(role) && (existing.rootRole ?? existing.projection.content?.folderRole) === role
@@ -77,7 +96,7 @@ export async function planCreated(store: Store, scope: SyncScope, event: OpEvent
     if (mounts.length > 0) return { kind: 'skip_unmounted' };
   }
   if (role === 'recovered') {
-    const parentId = event.effect.placement.parentId;
+    const parentId = effect.placement.parentId;
     const parent = await mappingByColp(store, scope, parentId);
     const mount = resolveMount(mounts, parent, parentId);
     if (mount) return { kind: 'recovered_folder', mount };
@@ -85,10 +104,102 @@ export async function planCreated(store: Store, scope: SyncScope, event: OpEvent
     if (!parent && mounts.length > 0) return { kind: 'need_authority' };
     if (mounts.length > 0) return { kind: 'skip_unmounted' };
   }
-  if (mounts.length > 0 && await isUnmountedParent(store, scope, mounts, event.effect.placement.parentId)) {
+  if (mounts.length > 0 && await isUnmountedParent(store, scope, mounts, effect.placement.parentId)) {
     return { kind: 'skip_unmounted' };
   }
   return { kind: 'chrome' };
+}
+
+/** A persisted active binding cannot restore selection or replace a contradictory identity. */
+async function ordinaryMountAuthority(store: Store, scope: SyncScope, event: OpEvent, mount: MountBindingRecord,
+  lookup?: (nativeId: string) => Promise<BookmarkLookup>): Promise<boolean> {
+  if (event.effect.kind !== 'node_created' || !lookup) return false;
+  const recorded = await store.getScope(scope);
+  if (recorded?.rootStatus === 'permission_required') throw new SyncFailureError('permission_revoked');
+  if (recorded?.lifecycle !== 'active' || !['ready', 'nested_normalized'].includes(recorded.rootStatus ?? '')) return false;
+  const selected = recorded.selectedRoots.includes(event.effect.node.id);
+  const provisional = selected ? undefined : await confirmedFirstRunMount(store, scope, event, mount, recorded);
+  if (!selected && !provisional) return false;
+  const mapping = await mappingByColp(store, scope, event.effect.node.id);
+  const nativeMapping = await store.getMappingByNativeId(scope, mount.nativeRootId);
+  if (!mapping || mapping.nativeId !== mount.nativeRootId || mapping.nodeKind !== 'folder'
+      || nativeMapping?.colpId !== mapping.colpId
+      || mapping.parentColpId !== undefined && mapping.parentColpId !== event.effect.placement.parentId) return false;
+  const privateRoots = new Set(recorded.privateRoots ?? []);
+  const privateNative = new Set([...(provisional?.boundary.excludedNativeIds ?? []), ...(provisional?.privateNativeIds ?? [])]);
+  for (const id of privateRoots) {
+    const root = await store.getMappingByColpId(scope, id);
+    if (!root) return false;
+    privateNative.add(root.nativeId);
+  }
+  let canonical: MappingInput | null = mapping;
+  const canonicalSeen = new Set<string>();
+  while (canonical) {
+    if (canonicalSeen.has(canonical.colpId) || privateRoots.has(canonical.colpId)) return false;
+    canonicalSeen.add(canonical.colpId);
+    canonical = canonical.parentColpId ? await mappingByColp(store, scope, canonical.parentColpId) : null;
+  }
+  let nativeId: string | undefined = mount.nativeRootId;
+  const nativeSeen = new Set<string>();
+  while (nativeId && nativeId !== '0') {
+    if (nativeSeen.has(nativeId) || nativeSeen.size >= 256 || privateNative.has(nativeId)
+        || await store.getLocalSyncExclusion(scope, nativeId)) return false;
+    nativeSeen.add(nativeId);
+    const observed = await lookup(nativeId);
+    if (observed.class === 'not_found') throw new SyncFailureError('pull_apply_evidence_missing');
+    if (observed.class !== 'present') throw new Error(observed.message);
+    const native = observed.nodes[0];
+    if (!native || native.unmodifiable === 'managed' || 'folderType' in native && native.folderType === 'managed') return false;
+    if (nativeId === mount.nativeRootId && native.url !== undefined) return false;
+    nativeId = native.parentId;
+  }
+  const current = await store.getScope(scope);
+  const liveMount = await store.getMountBinding(scope, mount.mountId);
+  return current?.lifecycle === recorded.lifecycle && current.rootStatus === recorded.rootStatus
+    && current.boundaryVersion === recorded.boundaryVersion
+    && (!provisional || current.firstRun === recorded.firstRun)
+    && JSON.stringify(current.selectedRoots) === JSON.stringify(recorded.selectedRoots)
+    && JSON.stringify(current.privateRoots) === JSON.stringify(recorded.privateRoots)
+    && liveMount?.status === 'active' && liveMount.boundaryVersion === mount.boundaryVersion
+    && liveMount.nativeRootId === mount.nativeRootId && liveMount.remoteMountNodeId === mount.remoteMountNodeId;
+}
+
+/** Before first-run commits its resolved selection, only this admitted mount's
+ * exact self-create receipt can bind an echo. A live binding alone is not scope. */
+async function confirmedFirstRunMount(store: Store, scope: SyncScope, event: OpEvent,
+  mount: MountBindingRecord, recorded: ScopeRecord) {
+  if (recorded.firstRun !== 'running' || !mount.customSourceKey || event.effect.kind !== 'node_created'
+      || event.operation.replicaId !== scope.replicaId) return undefined;
+  const queued = await store.getQueueByOpId(scope, event.operation.opId);
+  if (!queued || queued.status !== 'terminal' || queued.payload.type !== 'create_node'
+      || queued.sequence !== event.operation.sequence
+      || canonicalOperationDigest(queued.payload as unknown as Operation) !== event.effect.operationDigest) return undefined;
+  const receipt = await store.getQueueReceipt(scope, queued.sequence);
+  const results = receipt?.result?.results;
+  const result = Array.isArray(results) && results.length === 1 ? results[0] : undefined;
+  if (receipt?.kind !== 'terminal' || receipt.opId !== queued.opId || receipt.operationDigest !== queued.digest
+      || !result || typeof result !== 'object' || Array.isArray(result) || result.opId !== queued.opId
+      || result.sequence !== queued.sequence || !['applied', 'rebased'].includes(String(result.status))
+      || result.targetId !== event.effect.node.id || result.revision !== event.effect.node.revision) return undefined;
+  for (const run of await store.listBootstrapRuns(scope)) {
+    if (run.previewOnly || !bootstrapRunInFlight(run.phase) || run.bootstrapMode !== 'merge' || !run.previewId
+        || run.libraryId !== scope.collectionId || run.confirmationVersion !== mount.boundaryVersion
+        || bootstrapOpId(run.confirmationId, 'mount', mount.customSourceKey) !== queued.opId) continue;
+    const command = await store.getBoundaryCommand(scope, run.confirmationId);
+    if (command?.kind !== 'first-run' || command.state !== 'committed' || command.result?.ok !== true
+        || command.committedBoundaryVersion !== recorded.boundaryVersion || command.boundaryVersion !== run.confirmationVersion
+        || command.previewId !== run.previewId || command.treeDigest !== run.treeDigest
+        || command.payload.libraryId !== scope.collectionId || command.requestDigest !== digestJson({
+          kind: 'known.firstRun.confirm', previewId: run.previewId, libraryId: scope.collectionId,
+        })) continue;
+    const preview = await store.getScopePreview(scope, run.previewId);
+    if (preview && preview.kind !== 'range' && preview.consumedBy === command.commandId
+        && preview.boundaryVersion === command.boundaryVersion && preview.treeDigest === command.treeDigest
+        && preview.boundary.selectedNativeIds.includes(mount.nativeRootId)
+        && preview.boundary.mounts.some(row => row.nativeRootId === mount.nativeRootId && row.writable
+          && row.customSourceKey === mount.customSourceKey)) return preview;
+  }
+  return undefined;
 }
 
 export function isNonChromeNativeId(nativeId: string) {
@@ -117,6 +228,8 @@ export async function bindMountMappings(node: PullNode, mount: MountBindingRecor
 
 export async function persistMountBinding(store: Store, scope: SyncScope, mount: MountBindingRecord,
   remoteMountNodeId: string): Promise<void> {
+  // Reading an already bound root grants no authority to rewrite its status.
+  if (mount.status === 'active' && mount.remoteMountNodeId === remoteMountNodeId) return;
   const { scopeKey: _scopeKey, ...binding } = mount as MountBindingRecord & { readonly scopeKey?: string };
   await store.putMountBinding(scope, { ...binding, remoteMountNodeId,
     ...(binding.status === 'pending' ? { status: 'active' as const } : {}) });
