@@ -21,7 +21,8 @@ export async function readReplicaRepairCapability(store: Store, scope: SyncScope
   for (const row of live) {
     if (row.status === 'set_aside' || row.status === 'pending' && !row.attempt) continue;
     const receipt = await store.getQueueReceipt?.(scope, row.sequence);
-    if (receipt?.kind !== 'terminal' || receipt.opId !== row.opId) { unsettled = true; break; }
+    if (receipt?.kind !== 'terminal' || receipt.scopeKey !== row.scopeKey || receipt.sequence !== row.sequence
+      || receipt.opId !== row.opId || receipt.operationDigest !== row.digest) { unsettled = true; break; }
   }
   const nativeUnknown = issues.waits.some(wait => wait.waitReason === 'native_result_unknown');
   const required = state?.recoveryFrozen === true || issues.operationalTotal - issues.local.filter(issue => issue.recovery === 'automatic').length > 0;
