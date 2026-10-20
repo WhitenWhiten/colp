@@ -18,8 +18,6 @@ export function bindServerAccount(ports: ServerAccountPorts): { refresh(origin: 
   const refresh = (origin: string): void => {
     if (origin === shown) return;
     shown = origin;
-    // A stubbed options page has no extension id, so it must not fetch the manifest.
-    if (!chrome.runtime?.id) return;
     void paintServerEdition(origin);
   };
   button?.addEventListener('click', (event) => {

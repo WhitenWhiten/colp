@@ -6,7 +6,7 @@ import { parseHubRoute } from '../src/options-router.js';
 import { defaultView, hubHash } from '../src/options-tabs.js';
 import { bookmarkPreferencesScopeKey } from '../src/bookmark-preferences.js';
 import { COLLECTION_BINDING, LIBRARY_STATE } from '../src/library.js';
-import { manifest as syncManifest } from './auth-shell-fixture.js';
+import { EXTENSION_ID, manifest as syncManifest } from './auth-shell-fixture.js';
 /* Each pane's sections are real tab panels now, so a retired hash selects a
    tab rather than scrolling down a merged page. `anchor` survives only for
    the one deep link that targets a row inside a panel. */
@@ -168,7 +168,7 @@ describe.each(['signed_out', 'connected'] as const)('options page opened %s', in
       return { ok: true, state: currentState };
     });
     vi.stubGlobal('chrome', {
-      runtime: { sendMessage, onMessage: { addListener: vi.fn() } },
+      runtime: { id: EXTENSION_ID, sendMessage, onMessage: { addListener: vi.fn() } },
       storage: {
         local: { get: vi.fn(async () => stored), set: vi.fn(async () => undefined), remove },
         session: { get: vi.fn(async () => ({})), set: vi.fn(async () => undefined), remove: vi.fn(async () => undefined) },

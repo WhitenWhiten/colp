@@ -8,7 +8,7 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 87 executable owners, for 142 total.
+This pass adds 91 executable owners, for 146 total.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
@@ -20,6 +20,7 @@ This pass adds 87 executable owners, for 142 total.
 - `src/bootstrap/upload-rejection.ts`
 - `src/browser-root-identity.ts`
 - `src/chrome-bookmark-tree.ts`
+- `src/cloud-capability.ts`
 - `src/first-run-confirmation-session.ts`
 - `src/first-run-draft.ts`
 - `src/first-run-preview-copy.ts`
@@ -29,6 +30,7 @@ This pass adds 87 executable owners, for 142 total.
 - `src/outbound-push-batch.ts`
 - `src/outbound-push-encoding.ts`
 - `src/personal-sync-fetch.ts`
+- `src/public-server-manifest.ts`
 - `src/pull-child-order.ts`
 - `src/pull-delete-apply.ts`
 - `src/push-recovery-barrier.ts`
@@ -54,6 +56,8 @@ This pass adds 87 executable owners, for 142 total.
 - `src/scope-rejoin-rejection.ts`
 - `src/scope-rejoin-restore.ts`
 - `src/scope-rejoin-upload.ts`
+- `src/server-account-ui.ts`
+- `src/server-edition.ts`
 - `src/service-worker.ts`
 - `src/sw/advanced-first-run.ts`
 - `src/sw/auth.ts`
