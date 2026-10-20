@@ -1,0 +1,117 @@
+name: sync-coherent-read-verify-once
+on:
+  push:
+    branches: ['codex/s08-coherent-read-verify-20261020']
+permissions:
+  contents: read
+concurrency:
+  group: sync-coherent-read-verify-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  browser-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: first-sync
+            specs: e2e/mv3-first-sync-recovery.spec.ts
+            pattern: .
+    env:
+      KNOWN_PG_EVIDENCE_MODE: acceptance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/extension/package-lock.json
+            packages/server/package-lock.json
+      - name: Frozen extension install
+        run: npm ci
+        working-directory: packages/extension
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/extension
+      - name: Frozen server harness install
+        run: npm ci
+        working-directory: packages/server
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cache/ms-playwright
+          key: extension-playwright-chromium-${{ runner.os }}-${{ hashFiles('packages/extension/package-lock.json') }}
+      - name: Install Playwright system dependencies
+        run: npx playwright install-deps chromium
+        working-directory: packages/extension
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+        working-directory: packages/extension
+      - name: Install X11 extension permission driver
+        run: sudo apt-get install --yes --no-install-recommends xdotool
+      - name: Build production extension with the existing fixture configuration
+        run: npm run build -- --config config/e2e-fixture.json
+        working-directory: packages/extension
+      - name: Real PostgreSQL and Chromium diagnostic
+        env:
+          DIAGNOSTIC_PATTERN: ${{ matrix.pattern }}
+        run: node ../server/scripts/with-postgres.mjs -- node scripts/with-xvfb.mjs npx playwright test ${{ matrix.specs }} --grep "$DIAGNOSTIC_PATTERN"
+        working-directory: packages/extension
+
+  read-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/extension/package-lock.json
+            packages/server/package-lock.json
+      - name: Frozen extension install
+        run: npm ci
+        working-directory: packages/extension
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/extension
+      - name: Frozen server harness install
+        run: npm ci
+        working-directory: packages/server
+      - name: Full extension types
+        run: npm run typecheck
+        working-directory: packages/extension
+      - name: Coherent read regressions and unchanged owner measurement
+        run: node node_modules/vitest/vitest.mjs run tests/pull-mapping-read-budget.test.ts tests/pull-mapping-read-consistency.test.ts tests/pull-mapping-view.test.ts tests/pull-workset-paging.test.ts tests/pull-workset-reads.test.ts --coverage --coverage.include=src/pull-mapping-view.ts --coverage.include=src/sync-state/pull-workset.ts --coverage.include=src/sync-state/pull-mapping-read-repository.ts --coverage.reporter=json --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/s08-read
+        working-directory: packages/extension
+      - name: Real worker receipt Pull and Ack budget
+        env:
+          S08_PROFILE_OUTPUT: /tmp/s08-worker-after.json
+          S08_SOURCE_SHA: cdb523701ee0ccc443c0f09f10d1b178f3cab1b2
+        run: node node_modules/vitest/vitest.mjs run tests/bootstrap-queue-worker-mapping-budget.test.ts --maxWorkers=1
+        working-directory: packages/extension
+      - name: Print exact owner measurement and semantic profile
+        if: always()
+        run: |
+          test ! -f coverage/s08-read/coverage-summary.json || cat coverage/s08-read/coverage-summary.json
+          test ! -f /tmp/s08-worker-after.json || cat /tmp/s08-worker-after.json
+        working-directory: packages/extension
+      - name: Upload measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: s08-coherent-read
+          path: |
+            packages/extension/coverage/s08-read/
+            /tmp/s08-worker-after.json
+          if-no-files-found: warn
+          retention-days: 14
