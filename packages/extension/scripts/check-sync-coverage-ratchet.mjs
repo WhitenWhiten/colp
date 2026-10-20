@@ -121,6 +121,7 @@ export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
   'src/sync-state/issue-dependencies.ts',
   'src/sync-state/materialization-wait-authority.ts',
   'src/sync-state/mount-repository.ts',
+  'src/sync-state/pull-mapping-read-repository.ts',
   'src/sync-state/pull-mapping-writes.ts',
   'src/sync-state/pull-workset.ts',
   'src/sync-state/queue-hold.ts',

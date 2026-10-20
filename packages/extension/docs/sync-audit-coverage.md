@@ -8,7 +8,7 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 131 executable owners, for 186 total.
+This pass adds 133 executable owners, for 188 total.
 
 The recovery owners include the native content and placement barriers, ordinary range moves,
 and confirmation of an earlier unknown native create after a newer Snapshot. Their behavior
@@ -27,6 +27,10 @@ through real ingress calls; generated provenance does not exempt its runtime bra
 
 The queue read repository is included because bounded reads must retain one coherent view
 of each requested operation and its receipt while bootstrap checks fresh durable state.
+The Pull mapping read repository is separately measured because shadow events, page order,
+and the durable mapping must come from one fresh readonly transaction. Its four 80% floors
+leave the original mapping-view owner's four 100% floors unchanged. The local placement
+owner covers captured drag evidence and the guarded admission of a later retry.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
@@ -63,6 +67,7 @@ of each requested operation and its receipt while bootstrap checks fresh durable
 - `src/pull-create-evidence.ts`
 - `src/pull-delete-apply.ts`
 - `src/pull-item-set-aside.ts`
+- `src/pull-local-placement.ts`
 - `src/pull-native-content-barrier.ts`
 - `src/pull-native-create-boundary.ts`
 - `src/pull-native-snapshot-resume.ts`
@@ -143,6 +148,7 @@ of each requested operation and its receipt while bootstrap checks fresh durable
 - `src/sync-state/issue-dependencies.ts`
 - `src/sync-state/materialization-wait-authority.ts`
 - `src/sync-state/mount-repository.ts`
+- `src/sync-state/pull-mapping-read-repository.ts`
 - `src/sync-state/pull-mapping-writes.ts`
 - `src/sync-state/pull-workset.ts`
 - `src/sync-state/queue-hold.ts`
