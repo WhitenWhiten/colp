@@ -161,3 +161,42 @@ it('missing resolution context keeps the existing item values without implying t
   await act(async () => { await Promise.resolve() })
   expect(f.posts).toHaveLength(0)
 })
+
+function enterCustomTitle(value: string) {
+  choose('custom')
+  const input = document.querySelector<HTMLInputElement>('[aria-label="Custom title"]')!
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+it('independent frozen review: the actual custom-title handler submits an exact empty bookmark title', async () => {
+  const f = await screen([conflict(1)], 0)
+  enterCustomTitle('')
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  expect(f.posts).toHaveLength(1)
+  expect(JSON.parse(String(f.posts[0]!.init?.body))).toEqual({ resolution: 'custom', value: '' })
+  expect(requestHeaders(f.posts[0]!).get('if-match')).toBe(conflict(1).etag)
+})
+
+it('independent frozen review: the actual custom-title handler refuses a title beyond the shared UTF-8 cap', async () => {
+  const f = await screen([conflict(1)], 0)
+  const title = '界'.repeat(342)
+  expect(title.length).toBe(342)
+  expect(new TextEncoder().encode(title).byteLength).toBe(1026)
+  enterCustomTitle(title)
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  expect(f.posts).toHaveLength(0)
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('1024')
+})
+
+it('independent frozen review: the actual custom-title handler preserves the exact UTF-8 boundary', async () => {
+  const f = await screen([conflict(1)], 0)
+  const title = `${'界'.repeat(341)}a`
+  expect(new TextEncoder().encode(title).byteLength).toBe(1024)
+  enterCustomTitle(title)
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  expect(f.posts).toHaveLength(1)
+  expect(JSON.parse(String(f.posts[0]!.init?.body))).toEqual({ resolution: 'custom', value: title })
+})
