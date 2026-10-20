@@ -1,4 +1,6 @@
 import { BookmarkFaviconValidationError, CollectionsError } from './errors.js';
+import { browserIngressTitleIssue, BROWSER_INGRESS_TITLE_MAX_CODE_UNITS,
+  BROWSER_INGRESS_TITLE_MAX_UTF8_BYTES } from '../../../generated/browser-ingress-title.js';
 
 export const COLLECTION_KINDS = [
   'bookmarks',
@@ -15,7 +17,7 @@ export type NodeKind = (typeof NODE_KINDS)[number];
 export const NODE_VISIBILITIES = ['inherit', 'protected', 'private'] as const;
 export type NodeVisibility = (typeof NODE_VISIBILITIES)[number];
 
-const TITLE_MAX = 512;
+const TITLE_MAX = BROWSER_INGRESS_TITLE_MAX_CODE_UNITS;
 const SUMMARY_MAX = 2000;
 const DESCRIPTION_MAX = 20_000;
 const TAG_MAX_ITEMS = 64;
@@ -26,7 +28,7 @@ const TAG_MAX_LENGTH = 64;
  * children page budget, which requires UTF-8 BYTE caps — not just code-point
  * caps — on the canonical node fields.
  */
-const TITLE_MAX_BYTES = 1024;
+const TITLE_MAX_BYTES = BROWSER_INGRESS_TITLE_MAX_UTF8_BYTES;
 const DESCRIPTION_MAX_BYTES = 16_384;
 
 export {
@@ -82,19 +84,20 @@ export function assertNonEmptyField(value: string, field: string): string {
 /** Bookmark titles may be empty for favicon-only entries; folders remain named. */
 export function assertValidNodeTitle(title: string, kind: 'bookmark' | 'folder' = 'folder'): string {
   const minimum = kind === 'bookmark' ? 0 : 1;
-  if (typeof title !== 'string' || title.length < minimum || title.length > TITLE_MAX) {
+  const issue = browserIngressTitleIssue(title, kind);
+  if (issue === 'length') {
     throw new CollectionsError(
       'invalid_node_title',
       `title must be ${minimum}..${TITLE_MAX} characters`,
     );
   }
-  if (title !== '' && title.trim().length === 0) {
+  if (issue === 'whitespace') {
     throw new CollectionsError(
       'invalid_node_title',
       'title cannot be whitespace-only',
     );
   }
-  if (Buffer.byteLength(title, 'utf8') > TITLE_MAX_BYTES) {
+  if (issue === 'bytes') {
     throw new CollectionsError(
       'invalid_node_title',
       `title must be at most ${TITLE_MAX_BYTES} UTF-8 bytes`,

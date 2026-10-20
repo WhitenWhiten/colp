@@ -208,8 +208,8 @@
     }
   },
   "scripts": {
-    "sync:protocol": "node scripts/sync-protocol-assets.mjs",
-    "check:protocol": "node scripts/sync-protocol-assets.mjs --check && node scripts/sync-browser-folder-roles.mjs --check",
+    "sync:protocol": "node scripts/sync-protocol-assets.mjs && node scripts/sync-browser-ingress-title.mjs",
+    "check:protocol": "node scripts/sync-protocol-assets.mjs --check && node scripts/sync-browser-folder-roles.mjs --check && node scripts/sync-browser-ingress-title.mjs --check",
     "generate:types": "node scripts/generate-types.mjs",
     "check:types": "node scripts/generate-types.mjs --check",
     "generate:traceability": "node scripts/generate-traceability.mjs",

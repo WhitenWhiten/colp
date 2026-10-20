@@ -4,6 +4,7 @@ import { createNodeOperationPayload, deleteOperationPayload, moveOperationPayloa
   nodeContentUpdateOperationPayload, operation as validateColpOperation } from './generated/bookmark-operation-validators.js';
 import type { JsonObject, JsonValue, MappingInput } from './sync-state-store.js';
 import { bookmarkUrl } from './generated/import-preview-validators.js';
+import { browserIngressTitleIssue } from './generated/browser-ingress-title.js';
 
 export interface BookmarkEventNode {
   readonly id: string; readonly parentId?: string; readonly index?: number; readonly title: string; readonly url?: string;
@@ -19,9 +20,8 @@ export type BookmarkRepresentability = 'supported' | 'unsupported_url_scheme' | 
 /** Shared ingress contract: only content the server can represent enters COLP sequence. */
 export function bookmarkRepresentability(node: Pick<BookmarkEventNode, 'title' | 'url' | 'type'>): BookmarkRepresentability {
   const bookmark = node.type === 'bookmark' || typeof node.url === 'string';
-  if (node.type !== 'separator' && node.title.trim().length === 0
-    && !(bookmark && node.title === '')) return 'invalid_title';
-  if (node.title.length > 4096) return 'invalid_title';
+  if (node.type !== 'separator'
+    && browserIngressTitleIssue(node.title, bookmark ? 'bookmark' : 'folder')) return 'invalid_title';
   if (node.type === 'bookmark' || typeof node.url === 'string') {
     const url = node.url;
     if (typeof url !== 'string' || !bookmarkUrl(url)) return 'invalid_url';
