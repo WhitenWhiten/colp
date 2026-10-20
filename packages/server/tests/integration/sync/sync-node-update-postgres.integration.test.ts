@@ -2348,10 +2348,11 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
   });
 
-  async function advertisedDecision(conflictId: string) {
+  async function advertisedDecision(conflictId: string, managedBookmarkWrites = false) {
     const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
       cursorSecret: 'p3-actions-cursor-secret-at-least-thirty-two-characters',
       conflictPayloadKeyring: { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] },
+      managedBookmarkWrites,
     });
     const page = await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 100 }));
     const item = page.items.find(item => item.id === conflictId);
@@ -2503,9 +2504,19 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     const before = await facts(opened.value.replica.replicaId, opened.node.id);
     const childCount = (await isolated.runtime.pool.query(`select count(*)::int count from nodes
       where parent_id=$1`, [managedParent.id])).rows[0].count;
+    const blockedDecision = await advertisedDecision(opened.conflictId);
+    assert.deepEqual(blockedDecision.allowedResolutions, []);
+    assert.equal(blockedDecision.resolutionBlockedReason, 'node_read_only');
+    assert.notEqual(blockedDecision.revision, opened.revision);
     await assert.rejects(
       resolver(opened.value).resolve(resolveInput(opened, {
         resolution: 'both', baseConflictRevision: opened.revision,
+      })),
+      (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'precondition_failed',
+    );
+    await assert.rejects(
+      resolver(opened.value).resolve(resolveInput({ ...opened, revision: blockedDecision.revision }, {
+        resolution: 'both', baseConflictRevision: blockedDecision.revision,
       })),
       (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'node_read_only',
     );
@@ -2518,8 +2529,10 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       from sync_conflict_resolution_receipts where conflict_id=$1`, [opened.conflictId])).rows[0].count, 0);
 
     const enabled = resolver(opened.value, undefined, true);
-    const resolved = await enabled.resolve(resolveInput(opened, {
-      resolution: 'both', baseConflictRevision: opened.revision,
+    const writableDecision = await advertisedDecision(opened.conflictId, true);
+    assert.ok(writableDecision.allowedResolutions.includes('both'));
+    const resolved = await enabled.resolve(resolveInput({ ...opened, revision: writableDecision.revision }, {
+      resolution: 'both', baseConflictRevision: writableDecision.revision,
     }));
     assert.equal(resolved.conflict.status, 'resolved');
     assert.equal(resolved.operation.type, 'create_node');
