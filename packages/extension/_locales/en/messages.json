@@ -4430,6 +4430,12 @@
   "firstRun_theseFoldersCannotEdited": {
     "message": "These folders cannot be edited and are excluded by default."
   },
+  "firstRun_unsupportedCount_one": {
+    "message": "$1 item will stay in this browser and will not sync: $2. Other bookmarks will sync."
+  },
+  "firstRun_unsupportedCount_other": {
+    "message": "$1 items will stay in this browser and will not sync: $2. Other bookmarks will sync."
+  },
   "firstRun_unsupportedSkipped": {
     "message": "Some items will stay in this browser: $1. Other bookmarks will sync."
   },

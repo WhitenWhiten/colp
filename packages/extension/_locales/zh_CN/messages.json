@@ -10402,5 +10402,13 @@
   "rejoin_unavailable": {
     "message": "暂时无法确认结果。请先刷新以检查已保存的选择，再决定是否重试。",
     "description": "The result could not be confirmed yet. Refresh to check your saved choice before trying again."
+  },
+  "firstRun_unsupportedCount_one": {
+    "message": "$1 个项目将保留在此浏览器中，不会同步：$2。其他书签会正常同步。",
+    "description": "$1 item will stay in this browser and will not sync: $2. Other bookmarks will sync."
+  },
+  "firstRun_unsupportedCount_other": {
+    "message": "$1 个项目将保留在此浏览器中，不会同步：$2。其他书签会正常同步。",
+    "description": "$1 items will stay in this browser and will not sync: $2. Other bookmarks will sync."
   }
 }
