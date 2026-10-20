@@ -234,6 +234,13 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
       if (!intent || intent.expiresAt <= Date.now() || !['browser_call_started', 'native_event_observed',
         'authority_committed', 'page_complete'].includes(String(intent.state)) || !intent.eventId) return;
       if (!allowCompletedChangeEcho && intent.expected.kind === 'change' && intent.state === 'page_complete') return;
+      // Content correlation locates a create intent before Chrome returns its
+      // identity. Afterwards only that exact native can supply the echo; a
+      // second identical bookmark is independent user work.
+      if (intent.expected.kind === 'create') {
+        const createdId = intent.nativeResultConfirmation?.nativeId ?? intent.apiResultEvidence?.nativeId;
+        if (typeof createdId === 'string' && evidence.nativeId !== createdId) return;
+      }
       const events = tx.objectStore(STORES.pullEvents); const event = await requestValue(events.get([key, intent.eventId])) as UnknownRecord | undefined;
       if (!event || !['browser_call_started', 'native_event_observed', 'authority_committed',
         'page_complete'].includes(String(event.state))) return;
