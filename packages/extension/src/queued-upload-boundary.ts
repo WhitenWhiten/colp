@@ -1,6 +1,6 @@
 import { assertRejoinDeleteUpload } from './scope-rejoin-upload.js';
 import { assertBootstrapUploadAllowed } from './bootstrap/upload-boundary.js';
-import { mountResolveOpIdMatches } from './bootstrap/run-identity.js';
+import { bootstrapOpId, mountResolveOpIdMatches } from './bootstrap/run-identity.js';
 import { classifyBookmarkApiFailure } from './bookmark-api-error.js';
 import { digestJson, plannedCreateNativeId } from './bookmark-event-codec.js';
 import { resolveIngressBoundary } from './bookmark-event-ingress.js';
@@ -48,16 +48,34 @@ export async function assertQueuedUploadAllowed(input: {
   for (const event of events) sources.add(event.nativeId);
   const planned = plannedCreateNativeId(queue.opId);
   if (planned) sources.add(planned);
+  let bootstrapSourceKnown = Boolean(planned) || events.length > 0;
   for (const id of [`pending-${queue.opId}`, queue.payload.targetId, payload?.parentId, payload?.newParentId]) {
     if (typeof id !== 'string') continue;
     const mapped = await store.getMappingByColpId(scope, id);
     if (mapped) {
       const nativeId = boundNativeId(mapped, mounts);
-      if (!isNonChromeNativeId(nativeId)) sources.add(nativeId);
+      if (!isNonChromeNativeId(nativeId)) {
+        sources.add(nativeId);
+        if (id === `pending-${queue.opId}` || id === queue.payload.targetId) bootstrapSourceKnown = true;
+      }
     }
   }
-  const role = object(payload?.node)?.folderRole;
-  if (queue.payload.type === 'create_node' && typeof role === 'string') {
+  const node = object(payload?.node);
+  const role = node?.folderRole;
+  const bootstrapCreate = queue.opId.startsWith('b3.') && queue.payload.type === 'create_node';
+  if (bootstrapCreate) {
+    // A selected nested mount has no folderRole. Its durable run and source
+    // key still identify the exact native folder, including hashed operation ids.
+    const runs = await store.listBootstrapRuns(scope);
+    for (const mount of mounts) {
+      const key = mount.rootRole ?? mount.customSourceKey;
+      if (key && runs.some(run => bootstrapOpId(run.confirmationId, 'mount', key) === queue.opId)) {
+        sources.add(mount.nativeRootId);
+        bootstrapSourceKnown = true;
+      }
+    }
+    if (!bootstrapSourceKnown) throw new Error('upload_boundary_unavailable');
+  } else if (queue.payload.type === 'create_node' && typeof role === 'string') {
     for (const mount of mounts) if (mount.rootRole === role
         || role === 'custom' && mount.customSourceKey && mountResolveOpIdMatches(queue.opId, mount.customSourceKey)) sources.add(mount.nativeRootId);
   }
@@ -109,8 +127,30 @@ export async function assertQueuedUploadAllowed(input: {
         if (!id) throw error;
       }
     }
+    // The confirmed bootstrap may need only the folder containers above a
+    // directly selected subfolder. The source still passes every private and
+    // exclusion check above; this never grants its unselected siblings upload.
+    if (!inRange && bootstrapCreate && node?.kind === 'folder') {
+      inRange = await requiredContainer(nativeId, boundary.selectedNative, input.parentOf,
+        async id => boundary.privateNative.has(id) || !!await store.getLocalSyncExclusion(scope, id));
+    }
     if (!inRange) throw new QueuedUploadExcludedError('unselected_range');
   }
+}
+
+async function requiredContainer(nativeId: string, selected: ReadonlySet<string>,
+  parentOf: (id: string) => Promise<string | undefined>, excluded: (id: string) => Promise<boolean>): Promise<boolean> {
+  for (const selectedId of selected) {
+    let current: string | undefined = selectedId;
+    const seen = new Set<string>();
+    while (current) {
+      if (await excluded(current)) break;
+      if (current === nativeId) return true;
+      if (seen.has(current) || seen.size >= 256) throw new Error('upload_boundary_unavailable');
+      seen.add(current); current = await parentOf(current);
+    }
+  }
+  return false;
 }
 
 export function isUploadExcluded(error: unknown): boolean {
