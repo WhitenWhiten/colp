@@ -1,0 +1,40 @@
+name: r5-captured-rename-verify-once
+on:
+  push:
+    branches: ['codex/r5-captured-rename-verify-20261020']
+permissions:
+  contents: read
+concurrency:
+  group: r5-captured-rename-verify-once-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  placement-closeout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/extension/package-lock.json
+            packages/server/package-lock.json
+      - name: Frozen extension install
+        run: npm ci
+        working-directory: packages/extension
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/extension
+      - name: Frozen server harness install
+        run: npm ci
+        working-directory: packages/server
+      - name: Captured rename after refused move independent probe
+        run: node node_modules/vitest/vitest.mjs run tests/pull-mapping-lifecycle.test.ts -t 'a captured rename after a refused move'
+        working-directory: packages/extension
+      - name: Full extension typecheck
+        if: always()
+        run: npm run typecheck
+        working-directory: packages/extension
