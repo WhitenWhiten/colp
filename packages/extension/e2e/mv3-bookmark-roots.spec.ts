@@ -242,11 +242,37 @@ test('stale folder tokens fail closed after the native tree changes', async () =
     await page.getByRole('button', { name: 'Refresh folders' }).click();
     await page.getByRole('checkbox', { name: 'Stale boundary', exact: true }).check();
     await page.evaluate(async (id) => { await chrome.bookmarks.create({ parentId: id, title: 'Tree changed' }); }, folderId);
+    const boundaryFacts = async () => {
+      const exported = await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main));
+      const journal = (await readStores(page, ['boundary_confirmation_commands'])).boundary_confirmation_commands;
+      return { selectedRoots: exported.scope.selectedRoots, privateRoots: exported.scope.privateRoots,
+        version: exported.scope.boundaryVersion, queue: exported.queue, receipts: exported.receipts,
+        journal: journal?.filter(row => row.scopeKey === exported.scope.scopeKey) ?? [] };
+    };
+    const before = await boundaryFacts();
     await page.getByRole('button', { name: 'Review changes' }).click();
     await expect(page.locator('#root-alert-copy, #root-feedback').filter({ hasText: /could not be loaded|Folder tree changed/i })).toBeVisible();
-    // A refused token reads as a failed load: the alert offers Retry, which reads the tree again.
+    expect(await boundaryFacts()).toEqual(before);
+    // Retry refreshes the token and keeps the unsaved choice. It grants no
+    // authority: the user must review the changed tree and explicitly confirm.
     await page.locator('#root-retry').click();
-    await expect(page.getByRole('checkbox', { name: 'Stale boundary', exact: true })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Stale boundary', exact: true })).toBeChecked();
+    await expect(page.locator('#range-preview')).toBeHidden();
+    expect(await boundaryFacts()).toEqual(before);
+    await page.getByRole('button', { name: 'Review changes' }).click();
+    await expect(page.locator('#range-preview')).toBeVisible();
+    expect(await boundaryFacts()).toEqual(before);
+    await page.locator('#range-confirm').click();
+    await expect.poll(async () => (await boundaryFacts()).journal.filter(row =>
+      !before.journal.some(prior => prior.confirmationId === row.confirmationId)
+      && row.state === 'committed').length).toBe(1);
+    const after = await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main));
+    const selected = after.mappings.find((row: { nativeId: string }) => row.nativeId === folderId);
+    expect(selected?.colpId).toBeTruthy();
+    expect(after.scope.selectedRoots).toContain(selected.colpId);
+    expect(Number(after.scope.boundaryVersion)).toBe(Number(before.version) + 1);
+    expect(await page.evaluate(async id => (await chrome.bookmarks.getSubTree(id))[0]?.children?.map(row => row.title), folderId))
+      .toEqual(['Tree changed']);
   } finally { await context.close(); }
 });
 

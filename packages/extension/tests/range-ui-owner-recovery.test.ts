@@ -87,6 +87,49 @@ async function changeOwner(ui: Awaited<ReturnType<typeof screen>>, kind: 'aba' |
   connected = true; await ui.folders.load();
 }
 
+test('a stale folder token keeps only the unsaved draft and requires a fresh review and explicit confirmation', async () => {
+  const withChildren = (children: readonly ChromeBookmarkNode[]) => {
+    tree = tree.map(root => ({ ...root, children: root.children?.map(row => row.id === '1'
+      ? { ...row, children: [{ id: '10', parentId: '1', title: 'Stale boundary', children }] } : row) }));
+  };
+  withChildren([]);
+  const ui = await screen();
+  const choose = () => document.querySelector<HTMLInputElement>('.root-select input[aria-label="Stale boundary"]')!;
+  choose().click();
+  const staleViewId = ui.folders.view()!.viewId;
+  withChildren([{ id: '11', parentId: '10', title: 'Folder created after review', children: [
+    { id: '12', parentId: '11', title: 'Created after review', url: 'https://example.test/after-view' },
+  ] }]);
+  const nativeBefore = structuredClone(tree);
+  await ui.range.save();
+  expect(byId('root-alert').hidden).toBe(false);
+  expect(byId('range-preview').hidden).toBe(true);
+  expect(ui.onConfirmed).not.toHaveBeenCalled();
+  expect(await syncState.getScope(scope)).toMatchObject({ selectedRoots: [], boundaryVersion: '0' });
+  expect(await syncState.listQueue(scope)).toEqual([]);
+  expect(await syncState.listPendingBoundaryCommands(scope)).toEqual([]);
+
+  byId('root-retry').click();
+  await vi.waitFor(() => expect(ui.folders.view()!.viewId).not.toBe(staleViewId));
+  expect(choose().checked).toBe(true);
+  expect(messages.filter(row => row.kind === 'known.roots.confirm')).toEqual([]);
+  expect(await syncState.getScope(scope)).toMatchObject({ selectedRoots: [], boundaryVersion: '0' });
+  await ui.range.save();
+  expect(byId('range-preview').hidden).toBe(false);
+  expect(byId('range-preview-totals').textContent).toContain('1 bookmark');
+  expect(messages.filter(row => row.kind === 'known.roots.confirm')).toEqual([]);
+  byId('range-confirm').click();
+  await vi.waitFor(() => expect(ui.onConfirmed).toHaveBeenCalledTimes(1));
+  const confirmation = messages.find(row => row.kind === 'known.roots.confirm')!;
+  expect((await syncState.getBoundaryCommand(scope, confirmation.confirmationId))?.state).toBe('committed');
+  const recorded = (await syncState.getScope(scope))!;
+  const mappings = new Map((await syncState.listMappings(scope)).map(row => [row.colpId, row.nativeId]));
+  expect(recorded.selectedRoots.map(id => mappings.get(id))).toEqual(['10']);
+  expect(recorded.boundaryVersion).toBe('1');
+  expect(await syncState.listBootstrapRuns(scope)).toHaveLength(1);
+  expect(tree).toEqual(nativeBefore);
+});
+
 test.each(['aba', 'pagehide'] as const)('late preview cannot repaint or confirm after %s', async owner => {
   const ui = await screen(), pending = hold('known.roots.preview'), save = ui.range.save();
   expect(await pending.received).toMatchObject({ ok: true, preview: { boundaryVersion: '0' } });
