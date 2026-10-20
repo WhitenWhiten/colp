@@ -5,6 +5,7 @@ import { scopeKey } from './sync-state/scope-key.js';
 import type { SyncScope } from './sync-state-store.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import type { NativeWriteCheck } from './native-call-result.js';
+import { createSyncBoundaryFetch, dispatchSyncFetch } from './sync-fetch-boundary.js';
 
 /** One live capability for ordinary Pull and snapshot projection, including resumed work. */
 export function createSyncEffectAuthority(options: {
@@ -48,15 +49,18 @@ export function createSyncEffectAuthority(options: {
     get: id => run(() => options.api.get(id)),
     getChildren: id => run(() => options.api.getChildren(id)),
   };
-  const fetcher: typeof fetch = async (input, init) => {
+  const fetcher = createSyncBoundaryFetch(async (input, init, boundary) => {
     await assertCurrent();
     const lease = await admitted;
     const signal = AbortSignal.any([options.context.signal, ...(init?.signal ? [init.signal] : []), ...(lease ? [lease.signal] : [])]);
-    const send = () => {
-      lease?.assertLive();
-      if (signal.aborted) throw new AuthorityFencedError();
-      return (options.fetch ?? fetch)(input, { ...init, signal });
-    };
+    const send = (assertMetadataLive?: () => void) => dispatchSyncFetch(options.fetch ?? fetch, input, { ...init, signal }, {
+      check: boundary?.check,
+      started: () => {
+        lease?.assertLive();
+        if (signal.aborted) throw new AuthorityFencedError();
+        assertMetadataLive?.(); boundary?.started();
+      },
+    });
     // COLP attempts have a bounded, immutable JSON string body. Retrying an old
     // attempt cannot bypass a later local-only decision. Never strip fields from
     // an already identified operation or alter its sequence/idempotency identity.
@@ -65,6 +69,6 @@ export function createSyncEffectAuthority(options: {
       : await send();
     await assertCurrent();
     return response;
-  };
+  });
   return { assertCurrent, run, api, fetch: fetcher };
 }

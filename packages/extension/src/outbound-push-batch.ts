@@ -5,6 +5,7 @@ import { readBoundedJson } from './json-response.js';
 import { parseSyncPushResult } from './sync-push-wire.js';
 import type { JsonObject, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
 import type { StoredCredential, StoredSession } from './types.js';
+import { dispatchSyncFetch } from './sync-fetch-boundary.js';
 
 const REQUEST_BYTES = 64 * 1024;
 const RESPONSE_BYTES = 128 * 1024;
@@ -76,13 +77,16 @@ export async function sendBootstrapCreateBatch(input: {
       controller.abort(); reject(new SyncFailureError('push_batch_timeout'));
     }, input.timeoutMs); });
     const idempotencyKey = `batch.${crypto.randomUUID()}`;
-    const send = async () => {
-      if (input.assertBatchDispatchAllowed) await input.assertBatchDispatchAllowed(rows);
-      else for (const row of rows) await input.assertDispatchAllowed?.(row);
-      controller.signal.throwIfAborted(); dispatched = true; input.onDispatchStarted?.(rows); return input.fetch(input.endpoint, { method: 'POST', redirect: 'error', credentials: 'omit',
+    const send = () => dispatchSyncFetch(input.fetch, input.endpoint, { method: 'POST', redirect: 'error', credentials: 'omit',
       signal: controller.signal, headers: { Accept: 'application/json', 'Content-Type': 'application/json',
         ...colpCredentialHeaders(input.credential.accessToken), 'Idempotency-Key': idempotencyKey,
-        ...(input.origin ? { Origin: input.origin } : {}) }, body }); };
+        ...(input.origin ? { Origin: input.origin } : {}) }, body }, {
+      check: async () => {
+        if (input.assertBatchDispatchAllowed) await input.assertBatchDispatchAllowed(rows);
+        else for (const row of rows) await input.assertDispatchAllowed?.(row);
+      },
+      started: () => { controller.signal.throwIfAborted(); dispatched = true; input.onDispatchStarted?.(rows); },
+    });
     const dispatch = async () => {
       for (const row of rows) await input.beforeDispatch?.(row);
       await input.beforeDispatchBatch?.(rows);

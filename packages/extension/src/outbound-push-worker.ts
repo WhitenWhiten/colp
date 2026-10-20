@@ -2,6 +2,7 @@ import { MAX_SEQUENCE_BLOCKED_RETRIES } from './sync-state/open-issue-facts.js';
 import { startPushLeaseRenewal } from './push-lease-renewal.js';
 import { enforceSyncIssueCeiling } from './sync-issue-ceiling.js';
 import { SyncFailureError } from './sync-failure-class.js';
+import { dispatchSyncFetch } from './sync-fetch-boundary.js';
 import { holdRepeatedLocalFailure } from './push-local-failure.js';
 import type { RecaptureQueueRow } from './queue-recapture.js';
 import { settleExcludedQueuedUpload } from './bootstrap/upload-rejection.js';
@@ -193,8 +194,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
           sequence: queue.sequence };
       }
       const batch = (!options.dispatch || options.dispatchBatch) && await sendBootstrapCreateBatch({
-        first: bound, fresh: !queue.attempt && queue.retry.attempt === 0,
-        limit: batchLimit,
+        first: bound, fresh: !queue.attempt && queue.retry.attempt === 0, limit: batchLimit,
         store: options.store, scope: options.scope, ownerId, fence: lease.fence, now,
         ...authority, endpoint, fetch: fetcher,
         origin: options.origin, timeoutMs: requestTimeout, dispatch: options.dispatchBatch,
@@ -205,7 +205,9 @@ export function createOutboundPushWorker(options: WorkerOptions) {
         assertDispatchAllowed: options.assertUploadAllowed,
         assertBatchDispatchAllowed: options.assertBatchUploadAllowed,
         onDispatchStarted: rows => { for (const row of rows) unsentAttempts.delete(row.opId); },
-        notDispatched: async row => {
+        notDispatched: async (row, error) => {
+          if (await stopDeniedMetadataAttempt({ error, store: options.store, scope: options.scope,
+            queue: row, ownerId, fence: lease.fence, now })) return;
           try { await options.assertUploadAllowed?.(row); }
           catch (error) { if (isUploadExcluded(error)) return rejectExcluded(row, lease.fence, error); }
           return persistUnknown(row, lease.fence, 'push_batch_not_dispatched', null, true);
@@ -303,18 +305,18 @@ export function createOutboundPushWorker(options: WorkerOptions) {
       try {
         if (!acceptedResponse) { await options.beforeDispatch?.(queue); await options.assertUploadAllowed?.(queue); }
         const send = async () => {
-          const endpoint = (await options.endpoints()).syncPush;
-          await options.assertUploadAllowed?.(queue);
-          controller.signal.throwIfAborted();
+          const endpoint = (await options.endpoints()).syncPush; let dispatched = false;
           const request: RequestInit = { method: 'POST', redirect: 'error',
             credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json',
               ...colpCredentialHeaders(authority.credential.accessToken),
               'Content-Type': attempt.mediaType, 'Idempotency-Key': attempt.idempotencyKey,
               ...(options.origin ? { Origin: options.origin } : {}) }, body };
-          try { unsentAttempts.delete(queue.opId); return await withinDeadline(fetcher(endpoint, request)); }
-          catch (error) {
-            // Only fetch/timeout owns network failures; local hooks and endpoint
-            // discovery cannot be classified as network errors by this fallback.
+          try { return await withinDeadline(dispatchSyncFetch(fetcher, endpoint, request, {
+            check: () => options.assertUploadAllowed?.(queue) ?? Promise.resolve(),
+            started: () => { controller.signal.throwIfAborted(); dispatched = true; unsentAttempts.delete(queue.opId); },
+          })); }
+          catch (error) { if (!dispatched) throw error;
+            // Only a started transport owns network-error classification.
             const transport = error instanceof TypeError || error instanceof DOMException
               && ['AbortError', 'NetworkError', 'TimeoutError'].includes(error.name);
             throw new Error(reasonCode(error, transport ? 'push_network_failed' : 'push_dispatch_failed'), { cause: error });
