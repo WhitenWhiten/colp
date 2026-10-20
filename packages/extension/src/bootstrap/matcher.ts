@@ -6,7 +6,7 @@ import { bootstrapOpId as opId } from './run-identity.js';
 import { pairCustomMountRoots } from './custom-mount-match.js';
 export { bootstrapOpId, bootstrapRunOpPrefix, mountResolveOpIdMatches } from './run-identity.js';
 import {
-  buildLocalIndex, buildRemoteIndex, encodeFactKey, mappingByNativeMap, matchIndexBuilds,
+  buildLocalIndex, buildRemoteIndex, encodeFactKey, matchIndexBuilds,
   mountsByNativeRoot, SPECIAL_FOLDER_ROLES, type MatchIndexStats,
 } from './match-index.js';
 
@@ -90,11 +90,13 @@ export function matchLocalRemote(input: {
   const localById = localIndex.byId;
   const remoteById = remoteIndex.byId;
   const mountsByRoot = mountsByNativeRoot(input.mounts);
-  const mappingByNative = mappingByNativeMap(input.mappings);
+  const mappingByNative = explicitIdentities(input);
   const consumedL = new Set<string>(); const consumedR = new Set<string>();
   const matched: Array<{ nativeId: string; nodeId: string }> = [];
   const conflicts: MatchConflict[] = [];
   const pair = (nativeId: string, nodeId: string) => {
+    const known = mappingByNative.get(nativeId);
+    if (known && known !== nodeId) return;
     if (consumedL.has(nativeId) || consumedR.has(nodeId)) return;
     const local = localById.get(nativeId); const remote = remoteById.get(nodeId);
     if (!local || !remote) return;
@@ -286,7 +288,27 @@ function planMountCreate(mount: MountFact, input: {
 }
 
 function authoritativeColp(id: string | undefined | null): id is string {
-  return typeof id === 'string' && !id.startsWith('mount:') && !id.startsWith('pending-');
+  return typeof id === 'string' && id.length > 0 && !id.startsWith('mount:') && !id.startsWith('pending-');
+}
+
+/** Missing snapshot targets do not revoke identity. Contradictory evidence
+ * cannot be resolved by iteration order or by choosing a similar live node. */
+function explicitIdentities(input: {
+  readonly mappings: readonly MappingFact[]; readonly local: readonly LocalNodeFact[];
+  readonly sidecars?: readonly SidecarFact[]; readonly mounts: readonly MountFact[];
+}): Map<string, string> {
+  const identities = new Map<string, string>();
+  const remember = (nativeId: string, nodeId: string | null | undefined) => {
+    if (!authoritativeColp(nodeId)) return;
+    const prior = identities.get(nativeId);
+    if (prior && prior !== nodeId) throw new Error('mapping_identity_conflict');
+    identities.set(nativeId, nodeId);
+  };
+  for (const row of input.mappings) remember(row.nativeId, row.colpId);
+  for (const row of input.local) remember(row.nativeId, row.sourceRefColpId);
+  for (const row of input.sidecars ?? []) remember(row.nativeId, row.colpId);
+  for (const row of input.mounts) remember(row.nativeRootId, row.remoteMountNodeId);
+  return identities;
 }
 
 function pairStructureByParentDepth(

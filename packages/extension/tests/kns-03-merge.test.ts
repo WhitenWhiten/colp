@@ -192,7 +192,7 @@ describe('KNS-03 merge matcher', () => {
     assert.equal(report.planned.filter((op) => op.nativeId === 'native-1' && op.type === 'create_node').length, 1);
   });
 
-  test('persisted mapping and sidecar identity win over URL heuristics', () => {
+  test('consistent persisted mapping and sidecar identity win over URL heuristics', () => {
     const local: LocalNodeFact[] = [
       { nativeId: 'native-map', mountNativeRootId: 'bar', parentNativeId: 'other', kind: 'bookmark',
         title: 'Changed', url: 'https://example.com/other', sourceRefColpId: 'bm-side' },
@@ -204,7 +204,8 @@ describe('KNS-03 merge matcher', () => {
         url: 'https://example.com/side', revision: 'r1' },
     ];
     const mapped = matchLocalRemote({
-      scopeKey: 's', confirmationId: 'c', local, remote, mappings: [{ nativeId: 'native-map', colpId: 'bm-map' }],
+      scopeKey: 's', confirmationId: 'c', local: local.map(row => ({ ...row, sourceRefColpId: 'bm-map' })),
+      remote, mappings: [{ nativeId: 'native-map', colpId: 'bm-map' }],
       mounts: [{ nativeRootId: 'bar', rootRole: 'bookmarks-bar', remoteMountNodeId: 'mount-bar' }],
       rootNodeId: 'folder-root', bootstrapMode: 'merge',
     });
