@@ -438,7 +438,7 @@ function validateNodeCreate(node: unknown): NodeCreateInput {
   }
   return {
     kind: 'bookmark',
-    title: assertValidNodeTitle(record.title),
+    title: assertValidNodeTitle(record.title, 'bookmark'),
     url: assertValidHttpUrlNoUserInfo(record.url),
     description: assertValidNodeDescription(record.description as string | null),
     tags: assertValidNodeTags(record.tags as readonly string[]),

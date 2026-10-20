@@ -83,7 +83,7 @@ export function duplicateNodeDocument(
   const common = { tags: [...tags], visibility, extensions: preserved.extensions,
     ...(description === null ? {} : { description }) };
   if (privatePayload.nodeKind === 'separator') return { ...common, kind: 'separator' };
-  const title = assertValidNodeTitle(content.title as string);
+  const title = assertValidNodeTitle(content.title as string, privatePayload.nodeKind);
   if (privatePayload.nodeKind === 'folder') return { ...common, kind: 'folder', title };
   const url = assertValidHttpUrlNoUserInfo(content.url as string);
   return { ...common, kind: 'bookmark', title, url,

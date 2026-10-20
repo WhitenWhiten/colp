@@ -43,6 +43,15 @@ expanded menu but cannot execute its recovery action; route conflict writes
 and resolutions to the upgraded fleet together. Keep the additive constraint
 on application rollback; the down migration refuses while new menus remain.
 
+## Favicon-only bookmark titles
+
+Apply `202611010600_empty_bookmark_titles` before enabling empty bookmark
+titles in the server and extension. Bookmark content preserves `title: ''`;
+folder and collection names still require a nonempty value. Deploy readers
+that accept empty bookmark titles together with the writer and keep the
+expanded constraint on application rollback. The down migration refuses to
+erase or rename existing favicon-only bookmarks.
+
 ## Favicon provider result cache
 
 Apply `202610311400_favicon_provider_cache` before deploying the favicon worker

@@ -140,3 +140,11 @@ obsolete node limits from collection history responses. Library initialization
 still creates Bookmarks bar and Other bookmarks; synchronized Mobile roots use
 the same write and protection rules. The frozen snapshot is
 baselines/product-v1.1.98.0.yaml; 1.97.0 remains immutable.
+
+Product 1.99.0 corrects the bookmark title contract to preserve the exact empty
+string used by favicon-only browser bookmarks. Bookmark create and view titles
+allow zero characters; a node merge patch may clear an existing bookmark title.
+Folder and Collection titles remain nonempty. The new frozen snapshot is
+baselines/product-v1.1.99.0.yaml; 1.98.0 remains immutable and its stricter response
+constraint is intentionally incompatible with favicon-only bookmarks. Consumers
+must accept an empty bookmark title and may use a display-only URL fallback.

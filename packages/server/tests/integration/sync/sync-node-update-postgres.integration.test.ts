@@ -53,6 +53,7 @@ import {
   SyncConflictResolutionError,
 } from '../../../src/modules/sync/index.js';
 import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-update.js';
+import { syncNodeCreatePushRequest } from '../../fixtures/phase3/sync-push-admission.js';
 import { syncNodeMovePushRequest } from '../../fixtures/phase3/sync-node-move.js';
 import { syncNodeDeletePushRequest } from '../../fixtures/phase3/sync-node-delete.js';
 import { observeSubtree } from '../../support/subtree-observation.js';
@@ -617,6 +618,40 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     }
     assert.equal(new Set(ordered.map((row) => row.private_iv)).size, ordered.length);
     recordPhase3SyncPushScenario('typed_update');
+  });
+
+  test('favicon-only bookmark creation and a later URL edit preserve the empty title in canonical state and replay', async () => {
+    const value = await context(), server = await start(value);
+    const createRequest = syncNodeCreatePushRequest({
+      sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+      collectionId: COLLECTION, parentId: ROOT, opId: `favicon-create-${randomUUID()}`,
+      node: { kind: 'bookmark', title: '', url: 'https://example.test/favicon-before' },
+    });
+    const created = await blackBox(server.origin).push({ idempotencyKey: `favicon-create-${randomUUID()}`, request: createRequest });
+    assert.equal(created.status, 200);
+    const appliedCreate = result(created.body).results[0]!;
+    assert.equal(appliedCreate.status, 'applied');
+    assert.ok(appliedCreate.targetId);
+    assert.ok(appliedCreate.revision);
+    const request = syncNodeUpdatePushRequest({
+      sessionId: value.session.sessionId, replicaId: value.replica.replicaId, sequence: 2,
+      collectionId: COLLECTION, targetId: appliedCreate.targetId, baseRevision: appliedCreate.revision,
+      opId: `favicon-update-${randomUUID()}`, base: { url: 'https://example.test/favicon-before' },
+      value: { url: 'https://example.test/favicon-after' },
+    });
+    const idempotencyKey = `favicon-update-${randomUUID()}`;
+    const updated = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(updated.status, 200);
+    assert.equal(result(updated.body).results[0]?.status, 'applied');
+    const after = await facts(value.replica.replicaId, appliedCreate.targetId);
+    assert.equal(after.node.title, '');
+    assert.equal(after.node.payload_json.title, '');
+    assert.equal(after.node.payload_json.url, 'https://example.test/favicon-after');
+    const effects = await isolated.runtime.pool.query(`select effect_json from sync_operation_effects where operation_id=$1`, [request.operations[0]!.opId]);
+    assert.equal(effects.rows[0].effect_json.node.title, '');
+    const replay = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.deepEqual(replay.body, updated.body);
+    assert.deepEqual(await facts(value.replica.replicaId, appliedCreate.targetId), after);
   });
 
   test('browser tag sync removes only observed members, preserves concurrent additions and exactly replays its receipt', async () => {
@@ -2408,7 +2443,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     await assertInvalidMultiFieldCustom(fresh, extraField, 'r05-multi-extra-field');
 
     for (const [label, value] of [
-      ['empty title', { ...legal, title: '' }],
+      ['whitespace title', { ...legal, title: '   ' }],
       ['unsafe url', { ...legal, url: 'javascript:alert(1)' }],
       ['non-object extensions', { ...legal, extensions: 'not-an-object' }],
     ] as const) {

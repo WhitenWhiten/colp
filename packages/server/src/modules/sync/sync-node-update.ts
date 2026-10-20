@@ -260,7 +260,7 @@ function canonicalFields(
       switch (field) {
         case 'title':
           if (kind === 'separator' || value === null) deny('invalid_document');
-          kindFields.title = assertValidNodeTitle(value as string);
+          kindFields.title = assertValidNodeTitle(value as string, kind === 'bookmark' ? 'bookmark' : 'folder');
           break;
         case 'url':
           if (kind !== 'bookmark' || value === null) deny('invalid_document');

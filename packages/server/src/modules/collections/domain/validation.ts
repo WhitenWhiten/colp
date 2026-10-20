@@ -79,15 +79,16 @@ export function assertNonEmptyField(value: string, field: string): string {
   return value;
 }
 
-/** Node title: same length/blank rules as Collection title plus the FO-05 byte cap. */
-export function assertValidNodeTitle(title: string): string {
-  if (typeof title !== 'string' || title.length < 1 || title.length > TITLE_MAX) {
+/** Bookmark titles may be empty for favicon-only entries; folders remain named. */
+export function assertValidNodeTitle(title: string, kind: 'bookmark' | 'folder' = 'folder'): string {
+  const minimum = kind === 'bookmark' ? 0 : 1;
+  if (typeof title !== 'string' || title.length < minimum || title.length > TITLE_MAX) {
     throw new CollectionsError(
       'invalid_node_title',
-      `title must be 1..${TITLE_MAX} characters`,
+      `title must be ${minimum}..${TITLE_MAX} characters`,
     );
   }
-  if (title.trim().length === 0) {
+  if (title !== '' && title.trim().length === 0) {
     throw new CollectionsError(
       'invalid_node_title',
       'title cannot be whitespace-only',

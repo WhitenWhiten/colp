@@ -20,6 +20,7 @@ import {
   assertValidHttpUrlNoUserInfo,
   assertValidNodeDescription,
   assertValidNodeTags,
+  assertValidNodeTitle,
   type CollectionKind,
   type NodeKind,
   type NodeVisibility,
@@ -306,8 +307,11 @@ export function materializeNodePayload(row: NodeRelationalProjection): Materiali
   if (typeof row.isRoot !== 'boolean') {
     return { ok: false, reason: 'isRoot is required', fieldPath: 'isRoot' };
   }
-  if (row.kind === 'separator' ? row.title !== null
-    : !isNonEmptyString(row.title) || row.title.length > 512 || row.title.trim().length === 0) {
+  try {
+    if (row.kind === 'separator') {
+      if (row.title !== null) throw new Error('separator title must be absent');
+    } else assertValidNodeTitle(row.title as string, row.kind === 'bookmark' ? 'bookmark' : 'folder');
+  } catch {
     return { ok: false, reason: 'title is invalid', fieldPath: 'title' };
   }
   if (!NODE_VISIBILITY_SET.has(row.visibility)) {
@@ -505,6 +509,10 @@ export function validateResourcePayload(
         ? null
         : String(payload.deletedAt),
     });
+  }
+
+  if (payload.kind !== 'separator' && typeof payload.title !== 'string') {
+    return { ok: false, reason: 'node title must be a string', fieldPath: 'title' };
   }
 
   return materializeNodePayload({

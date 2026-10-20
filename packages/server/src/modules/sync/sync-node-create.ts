@@ -71,7 +71,7 @@ export function mapSyncNodeCreateOperation(
   let url: string | null = null;
   try {
     if (kind === 'folder' || kind === 'bookmark') {
-      title = assertValidNodeTitle(candidate.title as string);
+      title = assertValidNodeTitle(candidate.title as string, kind);
     } else if (candidate.title !== undefined || candidate.url !== undefined) {
       deny('invalid_document');
     }

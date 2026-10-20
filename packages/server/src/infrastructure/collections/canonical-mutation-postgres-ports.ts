@@ -492,7 +492,7 @@ function readNodeFields(fields: JsonObject, current?: NodeRow) {
       if (fields.title !== null && fields.title !== undefined) invariant('separator title must be absent');
       return null;
     })()
-    : assertValidNodeTitle(fields.title === undefined ? current?.title ?? '' : fields.title as string);
+    : assertValidNodeTitle(fields.title === undefined ? current?.title ?? '' : fields.title as string, kind);
   const description = assertValidNodeDescription(
     fields.description === undefined ? current?.description ?? null : fields.description as string | null,
   );

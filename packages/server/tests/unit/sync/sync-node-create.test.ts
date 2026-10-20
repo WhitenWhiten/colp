@@ -126,7 +126,7 @@ describe('P3-12 COLP create_node canonical mapping', () => {
   test('mapper rejects every malformed node directly, including schema-admitted values (overlong title, userinfo URL, forbidden folderRole)', () => {
     const cases: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
       ['bookmark with userinfo URL', { kind: 'bookmark', title: 'userinfo', url: 'https://secret@example.test/' }],
-      ['bookmark with empty title', { kind: 'bookmark', title: '', url: 'https://example.test/' }],
+      ['folder with empty title', { kind: 'folder', title: '' }],
       ['folder with overlong title', { kind: 'folder', title: 'x'.repeat(513) }],
       ['separator with title', { kind: 'separator', title: 'not allowed' }],
       ['separator with url', { kind: 'separator', url: 'https://example.test/' }],

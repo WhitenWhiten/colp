@@ -9158,6 +9158,7 @@ export interface components {
             kind: "bookmark";
             parentId: components["schemas"]["OpaqueId"];
             position: components["schemas"]["Position"];
+            /** @description Empty preserves a favicon-only browser bookmark. */
             title: string;
             url: components["schemas"]["HttpUrlNoUserInfo"];
             description: string | null;
@@ -9645,6 +9646,7 @@ export interface components {
             node: components["schemas"]["NodeCreate"];
         };
         NodeMergePatch: {
+            /** @description Empty is accepted only when the existing node is a bookmark. */
             title?: string;
             url?: components["schemas"]["HttpUrlNoUserInfo"];
             description?: string | null;

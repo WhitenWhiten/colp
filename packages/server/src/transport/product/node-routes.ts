@@ -670,7 +670,7 @@ function parseNodeCreate(node: unknown): NodeCreateInput {
   }
   return {
     kind: 'bookmark',
-    title: assertValidNodeTitle(record.title),
+    title: assertValidNodeTitle(record.title, 'bookmark'),
     url: record.url,
     description: assertValidNodeDescription(record.description as string | null),
     tags: assertValidNodeTags(record.tags as readonly string[]),
@@ -730,7 +730,7 @@ function parseNodeMergePatch(body: unknown): NodeMergePatch {
           { path: '/title', code: 'invalid_type', message: 'title must be a string.' },
         ]);
       }
-      patch.title = assertValidNodeTitle(record.title);
+      patch.title = assertValidNodeTitle(record.title, 'bookmark');
     }
     if (hasUrl) {
       if (typeof record.url !== 'string') {

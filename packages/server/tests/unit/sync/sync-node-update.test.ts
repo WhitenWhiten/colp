@@ -53,6 +53,15 @@ function expectCode(action: () => unknown, code: SyncNodeUpdateError['code']): v
 }
 
 describe('P3-13 typed Node update evaluator', () => {
+  test('clears a bookmark title without allowing an unnamed folder', () => {
+    const op = operation({ base: { title: 'Before' }, value: { title: '' } });
+    const result = evaluateSyncNodeUpdate(op, revision(), revision());
+    assert.equal(result.status, 'merged');
+    assert.equal(result.fields.kindFields.title, '');
+    const folder = revision({ kind: 'folder', payload: { ...revision().payload, kind: 'folder', url: null } });
+    expectCode(() => evaluateSyncNodeUpdate(op, folder, folder), 'invalid_document');
+  });
+
   test('uses the public COLP three-way merge for Base=Current and marks a stale automatic merge rebased', () => {
     const direct = evaluateSyncNodeUpdate(operation({
       base: { title: 'Before', url: 'https://example.test/before' },

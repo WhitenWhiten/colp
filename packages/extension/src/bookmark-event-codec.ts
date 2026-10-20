@@ -18,7 +18,9 @@ export type BookmarkRepresentability = 'supported' | 'unsupported_url_scheme' | 
 
 /** Shared ingress contract: only content the server can represent enters COLP sequence. */
 export function bookmarkRepresentability(node: Pick<BookmarkEventNode, 'title' | 'url' | 'type'>): BookmarkRepresentability {
-  if (node.type !== 'separator' && node.title.trim().length === 0) return 'invalid_title';
+  const bookmark = node.type === 'bookmark' || typeof node.url === 'string';
+  if (node.type !== 'separator' && node.title.trim().length === 0
+    && !(bookmark && node.title === '')) return 'invalid_title';
   if (node.title.length > 4096) return 'invalid_title';
   if (node.type === 'bookmark' || typeof node.url === 'string') {
     const url = node.url;

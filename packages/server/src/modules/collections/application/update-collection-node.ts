@@ -360,7 +360,9 @@ function validateMergePatch(patch: unknown): NodeMergePatch {
     if (typeof record.title !== 'string') {
       throw new CollectionsError('invalid_node_title', 'title must be a string');
     }
-    result.title = assertValidNodeTitle(record.title);
+    // Kind is authoritative only after the node is loaded; a bookmark can
+    // clear its title, while applyMergePatch enforces the folder requirement.
+    result.title = assertValidNodeTitle(record.title, 'bookmark');
   }
 
   if (hasUrl) {
@@ -426,7 +428,7 @@ function applyMergePatch(node: LockedNodeRow, patch: NodeMergePatch): MergedNode
     );
   }
 
-  const title = patch.title !== undefined ? patch.title : node.title;
+  const title = assertValidNodeTitle(patch.title !== undefined ? patch.title : node.title, node.kind);
   const description = patch.description !== undefined ? patch.description : node.description;
   const tags = patch.tags !== undefined
     ? (patch.tags === null ? [] : patch.tags)

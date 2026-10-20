@@ -55,6 +55,18 @@ import {
 } from '../../support/update-collection-node-memory.js';
 
 describe('updateCollectionNode: legal merge patches', () => {
+  test('a bookmark can clear its title through the Product update application', async () => {
+    const state = createState();
+    seedCollection(state);
+    seedBookmark(state);
+    const ports = createMemoryPorts(state);
+    const updated = assertUpdated(await updateCollectionNode(ports, baseInput({
+      nodeId: BOOKMARK_ID, ifMatch: strongEntityTag(BOOKMARK_RESOURCE_REV), patch: { title: '' },
+    })));
+    assert.equal(updated.node.title, '');
+    assert.equal(state.nodes.get(BOOKMARK_ID)?.title, '');
+  });
+
   test('folder: title, description, tags, visibility merges', async () => {
     const state = createState();
     seedCollection(state);
