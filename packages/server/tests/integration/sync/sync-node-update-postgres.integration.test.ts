@@ -1961,11 +1961,19 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     });
 
   test('a deleted managed ancestor still forbids offline conflict admission without both write capabilities', async () => {
-    const managed = await seedNode('folder');
+    const managed = await setCurrent(await seedNode('folder'), { folderRole: 'managed-bookmarks' });
     const child = await seedNode('bookmark', { parentId: managed.id });
-    await setCurrent(managed, { folderRole: 'managed-bookmarks' }, true);
-    await setCurrent(child, {}, true);
     const value = await context();
+    const deleter = await context();
+    const deleteServer = await start(deleter, { managedBookmarkWrites: true });
+    const deletion = await blackBox(deleteServer.origin).push({ idempotencyKey: `delete-managed-parent-${randomUUID()}`,
+      request: syncNodeDeletePushRequest({ sessionId: deleter.session.sessionId,
+        replicaId: deleter.replica.replicaId, collectionId: COLLECTION, targetId: managed.id,
+        baseRevision: managed.revision, subtree: true, opId: `delete-managed-parent-${randomUUID()}`,
+        source: await observeSubtree(isolated.runtime.db, managed.id) }) });
+    assert.equal(deletion.status, 200);
+    assert.equal((await isolated.runtime.pool.query(`select count(*)::int count from sync_node_tombstones
+      where target_id=any($1::text[])`, [[managed.id, child.id]])).rows[0].count, 2);
     const server = await start(value);
     const before = await facts(value.replica.replicaId, child.id);
     const response = await blackBox(server.origin).push({ idempotencyKey: `deleted-managed-${randomUUID()}`,
@@ -2576,8 +2584,30 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
   }, 45_000);
 
   test('P3-21 traverses real Push Operation and Conflict streams with retry and restart stability', async () => {
+    // This suite shares a database to amortize migrations. Page only this
+    // scenario's real events so unrelated cases cannot exhaust its HTTP quota.
+    const previous = (await isolated.runtime.pool.query<{
+      commit_ordinal: string; stream_kind: number; stable_id: string;
+    }>(`select commit_ordinal::text, stream_kind, stable_id from (
+      select commit_ordinal,sync_stream_kind stream_kind,operation_id stable_id from operations
+      where collection_id=$1 and sync_wire_present
+      union all
+      select commit_ordinal,sync_stream_kind stream_kind,conflict_id stable_id from sync_conflicts
+      where collection_id=$1
+    ) stream order by stream.commit_ordinal desc,stream_kind desc,stable_id collate "C" desc limit 1`, [COLLECTION])).rows[0];
+    const startTuple = previous ? { commitOrdinal: previous.commit_ordinal,
+      streamKind: previous.stream_kind === 0 ? 'operation' as const : 'conflict' as const,
+      stableId: previous.stable_id } : { commitOrdinal: '0', streamKind: 'operation' as const, stableId: '' };
     const opened = await openConflict();
     const server = await start(opened.value);
+    const changed = await seedNode('bookmark');
+    const operation = syncNodeUpdatePushRequest({ sessionId: opened.value.session.sessionId,
+      replicaId: opened.value.replica.replicaId, collectionId: COLLECTION, targetId: changed.id,
+      baseRevision: changed.revision, sequence: 2, opId: `p3-21-stream-operation-${randomUUID()}`,
+      base: { title: changed.payload.title as string }, value: { title: 'P3-21 own stream operation' } });
+    const pushed = await blackBox(server.origin).push({ idempotencyKey: `p3-21-own-operation-${randomUUID()}`, request: operation });
+    assert.equal(pushed.status, 200);
+    assert.equal(result(pushed.body).results[0]?.status, 'applied');
     const negotiated = await blackBox(server.origin).create({ idempotencyKey: `p3-21-session-${randomUUID()}`,
       request: pullSessionRequest(opened.value) });
     const initialKeys = createSyncPullCursorKeyring({
@@ -2589,7 +2619,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       leaseGeneration: negotiated.body.replicaLease.generation, sessionId: negotiated.body.sessionId,
       principalId: ACCOUNT, protocolVersion: '0.1', policyRevision: 'policy-r1',
       purgeBoundary: { commitOrdinal: '0', streamKind: 'operation', stableId: '' }, limit: 1,
-      tuple: { commitOrdinal: '0', streamKind: 'operation', stableId: '' },
+      tuple: startTuple,
     });
     initialKeys.destroy();
     const first = await blackBox(server.origin).pull({
@@ -2614,8 +2644,10 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       union all
       select commit_ordinal,sync_stream_kind stream_kind,conflict_id stable_id from sync_conflicts
       where collection_id=$1
-    ) stream order by commit_ordinal,stream_kind,stable_id collate "C"`, [COLLECTION])).rows
+    ) stream where commit_ordinal > $2
+      order by commit_ordinal,stream_kind,stable_id collate "C"`, [COLLECTION, startTuple.commitOrdinal])).rows
       .map((row) => row.stable_id);
+    assert.deepEqual(expected, [opened.conflictId, operation.operations[0]!.opId]);
     assert.deepEqual(seen.map((event) => event.kind === 'operation'
       ? event.operation?.opId : event.conflict?.id), expected);
     assert.equal(new Set(seen.map((event) => event.cursor)).size, seen.length);
