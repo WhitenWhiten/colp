@@ -12,9 +12,14 @@ import type {
 } from '@know-n/colp/types';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import { validateAuthoritativePullEvent } from '@know-n/colp/sync';
-import { runMigrations } from '../../../src/infrastructure/database/index.js';
+import {
+  createAttachmentExposurePolicyAdapter,
+  createPostgresSharedExposureFactsPort,
+  runMigrations,
+} from '../../../src/infrastructure/database/index.js';
 import {
   createPostgresReplicaStore,
+  createPostgresSyncBootstrapSnapshotApplication,
   createPostgresSyncConflictResolutionApplication,
   createPostgresSyncPullReadPort,
   createPostgresSyncPushApplication,
@@ -46,6 +51,7 @@ import { registerSyncPushRoutes } from '../../../src/transport/colp-sync/sync-pu
 import { registerSyncConflictRoutes } from '../../../src/transport/colp-sync/sync-conflict-routes.js';
 import { registerSyncPullRoutes } from '../../../src/transport/colp-sync/sync-pull-routes.js';
 import { registerSyncSessionRoutes } from '../../../src/transport/colp-sync/sync-session-routes.js';
+import { registerSyncSnapshotRoutes } from '../../../src/transport/colp-sync/sync-snapshot-routes.js';
 import {
   canonicalSyncSequenceDigest,
   canonicalSyncSequenceResultDigest,
@@ -308,6 +314,19 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       rateLimit: { maxRequests: 100, windowMs: 60_000 }, maxLimit: 100,
       responseBudgetBytes: 262_144, requestTimeoutMs: 5_000, recommendedPullAfterSeconds: 30,
       allowInsecureLoopback: true,
+    });
+    registerSyncSnapshotRoutes(app, {
+      path: '/private-entry/bootstrap-snapshot', allowedOrigins: [ORIGIN],
+      credentialVerifier: { async verify({ authorization }) {
+        if (authorization !== AUTHORIZATION) throw new Error('invalid credential');
+        return value.credential;
+      } },
+      application: createPostgresSyncBootstrapSnapshotApplication(isolated.runtime, {
+        cursorSecret: Buffer.alloc(32, 93), cursorKeyId: 'empty-title-snapshot-v1', cursorTtlMs: 300_000,
+        pullCursorKeyring: pullKeys,
+        attachmentExposure: createAttachmentExposurePolicyAdapter(createPostgresSharedExposureFactsPort(isolated.runtime)),
+      }),
+      rateLimit: { maxRequests: 100, windowMs: 60_000 }, allowInsecureLoopback: true,
     });
     app.addHook('onClose', async () => pullKeys.destroy());
     app.get('/.well-known/collection-protocol', async () => manifestFor(app));
@@ -670,19 +689,49 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     recordPhase3SyncPushScenario('typed_update');
   });
 
-  test('favicon-only bookmark creation and a later URL edit preserve the empty title in canonical state and replay', async () => {
-    const value = await context(), server = await start(value);
+  test('favicon-only bookmark creation survives real Snapshot, Pull, URL update, receipt and replay with its exact empty title', async () => {
+    const value = await context('owner', '0.2'), server = await start(value);
+    const client = blackBox(server.origin);
     const createRequest = syncNodeCreatePushRequest({
       sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
       collectionId: COLLECTION, parentId: ROOT, opId: `favicon-create-${randomUUID()}`,
       node: { kind: 'bookmark', title: '', url: 'https://example.test/favicon-before' },
     });
-    const created = await blackBox(server.origin).push({ idempotencyKey: `favicon-create-${randomUUID()}`, request: createRequest });
+    const createKey = `favicon-create-${randomUUID()}`;
+    const created = await client.push({ idempotencyKey: createKey, request: createRequest });
     assert.equal(created.status, 200);
     const appliedCreate = result(created.body).results[0]!;
     assert.equal(appliedCreate.status, 'applied');
     assert.ok(appliedCreate.targetId);
     assert.ok(appliedCreate.revision);
+    let snapshot = await client.snapshot({ sessionId: value.session.sessionId, limit: 100 });
+    assert.equal(snapshot.protocolVersion, '0.2');
+    const snapshotId = snapshot.snapshotId;
+    const snapshotNodes = [...snapshot.nodes];
+    const seenPages = new Set<string>();
+    while (snapshot.page?.hasMore) {
+      const pageCursor = snapshot.page.nextCursor;
+      assert.ok(pageCursor);
+      assert.equal(seenPages.has(pageCursor), false, 'Snapshot pagination must make progress');
+      seenPages.add(pageCursor);
+      snapshot = await client.snapshot({ sessionId: value.session.sessionId, limit: 100, pageCursor });
+      assert.equal(snapshot.snapshotId, snapshotId);
+      snapshotNodes.push(...snapshot.nodes);
+    }
+    const snapshotNode = snapshotNodes.find(node => node.id === appliedCreate.targetId);
+    assert.ok(snapshotNode && snapshotNode.kind === 'bookmark');
+    assert.equal(snapshotNode.title, '');
+    assert.equal(snapshotNode.url, 'https://example.test/favicon-before');
+    assert.ok(snapshot.syncCursor);
+    const createdPullNode = await pulledOperationNode(createRequest.operations[0]!.opId);
+    assert.equal(createdPullNode.title, '');
+    assert.equal(createdPullNode.url, snapshotNode.url);
+    const createdFacts = await facts(value.replica.replicaId, appliedCreate.targetId);
+    assert.equal(createdFacts.node.title, '');
+    assert.equal(createdFacts.node.payload_json.title, '');
+    assert.deepEqual(createdFacts.receipt, created.body);
+    assert.deepEqual((await client.push({ idempotencyKey: createKey, request: createRequest })).body, created.body);
+    assert.deepEqual(await facts(value.replica.replicaId, appliedCreate.targetId), createdFacts);
     const request = syncNodeUpdatePushRequest({
       sessionId: value.session.sessionId, replicaId: value.replica.replicaId, sequence: 2,
       collectionId: COLLECTION, targetId: appliedCreate.targetId, baseRevision: appliedCreate.revision,
@@ -690,7 +739,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       value: { url: 'https://example.test/favicon-after' },
     });
     const idempotencyKey = `favicon-update-${randomUUID()}`;
-    const updated = await blackBox(server.origin).push({ idempotencyKey, request });
+    const updated = await client.push({ idempotencyKey, request });
     assert.equal(updated.status, 200);
     assert.equal(result(updated.body).results[0]?.status, 'applied');
     const after = await facts(value.replica.replicaId, appliedCreate.targetId);
@@ -699,9 +748,73 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     assert.equal(after.node.payload_json.url, 'https://example.test/favicon-after');
     const effects = await isolated.runtime.pool.query(`select effect_json from sync_operation_effects where operation_id=$1`, [request.operations[0]!.opId]);
     assert.equal(effects.rows[0].effect_json.node.title, '');
-    const replay = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.deepEqual(after.receipt, updated.body);
+    const pulled = await client.pull({ sessionId: value.session.sessionId, cursor: snapshot.syncCursor, limit: 100 });
+    const event = pulled.events.find(item => item.kind === 'operation' && item.operation.opId === request.operations[0]!.opId);
+    assert.ok(event && event.kind === 'operation' && 'effect' in event);
+    assert.doesNotThrow(() => validateAuthoritativePullEvent(event as never, '0.2'));
+    assert.ok('node' in event.effect);
+    assert.deepEqual(event.effect, effects.rows[0].effect_json);
+    assert.equal(event.effect.node.title, '');
+    assert.equal(event.effect.node.url, 'https://example.test/favicon-after');
+    const replay = await client.push({ idempotencyKey, request });
+    assert.equal(replay.status, 200);
     assert.deepEqual(replay.body, updated.body);
     assert.deepEqual(await facts(value.replica.replicaId, appliedCreate.targetId), after);
+  });
+
+  test('empty folder titles are still rejected before create or update consumes a sequence or mutates canonical state', async () => {
+    const value = await context(), server = await start(value);
+    const folder = await seedNode('folder', { title: 'Keep the folder name' });
+    const before = await facts(value.replica.replicaId, folder.id);
+    const requests = [
+      syncNodeCreatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, parentId: ROOT, opId: `empty-folder-create-${randomUUID()}`,
+        node: { kind: 'folder', title: '' } }),
+      syncNodeUpdatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, targetId: folder.id, baseRevision: folder.revision,
+        opId: `empty-folder-update-${randomUUID()}`, base: { title: 'Keep the folder name' }, value: { title: '' } }),
+    ];
+    for (const request of requests) {
+      // Send the invalid wire document to the real route, bypassing only the
+      // black-box client's local preflight validator, never server validation.
+      const response = await server.app.inject({ method: 'POST', url: '/private-entry/canonical-update',
+        headers: { authorization: AUTHORIZATION, origin: ORIGIN, 'content-type': 'application/json',
+          'idempotency-key': `empty-folder-${randomUUID()}` }, payload: request });
+      assert.equal(response.statusCode, 422, response.body);
+      assert.equal(response.json<Problem>().code, 'invalid_document');
+      assert.deepEqual(await facts(value.replica.replicaId, folder.id), before);
+      assert.equal((await isolated.runtime.pool.query(
+        'select count(*)::int count from sync_operation_effects where operation_id=$1',
+        [request.operations[0]!.opId])).rows[0].count, 0);
+    }
+  });
+
+  test('an explicit empty bookmark title replaces a previous name in canonical content, receipt and authoritative Pull', async () => {
+    const node = await seedNode('bookmark', { title: 'Name to clear' });
+    const value = await context('owner', '0.2'), server = await start(value);
+    const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId,
+      replicaId: value.replica.replicaId, collectionId: COLLECTION, targetId: node.id,
+      baseRevision: node.revision, opId: `clear-bookmark-title-${randomUUID()}`,
+      base: { title: 'Name to clear' }, value: { title: '' } });
+    const idempotencyKey = `clear-bookmark-title-${randomUUID()}`;
+    const updated = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(updated.status, 200);
+    assert.equal(result(updated.body).results[0]?.status, 'applied');
+    assert.equal(result(updated.body).results[0]?.transform?.title, '');
+    const pulled = await pulledOperationNode(request.operations[0]!.opId);
+    const after = await facts(value.replica.replicaId, node.id);
+    const effect = (await isolated.runtime.pool.query(
+      'select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    assert.equal(after.node.title, '');
+    for (const content of [after.node.payload_json, effect.node, pulled]) {
+      assert.equal(content.title, '');
+      assert.equal(content.url, node.payload.url);
+    }
+    assert.deepEqual(after.receipt, updated.body);
+    assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, updated.body);
+    assert.deepEqual(await facts(value.replica.replicaId, node.id), after);
   });
 
   test('a browser URL-only edit clears old metadata on a bookmark created by a hash-aware peer', async () => {
@@ -3126,6 +3239,7 @@ function manifestFor(app: FastifyInstance): Manifest {
         syncSessions: `${origin}/private-entry/session-negotiation`,
         syncConflict: `${origin}/private-entry/conflicts/{conflictId}/decision`,
         syncPull: `${origin}/private-entry/ordered-pull`,
+        syncSnapshot: `${origin}/private-entry/bootstrap-snapshot`,
       },
       features: { bookmarkUrls: { acceptedSchemes: ['http', 'https'] } },
       auth: { anonymousRead: false, apiKeys: false, oauth: true,

@@ -15,6 +15,7 @@ test('snapshots retain valid peer bookmark URL metadata and refuse corrupt hashe
   const node = mapSnapshotNode(row);
   assert.equal(node.kind, 'bookmark');
   if (node.kind !== 'bookmark') throw new Error('expected bookmark');
+  assert.equal(node.title, '');
   assert.equal(node.urlHash, urlHash);
   assert.equal(node.canonicalUrl, 'https://canonical.test/peer');
   assert.throws(() => mapSnapshotNode({ ...row, url: 'https://example.test/changed' }), SnapshotDocumentError);
