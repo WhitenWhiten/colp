@@ -409,3 +409,20 @@ test('excluding a root after earlier range changes confirms its cloud trash in t
   expect(await confirm()).toMatchObject({ ok: true });
   expect((await syncState.listQueue(scope)).map(row => row.payload.targetId).sort()).toEqual(['remote-10', 'remote-20']);
 });
+
+test('a Chrome tree failure while confirming a range does not claim folder settings were saved', async () => {
+  await seed();
+  const ui = await screen();
+  element('tree-clear-selection').click();
+  await ui.review();
+  const unavailable = vi.spyOn(chrome.bookmarks, 'getTree').mockRejectedValue(new Error('native tree unavailable'));
+  try {
+    const response = await confirm();
+    expect(response).toEqual({ ok: false, error: 'root_update_failed' });
+    expect(element('root-feedback').textContent).not.toContain('Folder settings saved');
+    expect(element('root-feedback').textContent).toContain('could not be confirmed');
+    expect((await syncState.getScope(scope))?.boundaryVersion ?? '0').toBe('0');
+  } finally {
+    unavailable.mockRestore();
+  }
+});
