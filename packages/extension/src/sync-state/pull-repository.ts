@@ -246,7 +246,14 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
       const events = tx.objectStore(STORES.pullEvents); const event = await requestValue(events.get([key, intent.eventId])) as UnknownRecord | undefined;
       if (!event || !['browser_call_started', 'native_event_observed', 'authority_committed',
         'page_complete'].includes(String(event.state))) return;
-      if (intent.nativeEventEvidence && canonicalJson(intent.nativeEventEvidence) !== canonicalJson(evidence)) return;
+      if (intent.nativeEventEvidence && canonicalJson(intent.nativeEventEvidence) !== canonicalJson(evidence)) {
+        // Before an API receipt, correlation reserves concurrent candidates;
+        // it cannot tell which native Chrome created. Keep the first candidate
+        // for explicit recovery, but never enqueue another candidate as a
+        // local create while this call is in flight. Once identity is proven,
+        // the exact-ID check above releases every independent manual create.
+        matched = intent.expected.kind === 'create'; return;
+      }
       const state = intentStateAfterObservation(event.state);
       intents.put({ ...intent, state, apiPhase: state, nativeEventEvidence: clone(evidence) });
       if (event.state === 'browser_call_started') events.put({ ...event, state: 'native_event_observed' }); matched = true;

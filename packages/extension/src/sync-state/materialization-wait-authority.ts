@@ -63,18 +63,22 @@ export async function assertMaterializationWaitAuthority(tx: IDBTransaction, key
   }
 }
 
-/** Only a currently started, uniquely correlated child may observe onCreated.
- * This is a candidate for a later user decision, never api_return evidence. */
+/** A started child reserves correlated candidates; a confirmed child accepts
+ * only its exact native echo. Observation never becomes api_return evidence. */
 export async function observeMaterializationCandidate(tx: IDBTransaction, key: string,
   correlationId: string, evidence: JsonObject): Promise<boolean> {
   if (typeof evidence.nativeId !== 'string' || evidence.eventDigest !== correlationId) return false;
   const store = tx.objectStore(STORES.intents);
   const rows = await requestValue<IntentRecord[]>(store.index(INDEXES.intentByLiveWork)
     .getAll(IDBKeyRange.bound([key, 'create'], [key, 'create', []])));
-  const candidates = rows.filter(row => materializationChildEventId(row)
-    && row.replayState === 'started' && row.state === 'browser_call_started' && row.expiresAt > Date.now()
-    && row.anchors?.rangeCorrelationId === correlationId
-    && !(Array.isArray(row.anchors.beforeNativeIds) && row.anchors.beforeNativeIds.includes(evidence.nativeId!)));
+  const candidates = rows.filter(row => {
+    const createdId = row.nativeResultConfirmation?.nativeId ?? row.apiResultEvidence?.nativeId;
+    return materializationChildEventId(row) && row.expiresAt > Date.now()
+      && ['browser_call_started', 'native_event_observed', 'authority_committed', 'page_complete'].includes(String(row.state))
+      && (typeof createdId === 'string' ? createdId === evidence.nativeId : row.replayState === 'started')
+      && row.anchors?.rangeCorrelationId === correlationId
+      && !(Array.isArray(row.anchors.beforeNativeIds) && row.anchors.beforeNativeIds.includes(evidence.nativeId!));
+  });
   if (candidates.length !== 1) return false;
   const intent = candidates[0]!, eventId = materializationChildEventId(intent)!;
   const root = await requestValue<IntentRecord | undefined>(store.get([key, `intent:${eventId}`]));
@@ -84,8 +88,13 @@ export async function observeMaterializationCandidate(tx: IDBTransaction, key: s
       || root.anchors?.rangeAction !== 'materialize_independent' || root.anchors.subtreeCommandId !== intent.commandId
       || !Array.isArray(root.anchors.nodes) || !root.anchors.nodes.some(node => node && typeof node === 'object'
         && !Array.isArray(node) && node.colpId === intent.colpId)
-      || !event || event.intentId !== root.intentId || !['browser_call_started', 'native_event_observed'].includes(event.state)
-      || intent.nativeEventEvidence && canonicalJson(intent.nativeEventEvidence) !== canonicalJson(evidence)) return false;
-  store.put({ ...intent, state: 'native_event_observed', apiPhase: 'native_event_observed', nativeEventEvidence: evidence });
+      || !event || event.intentId !== root.intentId
+      || !['browser_call_started', 'native_event_observed', 'authority_committed', 'page_complete'].includes(event.state)) return false;
+  // A second correlated onCreated is still unproven until the API returns.
+  // Reserve its ingress without replacing the first user-confirmable candidate.
+  // After the receipt, the filter admits only the exact authoritative native.
+  if (!intent.nativeEventEvidence) store.put({ ...intent,
+    ...(intent.state === 'browser_call_started' ? { state: 'native_event_observed', apiPhase: 'native_event_observed' } : {}),
+    nativeEventEvidence: evidence });
   return true;
 }
