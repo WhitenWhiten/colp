@@ -12,7 +12,16 @@ export async function provisionalSelfCreateMapping(options: PullApplierOptions,
   event: Extract<SyncPullEventV02, { kind: 'operation' }>, parent: MappingInput | (() => Promise<MappingInput>)) {
   if (event.operation.replicaId !== options.scope.replicaId || event.effect.kind !== 'node_created') return null;
   const provisional = await options.store.getMappingByColpId(options.scope, `pending-${event.operation.opId}`);
-  if (provisional) return provisional;
+  if (provisional) {
+    // A native identity cannot override a contradictory durable request.
+    // Legacy mappings without a queue still require the caller's native proof.
+    const queued = await options.store.getQueueByOpId(options.scope, event.operation.opId);
+    if (queued && (queued.payload.type !== 'create_node' || queued.sequence !== event.operation.sequence
+        || canonicalOperationDigest(queued.payload as unknown as Operation) !== event.effect.operationDigest)) {
+      throw new SyncFailureError('pull_source_binding_invalid');
+    }
+    return provisional;
+  }
   const nativeId = plannedCreateNativeId(event.operation.opId);
   if (!nativeId) return null;
   const queued = await options.store.getQueueByOpId(options.scope, event.operation.opId);
