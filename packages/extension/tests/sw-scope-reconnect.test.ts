@@ -214,6 +214,7 @@ test('the scope refuses a Session that authenticates another Collection', async 
     replicaLease: { leaseId: 'cross-lease', generation: '1', state: 'active', expiresAt: '2999-01-01T00:00:00Z' } });
   await f.local.set({ [f.COLLECTION_BINDING]: 'reconnect-collection' })
   await assert.rejects(f.api.currentSyncScope(), /not_connected/)
+  await assert.rejects(f.api.currentSyncScope({ allowUnregistered: true }), /not_connected/)
 });
 
 test('explicit scope hydration still tries to mint the missing Session', async () => {
@@ -237,3 +238,43 @@ for (const boundary of ['no durable scope', 'no credential', 'different collecti
     assert.equal(serverCalls(f.network), 0);
   });
 }
+
+for (const change of ['generation', 'collection', 'unchanged'] as const) {
+  test(`real Rebuild restart validates ${change} target before any server request`, async () => {
+    const f = await disconnectedSession();
+    await f.syncState.transitionEngine(f.scope, { phase: 'recovery', recoveryFrozen: true,
+      authorityRefreshRequired: true, updatedAt: Date.now(), notBefore: 0, lastError: 'payload_too_large' });
+    const { replicaRebuilder } = await import('../src/sw/scope-rebuild.js');
+    const preview = await replicaRebuilder().handle({ kind: 'known.scope.rebuild.preview' });
+    assert.ok(preview.ok && 'preview' in preview);
+    const { replicaId, generation, revision, targetFence } = preview.preview;
+    const result = await replicaRebuilder().handle({ kind: 'known.scope.rebuild.confirm', userGesture: true,
+      replicaId, generation, revision, targetFence });
+    assert.equal(result.ok, false, 'the external registration is offline');
+    assert.equal(serverCalls(f.network), 1);
+    const archive = await f.syncState.exportArchive(f.scope);
+    const journal = await f.local.get(REPLICA_REBUILD_JOURNAL);
+    if (change === 'generation') await f.store.bumpBindingGeneration(0);
+    else if (change === 'collection') await f.local.set({ [f.COLLECTION_BINDING]: 'another-collection' });
+    const binding = await f.store.loadBinding();
+    f.network.mockClear();
+    await assert.rejects(replicaRebuilder().resume(), change === 'unchanged' ? /Failed to fetch/u : /stale_ref/u);
+    assert.equal(serverCalls(f.network), change === 'unchanged' ? 1 : 0);
+    assert.equal(await f.store.loadSession(), null);
+    assert.deepEqual(await f.store.loadBinding(), binding);
+    assert.deepEqual(await f.local.get(REPLICA_REBUILD_JOURNAL), journal);
+    assert.deepEqual(await f.syncState.exportArchive(f.scope), archive);
+  });
+}
+
+test('reading an unregistered Rebuild address does not grant current Session or scope authority', async () => {
+  const f = await disconnectedSession(false);
+  assert.deepEqual(await f.api.currentSyncScope({ allowUnregistered: true }), f.scope);
+  await assert.rejects(f.api.currentSyncScope(), /not_connected/u);
+  await assert.rejects(f.api.currentSyncStatusAuthority(), /not_connected/u);
+  assert.equal(await f.syncState.getScope(f.scope), null);
+  assert.equal(await f.store.loadSession(), null);
+  await f.store.clearCredential();
+  await assert.rejects(f.api.currentSyncScope({ allowUnregistered: true }), /not_connected/u);
+  assert.equal(serverCalls(f.network), 0);
+});

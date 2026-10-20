@@ -99,28 +99,38 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
   }
   async function resume(): Promise<boolean> {
     let plan = await pending(); if (!plan) return false;
-    if (plan.retirement && !await deps.credentials.loadCredential()) {
-      try { await deps.serverRetirement?.restoreCredential(); }
-      catch { throw new Error('rebuild_authentication_required'); }
-    }
     if (plan.retirement) {
       const live = await deps.credentials.fence.read();
       const credential = await deps.credentials.loadCredential();
       // Keep another account's unconfirmed request, without stalling this
       // account's independent engine or making its credentials authorize it.
       if (credential && (credential.subject !== plan.scope.accountId || credential.serverOrigin !== plan.scope.serverOrigin)) return false;
-      if (live.revoked || live.generation !== plan.authorityGeneration || !credential) throw new Error('rebuild_authentication_required');
+      if (live.revoked || live.generation !== plan.authorityGeneration) throw new Error('rebuild_authentication_required');
     }
     const binding = await deps.credentials.loadBinding();
-    if (binding?.replicaId !== plan.scope.replicaId && binding?.replicaId !== plan.nextBinding.replicaId) {
+    const replaced = binding?.replicaId === plan.nextBinding.replicaId;
+    const expectedBinding = replaced ? plan.nextBinding : { replicaId: plan.scope.replicaId,
+      browserProfileId: plan.scope.browserProfileId, generation: String(plan.scope.generation) };
+    if (!binding || binding.replicaId !== expectedBinding.replicaId || binding.generation !== expectedBinding.generation
+        || binding.browserProfileId !== plan.scope.browserProfileId || binding.browserProfileId !== expectedBinding.browserProfileId) {
       throw new Error('stale_ref');
     }
-    if (binding.browserProfileId !== plan.scope.browserProfileId) throw new Error('stale_ref');
-    if (binding.replicaId === plan.nextBinding.replicaId) {
+    if (plan.retirement && !await deps.credentials.loadCredential()) {
+      try { await deps.serverRetirement?.restoreCredential(); }
+      catch { throw new Error('rebuild_authentication_required'); }
+      const credential = await deps.credentials.loadCredential();
+      if (!credential) throw new Error('rebuild_authentication_required');
+      if (credential.subject !== plan.scope.accountId || credential.serverOrigin !== plan.scope.serverOrigin) return false;
+    }
+    const target = digestJson({ ...await deps.currentScope() });
+    const nextScope = { ...plan.scope, replicaId: plan.nextBinding.replicaId, generation: Number(plan.nextBinding.generation) };
+    if (target !== digestJson({ ...plan.scope }) && (!replaced || target !== digestJson(nextScope))) throw new Error('stale_ref');
+    if (replaced) {
       // A crash can leave the new binding without a Session or IDB scope. The
-      // old durable archive, not a newly minted Session, proves that rotation.
+      // exact local target plus the old archive proves that rotation. Locating
+      // that address must not mint a Session before checking the saved command.
       await deps.store.exportArchive(plan.scope);
-    } else if (digestJson({ ...await deps.currentScope() }) !== digestJson({ ...plan.scope })) throw new Error('stale_ref');
+    }
     await deps.credentials.fence.assertWritable(plan.authorityGeneration);
     if (plan.retirement && !plan.retirement.confirmed) {
       if (!deps.serverRetirement) throw new Error('retirement_pending');
@@ -143,8 +153,7 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     await deps.credentials.replaceBindingForRebuild(plan.authorityGeneration, plan.scope.replicaId, plan.nextBinding);
     deps.resetRuntime();
     const rebuilt = await deps.ensureScope();
-    if (digestJson({ ...rebuilt }) !== digestJson({ ...plan.scope, replicaId: plan.nextBinding.replicaId,
-      generation: Number(plan.nextBinding.generation) })) throw new Error('scope_mismatch');
+    if (digestJson({ ...rebuilt }) !== digestJson(nextScope)) throw new Error('scope_mismatch');
     if (!await deps.store.getScope(rebuilt)) throw new Error('scope_not_found');
     await deps.credentials.fence.assertWritable(plan.authorityGeneration);
     await deps.journal.remove(REPLICA_REBUILD_JOURNAL);

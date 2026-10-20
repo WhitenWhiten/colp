@@ -15,7 +15,8 @@ export function replicaRebuilder() {
         const endpoints = await fetchSyncEndpoints(await loadConfig());
         return { href: endpoints.syncRetire, reauthorization: endpoints.syncRetireReauthorization };
       } }),
-    currentScope, ensureScope: async () => {
+    currentScope: () => currentSyncScope({ allowArchived: true, allowStopped: true, allowUnregistered: true }),
+    ensureScope: async () => {
       const scope = await requireSyncScope();
       // Session storage and IDB are separate commits. A restart after saving the
       // new Session must still materialize its scope before setup can proceed.
