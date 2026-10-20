@@ -354,6 +354,23 @@ test('two simultaneous confirmations apply a preview once', async () => {
   expect(await syncState.listBootstrapRuns(scope)).toHaveLength(1);
 });
 
+test('two tabs confirming the same command join one durable range receipt', async () => {
+  await seed(); const ui = await screen(); element('tree-select-level').click(); await ui.review();
+  const request = await confirmationRequest(), beforeNative = structuredClone(raw);
+  const responses = await Promise.all([handleRangeConfirm(request), handleRangeConfirm(request)]);
+  expect(responses).toEqual([{ ok: true }, { ok: true }]);
+  const completed = await syncState.getBoundaryCommand(scope, request.confirmationId);
+  expect(completed).toMatchObject({ state: 'committed', result: { ok: true } });
+  expect((await syncState.getScope(scope))?.boundaryVersion).toBe('1');
+  expect(await syncState.listBootstrapRuns(scope)).toHaveLength(1);
+  const queue = await syncState.listQueue(scope);
+  syncState.close();
+  expect(await handleRangeConfirm(request)).toEqual({ ok: true });
+  expect(await syncState.getBoundaryCommand(scope, request.confirmationId)).toEqual(completed);
+  expect(await syncState.listQueue(scope)).toEqual(queue);
+  expect(raw).toEqual(beforeNative);
+});
+
 test('remote trash growth rejects the whole confirmation without consuming its preview or detaching folders', async () => {
   await seed(); const ui = await screen(); element('tree-clear-selection').click(); await ui.review();
   const request = await confirmationRequest();

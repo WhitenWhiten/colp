@@ -49,6 +49,15 @@ test('account A → B → A invalidates old work even when the final scope again
   expect(mutate).not.toHaveBeenCalled();
 });
 
+test('a different current replica cannot use an earlier attempt even without a fence notification', async () => {
+  const attempt = await captureBoundaryAttempt(scope);
+  current = { ...scope, replicaId: 'another-replica' };
+  const create = vi.fn(async () => ({ id: 'must-not-create' }));
+  await expect(attempt.assertCurrent()).rejects.toThrow('not_connected');
+  await expect((await attempt.nativeApi({ create })).create()).rejects.toThrow('not_connected');
+  expect(create).not.toHaveBeenCalled();
+});
+
 test('an API result remains available for durable evidence if authority changes during the native call', async () => {
   const attempt = await captureBoundaryAttempt(scope);
   const create = vi.fn(async () => { await policy.write(scope, 'paused'); return { id: 'created-once' }; });

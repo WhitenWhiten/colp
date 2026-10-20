@@ -13,5 +13,6 @@ export async function runBoundaryConfirmation<T>(scope: SyncScope, commandId: st
   const pending = Promise.resolve().then(work);
   executing.set(key, pending);
   try { return await pending; }
-  finally { if (executing.get(key) === pending) executing.delete(key); }
+  // A caller that sees this key always joins above; it cannot replace pending.
+  finally { executing.delete(key); }
 }
