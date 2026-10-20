@@ -470,3 +470,79 @@ async function setup() {
       await applier.resume(); },
   };
 }
+
+for (const proofRead of [1, 2]) {
+  test(`a later captured drag during placement proof read ${proofRead} retries from a new native preimage`, async () => {
+    const f = await setup();
+    try {
+      await f.seed('node-existing');
+      await addFolder(f, 'native-b', 'folder-b'); await addFolder(f, 'native-c', 'folder-c');
+      await addFolder(f, 'native-d', 'folder-d');
+      let ids = 0;
+      const queue = createBookmarkEventQueue({ scope, store: f.store, autoFlush: false, uuid: () => `race-${++ids}`,
+        api: { get: async id => (await f.api.get(id)).map(row => ({ ...row, title: row.title ?? '' })),
+          getChildren: async id => (await f.api.getChildren(id)).map(row => ({ ...row, title: row.title ?? '' })) } });
+      for (const [oldParentId, parentId] of [['1', 'native-b'], ['native-b', 'native-c']] as const) {
+        await f.api.move('native-existing', { parentId, index: 0 });
+        await queue.moved('native-existing', { parentId, oldParentId, index: 0, oldIndex: 0 });
+        await queue.flush();
+      }
+      const queued = await f.store.listQueue(scope);
+      assert.equal(queued.length, 1);
+      assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 1);
+      const worker = createOutboundPushWorker({ ...pushOptions(f.store, { now: Date.now() }),
+        fetch: async () => { throw new TypeError('Failed to fetch'); } });
+      assert.equal((await worker.drain()).outcome, 'unknown');
+      const unknown = await f.store.getQueueByOpId(scope, queued[0]!.opId);
+      assert.ok(unknown?.attempt, 'the earlier move has actual unresolved request bytes');
+      const mappingBefore = await f.store.getMappingByColpId(scope, 'node-existing');
+      const callsBefore = f.calls.length;
+      let reads = 0, injected = false;
+      const store = { ...f.store,
+        listBookmarkEventsByNative: async (...args: Parameters<typeof f.store.listBookmarkEventsByNative>) => {
+          const page = await f.store.listBookmarkEventsByNative(...args);
+          if (args[1] === 'native-existing' && ++reads === proofRead) {
+            // Resolve this real repository read with its original snapshot, as
+            // an ordinary user drag may complete while a read is in flight.
+            injected = true;
+            await f.api.move('native-existing', { parentId: 'native-d', index: 0 });
+            const captured = await queue.moved('native-existing', {
+              parentId: 'native-d', oldParentId: 'native-c', index: 0, oldIndex: 0 });
+            assert.ok(captured.eventId, 'the later user drag is durably captured by the actual ingress');
+          }
+          return page;
+        } };
+      const applier = createPullApplier({ scope, store, api: f.api, session: { acceptedProtocolVersion: '0.2',
+        sessionId: 'session-lifecycle', collectionId: scope.collectionId, conversionPolicy: { separator: 'preserve_remote' } },
+        effectPageTemplate: 'https://known.example/effects/{effectId}/pages/{pageNumber}',
+        effectPageAuthority: 'https://known.example' });
+      await applier.stage(pullFixtures.page({ events: [pullFixtures.mutationEvent({ kind: 'move', sequence: 40,
+        collectionId: scope.collectionId, targetId: 'node-existing', parentId: 'folder-b' })],
+      nextCursor: 'cursor-placement-race', collectionRevision: 'revision-placement-race' }));
+      await assert.rejects(() => applier.resume(), NativeWriteNotStartedError);
+      assert.equal(injected, true);
+      assert.equal(reads, 2, 'both the initial and final placement proof were checked');
+      assert.deepEqual(f.calls.slice(callsBefore), ['move:native-existing'], 'only the user drag reached the native API');
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-d');
+      assert.deepEqual(await f.store.getMappingByColpId(scope, 'node-existing'), mappingBefore);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, queued[0]!.opId), unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, queued[0]!.sequence), null);
+      const refused = (await f.store.listApplyIntents(scope))[0]!;
+      assert.equal(refused.nativeResult, 'not_started');
+      assert.equal(refused.apiPhase, 'intent_prepared');
+      assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+      assert.equal((await f.store.listBookmarkEventsByStatus(scope, 'pending')).length, 2);
+
+      // A transient refusal must not leave the persisted C preimage pinning
+      // every later wake while the known user placement is now D.
+      await assert.doesNotReject(() => applier.resume(), 'ordinary retry must admit the newest captured placement');
+      assert.equal(f.nodes.get('native-existing')?.parentId, 'native-d');
+      assert.deepEqual(f.calls.slice(callsBefore), ['move:native-existing']);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, queued[0]!.opId), unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, queued[0]!.sequence), null);
+      assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentNativeId, 'native-d');
+      assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentColpId, 'folder-b');
+      assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-placement-race');
+    } finally { f.store.close(); }
+  });
+}
