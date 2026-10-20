@@ -212,9 +212,9 @@ test('401 rejects the old attempt before credential refresh replaces Session-bou
   const context = await launchPersistentContext(profile, stack.browserHostResolverRules);
   try {
     const page = await extensionPage(context); await login(page, stack.extensionBinding);
-    await evidence(page, 'seedOutboundPushEvidence'); stack.setPushFault('authentication_required_once');
-    const seeded = await evidence<any>(page, 'exportOutboundPushEvidence');
     const beforeDenial = await stack.observations() as any;
+    stack.setPushFault('authentication_required_once'); await evidence(page, 'seedOutboundPushEvidence');
+    const seeded = await evidence<any>(page, 'exportOutboundPushEvidence');
     await evidence(page, 'wakeOutboundPushEvidence'); await waitForTerminalCount(page, 1);
     const state = await evidence<any>(page, 'exportOutboundPushEvidence');     const observed = await stack.observations() as any;
     expect(observed.sessions).toBe(beforeDenial.sessions + 1); expect(observed.pushRequests).toHaveLength(2);
@@ -238,7 +238,7 @@ for (const fault of ['service_unavailable_once', 'rate_limited_once'] as const) 
     const context = await launchPersistentContext(profile, stack.browserHostResolverRules);
     try {
       const page = await extensionPage(context); await login(page, stack.extensionBinding);
-      await evidence(page, 'seedOutboundPushEvidence'); stack.setPushFault(fault); await evidence(page, 'wakeOutboundPushEvidence');
+      stack.setPushFault(fault); await evidence(page, 'seedOutboundPushEvidence'); await evidence(page, 'wakeOutboundPushEvidence');
       await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('unknown');
       const before = await evidence<any>(page, 'exportOutboundPushEvidence');
       if (fault === 'rate_limited_once') expect(before.queue[0].retry.notBefore).toBeGreaterThan(Date.now());
@@ -274,7 +274,7 @@ test('deferred receipt persists across restart, holds sequence order, then conve
   try {
     let page = await extensionPage(context); await login(page, stack.extensionBinding);
     await evidence(page, 'configureOutboundLeaseEvidence', 1_000);
-    await evidence(page, 'seedOutboundPushEvidence'); stack.setPushFault('deferred_once');
+    stack.setPushFault('deferred_once'); await evidence(page, 'seedOutboundPushEvidence');
     await evidence(page, 'wakeOutboundPushEvidence');
     await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('deferred');
     const deferred = await evidence<any>(page, 'exportOutboundPushEvidence'); expect(deferred.receipts[0].kind).toBe('deferred');
@@ -294,7 +294,7 @@ for (const [fault, status] of [['sequence_blocked_once', 'blocked']] as const) {
     let context = await launchPersistentContext(profile, stack.browserHostResolverRules);
     try {
       let page = await extensionPage(context); await login(page, stack.extensionBinding);
-      await evidence(page, 'seedOutboundPushEvidence'); stack.setPushFault(fault); await evidence(page, 'duplicateAlarm');
+      stack.setPushFault(fault); await evidence(page, 'seedOutboundPushEvidence'); await evidence(page, 'duplicateAlarm');
       await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe(status);
       const before = await evidence<any>(page, 'exportOutboundPushEvidence');
       await terminateExtensionWorker(context, page); await context.close();
@@ -324,7 +324,7 @@ test('sequence_gap stands as durable evidence with the lane slot, then heals exa
   const context = await launchPersistentContext(profile, stack.browserHostResolverRules);
   try {
     const page = await extensionPage(context); await login(page, stack.extensionBinding);
-    await evidence(page, 'seedOutboundPushEvidence'); stack.setPushFault('sequence_gap');
+    stack.setPushFault('sequence_gap'); await evidence(page, 'seedOutboundPushEvidence');
     // One wake: the refused attempt is settled as a `gap` barrier carrying the server's slot.
     await evidence(page, 'wakeOutboundPushEvidence');
     await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('gap');
@@ -351,7 +351,7 @@ test('timeout survives worker and browser restart with byte-identical unknown at
   try {
     let page = await extensionPage(context); await login(page, stack.extensionBinding);
     await evidence(page, 'configureOutboundLeaseEvidence', 1_000);
-    await evidence(page, 'seedOutboundPushEvidence'); stack.setPushFault('timeout_once');
+    stack.setPushFault('timeout_once'); await evidence(page, 'seedOutboundPushEvidence');
     void evidence(page, 'wakeOutboundPushEvidence').catch(() => undefined);
     await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status,
       { timeout: 25_000 }).toBe('unknown');
@@ -393,8 +393,7 @@ test('production MV3 exact-replays a committed Push after disconnect and converg
   let context = await launchPersistentContext(profile, stack.browserHostResolverRules);
   try {
     let page = await extensionPage(context); await login(page, stack.extensionBinding);
-    await evidence(page, 'seedOutboundPushEvidence');
-    await stack.commitAfterDisconnect(); await evidence(page, 'wakeOutboundPushEvidence');
+    await stack.commitAfterDisconnect(); await evidence(page, 'seedOutboundPushEvidence'); await evidence(page, 'wakeOutboundPushEvidence');
     await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('unknown');
     const before = await evidence<any>(page, 'exportOutboundPushEvidence');
     await terminateExtensionWorker(context, page); await context.close();
@@ -484,8 +483,9 @@ async function extensionPage(context: BrowserContext) {
 }
 async function login(page: Page, binding: import('./real-stack.js').FixtureReplicaBinding) {
   await installFixtureReplicaBinding(page, binding);
-  await signInExtension(page); }
+  await signInExtension(page); await grantBookmarks(page); }
 async function grantBookmarks(page: Page) {
+  if (await page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))) return;
   await showOptionsPane(page, 'folders');
   await grantOptionalBookmarks(page, 'Allow bookmark access', 'Known outbound permission');
   await expect.poll(() => page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }))).toBe(true);

@@ -10,6 +10,7 @@ import {
 } from '../recovery-projection-executor.js';
 import { downloadAuthoritativeEffectPages } from '../effect-page-download.js';
 import { inheritEngineFacts } from '../sync-state/engine-transition.js';
+import { createChromeBookmarkTreeAdapter } from '../chrome-bookmark-tree.js';
 import { createSyncStateStore, type SyncScope } from '../sync-state-store.js';
 import { bookmarkListenerLifecycle, currentBookmarkEventQueue, recoverBookmarkEvents } from './bookmarks.js';
 import { scheduleSyncEngineWake, publicSyncEngineState } from './engine.js';
@@ -422,25 +423,33 @@ async function seedOutboundPushEvidence() {
   const scope = await currentSyncScope(); const prior = await syncState.listQueue(scope, 'pending', 0, 1);
   if (prior.length) return prior[0];
   if ((await syncState.getEngineState(scope))?.recoveryFrozen) await unfreezeEvidenceEngineForSeed(scope);
-  const opId = crypto.randomUUID();
-  const operation = { opId, replicaId: scope.replicaId, sequence: 1, collectionId: scope.collectionId,
-    type: 'create_node', baseRevision: null, occurredAt: new Date().toISOString(), dependencies: [],
-    payload: { parentId: 'p3-27-root', node: { kind: 'bookmark', title: 'P3-31 public',
-      url: 'https://example.test/p3-31' } } };
-  await syncState.putMapping(scope, { nativeId: 'native-p3-31-create', colpId: `pending-${opId}`,
-    rootNativeId: 'root-p3-31', nodeKind: 'bookmark', parentNativeId: 'root-p3-31',
-    projection: { revision: `local-${opId}`, digest: `sha256:${opId}`,
-      content: { title: 'P3-31 public', url: 'https://example.test/p3-31' } } });
-  const queued = await syncState.allocateSequenceAndEnqueue(scope, { opId, batchId: opId, idempotencyKey: opId,
-    digest: `sha256:${opId}`, endpointIdentity: 'syncPush', mediaType: 'application/json',
-    baseRevision: null, operationRevision: `local-${opId}`, status: 'pending', retry: { attempt: 0, notBefore: 0 },
-    payload: operation }, { allowUnstamped: true });
-  const database = await syncState.open(); const scopeKey = (await syncState.getScope(scope))!.scopeKey;
-  const transaction = database.transaction('bookmark_events', 'readwrite');
-  transaction.objectStore('bookmark_events').add({ scopeKey, eventId: `event-${opId}`, ordinal: 1,
-    dedupeKey: `dedupe-${opId}`, occurredAt: operation.occurredAt, kind: 'create',
-    nativeId: 'native-p3-31-create', details: { draft: { type: 'create_node' } }, status: 'processed', opId });
-  await new Promise<void>((resolve, reject) => { transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error); transaction.onabort = () => reject(transaction.error); });
-  return queued;
+  const { roots } = await createChromeBookmarkTreeAdapter(chrome.bookmarks).read();
+  const bar = roots.find(root => root.rootKind === 'bookmarks_bar' && !root.managed);
+  if (!bar) throw new Error('event_evidence_root_missing');
+  const root = await chrome.bookmarks.create({ parentId: bar.nativeId, title: 'P3-31 selected' });
+  const native = await chrome.bookmarks.create({ parentId: root.id, title: 'P3-31 public', url: 'https://example.test/p3-31' });
+  // Native setup starts outside the selected range. Finish those callbacks
+  // before admitting the source, so the caller can control the first Push.
+  await bookmarkListenerLifecycle.settled();
+  await workCoordinator.run('bookmark', async () => undefined);
+  return workCoordinator.run('engine', async () => {
+    const canonical = await syncState.getMappingByColpId(scope, 'p3-27-root');
+    if (canonical) await syncState.deleteMapping(scope, canonical.nativeId);
+    await syncState.putMapping(scope, { nativeId: root.id, colpId: 'p3-27-root', rootNativeId: root.id,
+      nodeKind: 'folder', projection: { revision: canonical?.projection.revision ?? 'r1',
+        childrenRevision: canonical?.projection.childrenRevision ?? 'r1', digest: 'sha256:outbound-canonical-root' } });
+    await syncState.configureBrowserRoots(scope, { discovered: [
+      { nativeId: bar.nativeId, ancestorNativeIds: [] }, { nativeId: root.id, ancestorNativeIds: [bar.nativeId] },
+    ], selectedNativeIds: [root.id], privateNativeIds: [], status: 'ready' });
+    await configureEvidenceMount(scope, root.id, 'p3-27-root');
+    sw.eventEvidenceScope = scope; sw.bookmarkEventQueue = undefined; sw.bookmarkEventScopeKey = undefined;
+    const queue = await currentBookmarkEventQueue();
+    if (!queue) throw new Error('event_evidence_queue_missing');
+    await queue.created(native.id, native); await queue.flush();
+    const mapping = await syncState.getMappingByNativeId(scope, native.id);
+    const queued = mapping?.colpId.startsWith('pending-')
+      ? await syncState.getQueueByOpId(scope, mapping.colpId.slice('pending-'.length)) : null;
+    if (!queued) throw new Error('event_evidence_capture_missing');
+    return queued;
+  });
 }
