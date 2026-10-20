@@ -176,3 +176,27 @@ test.each([
   }
   expect((await f.store.getApplyIntent(f.scope, race.intentId))?.nativeResultConfirmation).toEqual(receipt);
 });
+
+test.each(['ordinary', 'child'] as const)('%s competing candidates never prove a lost create result', async kind => {
+  const f = await setup(kind === 'child'); const race = await manualDuringFinalRead(f); let ownId = '';
+  const create = vi.spyOn(chrome.bookmarks, 'create').mockImplementation(async details => {
+    const created = await race.rawCreate(details); await f.emitCreated(created.id);
+    if (details.url) { ownId = created.id; throw new Error('worker_crash'); }
+    return f.api.getNode(created.id) as unknown as chrome.bookmarks.BookmarkTreeNode;
+  });
+  await expect(f.applier().resume()).rejects.toThrow('worker_crash');
+  expect(await f.store.listBookmarkEventsByNative(f.scope, ownId, 0, 100)).toHaveLength(0);
+  expect(await f.store.listBookmarkEventsByNative(f.scope, race.manualId, 0, 100)).toHaveLength(0);
+  const before = await f.store.getApplyIntent(f.scope, race.intentId);
+  expect(before?.nativeEventEvidence).toMatchObject({ nativeId: race.manualId });
+  expect(before?.apiResultEvidence ?? null).toBeNull();
+  create.mockRestore(); f.store.close(); await f.store.open();
+  if (f.materialized) await expect(f.applier().resume()).rejects.toThrow('native_result_unknown');
+  else await f.applier().resume(); // Ordinary creates park their own item and can publish the rest of the page.
+  const wait = (await f.send({ kind: 'known.nativeWait.list' })).waits.find((row: { intentId: string }) => row.intentId === race.intentId);
+  expect(wait).toMatchObject({ intentId: race.intentId });
+  expect((await f.store.getApplyIntent(f.scope, race.intentId))?.nativeResultConfirmation?.kind).toBe('unknown');
+  expect(await f.store.getMappingByNativeId(f.scope, ownId)).toBeNull();
+  expect(await f.store.getMappingByNativeId(f.scope, race.manualId)).toBeNull();
+  expect(f.api.calls.filter(call => call.kind === 'create')).toHaveLength(f.materialized ? 3 : 2);
+});
