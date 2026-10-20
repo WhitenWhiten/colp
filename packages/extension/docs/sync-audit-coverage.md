@@ -8,12 +8,14 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 93 executable owners, for 148 total.
+This pass adds 97 executable owners, for 152 total.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
 - `src/bookmark-child-order.ts`
 - `src/bookmark-content-capture.ts`
+- `src/bookmark-event-ingress.ts`
+- `src/bookmark-event-projection.ts`
 - `src/bookmark-move-echo.ts`
 - `src/bookmark-own-create-repair.ts`
 - `src/bootstrap/local-facts.ts`
@@ -40,6 +42,7 @@ This pass adds 93 executable owners, for 148 total.
 - `src/rejoin-decisions-ui.ts`
 - `src/remote-delete-apply.ts`
 - `src/remote-delete-local-work.ts`
+- `src/replica-repair-capability.ts`
 - `src/replica-retirement.ts`
 - `src/scope-range.ts`
 - `src/scope-rejoin-authority.ts`
@@ -53,6 +56,7 @@ This pass adds 93 executable owners, for 148 total.
 - `src/scope-rejoin-order-progress.ts`
 - `src/scope-rejoin-order.ts`
 - `src/scope-rejoin-parents.ts`
+- `src/scope-rejoin-placement.ts`
 - `src/scope-rejoin-reconcile.ts`
 - `src/scope-rejoin-rejection.ts`
 - `src/scope-rejoin-remote-delete.ts`
