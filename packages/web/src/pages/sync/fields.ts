@@ -1,5 +1,6 @@
 import type { SyncConflictSummary, SyncStatusView } from '../../api'
 import { formatMediumInstant } from '../../lib/formatDate'
+import { browserIngressTitleIssue, BROWSER_INGRESS_TITLE_MAX_CODE_UNITS, BROWSER_INGRESS_TITLE_MAX_UTF8_BYTES } from '../../generated/browser-ingress-title'
 import type { ConflictDraft, Resolution } from './types'
 
 export function formatInstant(value: string | null): string {
@@ -46,7 +47,9 @@ export function parseCustomValue(conflict: SyncConflictSummary, text: string): {
   if (field === 'title') {
     // Conflict summaries do not identify the node kind. An exact empty title
     // may be valid for a bookmark; the server still checks the actual kind.
-    if (text.length > 512 || (text !== '' && text.trim().length === 0)) return { error: 'Title must be at most 512 characters and cannot contain only whitespace.' }
+    const issue = browserIngressTitleIssue(text, 'bookmark')
+    if (issue === 'whitespace') return { error: 'Title cannot contain only whitespace.' }
+    if (issue) return { error: `Title must fit within ${BROWSER_INGRESS_TITLE_MAX_CODE_UNITS} UTF-16 code units and ${BROWSER_INGRESS_TITLE_MAX_UTF8_BYTES} UTF-8 bytes.` }
     return { value: text }
   }
   if (field === 'description') {

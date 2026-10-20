@@ -2,6 +2,7 @@ import type { ProductSyncConflictResolutionView, SyncConflictSummary } from '../
 import { canResolveConflict, customField, fieldName, formatInstant } from './fields'
 import { CONFLICT_TYPE_LABELS, INTENT_MESSAGE_CLASS, RESOLUTIONS, type ConflictDraft, type Resolution } from './types'
 import { productName } from '../../lib/edition'
+import { BROWSER_INGRESS_TITLE_MAX_CODE_UNITS } from '../../generated/browser-ingress-title'
 
 export function ConflictReceipt({ receipt }: { receipt: ProductSyncConflictResolutionView }) {
   return <article className="conflict-card conflict-receipt" data-conflict-receipt={receipt.conflictId}>
@@ -60,6 +61,6 @@ function CustomEditor({ field, value, disabled, onChange }: {
       maxLength={field === 'tags' ? 4159 : 20_000} rows={field === 'tags' ? 4 : 5} onChange={(event) => onChange(event.target.value)} /></label>
   const label = field === 'title' ? 'Custom title' : field === 'canonicalUrl' ? 'Custom canonical URL' : 'Custom URL'
   return <label className="custom-editor field"><span>{label}</span><input aria-label={label} type={field === 'title' ? 'text' : 'url'} value={value} disabled={disabled}
-    maxLength={field === 'title' ? 512 : 4096} onChange={(event) => onChange(event.target.value)} />
+    maxLength={field === 'title' ? BROWSER_INGRESS_TITLE_MAX_CODE_UNITS : 4096} onChange={(event) => onChange(event.target.value)} />
     {field === 'title' && <span className="field-hint">Bookmarks may have an empty title. Folders must have a title.</span>}</label>
 }
