@@ -16,11 +16,14 @@ const PATH = '/v1/retire';
 type HttpCredential = Awaited<ReturnType<typeof mintExtensionCredentialHttpFixture>>;
 
 describeWithPostgres('retirement v2 current account and installation proof over real HTTP/PG', () => {
-  let h: SyncSessionPostgresHarness;
+  let h: SyncSessionPostgresHarness; let shared: SyncSessionPostgresHarness;
   const apps: FastifyInstance[] = [];
-  beforeAll(async () => { h = await bootSyncSessionPostgres('retire_reauthorization'); }, 60_000);
-  afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); });
-  afterAll(async () => h?.close());
+  beforeAll(async () => { h = shared = await bootSyncSessionPostgres('retire_reauthorization'); }, 60_000);
+  afterEach(async () => {
+    await Promise.all(apps.splice(0).map(app => app.close()));
+    if (h !== shared) { await h.close(); h = shared; }
+  });
+  afterAll(async () => shared?.close());
 
   async function credential(subject = 'owner-oidc', overrides: Partial<{ issuer: string; audience: string; clientId: string }> = {}) {
     return mintExtensionCredentialHttpFixture({ issuer: ISSUER, audience: AUDIENCE, clientId: CLIENT_ID,
@@ -120,6 +123,10 @@ describeWithPostgres('retirement v2 current account and installation proof over 
   for (const corruption of ['other-account', 'wrong-proof', 'missing-proof', 'wrong-origin', 'wrong-client', 'wrong-issuer',
     'wrong-audience', 'revoked-credential', 'removed-membership', 'account-epoch', 'proof-device', 'proof-profile', 'proof-generation'] as const) {
     test(`denies ${corruption} before any retirement, receipt, sequence or session side effect`, async () => {
+      // An epoch bump is irreversible authority history. Resetting its integer
+      // invokes the stamp trigger again and cannot restore the earlier account.
+      // Isolate the experiment instead of weakening its verifier or trigger.
+      if (corruption === 'account-epoch') h = await bootSyncSessionPostgres('retire_epoch_denial');
       const t = await target(corruption === 'removed-membership' ? 'editor' : 'owner');
       const owner = corruption === 'removed-membership' ? 'editor-oidc' : 'owner-oidc';
       const next = await credential(corruption === 'other-account' ? 'outsider-oidc' : owner,
@@ -144,7 +151,6 @@ describeWithPostgres('retirement v2 current account and installation proof over 
         }
         if (corruption === 'account-epoch') {
           await db.query("update accounts set security_epoch=security_epoch+1,security_epoch_bumped_at=current_timestamp where id='owner'");
-          undo.push(() => db.query("update accounts set security_epoch=security_epoch-1,security_epoch_bumped_at=null where id='owner'"));
         }
         const before = await facts(t);
         const result = await send(app.url, t, next, corruption === 'wrong-proof' ? 'different-session' : t.sessionId,
@@ -156,14 +162,13 @@ describeWithPostgres('retirement v2 current account and installation proof over 
   }
 
   test('a completed receipt cannot bypass later credential revocation or an epoch change', async () => {
+    h = await bootSyncSessionPostgres('retire_epoch_receipt');
     const t = await target(); const app = await server([t.old]);
     assert.equal((await send(app.url, t, t.old)).status, 204); const before = await facts(t);
     await h.isolated.runtime.pool.query('update sync_extension_credentials set revoked_at=current_timestamp where credential_id=$1', [t.old.credential.credentialId]);
     assert.equal((await send(app.url, t, t.old)).status, 404); assert.deepEqual(await facts(t), before);
     const next = await credential(); const retry = await server([next]);
     await h.isolated.runtime.pool.query("update accounts set security_epoch=security_epoch+1,security_epoch_bumped_at=current_timestamp where id='owner'");
-    try {
-      assert.equal((await send(retry.url, t, next)).status, 404); assert.deepEqual(await facts(t), before);
-    } finally { await h.isolated.runtime.pool.query("update accounts set security_epoch=security_epoch-1,security_epoch_bumped_at=null where id='owner'"); }
+    assert.equal((await send(retry.url, t, next)).status, 404); assert.deepEqual(await facts(t), before);
   });
 });
