@@ -42,6 +42,7 @@ export interface RemoteObservationRecord {
   readonly pauseCursor?: string | null;
 }
 export interface ScopeCommandPlanRecord {
+  readonly rejoinDecision?: JsonObject;
   readonly scopeKey: string; readonly commandId: string; readonly kind: ScopeCommandKind;
   readonly confirmationVersion: string; readonly baselineDigest: string | null;
   readonly phase: ScopeCommandPhase; readonly dependencies: readonly string[];
