@@ -303,7 +303,7 @@ test('more than 500 role children keep the command small and every frozen deleti
   // must not reread every earlier never-sent row before each append.
   const openCursor = IDBIndex.prototype.openCursor;
   let returnedQueueRows = 0;
-  const reads = vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementation(function (query, direction) {
+  const reads = vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementation(function (this: IDBIndex, query, direction) {
     const request = openCursor.call(this, query, direction);
     if (this.objectStore.name === 'outbound_queue') request.addEventListener('success', () => {
       if (request.result) returnedQueueRows += 1;

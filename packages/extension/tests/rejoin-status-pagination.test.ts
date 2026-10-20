@@ -41,7 +41,7 @@ test('resolved real rejoin receipts do not hide a later rejected user edit after
 
 test('consumed-issue compatibility reads traverse a full terminal page and exclude accepted history', async () => {
   const accepted = Array.from({ length: 1_000 }, (_, i) => ({ ...row(i + 1, ''), status: 'terminal' as const, recovery: undefined }));
-  const refused = { ...row(1_001, 'parent_deleted'), status: 'terminal' as const,
+  const refused: QueueOperation = { ...row(1_001, 'parent_deleted'), status: 'terminal',
     recovery: { code: 'parent_deleted', resultStatus: 'rejected' } };
   const rows = [...accepted, refused];
   const store = { listQueue: vi.fn(async (_scope: SyncScope, _status?: QueueOperation['status'], after = 0, limit = 1_000) =>
