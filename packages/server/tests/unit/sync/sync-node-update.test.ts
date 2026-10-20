@@ -241,9 +241,19 @@ describe('P3-13 typed Node update evaluator', () => {
   test('validates the merged Bookmark URL and hash as one canonical result', () => {
     const beforeUrl = 'https://example.test/before';
     const beforeHash = `sha-256=:${createHash('sha256').update(beforeUrl).digest('base64')}:`;
-    const hashed = revision({ payload: { ...revision().payload, url: beforeUrl, urlHash: beforeHash } });
-    expectCode(() => evaluateSyncNodeUpdate(operation({
+    const hashed = revision({ payload: { ...revision().payload, url: beforeUrl, urlHash: beforeHash,
+      canonicalUrl: 'https://canonical.test/before' } });
+    const nativeEdit = evaluateSyncNodeUpdate(operation({
       base: { url: beforeUrl }, value: { url: 'https://example.test/after' },
+    }), hashed, hashed);
+    assert.equal(nativeEdit.status, 'merged');
+    assert.deepEqual(nativeEdit.fields.kindFields, {
+      url: 'https://example.test/after', urlHash: null, canonicalUrl: null,
+    });
+    assert.deepEqual(JSON.parse(JSON.stringify(nativeEdit.merged)), nativeEdit.fields.kindFields);
+    expectCode(() => evaluateSyncNodeUpdate(operation({
+      base: { url: beforeUrl, urlHash: beforeHash },
+      value: { url: 'https://example.test/after', urlHash: beforeHash },
     }), hashed, hashed), 'invalid_document');
 
     const cleared = evaluateSyncNodeUpdate(operation({
@@ -252,8 +262,15 @@ describe('P3-13 typed Node update evaluator', () => {
     }), hashed, hashed);
     assert.equal(cleared.status, 'merged');
     assert.deepEqual(cleared.fields.kindFields, {
-      url: 'https://example.test/after', urlHash: null,
+      url: 'https://example.test/after', urlHash: null, canonicalUrl: null,
     });
+    const afterHash = `sha-256=:${createHash('sha256').update('https://example.test/after').digest('base64')}:`;
+    const explicit = evaluateSyncNodeUpdate(operation({
+      base: { url: beforeUrl, urlHash: beforeHash },
+      value: { url: 'https://example.test/after', urlHash: afterHash },
+    }), hashed, hashed);
+    assert.equal(explicit.status, 'merged');
+    assert.equal(explicit.fields.kindFields.urlHash, afterHash);
   });
 
   test('a normalization-equivalent merged url pins the stored spelling and hash pair', () => {

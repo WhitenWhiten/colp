@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'vitest';
 import { selectedResolutionFields, duplicateNodeDocument } from '../../../src/infrastructure/sync/sync-conflict-content.js';
 import { SyncConflictResolutionError, validateSyncConflictResolutionCommand } from '../../../src/modules/sync/index.js';
@@ -23,11 +24,16 @@ test.each([['server', 'Server'], ['incoming', 'Incoming'], ['custom', 'Custom']]
   });
 
 test('both preserves the complete incoming bookmark and unrelated current metadata', () => {
-  const node = duplicateNodeDocument({ ...payload.current, description: 'Server note', extensions: {} }, payload, ['/title']);
+  const node = duplicateNodeDocument({ ...payload.current, description: 'Server note', extensions: {},
+    canonicalUrl: 'https://canonical.test/before',
+    urlHash: `sha-256=:${createHash('sha256').update(payload.current.url as string).digest('base64')}:`,
+  }, payload, ['/title']);
   assert.equal(node.kind, 'bookmark');
   assert.equal(node.title, 'Incoming');
   assert.equal(node.url, 'https://example.test/after');
   assert.equal(node.description, 'Server note');
+  assert.equal('urlHash' in node, false);
+  assert.equal('canonicalUrl' in node, false);
 });
 
 test('resolution preserves concurrent additions in a retained nonconflicting extension map', () => {

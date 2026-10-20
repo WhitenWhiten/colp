@@ -1,4 +1,6 @@
-import type { Collection, Extensions, SnapshotNode } from '@know-n/colp/types';
+import type { Collection, Extensions, HttpUrl, SnapshotNode } from '@know-n/colp/types';
+import { validateBookmarkUrlHashSemantics } from '@know-n/colp/semantic';
+import { isAcceptedBookmarkUrl } from '../../modules/collections/index.js';
 import { SNAPSHOT_MATERIALIZATION_EXTENSION, snapshotMaterializationExtensionValue } from '../../modules/collections/index.js';
 import type { FolderRole } from '@know-n/colp/types';
 
@@ -36,7 +38,17 @@ export function mapSnapshotNode(row: SnapshotNodeRow): SnapshotNode {
   if (row.kind === 'folder') return { ...ordered, kind: 'folder',
     ...(folderRole ? { folderRole } : {}), title: row.title! };
   if (row.kind === 'separator') return { ...ordered, kind: 'separator' };
-  return { ...ordered, kind: 'bookmark', title: row.title!, url: row.url! };
+  const canonicalUrl = payload.canonicalUrl, urlHash = payload.urlHash;
+  if (canonicalUrl !== undefined && canonicalUrl !== null && !isAcceptedBookmarkUrl(canonicalUrl)) {
+    throw new SnapshotDocumentError('bookmark_canonical_url');
+  }
+  if (!validateBookmarkUrlHashSemantics({ url: row.url,
+    ...(urlHash === null || urlHash === undefined ? {} : { urlHash }) }).valid) {
+    throw new SnapshotDocumentError('bookmark_url_hash');
+  }
+  return { ...ordered, kind: 'bookmark', title: row.title!, url: row.url!,
+    ...(typeof canonicalUrl === 'string' ? { canonicalUrl: canonicalUrl as HttpUrl } : {}),
+    ...(typeof urlHash === 'string' ? { urlHash } : {}) };
 }
 
 function mapExtensions(value: unknown): Extensions {

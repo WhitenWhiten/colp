@@ -16,6 +16,7 @@ import {
   assertValidNodeTitle,
   assertValidNodeVisibility,
   isEquivalentBookmarkUrlRewrite,
+  invalidateOmittedBookmarkUrlMetadata,
   type JsonObject,
   type JsonValue,
   type ResourceOwnedFields,
@@ -132,7 +133,9 @@ export function evaluateSyncNodeUpdate(
   if (merged.status === 'conflict') {
     return conflict('sync_conflict_pending', merged.conflicts.map((item) => item.field).sort());
   }
-  const pinnedMerged = pinEquivalentBookmarkUrlMerge(current, merged.value);
+  const pinned = pinEquivalentBookmarkUrlMerge(current, merged.value);
+  const pinnedMerged = current.kind === 'bookmark'
+    ? invalidateOmittedBookmarkUrlMetadata(pinned, current.payload) : pinned;
   assertBudget([pinnedMerged], budget);
   const canonical = canonicalFields(current.kind, pinnedMerged, current.payload);
   return Object.freeze({

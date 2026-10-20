@@ -7,6 +7,7 @@ import {
 import {
   assertValidHttpUrlNoUserInfo, assertValidNodeDescription, assertValidNodeTags,
   assertValidNodeTitle, assertValidNodeVisibility,
+  invalidateOmittedBookmarkUrlMetadata,
 } from '../../modules/collections/index.js';
 import { assertPlainCustomObject, isRecord } from './sync-conflict-json.js';
 import type { PrivateConflictPayload } from './sync-conflict-private-payload.js';
@@ -67,12 +68,14 @@ export function duplicateNodeDocument(
   privatePayload: PrivateConflictPayload,
   pointers: readonly string[],
 ): NodeCreate {
-  const content = { ...current };
+  const selected: Record<string, unknown> = {};
   for (const field of Object.keys(privatePayload.incoming)) {
     const merged = mergeRetainedField(field, current, privatePayload);
-    content[field] = pointers.includes(`/${field}`) || merged.status === 'conflict'
+    selected[field] = pointers.includes(`/${field}`) || merged.status === 'conflict'
       ? privatePayload.incoming[field] : merged.value[field];
   }
+  const content = { ...current, ...(privatePayload.nodeKind === 'bookmark'
+    ? invalidateOmittedBookmarkUrlMetadata(selected, current) : selected) };
   const description = assertValidNodeDescription(content.description as string | null | undefined ?? null);
   const tags = assertValidNodeTags(content.tags as readonly string[] | undefined ?? []);
   const visibility = assertValidNodeVisibility(content.visibility as string | undefined ?? 'inherit');

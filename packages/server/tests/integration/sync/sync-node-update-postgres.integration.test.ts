@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, test } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type {
@@ -652,6 +652,38 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     const replay = await blackBox(server.origin).push({ idempotencyKey, request });
     assert.deepEqual(replay.body, updated.body);
     assert.deepEqual(await facts(value.replica.replicaId, appliedCreate.targetId), after);
+  });
+
+  test('a browser URL-only edit clears old metadata on a bookmark created by a hash-aware peer', async () => {
+    const value = await context(), server = await start(value);
+    const url = 'https://example.test/hashed-before';
+    const urlHash = `sha-256=:${createHash('sha256').update(url).digest('base64')}:`;
+    const created = await blackBox(server.origin).push({ idempotencyKey: `hash-create-${randomUUID()}`,
+      request: syncNodeCreatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+        collectionId: COLLECTION, parentId: ROOT, opId: `hash-create-${randomUUID()}`,
+        node: { kind: 'bookmark', title: 'Hashed peer bookmark', url, urlHash,
+          canonicalUrl: 'https://canonical.test/hashed-before' as never } }) });
+    assert.equal(created.status, 200);
+    const target = result(created.body).results[0]!;
+    assert.equal((await facts(value.replica.replicaId, target.targetId!)).node.payload_json.urlHash, urlHash);
+    const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
+      collectionId: COLLECTION, sequence: 2, targetId: target.targetId!, baseRevision: target.revision!,
+      opId: `hash-edit-${randomUUID()}`, base: { url }, value: { url: 'https://example.test/hashed-after#section' } });
+    const idempotencyKey = `hash-edit-${randomUUID()}`;
+    const updated = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(updated.status, 200);
+    assert.equal(result(updated.body).results[0]?.status, 'applied');
+    const after = await facts(value.replica.replicaId, target.targetId!);
+    assert.equal(after.node.url, 'https://example.test/hashed-after#section');
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    for (const payload of [after.node.payload_json, effect.node]) {
+      assert.equal(Object.hasOwn(payload, 'urlHash'), false);
+      assert.equal(Object.hasOwn(payload, 'canonicalUrl'), false);
+      assert.equal(payload.url, after.node.url);
+    }
+    assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, updated.body);
+    assert.deepEqual(await facts(value.replica.replicaId, target.targetId!), after);
   });
 
   test('browser tag sync removes only observed members, preserves concurrent additions and exactly replays its receipt', async () => {
@@ -1736,7 +1768,11 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
   test.each(['bookmark', 'folder', 'separator'] as const)(
     'preserves an offline %s edit after its parent subtree was deleted and recovers a separate copy', async kind => {
       const folder = await seedNode('folder');
-      const node = await seedNode(kind, { parentId: folder.id });
+      const initial = await seedNode(kind, { parentId: folder.id });
+      const node = kind === 'bookmark' ? await setCurrent(initial, {
+        canonicalUrl: 'https://canonical.test/deleted-before',
+        urlHash: `sha-256=:${createHash('sha256').update(initial.payload.url as string).digest('base64')}:`,
+      }) : initial;
       const offline = await context();
       const deleter = await context();
       const deleteServer = await start(deleter);
@@ -1769,6 +1805,10 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       assert.notEqual(effect.node.id, node.id);
       assert.equal(effect.node.kind, kind);
       for (const [field, value] of Object.entries(incoming)) assert.deepEqual(effect.node[field], value);
+      if (kind === 'bookmark') {
+        assert.equal(Object.hasOwn(effect.node, 'urlHash'), false);
+        assert.equal(Object.hasOwn(effect.node, 'canonicalUrl'), false);
+      }
       const recovered = (await isolated.runtime.pool.query(`select child.deleted_at,parent.payload_json->>'folderRole' as folder_role
         from nodes child join nodes parent on parent.id=child.parent_id where child.id=$1`, [effect.node.id])).rows[0];
       assert.equal(recovered.deleted_at, null);
@@ -1983,7 +2023,8 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     'retains a simultaneous independent URL edit through %s conflict resolution and replay', async resolution => {
       const opened = await openConflict({
         base: { title: 'Base', url: 'https://example.test/before' },
-        current: { title: 'Server' },
+        current: { title: 'Server', canonicalUrl: 'https://canonical.test/before',
+          urlHash: `sha-256=:${createHash('sha256').update('https://example.test/before').digest('base64')}:` },
         incoming: { title: 'Incoming', url: 'https://example.test/after' },
       });
       const request = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
@@ -2001,6 +2042,10 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       )).rows[0];
       assert.equal(canonical.url, effect.node.url);
       assert.equal(canonical.payload_json.url, effect.node.url);
+      for (const payload of [canonical.payload_json, effect.node]) {
+        assert.equal(Object.hasOwn(payload, 'urlHash'), false);
+        assert.equal(Object.hasOwn(payload, 'canonicalUrl'), false);
+      }
       if (resolution === 'both') {
         assert.notEqual(effect.node.id, opened.node.id);
         const original = (await isolated.runtime.pool.query(

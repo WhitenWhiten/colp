@@ -25,6 +25,7 @@ import {
   CollectionsError,
   isAcceptedBookmarkUrl,
   isEquivalentBookmarkUrlRewrite,
+  invalidateOmittedBookmarkUrlMetadata,
   DeleteSubtreeLimitError,
   NodeConflictError,
   PositionRebalanceEscalationError,
@@ -950,6 +951,11 @@ export function createPostgresCanonicalMutationPorts(
             const rest = { ...effectiveKindFields };
             delete rest.urlHash;
             effectiveKindFields = rest;
+          }
+          if (values.kind === 'bookmark' && url !== current.url) {
+            effectiveKindFields = invalidateOmittedBookmarkUrlMetadata(
+              { ...effectiveKindFields, url }, current.payload_json ?? { url: current.url },
+            );
           }
           updated = {
             ...current, ...values, url,

@@ -38,6 +38,7 @@ export {
   assertValidHttpUrlNoUserInfo,
   isAcceptedBookmarkUrl,
   isEquivalentBookmarkUrlRewrite,
+  invalidateOmittedBookmarkUrlMetadata,
   normalizeBookmarkUrl,
   assertValidNodeDescription,
   assertValidNodeKind,

@@ -141,3 +141,18 @@ export function isEquivalentBookmarkUrlRewrite(
   // equivalent syntax such as scheme/host case and the default port here.
   return new URL(stored).href === new URL(requested).href;
 }
+
+/** A URL-only editor cannot maintain metadata derived from the old URL.
+ * Explicitly submitted metadata remains subject to normal validation. Call
+ * after any equivalent-spelling pin so unchanged URLs retain their metadata. */
+export function invalidateOmittedBookmarkUrlMetadata<T extends Readonly<Record<string, unknown>>>(
+  fields: T,
+  current: Readonly<Record<string, unknown>>,
+): T {
+  if (typeof fields.url !== 'string' || fields.url === current.url) return fields;
+  const cleared: Record<string, unknown> = { ...fields };
+  for (const field of ['canonicalUrl', 'urlHash']) {
+    if (!Object.hasOwn(fields, field) && current[field] !== undefined && current[field] !== null) cleared[field] = null;
+  }
+  return cleared as T;
+}

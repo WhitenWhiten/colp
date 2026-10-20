@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, test } from 'vitest';
 import { runMigrations, type DatabaseRuntime } from '../../../src/infrastructure/database/index.js';
 import { createPostgresCanonicalMutationUnitOfWork } from '../../../src/infrastructure/collections/index.js';
@@ -262,6 +263,23 @@ describeWithPostgres('PostgreSQL canonical mutation url equivalence', () => {
     const generation2 = await generation();
     assert.notEqual(generation2, generation1);
     assert.notEqual(generation2, generation0);
+  });
+
+  test('the canonical Product update also invalidates omitted metadata when the raw URL changes', async () => {
+    await resetFixture();
+    const url = 'https://example.test/before';
+    const before = mutation('44444444-4444-4444-8444-444444444444');
+    Object.assign(before.mutation.fields!.kindFields, { url,
+      urlHash: `sha-256=:${createHash('sha256').update(url).digest('base64')}:`,
+      canonicalUrl: 'https://canonical.test/before' });
+    await executeMutation(before);
+    const old = (await runtime.pool.query('select resource_revision,payload_json from nodes where id=$1', [NODE_ID])).rows[0];
+    assert.equal(typeof old.payload_json.urlHash, 'string');
+    await executeMutation(mutation('45555555-5555-4555-8555-555555555555', old.resource_revision));
+    const changed = (await runtime.pool.query('select url,payload_json from nodes where id=$1', [NODE_ID])).rows[0];
+    assert.equal(changed.url, 'https://example.test/after');
+    assert.equal(Object.hasOwn(changed.payload_json, 'urlHash'), false);
+    assert.equal(Object.hasOwn(changed.payload_json, 'canonicalUrl'), false);
   });
 
   test.each([
