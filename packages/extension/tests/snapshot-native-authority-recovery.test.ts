@@ -1,100 +1,10 @@
-import 'fake-indexeddb/auto';
-import { IDBFactory } from 'fake-indexeddb';
 import { expect, test } from 'vitest';
-import { MemoryStorageArea, createCredentialStore } from '../src/credential-store.js';
 import { digestJson } from '../src/bookmark-event-codec.js';
-import { configurePersonalSyncTransport } from '../src/personal-sync-fetch.js';
-import { createPersonalSyncPolicyStore } from '../src/personal-sync-policy.js';
 import { recoverVerifiedOrFreeze } from '../src/recovery-guard.js';
 import { detachScopeMount } from '../src/scope-detach.js';
-import { sessionMatchesCredentialAuthority } from '../src/session-client.js';
-import { createSyncEffectAuthority } from '../src/sync-effect-authority.js';
 import { SyncFailureError } from '../src/sync-failure-class.js';
-import { createSyncStateStore, type MappingInput, type SyncScope } from '../src/sync-state-store.js';
-import { fakeChrome } from './recovery-projection-chrome-fixture.js';
-import { REJOIN_TOKEN, rejoinSession } from './rejoin-http-fixture.js';
-
-// Only browser storage/IndexedDB and the external native API are substituted.
-// Recovery owns the actual persisted delete; the test never writes an intent.
-const policy = createPersonalSyncPolicyStore(new MemoryStorageArea());
-configurePersonalSyncTransport(policy);
-let serial = 0;
-
-async function fixture() {
-  const local = new MemoryStorageArea(), indexedDB = new IDBFactory();
-  let credentials = createCredentialStore(local);
-  const authority = await credentials.fence.activate();
-  const binding = await credentials.getOrCreateBinding(authority.generation);
-  const scope: SyncScope = { environment: 'development', serverId: 'https://snapshot-authority.test',
-    serverOrigin: 'https://snapshot-authority.test', accountId: `snapshot-authority-${++serial}`,
-    browserProfileId: binding.browserProfileId, collectionId: 'collection', replicaId: binding.replicaId,
-    generation: Number(binding.generation) };
-  await credentials.saveCredential({ accessToken: REJOIN_TOKEN, tokenType: 'Bearer', subject: scope.accountId,
-    expiresAt: Date.now() + 3_600_000, scope: ['known.sync'], issuer: `${scope.serverOrigin}/`,
-    audience: 'known-sync-api', clientId: 'known-chromium-extension', serverOrigin: scope.serverOrigin });
-  const session = await rejoinSession(scope); await credentials.saveSession(session);
-  await policy.write(scope, 'enabled');
-  let store = createSyncStateStore({ indexedDB });
-  await store.registerScope({ ...scope, lifecycle: 'active',
-    lease: { leaseId: session.replicaLease.leaseId, generation: session.replicaLease.generation,
-      expiresAt: Date.parse(session.replicaLease.expiresAt) },
-    checkpoint: { serverRevision: session.collection.serverRevision, cursor: session.collection.serverCursor },
-    selectedRoots: ['root'], privateRoots: ['private'], rootStatus: 'ready' });
-  const root: MappingInput = { nativeId: '1', colpId: 'root', rootNativeId: '1', nodeKind: 'folder',
-    mountId: 'mount', projection: { revision: 'root-r1', digest: digestJson({ title: 'Selected' }),
-      childrenRevision: 'root-children-r1', content: { title: 'Selected' } } };
-  const privateRoot: MappingInput = { nativeId: '3', colpId: 'private', rootNativeId: '1', nodeKind: 'folder',
-    mountId: 'mount', parentNativeId: '1', parentColpId: 'root',
-    projection: { revision: 'private-r1', digest: digestJson({ title: 'Private' }),
-      childrenRevision: 'private-children-r1', content: { title: 'Private' } } };
-  const target: MappingInput = { nativeId: '2', colpId: 'target', rootNativeId: '1', nodeKind: 'bookmark',
-    mountId: 'mount', parentNativeId: '1', parentColpId: 'root',
-    projection: { revision: 'target-r1', digest: digestJson({ title: 'Target', url: 'https://target.test/' }),
-      content: { title: 'Target', url: 'https://target.test/' } } };
-  for (const row of [root, target, privateRoot]) await store.putMapping(scope, row);
-  await store.putMountBinding(scope, { mountId: 'mount', nativeRootId: '1', remoteMountNodeId: 'root',
-    customSourceKey: 'folder:1', boundaryVersion: '1', materialized: true, status: 'active' });
-  const chrome = fakeChrome([{ id: '1', title: 'Selected' },
-    { id: '2', parentId: '1', index: 1, title: 'Target', url: 'https://target.test/' },
-    { id: '3', parentId: '1', index: 0, title: 'Private' },
-    { id: '4', parentId: '1', index: 2, title: 'Parent' }]);
-  const removals: string[] = [];
-  const ports: { afterChildren?: (id: string) => Promise<void> } = {};
-  const nativeApi = { ...chrome.api,
-    async getChildren(id: string) { const result = await chrome.api.getChildren(id); await ports.afterChildren?.(id); return result; },
-    async remove(id: string) { removals.push(id); await chrome.api.remove(id); } };
-
-  async function effects() {
-    const currentScope = async (): Promise<SyncScope> => {
-      const [credential, currentSession, currentBinding, recorded] = await Promise.all([
-        credentials.loadCredential(), credentials.loadSession(), credentials.loadBinding(), store.getScope(scope),
-      ]);
-      expect(credential?.expiresAt).toBeGreaterThan(Date.now());
-      expect(currentSession).not.toBeNull(); expect(credential).not.toBeNull(); expect(currentBinding).not.toBeNull();
-      expect(await sessionMatchesCredentialAuthority(currentSession!, credential!)).toBe(true);
-      expect(recorded?.lease).toMatchObject({ leaseId: currentSession!.replicaLease.leaseId,
-        generation: currentSession!.replicaLease.generation });
-      expect(recorded?.lease?.expiresAt).toBeGreaterThan(Date.now());
-      return { ...scope, accountId: credential!.subject!, collectionId: currentSession!.collection.collectionId,
-        browserProfileId: currentBinding!.browserProfileId, replicaId: currentBinding!.replicaId,
-        generation: Number(currentBinding!.generation) };
-    };
-    return createSyncEffectAuthority({ scope, context: await credentials.fence.capture(), api: nativeApi,
-      assertWritable: generation => credentials.assertWritable(generation), currentScope });
-  }
-  async function stage(rows: readonly MappingInput[]) {
-    await store.stageRecoveryPage(scope, { snapshotId: 'snapshot', sessionId: session.sessionId,
-      revision: 'snapshot-r2', syncCursor: 'snapshot-cursor', identityDigest: digestJson(scope), rootNodeId: 'root',
-      page: 0, pageDigest: digestJson(rows), previousPageDigest: null, nextCursor: null, complete: true,
-      nodes: rows.map((mapping, index) => ({ colpId: mapping.colpId, parentId: mapping.parentColpId ?? null,
-        position: String(index), kind: mapping.nodeKind === 'bookmark' ? 'Bookmark' : 'Folder',
-        payloadDigest: mapping.projection.digest, mapping })) });
-  }
-  return { scope, root, target, privateRoot, chrome, removals, ports, effects, stage,
-    get store() { return store; },
-    restart() { store.close(); store = createSyncStateStore({ indexedDB }); credentials = createCredentialStore(local); },
-    close() { store.close(); } };
-}
+import type { MappingInput } from '../src/sync-state-store.js';
+import { snapshotNativeFixture as fixture } from './snapshot-native-authority-fixture.js';
 
 test.each(['active', 'detached', 'private'] as const)(
   'a persisted Snapshot delete respects its current native authority after restart (%s)', async boundary => {
@@ -175,8 +85,51 @@ test.each(['active', 'moved-private'] as const)(
         expect({ nativeCreates: f.chrome.creates,
           leakedChild: [...f.chrome.nodes.values()].some(row => row.url === 'https://fresh.test/') })
           .toEqual({ nativeCreates: 0, leakedChild: false });
-        expect((await f.store.getApplyIntent(f.scope, 'projection:create:fresh'))?.apiResultEvidence).toBeUndefined();
+        const attempt = await f.store.getApplyIntent(f.scope, 'projection:create:fresh');
+        expect(attempt).toMatchObject({ nativeResult: 'not_started', replayState: 'not_started' });
+        expect(attempt?.apiResultEvidence).toBeUndefined();
+        expect((await f.store.listProjectionIntents(f.scope)).find(row => row.colpId === 'fresh')?.state).toBe('recovery');
+        // Restoring actual ancestry, then restarting, resumes that same attempt.
+        // The refusal neither loses the plan nor invents a successful receipt.
+        await f.chrome.api.move('4', { parentId: '1', index: 2 });
+        f.ports.afterChildren = undefined; f.restart();
+        const resumed = await f.effects(); await resumed.assertCurrent();
+        await recoverVerifiedOrFreeze({ scope: f.scope, store: f.store, staged, api: resumed.api,
+          freezeUnprovenIdentity: true, recoveryOnly: true });
+        expect(f.chrome.creates).toBe(1);
+        const applied = await f.store.getApplyIntent(f.scope, 'projection:create:fresh');
+        expect(applied).toMatchObject({ nativeResult: 'applied_with_evidence', intentId: attempt!.intentId,
+          apiResultEvidence: { nativeId: '5' } });
+        expect(f.chrome.nodes.get('5')).toMatchObject({ parentId: '4', url: 'https://fresh.test/' });
       }
       expect(await f.store.listQueue(f.scope)).toEqual([]);
     } finally { f.close(); }
   });
+
+test('an unknown Snapshot create remains unknown after its parent moves into private and the worker restarts', async () => {
+  const f = await fixture();
+  try {
+    const fresh: MappingInput = { ...f.target, nativeId: 'recovery:fresh', colpId: 'fresh',
+      projection: { revision: 'fresh-r1', digest: digestJson({ title: 'Fresh', url: 'https://fresh.test/' }),
+        content: { title: 'Fresh', url: 'https://fresh.test/' } } };
+    const staged = [f.root, f.privateRoot, f.target, fresh]; await f.stage(staged);
+    f.ports.afterCreate = async () => { throw new Error('worker_crash'); };
+    const before = await f.effects(); await before.assertCurrent();
+    await expect(recoverVerifiedOrFreeze({ scope: f.scope, store: f.store, staged, api: before.api,
+      freezeUnprovenIdentity: true })).rejects.toThrow('worker_crash');
+    const started = await f.store.getApplyIntent(f.scope, 'projection:create:fresh');
+    expect(started).toMatchObject({ state: 'browser_call_started', replayState: 'started' });
+    expect(started?.apiResultEvidence).toBeUndefined(); expect(f.chrome.creates).toBe(1);
+    // Move the selected custom root under a private folder outside that root.
+    await f.chrome.api.move('3', { parentId: '0', index: 0 });
+    await f.chrome.api.move('1', { parentId: '3', index: 0 });
+    f.ports.afterCreate = undefined; f.restart();
+    const after = await f.effects(); await after.assertCurrent();
+    await expect(recoverVerifiedOrFreeze({ scope: f.scope, store: f.store, staged, api: after.api,
+      freezeUnprovenIdentity: true, recoveryOnly: true })).rejects.toThrow('snapshot_native_projection_ambiguous');
+    expect(f.chrome.creates).toBe(1);
+    expect(await f.store.getApplyIntent(f.scope, 'projection:create:fresh')).toEqual(started);
+    expect((await f.store.listProjectionIntents(f.scope)).find(row => row.colpId === 'fresh')?.state).toBe('ambiguous');
+    expect(await f.store.listQueue(f.scope)).toEqual([]);
+  } finally { f.close(); }
+});

@@ -21,6 +21,7 @@ import {
 import { executeNativeCreate } from './native-create-executor.js';
 import { eligibleSnapshotCreates, snapshotCreateAllowed } from './snapshot-create-boundary.js';
 import { planMountedSnapshotDeletes } from './snapshot-mounted-deletes.js';
+import { assertSnapshotNativeBoundary } from './snapshot-native-boundary.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import { pendingLocalDeletionIds, retainedDeletionMappings } from './recovery-local-deletes.js';
 import type { MappingInput, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -440,7 +441,8 @@ async function perform(
   api: PullBookmarkApi, intent: ProjectionIntentRecord, mappings: Map<string, MappingInput>,
   snapshotMappings: ReadonlyMap<string, MappingInput>,
   occupancy: ReadonlyMap<string, string>,
-  ctx: { readonly scope: SyncScope; readonly store: RecoveryStore; readonly snapshotCursor?: string },
+  ctx: { readonly scope: SyncScope; readonly store: RecoveryStore; readonly snapshotCursor?: string;
+    readonly selectedRootNativeId: string },
 ): Promise<string | undefined | 'ambiguous'> {
   if (intent.kind === 'create') {
     const parentNativeId = intent.parentNativeId
@@ -466,6 +468,11 @@ async function perform(
       liveWorkKind: 'create',
       create: async () => {
         if (!await snapshotCreateAllowed(ctx.store, ctx.scope, mappings, intent.colpId)) throw new SyncFailureError('need_authority');
+        const parent = intent.parentColpId ? mappings.get(intent.parentColpId)
+          : [...mappings.values()].find(row => row.nativeId === parentNativeId);
+        if (!parent || parent.nativeId !== parentNativeId) throw new SyncFailureError('snapshot_parent_mapping_missing');
+        await assertSnapshotNativeBoundary({ store: ctx.store, scope: ctx.scope, api, mapping: parent,
+          kind: 'create', legacyRootNativeId: ctx.selectedRootNativeId });
         return api.create({ parentId: parentNativeId, title: intent.title ?? '',
           ...(intent.url ? { url: intent.url } : {}), ...(index === undefined ? {} : { index }) });
       },
@@ -494,6 +501,10 @@ async function perform(
     const existing = await lookupBookmark(id => api.get(id), intent.nativeId);
     if (existing.class !== 'present' && existing.class !== 'not_found') throw new Error(existing.message);
     if (existing.class === 'present') {
+      const target = await ctx.store.getMappingByColpId(ctx.scope, intent.colpId);
+      if (!target || target.nativeId !== intent.nativeId) throw new SyncFailureError('need_authority');
+      await assertSnapshotNativeBoundary({ store: ctx.store, scope: ctx.scope, api, mapping: target,
+        kind: 'delete', legacyRootNativeId: ctx.selectedRootNativeId });
       // The plan already orders explicit member deletes child-first. Recursive
       // removal would also erase local-only or newly arrived descendants that
       // the plan never authorized. Chrome's atomic non-empty check keeps those
