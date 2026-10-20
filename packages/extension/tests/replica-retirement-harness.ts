@@ -9,14 +9,15 @@ import { createReplicaRebuilder, REPLICA_REBUILD_JOURNAL, type ReplicaRebuildDep
   type ReplicaRebuildRequest } from '../src/replica-rebuild.js';
 import { createReplicaRetirementTransport } from '../src/replica-retirement.js';
 import { createSyncEffectAuthority } from '../src/sync-effect-authority.js';
-import { createSyncStateStore, type JsonObject, type SyncScope } from '../src/sync-state-store.js';
+import { createSyncStateStore, type JsonObject, type QueueOperation, type SyncScope } from '../src/sync-state-store.js';
 import type { StoredCredential, StoredSession } from '../src/types.js';
 import { endpoints } from './outbound-push-worker-harness.js';
 
 /** Real worker, metadata gate, authority fence, queue/receipts/archive and journal.
  * Only account/Session issuance and HTTP are external ports. Old-build enqueue
  * is explicit, with schema-valid operations and their real canonical digests. */
-export async function setupRetirement(reauthorization = true) {
+export async function setupRetirement(reauthorization = true,
+  queueSize: { readonly history?: number; readonly pending?: number } = {}) {
   const authStorage = new MemoryStorageArea(), journal = new MemoryStorageArea();
   const credentials = createCredentialStore(authStorage);
   const credential: StoredCredential = { accessToken: 'controlled-credential-old', tokenType: 'Bearer',
@@ -38,15 +39,19 @@ export async function setupRetirement(reauthorization = true) {
   await store.registerScope(registration);
   await store.putMapping(scope, { nativeId: 'native', colpId: 'bookmark', rootNativeId: 'root', nodeKind: 'bookmark',
     projection: { revision: 'revision-0', digest: digestJson({ title: 'Kept' }), content: { title: 'Kept', url: 'https://example.test/kept' } } });
-  for (const sequence of [1, 2]) {
+  const history = queueSize.history ?? 0, pending = queueSize.pending ?? 2;
+  for (let sequence = 1; sequence <= history + pending; sequence++) {
     const payload: JsonObject = { opId: `retained-${sequence}`, replicaId: scope.replicaId, sequence,
       collectionId: scope.collectionId, type: 'update_node_content', targetId: 'bookmark', baseRevision: 'revision-0',
-      occurredAt: '2026-10-20T00:00:00.000Z', dependencies: [], payload: sequence === 1
+      occurredAt: '2026-10-20T00:00:00.000Z', dependencies: [], payload: sequence === history + 1
         ? { base: { tags: [] }, value: { tags: ['private-metadata'] } } : { base: { title: 'Kept' }, value: { title: 'Later' } } };
-    await store.allocateSequenceAndEnqueue(scope, { opId: `retained-${sequence}`, batchId: `retained-${sequence}`,
+    const row = await store.allocateSequenceAndEnqueue(scope, { opId: `retained-${sequence}`, batchId: `retained-${sequence}`,
       idempotencyKey: `retained-${sequence}`, digest: digestJson(payload), endpointIdentity: 'syncPush',
       mediaType: 'application/json', baseRevision: 'revision-0', operationRevision: `local-${sequence}`,
       status: 'pending', retry: { attempt: 0, notBefore: 0 }, payload }, { allowUnstamped: true });
+    if (sequence <= history) await store.completeQueueWithReceipt(scope, row.sequence, { kind: 'terminal',
+      opId: row.opId, operationDigest: row.digest, receiptId: `historical-${sequence}`, resultDigest: `sha256:historical-${sequence}`,
+      result: { results: [{ opId: row.opId, sequence: row.sequence, status: 'applied', targetId: 'bookmark', revision: `history-${sequence}` }] } });
   }
   const policy = createMetadataSyncPolicyStore(new MemoryStorageArea()); await policy.write(scope, true);
   let pushCalls = 0, authorityCalls = 0, restorations = 0, clock = Date.now(), offlineRegistration = false;
@@ -58,12 +63,13 @@ export async function setupRetirement(reauthorization = true) {
     sessions: { get: async () => ({ credential, session }) }, fetch: effects.fetch, now: () => clock,
     random: () => 0, ownerId: () => 'retirement-test', schedule: () => undefined, allowRecoveryFrozenPush: () => true });
   assert.equal((await worker.drain()).outcome, 'unknown');
-  const attempted = (await store.listQueue(scope))[0]!;
+  const attempted = (await store.listQueue(scope, 'unknown'))[0]!;
   await policy.write(scope, false); clock = attempted.retry.notBefore;
   assert.equal((await worker.drain()).outcome, 'recovery');
-  const original = await store.listQueue(scope);
-  assert.equal(original[0]!.status, 'blocked'); assert.deepEqual(original[0]!.attempt, attempted.attempt);
-  assert.equal(original[1]!.status, 'pending'); assert.equal(pushCalls, 1);
+  const original = (await store.exportScope(scope)).queue as QueueOperation[];
+  const blocked = original.find(row => row.sequence === attempted.sequence)!;
+  assert.equal(blocked.status, 'blocked'); assert.deepEqual(blocked.attempt, attempted.attempt);
+  assert.equal(original.filter(row => row.status === 'pending').length, pending - 1); assert.equal(pushCalls, 1);
   let endpoint = { href: endpoints.syncRetire as string, ...(reauthorization ? { reauthorization: true as const } : {}) };
   let restore: StoredCredential | null = { ...credential, accessToken: 'controlled-credential-refreshed' };
   let response: (init: RequestInit) => Promise<Response> = async () => new Response(null, { status: 204 });

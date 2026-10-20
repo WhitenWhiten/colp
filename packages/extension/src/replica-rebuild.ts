@@ -89,10 +89,12 @@ export function createReplicaRebuilder(deps: ReplicaRebuildDeps) {
     if (credential.subject !== plan.scope.accountId || credential.serverOrigin !== plan.scope.serverOrigin) throw new Error('rebuild_other_account_pending');
     const capability = await pendingCapability(plan);
     if (!capability.available) throw new Error(capability.reason);
-    const engine = await deps.store.getEngineState(plan.scope);
-    const queue = await deps.store.getScope(plan.scope) ? await deps.store.listQueue(plan.scope) : undefined;
-    return { ...plan.preview, revision: engine?.revision ?? plan.preview.revision,
-      ...(queue ? { queuedOperations: queue.length } : {}),
+    const live = await deps.store.getScope(plan.scope)
+      ? await readReplicaRepairCapability(deps.store, plan.scope, undefined, { serverRetirement: true }) : undefined;
+    // Once archived, retain the count confirmed for the original scope. While
+    // it is live, use the same status-filtered, paged count as the first preview.
+    return { ...plan.preview, revision: live?.state?.revision ?? plan.preview.revision,
+      ...(live ? { queuedOperations: live.queuedOperations } : {}),
       targetFence: digestJson({ scope: { ...plan.scope }, authority: authority.generation }) };
   }
   async function resume(): Promise<boolean> {
