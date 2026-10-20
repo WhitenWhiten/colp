@@ -1,6 +1,6 @@
 import { unresolvedRejoinQueueRows } from './rejoin-queue-resolution.js';
 import { withReceiptOutcome } from './open-issue-facts.js';
-import { cursorPage, requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
+import { cursorPage, requestValue, requireActiveScope, runTransaction } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { validateQueueRecord } from './queue-validate.js';
@@ -28,15 +28,28 @@ export async function consumedRejectionRows(tx: IDBTransaction, key: string, max
   return unresolvedRejoinQueueRows(tx, key, rows);
 }
 export function createQueueIssueRepository(ctx: SyncStoreRuntime) {
+  const markerKey = (key: string) => `consumed-rejections-v1:${key}`;
+  async function adoptionComplete(tx: IDBTransaction, key: string): Promise<boolean> {
+    await requireActiveScope(tx, key);
+    const marker = await requestValue<{ complete?: boolean } | undefined>(tx.objectStore(STORES.metadata).get(markerKey(key)));
+    return !!marker?.complete;
+  }
   /** One bounded, restartable adoption sweep per scope. New receipts write their own projection atomically. */
   async function adoptConsumedRejections(scope: SyncScope): Promise<void> {
-    const key = scopeKey(validateScope(scope)); const markerKey = `consumed-rejections-v1:${key}`;
+    const key = scopeKey(validateScope(scope));
+    let complete = false;
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.metadata], 'readonly', async tx => {
+      complete = await adoptionComplete(tx, key);
+    });
+    if (!complete) await resumeAdoption(key);
+  }
+  async function resumeAdoption(key: string): Promise<void> {
     for (;;) {
       let complete = false;
       await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.metadata, STORES.queue, STORES.receipts, STORES.diagnostics], 'readwrite', async tx => {
         await requireActiveScope(tx, key);
         const metadata = tx.objectStore(STORES.metadata);
-        const marker = await requestValue<{ after?: number; complete?: boolean } | undefined>(metadata.get(markerKey));
+        const marker = await requestValue<{ after?: number; complete?: boolean } | undefined>(metadata.get(markerKey(key)));
         if (marker?.complete) { complete = true; return; }
         const queue = tx.objectStore(STORES.queue);
         const rows = await cursorPage<QueueOperation>(queue.index(INDEXES.queueByStatusSequence),
@@ -48,16 +61,25 @@ export function createQueueIssueRepository(ctx: SyncStoreRuntime) {
           queue.put(projected); putConsumedRejection(tx, projected);
         }
         complete = rows.length < 1000;
-        metadata.put({ key: markerKey, complete, after: rows.at(-1)?.sequence ?? marker?.after ?? 0 });
+        metadata.put({ key: markerKey(key), complete, after: rows.at(-1)?.sequence ?? marker?.after ?? 0 });
       });
       if (complete) return;
     }
   }
   async function listConsumedQueueIssues(scope: SyncScope): Promise<QueueOperation[]> {
-    await adoptConsumedRejections(scope);
-    const key = scopeKey(validateScope(scope)); const db = await ctx.open();
-    const tx = db.transaction([STORES.queue, STORES.diagnostics], 'readonly'); const done = transactionDone(tx);
-    const rows = await consumedRejectionRows(tx, key, ctx.maxRecordBytes); await done; return rows;
+    const key = scopeKey(validateScope(scope));
+    for (;;) {
+      let rows: QueueOperation[] | undefined;
+      // Completion and projected refusals are fresh facts from the same read.
+      // A completed migration must not acquire a write lock for every Pull item.
+      await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.metadata, STORES.queue, STORES.diagnostics], 'readonly', async tx => {
+        if (await adoptionComplete(tx, key)) rows = await consumedRejectionRows(tx, key, ctx.maxRecordBytes);
+      });
+      if (rows) return rows;
+      // Recheck the marker under the existing write transaction. Concurrent
+      // readers may finish adoption first; interrupted pages still resume.
+      await resumeAdoption(key);
+    }
   }
   /** Manual exact retry: retain the attempt, sequence, digest and idempotency identity. */
   async function retrySequenceBlocked(input: SyncScope, opId: string): Promise<void> {

@@ -24,35 +24,25 @@ export interface OpenSyncIssues {
 }
 
 export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string> } = {}): Promise<OpenSyncIssues> {
-  let queue: QueueOperation[] = [];
-  if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
-    let after = 0;
-    for (;;) {
-      const rows = await store.listQueue(scope, status, after, 1_000);
-      queue.push(...rows.filter(row => isOpenQueueIssue(row) && !options.excludeQueueOpIds?.has(row.opId)));
-      if (rows.length < 1_000) break;
-      after = rows.at(-1)!.sequence;
-    }
-  }
-  queue.push(...(await readUnresolvedConsumedQueueIssues(store, scope)).filter(row => !options.excludeQueueOpIds?.has(row.opId)));
-  if (store.filterResolvedQueueIssues) queue = await store.filterResolvedQueueIssues(scope, queue);
-  const pull = (await store.listPullIssues?.(scope) ?? []).filter(issue => !issue.conflictOpIds?.length
+  // Every invocation starts fresh reads. These categories do not depend on
+  // each other; waiting between them only serializes browser IDB round trips.
+  // Native mutation callers retain their separate final authority/wait checks.
+  const [queue, pullRows, localRows, ingressRows, replica, waits, deleteRows, runs] = await Promise.all([
+    readQueueIssues(store, scope, options.excludeQueueOpIds),
+    store.listPullIssues?.(scope) ?? [], store.listLocalIssues?.(scope) ?? [],
+    store.listOpenIngressIssues?.(scope) ?? [], readBlockedPullIssues(store, scope),
+    store.listApplyIntents ? projectNativeWaits(store as NativeWaitStore, scope) : [],
+    store.listRemoteDeleteDecisions?.(scope, OPEN_REMOTE_DELETE_STATES) ?? [], store.listBootstrapRuns?.(scope) ?? [],
+  ]);
+  const pull = pullRows.filter(issue => !issue.conflictOpIds?.length
     || !issue.conflictOpIds.every(opId => options.excludeQueueOpIds?.has(opId)));
-  const local = mergeLocalIssues([...(await store.listLocalIssues?.(scope) ?? []),
-    ...(await store.listOpenIngressIssues?.(scope) ?? [])]);
-  const replica: BlockedPullIssue[] = [];
-  if (store.listPullPages && store.listPullEventsByPage) for (const page of await store.listPullPages(scope, ['blocked'])) {
-    const issue = blockedPullIssue(page, await store.listPullEventsByPage(scope, String(page.pageId)));
-    if (issue) replica.push(issue);
-  }
-  const waits = store.listApplyIntents ? await projectNativeWaits(store as NativeWaitStore, scope) : [];
-  const deletes = (await store.listRemoteDeleteDecisions?.(scope, OPEN_REMOTE_DELETE_STATES) ?? []).filter(row => row.eventId !== options.excludeDeleteEventId && !(row.state === 'restoring' && row.restoreOpId === options.resolvingRestoreOpId));
+  const local = mergeLocalIssues([...localRows, ...ingressRows]);
+  const deletes = deleteRows.filter(row => row.eventId !== options.excludeDeleteEventId && !(row.state === 'restoring' && row.restoreOpId === options.resolvingRestoreOpId));
   const roots = new Set([...pull.map(row => row.nodeId), ...replica.flatMap(issue => issue.nodeIds)]);
   for (const decision of deletes) roots.add(decision.targetId);
   addQueueIssueRoots(roots, queue);
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
   const nativeRoots = new Set([...local.filter(ingressProtectsNode).map(row => row.nativeId), ...deletes.flatMap(row => row.nativeIds)]);
-  const runs = await store.listBootstrapRuns?.(scope) ?? [];
   let bootstrap = openBootstrapAttention(runs, []);
   // Mapping content only enriches open display items or translates native
   // issue roots. Re-read it when either exists, once for this invocation.
@@ -64,6 +54,33 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
   const operationalTotal = deletes.length + queue.length + pull.length + local.length + waits.length + replica.length;
   return { queue, pull, local, waits, replica, deletes, roots, nativeRoots, bootstrap, operationalTotal,
     total: operationalTotal + bootstrap.length };
+}
+
+async function readQueueIssues(store: SyncIssueStore, scope: SyncScope, excluded?: ReadonlySet<string>): Promise<QueueOperation[]> {
+  const pages = await Promise.all([
+    ...(['blocked', 'rejected', 'set_aside'] as const).map(async status => {
+      const queue: QueueOperation[] = [];
+      if (!store.listQueue) return queue;
+      let after = 0;
+      for (;;) {
+        const rows = await store.listQueue(scope, status, after, 1_000);
+        queue.push(...rows.filter(isOpenQueueIssue));
+        if (rows.length < 1_000) return queue;
+        after = rows.at(-1)!.sequence;
+      }
+    }), readUnresolvedConsumedQueueIssues(store, scope),
+  ]);
+  const queue = pages.flat().filter(row => !excluded?.has(row.opId));
+  return store.filterResolvedQueueIssues ? store.filterResolvedQueueIssues(scope, queue) : queue;
+}
+
+async function readBlockedPullIssues(store: SyncIssueStore, scope: SyncScope): Promise<BlockedPullIssue[]> {
+  const issues: BlockedPullIssue[] = [];
+  if (store.listPullPages && store.listPullEventsByPage) for (const page of await store.listPullPages(scope, ['blocked'])) {
+    const issue = blockedPullIssue(page, await store.listPullEventsByPage(scope, String(page.pageId)));
+    if (issue) issues.push(issue);
+  }
+  return issues;
 }
 
 /** Parent edges include existing mappings and never-confirmed creates. */
