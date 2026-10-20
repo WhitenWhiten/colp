@@ -94,7 +94,7 @@ export async function readOrderedPullEvents(db: IDBDatabase, scopeKeyValue: stri
   const wanted = states && states.length > 0 ? states : PULL_EVENT_STATES;
   const events: UnknownRecord[] = [];
   for (const state of wanted) events.push(...await readStateIndex(db, STORES.pullEvents, INDEXES.pullEventByState,
-    scopeKeyValue, state));
+    scopeKeyValue, state, 'eventId'));
   const pageIds = [...new Set(events.map((event) => String(event.pageId)))];
   const pages = await readPagesForIds(db, scopeKeyValue, pageIds);
   return orderEventsByPageChain(events, pages);
@@ -104,7 +104,7 @@ export async function readPullPagesByState(db: IDBDatabase, scopeKeyValue: strin
   states: readonly string[]): Promise<UnknownRecord[]> {
   const pages: UnknownRecord[] = [];
   for (const state of states) pages.push(...await readStateIndex(db, STORES.pullPages, INDEXES.pullPageByState,
-    scopeKeyValue, state));
+    scopeKeyValue, state, 'pageId'));
   return pages;
 }
 
@@ -286,7 +286,7 @@ async function readPagesForIds(db: IDBDatabase, scopeKeyValue: string, pageIds: 
 }
 
 async function readStateIndex(db: IDBDatabase, storeName: string, indexName: string, scopeKeyValue: string,
-  state: string): Promise<UnknownRecord[]> {
+  state: string, idField: 'eventId' | 'pageId'): Promise<UnknownRecord[]> {
   const rows: UnknownRecord[] = [];
   let after: string | null = null;
   for (;;) {
@@ -294,17 +294,14 @@ async function readStateIndex(db: IDBDatabase, storeName: string, indexName: str
     const completion = transactionDone(tx);
     const index = tx.objectStore(storeName).index(indexName);
     const lower = after === null ? [scopeKeyValue, state] : [scopeKeyValue, state, after];
-    const page: UnknownRecord[] = []; let last: string | null = null;
-    await iterateCursor(index, IDBKeyRange.bound(lower, [scopeKeyValue, state, []]), (value, cursor) => {
-      const cursorKey = cursor.key as unknown as readonly [string, string, string];
-      if (after !== null && cursorKey[2] === after) return undefined;
-      page.push(value as UnknownRecord); last = String(cursorKey[2]);
-      return page.length < PULL_INDEX_PAGE;
-    });
+    // Both indexes are unique on [scope, state, id]. Read one bounded batch
+    // instead of delivering a browser cursor callback for every historical row.
+    const page = await requestValue(index.getAll(IDBKeyRange.bound(lower,
+      [scopeKeyValue, state, []], after !== null), PULL_INDEX_PAGE)) as UnknownRecord[];
     await completion;
     rows.push(...page);
-    if (page.length < PULL_INDEX_PAGE || last === null) return rows;
-    after = last;
+    if (page.length < PULL_INDEX_PAGE) return rows;
+    after = String(page.at(-1)![idField]);
   }
 }
 

@@ -34,6 +34,7 @@ function observeReads() {
     intentPointReads: 0, diagnosticPointReads: 0,
   };
   const indexCursor = IDBIndex.prototype.openCursor;
+  const indexGetAll = IDBIndex.prototype.getAll;
   const storeCursor = IDBObjectStore.prototype.openCursor;
   const get = IDBObjectStore.prototype.get;
   vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementation(function (this: IDBIndex, query, direction) {
@@ -45,6 +46,16 @@ function observeReads() {
       if (storeName === STORES.pullPages) counts.pullPageIndexRows += 1;
       if (storeName === STORES.queue) counts.queueRows += 1;
       if (storeName === STORES.bookmarkEvents) counts.bookmarkRows += 1;
+    });
+    return request;
+  });
+  vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function (this: IDBIndex, ...args) {
+    const request = indexGetAll.apply(this, args); const storeName = this.objectStore.name;
+    request.addEventListener('success', () => {
+      if (storeName === STORES.pullEvents) counts.pullEventRows += request.result.length;
+      if (storeName === STORES.pullPages) counts.pullPageIndexRows += request.result.length;
+      if (storeName === STORES.queue) counts.queueRows += request.result.length;
+      if (storeName === STORES.bookmarkEvents) counts.bookmarkRows += request.result.length;
     });
     return request;
   });
