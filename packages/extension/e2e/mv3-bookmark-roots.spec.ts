@@ -393,22 +393,57 @@ async function expectProfileRootAuthority(page: Page, fixture: { selected: strin
   // Both profiles intentionally share a cloud library. Its remote folders may
   // appear elsewhere in options; they must never become this profile's native
   // root controls or acquire its selected/private native identities.
-  await expect(page.locator('#root-tree').getByText(otherTitle, { exact: true })).toHaveCount(0);
   const view = await getRootView(page);
-  expect(view.roots.some(row => row.title === otherTitle)).toBe(false);
-  expect(view.roots.find(row => row.title === ownTitle)).toMatchObject({ selected: true, privateLocal: false });
   const native = await page.evaluate(async ({ ownId, foreignTitle }) => {
     const visit = (nodes: chrome.bookmarks.BookmarkTreeNode[]): chrome.bookmarks.BookmarkTreeNode[] =>
       nodes.flatMap(node => [node, ...visit(node.children ?? [])]);
     const nodes = visit(await chrome.bookmarks.getTree());
     return { own: nodes.filter(node => node.id === ownId).map(node => ({ id: node.id, title: node.title })),
-      foreign: nodes.filter(node => node.title === foreignTitle).map(node => ({ id: node.id, title: node.title })) };
+      foreign: nodes.filter(node => node.title === foreignTitle).map(node => ({ id: node.id, title: node.title })),
+      nodes: nodes.map(node => ({ id: node.id, parentId: node.parentId })) };
   }, { ownId: fixture.selected, foreignTitle: otherTitle });
-  expect(native).toEqual({ own: [{ id: fixture.selected, title: ownTitle }], foreign: [] });
   const durable = await evidenceRequest(page, 'exportScope', scope);
+  const related = await readStores(page, ['mount_bindings', 'bootstrap_runs', 'sync_engine', 'diagnostics']);
+  const scoped = (name: string) => (related[name] ?? []).filter(row => row.scopeKey === durable.scope?.scopeKey);
+  const mappings: Array<{ colpId: string; nativeId: string; rootNativeId: string; parentColpId?: string;
+    rootRole?: string }> = durable.mappings;
+  const ownMapping = mappings.find(row => row.nativeId === fixture.selected);
+  // Collect all three independent views before any assertion can abort. Log
+  // only fixture relationships/counts: no native ids, view tokens, titles or URLs.
+  console.info('Profile root authority evidence', JSON.stringify({
+    profile: scope.browserProfileId === profileBindings.a.browserProfileId ? 'a' : 'b',
+    view: { status: view.status, own: view.roots.filter(row => row.title === ownTitle).map(({ kind, selected,
+      privateLocal, depth }) => ({ kind, selected, privateLocal, depth })),
+    foreign: view.roots.filter(row => row.title === otherTitle).map(({ kind, selected, privateLocal, depth }) =>
+      ({ kind, selected, privateLocal, depth })) },
+    native: { count: native.nodes.length, ownCount: native.own.length,
+      foreign: native.foreign.map(row => {
+        const mapping = mappings.find(item => item.nativeId === row.id);
+        const parent = native.nodes.find(item => item.id === row.id)?.parentId;
+        return { mapped: Boolean(mapping), selected: durable.scope?.selectedRoots.includes(mapping?.colpId),
+          privateLocal: durable.scope?.privateRoots.includes(mapping?.colpId),
+          parentIsOwn: parent === fixture.selected, parentIsOwnParent: parent !== undefined
+            && parent === native.nodes.find(item => item.id === fixture.selected)?.parentId,
+          sharesOwnCanonicalParent: mapping?.parentColpId !== undefined && mapping.parentColpId === ownMapping?.parentColpId,
+          rootIsOwn: mapping?.rootNativeId === fixture.selected, role: mapping?.rootRole ?? null };
+      }) },
+    durable: { firstRun: durable.scope?.firstRun, rootStatus: durable.scope?.rootStatus,
+      selectedCount: durable.scope?.selectedRoots.length, privateCount: durable.scope?.privateRoots.length,
+      mappingCount: mappings.length, queueCount: durable.queue.length, receiptCount: durable.receipts.length,
+      mounts: scoped('mount_bindings').map(row => ({ status: row.status, bound: row.remoteMountNodeId !== null,
+        rootIsOwn: row.nativeRootId === fixture.selected, materialized: row.materialized, role: row.rootRole ?? null })),
+      runs: scoped('bootstrap_runs').map(row => ({ phase: row.phase, retryReason: row.retryReason ?? null })),
+      engine: scoped('sync_engine').map(row => ({ phase: row.phase, recoveryFrozen: row.recoveryFrozen,
+        errorCode: row.lastError ?? null })),
+      projections: scoped('diagnostics').filter(row => row.kind === 'projection_intent').map(row => ({ kind: row.intentKind, state: row.state,
+        targetsForeign: native.foreign.some(item => mappings.some(mapping => mapping.nativeId === item.id && mapping.colpId === row.colpId)) })) },
+  }));
+  await expect(page.locator('#root-tree').getByText(otherTitle, { exact: true })).toHaveCount(0);
+  expect(view.roots.some(row => row.title === otherTitle)).toBe(false);
+  expect(view.roots.find(row => row.title === ownTitle)).toMatchObject({ selected: true, privateLocal: false });
+  expect(native).toMatchObject({ own: [{ id: fixture.selected, title: ownTitle }], foreign: [] });
   expect(durable.scope).toMatchObject({ firstRun: 'completed', browserProfileId: scope.browserProfileId,
     replicaId: scope.replicaId, rootStatus: 'ready' });
-  const mappings: Array<{ colpId: string; nativeId: string }> = durable.mappings;
   expect(mappings.filter(row => durable.scope.selectedRoots.includes(row.colpId)).map(row => row.nativeId))
     .toEqual([fixture.selected]);
   expect(mappings.filter(row => durable.scope.privateRoots.includes(row.colpId)).map(row => row.nativeId))
