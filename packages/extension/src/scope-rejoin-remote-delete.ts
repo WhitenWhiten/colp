@@ -3,6 +3,7 @@ import { assertRejoinBoundary, assertRejoinCanonicalBoundary } from './scope-rej
 import { rejoinAuthority, rejoinAttemptDigest, rejoinBoundaryDigest } from './scope-rejoin-authority.js';
 import { rejoinMutationAuthority, rejoinNativeDigest, type RejoinNative } from './scope-rejoin-mutation.js';
 import { isNonChromeNativeId } from './pull-mount-apply.js';
+import { NativeWriteNotStartedError } from './native-call-result.js';
 import { remoteDescendantIds } from './scope-rejoin-members.js';
 import { remoteDeleteEvidence, remoteDeleteMemberIntentId, remoteDeleteReviewPrefix, type RejoinRemoteDeleteEvidence,
   type RejoinRemoteDeleteMember } from './sync-state/rejoin-decision-repository.js';
@@ -176,15 +177,22 @@ export async function resumeRemoteRejoinDelete(input: RejoinOrderInput, plan: Sc
       const single = { ...authority, deletion: { boundary: authority.deletion!.boundary,
         members: member.mapping ? [member.mapping] : [], unmappedNativeIds: member.mapping ? [] : [member.nativeId] } };
       if (current) {
-        await assertRejoinBoundary(input, root, { expectedBoundary: authority.boundaryDigest, parentNativeId: member.nativeId });
-        await input.store.assertRejoinMutation(input.scope, single);
-        await assertRemoteDeleteTree(input, { ...evidence, members: [member] }, removed);
-        await input.store.assertRejoinMutation(input.scope, single);
-        // The durable CAS above can itself yield to a browser edit. Re-read
-        // the authorized member immediately before the nonrecursive call.
-        await assertRemoteDeleteTree(input, { ...evidence, members: [member] }, removed);
-        try { await input.removeNative(member.nativeId, false); }
+        const beforeNative = async () => {
+          await assertRejoinBoundary(input, root, { expectedBoundary: authority.boundaryDigest, parentNativeId: member.nativeId });
+          await input.store.assertRejoinMutation(input.scope, single);
+          await assertRemoteDeleteTree(input, { ...evidence, members: [member] }, removed);
+          await input.store.assertRejoinMutation(input.scope, single);
+          // Durable CAS and native wrapper admission may both yield. The
+          // exact approved member is checked after each, without resampling it.
+          await assertRemoteDeleteTree(input, { ...evidence, members: [member] }, removed);
+        };
+        await beforeNative();
+        try { await input.removeNative(member.nativeId, false, beforeNative); }
         catch (error) {
+          if (error instanceof NativeWriteNotStartedError) {
+            await input.store.persistApplyIntentFacts(input.scope, intentId, { replayState: 'not_started', nativeResult: 'not_started' });
+            throw error;
+          }
           let hasChildren = false;
           if (member.children && input.getChildren) {
             try { hasChildren = (await input.getChildren(member.nativeId)).length > 0; } catch { throw error; }

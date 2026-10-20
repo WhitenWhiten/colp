@@ -2,6 +2,7 @@ import { classifyBookmarkApiFailure } from '../bookmark-api-error.js';
 import { withSubscriptionRead } from './barrier.js';
 import { subscriptionStore as db } from './store.js';
 import { assertBookmarkFolderAllowed } from '../bookmark-folder-policy.js';
+import { NativeWriteNotStartedError, type NativeWriteCheck } from '../native-call-result.js';
 export async function exclusionIds(readonlyOnly=false):Promise<Set<string>>{
   const [nodes,mappings,operations,exclusions]=await Promise.all([db.all('nodes'),db.all('mappings'),db.pendingOperations(),db.all('exclusions')]);
   return new Set([...nodes.map(n=>n.nativeId),...mappings.filter(m=>m.state!=='detached').flatMap(m=>m.rootNativeId?[m.rootNativeId]:[]),...exclusions.filter(n=>!readonlyOnly||n.reason==='quarantine').map(n=>n.nativeId),...operations.filter(o=>!o.settled).flatMap(o=>[...(o.resultId?[o.resultId]:[]),...(o.kind==='create'&&o.phase!=='received'&&o.parentNativeId?[o.parentNativeId]:[])])]);
@@ -29,10 +30,34 @@ export async function assertPersonalTreeAllowed(nativeId:string):Promise<void>{
   await assertPersonalNativeAllowed(nativeId);const excluded=await exclusionIds(true);if(excluded.size===0)return;
   const tree=await chrome.bookmarks.getSubTree(nativeId);const stack=[...tree];while(stack.length){const node=stack.pop()!;if(excluded.has(node.id))throw new Error('readonly_write_blocked');if(node.children)stack.push(...node.children);}
 }
-export const personalBookmarks={
-  async create(input:Parameters<typeof chrome.bookmarks.create>[0]){return withSubscriptionRead(async()=>{await assertPersonalNativeAllowed(input.parentId);await assertBookmarkFolderAllowed(input.parentId);return chrome.bookmarks.create(input);});},
-  async update(id:string,changes:Parameters<typeof chrome.bookmarks.update>[1]){return withSubscriptionRead(async()=>{await assertPersonalNativeAllowed(id);return chrome.bookmarks.update(id,changes);});},
-  async move(id:string,destination:Parameters<typeof chrome.bookmarks.move>[1]){return withSubscriptionRead(async()=>{await assertPersonalTreeAllowed(id);await assertPersonalNativeAllowed(destination.parentId);await assertBookmarkFolderAllowed(destination.parentId);return chrome.bookmarks.move(id,destination);});},
-  async remove(id:string){return withSubscriptionRead(async()=>{await assertPersonalNativeAllowed(id);return chrome.bookmarks.remove(id);});},
-  async removeTree(id:string){return withSubscriptionRead(async()=>{await assertPersonalTreeAllowed(id);return chrome.bookmarks.removeTree(id);});},
+function writePersonal<T>(admit: NativeWriteCheck, write: () => Promise<T>, beforeNative?: NativeWriteCheck): Promise<T> {
+  return withSubscriptionRead(async () => {
+    try { await admit(); await beforeNative?.(); }
+    catch (error) { throw new NativeWriteNotStartedError(error); }
+    // No admission await follows the caller's frozen-authority check. A raw
+    // Chrome rejection is deliberately outside the not-started catch.
+    return write();
+  });
+}
+export const personalBookmarks = {
+  create(input: Parameters<typeof chrome.bookmarks.create>[0], beforeNative?: NativeWriteCheck) {
+    return writePersonal(async () => {
+      await assertPersonalNativeAllowed(input.parentId); await assertBookmarkFolderAllowed(input.parentId);
+    }, () => chrome.bookmarks.create(input), beforeNative);
+  },
+  update(id: string, changes: Parameters<typeof chrome.bookmarks.update>[1], beforeNative?: NativeWriteCheck) {
+    return writePersonal(() => assertPersonalNativeAllowed(id), () => chrome.bookmarks.update(id, changes), beforeNative);
+  },
+  move(id: string, destination: Parameters<typeof chrome.bookmarks.move>[1], beforeNative?: NativeWriteCheck) {
+    return writePersonal(async () => {
+      await assertPersonalTreeAllowed(id); await assertPersonalNativeAllowed(destination.parentId);
+      await assertBookmarkFolderAllowed(destination.parentId);
+    }, () => chrome.bookmarks.move(id, destination), beforeNative);
+  },
+  remove(id: string, beforeNative?: NativeWriteCheck) {
+    return writePersonal(() => assertPersonalNativeAllowed(id), () => chrome.bookmarks.remove(id), beforeNative);
+  },
+  removeTree(id: string, beforeNative?: NativeWriteCheck) {
+    return writePersonal(() => assertPersonalTreeAllowed(id), () => chrome.bookmarks.removeTree(id), beforeNative);
+  },
 };

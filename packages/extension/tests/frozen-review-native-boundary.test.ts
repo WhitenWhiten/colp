@@ -39,9 +39,9 @@ test.each(['content', 'exclusion'] as const)(
       });
       const productionNative = nativeChromeFacts();
       await rejoinScopeMount(f.store, scope, 'mount-bar', new Set(), [], { ...f.native,
-        updateNative: async (id, changes) => {
+        updateNative: async (id, changes, beforeNative) => {
           inMutation = true;
-          try { return await productionNative.updateNative(id, changes); }
+          try { return await productionNative.updateNative(id, changes, beforeNative); }
           finally { inMutation = false; }
         },
       }).catch(error => expect(String(error)).toMatch(/rejoin_boundary_changed/));

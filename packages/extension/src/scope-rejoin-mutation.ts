@@ -3,6 +3,7 @@ import { assertRejoinBoundary } from './scope-rejoin-boundary.js';
 import { rejoinBoundaryDigest } from './scope-rejoin-authority.js';
 import { exclusionEvidenceDigest, mappingEvidenceDigest, type RejoinMutationAuthority } from './sync-state/rejoin-decision-repository.js';
 import { digestJson } from './bookmark-event-codec.js';
+import { NativeWriteNotStartedError, type NativeWriteCheck } from './native-call-result.js';
 import type { JsonObject, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export interface RejoinNative { readonly title?: string; readonly url?: string; readonly parentId?: string; readonly index?: number;
@@ -14,10 +15,10 @@ export interface RejoinChrome {
   readonly crash?: (boundary: string) => void;
   readonly getNative: (id: string) => Promise<RejoinNative | undefined>;
   readonly getChildren?: (id: string) => Promise<readonly (RejoinNative & { readonly id: string })[]>;
-  readonly updateNative?: (id: string, changes: { title?: string; url?: string }) => Promise<unknown>;
-  readonly removeNative?: (id: string, tree: boolean) => Promise<unknown>;
-  readonly moveNative?: (id: string, placement: { parentId: string; index: number }) => Promise<unknown>;
-  readonly createNative?: (input: { parentId: string; index?: number; title?: string; url?: string }) => Promise<{ readonly id: string }>;
+  readonly updateNative?: (id: string, changes: { title?: string; url?: string }, beforeNative?: NativeWriteCheck) => Promise<unknown>;
+  readonly removeNative?: (id: string, tree: boolean, beforeNative?: NativeWriteCheck) => Promise<unknown>;
+  readonly moveNative?: (id: string, placement: { parentId: string; index: number }, beforeNative?: NativeWriteCheck) => Promise<unknown>;
+  readonly createNative?: (input: { parentId: string; index?: number; title?: string; url?: string }, beforeNative?: NativeWriteCheck) => Promise<{ readonly id: string }>;
 }
 type MutationInput = RejoinChrome & { store: ReturnType<typeof createSyncStateStore>; scope: SyncScope; mount: MountBindingRecord };
 
@@ -74,7 +75,16 @@ export async function prepareRejoinMutation(input: MutationInput,
   // Order operations carry a full sibling fingerprint, which must be the final
   // native check rather than a preflight invalidated by our own async reads.
   await beforeNative?.(authority);
-  return { authority, intentId: `rejoin:${correlationId}` };
+  const beforeNativeWrite = async () => {
+    await assertRejoinBoundary(input, mapping, { lookupNativeIds });
+    if (kind === 'move') await assertRejoinBoundary(input, mapping, { parentNativeId: String(target.parentId) });
+    await beforeNative?.(authority);
+    await input.store.assertRejoinMutation(input.scope, authority);
+    const current = await input.getNative(mapping.nativeId);
+    if (!current || rejoinNativeDigest(current) !== rejoinNativeDigest(before)) throw new Error('rejoin_boundary_changed');
+    if (kind === 'move') await beforeNative?.(authority);
+  };
+  return { authority, intentId: `rejoin:${correlationId}`, beforeNativeWrite };
 }
 
 /** Persist callback suppression before Chrome; retries compare the actual post-state before calling again. */
@@ -82,11 +92,17 @@ export async function applyRejoinMutation(input: MutationInput,
   mapping: MappingInput, kind: 'change' | 'remove' | 'move', target: JsonObject, before: RejoinNative,
   beforeNative?: (authority: RejoinMutationAuthority) => Promise<void>, deletion?: RejoinMutationAuthority['deletion'],
   lookupNativeIds?: readonly string[]) {
-  const { authority, intentId } = await prepareRejoinMutation(input, mapping, kind, target, before, beforeNative, deletion, lookupNativeIds);
-  if (kind === 'change') await input.updateNative!(mapping.nativeId, target);
-  else if (kind === 'remove') {
-    try { await input.removeNative!(mapping.nativeId, false); }
-    catch (error) {
+  const { authority, intentId, beforeNativeWrite } = await prepareRejoinMutation(input, mapping, kind, target, before, beforeNative, deletion, lookupNativeIds);
+  try {
+    if (kind === 'change') await input.updateNative!(mapping.nativeId, target, beforeNativeWrite);
+    else if (kind === 'remove') await input.removeNative!(mapping.nativeId, false, beforeNativeWrite);
+    else await input.moveNative!(mapping.nativeId, target as { parentId: string; index: number }, beforeNativeWrite);
+  } catch (error) {
+    if (error instanceof NativeWriteNotStartedError) {
+      await input.store.persistApplyIntentFacts(input.scope, intentId, { replayState: 'not_started', nativeResult: 'not_started' });
+      throw error;
+    }
+    if (kind === 'remove') {
       // Chrome refuses a nonempty folder. A child arriving after every read
       // must survive; never turn this refusal into a recursive fallback.
       let hasChildren = false;
@@ -94,10 +110,9 @@ export async function applyRejoinMutation(input: MutationInput,
         try { hasChildren = (await input.getChildren(mapping.nativeId)).length > 0; } catch { throw error; }
       }
       if (hasChildren) throw new Error('rejoin_boundary_changed');
-      throw error;
     }
+    throw error;
   }
-  else await input.moveNative!(mapping.nativeId, target as { parentId: string; index: number });
   await input.store.persistApplyIntentFacts(input.scope, intentId, { state: 'page_complete' });
   return authority;
 }

@@ -130,6 +130,13 @@ async function createIndependentNative(input: Input, authority: RejoinMaterializ
     : `rejoin:${input.mount.mountId}:${mapping.colpId}`;
   const title = typeof node.title === 'string' ? node.title : undefined;
   const url = typeof node.url === 'string' ? node.url : undefined;
+  const beforeNative = async () => {
+    await assertRejoinBoundary(input, mapping, { parentNativeId, expectedBoundary: authority.boundaryDigest });
+    await input.store.assertRejoinMaterialization(input.scope, authority);
+    if (await insertionIndex(input, mapping, parentNativeId, byColp, restore) !== index) throw new Error('rejoin_boundary_changed');
+    const parentNow = await input.getNative(parentNativeId);
+    if (!parentNow || parentNow.parentId !== parentBefore.parentId) throw new Error('rejoin_boundary_changed');
+  };
   const outcome = await executeNativeCreate({
     scope: input.scope, store: input.store, api: { getChildren: input.getChildren ?? (async () => []) },
     intentId, owner: {
@@ -141,13 +148,9 @@ async function createIndependentNative(input: Input, authority: RejoinMaterializ
     permissionGranted: recorded?.rootStatus !== 'permission_required', crash: input.crash,
     create: async () => {
       input.crash?.('after_rejoin_create_intent');
-      await assertRejoinBoundary(input, mapping, { parentNativeId,
-        expectedBoundary: authority.boundaryDigest });
-      await input.store.assertRejoinMaterialization(input.scope, authority);
-      const parentNow = await input.getNative(parentNativeId);
-      if (!parentNow || parentNow.parentId !== parentBefore.parentId) throw new Error('rejoin_boundary_changed');
+      await beforeNative();
       return input.createNative!({ parentId: parentNativeId, index,
-        ...(title === undefined ? {} : { title }), ...(url === undefined ? {} : { url }) });
+        ...(title === undefined ? {} : { title }), ...(url === undefined ? {} : { url }) }, beforeNative);
     },
   });
   if (outcome.result !== 'applied_with_evidence') return undefined;

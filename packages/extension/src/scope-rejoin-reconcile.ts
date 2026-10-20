@@ -15,6 +15,7 @@ import { applyRejoinMutation, rejoinMutationAuthority, rejoinNativeDigest, type 
 import { compareRejoinFacts } from './scope-transition.js';
 import { observationValidForPause } from './sync-state/remote-observation.js';
 import { isSettledRejection } from './sync-state/open-issue-facts.js';
+import { NativeWriteNotStartedError } from './native-call-result.js';
 import type { JsonObject, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 type Store = ReturnType<typeof createSyncStateStore>;
@@ -64,7 +65,7 @@ export async function applyRejoinObservations(input: {
     const parent = byNative.get(id)?.parentNativeId;
     if (parent && byNative.has(parent)) protectedDeletions.add(parent);
   }
-  let deletionChanged = false;
+  let boundaryChanged = false;
   const considered: string[] = [];
   const removedNativeIds = new Set<string>();
   const reviewedNativeIds = new Set<string>();
@@ -130,7 +131,7 @@ export async function applyRejoinObservations(input: {
           applied++; continue;
         } catch (error) {
           if (!(error instanceof Error) || error.message !== 'rejoin_boundary_changed') throw error;
-          deletionChanged = true; conflicts++; break;
+          boundaryChanged = true; conflicts++; break;
         }
       }
       await store.commitRejoinProjection(scope, await rejoinMutationAuthority(input, mapping), null);
@@ -146,15 +147,20 @@ export async function applyRejoinObservations(input: {
     if (localMoved && !remoteMoved && !localPlacement) { unknown++; continue; }
     const projectionAuthority = await rejoinMutationAuthority(input, mapping, remoteMoved ? parent!.nativeId : undefined);
     let expectedNative = native;
-    if ((outcome === 'apply_remote' || outcome === 'typed_merge') && digestJson(local) !== digestJson(landed)) {
-      if (!input.updateNative) { unknown++; continue; }
-      await applyRejoinMutation(input, mapping, 'change', landed, native);
-      expectedNative = { ...native, ...landed };
-    }
-    if (remoteMoved && native.parentId !== parent!.nativeId) {
-      const placement = { parentId: parent!.nativeId, index: await destIndex(input, parent!.nativeId, native, observation?.payload, all) };
-      await applyRejoinMutation(input, mapping, 'move', placement, expectedNative);
-      expectedNative = { ...expectedNative, ...placement };
+    try {
+      if ((outcome === 'apply_remote' || outcome === 'typed_merge') && digestJson(local) !== digestJson(landed)) {
+        if (!input.updateNative) { unknown++; continue; }
+        await applyRejoinMutation(input, mapping, 'change', landed, native);
+        expectedNative = { ...native, ...landed };
+      }
+      if (remoteMoved && native.parentId !== parent!.nativeId) {
+        const placement = { parentId: parent!.nativeId, index: await destIndex(input, parent!.nativeId, native, observation?.payload, all) };
+        await applyRejoinMutation(input, mapping, 'move', placement, expectedNative);
+        expectedNative = { ...expectedNative, ...placement };
+      }
+    } catch (error) {
+      if (!(error instanceof NativeWriteNotStartedError) || error.message !== 'rejoin_boundary_changed') throw error;
+      boundaryChanged = true; conflicts++; break;
     }
     const revision = outcome === 'queue_local_at_baseline_revision'
       ? mapping.projection.revision : observation?.remoteRevision ?? mapping.projection.revision;
@@ -189,7 +195,7 @@ export async function applyRejoinObservations(input: {
   // Comparison is durable before activation. The caller commits this journal
   // and the mount together; a worker restart must still see unfinished work.
   await store.putScopeCommandPlan(scope, { ...plan, phase: unknown || conflicts ? 'pending' : 'applying',
-    ...(deletionChanged ? { retryReason: 'rejoin_boundary_changed' } : {}), updatedAt: Date.now() });
+    ...(boundaryChanged ? { retryReason: 'rejoin_boundary_changed' } : {}), updatedAt: Date.now() });
   if (!unknown && !conflicts && considered.length) await store.deleteRemoteObservations(scope, considered);
   return { applied, unknown, conflicts };
 }

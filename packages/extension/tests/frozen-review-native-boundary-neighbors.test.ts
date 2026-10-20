@@ -11,7 +11,7 @@ import { installKns05IndexedDb, scope, type Kns05Chrome } from './kns-05-pull-ha
 installKns05IndexedDb();
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function scheduleDuringProductionGuard(mutate: () => Promise<void>) {
+function scheduleDuringProductionGuard(mutate: () => Promise<unknown>) {
   let armed = false, injected = false;
   const pendingOperations = subscriptionStore.pendingOperations;
   vi.spyOn(subscriptionStore, 'pendingOperations').mockImplementation(async () => {
@@ -41,7 +41,7 @@ test('production rejoin remove must preserve an edit committed during its final 
     const race = scheduleDuringProductionGuard(() => f.api.update('native-node', { title: 'New edit before remove' }));
     const production = nativeChromeFacts();
     await rejoinScopeMount(f.store, scope, 'mount-bar', new Set(), [], { ...f.native,
-      removeNative: (id, tree) => { race.arm(); return production.removeNative(id, tree); },
+      removeNative: (id, tree, beforeNative) => { race.arm(); return production.removeNative(id, tree, beforeNative); },
     });
     expect(race.injected()).toBe(true);
     expect.soft(removes).toBe(0);
@@ -71,7 +71,7 @@ test('production rejoin move must preserve a user move committed during its fina
     const race = scheduleDuringProductionGuard(() => f.api.move('native-node', { parentId: 'user-dest', index: 0 }));
     const production = nativeChromeFacts();
     await rejoinScopeMount(f.store, scope, 'mount-bar', new Set(), [], { ...f.native,
-      moveNative: (id, placement) => { race.arm(); return production.moveNative(id, placement); },
+      moveNative: (id, placement, beforeNative) => { race.arm(); return production.moveNative(id, placement, beforeNative); },
     });
     expect(race.injected()).toBe(true);
     expect.soft(moves).toBe(0);
@@ -93,7 +93,7 @@ test('production rejoin order must preserve a new order committed inside the mov
     });
     const production = nativeChromeFacts();
     await f.resolve('keep_remote_order', {
-      moveNative: (id, placement) => { race.arm(); return production.moveNative(id, placement); },
+      moveNative: (id, placement, beforeNative) => { race.arm(); return production.moveNative(id, placement, beforeNative); },
     });
     expect(race.injected()).toBe(true);
     expect.soft(moves).toBe(0);
@@ -117,7 +117,7 @@ test('production rejoin restore must not create in a parent excluded during its 
     });
     const production = nativeChromeFacts();
     await f.resolve('keep_remote', {
-      createNative: input => { race.arm(); return production.createNative(input); },
+      createNative: (input, beforeNative) => { race.arm(); return production.createNative(input, beforeNative); },
     });
     expect(race.injected()).toBe(true);
     expect.soft(creates).toBe(0);

@@ -38,6 +38,16 @@ export async function personalSyncNativeApi<T extends object>(identity: Personal
       return async (...args: unknown[]) => {
         await assertAttempt?.();
         await lease?.assertCurrent(); lease?.assertLive();
+        const checkIndex = ({ createNative: 1, updateNative: 2, moveNative: 2, removeNative: 2 } as Record<string, number>)[String(property)];
+        const finalCheck = checkIndex === undefined ? undefined : args[checkIndex];
+        if (checkIndex !== undefined) args[checkIndex] = async () => {
+          // Subscription/folder admission inside the native adapter may yield
+          // after the outer attempt check. Revalidate that same lease first,
+          // then run the caller's frozen-preimage check last.
+          await assertAttempt?.(); await lease?.assertCurrent(); lease?.assertLive();
+          if (typeof finalCheck === 'function') await finalCheck();
+          lease?.assertLive();
+        };
         return Reflect.apply(member, target, args);
       };
     },
