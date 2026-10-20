@@ -9718,6 +9718,10 @@
     "message": "文件夹设置已保存",
     "description": "Folder settings saved"
   },
+  "sync_folderSettingsSavedTreeUnavailable": {
+    "message": "目录设置已保存，但目录列表暂时无法刷新。请再次刷新目录。",
+    "description": "Folder settings saved. The folder list could not refresh; try refreshing it again."
+  },
   "sync_folderTreeChangedRefresh": {
     "message": "文件夹树已更改。请刷新并重新预览。",
     "description": "Folder tree changed. Refresh and preview again."

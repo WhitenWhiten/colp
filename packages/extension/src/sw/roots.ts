@@ -50,6 +50,7 @@ export async function handleRootRequest(message: RootRequest): Promise<RootRespo
     return message.kind === 'known.roots.get' || message.kind === 'known.roots.permissionChanged'
       ? required : { ok: false, error: 'permission_required' };
   }
+  let committed: { readonly confirmationId: string; readonly state: 'committed' } | undefined;
   try {
     if (message.kind === 'known.roots.update') {
       const selected = resolveRootRefs(scope, message.viewId, message.selectedRefs);
@@ -63,12 +64,13 @@ export async function handleRootRequest(message: RootRequest): Promise<RootRespo
       catch { return { ok: false, error: 'root_update_failed' }; }
     }
     if (message.kind === 'known.roots.preview') {
-      return handleRangePreview(message);
+      return await handleRangePreview(message);
     }
     if (message.kind === 'known.roots.confirm') {
       const confirmed = await handleRangeConfirm(message);
       if (!confirmed.ok) return confirmed;
-      return { ok: true, view: await loadRootView(scope) };
+      committed = { confirmationId: message.confirmationId, state: 'committed' };
+      return { ok: true, view: await loadRootView(scope), confirmation: committed };
     }
     return { ok: true, view: await loadRootView(scope,
       message.kind === 'known.roots.get' ? message.preselectFolderId : undefined) };
@@ -76,12 +78,11 @@ export async function handleRootRequest(message: RootRequest): Promise<RootRespo
     const status = error instanceof BookmarkTreeError ? error.code === 'bookmark_tree_corrupt' ? 'corrupt' : error.code : 'corrupt';
     await syncState.setBrowserRootStatus(scope, status);
     sw.rootViewTokens = undefined;
-    // A failed write/confirmation must never masquerade as a successful
-    // folder-settings save merely because we can render a degraded root view.
-    if (message.kind !== 'known.roots.get' && message.kind !== 'known.roots.permissionChanged') {
-      return { ok: false, error: 'root_update_failed' };
-    }
-    return { ok: true, view: { viewId: crypto.randomUUID(), status, roots: [] } };
+    if (!committed && (message.kind === 'known.roots.confirm' || message.kind === 'known.roots.preview'
+        || message.kind === 'known.roots.update')) return { ok: false,
+      error: error instanceof BookmarkTreeError ? status : 'root_update_failed' };
+    return { ok: true, view: { viewId: crypto.randomUUID(), status, roots: [] },
+      ...(committed ? { confirmation: committed } : {}) };
   }
 }
 

@@ -73,8 +73,9 @@ export function bindRangeAdjustment(host: {
     const remoteDeleteRefs = remoteDelete.checked
       ? preview.removals.map((row) => row.ref).concat(unmountedShiftRefs) : undefined;
     shiftList.toggleAttribute('inert', true); remoteDelete.disabled = true;
+    const confirmationId = crypto.randomUUID();
     const response = await rootRequest({
-      kind: 'known.roots.confirm', previewId: preview.previewId, confirmationId: crypto.randomUUID(),
+      kind: 'known.roots.confirm', previewId: preview.previewId, confirmationId,
       treeDigest: preview.treeDigest,
       ...(shiftActions.length ? { shiftActions } : {}),
       ...(remoteDeleteRefs && remoteDeleteRefs.length ? { remoteDeleteRefs } : {}),
@@ -92,10 +93,15 @@ export function bindRangeAdjustment(host: {
       host.saveRoots.disabled = !host.isConnected();
       return;
     }
-    if (!('view' in response)) { host.renderFailure('request_invalid'); return; }
+    if (!('view' in response) || response.confirmation?.confirmationId !== confirmationId
+        || response.confirmation.state !== 'committed') {
+      host.rootFeedback.textContent = confirmFailureCopy('request_invalid'); host.renderFailure('request_invalid'); return;
+    }
     hidePreview();
     host.setView(response.view);
-    host.rootFeedback.textContent = t('sync_folderSettingsSaved', 'Folder settings saved');
+    host.rootFeedback.textContent = response.view.status === 'ready' || response.view.status === 'nested_normalized'
+      ? t('sync_folderSettingsSaved', 'Folder settings saved')
+      : t('sync_folderSettingsSavedTreeUnavailable', 'Folder settings saved. The folder list could not refresh; try refreshing it again.');
     host.reloadBoundaries();
     host.onConfirmed();
     host.saveRoots.disabled = !host.isConnected();

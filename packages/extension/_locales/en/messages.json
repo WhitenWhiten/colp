@@ -7517,6 +7517,9 @@
   "sync_folderSettingsSaved": {
     "message": "Folder settings saved"
   },
+  "sync_folderSettingsSavedTreeUnavailable": {
+    "message": "Folder settings saved. The folder list could not refresh; try refreshing it again."
+  },
   "sync_folderTreeChangedRefresh": {
     "message": "Folder tree changed. Refresh and preview again."
   },

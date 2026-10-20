@@ -390,7 +390,10 @@ export interface PublicRangePreview {
   readonly shifts: readonly PublicRangeChangeRow[];
   readonly removals: readonly PublicRangeChangeRow[];
 }
-export type RootResponse = { readonly ok: true; readonly view: PublicRootView }
+export type PublicBoundaryConfirmation = { readonly confirmationId: string;
+  readonly state: 'pending' | 'failed' | 'committed'; readonly error?: string };
+export type RootResponse = { readonly ok: true; readonly view: PublicRootView;
+    readonly confirmation?: PublicBoundaryConfirmation }
   | { readonly ok: true; readonly preview: PublicRangePreview }
   | { readonly ok: true; readonly boundaries: PublicRootBoundaries }
   | { readonly ok: false; readonly error: PublicRootStatus | 'not_connected' | 'request_invalid' | 'root_update_failed'
