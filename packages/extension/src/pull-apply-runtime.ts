@@ -310,7 +310,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       } else {
       const existing = await options.store.getMappingByColpId(options.scope, effect.node.id);
       const provisional = existing ? null : await provisionalSelfCreateMapping(options, event,
-        await requireMapping(effect.placement.parentId, 'parent'));
+        () => requireMapping(effect.placement.parentId, 'parent'));
       if (provisional) {
         const parent = await requireMapping(effect.placement.parentId, 'parent');
         mappings.push(await selfCreateProjection(event, provisional, parent));
@@ -458,7 +458,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const provisional = !existing && effect.kind === 'node_created'
       && event.operation.replicaId === options.scope.replicaId
       ? await provisionalSelfCreateMapping(options, event,
-        await requireMapping(effect.placement.parentId, 'parent')) : null;
+        () => requireMapping(effect.placement.parentId, 'parent')) : null;
     if (provisional) {
       const eventKey = `${event.cursor}:${event.operation.opId}`;
       const parent = await requireMapping(effect.placement.parentId, 'parent');

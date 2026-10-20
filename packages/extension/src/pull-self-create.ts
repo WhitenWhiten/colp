@@ -9,7 +9,7 @@ import { virtualNativeId } from './projection-native-occupancy.js';
 
 /** A first-sync create owns a native bookmark even before its Push receipt exists. */
 export async function provisionalSelfCreateMapping(options: PullApplierOptions,
-  event: Extract<SyncPullEventV02, { kind: 'operation' }>, parent: MappingInput) {
+  event: Extract<SyncPullEventV02, { kind: 'operation' }>, parent: MappingInput | (() => Promise<MappingInput>)) {
   if (event.operation.replicaId !== options.scope.replicaId || event.effect.kind !== 'node_created') return null;
   const provisional = await options.store.getMappingByColpId(options.scope, `pending-${event.operation.opId}`);
   if (provisional) return provisional;
@@ -29,8 +29,11 @@ export async function provisionalSelfCreateMapping(options: PullApplierOptions,
   if (canonical && canonical.nativeId !== nativeId && !virtualNativeId(canonical.nativeId)) {
     throw new SyncFailureError('mapping_identity_collision');
   }
-  return mappingFor(event.effect.node, nativeId, parent.nativeId, parent.colpId,
-    event.effect.nodeChildrenRevision, parent.rootNativeId);
+  // An existing provisional mapping does not consume the parent argument.
+  // Delay fallback construction's read; callers keep their later fresh reads.
+  const resolvedParent = typeof parent === 'function' ? await parent() : parent;
+  return mappingFor(event.effect.node, nativeId, resolvedParent.nativeId, resolvedParent.colpId,
+    event.effect.nodeChildrenRevision, resolvedParent.rootNativeId);
 }
 
 /** Recovery may inspect local edits only when this replica durably authored the create. */
