@@ -3,6 +3,7 @@ import { OPEN_REMOTE_DELETE_STATES } from './remote-delete-pending-facts.js';
 import { mergeLocalIssues, ingressProtectsNode, blockedPullIssue, isOpenQueueIssue, addQueueIssueRoots, type BlockedPullIssue } from './sync-state/open-issue-facts.js';
 /** One interpretation of durable open issues, shared by sync and repair consumers. */
 import { projectNativeWaits, type NativeWaitStore } from './native-wait.js';
+import { readUnresolvedConsumedQueueIssues } from './sync-status-queue.js';
 import type { LocalIssueRecord, MappingInput, PullIssueRecord, QueueOperation, SyncScope,
   createSyncStateStore } from './sync-state-store.js';
 
@@ -24,7 +25,7 @@ export interface OpenSyncIssues {
 
 export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string> } = {}): Promise<OpenSyncIssues> {
   let queue: QueueOperation[] = [];
-  if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside', ...(store.listConsumedQueueIssues ? [] : ['terminal' as const])] as const) {
+  if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside'] as const) {
     let after = 0;
     for (;;) {
       const rows = await store.listQueue(scope, status, after, 1_000);
@@ -33,7 +34,7 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
       after = rows.at(-1)!.sequence;
     }
   }
-  if (store.listConsumedQueueIssues) queue.push(...(await store.listConsumedQueueIssues(scope)).filter(row => !options.excludeQueueOpIds?.has(row.opId)));
+  queue.push(...(await readUnresolvedConsumedQueueIssues(store, scope)).filter(row => !options.excludeQueueOpIds?.has(row.opId)));
   if (store.filterResolvedQueueIssues) queue = await store.filterResolvedQueueIssues(scope, queue);
   const pull = (await store.listPullIssues?.(scope) ?? []).filter(issue => !issue.conflictOpIds?.length
     || !issue.conflictOpIds.every(opId => options.excludeQueueOpIds?.has(opId)));

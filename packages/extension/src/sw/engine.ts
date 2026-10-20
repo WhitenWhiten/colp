@@ -37,7 +37,7 @@ import { hasBookmarkPermission, extensionOrigin, safeError, store, sw, syncState
 import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAuthority, restoredSyncScope } from './scope.js';
 import { createSyncAlarmScheduler } from '../sync-alarm.js';
 import { reportReplicaHealth } from './replica-health.js';
-import { readUnresolvedQueuePage } from '../sync-status-queue.js';
+import { readUnresolvedConsumedQueueIssues, readUnresolvedQueuePage } from '../sync-status-queue.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
@@ -425,6 +425,12 @@ async function pendingDurableWorkFacts(scope: SyncScope) {
       if (!Number.isFinite(occurredAt)) continue;
       oldestLiveOccurredAt = oldestLiveOccurredAt === null ? occurredAt : Math.min(oldestLiveOccurredAt, occurredAt);
     }
+  }
+  // Terminal means the sequence was consumed, not that the user's edit was
+  // accepted. Keep that business refusal visible without calling it backlog.
+  if ((await syncState.getScope(scope))?.lifecycle === 'active') {
+    const consumed = await readUnresolvedConsumedQueueIssues(syncState, scope);
+    live.push(...consumed); rejectedPending ||= hasRejectedBarrier(consumed);
   }
   return { hasPendingWork, conflictPending, rejectedPending, oldestLiveOccurredAt,
     queueProjection: queueStatusProjection(live) };

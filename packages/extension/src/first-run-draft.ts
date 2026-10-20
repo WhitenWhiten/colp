@@ -242,7 +242,7 @@ export function popupFirstRunStatus(input: {
   readonly phase?: FirstRunDurablePhase;
   readonly attention?: PublicAttentionSummary;
   readonly engine?: { readonly phase: string; readonly hasPendingWork: boolean; readonly conflictPending?: boolean;
-    readonly errorCode?: string };
+    readonly rejectedPending?: boolean; readonly errorCode?: string };
 }): import('./sync-status.js').SyncStatusKind {
   if (!input.connected) return 'signed-out';
   const surface = projectFirstRunSurface(input);
@@ -255,6 +255,7 @@ export function popupFirstRunStatus(input: {
   const engine = input.engine;
   if (!engine) return 'syncing';
   if (engine.conflictPending) return 'review-conflicts';
+  if (engine.rejectedPending) return 'action-required';
   // The engine parks every retried failure in its offline phase; only a
   // transport failure is a network wait, the rest is a server or local error.
   if (engine.phase === 'offline') {

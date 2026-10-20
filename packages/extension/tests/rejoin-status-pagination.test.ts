@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { expect, test, vi } from 'vitest';
-import { readUnresolvedQueuePage } from '../src/sync-status-queue.js';
+import { readUnresolvedConsumedQueueIssues, readUnresolvedQueuePage } from '../src/sync-status-queue.js';
 import { handleSyncAttentionRequest } from '../src/sw/sync-attention.js';
 import type { QueueOperation, SyncScope } from '../src/sync-state-store.js';
 import { installKns05IndexedDb, scope } from './kns-05-pull-harness.js';
@@ -17,9 +17,12 @@ test('resolved real rejoin receipts do not hide a later rejected user edit after
     for (const row of originals) await rejectQueueRow(f.getStore(), row);
     const receipts = await Promise.all(originals.map(row => f.getStore().getQueueReceipt(scope, row.sequence)));
     const attention = () => handleSyncAttentionRequest({ scope: async () => scope, store: f.getStore() });
+    expect((await readUnresolvedConsumedQueueIssues(f.getStore(), scope)).map(row => row.opId).sort())
+      .toEqual(originals.map(row => row.opId).sort());
     expect(await attention()).toMatchObject({ ok: true, attention: { rejectedPending: true, issueCount: originals.length } });
     await f.refresh(); await f.resolve('keep_remote_order');
     expect(await attention()).toMatchObject({ ok: true, attention: { rejectedPending: false, issueCount: 0 } });
+    expect(await readUnresolvedConsumedQueueIssues(f.getStore(), scope)).toEqual([]);
 
     await f.api.update('native-a', { title: 'A new user edit' });
     const queue = f.queue(); await queue.changed('native-a', { title: 'A new user edit' }); await queue.flush();
@@ -31,8 +34,23 @@ test('resolved real rejoin receipts do not hide a later rejected user edit after
     expect(live.map(row => row.opId)).toEqual([later.opId]);
     expect(read.mock.calls.some(([, , after]) => (after ?? 0) >= 2)).toBe(true);
     expect(await attention()).toMatchObject({ ok: true, attention: { rejectedPending: true, issueCount: 1 } });
+    expect((await readUnresolvedConsumedQueueIssues(f.getStore(), scope)).map(row => row.opId)).toEqual([later.opId]);
     expect(await Promise.all(originals.map(row => f.getStore().getQueueReceipt(scope, row.sequence)))).toEqual(receipts);
   } finally { f.getStore().close(); }
+});
+
+test('consumed-issue compatibility reads traverse a full terminal page and exclude accepted history', async () => {
+  const accepted = Array.from({ length: 1_000 }, (_, i) => ({ ...row(i + 1, ''), status: 'terminal' as const, recovery: undefined }));
+  const refused = { ...row(1_001, 'parent_deleted'), status: 'terminal' as const,
+    recovery: { code: 'parent_deleted', resultStatus: 'rejected' } };
+  const rows = [...accepted, refused];
+  const store = { listQueue: vi.fn(async (_scope: SyncScope, _status?: QueueOperation['status'], after = 0, limit = 1_000) =>
+    rows.filter(value => value.sequence > after).slice(0, limit)) };
+  expect(await readUnresolvedConsumedQueueIssues(store, scope)).toEqual([refused]);
+  expect(store.listQueue.mock.calls.map(([, status, after]) => [status, after])).toEqual([['terminal', 0], ['terminal', 1_000]]);
+  expect(await readUnresolvedConsumedQueueIssues({}, scope)).toEqual([]);
+  const malformed = { listQueue: async () => Array.from({ length: 1_000 }, () => ({ ...refused, sequence: 0 })) };
+  await expect(readUnresolvedConsumedQueueIssues(malformed, scope)).rejects.toThrow('queue_page_cursor_invalid');
 });
 
 const row = (sequence: number, code: string): QueueOperation => ({ scopeKey: 'scope', sequence, opId: `op-${sequence}`,

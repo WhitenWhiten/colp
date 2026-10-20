@@ -8,7 +8,7 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 85 executable owners, for 140 total.
+This pass adds 86 executable owners, for 141 total.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
@@ -75,6 +75,7 @@ This pass adds 85 executable owners, for 140 total.
 - `src/sync-failure-class.ts`
 - `src/sync-folders.ts`
 - `src/sync-issues.ts`
+- `src/sync-label.ts`
 - `src/sync-state/advanced-repository.ts`
 - `src/sync-state/bookmark-event-child-order.ts`
 - `src/sync-state/bookmark-event-dedupe.ts`

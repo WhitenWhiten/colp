@@ -70,6 +70,7 @@ export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
   'src/sync-failure-class.ts',
   'src/sync-folders.ts',
   'src/sync-issues.ts',
+  'src/sync-label.ts',
   'src/sync-state/advanced-repository.ts',
   'src/sync-state/bookmark-event-child-order.ts',
   'src/sync-state/bookmark-event-dedupe.ts',

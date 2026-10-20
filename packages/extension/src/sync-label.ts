@@ -18,7 +18,7 @@ export async function signedInSyncStatus(): Promise<SyncStatus> {
   } catch { /* No personal connection leaves the existing first-run status. */ }
   const draft = await readFirstRunDraft();
   let firstRun: FirstRunScopeState | undefined = draft?.deferred ? 'deferred' : 'none';
-  let engine: { phase: string; hasPendingWork: boolean; conflictPending?: boolean; errorCode?: string } | undefined;
+  let engine: { phase: string; hasPendingWork: boolean; conflictPending?: boolean; rejectedPending?: boolean; errorCode?: string } | undefined;
   let phase: FirstRunDurablePhase | undefined;
   let attention: PublicAttentionSummary | undefined;
   try {
@@ -32,7 +32,7 @@ export async function signedInSyncStatus(): Promise<SyncStatus> {
   try {
     const response = await chrome.runtime.sendMessage({ kind: 'known.sync.engine.status' }) as
       { readonly ok: true; readonly engine: { readonly phase: string; readonly hasPendingWork: boolean;
-        readonly conflictPending?: boolean; readonly errorCode?: string } } | { readonly ok: false };
+        readonly conflictPending?: boolean; readonly rejectedPending?: boolean; readonly errorCode?: string } } | { readonly ok: false };
     if (response.ok) engine = response.engine;
   } catch { /* Engine status is optional on the first-run path. */ }
   return projectSyncStatus(popupFirstRunStatus({
