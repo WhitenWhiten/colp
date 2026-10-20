@@ -54,11 +54,17 @@ export async function materializeIndependentSubtree(input: {
   const destMappings: MappingInput[] = [];
   const observations: Omit<RemoteObservationRecord, 'scopeKey'>[] = [];
   const byColp = new Map(input.subtree.map((row) => [row.colpId, row]));
+  const declined = new Set<string>();
   for (const node of plan.nodes) {
     const parentNativeId = node.parentColpId ? destByColp.get(node.parentColpId) : input.parent.nativeId;
-    if (!parentNativeId || isNonChromeNativeId(parentNativeId)) throw new SyncFailureError('range_dependency_pending');
+    if (!parentNativeId || isNonChromeNativeId(parentNativeId)
+        && !(node.parentColpId && declined.has(node.parentColpId))) throw new SyncFailureError('range_dependency_pending');
     const parent = destMappings.find(row => row.colpId === node.parentColpId) ?? input.parent;
-    const created = await createDestNative(input, node, parentNativeId, parent);
+    const wait = await input.store.getApplyIntent(input.scope, `intent:${input.eventId}:range:${node.colpId}`);
+    if (node.parentColpId && declined.has(node.parentColpId)
+        || wait?.generation === input.scope.generation && wait.commandId === input.plan.commandId
+        && wait.substep === 'range-materialize' && wait.nativeWaitDecision?.action === 'cancel') declined.add(node.colpId);
+    const created = declined.has(node.colpId) ? `unmounted:${node.colpId}` : await createDestNative(input, node, parentNativeId, parent);
     if (created === node.sourceNativeId) throw new SyncFailureError('native_result_unknown');
     destByColp.set(node.colpId, created);
     destMappings.push(destMapping(input, node, created, parentNativeId, byColp.get(node.colpId)));
@@ -108,14 +114,24 @@ async function createDestNative(input: {
     },
     parentNativeId, expected: { ...(title === undefined ? {} : { title }), ...(url === undefined ? {} : { url }) },
     liveWorkKind: 'create', crash: input.crash, permissionGranted: input.permissionGranted,
-    create: () => createCheckedPullNative({ ...input, parent, parentColpId: parent.colpId,
+    create: async () => {
+      // Capture the true before-set while this exact intent is started. The
+      // event observer may identify one candidate, but only a user can bind it.
+      const before = await input.api.getChildren(parentNativeId);
+      const content = { kind: node.nodeKind, ...(title === undefined ? {} : { title }), ...(url === undefined ? {} : { url }) };
+      await input.store.persistApplyIntentFacts(input.scope, `intent:${input.eventId}:range:${node.colpId}`, {
+        anchors: { beforeNativeIds: before.map(child => child.id),
+          rangeCorrelationId: digest({ kind: 'create', nativeId: '', details: { parentId: parentNativeId, node: content } }),
+          rangeCreateContent: content } });
+      return createCheckedPullNative({ ...input, parent, parentColpId: parent.colpId,
       expectedBoundaryVersion: input.plan.destBoundaryVersion ?? undefined,
       parentProof: { kind: 'create_receipt', eventId: input.eventId,
         intentId: parent.colpId === effect.node.id ? `intent:${input.eventId}` : `intent:${input.eventId}:range:${parent.colpId}`,
         commandId: parent.colpId === effect.node.id ? 'pull' : input.plan.commandId },
       details: { parentId: parentNativeId, index: Math.max(0, node.position),
         ...(title === undefined ? {} : { title }), ...(url === undefined ? {} : { url }) },
-    }),
+      });
+    },
   });
   if (outcome.result !== 'applied_with_evidence') {
     throw new Error(outcome.result === 'failed' ? outcome.code : 'native_result_unknown');

@@ -156,8 +156,8 @@ async function boundary(input: Input) {
       const userConfirmed = receipt.nativeResultConfirmation!.kind === 'candidate_event'
         && receipt.nativeWaitDecision?.action === 'bind'
         && receipt.nativeEventEvidence?.nativeId === mapping.nativeId
-        && typeof receipt.suspendedCorrelationId === 'string'
-        && receipt.nativeEventEvidence?.eventDigest === receipt.suspendedCorrelationId
+        && typeof (rootReceipt ? receipt.suspendedCorrelationId : receipt.anchors?.rangeCorrelationId) === 'string'
+        && receipt.nativeEventEvidence?.eventDigest === (rootReceipt ? receipt.suspendedCorrelationId : receipt.anchors?.rangeCorrelationId)
         && (!rootReceipt || receipt.anchors?.rangeAction === 'materialize_independent');
       if (!apiReceipt && !userConfirmed) denied();
       proofIdentity = JSON.stringify([receipt.intentId, receipt.generation, receipt.commandId, receipt.colpId,

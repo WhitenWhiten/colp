@@ -2,7 +2,15 @@ import { canonicalJson } from './codec.js';
 import { requestValue, scopeRowsRange } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { SyncStateError, type IntentRecord, type MappingInput, type MountBindingRecord,
-  type QueueOperation, type ScopeRecord } from './types.js';
+  type JsonObject, type QueueOperation, type ScopeRecord } from './types.js';
+
+/** Child create intents keep their own receipt; this exact owner tuple links
+ * their wait to the containing Pull event without borrowing its API evidence. */
+export function materializationChildEventId(intent: IntentRecord): string | undefined {
+  return !intent.eventId && intent.substep === 'range-materialize' && intent.liveWorkKind === 'create'
+    && intent.commandId?.startsWith('rx:') && intent.colpId
+    && intent.intentId === `intent:${intent.operationId}:range:${intent.colpId}` ? intent.operationId : undefined;
+}
 
 /** Ephemeral CAS input. No mapping is published by a wait confirmation: the
  * original Pull page remains the sole owner of the old-to-new identity handoff. */
@@ -53,4 +61,31 @@ export async function assertMaterializationWaitAuthority(tx: IDBTransaction, key
       throw new SyncStateError('native_result_cas');
     }
   }
+}
+
+/** Only a currently started, uniquely correlated child may observe onCreated.
+ * This is a candidate for a later user decision, never api_return evidence. */
+export async function observeMaterializationCandidate(tx: IDBTransaction, key: string,
+  correlationId: string, evidence: JsonObject): Promise<boolean> {
+  if (typeof evidence.nativeId !== 'string' || evidence.eventDigest !== correlationId) return false;
+  const store = tx.objectStore(STORES.intents);
+  const rows = await requestValue<IntentRecord[]>(store.index(INDEXES.intentByLiveWork)
+    .getAll(IDBKeyRange.bound([key, 'create'], [key, 'create', []])));
+  const candidates = rows.filter(row => materializationChildEventId(row)
+    && row.replayState === 'started' && row.state === 'browser_call_started' && row.expiresAt > Date.now()
+    && row.anchors?.rangeCorrelationId === correlationId
+    && !(Array.isArray(row.anchors.beforeNativeIds) && row.anchors.beforeNativeIds.includes(evidence.nativeId!)));
+  if (candidates.length !== 1) return false;
+  const intent = candidates[0]!, eventId = materializationChildEventId(intent)!;
+  const root = await requestValue<IntentRecord | undefined>(store.get([key, `intent:${eventId}`]));
+  const event = await requestValue<{ state: string; intentId: string } | undefined>(
+    tx.objectStore(STORES.pullEvents).get([key, eventId]));
+  if (!root || root.generation !== intent.generation || root.eventId !== eventId
+      || root.anchors?.rangeAction !== 'materialize_independent' || root.anchors.subtreeCommandId !== intent.commandId
+      || !Array.isArray(root.anchors.nodes) || !root.anchors.nodes.some(node => node && typeof node === 'object'
+        && !Array.isArray(node) && node.colpId === intent.colpId)
+      || !event || event.intentId !== root.intentId || !['browser_call_started', 'native_event_observed'].includes(event.state)
+      || intent.nativeEventEvidence && canonicalJson(intent.nativeEventEvidence) !== canonicalJson(evidence)) return false;
+  store.put({ ...intent, state: 'native_event_observed', apiPhase: 'native_event_observed', nativeEventEvidence: evidence });
+  return true;
 }

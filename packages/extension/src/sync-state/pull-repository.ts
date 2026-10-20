@@ -18,6 +18,7 @@ import { scopeKey, validateScope } from './scope-key.js';
 import { adoptBlockedPagesAtChainHead } from './recovery-repository.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { planPullMappingWrites } from './pull-mapping-writes.js';
+import { observeMaterializationCandidate } from './materialization-wait-authority.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import { settleResolvedConflictQueue } from './queue-hold.js';
 import { settleConflictPullIssue } from './pull-issue-repository.js';
@@ -231,6 +232,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
       const intents = tx.objectStore(STORES.intents); const intent = await requestValue(intents.index(INDEXES.intentByCorrelation)
         .get([key, boundedString(correlationId, 'correlationId')])) as IntentRecord | undefined;
+      if (!intent) { matched = await observeMaterializationCandidate(tx, key, correlationId, evidence); return; }
       if (!intent || intent.expiresAt <= Date.now() || !['browser_call_started', 'native_event_observed',
         'authority_committed', 'page_complete'].includes(String(intent.state)) || !intent.eventId) return;
       if (!allowCompletedEcho && intent.state === 'page_complete') return;

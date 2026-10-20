@@ -3,7 +3,7 @@ import { lookupBookmark, type BookmarkNode } from './bookmark-api-error.js';
 import { collectNativeOccupancy, executeNativeCreate } from './native-create-executor.js';
 import type { ConfirmNativeWaitInput, ConfirmNativeWaitResult } from './native-wait.js';
 import { createCheckedPullNative } from './pull-native-create-boundary.js';
-import { prepareNativeWriteCheck } from './pull-native-write-boundary.js';
+import { prepareNativeWriteCheck, type NativeCreateParentProof } from './pull-native-write-boundary.js';
 import { NativeWriteNotStartedError } from './native-call-result.js';
 import { boundaryDrifted, rangePlanFromAnchors } from './pull-range-move.js';
 import { planFromAnchors } from './pull-range-plan.js';
@@ -11,7 +11,7 @@ import { chromeCreate } from './pull-projection.js';
 import { virtualNativeId } from './projection-native-occupancy.js';
 import { canonicalJson } from './sync-state/codec.js';
 import { scopeKey } from './sync-state/scope-key.js';
-import type { MaterializationWaitAuthority } from './sync-state/materialization-wait-authority.js';
+import { materializationChildEventId, type MaterializationWaitAuthority } from './sync-state/materialization-wait-authority.js';
 import type { IntentRecord, MappingInput } from './sync-state-store.js';
 
 type MoveEvent = Extract<SyncPullEventV02, { kind: 'operation' }> & {
@@ -25,7 +25,8 @@ function invalid(): never { throw new InvalidMaterializationWait('request_invali
  * become evidence for the earlier unknown invocation. */
 export function observedNativeWaitCandidate(intent: IntentRecord): string | undefined {
   const id = intent.nativeEventEvidence?.nativeId;
-  return typeof id === 'string' && intent.nativeEventEvidence?.eventDigest === intent.suspendedCorrelationId
+  const correlation = materializationChildEventId(intent) ? intent.anchors?.rangeCorrelationId : intent.suspendedCorrelationId;
+  return typeof id === 'string' && typeof correlation === 'string' && intent.nativeEventEvidence?.eventDigest === correlation
     && !(Array.isArray(intent.anchors?.beforeNativeIds) && intent.anchors.beforeNativeIds.includes(id)) ? id : undefined;
 }
 
@@ -33,10 +34,13 @@ export function observedNativeWaitCandidate(intent: IntentRecord): string | unde
  * existing atomic source unbind / destination bind / source exclusion. */
 export async function confirmMaterializationWait(input: ConfirmNativeWaitInput,
   intent: IntentRecord): Promise<ConfirmNativeWaitResult | undefined> {
-  if (!intent.eventId) return undefined;
-  const root = await input.store.getApplyIntent(input.scope, `intent:${intent.eventId}`);
+  const eventId = intent.eventId ?? materializationChildEventId(intent);
+  if (!eventId) return undefined;
+  const root = await input.store.getApplyIntent(input.scope, `intent:${eventId}`);
   if (root?.anchors?.rangeAction !== 'materialize_independent') return undefined;
+  if (input.action === 'cancel' && intent.eventId) return undefined;
   try {
+    if (input.action === 'cancel') return await cancelChild(input, intent, root, eventId);
     const current = await authority(input, intent, root);
     const patch = { expectedWaitRef: input.waitRef, expectedGeneration: input.generation,
       expectedNativeResult: 'result_unknown' as const, expectedMaterialization: current.proof };
@@ -56,12 +60,12 @@ export async function confirmMaterializationWait(input: ConfirmNativeWaitInput,
     let outcome: Awaited<ReturnType<typeof executeNativeCreate>>;
     try { outcome = await executeNativeCreate({ scope: input.scope, store: input.store, api: input.api!,
       intentId: intent.intentId, owner: { scopeKey: scopeKey(input.scope), generation: input.generation,
-        commandId: intent.commandId!, eventId: intent.eventId, colpId: intent.colpId!, substep: intent.substep! },
+        commandId: intent.commandId!, eventId, colpId: intent.colpId!, substep: intent.substep! },
       parentNativeId: intent.nativeParentId!, expected: current.content, liveWorkKind: 'create',
       create: () => createCheckedPullNative({ ...input, api: input.api!, parent: current.parent,
-        parentColpId: current.parent.colpId,
+        parentColpId: current.parent.colpId, parentProof: current.parentProof,
         expectedBoundaryVersion: current.boundaryVersion,
-        placement: current.placement,
+        ...(current.placement ? { placement: current.placement } : {}),
         details: { parentId: intent.nativeParentId!, index: current.index, ...current.content } }) });
     } catch (error) {
       const refused = await input.store.getApplyIntent(input.scope, intent.intentId);
@@ -84,10 +88,13 @@ async function authority(input: ConfirmNativeWaitInput, intent: IntentRecord, ro
   const { store, scope, api } = input;
   if (!api || !intent.colpId || !intent.nativeParentId || intent.generation !== scope.generation
       || intent.liveWorkKind !== 'create' || root.generation !== scope.generation) invalid();
-  if (intent.intentId !== root.intentId || intent.commandId !== 'pull' || intent.substep !== 'create') invalid();
-  const event = await store.getPullEvent(scope, intent.eventId!);
+  const child = materializationChildEventId(intent);
+  if (child ? root.eventId !== child || intent.commandId !== root.anchors?.subtreeCommandId
+    : intent.intentId !== root.intentId || intent.commandId !== 'pull' || intent.substep !== 'create') invalid();
+  const event = await store.getPullEvent(scope, root.eventId!);
   const payload = event?.payload as unknown as MoveEvent | undefined;
-  if (!event || event.state !== 'awaiting_confirmation' || payload?.effect.kind !== 'node_moved'
+  if (!event || !(child ? ['browser_call_started', 'native_event_observed'] : ['awaiting_confirmation']).includes(String(event.state))
+      || payload?.effect.kind !== 'node_moved'
       || root.colpId !== payload.effect.node.id || root.operationId !== payload.operation.opId) invalid();
   const plan = rangePlanFromAnchors(root.anchors, `rx:${payload.operation.opId}`)!;
   const frozen = planFromAnchors(root.anchors, { commandId: plan.commandId, sourceMountId: null,
@@ -120,13 +127,27 @@ async function authority(input: ConfirmNativeWaitInput, intent: IntentRecord, ro
         || native.url !== (node.nodeKind === 'bookmark' ? node.content?.url : undefined)) invalid();
     await ancestry(mapping.nativeId);
   }
-  const parent = destination;
+  let parent: MappingInput = destination, parentProof: NativeCreateParentProof | undefined;
+  if (child) {
+    const parentNode = frozen.nodes.find(row => row.colpId === own.parentColpId);
+    const prior = parentNode && mappings.get(parentNode.colpId);
+    if (!parentNode || !prior) invalid();
+    const parentIntentId = parentNode.colpId === root.colpId ? root.intentId : `intent:${child}:range:${parentNode.colpId}`;
+    const receipt = await store.getApplyIntent(scope, parentIntentId);
+    if (!receipt?.nativeParentId) invalid();
+    parent = { ...prior, nativeId: intent.nativeParentId, parentNativeId: receipt.nativeParentId,
+      rootNativeId: destination.rootNativeId, mountId: destination.mountId };
+    parentProof = { kind: 'create_receipt', eventId: child, intentId: parentIntentId,
+      commandId: parentNode.colpId === root.colpId ? 'pull' : String(root.anchors?.subtreeCommandId) };
+  }
   if (intent.nativeParentId !== parent.nativeId) invalid();
   const preimage = await read(api, parent.nativeId);
   const boundary = await prepareNativeWriteCheck({ ...input, api, mapping: parent, preimage, parent: true,
-    expectedBoundaryVersion: plan.destBoundaryVersion ?? undefined });
+    parentProof, expectedBoundaryVersion: plan.destBoundaryVersion ?? undefined });
   await boundary(); await ancestry(parent.nativeId);
-  const content = chromeCreate(payload.effect.node);
+  const content = child ? { ...(typeof own.content?.title === 'string' ? { title: own.content.title } : {}),
+    ...(own.nodeKind === 'bookmark' && typeof own.content?.url === 'string' ? { url: own.content.url } : {}) }
+    : chromeCreate(payload.effect.node);
   if (input.action === 'bind') {
     if (!input.nativeId || observedNativeWaitCandidate(intent) !== input.nativeId) invalid();
     const candidate = await read(api, input.nativeId);
@@ -136,14 +157,14 @@ async function authority(input: ConfirmNativeWaitInput, intent: IntentRecord, ro
     const occupied = (await collectNativeOccupancy(store, scope)).get(candidate.id);
     if (occupied !== undefined && occupied !== intent.colpId) invalid();
   }
-  const index = root.anchors?.index;
+  const index = child ? own.position : root.anchors?.index;
   if (typeof index !== 'number' || !Number.isSafeInteger(index) || index < 0) invalid();
   const proof: MaterializationWaitAuthority = { scope: record, intent, rootIntent: root, event,
     mounts, mappings: [...mappings.values()], exclusionNativeIds: [...exclusionIds],
     sourceColpIds: frozen.nodes.map(row => row.colpId),
     ...(input.action === 'bind' ? { candidateNativeId: input.nativeId! } : {}) };
-  return { proof, content, parent, index, boundaryVersion: plan.destBoundaryVersion ?? undefined,
-    placement: payload.effect.placement };
+  return { proof, content, parent, parentProof, index, boundaryVersion: plan.destBoundaryVersion ?? undefined,
+    placement: child ? undefined : payload.effect.placement };
 
   async function ancestry(id: string) {
     const seen = new Set<string>(); let current: string | undefined = id;
@@ -156,6 +177,24 @@ async function authority(input: ConfirmNativeWaitInput, intent: IntentRecord, ro
       current = node.parentId;
     }
   }
+}
+
+async function cancelChild(input: ConfirmNativeWaitInput, intent: IntentRecord, root: IntentRecord,
+  eventId: string): Promise<ConfirmNativeWaitResult> {
+  const event = await input.store.getPullEvent(input.scope, eventId), scope = await input.store.getScope(input.scope);
+  const nodes = root.anchors?.nodes;
+  if (!event || !scope || root.eventId !== eventId || root.generation !== input.generation
+      || root.anchors?.subtreeCommandId !== intent.commandId || !Array.isArray(nodes)
+      || !nodes.some(node => node && typeof node === 'object' && !Array.isArray(node) && node.colpId === intent.colpId)
+      || !['browser_call_started', 'native_event_observed'].includes(String(event.state))) invalid();
+  await input.assertCurrent?.();
+  await input.store.persistApplyIntentFacts(input.scope, intent.intentId, {
+    expectedWaitRef: input.waitRef, expectedGeneration: input.generation, expectedNativeResult: 'result_unknown',
+    expectedMaterialization: { scope, intent, rootIntent: root, event,
+      mappings: [], mounts: await input.store.listMountBindings(input.scope), exclusionNativeIds: [], sourceColpIds: [] },
+    nativeWaitDecision: { action: 'cancel', waitRef: input.waitRef }, replayState: 'committed', waitReason: null,
+    eventState: 'browser_call_started' });
+  return { ok: true, result: 'cancelled' };
 }
 
 async function read(api: NonNullable<ConfirmNativeWaitInput['api']>, id: string): Promise<BookmarkNode> {

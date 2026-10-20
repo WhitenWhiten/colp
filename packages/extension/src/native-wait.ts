@@ -70,7 +70,12 @@ export async function projectNativeWaits(store: Store, scope: SyncScope): Promis
 }
 
 async function resolveIntentNodeInfo(store: Store, scope: SyncScope, intent: IntentRecord): Promise<{ title?: string; url?: string }> {
-  if (!intent.eventId) return {};
+  if (!intent.eventId) {
+    const content = intent.anchors?.rangeCreateContent;
+    return content && typeof content === 'object' && !Array.isArray(content) ? {
+      ...(typeof content.title === 'string' ? { title: content.title } : {}),
+      ...(typeof content.url === 'string' ? { url: content.url } : {}) } : {};
+  }
   try {
     const event = await store.getPullEvent(scope, intent.eventId);
     const effect = (event?.payload as { readonly effect?: unknown } | undefined)?.effect;
@@ -101,6 +106,8 @@ export async function confirmNativeWait(input: ConfirmNativeWaitInput): Promise<
   if (intent.nativeWaitDecision?.action === 'cancel') return { ok: false, code: 'native_result_cas' };
   if (intent.nativeResultConfirmation?.code !== input.waitRef) return { ok: false, code: 'stale_ref' };
   try {
+    const materialization = await confirmMaterializationWait(input, intent);
+    if (materialization) return materialization;
     if (input.action === 'cancel') {
       await input.store.persistApplyIntentFacts(input.scope, input.intentId, {
         expectedWaitRef: input.waitRef, expectedGeneration: input.generation,
@@ -114,8 +121,6 @@ export async function confirmNativeWait(input: ConfirmNativeWaitInput): Promise<
       });
       return { ok: true, result: 'cancelled' };
     }
-    const materialization = await confirmMaterializationWait(input, intent);
-    if (materialization) return materialization;
     if (input.action === 'bind') return await bindCandidate(input, intent, mounts);
     return await keepLocalAndCreate(input, intent);
   } catch (error) {

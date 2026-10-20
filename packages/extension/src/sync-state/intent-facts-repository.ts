@@ -110,15 +110,16 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
       }
       const record = validateIntent(key, next, ctx.maxRecordBytes);
       intents.put(record); saved = record;
-      if (patch.nativeWaitDecision?.action === 'cancel' && record.nativeResult === 'result_unknown' && record.colpId && record.eventId) {
+      const eventId = record.eventId ?? patch.expectedMaterialization?.rootIntent.eventId;
+      if (patch.nativeWaitDecision?.action === 'cancel' && record.nativeResult === 'result_unknown' && record.colpId && eventId) {
         // Declining placement closes the prompt, never the unknown invocation.
         // Keep the node protected and visible until explicit replica repair.
         await putPullIssueFact(tx, key, { code: 'native_result_unknown', nodeId: record.colpId,
-          eventId: record.eventId, now: Date.now() });
+          eventId, now: Date.now() });
       }
-      if (patch.eventState !== undefined && intent.eventId) {
+      if (patch.eventState !== undefined && eventId) {
         const events = tx.objectStore(STORES.pullEvents);
-        const event = await requestValue(events.get([key, intent.eventId])) as Record<string, unknown> | undefined;
+        const event = await requestValue(events.get([key, eventId])) as Record<string, unknown> | undefined;
         if (event) events.put({ ...event, state: patch.eventState,
           ...(patch.eventState === 'awaiting_confirmation' && ['result_unknown', 'waiting_dependency'].includes(String(record.nativeResult))
             ? { deferredNativeIntentId: id } : {}) });
