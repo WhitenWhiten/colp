@@ -530,7 +530,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     opened: {
       readonly value: Awaited<ReturnType<typeof context>>;
       readonly conflictId: string;
-      readonly revision: 'conflict-r1';
+      readonly revision: string;
     },
     request: ConflictResolutionRequest,
     idempotencyKey = `p3-18-resolve-${randomUUID()}`,
@@ -2188,7 +2188,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
     });
 
-  async function advertisedActions(conflictId: string) {
+  async function advertisedDecision(conflictId: string) {
     const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
       cursorSecret: 'p3-actions-cursor-secret-at-least-thirty-two-characters',
       conflictPayloadKeyring: { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] },
@@ -2196,8 +2196,95 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     const page = await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 100 }));
     const item = page.items.find(item => item.id === conflictId);
     assert.ok(item, 'the conflict must be visible to its owner');
-    return item.allowedResolutions;
+    return item;
   }
+
+  async function advertisedActions(conflictId: string) {
+    return (await advertisedDecision(conflictId)).allowedResolutions;
+  }
+
+  test.each(['server', 'incoming', 'custom'] as const)(
+    'a freshly advertised %s choice resolves a retained field that another real Push made competing', async resolution => {
+      const opened = await openConflict({ base: { title: 'Base', description: 'Base note' },
+        current: { title: 'Server' }, incoming: { title: 'Incoming', description: 'Incoming note' } });
+      const peer = await context(), server = await start(peer);
+      const current = (await isolated.runtime.pool.query('select resource_revision from nodes where id=$1',
+        [opened.node.id])).rows[0];
+      const changed = await blackBox(server.origin).push({ idempotencyKey: `new-field-${randomUUID()}`,
+        request: syncNodeUpdatePushRequest({ sessionId: peer.session.sessionId, replicaId: peer.replica.replicaId,
+          collectionId: COLLECTION, targetId: opened.node.id, baseRevision: current.resource_revision,
+          opId: `new-field-${randomUUID()}`, base: { description: 'Base note' }, value: { description: 'New server note' } }) });
+      assert.equal(changed.status, 200);
+      assert.equal(result(changed.body).results[0]?.status, 'applied');
+      const app = resolver(opened.value);
+      const before = await facts(opened.value.replica.replicaId, opened.node.id);
+      await assert.rejects(() => app.resolve(resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: 'Custom title' } : {}) })),
+      (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'precondition_failed');
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), before);
+      const decision = await advertisedDecision(opened.conflictId);
+      assert.notEqual(decision.revision, opened.revision);
+      assert.equal(decision.field, null);
+      assert.ok(decision.summary.current?.includes('New server note'));
+      const custom = { title: 'Custom title', description: 'Custom note' };
+      const request = resolveInput({ ...opened, revision: decision.revision }, {
+        resolution, baseConflictRevision: decision.revision, ...(resolution === 'custom' ? { value: custom } : {}) });
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      const canonical = (await facts(opened.value.replica.replicaId, opened.node.id)).node.payload_json;
+      for (const content of [canonical, effect.node]) {
+        assert.equal(content.title, resolution === 'server' ? 'Server' : resolution === 'incoming' ? 'Incoming' : custom.title);
+        assert.equal(content.description, resolution === 'server' ? 'New server note'
+          : resolution === 'incoming' ? 'Incoming note' : custom.description);
+      }
+      const after = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+    });
+
+  test.each(['server', 'incoming'] as const)(
+    'an open content conflict later deleted by real Push exposes an executable %s decision', async resolution => {
+      const opened = await openConflict();
+      const peer = await context(), server = await start(peer);
+      const current = (await isolated.runtime.pool.query('select resource_revision from nodes where id=$1',
+        [opened.node.id])).rows[0];
+      const deleted = await blackBox(server.origin).push({ idempotencyKey: `later-delete-${randomUUID()}`,
+        request: syncNodeDeletePushRequest({ sessionId: peer.session.sessionId, replicaId: peer.replica.replicaId,
+          collectionId: COLLECTION, targetId: opened.node.id, baseRevision: current.resource_revision,
+          opId: `later-delete-${randomUUID()}` }) });
+      assert.equal(deleted.status, 200, JSON.stringify(deleted.body));
+      assert.equal(result(deleted.body).results[0]?.status, 'applied');
+      const app = resolver(opened.value);
+      const before = await facts(opened.value.replica.replicaId, opened.node.id);
+      await assert.rejects(() => app.resolve(resolveInput(opened, { resolution, baseConflictRevision: opened.revision })),
+        (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'precondition_failed');
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), before);
+      const decision = await advertisedDecision(opened.conflictId);
+      assert.equal(decision.type, 'delete_update');
+      assert.deepEqual(decision.allowedResolutions, ['server', 'incoming']);
+      const request = resolveInput({ ...opened, revision: decision.revision }, { resolution, baseConflictRevision: decision.revision });
+      const resolved = await app.resolve(request);
+      const effects = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows;
+      if (resolution === 'server') assert.deepEqual(effects, []);
+      else {
+        assert.equal(effects.length, 1);
+        const effect = effects[0].effect_json;
+        assert.equal(effect.kind, 'node_created');
+        assert.notEqual(effect.node.id, opened.node.id);
+        assert.equal(effect.node.title, 'P3-18 incoming');
+        const recovered = (await isolated.runtime.pool.query('select title,deleted_at from nodes where id=$1',
+          [effect.node.id])).rows[0];
+        assert.deepEqual(recovered, { title: 'P3-18 incoming', deleted_at: null });
+      }
+      const after = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(after.node, before.node);
+      assert.equal(after.tombstones, before.tombstones);
+      assert.equal(resolved.conflict.type, 'delete_update');
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+    });
 
   test.each(['server', 'incoming', 'custom', 'both'] as const)(
     'the advertised %s action on an unavailable base settles the full explicit operation domain', async resolution => {
@@ -2249,8 +2336,9 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     const managedParent = await seedNode('folder', { title: 'Managed both parent' });
     await isolated.runtime.pool.query('update nodes set payload_json=$2 where id=$1',
       [managedParent.id, { ...managedParent.payload, folderRole: 'managed-bookmarks' }]);
-    await isolated.runtime.pool.query('update nodes set parent_id=$2,payload_json=$3 where id=$1',
-      [opened.node.id, managedParent.id, { ...opened.node.payload, parentId: managedParent.id }]);
+    await isolated.runtime.pool.query(`update nodes set parent_id=$2,
+      payload_json=jsonb_set(payload_json,'{parentId}',to_jsonb($2::text),true) where id=$1`,
+    [opened.node.id, managedParent.id]);
 
     const before = await facts(opened.value.replica.replicaId, opened.node.id);
     const childCount = (await isolated.runtime.pool.query(`select count(*)::int count from nodes

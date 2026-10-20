@@ -17,6 +17,7 @@ import {
   createPostgresReplicaStore,
   createPostgresSyncConflictKeyringReadiness,
   createPostgresSyncPushApplication,
+  createPostgresSyncConflictResolutionApplication,
   createPostgresSyncSessionIssuer,
   reencryptOpenSyncConflicts,
   type SyncConflictPayloadKeyring,
@@ -204,6 +205,103 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       authorization: AUTHORIZATION, origin: EXTENSION_ORIGIN,
     });
   }
+
+  test('refreshing two stale Product decisions resolves retained intent and preserves immutable Push and completed resolution replays', async () => {
+    const api = productApp();
+    try {
+      const owner = await login(`decision-refresh-${randomUUID()}`);
+      const owned = await createCollectionAndNode(api, owner, 'Decision refresh');
+      const nodePath = `/api/v1/collections/${owned.collectionId}/nodes/${owned.node.id}`;
+      let nodeEtag = owned.node.etag;
+      const patch = async (value: Record<string, string>) => {
+        const response = await api.inject({ method: 'PATCH', url: nodePath,
+          headers: { ...mutation(owner, randomUUID(), 'application/merge-patch+json'), 'if-match': nodeEtag }, payload: value });
+        assert.equal(response.statusCode, 200, response.body);
+        nodeEtag = response.json().node.etag;
+      };
+      await patch({ title: 'Server title' });
+      const sync = await syncContext(owner, owned.collectionId, 'Refresh browser');
+      const pushClient = await startPush(sync);
+      const pushRequest = { idempotencyKey: `decision-push-${randomUUID()}`,
+        request: syncNodeUpdatePushRequest({ sessionId: sync.session.sessionId,
+          replicaId: sync.replica.replicaId, collectionId: owned.collectionId, targetId: owned.node.id,
+          baseRevision: owned.node.revision, opId: `decision-conflict-${randomUUID()}`,
+          base: { title: 'Decision refresh base', description: null },
+          value: { title: 'Incoming title', description: 'Incoming note' } }) };
+      const pushed = await pushClient.push(pushRequest);
+      assert.equal(pushed.status, 200, JSON.stringify(pushed.body));
+      assert.equal(syncResult(pushed.body).results[0]?.status, 'conflicted');
+      const conflictId = syncResult(pushed.body).results[0]!.conflictId!;
+      const admission = (await runtime.pool.query(`select pull_wire_json,private_payload_digest,private_payload_ciphertext
+        from sync_conflicts where conflict_id=$1`, [conflictId])).rows[0];
+      const getDecision = async () => {
+        const response = await api.inject({ method: 'GET', url: '/api/v1/sync/conflicts', headers: { cookie: owner.cookie } });
+        assert.equal(response.statusCode, 200, response.body);
+        const item = (response.json() as import('../../../src/modules/sync/index.js').ProductConflictPage).items
+          .find(item => item.id === conflictId);
+        assert.ok(item);
+        return item;
+      };
+      const state = async () => ({ counts: await counts(owned.collectionId, sync.replica.replicaId, conflictId),
+        node: (await runtime.pool.query('select payload_json,resource_revision from nodes where id=$1', [owned.node.id])).rows[0],
+        effects: (await runtime.pool.query(`select count(*)::int count from sync_operation_effects effect
+          join operations operation on operation.operation_id=effect.operation_id where operation.collection_id=$1`,
+        [owned.collectionId])).rows[0].count });
+      const commandId = randomUUID();
+      const resolve = (etag: string) => ({ method: 'POST' as const,
+        url: `/api/v1/sync/conflicts/${conflictId}/resolution`,
+        headers: { ...mutation(owner, commandId, 'application/json'), 'if-match': etag }, payload: { resolution: 'incoming' } });
+      let decision = await getDecision();
+      assert.equal(decision.field, '/title');
+      for (const note of ['New server note', 'Newer server note']) {
+        await patch({ description: note });
+        const before = await state();
+        const refused = await api.inject(resolve(decision.etag));
+        assert.equal(refused.statusCode, 412, refused.body);
+        assert.equal(refused.json().error.code, 'precondition_failed');
+        assert.deepEqual(await state(), before);
+        const fresh = await getDecision();
+        assert.notEqual(fresh.revision, decision.revision);
+        assert.equal(fresh.field, null);
+        assert.ok(fresh.summary.current?.includes(note));
+        assert.ok(fresh.summary.incoming?.includes('Incoming note'));
+        decision = fresh;
+      }
+      const confirmedRequest = resolve(decision.etag);
+      const confirmed = await api.inject(confirmedRequest);
+      assert.equal(confirmed.statusCode, 200, confirmed.body);
+      const row = (await runtime.pool.query('select resolution_result_json from sync_conflicts where conflict_id=$1',
+        [conflictId])).rows[0].resolution_result_json as import('@know-n/colp/types').ConflictResolutionResult;
+      const effect = (await runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [row.operation.opId])).rows[0].effect_json;
+      const resolvedState = await state();
+      for (const content of [effect.node, resolvedState.node.payload_json]) {
+        assert.equal(content.title, 'Incoming title');
+        assert.equal(content.description, 'Incoming note');
+      }
+      assert.equal(resolvedState.counts.sync_receipts, 1);
+      assert.equal(resolvedState.counts.product_receipts, 1);
+      nodeEtag = `"${resolvedState.node.resource_revision}"`;
+      await patch({ title: 'Later canonical title' });
+      const afterLaterEdit = await state();
+      const replay = await api.inject(confirmedRequest);
+      assert.equal(replay.statusCode, 200, replay.body);
+      assert.equal(replay.body, confirmed.body);
+      const core = createPostgresSyncConflictResolutionApplication(runtime.db, sync.issuer,
+        { conflictPayloadKeyring: ACTIVE_V7_KEYRING });
+      assert.deepEqual(await core.resolve({ credential: sync.credential, sessionId: sync.session.sessionId,
+        replicaId: sync.replica.replicaId, collectionId: owned.collectionId, origin: EXTENSION_ORIGIN,
+        conflictId, idempotencyKey: commandId, ifMatch: [decision.etag],
+        request: { resolution: 'incoming', baseConflictRevision: decision.revision } }), row);
+      const differentDecision = await api.inject(resolve('"conflict-r1"'));
+      assert.equal(differentDecision.statusCode, 409, differentDecision.body);
+      assert.equal(differentDecision.json().error.code, 'command_id_reused');
+      assert.deepEqual((await pushClient.push(pushRequest)).body, pushed.body);
+      assert.deepEqual(await state(), afterLaterEdit);
+      assert.deepEqual((await runtime.pool.query(`select pull_wire_json,private_payload_digest,private_payload_ciphertext
+        from sync_conflicts where conflict_id=$1`, [conflictId])).rows[0], admission);
+    } finally { await api.close(); }
+  }, 60_000);
 
   test('isolates accounts and drives real Push Conflict resolution plus Replica retirement through Product HTTP', async () => {
     const api = productApp();
@@ -539,23 +637,23 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       assert.equal(conflicted.status, 200, JSON.stringify(conflicted.body));
       const conflictId = syncResult(conflicted.body).results[0]!.conflictId!;
 
-      // FIX-M-015 (SYNC-R10): the external menu advertises exactly the executable
-      // dismiss choice; the stored Conflict event itself stays immutable.
+      // New admissions retain the offline edit and offer both executable
+      // choices. Historical server-only menus are covered separately.
       const conflicts = await api.inject({ method: 'GET', url: '/api/v1/sync/conflicts?limit=10',
         headers: { cookie: owner.cookie } });
       assert.equal(conflicts.statusCode, 200, conflicts.body);
       const item = (conflicts.json() as { items: Array<{ id: string; type: string;
         allowedResolutions: string[] }> }).items.find((row) => row.id === conflictId);
       assert.equal(item?.type, 'delete_update');
-      assert.deepEqual(item?.allowedResolutions, ['server']);
+      assert.deepEqual(item?.allowedResolutions, ['server', 'incoming']);
       const event = await runtime.pool.query<{ status: string; allowed: string[] }>(
         'select pull_wire_json->>\'status\' as status,pull_wire_json->\'allowedResolutions\' as allowed from sync_conflicts where conflict_id=$1',
         [conflictId]);
       assert.equal(event.rows[0]?.status, 'open');
-      assert.deepEqual(event.rows[0]?.allowed, ['server']);
+      assert.deepEqual(event.rows[0]?.allowed, ['server', 'incoming']);
 
       // Non-advertised choices stay stable 422 before any side effect.
-      for (const payload of [{ resolution: 'incoming' }, { resolution: 'both' },
+      for (const payload of [{ resolution: 'both' },
         { resolution: 'custom', value: 'Merged title' }]) {
         const denied = await api.inject({ method: 'POST',
           url: `/api/v1/sync/conflicts/${conflictId}/resolution`,
@@ -568,7 +666,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       // The delete_update Conflict cannot be widened back to a lying menu.
       await assert.rejects(runtime.pool.query(
         'update sync_conflicts set allowed_resolutions=$2::jsonb where conflict_id=$1',
-        [conflictId, JSON.stringify(['server', 'incoming'])]),
+        [conflictId, JSON.stringify(['server', 'incoming', 'both'])]),
       (error: unknown) => (error as { code?: string }).code === '23514');
 
       const beforeResolve = await counts(owned.collectionId, ownerSync.replica.replicaId, conflictId);

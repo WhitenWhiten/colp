@@ -64,7 +64,14 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     assert.equal(result.nodeTitle, 'Later title');
     assert.equal(result.conflictStatus, 'open');
     assert.equal(result.resolvedByOperationId, null);
-    const server = await resolve(id, 'server');
+    const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
+      cursorSecret: 'refreshed-conflict-cursor-secret-long-enough', conflictPayloadKeyring: KEYRING,
+    });
+    const refreshed = await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }));
+    const decision = refreshed.items.find(item => item.id === id)!;
+    assert.notEqual(decision.revision, 'conflict-r1');
+    assert.equal(decision.summary.current, 'Later title');
+    const server = await resolve(id, 'server', decision.revision);
     assert.equal(server.outcome, 'resolved', server.error);
     assert.equal(server.nodeTitle, 'Later title');
   });
@@ -80,12 +87,22 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     assert.equal(node.url, 'https://later.test/');
   });
 
-  test('server dismiss publishes a resolved conflict without a deletion effect and Pull advances', async () => {
+  test('a historical server-only deletion conflict keeps its menu, publishes dismissal without a deletion effect and Pull advances', async () => {
     const conflictId = await openConflict('dismiss-conflict', 'dismiss-incoming', 1, 'delete_update');
     await isolated.runtime.pool.query(`update collections set commit_ordinal=greatest(commit_ordinal,1),
       payload_json=jsonb_set(payload_json,'{commitOrdinal}',to_jsonb(greatest(commit_ordinal,1)::text)) where id=$1`, [COLLECTION]);
     await isolated.runtime.pool.query(`update nodes set deleted_at=now(), deleted_commit_ordinal=1,
       payload_json=jsonb_set(payload_json,'{deletedAt}',to_jsonb(now())) where id=$1`, [TARGET]);
+    const historical = (await isolated.runtime.pool.query('select pull_wire_json,private_payload_digest from sync_conflicts where conflict_id=$1',
+      [conflictId])).rows[0];
+    const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
+      cursorSecret: 'historical-deletion-cursor-secret-long-enough', conflictPayloadKeyring: KEYRING,
+    });
+    const page = await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }));
+    assert.deepEqual(page.items.find(item => item.id === conflictId)?.allowedResolutions, ['server']);
+    const unavailable = await resolve(conflictId, 'incoming');
+    assert.equal(unavailable.outcome, 'refused');
+    assert.match(unavailable.error, /unsupported_operation/);
     const keys = createSyncPullCursorKeyring({ active: { id: 'dismiss-pull', secret: Buffer.alloc(32, 37).toString('base64') }, retained: [], ttlMs: 60000 });
     try {
       const port = createPostgresSyncPullReadPort(isolated.runtime.db, keys);
@@ -108,6 +125,8 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
       assert.deepEqual(combined.events.map(event => event.kind === 'conflict' ? event.conflict!.status : event.kind), ['open', 'resolved']);
       const replay = await resolve(conflictId, 'server');
       assert.equal(replay.resolvedByOperationId, result.resolvedByOperationId);
+      assert.deepEqual((await isolated.runtime.pool.query('select pull_wire_json,private_payload_digest from sync_conflicts where conflict_id=$1',
+        [conflictId])).rows[0], historical);
       const empty = await port.read({ ...input, cursor: resolved.nextCursor });
       assert.deepEqual(empty.events, []);
       const ack = await createPostgresSyncAckApplication(isolated.runtime.db, {
@@ -178,7 +197,8 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     assert.deepEqual((await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items, []);
   });
 
-  async function resolve(conflictId: string, resolution: 'server' | 'incoming' | 'both' = 'incoming'): Promise<{
+  async function resolve(conflictId: string, resolution: 'server' | 'incoming' | 'both' = 'incoming',
+    revision = 'conflict-r1'): Promise<{
     outcome: 'resolved' | 'refused'; conflictStatus: string;
     resolvedByOperationId: string | null; nodeTitle: string | null; error: string;
   }> {
@@ -195,8 +215,8 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     try {
       await application.resolve({ origin: ORIGIN,
         credential, sessionId, replicaId, collectionId: COLLECTION, conflictId,
-        idempotencyKey: `epoch-${conflictId}`, ifMatch: ['"conflict-r1"'],
-        request: { resolution, baseConflictRevision: 'conflict-r1' },
+        idempotencyKey: `epoch-${conflictId}`, ifMatch: [`"${revision}"`],
+        request: { resolution, baseConflictRevision: revision },
       } as never);
     } catch (thrown) {
       outcome = 'refused';

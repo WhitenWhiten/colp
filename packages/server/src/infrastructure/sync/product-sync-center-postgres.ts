@@ -9,7 +9,7 @@ import { createPostgresProductCommandReceiptPort } from '../database/product-com
 import { lockCollectionReplicaGate } from '../database/lock-order.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createUnitOfWork, type DatabaseTransaction } from '../database/unit-of-work.js';
-import { readProductConflictResolutions, readProductConflictSafeSummary, resolveProductConflictInTransaction } from './sync-conflict-resolution-postgres.js';
+import { readProductConflictDecision, resolveProductConflictInTransaction } from './sync-conflict-resolution-postgres.js';
 import { isSyncConflictPayloadKeyring, selectSyncConflictPayloadKey,
   type SyncConflictPayloadKeyring } from './sync-conflict-postgres.js';
 import type { SyncConflictKeyringReadiness } from '../../modules/sync/index.js';
@@ -134,7 +134,8 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
           .onRef('binding.replica_id', '=', 'conflict.replica_id')
           .onRef('binding.collection_id', '=', 'conflict.collection_id'))
         .selectAll('conflict')
-        .select(['binding.lease_generation','node.kind as node_kind'])
+        .select(['binding.lease_generation', 'node.kind as node_kind', 'node.resource_revision as node_revision',
+          'node.deleted_at as node_deleted_at', 'node.payload_json as node_payload'])
         .where('replica.account_id', '=', accountId).where('conflict.status', '=', 'open');
       if (after) query = query.where((eb) => eb.or([
         eb('conflict.created_at', '<', new Date(after.createdAt)),
@@ -142,15 +143,15 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       ]));
       const rows = await query.orderBy('conflict.created_at', 'desc').orderBy('conflict.conflict_id', 'desc').limit(pageLimit + 1).execute();
       const pageRows = rows.slice(0, pageLimit); const tail = rows.length > pageLimit ? pageRows.at(-1) : undefined;
-      return Object.freeze({ items: pageRows.map((conflict) => { const field = conflict.conflicting_fields.length === 1
-        ? conflict.conflicting_fields[0] ?? null : null;
-        const summary = readProductConflictSafeSummary(conflict, options.conflictPayloadKeyring,
-          conflict.node_kind, conflict.lease_generation, field);
+      return Object.freeze({ items: pageRows.map((conflict) => {
+        const decision = readProductConflictDecision(conflict, options.conflictPayloadKeyring,
+          conflict.lease_generation, { kind: conflict.node_kind, resourceRevision: conflict.node_revision,
+            deleted: conflict.node_deleted_at !== null, payload: conflict.node_payload });
+        const field = decision.conflictingFields.length === 1 ? decision.conflictingFields[0] ?? null : null;
         return Object.freeze({ id: conflict.conflict_id,
-          collectionId: conflict.collection_id, targetId: conflict.target_id, type: conflict.conflict_type, field,
-          status: 'open' as const, allowedResolutions: readProductConflictResolutions(conflict, options.conflictPayloadKeyring,
-            conflict.node_kind, conflict.lease_generation), revision: conflict.revision,
-          etag: `"${conflict.revision}"`, createdAt: conflict.created_at.toISOString(), summary: Object.freeze(summary) }); }), page: Object.freeze({ nextCursor: tail ? encodeCursor({ createdAt: tail.created_at.toISOString(),
+          collectionId: conflict.collection_id, targetId: conflict.target_id, type: decision.type, field,
+          status: 'open' as const, allowedResolutions: decision.allowedResolutions, revision: decision.revision,
+          etag: `"${decision.revision}"`, createdAt: conflict.created_at.toISOString(), summary: decision.summary }); }), page: Object.freeze({ nextCursor: tail ? encodeCursor({ createdAt: tail.created_at.toISOString(),
           id: tail.conflict_id, limit: pageLimit }, accountId, options.cursorSecret) : null }) }) satisfies ProductConflictPage;
     },
     resolveConflict: (input) => command(transaction, { principalId: input.accountId,
