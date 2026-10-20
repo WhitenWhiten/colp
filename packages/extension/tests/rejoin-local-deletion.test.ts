@@ -13,6 +13,7 @@ test('pause, local folder deletion, new cloud children: Keep cloud restores all 
     assert.equal((await f.compare()).mount.status, 'detached');
     const [choice] = await f.list();
     assert.equal(choice?.kind, 'local_delete'); assert.equal(choice?.affectedCount, 3);
+    assert.equal(choice?.title, 'Cloud folder');
     await f.resolve('keep_remote');
     const folder = (await f.getStore().getMappingByColpId(scope, 'restore-folder'))!;
     assert.equal((await f.api.get(folder.nativeId))[0]?.title, 'Cloud folder');
@@ -27,6 +28,23 @@ test('pause, local folder deletion, new cloud children: Keep cloud restores all 
     f.reopen(); await f.refresh(); await f.compare();
     assert.equal(f.api.calls.filter(row => row.kind === 'create').length, 3);
     await f.queue().recover(); assert.equal((await f.getStore().listQueue(scope)).length, 0);
+  } finally { f.getStore().close(); }
+});
+
+test('a stale cloud deletion choice refreshes the visible cloud title and preserves it across a worker restart', async () => {
+  const f = await deletionFixture();
+  try {
+    await f.compare(); const [before] = await f.list(); assert.equal(before?.title, 'Cloud folder');
+    f.setFacts(f.snapshot().remoteFacts.map(row => row.nodeId === 'restore-folder'
+      ? { ...row, title: 'Newest cloud folder', revision: 'newest-cloud' } : row));
+    const calls = f.api.calls.length;
+    await assert.rejects(f.resolve('keep_remote'), /preview_stale/);
+    assert.equal(f.api.calls.length, calls);
+    f.reopen(); await f.refresh(); const [after] = await f.list();
+    assert.equal(after?.title, 'Newest cloud folder'); assert.notEqual(after?.token, before?.token);
+    await f.resolve('keep_remote');
+    const folder = (await f.getStore().getMappingByColpId(scope, 'restore-folder'))!;
+    assert.equal((await f.api.get(folder.nativeId))[0]?.title, 'Newest cloud folder');
   } finally { f.getStore().close(); }
 });
 

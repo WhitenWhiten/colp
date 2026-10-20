@@ -1,6 +1,6 @@
 import { digestJson } from './bookmark-event-codec.js';
 import { rejoinAttemptDigest } from './scope-rejoin-authority.js';
-import { missingRejoinGroups, type MissingRejoinGroup } from './scope-rejoin-deletion.js';
+import { missingRejoinGroups, rejoinDeleteTitle, type MissingRejoinGroup } from './scope-rejoin-deletion.js';
 import { planRejoinOrders, type RejoinOrderInput, type RejoinOrderPlan } from './scope-rejoin-order.js';
 import { rejectedRejoinReferences } from './sync-state/rejoin-resolution-repository.js';
 import type { JsonObject, QueueOperation, ScopeCommandPlanRecord } from './sync-state-store.js';
@@ -47,7 +47,7 @@ export async function renewRejectedRejoin(input: RejoinOrderInput, record: Scope
 }
 export function rejoinCandidateFields(candidate: MissingRejoinGroup | RejoinOrderPlan): JsonObject {
   return 'root' in candidate ? {
-    kind: 'local_delete', rootId: candidate.root.colpId, title: String(candidate.root.projection.content?.title ?? ''),
+    kind: 'local_delete', rootId: candidate.root.colpId, title: rejoinDeleteTitle(candidate),
     affectedCount: candidate.remote?.length ?? candidate.members.length, missingIds: candidate.members.map(row => row.colpId),
     blockedByLocalMove: candidate.blockedByLocalMove, unavailable: !candidate.remote,
   } : { kind: 'order', parentId: candidate.parent.colpId, title: String(candidate.parent.projection.content?.title ?? ''),

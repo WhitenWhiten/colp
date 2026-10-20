@@ -16,6 +16,11 @@ export interface MissingRejoinGroup {
   readonly authorityDigest: string | null; readonly blockedByLocalMove: boolean; readonly boundaryDigest: string;
 }
 
+export function rejoinDeleteTitle(group: MissingRejoinGroup): string {
+  return group.remote?.find(row => row.nodeId === group.root.colpId)?.title
+    ?? String(group.root.projection.content?.title ?? '');
+}
+
 export async function missingRejoinGroups(input: RejoinOrderInput, mappings: readonly MappingInput[],
   observations: readonly RemoteObservationRecord[]): Promise<MissingRejoinGroup[]> {
   const missing = new Map<string, MappingInput>();
@@ -114,7 +119,7 @@ export async function reconcileMissingRejoinDeletes(input: RejoinOrderInput, map
       confirmationVersion: input.mount.boundaryVersion, baselineDigest: group.token,
       phase: needsChoice ? 'pending' : 'confirmed', dependencies, mountId: input.mount.mountId,
       retryReason: needsChoice ? 'rejoin_local_delete_conflict' : 'delete_remote', updatedAt: Date.now(),
-      rejoinDecision: { kind: 'local_delete', rootId: group.root.colpId, title: String(group.root.projection.content?.title ?? ''),
+      rejoinDecision: { kind: 'local_delete', rootId: group.root.colpId, title: rejoinDeleteTitle(group),
         affectedCount: group.remote?.length ?? group.members.length, authorityDigest: group.authorityDigest, attemptDigest: rejoinAttemptDigest(input.mount, await input.store.getScope(input.scope)),
         boundaryDigest: group.boundaryDigest, missingIds: group.members.map(row => row.colpId),
         unavailable: !group.authorityDigest && needsChoice, blockedByLocalMove: group.blockedByLocalMove } });
