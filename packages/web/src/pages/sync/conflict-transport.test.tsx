@@ -225,3 +225,43 @@ it('independent frozen review: the actual custom-title handler preserves the exa
   expect(f.posts).toHaveLength(1)
   expect(JSON.parse(String(f.posts[0]!.init?.body))).toEqual({ resolution: 'custom', value: title })
 })
+
+const textByteCases = [
+  { field: 'description', label: 'Custom description', cap: 16384,
+    accepted: `${'界'.repeat(5461)}a`, rejected: '界'.repeat(5462) },
+  { field: 'url', label: 'Custom URL', cap: 4096,
+    accepted: `https://example.test/${'界'.repeat(1358)}a`, rejected: `https://example.test/${'界'.repeat(1359)}` },
+  { field: 'canonicalUrl', label: 'Custom canonical URL', cap: 4096,
+    accepted: `https://example.test/${'界'.repeat(1358)}a`, rejected: `https://example.test/${'界'.repeat(1359)}` },
+] as const
+
+function enterCustomText(label: string, value: string) {
+  choose('custom')
+  const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[aria-label="${label}"]`)!
+  const prototype = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+  act(() => {
+    Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+it.each(textByteCases)('R5: the actual custom-$field handler refuses text beyond the authoritative UTF-8 cap', async ({ field, label, cap, rejected }) => {
+  const f = await screen([conflict(1, { field: `/${field}` })], 0)
+  expect(new TextEncoder().encode(rejected).byteLength).toBeGreaterThan(cap)
+  // These are below the existing character limits and can be pasted in the UI.
+  expect(rejected.length).toBeLessThan(field === 'description' ? 20000 : 4096)
+  enterCustomText(label, rejected)
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  expect(f.posts).toHaveLength(0)
+  expect(document.querySelector('[role="alert"]')?.textContent?.replaceAll(',', '')).toContain(String(cap))
+  expect(document.querySelector('[data-conflict-id="conflict"]')).not.toBeNull()
+})
+
+it.each(textByteCases)('R5: the actual custom-$field handler preserves the exact authoritative UTF-8 boundary', async ({ field, label, cap, accepted }) => {
+  const f = await screen([conflict(1, { field: `/${field}` })], 0)
+  expect(new TextEncoder().encode(accepted).byteLength).toBe(cap)
+  enterCustomText(label, accepted)
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  expect(f.posts).toHaveLength(1)
+  expect(JSON.parse(String(f.posts[0]!.init?.body))).toEqual({ resolution: 'custom', value: accepted })
+})
