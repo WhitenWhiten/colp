@@ -186,10 +186,14 @@ export async function appendOpenSyncConflict(
 
   const conflictId = await reserveGeneratedId(transaction, 'conflict_');
   const outboxId = await reserveGeneratedId(transaction, 'outbox_');
+  // The operation has not applied any fields. Keep its entire comparison
+  // domain encrypted, independently of the redacted list of conflicting
+  // fields, so resolving a title cannot discard a simultaneous URL edit.
+  const retainedFields = [...new Set([...fields, ...Object.keys(update.base).map(field => `/${field}`)])];
   const privatePayload = stableJson({
-    base: projectRawValues(baseSource, fields),
-    current: projectRawValues(input.current.payload, fields),
-    incoming: projectRawValues(update.value, fields),
+    base: projectRawValues(baseSource, retainedFields),
+    current: projectRawValues(input.current.payload, retainedFields),
+    incoming: projectRawValues(update.value, retainedFields),
     nodeKind: input.current.kind,
   });
   const encrypted = encryptPrivatePayload(privatePayload, conflictPayloadEncryption, {

@@ -1880,6 +1880,41 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     }
   }, 30_000);
 
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'retains a simultaneous independent URL edit through %s conflict resolution and replay', async resolution => {
+      const opened = await openConflict({
+        base: { title: 'Base', url: 'https://example.test/before' },
+        current: { title: 'Server' },
+        incoming: { title: 'Incoming', url: 'https://example.test/after' },
+      });
+      const request = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: 'Custom' } : {}) });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query(
+        'select effect_json from sync_operation_effects where operation_id=$1', [resolved.operation.opId],
+      )).rows[0].effect_json;
+      assert.equal(effect.node.url, 'https://example.test/after');
+      assert.equal(effect.node.title, resolution === 'server' ? 'Server'
+        : resolution === 'custom' ? 'Custom' : 'Incoming');
+      const canonical = (await isolated.runtime.pool.query(
+        'select url,payload_json from nodes where id=$1', [effect.node.id],
+      )).rows[0];
+      assert.equal(canonical.url, effect.node.url);
+      assert.equal(canonical.payload_json.url, effect.node.url);
+      if (resolution === 'both') {
+        assert.notEqual(effect.node.id, opened.node.id);
+        const original = (await isolated.runtime.pool.query(
+          'select title,url from nodes where id=$1', [opened.node.id],
+        )).rows[0];
+        assert.deepEqual(original, { title: 'Server', url: 'https://example.test/before' });
+      }
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.equal((await isolated.runtime.pool.query(
+        'select count(*)::int count from sync_operation_effects where operation_id=$1', [resolved.operation.opId],
+      )).rows[0].count, 1);
+    });
+
   test('P3-18 blocks conflict both-creation under managed-bookmarks ancestry unless the deployment capability allows', async () => {
     const opened = await openConflict();
     const managedParent = await seedNode('folder', { title: 'Managed both parent' });

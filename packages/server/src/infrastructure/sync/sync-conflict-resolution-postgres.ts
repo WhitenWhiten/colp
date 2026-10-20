@@ -1,9 +1,9 @@
 import { SnapshotTreeCapacityError } from '../../modules/collections/index.js';
 import { createDecipheriv, createHash, createHmac, hkdfSync, randomBytes } from 'node:crypto';
 import { sql, type Kysely, type Selectable } from 'kysely';
-import type { Conflict, ConflictResolutionResult, NodeCreate, Operation } from '@know-n/colp/types';
+import type { Conflict, ConflictResolutionResult, Operation } from '@know-n/colp/types';
 import { deepEqualSyncMergeValue } from '@know-n/colp/sync';
-import { createValidatorRegistry, preserveExtensions } from '@know-n/colp/schema';
+import { createValidatorRegistry } from '@know-n/colp/schema';
 import {
   canonicalSyncConflictResolutionDigest,
   evaluateSyncNodeUpdate,
@@ -19,11 +19,6 @@ import {
 import {
   CanonicalMutationInvariantError,
   CollectionsError,
-  assertValidHttpUrlNoUserInfo,
-  assertValidNodeDescription,
-  assertValidNodeTags,
-  assertValidNodeTitle,
-  assertValidNodeVisibility,
   createCanonicalMutationApplication,
   type CanonicalMutationResult,
 } from '../../modules/collections/index.js';
@@ -33,14 +28,13 @@ import { appendOperationWithPayload } from '../database/operation-payload-store.
 import { DatabaseOperationError } from '../database/errors.js';
 import { lockCollectionReplicaGate, lockSyncReplicaBeforeCollection } from '../database/lock-order.js';
 import {
-  assertPlainCustomObject as assertPlainCustomObjectValue,
-  isRecord,
   stableJson as stableJsonValue,
 } from './sync-conflict-json.js';
 import {
   decryptPrivatePayload as decryptPrivatePayloadValue,
   type PrivateConflictPayload,
 } from './sync-conflict-private-payload.js';
+import { selectedResolutionFields, duplicateNodeDocument } from './sync-conflict-content.js';
 import { createUnitOfWork, type DatabaseTransaction } from '../database/unit-of-work.js';
 import { createPostgresCanonicalMutationPorts } from '../collections/canonical-mutation-postgres-ports.js';
 import type { PostgresSyncSessionIssuer } from './sync-session-postgres.js';
@@ -579,62 +573,6 @@ async function conflictReplicaWriteCapability(
   return replica.capabilities_json.write === true;
 }
 
-function selectedResolutionFields(
-  command: ValidatedSyncConflictResolutionCommand,
-  current: Readonly<Record<string, unknown>>,
-  privatePayload: PrivateConflictPayload,
-  pointers: readonly string[],
-): Readonly<{ base: Record<string, unknown>; value: Record<string, unknown> }> {
-  const fields = pointers.map((pointer) => pointer.slice(1))
-    .filter((field) => !['baseRevision', 'deletedAt'].includes(field));
-  if (fields.length < 1) deny('unsupported_operation');
-  const base: Record<string, unknown> = {};
-  const value: Record<string, unknown> = {};
-  for (const field of fields) base[field] = current[field];
-  if (command.resolution === 'server') {
-    for (const field of fields) value[field] = current[field];
-  } else if (command.resolution === 'incoming') {
-    for (const field of fields) value[field] = privatePayload.incoming[field];
-  } else {
-    if (fields.length === 1) value[fields[0]!] = command.value;
-    else {
-      const custom = assertPlainCustomObject(command.value, 'custom conflict value');
-      if (fields.some((field) => !Object.hasOwn(custom, field))
-          || Object.keys(custom).some((field) => !fields.includes(field))) deny('invalid_document');
-      for (const field of fields) value[field] = custom[field];
-    }
-  }
-  return { base, value };
-}
-
-function duplicateNodeDocument(
-  current: Readonly<Record<string, unknown>>,
-  privatePayload: PrivateConflictPayload,
-  pointers: readonly string[],
-): NodeCreate {
-  const title = assertValidNodeTitle(
-    pointers.includes('/title') ? privatePayload.incoming.title as string : current.title as string,
-  );
-  const url = assertValidHttpUrlNoUserInfo(
-    pointers.includes('/url') ? privatePayload.incoming.url as string : current.url as string,
-  );
-  const description = assertValidNodeDescription(current.description as string | null | undefined ?? null);
-  const tags = assertValidNodeTags(current.tags as readonly string[] | undefined ?? []);
-  const visibility = assertValidNodeVisibility(current.visibility as string | undefined ?? 'inherit');
-  const rawExtensions = current.extensions ?? {};
-  if (!isRecord(rawExtensions)) deny('internal_error');
-  const preserved = preserveExtensions(
-    rawExtensions as Parameters<typeof preserveExtensions>[0],
-    { surface: 'sync-server', path: '/payload/node' },
-  );
-  if (preserved.removals.length !== 0) deny('internal_error');
-  return {
-    kind: 'bookmark', title, url, tags: [...tags], visibility,
-    extensions: preserved.extensions,
-    ...(description === null ? {} : { description }),
-  };
-}
-
 function decryptPrivatePayload(
   conflict: Selectable<SyncConflictTable>,
   keyring: SyncConflictPayloadKeyring,
@@ -748,10 +686,6 @@ function generatedId(prefix: string): string {
 
 function stableJson(value: unknown): string {
   return stableJsonValue(value, invalidDocument);
-}
-
-function assertPlainCustomObject(value: unknown, _label: string): Record<string, unknown> {
-  return assertPlainCustomObjectValue(value, invalidDocument);
 }
 
 function invalidDocument(): never {

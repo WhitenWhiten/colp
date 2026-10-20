@@ -5,6 +5,7 @@ import {
   mergeSyncTypedUpdate,
   validateSyncTypedUpdateOperationPayload,
   type SyncTypedUpdateOperation,
+  type SyncTypedMergeResult,
 } from '@know-n/colp/sync';
 import { preserveExtensions } from '@know-n/colp/schema';
 import type { Operation } from '@know-n/colp/types';
@@ -127,18 +128,11 @@ export function evaluateSyncNodeUpdate(
   ));
   if (untrusted.length > 0) return conflict('sync_base_untrusted', untrusted.sort());
 
-  const extensions = fields.includes('extensions')
-    ? mergeExtensionNamespaces(trustedProjection.extensions, currentProjection.extensions, payload.value.extensions)
-    : undefined;
-  const merged = mergeSyncTypedUpdate(extensions === undefined
-    ? { base: trustedProjection, current: currentProjection, incoming: payload.value }
-    : { base: withoutExtensions(trustedProjection), current: withoutExtensions(currentProjection),
-        incoming: withoutExtensions(payload.value) });
+  const merged = mergeSyncNodeContentFields(trustedProjection, currentProjection, payload.value);
   if (merged.status === 'conflict') {
     return conflict('sync_conflict_pending', merged.conflicts.map((item) => item.field).sort());
   }
-  const pinnedMerged = pinEquivalentBookmarkUrlMerge(current,
-    extensions === undefined ? merged.value : Object.freeze({ ...merged.value, extensions }));
+  const pinnedMerged = pinEquivalentBookmarkUrlMerge(current, merged.value);
   assertBudget([pinnedMerged], budget);
   const canonical = canonicalFields(current.kind, pinnedMerged, current.payload);
   return Object.freeze({
@@ -150,6 +144,20 @@ export function evaluateSyncNodeUpdate(
     fields: Object.freeze(canonical),
     merged: pinnedMerged,
   });
+}
+
+/** The same field/namespace merge is used when settling retained conflict intent. */
+export function mergeSyncNodeContentFields(
+  base: Readonly<Record<string, unknown>>,
+  current: Readonly<Record<string, unknown>>,
+  incoming: Readonly<Record<string, unknown>>,
+): SyncTypedMergeResult {
+  const extensions = Object.hasOwn(base, 'extensions')
+    ? mergeExtensionNamespaces(base.extensions, current.extensions, incoming.extensions) : undefined;
+  const merged = mergeSyncTypedUpdate(extensions === undefined ? { base, current, incoming }
+    : { base: withoutExtensions(base), current: withoutExtensions(current), incoming: withoutExtensions(incoming) });
+  return merged.status === 'merged' && extensions !== undefined
+    ? Object.freeze({ status: 'merged', value: Object.freeze({ ...merged.value, extensions }) }) : merged;
 }
 
 /**
