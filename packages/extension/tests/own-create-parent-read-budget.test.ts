@@ -117,28 +117,53 @@ for (const entry of cases) test(`own-create parent reads stay fresh after reopen
   } finally { f.store.close(); }
 });
 
-for (const source of ['pending', 'fallback'] as const) test(`a parent removed during ${source} recovery still refuses without rewriting the unknown request`, async () => {
-  const f = await fixture(source);
-  try {
-    await losePushResponse(f); await prepareAndStop(f);
-    const before = await f.store.getQueueByOpId(scope, f.opId);
-    let removed = 0;
-    const store = { ...f.store, getMappingByColpId: async (...args: Parameters<typeof f.store.getMappingByColpId>) => {
-      const mapping = await f.store.getMappingByColpId(...args);
-      if (args[1] === `pending-${f.opId}` && !removed) {
-        removed++; assert.equal(await f.store.deleteMapping(scope, f.parent.nativeId), true);
+for (const source of ['pending', 'fallback'] as const) for (const started of [false, true]) {
+  test(`a missing parent during ${source} recovery follows the durable phase: started=${started}`, async () => {
+    const f = await fixture(source);
+    try {
+      await losePushResponse(f); await prepareAndStop(f);
+      if (started) await f.store.markPullBrowserCallStarted(scope, f.eventId);
+      const before = await f.store.getQueueByOpId(scope, f.opId); assert.ok(before);
+      let removed = 0;
+      const store = { ...f.store, getMappingByColpId: async (...args: Parameters<typeof f.store.getMappingByColpId>) => {
+        const mapping = await f.store.getMappingByColpId(...args);
+        if (args[1] === `pending-${f.opId}` && !removed) {
+          removed++; assert.equal(await f.store.deleteMapping(scope, f.parent.nativeId), true);
+          assert.equal(await f.store.getCurrentPullMapping(scope, f.parent.colpId), null);
+        }
+        return mapping;
+      } };
+      f.store.close();
+      const applier = createPullApplier({ ...f.options, store });
+      if (started) {
+        await assert.rejects(applier.resume(), /parent_mapping_missing/);
+        assert.notEqual((await f.store.getCursor(scope))?.cursor, 'cursor-next');
+      } else {
+        // Before invocation, the item is durably accounted for without native work.
+        // Page completion marks its echo; it does not settle the unknown Push.
+        await applier.resume();
+        assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-next');
       }
-      return mapping;
-    } };
-    f.store.close();
-    await assert.rejects(createPullApplier({ ...f.options, store }).resume(), /parent_mapping_missing/);
-    assert.equal(removed, 1);
-    assert.notEqual((await f.store.getCursor(scope))?.cursor, 'cursor-next');
-    assert.equal(f.api.calls.filter(call => call.kind === 'create').length, 0);
-    assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), before);
-    assert.equal(await f.store.getQueueReceipt(scope, before!.sequence), null);
-  } finally { f.store.close(); }
-});
+      assert.equal(removed, 1);
+      assert.equal(await f.store.getCurrentPullMapping(scope, f.parent.colpId), null);
+      assert.equal(f.api.calls.filter(call => call.kind === 'create').length, 0);
+      assert.equal(await f.store.getMappingByColpId(scope, f.remote.id), null);
+      const issues = await f.store.listPullIssues(scope);
+      assert.deepEqual(issues.map(issue => [issue.code, issue.nodeId, issue.eventId, issue.count]),
+        started ? [] : [['parent_mapping_missing', f.remote.id, f.eventId, 1]]);
+      const expectedQueue = started ? before : { ...before, echoApplied: true };
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), expectedQueue);
+      assert.equal(await f.store.getQueueReceipt(scope, before.sequence), null);
+      f.store.close();
+      assert.deepEqual(await f.store.listPullIssues(scope), issues);
+      assert.equal((await f.store.getPullEvent(scope, f.eventId))?.state,
+        started ? 'browser_call_started' : 'page_complete');
+      assert.equal(await f.store.getCurrentPullMapping(scope, f.parent.colpId), null);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), expectedQueue);
+      assert.equal(await f.store.getQueueReceipt(scope, before.sequence), null);
+    } finally { f.store.close(); }
+  });
+}
 
 test('a parent updated after provisional lookup is read afresh before projection and publication', async () => {
   const f = await fixture('pending');
