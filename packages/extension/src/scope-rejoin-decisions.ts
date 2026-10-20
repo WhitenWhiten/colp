@@ -13,14 +13,22 @@ import { observationValidForPause } from './sync-state/remote-observation.js';
 import { rejoinScopeMount } from './scope-commands.js';
 import type { JsonObject, MappingInput, ScopeCommandPlanRecord } from './sync-state-store.js';
 
-export type RejoinDecisionChoice = 'keep_remote' | 'delete_remote' | 'keep_local_order' | 'keep_remote_order';
+export type RejoinDecisionChoice = 'keep_remote' | 'delete_remote' | 'keep_local_order' | 'keep_remote_order'
+  | 'keep_local' | 'apply_remote_delete';
+export type RejoinDecisionBlockedReason = 'pending_upload' | 'unknown_upload' | 'upload_boundary_changed' | 'native_unavailable';
+export type RejoinDecisionRecoveryAction = 'retry_sync' | 'reset_sync' | 'refresh';
 export type RejoinDecisionRequest = { readonly kind: 'known.sync.rejoinDecisions.get' }
   | { readonly kind: 'known.sync.rejoinDecisions.resolve'; readonly commandId: string; readonly token: string;
-      readonly choice: RejoinDecisionChoice; readonly userGesture: true };
+      readonly choice: Exclude<RejoinDecisionChoice, 'apply_remote_delete'>; readonly userGesture: true }
+  | { readonly kind: 'known.sync.rejoinDecisions.resolve'; readonly commandId: string; readonly token: string;
+      readonly choice: 'apply_remote_delete'; readonly userGesture: true;
+      readonly affectedCount: number; readonly confirmSubtree: true };
 export interface PublicRejoinDecision {
-  readonly commandId: string; readonly token: string; readonly kind: 'local_delete' | 'order';
+  readonly commandId: string; readonly token: string; readonly kind: 'local_delete' | 'order' | 'remote_delete';
   readonly title: string; readonly affectedCount: number; readonly state: 'pending' | 'applying';
   readonly localOrder?: readonly string[]; readonly remoteOrder?: readonly string[];
+  readonly blockedReason?: RejoinDecisionBlockedReason;
+  readonly recoveryAction?: RejoinDecisionRecoveryAction;
 }
 export type RejoinDecisionResponse = { readonly ok: true; readonly decisions: readonly PublicRejoinDecision[] }
   | { readonly ok: false; readonly error: string };
