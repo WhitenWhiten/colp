@@ -70,3 +70,54 @@ test('choosing one root after the all-roots default explicitly removes Other fro
   expect(syncRootRefs(byId('root-tree'))).toEqual(['bar']);
   expect(f.sendMessage.mock.calls.filter(([request]) => request.kind === 'known.firstRun.confirm')).toEqual([]);
 });
+
+test.each(['permission_required', 'tree_unavailable', 'ready'] as const)('an empty %s root view invalidates a reviewed first-run plan until fresh review', async status => {
+  let advancedReads = 0;
+  const f = await mount(async request => {
+    if (request.kind === 'known.firstRun.status') return { ok: true, firstRun: 'none', phase: 'draft' };
+    if (request.kind === 'known.firstRun.preview') {
+      if (!request.bootstrapMode) return preview('merge-initial');
+      const id = `advanced-${++advancedReads}`;
+      return { ...preview(id), advanced: { mode: 'upload', treeDigest: id, scopeFingerprint: id,
+        remoteSnapshotId: id, remoteRevision: id, remoteCursor: id, destructivePlanDigest: id,
+        confirmationProof: id, deletes: [] } };
+    }
+    if (request.kind === 'known.firstRun.confirm') return { ok: true, firstRun: 'running', phase: 'syncing' };
+    throw new Error(`Undeclared message ${request.kind}`);
+  });
+  const mode = byId<HTMLSelectElement>('first-run-advanced-mode');
+  mode.value = 'upload'; mode.dispatchEvent(new Event('change'));
+  byId('first-run-advanced-preview').click();
+  await vi.waitFor(() => expect(byId('first-run-advanced-confirm').hidden).toBe(false));
+  expect(advancedReads).toBe(1);
+
+  // A real folder renderer must forward empty/blocked responses too. Otherwise
+  // the onboarding controller retains the former ready view and its authority.
+  f.folders.render({ ...rootView, viewId: `empty-${status}`, status, roots: [] });
+  expect(byId('first-run-advanced-confirm').hidden).toBe(true);
+  expect(byId<HTMLButtonElement>('first-run-advanced-confirm').disabled).toBe(true);
+  expect(byId<HTMLButtonElement>('first-run-start').disabled).toBe(true);
+  if (status === 'permission_required') {
+    expect(byId('first-run-permission-hint').hidden).toBe(false);
+    f.ui.onPermissionResult(false);
+    expect(byId('first-run-error').textContent).toContain('Permission was not granted');
+  }
+  if (status === 'ready') expect(byId('first-run-empty').textContent).toContain('No bookmark folders are available');
+  else expect(byId('first-run-confirm').hidden).toBe(true);
+  byId('first-run-advanced-confirm').click();
+  expect(f.sendMessage.mock.calls.filter(([request]) => request.kind === 'known.firstRun.confirm')).toEqual([]);
+
+  f.folders.render({ ...rootView, viewId: `restored-${status}` });
+  expect(byId('first-run-advanced-confirm').hidden).toBe(true);
+  expect(advancedReads).toBe(1);
+  byId('first-run-advanced-preview').click();
+  await vi.waitFor(() => expect(byId('first-run-advanced-confirm').hidden).toBe(false));
+  expect(advancedReads).toBe(2);
+  expect(f.sendMessage.mock.calls.filter(([request]) => request.kind === 'known.firstRun.confirm')).toEqual([]);
+  byId('first-run-advanced-confirm').click();
+  await vi.waitFor(() => expect(document.body.dataset.firstRun).toBe('syncing'));
+  expect(f.sendMessage.mock.calls.filter(([request]) => request.kind === 'known.firstRun.confirm')).toEqual([
+    [expect.objectContaining({ previewId: 'advanced-2', bootstrapMode: 'upload',
+      advancedConfirmation: expect.objectContaining({ confirmationProof: 'advanced-2' }) })],
+  ]);
+});

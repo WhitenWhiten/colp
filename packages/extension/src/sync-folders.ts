@@ -87,7 +87,9 @@ export function bindFolders(host: FoldersHost) {
       // A missing permission or an unreadable tree is said once, in the alert; the empty list says nothing more.
       showEmpty(next.status === 'ready' ? t('options_noBookmarkFoldersAvailable', 'No bookmark folders are available.') : '',
         next.status === 'permission_required' || next.status === 'tree_unavailable' ? 'blocked' : 'empty');
-      paint(); return;
+      paint();
+      host.firstRun().onRootsRendered(next, host.isConnected(), document.body.dataset.library === 'ready');
+      return;
     }
     card.removeAttribute('data-roots');
     const counts = descendantCounts(next.roots);
