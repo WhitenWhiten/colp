@@ -27,7 +27,7 @@ test('MV3 survives worker termination and full browser restart with all durable 
     expect(await call<EvidenceExport>(page, 'exportScope', scope)).toEqual(seeded);
     await context.close();
 
-    context = await launch(profile);
+    context = await launch(profile, false);
     page = await extensionPage(context);
     const restarted = await call<EvidenceExport>(page, 'exportScope', scope);
     expect(restarted).toEqual(seeded);
@@ -39,7 +39,10 @@ test('MV3 survives worker termination and full browser restart with all durable 
 test('real Chromium unique indexes and lease fences arbitrate independent extension contexts', async () => {
   const context = await launch('');
   try {
-    const a = await extensionPage(context); const b = await extensionPage(context);
+    const a = await extensionPage(context);
+    const b = (await openExtensionOptions(context, EXTENSION_ID, { newDocument: true })).page;
+    expect(a).not.toBe(b);
+    expect(a.isClosed()).toBe(false);
     await call<null>(a, 'registerEvidenceScope', scope);
     const results = await Promise.all([call<EvidenceLease>(a, 'acquireEvidenceLease', scope, 'owner-a'),
       call<EvidenceLease>(b, 'acquireEvidenceLease', scope, 'owner-b')]);
@@ -113,10 +116,17 @@ test('real Chromium upgrades the pinned P3-03 v1 and v2 databases without duplic
   }
 });
 
-async function launch(profile: string): Promise<BrowserContext> {
-  return chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', args: [
+async function launch(profile: string, firstInstall = true): Promise<BrowserContext> {
+  const context = await chromium.launchPersistentContext(profile, { headless: false, channel: 'chromium', args: [
     `--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`,
   ] });
+  if (firstInstall) {
+    // A fresh installation owns the first options document. Wait for that
+    // event instead of navigating ahead of onInstalled and its marker write.
+    await expect.poll(() => context.pages().some(page => page.url()
+      .startsWith(`chrome-extension://${EXTENSION_ID}/options.html`))).toBe(true);
+  }
+  return context;
 }
 async function extensionPage(context: BrowserContext): Promise<Page> {
   return (await openExtensionOptions(context)).page;

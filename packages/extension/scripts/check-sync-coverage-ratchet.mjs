@@ -51,6 +51,7 @@ export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
   'src/scope-rejoin-upload.ts',
   'src/service-worker.ts',
   'src/sw/advanced-first-run.ts',
+  'src/sw/auth.ts',
   'src/sw/bookmarks.ts',
   'src/sw/boundary-attempt.ts',
   'src/sw/boundary-confirmation.ts',

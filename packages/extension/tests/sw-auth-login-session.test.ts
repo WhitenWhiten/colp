@@ -104,6 +104,61 @@ async function loginFixture() {
   return { ...runtime, api, local, binding, credential, minted, config };
 }
 
+test('install persists its welcome marker before the options document can consume it', async () => {
+  const f = await loginFixture();
+  let release!: () => void, started!: () => void;
+  const writing = new Promise<void>(resolve => { started = resolve; });
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const persist = f.local.set.bind(f.local);
+  const set = vi.spyOn(f.local, 'set').mockImplementation(async values => {
+    if (values[f.WELCOME_FLAG] === 'installed') { started(); await pending; }
+    await persist(values);
+  });
+  const seen: unknown[] = [];
+  const open = vi.fn(async () => {
+    // These are the same external storage reads/removal the options document
+    // performs. The document must never finish before install writes its flag.
+    seen.push((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG]);
+    await f.local.remove(f.WELCOME_FLAG);
+  });
+  Object.assign(chrome.runtime, { openOptionsPage: open });
+  const installation = f.api.onExtensionInstalled({ reason: 'install' });
+  await writing;
+  const openedBeforePersist = open.mock.calls.length;
+  release(); await installation; set.mockRestore();
+  assert.equal(openedBeforePersist, 0, 'opening must wait for the persisted marker');
+  assert.deepEqual(seen, ['installed']);
+  assert.equal((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG], undefined, 'no late install flag remains');
+});
+
+test('an install marker storage failure still opens options for recovery', async () => {
+  const f = await loginFixture();
+  vi.spyOn(f.local, 'set').mockRejectedValueOnce(new Error('storage unavailable'));
+  const open = vi.fn(async () => undefined);
+  Object.assign(chrome.runtime, { openOptionsPage: open });
+  await f.api.onExtensionInstalled({ reason: 'install' });
+  assert.equal(open.mock.calls.length, 1);
+  assert.equal((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG], undefined);
+});
+
+test('an options opening failure keeps the durable install marker for a later document', async () => {
+  const f = await loginFixture();
+  const open = vi.fn(async () => { throw new Error('options unavailable'); });
+  Object.assign(chrome.runtime, { openOptionsPage: open });
+  await f.api.onExtensionInstalled({ reason: 'install' });
+  assert.equal(open.mock.calls.length, 1);
+  assert.equal((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG], 'installed');
+});
+
+test('an extension update neither recreates the welcome marker nor opens options', async () => {
+  const f = await loginFixture();
+  const open = vi.fn(async () => undefined);
+  Object.assign(chrome.runtime, { openOptionsPage: open });
+  await f.api.onExtensionInstalled({ reason: 'update' });
+  assert.equal(open.mock.calls.length, 0);
+  assert.equal((await f.local.get(f.WELCOME_FLAG))[f.WELCOME_FLAG], undefined);
+});
+
 test('a login keeps the Session the lane minted for it', async () => {
   const f = await loginFixture();
   const before = await f.store.fence.capture();

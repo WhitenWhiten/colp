@@ -27,10 +27,11 @@ export async function installFixtureReplicaBinding(page: Page, binding: FixtureR
 export async function openExtensionOptions(
   context: BrowserContext,
   extensionId = EXTENSION_ID,
+  options: { readonly newDocument?: boolean } = {},
 ): Promise<{ worker: Worker; page: Page }> {
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const target = `chrome-extension://${extensionId}/options.html`;
-  const existing = context.pages().find((candidate) => candidate.url().startsWith(target));
+  const existing = options.newDocument ? undefined : context.pages().find((candidate) => candidate.url().startsWith(target));
   const page = existing ?? await context.newPage();
   page.on('dialog', (dialog) => { void dialog.accept(); });
   if (existing) await page.waitForLoadState('domcontentloaded'); else await gotoOptions(page, '', extensionId);
