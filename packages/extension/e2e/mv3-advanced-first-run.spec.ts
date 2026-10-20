@@ -185,7 +185,9 @@ test(`P1-01 rejects a second confirmation after the ${changedSide} tree changes`
     const canonicalBeforeConfirmation = await liveCanonical(stack);
     const rejected = await confirmAdvancedThroughUi(pageB, false);
     expect(rejected.error).toBe('preview_stale');
-    await expect(pageB.locator('#first-run-error')).toContainText('Review it again', { timeout: 30_000 });
+    await expect(pageB.locator('#first-run-error')).toContainText(/Review .*again before confirming/u, { timeout: 30_000 });
+    // The UI loads a fresh preview, but still needs a new explicit confirmation.
+    await expect(pageB.locator('#first-run-advanced-confirm')).toBeEnabled();
     const exported = await evidence<Record<string, unknown>>(pageB, 'exportOutboundPushEvidence');
     expect(exported.advancedPlans ?? []).toEqual([]);
     expect(await liveCanonical(stack)).toEqual(canonicalBeforeConfirmation);
@@ -208,11 +210,17 @@ async function ready(context: BrowserContext, binding: ProfileBinding): Promise<
 async function chooseRoots(page: Page, selectedTitles: readonly string[]): Promise<void> {
   await showOptionsPane(page, 'folders'); await page.getByRole('button', { name: 'Refresh folders' }).click();
   await expect(page.locator('#root-tree .root-row').first()).toBeVisible({ timeout: 30_000 });
+  // First-run defaults cover every writable root. A scenario that selects Bar
+  // alone must explicitly clear Other too, or its sentinel is genuinely in scope.
+  await page.locator('#tree-clear-selection').click();
   for (const title of selectedTitles) {
     const checkbox = page.getByRole('checkbox', { name: title, exact: true });
     await expect(checkbox).toBeVisible({ timeout: 30_000 });
     if (!(await checkbox.isChecked())) await checkbox.click();
   }
+  const selected = await page.locator('#root-tree .root-row[data-depth="0"] .root-select input:checked')
+    .evaluateAll(inputs => inputs.map(input => input.getAttribute('aria-label')));
+  expect(selected.sort()).toEqual([...selectedTitles].sort());
   await expect(page.locator('#first-run-start')).toBeEnabled({ timeout: 30_000 });
 }
 

@@ -23,7 +23,7 @@ const preview = (id: string, excluded: readonly string[] = []): FirstRunPreviewO
 
 afterEach(() => { window.dispatchEvent(new Event('pagehide')); vi.useRealTimers(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
-async function mount(handle: (request: FirstRunRequest) => Promise<unknown>, initialValues: Record<string, unknown> = {}) {
+async function mount(handle: (request: FirstRunRequest) => Promise<unknown>, initialValues: Record<string, unknown> = {}, initialView = rootView) {
   const markup = await readFile('options.html', 'utf8');
   document.body.innerHTML = markup.match(/<body[^>]*>([\s\S]*)<\/body>/u)![1]!.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, '');
   document.body.dataset.library = 'ready';
@@ -36,7 +36,7 @@ async function mount(handle: (request: FirstRunRequest) => Promise<unknown>, ini
     requestPermission: byId('request-bookmark-permission'), folderHeading: byId('folder-heading'),
     folderIntro: byId('folder-intro'), showPane: () => {} });
   await vi.waitFor(() => expect(ui.isRangeActive()).toBe(true));
-  folders.render(rootView);
+  folders.render(initialView);
   await vi.waitFor(() => expect(byId<HTMLButtonElement>('first-run-start').disabled).toBe(false));
   return { ui, folders, sendMessage, values };
 }
@@ -54,4 +54,19 @@ test('a valid root-only bookmark selection remains startable when every child fo
   expect(excludedFolderRefs(byId('root-tree'))).toEqual(['child']);
   expect(input('bar').indeterminate).toBe(true);
   expect(byId<HTMLButtonElement>('first-run-start').disabled).toBe(false);
+});
+
+test('choosing one root after the all-roots default explicitly removes Other from the reviewed boundary', async () => {
+  const f = await mount(async request => request.kind === 'known.firstRun.status'
+    ? { ok: true, firstRun: 'none', phase: 'draft' }
+    : request.kind === 'known.firstRun.preview' ? preview(crypto.randomUUID(), request.excludedRefs) : { ok: false }, {},
+  { ...rootView, roots: rootView.roots.map(row => ({ ...row, selected: row.depth === 0 })) });
+  expect(syncRootRefs(byId('root-tree')).sort()).toEqual(['bar', 'other']);
+  byId('tree-clear-selection').click(); input('bar').click();
+  await vi.waitFor(() => expect(f.sendMessage.mock.calls.at(-1)?.[0]).toMatchObject({
+    kind: 'known.firstRun.preview', selectedRefs: ['bar'], excludedRefs: [],
+  }));
+  expect(input('other').checked).toBe(false);
+  expect(syncRootRefs(byId('root-tree'))).toEqual(['bar']);
+  expect(f.sendMessage.mock.calls.filter(([request]) => request.kind === 'known.firstRun.confirm')).toEqual([]);
 });
