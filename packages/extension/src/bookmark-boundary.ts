@@ -24,7 +24,7 @@ export interface BoundaryScan {
   readonly nestedNormalized: boolean;
   readonly bookmarkCount: number; readonly folderCount: number; readonly skippedCount: number;
   readonly treeDigest: string;
-  readonly warnings: readonly { readonly code: string }[];
+  readonly warnings: readonly { readonly code: string; readonly count?: number }[];
   readonly mounts: readonly PlannedMount[];
   readonly collectionRootDirectBookmarks: 0;
   readonly classifications: ReadonlyMap<string, BoundaryNodeClass>;
@@ -59,7 +59,7 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     const reason = isSpecialRoot || !included ? 'supported' : bookmarkRepresentability({ type: node.kind, title: node.title, url: node.url });
     return reason === 'supported' ? [] : [[node.nativeId, reason] as const];
   }));
-  const warnings: Array<{ readonly code: string }> = [];
+  const warnings: Array<{ readonly code: string; readonly count?: number }> = [];
   if (nestedNormalized) warnings.push({ code: 'nested_normalized' });
   const classifications = new Map<string, BoundaryNodeClass>();
   const digestNodes: Array<Record<string, unknown>> = [];
@@ -75,8 +75,15 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
     else if (excludedHere || !inSelected) classification = 'out-of-boundary';
     else if (unsupported.has(nativeId) || item.ancestorNativeIds.some(id => unsupported.has(id))) {
       classification = 'unsupported';
-      const code = unsupported.get(nativeId);
-      if (code && !warnings.some(warning => warning.code === code)) warnings.push({ code });
+      // An unsupported folder also protects its descendants. Count each local
+      // item once under the first inherited reason, as the diagnostic ledger does.
+      const code = item.ancestorNativeIds.map(id => unsupported.get(id)).find(reason => reason !== undefined)
+        ?? unsupported.get(nativeId);
+      if (code) {
+        const prior = warnings.findIndex(warning => warning.code === code);
+        if (prior < 0) warnings.push({ code, count: 1 });
+        else warnings[prior] = { code, count: (warnings[prior]!.count ?? 0) + 1 };
+      }
     }
     else if (item.isSpecialRoot) classification = 'special-root';
     else classification = 'ordinary-folder';

@@ -221,7 +221,7 @@ export interface ScopePreviewRecord {
   readonly scopeKey: string; readonly previewId: string; readonly boundaryVersion: string;
   readonly treeDigest: string; readonly bookmarkCount: number; readonly folderCount: number;
   readonly skippedCount: number; readonly expiresAt: number;
-  readonly warnings: readonly { readonly code: string }[];
+  readonly warnings: readonly { readonly code: string; readonly count?: number }[];
   readonly boundary: { readonly selectedNativeIds: readonly string[];
     readonly excludedNativeIds: readonly string[];
     readonly mounts: readonly { readonly nativeRootId: string; readonly rootRole?: SpecialFolderRole;

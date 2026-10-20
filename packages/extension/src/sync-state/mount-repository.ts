@@ -349,8 +349,9 @@ function validateScopePreview(key: string, input: unknown, maxBytes: number): Sc
   if (!Array.isArray(boundary.selectedNativeIds) || !Array.isArray(boundary.excludedNativeIds)
       || !Array.isArray(boundary.mounts)) throw new SyncStateError('preview_boundary_invalid');
   const warnings = Array.isArray(value.warnings) ? value.warnings.map((item) => {
-    const row = strictObject(clone(item), ['code'], 'preview warning');
-    return { code: boundedString(row.code, 'warning.code', 128) };
+    const row = strictObject(clone(item), ['code', 'count'], 'preview warning', ['count']);
+    return { code: boundedString(row.code, 'warning.code', 128),
+      ...(row.count === undefined ? {} : { count: safeInteger(row.count, 'warning.count', 1) }) };
   }) : [];
   if (value.kind !== undefined && value.kind !== 'range') throw new SyncStateError('preview_kind_invalid');
   const ids = (input: unknown, label: string) => Array.isArray(input)

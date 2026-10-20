@@ -321,7 +321,7 @@ export type FirstRunPreviewOk = {
   readonly bookmarkCount: number;
   readonly folderCount: number;
   readonly skippedCount: number;
-  readonly warnings: readonly { readonly code: string }[];
+  readonly warnings: readonly { readonly code: string; readonly count?: number }[];
   readonly report?: { readonly matched: number; readonly localOnly: number; readonly remoteOnly: number;
     readonly candidates: number; readonly conflicts: number };
   readonly advanced?: AdvancedFirstRunConfirmation & {
@@ -386,7 +386,7 @@ export interface PublicRangePreview {
   readonly removedCount: number;
   readonly shiftCount: number;
   readonly expiresAt: number;
-  readonly warnings: readonly { readonly code: string }[];
+  readonly warnings: readonly { readonly code: string; readonly count?: number }[];
   readonly shifts: readonly PublicRangeChangeRow[];
   readonly removals: readonly PublicRangeChangeRow[];
 }
