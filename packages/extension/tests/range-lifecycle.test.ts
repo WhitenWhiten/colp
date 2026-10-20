@@ -13,6 +13,11 @@ import { mayMutateNative } from '../src/pull-mount-apply.js';
 import type { ChromeBookmarkNode } from '../src/chrome-bookmark-tree.js';
 import type { RootRequest, RootResponse } from '../src/types.js';
 import type { SyncScope } from '../src/sync-state-store.js';
+import type { RemoteNodeFact } from '../src/bootstrap/matcher.js';
+import { installRejoinHttp, REJOIN_TOKEN, rejoinSession } from './rejoin-http-fixture.js';
+import { MemoryStorageArea } from '../src/credential-store.js';
+import { createAuthorityFence } from '../src/authority-fence.js';
+import { assertQueuedUploadAllowed } from '../src/queued-upload-boundary.js';
 
 // Keep the picker, message handlers, range planner, bootstrap and IndexedDB real.
 // Only the browser and background scheduling are replaced at the process boundary.
@@ -20,12 +25,15 @@ vi.mock('../src/sw/runtime.js', async () => {
   const { IDBFactory } = await import('fake-indexeddb');
   const { createSyncStateStore } = await import('../src/sync-state-store.js');
   const { createAuthorityFence, createExtensionWorkCoordinator } = await import('../src/authority-fence.js');
-  return { syncState: createSyncStateStore({ indexedDB: new IDBFactory() }), sw: { rootViewTokens: undefined },
+  return { syncState: { ...createSyncStateStore({ indexedDB: new IDBFactory() }) }, sw: { rootViewTokens: undefined },
+    store: { loadCredential: async () => ({ accessToken: REJOIN_TOKEN, subject: scope.accountId }),
+      loadSession: async () => rejoinSession(scope) }, extensionOrigin: () => 'chrome-extension://range-test',
     workCoordinator: createExtensionWorkCoordinator(createAuthorityFence({ get: async () => ({}), set: async () => {} })),
     hasBookmarkPermission: async () => permissions.granted, rootScopeKey: (value: unknown) => JSON.stringify(value), DEFAULT_SYNC_FOLDER_TITLE: 'Know-N' };
 });
 const permissions = vi.hoisted(() => ({ granted: true }));
-vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => scope }));
+vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => scope,
+  loadConfig: async () => ({ serverOrigin: scope.serverOrigin, manifestUrl: `${scope.serverOrigin}/manifest.json` }) }));
 vi.mock('../src/sw/bookmarks.js', () => ({
   bookmarkListenerLifecycle: { install: vi.fn() }, recoverBookmarkEvents: vi.fn(),
 }));
@@ -37,6 +45,7 @@ vi.mock('../src/bookmark-subscriptions/store.js', () => ({ subscriptionStore: {
 let scope: SyncScope;
 let raw: ChromeBookmarkNode[];
 let serial = 0;
+let remoteFacts: RemoteNodeFact[] = [];
 const node = (id: string): ChromeBookmarkNode => {
   const visit = (rows: readonly ChromeBookmarkNode[]): ChromeBookmarkNode | undefined => {
     for (const row of rows) { if (row.id === id) return row; const found = visit(row.children ?? []); if (found) return found; }
@@ -52,6 +61,8 @@ beforeEach(async () => {
     browserProfileId: 'profile', collectionId: 'collection', replicaId: 'replica', generation: 1 };
   sw.rootViewTokens = undefined;
   permissions.granted = true;
+  remoteFacts = [];
+  installRejoinHttp(() => scope, () => remoteFacts);
   raw = [{ id: '0', title: '', children: [
     { id: '1', parentId: '0', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [
       { id: '10', parentId: '1', title: 'Novels', children: [
@@ -64,7 +75,7 @@ beforeEach(async () => {
     ] },
     { id: '2', parentId: '0', title: 'Other bookmarks', folderType: 'other', children: [] },
   ] }];
-  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } },
+  vi.stubGlobal('chrome', { storage: { local: new MemoryStorageArea() },
     runtime: { sendMessage: vi.fn((message: RootRequest) => handleRootRequest(message)) },
     bookmarks: { getTree: async () => structuredClone(raw), get: async (id: string) => [structuredClone(node(id))],
       getChildren: async (id: string) => structuredClone(node(id).children ?? []),
@@ -74,7 +85,7 @@ beforeEach(async () => {
   const markup = await readFile('options.html', 'utf8');
   document.body.innerHTML = markup.match(/<body[^>]*>([\s\S]*)<\/body>/u)![1]!.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, '');
 });
-afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterEach(() => { window.dispatchEvent(new Event('pagehide')); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 afterAll(() => syncState.close());
 
 async function seed(mode: 'nested' | 'roots' = 'nested') {
@@ -96,6 +107,11 @@ async function seed(mode: 'nested' | 'roots' = 'nested') {
   });
   await syncState.configureBrowserRoots(scope, { discovered: (await readRootFolders()).discovered,
     selectedNativeIds: selected, privateNativeIds: [], status: 'ready' });
+  remoteFacts = (await syncState.listMappings(scope)).map(row => ({ nodeId: row.colpId,
+    parentId: row.parentColpId ?? null, kind: row.nodeKind === 'bookmark' ? 'bookmark' : 'folder',
+    title: String(row.projection.content?.title ?? ''), revision: row.projection.revision,
+    ...(row.nodeKind === 'bookmark' ? { url: String(row.projection.content?.url) } : { childrenRevision: row.projection.childrenRevision ?? 'children' }),
+    ...(row.rootRole ? { folderRole: row.rootRole } : {}) }));
 }
 
 async function screen() {
@@ -219,8 +235,60 @@ test('excluding and restoring an existing subfolder under a selected parent resu
   expect(element('range-preview-totals').textContent).toContain('1 folder and 1 bookmark will start syncing');
   expect(element('range-add-list').children).toHaveLength(1);
   expect(element('range-add-list').textContent).toContain('Bookmarks bar / Novels');
-  expect(await confirm()).toMatchObject({ ok: true });
+  const restored = await confirm();
+  expect(restored, JSON.stringify(restored)).toMatchObject({ ok: true });
   expect((await syncState.getMountBinding(scope, 'mount-10'))?.status).toBe('active');
+  expect((await syncState.getMappingByNativeId(scope, '11'))?.colpId).toBe('remote-11');
+});
+
+test.each(['crash', 'account-ABA'] as const)('rejoin private-authority %s preserves the reviewed boundary and blocks cancelled uploads after reopen', async fault => {
+  await seed(); const ui = await screen();
+  element('tree-select-level').click(); await ui.review(); expect(await confirm()).toMatchObject({ ok: true });
+  checkbox('Novels').click(); await ui.review(); expect(await confirm()).toMatchObject({ ok: true });
+  Object.assign(node('2'), { children: [...node('2').children!,
+    { id: '22', parentId: '2', title: 'Old other bookmark', url: 'https://example.test/other' }] });
+  const otherMount = (await syncState.listMountBindings(scope)).find(row => row.nativeRootId === '2')!;
+  expect(otherMount).toBeDefined();
+  await syncState.putMapping(scope, { nativeId: '22', colpId: 'remote-22', rootNativeId: '2', mountId: otherMount.mountId,
+    parentNativeId: '2', parentColpId: 'remote-2', nodeKind: 'bookmark', projection: { revision: 'r-22', digest: 'sha256:22',
+      content: { title: 'Old other bookmark', url: 'https://example.test/other' } } });
+  // Retain the authoritative cloud revision while the pending local edit owns
+  // an optimistic mapping; a local revision alone cannot authorize cloud trash.
+  await syncState.putRemoteObservation(scope, { colpId: 'remote-22', remoteRevision: 'r-22', sourceDigest: 'sha256:22',
+    kind: 'content', cursor: 'cursor-other', observedAt: Date.now(),
+    payload: { kind: 'bookmark', title: 'Old other bookmark', url: 'https://example.test/other', parentId: 'remote-2' } });
+  const queue = createBookmarkEventQueue({ scope, store: syncState, api: chrome.bookmarks, autoFlush: false });
+  Object.assign(node('22'), { title: 'Local edit before cancelling this root' });
+  await queue.changed('22', { title: node('22').title }); await queue.flush();
+  const pending = (await syncState.listQueue(scope)).find(row => row.payload.targetId === 'remote-22')!;
+  expect(pending).toBeDefined();
+  ui.folders.render(await loadRootView(scope)); checkbox('Novels').click(); checkbox('Other bookmarks').click(); await ui.review();
+  const advance = syncState.advanceBoundaryCommand.bind(syncState); let interrupted = false;
+  const interruption = vi.spyOn(syncState, 'advanceBoundaryCommand').mockImplementation(async (target, id, patch) => {
+    if (!interrupted && patch.step === 'rejoin-private-authority') {
+      interrupted = true;
+      if (fault === 'crash') throw new Error('worker_crash');
+      const original = scope, fence = createAuthorityFence(chrome.storage.local);
+      scope = { ...scope, accountId: 'another-account' }; await fence.activate();
+      scope = original; await fence.activate();
+    }
+    return advance(target, id, patch);
+  });
+  const result = await confirm();
+  expect(result).toMatchObject({ ok: false, error: 'confirmation_pending', confirmation: { state: 'failed' } });
+  expect(interrupted).toBe(true);
+  expect((await syncState.getScope(scope))?.selectedRoots).toEqual(['remote-1']);
+  expect((await syncState.getScope(scope))?.privateRoots).toEqual([]);
+  expect((await syncState.getMountBinding(scope, otherMount.mountId))?.status).toBe('detached');
+  await expect(assertQueuedUploadAllowed({ scope, store: syncState, queue: pending,
+    parentOf: async id => node(id).parentId })).rejects.toThrow('queued_upload_excluded');
+  expect(await syncState.getQueueByOpId(scope, pending.opId)).toEqual(pending);
+  for (const method of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[method]).not.toHaveBeenCalled();
+  interruption.mockRestore(); syncState.close();
+  expect(await handleRootRequest({ kind: 'known.roots.get' })).toMatchObject({ ok: true });
+  expect((await syncState.getMountBinding(scope, 'mount-10'))?.status).toBe('active');
+  expect((await syncState.getScope(scope))?.selectedRoots).toEqual(['remote-1']);
+  expect(await syncState.listPendingBoundaryCommands(scope)).toEqual([]);
   expect((await syncState.getMappingByNativeId(scope, '11'))?.colpId).toBe('remote-11');
 });
 

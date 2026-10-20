@@ -26,7 +26,9 @@ export interface PreparedRangeCommand {
 
 /** Each step can be replayed after its side effect but before its checkpoint.
  * No transaction spans the native bookmark API. Pending/failed commands retain
- * the boundary until all writes and immutable queue intents are durable. */
+ * the boundary until all writes and immutable queue intents are durable.
+ * Rejoin adds a private-authority checkpoint between mounts and native work;
+ * its intermediate selected roots only narrow the previous authority. */
 export async function executeRangeCommand(scope: SyncScope, admitted: BoundaryCommandRecord,
   preview: ScopePreviewRecord, attempt: BoundaryAttempt,
   crash?: (boundary: string) => void): Promise<void> {
@@ -46,6 +48,23 @@ export async function executeRangeCommand(scope: SyncScope, admitted: BoundaryCo
   await step('mounts', async () => {
     await applyConfirmedRange(syncState, scope, { preview, keepNativeIds: plan.keepNativeIds,
       unmountNativeIds: plan.unmountNativeIds, remoteDeleteNativeIds: plan.deletions.map(row => row.nativeId) });
+  });
+  if (plan.rejoinNativeIds.length) await step('rejoin-private-authority', async () => {
+    // Re-inclusion explicitly revokes the old private selection. Persist that
+    // reviewed change before rejoin validates current authority. Keep only
+    // old roots still covered by the confirmed selection; a cancelled old root
+    // must lose upload authority even if a later rejoin needs user attention.
+    const recorded = await syncState.getScope(scope);
+    const mappings = new Map((await syncState.listMappings(scope)).map(row => [row.colpId, row.nativeId]));
+    const selected = recorded?.selectedRoots.map(id => mappings.get(id)) ?? [];
+    if (selected.some(id => id === undefined)) throw new Error('rejoin_boundary_changed');
+    const { discovered } = await readRootFolders(await attempt.nativeApi(personalTreeApi()));
+    const ancestors = new Map(discovered.map(row => [row.nativeId, row.ancestorNativeIds]));
+    const retained = (selected as string[]).filter(id => [id, ...(ancestors.get(id) ?? [])]
+      .some(ancestor => plan.selectedNativeIds.includes(ancestor)));
+    await attempt.assertCurrent();
+    await syncState.configureBrowserRoots(scope, { discovered, selectedNativeIds: retained,
+      privateNativeIds: plan.privateNativeIds, status: 'ready', expectedBoundaryVersion: command.boundaryVersion });
   });
   for (const nativeId of plan.rejoinNativeIds) await step(`rejoin:${nativeId}`, async () => {
     const mount = (await syncState.listMountBindings(scope)).find(row => row.nativeRootId === nativeId);
