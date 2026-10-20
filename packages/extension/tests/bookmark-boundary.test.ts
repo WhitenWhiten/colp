@@ -64,6 +64,19 @@ describe('scanBoundary', () => {
     assert.ok(!scan.mounts.some((mount) => mount.rootRole === undefined && mount.nativeRootId === 'managed'));
   });
 
+  test('inherited management protects a selected child even when descendants lack their own flag', () => {
+    const roots = [folder('bar', 'Bookmarks bar', [folder('managed', 'Managed ancestor', [
+      folder('child', 'Selectable-looking child', [bookmark('leaf', 'Protected leaf', 'https://example.test/protected')]),
+    ], { managed: true })], { rootKind: 'bookmarks_bar' })];
+    const scan = scanBoundary({ roots, selectedNativeIds: ['child'] });
+    assert.equal(scan.classifications.get('child'), 'managed');
+    assert.equal(scan.classifications.get('leaf'), 'managed');
+    assert.equal(scan.bookmarkCount, 0);
+    assert.equal(scan.folderCount, 0);
+    assert.deepEqual(scan.selectedNativeIds, []);
+    assert.deepEqual(scan.mounts, []);
+  });
+
   test('unsupported remote root roles materialize under other-bookmarks', () => {
     const scan = scanBoundary({
       roots: profileTree(), selectedNativeIds: ['other'], unsupportedRoles: ['mobile-bookmarks'],

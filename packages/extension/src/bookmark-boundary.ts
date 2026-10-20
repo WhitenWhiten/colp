@@ -47,7 +47,9 @@ interface IndexedNode {
 export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
   const indexed = indexTree(input.roots);
   const discovered = new Map(indexed.map((item) => [item.node.nativeId, item.ancestorNativeIds]));
-  const selectedInput = uniqueIds(input.selectedNativeIds).filter((id) => discovered.has(id));
+  const managedRoots = new Set(indexed.filter(item => item.node.managed).map(item => item.node.nativeId));
+  const selectedInput = uniqueIds(input.selectedNativeIds).filter((id) => discovered.has(id)
+    && !managedRoots.has(id) && !discovered.get(id)!.some(ancestor => managedRoots.has(ancestor)));
   const excluded = new Set(uniqueIds(input.excludedNativeIds ?? []).filter((id) => discovered.has(id)));
   const privateLocal = new Set(uniqueIds(input.privateNativeIds ?? []));
   const nestedNormalized = selectedInput.length !== new Set(input.selectedNativeIds).size
@@ -66,7 +68,7 @@ export function scanBoundary(input: ScanBoundaryInput): BoundaryScan {
   let bookmarkCount = 0; let folderCount = 0; let skippedCount = 0;
   for (const item of indexed) {
     const nativeId = item.node.nativeId;
-    const managed = item.node.managed;
+    const managed = item.node.managed || item.ancestorNativeIds.some(id => managedRoots.has(id));
     const excludedHere = folderIsInMount(nativeId, item.ancestorNativeIds, excluded);
     const { selected: inSelected, privateLocal: privateHere } = folderSyncCoverage(nativeId, item.ancestorNativeIds, selected, privateLocal);
     let classification: BoundaryNodeClass;

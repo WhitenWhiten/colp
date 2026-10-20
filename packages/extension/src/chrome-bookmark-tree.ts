@@ -108,16 +108,17 @@ function validateResult(nodes: readonly ChromeBookmarkNode[]) {
   try { const seen = new Set<string>(); return nodes.map((item) => normalize(item, seen, new Set())); }
   catch (error) { throw new BookmarkTreeError('bookmark_tree_corrupt', error instanceof Error ? error.message : 'invalid'); }
 }
-function normalize(value: ChromeBookmarkNode, seen: Set<string>, active: Set<object>): NormalizedBookmarkNode {
+function normalize(value: ChromeBookmarkNode, seen: Set<string>, active: Set<object>, inheritedManaged = false): NormalizedBookmarkNode {
   validateBase(value);
   if (active.has(value)) throw new Error('bookmark_tree_cycle');
   if (seen.has(value.id)) throw new Error('duplicate_native_id');
   seen.add(value.id); active.add(value);
-  const children = (value.children ?? []).map((child) => normalize(child, seen, active));
+  const managed = inheritedManaged || value.unmodifiable === 'managed';
+  const children = (value.children ?? []).map((child) => normalize(child, seen, active, managed));
   active.delete(value);
   const kind = value.type === 'separator' ? 'separator' : typeof value.url === 'string' ? 'bookmark' : 'folder';
   if (kind !== 'folder' && children.length) throw new Error('leaf_has_children');
-  return { nativeId: value.id, title: value.title, kind, managed: value.unmodifiable === 'managed', children,
+  return { nativeId: value.id, title: value.title, kind, managed, children,
     ...(typeof value.syncing === 'boolean' ? { syncing: value.syncing } : {}),
     ...(kind === 'bookmark' && typeof value.url === 'string' ? { url: value.url } : {}) };
 }

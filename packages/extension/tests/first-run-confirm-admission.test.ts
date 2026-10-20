@@ -304,9 +304,12 @@ test.each(['managed', 'private'] as const)('reconnect cannot admit a selected ch
   const beforeNative = structuredClone(tree);
   const view = await loadRootView(scope);
   const child = view.roots.find(row => row.title === 'Selected child')!;
+  if (protection === 'managed') expect(child).toMatchObject({ managed: true, selected: false });
   const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
     selectedRefs: [child.ref], excludedRefs: [] });
   if (preview.ok && 'previewId' in preview) {
+    expect(preview.bookmarkCount).toBe(0);
+    expect(preview.folderCount).toBe(0);
     await handleFirstRunRequest({ kind: 'known.firstRun.confirm', previewId: preview.previewId,
       confirmationId: crypto.randomUUID(), libraryId: scope.collectionId });
   } else expect(preview).toMatchObject({ ok: false });
@@ -317,6 +320,7 @@ test.each(['managed', 'private'] as const)('reconnect cannot admit a selected ch
     && row.projection.revision !== 'local-root')).toEqual([]);
   expect((await syncState.listMountBindings(scope)).filter(row => row.nativeRootId === '11' && row.remoteMountNodeId !== null)).toEqual([]);
   if (protection === 'private') expect((await syncState.getScope(scope))?.privateRoots).toEqual(['private-parent']);
+  else expect((await syncState.getScope(scope))?.selectedRoots).toEqual([]);
   for (const method of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[method]).not.toHaveBeenCalled();
   expect(tree).toEqual(beforeNative);
 });
