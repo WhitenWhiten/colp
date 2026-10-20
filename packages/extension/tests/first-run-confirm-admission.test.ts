@@ -43,7 +43,8 @@ beforeEach(async () => {
   ] }];
   vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}), set: async () => {} } },
     runtime: { sendMessage: vi.fn((request: RootRequest) => handleRootRequest(request)) },
-    bookmarks: { getTree: async () => { if (treeFailure) throw new Error('bookmark service temporarily unavailable'); return structuredClone(tree); } } });
+    bookmarks: { getTree: async () => { if (treeFailure) throw new Error('bookmark service temporarily unavailable'); return structuredClone(tree); },
+      create: vi.fn(), update: vi.fn(), move: vi.fn(), remove: vi.fn(), removeTree: vi.fn() } });
   await syncState.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: Date.now() + 60_000 },
     checkpoint: { serverRevision: 'r0', cursor: 'c0' }, selectedRoots: [], privateRoots: [], rootStatus: 'ready', firstRun: 'completed' });
   const markup = await readFile('options.html', 'utf8');
@@ -51,6 +52,50 @@ beforeEach(async () => {
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 afterAll(() => syncState.close());
+
+test('first-run confirmation recovers selected-root authority after the coordinator persists and the native read fails', async () => {
+  // Existing durable role bindings are already known, while onboarding consent
+  // and the new bootstrap run still belong to this confirmation.
+  for (const [nativeId, role] of [['1', 'bookmarks-bar'], ['2', 'other-bookmarks']] as const) {
+    await syncState.putMapping(scope, { nativeId, colpId: `remote-${nativeId}`, rootNativeId: nativeId,
+      mountId: `mount-${nativeId}`, nodeKind: 'folder', rootRole: role,
+      projection: { revision: `r-${nativeId}`, digest: `sha256:${nativeId}`, content: { folderRole: role } } });
+    await syncState.putMountBinding(scope, { nativeRootId: nativeId, remoteMountNodeId: `remote-${nativeId}`,
+      mountId: `mount-${nativeId}`, rootRole: role, status: 'active', materialized: true, boundaryVersion: '0' });
+  }
+  await syncState.setFirstRun(scope, 'none');
+  const beforeNative = structuredClone(tree);
+  const view = await loadRootView(scope);
+  const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
+    selectedRefs: view.roots.filter(root => root.depth === 0).map(root => root.ref), excludedRefs: [] });
+  if (!preview.ok || !('previewId' in preview)) throw new Error('missing preview');
+  const request = { kind: 'known.firstRun.confirm' as const, previewId: preview.previewId,
+    confirmationId: crypto.randomUUID(), libraryId: scope.collectionId };
+  const read = vi.spyOn(chrome.bookmarks, 'getTree').mockImplementation(async () => {
+    if ((await syncState.listBootstrapRuns(scope)).length) throw new Error('native_tree_temporarily_unavailable');
+    return structuredClone(tree) as chrome.bookmarks.BookmarkTreeNode[];
+  });
+  expect(await handleFirstRunRequest(request)).toEqual({ ok: false, error: 'confirmation_pending' });
+  expect(await syncState.listBootstrapRuns(scope)).toEqual([expect.objectContaining({ confirmationId: request.confirmationId })]);
+  expect(await syncState.getScope(scope)).toMatchObject({ firstRun: 'running', selectedRoots: [], boundaryVersion: '0' });
+  expect((await syncState.getBoundaryCommand(scope, request.confirmationId))?.state).toBe('failed');
+  read.mockRestore(); syncState.close();
+
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.status', confirmationId: request.confirmationId }))
+    .toMatchObject({ ok: true, confirmation: { state: 'committed' } });
+  const recorded = (await syncState.getScope(scope))!;
+  expect([...recorded.selectedRoots].sort()).toEqual(['remote-1', 'remote-2']);
+  const byColp = new Map((await syncState.listMappings(scope)).map(row => [row.colpId, row.nativeId]));
+  expect(recorded.selectedRoots.map(id => byColp.get(id)).sort()).toEqual(['1', '2']);
+  const receipt = (await syncState.getBoundaryCommand(scope, request.confirmationId))!;
+  const queue = await syncState.listQueue(scope);
+  expect(await handleFirstRunRequest(request)).toEqual(receipt.result);
+  expect(await syncState.listBootstrapRuns(scope)).toHaveLength(1);
+  expect(await syncState.listQueue(scope)).toEqual(queue);
+  expect(await syncState.getScope(scope)).toEqual(recorded);
+  expect(tree).toEqual(beforeNative);
+  for (const method of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[method]).not.toHaveBeenCalled();
+});
 
 test('an old first-run preview cannot restore a selection after a newer confirmed boundary cleared it', async () => {
   await syncState.setFirstRun(scope, 'none');
