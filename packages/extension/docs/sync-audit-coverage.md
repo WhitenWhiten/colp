@@ -8,12 +8,15 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 123 executable owners, for 178 total.
+This pass adds 126 executable owners, for 181 total.
 
 The recovery owners include the native content and placement barriers, ordinary range moves,
 and confirmation of an earlier unknown native create after a newer Snapshot. Their behavior
 tests preserve the original native result, current canonical authority, and durable item
 decisions across IDB reopen; a recovered cursor alone is not evidence of correct native state.
+Create, restore, and range materialization adapters are included because they retain distinct
+API receipts, user confirmations, and unresolved results while deciding whether another native
+write is permitted. Their tests exercise actual Chrome-port results and durable recovery.
 
 The manifest capability parser, advanced first-run execution, native event codec, and Reset
 confirmation UI are executable owners too. The generated browser title validator is measured
@@ -53,11 +56,14 @@ of each requested operation and its receipt while bootstrap checks fresh durable
 - `src/personal-sync-fetch.ts`
 - `src/public-server-manifest.ts`
 - `src/pull-child-order.ts`
+- `src/pull-create-evidence.ts`
 - `src/pull-delete-apply.ts`
 - `src/pull-item-set-aside.ts`
 - `src/pull-native-content-barrier.ts`
 - `src/pull-native-snapshot-resume.ts`
+- `src/pull-range-materialize.ts`
 - `src/pull-range-move.ts`
+- `src/pull-restore-apply.ts`
 - `src/push-recovery-barrier.ts`
 - `src/queued-upload-batch-boundary.ts`
 - `src/queued-upload-boundary.ts`
