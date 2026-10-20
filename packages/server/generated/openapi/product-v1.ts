@@ -7527,6 +7527,11 @@ export interface components {
             /** @constant */
             status: "open";
             allowedResolutions: ("server" | "incoming" | "custom" | "both")[];
+            /**
+             * @description Present when no current resolution is executable. The retained conflict remains available for review and a later refresh.
+             * @enum {string}
+             */
+            resolutionBlockedReason?: "node_read_only" | "resource_not_found";
             revision: components["schemas"]["Revision"];
             etag: components["schemas"]["EntityTag"];
             /** Format: date-time */

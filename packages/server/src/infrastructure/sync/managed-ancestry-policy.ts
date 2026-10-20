@@ -1,4 +1,4 @@
-import { sql } from 'kysely';
+import { sql, type RawBuilder } from 'kysely';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 
 /**
@@ -67,6 +67,73 @@ export function assertManagedAncestryWritable(
   }
 }
 
+/** One SELECT snapshot for read-side decisions. Resolution reloads the same
+ * facts under row locks before applying this shared chain and write policy. */
+export function managedAncestrySnapshotSql(input: {
+  readonly collectionId: RawBuilder<string>;
+  readonly startId: RawBuilder<string>;
+  readonly retainedTombstones: RawBuilder<boolean>;
+}): RawBuilder<readonly ManagedAncestryNodeFact[]> {
+  return sql<readonly ManagedAncestryNodeFact[]>`(
+    with recursive ancestry(id, parent_id, is_root, kind, deleted_at, payload_json, depth, path) as (
+      select id, parent_id, is_root, kind, deleted_at, payload_json, 0, array[id]
+      from nodes where collection_id = ${input.collectionId} and id = ${input.startId}
+        and (${input.retainedTombstones} or deleted_at is null)
+      union all
+      select parent.id, parent.parent_id, parent.is_root, parent.kind, parent.deleted_at,
+        parent.payload_json, child.depth + 1, child.path || parent.id
+      from ancestry child
+      join nodes parent on parent.collection_id = ${input.collectionId} and parent.id = child.parent_id
+      where child.depth < 255 and (${input.retainedTombstones} or parent.deleted_at is null)
+        and not parent.id = any(child.path)
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', id, 'parentId', parent_id, 'isRoot', is_root, 'kind', kind,
+      'deleted', deleted_at is not null,
+      'folderRole', case when payload_json->>'folderRole' = 'managed-bookmarks' then 'managed-bookmarks' else null end
+    ) order by depth), '[]'::jsonb) from ancestry
+  )`;
+}
+
+export function managedAncestryWriteBlockedReason(
+  facts: readonly ManagedAncestryNodeFact[],
+  startId: string,
+  capabilities: ManagedAncestryCapabilities,
+  options: { readonly retainedTombstones?: boolean } = {},
+): ManagedAncestryPolicyError['code'] | null {
+  try {
+    assertManagedAncestryWritable(validateManagedAncestryChain(facts, startId, options), capabilities);
+    return null;
+  } catch (error) {
+    if (error instanceof ManagedAncestryPolicyError) return error.code;
+    throw error;
+  }
+}
+
+function validateManagedAncestryChain(
+  facts: readonly ManagedAncestryNodeFact[], startId: string,
+  options: { readonly retainedTombstones?: boolean },
+): readonly ManagedAncestryNodeFact[] {
+  const byId = new Map(facts.map((fact) => [fact.id, fact] as const));
+  const chain: ManagedAncestryNodeFact[] = [];
+  const seen = new Set<string>();
+  let currentId: string | null = startId;
+  while (currentId !== null) {
+    if (seen.has(currentId) || seen.size >= 256) throw new ManagedAncestryPolicyError('resource_not_found');
+    seen.add(currentId);
+    const current = byId.get(currentId);
+    if (!current || (current.deleted && (!options.retainedTombstones || current.isRoot))
+        || (current.id !== startId && current.kind !== 'folder')) {
+      throw new ManagedAncestryPolicyError('resource_not_found');
+    }
+    chain.push(current);
+    if (current.isRoot) break;
+    currentId = current.parentId;
+  }
+  if (chain.at(-1)?.isRoot !== true) throw new ManagedAncestryPolicyError('resource_not_found');
+  return Object.freeze(chain);
+}
+
 /**
  * Loads and locks the closed ancestry chain from startId up to the collection
  * root and returns it ordered from startId (first) to root (last). All returned
@@ -105,21 +172,5 @@ export async function loadLockedManagedAncestryChain(
   ]).where('collection_id', '=', collectionId).where('id', 'in', ids)
     .orderBy('id').forUpdate().execute();
   if (locked.length !== ids.length) throw new ManagedAncestryPolicyError('resource_not_found');
-  const byId = new Map(locked.map((row) => [row.id, row] as const));
-  const chain: ManagedAncestryNodeFact[] = [];
-  const seen = new Set<string>();
-  let currentId: string | null = startId;
-  while (currentId !== null) {
-    if (seen.has(currentId) || seen.size >= 256) throw new ManagedAncestryPolicyError('resource_not_found');
-    seen.add(currentId);
-    const current = byId.get(currentId);
-    if (!current || (current.deleted_at !== null && (!retainedTombstones || current.is_root))) {
-      throw new ManagedAncestryPolicyError('resource_not_found');
-    }
-    chain.push(managedAncestryNodeFact(current));
-    if (current.is_root) break;
-    currentId = current.parent_id;
-  }
-  if (chain.at(-1)?.isRoot !== true) throw new ManagedAncestryPolicyError('resource_not_found');
-  return Object.freeze(chain);
+  return validateManagedAncestryChain(locked.map(managedAncestryNodeFact), startId, options);
 }

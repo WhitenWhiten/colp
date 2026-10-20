@@ -18,12 +18,15 @@ import type { ReportSourceInvalidationOutboxPort } from '../outbox/report-source
 import type { Metrics } from '../telemetry/index.js';
 import { productSyncTrashPorts } from './product-sync-trash-postgres.js';
 import { stableJson } from './product-sync-stable-json.js';
+import { managedAncestrySnapshotSql, managedAncestryWriteBlockedReason } from './managed-ancestry-policy.js';
 
 const CONTRACT_VERSION = '1.10.0';
 const JSON_TYPE = 'application/json; charset=utf-8';
 const CACHE = 'private, no-store';
 export interface ProductSyncCenterPostgresOptions { readonly cursorSecret: string;
   readonly conflictPayloadKeyring: SyncConflictPayloadKeyring;
+  /** Same deployment capability as Sync Push and external conflict resolution. */
+  readonly managedBookmarkWrites?: boolean;
   /** Optional report cache/source-fence fan-out for conflict mutations. */
   readonly reportSourceInvalidation?: ReportSourceInvalidationOutboxPort;
   readonly metrics?: Metrics }
@@ -135,7 +138,11 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
           .onRef('binding.collection_id', '=', 'conflict.collection_id'))
         .selectAll('conflict')
         .select(['binding.lease_generation', 'node.kind as node_kind', 'node.resource_revision as node_revision',
-          'node.deleted_at as node_deleted_at', 'node.payload_json as node_payload'])
+          'node.deleted_at as node_deleted_at', 'node.payload_json as node_payload',
+          'replica.capabilities_json as replica_capabilities'])
+        .select(managedAncestrySnapshotSql({ collectionId: sql.ref<string>('conflict.collection_id'),
+          startId: sql.ref<string>('conflict.target_id'),
+          retainedTombstones: sql<boolean>`node.deleted_at is not null` }).as('managed_ancestry'))
         .where('replica.account_id', '=', accountId).where('conflict.status', '=', 'open');
       if (after) query = query.where((eb) => eb.or([
         eb('conflict.created_at', '<', new Date(after.createdAt)),
@@ -146,11 +153,16 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       return Object.freeze({ items: pageRows.map((conflict) => {
         const decision = readProductConflictDecision(conflict, options.conflictPayloadKeyring,
           conflict.lease_generation, { kind: conflict.node_kind, resourceRevision: conflict.node_revision,
-            deleted: conflict.node_deleted_at !== null, payload: conflict.node_payload });
+            deleted: conflict.node_deleted_at !== null, payload: conflict.node_payload,
+            resolutionWriteBlockedReason: managedAncestryWriteBlockedReason(conflict.managed_ancestry,
+              conflict.target_id, { managedBookmarkWrites: options.managedBookmarkWrites === true,
+                replicaWrite: conflict.replica_capabilities.write === true },
+              { retainedTombstones: conflict.node_deleted_at !== null }) });
         const field = decision.conflictingFields.length === 1 ? decision.conflictingFields[0] ?? null : null;
         return Object.freeze({ id: conflict.conflict_id,
           collectionId: conflict.collection_id, targetId: conflict.target_id, type: decision.type, field,
           status: 'open' as const, allowedResolutions: decision.allowedResolutions, revision: decision.revision,
+          ...(decision.resolutionBlockedReason ? { resolutionBlockedReason: decision.resolutionBlockedReason } : {}),
           etag: `"${decision.revision}"`, createdAt: conflict.created_at.toISOString(), summary: decision.summary }); }), page: Object.freeze({ nextCursor: tail ? encodeCursor({ createdAt: tail.created_at.toISOString(),
           id: tail.conflict_id, limit: pageLimit }, accountId, options.cursorSecret) : null }) }) satisfies ProductConflictPage;
     },
@@ -158,6 +170,7 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       commandScope: `sync-conflict-resolution:${input.conflictId}`, commandId: input.commandId }, input.fingerprint, async () => {
       const result = await resolveProductConflictInTransaction(transaction, input, {
         conflictPayloadKeyring: options.conflictPayloadKeyring,
+        managedBookmarkWrites: options.managedBookmarkWrites === true,
         ...(options.reportSourceInvalidation === undefined ? {} : {
           reportSourceInvalidation: options.reportSourceInvalidation,
         }),

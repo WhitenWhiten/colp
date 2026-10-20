@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { setTimeout } from 'node:timers/promises';
+import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, test } from 'vitest';
 import {
   RESOURCE_PAYLOAD_SCHEMA_VERSION,
@@ -26,6 +27,7 @@ import {
 } from '../../support/postgres-test-runtime.js';
 
 import { createSyncPullCursorKeyring } from '../../../src/modules/sync/index.js';
+import { SyncConflictResolutionError } from '../../../src/modules/sync/index.js';
 
 const ISSUER = 'https://issuer.example';
 const ACCOUNT = 'YkaXNaZYPvsLuArdvoYrIQ';
@@ -280,6 +282,163 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     assert.deepEqual((await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items, []);
   });
 
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'current managed ancestry removes the %s menu choice and both entry points reject without durable side effects', async resolution => {
+      const id = await openConflict(`managed-${resolution}`, `managed-incoming-${resolution}`, 1,
+        'concurrent_field_update', { fullMenu: true, independentDescription: true });
+      const product = productWithManagedWrites(false);
+      const initial = (await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items[0]!;
+      assert.deepEqual(initial.allowedResolutions, ['server', 'incoming', 'custom', 'both']);
+      await moveTargetIntoManagedParent();
+      const before = await resolutionState(id);
+      const commandId = randomUUID();
+      const external = createPostgresSyncConflictResolutionApplication(isolated.runtime.db,
+        { verify: async () => ({ authorizationScopes: ['sync:push'] }) } as never,
+        { conflictPayloadKeyring: KEYRING, managedBookmarkWrites: false });
+      const externalResolve = (revision: string) => external.resolve({ origin: ORIGIN, credential,
+        sessionId, replicaId, collectionId: COLLECTION, conflictId: id,
+        idempotencyKey: `managed-external-${resolution}`, ifMatch: [`"${revision}"`],
+        request: { resolution, baseConflictRevision: revision,
+          ...(resolution === 'custom' ? { value: 'Chosen custom title' } : {}) } } as never);
+      const productResolve = (revision: string, selectedProduct = product) => selectedProduct.execute(ports => ports.resolveConflict({
+        accountId: ACCOUNT, subjectId: SUBJECT, conflictId: id, expectedRevision: revision,
+        commandId, fingerprint: `managed-fingerprint-${resolution}-${revision}`,
+        resolution, ...(resolution === 'custom' ? { value: 'Chosen custom title' } : {}),
+      }));
+      for (const attempt of [() => externalResolve(initial.revision), () => productResolve(initial.revision)]) {
+        await assert.rejects(attempt(), (error: unknown) => error instanceof SyncConflictResolutionError
+          && error.code === 'precondition_failed');
+      }
+      const fresh = (await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items[0]!;
+      assert.deepEqual(fresh.allowedResolutions, []);
+      assert.equal(fresh.resolutionBlockedReason, 'node_read_only');
+      assert.notEqual(fresh.revision, initial.revision);
+      assert.equal(fresh.summary.incoming, initial.summary.incoming);
+      for (const attempt of [() => externalResolve(fresh.revision), () => productResolve(fresh.revision)]) {
+        await assert.rejects(attempt(), (error: unknown) => error instanceof SyncConflictResolutionError
+          && error.code === 'node_read_only');
+      }
+      assert.deepEqual(await resolutionState(id), before,
+        'refused choices keep canonical content, encrypted intent, receipts, lanes, effects and ledger unchanged');
+
+      const enabled = productWithManagedWrites(true);
+      const writable = (await enabled.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items[0]!;
+      assert.deepEqual(writable.allowedResolutions, initial.allowedResolutions);
+      assert.equal(writable.resolutionBlockedReason, undefined);
+      assert.notEqual(writable.revision, fresh.revision);
+      const accepted = await productResolve(writable.revision, enabled);
+      assert.equal(accepted.kind, 'committed');
+      const persisted = (await isolated.runtime.pool.query(`select resolution_result_json,private_payload_ciphertext,
+        private_payload_digest,pull_wire_json from sync_conflicts where conflict_id=$1`, [id])).rows[0];
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [persisted.resolution_result_json.operation.opId])).rows[0].effect_json;
+      assert.equal(effect.node.description, 'Independent offline note', 'the server choice is also a write, not a discarded offline edit');
+      assert.equal(effect.node.title, resolution === 'server' ? 'Target'
+        : resolution === 'custom' ? 'Chosen custom title' : 'Stale-epoch edit');
+      assert.equal(resolution === 'both' ? effect.node.id !== TARGET : effect.node.id === TARGET, true);
+      const canonical = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [effect.node.id])).rows[0].payload_json;
+      assert.equal(canonical.title, effect.node.title);
+      assert.equal(canonical.description, effect.node.description);
+      const after = await resolutionState(id);
+      assert.deepEqual(after.conflict.private_payload_ciphertext, before.conflict.private_payload_ciphertext);
+      assert.equal(after.conflict.private_payload_digest, before.conflict.private_payload_digest);
+      assert.deepEqual(after.conflict.pull_wire_json, before.conflict.pull_wire_json);
+    });
+
+  test('Product managed writes require the retained replica write capability as well as deployment permission', async () => {
+    const id = await openConflict('managed-replica-read-only', 'managed-replica-incoming', 1);
+    await moveTargetIntoManagedParent();
+    await isolated.runtime.pool.query(`update sync_replicas set capabilities_json=jsonb_set(capabilities_json,'{write}','false')
+      where replica_id=$1`, [replicaId]);
+    const product = productWithManagedWrites(true);
+    const decision = (await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items[0]!;
+    assert.deepEqual(decision.allowedResolutions, []);
+    assert.equal(decision.resolutionBlockedReason, 'node_read_only');
+    const before = await resolutionState(id);
+    await assert.rejects(product.execute(ports => ports.resolveConflict({ accountId: ACCOUNT, subjectId: SUBJECT,
+      conflictId: id, expectedRevision: decision.revision, commandId: randomUUID(),
+      fingerprint: 'managed-replica-denied-fingerprint', resolution: 'incoming' })),
+    (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'node_read_only');
+    assert.deepEqual(await resolutionState(id), before);
+  });
+
+  test('a protected deleted chain retains intent and permits only a canonical no-op server dismissal', async () => {
+    const id = await openConflict('managed-tombstone', 'managed-tombstone-incoming', 1,
+      'concurrent_field_update', { fullMenu: true, independentDescription: true });
+    const managedId = await moveTargetIntoManagedParent();
+    // Child-first is required by the real nodes parent/liveness trigger.
+    for (const targetId of [TARGET, managedId]) {
+      await isolated.runtime.pool.query(`update nodes set deleted_at=now(),deleted_commit_ordinal=1,
+        payload_json=jsonb_set(jsonb_set(payload_json,'{deletedAt}',to_jsonb(now())),
+          '{deletedCommitOrdinal}','"1"') where id=$1`, [targetId]);
+    }
+    const product = productWithManagedWrites(false);
+    const decision = (await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items[0]!;
+    assert.deepEqual(decision.allowedResolutions, ['server']);
+    assert.equal(decision.resolutionBlockedReason, undefined);
+    const before = await resolutionState(id);
+    const request = { accountId: ACCOUNT, subjectId: SUBJECT, conflictId: id,
+      expectedRevision: decision.revision, commandId: randomUUID(), fingerprint: 'managed-tombstone-fingerprint' };
+    await assert.rejects(product.execute(ports => ports.resolveConflict({ ...request, resolution: 'incoming' })),
+      (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'node_read_only');
+    assert.deepEqual(await resolutionState(id), before);
+    assert.equal((await product.execute(ports => ports.resolveConflict({ ...request, resolution: 'server' }))).kind, 'committed');
+    const after = await resolutionState(id);
+    assert.deepEqual(after.node, before.node);
+    assert.equal(after.effects, before.effects, 'a server dismissal publishes the resolved Conflict, not a canonical content effect');
+    assert.deepEqual(after.conflict.private_payload_ciphertext, before.conflict.private_payload_ciphertext);
+    assert.equal(after.conflict.private_payload_digest, before.conflict.private_payload_digest);
+    assert.deepEqual(after.conflict.pull_wire_json, before.conflict.pull_wire_json);
+  });
+
+  function productWithManagedWrites(enabled: boolean) {
+    return createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
+      cursorSecret: 'managed-conflict-policy-cursor-secret-long-enough', conflictPayloadKeyring: KEYRING,
+      managedBookmarkWrites: enabled,
+    });
+  }
+
+  async function resolutionState(conflictId: string) {
+    return (await isolated.runtime.pool.query(`select
+      (select to_jsonb(n) from nodes n where n.id=$1) node,
+      (select to_jsonb(c) from sync_conflicts c where c.conflict_id=$2) conflict,
+      (select count(*)::int from sync_conflict_resolution_receipts) receipts,
+      (select count(*)::int from product_command_receipts) product_receipts,
+      (select count(*)::int from sync_resolution_authors) authors,
+      (select count(*)::int from sync_operation_effects) effects,
+      (select count(*)::int from operations) operations,
+      (select count(*)::int from resource_id_ledger) ledger,
+      (select count(*)::int from resource_revisions) revisions,
+      (select count(*)::int from sync_node_revision_history) history,
+      (select count(*)::int from audit_events) audits,
+      (select count(*)::int from outbox_events) outbox,
+      (select count(*)::int from sync_sequence_receipts) sequence_receipts,
+      (select coalesce(jsonb_agg(to_jsonb(l) order by replica_id), '[]') from sync_sequence_lanes l) sequence_lanes,
+      (select commit_ordinal::text from collections where id=$3) commit_ordinal`, [TARGET, conflictId, COLLECTION])).rows[0];
+  }
+
+  async function moveTargetIntoManagedParent() {
+    const id = 'managed-conflict-parent';
+    const now = new Date('2026-08-20T06:03:00Z');
+    const parent = materializeNodePayload({ id, collectionId: COLLECTION, parentId: ROOT,
+      kind: 'folder', isRoot: false, title: 'Managed bookmarks', url: null, description: null,
+      tags: [], visibility: 'inherit', positionToken: 'M', resourceRevision: 'managed-r1',
+      childrenRevision: 'managed-children-r1', createdAt: now, updatedAt: now,
+      deletedAt: null, deletedCommitOrdinal: null });
+    assert.equal(parent.ok, true);
+    await isolated.runtime.pool.query("insert into resource_id_ledger(resource_id,resource_type) values ($1,'node')", [id]);
+    await isolated.runtime.pool.query(`insert into nodes
+      (id,collection_id,parent_id,kind,is_root,title,visibility,position_token,resource_revision,
+        children_revision,created_at,updated_at,payload_json,payload_schema_version,payload_authority_status)
+      values ($1,$2,$3,'folder',false,'Managed bookmarks','inherit','M','managed-r1',
+        'managed-children-r1',$4,$4,$5,$6,'backfilled')`,
+    [id, COLLECTION, ROOT, now, { ...(parent.ok ? parent.payload : {}), folderRole: 'managed-bookmarks' }, RESOURCE_PAYLOAD_SCHEMA_VERSION]);
+    await isolated.runtime.pool.query(`update nodes set parent_id=$2,resource_revision='target-managed-r2',
+      payload_json=jsonb_set(jsonb_set(payload_json,'{parentId}',to_jsonb($2::text)),
+        '{resourceRevision}','"target-managed-r2"') where id=$1`, [TARGET, id]);
+    return id;
+  }
+
   async function resolve(conflictId: string, resolution: 'server' | 'incoming' | 'both' = 'incoming',
     revision = 'conflict-r1'): Promise<{
     outcome: 'resolved' | 'refused'; conflictStatus: string;
@@ -441,7 +600,9 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
   }
 
   /** Inserts a conflict whose private payload is genuinely decryptable. */
-  async function openConflict(conflictId: string, operationId: string, ordinal: number, type: 'concurrent_field_update' | 'delete_update' | 'unprovable_base' = 'concurrent_field_update'): Promise<string> {
+  async function openConflict(conflictId: string, operationId: string, ordinal: number,
+    type: 'concurrent_field_update' | 'delete_update' | 'unprovable_base' = 'concurrent_field_update',
+    options: { readonly fullMenu?: boolean; readonly independentDescription?: boolean } = {}): Promise<string> {
     await isolated.runtime.pool.query(
       "insert into resource_id_ledger(resource_id,resource_type) values ($1,'activity') on conflict do nothing",
       [`${conflictId}-seed`],
@@ -460,15 +621,17 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
       [conflictId],
     );
     const conflictingFields = type === 'delete_update' ? ['/deletedAt'] : type === 'unprovable_base' ? ['/baseRevision'] : ['/title'];
-    const menu = type === 'delete_update' ? ['server'] : type === 'unprovable_base'
+    const menu = type === 'delete_update' ? ['server'] : type === 'unprovable_base' || options.fullMenu
       ? ['server', 'incoming', 'custom', 'both'] : ['server', 'incoming', 'custom'];
     const binding = (await isolated.runtime.pool.query(
       'select lease_generation from sync_session_bindings where session_id = $1', [sessionId],
     )).rows[0];
     const leaseGeneration = String(binding.lease_generation);
     const plaintext = stableJson(type === 'unprovable_base' ? { nodeKind: 'bookmark', base: {}, current: {}, incoming: {} } : {
-      base: { title: 'Target' }, current: { title: 'Target' },
-      incoming: { title: 'Stale-epoch edit' }, nodeKind: 'bookmark',
+      base: { title: 'Target', ...(options.independentDescription ? { description: null } : {}) },
+      current: { title: 'Target', ...(options.independentDescription ? { description: null } : {}) },
+      incoming: { title: 'Stale-epoch edit', ...(options.independentDescription ? { description: 'Independent offline note' } : {}) },
+      nodeKind: 'bookmark',
     }, invalid);
     const encrypted = encryptPrivatePayload(plaintext, KEYRING.active, {
       collectionId: COLLECTION, replicaId, leaseGeneration, sessionId, operationId,

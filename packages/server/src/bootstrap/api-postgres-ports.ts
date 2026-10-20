@@ -306,6 +306,7 @@ export function createApiPostgresAppDependencies(input: {
       productSyncCenterUnitOfWork: createPostgresProductSyncCenterUnitOfWork(database.db, {
         cursorSecret: config.productEditorCursor.current.key,
         conflictPayloadKeyring: config.syncSession.conflictPayloadKeyring,
+        managedBookmarkWrites: config.syncSession.push.managedBookmarkWrites,
         metrics,
         ...(reportSourceInvalidation === undefined ? {} : { reportSourceInvalidation }),
       }),

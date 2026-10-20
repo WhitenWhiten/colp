@@ -4,6 +4,7 @@ import {
   assertManagedAncestryWritable,
   ManagedAncestryPolicyError,
   managedAncestryNodeFact,
+  managedAncestryWriteBlockedReason,
   type ManagedAncestryNodeFact,
 } from '../../../src/infrastructure/sync/managed-ancestry-policy.js';
 
@@ -99,5 +100,30 @@ describe('SYNC-R02 managed ancestry policy guard', () => {
     assert.equal(managedAncestryNodeFact({
       ...row(), is_root: true, parent_id: null,
     }).isRoot, true);
+  });
+
+  test('read snapshots and locked decisions share complete-chain, tombstone and capability rules', () => {
+    const root = fact({ id: 'root', parentId: null, kind: 'folder', isRoot: true });
+    const managed = fact({ id: 'managed', parentId: 'root', kind: 'folder', folderRole: 'managed-bookmarks' });
+    const target = fact({ id: 'target', parentId: 'managed' });
+    const caps = { managedBookmarkWrites: false, replicaWrite: true };
+    assert.equal(managedAncestryWriteBlockedReason([root, target, managed], 'target', caps), 'node_read_only');
+    assert.equal(managedAncestryWriteBlockedReason([root, target, managed], 'target',
+      { managedBookmarkWrites: true, replicaWrite: true }), null);
+    assert.equal(managedAncestryWriteBlockedReason([root, target, managed], 'target',
+      { managedBookmarkWrites: true, replicaWrite: false }), 'node_read_only');
+    const deleted = [root, { ...target, deleted: true }, { ...managed, deleted: true }];
+    assert.equal(managedAncestryWriteBlockedReason(deleted, 'target', caps), 'resource_not_found');
+    assert.equal(managedAncestryWriteBlockedReason(deleted, 'target', caps,
+      { retainedTombstones: true }), 'node_read_only');
+    for (const broken of [[], [target], [root, target, { ...managed, parentId: 'target' }],
+      [root, target, { ...managed, kind: 'bookmark' as const }],
+      [{ ...root, deleted: true }, target, managed]]) {
+      assert.equal(managedAncestryWriteBlockedReason(broken, 'target', caps,
+        { retainedTombstones: true }), 'resource_not_found');
+    }
+    const deep = Array.from({ length: 257 }, (_, index) => fact({ id: `depth-${index}`,
+      parentId: index === 256 ? null : `depth-${index + 1}`, kind: 'folder', isRoot: index === 256 }));
+    assert.equal(managedAncestryWriteBlockedReason(deep, 'depth-0', caps), 'resource_not_found');
   });
 });

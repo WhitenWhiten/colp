@@ -31,7 +31,8 @@ test.each(['server', 'incoming', 'custom'] as const)(
     assert.deepEqual(evaluateSyncNodeUpdate(original.operations[0]!, trusted({}, 'update-node-r1'), current),
       { status: 'conflict', code: 'sync_conflict_pending', fields: ['url'] });
     const decision = planSyncConflictDecision(admission, retained,
-      { kind: 'bookmark', resourceRevision: current.revision, deleted: false, payload: current.payload });
+      { kind: 'bookmark', resourceRevision: current.revision, deleted: false, payload: current.payload,
+        resolutionWriteBlockedReason: null });
     assert.ok(decision.allowedResolutions.includes(resolution));
     const command = validateSyncConflictResolutionCommand({ conflictId: 'conflict', idempotencyKey: 'decision',
       ifMatch: [`"${decision.revision}"`], request: { resolution, baseConflictRevision: decision.revision,

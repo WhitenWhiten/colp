@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { deepEqualSyncMergeValue } from '@know-n/colp/sync';
 import type { Selectable } from 'kysely';
-import { mergeSyncNodeContentFields, SyncConflictResolutionError } from '../../modules/sync/index.js';
+import { mergeSyncNodeContentFields, SyncConflictResolutionError,
+  type ProductConflictResolutionBlockedReason } from '../../modules/sync/index.js';
 import type { SyncConflictTable } from '../database/runtime.js';
 import { executableSyncConflictResolutions } from './sync-conflict-postgres.js';
 import type { PrivateConflictPayload } from './sync-conflict-private-payload.js';
@@ -14,6 +15,7 @@ export interface CurrentConflictNode {
   readonly resourceRevision: string;
   readonly deleted: boolean;
   readonly payload: Readonly<Record<string, unknown>> | null;
+  readonly resolutionWriteBlockedReason: ProductConflictResolutionBlockedReason | null;
 }
 
 function valueAt(payload: Readonly<Record<string, unknown>>, field: string): unknown {
@@ -41,9 +43,17 @@ export function planSyncConflictDecision(admission: Admission, retained: Private
     }
   }
   const type = current.deleted ? 'delete_update' as const : admission.conflict_type;
-  const allowedResolutions = executableSyncConflictResolutions({ ...admission, conflict_type: type },
+  const supported = executableSyncConflictResolutions({ ...admission, conflict_type: type },
     current.kind, current.payload !== null && retainedFields.length > 0);
-  const changed = current.deleted !== (admission.conflict_type === 'delete_update') || current.payload === null
+  const writeBlockedReason = current.resolutionWriteBlockedReason
+    ?? (current.payload === null ? 'resource_not_found' : null);
+  // Live server choices still merge independent incoming fields and emit a
+  // canonical write. Only accepting an existing tombstone is a true no-op.
+  const allowedResolutions = Object.freeze(supported.filter(resolution => writeBlockedReason === null
+    || (current.deleted && resolution === 'server')));
+  const resolutionBlockedReason = allowedResolutions.length === 0 ? writeBlockedReason : null;
+  const changed = writeBlockedReason !== null
+    || current.deleted !== (admission.conflict_type === 'delete_update') || current.payload === null
     || [...relevantFields].some(field => !deepEqualSyncMergeValue(
       valueAt(current.payload!, field), valueAt(retained.current, field)));
   const conflictingFields = Object.freeze([...fields].sort());
@@ -53,9 +63,10 @@ export function planSyncConflictDecision(admission: Admission, retained: Private
   const revision = changed ? `conflict-decision-${createHash('sha256').update(stableJson({
     conflictId: admission.conflict_id, admissionRevision: admission.revision,
     nodeRevision: current.resourceRevision, type, fields: conflictingFields,
-    allowedResolutions,
+    allowedResolutions, writeBlockedReason,
   }, () => { throw new SyncConflictResolutionError('invalid_document'); })).digest('hex').slice(0, 40)}` : admission.revision;
   return Object.freeze({ revision, type, conflictingFields, allowedResolutions,
+    ...(resolutionBlockedReason === null ? {} : { resolutionBlockedReason }),
     summary: Object.freeze({ current: summarizeConflictContent(current.payload, conflictingFields),
       incoming: summarizeConflictContent(retained.incoming, conflictingFields) }) });
 }

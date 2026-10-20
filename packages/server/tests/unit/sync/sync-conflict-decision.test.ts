@@ -13,7 +13,7 @@ const retained: PrivateConflictPayload = { nodeKind: 'bookmark',
   current: { title: 'Server', description: 'Base note' },
   incoming: { title: 'Incoming', description: 'Incoming note' } };
 const original = { kind: 'bookmark' as const, resourceRevision: 'node-r2', deleted: false,
-  payload: { ...retained.current, url: 'https://private.example/never-show' } };
+  payload: { ...retained.current, url: 'https://private.example/never-show' }, resolutionWriteBlockedReason: null };
 
 test('decision fields and revision refresh together after a retained field diverges twice', () => {
   const initial = planSyncConflictDecision(admission, retained, original);

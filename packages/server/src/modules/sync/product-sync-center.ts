@@ -45,8 +45,10 @@ export function productReplicaActivity(input: { readonly status: ProductReplicaS
 }
 export interface ProductSyncStatusView { readonly devices: readonly ProductSyncDeviceView[];
   readonly replicas: readonly ProductSyncReplicaView[] }
+export type ProductConflictResolutionBlockedReason = 'node_read_only' | 'resource_not_found';
 export interface ProductConflictSummary { readonly id: string; readonly collectionId: string; readonly targetId: string;
   readonly type: string; readonly field: string | null; readonly status: 'open';
+  readonly resolutionBlockedReason?: ProductConflictResolutionBlockedReason;
   readonly allowedResolutions: readonly ('server'|'incoming'|'custom'|'both')[]; readonly revision: string;
   readonly etag: string; readonly createdAt: string; readonly summary: { readonly current: string | null; readonly incoming: string | null } }
 export interface ProductConflictPage { readonly items: readonly ProductConflictSummary[];

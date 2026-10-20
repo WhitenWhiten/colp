@@ -176,13 +176,32 @@ async function resolveInTransaction(
   const privatePayload = decryptPrivatePayload(
     conflict, options.conflictPayloadKeyring, current.kind, conflictBinding.lease_generation,
   );
+  const managedCapabilities = {
+    managedBookmarkWrites: options.managedBookmarkWrites === true,
+    replicaWrite: authority.replicaWrite ?? await conflictReplicaWriteCapability(transaction, conflict.replica_id),
+  };
+  let resolutionWriteBlockedReason: ManagedAncestryPolicyError['code'] | null = null;
+  try {
+    const chain = await loadLockedManagedAncestryChain(transaction, input.collectionId, current.id,
+      { retainedTombstones: current.deleted_at !== null });
+    assertManagedAncestryWritable(chain, managedCapabilities);
+  } catch (error) {
+    if (!(error instanceof ManagedAncestryPolicyError)) throw error;
+    resolutionWriteBlockedReason = error.code;
+  }
   const decision = planSyncConflictDecision(conflict, privatePayload, {
     kind: current.kind, resourceRevision: current.resource_revision,
-    deleted: current.deleted_at !== null, payload: current.payload_json,
+    deleted: current.deleted_at !== null, payload: current.payload_json, resolutionWriteBlockedReason,
   });
   if (decision.revision !== command.conflictRevision) deny('precondition_failed', decision.revision);
   const executable = decision.allowedResolutions;
-  if (!executable.includes(command.resolution)) deny('unsupported_operation');
+  if (!executable.includes(command.resolution)) {
+    if (decision.resolutionBlockedReason) deny(decision.resolutionBlockedReason);
+    if (resolutionWriteBlockedReason && !(current.deleted_at !== null && command.resolution === 'server')) {
+      deny(resolutionWriteBlockedReason);
+    }
+    deny('unsupported_operation');
+  }
 
   await transaction.insertInto('sync_conflict_resolution_receipts').values({
     principal_id: authority.accountId,
@@ -226,20 +245,6 @@ async function resolveInTransaction(
       deny('unsupported_operation');
     }
     if (recoveringDeleted && Object.keys(privatePayload.incoming).length === 0) deny('unsupported_operation');
-    // SYNC-R02: lock the inherited parent-to-root chain and enforce the
-    // managed-bookmarks policy before any ledger claim or mutation.
-    const parentChain = await loadLockedManagedAncestryChain(
-      transaction, input.collectionId, recoveringDeleted ? current.id : current.parent_id!,
-      { retainedTombstones: recoveringDeleted },
-    );
-    if (parentChain.some((fact) => fact.id !== current.id && fact.kind !== 'folder')) deny('resource_not_found');
-    const managedCapabilities = {
-      managedBookmarkWrites: options.managedBookmarkWrites === true,
-      replicaWrite: authority.replicaWrite ?? await conflictReplicaWriteCapability(
-        transaction, conflict.replica_id,
-      ),
-    };
-    assertManagedAncestryWritable(parentChain, managedCapabilities);
     let parentId = current.parent_id!;
     if (recoveringDeleted) {
       const collection = await transaction.selectFrom('collections').select('root_node_id')
