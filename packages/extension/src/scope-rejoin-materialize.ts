@@ -1,4 +1,5 @@
 import { occupancyByNative } from './projection-native-occupancy.js';
+import { parentFirst, remoteDescendantIds } from './scope-rejoin-members.js';
 import { executeNativeCreate } from './native-create-executor.js';
 import { isNonChromeNativeId, UNMOUNTED_PREFIX } from './pull-mount-apply.js';
 import { scopeKey } from './sync-state/scope-key.js';
@@ -11,14 +12,14 @@ type Input = RejoinChrome & { store: Store; scope: SyncScope; mount: MountBindin
 
 /** Authoritative remote members include `unmounted:*` descendants of the mount remote id. */
 export function rejoinMemberMappings(all: readonly MappingInput[], mount: MountBindingRecord): MappingInput[] {
-  const byColp = mapByColp(all);
+  const descendants = remoteDescendantIds(all, mount.remoteMountNodeId);
   return all.filter((row) => row.mountId === mount.mountId || row.rootNativeId === mount.nativeRootId
-    || isUnmountedRemoteMember(row, mount, byColp));
+    || isUnmountedRemoteMember(row, mount, descendants));
 }
 
 export function unmountedRejoinMembers(all: readonly MappingInput[], mount: MountBindingRecord): MappingInput[] {
-  const byColp = mapByColp(all);
-  return all.filter((row) => isUnmountedRemoteMember(row, mount, byColp));
+  const descendants = remoteDescendantIds(all, mount.remoteMountNodeId);
+  return all.filter((row) => isUnmountedRemoteMember(row, mount, descendants));
 }
 
 export async function materializeUnmountedRejoinMembers(input: Input, all: readonly MappingInput[]): Promise<{
@@ -51,40 +52,10 @@ export async function materializeUnmountedRejoinMembers(input: Input, all: reado
 }
 
 function isUnmountedRemoteMember(mapping: MappingInput, mount: MountBindingRecord,
-  byColp: Map<string, MappingInput>): boolean {
+  descendants: ReadonlySet<string>): boolean {
   if (!mapping.nativeId.startsWith(UNMOUNTED_PREFIX) || !mount.remoteMountNodeId) return false;
   if (mapping.colpId === mount.remoteMountNodeId) return false;
-  return ancestorColpReaches(mapping.parentColpId, mount.remoteMountNodeId, byColp);
-}
-
-function ancestorColpReaches(start: string | undefined, ancestor: string, byColp: Map<string, MappingInput>): boolean {
-  const seen = new Set<string>();
-  let current = start;
-  while (current) {
-    if (current === ancestor) return true;
-    if (seen.has(current)) return false;
-    seen.add(current);
-    current = byColp.get(current)?.parentColpId;
-  }
-  return false;
-}
-
-function parentFirst(rows: readonly MappingInput[], remoteMountNodeId: string | null): MappingInput[] {
-  const remaining = new Set(rows);
-  const ordered: MappingInput[] = [];
-  while (remaining.size) {
-    const ready = [...remaining].filter((row) => {
-      const parent = row.parentColpId;
-      return !parent || parent === remoteMountNodeId || ![...remaining].some((other) => other.colpId === parent);
-    }).sort((left, right) => folderRank(left) - folderRank(right) || left.colpId.localeCompare(right.colpId));
-    if (!ready.length) { ordered.push(...remaining); break; }
-    for (const row of ready) { remaining.delete(row); ordered.push(row); }
-  }
-  return ordered;
-}
-
-function folderRank(mapping: MappingInput): number {
-  return mapping.nodeKind === 'folder' ? 0 : 1;
+  return descendants.has(mapping.colpId);
 }
 
 async function liveParentNativeId(input: Input, mapping: MappingInput,
