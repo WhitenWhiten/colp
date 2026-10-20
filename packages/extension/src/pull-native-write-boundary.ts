@@ -5,6 +5,7 @@ import { virtualNativeId } from './projection-native-occupancy.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import type { PullApplierOptions, PullBookmarkApi } from './pull-applier-types.js';
 import type { JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { LocalSyncExclusionRecord } from './sync-state/remote-delete-repository.js';
 
 export type NativeWriteBoundaryStore = Pick<ReturnType<typeof createSyncStateStore>,
   'getScope' | 'listMountBindings' | 'getMappingByColpId' | 'getMappingByNativeId'
@@ -17,6 +18,9 @@ interface Input {
   readonly preimage: BookmarkNode;
   readonly parent?: true;
   readonly children?: readonly BookmarkNode[];
+  /** Only the delete owner may prove that an existing Snapshot hold is now
+   * covered by the user's exact, still-current explicit delete decision. */
+  readonly canDeleteExcluded?: (exclusion: LocalSyncExclusionRecord) => Promise<boolean>;
 }
 
 /** Carry the original decision through subscription/policy admission. The
@@ -35,7 +39,8 @@ export async function prepareNativeWriteCheck(input: Input): Promise<NativeWrite
     while (nativeId !== undefined) {
       if (seen.has(nativeId) || seen.size >= 256 || current.privateNativeIds.has(nativeId)) denied();
       seen.add(nativeId);
-      if (await input.store.getLocalSyncExclusion(input.scope, nativeId)) denied();
+      const exclusion = await input.store.getLocalSyncExclusion(input.scope, nativeId);
+      if (exclusion && !await input.canDeleteExcluded?.(exclusion)) denied();
       const node = await readNative(input.api, nativeId);
       if (node.unmodifiable || input.parent && nativeId === input.mapping.nativeId && node.url !== undefined) denied();
       if (nativeId === current.rootNativeId) reachedRoot = true;

@@ -73,6 +73,7 @@ export async function applyRemoteDeletion(input: {
   const members: DeleteMember[] = mappings.map((row) => ({ colpId: row.colpId, nativeId: row.nativeId }));
   const outcome = await executeRemoteDeleteMembers({
     store, scope, api, mounts, intentId: `intent:${input.eventId}`, members, mappings, writable,
+    ...(decision?.state === 'applying' ? { confirmedDecision: decision } : {}),
     ...(decision?.state === 'applying' ? {} : {
       retainLocalWork: (mapping: MappingInput, native: { readonly title?: string; readonly url?: string }) =>
         hasUnsettledDeleteEdits(store, scope, mapping, native),
