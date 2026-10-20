@@ -28,12 +28,44 @@ reports, metrics, owners or floors fail the gate.
 
 The three new pure owners always require 80% on all four metrics. The eight
 existing transaction owners use the explicit ratchet in
-`scripts/sync-audit-coverage-baseline.json`. At initial collector introduction,
-their floors and measurement provenance are intentionally `null`: there has
-not yet been a passing combined real-PG coverage run. **The gate must fail
-while those baselines are unmeasured.** Zero or guessed floors are rejected.
+`scripts/sync-audit-coverage-baseline.json`. Zero, missing or unmeasured floors
+are rejected; a failed test run cannot establish a baseline.
 
-## Complete the initial transaction ratchet
+## First passing measurement
+
+[Actions run 39447653980](https://github.com/WhitenWhiten/colp/actions/runs/39447653980)
+ran the combined collector at commit
+`b07a2b4dc345c82e9ca9666410fd822f89407b03` on 2026-10-20. All **21 selected
+files and 255 tests passed** in 197.63 seconds, including all four real
+PostgreSQL files. The temporary measurement workflow used the production/test
+tree from `b9e8cf49421d6550980c0cbbcbcf05df946f7b1a`; its only additional file
+was that workflow. The measurement workflow has since been removed. This
+includes the empty-title Snapshot positive case with a bootstrap grant and its
+negative control without that grant.
+
+The collector step succeeded. Its checker step still failed on the deliberately
+unset initial transaction floors. The following first floors are exactly the
+reported per-file percentages from that passing test run, with no estimate or
+downward adjustment. The ordinary PR coverage job must now collect and check
+these committed floors; this measurement does not claim that a later PR head
+has already passed its gate.
+
+| Transaction owner (under `src/`) | Statements | Branches | Functions | Lines |
+| --- | ---: | ---: | ---: | ---: |
+| `modules/sync/sync-node-update.ts` | 87.64 | 85.47 | 100 | 94.85 |
+| `modules/sync/sync-node-restore.ts` | 92.59 | 93.33 | 100 | 100 |
+| `infrastructure/sync/sync-conflict-postgres.ts` | 85.56 | 82.11 | 93.54 | 91.09 |
+| `infrastructure/sync/sync-conflict-resolution-postgres.ts` | 82.83 | 79.90 | 96.15 | 95.38 |
+| `infrastructure/sync/product-sync-center-postgres.ts` | 89.54 | 87.41 | 92.30 | 94.11 |
+| `infrastructure/sync/managed-ancestry-policy.ts` | 91.11 | 88.23 | 100 | 97.14 |
+| `infrastructure/sync/sync-node-restore-postgres.ts` | 88.04 | 74.39 | 100 | 93.15 |
+| `infrastructure/sync/postgres/sync-push-create-update-postgres.ts` | 84.03 | 66.98 | 93.33 | 88.57 |
+
+The three pure owners retain their existing 80% floor for every metric. This is
+a measured non-regression floor for the listed transaction paths, not a claim
+that every transaction path has reached 80% branch coverage.
+
+## Maintain the transaction ratchet
 
 1. Run the collector in CI and inspect the uploaded `server-sync-audit-coverage`
    artifact. Keep `test-results.json`, both V8 reports and
