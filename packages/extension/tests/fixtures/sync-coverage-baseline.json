@@ -492,6 +492,12 @@
       "functions": 80,
       "statements": 80
     },
+    "src/queued-upload-batch-boundary.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/queued-upload-boundary.ts": {
       "lines": 80,
       "branches": 80,
@@ -673,6 +679,12 @@
       "statements": 80
     },
     "src/snapshot-mounted-deletes.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/snapshot-native-boundary.ts": {
       "lines": 80,
       "branches": 80,
       "functions": 80,
@@ -871,6 +883,12 @@
       "statements": 80
     },
     "src/sync-state/queue-live-work.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/sync-state/queued-upload-boundary-repository.ts": {
       "lines": 80,
       "branches": 80,
       "functions": 80,

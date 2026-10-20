@@ -8,7 +8,7 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 99 executable owners, for 154 total.
+This pass adds 102 executable owners, for 157 total.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
@@ -36,6 +36,7 @@ This pass adds 99 executable owners, for 154 total.
 - `src/pull-child-order.ts`
 - `src/pull-delete-apply.ts`
 - `src/push-recovery-barrier.ts`
+- `src/queued-upload-batch-boundary.ts`
 - `src/queued-upload-boundary.ts`
 - `src/range-confirmation-session.ts`
 - `src/range-ui.ts`
@@ -67,6 +68,7 @@ This pass adds 99 executable owners, for 154 total.
 - `src/service-worker.ts`
 - `src/snapshot-create-boundary.ts`
 - `src/snapshot-mounted-deletes.ts`
+- `src/snapshot-native-boundary.ts`
 - `src/sw/advanced-first-run.ts`
 - `src/sw/auth.ts`
 - `src/sw/bookmarks.ts`
@@ -100,6 +102,7 @@ This pass adds 99 executable owners, for 154 total.
 - `src/sync-state/queue-hold.ts`
 - `src/sync-state/queue-issue-repository.ts`
 - `src/sync-state/queue-live-work.ts`
+- `src/sync-state/queued-upload-boundary-repository.ts`
 - `src/sync-state/recovery-repository.ts`
 - `src/sync-state/rejoin-decision-repository.ts`
 - `src/sync-state/rejoin-queue-resolution.ts`
