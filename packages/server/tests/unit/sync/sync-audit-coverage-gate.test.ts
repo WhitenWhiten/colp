@@ -23,7 +23,7 @@ function fixture() {
     { s: { 0: 1 }, b: { 0: [1, 0] }, f: { 0: 1 } }]));
   const baseline = { schemaVersion: 1, measuredAtCommit: 'f'.repeat(40),
     measurementRun: 'https://github.com/synthetic/fixture/actions/runs/1',
-    minimums: Object.fromEntries(SYNC_AUDIT_OWNERS.filter(owner => owner.kind === 'transaction')
+    minimums: Object.fromEntries(SYNC_AUDIT_OWNERS.filter(owner => owner.kind === 'transaction' && owner.minimum === undefined)
       .map(owner => [owner.path, Object.fromEntries(SYNC_AUDIT_METRICS.map(metric => [metric, 80]))])) };
   const testResults = { success: true, testResults: [...SYNC_AUDIT_UNIT_TESTS, ...SYNC_AUDIT_POSTGRES_TESTS]
     .map(file => ({ name: resolve(root, file), status: 'passed', assertionResults: [{ status: 'passed' }] })) };
@@ -35,7 +35,7 @@ test('four metrics per owner pass only with complete unit and PostgreSQL executi
   assert.deepEqual(result.errors, []);
   assert.equal(result.passed, true);
   assert.equal(result.passedUnitFiles, SYNC_AUDIT_UNIT_TESTS.length);
-  assert.equal(result.passedPostgresFiles, 4);
+  assert.equal(result.passedPostgresFiles, 7);
 });
 
 test.each(SYNC_AUDIT_METRICS)('a below-floor %s metric fails even when the other metrics pass', metric => {
@@ -44,6 +44,26 @@ test.each(SYNC_AUDIT_METRICS)('a below-floor %s metric fails even when the other
   const result = inspectSyncAuditCoverage(input);
   assert.equal(result.passed, false);
   assert.ok(result.errors.some(error => error.includes(`${metric} 79% is below 80%`)));
+});
+
+test.each(SYNC_AUDIT_METRICS)('new retirement transaction %s coverage requires 80 without a legacy floor', metric => {
+  const input = fixture();
+  const owner = SYNC_AUDIT_OWNERS.find(owner => owner.path.endsWith('/sync-retire-reauthorization-postgres.ts'))!;
+  assert.equal(owner.kind, 'transaction');
+  assert.equal(input.baseline.minimums[owner.path], undefined);
+  input.summary[resolve(root, owner.path)]![metric] = { total: 100, covered: 79, skipped: 0, pct: 79 };
+  assert.ok(inspectSyncAuditCoverage(input).errors.some(error => error.includes(`${owner.path}: ${metric} 79% is below 80%`)));
+  assert.equal(inspectSyncAuditCoverage({ ...fixture(), owners: SYNC_AUDIT_OWNERS
+    .map(value => value === owner ? { ...value, minimum: 1 } : value) }).passed, false);
+});
+
+test('retirement execution is required even when the original four PG files still pass', () => {
+  const input = fixture();
+  input.testResults.testResults = input.testResults.testResults.filter(file => !file.name.includes('/sync-retire-'));
+  const result = inspectSyncAuditCoverage(input);
+  assert.equal(result.passed, false);
+  assert.equal(result.passedPostgresFiles, 4);
+  assert.equal(result.errors.filter(error => error.includes('tests/integration/sync/sync-retire-')).length, 3);
 });
 
 test('a removed owner, absent final report, and absent metric all fail closed', () => {
@@ -74,7 +94,7 @@ test.each(['absent', 'pending', 'failed', 'empty'] as const)('a %s PostgreSQL su
   else pg.assertionResults[0]!.status = mode;
   const result = inspectSyncAuditCoverage(input);
   assert.equal(result.passed, false);
-  assert.equal(result.passedPostgresFiles, 3);
+  assert.equal(result.passedPostgresFiles, 6);
   assert.ok(result.errors.some(error => error.includes('did not fully execute and pass')));
 });
 

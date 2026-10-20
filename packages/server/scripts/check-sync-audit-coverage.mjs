@@ -14,13 +14,16 @@ const keyedPaths = (report, root) => new Map(Object.entries(report ?? {})
 export function inspectSyncAuditCoverage({ summary, coverage, testResults, baseline, root = serverRoot,
   owners = SYNC_AUDIT_OWNERS, unitTests = SYNC_AUDIT_UNIT_TESTS, postgresTests = SYNC_AUDIT_POSTGRES_TESTS }) {
   const errors = [], measurements = {};
-  if (owners.length !== 11 || owners.filter(owner => owner.kind === 'pure').length !== 3
-    || owners.filter(owner => owner.kind === 'transaction').length !== 8
-    || new Set(owners.map(owner => owner.path)).size !== owners.length) errors.push('Invalid eleven-owner audit scope');
+  if (owners.length !== 12 || owners.filter(owner => owner.kind === 'pure').length !== 3
+    || owners.filter(owner => owner.kind === 'transaction').length !== 9
+    || owners.filter(owner => owner.kind === 'transaction' && owner.minimum === 80).length !== 1
+    || owners.some(owner => owner.minimum !== undefined && owner.minimum !== 80)
+    || new Set(owners.map(owner => owner.path)).size !== owners.length) errors.push('Invalid twelve-owner audit scope');
   const summaries = keyedPaths(summary, root), covered = keyedPaths(coverage, root);
-  const transactionPaths = owners.filter(owner => owner.kind === 'transaction').map(owner => owner.path).sort();
+  const transactionPaths = owners.filter(owner => owner.kind === 'transaction' && owner.minimum === undefined)
+    .map(owner => owner.path).sort();
   if (baseline?.schemaVersion !== 1 || JSON.stringify(Object.keys(baseline?.minimums ?? {}).sort()) !== JSON.stringify(transactionPaths)) {
-    errors.push('Transaction baseline must name every current transaction owner exactly once');
+    errors.push('Transaction baseline must name every current transaction owner using a measured ratchet exactly once');
   }
   if (!/^[0-9a-f]{40}$/u.test(baseline?.measuredAtCommit ?? '')
     || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/actions\/runs\/\d+$/u.test(baseline?.measurementRun ?? '')) {
@@ -44,7 +47,7 @@ export function inspectSyncAuditCoverage({ summary, coverage, testResults, basel
         continue;
       }
       measurements[owner.path][metric] = value.pct;
-      const minimum = owner.kind === 'pure' ? 80 : baseline?.minimums?.[owner.path]?.[metric];
+      const minimum = owner.kind === 'pure' || owner.minimum === 80 ? 80 : baseline?.minimums?.[owner.path]?.[metric];
       if (!Number.isFinite(minimum) || minimum <= 0 || minimum > 100) {
         errors.push(`Unmeasured or invalid non-zero ${metric} floor: ${owner.path}`);
       } else if (value.pct < minimum) errors.push(`${owner.path}: ${metric} ${value.pct}% is below ${minimum}%`);
@@ -56,7 +59,7 @@ export function inspectSyncAuditCoverage({ summary, coverage, testResults, basel
     return result?.status === 'passed' && Array.isArray(result.assertionResults)
       && result.assertionResults.length > 0 && result.assertionResults.every(assertion => assertion.status === 'passed');
   };
-  if (unitTests.length === 0 || postgresTests.length !== 4) errors.push('Audit execution requires unit tests and all four real PostgreSQL files');
+  if (unitTests.length === 0 || postgresTests.length !== 7) errors.push('Audit execution requires unit tests and all seven real PostgreSQL files');
   if (testResults?.success !== true) errors.push('The combined unit+PostgreSQL run did not pass');
   for (const file of [...unitTests, ...postgresTests]) {
     if (!existsSync(resolve(root, file))) errors.push(`Missing selected test file: ${file}`);

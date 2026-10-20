@@ -1,8 +1,8 @@
 # Current sync-audit coverage
 
 The current gate is `server-sync-audit-coverage` in `colp-ci.yml`. It collects
-V8 coverage from 17 current unit files and four real PostgreSQL files in one
-Vitest run. The exact eleven owners and test files are in
+V8 coverage from 18 current unit files and seven real PostgreSQL files in one
+Vitest run. The exact twelve owners and test files are in
 `scripts/sync-audit-coverage-scope.mjs`. It is a bounded sync audit, not coverage
 of the complete server. The six existing PostgreSQL shards still run unchanged.
 
@@ -30,6 +30,20 @@ The three new pure owners always require 80% on all four metrics. The eight
 existing transaction owners use the explicit ratchet in
 `scripts/sync-audit-coverage-baseline.json`. Zero, missing or unmeasured floors
 are rejected; a failed test run cannot establish a baseline.
+
+The new `infrastructure/sync/sync-retire-reauthorization-postgres.ts` transaction
+owner also requires 80% on all four metrics. Its fixed new-owner minimum is
+declared in the scope catalog; it is not an entry in the eight-owner historical
+measurement. The collector now includes the retirement HTTP unit suite and
+all three real PostgreSQL retirement suites (reauthorization, Session liveness
+and effect-page retirement). Missing or skipped retirement suites fail the
+same execution gate, even if all earlier audit suites pass.
+
+[Actions run 39457764063](https://github.com/WhitenWhiten/colp/actions/runs/39457764063)
+executed those three PostgreSQL files with **31 passing tests** at source
+`3044c8dc` (published tree `ed598123`). That was functional evidence without
+V8 collection for this owner. Its four-metric coverage remains to be measured
+by this expanded collector; the new 80% policy is not a claimed measurement.
 
 ## First passing measurement
 
@@ -70,7 +84,7 @@ that every transaction path has reached 80% branch coverage.
 1. Run the collector in CI and inspect the uploaded `server-sync-audit-coverage`
    artifact. Keep `test-results.json`, both V8 reports and
    `audit-measurement.json` together. A failed test run is not a baseline.
-2. Once all 21 selected files actually pass, inspect each transaction owner's
+2. Once all 25 currently selected files actually pass, inspect each transaction owner's
    four measured percentages. Add focused behavioral tests if a metric is zero.
 3. Commit non-zero per-file floors no higher than the observed measurement,
    recording the actual 40-character measured commit and Actions run URL.
