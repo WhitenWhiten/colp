@@ -174,7 +174,14 @@ export async function loadRootView(scope: SyncScope, preselectFolderId?: string)
       ...(flagged ? { preselected: true as const } : {}),
       ...(node.managed ? { exclusionReason: 'managed' as const } : {}) };
   });
-  const viewId = crypto.randomUUID(); sw.rootViewTokens = { viewId, scopeKey: rootScopeKey(scope), entries: tokens };
+  // This token versions discovered folder identities, not a particular tab.
+  // Opening another options page with the same tree must not revoke the first
+  // page's ability to preview its selection. Confirmation still checks the
+  // durable boundary version and the complete preview digest.
+  const previous = sw.rootViewTokens;
+  const viewId = previous?.scopeKey === rootScopeKey(scope)
+    && sameDiscovered(discovered, [...previous.entries.values()]) ? previous.viewId : crypto.randomUUID();
+  sw.rootViewTokens = { viewId, scopeKey: rootScopeKey(scope), entries: tokens };
   return { viewId, status: authority.rootStatus, roots };
 }
 

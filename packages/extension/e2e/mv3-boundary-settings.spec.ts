@@ -58,9 +58,16 @@ test('an older options-page confirmation and a replay after worker restart canno
     const roots = await specialRoots(pageA);
     await pageA.evaluate(parentId => chrome.bookmarks.create({ parentId,
       title: 'Boundary admission bookmark', url: 'https://example.test/boundary-admission' }), roots.barId);
+    const firstView = await pageA.evaluate(async () => chrome.runtime.sendMessage({ kind: 'known.roots.get' })) as {
+      view: { viewId: string; roots: { ref: string; depth: number }[] } };
     const oldPreview = await previewFirstRun(pageA, [roots.barTitle, roots.otherTitle]);
     const pageB = await optionsPage(context); await showOptionsPane(pageB, 'folders');
     await expect(pageB.locator('#first-run-start')).toBeEnabled({ timeout: 15_000 });
+    const stillUsable = await pageA.evaluate(async view => chrome.runtime.sendMessage({
+      kind: 'known.firstRun.preview', viewId: view.viewId,
+      selectedRefs: view.roots.filter(root => root.depth === 0).map(root => root.ref), excludedRefs: [],
+    }), firstView.view);
+    expect(stillUsable).toMatchObject({ ok: true });
     await pageB.locator('#first-run-start').click();
     await waitFirstRunProductQuiet(pageB, stack, KNS08_BINDINGS[0]);
     await pageB.reload(); await showOptionsPane(pageB, 'folders');
