@@ -10,6 +10,8 @@ import { openExtensionOptions, signInExtension, showOptionsPane } from './extens
 import { FIXTURE_COLLECTION_ID } from './fixture-ids.js';
 import { confirmFirstRun, specialRoots, waitFirstRunProductQuiet } from './kns-08-harness.js';
 import { withSyncFailureDetails } from './sync-failure-diagnostics.js';
+import type { BoundaryCommandRecord } from '../src/sync-state-store.js';
+import type { PublicRootView } from '../src/types.js';
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const PRIVATE_TITLE = 'PRIVATE-LOCAL-SENTINEL';
@@ -76,8 +78,7 @@ test('optional bookmark permission revokes and recovers real root authority with
 
     await grantBookmarkPermission(page);
     await expectPermission(page, true);
-    await expect(page.getByRole('checkbox', { name: 'Work', exact: true })).toBeChecked();
-    await expect(page.getByRole('checkbox', { name: `Exclude ${PRIVATE_TITLE} from Know-N sync`, exact: true })).toBeChecked();
+    await expectPrivateSelection(page, 'Work', PRIVATE_TITLE);
     const recovered = await evidenceRequest(page, 'exportScope', scope);
     expect(privateAuthority(recovered)).toEqual(privateAuthority(before));
     expect(recovered.scope.rootStatus).toBe('ready');
@@ -245,7 +246,7 @@ test('stale folder tokens fail closed after the native tree changes', async () =
     await page.evaluate(async (id) => { await chrome.bookmarks.create({ parentId: id, title: 'Tree changed' }); }, folderId);
     const boundaryFacts = async () => {
       const exported = await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main));
-      const journal = (await readStores(page, ['boundary_confirmation_commands'])).boundary_confirmation_commands;
+      const journal = (await readStores(page, ['boundary_confirmation_commands'])).boundary_confirmation_commands as BoundaryCommandRecord[] | undefined;
       return { selectedRoots: exported.scope.selectedRoots, privateRoots: exported.scope.privateRoots,
         version: exported.scope.boundaryVersion, queue: exported.queue, receipts: exported.receipts,
         journal: journal?.filter(row => row.scopeKey === exported.scope.scopeKey) ?? [] };
@@ -265,8 +266,8 @@ test('stale folder tokens fail closed after the native tree changes', async () =
     expect(await boundaryFacts()).toEqual(before);
     await page.locator('#range-confirm').click();
     await withSyncFailureDetails(page, 'roots: commit explicitly reviewed replacement token', () => expect.poll(async () => (await boundaryFacts()).journal.filter(row =>
-      !before.journal.some(prior => prior.confirmationId === row.confirmationId)
-      && row.state === 'committed').length).toBe(1));
+      !before.journal.some(prior => prior.commandId === row.commandId)
+      && row.kind === 'range' && row.state === 'committed').length).toBe(1));
     const after = await evidenceRequest(page, 'exportScope', scopeFor(profileBindings.main));
     const selected = after.mappings.find((row: { nativeId: string }) => row.nativeId === folderId);
     expect(selected?.colpId).toBeTruthy();
@@ -372,23 +373,23 @@ async function finishFirstRun(page: Page, selectedTitles: readonly string[], exc
 
 async function configure(page: Page, selectedTitle: string, privateTitle: string) {
   await finishFirstRun(page, [selectedTitle], [privateTitle]);
-  await page.getByRole('button', { name: 'Refresh folders' }).click();
-  await page.getByRole('checkbox', { name: selectedTitle, exact: true }).check();
-  await page.getByRole('checkbox', { name: `Exclude ${privateTitle} from Know-N sync`, exact: true }).check();
-  await page.getByRole('button', { name: 'Review changes' }).click();
-  const confirm = page.getByRole('button', { name: 'Confirm folder changes' });
-  await expect(confirm).toBeVisible({ timeout: 15_000 });
-  await withSyncFailureDetails(page, 'roots: confirm selected and private folder boundaries', async () => {
-    await confirm.click();
-    await expect(page.getByText('Folder settings saved')).toBeVisible();
-  });
+  // The production first-run Review + Confirm already persisted this exact
+  // selection. Checking its mixed parent again would explicitly include the
+  // private child, so verify the restored authority without changing the draft.
+  await expectPrivateSelection(page, selectedTitle, privateTitle);
 }
 async function expectConfigured(page: Page, selectedTitle: string, privateTitle: string) {
   await showOptionsPane(page, 'account');
   await expect(page.locator('body')).toHaveAttribute('data-state', 'connected', { timeout: 15_000 });
   await showOptionsPane(page, 'folders');
-  await expect(page.getByRole('checkbox', { name: selectedTitle, exact: true })).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: `Exclude ${privateTitle} from Know-N sync`, exact: true })).toBeChecked();
+  await expectPrivateSelection(page, selectedTitle, privateTitle);
+}
+async function expectPrivateSelection(page: Page, selectedTitle: string, privateTitle: string) {
+  await expect(page.getByRole('checkbox', { name: selectedTitle, exact: true })).toHaveJSProperty('indeterminate', true);
+  await expect(page.getByRole('checkbox', { name: privateTitle, exact: true })).not.toBeChecked();
+  const view = await getRootView(page);
+  expect(view.roots.find(root => root.title === selectedTitle)).toMatchObject({ selected: true, privateLocal: false });
+  expect(view.roots.find(root => root.title === privateTitle)).toMatchObject({ selected: false, privateLocal: true });
 }
 async function permissionState(page: Page) {
   return page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }));
@@ -396,7 +397,7 @@ async function permissionState(page: Page) {
 async function expectPermission(page: Page, expected: boolean) {
   await expect.poll(() => permissionState(page)).toBe(expected);
 }
-async function getRootView(page: Page): Promise<{ viewId: string; roots: Array<{ ref: string; title: string }> }> {
+async function getRootView(page: Page): Promise<PublicRootView> {
   const response = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.roots.get' })) as any;
   expect(response.ok).toBe(true); return response.view;
 }
