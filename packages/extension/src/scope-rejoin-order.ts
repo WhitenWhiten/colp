@@ -15,6 +15,7 @@ export interface RejoinOrderPlan {
   readonly local: readonly string[]; readonly remote: readonly string[];
   readonly commandId: string; readonly token: string; readonly conflict: boolean;
   readonly authorityDigest: string | null; readonly childrenRevision?: string; readonly boundaryDigest: string;
+  readonly nativeParentId?: string | null;
 }
 
 /** Compare relative ordering as a separate domain from bookmark title/url and parent identity. */
@@ -28,8 +29,9 @@ export async function planRejoinOrders(input: RejoinOrderInput, mappings: readon
   const plans: RejoinOrderPlan[] = [];
   for (const parent of mappings) {
     const baseline = childOrderFromProjection(parent.projection);
-    if (!baseline || parent.nodeKind !== 'folder' || isNonChromeNativeId(parent.nativeId)
-      || !await input.getNative(parent.nativeId)) continue;
+    if (!baseline || parent.nodeKind !== 'folder' || isNonChromeNativeId(parent.nativeId)) continue;
+    const nativeParent = await input.getNative(parent.nativeId);
+    if (!nativeParent) continue;
     const moves = observations.filter(row => row.payload.parentId === parent.colpId
       && (row.payload.afterId !== undefined || row.payload.beforeId !== undefined));
     // Per-node latest placements lose history, even when their timestamps differ.
@@ -46,10 +48,11 @@ export async function planRejoinOrders(input: RejoinOrderInput, mappings: readon
     if (authorityDigest && !relativeChildOrderChanged(baseline, remote) && parent.colpId !== includeParentId) continue;
     const conflict = !authorityDigest || relativeChildOrderChanged(baseline, local) && relativeChildOrderChanged(remote, local);
     plans.push({ parent, baseline, local, remote, conflict, authorityDigest, boundaryDigest,
+      nativeParentId: nativeParent.parentId ?? null,
       ...(remoteParent?.childrenRevision ? { childrenRevision: remoteParent.childrenRevision } : {}),
       commandId: `rejoin-order:${input.mount.mountId}:${parent.colpId}:${rejoinAttemptDigest(input.mount, recorded).slice(7, 23)}`,
       token: digestJson({ pause: input.mount.pauseBaseline ? { ...input.mount.pauseBaseline } : null, parentId: parent.colpId,
-        baseline: [...baseline], local, authorityDigest, boundaryDigest }) });
+        baseline: [...baseline], local, authorityDigest, boundaryDigest, nativeParentId: nativeParent.parentId ?? null }) });
   }
   return plans;
 }
@@ -84,11 +87,13 @@ export async function applyRejoinOrder(input: RejoinOrderInput, plan: RejoinOrde
     if (!mapping || !before) throw new Error('rejoin_order_changed');
     const next = placedChildOrder(current, nativeId, { index });
     await progress.prepare(current, next);
-    await applyRejoinMutation(input, mapping, 'move', { parentId: plan.parent.nativeId, index }, before);
+    await applyRejoinMutation(input, mapping, 'move', { parentId: plan.parent.nativeId, index }, before,
+      () => progress.assertCurrent(current));
     input.crash?.('after_rejoin_order_native');
     if (!sameChildOrder((await input.getChildren(plan.parent.nativeId)).map(row => row.id), next)) throw new Error('rejoin_order_changed');
     await progress.complete(next); expected = next;
   }
+  await progress.assertCurrent(expected);
   const current = await input.store.getMappingByNativeId(input.scope, plan.parent.nativeId);
   if (!current) throw new Error('rejoin_order_changed');
   const { scopeKey: _key, ...rest } = current;

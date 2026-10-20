@@ -19,7 +19,8 @@ export interface RejoinChrome {
 
 /** Persist callback suppression before Chrome; retries compare the actual post-state before calling again. */
 export async function applyRejoinMutation(input: RejoinChrome & { store: ReturnType<typeof createSyncStateStore>; scope: SyncScope },
-  mapping: MappingInput, kind: 'change' | 'remove' | 'move', target: JsonObject, before: RejoinNative) {
+  mapping: MappingInput, kind: 'change' | 'remove' | 'move', target: JsonObject, before: RejoinNative,
+  beforeNative?: () => Promise<void>) {
   const details = kind === 'remove' ? { parentId: before.parentId ?? '', index: before.index ?? 0 }
     : kind === 'move' ? { ...target, oldParentId: before.parentId ?? '', oldIndex: before.index ?? 0 } : target;
   const correlationId = digestJson({ kind, nativeId: mapping.nativeId, details });
@@ -34,6 +35,7 @@ export async function applyRejoinMutation(input: RejoinChrome & { store: ReturnT
   input.crash?.('after_rejoin_intent');
   await assertRejoinBoundary(input, mapping);
   if (kind === 'move') await assertRejoinBoundary(input, mapping, { parentNativeId: String(target.parentId) });
+  await beforeNative?.();
   if (kind === 'change') await input.updateNative!(mapping.nativeId, target);
   else if (kind === 'remove') await input.removeNative!(mapping.nativeId, mapping.nodeKind === 'folder');
   else await input.moveNative!(mapping.nativeId, target as { parentId: string; index: number });
