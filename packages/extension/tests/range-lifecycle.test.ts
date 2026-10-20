@@ -19,7 +19,9 @@ import type { SyncScope } from '../src/sync-state-store.js';
 vi.mock('../src/sw/runtime.js', async () => {
   const { IDBFactory } = await import('fake-indexeddb');
   const { createSyncStateStore } = await import('../src/sync-state-store.js');
+  const { createAuthorityFence, createExtensionWorkCoordinator } = await import('../src/authority-fence.js');
   return { syncState: createSyncStateStore({ indexedDB: new IDBFactory() }), sw: { rootViewTokens: undefined },
+    workCoordinator: createExtensionWorkCoordinator(createAuthorityFence({ get: async () => ({}), set: async () => {} })),
     hasBookmarkPermission: async () => permissions.granted, rootScopeKey: (value: unknown) => JSON.stringify(value), DEFAULT_SYNC_FOLDER_TITLE: 'Know-N' };
 });
 const permissions = vi.hoisted(() => ({ granted: true }));
@@ -107,9 +109,12 @@ async function screen() {
 }
 
 async function confirm() {
+  const before = vi.mocked(chrome.runtime.sendMessage).mock.calls.length;
   element('range-confirm').click();
   const calls = vi.mocked(chrome.runtime.sendMessage).mock;
-  const response = await calls.results.at(-1)!.value as RootResponse;
+  await vi.waitFor(() => expect(calls.calls.slice(before).some(([request]) => (request as RootRequest).kind === 'known.roots.confirm')).toBe(true));
+  const index = calls.calls.findIndex(([request], index) => index >= before && (request as RootRequest).kind === 'known.roots.confirm');
+  const response = await calls.results[index]!.value as RootResponse;
   await vi.waitFor(() => expect(element('range-confirm').hasAttribute('aria-busy')).toBe(false));
   return response;
 }

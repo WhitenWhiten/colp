@@ -392,12 +392,16 @@ export interface PublicRangePreview {
 }
 export type PublicBoundaryConfirmation = { readonly confirmationId: string;
   readonly state: 'pending' | 'failed' | 'committed'; readonly error?: string };
+export type PublicRangeResume = { readonly libraryId: string; readonly preview: PublicRangePreview;
+  readonly request: Extract<RootRequest, { readonly kind: 'known.roots.confirm' }> };
 export type RootResponse = { readonly ok: true; readonly view: PublicRootView;
-    readonly confirmation?: PublicBoundaryConfirmation }
+    readonly confirmation?: PublicBoundaryConfirmation; readonly resume?: PublicRangeResume }
   | { readonly ok: true; readonly preview: PublicRangePreview }
   | { readonly ok: true; readonly boundaries: PublicRootBoundaries }
-  | { readonly ok: false; readonly error: PublicRootStatus | 'not_connected' | 'request_invalid' | 'root_update_failed'
-    | 'permission_required' | 'preview_stale' | 'duplicate_confirm' | 'sync_paused' | 'sync_busy' };
+  | { readonly ok: false; readonly confirmation?: PublicBoundaryConfirmation;
+    readonly error: PublicRootStatus | 'not_connected' | 'request_invalid' | 'root_update_failed'
+    | 'permission_required' | 'preview_stale' | 'duplicate_confirm' | 'sync_paused' | 'sync_busy'
+    | 'confirmation_pending' | 'confirmation_conflict' | 'preview_required' };
 
 export type ExtensionResponse = { readonly ok: true; readonly state: PublicAuthState }
   | { readonly ok: false; readonly state: PublicAuthState; readonly error: string };

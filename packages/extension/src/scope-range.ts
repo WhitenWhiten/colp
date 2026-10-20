@@ -77,6 +77,7 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   readonly excludedNativeIds?: readonly string[];
   readonly privateNativeIds?: readonly string[];
   readonly discovered?: ReadonlyMap<string, readonly string[]>;
+  readonly assertCurrent?: () => Promise<void>;
   readonly now?: () => number;
 }): Promise<{
   readonly preview: ScopePreviewRecord; readonly scan: BoundaryScan; readonly diff: RangeDiff;
@@ -122,6 +123,7 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
   const previewId = crypto.randomUUID();
   const remoteDeleteEvidence = await remoteDeleteEvidenceFor(store, scope,
     [...new Set([...diff.removedNativeIds, ...diff.shiftNativeIds])]);
+  await input.assertCurrent?.();
   const preview = await store.putScopePreview(scope, {
     previewId, boundaryVersion: recorded?.boundaryVersion ?? '0', treeDigest: rangeTreeDigest(input.roots, scan),
     bookmarkCount: scan.bookmarkCount, folderCount: scan.folderCount, skippedCount: scan.skippedCount,
@@ -139,7 +141,8 @@ export async function previewRangeChange(store: Store, scope: SyncScope, input: 
 export function previewRejection(preview: ScopePreviewRecord | null, input: {
   readonly now: number; readonly liveBoundaryVersion: string; readonly treeDigest?: string;
 }): 'request_invalid' | 'duplicate_confirm' | 'preview_stale' | null {
-  if (!preview || preview.expiresAt <= input.now) return 'request_invalid';
+  if (!preview) return 'request_invalid';
+  if (preview.expiresAt <= input.now) return 'preview_stale';
   if (preview.consumedAt !== undefined) return 'duplicate_confirm';
   if ((preview.boundaryVersion ?? '0') !== input.liveBoundaryVersion) return 'preview_stale';
   if (input.treeDigest !== undefined && preview.treeDigest !== input.treeDigest) return 'preview_stale';
@@ -203,10 +206,12 @@ export async function applyConfirmedRange(store: Store, scope: SyncScope, input:
 /** User-confirmed inclusion retires old tombstones and never-synced local identities. */
 export async function releaseReincludedPrivateMappings(store: Store, scope: SyncScope, input: {
   readonly previousPrivateRoots: readonly string[]; readonly privateNativeIds: readonly string[];
+  readonly previousPrivateNativeIds?: readonly string[];
   readonly discovered: ReadonlyMap<string, readonly string[]>;
 }): Promise<void> {
   const mappings = await store.listMappings(scope);
-  const oldRoots = mappings.filter(row => input.previousPrivateRoots.includes(row.colpId)).map(row => row.nativeId);
+  const oldRoots = [...new Set([...(input.previousPrivateNativeIds ?? []),
+    ...mappings.filter(row => input.previousPrivateRoots.includes(row.colpId)).map(row => row.nativeId)])];
   for (const mapping of mappings) {
     const ancestors = input.discovered.get(mapping.nativeId) ?? [];
     const wasPrivate = oldRoots.includes(mapping.nativeId) || ancestors.some(id => oldRoots.includes(id));

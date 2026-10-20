@@ -10,6 +10,7 @@ export interface FoldersHost {
   readonly isConnected: () => boolean;
   /** Late-bound: the first-run controller is created after this pane and needs its tree. */
   readonly firstRun: () => Pick<ReturnType<typeof bindFirstRunOnboarding>, 'isRangeActive' | 'onRootsRendered'>;
+  readonly onRootResponse?: (response: RootResponse) => void;
 }
 
 /**
@@ -37,6 +38,8 @@ export function bindFolders(host: FoldersHost) {
   const collapsed = new Set<string>();
   let view: PublicRootView | undefined;
   let preselect: string | undefined;
+  let ownerVersion = 0, readVersion = 0, disposed = false, libraryId: string | undefined;
+  window.addEventListener('pagehide', () => { disposed = true; ownerVersion += 1; }, { once: true });
 
   refresh.addEventListener('click', () => { void load(); });
   retry.addEventListener('click', () => { void load(); });
@@ -50,11 +53,14 @@ export function bindFolders(host: FoldersHost) {
   tree.addEventListener(ROOTS_REPAINT, paint);
 
   async function load(): Promise<void> {
+    if (disposed) return;
+    const owner = ownerVersion, read = ++readVersion;
     refresh.disabled = true; feedback.textContent = '';
     if (!view && host.isConnected()) showEmpty(t('options_loadingBookmarkFolders', 'Loading bookmark folders…'), 'empty');
     const preselectFolderId = preselect; preselect = undefined;
     const response = await rootRequest({ kind: 'known.roots.get',
       ...(preselectFolderId !== undefined ? { preselectFolderId } : {}) });
+    if (disposed || owner !== ownerVersion || read !== readVersion) return;
     refresh.disabled = !host.isConnected();
     if (!response.ok || !('view' in response)) {
       renderFailure(response.ok ? 'request_invalid' : response.error);
@@ -68,6 +74,7 @@ export function bindFolders(host: FoldersHost) {
     if (preserve) { replaceFolderSelection(tree, selected, excluded); paint(); }
     save.disabled = !host.isConnected()
       || response.view.status === 'permission_required' || response.view.status === 'tree_unavailable';
+    host.onRootResponse?.(response);
   }
 
   function render(next: PublicRootView): void {
@@ -192,11 +199,18 @@ export function bindFolders(host: FoldersHost) {
     load, render, renderFailure,
     view: () => view,
     setPreselect(folderId: string | undefined) { preselect = folderId; },
+    setLibraryId(id: string | undefined) {
+      if (disposed || libraryId === id) return;
+      libraryId = id; ownerVersion += 1; view = undefined; collapsed.clear();
+      if (host.isConnected()) void load();
+    },
     /** Sign-in changed: signed out clears the tree, signed in loads it once. */
     onConnection(connected: boolean): void {
+      if (disposed) return;
       refresh.disabled = !connected; save.disabled = !connected || !view;
       if (connected && !view) void load();
       if (connected) return;
+      ownerVersion += 1;
       view = undefined; tree.replaceChildren(); alert.hidden = true; count.textContent = '';
       showEmpty(t('sync_signInLibrary', 'Sign in to sync this browser with your bookmark library.'), 'empty');
       setPermissionControls('disconnected'); selectAll.disabled = true; clearSelection.disabled = true;

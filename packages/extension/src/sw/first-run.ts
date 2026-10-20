@@ -1,7 +1,6 @@
 import { reasonCode } from '../push-error-code.js';
 import { recordBoundaryDiagnostics } from '../bootstrap/boundary-diagnostics.js';
 import { personalTreeApi } from '../bookmark-subscriptions/personal-boundary.js';
-import { personalSyncNativeApi } from '../personal-sync-fetch.js';
 import {
   bootstrapRunInFlight, createBootstrapCoordinator, previewStaleFromScan, type ConfirmInput,
 } from '../bootstrap/coordinator.js';
@@ -26,6 +25,7 @@ import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 import { digestJson } from '../bookmark-event-codec.js';
 import type { JsonObject } from '../sync-state-store.js';
 import { runBoundaryConfirmation } from './boundary-confirmation.js';
+import { captureBoundaryAttempt, type BoundaryAttempt } from './boundary-attempt.js';
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
 let lastAttentionStatusRead: { scopeKey: string; at: number } | undefined;
@@ -53,11 +53,15 @@ export async function handleScopeCommand(message: ScopeCommandRequest): Promise<
     }
     if (message.kind === 'known.scope.rejoin') {
       if (!await hasBookmarkPermission()) return { ok: false, error: 'permission_required' };
+      const attempt = await captureBoundaryAttempt(scope);
       const nativePresent = await hasBookmarkPermission()
-        ? collectNativeIds((await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read()).roots)
+        ? collectNativeIds((await createChromeBookmarkTreeAdapter(await attempt.nativeApi(personalTreeApi())).read()).roots)
         : new Set<string>();
-      const result = await rejoinScopeMount(syncState, scope, message.mountId, nativePresent, [...nativePresent],
-        await personalSyncNativeApi(scope, nativeChromeFacts()));
+      const result = await workCoordinator.run('bookmark', async () => {
+        await attempt.assertCurrent();
+        return rejoinScopeMount(syncState, scope, message.mountId, nativePresent, [...nativePresent],
+          await attempt.nativeApi(nativeChromeFacts()));
+      });
       if (result.mount.status !== 'active') return { ok: false, error: 'rejoin_pending' };
       return { ok: true, phase: 'syncing', firstRun };
     }
@@ -77,14 +81,15 @@ async function handleFirstRunPreview(message: Extract<FirstRunRequest, { readonl
   let scope: SyncScope;
   try { scope = await currentSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
   if (!await hasBookmarkPermission()) return { ok: false, error: 'permission_required' };
+  const attempt = await captureBoundaryAttempt(scope);
   const selected = resolvePreviewRefs(scope, message.viewId, message.selectedRefs);
   const excluded = resolvePreviewRefs(scope, message.viewId, message.excludedRefs);
   if (!selected || !excluded) return { ok: false, error: 'request_invalid' };
-  const current = await readRootFolders();
+  const current = await readRootFolders(await attempt.nativeApi(personalTreeApi()));
   if (!sw.rootViewTokens || !sameDiscovered(current.discovered, [...sw.rootViewTokens.entries.values()])) {
     sw.rootViewTokens = undefined; return { ok: false, error: 'request_invalid' };
   }
-  const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
+  const tree = await createChromeBookmarkTreeAdapter(await attempt.nativeApi(personalTreeApi())).read();
   const privateNativeIds = [...new Set([...await privateNativeIdsFor(scope), ...excluded])];
   const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: selected, excludedNativeIds: excluded,
     privateNativeIds, existingMounts: await syncState.listMountBindings(scope) });
@@ -92,6 +97,7 @@ async function handleFirstRunPreview(message: Extract<FirstRunRequest, { readonl
   // the same boundary. Only an admitted, committed command advances its version.
   const boundaryVersion = (await syncState.getScope(scope))?.boundaryVersion ?? '0';
   const previewId = crypto.randomUUID();
+  await attempt.assertCurrent();
   await syncState.putScopePreview(scope, {
     previewId, boundaryVersion, treeDigest: scan.treeDigest, bookmarkCount: scan.bookmarkCount,
     folderCount: scan.folderCount, skippedCount: scan.skippedCount, expiresAt: Date.now() + PREVIEW_TTL_MS,
@@ -176,15 +182,17 @@ export async function resumeRunningBootstrap(scope: SyncScope): Promise<boolean>
   const candidates = runs.filter(row => bootstrapRunInFlight(row.phase) || row.phase === 'needs_attention'
     || (attentionSummaryOf(row)?.pendingCount ?? 0) > 0);
   if (!candidates.length) return false;
+  const attempt = await captureBoundaryAttempt(scope);
   const priorOpIds = new Set(await listAllQueueOpIds(scope));
   let added = false;
   for (const run of candidates) {
-    let input = await resumeConfirmInput(scope, run);
+    let input = await resumeConfirmInput(scope, run, attempt);
     if (run.attention?.items.some(item => item.resolutionOpIds?.length)) {
       const operations = await Promise.all(run.attention.items.flatMap(item => item.resolutionOpIds ?? []).map(id => syncState.getQueueByOpId(scope, id)));
       if (operations.some(row => row && !['terminal', 'rejected'].includes(row.status))) continue;
       input = { ...input, remoteFacts: (await readSnapshotAuthority(scope)).snapshot.remoteFacts };
     }
+    await attempt.assertCurrent();
     const view = await createBootstrapCoordinator({ store: syncState, scope,
       retireLegacy: async () => { await retireLegacyScopeForRemount(); } }).advance(run.runId, input);
     if (bootstrapRunInFlight(run.phase)) {
@@ -192,24 +200,25 @@ export async function resumeRunningBootstrap(scope: SyncScope): Promise<boolean>
       // A later range owns the current boundary even while this bootstrap finishes.
       const expectedVersion = command?.committedBoundaryVersion ?? command?.boundaryVersion ?? run.confirmationVersion;
       await persistConfirmedPreviewRoots(scope, input.previewId
-        ? await syncState.getScopePreview(scope, input.previewId) : null, expectedVersion);
+        ? await syncState.getScopePreview(scope, input.previewId) : null, attempt, expectedVersion);
     }
     added ||= view.queuedOpIds.some((opId) => !priorOpIds.has(opId));
   }
   return added;
 }
 
-async function resumeConfirmInput(scope: SyncScope, run: BootstrapRunRecord): Promise<ConfirmInput> {
+async function resumeConfirmInput(scope: SyncScope, run: BootstrapRunRecord, attempt: BoundaryAttempt): Promise<ConfirmInput> {
   const preview = run.previewId ? await syncState.getScopePreview(scope, run.previewId) : null;
   const bindings = await syncState.listMountBindings(scope);
   const mounts = overlayMountsFromBindings(preview ? mountsFromPreview(preview.boundary.mounts) : [], bindings);
   if (!await hasBookmarkPermission()) throw new Error('permission_required');
   // An unreadable tree is not an empty tree and cannot close an existing report.
-  const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
+  const tree = await createChromeBookmarkTreeAdapter(await attempt.nativeApi(personalTreeApi())).read();
   const selected = preview?.boundary.selectedNativeIds ?? bindings.filter(row => row.status === 'active').map(row => row.nativeRootId);
   const excluded = preview?.boundary.excludedNativeIds ?? [];
   const localFacts = localFactsFromRoots(tree.roots, selected, excluded, await privateNativeIdsFor(scope), bindings);
   const rootNodeId = await resolveLibraryRootId(scope.collectionId);
+  await attempt.assertCurrent();
   return {
     confirmationId: run.confirmationId,
     treeDigest: run.treeDigest ?? preview?.treeDigest ?? 'sha256:resume',
@@ -236,8 +245,12 @@ async function handleFirstRunConfirm(message: Extract<FirstRunRequest, { readonl
   if (message.bootstrapMode !== undefined) return { ok: false, error: 'request_invalid' };
   let scope: SyncScope;
   try { scope = await currentSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
+  const receipt = await syncState.getBoundaryCommand(scope, message.confirmationId);
+  if (receipt?.state === 'committed' && receipt.kind === 'first-run'
+      && receipt.requestDigest === firstRunRequestDigest(message)) return receipt.result as unknown as FirstRunOrScopeResponse;
+  const attempt = await captureBoundaryAttempt(scope);
   return runBoundaryConfirmation(scope, `${message.confirmationId}:${firstRunRequestDigest(message)}`,
-    () => confirmFirstRunInScope(message, scope));
+    () => confirmFirstRunInScope(message, scope, attempt));
 }
 
 function firstRunRequestDigest(message: Extract<FirstRunRequest, { readonly kind: 'known.firstRun.confirm' }>) {
@@ -245,7 +258,7 @@ function firstRunRequestDigest(message: Extract<FirstRunRequest, { readonly kind
 }
 
 async function confirmFirstRunInScope(message: Extract<FirstRunRequest, { readonly kind: 'known.firstRun.confirm' }>,
-  scope: SyncScope): Promise<FirstRunOrScopeResponse> {
+  scope: SyncScope, attempt: BoundaryAttempt): Promise<FirstRunOrScopeResponse> {
   const libraryId = 'libraryId' in message ? message.libraryId : undefined;
   if (libraryId !== undefined && libraryId !== scope.collectionId) {
     return { ok: false, error: 'bootstrap_confirmation_stale' };
@@ -271,7 +284,7 @@ async function confirmFirstRunInScope(message: Extract<FirstRunRequest, { readon
   if (!command && preview.consumedAt !== undefined) return { ok: false, error: 'duplicate_confirm' };
   try {
     // Read-only digest rescan: BookmarkTreeApi.getTree only. No create/update/move/remove.
-    const tree = await createChromeBookmarkTreeAdapter(await personalSyncNativeApi(scope, personalTreeApi())).read();
+    const tree = await createChromeBookmarkTreeAdapter(await attempt.nativeApi(personalTreeApi())).read();
     const scan = scanBoundary({ roots: tree.roots, selectedNativeIds: [...preview.boundary.selectedNativeIds],
       excludedNativeIds: [...preview.boundary.excludedNativeIds],
       privateNativeIds: [...new Set([...await privateNativeIdsFor(scope), ...(preview.privateNativeIds ?? [])])],
@@ -280,10 +293,11 @@ async function confirmFirstRunInScope(message: Extract<FirstRunRequest, { readon
       recordKns09FirstRun('failed', scope, message.confirmationId);
       return previewStaleFromScan(scan);
     }
+    await attempt.assertCurrent();
     await recordBoundaryDiagnostics(syncState, scope, scan, tree.roots, message.previewId);
     recordKns09FirstRun('started', scope, message.confirmationId);
     const rootNodeId = command ? command.payload.rootNodeId : libraryId ? await resolveLibraryRootId(libraryId) : undefined;
-    if (rootScopeKey(await currentSyncScope()) !== rootScopeKey(scope)) return { ok: false, error: 'not_connected' };
+    await attempt.assertCurrent();
     command ??= await syncState.admitBoundaryCommand(scope, {
       kind: 'first-run', commandId: message.confirmationId, previewId: preview.previewId,
       requestDigest: firstRunRequestDigest(message), boundaryVersion: preview.boundaryVersion,
@@ -294,6 +308,7 @@ async function confirmFirstRunInScope(message: Extract<FirstRunRequest, { readon
       store: syncState, scope,
       retireLegacy: async () => { await retireLegacyScopeForRemount(); },
     });
+    await attempt.assertCurrent();
     const view = await coordinator.confirm({
       confirmationId: message.confirmationId, previewId: message.previewId, treeDigest: preview.treeDigest,
       confirmationVersion: preview.boundaryVersion, localFacts: localFactsFromRoots(tree.roots,
@@ -303,12 +318,13 @@ async function confirmFirstRunInScope(message: Extract<FirstRunRequest, { readon
       ...(libraryId ? { libraryId } : {}),
       rootNodeId: typeof command.payload.rootNodeId === 'string' ? command.payload.rootNodeId : null,
     });
-    await persistConfirmedPreviewRoots(scope, preview, command.boundaryVersion);
+    await persistConfirmedPreviewRoots(scope, preview, attempt, command.boundaryVersion);
     const recorded = await syncState.getScope(scope);
     if (view.report) recordKns09MergeAttention(scope, view.report.candidates.length, view.report.conflicts.length);
     recordKns09FirstRun(view.run.phase === 'completed' ? 'completed'
       : view.run.phase === 'needs_attention' ? 'attention' : 'started', scope, message.confirmationId);
     const result = withAttention(view.run.phase, recorded?.firstRun ?? 'running', view.run);
+    await attempt.assertCurrent();
     await syncState.advanceBoundaryCommand(scope, command.commandId, { result: result as unknown as JsonObject });
     return result;
   } catch (error) {
@@ -349,8 +365,9 @@ async function handleAttentionMessage(message: Extract<FirstRunRequest,
       };
       const run = (await syncState.listBootstrapRuns(scope)).find(row => row.runId === message.reportId);
       if (!run) return { ok: false, error: 'bootstrap_confirmation_stale' };
+      const attempt = await captureBoundaryAttempt(scope);
       const authority = await readSnapshotAuthority(scope);
-      const input = { ...await resumeConfirmInput(scope, run), remoteFacts: authority.snapshot.remoteFacts };
+      const input = { ...await resumeConfirmInput(scope, run, attempt), remoteFacts: authority.snapshot.remoteFacts };
       return handleAttentionDecide(syncState, scope, message.reportId, message.itemId, firstRun,
         { decision: 'keep_local', evidenceDigest: message.evidenceDigest, input, assertCurrent });
     });
@@ -406,7 +423,7 @@ async function listAllQueueOpIds(scope: SyncScope): Promise<string[]> {
 }
 
 async function persistConfirmedPreviewRoots(scope: SyncScope, preview: ScopePreviewRecord | null,
-  expectedBoundaryVersion?: string): Promise<void> {
+  attempt: BoundaryAttempt, expectedBoundaryVersion?: string): Promise<void> {
   if (expectedBoundaryVersion !== undefined
       && (await syncState.getScope(scope))?.boundaryVersion !== expectedBoundaryVersion) return;
   const selectedNativeIds = preview
@@ -419,7 +436,8 @@ async function persistConfirmedPreviewRoots(scope: SyncScope, preview: ScopePrev
     && !mount.remoteMountNodeId && mount.status !== 'detached');
   // UUID selectedRoots before mount-resolve would be treated as remote ids on resume.
   if (unresolved && (await syncState.getScope(scope))?.firstRun !== 'completed') return;
-  const { discovered } = await readRootFolders();
+  const { discovered } = await readRootFolders(await attempt.nativeApi(personalTreeApi()));
+  await attempt.assertCurrent();
   await persistFirstRunBrowserRoots(syncState, scope, {
     discovered, selectedNativeIds, privateNativeIds: preview?.privateNativeIds ?? await privateNativeIdsFor(scope),
     ...(expectedBoundaryVersion === undefined ? {} : { expectedBoundaryVersion }),

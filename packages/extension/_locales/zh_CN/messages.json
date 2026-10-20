@@ -1,7 +1,27 @@
 {
+  "extensionName": {
+    "message": "Know-N",
+    "description": "Know-N"
+  },
+  "extensionShortName": {
+    "message": "Know-N",
+    "description": "Know-N"
+  },
+  "extensionDescription": {
+    "message": "保存、标记和整理你的浏览器书签，无需账号。需要时可通过 Know-N 在不同浏览器之间同步。",
+    "description": "Save, tag and organize your browser bookmarks. No account needed. Sync with Know-N across browsers when you want."
+  },
   "actionTitle": {
     "message": "Know-N — 保存此页面",
     "description": "Know-N — save this page"
+  },
+  "commandSavePage": {
+    "message": "将当前页面保存为书签",
+    "description": "Save the current page as a bookmark"
+  },
+  "commandSaveWindowTabs": {
+    "message": "将当前窗口的所有标签页保存到 Know-N",
+    "description": "Save all tabs in the current window to Know-N"
   },
   "auth_accessRevokedSignAgain": {
     "message": "你的访问权限已被撤销，请重新登录。",
@@ -3963,14 +3983,6 @@
     "message": "正在使用你自己的 AI 服务，密钥保存在此浏览器。",
     "description": "Using your own AI service. The key is saved on this browser."
   },
-  "commandSavePage": {
-    "message": "将当前页面保存为书签",
-    "description": "Save the current page as a bookmark"
-  },
-  "commandSaveWindowTabs": {
-    "message": "将当前窗口的所有标签页保存到 Know-N",
-    "description": "Save all tabs in the current window to Know-N"
-  },
   "common_account": {
     "message": "账号",
     "description": "Account"
@@ -5351,18 +5363,6 @@
     "message": "最多 $1 积分",
     "description": "Up to $1 points"
   },
-  "extensionDescription": {
-    "message": "保存、标记和整理你的浏览器书签，无需账号。需要时可通过 Know-N 在不同浏览器之间同步。",
-    "description": "Save, tag and organize your browser bookmarks. No account needed. Sync with Know-N across browsers when you want."
-  },
-  "extensionName": {
-    "message": "Know-N",
-    "description": "Know-N"
-  },
-  "extensionShortName": {
-    "message": "Know-N",
-    "description": "Know-N"
-  },
   "firstRun_advancedSummary": {
     "message": "$1。",
     "description": "$1."
@@ -5452,7 +5452,8 @@
     "description": "Could not start sync. Try again in a moment."
   },
   "firstRun_deferFailed": {
-    "message": "无法保存你的选择。请再次点击“稍后”。"
+    "message": "无法保存你的选择。请再次点击“稍后”。",
+    "description": "Could not save your choice. Try Later again."
   },
   "firstRun_deviceWins": {
     "message": "以此设备为准",
@@ -9614,6 +9615,10 @@
     "message": "任何内容同步前，都会先预览更改。",
     "description": "Changes are previewed before anything syncs."
   },
+  "sync_confirmingFolderChange": {
+    "message": "正在确认文件夹更改。你可以重新打开此页面查看结果。",
+    "description": "Confirming folder changes. You can reopen this page to check the result."
+  },
   "sync_copyDetails": {
     "message": "复制详情",
     "description": "Copy details"
@@ -9693,6 +9698,18 @@
   "sync_folder": {
     "message": "文件夹",
     "description": "Folder"
+  },
+  "sync_folderChangeIncomplete": {
+    "message": "文件夹更改尚未完成。继续此更改即可完成剩余步骤；已完成的步骤会保留。",
+    "description": "This folder change is incomplete. Resume it to finish the remaining steps; completed steps are kept."
+  },
+  "sync_folderChangeNeedsReview": {
+    "message": "文件夹更改正在等待审阅。请先处理需要注意的同步项目，然后继续此更改。",
+    "description": "Folder changes are waiting for review. Resolve the sync attention items, then resume this change."
+  },
+  "sync_folderChangeUnknown": {
+    "message": "暂时无法确定结果。继续此更改可查看结果，或重试同一请求。",
+    "description": "The result is not available yet. Resume this change to check or retry the same request."
   },
   "sync_folderHighlighted": {
     "message": "已突出显示 $1。勾选它即可将其纳入同步，然后检查更改。",
@@ -10074,6 +10091,10 @@
     "message": "重置此设备上的同步",
     "description": "Reset sync on this device"
   },
+  "sync_resumeFolderChange": {
+    "message": "继续此更改",
+    "description": "Resume this change"
+  },
   "sync_retryFailed": {
     "message": "重试失败的项目",
     "description": "Retry failed items"
@@ -10093,6 +10114,10 @@
   "sync_reviewConflicts": {
     "message": "查看冲突",
     "description": "Review conflicts"
+  },
+  "sync_reviewFolderDecisions": {
+    "message": "审阅文件夹决策",
+    "description": "Review folder decisions"
   },
   "sync_savingFolderSettings": {
     "message": "正在保存文件夹设置。",

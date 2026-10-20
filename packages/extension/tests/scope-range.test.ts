@@ -142,7 +142,7 @@ describe('P1-04 range preview, confirm, unmount and shift', () => {
     assert.equal(previewRejection(preview, { now: Date.now(), liveBoundaryVersion: '0', treeDigest: 'wrong' }),
       'preview_stale');
     assert.equal(previewRejection(preview, { now: preview.expiresAt + 1, liveBoundaryVersion: '0' }),
-      'request_invalid');
+      'preview_stale');
     await consumeRangePreview(store, scope, preview);
     const consumed = await store.getScopePreview(scope, preview.previewId);
     assert.equal(previewRejection(consumed, { now: Date.now(), liveBoundaryVersion: '0', treeDigest: preview.treeDigest }),

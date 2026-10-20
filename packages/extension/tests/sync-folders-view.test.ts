@@ -216,7 +216,7 @@ test.each(['done', 'syncing', 'failed'] as const)('confirming a range immediatel
     await vi.advanceTimersByTimeAsync(1);
     expect(confirm.getAttribute('aria-busy')).toBe('true');
     expect(confirm.textContent).toBe('Saving…');
-    expect(text('root-feedback')).toBe('Saving folder settings.');
+    expect(text('root-feedback')).toBe('Confirming folder changes. You can reopen this page to check the result.');
     expect((document.getElementById('range-cancel') as HTMLButtonElement).disabled).toBe(true);
     expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.filter(([message]) => (message as RootRequest).kind === 'known.roots.confirm')).toHaveLength(1);
     stage = outcome === 'syncing' ? 'syncing' : 'done';

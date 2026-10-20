@@ -58,8 +58,8 @@ test('a bookmark-read failure during range confirmation must not be reported as 
   expect(byId('range-preview').hidden).toBe(false);
   treeFailure = true;
   byId('range-confirm').click();
-  await vi.waitFor(() => expect(byId('root-feedback').textContent).not.toBe('Saving folder settings.'));
-  expect((await syncState.getScope(scope))?.rootStatus).toBe('tree_unavailable');
+  await vi.waitFor(async () => expect((await syncState.getScope(scope))?.rootStatus).toBe('tree_unavailable'));
+  await vi.waitFor(() => expect(byId('range-confirm').hasAttribute('aria-busy')).toBe(false));
   expect(byId('root-feedback').textContent).not.toBe('Folder settings saved');
 });
 

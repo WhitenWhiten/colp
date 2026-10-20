@@ -27,15 +27,17 @@ export function personalSyncFetch(identity: PersonalSyncIdentity, fetcher: typeo
   };
 }
 /** Capability-wrap the native port, including reads between which a pause may arrive. */
-export async function personalSyncNativeApi<T extends object>(identity: PersonalSyncIdentity, api: T): Promise<T> {
-  if (!configured) return api;
-  const lease = await configured.capture(identity);
+export async function personalSyncNativeApi<T extends object>(identity: PersonalSyncIdentity, api: T,
+  assertAttempt?: () => Promise<void>): Promise<T> {
+  if (!configured && !assertAttempt) return api;
+  const lease = await configured?.capture(identity);
   return new Proxy(api, {
     get(target, property, receiver) {
       const member: unknown = Reflect.get(target, property, receiver);
       if (typeof member !== 'function') return member;
       return async (...args: unknown[]) => {
-        await lease.assertCurrent(); lease.assertLive();
+        await assertAttempt?.();
+        await lease?.assertCurrent(); lease?.assertLive();
         return Reflect.apply(member, target, args);
       };
     },

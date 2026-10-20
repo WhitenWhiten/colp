@@ -7439,6 +7439,9 @@
   "sync_changesPreviewed": {
     "message": "Changes are previewed before anything syncs."
   },
+  "sync_confirmingFolderChange": {
+    "message": "Confirming folder changes. You can reopen this page to check the result."
+  },
   "sync_copyDetails": {
     "message": "Copy details"
   },
@@ -7498,6 +7501,15 @@
   },
   "sync_folder": {
     "message": "Folder"
+  },
+  "sync_folderChangeIncomplete": {
+    "message": "This folder change is incomplete. Resume it to finish the remaining steps; completed steps are kept."
+  },
+  "sync_folderChangeNeedsReview": {
+    "message": "Folder changes are waiting for review. Resolve the sync attention items, then resume this change."
+  },
+  "sync_folderChangeUnknown": {
+    "message": "The result is not available yet. Resume this change to check or retry the same request."
   },
   "sync_folderHighlighted": {
     "message": "$1 is highlighted. Check it to include it in sync, then review your changes."
@@ -7814,6 +7826,9 @@
   "sync_resetSyncDevice": {
     "message": "Reset sync on this device"
   },
+  "sync_resumeFolderChange": {
+    "message": "Resume this change"
+  },
   "sync_retryFailed": {
     "message": "Retry failed items"
   },
@@ -7828,6 +7843,9 @@
   },
   "sync_reviewConflicts": {
     "message": "Review conflicts"
+  },
+  "sync_reviewFolderDecisions": {
+    "message": "Review folder decisions"
   },
   "sync_savingFolderSettings": {
     "message": "Saving folder settings."
