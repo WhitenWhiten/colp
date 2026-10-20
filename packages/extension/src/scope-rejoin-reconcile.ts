@@ -12,6 +12,7 @@ import { isNonChromeNativeId } from './pull-mount-apply.js';
 import { applyRejoinMutation, type RejoinChrome, type RejoinNative } from './scope-rejoin-mutation.js';
 import { compareRejoinFacts } from './scope-transition.js';
 import { observationValidForPause } from './sync-state/remote-observation.js';
+import { isSettledRejection } from './sync-state/open-issue-facts.js';
 import type { JsonObject, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 type Store = ReturnType<typeof createSyncStateStore>;
@@ -43,9 +44,7 @@ export async function applyRejoinObservations(input: {
   const observations = new Map((await store.listRemoteObservations(scope))
     .filter(row => observationValidForPause(row, mount.pauseBaseline)).map(row => [row.colpId, row]));
   const protectedDeletions = await protectedRejoinDeletions(input, mappings);
-  const liveQueue = new Set(['pending', 'claimed', 'deferred', 'unknown', 'gap', 'blocked', 'set_aside']);
-  const pendingTargets = new Set((await store.listQueue(scope)).flatMap((row) =>
-    liveQueue.has(row.status) && typeof row.payload.targetId === 'string' ? [row.payload.targetId] : []));
+  const pendingTargets = await unsettledRejoinTargets(store, scope);
   const optimistic = (mapping: MappingInput) => mapping.projection.revision.startsWith('local-')
     || pendingTargets.has(mapping.colpId);
   const byNative = new Map(mappings.map((row) => [row.nativeId, row]));
@@ -159,6 +158,32 @@ export async function applyRejoinObservations(input: {
   await store.putScopeCommandPlan(scope, { ...plan, phase: unknown || conflicts ? 'pending' : 'active', updatedAt: Date.now() });
   if (!unknown && !conflicts && considered.length) await store.deleteRemoteObservations(scope, considered);
   return { applied, unknown, conflicts };
+}
+
+/** A canonical-looking projection may still contain an edit queued by an earlier rejoin. */
+async function unsettledRejoinTargets(store: Store, scope: SyncScope): Promise<Set<string>> {
+  const targets = new Set<string>();
+  for (let after = 0;;) {
+    const page = await store.listQueue(scope, undefined, after, 1_000);
+    // Resolution receipts alter protection only; authored bytes and rejected
+    // receipts remain immutable history and must not hold a completed choice.
+    for (const row of await store.filterResolvedQueueIssues(scope, page)) {
+      if (row.echoApplied || isSettledRejection(row) || typeof row.payload.targetId !== 'string') continue;
+      if (row.status === 'terminal') {
+        const receipt = await store.getQueueReceipt(scope, row.sequence);
+        const results = receipt?.result?.results;
+        const result = Array.isArray(results) ? results.find(value =>
+          value && typeof value === 'object' && !Array.isArray(value) && value.opId === row.opId) : undefined;
+        // A terminal sequence alone says nothing about whether an authored
+        // edit succeeded. Refusals and conflicts still own their local intent.
+        if (result && typeof result === 'object' && !Array.isArray(result)
+          && ['applied', 'rebased', 'noop'].includes(String(result.status))) continue;
+      }
+      targets.add(row.payload.targetId);
+    }
+    if (page.length < 1_000) return targets;
+    after = page.at(-1)!.sequence;
+  }
 }
 
 async function destIndex(input: RejoinChrome, destNativeId: string, native: RejoinNative,
