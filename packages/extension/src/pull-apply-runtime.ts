@@ -139,6 +139,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         ? { nativeContent: expectation.correlationDetails } : {}) },
       nativeTargetId: expectation.nativeId || null, nativeParentId: expectation.parentNativeId ?? null,
       anchors: expectation.anchors, apiPhase: 'intent_prepared', nativeEventEvidence: null, apiResultEvidence: null,
+      ...(event.effect.kind === 'node_moved' ? { nativeResult: 'not_started', replayState: 'not_started' } : {}),
       generation: options.scope.generation });
   }
 
