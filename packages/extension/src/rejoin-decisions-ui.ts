@@ -1,5 +1,6 @@
 import { t, tn } from './i18n.js';
 import { el } from './library-dom.js';
+import { SYNC_ATTENTION_SHOW_EVENT } from './sync-attention-ui.js';
 import type { PublicRejoinDecision, RejoinDecisionChoice, RejoinDecisionRequest,
   RejoinDecisionResponse } from './scope-rejoin-decisions.js';
 
@@ -51,7 +52,8 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
     intro.textContent = t('rejoin_intro', 'Choose how these items should sync again. Each choice applies only to the items shown.');
     retry.textContent = t('common_refresh', 'Refresh'); retry.disabled = busy;
     panel.setAttribute('aria-busy', String(busy));
-    list.replaceChildren(...rows.map(row => decisionCard(row, busy, choice => { void decide(row, choice); })));
+    list.replaceChildren(...rows.map(row => decisionCard(row, busy,
+      (choice, confirmSubtree) => { void decide(row, choice, confirmSubtree); }, () => { void recover(row); })));
     list.hidden = !rows.length; panel.hidden = !rows.length && feedback.hidden;
   }
   async function refresh() {
@@ -69,12 +71,24 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
       setFeedback(t('rejoin_applyingSaved', 'Your choice is saved. Sync is finishing this change.'));
     }
   }
-  async function decide(row: PublicRejoinDecision, choice: RejoinDecisionChoice) {
+  async function recover(row: PublicRejoinDecision) {
+    if (busy || !isCurrent(owner) || !rows.some(current => current.commandId === row.commandId
+        && current.token === row.token && current.blockedReason)) return;
+    if (!row.recoveryAction || row.recoveryAction === 'refresh') { await refresh(); return; }
+    host.show();
+    window.dispatchEvent(new CustomEvent(SYNC_ATTENTION_SHOW_EVENT, { detail: { action: row.recoveryAction } }));
+  }
+  async function decide(row: PublicRejoinDecision, choice: RejoinDecisionChoice, confirmSubtree = false) {
     if (busy || !connected || !libraryId || disposed || row.state !== 'pending'
-      || !rows.some(current => current.commandId === row.commandId && current.token === row.token)) return;
+      || row.blockedReason || !rows.some(current => current.commandId === row.commandId
+        && current.token === row.token && current.state === 'pending' && !current.blockedReason)) return;
+    if (choice === 'apply_remote_delete' && (row.kind !== 'remote_delete' || !confirmSubtree)) return;
+    const request: RejoinDecisionRequest = choice === 'apply_remote_delete'
+      ? { kind: 'known.sync.rejoinDecisions.resolve', commandId: row.commandId, token: row.token,
+        choice, userGesture: true, affectedCount: row.affectedCount, confirmSubtree: true }
+      : { kind: 'known.sync.rejoinDecisions.resolve', commandId: row.commandId, token: row.token, choice, userGesture: true };
     const version = owner; busy = true; readTurn += 1; setFeedback(''); render();
-    const response = await send({ kind: 'known.sync.rejoinDecisions.resolve', commandId: row.commandId,
-      token: row.token, choice, userGesture: true });
+    const response = await send(request);
     if (!isCurrent(version)) return;
     busy = false;
     if (response.ok) {
@@ -122,7 +136,7 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
 }
 
 function decisionCard(row: PublicRejoinDecision, busy: boolean,
-  decide: (choice: RejoinDecisionChoice) => void): HTMLElement {
+  decide: (choice: RejoinDecisionChoice, confirmSubtree?: boolean) => void, recover: () => void): HTMLElement {
   const card = el('section', undefined, 'set-row'); card.dataset.rejoinDecision = row.commandId;
   const text = el('div', undefined, 'set-row-text');
   text.append(el('h3', row.title || t('rejoin_untitled', 'Bookmark changes'), 'set-row-title'));
@@ -130,7 +144,11 @@ function decisionCard(row: PublicRejoinDecision, busy: boolean,
     ? tn('rejoin_localDelete', row.affectedCount,
       'This item was removed from this browser while sync was paused. Its current cloud copy contains $1 item. Restore it here, or delete it from your library and other synced browsers.',
       'This item was removed from this browser while sync was paused. Its current cloud copy contains $1 items. Restore them here, or delete them from your library and other synced browsers.')
-    : t('rejoin_orderChanged', 'The browser and library have different bookmark orders. Choose the order to keep.');
+    : row.kind === 'remote_delete'
+      ? tn('rejoin_remoteDelete', row.affectedCount,
+        'This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 item. Keep it here, or apply the cloud deletion to this browser.',
+        'This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 items. Keep them here, or apply the cloud deletion to this browser.')
+      : t('rejoin_orderChanged', 'The browser and library have different bookmark orders. Choose the order to keep.');
   text.append(el('p', detail, 'set-row-hint'));
   if (row.kind === 'order') {
     for (const [label, values] of [[t('rejoin_browserOrder', 'Browser order'), row.localOrder],
@@ -143,19 +161,49 @@ function decisionCard(row: PublicRejoinDecision, busy: boolean,
   }
   const actions = el('div', undefined, 'set-row-control');
   if (row.state === 'applying') actions.append(el('p', t('rejoin_applying', 'Finishing your saved choice…'), 'detail'));
-  else for (const choice of row.kind === 'local_delete'
-    ? ['keep_remote', 'delete_remote'] as const : ['keep_local_order', 'keep_remote_order'] as const) {
-    const button = el('button', choiceLabel(choice), choice === 'delete_remote' ? 'btn btn-danger btn-sm' : 'btn btn-secondary btn-sm');
+  else if (row.blockedReason) {
+    text.append(el('p', blockedCopy(row.blockedReason), 'set-row-hint'));
+    const button = el('button', row.recoveryAction === 'retry_sync' ? t('sync_retrySync', 'Retry sync')
+      : row.recoveryAction === 'reset_sync' ? t('sync_resetSyncDevice', 'Reset sync on this device')
+        : t('common_refresh', 'Refresh'), 'btn btn-secondary btn-sm');
+    button.type = 'button'; button.dataset.rejoinRecovery = row.recoveryAction ?? 'refresh'; button.disabled = busy;
+    button.addEventListener('click', recover); actions.append(button);
+  } else for (const choice of row.kind === 'local_delete' ? ['keep_remote', 'delete_remote'] as const
+    : row.kind === 'remote_delete' ? ['keep_local', 'apply_remote_delete'] as const
+      : ['keep_local_order', 'keep_remote_order'] as const) {
+    const destructive = choice === 'delete_remote' || choice === 'apply_remote_delete';
+    const button = el('button', choiceLabel(choice), destructive ? 'btn btn-danger btn-sm' : 'btn btn-secondary btn-sm');
     button.type = 'button'; button.dataset.rejoinAction = choice; button.disabled = busy;
-    button.addEventListener('click', () => decide(choice)); actions.append(button);
+    if (choice === 'apply_remote_delete') {
+      const label = el('label', undefined, 'detail');
+      const checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.dataset.rejoinDeleteConfirm = '';
+      checkbox.disabled = busy; button.disabled = true;
+      label.append(checkbox, tn('rejoin_confirmBrowserDeletion', row.affectedCount,
+        'I understand this removes $1 item from this browser.', 'I understand this removes $1 items from this browser.'));
+      checkbox.addEventListener('change', () => { button.disabled = busy || !checkbox.checked; });
+      button.addEventListener('click', () => { if (checkbox.checked) decide(choice, true); });
+      actions.append(label);
+    } else button.addEventListener('click', () => decide(choice));
+    actions.append(button);
   }
   card.append(text, actions); return card;
 }
 function choiceLabel(choice: RejoinDecisionChoice): string {
+  if (choice === 'keep_local') return t('rejoin_keepBrowser', 'Keep browser copy');
+  if (choice === 'apply_remote_delete') return t('rejoin_applyCloudDeletion', 'Apply cloud deletion');
   if (choice === 'keep_remote') return t('rejoin_keepCloud', 'Keep cloud copy');
   if (choice === 'delete_remote') return t('rejoin_deleteLibrary', 'Delete from library');
   if (choice === 'keep_local_order') return t('rejoin_useBrowserOrder', 'Use browser order');
   return t('rejoin_useLibraryOrder', 'Use library order');
+}
+function blockedCopy(reason: NonNullable<PublicRejoinDecision['blockedReason']>): string {
+  if (reason === 'unknown_upload') return t('rejoin_unknownUpload',
+    'The result of an earlier upload is not confirmed. Check sync status before choosing what to keep. Your browser copy is preserved.');
+  if (reason === 'pending_upload') return t('rejoin_pendingUpload',
+    'Local changes are still waiting to sync. Check sync status before choosing what to keep. Your browser copy is preserved.');
+  if (reason === 'upload_boundary_changed') return t('rejoin_changedBoundary',
+    'The sync range changed while local changes were pending. Review sync recovery before choosing what to keep. Your browser copy is preserved.');
+  return t('rejoin_nativeUnavailable', 'The current browser copy could not be verified safely. Check bookmark access, then refresh these decisions.');
 }
 function errorCopy(code: string): string {
   if (['preview_stale', 'rejoin_boundary_changed', 'decision_already_made', 'decision_not_found'].includes(code)) {
@@ -177,9 +225,13 @@ function normalize(value: unknown): RejoinDecisionResponse {
 function validDecision(value: unknown): value is PublicRejoinDecision {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
-  return typeof row.commandId === 'string' && /^rejoin-(delete|order):/.test(row.commandId) && row.commandId.length <= 1_024
+  const prefix = row.kind === 'remote_delete' ? 'rejoin-remote-delete:'
+    : row.kind === 'local_delete' ? 'rejoin-delete:' : row.kind === 'order' ? 'rejoin-order:' : undefined;
+  return prefix !== undefined && typeof row.commandId === 'string' && row.commandId.startsWith(prefix) && row.commandId.length <= 1_024
     && typeof row.token === 'string' && /^sha256:[0-9a-f]{64}$/.test(row.token)
-    && ['local_delete', 'order'].includes(String(row.kind)) && ['pending', 'applying'].includes(String(row.state))
+    && ['pending', 'applying'].includes(String(row.state))
+    && (row.blockedReason === undefined || ['pending_upload', 'unknown_upload', 'upload_boundary_changed', 'native_unavailable'].includes(String(row.blockedReason)))
+    && (row.recoveryAction === undefined || ['retry_sync', 'reset_sync', 'refresh'].includes(String(row.recoveryAction)))
     && typeof row.title === 'string' && row.title.length <= 16_384 && Number.isSafeInteger(row.affectedCount)
     && Number(row.affectedCount) >= 0 && [row.localOrder, row.remoteOrder].every(order => order === undefined
       || Array.isArray(order) && order.length <= 20_000 && order.every(title => typeof title === 'string' && title.length <= 16_384));

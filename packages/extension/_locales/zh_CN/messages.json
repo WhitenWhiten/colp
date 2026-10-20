@@ -10438,5 +10438,49 @@
   "sync_rebuildRetirementDenied": {
     "message": "服务器未授权这次重置。重新登录无法恢复已撤销的资料库权限或失效的设备授权。待处理的更改会保留，不再重新发送。在资料库所有者或服务器管理员核查权限期间，你可以继续使用此设备上的书签。",
     "description": "The server did not authorize this reset. Signing in again cannot restore revoked library access or invalid device authorization. Your pending changes are kept and will not be sent again. You can continue using bookmarks on this device while the library owner or server administrator reviews access."
+  },
+  "rejoin_applyCloudDeletion": {
+    "message": "应用云端删除",
+    "description": "Apply cloud deletion"
+  },
+  "rejoin_changedBoundary": {
+    "message": "本地更改等待同步期间，同步范围发生了变化。请先检查同步恢复状态，再选择要保留的内容。浏览器副本会保留。",
+    "description": "The sync range changed while local changes were pending. Review sync recovery before choosing what to keep. Your browser copy is preserved."
+  },
+  "rejoin_confirmBrowserDeletion_one": {
+    "message": "我确认这会从当前浏览器移除 $1 个项目。",
+    "description": "I understand this removes $1 item from this browser."
+  },
+  "rejoin_confirmBrowserDeletion_other": {
+    "message": "我确认这会从当前浏览器移除 $1 个项目。",
+    "description": "I understand this removes $1 items from this browser."
+  },
+  "rejoin_keepBrowser": {
+    "message": "保留浏览器副本",
+    "description": "Keep browser copy"
+  },
+  "rejoin_nativeUnavailable": {
+    "message": "无法安全核验当前浏览器副本。请检查书签访问权限，然后刷新这些待处理事项。",
+    "description": "The current browser copy could not be verified safely. Check bookmark access, then refresh these decisions."
+  },
+  "rejoin_pendingUpload": {
+    "message": "本地更改仍在等待同步。请先检查同步状态，再选择要保留的内容。浏览器副本会保留。",
+    "description": "Local changes are still waiting to sync. Check sync status before choosing what to keep. Your browser copy is preserved."
+  },
+  "rejoin_remoteDelete_one": {
+    "message": "暂停同步期间，此项目已从资料库删除，而当前浏览器仍有本地更改。浏览器副本目前包含 $1 个项目。你可以在此保留副本，或将云端删除应用到当前浏览器。",
+    "description": "This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 item. Keep it here, or apply the cloud deletion to this browser."
+  },
+  "rejoin_remoteDelete_other": {
+    "message": "暂停同步期间，此项目已从资料库删除，而当前浏览器仍有本地更改。浏览器副本目前包含 $1 个项目。你可以在此保留副本，或将云端删除应用到当前浏览器。",
+    "description": "This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 items. Keep them here, or apply the cloud deletion to this browser."
+  },
+  "rejoin_unknownUpload": {
+    "message": "此前一次上传的结果尚未确认。请先检查同步状态，再选择要保留的内容。浏览器副本会保留。",
+    "description": "The result of an earlier upload is not confirmed. Check sync status before choosing what to keep. Your browser copy is preserved."
+  },
+  "sync_recoveryActionChanged": {
+    "message": "同步状态发生了变化。请查看当前详情，然后刷新待处理事项。",
+    "description": "Sync status changed. Review the current details, then refresh your pending decisions."
   }
 }

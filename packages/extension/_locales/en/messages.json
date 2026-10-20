@@ -5942,6 +5942,9 @@
   "prefs_useMyClassificationCorrections": {
     "message": "Use my classification corrections"
   },
+  "rejoin_applyCloudDeletion": {
+    "message": "Apply cloud deletion"
+  },
   "rejoin_applying": {
     "message": "Finishing your saved choice…"
   },
@@ -5954,6 +5957,15 @@
   "rejoin_changed": {
     "message": "This decision changed. Review the latest items and choose again."
   },
+  "rejoin_changedBoundary": {
+    "message": "The sync range changed while local changes were pending. Review sync recovery before choosing what to keep. Your browser copy is preserved."
+  },
+  "rejoin_confirmBrowserDeletion_one": {
+    "message": "I understand this removes $1 item from this browser."
+  },
+  "rejoin_confirmBrowserDeletion_other": {
+    "message": "I understand this removes $1 items from this browser."
+  },
   "rejoin_deleteLibrary": {
     "message": "Delete from library"
   },
@@ -5962,6 +5974,9 @@
   },
   "rejoin_intro": {
     "message": "Choose how these items should sync again. Each choice applies only to the items shown."
+  },
+  "rejoin_keepBrowser": {
+    "message": "Keep browser copy"
   },
   "rejoin_keepCloud": {
     "message": "Keep cloud copy"
@@ -5975,6 +5990,9 @@
   "rejoin_localDelete_other": {
     "message": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 items. Restore them here, or delete them from your library and other synced browsers."
   },
+  "rejoin_nativeUnavailable": {
+    "message": "The current browser copy could not be verified safely. Check bookmark access, then refresh these decisions."
+  },
   "rejoin_noLongerWaiting": {
     "message": "This decision is no longer waiting. Check sync status for any remaining steps."
   },
@@ -5984,14 +6002,26 @@
   "rejoin_paused": {
     "message": "Resume bookmark sync to review these decisions."
   },
+  "rejoin_pendingUpload": {
+    "message": "Local changes are still waiting to sync. Check sync status before choosing what to keep. Your browser copy is preserved."
+  },
   "rejoin_permission": {
     "message": "Allow bookmark access, then refresh these decisions."
+  },
+  "rejoin_remoteDelete_one": {
+    "message": "This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 item. Keep it here, or apply the cloud deletion to this browser."
+  },
+  "rejoin_remoteDelete_other": {
+    "message": "This item was deleted from the library while sync was paused, and this browser has local changes. Its current browser copy contains $1 items. Keep them here, or apply the cloud deletion to this browser."
   },
   "rejoin_saved": {
     "message": "Your choice is saved."
   },
   "rejoin_unavailable": {
     "message": "The result could not be confirmed yet. Refresh to check your saved choice before trying again."
+  },
+  "rejoin_unknownUpload": {
+    "message": "The result of an earlier upload is not confirmed. Check sync status before choosing what to keep. Your browser copy is preserved."
   },
   "rejoin_untitled": {
     "message": "Bookmark changes"
@@ -7891,6 +7921,9 @@
   },
   "sync_recordedIssues": {
     "message": "Recorded $1 · $2"
+  },
+  "sync_recoveryActionChanged": {
+    "message": "Sync status changed. Review the current details, then refresh your pending decisions."
   },
   "sync_recoveryNextAttempt": {
     "message": "Next attempt: $1."
