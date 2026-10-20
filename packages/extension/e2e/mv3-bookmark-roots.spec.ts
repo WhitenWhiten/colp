@@ -123,10 +123,8 @@ test('two persistent Chromium profiles retain isolated root authorities and arch
     expect(fixtureA.selected).not.toBe(fixtureB.selected);
     await configure(pageA, 'Profile A root', PROFILE_A_TITLE);
     await configure(pageB, 'Profile B root', PROFILE_B_TITLE);
-    await expect(pageA.getByText('Profile B root', { exact: true })).toHaveCount(0);
-    await expect(pageB.getByText('Profile A root', { exact: true })).toHaveCount(0);
-
-    const viewA = await getRootView(pageA); const viewB = await getRootView(pageB);
+    const viewA = await expectProfileRootAuthority(pageA, fixtureA, scopeFor(profileBindings.a), 'Profile A root', 'Profile B root');
+    const viewB = await expectProfileRootAuthority(pageB, fixtureB, scopeFor(profileBindings.b), 'Profile B root', 'Profile A root');
     const tokenA = viewA.roots.find((root) => root.title === 'Profile A root')!.ref;
     const tokenB = viewB.roots.find((root) => root.title === 'Profile B root')!.ref;
     expect(await updateWithToken(pageB, viewB.viewId, tokenA)).toEqual({ ok: false, error: 'request_invalid' });
@@ -145,9 +143,8 @@ test('two persistent Chromium profiles retain isolated root authorities and arch
     [pageA, pageB] = await Promise.all([openOptions(contextA), openOptions(contextB)]);
     await Promise.all([expectConfigured(pageA, 'Profile A root', PROFILE_A_TITLE),
       expectConfigured(pageB, 'Profile B root', PROFILE_B_TITLE)]);
-    await expect(pageA.getByText('Profile B root', { exact: true })).toHaveCount(0);
-    await expect(pageB.getByText('Profile A root', { exact: true })).toHaveCount(0);
-    const restartedViewA = await getRootView(pageA); const restartedViewB = await getRootView(pageB);
+    const restartedViewA = await expectProfileRootAuthority(pageA, fixtureA, scopeFor(profileBindings.a), 'Profile A root', 'Profile B root');
+    const restartedViewB = await expectProfileRootAuthority(pageB, fixtureB, scopeFor(profileBindings.b), 'Profile B root', 'Profile A root');
     const restartedTokenA = restartedViewA.roots.find((root) => root.title === 'Profile A root')!.ref;
     const restartedTokenB = restartedViewB.roots.find((root) => root.title === 'Profile B root')!.ref;
     expect(await updateWithToken(pageA, restartedViewA.viewId, tokenA)).toEqual({ ok: false, error: 'request_invalid' });
@@ -390,6 +387,33 @@ async function expectPrivateSelection(page: Page, selectedTitle: string, private
   const view = await getRootView(page);
   expect(view.roots.find(root => root.title === selectedTitle)).toMatchObject({ selected: true, privateLocal: false });
   expect(view.roots.find(root => root.title === privateTitle)).toMatchObject({ selected: false, privateLocal: true });
+}
+async function expectProfileRootAuthority(page: Page, fixture: { selected: string; privateRoot: string },
+  scope: ReturnType<typeof scopeFor>, ownTitle: string, otherTitle: string): Promise<PublicRootView> {
+  // Both profiles intentionally share a cloud library. Its remote folders may
+  // appear elsewhere in options; they must never become this profile's native
+  // root controls or acquire its selected/private native identities.
+  await expect(page.locator('#root-tree').getByText(otherTitle, { exact: true })).toHaveCount(0);
+  const view = await getRootView(page);
+  expect(view.roots.some(row => row.title === otherTitle)).toBe(false);
+  expect(view.roots.find(row => row.title === ownTitle)).toMatchObject({ selected: true, privateLocal: false });
+  const native = await page.evaluate(async ({ ownId, foreignTitle }) => {
+    const visit = (nodes: chrome.bookmarks.BookmarkTreeNode[]): chrome.bookmarks.BookmarkTreeNode[] =>
+      nodes.flatMap(node => [node, ...visit(node.children ?? [])]);
+    const nodes = visit(await chrome.bookmarks.getTree());
+    return { own: nodes.filter(node => node.id === ownId).map(node => ({ id: node.id, title: node.title })),
+      foreign: nodes.filter(node => node.title === foreignTitle).map(node => ({ id: node.id, title: node.title })) };
+  }, { ownId: fixture.selected, foreignTitle: otherTitle });
+  expect(native).toEqual({ own: [{ id: fixture.selected, title: ownTitle }], foreign: [] });
+  const durable = await evidenceRequest(page, 'exportScope', scope);
+  expect(durable.scope).toMatchObject({ firstRun: 'completed', browserProfileId: scope.browserProfileId,
+    replicaId: scope.replicaId, rootStatus: 'ready' });
+  const mappings: Array<{ colpId: string; nativeId: string }> = durable.mappings;
+  expect(mappings.filter(row => durable.scope.selectedRoots.includes(row.colpId)).map(row => row.nativeId))
+    .toEqual([fixture.selected]);
+  expect(mappings.filter(row => durable.scope.privateRoots.includes(row.colpId)).map(row => row.nativeId))
+    .toEqual([fixture.privateRoot]);
+  return view;
 }
 async function permissionState(page: Page) {
   return page.evaluate(() => chrome.permissions.contains({ permissions: ['bookmarks'] }));

@@ -23,15 +23,20 @@ const remote: RemoteNodeFact[] = [
   { nodeId: 'remote-2', parentId: 'library-root', folderRole: 'other-bookmarks', kind: 'folder', title: 'Other', revision: 'r-other', childrenRevision: 'c-other' },
 ];
 
-test.each(['current', 'admitted-preview-expired', 'unconfirmed', 'stale-boundary', 'completed-run',
+test.each(['current', 'another-profile-cloud-root', 'admitted-preview-expired', 'unconfirmed', 'stale-boundary', 'completed-run',
   'wrong-run', 'unselected-preview', 'wrong-preview-owner', 'moved-under-excluded', 'other-replica', 'different-payload'] as const)
 ('first-run ordinary mount receives only its current admitted parent echo before completed selection exists (%s)', async scenario => {
+  const selectedTitle = scenario === 'another-profile-cloud-root' ? 'Profile B root' : 'Selected folder';
+  if (scenario === 'another-profile-cloud-root') Object.assign(node('10'), { title: selectedTitle });
+  const initialRemote: RemoteNodeFact[] = scenario === 'another-profile-cloud-root' ? [...remote,
+    { nodeId: 'profile-a-folder', parentId: 'remote-1', kind: 'folder', title: 'Profile A root',
+      revision: 'profile-a-revision', childrenRevision: 'profile-a-children' }] : remote;
   let session = { ...(await store.loadSession())!, snapshotRequired: true };
   await store.saveSession(session);
   const beforeNative = structuredClone(tree), clock = { now: Date.now() }, acked: string[] = [];
-  const snapshotRequests = installRejoinHttp(() => scope, () => remote), snapshotFetch = fetch;
+  const snapshotRequests = installRejoinHttp(() => scope, () => initialRemote), snapshotFetch = fetch;
   const events: Extract<SyncPullEventV02, { kind: 'operation' }>[] = [];
-  const canonical = new Map(remote.map(row => [row.nodeId, { ...row }]));
+  const canonical = new Map(initialRemote.map(row => [row.nodeId, { ...row }]));
   let delivered = 0;
   const transport: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
@@ -96,7 +101,7 @@ test.each(['current', 'admitted-preview-expired', 'unconfirmed', 'stale-boundary
   expect(snapshotRequests.filter(row => row.url.pathname === '/v1/snapshot')).toHaveLength(2);
   const view = await loadRootView(scope);
   const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
-    selectedRefs: [view.roots.find(row => row.title === 'Selected folder')!.ref],
+    selectedRefs: [view.roots.find(row => row.title === selectedTitle)!.ref],
     excludedRefs: [view.roots.find(row => row.title === 'Private folder')!.ref] });
   if (!preview.ok || !('previewId' in preview)) throw new Error('preview_missing');
   const request = { kind: 'known.firstRun.confirm' as const, previewId: preview.previewId,
@@ -139,7 +144,7 @@ test.each(['current', 'admitted-preview-expired', 'unconfirmed', 'stale-boundary
     effect.effectDigest = canonicalAuthoritativeEffectDigest(effect);
     events[0] = { ...original, operation, effect };
   }
-  const allowed = scenario === 'current' || scenario === 'admitted-preview-expired';
+  const allowed = scenario === 'current' || scenario === 'admitted-preview-expired' || scenario === 'another-profile-cloud-root';
   const queueBeforePull = await syncState.listQueue(scope), nativeBeforePull = structuredClone(tree);
   const mappingsBeforePull = await syncState.listMappings(scope);
   // The parent echo arrives before any resume can persist the resolved selection.
@@ -152,7 +157,7 @@ test.each(['current', 'admitted-preview-expired', 'unconfirmed', 'stale-boundary
     expect(await syncState.listQueue(scope)).toEqual(queueBeforePull);
     expect(await syncState.listMappings(scope)).toEqual(mappingsBeforePull);
     expect(tree).toEqual(nativeBeforePull);
-    expect([...canonical.values()].filter(row => row.title === 'Selected folder')).toHaveLength(1);
+    expect([...canonical.values()].filter(row => row.title === selectedTitle)).toHaveLength(1);
     expect([...canonical.values()].filter(row => row.title === 'Selected bookmark')).toHaveLength(0);
     for (const name of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[name]).not.toHaveBeenCalled();
     return;
@@ -177,9 +182,20 @@ test.each(['current', 'admitted-preview-expired', 'unconfirmed', 'stale-boundary
   for (const operation of await syncState.listQueue(scope)) expect(await syncState.getQueueReceipt(scope, operation.sequence))
     .toMatchObject({ kind: 'terminal', opId: operation.opId, operationDigest: operation.digest });
   expect((await syncState.getMappingByNativeId(scope, '11'))?.colpId).toBe('created-2');
-  expect([...canonical.values()].filter(row => row.title === 'Selected folder')).toHaveLength(1);
+  expect([...canonical.values()].filter(row => row.title === selectedTitle)).toHaveLength(1);
   expect([...canonical.values()].filter(row => row.title === 'Selected bookmark')).toHaveLength(1);
   expect(node('10').children).toHaveLength(1); expect(tree).toEqual(beforeNative);
   expect(acked).toEqual(['cloud-cursor', 'echo-1', 'echo-2']);
+  if (scenario === 'another-profile-cloud-root') {
+    const view = await loadRootView(scope);
+    expect(canonical.get('profile-a-folder')?.title).toBe('Profile A root');
+    expect(view.roots.some(row => row.title === 'Profile A root')).toBe(false);
+    expect(view.roots.find(row => row.title === 'Profile B root')).toMatchObject({ selected: true, privateLocal: false });
+    const selected = (await syncState.getScope(scope))!.selectedRoots;
+    expect(await Promise.all(selected.map(async id => (await syncState.getMappingByColpId(scope, id))?.nativeId))).toEqual(['10']);
+    const sharedCloudCopy = await syncState.getMappingByColpId(scope, 'profile-a-folder');
+    expect(sharedCloudCopy).not.toBeNull();
+    expect(sharedCloudCopy?.nativeId).toMatch(/^(recovery|unmounted):/u);
+  }
   for (const name of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[name]).not.toHaveBeenCalled();
 });
