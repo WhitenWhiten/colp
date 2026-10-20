@@ -6560,8 +6560,8 @@
     "description": "Bookmark creation could not be confirmed. Choose how to continue."
   },
   "nativeWait_cancelledCloudItemWill": {
-    "message": "已取消：此云端项目不会放置到此设备上。",
-    "description": "Cancelled: this cloud item will not be placed on this device."
+    "message": "已停止重试此项目。设备上已有的书签已保留。",
+    "description": "Stopped retrying this item. Bookmarks already on this device were kept."
   },
   "nativeWait_chooseBookmarkUse": {
     "message": "请选择要使用的书签。",

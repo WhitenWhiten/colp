@@ -5139,7 +5139,7 @@
     "message": "Bookmark creation could not be confirmed. Choose how to continue."
   },
   "nativeWait_cancelledCloudItemWill": {
-    "message": "Cancelled: this cloud item will not be placed on this device."
+    "message": "Stopped retrying this item. Bookmarks already on this device were kept."
   },
   "nativeWait_chooseBookmarkUse": {
     "message": "Choose the bookmark to use."

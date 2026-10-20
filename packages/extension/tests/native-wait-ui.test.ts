@@ -62,7 +62,7 @@ describe('P1 native-wait Options contract', () => {
     assert.equal(nativeWaitCandidateLabel({ nativeId: 'bm-1' }), 'Bookmark on this device');
     assert.match(nativeWaitResultCopy('bound'), /Bound to an existing bookmark/);
     assert.match(nativeWaitResultCopy('kept_local'), /Kept the local bookmark and created a new one/);
-    assert.match(nativeWaitResultCopy('cancelled'), /Cancelled/);
+    assert.equal(nativeWaitResultCopy('cancelled'), 'Stopped retrying this item. Bookmarks already on this device were kept.');
     assert.match(nativeWaitResultCopy('duplicate'), /already handled/);
   });
 
@@ -72,7 +72,7 @@ describe('P1 native-wait Options contract', () => {
       'extension_unavailable']) {
       const copy = nativeWaitFeedbackCopy(code);
       assert.ok(copy.length > 0 && copy !== code, code);
-      assert.doesNotMatch(copy, /Bound to|Kept the local|Cancelled:/, code);
+      assert.doesNotMatch(copy, /Bound to|Kept the local|Stopped retrying/, code);
     }
     assert.match(nativeWaitFeedbackCopy('stale_ref'), /changed/);
     assert.match(nativeWaitFeedbackCopy('revoked'), /Bookmark permission/);
