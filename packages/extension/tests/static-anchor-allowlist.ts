@@ -172,12 +172,13 @@ export const STATIC_ANCHOR_ALLOWLIST: readonly StaticAnchorAllowlistEntry[] = Ob
     file: 'tests/pull-applier.contract.test.ts',
     category: 'source-boundary',
     anchors: 'the pull facade stays a small acyclic facade over the page stager and apply runtime, COLP 0.2 / '
-      + 'Manifest-discovered page markers, the full native mutation surface, no event suppression, and the packaged '
+      + 'Manifest-discovered page markers, no event suppression, and the packaged '
       + 'MV3 pull evidence command',
     reason: 'Facade size/acyclicity (line budget, no stager→runtime import) and "no suppression of browser events" '
       + 'are structural absence claims; the packaged evidence command is gate wiring. Apply behaviour is covered by '
       + 'tests/pull-applier.test.ts, tests/pull-apply-integrity.test.ts, tests/pull-page-stager.test.ts and '
-      + 'tests/pull-mapping-lifecycle.test.ts.',
+      + 'tests/pull-mapping-lifecycle.test.ts. Native calls and read-only admission execute through the production '
+      + 'adapter in tests/native-write-boundary.test.ts and tests/pull-bookmark-api-admission.test.ts.',
   },
   {
     file: 'tests/source-file-size-gate.contract.test.ts',
