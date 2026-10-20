@@ -3,7 +3,7 @@ import {
   SyncStateError, type IntentLiveWorkKind, type IntentRecord, type IntentReplayState, type JsonObject,
   type NativeResultConfirmation, type PersistedNativeCallResult, type PullApplyState, type SyncScope,
 } from './types.js';
-import { boundedString, clone } from './codec.js';
+import { boundedString, canonicalJson, clone } from './codec.js';
 import { cursorPage, requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
@@ -129,6 +129,39 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
     return saved;
   }
 
+  /** Replace only placement after an admission proved that no native call ran.
+   * A started phase can retain nativeResult=not_started, so compare both rows
+   * and the entire earlier intent inside the same write transaction. */
+  async function refreshUnstartedMovePreimage(input: SyncScope, expected: IntentRecord,
+    nativePreimage: JsonObject): Promise<void> {
+    assertWritable(); const key = scopeKey(validateScope(input));
+    const db = await writableDatabase();
+    await runTransaction(db, [STORES.scopes, STORES.intents, STORES.pullEvents], 'readwrite', async tx => {
+      await requireActiveScope(tx, key);
+      const intents = tx.objectStore(STORES.intents);
+      const intent = await requestValue(intents.get([key, boundedString(expected.intentId, 'intentId')])) as IntentRecord | undefined;
+      const event = intent?.eventId ? await requestValue(tx.objectStore(STORES.pullEvents).get([key, intent.eventId]))
+        as { readonly state?: string; readonly intentId?: string } | undefined : undefined;
+      if (!intent || !event || event.intentId !== intent.intentId || event.state !== 'intent_prepared'
+          || intent.state !== 'intent_prepared' || intent.apiPhase !== 'intent_prepared'
+          || intent.nativeResult !== 'not_started' || intent.replayState !== 'not_started'
+          || intent.generation !== input.generation || intent.expected.kind !== 'move'
+          || intent.anchors?.rangeAction !== 'native_move' || intent.anchors.chromeMutation !== true
+          || intent.nativeTargetId !== nativePreimage.id || intent.expected.nativeId !== nativePreimage.id
+          || intent.apiResultEvidence || intent.nativeEventEvidence || intent.nativeResultConfirmation
+          || intent.nativeWaitDecision || intent.waitReason || canonicalJson(intent) !== canonicalJson(expected)) {
+        throw new SyncStateError('native_result_cas');
+      }
+      const prior = intent.anchors.nativePreimage;
+      if (!prior || typeof prior !== 'object' || Array.isArray(prior)) throw new SyncStateError('native_result_cas');
+      const { parentId: _oldParent, index: _oldIndex, ...oldIdentity } = prior;
+      const { parentId: _parent, index: _index, ...identity } = nativePreimage;
+      if (canonicalJson(oldIdentity) !== canonicalJson(identity)) throw new SyncStateError('native_result_cas');
+      const { scopeKey: _key, ...row } = intent;
+      intents.put(validateIntent(key, { ...row, anchors: { ...intent.anchors, nativePreimage } }, ctx.maxRecordBytes));
+    });
+  }
+
   async function listNativeWaitIntents(input: SyncScope): Promise<IntentRecord[]> {
     const key = scopeKey(validateScope(input)); const db = await open();
     const tx = db.transaction(STORES.intents, 'readonly'); const done = transactionDone(tx);
@@ -139,5 +172,5 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
     for (const intent of await requestValue<IntentRecord[]>(intents.index(INDEXES.intentByWaitReason).getAll(IDBKeyRange.bound([key, 'native_result_unknown'], [key, 'native_result_unknown', []])))) rows.set(intent.intentId, intent);
     await done; return clone([...rows.values()]);
   }
-  return { listApplyIntents, listNativeWaitIntents, persistApplyIntentFacts };
+  return { listApplyIntents, listNativeWaitIntents, persistApplyIntentFacts, refreshUnstartedMovePreimage };
 }

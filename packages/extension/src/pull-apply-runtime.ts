@@ -41,6 +41,7 @@ import { commitSupersededByLocalDelete } from './pull-local-delete-supersede.js'
 import { logBackgroundFailure } from './sw/background-failure.js';
 import { nativeWritePreimage, recordUnstartedPullRefusal } from './pull-native-write-boundary.js';
 import { createCheckedPullNative } from './pull-native-create-boundary.js';
+import { readmitCapturedLocalMove } from './pull-local-placement.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -87,6 +88,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         && authority.lifecycle === 'active' && !authority.frozen;
       if (!ordinaryPullEventAllowed(authority, raw) && !detached) { await recoverSupersededPullEvent(options, authority, raw); continue; }
       const event = raw.payload as unknown as Extract<SyncPullEventV02, { kind: 'operation' }>;
+      const entryIntent = raw.state === 'intent_prepared' && event.effect.kind === 'node_moved'
+        ? await options.store.getApplyIntent(options.scope, `intent:${String(raw.eventId)}`) : undefined;
       try {
       if (await commitRemovedSelfProjection(options, String(raw.eventId), event, now(), parentRevisionMapping)
         || await commitSupersededByLocalDelete(options, String(raw.eventId), event, now())) continue;
@@ -113,7 +116,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       }
       else await callAndCommit(raw.eventId as string, event);
       } catch (error) {
-        await recordUnstartedPullRefusal(options, raw, event.effect.kind, error);
+        await recordUnstartedPullRefusal(options, { ...raw, entryIntent }, event.effect.kind, error);
         // B5: a failure about this event's own node sets that node aside; the page goes on.
         if (!await setAsideFailedPullItem(options, raw, event, error, now())) throw error;
       }
@@ -355,6 +358,9 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         pendingLocalOperations: await queueHasPendingTarget(options.store, options.scope, mapping.colpId) });
       const intent = await options.store.getApplyIntent(options.scope, `intent:${eventId}`);
       const plan = resolvePersistedMovePlan(rangePlanFromAnchors(intent?.anchors, `rx:${event.operation.opId}`), current);
+      if (plan.action === 'native_move') {
+        await readmitCapturedLocalMove({ store: options.store, scope: options.scope, api, mapping, event, intent });
+      }
       if (plan.action !== 'materialize_independent') {
         const live = await options.store.getPullEvent(options.scope, eventId);
         if (live?.state === 'intent_prepared') {

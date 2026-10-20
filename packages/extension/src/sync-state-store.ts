@@ -114,6 +114,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     publishCursor: queue.publishCursor, createApplyIntent: pull.createApplyIntent,
     findApplyIntent: pull.findApplyIntent, getApplyIntent: pull.getApplyIntent,
     listNativeWaitIntents: intentFacts.listNativeWaitIntents, listApplyIntents: intentFacts.listApplyIntents, persistApplyIntentFacts: intentFacts.persistApplyIntentFacts,
+    refreshUnstartedMovePreimage: intentFacts.refreshUnstartedMovePreimage,
     hasActiveApplyIntentForNativeTarget: pull.hasActiveApplyIntentForNativeTarget,
     commitApplyIntent: pull.commitApplyIntent,
     stagePullPage: pull.stagePullPage, listPullEvents: pull.listPullEvents,

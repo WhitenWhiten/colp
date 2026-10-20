@@ -80,12 +80,19 @@ export async function performCheckedNativeWrite<T>(api: PullBookmarkApi, check: 
 /** The event's entry state, not its per-member native result, distinguishes a
  * new admission refusal from an older invocation or a partial delete ledger. */
 export async function recordUnstartedPullRefusal(options: Pick<PullApplierOptions, 'store' | 'scope'>,
-  entered: { readonly eventId?: unknown; readonly state?: unknown }, kind: string, error: unknown): Promise<void> {
+  entered: { readonly eventId?: unknown; readonly state?: unknown;
+    readonly entryIntent?: { readonly state?: unknown; readonly apiPhase?: unknown } | null },
+  kind: string, error: unknown): Promise<void> {
   if (!(error instanceof NativeWriteNotStartedError)
       || !['node_content_updated', 'node_moved', 'node_deleted', 'subtree_deleted'].includes(kind)
-      || !['staged', 'intent_prepared'].includes(String(entered.state))) return;
+      || !['staged', 'intent_prepared'].includes(String(entered.state))
+      || entered.entryIntent && (entered.entryIntent.state !== 'intent_prepared'
+        || entered.entryIntent.apiPhase !== 'intent_prepared')) return;
   const intent = await options.store.getApplyIntent(options.scope, `intent:${String(entered.eventId)}`);
-  if (!intent || intent.apiResultEvidence || intent.nativeEventEvidence) return;
+  if (!intent || intent.apiResultEvidence || intent.nativeEventEvidence || intent.nativeResultConfirmation
+      || intent.nativeResult !== undefined && intent.nativeResult !== 'not_started'
+      || intent.replayState !== undefined && intent.replayState !== 'not_started'
+      || !['intent_prepared', 'browser_call_started'].includes(String(intent.apiPhase))) return;
   if (kind === 'node_moved' && intent.anchors?.rangeAction !== 'native_move') return;
   if ((kind === 'node_deleted' || kind === 'subtree_deleted') && !allDeletesUnstarted(intent.anchors)) return;
   await options.store.persistApplyIntentFacts(options.scope, intent.intentId, {
