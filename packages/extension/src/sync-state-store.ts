@@ -40,6 +40,7 @@ import { createEngineRepository } from './sync-state/engine-repository.js';
 import { createMappingRepository } from './sync-state/mapping-repository.js';
 import { createMountRepository } from './sync-state/mount-repository.js';
 import { createPullRepository } from './sync-state/pull-repository.js';
+import { createPullMappingReadRepository } from './sync-state/pull-mapping-read-repository.js';
 import { createPullIssueRepository } from './sync-state/pull-issue-repository.js';
 import { createQueueRepository } from './sync-state/queue-repository.js';
 import { createQueueSetAsideRepository } from './sync-state/queue-set-aside-repository.js';
@@ -65,6 +66,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
   const batch = createBatchRepository(ctx);
   const facts = createScopeFactsRepository(ctx);
   return Object.freeze({
+    ...createPullMappingReadRepository(ctx),
     ...createQueuedUploadBoundaryRepository(ctx),
     ...createLocalPlacementRecoveryRepository(ctx), ...createPullNativeDeferralRepository(ctx),
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),

@@ -12,7 +12,7 @@ import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state
 
 export type RecoveryContentStore = Pick<ReturnType<typeof createSyncStateStore>,
   'getScope' | 'getMappingByColpId' | 'getMappingByNativeId' | 'stageBookmarkEvent' | 'getPullEvent' | 'listMountBindings'
-  | 'getLocalSyncExclusion'
+  | 'getLocalSyncExclusion' | 'getCurrentPullMapping'
   | 'listQueue' | 'listQueueByTarget' | 'listBookmarkEventsByNative' | 'pullOperationsCovered'
   | 'listBookmarkEventsByStatus' | 'listPullEvents' | 'putRemoteObservation'>;
 

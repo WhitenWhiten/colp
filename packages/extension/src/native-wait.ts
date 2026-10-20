@@ -18,7 +18,7 @@ export type NativeWaitStore = Pick<ReturnType<typeof createSyncStateStore>,
   | 'listMountBindings' | 'getMappingByColpId' | 'putMapping' | 'listMappings'
   | 'listProjectionIntents' | 'listLocalSyncExclusions' | 'createApplyIntent'
   | 'findApplyIntent' | 'getPullEvent' | 'markPullBrowserCallStarted' | 'recordPullApiEvidence'
-  | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listPullEvents'>
+  | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listPullEvents' | 'getCurrentPullMapping'>
   & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listNativeWaitIntents'>>;
 
 export type ConfirmNativeWaitAction = 'bind' | 'keep_local_and_create' | 'cancel';
