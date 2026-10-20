@@ -5,7 +5,9 @@ import { credentialAuthorityDigest } from '../src/session-client.js';
 import { handleFirstRunRequest } from '../src/sw/first-run.js';
 import { loadRootView } from '../src/sw/roots.js';
 import { store, sw, syncState } from '../src/sw/runtime.js';
-import { executeActiveAdvancedPlan } from '../src/bootstrap/advanced-run.js';
+import { executeActiveAdvancedPlan, projectAdvancedSnapshot } from '../src/bootstrap/advanced-run.js';
+import { createDurableSyncEngine } from '../src/durable-sync-engine.js';
+import { createPullApplier } from '../src/pull-applier.js';
 import type { AdvancedNativeApi } from '../src/bootstrap/advanced-local-executor.js';
 import { assertQueuedUploadAllowed } from '../src/queued-upload-boundary.js';
 import { digestJson } from '../src/bookmark-event-codec.js';
@@ -99,15 +101,15 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 afterAll(() => syncState.close());
 
-async function advancedFixture(existingRemoteMount: boolean) {
+async function advancedFixture(existingRemoteMount: boolean, mode: 'upload' | 'download' = 'upload') {
   remoteHasBar = existingRemoteMount;
   const view = await loadRootView(scope);
   const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
-    selectedRefs: [view.roots.find(row => row.title === 'Bar')!.ref], excludedRefs: [], bootstrapMode: 'upload' });
-  expect(preview, JSON.stringify(preview)).toMatchObject({ ok: true, advanced: { mode: 'upload' } });
+    selectedRefs: [view.roots.find(row => row.title === 'Bar')!.ref], excludedRefs: [], bootstrapMode: mode });
+  expect(preview, JSON.stringify(preview)).toMatchObject({ ok: true, advanced: { mode } });
   if (!preview.ok || !('previewId' in preview) || !preview.advanced) throw new Error('missing advanced preview');
   const request = { kind: 'known.firstRun.confirm' as const, previewId: preview.previewId, confirmationId: 'reviewed-upload',
-    libraryId: scope.collectionId, bootstrapMode: 'upload' as const, advancedConfirmation: preview.advanced };
+    libraryId: scope.collectionId, bootstrapMode: mode, advancedConfirmation: preview.advanced };
   expect(await handleFirstRunRequest(request)).toMatchObject({ ok: true, firstRun: 'running' });
   expect(snapshotReads).toEqual(existingRemoteMount ? ['first', 'last-page', 'first', 'last-page'] : ['first', 'first']);
   const admitted = (await syncState.listAdvancedPlans(scope))[0]!;
@@ -144,6 +146,114 @@ async function advancedFixture(existingRemoteMount: boolean) {
           revision: `r-${sent.length}`, cursor: `cursor-${sent.length}`, warnings: [] }] });
     } };
   return { request, admitted, nativeBefore, sent, canonical, workerOptions };
+}
+
+test.each(['upload', 'download'] as const)
+('a confirmed %s crosses the actual engine Snapshot and Ack gate before executing', async mode => {
+  session = { ...session, snapshotRequired: true };
+  await store.saveSession(session);
+  const f = await advancedFixture(true, mode);
+  const snapshotFetch = globalThis.fetch;
+  const ackBodies: string[] = [];
+  const worker = createOutboundPushWorker(f.workerOptions);
+  const applier = createPullApplier({ scope, store: syncState, api: chrome.bookmarks,
+    session: { ...session, collectionId: scope.collectionId },
+    effectPageTemplate: endpoints.syncEffectPages, effectPageAuthority: scope.serverOrigin,
+    endpoints, credential, origin: 'chrome-extension://advanced-fixture' });
+  const engine = createDurableSyncEngine({ scope, store: syncState, endpoints: async () => endpoints,
+    sessions: f.workerOptions.sessions, pushWorker: worker, pullApplier: applier,
+    snapshotProjector: async staged => (await projectAdvancedSnapshot(syncState, scope, staged))!,
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/v1/snapshot') return snapshotFetch(input, init);
+      if (url.pathname === '/v1/snapshot/conflicts') return Response.json({
+        snapshotId: remoteSnapshot().snapshotId, offset: 0, nextOffset: null, conflictCount: 0, conflicts: [] });
+      if (url.pathname !== '/v1/ack') throw new Error(`undeclared bootstrap HTTP request ${url.pathname}`);
+      const body = JSON.parse(String(init?.body));
+      // The server response is an external port. It only acknowledges the
+      // complete cut the real engine has already projected and committed.
+      expect(await syncState.getPendingAckIntent(scope)).toMatchObject({ kind: 'bootstrap', cursor: body.cursor });
+      expect(body.cursor).toBe(remoteSnapshot().syncCursor);
+      expect(await syncState.listMappings(scope)).toHaveLength(remoteSnapshot().nodes.length);
+      expect(await syncState.listQueue(scope)).toEqual([]);
+      expect(tree).toEqual(f.nativeBefore);
+      ackBodies.push(String(init?.body));
+      session = { ...session, sessionId: 'active-after-bootstrap', snapshotRequired: false,
+        collection: { ...session.collection, serverCursor: body.cursor, serverRevision: remoteSnapshot().revision } };
+      return Response.json({ replicaId: scope.replicaId, ackedCursor: body.cursor, ackedAt: new Date().toISOString() });
+    } });
+  await engine.wake('manual');
+  const engineState = await syncState.getEngineState(scope);
+  expect(engineState?.lastError).toBeUndefined();
+  expect(engineState).toMatchObject({ phase: 'sleeping', recoveryFrozen: false });
+  expect(ackBodies).toHaveLength(1);
+  expect(snapshotReads).toEqual(['first', 'last-page', 'first', 'last-page', 'first', 'last-page']);
+  expect((await syncState.getMappingByNativeId(scope, '1'))?.parentColpId).toBe(remoteSnapshot().collection.rootNodeId);
+  expect((await syncState.getMappingByNativeId(scope, '1'))?.parentNativeId).toBeUndefined();
+  syncState.close();
+  expect(await syncState.listAckIntents(scope)).toEqual([expect.objectContaining({ state: 'complete', kind: 'bootstrap' })]);
+  expect((await syncState.readAdvancedPlan(scope, f.admitted.planId))?.steps.every(row => row.state === 'pending')).toBe(true);
+  expect(tree).toEqual(f.nativeBefore);
+  const native = mode === 'download' ? downloadNative() : chrome.bookmarks;
+  for (let turn = 0; turn < 5; turn++) {
+    await executeActiveAdvancedPlan(syncState, scope, native);
+    if ((await syncState.readAdvancedPlan(scope, f.admitted.planId))?.plan.state === 'completed') break;
+    expect(await worker.drain()).toMatchObject({ outcome: 'terminal' });
+    syncState.close();
+  }
+  expect((await syncState.getScope(scope))?.firstRun).toBe('completed');
+  expect((await syncState.readAdvancedPlan(scope, f.admitted.planId))?.plan.state).toBe('completed');
+  const rows = await syncState.listQueue(scope);
+  expect(rows.every(row => row.status === 'terminal')).toBe(true);
+  for (const row of rows) expect(await syncState.getQueueReceipt(scope, row.sequence)).toMatchObject({
+    kind: 'terminal', opId: row.opId, operationDigest: row.digest,
+    result: { results: [expect.objectContaining({ opId: row.opId, sequence: row.sequence, status: 'applied' })] },
+  });
+  if (mode === 'upload') {
+    expect(tree).toEqual(f.nativeBefore);
+    expect(f.canonical.has('child-a')).toBe(false);
+    expect([...f.canonical.values()].filter(row => row.title === 'Local bookmark')).toHaveLength(1);
+    expect(f.sent.map(row => row.type)).toEqual(['create_node', 'create_node', 'delete_node']);
+    expect((await syncState.getMappingByNativeId(scope, '11'))?.colpId).toBe('created-2');
+  } else {
+    expect(f.sent).toEqual([]); expect(rows).toEqual([]);
+    expect([...f.canonical.values()]).toEqual(remoteSnapshot().nodes);
+    expect(flatten(tree).filter(row => row.title === 'Child')).toHaveLength(1);
+    expect(flatten(tree).some(row => ['10', '11'].includes(row.id))).toBe(false);
+    const child = (await syncState.getMappingByColpId(scope, 'child-a'))!;
+    expect((await native.get(child.nativeId))[0]).toMatchObject({ title: 'Child', parentId: '1' });
+  }
+  expect(flatten(tree).find(row => row.id === '20')?.title).toBe('Unselected sentinel');
+  const completedTree = structuredClone(tree), completedQueue = await syncState.listQueue(scope);
+  syncState.close();
+  expect(await executeActiveAdvancedPlan(syncState, scope, native)).toBe(false);
+  expect(await syncState.listQueue(scope)).toEqual(completedQueue); expect(tree).toEqual(completedTree);
+});
+
+function downloadNative(): AdvancedNativeApi {
+  let next = 50;
+  const childrenOf = (id: string) => flatten(tree).find(row => row.id === id)?.children ?? [];
+  const replaceChildren = (id: string, children: readonly ChromeBookmarkNode[]) => {
+    const visit = (nodes: readonly ChromeBookmarkNode[]): ChromeBookmarkNode[] => nodes.map(node => ({ ...node,
+      ...(node.id === id ? { children } : node.children ? { children: visit(node.children) } : {}) }));
+    tree = visit(tree);
+  };
+  const read = (id: string) => {
+    const node = flatten(tree).find(row => row.id === id);
+    return node ? { ...node, index: childrenOf(node.parentId ?? '').findIndex(row => row.id === id) } : undefined;
+  };
+  return { ...chrome.bookmarks, get: async id => { const node = read(id); return node ? [node] : []; },
+    getChildren: async id => childrenOf(id).map(node => read(node.id)!),
+    create: async input => {
+      const node = { id: String(++next), ...input };
+      const children = [...childrenOf(input.parentId)]; children.splice(input.index, 0, node);
+      replaceChildren(input.parentId, children); return read(node.id)!;
+    },
+    remove: async id => {
+      const node = read(id); if (!node?.parentId) throw new Error('native_missing');
+      expect(childrenOf(id)).toEqual([]);
+      replaceChildren(node.parentId, childrenOf(node.parentId).filter(row => row.id !== id));
+    } };
 }
 
 async function mappedFixture(kind: 'update' | 'move' | 'both' | 'new-parent') {
