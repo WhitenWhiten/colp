@@ -15,7 +15,9 @@ test('paused native folder deletion reconciles with another browser and Keep clo
   type Export = { mappings: { nativeId: string; colpId: string }[];
     mountBindings: { mountId: string; nativeRootId: string; status: string }[];
     queue: { opId: string; digest: string; payload: { type: string } }[];
-    scopeCommandPlans: { commandId: string; phase: string }[] };
+    scopeCommandPlans: { commandId: string; phase: string }[];
+    remoteObservations: { colpId: string; kind: string;
+      payload: { parentId?: string; beforeId?: string | null } }[] };
   try {
     a = await launchPersistent(profiles[0]!, stack.browserHostResolverRules);
     let pageA = await optionsPage(a); await login(pageA, KNS08_BINDINGS[0]); await grantBookmarks(pageA);
@@ -36,21 +38,36 @@ test('paused native folder deletion reconciles with another browser and Keep clo
     await pageA.evaluate(id => chrome.bookmarks.removeTree(id), folderA.id);
     await pageB.evaluate(async id => {
       await chrome.bookmarks.update(id, { title: 'Rejoin cloud folder' });
-      const a = await chrome.bookmarks.create({ parentId: id, title: 'A cloud child', url: 'https://example.test/rejoin/a' });
+      await chrome.bookmarks.create({ parentId: id, title: 'A cloud child', url: 'https://example.test/rejoin/a' });
       const z = await chrome.bookmarks.create({ parentId: id, title: 'Z cloud child', url: 'https://example.test/rejoin/z' });
       await chrome.bookmarks.move(z.id, { parentId: id, index: 0 });
-      return a.id;
     }, folderB!.id);
+    // A prior quiet status can precede delivery of Chrome's callbacks. Wait for
+    // the actual capture lane, then the last move's server-side placement.
+    await evidence(pageB, 'drainBookmarkEventCaptureEvidence');
+    const folderColpId = before.mappings.find(row => row.nativeId === folderA.id)!.colpId;
+    await expect.poll(async () => {
+      await evidence(pageB, 'drainBookmarkEventCaptureEvidence');
+      await wakeEngine(pageB);
+      return (await stack.canonicalSiblingOrder(folderColpId)).map(row => row.url);
+    }, { timeout: 60_000 }).toEqual(['https://example.test/rejoin/z', 'https://example.test/rejoin/a']);
     await waitQueueQuiet(pageB, stack, KNS08_BINDINGS[1]);
-    await expect.poll(async () => (await liveCanonical(stack)).filter(row =>
-      row.title === 'Rejoin cloud folder' || row.url === 'https://example.test/rejoin/a' || row.url === 'https://example.test/rejoin/z').length,
-    { timeout: 60_000 }).toBe(3);
-    await wakeEngine(pageA);
+    const [cloudZ, cloudA] = await stack.canonicalSiblingOrder(folderColpId);
+    expect((await liveCanonical(stack)).find(row => row.id === folderColpId)?.title).toBe('Rejoin cloud folder');
+    // Keep the decision tied to a settled cloud snapshot. Paused A must have
+    // observed B's final placement before the user reviews its one token.
+    await expect.poll(async () => {
+      await wakeEngine(pageA);
+      const state = await evidence<Export>(pageA, 'exportOutboundPushEvidence');
+      return state.remoteObservations.find(row => row.colpId === cloudZ!.id);
+    }, { timeout: 60_000 }).toMatchObject({ kind: 'placement',
+      payload: { parentId: folderColpId, beforeId: cloudA!.id } });
     expect(await runtimeMessage(pageA, { kind: 'known.scope.rejoin', mountId: mount.mountId }))
       .toMatchObject({ ok: false, error: 'rejoin_pending' });
     await pageA.reload(); await showOptionsPane(pageA, 'sync-center');
     const panel = pageA.locator('#rejoin-decisions');
     await expect(panel.locator('[data-rejoin-action="keep_remote"]')).toBeVisible({ timeout: 30_000 });
+    const reviewed = await evidence<Export>(pageA, 'exportOutboundPushEvidence');
     await panel.locator('[data-rejoin-action="keep_remote"]').click();
     try {
       await expect.poll(() => find(pageA, 'Rejoin cloud folder'), { timeout: 60_000 }).toHaveLength(1);
@@ -60,6 +77,8 @@ test('paused native folder deletion reconciles with another browser and Keep clo
       const snapshot = await evidence<Record<string, unknown>>(pageA, 'exportOutboundPushEvidence');
       const diagnostic = { feedback: await panel.textContent(), mappings: snapshot.mappings,
         mountBindings: snapshot.mountBindings, scopeCommandPlans: snapshot.scopeCommandPlans,
+        reviewedPlans: reviewed.scopeCommandPlans, reviewedObservations: reviewed.remoteObservations,
+        finalCloudOrder: await stack.canonicalSiblingOrder(folderColpId), remoteObservations: snapshot.remoteObservations,
         intents: snapshot.intents, queue: snapshot.queue };
       throw new Error(`Keep cloud did not materialize: ${JSON.stringify(diagnostic).slice(0, 24_000)}`, { cause: error });
     }
