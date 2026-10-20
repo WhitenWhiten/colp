@@ -68,7 +68,9 @@ test('405 shadows keep ordinal precedence, deletion, unbinding and same-event re
   const ids = Array.from({ length: 405 }, (_, i) => `event-${String(405 - i).padStart(4, '0')}`);
   const changed = [ids[0]!, ids[199]!, ids[200]!, ids[403]!, ids[404]!];
   await store.stagePullPage(scope, page('z-first', 'cursor-0', 'cursor-1', ids, changed));
-  await commit(store, scope, ids[0]!, { mappings: [mapping('native-target', 'target', 'revision-old-shadow')] });
+  await commit(store, scope, ids[0]!, { mappings: [mapping('native-target', 'target', 'revision-old-shadow'),
+    mapping('native-deleted', 'deleted', 'revision-pending-delete'),
+    mapping('native-unbound', 'unbound', 'revision-pending-unbind')] });
   await commit(store, scope, ids[199]!, { deleteNativeIds: ['native-target', 'native-deleted'] });
   await commit(store, scope, ids[200]!, { mappings: [mapping('native-target', 'target', 'revision-recreated')],
     deleteNativeIds: ['native-target'] });
@@ -174,12 +176,35 @@ test('an interrupted indexed read rejects instead of returning cached or partial
   const getAll = IDBIndex.prototype.getAll;
   vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function (this: IDBIndex, ...args) {
     const request = getAll.apply(this, args);
-    if (this.name === INDEXES.pullEventByState) request.addEventListener('success', () => this.objectStore.transaction.abort(), { once: true });
+    if ([INDEXES.pullEventByState, INDEXES.pullPageByState].includes(this.name)) {
+      request.addEventListener('success', () => this.objectStore.transaction.abort(), { once: true });
+    }
     return request;
   });
   await expect(currentPullMapping(store, scope, 'target')).rejects.toThrow();
+  await expect(store.listPullEvents(scope, ['authority_committed'])).rejects.toThrow();
+  await expect(store.listPullPages(scope, ['staged'])).rejects.toThrow();
   vi.restoreAllMocks();
   expect(await currentPullMapping(store, scope, 'target')).toEqual(await store.getMappingByColpId(scope, 'target'));
   expect((await store.getScope(scope))?.lifecycle).toBe('active');
   expect(await store.listQueue(scope)).toEqual([]);
+});
+
+test('reading an unpublished mapping cannot bypass the native identity collision guard at publication', async () => {
+  const { store } = await setup();
+  await store.putMapping(scope, mapping('native-target', 'existing-owner'));
+  const original = await store.getMappingByColpId(scope, 'existing-owner');
+  await store.stagePullPage(scope, page('page', 'cursor-0', 'cursor-1', ['event'], ['event']));
+  await commit(store, scope, 'event', { mappings: [mapping('native-target', 'incoming-owner', 'revision-shadow')] });
+  expect((await currentPullMapping(store, scope, 'incoming-owner'))?.projection.revision).toBe('revision-shadow');
+  expect(await store.getMappingByColpId(scope, 'incoming-owner')).toBeNull();
+  expect(await store.getMappingByColpId(scope, 'existing-owner')).toEqual(original);
+  expect((await store.getScope(scope))?.lifecycle).toBe('active');
+  await expect(store.completePullPage(scope, 'page')).rejects.toThrow('recovery_required');
+  expect(await store.getMappingByColpId(scope, 'existing-owner')).toEqual(original);
+  expect(await store.getMappingByColpId(scope, 'incoming-owner')).toBeNull();
+  expect((await store.getScope(scope))?.lifecycle).toBe('recovery_required');
+  expect((await store.getScope(scope))?.checkpoint?.cursor).toBe('cursor-0');
+  expect(await store.getCursor(scope)).toBeFalsy();
+  expect(await store.listAckIntents(scope)).toEqual([]);
 });
