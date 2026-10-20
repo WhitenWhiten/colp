@@ -60,14 +60,18 @@ export function scheduleSyncEngineWake(reason: 'startup' | 'alarm' | 'online' | 
       // Every pass, including one a stopped engine returns from at once, tells
       // the Sync center where this browser stands.
       void reportReplicaHealth();
-      if (reason === 'online' && connectivityRestored) {
-        sw.confirmedOnlineWakePending = false;
-        sw.coalescedOnlineWake = undefined;
-      }
     }
   }).catch((error: unknown) => {
     if (error instanceof AuthorityFencedError) return;
     throw error;
+  }).finally(() => {
+    // Admission itself reads the authority fence. A refused storage read can
+    // reject before the work callback starts, and must not pin online wakes to
+    // the rejected promise after the browser's storage becomes available again.
+    if (reason === 'online' && connectivityRestored && sw.coalescedOnlineWake === operation) {
+      sw.confirmedOnlineWakePending = false;
+      sw.coalescedOnlineWake = undefined;
+    }
   });
   if (reason === 'online' && connectivityRestored) sw.coalescedOnlineWake = operation;
   return operation;
