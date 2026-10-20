@@ -81,7 +81,7 @@ export async function recordUnstartedPullRefusal(options: Pick<PullApplierOption
   if (kind === 'node_moved' && intent.anchors?.rangeAction !== 'native_move') return;
   if ((kind === 'node_deleted' || kind === 'subtree_deleted') && !allDeletesUnstarted(intent.anchors)) return;
   await options.store.persistApplyIntentFacts(options.scope, intent.intentId, {
-    nativeResult: 'not_started', replayState: 'not_started', state: 'intent_prepared', eventState: 'intent_prepared',
+    nativeResult: 'not_started', replayState: 'not_started', state: 'intent_prepared', eventState: 'intent_prepared', apiPhase: 'intent_prepared',
   });
 }
 

@@ -14,6 +14,7 @@ export interface ApplyIntentFactsPatch {
   readonly nativeWaitDecision?: import('./types.js').NativeWaitDecision;
   readonly nativeEventEvidence?: JsonObject | null;
   readonly state?: PullApplyState;
+  readonly apiPhase?: PullApplyState;
   readonly nativeResult?: PersistedNativeCallResult;
   readonly replayState?: IntentReplayState;
   readonly waitReason?: string | null;
@@ -75,6 +76,7 @@ export function createIntentFactsRepository(ctx: SyncStoreRuntime) {
         ...(patch.nativeWaitDecision === undefined ? {} : { nativeWaitDecision: patch.nativeWaitDecision }),
         ...(patch.nativeEventEvidence === undefined ? {} : { nativeEventEvidence: patch.nativeEventEvidence }),
         ...(patch.state === undefined ? {} : { state: patch.state }),
+        ...(patch.apiPhase === undefined ? {} : { apiPhase: patch.apiPhase }),
         ...(patch.nativeResult === undefined ? {} : { nativeResult: patch.nativeResult }),
         ...(patch.replayState === undefined ? {} : { replayState: patch.replayState }),
         ...(patch.apiResultEvidence === undefined ? {} : { apiResultEvidence: patch.apiResultEvidence }),
