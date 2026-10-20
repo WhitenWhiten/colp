@@ -40,6 +40,9 @@ export async function setup(overrides: {
   /** Allow the production Snapshot projector to exercise native move replay. */
   allowSnapshotMoves?: boolean;
   seedMount?: boolean;
+  /** Model an already confirmed download selection. This fixture does not run
+   * onboarding admission; its default pending mount grants no native creates. */
+  confirmedMount?: boolean;
   requestTimeoutMilliseconds?: number;
   fetch?: typeof globalThis.fetch;
   compactScope?: ReturnType<typeof createSyncStateStore>['compactScope'];
@@ -59,7 +62,7 @@ export async function setup(overrides: {
   if (overrides.emptyCollection && overrides.seedMount !== false) {
     await store.putMountBinding(scope, {
       mountId: 'mount-bar', nativeRootId: '1', remoteMountNodeId: null, boundaryVersion: '1',
-      materialized: false, status: 'pending', rootRole: 'bookmarks-bar',
+      materialized: false, status: overrides.confirmedMount ? 'active' : 'pending', rootRole: 'bookmarks-bar',
     });
   }
   const chromeNodes = new Map<string, { id: string; parentId?: string; index?: number; title?: string; url?: string }>([

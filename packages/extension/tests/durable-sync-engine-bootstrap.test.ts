@@ -23,7 +23,7 @@ describe('P3-33 durable extension bootstrap and empty-queue wake', () => {
   });
 
   test('nonempty second-replica snapshot completes bootstrap without inventing mount folders', async () => {
-    const fixture = await setup({ snapshotRequired: true, emptyCollection: true, useVerifiedProjector: true });
+    const fixture = await setup({ snapshotRequired: true, emptyCollection: true, useVerifiedProjector: true, confirmedMount: true });
     fixture.snapshotResponses.push(json(200, nonemptyMountSnapshot(true)));
     fixture.ackResponses.push(json(200, ack('bootstrap-cursor')));
     fixture.forcedSessions.push({ state: 'active', snapshotRequired: false, cursor: 'cursor-recovered' });
@@ -36,6 +36,26 @@ describe('P3-33 durable extension bootstrap and empty-queue wake', () => {
     const child = exported.mappings.find((item: { colpId: string }) => item.colpId === 'child-a');
     assert.equal(child?.nativeId.startsWith('recovery:'), false);
     assert.ok(child?.nativeId);
+    assert.equal([...fixture.chromeNodes.values()].filter(row => row.title === 'Child').length, 1);
+    assert.equal([...fixture.chromeNodes.values()].filter(row => row.title === 'Bookmarks bar').length, 1);
+  });
+
+  test('a pending bootstrap mount keeps the complete canonical Snapshot but grants no native download authority', async () => {
+    const fixture = await setup({ snapshotRequired: true, emptyCollection: true, confirmedMount: false });
+    try {
+      fixture.snapshotResponses.push(json(200, nonemptyMountSnapshot(true)));
+      fixture.ackResponses.push(json(200, ack('bootstrap-cursor')));
+      fixture.forcedSessions.push({ state: 'active', snapshotRequired: false, cursor: 'cursor-recovered' });
+      await fixture.engine.wake('startup');
+      const exported = await fixture.store.exportScope(scope);
+      assert.equal(exported.engine.phase, 'sleeping'); assert.equal(exported.engine.recoveryFrozen, false);
+      assert.equal(exported.ackIntents.at(-1)?.state, 'complete');
+      assert.equal((await fixture.store.listMountBindings(scope))[0]?.status, 'pending');
+      assert.equal((await fixture.store.listMountBindings(scope))[0]?.remoteMountNodeId, 'mount-bar');
+      assert.equal(exported.mappings.find(row => row.colpId === 'child-a')?.nativeId, 'recovery:child-a');
+      assert.deepEqual([...fixture.chromeNodes.values()], [{ id: '1', title: 'Bookmarks bar' }]);
+      assert.deepEqual(exported.queue, []); assert.deepEqual(exported.receipts, []);
+    } finally { fixture.store.close(); }
   });
 
   test('reprojects leftover virtual children on a later wake after the bar mount binds', async () => {
