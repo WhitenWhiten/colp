@@ -4,7 +4,7 @@ import { createPostgresLibraryCollectionUnitOfWork } from '../../server/src/infr
 import { bootstrapCanonicalOwnedCollection, generateRevisionToken } from '../../server/src/modules/collections/index.js';
 import type { createBookmarkSubscriptionProductFixture } from './bookmark-subscription-product-stack.js';
 import { knowNBackendRoot, loadClassificationProductStack, type ClassificationProductFixture } from './cloud-product-fixtures.js';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request as httpsRequest } from 'node:https';
@@ -126,6 +126,9 @@ export interface PushRequestObservation {
   readonly fingerprint: string;
   readonly responseStatus?: number;
   readonly responseCode?: string;
+  readonly responseBody?: string;
+  /** Independently derived from the real PG Session; never expose its secret. */
+  readonly expectedServerBatchId?: string;
   /** Observe the COLP Bearer transport without retaining the opaque session credential. */
   readonly sessionCookiePresent: boolean;
   readonly bearerAuthorizationPresent: boolean;
@@ -479,7 +482,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
         let responseCode: string | undefined;
         try { const parsed = JSON.parse(body) as { code?: unknown };
           if (typeof parsed.code === 'string') responseCode = parsed.code; } catch { /* streamed response */ }
-        pushRequests[index] = { ...pushRequests[index]!, responseStatus: reply.statusCode,
+        pushRequests[index] = { ...pushRequests[index]!, responseStatus: reply.statusCode, responseBody: body,
           ...(responseCode ? { responseCode } : {}) };
       }
     }
@@ -938,6 +941,17 @@ export async function startRealStack(options: {readonly classification?:boolean;
         where replica_id=$1 order by sequence_number limit 1`, [REPLICA_ID]);
       const sequenceReceipts = await isolated.runtime.pool.query(`select sequence_number,operation_id as op_id,result_digest,result_json
         from sync_sequence_receipts where replica_id=$1 order by sequence_number`, [REPLICA_ID]);
+      const pushSessions = await isolated.runtime.pool.query('select session_id,secret_digest from sync_sessions');
+      const sessionSecrets = new Map(pushSessions.rows.map(row => [String(row.session_id), String(row.secret_digest)]));
+      const observedPushRequests = structuredClone(pushRequests).map(request => {
+        let sessionId: unknown;
+        try { sessionId = (JSON.parse(request.body) as { sessionId?: unknown }).sessionId; } catch { return request; }
+        const key = request.headers['idempotency-key'];
+        const secret = typeof sessionId === 'string' ? sessionSecrets.get(sessionId) : undefined;
+        if (!secret || typeof key !== 'string') return request;
+        return { ...request, expectedServerBatchId: `${sessionId}.${createHmac('sha256', secret)
+          .update(`known.sync-push.batch.v1\0${key}`, 'utf8').digest('base64url')}` };
+      });
       const canonicalNodes = await isolated.runtime.pool.query(`select id,parent_id,title,url,is_root,folder_role,deleted_at,
         position_token,resource_revision,children_revision from nodes where collection_id=$1 order by created_at,id`, [activeLibraryId]);
       const canonicalSiblings = await isolated.runtime.pool.query(`select id,parent_id,position_token,title,url
@@ -974,7 +988,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
         replicaStatus: replica.rows[0]?.status,
         serverMutationCount: mutations.rows[0]?.count, serverReceiptDigest: pushReceipt.rows[0]?.result_digest,
         serverReceipt: pushReceipt.rows[0]?.result_json,
-        pushRequestDigests: [...pushRequestDigests], pushRequests: structuredClone(pushRequests),
+        pushRequestDigests: [...pushRequestDigests], pushRequests: observedPushRequests,
         pushResponses: [...pushResponses], pullResponses: [...pullResponses],
         sequenceReceipts: sequenceReceipts.rows, canonicalNodes: canonicalNodes.rows,
         canonicalSiblingRows: canonicalSiblings.rows, canonicalSiblingOrders, pushErrors: [...pushErrors],

@@ -100,7 +100,11 @@ export function expectSuccessfulPush(
     operationDigest: before.digest, kind: 'terminal', receiptId: `push-${before.opId}` });
   expect(receipt.result).toBeDefined();
   expect(receipt.resultDigest).toBe(sha256(canonicalJson(receipt.result)));
-  expect(receipt.result!.batchId).toBe(document(accepted).batchId);
+  // Singleton Push results use the server's Session/key HMAC envelope, while
+  // the request retains the client's UUID batch. Compare the actual response
+  // and independently derived PG authority binding, not those two distinct IDs.
+  const acceptedResult = successfulResponse(accepted);
+  expect(receipt.result).toEqual(acceptedResult);
   expect(receipt.result!.results).toEqual([expect.objectContaining({ opId: before.opId, sequence: before.sequence,
     status: expect.stringMatching(/^(applied|rebased|noop)$/u) })]);
   const serverReceipts = observed.sequenceReceipts.filter(row => row.op_id === before.opId);
@@ -109,9 +113,12 @@ export function expectSuccessfulPush(
   expect(serverReceipt.result_digest).toBe(sha256(canonicalJson({
     contract: 'known.sync-sequence-result.v1', result: serverReceipt.result_json,
   })));
-  const { batchId: storedBatch, ...storedResult } = serverReceipt.result_json;
+  const { batchId: _storedBatch, ...storedResult } = serverReceipt.result_json;
   const { batchId: _replayedBatch, ...replayedResult } = receipt.result!;
-  expect(requests.map(request => document(request).batchId)).toContain(storedBatch);
+  // A replay under a new Session rewraps only the HTTP envelope. The canonical
+  // receipt must still equal an actual successful response for this operation.
+  expect(requests.filter(request => request.responseStatus === 200).map(successfulResponse))
+    .toContainEqual(serverReceipt.result_json);
   expect(replayedResult).toEqual(storedResult);
   expect(observed.serverMutationCount).toBe(1);
   if (after.payload.compacted === true) {
@@ -167,6 +174,16 @@ function expectIdentity(before: QueueOperation, after: QueueOperation) {
   }
 }
 function document(request: PushRequestObservation): PushDocument { return JSON.parse(request.body) as PushDocument; }
+function successfulResponse(request: PushRequestObservation): Record<string, unknown> {
+  expect(request.responseStatus).toBe(200);
+  expect(request.responseBody).toBeDefined();
+  const result = JSON.parse(request.responseBody!) as Record<string, unknown>;
+  const sessionId = document(request).sessionId;
+  expect(request.expectedServerBatchId?.startsWith(`${sessionId}.`)).toBe(true);
+  expect(request.expectedServerBatchId?.slice(sessionId.length + 1)).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+  expect(result.batchId).toBe(request.expectedServerBatchId);
+  return result;
+}
 function sha256(bytes: string): string { return createHash('sha256').update(bytes, 'utf8').digest('hex'); }
 // Independent test-side encoding: do not use the encoder or digest implementation under test.
 function canonicalJson(value: unknown): string {

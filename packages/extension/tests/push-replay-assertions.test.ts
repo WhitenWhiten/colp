@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { expect, test } from 'vitest';
 import { expectAuthenticatedRestartReplay, expectRejectedSessionReplay, expectRetainedPushAttempt,
   expectSameSessionReplay, expectSuccessfulPush, queueByOpId } from '../e2e/push-replay-assertions.js';
@@ -13,9 +13,14 @@ function fixture(rebind = true, compact = true) {
       node: { kind: 'bookmark', title: 'Wire title', url: 'https://example.test/replay' }, parentId: 'root',
     }, replicaId: 'replica', sequence: 7, type: 'create_node' };
   const body = (sessionId: string) => JSON.stringify({ atomic: false, batchId: `${sessionId}.batch`, operations: [operation], sessionId });
+  const serverBatch = (sessionId: string) => `${sessionId}.${createHmac('sha256', `test-secret-${sessionId}`)
+    .update('known.sync-push.batch.v1\0operation').digest('base64url')}`;
+  const result = (sessionId: string) => ({ batchId: serverBatch(sessionId), results: [{ opId: 'operation',
+    revision: 'revision', sequence: 7, status: 'applied', targetId: 'created', warnings: [] }], serverCursor: 'cursor' });
   const request = (sessionId: string, status: number, code?: string): PushRequestObservation => ({
     url: '/v1/push', headers: { 'idempotency-key': 'operation' }, body: body(sessionId), fingerprint: hash(body(sessionId)),
     responseStatus: status, ...(code ? { responseCode: code } : {}), sessionCookiePresent: false, bearerAuthorizationPresent: true,
+    responseBody: JSON.stringify(status === 200 ? result(sessionId) : { code }), expectedServerBatchId: serverBatch(sessionId),
   });
   const before: QueueOperation = { scopeKey: 'scope', sequence: 7, opId: 'operation', batchId: 'operation',
     idempotencyKey: 'operation', digest: `sha256:${hash(JSON.stringify(operation))}`, endpointIdentity: 'syncPush',
@@ -29,8 +34,6 @@ function fixture(rebind = true, compact = true) {
     payload: (compact ? { compacted: true, type: 'create_node', payload: operation.payload } : operation) as JsonObject,
     attempt: compact ? undefined : { ...before.attempt!, sessionId: finalSession, batchId: `${finalSession}.batch`,
       body: body(finalSession), bodyDigest: hash(body(finalSession)) } };
-  const result = (sessionId: string) => ({ batchId: `${sessionId}.batch`, results: [{ opId: 'operation',
-    revision: 'revision', sequence: 7, status: 'applied', targetId: 'created', warnings: [] }], serverCursor: 'cursor' });
   const storedResult = result('old'); const localResult = result(finalSession);
   const state = {
     queue: [{ ...before, opId: 'unrelated', sequence: 1, status: 'pending' as const, attempt: undefined }, after],
@@ -61,6 +64,17 @@ test('forced 401 has real wire evidence even when the pre-send snapshot has no a
   const f = fixture(); const before = { ...f.before, status: 'pending' as const, attempt: undefined };
   expectRejectedSessionReplay(before, f.state, f.observed);
   expect(() => expectAuthenticatedRestartReplay(before, f.state, f.observed)).toThrow();
+});
+
+test('the real singleton contract keeps UUID request batches separate from Session/key result batches', () => {
+  const f = fixture();
+  const first = f.observed.pushRequests[0]!; const last = f.observed.pushRequests.at(-1)!;
+  expect(JSON.parse(first.body).batchId).toBe('old.batch');
+  expect(JSON.parse(last.body).batchId).toBe('new.batch');
+  expect(f.observed.sequenceReceipts[0]!.result_json.batchId).toBe(first.expectedServerBatchId);
+  expect(f.state.receipts[0]!.result.batchId).toBe(last.expectedServerBatchId);
+  expect(first.expectedServerBatchId).not.toBe(last.expectedServerBatchId);
+  expectAuthenticatedRestartReplay(f.before, f.state, f.observed);
 });
 
 test('unknown, blocked, deferred and claimed rows retain bytes before receipt/compaction', () => {
@@ -94,9 +108,21 @@ const corruptions: [string, (f: Fixture) => void][] = [
   ['wrong local operation digest', f => { f.state.receipts[0]!.operationDigest = 'sha256:wrong'; }],
   ['wrong local receipt sequence', f => { f.state.receipts[0]!.sequence += 1; }],
   ['wrong local receipt digest', f => { f.state.receipts[0]!.resultDigest = 'wrong'; }],
+  ['local receipt substituted with request UUID and a valid digest', f => {
+    const receipt = f.state.receipts[0]!; receipt.result.batchId = 'new.batch';
+    receipt.resultDigest = hash(JSON.stringify(receipt.result));
+  }],
+  ['local receipt substituted with the original Session envelope', f => {
+    const receipt = f.state.receipts[0]!; receipt.result = f.observed.sequenceReceipts[0]!.result_json;
+    receipt.resultDigest = hash(JSON.stringify(receipt.result));
+  }],
   ['missing PostgreSQL receipt', f => { f.observed.sequenceReceipts = []; }],
   ['wrong PostgreSQL receipt digest', f => { f.observed.sequenceReceipts[0]!.result_digest = 'wrong'; }],
   ['wrong PostgreSQL receipt sequence', f => { f.observed.sequenceReceipts[0]!.sequence_number = '8'; }],
+  ['PostgreSQL receipt with a forged batch and valid canonical digest', f => {
+    const receipt = f.observed.sequenceReceipts[0]!; receipt.result_json.batchId = `other.${'x'.repeat(43)}`;
+    receipt.result_digest = hash(JSON.stringify({ contract: 'known.sync-sequence-result.v1', result: receipt.result_json }));
+  }],
   ['duplicate server mutation', f => { f.observed.serverMutationCount = 2; }],
   ['missing real HTTP observations', f => { f.observed.pushRequests = []; }],
   ['changed HTTP idempotency key', f => { Object.assign(f.observed.pushRequests[2]!, { headers: { 'idempotency-key': 'other' } }); }],
@@ -104,6 +130,21 @@ const corruptions: [string, (f: Fixture) => void][] = [
   ['Session changed without 401', f => { Object.assign(f.observed.pushRequests[1]!, { responseStatus: 503 }); }],
   ['Session changed after unrelated 401', f => { Object.assign(f.observed.pushRequests[1]!, { responseCode: 'other' }); }],
   ['accepted request did not succeed', f => { Object.assign(f.observed.pushRequests[2]!, { responseStatus: 500 }); }],
+  ['missing actual HTTP result', f => { Object.assign(f.observed.pushRequests[2]!, { responseBody: undefined }); }],
+  ['missing real PG batch binding', f => { Object.assign(f.observed.pushRequests[2]!, { expectedServerBatchId: undefined }); }],
+  ['HTTP result with the request UUID instead of its server batch', f => {
+    rewriteFinalResponse(f, result => { result.batchId = 'new.batch'; });
+  }],
+  ['HTTP result bound to a different idempotency key', f => {
+    rewriteFinalResponse(f, result => { result.batchId = `new.${createHmac('sha256', 'test-secret-new')
+      .update('known.sync-push.batch.v1\0other-operation').digest('base64url')}`; });
+  }],
+  ['HTTP result bound to a previous Session', f => {
+    Object.assign(f.observed.pushRequests[2]!, { responseBody: f.observed.pushRequests[0]!.responseBody });
+  }],
+  ['binding evidence for a different Session', f => {
+    Object.assign(f.observed.pushRequests[2]!, { expectedServerBatchId: f.observed.pushRequests[0]!.expectedServerBatchId });
+  }],
   ['operation content changed on rebind', f => rewriteFinalBody(f, body => body.replace('Wire title', 'Changed title'))],
   ['atomic semantics changed on rebind', f => rewriteFinalBody(f, body => body.replace('"atomic":false', '"atomic":true'))],
   ['operation encoding changed on rebind', f => rewriteFinalBody(f, body => body.replace('https://', 'https:\\/\\/'))],
@@ -133,4 +174,9 @@ test('terminal success cannot hide a missing retained attempt before an authenti
 function rewriteFinalBody(f: Fixture, change: (body: string) => string) {
   const request = f.observed.pushRequests.at(-1)!; const body = change(request.body);
   Object.assign(request, { body, fingerprint: hash(body) });
+}
+function rewriteFinalResponse(f: Fixture, change: (result: Record<string, unknown>) => void) {
+  const request = f.observed.pushRequests.at(-1)!;
+  const result = JSON.parse(request.responseBody!) as Record<string, unknown>; change(result);
+  Object.assign(request, { responseBody: JSON.stringify(result) });
 }
