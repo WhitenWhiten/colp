@@ -226,14 +226,14 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   }
 
   async function observeApplyIntentEvent(input: SyncScope, correlationId: string, evidence: JsonObject,
-    allowCompletedChangeEcho = true): Promise<boolean> {
+    allowCompletedEcho = true): Promise<boolean> {
     assertWritable(); const key = scopeKey(validateScope(input)); const db = await writableDatabase(); let matched = false;
     await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
       const intents = tx.objectStore(STORES.intents); const intent = await requestValue(intents.index(INDEXES.intentByCorrelation)
         .get([key, boundedString(correlationId, 'correlationId')])) as IntentRecord | undefined;
       if (!intent || intent.expiresAt <= Date.now() || !['browser_call_started', 'native_event_observed',
         'authority_committed', 'page_complete'].includes(String(intent.state)) || !intent.eventId) return;
-      if (!allowCompletedChangeEcho && intent.expected.kind === 'change' && intent.state === 'page_complete') return;
+      if (!allowCompletedEcho && intent.state === 'page_complete') return;
       // Content correlation locates a create intent before Chrome returns its
       // identity. Afterwards only that exact native can supply the echo; a
       // second identical bookmark is independent user work.

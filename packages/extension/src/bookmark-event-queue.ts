@@ -1,6 +1,7 @@
 import { isAutomaticIngressWaitCode } from './sync-state/open-issue-facts.js';
 import { classifySyncFailure, syncFailureCode } from './sync-failure-class.js';
 import { createBookmarkPlacement } from './bookmark-event-placement.js';
+import { allowCompletedMoveEcho } from './bookmark-move-echo.js';
 import { hasRunningBootstrap } from './bootstrap/run-identity.js';
 import { folderSyncCoverage } from './bookmark-sync-range.js';
 import { placementDomainKeys } from './bookmark-event-placement-domain.js';
@@ -540,7 +541,9 @@ export function createBookmarkEventQueue(options: QueueOptions) {
   }
   async function hasApplyIntent(kind: string, nativeId: string, details: JsonObject) {
     const correlationId = correlationFor(kind, nativeId, details);
-    return options.store.observeApplyIntentEvent(options.scope, correlationId, { eventDigest: correlationId, nativeId });
+    const allowCompletedEcho = kind !== 'move' || await allowCompletedMoveEcho({
+      nativeId, details, api: options.api, identityFor, listPendingEvents });
+    return options.store.observeApplyIntentEvent(options.scope, correlationId, { eventDigest: correlationId, nativeId }, allowCompletedEcho);
   }
   async function reservedByProjection(kind: 'create' | 'change' | 'move' | 'remove', nativeId: string,
     suppression: string | undefined, changes?: ProjectionChangeFields,
