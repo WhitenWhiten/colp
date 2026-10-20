@@ -2,6 +2,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import type { BootstrapMode, SpecialFolderRole } from '../sync-state/types.js';
 import { canonicalJson } from '../sync-state/codec.js';
+import { virtualNativeId } from '../projection-native-occupancy.js';
 import { bootstrapOpId as opId } from './run-identity.js';
 import { pairCustomMountRoots } from './custom-mount-match.js';
 export { bootstrapOpId, bootstrapRunOpPrefix, mountResolveOpIdMatches } from './run-identity.js';
@@ -298,10 +299,16 @@ function explicitIdentities(input: {
   readonly sidecars?: readonly SidecarFact[]; readonly mounts: readonly MountFact[];
 }): Map<string, string> {
   const identities = new Map<string, string>();
+  const nativeByRemote = new Map<string, string>();
   const remember = (nativeId: string, nodeId: string | null | undefined) => {
     if (!authoritativeColp(nodeId)) return;
     const prior = identities.get(nativeId);
     if (prior && prior !== nodeId) throw new Error('mapping_identity_conflict');
+    if (!virtualNativeId(nativeId)) {
+      const occupant = nativeByRemote.get(nodeId);
+      if (occupant && occupant !== nativeId) throw new Error('mapping_identity_conflict');
+      nativeByRemote.set(nodeId, nativeId);
+    }
     identities.set(nativeId, nodeId);
   };
   for (const row of input.mappings) remember(row.nativeId, row.colpId);

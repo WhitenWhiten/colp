@@ -84,6 +84,39 @@ test('a bound mount cannot overwrite contradictory persisted identity', () => {
     .toThrow('mapping_identity_conflict');
 });
 
+test.each(['sourceRef', 'sidecar'] as const)('two native items cannot silently share one %s cloud identity', kind => {
+  const second = { ...local, nativeId: 'second-bookmark', title: 'Different local change' };
+  const input = kind === 'sourceRef'
+    ? { local: [local, second].map(row => ({ ...row, sourceRefColpId: 'new-bookmark' })) }
+    : { local: [local, second], sidecars: [local, second].map(row => ({ nativeId: row.nativeId, colpId: 'new-bookmark' })) };
+  expect(() => match(input)).toThrow('mapping_identity_conflict');
+});
+
+test('a source reference cannot take the identity already assigned to another real native item', () => {
+  expect(() => match({ ...proof('sourceRef', 'new-bookmark'),
+    mappings: [{ nativeId: 'other-real-native', colpId: 'new-bookmark' }] })).toThrow('mapping_identity_conflict');
+});
+
+test('a virtual snapshot occupant is not mistaken for a second native identity', () => {
+  const report = match({ ...proof('sourceRef', 'new-bookmark'),
+    mappings: [{ nativeId: 'recovery:new-bookmark', colpId: 'new-bookmark' }] });
+  expect(report.matched).toEqual([{ nativeId: 'bookmark', nodeId: 'new-bookmark' }]);
+});
+
+test('the real coordinator rejects two sidecar claims before persisting either local item', async () => {
+  const { store, coordinator } = await setup();
+  try {
+    const localFacts = [local, { ...local, nativeId: 'second-bookmark', title: 'Unsynced local difference' }];
+    await expect(coordinator.confirm(baseConfirm({ localFacts, remoteFacts: remote, mounts: [barMount('cloud-bar')],
+      sidecars: localFacts.map(row => ({ nativeId: row.nativeId, colpId: 'new-bookmark' })) })))
+      .rejects.toThrow('mapping_identity_conflict');
+    expect(await store.getMappingByNativeId(scope, 'bookmark')).toBeNull();
+    expect(await store.getMappingByNativeId(scope, 'second-bookmark')).toBeNull();
+    expect(await store.listQueue(scope)).toEqual([]);
+    expect((await store.listBootstrapRuns(scope))[0]?.phase).not.toBe('completed');
+  } finally { store.close(); }
+});
+
 test.each(['sourceRef', 'sidecar'] as const)('real coordinator does not persist or enqueue a replacement for absent %s evidence', async kind => {
   const { store, coordinator } = await setup();
   const evidence = proof(kind, 'deleted-bookmark');
