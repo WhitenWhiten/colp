@@ -431,7 +431,8 @@ test('production MV3 exact-replays a committed Push after disconnect and converg
     const { batchId: replayBatch, ...replayedResult } = after.receipts.find((receipt: any) => receipt.opId === seeded.opId).result;
     expect(replayedResult).toEqual(storedResult);
     expect(storedBatch.startsWith(`${retained.attempt!.sessionId}.`)).toBe(true);
-    expect(replayBatch).toBe(JSON.parse(observed.pushRequests.at(-1).body).batchId);
+    expect(replayBatch).toBe(observed.pushRequests.at(-1).expectedServerBatchId);
+    expect(replayBatch).toBe(JSON.parse(observed.pushRequests.at(-1).responseBody).batchId);
   } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 

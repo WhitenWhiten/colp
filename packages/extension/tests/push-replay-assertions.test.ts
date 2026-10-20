@@ -90,6 +90,18 @@ test('unknown, blocked, deferred and claimed rows retain bytes before receipt/co
   }
 });
 
+test('a deferred HTTP 200 is not a terminal receipt candidate, and cannot replace terminal evidence', () => {
+  const f = fixture(); const accepted = f.observed.pushRequests[0]!;
+  const deferred = { ...accepted, responseBody: JSON.stringify({ batchId: 'old.batch',
+    results: [{ opId: 'operation', sequence: 7, status: 'deferred', warnings: [] }], serverCursor: 'cursor-before' }) };
+  f.observed.pushRequests.unshift(deferred);
+  expectAuthenticatedRestartReplay(f.before, f.state, f.observed);
+  f.observed.pushRequests.splice(1, 1);
+  expect(() => expectAuthenticatedRestartReplay(f.before, f.state, f.observed)).toThrow();
+  Object.assign(f.observed.pushRequests.at(-1)!, { responseBody: deferred.responseBody });
+  expect(() => expectSuccessfulPush(f.before, f.state, f.observed)).toThrow();
+});
+
 type Fixture = ReturnType<typeof fixture>;
 const corruptions: [string, (f: Fixture) => void][] = [
   ['missing queue row', f => { f.state.queue = []; }],

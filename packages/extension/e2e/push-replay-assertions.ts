@@ -117,7 +117,7 @@ export function expectSuccessfulPush(
   const { batchId: _replayedBatch, ...replayedResult } = receipt.result!;
   // A replay under a new Session rewraps only the HTTP envelope. The canonical
   // receipt must still equal an actual successful response for this operation.
-  expect(requests.filter(request => request.responseStatus === 200).map(successfulResponse))
+  expect(requests.filter(request => isTerminalResponse(request, before)).map(successfulResponse))
     .toContainEqual(serverReceipt.result_json);
   expect(replayedResult).toEqual(storedResult);
   expect(observed.serverMutationCount).toBe(1);
@@ -174,6 +174,16 @@ function expectIdentity(before: QueueOperation, after: QueueOperation) {
   }
 }
 function document(request: PushRequestObservation): PushDocument { return JSON.parse(request.body) as PushDocument; }
+function isTerminalResponse(request: PushRequestObservation, before: QueueOperation): boolean {
+  if (request.responseStatus !== 200) return false;
+  expect(request.responseBody).toBeDefined();
+  const result = JSON.parse(request.responseBody!) as { results?: { opId?: string; sequence?: number; status?: string }[] };
+  // A successful transport may carry deferred/gap work in the client's batch
+  // envelope. Only a consumed operation can own the immutable Sequence receipt.
+  return Array.isArray(result.results) && result.results.length === 1
+    && result.results[0]!.opId === before.opId && result.results[0]!.sequence === before.sequence
+    && /^(applied|rebased|noop)$/u.test(result.results[0]!.status ?? '');
+}
 function successfulResponse(request: PushRequestObservation): Record<string, unknown> {
   expect(request.responseStatus).toBe(200);
   expect(request.responseBody).toBeDefined();
