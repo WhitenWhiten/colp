@@ -74,11 +74,31 @@ test('an existing root binding survives rename and wins over a same-title candid
   assert.deepEqual(report.planned, []);
 });
 
-test('a persisted identity wins over a conflicting mount hint and structural candidate', () => {
+test('a persisted identity wins over an unbound mount and a same-title structural candidate', () => {
   const report = match({ mappings: [{ nativeId: folder.nativeId, colpId: remoteFolder.nodeId }],
-    mounts: [customMount(folder.nativeId, 'folder:1342', 'unrelated-ai')],
+    mounts: [customMount(folder.nativeId, 'folder:1342')],
     remote: [root, { ...remoteFolder, title: 'Cloud title' }, { ...remoteFolder, nodeId: 'unrelated-ai' }] });
   assert.deepEqual(report.matched, [{ nativeId: folder.nativeId, nodeId: remoteFolder.nodeId }]);
+});
+
+test('contradictory persisted and mount identities fail before the coordinator authors or completes work', async () => {
+  const contradictory = { mappings: [{ nativeId: folder.nativeId, colpId: remoteFolder.nodeId }],
+    mounts: [customMount(folder.nativeId, 'folder:1342', 'unrelated-ai')],
+    remote: [root, { ...remoteFolder, title: 'Cloud title' }, { ...remoteFolder, nodeId: 'unrelated-ai' }] };
+  // A concrete remoteMountNodeId is an identity, not a title-match hint. Neither
+  // input order nor the structural candidate may silently choose between them.
+  assert.throws(() => match(contradictory), /mapping_identity_conflict/);
+  const { store, coordinator } = await setup();
+  await store.putMapping(scope, { nativeId: folder.nativeId, colpId: remoteFolder.nodeId,
+    rootNativeId: folder.nativeId, nodeKind: 'folder', parentColpId: root.nodeId,
+    projection: { revision: 'r1', digest: 'sha256:known-identity', content: { title: folder.title } } });
+  const before = await store.listMappings(scope);
+  await assert.rejects(coordinator.confirm({ ...input(), mounts: contradictory.mounts,
+    remoteFacts: contradictory.remote }), /mapping_identity_conflict/);
+  assert.deepEqual(await store.listMappings(scope), before);
+  assert.deepEqual(await store.listQueue(scope), []);
+  assert.equal((await store.listBootstrapRuns(scope)).some(run => run.phase === 'completed'), false);
+  assert.notEqual((await store.getScope(scope))?.firstRun, 'completed');
 });
 
 test('ambiguous remote custom roots are never selected arbitrarily', () => {
