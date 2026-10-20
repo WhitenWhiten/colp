@@ -173,7 +173,8 @@ test('cloud growth invalidates an old destructive preview, then a fresh preview 
   const stored = (await syncState.getScopePreview(scope, fresh.previewId))!;
   expect(stored.remoteDeleteEvidence?.[0]?.affectedCount).toBe(3);
   expect(await handleRootRequest(fresh)).toMatchObject({ ok: true });
-  expect((await syncState.listQueue(scope)).filter(row => row.payload.type.startsWith('delete_')).map(row => row.payload.targetId).sort())
+  expect((await syncState.listQueue(scope)).filter(row => typeof row.payload.type === 'string'
+    && row.payload.type.startsWith('delete_')).map(row => row.payload.targetId).sort())
     .toEqual(['remote-10', 'remote-cloud-new']);
 });
 
@@ -190,7 +191,7 @@ test('more than 500 role children keep the command small and every frozen deleti
   expect(new TextEncoder().encode(JSON.stringify(command)).byteLength).toBeLessThan(16 * 1024);
   expect(JSON.stringify(command.payload)).not.toContain('contentDeletes');
   const rows = await syncState.listQueue(scope, undefined, 0, 1000);
-  const deletions = rows.filter(row => row.payload.type.startsWith('delete_'));
+  const deletions = rows.filter(row => typeof row.payload.type === 'string' && row.payload.type.startsWith('delete_'));
   expect(deletions).toHaveLength(521);
   expect(new Set(deletions.map(row => row.opId)).size).toBe(521);
   syncState.close();
