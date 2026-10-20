@@ -110,7 +110,7 @@ describe('Extension Sync coverage ratchet [SYNC-Q-021]', () => {
       'src/sync-effect-authority.ts', 'src/sync-fetch-boundary.ts',
       'src/pull-item-set-aside.ts', 'src/sync-state/pull-workset.ts', 'src/sw/scope.ts', 'src/sw/scope-rebuild.ts',
       'src/pull-native-content-barrier.ts', 'src/pull-native-snapshot-resume.ts', 'src/pull-range-move.ts',
-      'src/pull-create-evidence.ts', 'src/pull-range-materialize.ts', 'src/pull-restore-apply.ts',
+      'src/pull-create-evidence.ts', 'src/pull-range-materialize.ts', 'src/pull-restore-apply.ts', 'src/pull-self-create.ts',
       'src/pull-native-create-boundary.ts', 'src/pull-native-write-boundary.ts',
       'src/native-wait-materialization.ts', 'src/sync-state/materialization-wait-authority.ts', 'src/sw/native-wait.ts',
       'src/recovery-content.ts', 'src/recovery-delete.ts', 'src/recovery-placement.ts',

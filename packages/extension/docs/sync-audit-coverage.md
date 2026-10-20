@@ -8,7 +8,7 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 133 executable owners, for 188 total.
+This pass adds 134 executable owners, for 189 total.
 
 The recovery owners include the native content and placement barriers, ordinary range moves,
 and confirmation of an earlier unknown native create after a newer Snapshot. Their behavior
@@ -31,6 +31,11 @@ The Pull mapping read repository is separately measured because shadow events, p
 and the durable mapping must come from one fresh readonly transaction. Its four 80% floors
 leave the original mapping-view owner's four 100% floors unchanged. The local placement
 owner covers captured drag evidence and the guarded admission of a later retry.
+
+The provisional self-create owner is measured separately from the runtime that calls it.
+Its replay paths retain operation binding and native identity checks while deferring an
+unused parent read; prepare still supplies an already-read parent. Its four 80% admission
+floors leave all 188 previously registered owners unchanged and require a real V8 measurement.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
@@ -75,6 +80,7 @@ owner covers captured drag evidence and the guarded admission of a later retry.
 - `src/pull-range-materialize.ts`
 - `src/pull-range-move.ts`
 - `src/pull-restore-apply.ts`
+- `src/pull-self-create.ts`
 - `src/push-recovery-barrier.ts`
 - `src/queued-upload-batch-boundary.ts`
 - `src/queued-upload-boundary.ts`

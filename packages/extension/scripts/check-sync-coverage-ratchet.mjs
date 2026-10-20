@@ -48,6 +48,7 @@ export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
   'src/pull-range-materialize.ts',
   'src/pull-range-move.ts',
   'src/pull-restore-apply.ts',
+  'src/pull-self-create.ts',
   'src/push-recovery-barrier.ts',
   'src/queued-upload-batch-boundary.ts',
   'src/queued-upload-boundary.ts',
