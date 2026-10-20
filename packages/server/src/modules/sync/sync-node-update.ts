@@ -156,7 +156,7 @@ export function mergeSyncNodeContentFields(
   incoming: Readonly<Record<string, unknown>>,
 ): SyncTypedMergeResult {
   const extensions = Object.hasOwn(base, 'extensions')
-    ? mergeExtensionNamespaces(base.extensions, current.extensions, incoming.extensions) : undefined;
+    ? mergeSyncExtensionNamespaces(base.extensions, current.extensions, incoming.extensions) : undefined;
   const merged = mergeSyncTypedUpdate(extensions === undefined ? { base, current, incoming }
     : { base: withoutExtensions(base), current: withoutExtensions(current), incoming: withoutExtensions(incoming) });
   return merged.status === 'merged' && extensions !== undefined
@@ -168,8 +168,11 @@ export function mergeSyncNodeContentFields(
  * attributes), so they merge one namespace at a time: a pin set on one device and
  * another namespace changed elsewhere both land. Undefined means some namespace
  * changed differently on both sides, which stays an `extensions` field conflict.
+ * An explicit resolution supplies only competing namespace values; undefined
+ * removes that namespace without discarding other independent changes.
  */
-function mergeExtensionNamespaces(base: unknown, current: unknown, incoming: unknown): JsonObject | undefined {
+export function mergeSyncExtensionNamespaces(base: unknown, current: unknown, incoming: unknown,
+  resolveConflict?: (namespace: string) => unknown): JsonObject | undefined {
   const sides = [base ?? {}, current ?? {}, incoming ?? {}];
   if (!sides.every((side) => side !== null && typeof side === 'object' && !Array.isArray(side))) return undefined;
   const [b, c, i] = sides as Record<string, unknown>[];
@@ -179,6 +182,7 @@ function mergeExtensionNamespaces(base: unknown, current: unknown, incoming: unk
     let value: unknown;
     if (deepEqualSyncMergeValue(baseValue, incomingValue)) value = currentValue;
     else if (deepEqualSyncMergeValue(baseValue, currentValue) || deepEqualSyncMergeValue(currentValue, incomingValue)) value = incomingValue;
+    else if (resolveConflict) value = resolveConflict(key);
     else return undefined;
     if (value !== undefined) merged[key] = value;
   }

@@ -2112,6 +2112,42 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       assert.deepEqual(await app.resolve(command), resolved);
     });
 
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    '%s namespace conflict keeps independent changes in canonical state, effect and exact receipt', async resolution => {
+      const ns = (name: string) => `https://extensions.example/${name}`;
+      const opened = await openConflict({
+        base: { extensions: { [ns('competing')]: 1, [ns('local-removal')]: 'local',
+          [ns('remote-removal')]: 'remote', [ns('null')]: 'old' } },
+        current: { extensions: { [ns('competing')]: 2, [ns('local-removal')]: 'local',
+          [ns('null')]: 'old', [ns('remote-addition')]: { source: 'server' } } },
+        incoming: { extensions: { [ns('competing')]: 3, [ns('remote-removal')]: 'remote',
+          [ns('null')]: null, [ns('local-addition')]: { source: 'browser' } } },
+      });
+      const request = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: { [ns('competing')]: 4 } } : {}) });
+      const app = resolver(opened.value);
+      const before = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1',
+        [opened.node.id])).rows[0].payload_json;
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      const canonical = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1',
+        [effect.node.id])).rows[0].payload_json;
+      const expected = { [ns('competing')]: resolution === 'server' ? 2 : resolution === 'custom' ? 4 : 3,
+        [ns('null')]: null, [ns('local-addition')]: { source: 'browser' },
+        [ns('remote-addition')]: { source: 'server' } };
+      for (const content of [canonical, effect.node]) assert.deepEqual(content.extensions, expected);
+      assert.equal(effect.kind, resolution === 'both' ? 'node_created' : 'node_content_updated');
+      if (resolution === 'both') {
+        assert.notEqual(effect.node.id, opened.node.id);
+        assert.deepEqual((await isolated.runtime.pool.query('select payload_json from nodes where id=$1',
+          [opened.node.id])).rows[0].payload_json, before);
+      }
+      const after = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+    });
+
   async function advertisedActions(conflictId: string) {
     const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
       cursorSecret: 'p3-actions-cursor-secret-at-least-thirty-two-characters',

@@ -46,6 +46,35 @@ test('resolution preserves concurrent additions in a retained nonconflicting ext
   });
 });
 
+test.each(['server', 'incoming', 'custom', 'both'] as const)(
+  '%s settles competing namespaces without losing independent additions, removals or explicit null', resolution => {
+    const ns = (name: string) => `https://extensions.example/${name}`;
+    const base = { [ns('competing')]: 1, [ns('local-removal')]: 'old-local',
+      [ns('remote-removal')]: 'old-remote', [ns('null')]: 'old-null' };
+    const current = { [ns('competing')]: 2, [ns('local-removal')]: 'old-local',
+      [ns('null')]: 'old-null', [ns('remote-addition')]: { source: 'server' } };
+    const incoming = { [ns('competing')]: 3, [ns('remote-removal')]: 'old-remote',
+      [ns('null')]: null, [ns('local-addition')]: { source: 'browser' } };
+    const retained: PrivateConflictPayload = { nodeKind: 'bookmark',
+      base: { extensions: base }, current: { extensions: current }, incoming: { extensions: incoming } };
+    const canonical = { title: 'Bookmark', url: 'https://example.test/', extensions: current };
+    const chosen = resolution === 'both' ? duplicateNodeDocument(canonical, retained, ['/extensions']).extensions
+      : selectedResolutionFields({ ...command(resolution),
+        ...(resolution === 'custom' ? { value: { [ns('competing')]: 4 } } : {}) },
+      canonical, retained, ['/extensions']).value.extensions;
+    assert.deepEqual(chosen, { [ns('competing')]: resolution === 'server' ? 2 : resolution === 'custom' ? 4 : 3,
+      [ns('remote-addition')]: { source: 'server' }, [ns('local-addition')]: { source: 'browser' }, [ns('null')]: null });
+  });
+
+test.each([null, {}])('a custom namespace deletion (%j) preserves independent namespaces', choice => {
+  const conflict = 'https://extensions.example/competing', added = 'https://extensions.example/added';
+  const retained: PrivateConflictPayload = { nodeKind: 'bookmark', base: { extensions: { [conflict]: 1 } },
+    current: { extensions: { [conflict]: 2, [added]: null } }, incoming: { extensions: { [conflict]: 3 } } };
+  const selected = selectedResolutionFields({ ...command('custom'), value: choice },
+    retained.current, retained, ['/extensions']);
+  assert.deepEqual(selected.value.extensions, { [added]: null });
+});
+
 test('a later conflict on a retained URL cannot be overwritten; both still preserves the edit', () => {
   const current = { ...payload.current, url: 'https://example.test/newer' };
   assert.throws(() => selectedResolutionFields(command('incoming'), current, payload, ['/title']),

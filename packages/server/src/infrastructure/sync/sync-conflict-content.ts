@@ -1,7 +1,7 @@
 import type { HttpUrl, NodeCreate } from '@know-n/colp/types';
 import { preserveExtensions } from '@know-n/colp/schema';
 import {
-  mergeSyncNodeContentFields, SyncConflictResolutionError,
+  mergeSyncNodeContentFields, mergeSyncExtensionNamespaces, SyncConflictResolutionError,
   type ValidatedSyncConflictResolutionCommand,
 } from '../../modules/sync/index.js';
 import {
@@ -45,9 +45,11 @@ export function selectedResolutionFields(
     || Object.keys(custom).some(field => !fields.includes(field)))) invalid();
   for (const field of fields) {
     base[field] = fieldValue(current, field);
-    value[field] = command.resolution === 'server' ? base[field]
+    const selected = command.resolution === 'server' ? base[field]
       : command.resolution === 'incoming' ? fieldValue(privatePayload.incoming, field)
       : custom ? custom[field] : command.value;
+    value[field] = field === 'extensions'
+      ? selectedExtensionNamespaces(current, privatePayload, selected) : selected;
   }
   for (const field of Object.keys(privatePayload.incoming)) {
     if (fields.includes(field)) continue;
@@ -68,6 +70,19 @@ function mergeRetainedField(field: string, current: Readonly<Record<string, unkn
     { [field]: fieldValue(current, field) }, { [field]: fieldValue(payload.incoming, field) });
 }
 
+/** A field-level decision settles only competing namespaces. Independent
+ * additions and removals still merge; absence removes a namespace, while a
+ * JSON null value is retained as that namespace's explicit value. */
+function selectedExtensionNamespaces(current: Readonly<Record<string, unknown>>,
+  payload: PrivateConflictPayload, selected: unknown) {
+  const choice = selected ?? {};
+  if (!isRecord(choice)) invalid();
+  const merged = mergeSyncExtensionNamespaces(payload.base.extensions, current.extensions,
+    payload.incoming.extensions, namespace => choice[namespace]);
+  if (merged === undefined) invalid();
+  return merged;
+}
+
 /** A separate node keeps the full incoming edit, including fields that were
  * independent at admission. Existing live nodes and tombstones stay intact. */
 export function duplicateNodeDocument(
@@ -78,7 +93,9 @@ export function duplicateNodeDocument(
   const selected: Record<string, unknown> = {};
   for (const field of Object.keys(privatePayload.incoming)) {
     const merged = mergeRetainedField(field, current, privatePayload);
-    selected[field] = pointers.includes(`/${field}`) || merged.status === 'conflict'
+    selected[field] = field === 'extensions'
+      ? selectedExtensionNamespaces(current, privatePayload, privatePayload.incoming.extensions)
+      : pointers.includes(`/${field}`) || merged.status === 'conflict'
       ? privatePayload.incoming[field] : merged.value[field];
   }
   const content = { ...current, ...(privatePayload.nodeKind === 'bookmark'
