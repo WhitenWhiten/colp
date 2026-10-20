@@ -56,3 +56,19 @@ test('a fresh scan observes a new issue and its closure after another connection
     assert.equal((await readOpenSyncIssues(f.store, scope)).total, 0);
   } finally { f.store.close(); }
 });
+
+test('a diagnostic-only reader retains local protection without optional transport repositories', async () => {
+  const f = await setup();
+  try {
+    await f.store.recordLocalIssue(scope, { nativeId: 'native-node', code: 'deletion_identity_unproven', now: 1_000 });
+    // Read-only diagnostics also use this Partial store contract. Optional
+    // repositories must not become required when their reads run concurrently.
+    const reader = { listLocalIssues: f.store.listLocalIssues, listMappings: f.store.listMappings };
+    const open = await readOpenSyncIssues(reader, scope);
+    assert.equal(open.total, 1);
+    assert.deepEqual([...open.nativeRoots], ['native-node']);
+    assert.deepEqual([...open.roots], ['node-1']);
+    assert.deepEqual(open.queue, []);
+    assert.deepEqual(open.waits, []);
+  } finally { f.store.close(); }
+});
