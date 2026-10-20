@@ -21,6 +21,9 @@ export async function provisionalSelfCreateMapping(options: PullApplierOptions,
       || canonicalOperationDigest(queued.payload as unknown as Operation) !== event.effect.operationDigest) {
     throw new SyncFailureError('pull_source_binding_invalid');
   }
+  // An existing provisional mapping does not consume the parent argument.
+  // Delay fallback construction's read; callers keep their later fresh reads.
+  const resolvedParent = typeof parent === 'function' ? await parent() : parent;
   const current = await options.store.getMappingByNativeId(options.scope, nativeId);
   if (current && current.colpId !== event.effect.node.id && !current.colpId.startsWith('pending-')) {
     throw new SyncFailureError('mapping_identity_collision');
@@ -29,9 +32,6 @@ export async function provisionalSelfCreateMapping(options: PullApplierOptions,
   if (canonical && canonical.nativeId !== nativeId && !virtualNativeId(canonical.nativeId)) {
     throw new SyncFailureError('mapping_identity_collision');
   }
-  // An existing provisional mapping does not consume the parent argument.
-  // Delay fallback construction's read; callers keep their later fresh reads.
-  const resolvedParent = typeof parent === 'function' ? await parent() : parent;
   return mappingFor(event.effect.node, nativeId, resolvedParent.nativeId, resolvedParent.colpId,
     event.effect.nodeChildrenRevision, resolvedParent.rootNativeId);
 }
