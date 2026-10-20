@@ -6,8 +6,9 @@ import { captureRejoinParents, createRejoinQueue } from './scope-rejoin-parents.
 import { reconcileRejoinOrders } from './scope-rejoin-order.js';
 import { digestJson } from './bookmark-event-codec.js';
 import { queueRejoinOperation } from './scope-rejoin-queue.js';
-import { protectedRejoinDeletions, rejoinPlacement } from './scope-rejoin-placement.js';
+import { assertRejoinDeletionTree, protectedRejoinDeletions, rejoinDeletionMembers, rejoinPlacement } from './scope-rejoin-placement.js';
 import { materializeUnmountedRejoinMembers, rejoinMemberMappings } from './scope-rejoin-materialize.js';
+import { parentFirst } from './scope-rejoin-members.js';
 import { isNonChromeNativeId } from './pull-mount-apply.js';
 import { applyRejoinMutation, rejoinMutationAuthority, rejoinNativeDigest, type RejoinChrome, type RejoinNative } from './scope-rejoin-mutation.js';
 import { compareRejoinFacts } from './scope-transition.js';
@@ -44,21 +45,6 @@ export async function applyRejoinObservations(input: {
   let mappings = rejoinMemberMappings(all, mount);
   const observations = new Map((await store.listRemoteObservations(scope))
     .filter(row => observationValidForPause(row, mount.pauseBaseline)).map(row => [row.colpId, row]));
-  const protectedDeletions = await protectedRejoinDeletions(input, mappings);
-  const pendingTargets = await unsettledRejoinTargets(store, scope);
-  const optimistic = (mapping: MappingInput) => mapping.projection.revision.startsWith('local-')
-    || pendingTargets.has(mapping.colpId);
-  const byNative = new Map(mappings.map((row) => [row.nativeId, row]));
-  for (const mapping of mappings) {
-    if (!optimistic(mapping)) continue;
-    let current: MappingInput | undefined = mapping;
-    const seen = new Set<string>();
-    while (current && !seen.has(current.nativeId)) {
-      seen.add(current.nativeId);
-      protectedDeletions.add(current.nativeId);
-      current = current.parentNativeId ? byNative.get(current.parentNativeId) : undefined;
-    }
-  }
   const baselineKnown = mount.pauseBaseline?.completeness === 'complete' && mount.pauseBaseline.generation === scope.generation;
   let applied = materialized.applied; let unknown = materialized.unknown;
   const deletions = baselineKnown ? await reconcileMissingRejoinDeletes(input, mappings, [...observations.values()])
@@ -67,10 +53,23 @@ export async function applyRejoinObservations(input: {
   let conflicts = deletions.conflicts + (baselineKnown ? await reconcileRejoinOrders(input, mappings, [...observations.values()]) : 0);
   // This comparison's own order application may have advanced folder projections.
   all = await store.listMappings(scope); mappings = rejoinMemberMappings(all, mount);
+  const protection = await protectedRejoinDeletions(input, mappings), protectedDeletions = protection.protectedIds;
+  const pendingTargets = await unsettledRejoinTargets(store, scope);
+  const optimistic = (mapping: MappingInput) => mapping.projection.revision.startsWith('local-')
+    || pendingTargets.has(mapping.colpId);
+  const byNative = new Map(mappings.map((row) => [row.nativeId, row]));
+  for (const mapping of mappings) if (optimistic(mapping)) protectedDeletions.add(mapping.nativeId);
+  for (const id of protectedDeletions) {
+    const parent = byNative.get(id)?.parentNativeId;
+    if (parent && byNative.has(parent)) protectedDeletions.add(parent);
+  }
+  let deletionChanged = false;
   const considered: string[] = [];
+  const removedNativeIds = new Set<string>();
   if (!baselineKnown) unknown++;
-  if (baselineKnown) for (const mapping of mappings) {
-    if (mapping.nativeId === mount.nativeRootId || mapping.nativeId.startsWith('sidecar:')) continue;
+  if (baselineKnown) for (const mapping of parentFirst(mappings, mount.remoteMountNodeId)) {
+    if (mapping.nativeId === mount.nativeRootId || mapping.nativeId.startsWith('sidecar:')
+      || removedNativeIds.has(mapping.nativeId)) continue;
     considered.push(mapping.colpId);
     if (isNonChromeNativeId(mapping.nativeId) || mapping.colpId.startsWith('pending-')) { unknown++; continue; }
     // A local-* revision or a live outbound op is not an authoritative pause baseline.
@@ -107,11 +106,49 @@ export async function applyRejoinObservations(input: {
       if (policy === 'keep_local') {
         await store.putLocalSyncExclusion(scope, { nativeId: mapping.nativeId, decisionId: commandId,
           rootNativeId: mount.nativeRootId, generation: scope.generation, priorColpId: mapping.colpId });
+      } else if (mapping.nodeKind === 'folder') {
+        if (native && !input.removeNative) { unknown++; continue; }
+        try {
+          const members = rejoinDeletionMembers(protection.evidence, mapping.nativeId);
+          // A descendant may have moved out remotely before its former
+          // ancestor was deleted. removeTree needs a tombstone for every
+          // native identity it would erase, not just the ancestor's fact.
+          if (members.some(row => observations.get(row.colpId)?.kind !== 'tombstone')
+            || !native && members.some(row => protection.evidence.facts.get(row.nativeId)?.native)) {
+            conflicts++; continue;
+          }
+          const deletion = { members, boundary: protection.evidence.boundary };
+          if (native) authority = await applyRejoinMutation(input, mapping, 'remove', {}, native, async current => {
+            await assertRejoinDeletionTree(input, protection.evidence, members);
+            await store.assertRejoinMutation(scope, current);
+          }, deletion);
+          else {
+            // A crash may occur after removeTree but before the mapping
+            // transaction. Prove the entire known family is still absent,
+            // then publish its identity cleanup together without another API call.
+            authority = { ...await rejoinMutationAuthority(input, mapping), deletion,
+              exclusionDigest: deletion.boundary.exclusionDigest };
+            await assertRejoinDeletionTree(input, protection.evidence, members);
+          }
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'rejoin_boundary_changed') throw error;
+          deletionChanged = true; conflicts++; break;
+        }
       } else if (native) {
         if (!input.removeNative) { unknown++; continue; }
         authority = await applyRejoinMutation(input, mapping, 'remove', {}, native);
       }
       await store.commitRejoinProjection(scope, authority ?? await rejoinMutationAuthority(input, mapping), null);
+      for (const removed of authority?.deletion?.members ?? []) {
+        removedNativeIds.add(removed.nativeId); considered.push(removed.colpId);
+      }
+      if (!native && authority?.deletion) for (const intent of await store.listApplyIntents(scope)) {
+        if (intent.liveWorkKind === 'rejoin' && intent.colpId === mapping.colpId
+          && intent.nativeTargetId === mapping.nativeId && intent.expected.kind === 'remove'
+          && intent.state === 'browser_call_started') {
+          await store.persistApplyIntentFacts(scope, intent.intentId, { state: 'page_complete' });
+        }
+      }
       applied++; continue;
     }
     if (!local || !native) { if (!deletions.handled.has(mapping.colpId)) unknown++; continue; }
@@ -164,7 +201,8 @@ export async function applyRejoinObservations(input: {
   const decisions = await currentRejoinDependencies(input);
   plan.dependencies = decisions.map(row => row.commandId);
   if (decisions.some(row => row.phase !== 'active')) conflicts = Math.max(conflicts, 1);
-  await store.putScopeCommandPlan(scope, { ...plan, phase: unknown || conflicts ? 'pending' : 'active', updatedAt: Date.now() });
+  await store.putScopeCommandPlan(scope, { ...plan, phase: unknown || conflicts ? 'pending' : 'active',
+    ...(deletionChanged ? { retryReason: 'rejoin_boundary_changed' } : {}), updatedAt: Date.now() });
   if (!unknown && !conflicts && considered.length) await store.deleteRemoteObservations(scope, considered);
   return { applied, unknown, conflicts };
 }

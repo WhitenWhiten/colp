@@ -52,9 +52,13 @@ for (const target of ['self', 'ancestor'] as const) {
         assert.notEqual(beforeQueue[0]?.echoApplied, true);
         await detachScopeMount(f.store, scope, 'mount-bar');
         const mount = await f.store.getMountBinding(scope, 'mount-bar');
-        await f.store.putRemoteObservation(scope, { colpId: 'node-1', remoteRevision: 'deleted-r2',
+        // The production detached subtree Pull records each deleted identity,
+        // not just the ancestor; a child moved out remotely is not a tombstone.
+        for (const deletedId of target === 'ancestor' ? ['node-1', 'node-child'] : ['node-1']) {
+          await f.store.putRemoteObservation(scope, { colpId: deletedId, remoteRevision: 'deleted-r2',
           cursor: 'c2', kind: 'tombstone', payload: { deleted: true }, sourceDigest: 'deleted',
           observedAt: Date.now(), ...observationPauseBinding(mount?.pauseBaseline) });
+        }
         const applied = result === 'applied' || result === 'noop';
         await rejoinScopeMount(f.store, scope, 'mount-bar', new Set(), [], native);
         assert.equal(f.api.getNode(nativeId)?.title, applied ? undefined : 'Only local copy');

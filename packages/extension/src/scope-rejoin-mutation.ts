@@ -47,8 +47,9 @@ export function rejoinNativeDigest(value: RejoinNative): string {
 /** Persist callback suppression before Chrome; retries compare the actual post-state before calling again. */
 export async function applyRejoinMutation(input: MutationInput,
   mapping: MappingInput, kind: 'change' | 'remove' | 'move', target: JsonObject, before: RejoinNative,
-  beforeNative?: () => Promise<void>) {
-  const authority = await rejoinMutationAuthority(input, mapping, kind === 'move' ? String(target.parentId) : undefined);
+  beforeNative?: (authority: RejoinMutationAuthority) => Promise<void>, deletion?: RejoinMutationAuthority['deletion']) {
+  const authority = { ...await rejoinMutationAuthority(input, mapping, kind === 'move' ? String(target.parentId) : undefined),
+    ...(deletion ? { deletion, exclusionDigest: deletion.boundary.exclusionDigest } : {}) };
   const details = kind === 'remove' ? { parentId: before.parentId ?? '', index: before.index ?? 0 }
     : kind === 'move' ? { ...target, oldParentId: before.parentId ?? '', oldIndex: before.index ?? 0 } : target;
   const correlationId = digestJson({ kind, nativeId: mapping.nativeId, details });
@@ -65,13 +66,13 @@ export async function applyRejoinMutation(input: MutationInput,
   if (kind === 'move') await assertRejoinBoundary(input, mapping, { parentNativeId: String(target.parentId) });
   // Preserve the actionable order-conflict classification when a user has
   // already reordered; the same fingerprint is checked again below.
-  await beforeNative?.();
+  await beforeNative?.(authority);
   const current = await input.getNative(mapping.nativeId);
   if (!current || rejoinNativeDigest(current) !== rejoinNativeDigest(before)) throw new Error('rejoin_boundary_changed');
   await input.store.assertRejoinMutation(input.scope, authority);
   // Order operations carry a full sibling fingerprint, which must be the final
   // native check rather than a preflight invalidated by our own async reads.
-  await beforeNative?.();
+  await beforeNative?.(authority);
   if (kind === 'change') await input.updateNative!(mapping.nativeId, target);
   else if (kind === 'remove') await input.removeNative!(mapping.nativeId, mapping.nodeKind === 'folder');
   else await input.moveNative!(mapping.nativeId, target as { parentId: string; index: number });
