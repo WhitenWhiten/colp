@@ -9,6 +9,7 @@ import {
   acceptBookmarkUrl,
   assertValidHttpUrlNoUserInfo,
   isAcceptedBookmarkUrl,
+  isEquivalentBookmarkUrlRewrite,
   normalizeBookmarkUrl,
 } from '../../../src/modules/collections/index.js';
 
@@ -74,5 +75,18 @@ describe('acceptBookmarkUrl', () => {
     const raw = 'HTTP://Example.COM/Path?q=1#frag';
     assert.equal(acceptBookmarkUrl(raw), raw);
     assert.equal(normalizeBookmarkUrl(raw), 'http://example.com/Path?q=1');
+  });
+
+  test('content equivalence preserves fragment routes and trailing path slashes', () => {
+    for (const [before, after] of [
+      ['https://example.test/guide#install', 'https://example.test/guide#usage'],
+      ['https://example.test/#/inbox', 'https://example.test/#/projects'],
+      ['https://example.test/docs', 'https://example.test/docs/'],
+    ]) {
+      assert.equal(normalizeBookmarkUrl(before!), normalizeBookmarkUrl(after!));
+      assert.equal(isEquivalentBookmarkUrlRewrite(before!, after!), false);
+    }
+    assert.equal(isEquivalentBookmarkUrlRewrite('https://example.test/docs#part',
+      'HTTPS://EXAMPLE.TEST:443/docs#part'), true);
   });
 });

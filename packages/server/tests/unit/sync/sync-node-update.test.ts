@@ -251,7 +251,7 @@ describe('P3-13 typed Node update evaluator', () => {
     const beforeUrl = 'https://example.test/before';
     const beforeHash = `sha-256=:${createHash('sha256').update(beforeUrl).digest('base64')}:`;
     const hashed = revision({ payload: { ...revision().payload, url: beforeUrl, urlHash: beforeHash } });
-    const equivalent = 'HTTPS://EXAMPLE.TEST:443/before/#frag';
+    const equivalent = 'HTTPS://EXAMPLE.TEST:443/before';
     const foreignHash = `sha-256=:${createHash('sha256').update(equivalent).digest('base64')}:`;
 
     // Equivalent spelling carrying its own digest: both pin back to the stored
