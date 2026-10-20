@@ -44,7 +44,9 @@ export function parseCustomValue(conflict: SyncConflictSummary, text: string): {
   const field = customField(conflict.field)
   if (!field) return { error: 'Custom editing is unavailable for this conflict field.' }
   if (field === 'title') {
-    if (text.length < 1 || text.length > 512 || text.trim().length === 0) return { error: 'Title must be 1 to 512 characters and cannot be blank.' }
+    // Conflict summaries do not identify the node kind. An exact empty title
+    // may be valid for a bookmark; the server still checks the actual kind.
+    if (text.length > 512 || (text !== '' && text.trim().length === 0)) return { error: 'Title must be at most 512 characters and cannot contain only whitespace.' }
     return { value: text }
   }
   if (field === 'description') {

@@ -33,7 +33,7 @@ function choose(choice: string) {
   const input = document.querySelector<HTMLInputElement>(`input[type=radio][value="${choice}"]`)!
   act(() => input.click())
 }
-async function screen(versions: SyncConflictSummary[], staleResponses: number) {
+async function screen(versions: SyncConflictSummary[], staleResponses: number, rejectResolution = false) {
   let current = versions[0]!, writes = 0
   const posts: FetchCall[] = [], reads: string[] = []
   const mock = installFetchMock((input, init) => {
@@ -52,6 +52,8 @@ async function screen(versions: SyncConflictSummary[], staleResponses: number) {
         return jsonResponse(productErrorBody({ code: 'precondition_failed', recovery: 'refresh_and_retry',
           precondition: 'resource', currentEtag: current.etag }), { status: 412 })
       }
+      if (rejectResolution) return jsonResponse(productErrorBody({ code: 'invalid_document',
+        message: 'Folder title cannot be empty.', recovery: 'user_action' }), { status: 400 })
       return jsonResponse({ conflictId: 'conflict', status: 'resolved', revision: 'resolved-1', etag: '"resolved-1"',
         resolvedAt: '2026-10-20T01:00:00.000Z' })
     }
@@ -178,6 +180,29 @@ it('independent frozen review: the actual custom-title handler submits an exact 
   expect(f.posts).toHaveLength(1)
   expect(JSON.parse(String(f.posts[0]!.init?.body))).toEqual({ resolution: 'custom', value: '' })
   expect(requestHeaders(f.posts[0]!).get('if-match')).toBe(conflict(1).etag)
+})
+
+it('an empty folder title rejected by the server retains its conflict and does not claim resolution', async () => {
+  // The summary intentionally has no kind. The actual server evaluator's
+  // bookmark/folder distinction is separately exercised by its unit controls.
+  const f = await screen([conflict(1, { targetId: 'folder' })], 0, true)
+  enterCustomTitle('')
+  expect(document.body.textContent).toContain('Bookmarks may have an empty title. Folders must have a title.')
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  await waitForDom(() => document.querySelector('[role="alert"]')?.textContent === 'Folder title cannot be empty.')
+  expect(f.posts).toHaveLength(1)
+  expect(JSON.parse(String(f.posts[0]!.init?.body))).toEqual({ resolution: 'custom', value: '' })
+  expect(document.querySelector('[data-conflict-receipt="conflict"]')).toBeNull()
+  expect(document.querySelector('[data-conflict-id="conflict"]')).not.toBeNull()
+  expect(document.querySelector<HTMLInputElement>('[aria-label="Custom title"]')?.value).toBe('')
+})
+
+it('the actual custom-title handler still refuses whitespace-only text', async () => {
+  const f = await screen([conflict(1)], 0)
+  enterCustomTitle(' \t ')
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  expect(f.posts).toHaveLength(0)
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('whitespace')
 })
 
 it('independent frozen review: the actual custom-title handler refuses a title beyond the shared UTF-8 cap', async () => {
