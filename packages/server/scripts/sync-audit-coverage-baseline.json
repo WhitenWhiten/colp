@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "measuredAtCommit": null,
+  "measurementRun": null,
+  "minimums": {
+    "src/modules/sync/sync-node-update.ts": null,
+    "src/modules/sync/sync-node-restore.ts": null,
+    "src/infrastructure/sync/sync-conflict-postgres.ts": null,
+    "src/infrastructure/sync/sync-conflict-resolution-postgres.ts": null,
+    "src/infrastructure/sync/product-sync-center-postgres.ts": null,
+    "src/infrastructure/sync/managed-ancestry-policy.ts": null,
+    "src/infrastructure/sync/sync-node-restore-postgres.ts": null,
+    "src/infrastructure/sync/postgres/sync-push-create-update-postgres.ts": null
+  }
+}

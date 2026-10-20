@@ -372,6 +372,44 @@ jobs:
         run: node scripts/with-postgres.mjs --isolated-owner -- npm run test:integration:inner -- --shard=${{ matrix.shard }}/6
         working-directory: packages/server
 
+  # Current server sync-audit coverage is separate from the node-package
+  # sync-core gate and from the unchanged six PostgreSQL acceptance shards.
+  server-sync-audit-coverage:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/server/package-lock.json
+            packages/extension/package-lock.json
+      - name: Frozen server install
+        run: npm ci
+        working-directory: packages/server
+      - name: Frozen extension harness install
+        run: npm ci
+        working-directory: packages/extension
+      - name: Current unit and real PostgreSQL combined V8 collection
+        run: npm run test:coverage:sync-audit
+        working-directory: packages/server
+      - name: Require every owner, test file and per-file four-metric floor
+        if: always()
+        run: npm run check:coverage:sync-audit
+        working-directory: packages/server
+      - name: Upload current server audit measurement
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: server-sync-audit-coverage
+          path: packages/server/coverage/sync-audit/
+          if-no-files-found: error
+          retention-days: 14
+
   web:
     needs: changes
     if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
@@ -703,6 +741,7 @@ jobs:
       - conformance
       - server
       - server-integration
+      - server-sync-audit-coverage
       - web
       - extension
       - extension-coverage
@@ -728,6 +767,7 @@ jobs:
           CONFORMANCE_RESULT: ${{ needs.conformance.result }}
           SERVER_RESULT: ${{ needs.server.result }}
           SERVER_INTEGRATION_RESULT: ${{ needs.server-integration.result }}
+          SERVER_SYNC_AUDIT_COVERAGE_RESULT: ${{ needs.server-sync-audit-coverage.result }}
           WEB_RESULT: ${{ needs.web.result }}
           EXTENSION_RESULT: ${{ needs.extension.result }}
           EXTENSION_COVERAGE_RESULT: ${{ needs.extension-coverage.result }}
@@ -737,7 +777,7 @@ jobs:
           EXTENSION_KNS09_E2E_RESULT: ${{ needs.extension-kns-09-e2e.result }}
           EXTENSION_SYNC_LIFECYCLE_RESULT: ${{ needs.extension-sync-lifecycle.result }}
         run: |
-          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$WEB_RESULT" \
+          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$SERVER_SYNC_AUDIT_COVERAGE_RESULT" "$WEB_RESULT" \
             "$EXTENSION_RESULT" "$EXTENSION_COVERAGE_RESULT" "$EXTENSION_MV3_RESULT" "$EXTENSION_SYNC_REAL_STACK_RESULT" \
             "$EXTENSION_KNS09_RELEASE_RESULT" "$EXTENSION_KNS09_E2E_RESULT" "$EXTENSION_SYNC_LIFECYCLE_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then

@@ -28,6 +28,7 @@ export const WORKSPACE_PROJECT_CONFIGS = [
 ] as const;
 
 export const COVERAGE_VITEST_CONFIGS = [
+  'vitest.sync-audit-coverage.config.ts',
   'vitest.coverage.config.ts',
   'vitest.focused-coverage.config.ts',
   'vitest.phase4-5-coverage.config.ts',
