@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { setTimeout } from 'node:timers/promises';
 import { afterEach, beforeEach, test } from 'vitest';
 import {
   RESOURCE_PAYLOAD_SCHEMA_VERSION,
@@ -85,6 +86,88 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     assert.equal(result.nodeTitle, 'Stale-epoch edit');
     const node = (await isolated.runtime.pool.query('select url from nodes where id=$1', [TARGET])).rows[0];
     assert.equal(node.url, 'https://later.test/');
+  });
+
+  test('a node-lock wait rechecks the current decision and the refreshed decision CAS uses the stored admission revision', async () => {
+    const id = await openConflict('locked-decision', 'locked-incoming', 12);
+    const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
+      cursorSecret: 'locked-decision-cursor-secret-long-enough', conflictPayloadKeyring: KEYRING,
+    });
+    const readDecision = async () => (await product.execute(ports => ports.getConflicts({
+      accountId: ACCOUNT, limit: 20,
+    }))).items.find(item => item.id === id)!;
+    const initial = await readDecision();
+    assert.equal(initial.revision, 'conflict-r1');
+    const history = (await isolated.runtime.pool.query(`select revision, current_revision,
+      pull_wire_json, private_payload_ciphertext, private_payload_digest from sync_conflicts where conflict_id=$1`, [id])).rows[0];
+    const sideEffects = async () => (await isolated.runtime.pool.query(`select
+      (select count(*)::int from sync_conflict_resolution_receipts) receipts,
+      (select count(*)::int from sync_resolution_authors) authors,
+      (select count(*)::int from sync_operation_effects) effects,
+      (select count(*)::int from operations) operations,
+      (select count(*)::int from resource_id_ledger) ledger,
+      (select count(*)::int from resource_revisions) revisions,
+      (select count(*)::int from sync_node_revision_history) history,
+      (select count(*)::int from audit_events) audits,
+      (select count(*)::int from outbox_events) outbox,
+      (select count(*)::int from sync_sequence_receipts) sequence_receipts,
+      (select coalesce(jsonb_agg(to_jsonb(l) order by replica_id), '[]') from sync_sequence_lanes l) sequence_lanes,
+      (select commit_ordinal::text from collections where id=$1) commit_ordinal`, [COLLECTION])).rows[0];
+    const before = await sideEffects();
+    const blocker = await isolated.runtime.pool.connect();
+    let pending: ReturnType<typeof resolve> | undefined;
+    try {
+      await blocker.query('begin');
+      const blockerPid = (await blocker.query<{ pid: number }>('select pg_backend_pid() pid')).rows[0]!.pid;
+      await blocker.query(`update nodes set title='Committed while waiting', resource_revision='target-r2',
+        payload_json=jsonb_set(jsonb_set(payload_json,'{title}','"Committed while waiting"'),
+          '{resourceRevision}','"target-r2"') where id=$1`, [TARGET]);
+      pending = resolve(id, 'incoming', initial.revision);
+      let observedLockWait = false;
+      const deadline = Date.now() + 5_000;
+      while (Date.now() < deadline) {
+        const waiting = await isolated.runtime.pool.query<{ waiting: boolean }>(`select exists(
+          select 1 from pg_stat_activity where datname=current_database() and wait_event_type='Lock'
+            and $1::int=any(pg_blocking_pids(pid))) waiting`, [blockerPid]);
+        if (waiting.rows[0]?.waiting) { observedLockWait = true; break; }
+        await setTimeout(10);
+      }
+      assert.equal(observedLockWait, true, 'the resolver must actually wait for the held canonical node lock');
+      await blocker.query('commit');
+      const stale = await pending;
+      pending = undefined;
+      assert.equal(stale.outcome, 'refused');
+      assert.match(stale.error, /precondition_failed/);
+      assert.equal(stale.nodeTitle, 'Committed while waiting');
+      assert.equal(stale.conflictStatus, 'open');
+      assert.equal(stale.resolvedByOperationId, null);
+    } finally {
+      await blocker.query('rollback');
+      blocker.release();
+      await pending;
+    }
+    assert.deepEqual(await sideEffects(), before, 'a stale decision claims no receipt, sequence, effect or ledger entry');
+    assert.deepEqual((await isolated.runtime.pool.query(`select revision, current_revision,
+      pull_wire_json, private_payload_ciphertext, private_payload_digest from sync_conflicts where conflict_id=$1`, [id])).rows[0], history);
+    const refreshed = await readDecision();
+    assert.notEqual(refreshed.revision, history.revision);
+    assert.equal(refreshed.summary.current, 'Committed while waiting');
+    const accepted = await resolve(id, 'server', refreshed.revision);
+    assert.equal(accepted.outcome, 'resolved', accepted.error);
+    assert.equal(accepted.nodeTitle, 'Committed while waiting');
+    const receipt = (await isolated.runtime.pool.query(`select conflict_revision,operation_id,completed_at
+      from sync_conflict_resolution_receipts where conflict_id=$1`, [id])).rows;
+    assert.equal(receipt.length, 1);
+    assert.equal(receipt[0].conflict_revision, refreshed.revision);
+    assert.equal(receipt[0].operation_id, accepted.resolvedByOperationId);
+    assert.ok(receipt[0].completed_at);
+    const after = await sideEffects();
+    assert.equal((await resolve(id, 'server', refreshed.revision)).resolvedByOperationId, accepted.resolvedByOperationId);
+    assert.deepEqual(await sideEffects(), after);
+    const immutable = (await isolated.runtime.pool.query(`select current_revision,
+      pull_wire_json, private_payload_ciphertext, private_payload_digest from sync_conflicts where conflict_id=$1`, [id])).rows[0];
+    const { revision: _admissionRevision, ...original } = history;
+    assert.deepEqual(immutable, original);
   });
 
   test('a historical server-only deletion conflict keeps its menu, publishes dismissal without a deletion effect and Pull advances', async () => {

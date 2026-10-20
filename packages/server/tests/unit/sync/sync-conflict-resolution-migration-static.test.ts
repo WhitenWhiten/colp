@@ -26,10 +26,18 @@ test('P3-18 PostgreSQL port uses one transaction, Canonical Mutation and a condi
   for (const required of [
     'createCanonicalMutationApplication', 'createPostgresCanonicalMutationPorts',
     "insertInto('sync_conflict_resolution_receipts')", "updateTable('sync_conflicts')",
-    "where('status', '=', 'open')", "where('revision', '=', command.conflictRevision)",
+    "where('status', '=', 'open')", "where('revision', '=', conflict.revision)",
     'numUpdatedRows !== 1n', 'request_digest', 'result_json', 'resolved_by_operation_id',
     'resolved_by_principal_id', 'before_receipt_finalize',
   ]) assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'), required);
+  // The client confirms a current decision revision, while the final CAS still
+  // targets the immutable admission revision of the row locked in this tx.
+  const lockedNode = source.indexOf(".where('id', '=', conflict.target_id).forUpdate()");
+  const decisionFence = source.indexOf("if (decision.revision !== command.conflictRevision) deny('precondition_failed', decision.revision)");
+  const receiptClaim = source.indexOf("insertInto('sync_conflict_resolution_receipts')");
+  assert.ok(lockedNode >= 0 && decisionFence > lockedNode && receiptClaim > decisionFence,
+    'current decision must be recomputed under the node lock before claiming a receipt');
+  assert.match(source, /createUnitOfWork\(db\)\.execute\(/u);
   assert.doesNotMatch(source, /updateTable\('operations'\)|deleteFrom\('operations'\)/u);
   assert.doesNotMatch(source, /@know-n\/colp\/src|@know-n\/colp\/dist/u);
 });
