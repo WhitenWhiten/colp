@@ -9,7 +9,7 @@ import type { LocalSyncExclusionRecord } from './sync-state/remote-delete-reposi
 
 export type NativeWriteBoundaryStore = Pick<ReturnType<typeof createSyncStateStore>,
   'getScope' | 'listMountBindings' | 'getMappingByColpId' | 'getMappingByNativeId'
-  | 'getLocalSyncExclusion' | 'listPullEvents'>
+  | 'getLocalSyncExclusion' | 'listPullEvents' | 'getCurrentPullMapping'>
   & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'getApplyIntent'>>;
 
 export type NativeCreateParentProof = { readonly kind: 'bound_root' } | {
