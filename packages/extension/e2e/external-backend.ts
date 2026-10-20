@@ -165,6 +165,7 @@ export async function startExternalRealStack(origin: string): Promise<RealStack>
       );
     },
     setPushFault(_fault: PushFault) { /* The external server does not inject push faults. */ },
+    setRetirementResponseLoss() { unsupported('setRetirementResponseLoss'); },
     setEffectPageRateLimitPages() { /* The external server does not inject effect-page faults. */ },
     async seedPagedSubtree() { unsupported('seedPagedSubtree'); },
     async forceFixtureReplicaRecovery(): Promise<void> { unsupported('forceFixtureReplicaRecovery'); },

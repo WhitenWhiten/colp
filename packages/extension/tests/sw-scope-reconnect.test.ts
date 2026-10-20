@@ -7,6 +7,7 @@ import { parseBuildConfig } from '../src/config.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import { credentialAuthorityDigest } from '../src/session-client.js';
 import type { SyncScope } from '../src/sync-state-store.js';
+import { REPLICA_REBUILD_JOURNAL } from '../src/replica-rebuild.js';
 
 /** Server requests only: e2e-fixture builds also read the packaged e2e-origin.json (D6). */
 function serverCalls(network: { mock: { calls: readonly (readonly unknown[])[] } }): number {
@@ -75,6 +76,28 @@ test('a restart that emptied the session area restores the credential instead of
   await assert.rejects(f.api.currentSyncScope(), /not_connected/);
   // No browser cookie here, so the Session lane's restore is what fails, not the scope read.
   await assert.rejects(f.api.restoredSyncScope(), /authentication_required/);
+});
+
+test('the real Session lane cannot reuse or mint an old-replica Session while a pinned retirement is pending', async () => {
+  const f = await disconnectedSession();
+  await f.store.saveSession({ sessionId: 'pinned-retirement-session', expiresAt: '2099-01-01T00:00:00Z',
+    credentialAuthorityDigest: await credentialAuthorityDigest(f.credential.accessToken), scope: 'collection', snapshotRequired: false,
+    collection: { collectionId: f.scope.collectionId, serverCursor: 'cursor0', serverRevision: 'r0' },
+    replicaLease: { leaseId: 'lease', generation: '1', state: 'active', expiresAt: '2099-01-01T00:00:00Z' } });
+  const nextBinding = { ...f.binding, replicaId: 'replica-new-reset' };
+  await f.local.set({ [REPLICA_REBUILD_JOURNAL]: { scope: f.scope, authorityGeneration: 0, nextBinding,
+    retirement: { version: 1, endpoint: 'https://known.example/extensions/sync-retire',
+      origin: 'chrome-extension://pplpnpegpnghcddhmpgkbfkdfadjiaen', sessionId: 'pinned-retirement-session', idempotencyKey: 'pinned-reset' } } });
+  await assert.rejects(f.api.pushSessionAuthority(), /replica_rebuild_pending/);
+  await f.store.clearSession();
+  await assert.rejects(f.api.pushSessionAuthority(), /replica_rebuild_pending/);
+  assert.equal(serverCalls(f.network), 0);
+  assert.deepEqual(await f.api.currentSyncScope(), f.scope);
+  // After publishing the new binding, its new Session is allowed through the
+  // ordinary authority lane. The old request still cannot be re-minted.
+  await f.store.replaceBindingForRebuild(0, f.scope.replicaId, nextBinding);
+  await assert.rejects(f.api.pushSessionAuthority(), /Failed to fetch/);
+  assert.equal(serverCalls(f.network), 1);
 });
 
 /** The manifest the e2e-fixture config points at, as the server serves it. */

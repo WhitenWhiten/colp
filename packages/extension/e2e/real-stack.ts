@@ -175,6 +175,7 @@ export interface RealStack {
   setFaviconPolicyForFixture(patch: { readonly newDefault?: 'capture' | 'online' | 'none' }): Promise<void>;
   revokeCurrentCredential(): Promise<void>;
   setPushFault(fault: PushFault): void;
+  setRetirementResponseLoss(enabled: boolean): void;
   setEffectPageRateLimitPages(pageNumbers: readonly number[]): void;
   seedPagedSubtree(memberCount?: number): Promise<{
     readonly effectId: string; readonly pageCount: number; readonly memberCount: number;
@@ -406,6 +407,11 @@ export async function startRealStack(options: {readonly classification?:boolean;
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' },
     (_request, body, done) => done(null, body));
   let disconnectPushResponses = false;
+  let loseRetirementResponses = false;
+  // Only one-way command digests and booleans leave this fixture. The pinned
+  // Session doubles as installation proof and must not enter exported logs.
+  const retirementRequests: Array<{ commandDigest: string; status: number; bodyAbsent: boolean;
+    proofMatchesSession: boolean; bearerAuthorizationPresent: boolean }> = [];
   const lostBatchResponses = new Set<string>();
   let pushFault: PushFault = 'none';
   const pushRequests: PushRequestObservation[] = [];
@@ -472,6 +478,15 @@ export async function startRealStack(options: {readonly classification?:boolean;
     const origin = request.headers.origin;
     if (origin === EXTENSION_ORIGIN) reply.header('Access-Control-Allow-Origin', EXTENSION_ORIGIN);
     reply.header('Cache-Control', 'no-store');
+    if (request.url === '/extensions/sync-retire' && request.method === 'DELETE') {
+      retirementRequests.push({ commandDigest: createHash('sha256').update(JSON.stringify({ url: request.url,
+        session: request.headers['known-sync-session'], key: request.headers['idempotency-key'], origin })).digest('hex'),
+      status: reply.statusCode, bodyAbsent: request.body === undefined,
+      proofMatchesSession: typeof request.headers['known-sync-replica-proof'] === 'string'
+        && request.headers['known-sync-replica-proof'] === request.headers['known-sync-session'],
+      bearerAuthorizationPresent: request.headers.authorization?.startsWith('Bearer ') === true });
+      if (loseRetirementResponses && reply.statusCode === 204) request.raw.socket.destroy();
+    }
     if (request.url === '/v1/push') {
       const body = Buffer.isBuffer(payload) ? payload.toString('utf8')
         : typeof payload === 'string' ? payload : '[streamed-response]';
@@ -935,6 +950,8 @@ export async function startRealStack(options: {readonly classification?:boolean;
       const sessions = await isolated.runtime.pool.query('select count(*)::int as count from sync_sessions');
       const receipts = await isolated.runtime.pool.query('select count(*)::int as count from sync_session_idempotency_receipts');
       const replica = await isolated.runtime.pool.query('select status from sync_replicas where replica_id=$1', [REPLICA_ID]);
+      const replicaSessions = await isolated.runtime.pool.query('select count(*)::int as count from sync_sessions where replica_id=$1', [REPLICA_ID]);
+      const retirementReceipts = await isolated.runtime.pool.query('select replica_id,request_digest,result_digest from sync_replica_retirement_receipts where replica_id=$1', [REPLICA_ID]);
       const mutations = await isolated.runtime.pool.query(
         'select count(*)::int as count from nodes where collection_id=$1 and not is_root and folder_role is null', [activeLibraryId]);
       const pushReceipt = await isolated.runtime.pool.query(`select result_digest,result_json from sync_sequence_receipts
@@ -986,6 +1003,8 @@ export async function startRealStack(options: {readonly classification?:boolean;
         sessions: Number(sessions.rows[0]?.count ?? 0) - observationOffset.sessions,
         receipts: Number(receipts.rows[0]?.count ?? 0) - observationOffset.receipts,
         replicaStatus: replica.rows[0]?.status,
+        originalReplicaSessionCount: Number(replicaSessions.rows[0]?.count ?? 0),
+        retirementRequests: structuredClone(retirementRequests), retirementReceipts: retirementReceipts.rows,
         serverMutationCount: mutations.rows[0]?.count, serverReceiptDigest: pushReceipt.rows[0]?.result_digest,
         serverReceipt: pushReceipt.rows[0]?.result_json,
         pushRequestDigests: [...pushRequestDigests], pushRequests: observedPushRequests,
@@ -1010,6 +1029,7 @@ export async function startRealStack(options: {readonly classification?:boolean;
         'update sync_extension_credentials set revoked_at=current_timestamp where revoked_at is null');
     },
     setPushFault(value) { pushFault = value; },
+    setRetirementResponseLoss(value) { loseRetirementResponses = value; },
     async forceFixtureReplicaRecovery() {
       await isolated.runtime.pool.query(`UPDATE sync_replicas SET status='recovery_required',
         lifecycle_revision=lifecycle_revision+1,
@@ -1479,7 +1499,8 @@ function manifest() {
         recommendedPollIntervalSeconds: 30, maxSyncBatchOperations: MAX_SYNC_BATCH_OPERATIONS,
         idempotencyRetentionSeconds: 86400, syncCursorRetentionSeconds: 2592000 },
       'https://known.example/extensions/sync-retire': { href: `${SERVER_ORIGIN}/extensions/sync-retire`,
-        method: 'DELETE', requestBody: false, successStatus: 204,
+        version: 2, method: 'DELETE', requestBody: false, successStatus: 204,
+        reauthorization: { proofHeader: 'Known-Sync-Replica-Proof', proof: 'pinned-session', authority: 'current-account-installation' },
         requiredHeaders: ['Authorization', 'Origin', 'Known-Sync-Session', 'Idempotency-Key'] },
     }] };
 }

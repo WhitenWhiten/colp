@@ -7853,11 +7853,32 @@
   "sync_rebuildConfirm": {
     "message": "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
+  "sync_rebuildConfirmRetirement": {
+    "message": "Reset needs an internet connection to stop the old sync connection on the server. Pending changes will be kept on this device and will not be sent again. Earlier changes may already be in your library. Your bookmarks stay in place. Afterwards, choose which folders sync and review the merge again. Reset sync now?"
+  },
   "sync_rebuildConfirmSetAside": {
     "message": "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?"
   },
   "sync_rebuildNoLongerAvailable": {
     "message": "Sync state changed. Refresh Status to review the available actions ($1)."
+  },
+  "sync_rebuildRetirementAuthentication": {
+    "message": "Reset needs authorization from the same account. Sign in again, check that you still have access to this library, then review and confirm Reset again. Your pending changes are kept."
+  },
+  "sync_rebuildRetirementDenied": {
+    "message": "The server did not authorize this reset. Signing in again cannot restore revoked library access or invalid device authorization. Your pending changes are kept and will not be sent again. You can continue using bookmarks on this device while the library owner or server administrator reviews access."
+  },
+  "sync_rebuildRetirementLegacy": {
+    "message": "This server cannot authorize the pending reset with this sign-in. Update the server to support reset recovery, or restore the original sign-in. Your pending changes are kept and will not be sent again."
+  },
+  "sync_rebuildRetirementOtherAccount": {
+    "message": "An unfinished reset belongs to another account. Sign in to that account to finish it. Its pending changes have been kept."
+  },
+  "sync_rebuildRetirementPending": {
+    "message": "Waiting for the server to confirm that the old sync connection has stopped. Your pending changes are kept and will not be sent again. Connect to the internet and try Reset again."
+  },
+  "sync_rebuildRetirementTargetChanged": {
+    "message": "The server reset address changed before confirmation. Restore the previous server connection to finish this reset. Your pending changes have been kept."
   },
   "sync_rebuildSetAside_one": {
     "message": "$1 change that has not synced yet will be set aside and not retried."

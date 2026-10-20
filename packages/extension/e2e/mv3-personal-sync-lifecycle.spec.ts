@@ -180,7 +180,7 @@ test('Pause survives browser restart, reconciles edits on both sides, and discon
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
-test('metadata opt-out holds an immutable old retry until user-confirmed reset archives it', async () => {
+test('metadata opt-out holds immutable bytes until server retirement survives a lost response and browser restart', async () => {
   test.setTimeout(120000);
   const startedAt = Date.now(); let currentStage = 'start'; let completedStage = 'none';
   async function step<T>(name: string, action: () => Promise<T>): Promise<T> {
@@ -199,7 +199,7 @@ test('metadata opt-out holds an immutable old retry until user-confirmed reset a
   try {
     const canonical = await step('seed canonical bookmark through HTTP Push', () => stack.seedCanonicalFixture());
     context = await step('launch browser profile', () => launch(profile, stack.browserHostResolverRules));
-    const page = (await step('open extension options', () => openExtensionOptions(context!))).page;
+    let page = (await step('open extension options', () => openExtensionOptions(context!))).page;
     diagnosticPage = page;
     await step('install fixture replica binding', () => installFixtureReplicaBinding(page, stack.extensionBinding));
     await step('sign in and bind account library', () => signInExtension(page));
@@ -232,16 +232,25 @@ test('metadata opt-out holds an immutable old retry until user-confirmed reset a
       const { createSyncStateStore } = await import(chrome.runtime.getURL('sync-state-store.js'));
       const store = createSyncStateStore();
       try {
+        function canonicalJson(value: unknown): string {
+          if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+          if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key =>
+            `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(',')}}`;
+          return JSON.stringify(value);
+        }
         for (const sequence of [1, 2]) {
           const opId = crypto.randomUUID(), payload = sequence === 1
             ? { base: { tags: [] }, value: { tags: ['private-metadata'] } }
             : { base: { title: canonical.bookmarkTitle }, value: { title: 'Later title' } };
+          const operation = { opId, replicaId: scope.replicaId, sequence, collectionId: scope.collectionId,
+            type: 'update_node_content', targetId: canonical.bookmarkId, baseRevision: canonical.bookmarkRevision,
+            occurredAt: new Date().toISOString(), dependencies: [], payload };
+          const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalJson(operation)));
+          const digest = `sha256:${Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('')}`;
           await store.allocateSequenceAndEnqueue(scope, { opId, batchId: opId, idempotencyKey: opId,
-            digest: `sha256:${opId}`, endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: canonical.bookmarkRevision,
+            digest, endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: canonical.bookmarkRevision,
             operationRevision: `local-${opId}`, status: 'pending', retry: { attempt: 0, notBefore: 0 },
-            payload: { opId, replicaId: scope.replicaId, sequence, collectionId: scope.collectionId,
-              type: 'update_node_content', targetId: canonical.bookmarkId, baseRevision: canonical.bookmarkRevision,
-              occurredAt: new Date().toISOString(), dependencies: [], payload } }, { allowUnstamped: true });
+            payload: operation }, { allowUnstamped: true });
         }
       } finally { store.close(); }
     }, { scope, canonical }));
@@ -268,12 +277,31 @@ test('metadata opt-out holds an immutable old retry until user-confirmed reset a
     });
     await step('open the reset confirmation dialog', () =>
       page.getByRole('button', { name: 'Reset sync on this device', exact: true }).click());
-    await step('confirm reset and wait for the existing load boundary', () =>
-      Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Reset sync', exact: true }).click()]));
+    await expect(page.locator('.rebuild-confirm-copy')).toContainText('internet connection');
+    await expect(page.locator('.rebuild-confirm-copy')).toContainText('will not be sent again');
+    const beforeReset = await stack.observations();
+    stack.setRetirementResponseLoss(true);
+    await step('confirm Reset and lose the real committed retirement response', async () => {
+      await page.getByRole('button', { name: 'Reset sync', exact: true }).click();
+      await expect(page.locator('#sync-attention-settings-feedback')).toContainText('Waiting for the server to confirm', { timeout: 20000 });
+      expect((await stack.observations()).replicaStatus).toBe('retired');
+      expect(await page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1').then(values =>
+        (values['known.auth.binding.v1'] as { replicaId?: string })?.replicaId))).toBe(scope.replicaId);
+      const state = await evidence(page, 'exportOutboundPushEvidence') as { queue: QueueOperation[] };
+      expect(state.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
+      expect(state.queue[0]!.status).toBe('blocked'); expect(state.queue[1]!.status).toBe('pending');
+    });
+    await step('restart the browser with session storage lost and replay the pinned retirement', async () => {
+      await context!.close(); stack.setRetirementResponseLoss(false);
+      context = await launch(profile, stack.browserHostResolverRules);
+      page = (await openExtensionOptions(context)).page; diagnosticPage = page;
+    });
     await step('verify the new replica binding after reset', async () => {
-      await expect(page.locator('body')).toHaveAttribute('data-pane', 'sync');
-      await expect.poll(() => page.evaluate(() => chrome.storage.local.get('known.auth.binding.v1').then(values =>
-        (values['known.auth.binding.v1'] as { replicaId?: string })?.replicaId))).not.toBe(scope.replicaId);
+      await expect.poll(() => page.evaluate(oldReplica => chrome.storage.local.get('known.auth.binding.v1').then(values => {
+        const current = (values['known.auth.binding.v1'] as { replicaId?: string })?.replicaId;
+        return typeof current === 'string' && current !== oldReplica && current.startsWith('replica-');
+      }), scope.replicaId), { timeout: 20000 }).toBe(true);
+      await showOptionsPane(page, 'sync-center');
     });
     const archived = await step('read the old scope archive', () => page.evaluate(async scope => {
       const { createSyncStateStore } = await import(chrome.runtime.getURL('sync-state-store.js'));
@@ -283,6 +311,24 @@ test('metadata opt-out holds an immutable old retry until user-confirmed reset a
       expect(archived.queue[0]!.attempt).toEqual(before.queue[0]!.attempt);
       expect(archived.queue[1]!.status).toBe('pending');
       expect(await page.evaluate(id => chrome.bookmarks.get(id), local.bookmark)).toHaveLength(1);
+    });
+    await step('verify one retirement, exact replay, no old metadata resend and required fresh setup', async () => {
+      const observed = await stack.observations();
+      const requests = observed.retirementRequests as { commandDigest: string; status: number; bodyAbsent: boolean;
+        proofMatchesSession: boolean; bearerAuthorizationPresent: boolean }[];
+      expect(requests.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(requests.map(request => request.commandDigest)).size).toBe(1);
+      for (const request of requests) expect(request).toMatchObject({ status: 204, bodyAbsent: true,
+        proofMatchesSession: true, bearerAuthorizationPresent: true });
+      expect(observed.retirementReceipts).toHaveLength(1);
+      expect(observed.originalReplicaSessionCount).toBe(beforeReset.originalReplicaSessionCount);
+      expect(observed.pushRequestDigests).toEqual(beforeReset.pushRequestDigests);
+      expect(observed.sequenceReceipts).toEqual(beforeReset.sequenceReceipts);
+      const fresh = await evidence(page, 'exportOutboundPushEvidence') as { scope: { firstRun: string; selectedRoots: string[] } };
+      expect(fresh.scope.firstRun).toBe('none'); expect(fresh.scope.selectedRoots).toEqual([]);
+      const policyKey = 'known.metadata-sync-policy.v1:' + JSON.stringify([scope.serverOrigin, scope.accountId, scope.collectionId]);
+      const policy = await page.evaluate(key => chrome.storage.local.get(key).then(values => values[key]), policyKey);
+      expect(policy).toMatchObject({ mode: 'local-only' });
     });
   } catch (error) {
     console.info('metadata-opt-out-failed-stage', JSON.stringify({ currentStage, completedStage, elapsedMs: Date.now() - startedAt }));

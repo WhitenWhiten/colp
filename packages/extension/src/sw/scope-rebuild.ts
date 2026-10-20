@@ -1,10 +1,21 @@
 import { createReplicaRebuilder } from '../replica-rebuild.js';
-import { store, sw, syncState } from './runtime.js';
-import { currentSyncScope, ensureSyncScope, loadConfig, requireSyncScope } from './scope.js';
+import { createReplicaRetirementTransport } from '../replica-retirement.js';
+import { fetchSyncEndpoints } from '../manifest-client.js';
+import { extensionOrigin, store, sw, syncState } from './runtime.js';
+import { createRuntimeAuth, currentSyncScope, ensureSyncScope, loadConfig, pushSessionAuthority, requireSyncScope } from './scope.js';
 
 export function replicaRebuilder() {
+  const currentScope = () => currentSyncScope({ allowArchived: true, allowStopped: true });
   return createReplicaRebuilder({ store: syncState, credentials: store, journal: chrome.storage.local,
-    currentScope: currentSyncScope, ensureScope: async () => {
+    serverRetirement: createReplicaRetirementTransport({ credentials: store, currentScope,
+      authority: pushSessionAuthority, origin: extensionOrigin,
+      proof: scope => store.loadReplicaReportProof(scope),
+      credential: async () => createRuntimeAuth(await loadConfig()).ensureFreshCredential(),
+      endpoint: async () => {
+        const endpoints = await fetchSyncEndpoints(await loadConfig());
+        return { href: endpoints.syncRetire, reauthorization: endpoints.syncRetireReauthorization };
+      } }),
+    currentScope, ensureScope: async () => {
       const scope = await requireSyncScope();
       // Session storage and IDB are separate commits. A restart after saving the
       // new Session must still materialize its scope before setup can proceed.

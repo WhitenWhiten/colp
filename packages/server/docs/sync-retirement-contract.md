@@ -54,3 +54,26 @@ requires a fresh explicit reset confirmation. Only after confirmed retirement
 may a client archive the old queue without forging upload acknowledgements and
 create a new binding that requires a complete merge. Unknown native bookmark
 outcomes remain a separate blocker and cannot be cleared by server retirement.
+
+The extension records no access token in the durable reset journal. Its pinned
+Session is still sensitive installation proof: do not log or export the journal.
+The active credential and Session remain in browser session storage; the reset
+identity survives browser restarts in local storage. A first reset can use the
+existing scoped installation proof even when its original Session has expired.
+Only an exact version-2 declaration of the three reauthorization fields enables
+the optional proof header. Older or unknown namespace versions remain readable
+and retain the original strict retirement call.
+
+The reset preview explains the required network confirmation and that earlier
+uploads might already be in the library. Cancel sends no retirement request.
+An unconfirmed response leaves the original queue, binding, and command intact.
+After a confirmed response, each local archive, binding publication, and fresh
+scope registration boundary can resume without a second identity rotation.
+The fresh scope has no selected roots and requires the normal complete merge.
+Metadata opt-out remains in force throughout; reset never resends the held
+metadata or manufactures an upload acknowledgement.
+
+Authentication failure can ask for another sign-in. Authorization denial must
+also explain that signing in cannot restore revoked library access or an invalid
+installation proof. Such a denial retains the pending request and local work;
+it cannot be treated as proof of retirement. Local bookmark use can continue.

@@ -8,7 +8,8 @@ const SERVER_NAMESPACE = 'https://know-n.com/colp/extensions/server';
 const MANIFEST_RESPONSE_MAX_BYTES = 512 * 1_024;
 const REQUEST_TIMEOUT_MS = 15_000;
 export type SyncEndpoints = Readonly<Record<(typeof REQUIRED)[number], string> & {
-  readonly maxBatchOperations?: number; readonly syncEffectPages: string; readonly effectPageAuthority: string; readonly syncRetire: string }>;
+  readonly maxBatchOperations?: number; readonly syncEffectPages: string; readonly effectPageAuthority: string; readonly syncRetire: string;
+  readonly syncRetireReauthorization?: true }>;
 
 export async function fetchSyncEndpoints(config: BuildConfig, fetcher: typeof fetch = fetch): Promise<SyncEndpoints> {
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -82,7 +83,15 @@ export function discoverSyncEndpoints(input: unknown, config: BuildConfig): Sync
   if (!Number.isSafeInteger(maximum) || Number(maximum) < 1 || Number(maximum) > 10_000) {
     throw new Error('manifest_batch_limit_invalid');
   }
-  return Object.freeze({ ...result, maxBatchOperations: Math.min(50, Number(maximum)) }) as SyncEndpoints;
+  const authorization = retire.reauthorization;
+  // Unknown namespace versions remain discoverable by old clients. The new
+  // authority is opt-in only for this exact, advertised contract.
+  const reauthorization = retire.version === 2 && record(authorization)
+    && Object.keys(authorization).length === 3
+    && authorization.proofHeader === 'Known-Sync-Replica-Proof' && authorization.proof === 'pinned-session'
+    && authorization.authority === 'current-account-installation';
+  return Object.freeze({ ...result, maxBatchOperations: Math.min(50, Number(maximum)),
+    ...(reauthorization ? { syncRetireReauthorization: true as const } : {}) }) as SyncEndpoints;
 }
 function hasRequiredEndpoints(candidate: unknown): candidate is Record<string, unknown> {
   if (!record(candidate) || !record(candidate.endpoints) || !record(candidate[RETIRE_NAMESPACE])) return false;

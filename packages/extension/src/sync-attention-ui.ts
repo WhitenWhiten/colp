@@ -1,5 +1,5 @@
 import { formatMoment, localized, t, tn } from './i18n.js';
-import { bindReplicaRebuildButton } from './replica-rebuild-ui.js';
+import { bindReplicaRebuildButton, replicaRebuildFailureCopy } from './replica-rebuild-ui.js';
 /**
  * S7 / B2 (SR-09 popup · SR-11 · SR-04/SR-13): the user-facing exits around a
  * paused or terminally frozen replica.
@@ -332,6 +332,8 @@ function bindSyncAttention(hostId: string, syncPaneOnly: boolean): void {
     paintSyncAttention(nodes, view);
     const terminalRepair = document.getElementById(`${hostId}-rebuild`);
     if (terminalRepair) terminalRepair.hidden = attention?.rebuildAvailable !== true;
+    if (attention?.terminalCode === 'replica_rebuild_pending' && attention.rebuildAvailable !== true
+      && attention.rebuildUnavailableReason) showFeedback(nodes.feedback, replicaRebuildFailureCopy(attention.rebuildUnavailableReason));
     let repair = document.getElementById(`${hostId}-issue-repair`);
     if (!repair) {
       repair = document.createElement('div'); repair.id = `${hostId}-issue-repair`;

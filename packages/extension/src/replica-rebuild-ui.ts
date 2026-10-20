@@ -8,10 +8,23 @@ localized(() => {
   REBUILD_CONFIRM_LABEL = t('common_resetSync', 'Reset sync');
   REBUILD_CANCEL_LABEL = t('common_cancel', 'Cancel');
 });
-export function replicaRebuildConfirmation(queuedOperations: number): string {
+export function replicaRebuildConfirmation(queuedOperations: number, retirementRequired = false): string {
+  if (retirementRequired) return t('sync_rebuildConfirmRetirement', 'Reset needs an internet connection to stop the old sync connection on the server. Pending changes will be kept on this device and will not be sent again. Earlier changes may already be in your library. Your bookmarks stay in place. Afterwards, choose which folders sync and review the merge again. Reset sync now?');
   if (queuedOperations === 0) return t('sync_rebuildConfirm', "Your bookmarks stay on this device and in your library. Afterwards you'll choose which folders sync and review the merge again. Reset sync now?");
   return t('sync_rebuildConfirmSetAside', "Your bookmarks stay on this device and in your library. $1 Afterwards you'll choose which folders sync and review the merge again. Reset sync now?",
     tn('sync_rebuildSetAside', queuedOperations, '$1 change that has not synced yet will be set aside and not retried.', '$1 changes that have not synced yet will be set aside and not retried.'));
+}
+
+export function replicaRebuildFailureCopy(code: string): string {
+  if (code === 'retirement_pending') return t('sync_rebuildRetirementPending', 'Waiting for the server to confirm that the old sync connection has stopped. Your pending changes are kept and will not be sent again. Connect to the internet and try Reset again.');
+  if (code === 'rebuild_authentication_required' || code === 'retirement_authentication_required') return t('sync_rebuildRetirementAuthentication', 'Reset needs authorization from the same account. Sign in again, check that you still have access to this library, then review and confirm Reset again. Your pending changes are kept.');
+  if (code === 'retirement_authority_denied') return t('sync_rebuildRetirementDenied', 'The server did not authorize this reset. Signing in again cannot restore revoked library access or invalid device authorization. Your pending changes are kept and will not be sent again. You can continue using bookmarks on this device while the library owner or server administrator reviews access.');
+  if (code === 'retirement_legacy_authority_required') return t('sync_rebuildRetirementLegacy', 'This server cannot authorize the pending reset with this sign-in. Update the server to support reset recovery, or restore the original sign-in. Your pending changes are kept and will not be sent again.');
+  if (code === 'rebuild_other_account_pending') return t('sync_rebuildRetirementOtherAccount', 'An unfinished reset belongs to another account. Sign in to that account to finish it. Its pending changes have been kept.');
+  if (code === 'retirement_target_changed') return t('sync_rebuildRetirementTargetChanged', 'The server reset address changed before confirmation. Restore the previous server connection to finish this reset. Your pending changes have been kept.');
+  if (code === 'upload_outcome_unsettled' || code === 'native_outcome_unsettled') return t('sync_rebuildUnsettled', 'A previous change has an unknown result ($1). Resolve it in Status before resetting sync.', code);
+  if (code === 'rebuild_not_required' || code === 'stale_ref') return t('sync_rebuildNoLongerAvailable', 'Sync state changed. Refresh Status to review the available actions ($1).', code);
+  return t('sync_resetIsntFinishedYet', "Reset isn't finished yet. Try again.");
 }
 
 export function bindReplicaRebuildButton(hostId: string): void {
@@ -47,7 +60,8 @@ export function bindReplicaRebuildButton(hostId: string): void {
       const preview = await send({ kind: 'known.scope.rebuild.preview' });
       if (!preview.ok) throw new Error(preview.code);
       if (!('preview' in preview)) throw new Error('request_invalid');
-      const proceed = await askConfirmation(button, feedback, replicaRebuildConfirmation(preview.preview.queuedOperations));
+      const proceed = await askConfirmation(button, feedback, replicaRebuildConfirmation(preview.preview.queuedOperations,
+        preview.preview.retirementRequired));
       if (!proceed) return;
       const result = await send({ kind: 'known.scope.rebuild.confirm', userGesture: true,
         replicaId: preview.preview.replicaId, generation: preview.preview.generation, revision: preview.preview.revision, targetFence: preview.preview.targetFence });
@@ -59,10 +73,7 @@ export function bindReplicaRebuildButton(hostId: string): void {
     } catch (error) {
       feedback.hidden = false;
       const code = reasonCode(error, 'rebuild_failed');
-      feedback.textContent = code === 'upload_outcome_unsettled' || code === 'native_outcome_unsettled'
-        ? t('sync_rebuildUnsettled', 'A previous change has an unknown result ($1). Resolve it in Status before resetting sync.', code)
-        : code === 'rebuild_not_required' || code === 'stale_ref'
-          ? t('sync_rebuildNoLongerAvailable', 'Sync state changed. Refresh Status to review the available actions ($1).', code) : t('sync_resetIsntFinishedYet', "Reset isn't finished yet. Try again.");
+      feedback.textContent = replicaRebuildFailureCopy(code);
     } finally { button.disabled = false; }
   }
 }

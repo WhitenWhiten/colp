@@ -10410,5 +10410,33 @@
   "firstRun_unsupportedCount_other": {
     "message": "$1 个项目将保留在此浏览器中，不会同步：$2。其他书签会正常同步。",
     "description": "$1 items will stay in this browser and will not sync: $2. Other bookmarks will sync."
+  },
+  "sync_rebuildConfirmRetirement": {
+    "message": "重置需要联网，由服务器确认旧的同步连接已停止。待处理的更改会保留在此设备上，不再重新发送。之前的更改可能已经保存到资料库。现有书签会保留。之后请重新选择同步文件夹并检查合并结果。现在重置同步吗？",
+    "description": "Reset needs an internet connection to stop the old sync connection on the server. Pending changes will be kept on this device and will not be sent again. Earlier changes may already be in your library. Your bookmarks stay in place. Afterwards, choose which folders sync and review the merge again. Reset sync now?"
+  },
+  "sync_rebuildRetirementPending": {
+    "message": "正在等待服务器确认旧的同步连接已停止。待处理的更改会保留，不再重新发送。请连接网络后重试重置。",
+    "description": "Waiting for the server to confirm that the old sync connection has stopped. Your pending changes are kept and will not be sent again. Connect to the internet and try Reset again."
+  },
+  "sync_rebuildRetirementAuthentication": {
+    "message": "重置需要同一账号的授权。请重新登录，确认仍有权访问此资料库，然后重新查看并确认重置。待处理的更改会保留。",
+    "description": "Reset needs authorization from the same account. Sign in again, check that you still have access to this library, then review and confirm Reset again. Your pending changes are kept."
+  },
+  "sync_rebuildRetirementLegacy": {
+    "message": "此服务器无法使用当前登录授权这次尚未完成的重置。请升级服务器以支持重置恢复，或恢复原来的登录。待处理的更改会保留，不再重新发送。",
+    "description": "This server cannot authorize the pending reset with this sign-in. Update the server to support reset recovery, or restore the original sign-in. Your pending changes are kept and will not be sent again."
+  },
+  "sync_rebuildRetirementOtherAccount": {
+    "message": "另一个账号有尚未完成的重置。请登录该账号完成重置。其待处理的更改已保留。",
+    "description": "An unfinished reset belongs to another account. Sign in to that account to finish it. Its pending changes have been kept."
+  },
+  "sync_rebuildRetirementTargetChanged": {
+    "message": "确认前，服务器的重置地址发生了变化。请恢复之前的服务器连接以完成这次重置。待处理的更改已保留。",
+    "description": "The server reset address changed before confirmation. Restore the previous server connection to finish this reset. Your pending changes have been kept."
+  },
+  "sync_rebuildRetirementDenied": {
+    "message": "服务器未授权这次重置。重新登录无法恢复已撤销的资料库权限或失效的设备授权。待处理的更改会保留，不再重新发送。在资料库所有者或服务器管理员核查权限期间，你可以继续使用此设备上的书签。",
+    "description": "The server did not authorize this reset. Signing in again cannot restore revoked library access or invalid device authorization. Your pending changes are kept and will not be sent again. You can continue using bookmarks on this device while the library owner or server administrator reviews access."
   }
 }
