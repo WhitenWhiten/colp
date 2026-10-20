@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { IDBDatabase } from 'fake-indexeddb';
 import { test, vi } from 'vitest';
-import { canonicalOperationDigest } from '@know-n/colp/sync';
+import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync';
 import type { Operation, SyncPullEventV02 } from '@know-n/colp/types';
 import { digestJson, validateOperation } from '../src/bookmark-event-codec.js';
 import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
@@ -189,3 +189,138 @@ test('a parent updated after provisional lookup is read afresh before projection
     assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), { ...before, echoApplied: true });
   } finally { f.store.close(); }
 });
+
+for (const collision of ['native', 'canonical'] as const) {
+  test(`fallback replay rechecks ${collision} identity after its deferred parent read`, async () => {
+    const f = await fixture('fallback');
+    try {
+      const queued = await losePushResponse(f); await prepareAndStop(f);
+      if (collision === 'canonical') f.api.seed({ ...f.node, id: 'other-native', index: 1 });
+      const nativeBefore = await f.api.get(f.node.id);
+      let armed = false, raced = 0;
+      let inserted: Awaited<ReturnType<typeof f.store.getMappingByNativeId>> = null;
+      const store = { ...f.store,
+        getMappingByColpId: async (...args: Parameters<typeof f.store.getMappingByColpId>) => {
+          const mapping = await f.store.getMappingByColpId(...args);
+          if (args[1] === `pending-${f.opId}`) armed = true;
+          return mapping;
+        },
+        getCurrentPullMapping: async (...args: Parameters<typeof f.store.getCurrentPullMapping>) => {
+          const parent = await f.store.getCurrentPullMapping(...args);
+          if (armed && args[1] === f.parent.colpId && !raced) {
+            raced++;
+            const mapping = { ...f.original,
+              nativeId: collision === 'native' ? f.node.id : 'other-native',
+              colpId: collision === 'native' ? 'other-canonical' : f.remote.id };
+            await f.store.putMapping(scope, mapping);
+            inserted = await f.store.getMappingByNativeId(scope, mapping.nativeId);
+          }
+          return parent;
+        },
+      };
+      f.store.close();
+      // Capture the reopened facts after normal schema migration, before replay.
+      const eventBefore = await f.store.getPullEvent(scope, f.eventId);
+      const intentBefore = await f.store.getApplyIntent(scope, `intent:${f.eventId}`);
+      assert.equal(eventBefore?.state, 'intent_prepared'); assert.equal(intentBefore?.apiResultEvidence, null);
+      await assert.rejects(createPullApplier({ ...f.options, store }).resume(), /mapping_identity_collision/);
+      assert.equal(raced, 1); assert.ok(inserted);
+      assert.deepEqual(await f.store.getPullEvent(scope, f.eventId), eventBefore);
+      assert.deepEqual(await f.store.getApplyIntent(scope, `intent:${f.eventId}`), intentBefore);
+      assert.notEqual((await f.store.getCursor(scope))?.cursor, 'cursor-next');
+      assert.equal(f.api.calls.filter(call => call.kind === 'create').length, 0);
+      assert.deepEqual(await f.api.get(f.node.id), nativeBefore);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), queued);
+      assert.equal(await f.store.getQueueReceipt(scope, queued.sequence), null);
+      f.store.close();
+      assert.deepEqual(await f.store.getMappingByNativeId(scope,
+        collision === 'native' ? f.node.id : 'other-native'), inserted);
+      assert.deepEqual(await f.store.getPullEvent(scope, f.eventId), eventBefore);
+      assert.deepEqual(await f.store.getApplyIntent(scope, `intent:${f.eventId}`), intentBefore);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), queued);
+      assert.equal(await f.store.getQueueReceipt(scope, queued.sequence), null);
+    } finally { f.store.close(); }
+  });
+}
+
+async function laterSelfCreateFixture() {
+  const f = await fixture('canonical');
+  const lease = await f.store.acquireLease(scope, 'earlier-create', 1, 1);
+  const earlier = (await f.store.claimNextQueue(scope, 'earlier-create', lease.fence, 1))!;
+  await f.store.settleClaimedPush(scope, earlier.sequence, 'earlier-create', lease.fence, {
+    outcome: 'terminal', receipt: { opId: earlier.opId, operationDigest: earlier.digest, kind: 'terminal',
+      receiptId: 'earlier-create', resultDigest: 'sha256:earlier-create', result: { results: [{
+        opId: earlier.opId, sequence: earlier.sequence, status: 'applied', targetId: f.remote.id,
+        revision: f.remote.revision,
+      }] } }, authoritativeCreate: { nativeId: f.node.id, targetId: f.remote.id, revision: f.remote.revision },
+  });
+  const earlierReceipt = await f.store.getQueueReceipt(scope, earlier.sequence); assert.ok(earlierReceipt);
+  const source = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 2, collectionId: scope.collectionId,
+    parentId: f.parent.colpId, replicaId: scope.replicaId, opId: 'b3.read-binding.create.native-later' });
+  assert.ok(source.kind === 'operation' && source.operation.type === 'create_node' && source.effect.kind === 'node_created');
+  const remote = source.effect.node; assert.ok(remote.kind === 'bookmark' && typeof remote.url === 'string');
+  const node = { ...f.node, id: 'native-later', index: 1, title: remote.title, url: remote.url }; f.api.seed(node);
+  const original = { ...f.original, nativeId: node.id, colpId: `pending-${source.operation.opId}`,
+    projection: { ...f.original.projection, content: { title: node.title, url: node.url } } };
+  await f.store.stageBookmarkEvent(scope, { eventId: 'later-create-callback', nativeId: node.id, kind: 'create',
+    occurredAt: source.operation.occurredAt, dedupeKey: 'later-create-callback', details: {} });
+  await f.store.commitBookmarkEvent(scope, 'later-create-callback', {
+    operation: source.operation as unknown as JsonObject, baseRevision: null,
+    operationRevision: 'local-later-create', mapping: original,
+    allocateOperationId: () => source.operation.opId, validateOperation, digestOperation: digestJson,
+  });
+  const later = (await f.store.getQueueByOpId(scope, source.operation.opId))!;
+  assert.equal(later.sequence, 2);
+  assert.equal(canonicalOperationDigest(later.payload as unknown as Operation), source.effect.operationDigest);
+  const page = pullFixtures.page({ events: [source], nextCursor: 'cursor-next', collectionRevision: 'revision-next' });
+  const event = page.events[0] as Extract<SyncPullEventV02, { kind: 'operation' }>;
+  return { ...f, node, original, remote, page, event, opId: event.operation.opId,
+    eventId: `${event.cursor}:${event.operation.opId}`, earlierReceipt, earlierSequence: earlier.sequence };
+}
+
+for (const mismatch of ['older_sequence', 'different_payload'] as const) {
+  test(`lost provisional mapping refuses a ${mismatch} response bound to an unknown create`, async () => {
+    const f = await laterSelfCreateFixture();
+    try {
+      const queued = await losePushResponse(f);
+      assert.ok(f.event.operation.type === 'create_node' && f.event.effect.kind === 'node_created');
+      const title = 'Different echoed title';
+      const operation = mismatch === 'older_sequence' ? { ...f.event.operation, sequence: 1 }
+        : { ...f.event.operation, payload: { ...f.event.operation.payload,
+          node: { ...f.event.operation.payload.node, title } } };
+      const effect = { ...f.event.effect, sequence: operation.sequence, operationDigest: canonicalOperationDigest(operation),
+        node: mismatch === 'different_payload' ? { ...f.event.effect.node, title } : f.event.effect.node };
+      const response = { ...f.event, operation, effect: { ...effect,
+        effectDigest: canonicalAuthoritativeEffectDigest(effect) } };
+      const page = pullFixtures.page({ events: [response], nextCursor: 'cursor-next', collectionRevision: 'revision-next' });
+      const event = page.events[0] as Extract<SyncPullEventV02, { kind: 'operation' }>;
+      // These responses have internally valid digests; they do not match the actual request.
+      // A prepared provisional projection can survive a crash before its mapping is lost.
+      if (mismatch === 'different_payload') await f.api.update(f.node.id, { title });
+      assert.equal(queued.sequence, 2);
+      assert.notEqual(canonicalOperationDigest(queued.payload as unknown as Operation), effect.operationDigest);
+      await prepareAndStop({ ...f, page, event });
+      assert.equal(await f.store.deleteMapping(scope, f.node.id), true);
+      const nativeBefore = await f.api.get(f.node.id);
+      f.store.close();
+      const eventBefore = await f.store.getPullEvent(scope, f.eventId);
+      const intentBefore = await f.store.getApplyIntent(scope, `intent:${f.eventId}`);
+      assert.equal(eventBefore?.state, 'intent_prepared'); assert.equal(intentBefore?.apiResultEvidence, null);
+      await assert.rejects(createPullApplier(f.options).resume(), /pull_source_binding_invalid/);
+      assert.notEqual((await f.store.getCursor(scope))?.cursor, 'cursor-next');
+      assert.equal(f.api.calls.filter(call => call.kind === 'create').length, 0);
+      assert.deepEqual(await f.api.get(f.node.id), nativeBefore);
+      assert.deepEqual(await f.store.getPullEvent(scope, f.eventId), eventBefore);
+      assert.deepEqual(await f.store.getApplyIntent(scope, `intent:${f.eventId}`), intentBefore);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), queued);
+      assert.equal(await f.store.getQueueReceipt(scope, queued.sequence), null);
+      f.store.close();
+      assert.equal(await f.store.getMappingByNativeId(scope, f.node.id), null);
+      assert.deepEqual(await f.store.getPullEvent(scope, f.eventId), eventBefore);
+      assert.deepEqual(await f.store.getApplyIntent(scope, `intent:${f.eventId}`), intentBefore);
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.opId), queued);
+      assert.equal(await f.store.getQueueReceipt(scope, queued.sequence), null);
+      assert.deepEqual(await f.store.getQueueReceipt(scope, f.earlierSequence), f.earlierReceipt);
+    } finally { f.store.close(); }
+  });
+}
