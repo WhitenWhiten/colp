@@ -18,7 +18,7 @@ import { MemoryStorageArea } from '../src/credential-store.js';
 import { LOCAL_CLASSIFICATION_KEY, LOCAL_CLASSIFICATION_PROJECTION } from '../src/classification-local-session.js';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, test, vi, type MockInstance } from 'vitest';
 
 const observed = vi.hoisted(() => ({
   scope: { environment: 'production' as const, serverId: 'server-entry', serverOrigin: 'https://known.example',
@@ -35,7 +35,22 @@ const observed = vi.hoisted(() => ({
   clears: [] as string[],
   /** Repeating-alarm intervals, keyed by alarm name. */
   alarmPeriods: {} as Record<string, number>,
+  background: [] as Promise<unknown>[],
+  completed: [] as string[],
 }));
+
+function trackBackground<T>(name: string, work: () => Promise<T>): Promise<T> {
+  const result = work().then(value => { observed.completed.push(name); return value; });
+  observed.background.push(result); return result;
+}
+async function backgroundSettled() {
+  let observedCount = 0, outcomes: PromiseSettledResult<unknown>[];
+  do {
+    observedCount = observed.background.length;
+    outcomes = await Promise.allSettled(observed.background);
+  } while (observedCount !== observed.background.length);
+  for (const outcome of outcomes) if (outcome.status === 'rejected') throw outcome.reason;
+}
 
 vi.mock('../src/sw/runtime.js', async () => {
   const { createExtensionWorkCoordinator } = await import('../src/authority-fence.js');
@@ -66,12 +81,41 @@ vi.mock('../src/sw/runtime.js', async () => {
 });
 
 vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => observed.scope,
-  loadConfig: async () => ({ manifestUrl: 'https://known.example/manifest.json', clientId: 'client' }),
+  loadConfig: async () => ({ environment: 'production', serverOrigin: 'https://known.example',
+    manifestUrl: 'https://known.example/manifest.json', clientId: 'client' }),
+  boundCollectionId: async () => observed.scope.collectionId,
   pushSessionAuthority: async () => undefined, currentSyncStatusAuthority: async () => undefined,
   stateAfterFailure: async () => undefined, requireSyncScope: async () => observed.scope,
   ensureSyncScope: async () => observed.scope, enforceManagedPolicy: async () => undefined,
   hasBoundCollection: async () => true, retire: async () => undefined, scheduleSessionFreshen: () => undefined,
   sessionRequest: async () => undefined }));
+
+// Observe completion of the real boot/online work. A missing dependency caught
+// by a fire-and-forget entry must fail this suite instead of looking like a wake.
+vi.mock('../src/sw/library.js', async importOriginal => {
+  const real = await importOriginal<typeof import('../src/sw/library.js')>();
+  return { ...real, bindLibraryOnStartup: () => trackBackground('library', () => real.bindLibraryOnStartup()) };
+});
+vi.mock('../src/sw/capture.js', async importOriginal => {
+  const real = await importOriginal<typeof import('../src/sw/capture.js')>();
+  return { ...real, wakeCaptures: () => trackBackground('captures', () => real.wakeCaptures()) };
+});
+vi.mock('../src/sw/capture-batch.js', async importOriginal => {
+  const real = await importOriginal<typeof import('../src/sw/capture-batch.js')>();
+  return { ...real, wakeCaptureBatches: () => trackBackground('capture-batches', () => real.wakeCaptureBatches()) };
+});
+vi.mock('../src/sw/capture-feedback-upload.js', async importOriginal => {
+  const real = await importOriginal<typeof import('../src/sw/capture-feedback-upload.js')>();
+  return { ...real, flushCaptureFeedback: () => trackBackground('capture-feedback', () => real.flushCaptureFeedback()) };
+});
+vi.mock('../src/sw/capture-report.js', async importOriginal => {
+  const real = await importOriginal<typeof import('../src/sw/capture-report.js')>();
+  return { ...real, flushCaptureReports: () => trackBackground('capture-reports', () => real.flushCaptureReports()) };
+});
+vi.mock('../src/sw/bookmark-preferences.js', async importOriginal => {
+  const real = await importOriginal<typeof import('../src/sw/bookmark-preferences.js')>();
+  return { ...real, flushBookmarkPreferences: () => trackBackground('preferences', () => real.flushBookmarkPreferences()) };
+});
 
 vi.mock('../src/sw/engine.js', () => ({
   scheduleSyncEngineWake: (reason: string, delay = 0, connectivity = false) => {
@@ -155,6 +199,7 @@ function installChromeStub(): void {
       if (event === 'online') chromeListeners.online.push(listener); } };
   (globalThis as Record<string, unknown>).chrome = {
     runtime: { id: 'probe-extension',
+      sendMessage: vi.fn(async () => undefined),
       getURL: (path: string) => `chrome-extension://probe-extension/${path}`,
       onStartup: { addListener: (listener: () => void) => chromeListeners.onStartup.push(listener) },
       onInstalled: { addListener: (listener: (details: unknown) => void) => chromeListeners.onInstalled.push(listener) },
@@ -225,28 +270,47 @@ async function settle(): Promise<void> { for (let tick = 0; tick < 8; tick += 1)
 
 type BookmarkStub = ReturnType<typeof countedBookmarks>;
 let bookmarks: BookmarkStub;
+let backgroundErrors: MockInstance<typeof console.error>;
 
 describe('MV3 service worker entry wiring is exercised, not grepped', () => {
   beforeAll(async () => {
+    backgroundErrors = vi.spyOn(console, 'error'); // Call through; never hide the failure evidence.
     installChromeStub();
     bookmarks = countedBookmarks();
     (globalThis as { chrome: { bookmarks: unknown } }).chrome.bookmarks = bookmarks.api;
     const { syncState } = await import('../src/sw/runtime.js');
     await syncState.registerScope({ ...observed.scope, lifecycle: 'active',
-      lease: { leaseId: 'lease-entry', expiresAt: 99_999 }, checkpoint: null, selectedRoots: [] });
+      lease: { leaseId: 'lease-entry', expiresAt: Date.now() + 60_000 }, checkpoint: null, selectedRoots: [] });
     await import('../src/service-worker.js');
     await vi.waitFor(() => {
       assert.equal(observed.recoveries.includes('manual'), true, 'boot recovery');
       assert.equal(observed.wakes.some((wake) => wake.reason === 'manual'), true, 'boot wake');
     });
-    await settle();
+    await backgroundSettled();
+    assert.equal(observed.completed.includes('library'), true, 'library binding completed');
+    expect(backgroundErrors).not.toHaveBeenCalled();
     boot.recoveries.push(...observed.recoveries);
     boot.lanes.push(...observed.lanes);
     boot.wakes.push(...observed.wakes);
   });
 
-  afterEach(() => { observed.wakes.length = 0; observed.recoveries.length = 0; observed.lanes.length = 0;
-    observed.firstRunRequests.length = 0; observed.firstRunState = 'running'; observed.resumes = 0; observed.clears.length = 0; });
+  afterEach(async () => {
+    try {
+      await backgroundSettled();
+      expect(backgroundErrors).not.toHaveBeenCalled();
+    } finally {
+      backgroundErrors.mockClear(); observed.background.length = 0; observed.completed.length = 0;
+      vi.mocked(chrome.runtime.sendMessage).mockClear();
+      observed.wakes.length = 0; observed.recoveries.length = 0; observed.lanes.length = 0;
+      observed.firstRunRequests.length = 0; observed.firstRunState = 'running'; observed.resumes = 0; observed.clears.length = 0;
+    }
+  });
+  afterAll(async () => {
+    backgroundErrors.mockRestore();
+    (await import('../src/sw/runtime.js')).syncState.close();
+    await (await import('../src/sw/capture.js')).captureStore.close();
+    (await import('../src/automation/indexeddb-store.js')).automationDatabase().close();
+  });
 
   test('collection binding changes keep the local key and drop cached collection context', async () => {
     await chrome.storage.session.set({ [LOCAL_CLASSIFICATION_KEY]: { value: 'local-test' }, [LOCAL_CLASSIFICATION_PROJECTION]: { value: 'projection' } });
@@ -345,6 +409,11 @@ describe('MV3 service worker entry wiring is exercised, not grepped', () => {
       assert.equal(observed.recoveries.includes('startup'), true, 'startup re-ran the recovery chain');
       assert.equal(observed.wakes.some((wake) => wake.reason === 'startup'), true, 'startup woke the engine');
     });
+    await backgroundSettled();
+    for (const task of ['captures', 'capture-batches', 'capture-feedback', 'capture-reports', 'preferences']) {
+      assert.equal(observed.completed.includes(task), true, `startup ${task} completed`);
+    }
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ kind: 'known.capture.invalidated' });
 
     for (const listener of chromeListeners.onAlarm) listener({ name: 'known-sync-engine' });
     await vi.waitFor(() => {
@@ -360,6 +429,11 @@ describe('MV3 service worker entry wiring is exercised, not grepped', () => {
     for (const listener of chromeListeners.online) listener({ isTrusted: true });
     await vi.waitFor(() => {
       assert.deepEqual(observed.wakes, [{ reason: 'online', delay: 0, connectivity: true }]); });
+    await backgroundSettled();
+    for (const task of ['captures', 'capture-batches', 'capture-feedback', 'capture-reports', 'preferences']) {
+      assert.equal(observed.completed.includes(task), true, `online ${task} completed`);
+    }
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ kind: 'known.capture.invalidated' });
   });
 
   test('the website subscription bridge registers exactly one external message listener', () => {
