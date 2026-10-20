@@ -8,7 +8,7 @@ export async function pushRecoveryBarrierActive(
   allow?: () => boolean | Promise<boolean>,
 ): Promise<boolean> {
   // Advanced bootstrap may bypass snapshot recovery, never a withdrawn consent.
-  if ((await store.getEngineState(scope))?.lastError === 'metadata_sync_disabled') return true;
+  if (['metadata_sync_disabled', 'upload_boundary_changed'].includes((await store.getEngineState(scope))?.lastError ?? '')) return true;
   if (await allow?.()) return false;
   return (await store.getEngineState(scope))?.recoveryFrozen === true;
 }

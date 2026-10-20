@@ -7,6 +7,7 @@ import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
 import { bootstrapOpId } from '../src/bootstrap/matcher.js';
 import { operationPayload } from '../src/bootstrap/coordinator-operations.js';
 import { validateOperation } from '../src/bookmark-event-codec.js';
+import { QueuedUploadExcludedError } from '../src/queued-upload-boundary.js';
 import { createSyncStateStore, type JsonObject } from '../src/sync-state-store.js';
 import { fixture, success } from './outbound-push-batch-harness.js';
 import { installOutboundPushIndexedDb, scope, json, problem } from './outbound-push-worker-harness.js';
@@ -115,6 +116,28 @@ describe('first-sync transport batches', () => {
       fetch: async () => { requests += 1; throw new Error('must not send'); } });
     assert.equal((await worker.drain()).outcome, 'unknown'); assert.equal(requests, 0);
     assert.equal((await f.store.listQueue(scope, 'unknown')).length, 4); f.store.close();
+  });
+
+  test.each(['before_dispatch', 'inside_dispatch'] as const)('withdrawing one range %s cancels only never-sent batch work', async when => {
+    const f = await fixture(4); let withdrawn = false; let requests = 0;
+    const excluded = bootstrapOpId('first-sync', 'create', 'native-2');
+    try {
+      const worker = createOutboundPushWorker({ ...f.options,
+        beforeDispatch: async () => { if (when === 'before_dispatch') withdrawn = true; },
+        dispatchBatch: async (_rows, send) => { if (when === 'inside_dispatch') withdrawn = true; return send(); },
+        assertUploadAllowed: async row => {
+          if (withdrawn && row.opId === excluded) throw new QueuedUploadExcludedError('private_local');
+        },
+        fetch: async () => { requests++; throw new Error('must not send withdrawn batch'); },
+      });
+      assert.equal((await worker.drain()).outcome, 'unknown');
+      assert.equal(requests, 0);
+      assert.equal((await f.store.getQueueByOpId(scope, excluded))?.status, 'rejected');
+      const remaining = await f.store.listQueue(scope, 'unknown');
+      assert.equal(remaining.length, 3);
+      assert.ok(remaining.every(row => row.attempt === undefined));
+      assert.notEqual((await f.store.getEngineState(scope))?.recoveryFrozen, true);
+    } finally { f.store.close(); }
   });
 
   test('a failed local receipt transaction recovers every member without publishing a partial mapping', async () => {

@@ -132,6 +132,9 @@ export function rejectedWorkCopy(): string {
 }
 
 export function terminalFreezeReasonCopy(code: SyncAttentionTerminalCode): string {
+  if (code === 'upload_boundary_changed') {
+    return t('sync_uploadBoundaryStopped', 'Further uploads have stopped because your sync range changed. The result of an earlier transfer is unconfirmed. Reset sync on this device to review the selected folders and merge again. Bookmarks on this device and in Know-N are preserved.');
+  }
   if (code === 'metadata_sync_disabled') {
     return t('sync_metadataConsentStopped', 'A queued change contains browser metadata that you have not allowed to sync. Reset sync on this device to set aside queued changes and review the merge again. Your bookmarks and local metadata are preserved.');
   }

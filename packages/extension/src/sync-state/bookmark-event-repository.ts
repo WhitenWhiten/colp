@@ -60,10 +60,9 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
     readonly outcome: 'staged' | 'duplicate'; readonly event: BookmarkEventRecord }> {
     assertWritable(); const key = scopeKey(validateScope(input)); const event = validateBookmarkEventInput(eventInput, maxRecordBytes);
     const db = await writableDatabase(); let result!: { outcome: 'staged' | 'duplicate'; event: BookmarkEventRecord };
-    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.metadata, STORES.bookmarkEvents], 'readwrite', async (tx) => {
+    try { await runTransaction(db, [...ISSUE_DEPENDENCY_STORES, STORES.scopes, STORES.metadata, STORES.bookmarkEvents, STORES.queue], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const events = tx.objectStore(STORES.bookmarkEvents);
-      const duplicate = await requestValue(events.index(INDEXES.eventByDedupe).get([key, event.dedupeKey])) as
-        BookmarkEventRecord | undefined;
+      const duplicate = await bookmarkEventDuplicate(tx, key, event);
       if (duplicate) { result = { outcome: 'duplicate', event: validateBookmarkEventRecord(duplicate, maxRecordBytes) }; return; }
       const counterKey = `bookmark-event-ordinal:${key}`; const metadata = tx.objectStore(STORES.metadata);
       const counter = await requestValue(metadata.get(counterKey)) as { key: string; next: number } | undefined;
@@ -585,3 +584,4 @@ export function validateBookmarkEventPark(input: unknown): BookmarkEventParkMark
     ...(value.dependencyStamp === undefined ? {} : {
       dependencyStamp: boundedString(value.dependencyStamp, 'parkDependencyStamp') }) };
 }
+import { bookmarkEventDuplicate } from './bookmark-event-dedupe.js';

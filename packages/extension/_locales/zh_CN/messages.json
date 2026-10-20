@@ -10187,6 +10187,10 @@
     "message": "此设备上的同步已停止：它搁置的项目过多，无法继续安全同步。你书签库中的书签是安全的。请重置此设备上的同步以继续。",
     "description": "Sync on this device has stopped: it set aside too many items to keep syncing safely. The bookmarks in your library are safe. Reset sync on this device to continue."
   },
+  "sync_uploadBoundaryStopped": {
+    "message": "同步范围已更改，后续上传已停止。之前一次传送的结果尚未确认。请重置此设备上的同步，重新检查所选文件夹并预览合并。此设备和 Know-N 中的书签都会保留。",
+    "description": "Further uploads have stopped because your sync range changed. The result of an earlier transfer is unconfirmed. Reset sync on this device to review the selected folders and merge again. Bookmarks on this device and in Know-N are preserved."
+  },
   "sync_urlCannotRepresentedMissing": {
     "message": "此网址无法同步（格式无效、不允许的协议或过长）",
     "description": "URL cannot be synced (invalid format, disallowed scheme, or too long)"

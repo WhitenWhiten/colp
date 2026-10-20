@@ -131,6 +131,7 @@ export const SYNC_FAILURE_TABLE = Object.freeze({
   snapshot_projection_incomplete: entry('replica', 'stop'),
   // A queued operation contradicts current consent; rebuilding archives it before setup.
   metadata_sync_disabled: entry('replica', 'rebuild'),
+  upload_boundary_changed: entry('replica', 'rebuild'),
   // Other local sync boundaries are explicitly registered: contention retries;
   // invalid durable records stop with a visible repair path.
   ack_cursor_not_published: entry('replica', 'stop'),

@@ -442,7 +442,7 @@ export interface PublicSyncProgress {
 }
 export type SyncProgressResponse = { readonly ok: true; readonly progress: PublicSyncProgress | null }
   | { readonly ok: false; readonly error: 'state_unavailable' };
-export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'replica_rebuild_pending' | 'pull_apply_target_missing' | 'pull_apply_evidence_missing'
+export type SyncAttentionTerminalCode = 'metadata_sync_disabled' | 'upload_boundary_changed' | 'replica_rebuild_pending' | 'pull_apply_target_missing' | 'pull_apply_evidence_missing'
   | 'anchor_mapping_missing' | 'payload_too_large' | 'recovery_identity_unproven'
   | 'deletion_identity_unproven' | 'legacy_resolution_sequence_collision' | 'mapping_identity_collision'
   | 'create_ambiguous' | 'create_evidence_missing'

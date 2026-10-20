@@ -39,8 +39,11 @@ export async function sendBootstrapCreateBatch(input: {
   readonly unknown: (row: QueueOperation, code: string, retryAfter?: string | null) => Promise<unknown>;
   readonly barrier: () => Promise<boolean>;
   readonly beforeDispatch?: (queue: QueueOperation) => Promise<void>;
+  readonly assertDispatchAllowed?: (queue: QueueOperation) => Promise<void>;
   readonly dispatch?: (rows: readonly QueueOperation[], send: () => Promise<Response>) => Promise<Response>;
   readonly onNetworkResponse?: () => void | Promise<void>;
+  readonly onDispatchStarted?: (rows: readonly QueueOperation[]) => void;
+  readonly notDispatched?: (row: QueueOperation, error: unknown) => Promise<unknown>;
 }): Promise<{ outcome: BatchOutcome; count: number; sequence: number } | null> {
   if (!input.fresh || input.limit < 2 || !batchableBootstrapCreate(input.first)) return null;
   let bytes = new TextEncoder().encode(JSON.stringify(input.first.payload)).length + 512;
@@ -51,7 +54,7 @@ export async function sendBootstrapCreateBatch(input: {
       return bytes <= REQUEST_BYTES;
     });
   if (following.length === 0) return null;
-  const rows = [input.first, ...following]; let settled = 0; let retryAfter: string | null = null;
+  const rows = [input.first, ...following]; let settled = 0; let retryAfter: string | null = null; let dispatched = false;
   const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     for (let index = 1; index < rows.length; index += 1) {
@@ -69,7 +72,9 @@ export async function sendBootstrapCreateBatch(input: {
       controller.abort(); reject(new SyncFailureError('push_batch_timeout'));
     }, input.timeoutMs); });
     const idempotencyKey = `batch.${crypto.randomUUID()}`;
-    const send = () => { controller.signal.throwIfAborted(); return input.fetch(input.endpoint, { method: 'POST', redirect: 'error', credentials: 'omit',
+    const send = async () => {
+      for (const row of rows) await input.assertDispatchAllowed?.(row);
+      controller.signal.throwIfAborted(); dispatched = true; input.onDispatchStarted?.(rows); return input.fetch(input.endpoint, { method: 'POST', redirect: 'error', credentials: 'omit',
       signal: controller.signal, headers: { Accept: 'application/json', 'Content-Type': 'application/json',
         ...colpCredentialHeaders(input.credential.accessToken), 'Idempotency-Key': idempotencyKey,
         ...(input.origin ? { Origin: input.origin } : {}) }, body }); };
@@ -106,7 +111,10 @@ export async function sendBootstrapCreateBatch(input: {
     for (const row of rows.slice(settled)) {
       const current = await input.store.getQueueByOpId(input.scope, row.opId);
       if (current?.status === 'claimed' && current.retry.ownerId === input.ownerId
-          && current.retry.fence === input.fence) await input.unknown(current, code, retryAfter);
+          && current.retry.fence === input.fence) {
+        if (!dispatched && input.notDispatched) await input.notDispatched(current, error);
+        else await input.unknown(current, code, retryAfter);
+      }
     }
     return { outcome: 'unknown', count: rows.length, sequence: input.first.sequence };
   } finally { if (timer) clearTimeout(timer); }

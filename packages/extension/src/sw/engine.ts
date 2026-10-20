@@ -1,7 +1,7 @@
 import { createQueueRecapture } from '../queue-recapture.js';
 import { repairOwnCreateFromNative } from '../bookmark-own-create-repair.js';
 import { recoverLocalSaveFreeze, recoverMappedIdentityFreeze } from '../local-save-freeze-recovery.js';
-import { assertBootstrapUploadAllowed } from '../bootstrap/upload-boundary.js';
+import { assertQueuedUploadAllowed } from '../queued-upload-boundary.js';
 import { withSubscriptionRead } from '../bookmark-subscriptions/barrier.js';
 import { assertSubscriptionUploadAllowed } from '../bookmark-subscriptions/personal-boundary.js';
 import { BookmarkApiError, bookmarkApiErrorFromUnknown, classifyBookmarkApiFailure } from '../bookmark-api-error.js';
@@ -126,7 +126,7 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   // EXT-01: the push network dispatch rides the same live-authority capability
   // as ordinary Pull, so a late Drain cannot POST under a revoked generation.
   const effects = syncEffects(scope, context);
-  const assertBootstrapBoundary = (queue: QueueOperation) => assertBootstrapUploadAllowed({ store: syncState, scope, queue,
+  const assertBootstrapBoundary = (queue: QueueOperation) => assertQueuedUploadAllowed({ store: syncState, scope, queue,
     parentOf: async id => {
       const nodes = await readPermittedBookmarkApi(() => chrome.bookmarks.get(id));
       if (!nodes[0]) throw new Error('bootstrap_boundary_unavailable');
