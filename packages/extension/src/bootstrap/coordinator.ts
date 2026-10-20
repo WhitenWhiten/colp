@@ -15,6 +15,7 @@ import type {
 } from '../sync-state-store.js';
 import { applyInboxToFacts } from './local-facts.js';
 import { scopeKey } from '../sync-state/scope-key.js';
+import { MAX_QUEUE_READ_IDS, type QueueReadEntry } from '../sync-state/queue-read-repository.js';
 import {
   bootstrapOpId, bootstrapRunOpPrefix, matchLocalRemote, type LocalMatchReport, type LocalNodeFact, type MappingFact, type MountFact,
   type PlannedOperation, type RemoteNodeFact, type SidecarFact,
@@ -356,16 +357,12 @@ export function createBootstrapCoordinator(options: {
         return key ? [bootstrapOpId(confirmationId, 'mount', key)] : [];
       }),
     ];
-    const byOpId = new Map<string, QueueOperation>();
-    for (const opId of new Set(wantedOpIds)) {
-      const row = await store.getQueueByOpId(scope, opId);
-      if (row) byOpId.set(opId, row);
-    }
-    const receiptsByOpId = await receiptsForOps(wantedOpIds);
+    const byOpId = new Map((await queueEntriesForOps(wantedOpIds)).map(entry => [entry.queue.opId, entry]));
     const facts: MappingFact[] = [];
     const pushIfTerminal = (opKey: string, nativeId: string) => {
-      if (byOpId.get(opKey)?.status !== 'terminal') return;
-      const targetId = receiptTargetId(receiptsByOpId.get(opKey));
+      const entry = byOpId.get(opKey);
+      if (entry?.queue.status !== 'terminal') return;
+      const targetId = receiptTargetId(entry.receipt ?? undefined);
       if (targetId) facts.push({ nativeId, colpId: targetId });
     };
     for (const row of local) pushIfTerminal(bootstrapOpId(confirmationId, 'create', row.nativeId), row.nativeId);
@@ -516,23 +513,21 @@ export function createBootstrapCoordinator(options: {
     return { pending, rejected };
   }
 
-  /**
-   * Receipts for a named set of operations.
-   *
-   * This used to read the ENTIRE queue through `allQueue()` and then keep only the
-   * rows whose opId was asked for, so the cost grew with the whole settled history
-   * to produce a handful of receipts — and the queue is never pruned, so that
-   * history only grows. `getQueueByOpId` is a unique `[scopeKey, opId]` index, so
-   * each wanted operation is one lookup and nothing else is read.
-   */
+  // Only this invocation owns these facts. Every rematch/advance reads again;
+  // each bounded page binds queue status to the receipt in one fresh transaction.
+  async function queueEntriesForOps(opIds: readonly string[]): Promise<QueueReadEntry[]> {
+    const ids = [...new Set(opIds)]; const entries: QueueReadEntry[] = [];
+    for (let offset = 0; offset < ids.length; offset += MAX_QUEUE_READ_IDS) {
+      entries.push(...await store.readQueueEntriesByOpIds(scope, ids.slice(offset, offset + MAX_QUEUE_READ_IDS)));
+    }
+    return entries;
+  }
+
   async function receiptsForOps(opIds: readonly string[]):
     Promise<Map<string, { readonly opId: string; readonly result?: JsonObject }>> {
     const receipts = new Map<string, { readonly opId: string; readonly result?: JsonObject }>();
-    for (const opId of new Set(opIds)) {
-      const queuedOp = await store.getQueueByOpId(scope, opId);
-      if (!queuedOp || queuedOp.status !== 'terminal') continue;
-      const receipt = await store.getQueueReceipt(scope, queuedOp.sequence);
-      if (receipt) receipts.set(opId, receipt);
+    for (const { queue, receipt } of await queueEntriesForOps(opIds)) {
+      if (queue.status === 'terminal' && receipt) receipts.set(queue.opId, receipt);
     }
     return receipts;
   }

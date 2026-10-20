@@ -100,7 +100,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     advanceSequenceFloor: queue.advanceSequenceFloor, listQueue: queue.listQueue,
     listQueueByTarget: queue.listQueueByTarget,
     getQueueByOpId: queue.getQueueByOpId,
-    getQueueReceipt: queue.getQueueReceipt,
+    getQueueReceipt: queue.getQueueReceipt, readQueueEntriesByOpIds: queue.readQueueEntriesByOpIds,
     listConsumedQueueIssues: queue.listConsumedQueueIssues,
     adoptConsumedRejections: queue.adoptConsumedRejections,
     commitImportPlan: engine.commitImportPlan, listImportPlans: engine.listImportPlans,
