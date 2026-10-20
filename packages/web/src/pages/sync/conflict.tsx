@@ -17,21 +17,31 @@ export function ConflictEditor({ conflict, draft, onDraft, onSubmit, onReplay, o
   const busy = draft.phase === 'submitting'
   const frozen = draft.phase === 'unknown' || (draft.phase === 'blocked' && draft.frozen !== null)
   const custom = customField(conflict.field)
+  const unavailable = conflict.allowedResolutions.length === 0
+  const unavailableMessage = conflict.resolutionBlockedReason === 'node_read_only'
+    ? 'This item is read-only in its current folder.'
+    : conflict.resolutionBlockedReason === 'resource_not_found'
+      ? 'This item is currently unavailable.'
+      : 'No resolution is currently available for this conflict.'
   const canSubmit = !busy && !frozen && canResolveConflict(conflict, draft.resolution)
   const choose = (resolution: Resolution) => onDraft({ resolution, phase: 'idle', message: null, frozen: null })
   return <article className="conflict-card" data-conflict-id={conflict.id}>
     <header className="conflict-title"><div><span className="conflict-field">{fieldName(conflict.field)}</span><h3>{CONFLICT_TYPE_LABELS[conflict.type]}</h3></div><time dateTime={conflict.createdAt}>{formatInstant(conflict.createdAt)}</time></header>
     <div className="conflict-comparison"><div><span>In {productName()}</span><p>{conflict.summary.current ?? 'No value'}</p></div><div><span>From the browser</span><p>{conflict.summary.incoming ?? 'No value'}</p></div></div>
-    <fieldset disabled={busy || frozen} className="conflict-options"><legend>Resolution</legend>
+    {unavailable && <div className="conflict-message is-blocked" role="status">{unavailableMessage} The conflict is kept here. Refresh it later to check the available choices.</div>}
+    <fieldset disabled={busy || frozen || unavailable} className="conflict-options"><legend>Resolution</legend>
       {RESOLUTIONS.map((option) => { const allowed = conflict.allowedResolutions.includes(option.value); const supported = option.value !== 'custom' || custom !== null
         return <label key={option.value} className="resolution-option"><input type="radio" name={`resolution-${conflict.id}`} value={option.value}
-          checked={draft.resolution === option.value} disabled={!allowed || !supported} onChange={() => choose(option.value)} />
+          checked={!unavailable && draft.resolution === option.value} disabled={!allowed || !supported} onChange={() => choose(option.value)} />
           <span><strong>{option.label}</strong><small>{allowed && supported ? option.detail : 'Not available for this conflict.'}</small></span></label> })}
     </fieldset>
-    {draft.resolution === 'custom' && custom && <CustomEditor field={custom} value={draft.customText} disabled={busy || frozen}
+    {draft.resolution === 'custom' && custom && <CustomEditor field={custom} value={draft.customText} disabled={busy || frozen || unavailable}
       onChange={(customText) => onDraft({ customText, phase: 'idle', message: null, frozen: null })} />}
-    {draft.message && <div className={`conflict-message ${INTENT_MESSAGE_CLASS[draft.phase] ?? ''}`.trim()} role="alert">{draft.message}</div>}
-    <div className="conflict-submit">{draft.phase === 'unknown'
+    {draft.message && (!unavailable || draft.phase === 'refresh_required') && <div className={`conflict-message ${INTENT_MESSAGE_CLASS[draft.phase] ?? ''}`.trim()} role="alert">{draft.message}</div>}
+    <div className="conflict-submit">{unavailable
+      ? <><button type="button" className="btn btn-primary btn-sm" disabled>Resolve conflict</button>
+        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onRefresh}>Refresh conflict</button></>
+      : draft.phase === 'unknown'
       ? <button type="button" className="btn btn-primary btn-sm" onClick={onReplay}>Retry resolution</button>
       : draft.phase === 'stale' ? <button type="button" className="btn btn-primary btn-sm" disabled={!canSubmit} onClick={onSubmit}>Confirm with latest version</button>
         : draft.phase === 'refresh_required' ? <button type="button" className="btn btn-secondary btn-sm" onClick={onRefresh}>Refresh conflict</button>

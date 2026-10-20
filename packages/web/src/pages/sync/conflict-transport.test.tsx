@@ -60,7 +60,7 @@ async function screen(versions: SyncConflictSummary[], staleResponses: number) {
   restoreFetch = mock.restore
   mountTree(<ToastProvider><Sync /></ToastProvider>, { route: '/sync' })
   await waitForDom(() => document.querySelector('[data-conflict-id="conflict"]') !== null)
-  return { posts, reads }
+  return { posts, reads, setCurrent: (next: SyncConflictSummary) => { current = next } }
 }
 
 it('two 412 responses require two fresh GETs and two explicit confirmations with three distinct commands', async () => {
@@ -107,4 +107,54 @@ it.each([
   expect(requestHeaders(f.posts[1]!).get('if-match')).toBe(versions[1]!.etag)
   expect(JSON.parse(String(f.posts[1]!.init?.body))).toEqual({ resolution: 'server' })
   expect(requestHeaders(f.posts[1]!).get('known-command-id')).not.toBe(requestHeaders(f.posts[0]!).get('known-command-id'))
+})
+
+it('a node moved into a managed folder keeps its conflict visible and cannot resolve until refreshed and explicitly confirmed', async () => {
+  const versions = [conflict(1), conflict(2, { allowedResolutions: [], resolutionBlockedReason: 'node_read_only' })]
+  const f = await screen(versions, 1)
+  const initialReads = f.reads.length
+  choose('incoming'); act(() => button('Resolve conflict').click())
+  await waitForDom(() => document.body.textContent?.includes('Server title 2') === true)
+  expect(f.posts).toHaveLength(1)
+  expect(f.reads.slice(initialReads)).toEqual([versions[1]!.revision])
+  expect(document.body.textContent).toContain('This item is read-only in its current folder.')
+  expect(document.body.textContent).toContain('Browser title')
+  expect(document.querySelector('[data-conflict-id="conflict"]')).not.toBeNull()
+  const radios = [...document.querySelectorAll<HTMLInputElement>('input[type=radio]')]
+  expect(radios).toHaveLength(4)
+  expect(radios.every(input => input.disabled)).toBe(true)
+  expect(button('Resolve conflict').disabled).toBe(true)
+  act(() => button('Resolve conflict').click())
+  await act(async () => { await Promise.resolve() })
+  expect(f.posts).toHaveLength(1)
+
+  // The external server restores writability. Merely changing that fact must
+  // neither refresh nor replay a previously denied command from the client.
+  const restored = conflict(3)
+  f.setCurrent(restored)
+  expect(f.posts).toHaveLength(1)
+  act(() => button('Refresh conflict').click())
+  await waitForDom(() => document.body.textContent?.includes('Server title 3') === true)
+  expect(f.reads.slice(initialReads)).toEqual([versions[1]!.revision, restored.revision])
+  expect(f.posts).toHaveLength(1)
+  expect(button('Confirm with latest version').disabled).toBe(false)
+  act(() => button('Confirm with latest version').click())
+  await waitForDom(() => document.querySelector('[data-conflict-receipt="conflict"]') !== null)
+  expect(f.posts).toHaveLength(2)
+  expect(requestHeaders(f.posts[1]!).get('if-match')).toBe(restored.etag)
+  expect(requestHeaders(f.posts[1]!).get('known-command-id')).not.toBe(requestHeaders(f.posts[0]!).get('known-command-id'))
+  expect(JSON.parse(String(f.posts[1]!.init?.body))).toEqual({ resolution: 'incoming' })
+})
+
+it('an initially unavailable node has no implicit server choice and keeps a refresh route', async () => {
+  const f = await screen([conflict(1, { allowedResolutions: [], resolutionBlockedReason: 'resource_not_found' })], 0)
+  expect(document.body.textContent).toContain('This item is currently unavailable.')
+  expect(document.body.textContent).toContain('Server title 1')
+  expect(document.body.textContent).toContain('Browser title')
+  expect(document.querySelector('input[type=radio]:checked')).toBeNull()
+  expect(button('Resolve conflict').disabled).toBe(true)
+  expect(button('Refresh conflict').disabled).toBe(false)
+  act(() => button('Resolve conflict').click())
+  await act(async () => { await Promise.resolve() })
+  expect(f.posts).toHaveLength(0)
 })
