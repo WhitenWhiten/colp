@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { createHash } from 'node:crypto';
+import { IDBIndex } from 'fake-indexeddb';
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { handleRootRequest, loadRootView, readRootFolders } from '../src/sw/roots.js';
 import { sw, syncState } from '../src/sw/runtime.js';
@@ -186,7 +187,20 @@ test('more than 500 role children keep the command small and every frozen deleti
       title: `Cloud ${index}`, url: `https://example.test/cloud/${index}` },
   });
   const request = await review();
-  expect(await handleRootRequest(request)).toMatchObject({ ok: true });
+  // Bound actual queue rows read, not elapsed wall time: independent deletes
+  // must not reread every earlier never-sent row before each append.
+  const openCursor = IDBIndex.prototype.openCursor;
+  let returnedQueueRows = 0;
+  const reads = vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementation(function (query, direction) {
+    const request = openCursor.call(this, query, direction);
+    if (this.objectStore.name === 'outbound_queue') request.addEventListener('success', () => {
+      if (request.result) returnedQueueRows += 1;
+    });
+    return request;
+  });
+  try { expect(await handleRootRequest(request)).toMatchObject({ ok: true }); }
+  finally { reads.mockRestore(); }
+  expect(returnedQueueRows).toBeLessThan(521 * 12);
   const command = (await syncState.getBoundaryCommand(scope, request.confirmationId))!;
   expect(new TextEncoder().encode(JSON.stringify(command)).byteLength).toBeLessThan(16 * 1024);
   expect(JSON.stringify(command.payload)).not.toContain('contentDeletes');
