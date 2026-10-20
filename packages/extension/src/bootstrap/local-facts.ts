@@ -29,7 +29,8 @@ export function localFactsFromRoots(roots: readonly NormalizedBookmarkRoot[],
       mountNativeRootId: [...ancestors, node.nativeId].find(id => selected.has(id)) ?? root.nativeId,
       parentNativeId: ancestors.at(-1) ?? null, kind: node.kind, title: node.title,
       ...(node.url ? { url: node.url } : {}), ...(structureOnly ? { structureOnly: true } : {}),
-      ...(rootRole && roleOwners.get(rootRole) === node.nativeId ? { folderRole: rootRole } : {}) });
+      ...(rootRole && rootRole !== 'custom' && rootRole !== 'managed-bookmarks'
+        && roleOwners.get(rootRole) === node.nativeId ? { folderRole: rootRole } : {}) });
     for (const child of node.children) visit(child, [...ancestors, node.nativeId], root);
   };
   for (const root of roots) {
