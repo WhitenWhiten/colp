@@ -185,3 +185,58 @@ test.each([
   await vi.waitFor(() => expect(panel.textContent).toContain('could not be confirmed'));
   expect(action('keep_local')).toBeNull(); expect(action('apply_remote_delete')).toBeNull(); expect(resolves()).toEqual([]);
 });
+
+test('identical eight-second polling preserves the current confirmation and keyboard focus', async () => {
+  vi.useFakeTimers(); const f = await screen(), checkbox = confirmation()!;
+  checkbox.checked = true; checkbox.dispatchEvent(new Event('change')); checkbox.focus();
+  await vi.advanceTimersByTimeAsync(8_000);
+  expect(send.mock.calls.filter(([message]) => message.kind === 'known.sync.rejoinDecisions.get')).toHaveLength(2);
+  expect(confirmation()).toBe(checkbox); expect(checkbox.checked).toBe(true); expect(document.activeElement).toBe(checkbox);
+  expect(action('apply_remote_delete')?.disabled).toBe(false);
+  action('apply_remote_delete')!.click(); await vi.waitFor(() => expect(f.onResolved).toHaveBeenCalledTimes(1));
+  expect(resolves()).toHaveLength(1);
+});
+
+test.each(['token', 'command', 'count', 'content'] as const)('a %s change invalidates consent and every retained old checkbox', async change => {
+  const f = await screen(), checkbox = confirmation()!, oldDelete = action('apply_remote_delete')!;
+  checkbox.checked = true; checkbox.dispatchEvent(new Event('change')); checkbox.focus();
+  decisions = [{ ...remote, ...(change === 'token' ? { token: `sha256:${'c'.repeat(64)}` }
+    : change === 'command' ? { commandId: 'rejoin-remote-delete:new-preview' }
+      : change === 'count' ? { affectedCount: 4 } : { title: 'Updated browser content' }) }];
+  await f.ui.refresh();
+  expect(confirmation()).not.toBe(checkbox); expect(confirmation()?.checked).toBe(false);
+  expect(action('apply_remote_delete')?.disabled).toBe(true); expect(document.activeElement).not.toBe(checkbox);
+  oldDelete.click(); await Promise.resolve(); await Promise.resolve(); expect(resolves()).toEqual([]);
+  confirmation()!.checked = true; confirmation()!.dispatchEvent(new Event('change'));
+  action('apply_remote_delete')!.click(); await vi.waitFor(() => expect(f.onResolved).toHaveBeenCalledTimes(1));
+  expect(resolves()).toHaveLength(1); expect(resolves()[0]![0]).toMatchObject({
+    commandId: decisions[0]!.commandId, token: decisions[0]!.token, affectedCount: decisions[0]!.affectedCount });
+});
+
+test.each(['connection', 'library'] as const)('an %s reset clears consent even when the same decision returns', async reset => {
+  const f = await screen(), checkbox = confirmation()!, oldDelete = action('apply_remote_delete')!;
+  checkbox.checked = true; checkbox.dispatchEvent(new Event('change'));
+  if (reset === 'connection') { f.ui.onConnection(false); f.ui.onConnection(true); }
+  else { f.ui.setLibraryId('another-library'); f.ui.setLibraryId('library'); }
+  await vi.waitFor(() => expect(confirmation()).not.toBeNull());
+  expect(confirmation()).not.toBe(checkbox); expect(confirmation()?.checked).toBe(false);
+  oldDelete.click(); await Promise.resolve(); await Promise.resolve(); expect(resolves()).toEqual([]);
+  expect(action('apply_remote_delete')?.disabled).toBe(true);
+});
+
+test('an unconfirmed reply requires a new checkbox even when fresh evidence returns the same token', async () => {
+  const f = await screen(), oldDelete = action('apply_remote_delete')!;
+  confirmation()!.checked = true; confirmation()!.dispatchEvent(new Event('change'));
+  result = { ok: false, error: 'extension_unavailable' }; oldDelete.click();
+  await vi.waitFor(() => {
+    expect(f.panel.textContent).toContain('The result could not be confirmed yet');
+    expect(confirmation()?.disabled).toBe(false);
+    expect(send.mock.calls.filter(([message]) => message.kind === 'known.sync.rejoinDecisions.get')).toHaveLength(2);
+  });
+  expect(confirmation()?.checked).toBe(false); expect(action('apply_remote_delete')?.disabled).toBe(true);
+  expect(resolves()).toHaveLength(1); oldDelete.click(); await Promise.resolve(); await Promise.resolve();
+  expect(resolves()).toHaveLength(1); expect(f.onResolved).not.toHaveBeenCalled();
+  result = { ok: true, decisions: [] };
+  confirmation()!.checked = true; confirmation()!.dispatchEvent(new Event('change')); action('apply_remote_delete')!.click();
+  await vi.waitFor(() => expect(f.onResolved).toHaveBeenCalledTimes(1)); expect(resolves()).toHaveLength(2);
+});

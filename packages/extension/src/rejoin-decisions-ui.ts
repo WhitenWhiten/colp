@@ -23,7 +23,7 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
   const retry = el('button', undefined, 'btn btn-secondary btn-sm'); retry.type = 'button';
   panel.append(head, list, feedback, retry); panel.tabIndex = -1;
   panel.setAttribute('aria-labelledby', heading.id);
-  let libraryId = '', connected = false, disposed = false, busy = false, owner = 0, readTurn = 0;
+  let libraryId = '', connected = false, disposed = false, busy = false, owner = 0, readTurn = 0, renderTurn = 0;
   let awaitingResult: string | undefined;
   let rows: readonly PublicRejoinDecision[] = [];
   const cancellations = new Set<() => void>();
@@ -48,12 +48,14 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
     });
   }
   function render() {
+    const version = owner, controls = ++renderTurn;
     heading.textContent = t('rejoin_heading', 'Review changes made while sync was paused');
     intro.textContent = t('rejoin_intro', 'Choose how these items should sync again. Each choice applies only to the items shown.');
     retry.textContent = t('common_refresh', 'Refresh'); retry.disabled = busy;
     panel.setAttribute('aria-busy', String(busy));
     list.replaceChildren(...rows.map(row => decisionCard(row, busy,
-      (choice, confirmSubtree) => { void decide(row, choice, confirmSubtree); }, () => { void recover(row); })));
+      (choice, confirmSubtree) => { if (isCurrent(version) && controls === renderTurn) void decide(row, choice, confirmSubtree); },
+      () => { if (isCurrent(version) && controls === renderTurn) void recover(row); })));
     list.hidden = !rows.length; panel.hidden = !rows.length && feedback.hidden;
   }
   async function refresh() {
@@ -62,7 +64,12 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
     const response = await send({ kind: 'known.sync.rejoinDecisions.get' });
     if (!isCurrent(version) || turn !== readTurn) return;
     if (!response.ok) { rows = []; render(); setFeedback(errorCopy(response.error)); return; }
-    rows = response.decisions; render();
+    // Polling the same reviewed facts must not erase keyboard focus or a
+    // checkbox just before the user clicks. Changed evidence gets new controls.
+    const unchanged = rows.length === response.decisions.length
+      && rows.every((row, index) => sameDecision(row, response.decisions[index]!));
+    rows = response.decisions;
+    if (!unchanged) render();
     if (awaitingResult && !rows.some(row => row.commandId === awaitingResult)) {
       awaitingResult = undefined;
       setFeedback(t('rejoin_noLongerWaiting', 'This decision is no longer waiting. Check sync status for any remaining steps.'));
@@ -72,16 +79,15 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
     }
   }
   async function recover(row: PublicRejoinDecision) {
-    if (busy || !isCurrent(owner) || !rows.some(current => current.commandId === row.commandId
-        && current.token === row.token && current.blockedReason)) return;
+    if (busy || !isCurrent(owner) || !rows.some(current => sameDecision(current, row) && current.blockedReason)) return;
     if (!row.recoveryAction || row.recoveryAction === 'refresh') { await refresh(); return; }
     host.show();
     window.dispatchEvent(new CustomEvent(SYNC_ATTENTION_SHOW_EVENT, { detail: { action: row.recoveryAction } }));
   }
   async function decide(row: PublicRejoinDecision, choice: RejoinDecisionChoice, confirmSubtree = false) {
     if (busy || !connected || !libraryId || disposed || row.state !== 'pending'
-      || row.blockedReason || !rows.some(current => current.commandId === row.commandId
-        && current.token === row.token && current.state === 'pending' && !current.blockedReason)) return;
+      || row.blockedReason || !rows.some(current => sameDecision(current, row)
+        && current.state === 'pending' && !current.blockedReason)) return;
     if (choice === 'apply_remote_delete' && (row.kind !== 'remote_delete' || !confirmSubtree)) return;
     const request: RejoinDecisionRequest = choice === 'apply_remote_delete'
       ? { kind: 'known.sync.rejoinDecisions.resolve', commandId: row.commandId, token: row.token,
@@ -133,6 +139,12 @@ export function bindRejoinDecisions(host: RejoinDecisionHost) {
       connected = value; reset(); if (connected && libraryId) void refresh();
     },
   };
+}
+
+function sameDecision(left: PublicRejoinDecision, right: PublicRejoinDecision): boolean {
+  const evidence = (row: PublicRejoinDecision) => [row.commandId, row.token, row.kind, row.title, row.affectedCount,
+    row.state, row.localOrder, row.remoteOrder, row.blockedReason, row.recoveryAction];
+  return JSON.stringify(evidence(left)) === JSON.stringify(evidence(right));
 }
 
 function decisionCard(row: PublicRejoinDecision, busy: boolean,
