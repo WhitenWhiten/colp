@@ -4,6 +4,7 @@ import { remoteChildren, remoteFactsDigest, rejoinAuthority, rejoinBoundaryDiges
 import { childOrderFromProjection, sameChildOrder } from './bookmark-reorder-diff.js';
 import { applyRejoinMutation, type RejoinChrome } from './scope-rejoin-mutation.js';
 import { isNonChromeNativeId } from './pull-mount-apply.js';
+import { rejoinOrderProgress } from './scope-rejoin-order-progress.js';
 import type { MappingInput, MountBindingRecord, RemoteObservationRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export type RejoinOrderInput = RejoinChrome & {
@@ -64,13 +65,14 @@ export async function assertRejoinOrderAuthority(input: RejoinOrderInput, plan: 
 }
 
 export async function applyRejoinOrder(input: RejoinOrderInput, plan: RejoinOrderPlan,
-  target: readonly string[]): Promise<void> {
+  target: readonly string[], commandId?: string): Promise<void> {
   if (!input.getChildren || !input.moveNative) throw new Error('rejoin_order_api_unavailable');
   await assertRejoinOrderAuthority(input, plan);
   const liveIds = new Set(plan.local);
   // Preserve unrelated/new local children while ordering the common known siblings.
   const wanted = target.filter(id => liveIds.has(id));
-  let expected = (await input.getChildren(plan.parent.nativeId)).map(row => row.id);
+  const progress = await rejoinOrderProgress(input, plan, commandId);
+  let expected = progress.current;
   if (expected.some(id => !liveIds.has(id)) || expected.length !== plan.local.length) throw new Error('rejoin_order_changed');
   for (let index = 0; index < wanted.length; index++) {
     const current = (await input.getChildren(plan.parent.nativeId)).map(node => node.id);
@@ -80,8 +82,12 @@ export async function applyRejoinOrder(input: RejoinOrderInput, plan: RejoinOrde
     const mapping = await input.store.getMappingByNativeId(input.scope, nativeId);
     const before = await input.getNative(nativeId);
     if (!mapping || !before) throw new Error('rejoin_order_changed');
+    const next = placedChildOrder(current, nativeId, { index });
+    await progress.prepare(current, next);
     await applyRejoinMutation(input, mapping, 'move', { parentId: plan.parent.nativeId, index }, before);
-    expected = placedChildOrder(current, nativeId, { index });
+    input.crash?.('after_rejoin_order_native');
+    if (!sameChildOrder((await input.getChildren(plan.parent.nativeId)).map(row => row.id), next)) throw new Error('rejoin_order_changed');
+    await progress.complete(next); expected = next;
   }
   const current = await input.store.getMappingByNativeId(input.scope, plan.parent.nativeId);
   if (!current) throw new Error('rejoin_order_changed');

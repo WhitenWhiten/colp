@@ -9,7 +9,31 @@ export function retryRejoinCandidate<T extends MissingRejoinGroup | RejoinOrderP
   record: ScopeCommandPlanRecord): T {
   const references = rejectedRejoinReferences(record);
   return references.length ? { ...candidate, commandId: record.commandId,
-    token: digestJson({ preview: candidate.token, rejected: references.map(row => ({ ...row })) }) } : candidate;
+    token: digestJson({ preview: candidate.token, rejected: references.map(row => ({ ...row })) }) }
+    : { ...candidate, commandId: record.commandId };
+}
+
+/** A new browser/cloud order after confirmation requires a fresh visible choice, preserving the prior attempt. */
+export async function renewChangedRejoinOrder(input: RejoinOrderInput, record: ScopeCommandPlanRecord): Promise<boolean> {
+  const mappings = await input.store.listMappings(input.scope);
+  const observations = await input.store.listRemoteObservations(input.scope);
+  const candidate = (await planRejoinOrders(input, mappings, observations, String(record.rejoinDecision?.parentId)))
+    .find(row => row.parent.colpId === record.rejoinDecision?.parentId);
+  if (!candidate) return false;
+  const token = retryRejoinCandidate(candidate, record).token;
+  const attempt = rejoinAttemptDigest(input.mount, await input.store.getScope(input.scope));
+  const commandId = `rejoin-order:${input.mount.mountId}:${candidate.parent.colpId}:${attempt.slice(7, 23)}:compare:${digestJson({ prior: record.commandId, preview: token }).slice(7, 23)}`;
+  if (!await input.store.getScopeCommandPlan(input.scope, commandId)) await input.store.putScopeCommandPlan(input.scope, {
+    commandId, kind: 'rejoin', phase: 'pending', confirmationVersion: input.mount.boundaryVersion,
+    baselineDigest: token, dependencies: [], mountId: input.mount.mountId, retryReason: 'rejoin_order_changed', updatedAt: Date.now(),
+    rejoinDecision: { ...rejoinCandidateFields(candidate), authorityDigest: candidate.authorityDigest,
+      boundaryDigest: candidate.boundaryDigest, attemptDigest: attempt, retryOf: record.commandId,
+      rejectedReferences: rejectedRejoinReferences(record).map(row => ({ ...row })) },
+  });
+  const { scopeKey: _key, ...old } = record;
+  await input.store.putScopeCommandPlan(input.scope, { ...old, phase: 'failed', retryReason: 'rejoin_order_changed',
+    rejoinDecision: { ...old.rejoinDecision, supersededBy: commandId }, updatedAt: Date.now() });
+  return true;
 }
 
 /** Wait for every original operation, then expose one new choice over the current complete authority. */

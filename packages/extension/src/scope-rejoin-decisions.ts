@@ -1,7 +1,7 @@
-import { retryRejoinCandidate, renewRejectedRejoin, rejoinCandidateFields } from './scope-rejoin-rejection.js';
+import { retryRejoinCandidate, renewRejectedRejoin, rejoinCandidateFields, renewChangedRejoinOrder } from './scope-rejoin-rejection.js';
 import { missingRejoinGroups, rejoinDeleteOperationId,
   stageMissingRejoinDelete, type MissingRejoinGroup } from './scope-rejoin-deletion.js';
-import { applyRejoinOrder, planRejoinOrders, type RejoinOrderInput, type RejoinOrderPlan } from './scope-rejoin-order.js';
+import { applyRejoinOrder, assertRejoinOrderAuthority, planRejoinOrders, type RejoinOrderInput, type RejoinOrderPlan } from './scope-rejoin-order.js';
 import { cachedRejoinAuthority, rejoinBoundaryDigest, rejoinAttemptDigest } from './scope-rejoin-authority.js';
 import { assertRejoinBoundary, assertRejoinCanonicalBoundary } from './scope-rejoin-boundary.js';
 import { planRejoinRestore } from './scope-rejoin-restore.js';
@@ -134,6 +134,8 @@ export async function refreshRejoinDecisions(input: RejoinDecisionInput): Promis
         await input.store.completeRejoinDecision(input.scope, record.commandId); touched.add(mount.mountId);
       }
     } catch (error) {
+      if (error instanceof Error && ['rejoin_order_changed', 'preview_stale'].includes(error.message)
+        && record.rejoinDecision?.kind === 'order' && await renewChangedRejoinOrder(scoped, record)) continue;
       if (error instanceof Error && ['rejoin_boundary_changed', 'preview_stale', 'scope_not_found', 'scope_retired'].includes(error.message)) {
         await failDecision(input, record, error.message); continue;
       }
@@ -197,10 +199,11 @@ async function resumeOrder(input: RejoinOrderInput, record: ScopeCommandPlanReco
   await assertRejoinBoundary(input, order.parent, { expectedBoundary: order.boundaryDigest });
   await input.store.restoreRejectedRejoinBaselines(input.scope, record.commandId);
   if (record.retryReason === 'keep_remote_order') {
-    await applyRejoinOrder(input, order, order.remote); return true;
+    await applyRejoinOrder(input, order, order.remote, record.commandId); return true;
   }
   const queue = createRejoinQueue(input, record.commandId);
   if (record.phase === 'confirmed') {
+    await assertRejoinOrderAuthority(input, order);
     const parent = await input.store.getMappingByNativeId(input.scope, order.parent.nativeId);
     if (!parent || !input.getChildren) throw new Error('rejoin_order_changed');
     let pending = (await input.store.listPendingReorders(input.scope)).find(row => row.parentNativeId === parent.nativeId);
