@@ -34,4 +34,3 @@ export async function setup(variant = 'current') {
     remoteMountNodeId: 'chosen', boundaryVersion: '1', status: variant === 'detached' ? 'detached' : variant === 'pending' ? 'pending' : 'active', materialized: false });
   return { indexedDB, store, chrome, rows };
 }
-

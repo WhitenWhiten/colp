@@ -59,4 +59,3 @@ test('an explicit description intent keeps its original baseline when current in
   assert.deepEqual(await f.queue.described('folder-parent', 'Independent same value', baseline), { outcome: 'filtered' });
   assert.equal((await f.store.listQueue(scope)).length, 1);
 });
-
