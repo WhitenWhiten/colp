@@ -808,3 +808,32 @@ test('an unknown native result committed at call admission wins over the prepare
     assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
   } finally { f.store.close(); }
 });
+
+test('another wake starting the move before its admitted CAS stays a retryable race', async () => {
+  const f = await refusedMoveFixture();
+  try {
+    let attempted = false, protectedIntent = f.intent;
+    const store = { ...f.store,
+      markPullBrowserCallStarted: async (...args: Parameters<typeof f.store.markPullBrowserCallStarted>) => {
+        attempted = true;
+        await f.store.markPullBrowserCallStarted(scope, f.eventId);
+        protectedIntent = (await f.store.getApplyIntent(scope, f.intent.intentId))!;
+        return f.store.markPullBrowserCallStarted(...args);
+      } };
+    const calls = f.calls.length;
+    const native = structuredClone(f.nodes.get('native-existing'));
+    await assert.rejects(() => f.applier(store).resume(), /native_result_cas/);
+    assert.equal(attempted, true);
+    assert.deepEqual(await f.store.getApplyIntent(scope, f.intent.intentId), protectedIntent);
+    assert.equal((await f.store.getPullEvent(scope, f.eventId))?.state, 'browser_call_started');
+    assert.equal((await f.store.getCursor(scope))?.cursor, undefined);
+    f.store.close();
+    await assert.doesNotReject(() => f.applier().resume());
+    assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+    assert.equal((await f.store.getMappingByColpId(scope, 'node-existing'))?.parentNativeId, 'native-d');
+    assert.deepEqual(f.nodes.get('native-existing'), native);
+    assert.equal(f.calls.length, calls);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+    assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+  } finally { f.store.close(); }
+});
