@@ -139,7 +139,7 @@ test('a production-stamped later move retains its own destination with the alloc
   const f = await setupMove();
   try {
     const latest = await f.store.allocateSequenceAndEnqueue(scope, moveQueueInput('later-stamped-move', {
-      ...f.queued.payload, payload: { newParentId: source.colpId,
+      ...f.queued.payload, opId: 'later-stamped-move', payload: { newParentId: source.colpId,
         baseSourceParentRevision: 'children-dest-old', baseTargetParentRevision: 'children-source-old' },
     }), COLP_QUEUE_STAMP);
     assert.deepEqual({ opId: latest.payload.opId, sequence: latest.payload.sequence,
