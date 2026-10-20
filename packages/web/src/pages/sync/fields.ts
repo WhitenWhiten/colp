@@ -3,6 +3,11 @@ import { formatMediumInstant } from '../../lib/formatDate'
 import { browserIngressTitleIssue, BROWSER_INGRESS_TITLE_MAX_CODE_UNITS, BROWSER_INGRESS_TITLE_MAX_UTF8_BYTES } from '../../generated/browser-ingress-title'
 import type { ConflictDraft, Resolution } from './types'
 
+// Match the server's collection description and bookmark URL byte caps.
+// Count the submitted spelling, not the URL parser's encoded serialization.
+const DESCRIPTION_MAX_UTF8_BYTES = 16_384
+const BOOKMARK_URL_MAX_UTF8_BYTES = 4096
+
 export function formatInstant(value: string | null): string {
   return formatMediumInstant(value)
 }
@@ -53,7 +58,9 @@ export function parseCustomValue(conflict: SyncConflictSummary, text: string): {
     return { value: text }
   }
   if (field === 'description') {
-    if (text.length > 20_000) return { error: 'Description must be at most 20,000 characters.' }
+    if (new TextEncoder().encode(text).byteLength > DESCRIPTION_MAX_UTF8_BYTES) {
+      return { error: 'Description must be at most 16,384 UTF-8 bytes. Shorten it before resolving this conflict.' }
+    }
     return { value: text }
   }
   if (field === 'tags') {
@@ -67,6 +74,9 @@ export function parseCustomValue(conflict: SyncConflictSummary, text: string): {
     return { value: text }
   }
   if (field === 'canonicalUrl' && text === '') return { value: null }
+  if (new TextEncoder().encode(text).byteLength > BOOKMARK_URL_MAX_UTF8_BYTES) {
+    return { error: 'URL must be at most 4,096 UTF-8 bytes. Shorten it before resolving this conflict.' }
+  }
   if (text.length < 8 || text.length > 4096 || /\s/u.test(text)) return { error: 'URL must be an absolute HTTP or HTTPS URL without credentials.' }
   try {
     const parsed = new URL(text)

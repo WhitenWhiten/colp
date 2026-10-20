@@ -265,3 +265,33 @@ it.each(textByteCases)('R5: the actual custom-$field handler preserves the exact
   expect(f.posts).toHaveLength(1)
   expect(JSON.parse(String(f.posts[0]!.init?.body))).toEqual({ resolution: 'custom', value: accepted })
 })
+
+it.each(textByteCases)('R5: an oversized $field stays editable and only the explicitly confirmed correction is submitted', async ({ field, label, cap, accepted }) => {
+  const f = await screen([conflict(1, { field: `/${field}` })], 0)
+  const card = document.querySelector('[data-conflict-id="conflict"]')!
+  // One byte above the limit is refused, without truncating the user's draft.
+  const oversized = `${accepted}b`
+  expect(new TextEncoder().encode(oversized).byteLength).toBe(cap + 1)
+  enterCustomText(label, oversized)
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[aria-label="${label}"]`)!
+  expect(input.value).toBe(oversized)
+  expect(input.disabled).toBe(false)
+  expect(card.querySelector('[role="alert"]')?.textContent).toContain('UTF-8 bytes. Shorten it')
+  expect(document.querySelector('[data-conflict-receipt="conflict"]')).toBeNull()
+  expect(f.posts).toHaveLength(0)
+
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  expect(f.posts).toHaveLength(0)
+  expect(input.value).toBe(oversized)
+  enterCustomText(label, accepted)
+  expect(input.value).toBe(accepted)
+  expect(card.querySelector('[role="alert"]')).toBeNull()
+  expect(f.posts).toHaveLength(0)
+
+  await act(async () => { button('Resolve conflict').click(); await Promise.resolve() })
+  await waitForDom(() => document.querySelector('[data-conflict-receipt="conflict"]') !== null)
+  expect(f.posts).toHaveLength(1)
+  expect(JSON.parse(String(f.posts[0]!.init?.body))).toEqual({ resolution: 'custom', value: accepted })
+  expect(requestHeaders(f.posts[0]!).get('if-match')).toBe(conflict(1).etag)
+})
