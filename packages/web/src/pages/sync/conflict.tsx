@@ -1,5 +1,5 @@
 import type { ProductSyncConflictResolutionView, SyncConflictSummary } from '../../api'
-import { customField, fieldName, formatInstant } from './fields'
+import { canResolveConflict, customField, fieldName, formatInstant } from './fields'
 import { CONFLICT_TYPE_LABELS, INTENT_MESSAGE_CLASS, RESOLUTIONS, type ConflictDraft, type Resolution } from './types'
 import { productName } from '../../lib/edition'
 
@@ -17,6 +17,7 @@ export function ConflictEditor({ conflict, draft, onDraft, onSubmit, onReplay, o
   const busy = draft.phase === 'submitting'
   const frozen = draft.phase === 'unknown' || (draft.phase === 'blocked' && draft.frozen !== null)
   const custom = customField(conflict.field)
+  const canSubmit = !busy && !frozen && canResolveConflict(conflict, draft.resolution)
   const choose = (resolution: Resolution) => onDraft({ resolution, phase: 'idle', message: null, frozen: null })
   return <article className="conflict-card" data-conflict-id={conflict.id}>
     <header className="conflict-title"><div><span className="conflict-field">{fieldName(conflict.field)}</span><h3>{CONFLICT_TYPE_LABELS[conflict.type]}</h3></div><time dateTime={conflict.createdAt}>{formatInstant(conflict.createdAt)}</time></header>
@@ -32,11 +33,10 @@ export function ConflictEditor({ conflict, draft, onDraft, onSubmit, onReplay, o
     {draft.message && <div className={`conflict-message ${INTENT_MESSAGE_CLASS[draft.phase] ?? ''}`.trim()} role="alert">{draft.message}</div>}
     <div className="conflict-submit">{draft.phase === 'unknown'
       ? <button type="button" className="btn btn-primary btn-sm" onClick={onReplay}>Retry resolution</button>
-      : draft.phase === 'stale' ? <button type="button" className="btn btn-primary btn-sm" onClick={onSubmit}>Confirm with latest version</button>
+      : draft.phase === 'stale' ? <button type="button" className="btn btn-primary btn-sm" disabled={!canSubmit} onClick={onSubmit}>Confirm with latest version</button>
         : draft.phase === 'refresh_required' ? <button type="button" className="btn btn-secondary btn-sm" onClick={onRefresh}>Refresh conflict</button>
         : draft.phase === 'blocked' && draft.frozen ? <button type="button" className="btn btn-secondary btn-sm" onClick={onNewIntent}>Start new resolution</button>
-          : <button type="button" className="btn btn-primary btn-sm" disabled={busy || !conflict.allowedResolutions.includes(draft.resolution)
-            || (draft.resolution === 'custom' && !custom)} onClick={onSubmit}>{busy ? 'Resolving…' : 'Resolve conflict'}</button>}</div>
+          : <button type="button" className="btn btn-primary btn-sm" disabled={!canSubmit} onClick={onSubmit}>{busy ? 'Resolving…' : 'Resolve conflict'}</button>}</div>
   </article>
 }
 

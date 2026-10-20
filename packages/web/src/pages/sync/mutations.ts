@@ -11,7 +11,7 @@ import {
   type SyncTrashListItem,
   type SyncTrashRestoreView,
 } from '../../api'
-import { initialDraft, parseCustomValue, quotedEntityTag } from './fields'
+import { canResolveConflict, initialDraft, parseCustomValue, quotedEntityTag } from './fields'
 import { EMPTY_RESTORE, EMPTY_RETIRE, type ConflictDraft, type RestoreDraft, type RetireDraft } from './types'
 
 export function useSyncCenterMutations(options: {
@@ -53,6 +53,10 @@ export function useSyncCenterMutations(options: {
     const draft = drafts[conflict.id] ?? initialDraft(conflict)
     let frozen = replay ? draft.frozen : null
     if (!frozen) {
+      if (!canResolveConflict(conflict, draft.resolution)) {
+        setDraft(conflict.id, { phase: 'invalid', message: 'This choice is no longer available. Choose an available resolution.', frozen: null })
+        return
+      }
       let request: ProductSyncConflictResolution
       if (draft.resolution === 'custom') {
         const parsed = parseCustomValue(conflict, draft.customText)

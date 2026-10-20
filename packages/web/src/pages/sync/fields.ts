@@ -1,6 +1,6 @@
 import type { SyncConflictSummary, SyncStatusView } from '../../api'
 import { formatMediumInstant } from '../../lib/formatDate'
-import type { ConflictDraft } from './types'
+import type { ConflictDraft, Resolution } from './types'
 
 export function formatInstant(value: string | null): string {
   return formatMediumInstant(value)
@@ -32,6 +32,12 @@ export function customField(field: string | null): 'title' | 'url' | 'canonicalU
   const value = field?.replace(/^\//u, '')
   return value === 'title' || value === 'url' || value === 'canonicalUrl'
     || value === 'description' || value === 'tags' || value === 'visibility' ? value : null
+}
+
+/** A refreshed conflict may remove a choice or turn one field into several. */
+export function canResolveConflict(conflict: SyncConflictSummary, resolution: Resolution): boolean {
+  return conflict.allowedResolutions.includes(resolution)
+    && (resolution !== 'custom' || customField(conflict.field) !== null)
 }
 
 export function parseCustomValue(conflict: SyncConflictSummary, text: string): { value?: unknown; error?: string } {
