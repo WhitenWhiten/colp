@@ -1,3 +1,4 @@
+import { writeFirstRunDraft, type FirstRunDraft } from './first-run-draft.js';
 import type { FirstRunConfirmRequest, FirstRunOrScopeResponse, FirstRunStatusRequest, FirstRunRequest } from './types.js';
 
 const STORAGE_KEY = 'known.firstRun.confirmation.v1';
@@ -144,4 +145,14 @@ export async function boundLibraryId(): Promise<string | undefined> {
     const value = (await chrome.storage.local.get(COLLECTION_BINDING))[COLLECTION_BINDING];
     return typeof value === 'string' && value.length > 0 ? value : undefined;
   } catch { return undefined; }
+}
+
+/** A Later receipt is only successful once both authority and the local picks are durable. */
+export async function saveFirstRunDeferral(draft: FirstRunDraft): Promise<FirstRunOrScopeResponse> {
+  const response = await firstRunMessage({ kind: 'known.firstRun.later' });
+  if (!response.ok || !('firstRun' in response)) return { ok: false, error: 'defer_failed' };
+  if (response.firstRun === 'running' || response.firstRun === 'completed') return response;
+  try { await writeFirstRunDraft(draft, true); }
+  catch { return { ok: false, error: 'defer_failed' }; }
+  return response;
 }

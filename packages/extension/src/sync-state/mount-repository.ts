@@ -257,6 +257,8 @@ export function createMountRepository(ctx: SyncStoreRuntime) {
     const db = await writableDatabase();
     await runTransaction(db, [STORES.scopes], 'readwrite', async (tx) => {
       const scope = await requireActiveScope(tx, key);
+      // A stale Later click cannot undo an admission or completion in another page.
+      if (firstRun === 'deferred' && (scope.firstRun === 'running' || scope.firstRun === 'completed')) return;
       tx.objectStore(STORES.scopes).put({ ...scope, firstRun });
     });
   }

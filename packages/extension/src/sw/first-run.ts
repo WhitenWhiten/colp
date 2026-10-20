@@ -103,8 +103,14 @@ async function handleFirstRunPreview(message: Extract<FirstRunRequest, { readonl
 }
 
 async function handleFirstRunLater(): Promise<FirstRunOrScopeResponse> {
+  let scope: SyncScope;
+  try { scope = await currentSyncScope(); }
+  catch (error) {
+    if (reasonCode(error, 'defer_failed') === 'not_connected') return { ok: true, phase: 'draft', firstRun: 'deferred' };
+    return { ok: false, error: 'defer_failed' };
+  }
   try {
-    const scope = await currentSyncScope();
+    await syncState.setFirstRun(scope, 'deferred');
     const recorded = await syncState.getScope(scope);
     if (recorded?.firstRun === 'completed' || recorded?.firstRun === 'running') {
       const run = await latestBootstrapRun(syncState, scope);
@@ -112,9 +118,8 @@ async function handleFirstRunLater(): Promise<FirstRunOrScopeResponse> {
         : recorded.firstRun === 'completed' ? 'completed' : 'syncing';
       return withAttention(phase, recorded.firstRun, run);
     }
-    if (recorded) await syncState.setFirstRun(scope, 'deferred');
-  } catch { /* Keep a local-only deferral when no scope exists yet. */ }
-  return { ok: true, phase: 'draft', firstRun: 'deferred' };
+    return { ok: true, phase: 'draft', firstRun: 'deferred' };
+  } catch { return { ok: false, error: 'defer_failed' }; }
 }
 
 async function handleFirstRunStatus(confirmationId?: string): Promise<FirstRunOrScopeResponse> {

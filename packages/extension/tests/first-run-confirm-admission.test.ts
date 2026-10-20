@@ -21,7 +21,7 @@ vi.mock('../src/sw/runtime.js', async () => {
   return { syncState: createSyncStateStore({ indexedDB: new IDBFactory() }), sw: { rootViewTokens: undefined },
     hasBookmarkPermission: async () => true, rootScopeKey: (value: unknown) => JSON.stringify(value), DEFAULT_SYNC_FOLDER_TITLE: 'Know-N' };
 });
-vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => scope, restoredSyncScope: async () => scope, retireLegacyScopeForRemount: async () => {} }));
+vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => { if (scopeFailure) throw scopeFailure; return scope; }, restoredSyncScope: async () => scope, retireLegacyScopeForRemount: async () => {} }));
 vi.mock('../src/sw/bookmarks.js', () => ({ bookmarkListenerLifecycle: { install: vi.fn() }, recoverBookmarkEvents: vi.fn() }));
 vi.mock('../src/sw/engine.js', () => ({ scheduleSyncEngineWake: vi.fn() }));
 vi.mock('../src/sw/library.js', () => ({ resolveLibraryRootId: async () => 'canonical-root' }));
@@ -30,11 +30,12 @@ vi.mock('../src/bookmark-subscriptions/store.js', () => ({ subscriptionStore: {
 } }));
 
 let scope: SyncScope, tree: ChromeBookmarkNode[], treeFailure = false, serial = 0;
+let scopeFailure: Error | undefined;
 const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 beforeEach(async () => {
   scope = { environment: 'development', serverId: 'server', serverOrigin: 'https://known.test', accountId: `audit-${++serial}`,
     browserProfileId: 'profile', collectionId: 'collection', replicaId: 'replica', generation: 1 };
-  treeFailure = false; sw.rootViewTokens = undefined;
+  treeFailure = false; scopeFailure = undefined; sw.rootViewTokens = undefined;
   tree = [{ id: '0', title: '', children: [
     { id: '1', parentId: '0', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [
       { id: '10', parentId: '1', title: 'Local-only new bookmark', url: 'https://example.test/local-new' },
@@ -141,4 +142,40 @@ test('command status distinguishes the admitted selection from another options p
     .toMatchObject({ ok: true, confirmation: { confirmationId, state: 'committed' } });
   expect(await handleFirstRunRequest({ kind: 'known.firstRun.status', confirmationId: 'unadmitted-other-page' }))
     .toMatchObject({ ok: true, firstRun: 'running', confirmation: { confirmationId: 'unadmitted-other-page', state: 'missing' } });
+});
+
+test.each(['credential_read_failed', 'session_read_failed', 'collection_read_failed'])('Later does not misclassify %s as disconnected', async (message) => {
+  scopeFailure = new Error(message);
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.later' })).toEqual({ ok: false, error: 'defer_failed' });
+  expect((await syncState.getScope(scope))?.firstRun).toBe('completed');
+});
+
+test('Later permits a local draft only when the scope is actually not connected', async () => {
+  scopeFailure = new Error('not_connected');
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.later' })).toEqual({ ok: true, phase: 'draft', firstRun: 'deferred' });
+});
+
+test('Later cannot overwrite first-run admission or completion from another page', async () => {
+  await syncState.setFirstRun(scope, 'none');
+  const view = await loadRootView(scope);
+  const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
+    selectedRefs: [view.roots[0]!.ref], excludedRefs: [] });
+  if (!preview.ok || !('previewId' in preview)) throw new Error('preview missing');
+  const request = { kind: 'known.firstRun.confirm' as const, previewId: preview.previewId,
+    confirmationId: crypto.randomUUID(), libraryId: scope.collectionId };
+  const [accepted, deferred] = await Promise.all([handleFirstRunRequest(request),
+    handleFirstRunRequest({ kind: 'known.firstRun.later' })]);
+  expect(accepted.ok).toBe(true);
+  expect(deferred.ok).toBe(true);
+  expect((await syncState.getScope(scope))?.firstRun).toBe('running');
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.later' })).toMatchObject({ ok: true, firstRun: 'running' });
+  await syncState.setFirstRun(scope, 'completed');
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.later' })).toMatchObject({ ok: true, firstRun: 'completed' });
+});
+
+test('Later reports an IndexedDB failure without claiming a saved draft', async () => {
+  const db = await syncState.open();
+  vi.spyOn(db, 'transaction').mockImplementationOnce(() => { throw new Error('database unavailable'); });
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.later' })).toEqual({ ok: false, error: 'defer_failed' });
+  expect((await syncState.getScope(scope))?.firstRun).toBe('completed');
 });

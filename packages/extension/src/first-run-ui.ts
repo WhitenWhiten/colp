@@ -7,7 +7,7 @@ import {
   applyPreviewToDraft, attentionStatusCopy, buildFirstRunConfirm, canStartFirstSync, collectPreviewSelection,
   confirmFailureCopy, draftPicksFromView, firstRunOnboardingActive, folderCountCopy,
   folderMetaCopy, onlyManagedRoots, popupFirstRunStatus, projectFirstRunSurface, readFirstRunDraft,
-  restoreDraftSelection, writeFirstRunDraft, type FirstRunDraft,
+  restoreDraftSelection, writeFirstRunDraft, markFirstRunDraftStarted, type FirstRunDraft,
 } from './first-run-draft.js';
 import { renderAttentionItems, renderAttentionNavigation, setAttentionConflictLink } from './first-run-attention-ui.js';
 import {
@@ -17,7 +17,7 @@ import {
 } from './advanced-first-run-ui.js';
 import { syncRootRefs, excludedFolderRefs, replaceFolderSelection, ROOTS_REPAINT } from './folder-coverage.js';
 import { createFirstRunPreviewSession } from './first-run-preview-session.js';
-import { createFirstRunConfirmationSession, createFirstRunInputLock, firstRunMessage, boundLibraryId } from './first-run-confirmation-session.js';
+import { createFirstRunConfirmationSession, createFirstRunInputLock, firstRunMessage, boundLibraryId, saveFirstRunDeferral } from './first-run-confirmation-session.js';
 import { observeFirstRunResponse, type FirstRunObservation } from './first-run-observation.js';
 import { rejectedWorkCopy, syncAttentionTerminalCode, terminalFreezeReasonCopy } from './sync-attention-ui.js';
 import type {
@@ -280,6 +280,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     }
     const previous = observation;
     observation = observeFirstRunResponse(response, observation);
+    if (observation.firstRun === 'running' || observation.firstRun === 'completed') void markFirstRunDraftStarted(libraryId);
     if (observation.firstRun !== previous.firstRun || observation.phase !== previous.phase) {
       host.onSyncStatusChanged?.();
     }
@@ -424,6 +425,7 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
 
   async function deferFirstRun(): Promise<void> {
     if (submission.pending || observation.firstRun === 'running') return;
+    const version = ownerVersion;
     clearStatusPoll();
     const preview = previewSession.preview;
     const selected = new Set(syncRootRefs(host.rootTree));
@@ -436,10 +438,13 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
         bookmarkCount: preview.bookmarkCount, folderCount: preview.folderCount, skippedCount: preview.skippedCount,
       } : {}),
     };
-    await writeFirstRunDraft(draft);
+    const response = await saveFirstRunDeferral(draft);
+    if (version !== ownerVersion) return;
+    if (!response.ok) {
+      say(t('firstRun_deferFailed', 'Could not save your choice. Try Later again.')); return;
+    }
     invalidateAdvancedPreview();
-    const response = await firstRunMessage({ kind: 'known.firstRun.later' });
-    observation = observeFirstRunResponse(response, { firstRun: 'deferred' });
+    observation = observeFirstRunResponse(response, observation);
     if (observation.firstRun === 'running' || observation.firstRun === 'completed') {
       applyStatusResponse(response, { pollIfSyncing: true });
     } else say(FIRST_RUN_UNSYNCED, 'info');
@@ -575,8 +580,6 @@ export function bindFirstRunOnboarding(host: FirstRunUiHost): {
     }
     updateAdvancedControls();
   }
-
-
 }
 
 function required(id: string): HTMLElement {

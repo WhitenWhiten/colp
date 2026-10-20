@@ -1,27 +1,7 @@
 {
-  "extensionName": {
-    "message": "Know-N",
-    "description": "Know-N"
-  },
-  "extensionShortName": {
-    "message": "Know-N",
-    "description": "Know-N"
-  },
-  "extensionDescription": {
-    "message": "保存、标记和整理你的浏览器书签，无需账号。需要时可通过 Know-N 在不同浏览器之间同步。",
-    "description": "Save, tag and organize your browser bookmarks. No account needed. Sync with Know-N across browsers when you want."
-  },
   "actionTitle": {
     "message": "Know-N — 保存此页面",
     "description": "Know-N — save this page"
-  },
-  "commandSavePage": {
-    "message": "将当前页面保存为书签",
-    "description": "Save the current page as a bookmark"
-  },
-  "commandSaveWindowTabs": {
-    "message": "将当前窗口的所有标签页保存到 Know-N",
-    "description": "Save all tabs in the current window to Know-N"
   },
   "auth_accessRevokedSignAgain": {
     "message": "你的访问权限已被撤销，请重新登录。",
@@ -3983,6 +3963,14 @@
     "message": "正在使用你自己的 AI 服务，密钥保存在此浏览器。",
     "description": "Using your own AI service. The key is saved on this browser."
   },
+  "commandSavePage": {
+    "message": "将当前页面保存为书签",
+    "description": "Save the current page as a bookmark"
+  },
+  "commandSaveWindowTabs": {
+    "message": "将当前窗口的所有标签页保存到 Know-N",
+    "description": "Save all tabs in the current window to Know-N"
+  },
   "common_account": {
     "message": "账号",
     "description": "Account"
@@ -5363,6 +5351,18 @@
     "message": "最多 $1 积分",
     "description": "Up to $1 points"
   },
+  "extensionDescription": {
+    "message": "保存、标记和整理你的浏览器书签，无需账号。需要时可通过 Know-N 在不同浏览器之间同步。",
+    "description": "Save, tag and organize your browser bookmarks. No account needed. Sync with Know-N across browsers when you want."
+  },
+  "extensionName": {
+    "message": "Know-N",
+    "description": "Know-N"
+  },
+  "extensionShortName": {
+    "message": "Know-N",
+    "description": "Know-N"
+  },
   "firstRun_advancedSummary": {
     "message": "$1。",
     "description": "$1."
@@ -5450,6 +5450,9 @@
   "firstRun_couldNotStartSync": {
     "message": "无法开始同步，请稍后重试。",
     "description": "Could not start sync. Try again in a moment."
+  },
+  "firstRun_deferFailed": {
+    "message": "无法保存你的选择。请再次点击“稍后”。"
   },
   "firstRun_deviceWins": {
     "message": "以此设备为准",

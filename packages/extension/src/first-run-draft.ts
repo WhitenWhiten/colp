@@ -113,8 +113,15 @@ export async function readFirstRunDraft(): Promise<FirstRunDraft | undefined> {
   }
 }
 
-export async function writeFirstRunDraft(draft: FirstRunDraft): Promise<void> {
-  try { await chrome.storage.local.set({ [FIRST_RUN_DRAFT]: draft }); } catch { /* Draft is best-effort. */ }
+export async function writeFirstRunDraft(draft: FirstRunDraft, required = false): Promise<void> {
+  try { await chrome.storage.local.set({ [FIRST_RUN_DRAFT]: draft }); }
+  catch (error) { if (required) throw error; }
+}
+
+export async function markFirstRunDraftStarted(libraryId: string | undefined): Promise<void> {
+  const draft = await readFirstRunDraft();
+  if (!draft?.deferred || !libraryId || draft.libraryId && draft.libraryId !== libraryId) return;
+  await writeFirstRunDraft({ ...draft, deferred: false });
 }
 
 export function firstRunIncomplete(firstRun: FirstRunScopeState | undefined): boolean {
@@ -238,12 +245,13 @@ export function popupFirstRunStatus(input: {
     readonly errorCode?: string };
 }): import('./sync-status.js').SyncStatusKind {
   if (!input.connected) return 'signed-out';
-  if (projectFirstRunSurface(input) === 'attention') {
+  const surface = projectFirstRunSurface(input);
+  if (surface === 'attention') {
     return input.attention && input.attention.conflictCount > 0 ? 'review-conflicts' : 'action-required';
   }
-  if (input.firstRun === 'running') return 'syncing';
-  const incomplete = firstRunIncomplete(input.firstRun) || input.deferredDraft;
-  if (incomplete) return 'setup-required';
+  if (surface === 'syncing') return 'syncing';
+  // A draft records an earlier choice, not the current durable sync state.
+  if (surface === 'onboarding') return 'setup-required';
   const engine = input.engine;
   if (!engine) return 'syncing';
   if (engine.conflictPending) return 'review-conflicts';

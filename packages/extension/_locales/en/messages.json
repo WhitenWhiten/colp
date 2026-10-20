@@ -4265,6 +4265,9 @@
   "firstRun_couldNotStartSync": {
     "message": "Could not start sync. Try again in a moment."
   },
+  "firstRun_deferFailed": {
+    "message": "Could not save your choice. Try Later again."
+  },
   "firstRun_deviceWins": {
     "message": "This device wins"
   },

@@ -8,7 +8,7 @@ import { showOptionsPane } from './extension-auth.js';
 
 test.describe.configure({ timeout: 180_000 });
 
-test('direct bookmarks remain selectable when every child folder is excluded', async () => {
+test('direct bookmarks stay selectable after Later, all child exclusions and reopening', async () => {
   const stack = await startRealStack(); const profile = await mkdtemp(resolve(tmpdir(), 'known-root-only-ui-'));
   let context: BrowserContext | undefined;
   try {
@@ -31,11 +31,18 @@ test('direct bookmarks remain selectable when every child folder is excluded', a
     await expect(page.locator('.root-select input:checked')).toHaveCount(0);
     expect(await bar.evaluate(element => (element as HTMLInputElement).indeterminate)).toBe(true);
     await expect(page.locator('#first-run-start')).toBeEnabled();
+    await page.locator('#first-run-later').click();
+    await expect(page.locator('#first-run-error')).toHaveText('Sync is off');
+    await page.reload(); await showOptionsPane(page, 'folders');
+    await expect(page.locator('#first-run-start')).toBeEnabled({ timeout: 15_000 });
     await page.locator('#first-run-start').click();
     await waitFirstRunProductQuiet(page, stack, KNS08_BINDINGS[0]);
     const live = await liveCanonical(stack);
     expect(live.filter(node => node.url === 'https://example.test/direct')).toHaveLength(1);
     expect(live.filter(node => node.url === 'https://example.test/private-child')).toHaveLength(0);
+    await expect(page.locator('#hub-status')).toHaveText('Synced', { timeout: 35_000 });
+    await page.reload(); await showOptionsPane(page, 'folders');
+    await expect(page.locator('#hub-status')).toHaveText('Synced', { timeout: 15_000 });
   } finally { await context?.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
