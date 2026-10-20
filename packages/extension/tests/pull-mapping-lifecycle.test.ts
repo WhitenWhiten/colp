@@ -705,3 +705,43 @@ async function refusedMoveFixture() {
     return { ...f, queue, applier, intent, eventId: intent.eventId!, unknown, mappingBefore };
   } catch (error) { f.store.close(); throw error; }
 }
+
+for (const flushCaptured of [false, true]) {
+  test(`a captured rename after a refused move keeps both local edits and resumes Pull (${flushCaptured ? 'flush' : 'inbox'})`, async () => {
+    const f = await refusedMoveFixture();
+    try {
+      const title = 'Renamed after the captured drag';
+      await f.api.update('native-existing', { title });
+      const changed = await f.queue.changed('native-existing', { title }, 'callback');
+      assert.equal(changed.outcome, 'staged');
+      assert.ok(changed.eventId);
+      if (flushCaptured) await f.queue.flush();
+      const captures = await f.store.listBookmarkEventsByNative(scope, 'native-existing', 0, 1_000);
+      const captured = captures.find(row => row.eventId === changed.eventId);
+      assert.ok(captured);
+      const draft = captured.details.draft as JsonObject;
+      assert.equal(draft.type, 'update_node_content');
+      assert.equal(draft.targetId, 'node-existing');
+      assert.equal(((draft.payload as JsonObject).value as JsonObject).title, title);
+      const queued = await f.store.listQueueByTarget(scope, 'node-existing');
+      assert.ok(captured.status === 'pending' || queued.some(row => row.status !== 'rejected'
+        && row.payload.type === 'update_node_content'
+        && ((row.payload.payload as JsonObject).value as JsonObject).title === title),
+      'the exact rename remains durable live work before this wake');
+      const native = structuredClone(f.nodes.get('native-existing'));
+      const calls = f.calls.length;
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+      f.store.close();
+      await assert.doesNotReject(() => f.applier().resume(),
+        'an ordinary wake must preserve the captured move and rename while advancing the older Pull event');
+      assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-retry-admission');
+      const mapping = await f.store.getMappingByColpId(scope, 'node-existing');
+      assert.equal(mapping?.parentNativeId, 'native-d');
+      assert.equal(mapping?.parentColpId, 'folder-b');
+      assert.deepEqual(f.nodes.get('native-existing'), native);
+      assert.equal(f.calls.length, calls, 'neither captured edit should be undone in the browser');
+      assert.deepEqual(await f.store.getQueueByOpId(scope, f.unknown.opId), f.unknown);
+      assert.equal(await f.store.getQueueReceipt(scope, f.unknown.sequence), null);
+    } finally { f.store.close(); }
+  });
+}
