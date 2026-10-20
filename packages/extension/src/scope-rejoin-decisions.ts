@@ -206,6 +206,20 @@ export async function refreshRejoinDecisions(input: RejoinDecisionInput): Promis
       throw error;
     }
   }
+  // A decision and its native work can finish just before the worker exits.
+  // Resume only a still-open comparison for this pause, never a historical
+  // completed decision after the user has paused the mount again.
+  for (const record of await input.store.listScopeCommandPlans(input.scope)) {
+    if (record.kind !== 'rejoin' || isDecision(record) || !record.mountId
+      || !['comparing', 'pending', 'applying'].includes(record.phase)) continue;
+    const mount = await input.store.getMountBinding(input.scope, record.mountId);
+    if (!mount || mount.status !== 'detached' || record.confirmationVersion !== mount.boundaryVersion
+      || record.baselineDigest !== rejoinAttemptDigest(mount, await input.store.getScope(input.scope))) continue;
+    const dependencies = await currentRejoinDependencies({ ...input, mount });
+    if (dependencies.every(row => row.phase === 'active') && (dependencies.length || record.phase === 'applying')) {
+      touched.add(mount.mountId);
+    }
+  }
   for (const mountId of touched) await rejoinScopeMount(input.store, input.scope, mountId, new Set(), [], input);
 }
 async function remoteDeleteFacts(input: RejoinDecisionInput, record: ScopeCommandPlanRecord) {

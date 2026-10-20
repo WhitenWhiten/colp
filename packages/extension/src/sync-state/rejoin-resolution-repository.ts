@@ -1,11 +1,13 @@
-import { requestValue, requireActiveScope, runTransaction, transactionDone } from './idb.js';
+import { requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { readScopeCommandRecord, writeScopeCommandRecord } from './scope-command-evidence.js';
-import { rejoinBoundaryDigest } from '../scope-rejoin-authority.js';
+import { rejoinAttemptDigest, rejoinBoundaryDigest } from '../scope-rejoin-authority.js';
+import { clone } from './codec.js';
+import { validateMountBinding } from './mount-repository.js';
 import { validateMappingRecord } from './mapping-repository.js';
 import { rejoinResolutionId, rejoinGrantId, unresolvedRejoinQueueRows, type RejoinQueueReference } from './rejoin-queue-resolution.js';
-import { SyncStateError, type QueueOperation, type ReceiptRecord, type ScopeCommandPlanRecord, type SyncScope, type UnknownRecord } from './types.js';
+import { SyncStateError, type MountBindingRecord, type QueueOperation, type ReceiptRecord, type ScopeCommandPlanRecord, type SyncScope, type UnknownRecord } from './types.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
 export function rejectedRejoinReferences(plan: ScopeCommandPlanRecord): RejoinQueueReference[] {
@@ -131,7 +133,47 @@ export function createRejoinResolutionRepository(ctx: SyncStoreRuntime) {
       await writeScopeCommandRecord(tx, key, { ...plan, phase: 'active', updatedAt: Date.now() }, ctx.maxRecordBytes);
     });
   }
-  return { filterResolvedQueueIssues, authorizeRejoinRecovery, restoreRejectedRejoinBaselines, completeRejoinDecision };
+  /** The comparison and mount publish completion in the same transaction. */
+  async function completeRejoinMount(scope: SyncScope, expected: MountBindingRecord): Promise<MountBindingRecord> {
+    ctx.assertWritable(); const key = scopeKey(validateScope(scope));
+    const expectedMount = validateMountBinding(key, expected, ctx.maxRecordBytes);
+    let activated!: MountBindingRecord;
+    await runTransaction(await ctx.writableDatabase(), [STORES.scopes, STORES.mounts, STORES.mappings,
+      STORES.scopeCommandPlans, STORES.metadata], 'readwrite', async tx => {
+      const recorded = await requireActiveScope(tx, key);
+      const rawMount = await requestValue(tx.objectStore(STORES.mounts).get([key, expected.mountId]));
+      if (!rawMount) throw new SyncStateError('rejoin_boundary_changed');
+      const mount = validateMountBinding(key, rawMount, ctx.maxRecordBytes);
+      if (recorded.lifecycle !== 'active' || recorded.rootStatus === 'permission_required'
+        || JSON.stringify(mount) !== JSON.stringify(expectedMount)) throw new SyncStateError('rejoin_boundary_changed');
+      const commandId = `rejoin:${mount.mountId}`;
+      const rawPlan = await requestValue(tx.objectStore(STORES.scopeCommandPlans).get([key, commandId]));
+      if (!rawPlan) throw new SyncStateError('rejoin_boundary_changed');
+      const plan = await readScopeCommandRecord(tx, key, rawPlan, ctx.maxRecordBytes);
+      const attempt = rejoinAttemptDigest(mount, recorded);
+      if (plan.kind !== 'rejoin' || plan.rejoinDecision || plan.phase !== 'applying' || plan.mountId !== mount.mountId
+        || plan.confirmationVersion !== mount.boundaryVersion || plan.baselineDigest !== attempt) {
+        throw new SyncStateError('rejoin_boundary_changed');
+      }
+      const rawRoot = await requestValue(tx.objectStore(STORES.mappings).get([key, mount.nativeRootId]));
+      if (!rawRoot || validateMappingRecord(key, rawRoot, ctx.maxRecordBytes).colpId !== mount.remoteMountNodeId) {
+        throw new SyncStateError('rejoin_boundary_changed');
+      }
+      const rows = await requestValue<ScopeCommandPlanRecord[]>(tx.objectStore(STORES.scopeCommandPlans).getAll(scopeRowsRange(key)));
+      const dependencies: ScopeCommandPlanRecord[] = [];
+      for (const row of rows) if (row.kind === 'rejoin' && row.mountId === mount.mountId && row.rejoinDecision) {
+        const decision = await readScopeCommandRecord(tx, key, row, ctx.maxRecordBytes);
+        if (decision.rejoinDecision?.attemptDigest === attempt && !decision.rejoinDecision.supersededBy) dependencies.push(decision);
+      }
+      if (dependencies.some(row => row.phase !== 'active') || dependencies.length !== plan.dependencies.length
+        || dependencies.some(row => !plan.dependencies.includes(row.commandId))) throw new SyncStateError('rejoin_dependency_pending');
+      activated = validateMountBinding(key, { ...mount, status: 'active', pendingRemoteDelete: undefined }, ctx.maxRecordBytes);
+      tx.objectStore(STORES.mounts).put(activated);
+      await writeScopeCommandRecord(tx, key, { ...plan, phase: 'active', updatedAt: Date.now() }, ctx.maxRecordBytes);
+    });
+    return clone(activated);
+  }
+  return { filterResolvedQueueIssues, authorizeRejoinRecovery, restoreRejectedRejoinBaselines, completeRejoinDecision, completeRejoinMount };
 }
 async function exactRejectedRow(tx: IDBTransaction, key: string, reference: RejoinQueueReference) {
   const row = await requestValue<QueueOperation | undefined>(tx.objectStore(STORES.queue).index(INDEXES.queueByOpId).get([key, reference.opId]));

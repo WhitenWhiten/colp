@@ -13,6 +13,7 @@ import type { ChromeBookmarkNode } from '../src/chrome-bookmark-tree.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 import { createPersonalSyncPolicyStore } from '../src/personal-sync-policy.js';
 import { configurePersonalSyncTransport } from '../src/personal-sync-fetch.js';
+import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync';
 
 const state = vi.hoisted(() => ({ fixture: undefined as unknown as Awaited<ReturnType<typeof deletionFixture>>,
   storage: undefined as unknown as MemoryStorageArea, permission: true, loseReply: false,
@@ -144,7 +145,7 @@ test('a personal sync pause refuses the real decision before native creation', a
     .every(row => row.phase === 'pending')).toBe(true);
 });
 
-test('a paused browser deletion and actual detached Pull history restore through the native worker wrapper', async () => {
+test.each([false, true])('a paused browser deletion and actual detached Pull history restore through the native worker wrapper; later move=%s', async laterMove => {
   const f = state.fixture, stored = f.getStore();
   const root = (await stored.getMappingByNativeId(scope, 'native-root'))!;
   const { scopeKey: _key, ...binding } = root;
@@ -158,10 +159,22 @@ test('a paused browser deletion and actual detached Pull history restore through
     node: { id: 'native-folder', title: 'Folder', parentId: 'native-root', children: [] } })).outcome).toBe('filtered');
   const renamed = pullFixtures.mutationEvent({ kind: 'update', sequence: 1, collectionId: scope.collectionId,
     targetId: 'restore-folder', parentId: 'root-colp', targetKind: 'folder' });
-  const children = ['Z cloud child', 'A cloud child'].map((title, index) => pullFixtures.createEvent({
+  const titles = laterMove ? ['A cloud child', 'Z cloud child'] : ['Z cloud child', 'A cloud child'];
+  const children = titles.map((title, index) => pullFixtures.createEvent({
     kind: 'Bookmark', sequence: index + 2, collectionId: scope.collectionId, parentId: 'restore-folder', title,
   }));
-  await f.applier.stage(f.page([renamed, ...children]));
+  const moved = pullFixtures.mutationEvent({ kind: 'move', sequence: 4, collectionId: scope.collectionId,
+    targetId: 'node-created-3', parentId: 'restore-folder' });
+  const originalEffect = moved.effect;
+  if (!originalEffect || originalEffect.kind !== 'node_moved') throw new Error('fixture_move_kind');
+  const operation = { ...moved.operation, baseRevision: 'revision-node-created-3',
+    payload: { newParentId: 'restore-folder', baseSourceParentRevision: 'children-3',
+      baseTargetParentRevision: 'children-3', beforeId: 'node-created-2' } };
+  const effect = { ...originalEffect, operationDigest: canonicalOperationDigest(operation),
+    node: { ...originalEffect.node, title: 'Z cloud child', position: 'p0', revision: 'revision-move-4' },
+    placement: { parentId: 'restore-folder', afterId: null, beforeId: 'node-created-2', position: 'p0' } };
+  const finalMove = { ...moved, operation, effect: { ...effect, effectDigest: canonicalAuthoritativeEffectDigest(effect) } };
+  await f.applier.stage(f.page([renamed, ...children, ...(laterMove ? [finalMove] : [])]));
   await f.applier.resume();
   expect((await stored.getMappingByColpId(scope, 'node-created-2'))?.nativeId).toBe('unmounted:node-created-2');
   expect((await stored.getRemoteObservation(scope, 'restore-folder'))?.payload.title).toBe('Remote update');
@@ -171,10 +184,11 @@ test('a paused browser deletion and actual detached Pull history restore through
     { nodeId: 'root-colp', parentId: 'library-root', kind: 'folder', folderRole: 'bookmarks-bar',
       title: 'Bookmarks bar', revision: 'revision-old', childrenRevision: 'root-children-cloud', position: 'p1' },
     { nodeId: 'restore-folder', parentId: 'root-colp', kind: 'folder', title: 'Remote update',
-      revision: 'revision-restore-folder', childrenRevision: 'children-3', position: 'p1' },
-    ...['Z cloud child', 'A cloud child'].map((title, index) => ({ nodeId: `node-created-${index + 2}`,
+      revision: 'revision-restore-folder', childrenRevision: laterMove ? 'children-4' : 'children-3', position: 'p1' },
+    ...titles.map((title, index) => ({ nodeId: `node-created-${index + 2}`,
       parentId: 'restore-folder', kind: 'bookmark' as const, title, url: 'https://example.test/',
-      revision: `revision-node-created-${index + 2}`, position: `p${index + 2}` })),
+      revision: laterMove && index === 1 ? 'revision-move-4' : `revision-node-created-${index + 2}`,
+      position: laterMove && index === 1 ? 'p0' : `p${index + 2}` })),
   ]);
   expect(await handleScopeCommand({ kind: 'known.scope.rejoin', mountId: 'mount-bar' }))
     .toMatchObject({ ok: false, error: 'rejoin_pending' });

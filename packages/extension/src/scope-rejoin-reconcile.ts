@@ -186,7 +186,9 @@ export async function applyRejoinObservations(input: {
   const decisions = await currentRejoinDependencies(input);
   plan.dependencies = decisions.map(row => row.commandId);
   if (decisions.some(row => row.phase !== 'active')) conflicts = Math.max(conflicts, 1);
-  await store.putScopeCommandPlan(scope, { ...plan, phase: unknown || conflicts ? 'pending' : 'active',
+  // Comparison is durable before activation. The caller commits this journal
+  // and the mount together; a worker restart must still see unfinished work.
+  await store.putScopeCommandPlan(scope, { ...plan, phase: unknown || conflicts ? 'pending' : 'applying',
     ...(deletionChanged ? { retryReason: 'rejoin_boundary_changed' } : {}), updatedAt: Date.now() });
   if (!unknown && !conflicts && considered.length) await store.deleteRemoteObservations(scope, considered);
   return { applied, unknown, conflicts };

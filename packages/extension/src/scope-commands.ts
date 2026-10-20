@@ -72,7 +72,7 @@ export async function rejoinScopeMount(store: Store, scope: SyncScope, mountId: 
     const result = await applyRejoinObservations({ store, scope, mount, ...chrome });
     const leftover = unmountedRejoinMembers(await store.listMappings(scope), mount);
     if (!result.unknown && !result.conflicts && leftover.length === 0) {
-      mount = await store.rejoinMount(scope, mountId);
+      mount = await store.completeRejoinMount(scope, mount);
     }
   }
   const mappings = await store.listMappings(scope);
