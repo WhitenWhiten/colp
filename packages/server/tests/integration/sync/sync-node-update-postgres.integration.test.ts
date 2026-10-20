@@ -199,6 +199,7 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
   async function context(
     role: 'owner' | 'editor' | 'viewer' = 'owner',
     protocolVersion: '0.1' | '0.2' = '0.1',
+    options: { readonly bootstrap?: boolean } = {},
   ) {
     const suffix = randomUUID();
     const accountId = role === 'owner' ? ACCOUNT : `p3-13-${role}-${suffix}`;
@@ -239,7 +240,8 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       credential, idempotencyKey: `p3-13-session-${suffix}`, requestFingerprint: `p3-13-fingerprint-${suffix}`,
       collectionId: COLLECTION, replicaId: replica.replicaId,
       expectedLeaseGeneration: replica.leaseGeneration, expectedLifecycleRevision: replica.lifecycleRevision,
-      binding: replica.binding, requestedScopes: role === 'viewer' ? ['sync:pull'] : ['sync:push', 'sync:pull'], origin: ORIGIN,
+      binding: replica.binding, requestedScopes: role === 'viewer' ? ['sync:pull']
+        : options.bootstrap ? ['sync:bootstrap', 'sync:push', 'sync:pull'] : ['sync:push', 'sync:pull'], origin: ORIGIN,
       protocolVersion,
     });
     return { credential, replica, issuer, session: issued.session };
@@ -689,8 +691,21 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     recordPhase3SyncPushScenario('typed_update');
   });
 
-  test('favicon-only bookmark creation survives real Snapshot, Pull, URL update, receipt and replay with its exact empty title', async () => {
+  test('a Push/Pull session cannot bootstrap a Snapshot without its separate grant', async () => {
     const value = await context('owner', '0.2'), server = await start(value);
+    assert.equal(value.session.authorizationScopes.includes('sync:bootstrap'), false);
+    await assert.rejects(blackBox(server.origin).snapshot({ sessionId: value.session.sessionId, limit: 100 }),
+      /syncSnapshot returned unexpected status 404 \(resource_not_found\)/u);
+    const snapshots = await isolated.runtime.pool.query(
+      'select count(*)::int count from sync_bootstrap_snapshots where session_id=$1', [value.session.sessionId]);
+    assert.equal(snapshots.rows[0].count, 0);
+  });
+
+  test('favicon-only bookmark creation survives real Snapshot, Pull, URL update, receipt and replay with its exact empty title', async () => {
+    // Snapshot has its own grant. The ordinary Push/Pull fixture deliberately
+    // lacks sync:bootstrap and must not acquire Snapshot authority implicitly.
+    const value = await context('owner', '0.2', { bootstrap: true }), server = await start(value);
+    assert.ok(value.session.authorizationScopes.includes('sync:bootstrap'));
     const client = blackBox(server.origin);
     const createRequest = syncNodeCreatePushRequest({
       sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
