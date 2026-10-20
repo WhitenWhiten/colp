@@ -77,6 +77,10 @@ test('an older options-page confirmation and a replay after worker restart canno
     await expect(pageB.locator('#root-feedback')).toHaveText('Folder settings saved');
     const cleared = await evidence<Export>(pageB, 'exportOutboundPushEvidence');
     expect(cleared.scope.selectedRoots).toEqual([]);
+    await pageB.evaluate(parentId => chrome.bookmarks.create({ parentId, title: 'Local after Clear',
+      url: 'https://example.test/local-after-clear' }), roots.barId);
+    const clearedProgress = await pageB.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.sync.progress.get' }));
+    expect(clearedProgress).toMatchObject({ ok: true, progress: { bookmarks: { total: 0 }, folders: { total: 0 } } });
     expect(cleared.mountBindings.every(mount => mount.status === 'detached' && mount.pauseBaseline)).toBe(true);
     const stale = await pageA.evaluate(async ({ previewId, libraryId }) => chrome.runtime.sendMessage({
       kind: 'known.firstRun.confirm', previewId, confirmationId: crypto.randomUUID(), libraryId,
