@@ -52,10 +52,15 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
   addQueueIssueRoots(roots, queue);
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
   const nativeRoots = new Set([...local.filter(ingressProtectsNode).map(row => row.nativeId), ...deletes.flatMap(row => row.nativeIds)]);
-  if (nativeRoots.size && store.listMappings) for (const row of await store.listMappings(scope)) {
-    if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
+  const runs = await store.listBootstrapRuns?.(scope) ?? [];
+  let bootstrap = openBootstrapAttention(runs, []);
+  // Mapping content only enriches open display items or translates native
+  // issue roots. Re-read it when either exists, once for this invocation.
+  if (nativeRoots.size || bootstrap.length) {
+    const mappings = await store.listMappings?.(scope) ?? [];
+    for (const row of mappings) if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
+    if (bootstrap.length) bootstrap = openBootstrapAttention(runs, mappings);
   }
-  const bootstrap = store.listBootstrapRuns ? openBootstrapAttention(await store.listBootstrapRuns(scope), await store.listMappings?.(scope) ?? []) : [];
   const operationalTotal = deletes.length + queue.length + pull.length + local.length + waits.length + replica.length;
   return { queue, pull, local, waits, replica, deletes, roots, nativeRoots, bootstrap, operationalTotal,
     total: operationalTotal + bootstrap.length };
