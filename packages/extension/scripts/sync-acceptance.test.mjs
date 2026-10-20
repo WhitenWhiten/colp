@@ -73,7 +73,7 @@ test('required browser journeys and all PostgreSQL shards cannot silently leave 
   for (const name of ['mv3-first-sync-from-ui', 'mv3-first-sync-promises', 'mv3-advanced-first-run',
     'mv3-boundary-settings', 'mv3-bookmark-roots', 'mv3-ongoing-sync-recovery',
     'mv3-personal-sync-lifecycle', 'mv3-personal-sync-reconnect', 'mv3-library-web-flow',
-    'mv3-sync-resilience', 'mv3-first-sync-recovery']) assert.ok(specs.includes(`e2e/${name}.spec.ts`), name);
+    'mv3-sync-resilience', 'mv3-first-sync-recovery', 'mv3-rejoin-local-deletion']) assert.ok(specs.includes(`e2e/${name}.spec.ts`), name);
   for (const shard of [1, 2, 3, 4, 5, 6]) assert.ok(requiredReleaseJobs.includes(`server-integration (${shard})`));
 });
 

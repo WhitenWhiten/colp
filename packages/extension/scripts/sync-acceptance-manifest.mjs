@@ -13,6 +13,7 @@ export const syncAcceptanceGroups = Object.freeze({
     'e2e/mv3-first-sync-recovery.spec.ts',
     'e2e/mv3-personal-sync-lifecycle.spec.ts',
     'e2e/mv3-personal-sync-reconnect.spec.ts',
+    'e2e/mv3-rejoin-local-deletion.spec.ts',
   ],
   web: ['e2e/mv3-library-web-flow.spec.ts'],
 });
