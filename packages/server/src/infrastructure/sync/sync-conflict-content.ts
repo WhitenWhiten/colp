@@ -9,6 +9,7 @@ import {
 import {
   assertValidHttpUrlNoUserInfo, assertValidNodeDescription, assertValidNodeTags,
   assertValidNodeTitle, assertValidNodeVisibility,
+  isEquivalentBookmarkUrlRewrite,
 } from '../../modules/collections/index.js';
 import { assertPlainCustomObject, isRecord } from './sync-conflict-json.js';
 import type { PrivateConflictPayload } from './sync-conflict-private-payload.js';
@@ -28,6 +29,8 @@ export function selectedResolutionFields(
   privatePayload: PrivateConflictPayload,
   pointers: readonly string[],
 ): Readonly<{ base: Record<string, unknown>; value: Record<string, unknown> }> {
+  if (privatePayload.nodeKind === 'bookmark' && !validIncomingBookmarkUrlHash(privatePayload.base,
+    privatePayload.incoming, privatePayload.base.url ?? current.url)) invalid();
   const fields = pointers.map(pointer => pointer.slice(1))
     .filter(field => !['baseRevision', 'deletedAt'].includes(field));
   if (fields.length < 1) {
@@ -63,7 +66,29 @@ export function selectedResolutionFields(
     base[field] = fieldValue(current, field);
     value[field] = merged.value[field];
   }
-  return { base, value };
+  if (privatePayload.nodeKind !== 'bookmark') return { base, value };
+  selectBookmarkDecisionMetadata(current, privatePayload, fields, value);
+  const normalized = reconcileSyncBookmarkMetadata(current, value, privatePayload.base, privatePayload.incoming);
+  return {
+    base: Object.fromEntries(Object.keys(normalized).map(field => [field, fieldValue(current, field)])),
+    value: { ...normalized },
+  };
+}
+
+/** Independent metadata from an unchosen URL cannot follow a server/custom
+ * URL decision. Explicitly conflicting metadata follows the same user choice;
+ * null clears remain independent of the URL. Validate original incoming bytes
+ * before this selection, then rebase the selected pair onto Current. */
+function selectBookmarkDecisionMetadata(current: Readonly<Record<string, unknown>>,
+  payload: PrivateConflictPayload, conflictingFields: readonly string[], value: Record<string, unknown>) {
+  const selectedUrl = value.url, incomingUrl = payload.incoming.url;
+  if (typeof selectedUrl !== 'string' || typeof incomingUrl !== 'string' || selectedUrl === incomingUrl) return;
+  const equivalent = isEquivalentBookmarkUrlRewrite(selectedUrl, incomingUrl);
+  for (const field of ['urlHash', 'canonicalUrl']) {
+    if (conflictingFields.includes(field) || value[field] === null || value[field] === undefined) continue;
+    if (field === 'canonicalUrl' && equivalent) continue;
+    value[field] = selectedUrl === current.url ? fieldValue(current, field) : null;
+  }
 }
 
 function mergeRetainedField(field: string, current: Readonly<Record<string, unknown>>, payload: PrivateConflictPayload) {

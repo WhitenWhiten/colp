@@ -2282,6 +2282,64 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
     });
 
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'an advertised %s URL decision keeps its own metadata in canonical content, receipt and Pull', async resolution => {
+      const baseUrl = 'https://example.test/url-choice-base', serverUrl = 'https://example.test/url-choice-server';
+      const incomingUrl = 'https://example.test/url-choice-incoming', customUrl = 'https://example.test/url-choice-custom';
+      const incomingHash = `sha-256=:${createHash('sha256').update(incomingUrl).digest('base64')}:`;
+      const opened = await openConflict({ base: { url: baseUrl, urlHash: null, canonicalUrl: null },
+        current: { url: serverUrl }, incoming: { url: incomingUrl, urlHash: incomingHash,
+          canonicalUrl: 'https://canonical.test/url-choice-incoming' } });
+      const immutable = (await isolated.runtime.pool.query(`select pull_wire_json,private_payload_digest,
+        private_payload_ciphertext,current_revision,conflict_type,conflicting_fields from sync_conflicts where conflict_id=$1`,
+      [opened.conflictId])).rows[0];
+      const decision = await advertisedDecision(opened.conflictId);
+      assert.deepEqual(immutable.conflicting_fields, ['/url']);
+      assert.ok(decision.allowedResolutions.includes(resolution));
+      const request = resolveInput({ ...opened, revision: decision.revision }, {
+        resolution, baseConflictRevision: decision.revision, ...(resolution === 'custom' ? { value: customUrl } : {}) });
+      const app = resolver(opened.value), resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      const row = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [effect.node.id])).rows[0];
+      const pulled = await pulledOperationNode(resolved.operation.opId);
+      const incomingSelected = resolution === 'incoming' || resolution === 'both';
+      for (const content of [row.payload_json, effect.node, pulled]) {
+        assert.equal(content.url, incomingSelected ? incomingUrl : resolution === 'server' ? serverUrl : customUrl);
+        assert.equal(content.urlHash, incomingSelected ? incomingHash : undefined);
+        assert.equal(content.canonicalUrl, incomingSelected ? 'https://canonical.test/url-choice-incoming' : undefined);
+      }
+      const beforeReplay = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(await app.resolve(request), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), beforeReplay);
+      assert.deepEqual((await isolated.runtime.pool.query(`select pull_wire_json,private_payload_digest,
+        private_payload_ciphertext,current_revision,conflict_type,conflicting_fields from sync_conflicts where conflict_id=$1`,
+      [opened.conflictId])).rows[0], immutable);
+    });
+
+  test('a server title decision applies the retained URL edit without reauthoring Current-only URL metadata', async () => {
+    const url = 'https://example.test/title-choice-base', nextUrl = 'https://example.test/title-choice-incoming';
+    const opened = await openConflict({ base: { title: 'Base', url, urlHash: null, canonicalUrl: null },
+      current: { title: 'Server', urlHash: `sha-256=:${createHash('sha256').update(url).digest('base64')}:`,
+        canonicalUrl: 'https://canonical.test/title-choice-base' },
+      incoming: { title: 'Incoming', url: nextUrl, urlHash: null, canonicalUrl: null } });
+    const decision = await advertisedDecision(opened.conflictId);
+    assert.ok(decision.allowedResolutions.includes('server'));
+    const request = resolveInput({ ...opened, revision: decision.revision },
+      { resolution: 'server', baseConflictRevision: decision.revision });
+    const app = resolver(opened.value), resolved = await app.resolve(request);
+    const pulled = await pulledOperationNode(resolved.operation.opId);
+    const after = await facts(opened.value.replica.replicaId, opened.node.id);
+    for (const content of [after.node.payload_json, pulled]) {
+      assert.equal(content.title, 'Server');
+      assert.equal(content.url, nextUrl);
+      assert.equal(Object.hasOwn(content, 'urlHash'), false);
+      assert.equal(Object.hasOwn(content, 'canonicalUrl'), false);
+    }
+    assert.deepEqual(await app.resolve(request), resolved);
+    assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+  });
+
   async function advertisedDecision(conflictId: string) {
     const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
       cursorSecret: 'p3-actions-cursor-secret-at-least-thirty-two-characters',
