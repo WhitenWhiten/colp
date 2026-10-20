@@ -271,8 +271,8 @@ export function createMappingRepository(ctx: SyncStoreRuntime) {
 
   async function listMappings(input: SyncScope) {
     const key = scopeKey(validateScope(input)); const db = await open(); const tx = db.transaction(STORES.mappings, 'readonly');
-    const completion = transactionDone(tx); const values = await cursorPage<ReturnType<typeof validateMapping>>(
-      tx.objectStore(STORES.mappings), scopeRowsRange(key), Number.MAX_SAFE_INTEGER); await completion;
+    const completion = transactionDone(tx); const values = await requestValue(
+      tx.objectStore(STORES.mappings).getAll(scopeRowsRange(key))); await completion;
     return values.map((value) => clone(validateMappingRecord(key, value, maxRecordBytes)));
   }
 

@@ -1,3 +1,7 @@
+import { cachedRejoinAuthority, rejoinAttemptDigest } from './scope-rejoin-authority.js';
+import { assertRejoinBoundary } from './scope-rejoin-boundary.js';
+import { currentRejoinDependencies } from './scope-rejoin-decisions.js';
+import { reconcileMissingRejoinDeletes } from './scope-rejoin-deletion.js';
 import { captureRejoinParents, createRejoinQueue } from './scope-rejoin-parents.js';
 import { reconcileRejoinOrders } from './scope-rejoin-order.js';
 import { digestJson } from './bookmark-event-codec.js';
@@ -15,11 +19,21 @@ type Store = ReturnType<typeof createSyncStateStore>;
 export async function applyRejoinObservations(input: {
   readonly store: Store; readonly scope: SyncScope; readonly mount: MountBindingRecord;
 } & RejoinChrome): Promise<{ readonly applied: number; readonly unknown: number; readonly conflicts: number }> {
+  input = cachedRejoinAuthority(input);
   const { store, scope, mount } = input;
   const commandId = `rejoin:${mount.mountId}`;
   const plan = { commandId, kind: 'rejoin' as const, confirmationVersion: mount.boundaryVersion,
-    baselineDigest: mount.pauseBaseline?.lastAppliedCursor ?? null, dependencies: [], mountId: mount.mountId };
-  await store.beginScopeCommandPlan(scope, { ...plan, phase: 'comparing', updatedAt: Date.now() });
+    baselineDigest: rejoinAttemptDigest(mount, await store.getScope(scope)), dependencies: [] as string[], mountId: mount.mountId };
+  const prior = await store.getScopeCommandPlan(scope, commandId);
+  if (!prior || prior.baselineDigest !== plan.baselineDigest) {
+    await store.putScopeCommandPlan(scope, { ...plan, phase: 'comparing', updatedAt: Date.now() });
+  }
+  const root = await store.getMappingByNativeId(scope, mount.nativeRootId);
+  if (!root || root.colpId !== mount.remoteMountNodeId) return { applied: 0, unknown: 1, conflicts: 0 };
+  if (!await input.getNative(root.nativeId)) return { applied: 0, unknown: 1, conflicts: 0 };
+  await assertRejoinBoundary(input, root);
+  const outstanding = (await currentRejoinDependencies(input)).filter(row => row.phase !== 'active' && row.phase !== 'pending');
+  if (outstanding.length) return { applied: 0, unknown: 0, conflicts: outstanding.length };
   let all = await store.listMappings(scope);
   await captureRejoinParents(input, rejoinMemberMappings(all, mount));
   all = await store.listMappings(scope);
@@ -47,7 +61,10 @@ export async function applyRejoinObservations(input: {
   }
   const baselineKnown = mount.pauseBaseline?.completeness === 'complete' && mount.pauseBaseline.generation === scope.generation;
   let applied = materialized.applied; let unknown = materialized.unknown;
-  let conflicts = baselineKnown ? await reconcileRejoinOrders(input, mappings, [...observations.values()]) : 0;
+  const deletions = baselineKnown ? await reconcileMissingRejoinDeletes(input, mappings, [...observations.values()])
+    : { applied: 0, conflicts: 0, handled: new Set<string>() };
+  applied += deletions.applied;
+  let conflicts = deletions.conflicts + (baselineKnown ? await reconcileRejoinOrders(input, mappings, [...observations.values()]) : 0);
   const considered: string[] = [];
   if (!baselineKnown) unknown++;
   if (baselineKnown) for (const mapping of mappings) {
@@ -93,7 +110,7 @@ export async function applyRejoinObservations(input: {
       }
       await store.deleteMapping(scope, mapping.nativeId); applied++; continue;
     }
-    if (!local || !native) { unknown++; continue; }
+    if (!local || !native) { if (!deletions.handled.has(mapping.colpId)) unknown++; continue; }
     const merged = { ...remote };
     for (const key of keys) if (local[key] !== baseline[key]) merged[key] = local[key]!;
     const landed = outcome === 'apply_remote' ? remote : outcome === 'typed_merge' ? merged : local;
@@ -136,6 +153,9 @@ export async function applyRejoinObservations(input: {
       && await input.getNative(parent.nativeId)) await queue.reconcileOrder(parent.nativeId);
     await queue.flush();
   }
+  const decisions = await currentRejoinDependencies(input);
+  plan.dependencies = decisions.map(row => row.commandId);
+  if (decisions.some(row => row.phase !== 'active')) conflicts = Math.max(conflicts, 1);
   await store.putScopeCommandPlan(scope, { ...plan, phase: unknown || conflicts ? 'pending' : 'active', updatedAt: Date.now() });
   if (!unknown && !conflicts && considered.length) await store.deleteRemoteObservations(scope, considered);
   return { applied, unknown, conflicts };

@@ -1,3 +1,4 @@
+import { createRejoinDecisionRepository } from './sync-state/rejoin-decision-repository.js';
 import { createPullNativeDeferralRepository } from './sync-state/pull-native-deferral-repository.js';
 import { createQueueBatchRepository } from './sync-state/queue-batch-repository.js';
 import { createLocalPlacementRecoveryRepository } from './sync-state/local-placement-recovery-repository.js';
@@ -65,7 +66,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     ...createLocalPlacementRecoveryRepository(ctx), ...createPullNativeDeferralRepository(ctx),
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
     ...createNativeMutationRepository(ctx),
-    ...createBoundaryCommandRepository(ctx),
+    ...createBoundaryCommandRepository(ctx), ...createRejoinDecisionRepository(ctx),
     ...createQueueBatchRepository(ctx), ...createPullIssueRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),
     registerScope: scope.registerScope, getScope: scope.getScope,
     putMapping: mapping.putMapping, deleteMapping: mapping.deleteMapping, listMappings: mapping.listMappings,

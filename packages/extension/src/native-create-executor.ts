@@ -42,7 +42,7 @@ export type NativeCreateOutcome =
 export interface NativeCreateInput {
   readonly scope: SyncScope;
   readonly store: Store;
-  readonly api: PullBookmarkApi;
+  readonly api: Pick<PullBookmarkApi, 'getChildren'>;
   readonly intentId: string;
   readonly owner: IntentOwnerInput;
   readonly parentNativeId: string;

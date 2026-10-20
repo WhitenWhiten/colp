@@ -1,3 +1,4 @@
+import { assertRejoinDeleteUpload } from './scope-rejoin-upload.js';
 import { assertBootstrapUploadAllowed } from './bootstrap/upload-boundary.js';
 import { mountResolveOpIdMatches } from './bootstrap/run-identity.js';
 import { classifyBookmarkApiFailure } from './bookmark-api-error.js';
@@ -23,6 +24,9 @@ export async function assertQueuedUploadAllowed(input: {
   // These are separately confirmed cloud commands, not native-content uploads.
   if ((['delete_node', 'delete_subtree'].includes(String(queue.payload.type)) && payload?.reason === 'scope_remote_delete')
       || (queue.payload.type === 'restore_node' && payload?.reason === 'remote_delete_restore')) return;
+  if (['delete_node', 'delete_subtree'].includes(String(queue.payload.type)) && payload?.reason === 'rejoin_local_delete') {
+    await assertRejoinDeleteUpload(input); return;
+  }
   await assertBootstrapUploadAllowed(input);
   const recorded = await store.getScope(scope);
   if (recorded?.rootStatus !== 'ready' && recorded?.rootStatus !== 'nested_normalized') throw new Error('upload_boundary_unavailable');

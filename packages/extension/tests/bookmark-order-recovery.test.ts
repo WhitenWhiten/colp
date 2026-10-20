@@ -120,7 +120,13 @@ test('a remote same-parent move observed while paused is applied on rejoin witho
       pauseGeneration: scope.generation, pauseBoundaryVersion: mount.pauseBaseline!.boundaryVersion,
       pauseCursor: mount.pauseBaseline!.lastAppliedCursor });
     const joined = await rejoinScopeMount(f.store, scope, 'mount-bar',
-      new Set(['native-root', 'native-node', 'native-child']), [], f.native);
+      new Set(['native-root', 'native-node', 'native-child']), [], { ...f.native,
+        readRemoteSnapshot: async () => ({ snapshotId: 'order-snapshot', revision: 'remote', syncCursor: 'remote',
+          pageCount: 1, identityDigest: 'order', remoteFacts: [
+            { nodeId: 'root-colp', parentId: null, kind: 'folder', title: 'root-colp', revision: 'revision-old', childrenRevision: 'order-new' },
+            { nodeId: 'node-child', parentId: 'root-colp', kind: 'bookmark', title: 'node-child', url: 'https://example.test/', revision: 'revision-remote', position: 'a' },
+            { nodeId: 'node-1', parentId: 'root-colp', kind: 'bookmark', title: 'node-1', url: 'https://example.test/', revision: 'revision-old', position: 'b' },
+          ] }) });
     assert.equal(joined.mount.status, 'active');
     assert.deepEqual((await f.api.getChildren('native-root')).map(node => node.id), ['native-child', 'native-node']);
     await f.queue.recover();

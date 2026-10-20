@@ -1,3 +1,4 @@
+import { isRejoinEcho } from './scope-rejoin-echo.js';
 import { isAutomaticIngressWaitCode } from './sync-state/open-issue-facts.js';
 import { classifySyncFailure, syncFailureCode } from './sync-failure-class.js';
 import { createBookmarkPlacement } from './bookmark-event-placement.js';
@@ -549,6 +550,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     const correlationId = correlationFor(kind, nativeId, details);
     const allowCompletedEcho = kind !== 'move' || await allowCompletedMoveEcho({
       nativeId, details, api: options.api, identityFor, listPendingEvents });
+    if (await isRejoinEcho({ store: options.store, scope: options.scope, kind, nativeId, correlationId, allowCompleted: allowCompletedEcho })) return true;
     return options.store.observeApplyIntentEvent(options.scope, correlationId, { eventDigest: correlationId, nativeId }, allowCompletedEcho);
   }
   async function reservedByProjection(kind: 'create' | 'change' | 'move' | 'remove', nativeId: string,

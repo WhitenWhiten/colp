@@ -1,9 +1,14 @@
+import type { CompleteRemoteSnapshot } from './bootstrap/remote-snapshot.js';
+import { assertRejoinBoundary } from './scope-rejoin-boundary.js';
 import { digestJson } from './bookmark-event-codec.js';
 import type { JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export interface RejoinNative { readonly title?: string; readonly url?: string; readonly parentId?: string; readonly index?: number;
   readonly type?: 'bookmark' | 'folder' | 'separator'; readonly unmodifiable?: string; readonly folderType?: string; }
 export interface RejoinChrome {
+  readonly readRemoteSnapshot?: () => Promise<CompleteRemoteSnapshot>;
+  readonly admittedNativeRootIds?: readonly string[];
+  readonly crash?: (boundary: string) => void;
   readonly getNative: (id: string) => Promise<RejoinNative | undefined>;
   readonly getChildren?: (id: string) => Promise<readonly (RejoinNative & { readonly id: string })[]>;
   readonly updateNative?: (id: string, changes: { title?: string; url?: string }) => Promise<unknown>;
@@ -21,11 +26,16 @@ export async function applyRejoinMutation(input: RejoinChrome & { store: ReturnT
   if (!await input.store.findApplyIntent(input.scope, correlationId)) {
     await input.store.createApplyIntent(input.scope, { intentId: `rejoin:${correlationId}`, correlationId,
       operationId: `rejoin:${correlationId}`, expected: { kind, nativeId: mapping.nativeId },
+      liveWorkKind: 'rejoin', colpId: mapping.colpId,
       state: 'browser_call_started', nativeTargetId: mapping.nativeId, generation: input.scope.generation,
       expiresAt: Date.now() + 300_000, preStateDigest: digestJson({ ...before }),
       expectedPostState: { digest: digestJson(target), ...(kind === 'change' ? { nativeContent: target } : {}) } });
   }
+  input.crash?.('after_rejoin_intent');
+  await assertRejoinBoundary(input, mapping);
+  if (kind === 'move') await assertRejoinBoundary(input, mapping, { parentNativeId: String(target.parentId) });
   if (kind === 'change') await input.updateNative!(mapping.nativeId, target);
   else if (kind === 'remove') await input.removeNative!(mapping.nativeId, mapping.nodeKind === 'folder');
   else await input.moveNative!(mapping.nativeId, target as { parentId: string; index: number });
+  await input.store.persistApplyIntentFacts(input.scope, `rejoin:${correlationId}`, { state: 'page_complete' });
 }

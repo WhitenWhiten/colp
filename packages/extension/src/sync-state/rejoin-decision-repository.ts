@@ -1,0 +1,119 @@
+import { digestJson } from '../bookmark-event-codec.js';
+import { rejoinBoundaryDigest } from '../scope-rejoin-authority.js';
+import { SyncStateError, type JsonObject, type MappingInput, type ScopeCommandPlanRecord,
+  type SyncScope, type UnknownRecord } from './types.js';
+import { clone } from './codec.js';
+import { requestValue, requireActiveScope, runTransaction, scopeRowsRange } from './idb.js';
+import { STORES } from './schema.js';
+import { scopeKey, validateScope } from './scope-key.js';
+import { validateMapping, validateMappingRecord } from './mapping-repository.js';
+import { readScopeCommandRecord, writeScopeCommandRecord } from './scope-command-evidence.js';
+import type { SyncStoreRuntime } from './runtime.js';
+
+export interface RejoinRestoreOrder { readonly parentId: string; readonly children: readonly string[]; readonly childrenRevision: string }
+export interface RejoinRestoreChange { readonly before: MappingInput | null; readonly after: MappingInput }
+export interface RejoinRestoreEvidence {
+  readonly changes: readonly RejoinRestoreChange[];
+  readonly orders: readonly RejoinRestoreOrder[];
+  readonly observationDigest: string;
+}
+export function restoreEvidence(record: ScopeCommandPlanRecord): RejoinRestoreEvidence {
+  const value = record.rejoinDecision?.restore;
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || !Array.isArray(value.changes) || !Array.isArray(value.orders)
+    || typeof value.observationDigest !== 'string') throw new SyncStateError('command_decision_invalid');
+  return value as unknown as RejoinRestoreEvidence;
+}
+export function mappingEvidenceDigest(mapping: MappingInput): string {
+  const { scopeKey: _key, ...value } = mapping as MappingInput & { scopeKey?: string };
+  return digestJson(value as unknown as JsonObject);
+}
+export function observationEvidenceDigest(values: readonly unknown[]): string {
+  return digestJson([...values].sort((a, b) => String((a as UnknownRecord).colpId).localeCompare(String((b as UnknownRecord).colpId))) as never);
+}
+
+export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
+  const keyFor = (scope: SyncScope) => scopeKey(validateScope(scope));
+  const names = [STORES.scopes, STORES.scopeCommandPlans, STORES.metadata, STORES.mounts];
+
+  /** Accept one immutable choice and its complete preimages before doing any browser work. */
+  async function confirmRejoinDecision(scope: SyncScope, input: {
+    commandId: string; token: string; choice: string; dependencies: readonly string[]; evidence?: JsonObject;
+  }): Promise<ScopeCommandPlanRecord> {
+    ctx.assertWritable(); const key = keyFor(scope); const db = await ctx.writableDatabase();
+    let result!: ScopeCommandPlanRecord;
+    await runTransaction(db, names, 'readwrite', async tx => {
+      const recorded = await requireActiveScope(tx, key);
+      const raw = await requestValue(tx.objectStore(STORES.scopeCommandPlans).get([key, input.commandId]));
+      if (!raw) throw new SyncStateError('decision_not_found');
+      const current = await readScopeCommandRecord(tx, key, raw, ctx.maxRecordBytes);
+      const allowed = current.rejoinDecision?.kind === 'local_delete' ? ['keep_remote', 'delete_remote']
+        : current.rejoinDecision?.kind === 'order' ? ['keep_local_order', 'keep_remote_order'] : [];
+      if (current.baselineDigest !== input.token || current.kind !== 'rejoin' || !allowed.includes(input.choice)) {
+        throw new SyncStateError('preview_stale');
+      }
+      if (current.phase !== 'pending') {
+        if (current.retryReason !== input.choice || current.phase === 'failed') throw new SyncStateError('decision_already_made');
+        result = current; return;
+      }
+      const mount = await requestValue(tx.objectStore(STORES.mounts).get([key, current.mountId!])) as UnknownRecord | undefined;
+      if (recorded.lifecycle !== 'active' || !mount || mount.status !== 'detached'
+        || mount.boundaryVersion !== current.confirmationVersion
+        || current.rejoinDecision?.boundaryDigest !== rejoinBoundaryDigest(recorded)) throw new SyncStateError('preview_stale');
+      result = { ...current, phase: 'confirmed', retryReason: input.choice, dependencies: [...input.dependencies],
+        rejoinDecision: { ...current.rejoinDecision, ...JSON.parse(JSON.stringify(input.evidence ?? {})) }, updatedAt: Date.now() };
+      await writeScopeCommandRecord(tx, key, result, ctx.maxRecordBytes);
+    });
+    return clone(result);
+  }
+
+  /** Validate the entire CAS set before atomically publishing virtual identities and full order evidence. */
+  async function prepareRejoinRestore(scope: SyncScope, commandId: string): Promise<void> {
+    ctx.assertWritable(); const key = keyFor(scope); const db = await ctx.writableDatabase();
+    await runTransaction(db, [...names, STORES.mappings, STORES.remoteObservations], 'readwrite', async tx => {
+      const recorded = await requireActiveScope(tx, key);
+      const raw = await requestValue(tx.objectStore(STORES.scopeCommandPlans).get([key, commandId]));
+      if (!raw) throw new SyncStateError('decision_not_found');
+      const plan = await readScopeCommandRecord(tx, key, raw, ctx.maxRecordBytes);
+      if (plan.retryReason !== 'keep_remote' || !['confirmed', 'applying'].includes(plan.phase)) {
+        throw new SyncStateError('decision_already_made');
+      }
+      if (plan.phase === 'applying') return;
+      if (recorded.lifecycle !== 'active' || plan.rejoinDecision?.boundaryDigest !== rejoinBoundaryDigest(recorded)) {
+        throw new SyncStateError('preview_stale');
+      }
+      const evidence = restoreEvidence(plan);
+      const mappings = tx.objectStore(STORES.mappings);
+      const rows = (await requestValue(mappings.getAll(scopeRowsRange(key))))
+        .map(value => validateMappingRecord(key, value, ctx.maxRecordBytes));
+      const byColp = new Map(rows.map(row => [row.colpId, row]));
+      const byNative = new Map(rows.map(row => [row.nativeId, row]));
+      const observations = await requestValue(tx.objectStore(STORES.remoteObservations).getAll(scopeRowsRange(key)));
+      if (observationEvidenceDigest(observations) !== evidence.observationDigest) throw new SyncStateError('preview_stale');
+      const dependencies = new Set(plan.dependencies);
+      const prepared = [];
+      for (const change of evidence.changes) {
+        const current = byColp.get(change.after.colpId);
+        if (change.before ? !current || mappingEvidenceDigest(current) !== mappingEvidenceDigest(change.before)
+          : current !== undefined) throw new SyncStateError('preview_stale');
+        if (!dependencies.has(change.after.colpId) && !evidence.orders.some(order => order.parentId === change.after.colpId)) throw new SyncStateError('command_decision_invalid');
+        const occupant = byNative.get(change.after.nativeId);
+        if (occupant && occupant.colpId !== change.after.colpId) throw new SyncStateError('mapping_identity_collision');
+        // A wide parent's order remains complete in the paged plan when it cannot fit one mapping row.
+        let candidate = change.after;
+        try { prepared.push(validateMapping(key, candidate, ctx.maxRecordBytes)); }
+        catch (error) {
+          if (!(error instanceof SyncStateError) || error.code !== 'record_too_large'
+            || !candidate.projection.childrenOrder) throw error;
+          const { childrenOrder: _order, ...projection } = candidate.projection;
+          candidate = { ...candidate, projection };
+          prepared.push(validateMapping(key, candidate, ctx.maxRecordBytes));
+        }
+      }
+      for (const change of evidence.changes) if (change.before) mappings.delete([key, change.before.nativeId]);
+      for (const mapping of prepared) mappings.put(mapping);
+      await writeScopeCommandRecord(tx, key, { ...plan, phase: 'applying', updatedAt: Date.now() }, ctx.maxRecordBytes);
+    });
+  }
+  return { confirmRejoinDecision, prepareRejoinRestore };
+}
