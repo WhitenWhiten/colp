@@ -5936,6 +5936,66 @@
   "prefs_useMyClassificationCorrections": {
     "message": "Use my classification corrections"
   },
+  "rejoin_applying": {
+    "message": "Finishing your saved choice…"
+  },
+  "rejoin_applyingSaved": {
+    "message": "Your choice is saved. Sync is finishing this change."
+  },
+  "rejoin_browserOrder": {
+    "message": "Browser order"
+  },
+  "rejoin_changed": {
+    "message": "This decision changed. Review the latest items and choose again."
+  },
+  "rejoin_deleteLibrary": {
+    "message": "Delete from library"
+  },
+  "rejoin_heading": {
+    "message": "Review changes made while sync was paused"
+  },
+  "rejoin_intro": {
+    "message": "Choose how these items should sync again. Each choice applies only to the items shown."
+  },
+  "rejoin_keepCloud": {
+    "message": "Keep cloud copy"
+  },
+  "rejoin_libraryOrder": {
+    "message": "Library order"
+  },
+  "rejoin_localDelete_one": {
+    "message": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 item. Restore it here, or delete it from your library and other synced browsers."
+  },
+  "rejoin_localDelete_other": {
+    "message": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 items. Restore them here, or delete them from your library and other synced browsers."
+  },
+  "rejoin_noLongerWaiting": {
+    "message": "This decision is no longer waiting. Check sync status for any remaining steps."
+  },
+  "rejoin_orderChanged": {
+    "message": "The browser and library have different bookmark orders. Choose the order to keep."
+  },
+  "rejoin_paused": {
+    "message": "Resume bookmark sync to review these decisions."
+  },
+  "rejoin_permission": {
+    "message": "Allow bookmark access, then refresh these decisions."
+  },
+  "rejoin_saved": {
+    "message": "Your choice is saved."
+  },
+  "rejoin_unavailable": {
+    "message": "The result could not be confirmed yet. Refresh to check your saved choice before trying again."
+  },
+  "rejoin_untitled": {
+    "message": "Bookmark changes"
+  },
+  "rejoin_useBrowserOrder": {
+    "message": "Use browser order"
+  },
+  "rejoin_useLibraryOrder": {
+    "message": "Use library order"
+  },
   "remoteDelete_bookmarkPermissionRequiredHandle": {
     "message": "Bookmark permission is required to handle this deletion."
   },

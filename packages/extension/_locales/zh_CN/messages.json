@@ -10322,5 +10322,85 @@
   "welcome_title": {
     "message": "欢迎使用 Know-N",
     "description": "Welcome to Know-N"
+  },
+  "rejoin_heading": {
+    "message": "审查同步暂停期间的更改",
+    "description": "Review changes made while sync was paused"
+  },
+  "rejoin_intro": {
+    "message": "选择如何重新同步这些项目。每项选择仅适用于下方列出的项目。",
+    "description": "Choose how these items should sync again. Each choice applies only to the items shown."
+  },
+  "rejoin_applyingSaved": {
+    "message": "你的选择已保存，正在完成同步更改。",
+    "description": "Your choice is saved. Sync is finishing this change."
+  },
+  "rejoin_saved": {
+    "message": "你的选择已保存。",
+    "description": "Your choice is saved."
+  },
+  "rejoin_noLongerWaiting": {
+    "message": "此项决定已不再等待处理。请查看同步状态以了解是否还有其他步骤。",
+    "description": "This decision is no longer waiting. Check sync status for any remaining steps."
+  },
+  "rejoin_untitled": {
+    "message": "书签更改",
+    "description": "Bookmark changes"
+  },
+  "rejoin_localDelete_one": {
+    "message": "同步暂停期间，此项目已从本浏览器移除。当前云端副本包含 $1 个项目。你可以将其恢复到此处，也可以从书签库及其他已同步浏览器中删除。",
+    "description": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 item. Restore it here, or delete it from your library and other synced browsers."
+  },
+  "rejoin_localDelete_other": {
+    "message": "同步暂停期间，此项目已从本浏览器移除。当前云端副本包含 $1 个项目。你可以将它们恢复到此处，也可以从书签库及其他已同步浏览器中删除。",
+    "description": "This item was removed from this browser while sync was paused. Its current cloud copy contains $1 items. Restore them here, or delete them from your library and other synced browsers."
+  },
+  "rejoin_orderChanged": {
+    "message": "本浏览器与书签库中的书签顺序不同。请选择要保留的顺序。",
+    "description": "The browser and library have different bookmark orders. Choose the order to keep."
+  },
+  "rejoin_browserOrder": {
+    "message": "浏览器顺序",
+    "description": "Browser order"
+  },
+  "rejoin_libraryOrder": {
+    "message": "书签库顺序",
+    "description": "Library order"
+  },
+  "rejoin_applying": {
+    "message": "正在完成已保存的选择…",
+    "description": "Finishing your saved choice…"
+  },
+  "rejoin_keepCloud": {
+    "message": "保留云端副本",
+    "description": "Keep cloud copy"
+  },
+  "rejoin_deleteLibrary": {
+    "message": "从书签库删除",
+    "description": "Delete from library"
+  },
+  "rejoin_useBrowserOrder": {
+    "message": "使用浏览器顺序",
+    "description": "Use browser order"
+  },
+  "rejoin_useLibraryOrder": {
+    "message": "使用书签库顺序",
+    "description": "Use library order"
+  },
+  "rejoin_changed": {
+    "message": "此项决定已有变化。请审查最新项目后重新选择。",
+    "description": "This decision changed. Review the latest items and choose again."
+  },
+  "rejoin_permission": {
+    "message": "请允许访问书签，然后刷新这些决定。",
+    "description": "Allow bookmark access, then refresh these decisions."
+  },
+  "rejoin_paused": {
+    "message": "请恢复书签同步后再审查这些决定。",
+    "description": "Resume bookmark sync to review these decisions."
+  },
+  "rejoin_unavailable": {
+    "message": "暂时无法确认结果。请先刷新以检查已保存的选择，再决定是否重试。",
+    "description": "The result could not be confirmed yet. Refresh to check your saved choice before trying again."
   }
 }

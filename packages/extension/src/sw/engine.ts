@@ -405,7 +405,7 @@ async function pendingDurableWorkFacts(scope: SyncScope) {
   let oldestLiveOccurredAt: number | null = null;
   const live: Array<{ readonly status?: string; readonly recovery?: { readonly code?: string } }> = [];
   for (const status of LIVE_QUEUE_STATUSES) {
-    const rows = await syncState.listQueue(scope, status, 0, 1_000);
+    const rows = await syncState.filterResolvedQueueIssues(scope, await syncState.listQueue(scope, status, 0, 1_000));
     live.push(...rows);
     hasPendingWork ||= hasRecoverableQueueWork(rows);
     conflictPending ||= hasConflictBarrier(rows);

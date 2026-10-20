@@ -11,7 +11,7 @@ import type { SyncAttentionResponse } from '../types.js';
 import type { createSyncStateStore, QueueOperation, SyncScope } from '../sync-state-store.js';
 
 export type SyncAttentionStore = NativeWaitStore & Pick<ReturnType<typeof createSyncStateStore>,
-  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
+  'getEngineState' | 'listQueue'> & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'filterResolvedQueueIssues' | 'listConsumedQueueIssues' | 'listBootstrapRuns' | 'listMappings' | 'listPullIssues' | 'listLocalIssues' | 'listOpenIngressIssues' | 'listPullPages' | 'listPullEventsByPage'>>;
 
 export interface SyncAttentionDeps {
   readonly scope: () => Promise<SyncScope>;
@@ -85,13 +85,13 @@ async function queueFacts(store: SyncAttentionStore, scope: SyncScope, open: Ope
 }
 
 /** One page of each live status, the same scan `pendingDurableWorkFacts` makes. */
-async function liveQueueRows(store: Pick<SyncAttentionStore, 'listQueue'>, scope: SyncScope): Promise<QueueOperation[]> {
+async function liveQueueRows(store: Pick<SyncAttentionStore, 'listQueue' | 'filterResolvedQueueIssues'>, scope: SyncScope): Promise<QueueOperation[]> {
   const live: QueueOperation[] = [];
   for (const status of LIVE_STATUSES) live.push(...(await store.listQueue(scope, status, 0, QUEUE_PAGE)).filter(row => !isSettledRejection(row)));
-  return live;
+  return store.filterResolvedQueueIssues ? store.filterResolvedQueueIssues(scope, live) : live;
 }
 
 /** The sent upload at the head of the lane that the server has kept unsettled for many tries, if any. */
-export async function readStalledUpload(store: Pick<SyncAttentionStore, 'listQueue'>, scope: SyncScope) {
+export async function readStalledUpload(store: Pick<SyncAttentionStore, 'listQueue' | 'filterResolvedQueueIssues'>, scope: SyncScope) {
   try { return stalledUploadHead(await liveQueueRows(store, scope)); } catch { return undefined; }
 }

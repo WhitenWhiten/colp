@@ -8,7 +8,7 @@ import { adoptSelectedSubtreeMappings, applyConfirmedRange, discoveredFromRoots,
 import { collectNativeIds } from '../scope-reconcile.js';
 import type { BoundaryCommandRecord, ScopePreviewRecord, SyncScope } from '../sync-state-store.js';
 import type { PublicRangePreview, RootRequest } from '../types.js';
-import { nativeChromeFacts } from './native-chrome.js';
+import { rejoinNative } from './rejoin-native.js';
 import { readRootFolders } from './roots.js';
 import { syncState, workCoordinator } from './runtime.js';
 import type { BoundaryAttempt } from './boundary-attempt.js';
@@ -74,7 +74,7 @@ export async function executeRangeCommand(scope: SyncScope, admitted: BoundaryCo
     const result = await workCoordinator.run('bookmark', async () => {
       await attempt.assertCurrent();
       return rejoinScopeMount(syncState, scope, mount.mountId, present, [...present],
-        await attempt.nativeApi({ ...nativeChromeFacts(), admittedNativeRootIds: plan.selectedNativeIds }));
+        await rejoinNative(scope, attempt, plan.selectedNativeIds));
     });
     if (result.mount.status !== 'active') throw new Error('rejoin_pending');
   });

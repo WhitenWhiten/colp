@@ -71,6 +71,8 @@ import { validBatchRequest, validConnectivityRequest, validFaviconRequest, valid
   validSyncProgressRequest,
   validSyncStateEvidenceRequest } from './sw/messages.js';
 import { handleRootRequest, resumeBookmarksAfterPermissionGrant } from './sw/roots.js';
+import { validRejoinDecisionRequest } from './scope-rejoin-decisions.js';
+import { handleRejoinDecisionRequest } from './sw/rejoin-decisions.js';
 import { ensurePeriodicAlarm } from './sw/reconcile-alarm.js';
 import { purgeLegacyLocalAuthority } from './sw/credential-storage.js';
 import { BOOKMARK_RECONCILE_ALARM, BOOKMARK_RECONCILE_PERIOD_MINUTES, BOOKMARK_RECOVERY_ALARM,
@@ -402,6 +404,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (validRootRequest(message)) {
     const operation = workCoordinator.run('root', () => handleRootRequest(message));
     void operation.then(respond, () => respond({ ok: false, error: 'request_invalid' } satisfies RootResponse));
+    return true;
+  }
+  if (validRejoinDecisionRequest(message)) {
+    if (!trustedLifecyclePage(sender, chrome.runtime.id)) return false;
+    void handleRejoinDecisionRequest(message).then(respond,
+      () => respond({ ok: false, error: 'rejoin_unavailable' }));
     return true;
   }
   if (validFaviconRequest(message)) {

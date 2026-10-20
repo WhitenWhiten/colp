@@ -19,7 +19,7 @@ import { resolveLibraryRootId } from './library.js';
 import { hasBookmarkPermission, rootScopeKey, store, workCoordinator, sw, syncState } from './runtime.js';
 import { currentSyncScope, restoredSyncScope, retireLegacyScopeForRemount } from './scope.js';
 import { readRootFolders, sameDiscovered } from './roots.js';
-import { nativeChromeFacts } from './native-chrome.js';
+import { rejoinNative } from './rejoin-native.js';
 import { readSnapshotAuthority, advancedFirstRunStatus, handleAdvancedFirstRunConfirm, handleAdvancedFirstRunPreview } from './advanced-first-run.js';
 import { syncAttentionTerminalCode } from '../sync-attention-ui.js';
 import { digestJson } from '../bookmark-event-codec.js';
@@ -60,7 +60,7 @@ export async function handleScopeCommand(message: ScopeCommandRequest): Promise<
       const result = await workCoordinator.run('bookmark', async () => {
         await attempt.assertCurrent();
         return rejoinScopeMount(syncState, scope, message.mountId, nativePresent, [...nativePresent],
-          await attempt.nativeApi(nativeChromeFacts()));
+          await rejoinNative(scope, attempt));
       });
       if (result.mount.status !== 'active') return { ok: false, error: 'rejoin_pending' };
       return { ok: true, phase: 'syncing', firstRun };
