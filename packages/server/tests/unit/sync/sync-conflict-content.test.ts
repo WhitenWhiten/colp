@@ -36,6 +36,34 @@ test('both preserves the complete incoming bookmark and unrelated current metada
   assert.equal('canonicalUrl' in node, false);
 });
 
+test.each(['valid', 'clear', 'invalid'] as const)('recovered equivalent URL handles an explicitly %s digest', choice => {
+  const url = 'https://example.test/before', spelling = 'HTTPS://EXAMPLE.TEST:443/before';
+  const hash = (value: string) => `sha-256=:${createHash('sha256').update(value).digest('base64')}:`;
+  const retained: PrivateConflictPayload = { ...payload,
+    base: { ...payload.base, url, urlHash: hash(url) },
+    incoming: { ...payload.incoming, url: spelling,
+      urlHash: choice === 'clear' ? null : hash(choice === 'valid' ? spelling : 'https://invalid.test/') } };
+  const current = { ...payload.current, url, urlHash: hash(url) };
+  if (choice === 'invalid') {
+    assert.throws(() => duplicateNodeDocument(current, retained, ['/title']),
+      (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'invalid_document');
+  } else {
+    const node = duplicateNodeDocument(current, retained, ['/title']);
+    assert.equal(node.url, url);
+    assert.equal(node.urlHash, choice === 'clear' ? undefined : hash(url));
+  }
+});
+
+test('a recovered equivalent URL preserves an independently added server digest', () => {
+  const url = 'https://example.test/before';
+  const urlHash = `sha-256=:${createHash('sha256').update(url).digest('base64')}:`;
+  const retained: PrivateConflictPayload = { ...payload, base: { ...payload.base, urlHash: null },
+    incoming: { ...payload.incoming, url: 'HTTPS://EXAMPLE.TEST:443/before', urlHash: null } };
+  const node = duplicateNodeDocument({ ...payload.current, urlHash }, retained, ['/title']);
+  assert.equal(node.url, url);
+  assert.equal(node.urlHash, urlHash);
+});
+
 test('resolution preserves concurrent additions in a retained nonconflicting extension map', () => {
   const independent = { ...payload, base: { ...payload.base, extensions: {} },
     incoming: { ...payload.incoming, extensions: { 'https://example.test/local': { value: 1 } } } };

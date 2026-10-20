@@ -692,6 +692,46 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     assert.deepEqual(await facts(value.replica.replicaId, target.targetId!), after);
   });
 
+  test.each(['valid', 'invalid', 'clear', 'current-added'] as const)(
+    'equivalent browser URL edit handles %s hash through real Push, canonical effect and replay', async choice => {
+      const url = 'https://example.test/equivalent', spelling = 'HTTPS://EXAMPLE.TEST:443/equivalent';
+      const hash = (value: string) => `sha-256=:${createHash('sha256').update(value).digest('base64')}:`;
+      const seeded = await seedNode('bookmark', { url });
+      const current = await setCurrent(seeded, { urlHash: hash(url) });
+      const base = choice === 'current-added' ? seeded : current;
+      const value = await context(), server = await start(value);
+      const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId,
+        replicaId: value.replica.replicaId, collectionId: COLLECTION, targetId: base.id,
+        baseRevision: base.revision, opId: `equivalent-hash-${randomUUID()}`,
+        base: { url, urlHash: choice === 'current-added' ? null : hash(url) },
+        value: { url: spelling, urlHash: choice === 'clear' || choice === 'current-added' ? null
+          : hash(choice === 'valid' ? spelling : 'https://invalid.test/') } });
+      const idempotencyKey = `equivalent-hash-${randomUUID()}`;
+      const before = await facts(value.replica.replicaId, base.id);
+      const response = await blackBox(server.origin).push({ idempotencyKey, request });
+      if (choice === 'invalid') {
+        assert.notEqual(response.status, 200);
+        assert.equal((response.body as Problem).code, 'invalid_document');
+        assert.deepEqual(await facts(value.replica.replicaId, base.id), before);
+        assert.equal((await isolated.runtime.pool.query(
+          'select count(*)::int count from sync_operation_effects where operation_id=$1',
+          [request.operations[0]!.opId])).rows[0].count, 0);
+        return;
+      }
+      assert.equal(response.status, 200);
+      assert.equal(result(response.body).results[0]!.status, choice === 'current-added' ? 'rebased' : 'applied');
+      const after = await facts(value.replica.replicaId, base.id);
+      const effect = (await isolated.runtime.pool.query(
+        'select effect_json from sync_operation_effects where operation_id=$1', [request.operations[0]!.opId])).rows[0].effect_json;
+      assert.equal(after.node.url, url);
+      for (const content of [after.node.payload_json, effect.node]) {
+        assert.equal(content.url, url);
+        assert.equal(content.urlHash, choice === 'clear' ? undefined : hash(url));
+      }
+      assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, response.body);
+      assert.deepEqual(await facts(value.replica.replicaId, base.id), after);
+    });
+
   test('browser tag sync removes only observed members, preserves concurrent additions and exactly replays its receipt', async () => {
     const base = await setCurrent(await seedNode('bookmark'), { tags: ['base'] });
     await setCurrent(base, { tags: ['base', 'concurrent'] });

@@ -15,13 +15,13 @@ import {
   assertValidNodeTags,
   assertValidNodeTitle,
   assertValidNodeVisibility,
-  isEquivalentBookmarkUrlRewrite,
   invalidateOmittedBookmarkUrlMetadata,
   type JsonObject,
   type JsonValue,
   type ResourceOwnedFields,
   validBookmarkPinExtension,
 } from '../collections/index.js';
+import { validIncomingBookmarkUrlHash, pinEquivalentSyncBookmarkMetadata } from './sync-bookmark-metadata.js';
 
 export type SyncNodeKind = 'folder' | 'bookmark' | 'separator';
 
@@ -129,11 +129,17 @@ export function evaluateSyncNodeUpdate(
   ));
   if (untrusted.length > 0) return conflict('sync_base_untrusted', untrusted.sort());
 
+  if (current.kind === 'bookmark'
+      && !validIncomingBookmarkUrlHash(payload.base, payload.value, trustedBase.payload.url)) {
+    deny('invalid_document');
+  }
+
   const merged = mergeSyncNodeContentFields(trustedProjection, currentProjection, payload.value);
   if (merged.status === 'conflict') {
     return conflict('sync_conflict_pending', merged.conflicts.map((item) => item.field).sort());
   }
-  const pinned = pinEquivalentBookmarkUrlMerge(current, merged.value);
+  const pinned = current.kind === 'bookmark'
+    ? pinEquivalentSyncBookmarkMetadata(current.payload, merged.value) : merged.value;
   const pinnedMerged = current.kind === 'bookmark'
     ? invalidateOmittedBookmarkUrlMetadata(pinned, current.payload) : pinned;
   assertBudget([pinnedMerged], budget);
@@ -196,33 +202,6 @@ function withoutExtensions(fields: Readonly<Record<string, unknown>>): Readonly<
 
 function isSupportedKind(value: unknown): value is SyncNodeKind {
   return value === 'folder' || value === 'bookmark' || value === 'separator';
-}
-
-/**
- * CS-01 generation fence: a bookmark `url` whose submitted spelling is
- * normalization-equivalent to the stored one is not a content change.
- * Pinning `url` — and its `urlHash` digest, which binds the preserved raw
- * bytes — to the stored value keeps the receipt/base projection, the
- * canonical write, and the generation fence all on the original URL.
- * Without the pin the stored value and the reflowed merge would diverge
- * and the client's next base would fail `sync_base_untrusted`.
- */
-function pinEquivalentBookmarkUrlMerge(
-  current: TrustedSyncNodeRevision,
-  merged: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, unknown>> {
-  if (current.kind !== 'bookmark') return merged;
-  const storedUrl = current.payload.url;
-  const submitted = merged.url;
-  if (typeof storedUrl !== 'string' || typeof submitted !== 'string') return merged;
-  if (!isEquivalentBookmarkUrlRewrite(storedUrl, submitted)) return merged;
-  const pinned: Record<string, unknown> = { ...merged, url: storedUrl };
-  if (Object.hasOwn(pinned, 'urlHash')) {
-    const storedHash = current.payload.urlHash;
-    if (typeof storedHash === 'string') pinned.urlHash = storedHash;
-    else delete pinned.urlHash;
-  }
-  return Object.freeze(pinned);
 }
 
 function conflict(

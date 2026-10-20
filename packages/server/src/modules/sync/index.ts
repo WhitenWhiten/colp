@@ -9,6 +9,7 @@ export * from './sync-sequence.js';
 export * from './sync-push.js';
 export * from './sync-node-create.js';
 export * from './sync-node-update.js';
+export * from './sync-bookmark-metadata.js';
 export * from './sync-operation-effects.js';
 export * from './sync-node-move.js';
 export * from './sync-node-delete.js';

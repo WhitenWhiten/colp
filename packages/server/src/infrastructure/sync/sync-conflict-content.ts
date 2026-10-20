@@ -1,7 +1,9 @@
 import type { HttpUrl, NodeCreate } from '@know-n/colp/types';
 import { preserveExtensions } from '@know-n/colp/schema';
+import { validateBookmarkUrlHashSemantics } from '@know-n/colp/semantic';
 import {
   mergeSyncNodeContentFields, mergeSyncExtensionNamespaces, SyncConflictResolutionError,
+  validIncomingBookmarkUrlHash, pinEquivalentSyncBookmarkMetadata,
   type ValidatedSyncConflictResolutionCommand,
 } from '../../modules/sync/index.js';
 import {
@@ -90,6 +92,8 @@ export function duplicateNodeDocument(
   privatePayload: PrivateConflictPayload,
   pointers: readonly string[],
 ): NodeCreate {
+  if (privatePayload.nodeKind === 'bookmark' && !validIncomingBookmarkUrlHash(privatePayload.base,
+    privatePayload.incoming, privatePayload.base.url ?? current.url)) invalid();
   const selected: Record<string, unknown> = {};
   for (const field of Object.keys(privatePayload.incoming)) {
     const merged = mergeRetainedField(field, current, privatePayload);
@@ -99,7 +103,7 @@ export function duplicateNodeDocument(
       ? privatePayload.incoming[field] : merged.value[field];
   }
   const content = { ...current, ...(privatePayload.nodeKind === 'bookmark'
-    ? invalidateOmittedBookmarkUrlMetadata(selected, current) : selected) };
+    ? invalidateOmittedBookmarkUrlMetadata(pinEquivalentSyncBookmarkMetadata(current, selected), current) : selected) };
   const description = assertValidNodeDescription(content.description as string | null | undefined ?? null);
   const tags = assertValidNodeTags(content.tags as readonly string[] | undefined ?? []);
   const visibility = assertValidNodeVisibility(content.visibility as string | undefined ?? 'inherit');
@@ -113,6 +117,8 @@ export function duplicateNodeDocument(
   const title = assertValidNodeTitle(content.title as string, privatePayload.nodeKind);
   if (privatePayload.nodeKind === 'folder') return { ...common, kind: 'folder', title };
   const url = assertValidHttpUrlNoUserInfo(content.url as string);
+  if (!validateBookmarkUrlHashSemantics({ url,
+    ...(content.urlHash === null || content.urlHash === undefined ? {} : { urlHash: content.urlHash }) }).valid) invalid();
   return { ...common, kind: 'bookmark', title, url,
     ...(typeof content.canonicalUrl === 'string'
       ? { canonicalUrl: assertValidHttpUrlNoUserInfo(content.canonicalUrl) as HttpUrl } : {}),
