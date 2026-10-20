@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { MemoryStorageArea } from '../src/credential-store.js';
@@ -21,6 +22,7 @@ import type { RejoinNative } from '../src/scope-rejoin-mutation.js';
 import { endpoints } from './outbound-push-worker-harness.js';
 import type { ChromeBookmarkNode } from '../src/chrome-bookmark-tree.js';
 import { validRejoinDecisionRequest, type PublicRejoinDecision, type RejoinDecisionRequest } from '../src/scope-rejoin-decisions.js';
+import { bindRejoinDecisions } from '../src/rejoin-decisions-ui.js';
 import { REPLICA_REBUILD_JOURNAL } from '../src/replica-rebuild.js';
 
 const state = vi.hoisted(() => ({ fixture: undefined as unknown as Awaited<ReturnType<typeof fixture>>,
@@ -111,7 +113,10 @@ beforeEach(async () => {
   installRejoinHttp(() => scope, () => state.fixture.facts);
   installNative();
 });
-afterEach(() => { state.fixture?.getStore().close(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  window.dispatchEvent(new Event('pagehide')); document.body.replaceChildren();
+  state.fixture?.getStore().close(); vi.unstubAllGlobals();
+});
 function installNative() {
   vi.stubGlobal('chrome', { storage: { local: state.storage }, bookmarks: { ...state.fixture.api,
     getTree: async () => nativeTree(), getSubTree: async (id: string) => nativeTree(id) } });
@@ -485,4 +490,79 @@ test('a crash while renewing a changed preview rolls back both supersession and 
   f.reopen(); const fresh = await listedDecision(); expect(fresh.token).not.toBe(value.token);
   expect((await f.getStore().getScopeCommandPlan(scope, value.commandId))?.rejoinDecision?.supersededBy).toBe(fresh.commandId);
   expect(f.api.calls.filter(row => row.kind === 'delete')).toEqual([]);
+});
+
+async function decisionScreen() {
+  expect(await handleScopeCommand({ kind: 'known.scope.rejoin', mountId: 'mount-bar' }))
+    .toMatchObject({ ok: false, error: 'rejoin_pending' });
+  const requests: RejoinDecisionRequest[] = [];
+  Object.assign(chrome, { runtime: { sendMessage: async (message: RejoinDecisionRequest) => {
+    requests.push(message); return handleRejoinDecisionRequest(message);
+  } } });
+  document.body.innerHTML = '<section id="rejoin-decisions"></section>';
+  const host = { panel: document.getElementById('rejoin-decisions')!, show: vi.fn(), onResolved: vi.fn() };
+  const ui = bindRejoinDecisions(host); ui.setLibraryId(scope.collectionId); ui.onConnection(true);
+  const choice = (value: string) => host.panel.querySelector<HTMLButtonElement>(`[data-rejoin-action="${value}"]`)!;
+  const confirmation = () => host.panel.querySelector<HTMLInputElement>('[data-rejoin-delete-confirm]')!;
+  await vi.waitFor(() => expect(host.panel.textContent).toContain('current browser copy contains 3 items'));
+  return { ...host, ui, requests, choice, confirmation };
+}
+
+test.each(['keep_local', 'apply_remote_delete'] as const)
+('the actual DOM choice %s reaches the runtime handler and settles native and durable facts', async choice => {
+  const f = state.fixture, screen = await decisionScreen();
+  const queue = await f.getStore().listQueue(scope), canonical = structuredClone(f.facts);
+  expect(await f.getStore().getRemoteObservation(scope, 'remote-folder')).toMatchObject({ kind: 'tombstone' });
+  expect(screen.choice('apply_remote_delete').disabled).toBe(true);
+  if (choice === 'apply_remote_delete') {
+    screen.choice(choice).click(); expect(f.api.calls.filter(row => row.kind === 'delete')).toEqual([]);
+    screen.confirmation().checked = true; screen.confirmation().dispatchEvent(new Event('change'));
+  }
+  screen.choice(choice).click(); await vi.waitFor(() => expect(screen.onResolved).toHaveBeenCalledTimes(1));
+  expect(screen.panel.textContent).toContain('Your choice is saved.');
+  const requests = screen.requests.filter((row): row is Extract<RejoinDecisionRequest, { kind: 'known.sync.rejoinDecisions.resolve' }> =>
+    row.kind === 'known.sync.rejoinDecisions.resolve');
+  expect(requests).toHaveLength(1); const request = requests[0]!;
+  expect(Object.keys(request)).toHaveLength(choice === 'apply_remote_delete' ? 7 : 5);
+  expect(await f.getStore().getScopeCommandPlan(scope, request.commandId)).toMatchObject({ phase: 'active',
+    baselineDigest: request.token, retryReason: choice });
+  expect(await f.getStore().listQueue(scope)).toEqual(queue);
+  expect(await f.getStore().getRemoteObservation(scope, 'remote-folder')).toBeNull();
+  expect(f.facts).toEqual(canonical);
+  expect(await f.getStore().getMappingByColpId(scope, 'remote-folder')).toBeNull();
+  expect(await f.getStore().getMappingByColpId(scope, 'node-1')).toBeNull();
+  expect(f.api.getNode('native-child')?.title).toBe('node-child');
+  for (const nativeId of ['native-folder', 'native-node', f.addedId]) {
+    if (choice === 'keep_local') {
+      expect(f.api.getNode(nativeId)).toBeDefined();
+      expect(await f.getStore().getLocalSyncExclusion(scope, nativeId)).toMatchObject({ sourceKind: 'remote_delete', nativeId });
+    } else expect(f.api.getNode(nativeId)).toBeUndefined();
+  }
+  expect(f.api.calls.filter(row => row.kind === 'delete')).toHaveLength(choice === 'keep_local' ? 0 : 3);
+  const intents = (await f.getStore().listApplyIntents(scope)).filter(row => row.commandId === request.commandId);
+  expect(intents.map(row => row.nativeTargetId).sort()).toEqual(choice === 'keep_local'
+    ? [] : ['native-folder', 'native-node', f.addedId].sort());
+  for (const intent of intents) expect(intent).toMatchObject({ state: 'page_complete', nativeResult: 'applied_with_evidence',
+    nativeResultConfirmation: { kind: 'api_return', nativeId: intent.nativeTargetId } });
+  f.reopen(); await screen.ui.refresh();
+  expect(screen.choice(choice)).toBeNull(); expect(screen.requests.filter(row => row.kind.endsWith('.resolve'))).toHaveLength(1);
+  expect(await handleRejoinDecisionRequest(request)).toEqual({ ok: true, decisions: [] });
+  expect(f.api.calls.filter(row => row.kind === 'delete')).toHaveLength(choice === 'keep_local' ? 0 : 3);
+});
+
+test('the actual DOM refreshes a grown subtree and waits for a new checked deletion before the handler removes it', async () => {
+  const f = state.fixture, screen = await decisionScreen();
+  screen.confirmation().checked = true; screen.confirmation().dispatchEvent(new Event('change'));
+  const added = await f.api.create({ parentId: 'native-folder', title: 'After UI preview', url: 'https://later.test/' });
+  screen.choice('apply_remote_delete').click();
+  await vi.waitFor(() => expect(screen.panel.textContent).toContain('current browser copy contains 4 items'));
+  expect(screen.confirmation().checked).toBe(false); expect(screen.choice('apply_remote_delete').disabled).toBe(true);
+  expect(f.api.calls.filter(row => row.kind === 'delete')).toEqual([]); expect(screen.onResolved).not.toHaveBeenCalled();
+  expect(screen.requests.filter(row => row.kind.endsWith('.resolve'))).toHaveLength(1);
+  screen.confirmation().checked = true; screen.confirmation().dispatchEvent(new Event('change'));
+  screen.choice('apply_remote_delete').click(); await vi.waitFor(() => expect(screen.onResolved).toHaveBeenCalledTimes(1));
+  expect(screen.requests.filter(row => row.kind.endsWith('.resolve'))).toHaveLength(2);
+  expect(f.api.getNode(added.id)).toBeUndefined(); expect(f.api.calls.filter(row => row.kind === 'delete')).toHaveLength(4);
+  expect(await f.getStore().listQueue(scope)).toEqual([]);
+  f.reopen(); expect(await handleRejoinDecisionRequest({ kind: 'known.sync.rejoinDecisions.get' })).toEqual({ ok: true, decisions: [] });
 });
