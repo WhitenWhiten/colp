@@ -4,6 +4,7 @@ import { request as httpRequest } from 'node:http';
 import { describe, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import type { ProductSyncCenterUnitOfWork } from '../../../src/modules/sync/product-sync-center.js';
+import { SyncConflictResolutionError } from '../../../src/modules/sync/index.js';
 import { buildApiApp } from '../../../src/transport/app.js';
 import { createIdentityMemoryState, createIdentityMemoryUnitOfWork, issueTestSession } from '../../support/product-http-harness.js';
 import { createInMemoryBetterAuthTestFactory } from '../../support/better-auth-test-factory.js';
@@ -68,6 +69,45 @@ function unitOfWork(calls: Array<Record<string, unknown>>): ProductSyncCenterUni
 function headers(cookie: string, extra: Record<string, string> = {}) { return { cookie, ...extra }; }
 
 describe('P3-36 Product Sync Center HTTP', () => {
+  test('a read-only current decision stays visible and a forced fresh confirmation returns an explicit permission refusal', async () => {
+    const auth = await identity();
+    const original = unitOfWork([]);
+    const blocked: ProductSyncCenterUnitOfWork = { execute: work => original.execute(ports => work({ ...ports,
+      async getConflicts(input) {
+        const page = await ports.getConflicts(input);
+        return { ...page, items: page.items.map(item => ({ ...item, allowedResolutions: [],
+          revision: 'blocked-r2', etag: '"blocked-r2"', resolutionBlockedReason: 'node_read_only' as const })) };
+      },
+      async resolveConflict(input) {
+        if (input.expectedRevision !== 'blocked-r2') throw new SyncConflictResolutionError('precondition_failed', 'blocked-r2');
+        throw new SyncConflictResolutionError('node_read_only');
+      },
+    })) };
+    const app = buildApiApp({ config: config(), identityUnitOfWork: auth.unitOfWork,
+      browserSessionAuthority: auth.factory.authority, productSyncCenterUnitOfWork: blocked });
+    try {
+      const listed = await app.inject({ method: 'GET', url: '/api/v1/sync/conflicts', headers: headers(auth.client.cookie) });
+      assert.equal(listed.statusCode, 200, listed.body);
+      const decision = listed.json().items[0];
+      assert.deepEqual(decision.allowedResolutions, []);
+      assert.equal(decision.resolutionBlockedReason, 'node_read_only');
+      assert.equal(decision.summary.incoming, 'Incoming title');
+      const submit = (etag: string) => app.inject({ method: 'POST', url: '/api/v1/sync/conflicts/conflict-a/resolution',
+        headers: headers(auth.client.cookie, { origin: ORIGIN, 'x-csrf-token': auth.client.csrfToken,
+          'known-command-id': randomUUID(), 'if-match': etag, 'content-type': 'application/json' }),
+        payload: { resolution: 'server' } });
+      assert.equal((await submit('"conflict-r1"')).statusCode, 412);
+      const refused = await submit(decision.etag);
+      assert.equal(refused.statusCode, 403, refused.body);
+      assert.equal(refused.json().error.code, 'insufficient_permission');
+      assert.equal(refused.json().error.fieldErrors[0].code, 'node_read_only');
+      assert.equal(refused.json().error.sameRequestRetrySafe, false);
+      assert.match(refused.json().error.message, /read-only/);
+      assert.equal((await app.inject({ method: 'GET', url: '/api/v1/sync/conflicts',
+        headers: headers(auth.client.cookie) })).body, listed.body);
+    } finally { await app.close(); }
+  });
+
   test('returns private account-scoped safe status and Conflict summaries', async () => {
     const auth = await identity(); const calls: Array<Record<string, unknown>> = []; const app = buildApiApp({ config: config(), identityUnitOfWork: auth.unitOfWork, browserSessionAuthority: auth.factory.authority,
       productSyncCenterUnitOfWork: unitOfWork(calls) });

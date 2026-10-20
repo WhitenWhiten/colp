@@ -114,6 +114,10 @@ function mapMutationError(error: unknown): unknown { const value = code(error);
     message: 'The requested Sync resource was not found.', recovery: 'none' });
   if (value === 'precondition_failed' || value === 'stale_replica') return new ProductHttpError({ statusCode: 412,
     code: 'precondition_failed', message: 'The Sync resource revision changed.', recovery: 'refresh_and_retry', precondition: 'resource' });
+  if (value === 'node_read_only') return new ProductHttpError({ statusCode: 403, code: 'insufficient_permission',
+    message: 'This Conflict is currently read-only under the collection write policy.', recovery: 'user_action',
+    sameRequestRetrySafe: false, fieldErrors: [{ path: '/resolution', code: 'node_read_only',
+      message: 'The current collection write policy does not allow this resolution.' }] });
   if (value === 'unsupported_operation') return new ProductHttpError({ statusCode: 422, code: 'invalid_document',
     message: 'This resolution is not allowed for the Conflict.', recovery: 'user_action' });
   if (value === 'invalid_document') return invalidDocument();
