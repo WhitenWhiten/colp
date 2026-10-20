@@ -61,4 +61,16 @@ describe('Extension named Sync CI owners [SYNC-Q-021]', () => {
       .not.toContain('mv3-multi-device-recovery.spec.ts');
     expect(workflow).not.toContain('mv3-multi-device-recovery');
   });
+
+  it.each(['extension-sync-real-stack', 'extension-kns-09-e2e', 'extension-sync-lifecycle'])(
+    'retains failed browser evidence from %s without changing its result', (jobName) => {
+      const job = workflow.split(`  ${jobName}:`)[1]?.split(/\n  [a-z]/u)[0] ?? '';
+      expect(job).toMatch(/Upload [^\n]+Playwright results\n\s+if: always\(\)\n\s+uses: actions\/upload-artifact@[a-f0-9]{40}/u);
+      expect(job).toContain('packages/extension/test-results/');
+      expect(job).toContain('retention-days: 7');
+      expect(job).toContain('${{ github.run_attempt }}');
+      expect(job).not.toContain('continue-on-error');
+      if (jobName === 'extension-sync-lifecycle') expect(job).toContain('${{ matrix.sync-group }}-playwright');
+      if (jobName === 'extension-kns-09-e2e') expect(job).toContain('test-results/known-extension-first-run-sync/');
+    });
 });

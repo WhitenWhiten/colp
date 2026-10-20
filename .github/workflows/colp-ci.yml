@@ -607,6 +607,14 @@ jobs:
       - name: Critical MV3 auth, popup, bookmark manager and pull journeys
         run: npm run evidence:critical-mv3
         working-directory: packages/extension
+      - name: Upload critical MV3 Playwright results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: extension-sync-real-stack-playwright-${{ github.run_attempt }}
+          path: packages/extension/test-results/
+          if-no-files-found: warn
+          retention-days: 7
 
   extension-kns-09-release:
     needs: changes
@@ -676,6 +684,16 @@ jobs:
       - name: First-run and trash-restore evidence
         run: npm run evidence:first-run-sync && npm run evidence:trash-restore
         working-directory: packages/extension
+      - name: Upload KNS-09 Playwright results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: extension-kns-09-playwright-${{ github.run_attempt }}
+          path: |
+            packages/extension/test-results/
+            test-results/known-extension-first-run-sync/
+          if-no-files-found: warn
+          retention-days: 7
 
   # Native browser/user journeys omitted by the earlier smoke and first-run
   # groups. Each lane starts its own real PostgreSQL-backed stack under xvfb.
@@ -738,6 +756,14 @@ jobs:
       - name: Real browser sync lifecycle acceptance
         run: npm run evidence:sync-lifecycle
         working-directory: packages/extension
+      - name: Upload lifecycle Playwright results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: extension-sync-lifecycle-${{ matrix.sync-group }}-playwright-${{ github.run_attempt }}
+          path: packages/extension/test-results/
+          if-no-files-found: warn
+          retention-days: 7
 
   ci-gate:
     if: always() && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
