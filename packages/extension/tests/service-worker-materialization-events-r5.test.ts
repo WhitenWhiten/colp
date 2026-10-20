@@ -161,3 +161,41 @@ test('a same-shaped manual child observed during final admission is recovered by
     node: { kind: 'bookmark', title: 'Child', url: 'https://child.test/' } } });
   expect(f.api.getNode(manualId)).toBeDefined();
 });
+
+test('an explicit child bind reserves only its own late echo and captures a new identical user bookmark once', async () => {
+  const f = await setup(), create = f.api.create.bind(f.api);
+  let childId = '';
+  const raw = vi.spyOn(chrome.bookmarks, 'create').mockImplementation(async details => {
+    const created = await create(details); await f.emitCreated(created.id);
+    if (details.title === 'Child') { childId = created.id; throw new Error('worker_crash'); }
+    return f.api.getNode(created.id) as unknown as chrome.bookmarks.BookmarkTreeNode;
+  });
+  await expect(f.applier().resume()).rejects.toThrow('worker_crash'); raw.mockRestore();
+  await expect(f.applier().resume()).rejects.toThrow('native_result_unknown');
+  const { waits } = await f.send({ kind: 'known.nativeWait.list' }); const wait = waits[0]!;
+  expect(wait.candidates).toEqual([{ nativeId: childId }]);
+  expect(await f.send({ kind: 'known.nativeWait.confirm', action: 'bind', userGesture: true,
+    waitRef: wait.waitRef, intentId: wait.intentId, generation: wait.generation, nativeId: childId })).toMatchObject({ ok: true });
+  await f.applier().resume(); f.store.close(); await f.store.open();
+  const confirmed = await f.store.getApplyIntent(f.scope, wait.intentId);
+  expect(confirmed?.nativeResultConfirmation).toEqual({ kind: 'candidate_event', nativeId: childId });
+  expect(confirmed?.apiResultEvidence ?? null).toBeNull();
+  // A delayed callback must use the explicit identity, not broaden the old
+  // content reservation to unrelated user work after that decision.
+  await f.emitCreated(childId);
+  const parentId = String(f.api.getNode(childId)!.parentId);
+  const manual = await create({ parentId, title: 'Child', url: 'https://child.test/' });
+  await f.emitCreated(manual.id);
+  for (let wake = 0; wake < 2; wake++) {
+    f.alarms.emit({ name: f.runtime.BOOKMARK_RECONCILE_ALARM, scheduledTime: Date.now() });
+    await f.runtime.workCoordinator.drain();
+  }
+  expect(await f.store.listBookmarkEventsByNative(f.scope, childId, 0, 100)).toHaveLength(0);
+  expect(await f.store.getMappingByColpId(f.scope, 'child')).toMatchObject({ nativeId: childId });
+  const manualEvents = await f.store.listBookmarkEventsByNative(f.scope, manual.id, 0, 100);
+  expect(manualEvents).toHaveLength(1); expect(manualEvents[0]!.kind).toBe('create');
+  expect(await f.store.getQueueByOpId(f.scope, manualEvents[0]!.opId!)).toMatchObject({
+    payload: { type: 'create_node', payload: { parentId: 'target', node: { title: 'Child', url: 'https://child.test/' } } } });
+  expect((await f.store.getApplyIntent(f.scope, wait.intentId))?.nativeResultConfirmation).toEqual(confirmed!.nativeResultConfirmation);
+  expect(f.api.calls.filter(call => call.kind === 'create')).toHaveLength(3);
+});
