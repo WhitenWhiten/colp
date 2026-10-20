@@ -225,7 +225,7 @@ export interface ScopePreviewRecord {
     readonly excludedNativeIds: readonly string[];
     readonly mounts: readonly { readonly nativeRootId: string; readonly rootRole?: SpecialFolderRole;
       readonly customSourceKey?: string; readonly materialized: boolean; readonly writable: boolean }[] };
-  readonly kind?: 'range'; readonly consumedAt?: number; readonly boundaryDigest?: string;
+  readonly kind?: 'range'; readonly consumedAt?: number; readonly consumedBy?: string; readonly boundaryDigest?: string;
   readonly addedNativeIds?: readonly string[]; readonly removedNativeIds?: readonly string[];
   readonly privateNativeIds?: readonly string[]; readonly shiftNativeIds?: readonly string[];
   readonly remoteDeleteEvidence?: readonly RemoteDeleteFreezeEntry[];
@@ -323,6 +323,7 @@ export class SyncStateError extends Error {
 export interface DiscoveredRoot { readonly nativeId: string; readonly ancestorNativeIds: readonly string[] }
 export interface ConfigureBrowserRootsInput { readonly discovered: readonly DiscoveredRoot[];
   readonly selectedNativeIds: readonly string[]; readonly privateNativeIds: readonly string[];
+  readonly expectedBoundaryVersion?: string;
   readonly status: 'ready' | 'permission_required' | 'tree_unavailable' | 'corrupt' }
 export interface BrowserRootAuthority {
   readonly selectedRoots: readonly string[]; readonly privateRoots: readonly string[];

@@ -3,6 +3,8 @@ import { createQueueBatchRepository } from './sync-state/queue-batch-repository.
 import { createLocalPlacementRecoveryRepository } from './sync-state/local-placement-recovery-repository.js';
 import { createNativeMutationRepository } from './sync-state/native-mutation-repository.js';
 import { createClassificationRepository } from './sync-state/classification-repository.js';
+import { createBoundaryCommandRepository } from './sync-state/boundary-command-repository.js';
+export type { BoundaryCommandRecord } from './sync-state/boundary-command-repository.js';
 export {
   DATABASE_NAME, DATABASE_VERSION, LARGE_QUEUE_CONTRACT_SIZE,
 } from './sync-state/schema.js';
@@ -63,6 +65,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     ...createLocalPlacementRecoveryRepository(ctx), ...createPullNativeDeferralRepository(ctx),
     open: ctx.open, close: ctx.close, ...createClassificationRepository(ctx),
     ...createNativeMutationRepository(ctx),
+    ...createBoundaryCommandRepository(ctx),
     ...createQueueBatchRepository(ctx), ...createPullIssueRepository(ctx), ...advanced, ...remoteDelete, ...batch, ...facts, ...createReorderRepository(ctx),
     registerScope: scope.registerScope, getScope: scope.getScope,
     putMapping: mapping.putMapping, deleteMapping: mapping.deleteMapping, listMappings: mapping.listMappings,

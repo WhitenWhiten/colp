@@ -19,7 +19,11 @@ describe('schema v15 native-result and live-work contract', () => {
     const store = createSyncStateStore({ indexedDB });
     const database = await store.open();
     assert.equal(database.version, DATABASE_VERSION);
-    assert.ok(DATABASE_VERSION >= 17);
+    assert.equal(DATABASE_VERSION, 21);
+    const commands = database.transaction(STORES.boundaryCommands, 'readonly').objectStore(STORES.boundaryCommands);
+    assert.ok(commands.indexNames.contains(INDEXES.boundaryCommandByState));
+    assert.ok(database.transaction(STORES.pullPages, 'readonly').objectStore(STORES.pullPages)
+      .indexNames.contains(INDEXES.pullPageByState));
     assert.ok(database.objectStoreNames.contains(STORES.intents));
     const intents = database.transaction(STORES.intents, 'readonly').objectStore(STORES.intents);
     assert.ok(intents.indexNames.contains(INDEXES.intentByNativeResult));
@@ -53,18 +57,18 @@ describe('schema v15 native-result and live-work contract', () => {
     assert.equal(backfill.status, 'complete');
   });
 
-  test('a v14 binary cannot reopen a v15 database', async () => {
+  test.each([14, 20])('a v%s binary cannot reopen the current v21 database', async (oldVersion) => {
     const indexedDB = new IDBFactory();
     await seedV14(indexedDB);
     const store = createSyncStateStore({ indexedDB });
     await store.open();
     store.close();
-    const request = indexedDB.open(DATABASE_NAME, 14);
+    const request = indexedDB.open(DATABASE_NAME, oldVersion);
     const result = await new Promise<unknown>((resolve) => {
       request.onerror = () => resolve(request.error);
       request.onsuccess = () => {
         request.result.close();
-        resolve(new Error('v14 binary unexpectedly opened v15 database'));
+        resolve(new Error(`v${oldVersion} binary unexpectedly opened v21 database`));
       };
     });
     assert.equal((result as DOMException).name, 'VersionError');
@@ -85,7 +89,7 @@ describe('schema v15 native-result and live-work contract', () => {
   test('onupgradeneeded does not cursor-scan queue or history', async () => {
     const source = await readSyncStateSource();
     const schema = await readFile(new URL('../src/sync-state/schema.ts', import.meta.url), 'utf8');
-    assert.match(schema, /DATABASE_VERSION = 20/);
+    assert.match(schema, /DATABASE_VERSION = 21/);
     const upgrade = source.match(/export function upgrade\([\s\S]*?\n\}/);
     assert.ok(upgrade);
     assert.doesNotMatch(upgrade[0]!, /objectStore\(STORES\.queue\)\.openCursor|objectStore\(STORES\.intents\)\.openCursor/);

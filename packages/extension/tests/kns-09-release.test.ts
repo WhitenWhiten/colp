@@ -150,7 +150,7 @@ describe('KNS-09 metrics and rollback', () => {
       Kns09FaultFixture;
     const diagnosis = diagnoseKns09Fault(raw);
     assert.equal(diagnosis.readableSchema, true);
-    assert.equal(diagnosis.rollbackBinary, 'keep-v20');
+    assert.equal(diagnosis.rollbackBinary, 'keep-v21');
     assert.equal(diagnosis.drainSafe, true);
     assert.equal(diagnosis.silentDelete, false);
     assert.equal(diagnosis.duplicatePushRisk, false);

@@ -3,6 +3,7 @@
  *
  * | Version | Authority |
  * | --- | --- |
+ * | 21 | Durable boundary confirmation admission, progress and results. |
  * | 20 | `pull_pages` `by_scope_pull_page_state`; `pull_events` `by_scope_pull_operation`.
  *     Upgrade from v19 is createIndex only. Queue, intents, and pull history are
  *     not cursor-scanned. |
@@ -47,9 +48,9 @@ import { stableCode } from './errors.js';
 import { scopeKey, validateScopeRecord } from './scope-key.js';
 
 export const DATABASE_NAME = 'known-phase3-indexeddb-entry';
-export const DATABASE_VERSION = 20;
+export const DATABASE_VERSION = 21;
 export const LARGE_QUEUE_CONTRACT_SIZE = 10_000;
-export const AUTHORITY_DIGEST = 'u18-v20-pull-workset-index-v1';
+export const AUTHORITY_DIGEST = 'sync-v21-boundary-commands-v1';
 export const V15_BACKFILL_KEY = 'v15-backfill';
 /**
  * The `parked` discriminator, and the key value of `by_scope_parked`.
@@ -78,6 +79,7 @@ export const STORES = Object.freeze({
   localSyncExclusions: 'local_sync_exclusions',
   batchPlans: 'bookmark_batch_plans', batchItems: 'bookmark_batch_items',
   remoteObservations: 'remote_observations', scopeCommandPlans: 'scope_command_plans',
+  boundaryCommands: 'boundary_confirmation_commands',
 });
 export const INDEXES = Object.freeze({
   queueBySequence: 'by_scope_sequence', queueByOpId: 'by_scope_op_id',
@@ -101,6 +103,7 @@ export const INDEXES = Object.freeze({
   localExclusionByDecision: 'by_scope_exclusion_decision',
   batchPlanByUpdated: 'by_scope_batch_updated', batchItemByPlanOrder: 'by_scope_batch_order',
   observationByCursor: 'by_scope_observation_cursor', commandByPhase: 'by_scope_command_phase',
+  boundaryCommandByState: 'by_scope_boundary_command_state',
 });
 export const SCOPE_ROW_STORES = Object.freeze([
   STORES.classificationIntents,
@@ -112,6 +115,7 @@ export const SCOPE_ROW_STORES = Object.freeze([
   STORES.bootstrapRuns, STORES.deletionJournal, STORES.advancedPlans, STORES.advancedSteps,
   STORES.remoteDeletePolicies, STORES.remoteDeleteDecisions, STORES.localSyncExclusions,
   STORES.batchPlans, STORES.batchItems, STORES.remoteObservations, STORES.scopeCommandPlans,
+  STORES.boundaryCommands,
 ]);
 
 export function structuralProblems(db: IDBDatabase): string[] {
@@ -123,7 +127,7 @@ export function structuralProblems(db: IDBDatabase): string[] {
     STORES.recoveryNodes, STORES.archives, STORES.diagnostics, STORES.bookmarkEvents, STORES.pullPages, STORES.pullEvents,
     STORES.effectPages, STORES.importPlans, STORES.importNodes, STORES.compactionWatermarks,
     STORES.compactSummaries, STORES.mounts, STORES.remoteDeleteDecisions, STORES.localSyncExclusions,
-    STORES.batchPlans, STORES.batchItems, STORES.remoteObservations, STORES.scopeCommandPlans], 'readonly');
+    STORES.batchPlans, STORES.batchItems, STORES.remoteObservations, STORES.scopeCommandPlans, STORES.boundaryCommands], 'readonly');
   const expected: Array<[string, readonly string[]]> = [
     [STORES.queue, [INDEXES.queueBySequence, INDEXES.queueByOpId, INDEXES.queueByStatusSequence,
       INDEXES.queueByClaimSequence, INDEXES.queueByTargetRevision]],
@@ -146,6 +150,7 @@ export function structuralProblems(db: IDBDatabase): string[] {
     [STORES.batchItems, [INDEXES.batchItemByPlanOrder]],
     [STORES.remoteObservations, [INDEXES.observationByCursor]],
     [STORES.scopeCommandPlans, [INDEXES.commandByPhase]],
+    [STORES.boundaryCommands, [INDEXES.boundaryCommandByState]],
   ];
   for (const [store, indexes] of expected) for (const index of indexes) {
     if (!tx.objectStore(store).indexNames.contains(index)) problems.push(`missing:${store}:${index}`);
@@ -177,6 +182,8 @@ function createStores(db: IDBDatabase) {
   const create = (name: string, options: IDBObjectStoreParameters) => db.objectStoreNames.contains(name)
     ? null : db.createObjectStore(name, options);
   create(STORES.classificationIntents, { keyPath: ['scopeKey', 'intentId'] });
+  const boundaryCommands = create(STORES.boundaryCommands, { keyPath: ['scopeKey', 'commandId'] });
+  boundaryCommands?.createIndex(INDEXES.boundaryCommandByState, ['scopeKey', 'state']);
   create(STORES.scopes, { keyPath: 'scopeKey' });
   const mappings = create(STORES.mappings, { keyPath: ['scopeKey', 'nativeId'] });
   mappings?.createIndex(INDEXES.mappingByNativeId, ['scopeKey', 'nativeId'], { unique: true });

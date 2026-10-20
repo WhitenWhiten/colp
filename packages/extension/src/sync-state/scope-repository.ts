@@ -22,6 +22,7 @@ import { validateBookmarkEventRecord } from './bookmark-event-repository.js';
 import { validateAckIntent, validateEngineState, validateImportNode, validateImportPlan, validateIntent } from './pull-validate.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
 import type { SyncStoreRuntime } from './runtime.js';
+import type { BoundaryCommandRecord } from './boundary-command-repository.js';
 
 
 /** Bounded corruption evidence: enough records to repair a cluster, never a ledger dump. */
@@ -190,7 +191,7 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
   const [mappings, queue, receipts, intents, recoveryHeaders, recoveryNodes, bookmarkEvents, pullPages, pullEvents,
     effectPages, ackIntents, importPlans, importNodes, compactSummaries, mountBindings, scopePreviews, bootstrapRuns,
     deletionJournal, advancedPlans, advancedSteps, remoteDeleteDecisions, localSyncExclusions,
-    batchPlans, batchItems, remoteObservations, scopeCommandPlans] = await Promise.all([
+    batchPlans, batchItems, remoteObservations, scopeCommandPlans, boundaryCommands] = await Promise.all([
     rows<ReturnType<typeof validateMapping>>(STORES.mappings), rows<QueueOperation>(STORES.queue),
     rows<ReceiptRecord>(STORES.receipts), rows<IntentRecord>(STORES.intents), rows<RecoveryHeader>(STORES.recovery),
     rows<RecoveryNodeRecord>(STORES.recoveryNodes), rows<BookmarkEventRecord>(STORES.bookmarkEvents),
@@ -203,7 +204,7 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
     rows<UnknownRecord>(STORES.remoteDeleteDecisions), rows<UnknownRecord>(STORES.localSyncExclusions),
     rows<UnknownRecord>(STORES.batchPlans), rows<UnknownRecord>(STORES.batchItems),
     rows<RemoteObservationRecord>(STORES.remoteObservations),
-    rows<ScopeCommandPlanRecord>(STORES.scopeCommandPlans)]);
+    rows<ScopeCommandPlanRecord>(STORES.scopeCommandPlans), rows<BoundaryCommandRecord>(STORES.boundaryCommands)]);
   const compactionWatermark = await requestValue(tx.objectStore(STORES.compactionWatermarks).get(key));
   const diagnostics = await requestValue<UnknownRecord[]>(tx.objectStore(STORES.diagnostics)
     .index(INDEXES.diagnosticByScope).getAll(IDBKeyRange.bound([key, ''], [key, '\uffff'])));
@@ -213,7 +214,7 @@ export async function collectExport(tx: IDBTransaction, key: string) { const sco
     engine: engine ?? null, ackIntents, importPlans, importNodes,
     compactionWatermark: compactionWatermark ?? null, compactSummaries, mountBindings, scopePreviews, bootstrapRuns,
     deletionJournal, advancedPlans, advancedSteps, remoteDeletePolicy: remoteDeletePolicy ?? null,
-    remoteDeleteDecisions, localSyncExclusions, batchPlans, batchItems, remoteObservations, scopeCommandPlans };
+    remoteDeleteDecisions, localSyncExclusions, batchPlans, batchItems, remoteObservations, scopeCommandPlans, boundaryCommands };
 }
 
 export function createScopeRepository(ctx: SyncStoreRuntime) {

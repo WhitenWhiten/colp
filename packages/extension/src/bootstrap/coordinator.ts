@@ -53,7 +53,16 @@ export function createBootstrapCoordinator(options: {
       return preview(input);
     }
     const existing = (await store.listBootstrapRuns(scope)).find((row) => row.confirmationId === input.confirmationId);
-    if (existing) return advance(existing.runId, input);
+    if (existing) {
+      if (existing.previewId !== undefined && existing.previewId !== input.previewId
+          || existing.treeDigest !== undefined && existing.treeDigest !== input.treeDigest
+          || existing.confirmationVersion !== undefined && existing.confirmationVersion !== input.confirmationVersion) {
+        throw new Error('confirmation_conflict');
+      }
+      // A worker can stop after persisting the run but before binding mounts.
+      if (existing.phase === 'confirmed') await bindMounts(input.mounts, input.confirmationVersion);
+      return advance(existing.runId, input);
+    }
     const run = await persist({
       runId: uuid(), phase: 'confirmed', bootstrapMode: input.bootstrapMode ?? 'merge',
       confirmationId: input.confirmationId, updatedAt: now(), confirmationVersion: input.confirmationVersion,
@@ -435,7 +444,9 @@ export function createBootstrapCoordinator(options: {
         ...(mount.customSourceKey ? { customSourceKey: mount.customSourceKey } : {}),
       };
     });
-    if (records.length) await store.replaceMountBindings(scope, records);
+    // Range bootstraps add mounts to an established replica. Existing detached
+    // mounts and their pause baselines remain available for a later rejoin.
+    for (const record of records) await store.putMountBinding(scope, record);
   }
 
   async function mergeMounts(input: readonly MountFact[]): Promise<MountFact[]> {

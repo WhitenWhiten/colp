@@ -4,7 +4,7 @@ Owner: KNS-09 (Release). This file pins the first-run sync release surface. It d
 
 ## Release pin
 
-The current database is IndexedDB **v20**. Do not ship a v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, or v19 binary after any profile has opened v20 (`oldVersion > DATABASE_VERSION` fails closed). `evidence:kns-09-release` produces a manifest, not an acceptance verdict.
+The current database is IndexedDB **v21**. Do not ship a v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, or v20 binary after any profile has opened v21 (`oldVersion > DATABASE_VERSION` fails closed). `evidence:kns-09-release` produces a manifest, not an acceptance verdict.
 
 Earlier 20-gate receipts were recorded against commits made before the extension moved to this repository and are not proof of the current tree. A new `kns-09:receipt` on a clean SHA is required before calling the current tree accepted.
 
@@ -13,7 +13,7 @@ Earlier 20-gate receipts were recorded against commits made before the extension
 | COLP package | `@know-n/colp` `0.0.0-development` |
 | Server package | `@know-n/colp-server` `0.1.0` (`packages/server`) |
 | Extension package | `known-extension` `0.1.0` |
-| IndexedDB | `known-phase3-indexeddb-entry` version **20** |
+| IndexedDB | `known-phase3-indexeddb-entry` version **21** |
 | Feature flags | `known.kns09.mutations.v1` default `{ coordinator: true, ui: true }` |
 | Fixture | `packages/node/fixtures/kns-00-contract/golden-scenarios.json` (digest in the receipt) |
 | Target E2E | `evidence:first-run-sync`, `evidence:trash-restore` |
@@ -26,13 +26,15 @@ Manifest command: `npm run kns-09:manifest`. Acceptance: `npm run kns-09:receipt
 
 - `coordinator: false` — first-run confirm, add-range confirm, advanced-plan confirmation, bootstrap/import resume enqueue, and **inbound Pull apply** return `sync_paused` (`kns09Paused('pull')`). Preview, status, and later stay readable; existing durable plans and queue rows remain readable for drain.
 - `ui: false` — detach / rejoin / remote-delete commands return `sync_paused`.
-- Queue drain continues. Do not install a v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, or v19 extension over a v20 database.
+- Queue drain continues. Do not install a v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, or v20 extension over a v21 database.
 
-## Schema v20 rollback rule
+## Schema v21 rollback rule
 
-Version 20 adds `pull_pages` `by_scope_pull_page_state` and `pull_events` `by_scope_pull_operation`.
+Version 21 adds durable `boundary_confirmation_commands` and their scope/state index.
+Versions 18–20 native intent and pull indexes remain unchanged, including
+`pull_pages` `by_scope_pull_page_state` and `pull_events` `by_scope_pull_operation`.
 The upgrade creates indexes populated by IndexedDB; it does not rewrite pull pages, events, queue rows, or ack intents.
-If a release must be rolled back, keep the v20 reader (`keep-v20`) and close mutation controls
+If a release must be rolled back, keep the v21 reader (`keep-v21`) and close mutation controls
 (`coordinator` and `ui`); let the existing queue drain with its original `opId`/sequence/body. Do not
 downgrade IndexedDB, delete indexes, or clear the database.
 

@@ -337,9 +337,9 @@ function validatePendingShift(value: unknown): NonNullable<MountBindingRecord['p
 function validateScopePreview(key: string, input: unknown, maxBytes: number): ScopePreviewRecord {
   const value = strictObject(clone(input), ['scopeKey', 'previewId', 'boundaryVersion', 'treeDigest',
     'bookmarkCount', 'folderCount', 'skippedCount', 'expiresAt', 'warnings', 'boundary', 'kind',
-    'consumedAt', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds', 'privateNativeIds',
+    'consumedAt', 'consumedBy', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds', 'privateNativeIds',
     'shiftNativeIds', 'remoteDeleteEvidence'], 'scope preview',
-    ['scopeKey', 'kind', 'consumedAt', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds',
+    ['scopeKey', 'kind', 'consumedAt', 'consumedBy', 'boundaryDigest', 'addedNativeIds', 'removedNativeIds',
       'privateNativeIds', 'shiftNativeIds', 'remoteDeleteEvidence']);
   if (value.scopeKey !== undefined && value.scopeKey !== key) throw new SyncStateError('preview_scope_invalid');
   if (previewHasTitlesOrUrls(value)) throw new SyncStateError('preview_content_forbidden');
@@ -365,6 +365,7 @@ function validateScopePreview(key: string, input: unknown, maxBytes: number): Sc
       mounts: boundary.mounts.map((mount) => validatePreviewMount(mount)) },
     ...(value.kind === 'range' ? { kind: 'range' as const } : {}),
     ...(value.consumedAt === undefined ? {} : { consumedAt: safeInteger(value.consumedAt, 'consumedAt') }),
+    ...(value.consumedBy === undefined ? {} : { consumedBy: boundedString(value.consumedBy, 'consumedBy') }),
     ...(value.boundaryDigest === undefined ? {} : { boundaryDigest: boundedString(value.boundaryDigest, 'boundaryDigest') }),
     ...(ids(value.addedNativeIds, 'addedNativeId') ? { addedNativeIds: ids(value.addedNativeIds, 'addedNativeId') } : {}),
     ...(ids(value.removedNativeIds, 'removedNativeId') ? { removedNativeIds: ids(value.removedNativeIds, 'removedNativeId') } : {}),

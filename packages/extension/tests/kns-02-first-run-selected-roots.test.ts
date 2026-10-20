@@ -84,7 +84,7 @@ describe('KNS-02 first-run selectedRoots authority', () => {
     const confirm = source.slice(source.indexOf('async function handleFirstRunConfirm'),
       source.indexOf('async function handleAttentionMessage'));
     assert.match(confirm, /await coordinator\.confirm\(/);
-    assert.match(confirm, /await persistConfirmedPreviewRoots\(scope, preview\)/);
+    assert.match(confirm, /await persistConfirmedPreviewRoots\(scope, preview, command\.boundaryVersion\)/);
     assert.match(source, /persistFirstRunBrowserRoots/);
     assert.match(helper, /configureBrowserRoots/);
     assert.match(helper, /bindMountMapping/);

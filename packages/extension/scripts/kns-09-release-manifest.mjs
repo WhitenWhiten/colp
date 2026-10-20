@@ -1,5 +1,5 @@
 /**
- * Write a KNS-09 release *manifest*: versions, schema v20, fixture digest.
+ * Write a KNS-09 release *manifest*: versions, schema v21, fixture digest.
  * This is not an acceptance proof.
  */
 import { createHash } from 'node:crypto';
@@ -23,7 +23,7 @@ const [extensionPkg, backendPkg, colpPkg, schema, golden, config] = await Promis
   readFile(join(packageRoot, 'config/e2e-fixture.json'), 'utf8').catch(() => ''),
 ]);
 
-const indexedDb = requireSchemaVersion(schema, 20);
+const indexedDb = requireSchemaVersion(schema, 21);
 
 const commit = await gitCommit();
 const manifest = {

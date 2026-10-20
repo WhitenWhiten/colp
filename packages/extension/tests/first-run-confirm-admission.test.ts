@@ -1,0 +1,128 @@
+// @vitest-environment happy-dom
+// Real service-worker handlers with a persistent IndexedDB replica and a controllable native tree.
+import 'fake-indexeddb/auto';
+import { readFile } from 'node:fs/promises';
+import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { bindFolders } from '../src/sync-folders.js';
+import { bindRangeAdjustment } from '../src/range-ui.js';
+import { handleRootRequest, loadRootView, readRootFolders } from '../src/sw/roots.js';
+import { sw, syncState } from '../src/sw/runtime.js';
+import { handleRangeConfirm, handleRangePreview } from '../src/sw/range.js';
+import { handleSyncProgressRequest } from '../src/sw/sync-progress.js';
+import { handleFirstRunRequest } from '../src/sw/first-run.js';
+import type { ChromeBookmarkNode } from '../src/chrome-bookmark-tree.js';
+import type { RootRequest } from '../src/types.js';
+import type { SyncScope } from '../src/sync-state-store.js';
+import { digestJson } from '../src/bookmark-event-codec.js';
+
+vi.mock('../src/sw/runtime.js', async () => {
+  const { IDBFactory } = await import('fake-indexeddb');
+  const { createSyncStateStore } = await import('../src/sync-state-store.js');
+  return { syncState: createSyncStateStore({ indexedDB: new IDBFactory() }), sw: { rootViewTokens: undefined },
+    hasBookmarkPermission: async () => true, rootScopeKey: (value: unknown) => JSON.stringify(value), DEFAULT_SYNC_FOLDER_TITLE: 'Know-N' };
+});
+vi.mock('../src/sw/scope.js', () => ({ currentSyncScope: async () => scope, restoredSyncScope: async () => scope, retireLegacyScopeForRemount: async () => {} }));
+vi.mock('../src/sw/bookmarks.js', () => ({ bookmarkListenerLifecycle: { install: vi.fn() }, recoverBookmarkEvents: vi.fn() }));
+vi.mock('../src/sw/engine.js', () => ({ scheduleSyncEngineWake: vi.fn() }));
+vi.mock('../src/sw/library.js', () => ({ resolveLibraryRootId: async () => 'canonical-root' }));
+vi.mock('../src/bookmark-subscriptions/store.js', () => ({ subscriptionStore: {
+  pendingOperations: async () => [], all: async () => [], count: async () => 0, ready: async () => {},
+} }));
+
+let scope: SyncScope, tree: ChromeBookmarkNode[], treeFailure = false, serial = 0;
+const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+beforeEach(async () => {
+  scope = { environment: 'development', serverId: 'server', serverOrigin: 'https://known.test', accountId: `audit-${++serial}`,
+    browserProfileId: 'profile', collectionId: 'collection', replicaId: 'replica', generation: 1 };
+  treeFailure = false; sw.rootViewTokens = undefined;
+  tree = [{ id: '0', title: '', children: [
+    { id: '1', parentId: '0', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [
+      { id: '10', parentId: '1', title: 'Local-only new bookmark', url: 'https://example.test/local-new' },
+    ] }, { id: '2', parentId: '0', title: 'Other bookmarks', folderType: 'other', children: [] },
+  ] }];
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}), set: async () => {} } },
+    runtime: { sendMessage: vi.fn((request: RootRequest) => handleRootRequest(request)) },
+    bookmarks: { getTree: async () => { if (treeFailure) throw new Error('bookmark service temporarily unavailable'); return structuredClone(tree); } } });
+  await syncState.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: Date.now() + 60_000 },
+    checkpoint: { serverRevision: 'r0', cursor: 'c0' }, selectedRoots: [], privateRoots: [], rootStatus: 'ready', firstRun: 'completed' });
+  const markup = await readFile('options.html', 'utf8');
+  document.body.innerHTML = markup.match(/<body[^>]*>([\s\S]*)<\/body>/u)![1]!.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, '');
+});
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterAll(() => syncState.close());
+
+test('an old first-run preview cannot restore a selection after a newer confirmed boundary cleared it', async () => {
+  await syncState.setFirstRun(scope, 'none');
+  const first = await loadRootView(scope);
+  const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: first.viewId,
+    selectedRefs: first.roots.filter(root => root.depth === 0).map(root => root.ref), excludedRefs: [] });
+  if (!preview.ok || !('previewId' in preview)) throw new Error('preview not produced');
+  // Another page's finished first sync selected only Bar. Supply its settled replica facts.
+  await syncState.setFirstRun(scope, 'completed');
+  await syncState.putMapping(scope, { nativeId: '1', colpId: 'remote-bar', rootNativeId: '1', mountId: 'mount-bar',
+    nodeKind: 'folder', rootRole: 'bookmarks-bar', projection: { revision: 'r-bar', digest: 'sha256:bar', childrenRevision: 'c-bar',
+      content: { title: 'Bookmarks bar', folderRole: 'bookmarks-bar' } } });
+  await syncState.putMapping(scope, { nativeId: '10', colpId: 'remote-bookmark', rootNativeId: '1', mountId: 'mount-bar',
+    nodeKind: 'bookmark', parentNativeId: '1', parentColpId: 'remote-bar', projection: { revision: 'r-bookmark', digest: 'sha256:bookmark',
+      content: { title: 'Local-only new bookmark', url: 'https://example.test/local-new' } } });
+  await syncState.putMountBinding(scope, { nativeRootId: '1', remoteMountNodeId: 'remote-bar', mountId: 'mount-bar',
+    rootRole: 'bookmarks-bar', status: 'active', materialized: true, boundaryVersion: '1' });
+  await syncState.configureBrowserRoots(scope, { discovered: (await readRootFolders()).discovered,
+    selectedNativeIds: ['1'], privateNativeIds: [], status: 'ready' });
+  // Then perform the real newer range-confirm path to clear the selection.
+  const currentView = await loadRootView(scope);
+  const cleared = await handleRangePreview({ kind: 'known.roots.preview', viewId: currentView.viewId, selectedRefs: [], privateRefs: [] });
+  if (!cleared.ok || !('preview' in cleared)) throw new Error('clear preview not produced');
+  expect(await handleRangeConfirm({ kind: 'known.roots.confirm', previewId: cleared.preview.previewId,
+    treeDigest: cleared.preview.treeDigest, confirmationId: crypto.randomUUID() })).toEqual({ ok: true });
+  expect((await syncState.getScope(scope))?.selectedRoots).toEqual([]);
+  const baseline = (await syncState.getMountBinding(scope, 'mount-bar'))?.pauseBaseline;
+  expect(baseline).toBeDefined();
+  const result = await handleFirstRunRequest({ kind: 'known.firstRun.confirm', previewId: preview.previewId,
+    confirmationId: crypto.randomUUID(), libraryId: scope.collectionId });
+  const after = await syncState.getScope(scope);
+  expect({ result, selectedRoots: after?.selectedRoots, mounts: (await syncState.listMountBindings(scope)).map(row => row.status),
+    baseline: (await syncState.getMountBinding(scope, 'mount-bar'))?.pauseBaseline })
+    .toMatchObject({ result: { ok: false }, selectedRoots: [], mounts: ['detached'], baseline });
+});
+
+test('committed first-run command replay cannot rewrite a later range choice', async () => {
+  await syncState.setFirstRun(scope, 'none');
+  const view = await loadRootView(scope);
+  const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
+    selectedRefs: view.roots.filter(root => root.depth === 0).map(root => root.ref), excludedRefs: [] });
+  if (!preview.ok || !('previewId' in preview)) throw new Error('missing preview');
+  const request = { kind: 'known.firstRun.confirm' as const, previewId: preview.previewId,
+    confirmationId: crypto.randomUUID(), libraryId: scope.collectionId };
+  const accepted = await handleFirstRunRequest(request);
+  expect(accepted.ok).toBe(true);
+  expect((await syncState.getBoundaryCommand(scope, request.confirmationId))?.state).toBe('committed');
+  await syncState.setFirstRun(scope, 'completed');
+  await syncState.configureBrowserRoots(scope, { discovered: (await readRootFolders()).discovered,
+    selectedNativeIds: [], privateNativeIds: [], status: 'ready' });
+  await syncState.bumpBoundaryVersion(scope);
+  const before = await syncState.getScope(scope);
+  expect(await handleFirstRunRequest(request)).toEqual(accepted);
+  expect(await syncState.getScope(scope)).toEqual(before);
+  expect(await handleFirstRunRequest({ ...request, confirmationId: crypto.randomUUID() })).toMatchObject({ ok: false });
+});
+
+test('status recovers an admitted command without changing library selection', async () => {
+  await syncState.setFirstRun(scope, 'none');
+  const view = await loadRootView(scope);
+  const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
+    selectedRefs: [view.roots[0]!.ref], excludedRefs: [] });
+  if (!preview.ok || !('previewId' in preview)) throw new Error('missing preview');
+  const commandId = crypto.randomUUID();
+  await syncState.admitBoundaryCommand(scope, { commandId, previewId: preview.previewId, kind: 'first-run',
+    boundaryVersion: preview.boundaryVersion, treeDigest: preview.treeDigest,
+    requestDigest: digestJson({ kind: 'known.firstRun.confirm', previewId: preview.previewId, libraryId: scope.collectionId }),
+    payload: { libraryId: scope.collectionId, rootNodeId: 'canonical-root' } });
+  expect(await syncState.listBootstrapRuns(scope)).toEqual([]);
+  syncState.close();
+  expect(await handleFirstRunRequest({ kind: 'known.firstRun.status' })).toMatchObject({ ok: true, firstRun: 'running' });
+  expect((await syncState.getBoundaryCommand(scope, commandId))?.state).toBe('committed');
+  expect(await syncState.listBootstrapRuns(scope)).toHaveLength(1);
+  await handleFirstRunRequest({ kind: 'known.firstRun.status' });
+  expect(await syncState.listBootstrapRuns(scope)).toHaveLength(1);
+});

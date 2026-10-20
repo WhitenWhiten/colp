@@ -29,6 +29,7 @@ export async function handleRangePreview(message: PreviewRequest): Promise<RootR
   try { scope = await currentSyncScope(); } catch { return { ok: false, error: 'not_connected' }; }
   if (!await hasBookmarkPermission()) return { ok: false, error: 'permission_required' };
   if (await kns09Paused('ui')) return { ok: false, error: 'sync_paused' };
+  if ((await syncState.listPendingBoundaryCommands(scope)).length) return { ok: false, error: 'sync_busy' };
   const selected = resolveRefs(scope, message.viewId, message.selectedRefs);
   const privateLocal = resolveRefs(scope, message.viewId, message.privateRefs);
   if (!selected || !privateLocal) return { ok: false, error: 'request_invalid' };
@@ -76,6 +77,7 @@ export async function handleRangeConfirm(message: ConfirmRequest): Promise<Range
 async function confirmRange(message: ConfirmRequest, scope: SyncScope): Promise<RangeConfirmResult> {
   if (!await hasBookmarkPermission()) return { ok: false, error: 'permission_required' };
   if (await kns09Paused('coordinator')) return { ok: false, error: 'sync_paused' };
+  if ((await syncState.listPendingBoundaryCommands(scope)).length) return { ok: false, error: 'sync_busy' };
   const recorded = await syncState.getScope(scope);
   if (recorded?.firstRun !== 'completed') return { ok: false, error: 'request_invalid' };
   const preview = await syncState.getScopePreview(scope, message.previewId);
