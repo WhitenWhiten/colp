@@ -128,7 +128,7 @@ describe('updateCollectionNode: legal merge patches', () => {
         baseInput({
           nodeId: BOOKMARK_ID,
           ifMatch: strongEntityTag(BOOKMARK_RESOURCE_REV),
-          patch: { url: 'https://example.com/docs#frag' },
+          patch: { url: 'https://example.com/docs/' },
         }),
       ),
     );
@@ -141,6 +141,19 @@ describe('updateCollectionNode: legal merge patches', () => {
     if (updated.node.kind === 'bookmark') {
       assert.equal(updated.node.url, 'https://Example.COM:443/docs/');
     }
+  });
+
+  test.each(['https://example.com/docs/#part', 'https://example.com/docs/#/projects',
+    'https://example.com/docs'])('bookmark product edits preserve the requested URL %s', async url => {
+    const state = createState();
+    seedCollection(state);
+    seedBookmark(state, { url: 'https://example.com/docs/' });
+    const updated = assertUpdated(await updateCollectionNode(createMemoryPorts(state), baseInput({
+      nodeId: BOOKMARK_ID, ifMatch: strongEntityTag(BOOKMARK_RESOURCE_REV), patch: { url },
+    })));
+    assert.equal(state.nodes.get(BOOKMARK_ID)?.url, url);
+    assert.equal(updated.node.kind, 'bookmark');
+    if (updated.node.kind === 'bookmark') assert.equal(updated.node.url, url);
   });
 
   test('PATCH title keeps a seeded iconUrl (same-origin, not null, not CDN)', async () => {
