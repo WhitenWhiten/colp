@@ -1,6 +1,7 @@
 import { digestJson } from './bookmark-event-codec.js';
+import { rejoinBoundaryDigest } from './scope-rejoin-authority.js';
 import { assertRejoinBoundary } from './scope-rejoin-boundary.js';
-import { restoreEvidence, type RejoinRestoreOrder } from './sync-state/rejoin-decision-repository.js';
+import { restoreEvidence, type RejoinRestoreOrder, type RejoinMaterializationAuthority } from './sync-state/rejoin-decision-repository.js';
 import { occupancyByNative } from './projection-native-occupancy.js';
 import { parentFirst, remoteDescendantIds } from './scope-rejoin-members.js';
 import { executeNativeCreate } from './native-create-executor.js';
@@ -61,14 +62,20 @@ export async function materializeUnmountedRejoinMembers(input: Input, all: reado
     }
     const parentNativeId = await liveParentNativeId(scoped, mapping, byColp);
     if (!parentNativeId) { unknown++; continue; }
+    const parent = await input.store.getMappingByNativeId(input.scope, parentNativeId);
+    if (!parent) throw new Error('rejoin_boundary_changed');
+    const authority: RejoinMaterializationAuthority = { before: mapping, parent, mount: destination,
+      boundaryDigest: typeof restore?.plan.rejoinDecision?.boundaryDigest === 'string' ? restore.plan.rejoinDecision.boundaryDigest
+        : rejoinBoundaryDigest(await input.store.getScope(input.scope)),
+      ...(restore ? { commandId: restore.plan.commandId, baselineDigest: restore.plan.baselineDigest } : {}) };
     if (mapping.nodeKind === 'separator') {
       await assertRejoinBoundary(scoped, mapping, { parentNativeId });
-      const rebound = await rebind(scoped, mapping, `sidecar:${mapping.colpId}`, parentNativeId);
+      const rebound = await rebind(scoped, authority, `sidecar:${mapping.colpId}`, parentNativeId);
       byColp.set(rebound.colpId, rebound); applied++; continue;
     }
-    const created = await createIndependentNative(scoped, mapping, parentNativeId, observation?.payload, byColp, restore);
+    const created = await createIndependentNative(scoped, authority, parentNativeId, observation?.payload, byColp, restore);
     if (!created) { unknown++; continue; }
-    const rebound = await rebind(scoped, mapping, created, parentNativeId);
+    const rebound = await rebind(scoped, authority, created, parentNativeId);
     byColp.set(rebound.colpId, rebound); applied++;
     const intentId = restore ? `rejoin-restore:${digestJson({ commandId: restore.plan.commandId, token: restore.plan.baselineDigest, colpId: mapping.colpId })}`
       : `rejoin:${input.mount.mountId}:${mapping.colpId}`;
@@ -110,10 +117,13 @@ async function liveChromeId(input: Input, nativeId: string | undefined): Promise
   return await input.getNative(nativeId) ? nativeId : undefined;
 }
 
-async function createIndependentNative(input: Input, mapping: MappingInput, parentNativeId: string,
+async function createIndependentNative(input: Input, authority: RejoinMaterializationAuthority, parentNativeId: string,
   observation: JsonObject | undefined, byColp: Map<string, MappingInput>, restore?: Restore): Promise<string | undefined> {
   if (!input.createNative) return undefined;
+  const mapping = authority.before;
   const recorded = await input.store.getScope(input.scope);
+  const parentBefore = await input.getNative(parentNativeId);
+  if (!parentBefore) throw new Error('rejoin_parent_missing');
   const node = chromeNode(mapping, observation);
   const index = await insertionIndex(input, mapping, parentNativeId, byColp, restore);
   const intentId = restore ? `rejoin-restore:${digestJson({ commandId: restore.plan.commandId, token: restore.plan.baselineDigest, colpId: mapping.colpId })}`
@@ -132,24 +142,34 @@ async function createIndependentNative(input: Input, mapping: MappingInput, pare
     create: async () => {
       input.crash?.('after_rejoin_create_intent');
       await assertRejoinBoundary(input, mapping, { parentNativeId,
-        ...(typeof restore?.plan.rejoinDecision?.boundaryDigest === 'string'
-          ? { expectedBoundary: restore.plan.rejoinDecision.boundaryDigest } : {}) });
+        expectedBoundary: authority.boundaryDigest });
+      await input.store.assertRejoinMaterialization(input.scope, authority);
+      const parentNow = await input.getNative(parentNativeId);
+      if (!parentNow || parentNow.parentId !== parentBefore.parentId) throw new Error('rejoin_boundary_changed');
       return input.createNative!({ parentId: parentNativeId, index,
         ...(title === undefined ? {} : { title }), ...(url === undefined ? {} : { url }) });
     },
   });
-  if (outcome.result !== 'applied_with_evidence' || !await input.getNative(outcome.nativeId)) return undefined;
+  if (outcome.result !== 'applied_with_evidence') return undefined;
+  const created = await input.getNative(outcome.nativeId);
+  if (!created) return undefined;
+  const parentAfter = await input.getNative(parentNativeId);
+  if (created.parentId !== parentNativeId || !parentAfter || parentAfter.parentId !== parentBefore.parentId) {
+    throw new Error('rejoin_boundary_changed');
+  }
   const owner = occupancyByNative({ liveMappings: [...byColp.values()] }).get(outcome.nativeId);
   if (owner !== undefined && owner !== mapping.colpId) return undefined;
   return outcome.nativeId;
 }
 
-async function rebind(input: Input, mapping: MappingInput, nativeId: string, parentNativeId: string): Promise<MappingInput> {
+async function rebind(input: Input, authority: RejoinMaterializationAuthority, nativeId: string, parentNativeId: string): Promise<MappingInput> {
+  const mapping = authority.before;
   const rebound = {
     ...strip(mapping), nativeId, parentNativeId, rootNativeId: input.mount.nativeRootId, mountId: input.mount.mountId,
     ...(mapping.parentColpId ? { parentColpId: mapping.parentColpId } : {}),
   };
-  await input.store.putMapping(input.scope, rebound);
+  await assertRejoinBoundary(input, mapping, { parentNativeId, expectedBoundary: authority.boundaryDigest });
+  await input.store.commitRejoinMaterialization(input.scope, authority, rebound);
   return rebound;
 }
 

@@ -1,10 +1,10 @@
 import { digestJson } from '../bookmark-event-codec.js';
-import { rejoinBoundaryDigest } from '../scope-rejoin-authority.js';
+import { rejoinAttemptDigest, rejoinBoundaryDigest } from '../scope-rejoin-authority.js';
 import { SyncStateError, type JsonObject, type MappingInput, type ScopeCommandPlanRecord,
-  type SyncScope, type UnknownRecord } from './types.js';
+  type MountBindingRecord, type SyncScope, type UnknownRecord } from './types.js';
 import { clone } from './codec.js';
-import { requestValue, requireActiveScope, runTransaction, scopeRowsRange } from './idb.js';
-import { STORES } from './schema.js';
+import { requestValue, requireActiveScope, runTransaction, scopeRowsRange, transactionDone } from './idb.js';
+import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { readScopeCommandRecord, writeScopeCommandRecord } from './scope-command-evidence.js';
@@ -16,6 +16,10 @@ export interface RejoinRestoreEvidence {
   readonly changes: readonly RejoinRestoreChange[];
   readonly orders: readonly RejoinRestoreOrder[];
   readonly observationDigest: string;
+}
+export interface RejoinMaterializationAuthority {
+  readonly before: MappingInput; readonly parent: MappingInput; readonly mount: MountBindingRecord;
+  readonly boundaryDigest: string; readonly commandId?: string; readonly baselineDigest?: string | null;
 }
 export function restoreEvidence(record: ScopeCommandPlanRecord): RejoinRestoreEvidence {
   const value = record.rejoinDecision?.restore;
@@ -115,5 +119,53 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
       await writeScopeCommandRecord(tx, key, { ...plan, phase: 'applying', updatedAt: Date.now() }, ctx.maxRecordBytes);
     });
   }
-  return { confirmRejoinDecision, prepareRejoinRestore };
+  const materializationStores = [...names, STORES.mappings];
+  async function requireMaterialization(tx: IDBTransaction, key: string, input: RejoinMaterializationAuthority) {
+    const scope = await requireActiveScope(tx, key);
+    const mount = await requestValue<MountBindingRecord | undefined>(tx.objectStore(STORES.mounts).get([key, input.mount.mountId]));
+    if (rejoinBoundaryDigest(scope) !== input.boundaryDigest || !mount || mount.status !== input.mount.status
+      || mount.boundaryVersion !== input.mount.boundaryVersion
+      || rejoinAttemptDigest(mount, scope) !== rejoinAttemptDigest(input.mount, scope)
+      || digestJson(mount.pendingRemoteDelete ? { ...mount.pendingRemoteDelete } : null)
+        !== digestJson(input.mount.pendingRemoteDelete ? { ...input.mount.pendingRemoteDelete } : null)) failMaterialization();
+    const mappings = tx.objectStore(STORES.mappings);
+    const raw = await requestValue(mappings.index(INDEXES.mappingByColpId).get([key, input.before.colpId]));
+    const parent = await requestValue(mappings.get([key, input.parent.nativeId]));
+    if (!raw || mappingEvidenceDigest(validateMappingRecord(key, raw, ctx.maxRecordBytes)) !== mappingEvidenceDigest(input.before)
+      || !parent || mappingIdentityDigest(validateMappingRecord(key, parent, ctx.maxRecordBytes)) !== mappingIdentityDigest(input.parent)
+      || input.before.parentColpId && input.before.parentColpId !== input.parent.colpId) failMaterialization();
+    if (input.commandId) {
+      const rawPlan = await requestValue(tx.objectStore(STORES.scopeCommandPlans).get([key, input.commandId]));
+      if (!rawPlan) failMaterialization();
+      const plan = await readScopeCommandRecord(tx, key, rawPlan, ctx.maxRecordBytes);
+      if (plan.phase !== 'applying' || plan.retryReason !== 'keep_remote' || plan.baselineDigest !== input.baselineDigest
+        || !plan.dependencies.includes(input.before.colpId)) failMaterialization();
+    }
+  }
+  async function assertRejoinMaterialization(scope: SyncScope, input: RejoinMaterializationAuthority) {
+    const key = keyFor(scope); const tx = (await ctx.open()).transaction(materializationStores, 'readonly');
+    const done = transactionDone(tx);
+    try { await requireMaterialization(tx, key, input); } finally { await done; }
+  }
+  /** Native awaits cannot turn a missing or advanced mapping into permission to recreate its identity. */
+  async function commitRejoinMaterialization(scope: SyncScope, input: RejoinMaterializationAuthority, after: MappingInput) {
+    ctx.assertWritable(); const key = keyFor(scope);
+    const mapping = validateMapping(key, after, ctx.maxRecordBytes);
+    if (mapping.colpId !== input.before.colpId || mapping.parentNativeId !== input.parent.nativeId
+      || mapping.rootNativeId !== input.mount.nativeRootId || mapping.mountId !== input.mount.mountId) failMaterialization();
+    await runTransaction(await ctx.writableDatabase(), materializationStores, 'readwrite', async tx => {
+      await requireMaterialization(tx, key, input);
+      const mappings = tx.objectStore(STORES.mappings);
+      const occupant = await requestValue<MappingInput | undefined>(mappings.get([key, mapping.nativeId]));
+      if (occupant && occupant.colpId !== mapping.colpId) failMaterialization();
+      mappings.delete([key, input.before.nativeId]); mappings.put(mapping);
+    });
+  }
+  return { confirmRejoinDecision, prepareRejoinRestore, assertRejoinMaterialization, commitRejoinMaterialization };
 }
+
+function mappingIdentityDigest(value: MappingInput): string {
+  const { projection: _projection, scopeKey: _key, ...identity } = value as MappingInput & { scopeKey?: string };
+  return digestJson(identity as unknown as JsonObject);
+}
+function failMaterialization(): never { throw new SyncStateError('rejoin_boundary_changed'); }
