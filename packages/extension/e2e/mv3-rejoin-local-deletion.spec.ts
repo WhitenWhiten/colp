@@ -52,7 +52,17 @@ test('paused native folder deletion reconciles with another browser and Keep clo
     const panel = pageA.locator('#rejoin-decisions');
     await expect(panel.locator('[data-rejoin-action="keep_remote"]')).toBeVisible({ timeout: 30_000 });
     await panel.locator('[data-rejoin-action="keep_remote"]').click();
-    await expect.poll(() => find(pageA, 'Rejoin cloud folder'), { timeout: 60_000 }).toHaveLength(1);
+    try {
+      await expect.poll(() => find(pageA, 'Rejoin cloud folder'), { timeout: 60_000 }).toHaveLength(1);
+    } catch (error) {
+      // Preserve the actual failed choice. Reading the export cannot retry it,
+      // accept a newer token, mutate native state, or manufacture a receipt.
+      const snapshot = await evidence<Record<string, unknown>>(pageA, 'exportOutboundPushEvidence');
+      const diagnostic = { feedback: await panel.textContent(), mappings: snapshot.mappings,
+        mountBindings: snapshot.mountBindings, scopeCommandPlans: snapshot.scopeCommandPlans,
+        intents: snapshot.intents, queue: snapshot.queue };
+      throw new Error(`Keep cloud did not materialize: ${JSON.stringify(diagnostic).slice(0, 24_000)}`, { cause: error });
+    }
     const [restored] = await find(pageA, 'Rejoin cloud folder');
     expect(restored!.id).not.toBe(folderA.id);
     expect(await pageA.evaluate(id => chrome.bookmarks.getChildren(id).then(rows => rows.map(row => row.title)), restored!.id))
