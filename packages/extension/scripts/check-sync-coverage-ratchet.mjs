@@ -117,6 +117,7 @@ export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
   'src/sync-state/queue-hold.ts',
   'src/sync-state/queue-issue-repository.ts',
   'src/sync-state/queue-live-work.ts',
+  'src/sync-state/queue-read-repository.ts',
   'src/sync-state/queued-upload-boundary-repository.ts',
   'src/sync-state/recovery-repository.ts',
   'src/sync-state/rejoin-decision-repository.ts',

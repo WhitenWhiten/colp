@@ -8,7 +8,7 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 122 executable owners, for 177 total.
+This pass adds 123 executable owners, for 178 total.
 
 The recovery owners include the native content and placement barriers, ordinary range moves,
 and confirmation of an earlier unknown native create after a newer Snapshot. Their behavior
@@ -18,6 +18,9 @@ decisions across IDB reopen; a recovered cursor alone is not evidence of correct
 The manifest capability parser, advanced first-run execution, native event codec, and Reset
 confirmation UI are executable owners too. The generated browser title validator is measured
 through real ingress calls; generated provenance does not exempt its runtime branches.
+
+The queue read repository is included because bounded reads must retain one coherent view
+of each requested operation and its receipt while bootstrap checks fresh durable state.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
@@ -131,6 +134,7 @@ through real ingress calls; generated provenance does not exempt its runtime bra
 - `src/sync-state/queue-hold.ts`
 - `src/sync-state/queue-issue-repository.ts`
 - `src/sync-state/queue-live-work.ts`
+- `src/sync-state/queue-read-repository.ts`
 - `src/sync-state/queued-upload-boundary-repository.ts`
 - `src/sync-state/recovery-repository.ts`
 - `src/sync-state/rejoin-decision-repository.ts`

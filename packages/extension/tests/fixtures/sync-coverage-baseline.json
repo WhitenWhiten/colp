@@ -1008,6 +1008,12 @@
       "functions": 80,
       "statements": 80
     },
+    "src/sync-state/queue-read-repository.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/sync-state/queued-upload-boundary-repository.ts": {
       "lines": 80,
       "branches": 80,
