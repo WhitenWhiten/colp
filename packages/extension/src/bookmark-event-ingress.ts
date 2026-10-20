@@ -31,6 +31,9 @@ export async function resolveIngressBoundary(store: Store, scope: SyncScope): Pr
   const boundaryIds = new Set([...(recorded?.privateRoots ?? []), ...(mounts.length ? [] : recorded?.selectedRoots ?? [])]);
   const mappings = await Promise.all([...boundaryIds].map(id => store.getMappingByColpId(scope, id)));
   const byColp = new Map(mappings.flatMap(mapping => mapping ? [[mapping.colpId, mapping.nativeId] as const] : []));
+  // Losing a current private-root identity makes the boundary unprovable.
+  // It must never remove that privacy restriction after an earlier check.
+  if (recorded?.privateRoots?.some(id => !byColp.has(id))) throw new Error('upload_boundary_unavailable');
   const firstRun = recorded?.firstRun;
   const bootstrapLive = (await store.listBootstrapRuns(scope)).some((run) => bootstrapRunInFlight(run.phase));
   const rejoinLive = new Set<string>();
