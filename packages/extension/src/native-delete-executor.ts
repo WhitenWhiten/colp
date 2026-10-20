@@ -60,6 +60,7 @@ export async function executeRemoteDeleteMembers(input: {
   readonly members: readonly DeleteMember[];
   readonly mappings: readonly MappingInput[];
   readonly writable: boolean;
+  readonly retainLocalWork?: (mapping: MappingInput, native: BookmarkNode) => Promise<boolean>;
   readonly crash?: (boundary: string) => void;
 }): Promise<RemoteDeleteMemberOutcome> {
   const frozen = await persistMemberSet(input);
@@ -132,7 +133,7 @@ export async function executeRemoteDeleteMembers(input: {
         title: current.title ?? '', ...(current.url === undefined ? {} : { url: current.url }),
         ...(current.parentId === undefined ? {} : { parentId: current.parentId }) } },
     } });
-    if (!mapping || Object.keys(unqueuedNativeContentFields(current,
+    if (!mapping || await input.retainLocalWork?.(mapping, current) || Object.keys(unqueuedNativeContentFields(current,
       nativeContent(mapping.projection.content ?? {}), {})).length > 0) {
       results[row.colpId] = 'retained';
       await writeResults(input, frozen.members, results);
