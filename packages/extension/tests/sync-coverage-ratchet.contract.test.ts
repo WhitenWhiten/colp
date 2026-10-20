@@ -111,6 +111,8 @@ describe('Extension Sync coverage ratchet [SYNC-Q-021]', () => {
       'src/pull-item-set-aside.ts', 'src/sync-state/pull-workset.ts', 'src/sw/scope.ts', 'src/sw/scope-rebuild.ts',
       'src/pull-native-content-barrier.ts', 'src/pull-native-snapshot-resume.ts', 'src/pull-range-move.ts',
       'src/recovery-content.ts', 'src/recovery-delete.ts', 'src/recovery-placement.ts',
+      'src/bookmark-event-codec.ts', 'src/bootstrap/advanced-run.ts', 'src/generated/browser-ingress-title.ts',
+      'src/manifest-client.ts', 'src/replica-rebuild-ui.ts',
       'src/queued-upload-batch-boundary.ts', 'src/sync-state/queued-upload-boundary-repository.ts']) {
       expect(SYNC_AUDIT_COVERAGE_FILES).toContain(file);
     }

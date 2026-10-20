@@ -360,6 +360,12 @@
       "functions": 80,
       "statements": 80
     },
+    "src/bookmark-event-codec.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/bookmark-event-ingress.ts": {
       "lines": 80,
       "branches": 80,
@@ -385,6 +391,12 @@
       "statements": 80
     },
     "src/bookmark-subscriptions/guards.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/bootstrap/advanced-run.ts": {
       "lines": 80,
       "branches": 80,
       "functions": 80,
@@ -444,7 +456,19 @@
       "functions": 80,
       "statements": 80
     },
+    "src/generated/browser-ingress-title.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
     "src/kns-09-release.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/manifest-client.ts": {
       "lines": 80,
       "branches": 80,
       "functions": 80,
@@ -589,6 +613,12 @@
       "statements": 80
     },
     "src/remote-delete-local-work.ts": {
+      "lines": 80,
+      "branches": 80,
+      "functions": 80,
+      "statements": 80
+    },
+    "src/replica-rebuild-ui.ts": {
       "lines": 80,
       "branches": 80,
       "functions": 80,

@@ -8,22 +8,28 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 117 executable owners, for 172 total.
+This pass adds 122 executable owners, for 177 total.
 
 The recovery owners include the native content and placement barriers, ordinary range moves,
 and confirmation of an earlier unknown native create after a newer Snapshot. Their behavior
 tests preserve the original native result, current canonical authority, and durable item
 decisions across IDB reopen; a recovered cursor alone is not evidence of correct native state.
 
+The manifest capability parser, advanced first-run execution, native event codec, and Reset
+confirmation UI are executable owners too. The generated browser title validator is measured
+through real ingress calls; generated provenance does not exempt its runtime branches.
+
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
 - `src/bookmark-child-order.ts`
 - `src/bookmark-content-capture.ts`
+- `src/bookmark-event-codec.ts`
 - `src/bookmark-event-ingress.ts`
 - `src/bookmark-event-projection.ts`
 - `src/bookmark-move-echo.ts`
 - `src/bookmark-own-create-repair.ts`
 - `src/bookmark-subscriptions/guards.ts`
+- `src/bootstrap/advanced-run.ts`
 - `src/bootstrap/local-facts.ts`
 - `src/bootstrap/upload-rejection.ts`
 - `src/browser-root-identity.ts`
@@ -33,7 +39,9 @@ decisions across IDB reopen; a recovered cursor alone is not evidence of correct
 - `src/first-run-draft.ts`
 - `src/first-run-preview-copy.ts`
 - `src/first-run-ui.ts`
+- `src/generated/browser-ingress-title.ts`
 - `src/kns-09-release.ts`
+- `src/manifest-client.ts`
 - `src/metadata-sync-policy.ts`
 - `src/native-call-result.ts`
 - `src/options.ts`
@@ -58,6 +66,7 @@ decisions across IDB reopen; a recovered cursor alone is not evidence of correct
 - `src/rejoin-decisions-ui.ts`
 - `src/remote-delete-apply.ts`
 - `src/remote-delete-local-work.ts`
+- `src/replica-rebuild-ui.ts`
 - `src/replica-repair-capability.ts`
 - `src/replica-retirement.ts`
 - `src/scope-range.ts`
