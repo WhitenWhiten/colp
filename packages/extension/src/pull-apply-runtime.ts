@@ -40,6 +40,7 @@ import { hasQueuedSelfCreate, provisionalSelfCreateMapping } from './pull-self-c
 import { commitSupersededByLocalDelete } from './pull-local-delete-supersede.js';
 import { logBackgroundFailure } from './sw/background-failure.js';
 import { nativeWritePreimage, recordUnstartedPullRefusal } from './pull-native-write-boundary.js';
+import { createCheckedPullNative } from './pull-native-create-boundary.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -297,9 +298,9 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
           unmountedNativeId(effect.placement.parentId)));
       } else if (plan.kind === 'recovered_folder') {
         const outcome = await executePullNativeCreate(options, api, event, plan.mount.nativeRootId, eventId, async () =>
-          api.create({ parentId: plan.mount.nativeRootId,
-            index: await nativeIndex(effect.placement.afterId, effect.placement.beforeId),
-            ...chromeCreate(effect.node) }));
+          createCheckedPullNative({ ...options, api, parentColpId: plan.mount.remoteMountNodeId!, placement: effect.placement,
+            expectedBoundaryVersion: plan.mount.boundaryVersion, details: { parentId: plan.mount.nativeRootId,
+              index: await nativeIndex(effect.placement.afterId, effect.placement.beforeId), ...chromeCreate(effect.node) } }));
         if (outcome.result !== 'applied_with_evidence') throw new Error(outcome.result === 'failed' ? outcome.code : 'native_result_unknown');
         mappings.push(mappingFor(effect.node, outcome.nativeId, plan.mount.nativeRootId, plan.mount.remoteMountNodeId,
           effect.nodeChildrenRevision, plan.mount.nativeRootId));
@@ -322,8 +323,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         const parent = await requireMapping(effect.placement.parentId, 'parent'); const parentNative = boundNativeId(parent, mounts);
         const parentRoot = isRecoveryPlaceholder(parent.rootNativeId) ? parentNative : parent.rootNativeId;
         const outcome = await executePullNativeCreate(options, api, event, parentNative, eventId, async () =>
-          api.create({ parentId: parentNative,
-            index: await nativeIndex(effect.placement.afterId, effect.placement.beforeId), ...chromeCreate(effect.node) }));
+          createCheckedPullNative({ ...options, api, parent, parentColpId: parent.colpId, placement: effect.placement,
+            details: { parentId: parentNative, index: await nativeIndex(effect.placement.afterId, effect.placement.beforeId), ...chromeCreate(effect.node) } }));
         if (outcome.result !== 'applied_with_evidence') {
           throw new Error(outcome.result === 'failed' ? outcome.code : 'native_result_unknown');
         }
@@ -368,11 +369,9 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         cursor: String((await options.store.getPullEvent(options.scope, eventId))?.cursor ?? '0'),
         nativeIndex, parentRevisionMapping: revision => parentRevisionMapping(revision, event),
         recoverCreated: async () => executePullNativeCreate(options, api, event, parent.nativeId,
-          `${event.cursor}:${event.operation.opId}`, async () => api.create({
-            parentId: parent.nativeId,
-            index: await nativeIndex(effect.placement.afterId, effect.placement.beforeId),
-            ...chromeCreate(effect.node),
-          })),
+          `${event.cursor}:${event.operation.opId}`, async () => createCheckedPullNative({ ...options, api, parent,
+            parentColpId: parent.colpId, placement: effect.placement, expectedBoundaryVersion: plan.destBoundaryVersion ?? undefined,
+            details: { parentId: parent.nativeId, index: await nativeIndex(effect.placement.afterId, effect.placement.beforeId), ...chromeCreate(effect.node) } })),
       });
       mappings.push(...applied.mappings); deleteNativeIds.push(...applied.deleteNativeIds);
       if (applied.observations) observations.push(...applied.observations);

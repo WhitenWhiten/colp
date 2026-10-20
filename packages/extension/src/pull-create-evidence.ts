@@ -7,6 +7,8 @@ import type { PullApplierOptions, PullBookmarkApi } from './pull-applier-types.j
 import { executeNativeCreate, type NativeCreateOutcome } from './native-create-executor.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import type { IntentRecord, MappingInput } from './sync-state-store.js';
+import { NativeWriteNotStartedError } from './native-call-result.js';
+import { createCheckedPullNative } from './pull-native-create-boundary.js';
 
 type Event = Extract<SyncPullEventV02, { kind: 'operation' }>;
 
@@ -33,7 +35,7 @@ export function createExpectation(effect: Event['effect'], parentNativeId: strin
 export async function executePullNativeCreate(options: PullApplierOptions, api: PullBookmarkApi, event: Event,
   parentId: string, eventId: string, create: () => Promise<{ readonly id: string }>,
   colpId = createColpId(event)): Promise<NativeCreateOutcome> {
-  return executeNativeCreate({
+  try { return await executeNativeCreate({
     scope: options.scope, store: options.store, api, intentId: `intent:${eventId}`,
     owner: {
       scopeKey: scopeKey(options.scope), generation: options.scope.generation, commandId: 'pull',
@@ -42,7 +44,18 @@ export async function executePullNativeCreate(options: PullApplierOptions, api: 
     parentNativeId: parentId, expected: expectedChrome(event), create,
     operationId: event.operation.opId, crash: options.crash, now: options.now,
     liveWorkKind: 'create',
-  });
+  }); } catch (error) {
+    if (error instanceof NativeWriteNotStartedError) {
+      const intent = await options.store.getApplyIntent(options.scope, `intent:${eventId}`);
+      if (intent?.eventId === eventId && intent.nativeResult === 'not_started' && intent.replayState === 'not_started'
+          && !intent.apiResultEvidence && !intent.nativeEventEvidence) {
+        await options.store.persistApplyIntentFacts(options.scope, intent.intentId, {
+          state: 'intent_prepared', eventState: 'intent_prepared', apiPhase: 'intent_prepared',
+        });
+      }
+    }
+    throw error;
+  }
 }
 
 /** Recovery/execute entry. Only `applied_with_evidence` yields a nativeId; never create on unknown. */
@@ -58,8 +71,9 @@ export async function recoverCreatedNative(options: PullApplierOptions, api: Pul
     return { result: 'failed', code: 'pull_effect_kind_invalid' };
   }
   const eventId = `${event.cursor}:${event.operation.opId}`;
-  return executePullNativeCreate(options, api, event, parentId, eventId, async () => api.create({
-    parentId, ...chromeCreate(effect.node),
+  return executePullNativeCreate(options, api, event, parentId, eventId, () => createCheckedPullNative({
+    ...options, api, parentColpId: effect.placement.parentId, placement: effect.placement,
+    details: { parentId, ...chromeCreate(effect.node) },
   }), effect.node.id);
 }
 
@@ -76,7 +90,11 @@ export async function recoverCreatedNativeEvidence(options: PullApplierOptions, 
       eventId: intent.intentId, colpId, substep: 'create',
     },
     parentNativeId: parentId, expected, liveWorkKind: 'create', crash: options.crash, now: options.now,
-    create: async () => api.create({ parentId, ...expected }),
+    create: async () => {
+      const parent = await options.store.getMappingByNativeId(options.scope, parentId);
+      if (!parent) throw new NativeWriteNotStartedError(new SyncFailureError('need_authority'));
+      return createCheckedPullNative({ ...options, api, parent, parentColpId: parent.colpId, details: { parentId, ...expected } });
+    },
   });
 }
 

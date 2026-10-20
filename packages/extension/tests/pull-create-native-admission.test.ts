@@ -31,6 +31,12 @@ for (const kind of ['create', 'restore', 'materialize'] as const) {
         const attempts = await f.store.listApplyIntents(f.scope);
         expect(attempts.some(row => row.nativeResult === 'not_started' && row.replayState === 'not_started')).toBe(true);
         expect(attempts.some(row => row.apiResultEvidence?.nativeId)).toBe(false);
+        expect((await f.store.listPullEvents(f.scope))[0]?.state).toBe('intent_prepared');
+        f.restart();
+        await expect((await f.applier()).resume()).rejects.toThrow('recovery_required');
+        expect(rawCreate).not.toHaveBeenCalled();
+        expect((await f.store.getScope(f.scope))?.metadata?.recoveryCode).toBe('need_authority');
+        expect((await f.store.listApplyIntents(f.scope)).some(row => row.nativeResult === 'result_unknown')).toBe(false);
       }
     } finally { f.close(); }
   });
@@ -68,6 +74,42 @@ test.each(['unchanged', 'private-parent', 'excluded-parent'] as const)
     }
     expect(f.native.getNode('2')?.parentId).toBe('8');
     expect(f.native.getNode('6')?.parentId).toBe('2');
+  } finally { f.close(); }
+});
+
+test.each(['create', 'restore', 'materialize'] as const)
+('a real %s create call interrupted before its receipt stays unknown and never repeats', async kind => {
+  const f = await pullNativeWrapperFixture();
+  try {
+    const applier = await stage(f, kind), create = f.native.create.bind(f.native);
+    const raw = vi.spyOn(f.native, 'create').mockImplementationOnce(async details => {
+      await create(details); throw new Error('worker_crash');
+    });
+    await expect(applier.resume()).rejects.toThrow('worker_crash');
+    expect(raw).toHaveBeenCalledOnce();
+    f.restart();
+    await expect((await f.applier()).resume()).rejects.toThrow('native_result_unknown');
+    expect(raw).toHaveBeenCalledOnce(); expect(await f.native.getChildren('4')).toHaveLength(1);
+    expect((await f.store.getCursor(f.scope))?.cursor).not.toBe('next');
+    expect(await f.store.listAckIntents(f.scope)).toEqual([]);
+  } finally { f.close(); }
+});
+
+test.each(['create', 'restore', 'materialize'] as const)
+('an unstarted %s retries after a public parent edit without losing the local title', async kind => {
+  const f = await pullNativeWrapperFixture();
+  try {
+    const applier = await stage(f, kind), raw = vi.spyOn(f.native, 'create');
+    const injected = duringNativeAdmission(() => f.native.update('4', { title: 'Locally renamed parent' }));
+    await expect(applier.resume()).rejects.toBeInstanceOf(NativeWriteNotStartedError);
+    expect(injected()).toBe(true); expect(raw).not.toHaveBeenCalled();
+    expect((await f.store.listPullEvents(f.scope))[0]?.state).toBe('intent_prepared');
+    expect((await f.store.getScope(f.scope))?.lifecycle).toBe('active');
+    f.restart(); await (await f.applier()).resume();
+    expect(raw).toHaveBeenCalledOnce();
+    expect(await f.native.getChildren('4')).toHaveLength(1);
+    expect(f.native.getNode('4')?.title).toBe('Locally renamed parent');
+    expect((await f.store.getCursor(f.scope))?.cursor).toBe('next');
   } finally { f.close(); }
 });
 

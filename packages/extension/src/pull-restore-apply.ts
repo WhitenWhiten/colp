@@ -10,6 +10,8 @@ import {
   boundNativeId, isNonChromeNativeId, planRestored, unmountedNativeId,
 } from './pull-mount-apply.js';
 import { currentPullMapping } from './pull-mapping-view.js';
+import { createCheckedPullNative } from './pull-native-create-boundary.js';
+import { NativeWriteNotStartedError } from './native-call-result.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -268,6 +270,8 @@ function inputNode(input: RestoreCall): PullNode {
 }
 
 async function createRestoredNative(input: RestoreCall, parentNativeId: string, node: PullNode, index: number): Promise<string> {
+  const effect = input.event.effect;
+  if (effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
   const phase = await restorePhase(input, parentNativeId, nodeCreate(node));
   if (phase.kind === 'applied') {
     if (!phase.nativeId) throw new SyncFailureError('native_result_unknown');
@@ -280,10 +284,11 @@ async function createRestoredNative(input: RestoreCall, parentNativeId: string, 
   let recovered: Awaited<ReturnType<typeof executePullNativeCreate>>;
   try {
     recovered = await executePullNativeCreate(input.options, input.api, input.event, parentNativeId,
-      input.eventId, async () => input.api.create({ parentId: parentNativeId, index, ...chromeCreate(node) }),
+      input.eventId, () => createCheckedPullNative({ ...input, parentColpId: effect.placement.parentId, placement: effect.placement,
+        details: { parentId: parentNativeId, index, ...chromeCreate(node) } }),
       node.id);
   } catch (error) {
-    if (isWorkerCrash(error)) throw error;
+    if (isWorkerCrash(error) || error instanceof NativeWriteNotStartedError) throw error;
     await noteStartedCreate(input, error);
     throw error;
   }

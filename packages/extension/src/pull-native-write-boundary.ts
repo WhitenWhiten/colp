@@ -9,7 +9,12 @@ import type { LocalSyncExclusionRecord } from './sync-state/remote-delete-reposi
 
 export type NativeWriteBoundaryStore = Pick<ReturnType<typeof createSyncStateStore>,
   'getScope' | 'listMountBindings' | 'getMappingByColpId' | 'getMappingByNativeId'
-  | 'getLocalSyncExclusion' | 'listPullEvents'>;
+  | 'getLocalSyncExclusion' | 'listPullEvents'>
+  & Partial<Pick<ReturnType<typeof createSyncStateStore>, 'getApplyIntent'>>;
+
+export type NativeCreateParentProof = { readonly kind: 'bound_root' } | {
+  readonly kind: 'create_receipt'; readonly eventId: string; readonly intentId: string; readonly commandId: string;
+};
 
 interface Input {
   readonly store: NativeWriteBoundaryStore; readonly scope: SyncScope; readonly api: PullBookmarkApi;
@@ -18,6 +23,9 @@ interface Input {
   readonly preimage: BookmarkNode;
   readonly parent?: true;
   readonly children?: readonly BookmarkNode[];
+  /** A new materialized parent is not published until its whole Pull event commits. */
+  readonly parentProof?: NativeCreateParentProof;
+  readonly expectedBoundaryVersion?: string;
   /** Only the delete owner may prove that an existing Snapshot hold is now
    * covered by the user's exact, still-current explicit delete decision. */
   readonly canDeleteExcluded?: (exclusion: LocalSyncExclusionRecord) => Promise<boolean>;
@@ -119,17 +127,40 @@ async function boundary(input: Input) {
   ]);
   if (record?.lifecycle !== 'active' || record.rootStatus !== undefined
       && !['ready', 'nested_normalized'].includes(record.rootStatus) || virtualNativeId(mapping.nativeId)) denied();
-  if (!current || mappingIdentity(current) !== mappingIdentity(mapping)) changed();
   if (occupied && occupied.colpId !== mapping.colpId) denied();
   const candidates = mounts.filter(mount => mapping.mountId ? mount.mountId === mapping.mountId
     : mount.nativeRootId === mapping.rootNativeId);
   const mount = candidates[0];
   if (mounts.length && (candidates.length !== 1 || mount?.status !== 'active' || !mount.remoteMountNodeId)) denied();
+  if (input.expectedBoundaryVersion !== undefined && mount?.boundaryVersion !== input.expectedBoundaryVersion) denied();
   const rootNativeId = mount?.nativeRootId ?? mapping.rootNativeId;
   if (!rootNativeId || virtualNativeId(rootNativeId) || !input.parent && mapping.nativeId === rootNativeId) denied();
+  let proofIdentity: string | undefined;
+  if (input.parentProof) {
+    if (!input.parent) denied();
+    if (input.parentProof.kind === 'bound_root') {
+      if (!mount || mount.remoteMountNodeId !== mapping.colpId || mapping.nativeId !== rootNativeId
+          || !current?.nativeId.startsWith('recovery:')
+          || mappingIdentity({ ...current, nativeId: rootNativeId, rootNativeId }) !== mappingIdentity(mapping)) denied();
+    } else {
+      const proof = input.parentProof, receipt = await store.getApplyIntent?.(scope, proof.intentId);
+      const rootReceipt = proof.intentId === `intent:${proof.eventId}`;
+      if (!receipt || proof.intentId !== (rootReceipt ? `intent:${proof.eventId}` : `intent:${proof.eventId}:range:${mapping.colpId}`)
+          || receipt.generation !== scope.generation || receipt.colpId !== mapping.colpId
+          || receipt.commandId !== proof.commandId || receipt.liveWorkKind !== 'create'
+          || receipt.substep !== (rootReceipt ? 'create' : 'range-materialize')
+          || receipt.nativeParentId !== mapping.parentNativeId || receipt.nativeResult !== 'applied_with_evidence'
+          || receipt.apiResultEvidence?.nativeId !== mapping.nativeId
+          || receipt.nativeResultConfirmation?.kind !== 'api_return'
+          || receipt.nativeResultConfirmation.nativeId !== mapping.nativeId) denied();
+      proofIdentity = JSON.stringify([receipt.intentId, receipt.generation, receipt.commandId, receipt.colpId,
+        receipt.nativeParentId, receipt.nativeResult, receipt.apiResultEvidence, receipt.nativeResultConfirmation]);
+    }
+  } else if (!current || mappingIdentity(current) !== mappingIdentity(mapping)) changed();
   if (mount) {
     const root = await currentPullMapping(store, scope, mount.remoteMountNodeId!);
-    if (!root || root.nativeId !== rootNativeId) denied();
+    if (!root || root.nativeId !== rootNativeId
+        && !(input.parentProof?.kind === 'bound_root' && root.colpId === mapping.colpId)) denied();
   }
   const privateRoots = record.privateRoots ?? [];
   const privateMappings = await Promise.all(privateRoots.map(id => store.getMappingByColpId(scope, id)));
@@ -140,7 +171,7 @@ async function boundary(input: Input) {
     record.lifecycle, record.rootStatus, record.boundaryVersion, record.selectedRoots, privateRoots,
     privateMappings.map(row => [row!.colpId, row!.nativeId]), rootNativeId,
     mount ? [mount.mountId, mount.status, mount.remoteMountNodeId, mount.boundaryVersion] : null,
-    mappingIdentity(current), durable && mappingIdentity(durable), occupied && mappingIdentity(occupied),
+    current && mappingIdentity(current), durable && mappingIdentity(durable), occupied && mappingIdentity(occupied), proofIdentity,
   ]) };
 }
 
