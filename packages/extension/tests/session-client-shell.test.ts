@@ -94,6 +94,16 @@ function manifest() {
 }
 
 describe('P3-27 real Session client', () => {
+  test('retirement v2 remains readable by the existing required-field Manifest parser', () => {
+    const value = manifest();
+    Object.assign(value.mounts[0]!['https://known.example/extensions/sync-retire'], { version: 2,
+      reauthorization: { proofHeader: 'Known-Sync-Replica-Proof', proof: 'pinned-session', authority: 'current-account-installation' } });
+    const found = discoverSyncEndpoints(value, config());
+    assert.equal(found.syncRetire, 'https://known.example/extensions/sync-retire');
+    assert.equal(found.syncSessions, 'https://known.example/v1/session');
+    assert.equal(found.syncPush, 'https://known.example/v1/push');
+  });
+
   test('serializes authority renewal so a concurrent caller observes the committed Session', async () => {
     const queue = createSessionAuthorityQueue(); const events: string[] = []; let release!: () => void;
     assert.equal(queue.isInFlight(), false);

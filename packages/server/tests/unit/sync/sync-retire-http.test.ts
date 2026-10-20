@@ -54,6 +54,7 @@ function retire(origin: string, init: {
   readonly authorization?: string;
   readonly requestOrigin?: string;
   readonly body?: string;
+  readonly proof?: string;
 } = {}) {
   const headers: Record<string, string> = {
     Accept: 'application/problem+json',
@@ -62,6 +63,7 @@ function retire(origin: string, init: {
     'Idempotency-Key': init.key ?? 'retire-key-1',
     'Known-Sync-Session': init.sessionId ?? SESSION_ID,
   };
+  if (init.proof !== undefined) headers['Known-Sync-Replica-Proof'] = init.proof;
   if (init.body !== undefined) headers['Content-Type'] = 'application/json';
   return fetch(`${origin}/extension-internal/sync/replica`, {
     method: 'DELETE', headers, ...(init.body === undefined ? {} : { body: init.body }),
@@ -81,19 +83,38 @@ test('publishes one namespaced Manifest extension contract instead of inventing 
   const mount = candidate.manifest.mounts[0]! as Record<string, unknown>;
   assert.deepEqual(mount[SYNC_RETIRE_NAMESPACE], {
     href: 'https://known.example/extension-internal/sync/replica',
+    version: 2,
     method: 'DELETE',
     requiredHeaders: ['Authorization', 'Origin', 'Known-Sync-Session', 'Idempotency-Key'],
     requestBody: false,
     successStatus: 204,
+    reauthorization: { proofHeader: 'Known-Sync-Replica-Proof', proof: 'pinned-session', authority: 'current-account-installation' },
   });
   assert.equal(Object.hasOwn(candidate.manifest.mounts[0]!.endpoints, 'syncRetire'), false);
   assert.equal(createValidatorRegistry().validate('manifest', candidate.manifest).valid, true);
+  assert.equal(createValidatorRegistry().validate('manifestV02', { ...candidate.manifest,
+    protocol: 'https://know-n.com/colp/spec/0.2', protocolVersions: ['0.1', '0.2'],
+    syncEffectPages: 'https://known.example/effects/{effectId}/pages/{pageNumber}',
+  }).valid, true);
   assert.deepEqual(discoverSyncRetireEndpoint(candidate.manifest), {
     href: 'https://known.example/extension-internal/sync/replica', method: 'DELETE',
   });
   const unnamespaced = structuredClone(candidate.manifest) as unknown as Record<string, unknown>;
   ((unnamespaced.mounts as Record<string, unknown>[])[0]!).syncRetire = { href: 'https://attacker.example' };
   assert.equal(createValidatorRegistry().validate('manifest', unnamespaced).valid, false);
+});
+
+test('opt-in retirement proof retains command identity and still requires actual credential verification', async () => {
+  const server = await start();
+  assert.equal((await retire(server.origin)).status, 204);
+  assert.equal((await retire(server.origin, { proof: SESSION_ID })).status, 204);
+  assert.equal(server.calls[0]?.replicaProof, undefined);
+  assert.equal(server.calls[1]?.replicaProof, SESSION_ID);
+  assert.equal(server.calls[0]?.requestFingerprint, server.calls[1]?.requestFingerprint);
+  assert.equal((await retire(server.origin, { proof: 'other-session' })).status, 400);
+  assert.equal((await retire(server.origin, { proof: `${SESSION_ID},${SESSION_ID}` })).status, 400);
+  assert.equal((await retire(server.origin, { proof: SESSION_ID, authorization: 'Bearer forged' })).status, 401);
+  assert.equal(server.calls.length, 2);
 });
 
 test('rejects a body before JWKS and has no request or response DTO surface', async () => {
@@ -120,17 +141,19 @@ test('rejects a body before JWKS and has no request or response DTO surface', as
   assert.equal(response.body, null);
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
   assert.equal(server.calls.length, 1);
-  assert.equal(server.calls[0]?.sessionId, SESSION_ID);
-  assert.equal(server.calls[0]?.idempotencyKey, 'retire-key-1');
+  const call = server.calls[0] as SyncRetireApplicationInput | undefined;
+  assert.equal(call?.sessionId, SESSION_ID);
+  assert.equal(call?.idempotencyKey, 'retire-key-1');
 });
 
 test('requires raw singleton authorization, origin, session and idempotency headers', async () => {
-  for (const duplicate of ['Authorization', 'Origin', 'Known-Sync-Session', 'Idempotency-Key']) {
+  for (const duplicate of ['Authorization', 'Origin', 'Known-Sync-Session', 'Idempotency-Key', 'Known-Sync-Replica-Proof']) {
     const server = await start();
     const url = new URL('/extension-internal/sync/replica', server.origin);
     const status = await new Promise<number>((resolve, reject) => {
       const headers = ['Authorization', AUTHORIZATION, 'Origin', ORIGIN,
         'Known-Sync-Session', SESSION_ID, 'Idempotency-Key', 'retire-key'];
+      if (duplicate === 'Known-Sync-Replica-Proof') headers.push(duplicate, SESSION_ID);
       headers.push(duplicate, duplicate === 'Authorization' ? 'Bearer other'
         : duplicate === 'Origin' ? ORIGIN : duplicate === 'Known-Sync-Session' ? 'other-session' : 'other-key');
       const request = rawRequest({ hostname: url.hostname, port: url.port, path: url.pathname,

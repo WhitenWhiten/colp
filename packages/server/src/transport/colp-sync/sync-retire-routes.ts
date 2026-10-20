@@ -39,6 +39,7 @@ interface Admission {
   readonly idempotencyKey: string;
   readonly sessionId: string;
   readonly origin: string;
+  readonly replicaProof?: string;
 }
 
 export function registerSyncRetireRoutes(
@@ -64,8 +65,11 @@ export function registerSyncRetireRoutes(
       const origin = exactlyOne(fields, 'origin', 'origin_not_allowed');
       const sessionId = exactlyOne(fields, 'known-sync-session', 'invalid_json');
       const idempotencyKey = exactlyOne(fields, 'idempotency-key', 'invalid_json');
+      const replicaProof = fields.has('known-sync-replica-proof')
+        ? exactlyOne(fields, 'known-sync-replica-proof', 'invalid_json') : undefined;
       if (!dependencies.allowedOrigins.includes(origin)) throw new SyncRetireHttpError('origin_not_allowed');
-      if (!TOKEN.test(sessionId) || !TOKEN.test(idempotencyKey)) throw new SyncRetireHttpError('invalid_json');
+      if (!TOKEN.test(sessionId) || !TOKEN.test(idempotencyKey)
+        || (replicaProof !== undefined && (!TOKEN.test(replicaProof) || replicaProof !== sessionId))) throw new SyncRetireHttpError('invalid_json');
       if (fields.has('content-type') || fields.has('transfer-encoding')
           || (fields.get('content-length')?.some((value) => value !== '0') ?? false)) {
         throw new SyncRetireHttpError('unsupported_media_type');
@@ -95,7 +99,8 @@ export function registerSyncRetireRoutes(
         throw new SyncRetireHttpError('rate_limited');
       }
       if (subjectOutcome.kind === 'failed') throw new SyncRetireHttpError('service_unavailable');
-      admissions.set(request, Object.freeze({ credential, idempotencyKey, sessionId, origin }));
+      admissions.set(request, Object.freeze({ credential, idempotencyKey, sessionId, origin,
+        ...(replicaProof === undefined ? {} : { replicaProof }) }));
     });
     syncApp.setErrorHandler((error, _request, reply) => sendProblem(reply, normalizeError(error)));
     syncApp.delete(dependencies.path, async (request, reply) => {
@@ -107,6 +112,7 @@ export function registerSyncRetireRoutes(
           sessionId: admission.sessionId,
           origin: admission.origin,
           idempotencyKey: admission.idempotencyKey,
+          ...(admission.replicaProof === undefined ? {} : { replicaProof: admission.replicaProof }),
           requestFingerprint: createHash('sha256').update([
             'DELETE', dependencies.path, admission.origin, admission.sessionId,
           ].join('\n'), 'utf8').digest('hex'),
