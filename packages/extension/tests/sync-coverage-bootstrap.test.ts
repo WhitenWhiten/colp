@@ -31,18 +31,33 @@ function complete() {
     Object.fromEntries(metrics.map(metric => [metric, { pct: 90 }]))]));
 }
 
-function run(root: string, args: readonly string[]) {
+type CliExecutor = (file: string, args: readonly string[], options: {
+  cwd: string; encoding: 'utf8'; stdio: 'pipe';
+}) => string;
+function run(root: string, args: readonly string[], execute: CliExecutor = execFileSync) {
   try {
-    const stdout = execFileSync(process.execPath, [join(root, 'scripts', 'check-sync-coverage-ratchet.mjs'), ...args],
+    const stdout = execute(process.execPath, [join(root, 'scripts', 'check-sync-coverage-ratchet.mjs'), ...args],
       { cwd: root, encoding: 'utf8', stdio: 'pipe' });
     return { status: 0, stdout, stderr: '' };
   } catch (error) {
-    const failure = error as { status?: number; stdout?: string; stderr?: string };
-    return { status: failure.status ?? -1, stdout: failure.stdout ?? '', stderr: failure.stderr ?? '' };
+    const failure = error as { status?: number; code?: string; stdout?: string; stderr?: string; message?: string };
+    // Some sandbox launchers report status=0 alongside EPERM. A thrown launch
+    // error is never a successful CLI run, even when no child stderr exists.
+    const status = !failure.code && typeof failure.status === 'number' && failure.status !== 0 ? failure.status : -1;
+    return { status, stdout: failure.stdout ?? '', stderr: failure.stderr || failure.message || String(error) };
   }
 }
 
 describe('sync coverage baseline bootstrap', () => {
+  it('reports a refused subprocess as a launcher failure even if its error contains status zero', () => {
+    const denied = Object.assign(new Error('spawnSync node EPERM'), { code: 'EPERM', status: 0, stdout: '', stderr: '' });
+    const result = run('/fixture', [], () => { throw denied; });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('EPERM');
+    expect(run('/fixture', [], () => { throw { status: 2, stderr: 'coverage measurement missing' }; }))
+      .toEqual({ status: 2, stdout: '', stderr: 'coverage measurement missing' });
+  });
+
   it('creates the first reviewed baseline from a complete measurement', () => {
     const { root, baselinePath } = scaffold(complete());
     expect(existsSync(baselinePath)).toBe(false);
