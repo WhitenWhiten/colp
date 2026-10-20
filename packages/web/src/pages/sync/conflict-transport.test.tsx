@@ -146,9 +146,12 @@ it('a node moved into a managed folder keeps its conflict visible and cannot res
   expect(JSON.parse(String(f.posts[1]!.init?.body))).toEqual({ resolution: 'incoming' })
 })
 
-it('an initially unavailable node has no implicit server choice and keeps a refresh route', async () => {
+it('missing resolution context keeps the existing item values without implying the bookmark is gone', async () => {
+  // A live target can lack retained historical context needed for resolution.
+  // resource_not_found describes that missing context as well as missing nodes.
   const f = await screen([conflict(1, { allowedResolutions: [], resolutionBlockedReason: 'resource_not_found' })], 0)
-  expect(document.body.textContent).toContain('This item is currently unavailable.')
+  expect(document.body.textContent).toContain('Information needed to resolve this conflict is unavailable.')
+  expect(document.body.textContent).not.toContain('This item is currently unavailable.')
   expect(document.body.textContent).toContain('Server title 1')
   expect(document.body.textContent).toContain('Browser title')
   expect(document.querySelector('input[type=radio]:checked')).toBeNull()

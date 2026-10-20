@@ -21,7 +21,7 @@ export function ConflictEditor({ conflict, draft, onDraft, onSubmit, onReplay, o
   const unavailableMessage = conflict.resolutionBlockedReason === 'node_read_only'
     ? 'This item is read-only in its current folder.'
     : conflict.resolutionBlockedReason === 'resource_not_found'
-      ? 'This item is currently unavailable.'
+      ? 'Information needed to resolve this conflict is unavailable.'
       : 'No resolution is currently available for this conflict.'
   const canSubmit = !busy && !frozen && canResolveConflict(conflict, draft.resolution)
   const choose = (resolution: Resolution) => onDraft({ resolution, phase: 'idle', message: null, frozen: null })
