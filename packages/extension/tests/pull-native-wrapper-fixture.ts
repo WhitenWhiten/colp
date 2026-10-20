@@ -12,7 +12,8 @@ import { rejoinSession } from './rejoin-http-fixture.js';
  * Only the external Chrome port and subscription read timing are controlled. */
 export async function pullNativeWrapperFixture() {
   const f = await snapshotNativeFixture(), native = honestChrome();
-  for (const node of f.chrome.nodes.values()) native.seed(node);
+  for (const node of [...f.chrome.nodes.values()].sort((left, right) =>
+    (left.parentId ?? '').localeCompare(right.parentId ?? '') || (left.index ?? 0) - (right.index ?? 0))) native.seed(node);
   vi.stubGlobal('chrome', { bookmarks: native });
   await f.store.putMapping(f.scope, { ...f.privateRoot, nativeId: '4', colpId: 'destination',
     projection: { revision: 'destination-r1', digest: 'destination', childrenRevision: 'destination-c1',

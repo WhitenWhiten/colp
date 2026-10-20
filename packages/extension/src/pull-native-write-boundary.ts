@@ -4,7 +4,7 @@ import { currentPullMapping } from './pull-mapping-view.js';
 import { virtualNativeId } from './projection-native-occupancy.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import type { PullApplierOptions, PullBookmarkApi } from './pull-applier-types.js';
-import type { MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
+import type { JsonObject, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export type NativeWriteBoundaryStore = Pick<ReturnType<typeof createSyncStateStore>,
   'getScope' | 'listMountBindings' | 'getMappingByColpId' | 'getMappingByNativeId'
@@ -65,16 +65,28 @@ export async function performCheckedNativeWrite<T>(api: PullBookmarkApi, check: 
 }
 
 /** Never erase an earlier native invocation or a partial delete ledger. Only
- * a new single update refused by the adapter is proven not to have started. */
+ * a new single update/move refused by the adapter is proven not to have started. */
 export async function recordUnstartedPullRefusal(options: Pick<PullApplierOptions, 'store' | 'scope'>,
   entered: { readonly eventId?: unknown; readonly state?: unknown }, kind: string, error: unknown): Promise<void> {
-  if (!(error instanceof NativeWriteNotStartedError) || kind !== 'node_content_updated'
+  if (!(error instanceof NativeWriteNotStartedError) || !['node_content_updated', 'node_moved'].includes(kind)
       || !['staged', 'intent_prepared'].includes(String(entered.state))) return;
   const intent = await options.store.getApplyIntent(options.scope, `intent:${String(entered.eventId)}`);
   if (!intent || intent.apiResultEvidence || intent.nativeEventEvidence) return;
+  if (kind === 'node_moved' && intent.anchors?.rangeAction !== 'native_move') return;
   await options.store.persistApplyIntentFacts(options.scope, intent.intentId, {
     nativeResult: 'not_started', replayState: 'not_started', state: 'intent_prepared', eventState: 'intent_prepared',
   });
+}
+
+export function nativeWritePreimage(node: BookmarkNode): JsonObject {
+  return Object.fromEntries(['id', 'parentId', 'index', 'title', 'url', 'unmodifiable']
+    .flatMap(key => node[key as keyof BookmarkNode] === undefined ? [] : [[key, node[key as keyof BookmarkNode]]])) as JsonObject;
+}
+
+export function storedNativeWritePreimage(value: unknown): BookmarkNode | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !('id' in value)
+      || typeof value.id !== 'string') return undefined;
+  return value as BookmarkNode;
 }
 
 async function boundary(input: Input) {

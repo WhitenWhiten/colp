@@ -39,7 +39,7 @@ import { pauseBindingForMapping } from './sync-state/remote-observation.js';
 import { hasQueuedSelfCreate, provisionalSelfCreateMapping } from './pull-self-create.js';
 import { commitSupersededByLocalDelete } from './pull-local-delete-supersede.js';
 import { logBackgroundFailure } from './sw/background-failure.js';
-import { recordUnstartedPullRefusal } from './pull-native-write-boundary.js';
+import { nativeWritePreimage, recordUnstartedPullRefusal } from './pull-native-write-boundary.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -189,7 +189,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       return { eventKind: 'move', nativeId: mapping.nativeId, parentNativeId: parent.nativeId,
         details: { parentId: parent.nativeId, index, oldParentId: before?.parentId ?? mapping.parentNativeId ?? '',
           oldIndex: before?.index ?? 0 }, anchors: moveAnchors(plan, { afterId: effect.placement.afterId,
-          beforeId: effect.placement.beforeId, index }), preStateDigest: mapping.projection.digest }; }
+          beforeId: effect.placement.beforeId, index, ...(before ? { nativePreimage: nativeWritePreimage(before) } : {}) }), preStateDigest: mapping.projection.digest }; }
     const looked = isVirtualNativeId(mapping.nativeId) ? { class: 'not_found' as const } : await lookup(mapping.nativeId);
     if (looked.class === 'permission_denied' || looked.class === 'managed_not_writable'
       || looked.class === 'other_failure') {

@@ -11,6 +11,7 @@ import type { ProjectionIntent } from './recovery-overlay.js';
 import type { RecoveryContentStore } from './recovery-content.js';
 import type { JsonObject, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
+import { performCheckedNativeWrite, prepareNativeWriteCheck } from './pull-native-write-boundary.js';
 
 type RecoveryPlacementStore = RecoveryContentStore & Pick<ReturnType<typeof createSyncStateStore>,
   'listQueueByTarget' | 'listBookmarkEventsByNative'>;
@@ -80,10 +81,17 @@ export async function applySnapshotPlacement(input: {
     throw new SnapshotItemPreconditionError('snapshot_placement_local_identity_unproven', { nodeId: prior.colpId, nativeId: prior.nativeId });
   }
 
-  await api.move(prior.nativeId, {
+  const source = looked.nodes[0];
+  const parent = await lookupBookmark(id => api.get(id), parentNativeId);
+  if (!source || parent.class !== 'present' || !parent.nodes[0]) throw new SyncFailureError('snapshot_placement_parent_missing');
+  const sourceCheck = await prepareNativeWriteCheck({ store, scope, api, mapping: prior, preimage: source });
+  const parentCheck = await prepareNativeWriteCheck({ store, scope, api, mapping: remoteParent,
+    preimage: parent.nodes[0], parent: true, children: await api.getChildren(parentNativeId) });
+  const check = async () => { await parentCheck(); await sourceCheck(); };
+  await performCheckedNativeWrite(api, check, beforeNative => api.move(prior.nativeId, {
     parentId: parentNativeId,
     ...(intent.index === undefined ? {} : { index: intent.index }),
-  });
+  }, beforeNative));
   return mappingWithStoredNativeContent(incoming, prior);
 }
 
