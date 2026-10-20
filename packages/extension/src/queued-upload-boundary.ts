@@ -2,7 +2,7 @@ import { assertRejoinDeleteUpload } from './scope-rejoin-upload.js';
 import { assertBootstrapUploadAllowed } from './bootstrap/upload-boundary.js';
 import { bootstrapOpId, mountResolveOpIdMatches } from './bootstrap/run-identity.js';
 import { isAdvancedSnapshotFactDefinition, parseAdvancedPlanMetadata, parseAdvancedStepDefinition } from './bootstrap/advanced-record-validation.js';
-import { resolveAdvancedReference } from './bootstrap/advanced-remote-executor.js';
+import { advancedRemoteOperationFields } from './bootstrap/advanced-remote-executor.js';
 import { classifyBookmarkApiFailure } from './bookmark-api-error.js';
 import { digestJson, plannedCreateNativeId } from './bookmark-event-codec.js';
 import { resolveIngressBoundary } from './bookmark-event-ingress.js';
@@ -161,20 +161,24 @@ async function advancedUploadAuthority(input: {
         || run.confirmationVersion !== metadata.boundaryVersion)) throw new QueuedUploadExcludedError('unselected_range');
     const completed = loaded.steps.slice(0, row.order);
     const inner = object(queue.payload.payload);
-    const ownRevision = step.action === 'create' ? undefined : [...completed].reverse().find(prior =>
-      prior.evidence?.targetId === step.target.nodeId && typeof prior.evidence.revision === 'string')?.evidence?.revision;
-    if (step.action === 'create') {
-      const expected = { parentId: resolveAdvancedReference(step.parent, completed, 'targetId'), afterId: null,
-        beforeId: null, node: step.payload.node };
-      if (queue.payload.baseRevision !== null || queue.payload.targetId !== undefined
-          || digestJson(inner ?? {}) !== digestJson(expected as unknown as JsonObject)) return unavailable();
-    } else if (queue.payload.targetId !== step.target.nodeId
-        || queue.payload.baseRevision !== (ownRevision ?? step.payload.baseRevision)) return unavailable();
+    let expected = advancedRemoteOperationFields(step, completed);
+    if (step.action === 'move') {
+      // These original fences cannot authorize another target or destination.
+      // A fresh snapshot may have advanced after an unknown response, so keep
+      // the immutable queue's valid fences for the server's compare-and-swap.
+      if (typeof inner?.baseSourceParentRevision !== 'string' || !inner.baseSourceParentRevision
+          || typeof inner.baseTargetParentRevision !== 'string' || !inner.baseTargetParentRevision) return unavailable();
+      expected = { ...expected, payload: { ...expected.payload as JsonObject, baseSourceParentRevision: inner.baseSourceParentRevision,
+        baseTargetParentRevision: inner.baseTargetParentRevision } };
+    }
+    const actual = { type: queue.payload.type, payload: inner ?? {},
+      ...(queue.payload.baseRevision === undefined ? {} : { baseRevision: queue.payload.baseRevision }),
+      ...(queue.payload.targetId === undefined ? {} : { targetId: queue.payload.targetId }) };
+    if (digestJson(actual) !== digestJson(expected)) return unavailable();
 
     let mountNative: string;
     let sourceNative: string;
     if (step.action === 'delete') {
-      if (digestJson(inner ?? {}) !== digestJson({ reason: 'advanced_bootstrap' })) return unavailable();
       // A cloud-only command carries no native content. Its frozen snapshot
       // ancestry must lead to one of this confirmation's original mounts.
       const definitions = loaded.steps.map(record => parseAdvancedStepDefinition(record.definition));
