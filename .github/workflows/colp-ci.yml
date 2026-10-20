@@ -659,8 +659,12 @@ jobs:
       - name: Frozen server harness install
         run: npm ci
         working-directory: packages/server
-      - name: Build the real web product for the cross-product journey
-        if: matrix.sync-group == 'web'
+      - name: Read lifecycle build requirements
+        id: acceptance
+        run: node scripts/run-sync-lifecycle.mjs --build-requirements >> "$GITHUB_OUTPUT"
+        working-directory: packages/extension
+      - name: Build the real web product for cross-product journeys
+        if: steps.acceptance.outputs.web-product == 'true'
         run: npm ci && npm run build
         working-directory: packages/web
       - name: Validate the acceptance manifest and exact-commit release gate

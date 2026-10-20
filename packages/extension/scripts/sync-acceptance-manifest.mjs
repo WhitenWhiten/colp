@@ -25,6 +25,12 @@ export function acceptanceSpecs(group) {
   return specs;
 }
 
+/** These specs serve the built web product from the real PostgreSQL harness. */
+const webProductSpecs = new Set(['e2e/mv3-sync-resilience.spec.ts', 'e2e/mv3-library-web-flow.spec.ts']);
+export function acceptanceNeedsWebProduct(group) {
+  return acceptanceSpecs(group).some(spec => webProductSpecs.has(spec));
+}
+
 // Require actual successful jobs, including each shard. A docs-only ci-gate
 // success with skipped acceptance owners cannot qualify a release artifact.
 export const requiredReleaseJobs = Object.freeze([

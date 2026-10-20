@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { acceptanceSpecs, requiredReleaseJobs, syncAcceptanceGroups } from './sync-acceptance-manifest.mjs';
+import { acceptanceNeedsWebProduct, acceptanceSpecs, requiredReleaseJobs, syncAcceptanceGroups } from './sync-acceptance-manifest.mjs';
 import { verifyCiAcceptance } from './verify-ci-acceptance.mjs';
 
 const sha = 'a'.repeat(40), repository = 'WhitenWhiten/colp';
@@ -21,6 +21,15 @@ test('every declared lifecycle group contains distinct, existing browser specs',
   const workflow = readFileSync(resolve(import.meta.dirname, '../../..', '.github/workflows/colp-ci.yml'), 'utf8');
   const matrix = workflow.match(/sync-group: \[([^\]]+)\]/u)?.[1].split(',').map(value => value.trim());
   assert.deepEqual(matrix, Object.keys(syncAcceptanceGroups));
+});
+
+test('cross-product recovery and web lanes declare their build dependency before launching browsers', () => {
+  for (const [group, needed] of [['onboarding', false], ['recovery', true], ['web', true]]) {
+    assert.equal(acceptanceNeedsWebProduct(group), needed);
+  }
+  const workflow = readFileSync(resolve(import.meta.dirname, '../../..', '.github/workflows/colp-ci.yml'), 'utf8');
+  assert.match(workflow, /id: acceptance\n\s+run: node scripts\/run-sync-lifecycle\.mjs --build-requirements >> "\$GITHUB_OUTPUT"/u);
+  assert.match(workflow, /if: steps\.acceptance\.outputs\.web-product == 'true'\n\s+run: npm ci && npm run build\n\s+working-directory: packages\/web/u);
 });
 
 test('release accepts a fully passed run on exactly the tagged main commit', async () => {

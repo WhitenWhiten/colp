@@ -2,13 +2,16 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { acceptanceSpecs } from './sync-acceptance-manifest.mjs';
+import { acceptanceNeedsWebProduct, acceptanceSpecs } from './sync-acceptance-manifest.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const specs = acceptanceSpecs(process.env.KNOWN_SYNC_ACCEPTANCE_GROUP ?? process.argv[2]);
+const group = process.env.KNOWN_SYNC_ACCEPTANCE_GROUP ?? process.argv[2];
+const specs = acceptanceSpecs(group);
 for (const spec of specs) if (!existsSync(resolve(root, spec))) throw new Error(`Missing acceptance spec: ${spec}`);
 
-if (process.argv.includes('--list')) {
+if (process.argv.includes('--build-requirements')) {
+  process.stdout.write(`web-product=${acceptanceNeedsWebProduct(group)}\n`);
+} else if (process.argv.includes('--list')) {
   process.stdout.write(JSON.stringify(specs) + '\n');
 } else {
   // This is deliberately the strict xvfb wrapper; no headless/skip fallback.
