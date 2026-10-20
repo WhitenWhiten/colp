@@ -104,11 +104,10 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (current.state === 'intent_prepared' && !createLike && event.effect.kind !== 'node_moved') {
         await options.store.markPullBrowserCallStarted(options.scope, raw.eventId as string);
       }
-      if (current.state === 'browser_call_started' && createLike) {
+      if ((current.state === 'browser_call_started' || current.state === 'native_event_observed') && createLike) {
+        // onCreated correlation is a candidate only. Both states must use the
+        // executor's API receipt / explicit user-confirmation classification.
         await recoverUncertainCreate(event);
-      } else if (current.state === 'native_event_observed' && (event.effect.kind === 'node_created'
-          || event.effect.kind === 'node_restored')) {
-        await recoverObservedCreate(raw.eventId as string, event);
       } else if (current.state === 'browser_call_started' || current.state === 'native_event_observed') {
         await recoverPostState(raw.eventId as string, event);
       }
@@ -500,32 +499,6 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       deleteNativeIds: existing && isRecoveryPlaceholder(existing.nativeId) ? [existing.nativeId] : [],
       apiResultEvidence: {
         operationId: event.operation.opId, recovery: 'uncertain_create' } });
-  }
-
-  async function recoverObservedCreate(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
-    const effect = event.effect; if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') {
-      throw new SyncFailureError('pull_effect_kind_invalid'); }
-    const intent = await options.store.getApplyIntent(options.scope, `intent:${eventId}`);
-    const nativeId = intent?.nativeEventEvidence?.nativeId
-        ?? intent?.apiResultEvidence?.nativeId;
-    if (typeof nativeId !== 'string') { await enterRecoveryRequired('create_evidence_missing'); throw new SyncFailureError('recovery_required'); }
-    const parent = await requireMapping(effect.placement.parentId, 'parent').catch((error: unknown) => {
-      if (effect.kind === 'node_restored') return null;
-      throw error;
-    });
-    // Evidence read: a native that is gone simply fails the verification below (fall back to
-    // `callAndCommit` for a restore, else `create_evidence_missing`); real API faults still throw.
-    const live = readOptional(parent ? await lookup(nativeId) : undefined);
-    if (!parent || !live || live.parentId !== parent.nativeId) {
-      if (effect.kind === 'node_restored') { await callAndCommit(eventId, event); return; }
-      await enterRecoveryRequired('create_evidence_missing'); throw new SyncFailureError('recovery_required');
-    }
-    await options.store.recordPullApiEvidence(options.scope, eventId, { operationId: event.operation.opId,
-      resultDigest: digest({ nativeId }) });
-    await options.store.commitPullEvent(options.scope, eventId, { mappings: [mappingFor(effect.node, nativeId,
-      parent.nativeId, parent.colpId, effect.kind === 'node_created' ? effect.nodeChildrenRevision : null, parent.rootNativeId),
-      await parentRevisionMapping(effect.parentRevision, event, nativeId)],
-      apiResultEvidence: { operationId: event.operation.opId, recovery: 'native_event' } });
   }
 
   async function recoverPostState(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
