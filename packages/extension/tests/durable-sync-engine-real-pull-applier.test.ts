@@ -35,7 +35,7 @@ function remoteCreateBookmark() {
 
 describe('A-12/SR-16 durable engine harness over the real Pull applier', () => {
   test('the real createPullApplier applies an event-carrying Pull page and persists it', async () => {
-    const fixture = await setup({ useRealPullApplier: true });
+    const fixture = await setup({ useRealPullApplier: true, confirmedMount: true });
     fixture.pullResponses.push(json(200, pullEventsPage([remoteCreateBookmark()], 'cursor-1')));
     fixture.ackResponses.push(json(200, ack('cursor-1')));
 

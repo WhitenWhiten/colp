@@ -10,7 +10,7 @@ const create = (sequence: number, parentId: string) => pullFixtures.createEvent(
 
 describe('P1 a Pull event this browser cannot apply is one item, and the Ack says so', () => {
   test('the rest of the page applies, the cursor acks, and the Ack carries the warning', async () => {
-    const fixture = await setup({ useRealPullApplier: true });
+    const fixture = await setup({ useRealPullApplier: true, confirmedMount: true });
     // The middle create names a folder this browser has never seen.
     fixture.pullResponses.push(json(200, pullEventsPage([create(11, 'root-old'), create(12, 'unknown-folder'),
       create(13, 'root-old')], 'cursor-1')));

@@ -98,7 +98,7 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
       projection: { revision: 'r-root', childrenRevision: 'children-root', digest: 'sha256:root',
         content: { title: '', folderRole: 'root' } },
     }, {
-      nativeId: 'recovery:mount-bar', colpId: 'mount-bar', rootNativeId: 'recovery:root', nodeKind: 'folder',
+      nativeId: 'recovery:mount-bar', colpId: 'mount-bar', rootNativeId: 'recovery:root-colp', nodeKind: 'folder',
       parentColpId: 'root-colp', rootRole: 'bookmarks-bar',
       projection: { revision: 'r-bar', childrenRevision: 'children-bar', digest: 'sha256:bar',
         content: { title: 'Bookmarks bar', folderRole: 'bookmarks-bar' } },
@@ -242,6 +242,11 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
 
   test('applies node_created under a bound mount whose mapping is still recovery:*', async () => {
     const fixture = await setup();
+    // The collection root is virtual; it cannot also own this native mount.
+    const root = (await fixture.store.getMappingByColpId(scope, 'root-colp'))!;
+    await fixture.store.deleteMapping(scope, 'native-root');
+    await fixture.store.putMapping(scope, { nativeId: 'recovery:root-colp', colpId: root.colpId,
+      rootNativeId: 'recovery:root-colp', nodeKind: 'folder', projection: root.projection });
     await mountBar(fixture, { nativeRootId: 'native-root', remoteMountNodeId: 'mount-bar', rootRole: 'bookmarks-bar' });
     await fixture.store.putMapping(scope, {
       nativeId: 'recovery:mount-bar', colpId: 'mount-bar', rootNativeId: 'recovery:root', nodeKind: 'folder',
@@ -260,6 +265,21 @@ describe('KNS-05 pull apply, suppression and freeze', () => {
     assert.equal(mapping?.parentNativeId, 'native-root');
     assert.equal((await fixture.api.get(mapping!.nativeId))[0]?.parentId, 'native-root');
     assert.equal(fixture.api.calls.some((call) => call.kind === 'create'), true);
+  });
+
+  test('a recovery mount cannot borrow a native root occupied by another cloud identity', async () => {
+    const fixture = await setup();
+    await mountBar(fixture, { nativeRootId: 'native-root', remoteMountNodeId: 'mount-bar', rootRole: 'bookmarks-bar' });
+    await fixture.store.putMapping(scope, { nativeId: 'recovery:mount-bar', colpId: 'mount-bar',
+      rootNativeId: 'recovery:root-colp', nodeKind: 'folder', parentColpId: 'root-colp', rootRole: 'bookmarks-bar',
+      projection: { revision: 'revision-old', childrenRevision: 'children-old', digest: 'sha256:mount',
+        content: { title: 'Bookmarks bar', folderRole: 'bookmarks-bar' } } });
+    await fixture.applier.stage(fixture.page([pullFixtures.createEvent({ kind: 'Bookmark', sequence: 93,
+      collectionId: scope.collectionId, parentId: 'mount-bar' })]));
+    await assert.rejects(() => fixture.applier.resume(), /need_authority/);
+    assert.equal(fixture.api.calls.length, 0);
+    assert.equal(await fixture.store.getMappingByColpId(scope, 'node-created-93'), null);
+    assert.equal((await fixture.store.getMappingByNativeId(scope, 'native-root'))?.colpId, 'root-colp');
   });
 
   test('applies node_created after cutover when the mapping is still virtual', async () => {
