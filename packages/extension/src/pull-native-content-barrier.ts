@@ -10,8 +10,9 @@ import { isNonChromeNativeId, isProtectedNativeRoot, mayMutateNative } from './p
 import { mappingMountActivity } from './pull-range-move.js';
 import { pauseBindingForMapping } from './sync-state/remote-observation.js';
 import { withinPrivateNativeBoundary } from './native-private-boundary.js';
+import { performCheckedNativeWrite, prepareNativeWriteCheck, type NativeWriteBoundaryStore } from './pull-native-write-boundary.js';
 
-type Store = Pick<ReturnType<typeof createSyncStateStore>, 'getScope' | 'stageBookmarkEvent' | 'getPullEvent' | 'getMappingByColpId'>;
+type Store = NativeWriteBoundaryStore & Pick<ReturnType<typeof createSyncStateStore>, 'stageBookmarkEvent' | 'getPullEvent'>;
 
 /** Chrome title/url that is neither the known projection nor the incoming remote value. */
 export function unqueuedNativeContentFields(
@@ -130,7 +131,10 @@ export async function applyRemoteMappingContentUpdate(input: RemoteContentUpdate
       const projectedContent = { ...incoming, ...local };
       const changes = Object.fromEntries(Object.entries(projectedContent)
         .filter(([key, value]) => current?.[key as 'title' | 'url'] !== value));
-      if (Object.keys(changes).length) await api.update(mapping.nativeId, changes);
+      if (Object.keys(changes).length && current) {
+        const check = await prepareNativeWriteCheck({ store, scope, api, mapping, preimage: current });
+        await performCheckedNativeWrite(api, check, beforeNative => api.update(mapping.nativeId, changes, beforeNative));
+      }
     }
   }
   const preserveLocal = Object.keys(local).length > 0;

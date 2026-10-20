@@ -39,6 +39,7 @@ import { pauseBindingForMapping } from './sync-state/remote-observation.js';
 import { hasQueuedSelfCreate, provisionalSelfCreateMapping } from './pull-self-create.js';
 import { commitSupersededByLocalDelete } from './pull-local-delete-supersede.js';
 import { logBackgroundFailure } from './sw/background-failure.js';
+import { recordUnstartedPullRefusal } from './pull-native-write-boundary.js';
 
 const INTENT_TTL_MS = 5 * 60_000;
 
@@ -112,6 +113,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       }
       else await callAndCommit(raw.eventId as string, event);
       } catch (error) {
+        await recordUnstartedPullRefusal(options, raw, event.effect.kind, error);
         // B5: a failure about this event's own node sets that node aside; the page goes on.
         if (!await setAsideFailedPullItem(options, raw, event, error, now())) throw error;
       }

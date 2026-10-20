@@ -43,7 +43,7 @@ export async function pullNativeWrapperFixture() {
     await current.stage(pullFixtures.page({ events: [event], nextCursor: 'next', collectionRevision: 'next-r1' }));
     return current;
   }
-  return { ...f, get store() { return f.store; }, native, applier, stage };
+  return { ...f, get store() { return f.store; }, native, applier, stage, stageSnapshot: f.stage };
 }
 
 export function duringNativeAdmission(change: () => Promise<unknown>) {
