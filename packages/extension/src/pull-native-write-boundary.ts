@@ -64,18 +64,35 @@ export async function performCheckedNativeWrite<T>(api: PullBookmarkApi, check: 
   return write(api.nativeWriteChecks ? check : undefined);
 }
 
-/** Never erase an earlier native invocation or a partial delete ledger. Only
- * a new single update/move refused by the adapter is proven not to have started. */
+/** The event's entry state, not its per-member native result, distinguishes a
+ * new admission refusal from an older invocation or a partial delete ledger. */
 export async function recordUnstartedPullRefusal(options: Pick<PullApplierOptions, 'store' | 'scope'>,
   entered: { readonly eventId?: unknown; readonly state?: unknown }, kind: string, error: unknown): Promise<void> {
-  if (!(error instanceof NativeWriteNotStartedError) || !['node_content_updated', 'node_moved'].includes(kind)
+  if (!(error instanceof NativeWriteNotStartedError)
+      || !['node_content_updated', 'node_moved', 'node_deleted', 'subtree_deleted'].includes(kind)
       || !['staged', 'intent_prepared'].includes(String(entered.state))) return;
   const intent = await options.store.getApplyIntent(options.scope, `intent:${String(entered.eventId)}`);
   if (!intent || intent.apiResultEvidence || intent.nativeEventEvidence) return;
   if (kind === 'node_moved' && intent.anchors?.rangeAction !== 'native_move') return;
+  if ((kind === 'node_deleted' || kind === 'subtree_deleted') && !allDeletesUnstarted(intent.anchors)) return;
   await options.store.persistApplyIntentFacts(options.scope, intent.intentId, {
     nativeResult: 'not_started', replayState: 'not_started', state: 'intent_prepared', eventState: 'intent_prepared',
   });
+}
+
+function allDeletesUnstarted(anchors: JsonObject | undefined): boolean {
+  const members = anchors?.deleteMemberSet, results = anchors?.deleteMemberResults;
+  if (!Array.isArray(members) || !members.length || !results || typeof results !== 'object'
+      || Array.isArray(results)) return false;
+  const colpIds = new Set<string>(), nativeIds = new Set<string>();
+  for (const member of members) {
+    if (!member || typeof member !== 'object' || Array.isArray(member)
+        || typeof member.colpId !== 'string' || typeof member.nativeId !== 'string'
+        || colpIds.has(member.colpId) || nativeIds.has(member.nativeId)
+        || results[member.colpId] !== 'not_started') return false;
+    colpIds.add(member.colpId); nativeIds.add(member.nativeId);
+  }
+  return true;
 }
 
 export function nativeWritePreimage(node: BookmarkNode): JsonObject {

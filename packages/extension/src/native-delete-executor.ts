@@ -10,7 +10,8 @@ import {
 import { readOpenSyncIssues, issueAncestry, dependsOnIssue } from './sync-issues.js';
 import { nativeContent } from './pull-projection.js';
 import { unqueuedNativeContentFields } from './pull-native-content-barrier.js';
-import { classifyNativeCallFacts } from './native-call-result.js';
+import { classifyNativeCallFacts, type NativeWriteCheck } from './native-call-result.js';
+import { performCheckedNativeWrite, prepareNativeWriteCheck, type NativeWriteBoundaryStore } from './pull-native-write-boundary.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import { isNonChromeNativeId, isProtectedNativeRoot, mayMutateNative } from './pull-mount-apply.js';
 import { nativeIsLocallyExcluded } from './remote-delete-exclusion.js';
@@ -19,7 +20,7 @@ import type {
   IntentRecord, JsonObject, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore,
 } from './sync-state-store.js';
 
-type Store = Pick<ReturnType<typeof createSyncStateStore>,
+type Store = NativeWriteBoundaryStore & Pick<ReturnType<typeof createSyncStateStore>,
   'getApplyIntent' | 'persistApplyIntentFacts' | 'getMappingByNativeId' | 'getLocalSyncExclusion' | 'listQueue' | 'listPullIssues' | 'listLocalIssues' | 'listMappings'
   | 'listRemoteDeleteDecisions' | 'listApplyIntents' | 'getPullEvent' | 'getScope' | 'getMappingByColpId'>;
 
@@ -162,7 +163,15 @@ export async function executeRemoteDeleteMembers(input: {
       continue;
     }
     try {
-      await removeMember(input.api, latest);
+      const boundaryCheck = await prepareNativeWriteCheck({ ...input, mapping, preimage: current });
+      const check = async () => {
+        const issues = await readOpenSyncIssues(input.store, input.scope, { excludeDeleteEventId: intent.eventId });
+        if (issues.nativeRoots.has(row.nativeId) || issues.roots.size > 0 && dependsOnIssue([row.colpId], issues.roots,
+          issueAncestry([...await input.store.listMappings(input.scope), ...input.mappings], issues.queue))
+            || await input.retainLocalWork?.(mapping, current)) throw new SyncFailureError('concurrent_local_mutation');
+        await boundaryCheck();
+      };
+      await performCheckedNativeWrite(input.api, check, beforeNative => removeMember(input.api, latest, beforeNative));
     } catch (error) {
       // Chrome's non-recursive remove owns the atomic non-empty check. A new
       // child arriving after shouldRetain must never expand the authorized set.
@@ -212,11 +221,11 @@ function classifyLookup(looked: BookmarkLookup): 'present' | 'absent' | 'failed'
   }) === 'absent' ? 'absent' : 'failed';
 }
 
-async function removeMember(api: PullBookmarkApi, node: BookmarkNode | undefined):
+async function removeMember(api: PullBookmarkApi, node: BookmarkNode | undefined, beforeNative?: NativeWriteCheck):
   Promise<void> {
   if (node?.unmodifiable) throw new Error("Can't modify a managed bookmark.");
   if (!node) throw new SyncFailureError('native_call_failed');
-  await api.remove(node.id);
+  await api.remove(node.id, beforeNative);
 }
 
 function deleteFailure(looked: BookmarkLookup): Error {
