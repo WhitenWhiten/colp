@@ -1,0 +1,61 @@
+name: r5-queue-writer-verify-once
+on:
+  push:
+    branches: ['codex/r5-queue-writer-verify-20261020']
+permissions:
+  contents: read
+jobs:
+  queue-behavior-and-hitcounts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/extension/package-lock.json
+            packages/server/package-lock.json
+      - name: Frozen extension install
+        run: npm ci
+        working-directory: packages/extension
+      - name: Rebuild allowlisted esbuild
+        run: test ! -d node_modules/esbuild || npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/extension
+      - name: Frozen server harness install
+        run: npm ci
+        working-directory: packages/server
+      - name: Actual queue interruption and reopen behavior
+        run: node node_modules/vitest/vitest.mjs run tests/queue-writer-restart-journeys.test.ts --coverage --coverage.include=src/sync-state/queue-repository.ts --coverage.reporter=json --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/queue-writer-review
+        working-directory: packages/extension
+      - name: Full extension typecheck
+        if: always()
+        run: npm run typecheck
+        working-directory: packages/extension
+      - name: Print only reached owner and missing-line proof
+        if: always()
+        working-directory: packages/extension
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const path = 'coverage/queue-writer-review/coverage-final.json';
+          if (!fs.existsSync(path)) throw new Error('Missing current queue writer measurement');
+          const raw = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const owner = Object.entries(raw).find(([key]) => key.endsWith('/src/sync-state/queue-repository.ts'));
+          if (!owner) throw new Error('Missing current queue writer owner');
+          const lines = Object.fromEntries([379, 381, 405].map(line => [line, Object.entries(owner[1].statementMap).filter(([, range]) => range.start.line <= line && range.end.line >= line).map(([id]) => owner[1].s[id])]));
+          console.log(JSON.stringify({source: 'fb4e81d2c3a819aceecc0fab4a11484cce0c85ac', owner: owner[0], targetLines: lines}));
+          for (const hits of Object.values(lines)) if (!hits.some(hit => hit > 0)) throw new Error('An original missing line was not exercised');
+          console.log(fs.readFileSync('coverage/queue-writer-review/coverage-summary.json', 'utf8'));
+          JS
+      - name: Upload focused measurement
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: queue-writer-review
+          path: packages/extension/coverage/queue-writer-review/
+          if-no-files-found: warn
+          retention-days: 14
