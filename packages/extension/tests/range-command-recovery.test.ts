@@ -5,10 +5,12 @@ import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { handleRootRequest, loadRootView, readRootFolders } from '../src/sw/roots.js';
 import { sw, syncState } from '../src/sw/runtime.js';
 import type { ChromeBookmarkNode } from '../src/chrome-bookmark-tree.js';
-import type { RootRequest } from '../src/types.js';
+import type { RootRequest, StoredSession } from '../src/types.js';
 import type { SyncScope } from '../src/sync-state-store.js';
 import { recoveryNode, recoveryRoot } from './kns-03-bootstrap-harness.js';
 import { resumeRunningBootstrap } from '../src/sw/first-run.js';
+import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
+import { endpoints as pushEndpoints } from './outbound-push-worker-harness.js';
 
 // Browser and wake scheduling are external ports. Admission, phase execution,
 // bootstrap, immutable queue entries and IndexedDB reopen are the shipped code.
@@ -159,6 +161,76 @@ test('a newly selected folder uploads parent then child after real snapshot ACK 
   expect((await syncState.listQueue(scope)).filter(row => row.opId.endsWith('.create.20'))).toHaveLength(1);
   expect((await syncState.listQueue(scope)).filter(row => row.opId.endsWith('.create.21'))).toHaveLength(1);
   expect((await syncState.getScope(scope))?.firstRun).toBe('completed');
+});
+
+test('production range confirmation resolves a new mount and its descendants after first-run has already completed', async () => {
+  // A separate, already configured account has no remote role mounts yet.
+  scope = { ...scope, accountId: `${scope.accountId}-unmounted` };
+  await syncState.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: Date.now() + 60_000 },
+    checkpoint: { serverRevision: 'r0', cursor: 'c0' }, selectedRoots: [], privateRoots: [], rootStatus: 'ready', firstRun: 'completed' });
+  await syncState.stageRecoveryPage(scope, { snapshotId: 'snapshot', revision: 'r1', syncCursor: 'cursor-snapshot',
+    identityDigest: 'identity', rootNodeId: 'canonical-root', page: 0, pageDigest: 'sha256:empty-page',
+    previousPageDigest: null, nextCursor: null, complete: true, nodes: [recoveryRoot('canonical-root')] });
+  await acknowledgeSnapshot();
+  const beforeNative = structuredClone(raw);
+  const request = await review();
+  expect(await handleRootRequest(request)).toMatchObject({ ok: true, confirmation: { state: 'committed' } });
+  const mount = (await syncState.listMountBindings(scope)).find(row => row.nativeRootId === '2')!;
+  expect(mount).toMatchObject({ status: 'pending', remoteMountNodeId: null });
+  expect((await syncState.getScope(scope))?.firstRun).toBe('completed');
+  const expected = [
+    { nativeId: '2', remoteId: 'new-remote-other', parentId: 'canonical-root' },
+    { nativeId: '20', remoteId: 'new-remote-folder', parentId: 'new-remote-other' },
+    { nativeId: '21', remoteId: 'new-remote-bookmark', parentId: 'new-remote-folder' },
+  ];
+  const canonical = new Map<string, unknown>([['canonical-root', { kind: 'folder' }]]);
+  const session: StoredSession = { sessionId: 'range-session', expiresAt: '2099-01-01T00:00:00Z',
+    scope: 'collection', acceptedProtocolVersion: '0.2', snapshotRequired: false, credentialAuthorityDigest: 'a'.repeat(64),
+    collection: { collectionId: scope.collectionId, serverCursor: 'cursor-snapshot', serverRevision: 'r1' },
+    replicaLease: { leaseId: 'lease', generation: String(scope.generation), state: 'active', expiresAt: '2099-01-01T00:00:00Z' },
+    conversionPolicy: { separator: 'preserve_remote' } };
+  for (const [index, target] of expected.entries()) {
+    const rows = await syncState.listQueue(scope);
+    expect(rows).toHaveLength(index + 1);
+    const pending = rows.filter(row => row.status === 'pending');
+    expect(pending).toHaveLength(1);
+    const operation = pending[0]!;
+    expect(operation.payload).toMatchObject({ type: 'create_node', payload: { parentId: target.parentId } });
+    if (index === 0) expect(operation.payload).toMatchObject({ payload: { node: { folderRole: 'other-bookmarks' } } });
+    const worker = createOutboundPushWorker({ scope, store: syncState, ownerId: () => 'range-worker',
+      endpoints: async () => ({ ...pushEndpoints, syncPush: `${scope.serverOrigin}/v1/push` }),
+      sessions: { get: async () => ({ credential: { accessToken: 'range-test', subject: scope.accountId }, session }) },
+      fetch: async (url, init) => {
+        expect(String(url)).toBe(`${scope.serverOrigin}/v1/push`);
+        const sent = JSON.parse(String(init?.body));
+        expect(sent.operations).toEqual([operation.payload]);
+        expect(canonical.has(target.parentId)).toBe(true);
+        expect(canonical.has(target.remoteId)).toBe(false);
+        canonical.set(target.remoteId, sent.operations[0].payload);
+        return new Response(JSON.stringify({ batchId: sent.batchId, serverCursor: `cursor-${target.nativeId}`,
+          results: [{ opId: operation.opId, sequence: operation.sequence, status: 'applied', targetId: target.remoteId,
+            revision: `r-${target.remoteId}`, cursor: `cursor-${target.nativeId}`, warnings: [] }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } });
+    expect((await worker.drain()).outcome).toBe('terminal');
+    syncState.close();
+    await resumeRunningBootstrap(scope);
+    expect((await syncState.getMappingByNativeId(scope, target.nativeId))?.colpId).toBe(target.remoteId);
+    expect(await syncState.getQueueReceipt(scope, operation.sequence))
+      .toMatchObject({ opId: operation.opId, operationDigest: operation.digest, kind: 'terminal' });
+  }
+  const settled = await syncState.listQueue(scope);
+  expect(settled.map(row => row.status)).toEqual(['terminal', 'terminal', 'terminal']);
+  expect(await handleRootRequest(request)).toMatchObject({ ok: true, confirmation: { state: 'committed' } });
+  await resumeRunningBootstrap(scope);
+  expect(await syncState.listQueue(scope)).toEqual(settled);
+  expect(await syncState.listBootstrapRuns(scope)).toHaveLength(1);
+  expect([...canonical.keys()]).toEqual(['canonical-root', ...expected.map(row => row.remoteId)]);
+  expect(canonical.get('new-remote-bookmark')).toMatchObject({ parentId: 'new-remote-folder',
+    node: { title: 'New bookmark', url: 'https://example.test/new' } });
+  expect(await syncState.getScope(scope)).toMatchObject({ firstRun: 'completed', selectedRoots: ['new-remote-other'] });
+  expect(raw).toEqual(beforeNative);
+  for (const method of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[method]).not.toHaveBeenCalled();
 });
 
 test('cloud growth invalidates an old destructive preview, then a fresh preview includes the new affected item', async () => {
