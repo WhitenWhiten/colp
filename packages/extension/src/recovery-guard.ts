@@ -63,7 +63,7 @@ export async function recoverVerifiedOrFreeze(input: {
   const staged = input.staged.map(stripScopeKey);
   const mounts = await input.store.listMountBindings(input.scope);
   const bound = bindSnapshotMappings(staged, live, mounts);
-  if (isVirtualSnapshotCutover(staged) || hasProjectableVirtualChildren(bound)
+  if (mounts.length > 0 || isVirtualSnapshotCutover(staged) || hasProjectableVirtualChildren(bound)
       || intents.some((intent) => intent.state !== 'terminal')) {
     for (const mapping of staged) {
       const mount = matchStagedMount(mounts, mapping);

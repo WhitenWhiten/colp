@@ -20,6 +20,7 @@ import {
 } from './recovery-overlay.js';
 import { executeNativeCreate } from './native-create-executor.js';
 import { eligibleSnapshotCreates, snapshotCreateAllowed } from './snapshot-create-boundary.js';
+import { planMountedSnapshotDeletes } from './snapshot-mounted-deletes.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import { pendingLocalDeletionIds, retainedDeletionMappings } from './recovery-local-deletes.js';
 import type { MappingInput, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -154,9 +155,9 @@ export async function projectVirtualSnapshotChildren(input: {
     const { scopeKey: _key, ...mapping } = row as MappingInput & { scopeKey?: string };
     bound.set(row.colpId, mapping);
   }
-  const seed = inheritBoundNativeParents([...[...bound.values()].filter(row => !deleted.has(row.colpId)),
+  let seed = inheritBoundNativeParents([...[...bound.values()].filter(row => !deleted.has(row.colpId)),
     ...retainedDeletionMappings(allLive, input.bound, deleted)]);
-  const eligible = await eligibleSnapshotCreates(input.store, input.scope, seed);
+  let eligible = await eligibleSnapshotCreates(input.store, input.scope, seed);
   const existing = await input.store.listProjectionIntents(input.scope);
   const held = existing.filter(item => item.state !== 'terminal' && (protectedIds.has(item.colpId)
     || item.kind === 'create' && item.state === 'pending' && eligible && !eligible.has(item.colpId)));
@@ -164,9 +165,16 @@ export async function projectVirtualSnapshotChildren(input: {
   const pending = existing.filter(item => item.state !== 'terminal' && !heldIds.has(item.intentId));
   if (pending.length === 0 && input.recoveryOnly) return seed;
   if (pending.length === 0) {
-    const live = await input.store.listMappings(input.scope);
+    const live = await input.store.listMappings(input.scope), snapshotIds = new Set(seed.map(row => row.colpId));
+    const removals = await planMountedSnapshotDeletes({ scope: input.scope, store: input.store, live: allLive,
+      snapshot: seed, protectedIds, nativeFacts: root => collectNativeFacts(input.api, root),
+      outstanding: allLive.some(row => !snapshotIds.has(row.colpId)) ? await listOutstanding(input.store, input.scope) : [] });
+    if (removals.retainedMappings.length) {
+      seed = inheritBoundNativeParents([...seed, ...removals.retainedMappings]);
+      eligible = await eligibleSnapshotCreates(input.store, input.scope, seed);
+    }
     const intents = [...planVirtualChildCreates(seed),
-      ...planSnapshotPlacementUpdates(seed, live), ...planSnapshotContentUpdates(seed, live)]
+      ...planSnapshotPlacementUpdates(seed, live), ...planSnapshotContentUpdates(seed, live), ...removals.intents]
       .filter(intent => !protectedIds.has(intent.colpId) && (intent.kind !== 'create' || !eligible || eligible.has(intent.colpId)))
       .map((intent, index) => ({ ...intent, order: index + 1 }));
     if (intents.length === 0) return seed;

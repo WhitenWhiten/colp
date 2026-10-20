@@ -61,6 +61,7 @@ export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
   'src/server-edition.ts',
   'src/service-worker.ts',
   'src/snapshot-create-boundary.ts',
+  'src/snapshot-mounted-deletes.ts',
   'src/sw/advanced-first-run.ts',
   'src/sw/auth.ts',
   'src/sw/bookmarks.ts',
