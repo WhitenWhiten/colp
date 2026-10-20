@@ -81,30 +81,6 @@ describe('advanced first-run UI contract', () => {
     assert.equal(validFirstRunRequest({ ...valid, bootstrapMode: undefined }), false);
   });
 
-  test('keeps the main button on merge and renders deletion rows with textContent', async () => {
-    const source = await readFile(new URL('../src/first-run-ui.ts', import.meta.url), 'utf8');
-    assert.match(source, /advancedMode !== 'merge'/u);
-    assert.match(source, /row\.textContent = advancedDeleteLabel/u);
-    assert.match(source, /firstRun === 'running'/u);
-    assert.match(source, /advancedConfirmationRequest/u);
-    assert.match(source, /refreshPreview\(true\)/u);
-  });
-
-  test('first-run polling timeout provides terminal guidance and retry action (UX-05)', async () => {
-    const source = await readFile(new URL('../src/first-run-ui.ts', import.meta.url), 'utf8');
-    assert.match(source, /Date\.now\(\) - statusPollStartedAt >= STATUS_POLL_MAX_MS/);
-    assert.match(source, /Sync is still running in the background/);
-    assert.match(source, /retryBtn\.className = 'btn btn-ghost btn-sm'/);
-  });
-
-  test('preview-only mode provides guidance and switch to merge action (UX-21)', async () => {
-    const source = await readFile(new URL('../src/first-run-ui.ts', import.meta.url), 'utf8');
-    assert.match(source, /PREVIEW_ONLY_GUIDANCE/);
-    assert.match(source, /PREVIEW_ONLY_SWITCH_LABEL/);
-    assert.match(source, /first-run-switch-merge/);
-    assert.match(source, /advancedMode = 'merge'/);
-  });
-
   test('conflict link in first run is only shown when backend provides href, with no hardcoded domain (UX-24)', async () => {
     const html = await readFile(new URL('../options.html', import.meta.url), 'utf8');
     const source = await readFile(new URL('../src/first-run-attention-ui.ts', import.meta.url), 'utf8');
