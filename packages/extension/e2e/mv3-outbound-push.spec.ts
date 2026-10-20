@@ -3,7 +3,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { startRealStack, type PushRequestObservation } from './real-stack.js';
-import { expectAuthenticatedRestartReplay } from './push-replay-assertions.js';
+import { expectAuthenticatedRestartReplay, expectRejectedSessionReplay, expectRetainedPushAttempt,
+  expectSameSessionReplay, expectSuccessfulPush, queueByOpId } from './push-replay-assertions.js';
+import type { QueueOperation } from '../src/sync-state-store.js';
 import { grantOptionalBookmarks } from './bookmark-permission.js';
 import { installFixtureReplicaBinding, openExtensionOptions, signInExtension, showOptionsPane } from './extension-auth.js';
 
@@ -183,23 +185,25 @@ for (const boundary of ['before_attempt_persist', 'after_attempt_persist'] as co
     try {
       let page = await extensionPage(context); await login(page, stack.extensionBinding);
       await evidence(page, 'configureOutboundLeaseEvidence', 1_000);
-      await evidence(page, 'configureOutboundBoundaryEvidence', boundary); await evidence(page, 'seedOutboundPushEvidence');
+      await evidence(page, 'configureOutboundBoundaryEvidence', boundary);
+      const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence');
       void evidence(page, 'wakeOutboundPushEvidence').catch(() => undefined);
-      await expect.poll(async () => { const queue = (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0];
+      await expect.poll(async () => { const queue = queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), seeded.opId);
         return { status: queue.status, attempted: queue.attempt !== undefined };
       }).toEqual({ status: 'claimed', attempted: boundary === 'after_attempt_persist' });
       const crashed = await evidence<any>(page, 'exportOutboundPushEvidence');
+      const retained = queueByOpId(crashed, seeded.opId);
+      if (boundary === 'after_attempt_persist') {
+        expectRetainedPushAttempt(retained, await evidence<any>(page, 'exportOutboundPushEvidence'));
+      }
       expect(((await stack.observations() as any).pushRequests as unknown[])).toHaveLength(0);
       await terminateExtensionWorker(context, page); await context.close();
       context = await launchPersistentContext(profile, stack.browserHostResolverRules);
       page = await extensionPage(context); await evidence(page, 'wakeOutboundPushEvidence'); await waitForTerminalCount(page, 1);
       const recovered = await evidence<any>(page, 'exportOutboundPushEvidence'); const observed = await stack.observations() as any;
-      expect(recovered.queue[0].sequence).toBe(crashed.queue[0].sequence);
       if (boundary === 'after_attempt_persist') {
-        expectAuthenticatedRestartReplay(crashed.queue[0], recovered.queue[0], observed);
-        expect(observed.pushRequests[0].fingerprint).toBe(crashed.queue[0].attempt.bodyDigest);
-        expect(observed.pushRequests[0].headers['idempotency-key']).toBe(crashed.queue[0].attempt.idempotencyKey);
-      }
+        expectAuthenticatedRestartReplay(retained, recovered, observed);
+      } else expectSuccessfulPush(retained, recovered, observed);
       expect(observed.pushRequests).toHaveLength(boundary === 'after_attempt_persist' ? 2 : 1);
       expect(observed.serverMutationCount).toBe(1);
       expect(observed.sequenceReceipts).toHaveLength(1); expect(recovered.receipts).toHaveLength(1);
@@ -213,20 +217,12 @@ test('401 rejects the old attempt before credential refresh replaces Session-bou
   try {
     const page = await extensionPage(context); await login(page, stack.extensionBinding);
     const beforeDenial = await stack.observations() as any;
-    stack.setPushFault('authentication_required_once'); await evidence(page, 'seedOutboundPushEvidence');
-    const seeded = await evidence<any>(page, 'exportOutboundPushEvidence');
+    stack.setPushFault('authentication_required_once');
+    const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence');
     await evidence(page, 'wakeOutboundPushEvidence'); await waitForTerminalCount(page, 1);
     const state = await evidence<any>(page, 'exportOutboundPushEvidence');     const observed = await stack.observations() as any;
     expect(observed.sessions).toBe(beforeDenial.sessions + 1); expect(observed.pushRequests).toHaveLength(2);
-    const [denied, accepted] = observed.pushRequests.map((request: PushRequestObservation) => JSON.parse(request.body));
-    expect(denied.sessionId).not.toBe(accepted.sessionId); expect(denied.batchId).not.toBe(accepted.batchId);
-    expect(denied.operations).toEqual(accepted.operations);
-    expect(observed.pushRequests[0].headers['idempotency-key']).toBe(observed.pushRequests[1].headers['idempotency-key']);
-    expect(state.queue[0].opId).toBe(accepted.operations[0].opId);
-    expect(state.queue[0].sequence).toBe(accepted.operations[0].sequence);
-    expect(state.queue[0].digest).toBe(seeded.queue[0].digest);
-    expect(state.queue[0].idempotencyKey).toBe(seeded.queue[0].idempotencyKey);
-    expect(state.queue[0].attempt.body).toBe(observed.pushRequests[1].body);
+    expectRejectedSessionReplay(seeded, state, observed);
     expect(observed.serverMutationCount).toBe(1);
     expect(observed.sequenceReceipts).toHaveLength(1);
   } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
@@ -238,21 +234,23 @@ for (const fault of ['service_unavailable_once', 'rate_limited_once'] as const) 
     const context = await launchPersistentContext(profile, stack.browserHostResolverRules);
     try {
       const page = await extensionPage(context); await login(page, stack.extensionBinding);
-      stack.setPushFault(fault); await evidence(page, 'seedOutboundPushEvidence'); await evidence(page, 'wakeOutboundPushEvidence');
-      await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('unknown');
+      stack.setPushFault(fault); const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence');
+      await evidence(page, 'wakeOutboundPushEvidence');
+      await expect.poll(async () => queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), seeded.opId).status).toBe('unknown');
       const before = await evidence<any>(page, 'exportOutboundPushEvidence');
-      if (fault === 'rate_limited_once') expect(before.queue[0].retry.notBefore).toBeGreaterThan(Date.now());
+      const retained = queueByOpId(before, seeded.opId);
+      if (fault === 'rate_limited_once') expect(retained.retry.notBefore).toBeGreaterThan(Date.now());
       // MV3 clamps every scheduled retry to a 30s alarm floor (`sw/engine.ts`), which is
       // exactly this helper's poll budget, so a wake driven inside the retry window only
       // arms an alarm that races the assertion. Wait the window out and drive the wake
       // ourselves: the assertions below are about the durable attempt and the production
       // Push route, not about which timer delivered the retry.
-      await waitForRetryWindow(page, before.queue[0].retry.notBefore);
+      await waitForRetryWindow(page, retained.opId, retained.retry.notBefore);
+      expectRetainedPushAttempt(retained, await evidence<any>(page, 'exportOutboundPushEvidence'));
       await evidence(page, 'wakeOutboundPushEvidence');
       await waitForTerminalCount(page, 1); const after = await evidence<any>(page, 'exportOutboundPushEvidence');
       const observed = await stack.observations() as any;
-      expect(after.queue[0].attempt).toEqual(before.queue[0].attempt);
-      expect(observed.pushRequests[0].fingerprint).toBe(observed.pushRequests[1].fingerprint);
+      expectSameSessionReplay(retained, after, observed);
       expect(observed.serverMutationCount).toBe(1); expect(observed.sequenceReceipts).toHaveLength(1);
     } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
   });
@@ -262,8 +260,8 @@ for (const fault of ['service_unavailable_once', 'rate_limited_once'] as const) 
  * Waits until a durable retry is claimable. The row's `retry.notBefore` is the only clock the
  * claim path honours, and it is always in the future right after a fault.
  */
-async function waitForRetryWindow(page: Page, notBefore: number) {
-  await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].retry.notBefore <= Date.now(),
+async function waitForRetryWindow(page: Page, opId: string, notBefore: number) {
+  await expect.poll(async () => queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), opId).retry.notBefore <= Date.now(),
     { timeout: 15_000, message: `retry window for notBefore ${notBefore} did not open` }).toBe(true);
 }
 
@@ -274,16 +272,19 @@ test('deferred receipt persists across restart, holds sequence order, then conve
   try {
     let page = await extensionPage(context); await login(page, stack.extensionBinding);
     await evidence(page, 'configureOutboundLeaseEvidence', 1_000);
-    stack.setPushFault('deferred_once'); await evidence(page, 'seedOutboundPushEvidence');
+    stack.setPushFault('deferred_once'); const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence');
     await evidence(page, 'wakeOutboundPushEvidence');
-    await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('deferred');
-    const deferred = await evidence<any>(page, 'exportOutboundPushEvidence'); expect(deferred.receipts[0].kind).toBe('deferred');
+    await expect.poll(async () => queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), seeded.opId).status).toBe('deferred');
+    const deferred = await evidence<any>(page, 'exportOutboundPushEvidence');
+    const retained = queueByOpId(deferred, seeded.opId);
+    expect(deferred.receipts.find((receipt: any) => receipt.opId === seeded.opId).kind).toBe('deferred');
+    expectRetainedPushAttempt(retained, await evidence<any>(page, 'exportOutboundPushEvidence'));
     await terminateExtensionWorker(context, page); await context.close();
     context = await launchPersistentContext(profile, stack.browserHostResolverRules);
     page = await extensionPage(context); await evidence(page, 'wakeOutboundPushEvidence'); await waitForTerminalCount(page, 1);
     const recovered = await evidence<any>(page, 'exportOutboundPushEvidence'); const observed = await stack.observations() as any;
-    expectAuthenticatedRestartReplay(deferred.queue[0], recovered.queue[0], observed);
-    expect(recovered.receipts[0].kind).toBe('terminal'); expect(observed.serverMutationCount).toBe(1);
+    expectAuthenticatedRestartReplay(retained, recovered, observed);
+    expect(observed.serverMutationCount).toBe(1);
     expect(observed.sequenceReceipts).toHaveLength(1);
   } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
@@ -294,17 +295,18 @@ for (const [fault, status] of [['sequence_blocked_once', 'blocked']] as const) {
     let context = await launchPersistentContext(profile, stack.browserHostResolverRules);
     try {
       let page = await extensionPage(context); await login(page, stack.extensionBinding);
-      stack.setPushFault(fault); await evidence(page, 'seedOutboundPushEvidence'); await evidence(page, 'duplicateAlarm');
-      await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe(status);
+      stack.setPushFault(fault); const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence');
+      await evidence(page, 'duplicateAlarm');
+      await expect.poll(async () => queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), seeded.opId).status).toBe(status);
       const before = await evidence<any>(page, 'exportOutboundPushEvidence');
+      const retained = queueByOpId(before, seeded.opId);
+      expectRetainedPushAttempt(retained, await evidence<any>(page, 'exportOutboundPushEvidence'));
       await terminateExtensionWorker(context, page); await context.close();
       context = await launchPersistentContext(profile, stack.browserHostResolverRules);
       page = await extensionPage(context); await evidence(page, 'wakeOutboundPushEvidence');
       await waitForTerminalCount(page, 1);
       const local = await evidence<any>(page, 'exportOutboundPushEvidence'); const after = await stack.observations() as any;
-      expect(local.queue[0].opId).toBe(before.queue[0].opId);
-      expect(local.queue[0].sequence).toBe(before.queue[0].sequence);
-      expectAuthenticatedRestartReplay(before.queue[0], local.queue[0], after);
+      expectAuthenticatedRestartReplay(retained, local, after);
       expect(after.serverMutationCount).toBe(1); expect(after.sequenceReceipts).toHaveLength(1);
     } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
   });
@@ -324,13 +326,15 @@ test('sequence_gap stands as durable evidence with the lane slot, then heals exa
   const context = await launchPersistentContext(profile, stack.browserHostResolverRules);
   try {
     const page = await extensionPage(context); await login(page, stack.extensionBinding);
-    stack.setPushFault('sequence_gap'); await evidence(page, 'seedOutboundPushEvidence');
+    stack.setPushFault('sequence_gap'); const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence');
     // One wake: the refused attempt is settled as a `gap` barrier carrying the server's slot.
     await evidence(page, 'wakeOutboundPushEvidence');
-    await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('gap');
+    await expect.poll(async () => queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), seeded.opId).status).toBe('gap');
     const gapped = await evidence<any>(page, 'exportOutboundPushEvidence');
-    expect(gapped.queue[0].recovery.code).toBe('sequence_gap');
-    expect(gapped.queue[0].recovery.expectedSequence).toBe(gapped.queue[0].sequence);
+    const retained = queueByOpId(gapped, seeded.opId);
+    expect(retained.recovery?.code).toBe('sequence_gap');
+    expect(retained.recovery?.expectedSequence).toBe(retained.sequence);
+    expectRetainedPushAttempt(retained, await evidence<any>(page, 'exportOutboundPushEvidence'));
     const before = await stack.observations() as any;
     expect(before.sequenceReceipts).toHaveLength(0); expect(before.serverMutationCount).toBe(0);
     // Release the held denial only after observing the durable gap.
@@ -338,7 +342,7 @@ test('sequence_gap stands as durable evidence with the lane slot, then heals exa
     // The next drain realigns onto that slot and replays the same bytes, once.
     await evidence(page, 'wakeOutboundPushEvidence'); await waitForTerminalCount(page, 1);
     const after = await stack.observations() as any; const healed = await evidence<any>(page, 'exportOutboundPushEvidence');
-    expect(healed.queue[0].status).toBe('terminal');
+    expectSameSessionReplay(retained, healed, after);
     expect(after.pushRequests).toHaveLength(before.pushRequests.length + 1);
     expect(after.serverMutationCount).toBe(1); expect(after.sequenceReceipts).toHaveLength(1);
   } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
@@ -351,17 +355,20 @@ test('timeout survives worker and browser restart with byte-identical unknown at
   try {
     let page = await extensionPage(context); await login(page, stack.extensionBinding);
     await evidence(page, 'configureOutboundLeaseEvidence', 1_000);
-    stack.setPushFault('timeout_once'); await evidence(page, 'seedOutboundPushEvidence');
+    stack.setPushFault('timeout_once'); const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence');
     void evidence(page, 'wakeOutboundPushEvidence').catch(() => undefined);
-    await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status,
+    await expect.poll(async () => queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), seeded.opId).status,
       { timeout: 25_000 }).toBe('unknown');
-    const before = await evidence<any>(page, 'exportOutboundPushEvidence'); await terminateExtensionWorker(context, page);
+    const before = await evidence<any>(page, 'exportOutboundPushEvidence');
+    const retained = queueByOpId(before, seeded.opId);
+    expectRetainedPushAttempt(retained, await evidence<any>(page, 'exportOutboundPushEvidence'));
+    await terminateExtensionWorker(context, page);
     await context.close(); context = await launchPersistentContext(profile, stack.browserHostResolverRules);
     page = await extensionPage(context);
     await evidence(page, 'wakeOutboundPushEvidence'); await waitForTerminalCount(page, 1);
     const after = await evidence<any>(page, 'exportOutboundPushEvidence'); const observed = await stack.observations() as any;
-    expectAuthenticatedRestartReplay(before.queue[0], after.queue[0], observed);
-    expect(after.queue[0].retry.fence).toBeUndefined();
+    expectAuthenticatedRestartReplay(retained, after, observed);
+    expect(queueByOpId(after, seeded.opId).retry.fence).toBeUndefined();
     expect(observed.pushRequests[0].fingerprint).toBe(observed.pushRequests[1].fingerprint);
     expect(observed.serverMutationCount).toBe(1); expect(observed.sequenceReceipts).toHaveLength(1);
   } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
@@ -375,14 +382,16 @@ test('receipt transaction abort rolls back local receipt and queue commit, then 
     let page = await extensionPage(context); await login(page, stack.extensionBinding);
     await evidence(page, 'configureOutboundLeaseEvidence', 1_000);
     await evidence(page, 'configureOutboundPushFaultEvidence', 'after_receipt');
-    await evidence(page, 'seedOutboundPushEvidence'); await evidence(page, 'wakeOutboundPushEvidence');
-    await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('unknown');
+    const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence'); await evidence(page, 'wakeOutboundPushEvidence');
+    await expect.poll(async () => queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), seeded.opId).status).toBe('unknown');
     const aborted = await evidence<any>(page, 'exportOutboundPushEvidence'); expect(aborted.receipts).toHaveLength(0);
+    const retained = queueByOpId(aborted, seeded.opId);
+    expectRetainedPushAttempt(retained, await evidence<any>(page, 'exportOutboundPushEvidence'));
     await terminateExtensionWorker(context, page); await context.close();
     context = await launchPersistentContext(profile, stack.browserHostResolverRules);
     page = await extensionPage(context); await evidence(page, 'wakeOutboundPushEvidence'); await waitForTerminalCount(page, 1);
     const recovered = await evidence<any>(page, 'exportOutboundPushEvidence'); const observed = await stack.observations() as any;
-    expectAuthenticatedRestartReplay(aborted.queue[0], recovered.queue[0], observed); expect(recovered.receipts).toHaveLength(1);
+    expectAuthenticatedRestartReplay(retained, recovered, observed); expect(recovered.receipts).toHaveLength(1);
     expect(observed.serverMutationCount).toBe(1); expect(observed.sequenceReceipts).toHaveLength(1);
   } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
@@ -393,36 +402,36 @@ test('production MV3 exact-replays a committed Push after disconnect and converg
   let context = await launchPersistentContext(profile, stack.browserHostResolverRules);
   try {
     let page = await extensionPage(context); await login(page, stack.extensionBinding);
-    await stack.commitAfterDisconnect(); await evidence(page, 'seedOutboundPushEvidence'); await evidence(page, 'wakeOutboundPushEvidence');
-    await expect.poll(async () => (await evidence<any>(page, 'exportOutboundPushEvidence')).queue[0].status).toBe('unknown');
+    await stack.commitAfterDisconnect(); const seeded = await evidence<QueueOperation>(page, 'seedOutboundPushEvidence');
+    await evidence(page, 'wakeOutboundPushEvidence');
+    await expect.poll(async () => queueByOpId(await evidence<any>(page, 'exportOutboundPushEvidence'), seeded.opId).status).toBe('unknown');
     const before = await evidence<any>(page, 'exportOutboundPushEvidence');
+    const retained = queueByOpId(before, seeded.opId);
+    expectRetainedPushAttempt(retained, await evidence<any>(page, 'exportOutboundPushEvidence'));
     await terminateExtensionWorker(context, page); await context.close();
     context = await launchPersistentContext(profile, stack.browserHostResolverRules); page = await extensionPage(context);
     await stack.restorePushResponses(); await evidence(page, 'wakeOutboundPushEvidence');
     await expect.poll(async () => {
       const state = await evidence<any>(page, 'exportOutboundPushEvidence');
-      if (state.queue[0].status === 'rejected') {
+      const row = queueByOpId(state, seeded.opId);
+      if (row.status === 'rejected') {
         const observed = await stack.observations() as any;
-        throw new Error(`push rejected: ${JSON.stringify({ recovery: state.queue[0].recovery,
+        throw new Error(`push rejected: ${JSON.stringify({ recovery: row.recovery,
           mutationCount: observed.serverMutationCount, requestCount: observed.pushRequestDigests.length,
           pushErrors: observed.pushErrors })}`);
       }
-      return state.queue[0].status;
+      return row.status;
     }, { timeout: 40_000 }).toBe('terminal');
     const after = await evidence<any>(page, 'exportOutboundPushEvidence'); const observed = await stack.observations() as any;
-    expect(after.queue[0].opId).toBe(before.queue[0].opId); expect(after.queue[0].sequence).toBe(before.queue[0].sequence);
-    expect(after.queue[0].idempotencyKey).toBe(before.queue[0].idempotencyKey);
-    expect(after.queue[0].digest).toBe(before.queue[0].digest);
-    expect(after.queue[0].payload).toEqual(before.queue[0].payload);
-    expectAuthenticatedRestartReplay(before.queue[0], after.queue[0], observed);
+    expectAuthenticatedRestartReplay(retained, after, observed);
     expect(observed.serverMutationCount).toBe(1); expect(observed.serverReceiptDigest).toMatch(/^[0-9a-f]{64}$/);
     // The immutable Sequence result survives; the transport envelope is bound
     // to the Session that answered the authenticated replay.
     const { batchId: storedBatch, ...storedResult } = observed.serverReceipt;
-    const { batchId: replayBatch, ...replayedResult } = after.receipts[0].result;
+    const { batchId: replayBatch, ...replayedResult } = after.receipts.find((receipt: any) => receipt.opId === seeded.opId).result;
     expect(replayedResult).toEqual(storedResult);
-    expect(storedBatch.startsWith(`${before.queue[0].attempt.sessionId}.`)).toBe(true);
-    expect(replayBatch.startsWith(`${after.queue[0].attempt.sessionId}.`)).toBe(true);
+    expect(storedBatch.startsWith(`${retained.attempt!.sessionId}.`)).toBe(true);
+    expect(replayBatch).toBe(JSON.parse(observed.pushRequests.at(-1).body).batchId);
   } finally { await context.close(); await stack.close(); await rm(profile, { recursive: true, force: true }); }
 });
 
@@ -435,7 +444,8 @@ test('duplicate alarm and two extension contexts cannot produce divergent sends'
   try {
     const first = await extensionPage(contextA); const second = await extensionPage(contextB);
     await login(first, stack.extensionBinding); await login(second, stack.extensionBinding);
-    await evidence(first, 'seedOutboundPushEvidence'); await evidence(second, 'seedOutboundPushEvidence');
+    const seedA = await evidence<QueueOperation>(first, 'seedOutboundPushEvidence');
+    const seedB = await evidence<QueueOperation>(second, 'seedOutboundPushEvidence');
     await Promise.all([evidence(first, 'duplicateAlarm'), evidence(second, 'duplicateAlarm')]);
     await expect.poll(async () => (await stack.observations() as any).serverMutationCount, { timeout: 20_000 }).toBe(1);
     const observed = await stack.observations() as any; expect(observed.serverMutationCount).toBe(1);
@@ -443,7 +453,7 @@ test('duplicate alarm and two extension contexts cannot produce divergent sends'
     await expect.poll(async () => {
       const [left, right] = await Promise.all([evidence<any>(first, 'exportOutboundPushEvidence'),
         evidence<any>(second, 'exportOutboundPushEvidence')]);
-      const statuses = [left.queue[0].status, right.queue[0].status].sort();
+      const statuses = [queueByOpId(left, seedA.opId).status, queueByOpId(right, seedB.opId).status].sort();
       // The refused replica settles through a retry, and every MV3 retry is clamped to a 30s
       // alarm floor (`sw/engine.ts`) - longer than this poll. Nudge both replicas instead of
       // waiting for that timer: the claim under test is the outcome (one mutation, no divergent
@@ -461,8 +471,10 @@ test('duplicate alarm and two extension contexts cannot produce divergent sends'
     // them. `sequence_reuse` means "your result is unknown", not "your operation did not execute"
     // (`src/logical-operation-identity.ts:53-61`), so the row stays replayable with the server's
     // code - which is exactly what keeps this from being a silent divergent send.
-    const refused = states.find((state) => state.queue[0].status !== 'terminal')!;
-    expect(refused.queue[0].recovery.code).toMatch(/stale_replica|sequence_reuse|op_id_reused/);
+    const refused = states.map((state, index) => queueByOpId(state, [seedA.opId, seedB.opId][index]!))
+      .find(row => row.status !== 'terminal')!;
+    expect(refused.recovery?.code).toMatch(/stale_replica|sequence_reuse|op_id_reused/);
+    expect(refused.attempt).toBeDefined(); expect(refused.payload.compacted).not.toBe(true);
     expect((await stack.observations() as any).serverMutationCount).toBe(1);
   } finally {
     await contextA.close(); await contextB.close(); await stack.close();
