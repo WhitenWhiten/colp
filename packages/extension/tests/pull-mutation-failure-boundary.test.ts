@@ -58,16 +58,17 @@ test('create mutation with a missing revision mapping resumes with the original 
   const f = await setup();
   try {
     const event: any = create(91);
-    let fail = true;
+    let fail = true, injectedFailures = 0;
     const applier = createPullApplier({ ...f.options, store: { ...f.store,
-      getMappingByColpId: async (scope, nodeId) => {
+      getCurrentPullMapping: async (scope, nodeId) => {
         if (fail && nodeId === 'root-colp' && f.api.calls.some(c => c.kind === 'create')) {
-          fail = false; throw new Error('parent_revision_mapping_missing');
+          fail = false; injectedFailures += 1; throw new Error('parent_revision_mapping_missing');
         }
-        return f.store.getMappingByColpId(scope, nodeId);
+        return f.store.getCurrentPullMapping(scope, nodeId);
       } } });
     await f.applier.stage(f.page([event], 'cursor-1'));
     await assert.rejects(applier.resume(), /mapping_missing/);
+    assert.equal(injectedFailures, 1, 'the current coherent reader must encounter the post-create fault');
     assert.equal(f.api.calls.filter(c => c.kind === 'create').length, 1);
     assert.notEqual((await f.store.getCursor(scope))?.cursor, 'cursor-1');
     assert.equal((await f.store.listPullIssues(scope)).length, 0);
@@ -75,6 +76,7 @@ test('create mutation with a missing revision mapping resumes with the original 
       { code: 'parent_mapping_missing', nodeId: id(91), now: 1 }), /pull_event_state_invalid/);
     await restoreAuthority(f);
     await applier.resume();
+    assert.equal(injectedFailures, 1, 'recovery must complete after the one injected read failure');
     assert.equal(f.api.calls.filter(c => c.kind === 'create').length, 1, 'recovery must not duplicate the created bookmark');
     assert.ok(await f.store.getMappingByColpId(scope, id(91)));
     assert.equal((await f.store.getCursor(scope))?.cursor, 'cursor-1');
