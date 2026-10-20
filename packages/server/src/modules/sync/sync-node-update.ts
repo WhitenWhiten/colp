@@ -15,13 +15,12 @@ import {
   assertValidNodeTags,
   assertValidNodeTitle,
   assertValidNodeVisibility,
-  invalidateOmittedBookmarkUrlMetadata,
   type JsonObject,
   type JsonValue,
   type ResourceOwnedFields,
   validBookmarkPinExtension,
 } from '../collections/index.js';
-import { validIncomingBookmarkUrlHash, pinEquivalentSyncBookmarkMetadata } from './sync-bookmark-metadata.js';
+import { validIncomingBookmarkUrlHash, reconcileSyncBookmarkMetadata } from './sync-bookmark-metadata.js';
 
 export type SyncNodeKind = 'folder' | 'bookmark' | 'separator';
 
@@ -138,10 +137,8 @@ export function evaluateSyncNodeUpdate(
   if (merged.status === 'conflict') {
     return conflict('sync_conflict_pending', merged.conflicts.map((item) => item.field).sort());
   }
-  const pinned = current.kind === 'bookmark'
-    ? pinEquivalentSyncBookmarkMetadata(current.payload, merged.value) : merged.value;
   const pinnedMerged = current.kind === 'bookmark'
-    ? invalidateOmittedBookmarkUrlMetadata(pinned, current.payload) : pinned;
+    ? reconcileSyncBookmarkMetadata(current.payload, merged.value, payload.base, payload.value) : merged.value;
   assertBudget([pinnedMerged], budget);
   const canonical = canonicalFields(current.kind, pinnedMerged, current.payload);
   return Object.freeze({

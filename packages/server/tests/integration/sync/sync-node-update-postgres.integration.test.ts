@@ -351,6 +351,46 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     `, [replicaId, COLLECTION, nodeId])).rows[0];
   }
 
+  async function pulledOperationNode(operationId: string) {
+    const receiver = await context('owner', '0.2');
+    const ordinal = (await isolated.runtime.pool.query('select commit_ordinal from operations where operation_id=$1',
+      [operationId])).rows[0].commit_ordinal;
+    const predecessor = (await isolated.runtime.pool.query<{
+      commit_ordinal: string; stream_kind: number; stable_id: string;
+    }>(`select commit_ordinal::text, stream_kind, stable_id from (
+      select commit_ordinal,sync_stream_kind stream_kind,operation_id stable_id from operations
+      where collection_id=$1 and sync_wire_present
+      union all
+      select commit_ordinal,sync_stream_kind stream_kind,conflict_id stable_id from sync_conflicts
+      where collection_id=$1
+    ) stream where commit_ordinal < $2
+      order by stream.commit_ordinal desc,stream_kind desc,stable_id collate "C" desc limit 1`,
+    [COLLECTION, ordinal])).rows[0];
+    const keys = createSyncPullCursorKeyring({
+      active: { id: 'metadata-regression-pull', secret: Buffer.alloc(32, 92).toString('base64') },
+      retained: [], ttlMs: 60_000,
+    });
+    try {
+      const cursor = keys.sign({ replicaId: receiver.replica.replicaId, collectionId: COLLECTION,
+        leaseGeneration: BigInt(receiver.replica.leaseGeneration).toString(), sessionId: receiver.session.sessionId,
+        principalId: ACCOUNT, protocolVersion: '0.2', policyRevision: 'policy-r1',
+        purgeBoundary: { commitOrdinal: '0', streamKind: 'operation', stableId: '' }, limit: 1,
+        tuple: predecessor ? { commitOrdinal: predecessor.commit_ordinal,
+          streamKind: predecessor.stream_kind === 0 ? 'operation' : 'conflict', stableId: predecessor.stable_id }
+          : { commitOrdinal: '0', streamKind: 'operation', stableId: '' },
+      });
+      const page = await createPostgresSyncPullReadPort(isolated.runtime.db, keys).read({ origin: ORIGIN,
+        credential: receiver.credential, sessionId: receiver.session.sessionId, collectionId: COLLECTION,
+        replicaId: receiver.replica.replicaId, cursor, limit: 1 });
+      assert.ok(!('recoveryRequired' in page));
+      const event = page.events.find(item => item.kind === 'operation' && item.operation.opId === operationId);
+      assert.ok(event && event.kind === 'operation' && 'effect' in event);
+      assert.doesNotThrow(() => validateAuthoritativePullEvent(event as never, '0.2'));
+      assert.ok('node' in event.effect);
+      return event.effect.node;
+    } finally { keys.destroy(); }
+  }
+
   async function openConflict(input: {
     readonly kind?: NodeKind;
     readonly base?: Record<string, unknown>;
@@ -731,6 +771,60 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, response.body);
       assert.deepEqual(await facts(value.replica.replicaId, base.id), after);
     });
+
+  test('a real URL edit clears Current-only metadata in canonical content, receipt transform and authoritative Pull', async () => {
+    const url = 'https://example.test/current-only-before', nextUrl = 'https://example.test/current-only-after';
+    const seeded = await seedNode('bookmark', { url });
+    await setCurrent(seeded, { urlHash: `sha-256=:${createHash('sha256').update(url).digest('base64')}:`,
+      canonicalUrl: 'https://canonical.test/current-only-before' });
+    const value = await context(), server = await start(value);
+    const request = syncNodeUpdatePushRequest({ sessionId: value.session.sessionId,
+      replicaId: value.replica.replicaId, collectionId: COLLECTION, targetId: seeded.id,
+      baseRevision: seeded.revision, opId: `current-only-metadata-${randomUUID()}`,
+      base: { url, urlHash: null, canonicalUrl: null }, value: { url: nextUrl, urlHash: null, canonicalUrl: null } });
+    const idempotencyKey = `current-only-metadata-${randomUUID()}`;
+    const response = await blackBox(server.origin).push({ idempotencyKey, request });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const applied = result(response.body).results[0]!;
+    assert.equal(applied.status, 'rebased');
+    assert.deepEqual(applied.transform, { url: nextUrl, urlHash: null, canonicalUrl: null });
+    const after = await facts(value.replica.replicaId, seeded.id);
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [request.operations[0]!.opId])).rows[0].effect_json;
+    const pulled = await pulledOperationNode(request.operations[0]!.opId);
+    for (const content of [after.node.payload_json, effect.node, pulled]) {
+      assert.equal(content.url, nextUrl);
+      assert.equal(Object.hasOwn(content, 'urlHash'), false);
+      assert.equal(Object.hasOwn(content, 'canonicalUrl'), false);
+    }
+    const beforeReplay = await facts(value.replica.replicaId, seeded.id);
+    assert.deepEqual((await blackBox(server.origin).push({ idempotencyKey, request })).body, response.body);
+    assert.deepEqual(await facts(value.replica.replicaId, seeded.id), beforeReplay);
+  });
+
+  test('both recovers a real URL edit without binding Current-only metadata to its new URL', async () => {
+    const url = 'https://example.test/current-copy-before', nextUrl = 'https://example.test/current-copy-after';
+    const opened = await openConflict({ base: { title: 'Base', url, urlHash: null, canonicalUrl: null },
+      current: { title: 'Server', urlHash: `sha-256=:${createHash('sha256').update(url).digest('base64')}:`,
+        canonicalUrl: 'https://canonical.test/current-copy-before' },
+      incoming: { title: 'Incoming', url: nextUrl, urlHash: null, canonicalUrl: null } });
+    const before = (await facts(opened.value.replica.replicaId, opened.node.id)).node;
+    const app = resolver(opened.value);
+    const request = resolveInput(opened, { resolution: 'both', baseConflictRevision: opened.revision });
+    const resolved = await app.resolve(request);
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+      [resolved.operation.opId])).rows[0].effect_json;
+    const row = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [effect.node.id])).rows[0];
+    const pulled = await pulledOperationNode(resolved.operation.opId);
+    for (const content of [row.payload_json, effect.node, pulled]) {
+      assert.equal(content.url, nextUrl);
+      assert.equal(Object.hasOwn(content, 'urlHash'), false);
+      assert.equal(Object.hasOwn(content, 'canonicalUrl'), false);
+    }
+    assert.notEqual(effect.node.id, opened.node.id);
+    assert.deepEqual((await facts(opened.value.replica.replicaId, opened.node.id)).node, before);
+    assert.deepEqual(await app.resolve(request), resolved);
+  });
 
   test('browser tag sync removes only observed members, preserves concurrent additions and exactly replays its receipt', async () => {
     const base = await setCurrent(await seedNode('bookmark'), { tags: ['base'] });

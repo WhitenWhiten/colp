@@ -3,13 +3,12 @@ import { preserveExtensions } from '@know-n/colp/schema';
 import { validateBookmarkUrlHashSemantics } from '@know-n/colp/semantic';
 import {
   mergeSyncNodeContentFields, mergeSyncExtensionNamespaces, SyncConflictResolutionError,
-  validIncomingBookmarkUrlHash, pinEquivalentSyncBookmarkMetadata,
+  validIncomingBookmarkUrlHash, reconcileSyncBookmarkMetadata,
   type ValidatedSyncConflictResolutionCommand,
 } from '../../modules/sync/index.js';
 import {
   assertValidHttpUrlNoUserInfo, assertValidNodeDescription, assertValidNodeTags,
   assertValidNodeTitle, assertValidNodeVisibility,
-  invalidateOmittedBookmarkUrlMetadata,
 } from '../../modules/collections/index.js';
 import { assertPlainCustomObject, isRecord } from './sync-conflict-json.js';
 import type { PrivateConflictPayload } from './sync-conflict-private-payload.js';
@@ -103,7 +102,7 @@ export function duplicateNodeDocument(
       ? privatePayload.incoming[field] : merged.value[field];
   }
   const content = { ...current, ...(privatePayload.nodeKind === 'bookmark'
-    ? invalidateOmittedBookmarkUrlMetadata(pinEquivalentSyncBookmarkMetadata(current, selected), current) : selected) };
+    ? reconcileSyncBookmarkMetadata(current, selected, privatePayload.base, privatePayload.incoming) : selected) };
   const description = assertValidNodeDescription(content.description as string | null | undefined ?? null);
   const tags = assertValidNodeTags(content.tags as readonly string[] | undefined ?? []);
   const visibility = assertValidNodeVisibility(content.visibility as string | undefined ?? 'inherit');
