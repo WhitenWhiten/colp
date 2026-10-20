@@ -145,7 +145,7 @@ export function matchLocalRemote(input: {
   for (const row of input.local) {
     if (!row.url || consumedL.has(row.nativeId)) continue;
     const key = encodeFactKey([
-      mountRemoteId(row.mountNativeRootId, input.mounts, remoteIndex, input.rootNodeId, mappingByNative, mountsByRoot),
+      matchingContainer(row, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot),
       row.url,
     ]);
     const group = urlGroups.get(key) ?? { locals: [], remotes: [] };
@@ -314,7 +314,9 @@ function pairStructureByParentDepth(
   }
   const byDepth = new Map<number, LocalNodeFact[]>();
   for (const row of input.local) {
-    if (consumedL.has(row.nativeId) || row.kind === 'separator') continue;
+    // An absent known identity can represent a deletion. Structural similarity
+    // is not evidence that a newly created cloud node is that same identity.
+    if (consumedL.has(row.nativeId) || authoritativeColp(mappingByNative.get(row.nativeId)) || row.kind === 'separator') continue;
     const level = depth(row, localIndex.byId);
     const list = byDepth.get(level) ?? [];
     list.push(row);
@@ -382,10 +384,22 @@ function structureKey(local: LocalNodeFact, mappingByNative: ReadonlyMap<string,
   remoteIndex: ReturnType<typeof buildRemoteIndex>,
   mountsByRoot: ReadonlyMap<string, MountFact>): string {
   return encodeFactKey([
-    mountRemoteId(local.mountNativeRootId, mounts, remoteIndex, rootNodeId, mappingByNative, mountsByRoot),
+    matchingContainer(local, mappingByNative, mounts, rootNodeId, remoteIndex, mountsByRoot),
     mappedParent(local, mappingByNative, mounts, rootNodeId, remoteIndex, mountsByRoot),
     local.title, local.url,
   ]);
+}
+
+/** A selected ordinary folder is a range boundary inside a canonical container.
+ * Its already-proved parent determines that container; it does not create a new
+ * special/custom root. Keep mappedParent itself unchanged for operation targets. */
+function matchingContainer(local: LocalNodeFact, mappings: ReadonlyMap<string, string>,
+  mounts: readonly MountFact[], rootNodeId: string | null, remote: ReturnType<typeof buildRemoteIndex>,
+  mountsByRoot: ReadonlyMap<string, MountFact>): string {
+  const mountId = mountRemoteId(local.mountNativeRootId, mounts, remote, rootNodeId, mappings, mountsByRoot);
+  const parentId = mappedParent(local, mappings, mounts, rootNodeId, remote, mountsByRoot);
+  return parentId && parentId !== rootNodeId && remote.mountOf.get(parentId)
+    || remote.mountOf.get(mountId) || mountId;
 }
 
 function depth(row: LocalNodeFact, byId: ReadonlyMap<string, LocalNodeFact>): number {

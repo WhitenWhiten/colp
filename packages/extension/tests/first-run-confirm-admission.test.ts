@@ -12,7 +12,7 @@ import { handleSyncProgressRequest } from '../src/sw/sync-progress.js';
 import { handleFirstRunRequest } from '../src/sw/first-run.js';
 import type { ChromeBookmarkNode } from '../src/chrome-bookmark-tree.js';
 import type { RootRequest } from '../src/types.js';
-import type { SyncScope } from '../src/sync-state-store.js';
+import type { JsonObject, SyncScope } from '../src/sync-state-store.js';
 import { digestJson } from '../src/bookmark-event-codec.js';
 
 vi.mock('../src/sw/runtime.js', async () => {
@@ -223,4 +223,100 @@ test('Later reports an IndexedDB failure without claiming a saved draft', async 
   vi.spyOn(db, 'transaction').mockImplementationOnce(() => { throw new Error('database unavailable'); });
   expect(await handleFirstRunRequest({ kind: 'known.firstRun.later' })).toEqual({ ok: false, error: 'defer_failed' });
   expect((await syncState.getScope(scope))?.firstRun).toBe('completed');
+});
+
+test('reconnected first-run matches a selected subfolder through its proved canonical ancestry without new creates', async () => {
+  tree = [{ id: '0', title: '', children: [{ id: '1', parentId: '0', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [
+    { id: '10', parentId: '1', title: 'Existing parent', children: [
+      { id: '11', parentId: '10', title: 'Selected child', children: [
+        { id: '12', parentId: '11', title: 'Already synced bookmark', url: 'https://example.test/already-synced' },
+      ] },
+      { id: '13', parentId: '10', title: 'Unselected sibling', url: 'https://example.test/private-sibling' },
+    ] },
+  ] }] }];
+  const beforeNative = structuredClone(tree);
+  await syncState.setFirstRun(scope, 'none');
+  const node = (colpId: string, parentId: string | null, content: JsonObject) => ({ colpId, parentId,
+    kind: typeof content.url === 'string' ? 'Bookmark' as const : 'Folder' as const,
+    position: colpId, payloadDigest: digestJson(content), mapping: {
+      nativeId: `recovery:${colpId}`, colpId, rootNativeId: 'recovery:canonical-root',
+      nodeKind: typeof content.url === 'string' ? 'bookmark' as const : 'folder' as const,
+      ...(parentId ? { parentColpId: parentId } : {}),
+      projection: { revision: `r-${colpId}`, digest: digestJson(content), childrenRevision: `c-${colpId}`, content },
+    } });
+  const remote = [node('canonical-root', null, { title: '', folderRole: 'root' }),
+    node('cloud-bar', 'canonical-root', { title: 'Bookmarks bar', folderRole: 'bookmarks-bar' }),
+    node('cloud-parent', 'cloud-bar', { title: 'Existing parent' }),
+    node('cloud-child', 'cloud-parent', { title: 'Selected child' }),
+    node('cloud-bookmark', 'cloud-child', { title: 'Already synced bookmark', url: 'https://example.test/already-synced' })];
+  // Reconnect has no old replica identities. Supply the complete cached Snapshot
+  // through the same durable page chain consumed by the real coordinator.
+  for (const [page, nodes] of [remote.slice(0, 3), remote.slice(3)].entries()) {
+    await syncState.stageRecoveryPage(scope, { snapshotId: 'existing-library', revision: 'r-existing',
+      identityDigest: 'sha256:existing', rootNodeId: 'canonical-root', syncCursor: 'cursor-existing',
+      page, pageDigest: `sha256:page-${page}`, previousPageDigest: page ? 'sha256:page-0' : null,
+      nextCursor: page ? null : 'page-1', complete: page === 1, sessionId: 'session-existing', nodes });
+  }
+  const view = await loadRootView(scope);
+  const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
+    selectedRefs: [view.roots.find(row => row.title === 'Selected child')!.ref], excludedRefs: [] });
+  if (!preview.ok || !('previewId' in preview)) throw new Error('missing preview');
+  const request = { kind: 'known.firstRun.confirm' as const, previewId: preview.previewId,
+    confirmationId: crypto.randomUUID(), libraryId: scope.collectionId };
+  const response = await handleFirstRunRequest(request);
+  expect(response.ok).toBe(true);
+  const command = await syncState.getBoundaryCommand(scope, request.confirmationId);
+  expect(command).toMatchObject({ state: 'committed', result: response });
+  const mappings = await syncState.listMappings(scope);
+  expect(await syncState.listQueue(scope)).toEqual([]);
+  expect(mappings.filter(row => ['11', '12'].includes(row.nativeId)).map(row => [row.nativeId, row.colpId]).sort())
+    .toEqual([['11', 'cloud-child'], ['12', 'cloud-bookmark']]);
+  expect(mappings.some(row => row.nativeId === '13')).toBe(false);
+  expect((await syncState.exportScope(scope)).receipts).toEqual([]);
+  expect(await syncState.listRecoveryNodes(scope)).toHaveLength(5);
+  expect((await syncState.getScope(scope))?.selectedRoots).toEqual(['cloud-child']);
+  expect(await syncState.listMountBindings(scope)).toEqual([expect.objectContaining({
+    nativeRootId: '11', remoteMountNodeId: 'cloud-child', status: 'active' })]);
+  syncState.close();
+  expect(await handleFirstRunRequest(request)).toEqual(response);
+  expect(await syncState.listQueue(scope)).toEqual([]);
+  expect(await syncState.listMappings(scope)).toEqual(mappings);
+  expect(new Set(mappings.map(row => row.colpId)).size).toBe(mappings.length);
+  expect(tree).toEqual(beforeNative);
+  for (const method of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[method]).not.toHaveBeenCalled();
+});
+
+test.each(['managed', 'private'] as const)('reconnect cannot admit a selected child through a %s ancestor', async protection => {
+  tree = [{ id: '0', title: '', children: [{ id: '1', parentId: '0', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [
+    { id: '10', parentId: '1', title: 'Protected parent', ...(protection === 'managed' ? { unmodifiable: 'managed' } : {}), children: [
+      { id: '11', parentId: '10', title: 'Selected child', children: [
+        { id: '12', parentId: '11', title: 'Protected bookmark', url: 'https://example.test/protected' },
+      ] },
+    ] },
+  ] }] }];
+  await syncState.setFirstRun(scope, 'none');
+  if (protection === 'private') {
+    await syncState.putMapping(scope, { nativeId: '10', colpId: 'private-parent', rootNativeId: '1', nodeKind: 'folder',
+      parentNativeId: '1', projection: { revision: 'r-private', digest: 'sha256:private', content: { title: 'Protected parent' } } });
+    await syncState.configureBrowserRoots(scope, { discovered: (await readRootFolders()).discovered,
+      selectedNativeIds: [], privateNativeIds: ['10'], status: 'ready' });
+  }
+  const beforeNative = structuredClone(tree);
+  const view = await loadRootView(scope);
+  const child = view.roots.find(row => row.title === 'Selected child')!;
+  const preview = await handleFirstRunRequest({ kind: 'known.firstRun.preview', viewId: view.viewId,
+    selectedRefs: [child.ref], excludedRefs: [] });
+  if (preview.ok && 'previewId' in preview) {
+    await handleFirstRunRequest({ kind: 'known.firstRun.confirm', previewId: preview.previewId,
+      confirmationId: crypto.randomUUID(), libraryId: scope.collectionId });
+  } else expect(preview).toMatchObject({ ok: false });
+  expect(await syncState.listQueue(scope)).toEqual([]);
+  // Root management may retain a local-only placeholder for an explicitly
+  // selected row. It must never acquire a cloud identity or bypass its ancestor.
+  expect((await syncState.listMappings(scope)).filter(row => ['11', '12'].includes(row.nativeId)
+    && row.projection.revision !== 'local-root')).toEqual([]);
+  expect((await syncState.listMountBindings(scope)).filter(row => row.nativeRootId === '11' && row.remoteMountNodeId !== null)).toEqual([]);
+  if (protection === 'private') expect((await syncState.getScope(scope))?.privateRoots).toEqual(['private-parent']);
+  for (const method of ['create', 'update', 'move', 'remove', 'removeTree'] as const) expect(chrome.bookmarks[method]).not.toHaveBeenCalled();
+  expect(tree).toEqual(beforeNative);
 });
