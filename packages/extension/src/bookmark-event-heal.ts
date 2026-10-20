@@ -3,7 +3,7 @@ import { resolveObservedBase } from './bookmark-observed-base.js';
 import { identityFromPendingCreate } from './bookmark-create-receipt-identity.js';
 import { resolveSubtreePredecessors } from './bookmark-subtree-predecessors.js';
 import { materializeNativeMutation } from './bookmark-native-mutation.js';
-import { projectPendingBookmarkEvent } from './bookmark-event-projection.js';
+import { projectBookmarkContentUpdate, projectPendingBookmarkEvent } from './bookmark-event-projection.js';
 import type { BookmarkEventRecord, JsonObject, MappingInput, MountBindingRecord, QueueOperation,
   SyncScope } from './sync-state-store.js';
 
@@ -81,7 +81,7 @@ export function createBookmarkEventHealer(input: {
       const payload = asObject(template.payload, 'payload');
       const value = asObject(payload.value, 'value');
       const base = asObject(payload.base, 'base');
-      const nextContent = { ...identity.identity.content, ...value };
+      const nextContent = projectBookmarkContentUpdate(identity.identity.content, base, value);
       return { kind: 'ready', operation: { ...template, targetId: identity.identity.colpId,
         baseRevision: observedRevision!, dependencies: [], payload: { base, value } },
       mapping: mappingAfter(identity.identity, event, nextContent), deleteNativeIds };
