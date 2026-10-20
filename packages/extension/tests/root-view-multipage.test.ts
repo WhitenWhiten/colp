@@ -80,4 +80,3 @@ test('two first-run pages can preview different selections without mutating the 
   }
   expect((await syncState.getScope(scope))?.boundaryVersion).toBe('0');
 });
-

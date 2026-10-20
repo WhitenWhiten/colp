@@ -55,4 +55,3 @@ test('a valid root-only bookmark selection remains startable when every child fo
   expect(input('bar').indeterminate).toBe(true);
   expect(byId<HTMLButtonElement>('first-run-start').disabled).toBe(false);
 });
-
