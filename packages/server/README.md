@@ -121,6 +121,15 @@ still echo their input cursor; missing retained history still requires recovery.
 Recovery uses fresh request credential evidence, while durable credential rows
 continue to enforce identity, revocation, token expiry and account security epochs.
 
+`restore_node` restores one retained node under its original live parent, or under
+Recovered in its original mount when that parent is gone. This server does not
+support placement fields on a restore: `newParentId`, `afterId`, and `beforeId`
+return `unsupported_operation` without restoring or acknowledging success. Restore
+first, read the resulting revision and parent revisions, then use `move_node` for
+a different destination or order. The COLP schema permits these fields for hosts
+that implement them; the browser's remote-delete Restore and batch Undo requests
+send only a reason and retain their existing behavior.
+
 ### Bookmark favicons
 
 The self-hosted preset enables favicon upload and background filling. In Settings → Favicon,

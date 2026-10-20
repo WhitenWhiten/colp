@@ -17,13 +17,24 @@ function restore(overrides: Record<string, unknown> = {}): Operation {
 }
 
 describe('KNS-06 restore_node mapper', () => {
-  test('maps a closed single-target restore and ignores client placement', () => {
+  test('maps a closed single-target restore with the server restore placement policy', () => {
     const mapped = evaluateSyncNodeRestore(restore({
-      payload: { newParentId: 'folder-x', afterId: 'a', beforeId: 'b', reason: 'restore' },
+      payload: { reason: 'restore' },
     }));
     assert.deepEqual(mapped, {
       collectionId: 'collection-1', targetId: 'node-1', expectedDeleteRevision: 'delete-r1',
     });
+  });
+
+  test.each([{ newParentId: 'folder-x' }, { afterId: 'a' }, { beforeId: 'b' }, { afterId: null }, { beforeId: null }])(
+    'refuses unsupported placement %j instead of silently restoring elsewhere', payload => {
+      assert.throws(() => evaluateSyncNodeRestore(restore({ payload })),
+        (error: unknown) => error instanceof SyncNodeRestoreError && error.code === 'unsupported_operation');
+    });
+
+  test.each([{ newParentId: null }, { afterId: '' }, { beforeId: false }])('rejects malformed placement %j', payload => {
+    assert.throws(() => evaluateSyncNodeRestore(restore({ payload })),
+      (error: unknown) => error instanceof SyncNodeRestoreError && error.code === 'invalid_document');
   });
 
   test('rejects unknown payload keys and missing identity', () => {

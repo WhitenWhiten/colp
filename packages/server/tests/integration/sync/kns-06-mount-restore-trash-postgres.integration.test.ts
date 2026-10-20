@@ -267,6 +267,23 @@ describeWithPostgres('KNS-06 mount uniqueness, restore, and Product trash', () =
         collectionId, sequence: sequence++, opId: `op-del-${randomUUID()}`,
         targetId: bookmark.targetId, baseRevision: bookmark.revision,
       }));
+      const beforePlacement = (await runtime.pool.query(`select parent_id,deleted_at,resource_revision,payload_json
+        from nodes where id=$1`, [bookmark.targetId])).rows[0];
+      for (const placement of [{ newParentId: folder.targetId }, { afterId: orphan.targetId }, { beforeId: null }]) {
+        const restore = syncNodeRestorePushRequest({ sessionId: ownerSync.session.sessionId,
+          replicaId: ownerSync.replica.replicaId, collectionId, sequence,
+          opId: `op-placement-${randomUUID()}`, targetId: bookmark.targetId, baseRevision: deleted.revision });
+        const request = { ...restore, operations: restore.operations.map(operation => ({ ...operation, payload: placement })) };
+        const refused = await push.push({ idempotencyKey: `placement-${randomUUID()}`, request });
+        assert.notEqual(refused.status, 200);
+        assert.equal((refused.body as Problem).code, 'unsupported_operation');
+        assert.deepEqual((await runtime.pool.query(`select parent_id,deleted_at,resource_revision,payload_json
+          from nodes where id=$1`, [bookmark.targetId])).rows[0], beforePlacement);
+        assert.equal((await runtime.pool.query('select count(*)::int count from sync_operation_effects where operation_id=$1',
+          [request.operations[0]!.opId])).rows[0].count, 0);
+        assert.equal((await runtime.pool.query('select count(*)::int count from sync_sequence_receipts where replica_id=$1 and sequence_number=$2',
+          [ownerSync.replica.replicaId, sequence])).rows[0].count, 0);
+      }
       const restored = await pushOp(syncNodeRestorePushRequest({
         sessionId: ownerSync.session.sessionId, replicaId: ownerSync.replica.replicaId,
         collectionId, sequence: sequence++, opId: `op-restore-${randomUUID()}`,

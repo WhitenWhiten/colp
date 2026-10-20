@@ -38,9 +38,14 @@ export function evaluateSyncNodeRestore(operation: Operation): Readonly<Canonica
     if (Buffer.byteLength(payload.reason, 'utf8') > MAX_RESTORE_REASON_BYTES) deny('payload_too_large');
   }
   for (const key of ['newParentId', 'afterId', 'beforeId'] as const) {
+    if (!Object.hasOwn(payload, key)) continue;
     const value = payload[key];
-    if (value === undefined || value === null) continue;
-    if (typeof value !== 'string' || value.length < 1) deny('invalid_document');
+    if (!(value === null && key !== 'newParentId')
+      && (typeof value !== 'string' || value.length < 1)) deny('invalid_document');
+    // This host restores the original parent, or an explicit Recovered folder
+    // when that parent is gone. A caller's requested placement must never be
+    // acknowledged and then silently discarded. Move after the restore instead.
+    deny('unsupported_operation');
   }
   return Object.freeze({
     collectionId: operation.collectionId,
