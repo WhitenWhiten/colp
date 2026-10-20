@@ -136,6 +136,13 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
     await runTransaction(db, [STORES.intents, STORES.bookmarkEvents], 'readwrite', async (tx) => {
       await iterateCursor(tx.objectStore(STORES.intents), scopeRowsRange(key), (raw) => {
         const intent = raw as IntentRecord;
+        if (intent.liveWorkKind === 'rejoin' && intent.commandId?.startsWith('rejoin-remote-delete:')
+          && intent.generation === input.generation && intent.expected.kind === 'remove'
+          && intent.nativeTargetId === target && intent.expected.nativeId === target && intent.state === 'page_complete'
+          && ['absent', 'applied_with_evidence'].includes(intent.nativeResult ?? '')
+          && intent.nativeResultConfirmation?.nativeId === target) {
+          matched = true; return false;
+        }
         if (intent.liveWorkKind !== 'delete' || !intent.anchors) return;
         const members = intent.anchors.deleteMemberSet;
         const results = intent.anchors.deleteMemberResults;

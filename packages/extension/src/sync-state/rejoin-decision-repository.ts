@@ -8,6 +8,8 @@ import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { readScopeCommandRecord, writeScopeCommandRecord } from './scope-command-evidence.js';
+import { assertTerminalRejoinRejections, writeRejoinResolutions } from './rejoin-resolution-repository.js';
+import type { RejoinNative } from '../scope-rejoin-mutation.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
 export interface RejoinRestoreOrder { readonly parentId: string; readonly children: readonly string[]; readonly childrenRevision: string }
@@ -24,7 +26,32 @@ export interface RejoinMaterializationAuthority {
 export interface RejoinMutationAuthority {
   readonly before: MappingInput; readonly mount: MountBindingRecord; readonly parents: readonly MappingInput[];
   readonly boundaryDigest: string; readonly exclusionDigest: string;
-  readonly deletion?: { readonly boundary: RejoinDeletionBoundary; readonly members: readonly MappingInput[] };
+  readonly deletion?: { readonly boundary: RejoinDeletionBoundary; readonly members: readonly MappingInput[];
+    readonly unmappedNativeIds?: readonly string[] };
+  readonly decision?: { readonly commandId: string; readonly token: string; readonly choice: string };
+}
+export interface RejoinRemoteDeleteMember {
+  readonly nativeId: string; readonly native: RejoinNative | null; readonly mapping: MappingInput | null;
+  readonly children: readonly string[] | null;
+}
+export interface RejoinRemoteDeleteEvidence {
+  readonly authority: RejoinMutationAuthority; readonly members: readonly RejoinRemoteDeleteMember[];
+}
+export const remoteDeleteMemberIntentId = (commandId: string, token: string, nativeId: string): string =>
+  `rejoin-remote-delete-member:${digestJson({ commandId, token, nativeId }).slice(7)}`;
+export function remoteDeleteEvidence(plan: ScopeCommandPlanRecord): RejoinRemoteDeleteEvidence {
+  const value = plan.rejoinDecision?.remoteDeletion;
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !value.authority
+    || !Array.isArray(value.members) || !value.members.length) throw new SyncStateError('command_decision_invalid');
+  const evidence = value as unknown as RejoinRemoteDeleteEvidence;
+  if (!evidence.authority.before || !evidence.authority.deletion
+    || evidence.members[0]?.nativeId !== evidence.authority.before.nativeId
+    || evidence.members.some(row => !row || typeof row !== 'object' || typeof row.nativeId !== 'string' || !row.nativeId
+      || row.native !== null && (!row.native || typeof row.native !== 'object' || Array.isArray(row.native))
+      || row.mapping && row.mapping.nativeId !== row.nativeId
+      || row.children !== null && (!Array.isArray(row.children) || row.children.some(id => typeof id !== 'string')))
+    || new Set(evidence.members.map(row => row.nativeId)).size !== evidence.members.length) throw new SyncStateError('command_decision_invalid');
+  return evidence;
 }
 export interface RejoinDeletionBoundary {
   readonly nextSequence: number; readonly nextEventOrdinal: number;
@@ -54,19 +81,57 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
   const keyFor = (scope: SyncScope) => scopeKey(validateScope(scope));
   const names = [STORES.scopes, STORES.scopeCommandPlans, STORES.metadata, STORES.mounts];
 
+  /** Publish the replacement and revoke the superseded permission in one
+   * transaction, including every evidence page. A crash leaves one authority. */
+  async function stageRejoinRemoteDelete(scope: SyncScope, input: Omit<ScopeCommandPlanRecord, 'scopeKey'>): Promise<void> {
+    ctx.assertWritable(); const key = keyFor(scope);
+    await runTransaction(await ctx.writableDatabase(), names, 'readwrite', async tx => {
+      const recorded = await requireActiveScope(tx, key);
+      const mount = await requestValue<MountBindingRecord | undefined>(tx.objectStore(STORES.mounts).get([key, input.mountId!]));
+      if (!mount || mount.status !== 'detached' || mount.boundaryVersion !== input.confirmationVersion
+        || rejoinBoundaryDigest(recorded) !== input.rejoinDecision?.boundaryDigest
+        || rejoinAttemptDigest(mount, recorded) !== input.rejoinDecision?.attemptDigest) throw new SyncStateError('preview_stale');
+      const candidate = { ...input, scopeKey: key }, evidence = remoteDeleteEvidence(candidate);
+      const raw = await requestValue(tx.objectStore(STORES.scopeCommandPlans).getAll(scopeRowsRange(key)));
+      const plans = await Promise.all(raw.map(row => readScopeCommandRecord(tx, key, row, ctx.maxRecordBytes)));
+      // A user undo can return to an earlier token. It needs a new pending
+      // record; a failed accepted record must never regain its permission.
+      const same = plans.find(row => row.rejoinDecision?.kind === 'remote_delete'
+        && row.rejoinDecision.attemptDigest === input.rejoinDecision?.attemptDigest
+        && row.rejoinDecision.rootId === input.rejoinDecision?.rootId && row.baselineDigest === input.baselineDigest
+        && row.phase !== 'failed' && !row.rejoinDecision.supersededBy);
+      if (same && same.phase !== 'pending') return;
+      let commandId = same?.commandId ?? input.commandId;
+      for (let suffix = 1; plans.some(row => row.commandId === commandId && row.commandId !== same?.commandId); suffix++) {
+        commandId = `${input.commandId}:review-${suffix}`;
+      }
+      const mappedIds = new Set(evidence.members.flatMap(row => row.mapping ? [row.mapping.colpId] : []));
+      for (const prior of plans) if (prior.commandId !== commandId
+        && prior.rejoinDecision?.attemptDigest === input.rejoinDecision?.attemptDigest
+        && prior.phase !== 'active' && !prior.rejoinDecision?.supersededBy
+        && (prior.rejoinDecision?.kind === 'remote_delete' && prior.rejoinDecision.rootId === input.rejoinDecision?.rootId
+          || prior.rejoinDecision?.kind === 'order' && mappedIds.has(String(prior.rejoinDecision.parentId)))) {
+        await writeScopeCommandRecord(tx, key, { ...prior, phase: 'failed',
+          rejoinDecision: { ...prior.rejoinDecision, supersededBy: commandId }, updatedAt: Date.now() }, ctx.maxRecordBytes);
+      }
+      await writeScopeCommandRecord(tx, key, { ...candidate, commandId }, ctx.maxRecordBytes);
+    });
+  }
+
   /** Accept one immutable choice and its complete preimages before doing any browser work. */
   async function confirmRejoinDecision(scope: SyncScope, input: {
     commandId: string; token: string; choice: string; dependencies: readonly string[]; evidence?: JsonObject;
   }): Promise<ScopeCommandPlanRecord> {
     ctx.assertWritable(); const key = keyFor(scope); const db = await ctx.writableDatabase();
     let result!: ScopeCommandPlanRecord;
-    await runTransaction(db, names, 'readwrite', async tx => {
+    await runTransaction(db, [...mutationStores, STORES.receipts, STORES.diagnostics], 'readwrite', async tx => {
       const recorded = await requireActiveScope(tx, key);
       const raw = await requestValue(tx.objectStore(STORES.scopeCommandPlans).get([key, input.commandId]));
       if (!raw) throw new SyncStateError('decision_not_found');
       const current = await readScopeCommandRecord(tx, key, raw, ctx.maxRecordBytes);
       const allowed = current.rejoinDecision?.kind === 'local_delete' ? ['keep_remote', 'delete_remote']
-        : current.rejoinDecision?.kind === 'order' ? ['keep_local_order', 'keep_remote_order'] : [];
+        : current.rejoinDecision?.kind === 'order' ? ['keep_local_order', 'keep_remote_order']
+          : current.rejoinDecision?.kind === 'remote_delete' ? ['keep_local', 'apply_remote_delete'] : [];
       if (current.baselineDigest !== input.token || current.kind !== 'rejoin' || !allowed.includes(input.choice)) {
         throw new SyncStateError('preview_stale');
       }
@@ -78,8 +143,14 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
       if (recorded.lifecycle !== 'active' || !mount || mount.status !== 'detached'
         || mount.boundaryVersion !== current.confirmationVersion
         || current.rejoinDecision?.boundaryDigest !== rejoinBoundaryDigest(recorded)) throw new SyncStateError('preview_stale');
+      if (current.rejoinDecision?.kind === 'remote_delete' && input.evidence) throw new SyncStateError('command_decision_invalid');
       result = { ...current, phase: 'confirmed', retryReason: input.choice, dependencies: [...input.dependencies],
         rejoinDecision: { ...current.rejoinDecision, ...JSON.parse(JSON.stringify(input.evidence ?? {})) }, updatedAt: Date.now() };
+      if (current.rejoinDecision?.kind === 'remote_delete') {
+        if (current.rejoinDecision.blockedReason) throw new SyncStateError('rejoin_dependency_pending');
+        await requireMutation(tx, key, remoteDeleteEvidence(result).authority);
+        await assertTerminalRejoinRejections(tx, key, result);
+      }
       await writeScopeCommandRecord(tx, key, result, ctx.maxRecordBytes);
     });
     return clone(result);
@@ -176,7 +247,8 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
     });
   }
   const mutationStores = [STORES.scopes, STORES.mounts, STORES.mappings, STORES.localSyncExclusions,
-    STORES.sequences, STORES.metadata, STORES.queue, STORES.bookmarkEvents, STORES.remoteDeletePolicies];
+    STORES.sequences, STORES.metadata, STORES.queue, STORES.bookmarkEvents, STORES.remoteDeletePolicies,
+    STORES.scopeCommandPlans, STORES.remoteObservations, STORES.intents];
   /** Lookup hints select keys, never authorize them. Re-read the entire hinted
    * ancestry in one current transaction before each native member mutation. */
   async function readRejoinBoundaryMappings(scope: SyncScope, nativeIds: readonly string[], colpIds: readonly string[]): Promise<MappingInput[]> {
@@ -216,6 +288,14 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
       || rejoinAttemptDigest(mount, scope) !== rejoinAttemptDigest(input.mount, scope)
       || digestJson(mount.pendingRemoteDelete ? { ...mount.pendingRemoteDelete } : null)
         !== digestJson(input.mount.pendingRemoteDelete ? { ...input.mount.pendingRemoteDelete } : null)) failMaterialization();
+    if (input.decision) {
+      // Only the immutable header is needed per member; reading all evidence
+      // pages here would turn a wide explicit deletion into a quadratic scan.
+      const plan = await requestValue<ScopeCommandPlanRecord | undefined>(tx.objectStore(STORES.scopeCommandPlans)
+        .get([key, input.decision.commandId]));
+      if (!plan || !['confirmed', 'applying'].includes(plan.phase) || plan.baselineDigest !== input.decision.token
+        || plan.retryReason !== input.decision.choice) failMaterialization();
+    }
     const mappings = tx.objectStore(STORES.mappings);
     const raw = await requestValue(mappings.get([key, input.before.nativeId]));
     if (!raw || mappingEvidenceDigest(validateMappingRecord(key, raw, ctx.maxRecordBytes)) !== mappingEvidenceDigest(input.before)) failMaterialization();
@@ -227,10 +307,14 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
     if (exclusionEvidenceDigest(exclusions) !== input.exclusionDigest) failMaterialization();
     if (input.deletion) {
       const { boundary, members } = input.deletion;
-      const nativeIds = new Set(members.map(row => row.nativeId)), colpIds = new Set(members.map(row => row.colpId));
+      const nativeIds = new Set([input.before.nativeId, ...members.map(row => row.nativeId), ...(input.deletion.unmappedNativeIds ?? [])]);
+      const colpIds = new Set([input.before.colpId, ...members.map(row => row.colpId)]);
       for (const expected of members) {
         const raw = await requestValue(mappings.get([key, expected.nativeId]));
         if (!raw || mappingEvidenceDigest(validateMappingRecord(key, raw, ctx.maxRecordBytes)) !== mappingEvidenceDigest(expected)) failMaterialization();
+      }
+      for (const nativeId of input.deletion.unmappedNativeIds ?? []) {
+        if (await requestValue(mappings.get([key, nativeId]))) failMaterialization();
       }
       const policy = await requestValue<{ casVersion: number } | undefined>(tx.objectStore(STORES.remoteDeletePolicies).get(key));
       if ((policy?.casVersion ?? 0) !== boundary.policyVersion) failMaterialization();
@@ -268,8 +352,51 @@ export function createRejoinDecisionRepository(ctx: SyncStoreRuntime) {
       else for (const removed of input.deletion?.members ?? [input.before]) mappings.delete([key, removed.nativeId]);
     });
   }
+  /** Unbind exactly the confirmed identities and publish the actual local
+   * outcome together. This never changes an upload, sequence or receipt. */
+  async function completeRejoinRemoteDelete(scope: SyncScope, commandId: string, token: string): Promise<void> {
+    ctx.assertWritable(); const key = keyFor(scope);
+    await runTransaction(await ctx.writableDatabase(), [...mutationStores, STORES.receipts, STORES.diagnostics], 'readwrite', async tx => {
+      const raw = await requestValue(tx.objectStore(STORES.scopeCommandPlans).get([key, commandId]));
+      if (!raw) throw new SyncStateError('decision_not_found');
+      const plan = await readScopeCommandRecord(tx, key, raw, ctx.maxRecordBytes);
+      if (plan.baselineDigest !== token || plan.rejoinDecision?.kind !== 'remote_delete'
+        || !['keep_local', 'apply_remote_delete'].includes(plan.retryReason ?? '')) throw new SyncStateError('preview_stale');
+      if (plan.phase === 'active') return;
+      const evidence = remoteDeleteEvidence(plan);
+      await requireMutation(tx, key, { ...evidence.authority,
+        decision: { commandId, token, choice: plan.retryReason! } });
+      await assertTerminalRejoinRejections(tx, key, plan);
+      for (const member of evidence.members) {
+        if (plan.retryReason === 'apply_remote_delete') {
+          const intent = await requestValue<UnknownRecord | undefined>(tx.objectStore(STORES.intents)
+            .get([key, remoteDeleteMemberIntentId(commandId, token, member.nativeId)]));
+          const expected = intent?.expected as UnknownRecord | undefined;
+          const confirmation = intent?.nativeResultConfirmation as UnknownRecord | undefined;
+          if (!intent || intent.commandId !== commandId || intent.nativeTargetId !== member.nativeId
+            || intent.generation !== scope.generation || intent.state !== 'page_complete'
+            || intent.liveWorkKind !== 'rejoin' || expected?.kind !== 'remove' || expected.nativeId !== member.nativeId
+            || confirmation?.nativeId !== member.nativeId
+            || !['api_return', 'absent'].includes(String(confirmation.kind))
+            || !['absent', 'applied_with_evidence'].includes(String(intent.nativeResult))) throw new SyncStateError('rejoin_dependency_pending');
+        }
+        if (member.mapping) {
+          tx.objectStore(STORES.mappings).delete([key, member.nativeId]);
+          tx.objectStore(STORES.remoteObservations).delete([key, member.mapping.colpId]);
+        }
+        if (plan.retryReason === 'keep_local' && member.native) tx.objectStore(STORES.localSyncExclusions).put({
+          scopeKey: key, nativeId: member.nativeId, decisionId: commandId,
+          rootNativeId: evidence.authority.mount.nativeRootId, generation: scope.generation,
+          sourceKind: 'remote_delete', ...(member.mapping ? { priorColpId: member.mapping.colpId } : {}),
+        });
+      }
+      writeRejoinResolutions(tx, key, plan);
+      await writeScopeCommandRecord(tx, key, { ...plan, phase: 'active', updatedAt: Date.now() }, ctx.maxRecordBytes);
+    });
+  }
   return { confirmRejoinDecision, prepareRejoinRestore, assertRejoinMaterialization, commitRejoinMaterialization,
-    readRejoinBoundaryMappings, readRejoinDeletionBoundary, assertRejoinMutation, commitRejoinProjection };
+    readRejoinBoundaryMappings, readRejoinDeletionBoundary, assertRejoinMutation, commitRejoinProjection,
+    stageRejoinRemoteDelete, completeRejoinRemoteDelete };
 }
 
 function mappingIdentityDigest(value: MappingInput): string {

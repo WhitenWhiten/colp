@@ -27,7 +27,11 @@ export async function planRejoinOrders(input: RejoinOrderInput, mappings: readon
   const recorded = await input.store.getScope(input.scope);
   const boundaryDigest = rejoinBoundaryDigest(recorded);
   const plans: RejoinOrderPlan[] = [];
+  const deleted = new Set(observations.filter(row => row.kind === 'tombstone').map(row => row.colpId));
   for (const parent of mappings) {
+    // A proven cloud deletion is a local disposition decision. A missing
+    // parent in an incomplete/unknown snapshot alone does not prove deletion.
+    if (deleted.has(parent.colpId)) continue;
     const baseline = childOrderFromProjection(parent.projection);
     if (!baseline || parent.nodeKind !== 'folder' || isNonChromeNativeId(parent.nativeId)) continue;
     const nativeParent = await input.getNative(parent.nativeId);

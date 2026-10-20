@@ -5,12 +5,32 @@ import { readScopeCommandRecord, writeScopeCommandRecord } from './scope-command
 import { rejoinBoundaryDigest } from '../scope-rejoin-authority.js';
 import { validateMappingRecord } from './mapping-repository.js';
 import { rejoinResolutionId, rejoinGrantId, unresolvedRejoinQueueRows, type RejoinQueueReference } from './rejoin-queue-resolution.js';
-import { SyncStateError, type QueueOperation, type ScopeCommandPlanRecord, type SyncScope, type UnknownRecord } from './types.js';
+import { SyncStateError, type QueueOperation, type ReceiptRecord, type ScopeCommandPlanRecord, type SyncScope, type UnknownRecord } from './types.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
 export function rejectedRejoinReferences(plan: ScopeCommandPlanRecord): RejoinQueueReference[] {
   const value = plan.rejoinDecision?.rejectedReferences;
   return Array.isArray(value) ? value as unknown as RejoinQueueReference[] : [];
+}
+/** Local disposition may resolve a refusal only after the server really
+ * consumed its exact sequence. A locally blocked upload is not such a receipt. */
+export async function assertTerminalRejoinRejections(tx: IDBTransaction, key: string, plan: ScopeCommandPlanRecord): Promise<void> {
+  for (const reference of rejectedRejoinReferences(plan)) {
+    const row = await exactRejectedRow(tx, key, reference);
+    const receipt = await requestValue<ReceiptRecord | undefined>(tx.objectStore(STORES.receipts)
+      .index(INDEXES.queueBySequence).get([key, reference.sequence]));
+    const results = receipt?.result?.results;
+    if (row.status !== 'terminal' || receipt?.kind !== 'terminal' || receipt.opId !== reference.opId
+      || receipt.operationDigest !== reference.digest || !Array.isArray(results)
+      || !results.some(value => value && typeof value === 'object' && !Array.isArray(value)
+        && value.opId === reference.opId && value.status === 'rejected')) throw new SyncStateError('rejoin_dependency_pending');
+  }
+}
+export function writeRejoinResolutions(tx: IDBTransaction, key: string, plan: ScopeCommandPlanRecord): void {
+  for (const reference of rejectedRejoinReferences(plan)) tx.objectStore(STORES.diagnostics).put({
+    id: rejoinResolutionId(key, reference.opId), scopeKey: key, kind: 'rejoin_queue_resolution', ...reference,
+    commandId: plan.commandId, baselineDigest: plan.baselineDigest,
+  });
 }
 export function createRejoinResolutionRepository(ctx: SyncStoreRuntime) {
   async function filterResolvedQueueIssues(scope: SyncScope, rows: readonly QueueOperation[]): Promise<QueueOperation[]> {

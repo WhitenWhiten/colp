@@ -1,6 +1,6 @@
 import { createSyncStateStore, type QueueOperation } from '../src/sync-state-store.js';
 import { detachScopeMount, rejoinScopeMount } from '../src/scope-commands.js';
-import { listRejoinDecisions, refreshRejoinDecisions, resolveRejoinDecision, type RejoinDecisionChoice } from '../src/scope-rejoin-decisions.js';
+import { listRejoinDecisions, refreshRejoinDecisions, resolveRejoinDecision } from '../src/scope-rejoin-decisions.js';
 import type { RejoinChrome } from '../src/scope-rejoin-mutation.js';
 import type { CompleteRemoteSnapshot } from '../src/bootstrap/remote-snapshot.js';
 import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
@@ -44,7 +44,7 @@ export async function rejectedOrderFixture() {
     reopen: () => { store.close(); store = createSyncStateStore({ indexedDB }); return store; },
     compare: () => rejoinScopeMount(store, scope, 'mount-bar', new Set(), [], native),
     refresh: () => refreshRejoinDecisions(input()), list: () => listRejoinDecisions(input()),
-    resolve: async (choice: RejoinDecisionChoice, chrome: Partial<RejoinChrome> = {}) => {
+    resolve: async (choice: 'keep_local_order' | 'keep_remote_order', chrome: Partial<RejoinChrome> = {}) => {
       const [decision] = await listRejoinDecisions(input()); if (!decision) throw new Error('test_decision_missing');
       await resolveRejoinDecision({ ...input(), ...chrome }, { kind: 'known.sync.rejoinDecisions.resolve',
         commandId: decision.commandId, token: decision.token, choice, userGesture: true });

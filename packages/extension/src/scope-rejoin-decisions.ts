@@ -5,7 +5,8 @@ import { applyRejoinOrder, assertRejoinOrderAuthority, planRejoinOrders, type Re
 import { cachedRejoinAuthority, rejoinBoundaryDigest, rejoinAttemptDigest } from './scope-rejoin-authority.js';
 import { assertRejoinBoundary, assertRejoinCanonicalBoundary } from './scope-rejoin-boundary.js';
 import { planRejoinRestore } from './scope-rejoin-restore.js';
-import { restoreEvidence } from './sync-state/rejoin-decision-repository.js';
+import { restoreEvidence, remoteDeleteEvidence } from './sync-state/rejoin-decision-repository.js';
+import { remoteRejoinDeleteCandidate, resumeRemoteRejoinDelete, stageRemoteRejoinDelete } from './scope-rejoin-remote-delete.js';
 import { createRejoinQueue } from './scope-rejoin-parents.js';
 import { materializeUnmountedRejoinMembers, rejoinMemberMappings } from './scope-rejoin-materialize.js';
 import { isNonChromeNativeId } from './pull-mount-apply.js';
@@ -32,17 +33,21 @@ export interface PublicRejoinDecision {
 }
 export type RejoinDecisionResponse = { readonly ok: true; readonly decisions: readonly PublicRejoinDecision[] }
   | { readonly ok: false; readonly error: string };
-export type RejoinDecisionInput = Omit<RejoinOrderInput, 'mount'>;
+export type RejoinDecisionInput = Omit<RejoinOrderInput, 'mount'> & {
+  readonly recoveryAvailability?: () => Promise<{ readonly retryAvailable: boolean; readonly resetAvailable: boolean }>;
+};
 type DecisionFacts = { input: RejoinOrderInput; mappings: MappingInput[]; group?: MissingRejoinGroup; order?: RejoinOrderPlan };
-const choices = ['keep_remote', 'delete_remote', 'keep_local_order', 'keep_remote_order'];
-const isDecision = (record: ScopeCommandPlanRecord) => /^rejoin-(delete|order):/.test(record.commandId);
+const choices = ['keep_remote', 'delete_remote', 'keep_local_order', 'keep_remote_order', 'keep_local', 'apply_remote_delete'];
+const isDecision = (record: ScopeCommandPlanRecord) => /^rejoin-(delete|order|remote-delete):/.test(record.commandId);
 
 export function validRejoinDecisionRequest(value: unknown): value is RejoinDecisionRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
   if (row.kind === 'known.sync.rejoinDecisions.get') return Object.keys(row).length === 1;
-  return row.kind === 'known.sync.rejoinDecisions.resolve' && Object.keys(row).length === 5 && row.userGesture === true
-    && typeof row.commandId === 'string' && row.commandId.length <= 1_024 && /^rejoin-(delete|order):/.test(row.commandId)
+  const subtree = row.choice === 'apply_remote_delete';
+  return row.kind === 'known.sync.rejoinDecisions.resolve' && Object.keys(row).length === (subtree ? 7 : 5) && row.userGesture === true
+    && (!subtree || row.confirmSubtree === true && Number.isSafeInteger(row.affectedCount) && Number(row.affectedCount) >= 0)
+    && typeof row.commandId === 'string' && row.commandId.length <= 1_024 && /^rejoin-(delete|order|remote-delete):/.test(row.commandId)
     && typeof row.token === 'string' && /^sha256:[0-9a-f]{64}$/.test(row.token)
     && typeof row.choice === 'string' && choices.includes(row.choice);
 }
@@ -68,13 +73,20 @@ export async function listRejoinDecisions(input: RejoinDecisionInput): Promise<P
   const names = new Map((await input.store.listMappings(input.scope))
     .map(row => [row.nativeId, String(row.projection.content?.title ?? '')]));
   const result: PublicRejoinDecision[] = [];
+  let recovery: Awaited<ReturnType<NonNullable<RejoinDecisionInput['recoveryAvailability']>>> | undefined;
   for (const record of await input.store.listScopeCommandPlans(input.scope)) {
     if (!isDecision(record) || ['active', 'failed'].includes(record.phase) || !record.baselineDigest) continue;
     const value = record.rejoinDecision!;
+    const blockedReason = typeof value.blockedReason === 'string' ? value.blockedReason as RejoinDecisionBlockedReason : undefined;
+    if (blockedReason && input.recoveryAvailability) recovery ??= await input.recoveryAvailability();
+    const recoveryAction: RejoinDecisionRecoveryAction = blockedReason === 'upload_boundary_changed'
+      ? recovery?.resetAvailable ? 'reset_sync' : 'refresh'
+      : recovery?.retryAvailable ? 'retry_sync' : recovery?.resetAvailable ? 'reset_sync' : 'refresh';
     result.push({ commandId: record.commandId, token: record.baselineDigest,
-      kind: value.kind === 'order' ? 'order' : 'local_delete', title: String(value.title ?? ''),
+      kind: value.kind === 'remote_delete' ? 'remote_delete' : value.kind === 'order' ? 'order' : 'local_delete', title: String(value.title ?? ''),
       affectedCount: Number(value.affectedCount ?? record.dependencies.length),
       state: record.phase === 'pending' ? 'pending' : 'applying',
+      ...(blockedReason ? { blockedReason, recoveryAction } : {}),
       ...(Array.isArray(value.localOrder) ? { localOrder: value.localOrder.map(id => names.get(String(id)) ?? '') } : {}),
       ...(Array.isArray(value.remoteOrder) ? { remoteOrder: value.remoteOrder.map(id => names.get(String(id)) ?? '') } : {}) });
   }
@@ -87,6 +99,21 @@ export async function resolveRejoinDecision(input: RejoinDecisionInput,
   let record = await input.store.getScopeCommandPlan(input.scope, request.commandId);
   if (!record || !isDecision(record)) throw new Error('decision_not_found');
   if (record.phase === 'active' && record.baselineDigest === request.token && record.retryReason === request.choice) return;
+  if (record.rejoinDecision?.kind === 'remote_delete') {
+    if (!['keep_local', 'apply_remote_delete'].includes(request.choice)) throw new Error('request_invalid');
+    if (record.phase === 'pending') {
+      const current = await remoteDeleteFacts(input, record);
+      if (record.baselineDigest !== request.token || current.candidate.token !== request.token) {
+        await stageRemoteRejoinDelete(current.input, current.candidate); throw new Error('preview_stale');
+      }
+      if (current.candidate.blockedReason) throw new Error('rejoin_dependency_pending');
+      if (request.choice === 'apply_remote_delete' && request.affectedCount !== current.candidate.affectedCount) throw new Error('preview_stale');
+      record = await input.store.confirmRejoinDecision(input.scope, { commandId: record.commandId, token: request.token,
+        choice: request.choice, dependencies: [] });
+      input.crash?.('after_rejoin_confirmation');
+    } else if (record.baselineDigest !== request.token || record.retryReason !== request.choice) throw new Error('decision_already_made');
+    await refreshRejoinDecisions(input); return;
+  }
   if (record.phase === 'pending') {
     const current = await facts(input, record);
     const candidate = current.group ?? current.order;
@@ -126,8 +153,20 @@ export async function resolveRejoinDecision(input: RejoinDecisionInput,
 
 /** Confirmed and applying work both resume after worker eviction; a GET drives this before listing. */
 export async function refreshRejoinDecisions(input: RejoinDecisionInput): Promise<void> {
+  input = cachedRejoinAuthority(input);
   const touched = new Set<string>();
   for (const record of await input.store.listScopeCommandPlans(input.scope)) {
+    if (record.rejoinDecision?.kind === 'remote_delete' && record.phase === 'pending' && !record.rejoinDecision.supersededBy) {
+      try {
+        const current = await remoteDeleteFacts(input, record);
+        if (current.candidate.token !== record.baselineDigest
+          || current.candidate.blockedReason !== record.rejoinDecision.blockedReason) await stageRemoteRejoinDelete(current.input, current.candidate);
+      } catch (error) {
+        if (!(error instanceof Error) || !['rejoin_boundary_changed', 'preview_stale', 'rejoin_parent_missing'].includes(error.message)) throw error;
+        await putPlan(input, record, { rejoinDecision: { ...record.rejoinDecision, blockedReason: 'native_unavailable' } });
+      }
+      continue;
+    }
     if (!isDecision(record) || !['confirmed', 'applying'].includes(record.phase)) continue;
     const mount = record.mountId ? await input.store.getMountBinding(input.scope, record.mountId) : null;
     if (!mount) { await failDecision(input, record, 'rejoin_boundary_changed'); continue; }
@@ -135,6 +174,9 @@ export async function refreshRejoinDecisions(input: RejoinDecisionInput): Promis
     try {
       if (rejoinBoundaryDigest(await input.store.getScope(input.scope)) !== record.rejoinDecision?.boundaryDigest
         || mount.boundaryVersion !== record.confirmationVersion) throw new Error('rejoin_boundary_changed');
+      if (record.rejoinDecision?.kind === 'remote_delete') {
+        await resumeRemoteRejoinDelete(scoped, record); touched.add(mount.mountId); continue;
+      }
       const complete = record.retryReason === 'keep_remote' ? await resumeRestore(scoped, record)
         : record.retryReason === 'delete_remote' ? await resumeDelete(scoped, record)
           : await resumeOrder(scoped, record);
@@ -142,6 +184,19 @@ export async function refreshRejoinDecisions(input: RejoinDecisionInput): Promis
         await input.store.completeRejoinDecision(input.scope, record.commandId); touched.add(mount.mountId);
       }
     } catch (error) {
+      if (record.rejoinDecision?.kind === 'remote_delete' && error instanceof Error
+        && ['rejoin_boundary_changed', 'preview_stale', 'rejoin_parent_missing'].includes(error.message)) {
+        try {
+          const current = await remoteDeleteFacts(input, record);
+          if (current.candidate.token !== record.baselineDigest) await stageRemoteRejoinDelete(current.input, current.candidate);
+          else await putPlan(input, record, { rejoinDecision: { ...record.rejoinDecision, blockedReason: 'native_unavailable' } });
+        } catch (currentError) {
+          if (!(currentError instanceof Error)
+            || !['rejoin_boundary_changed', 'preview_stale', 'rejoin_parent_missing'].includes(currentError.message)) throw currentError;
+          await putPlan(input, record, { rejoinDecision: { ...record.rejoinDecision, blockedReason: 'native_unavailable' } });
+        }
+        continue;
+      }
       if (error instanceof Error && ['rejoin_order_changed', 'preview_stale'].includes(error.message)
         && record.rejoinDecision?.kind === 'order' && await renewChangedRejoinOrder(scoped, record)) continue;
       if (error instanceof Error && ['rejoin_boundary_changed', 'preview_stale', 'scope_not_found', 'scope_retired'].includes(error.message)) {
@@ -152,6 +207,15 @@ export async function refreshRejoinDecisions(input: RejoinDecisionInput): Promis
     }
   }
   for (const mountId of touched) await rejoinScopeMount(input.store, input.scope, mountId, new Set(), [], input);
+}
+async function remoteDeleteFacts(input: RejoinDecisionInput, record: ScopeCommandPlanRecord) {
+  const mount = record.mountId ? await input.store.getMountBinding(input.scope, record.mountId) : null;
+  const before = remoteDeleteEvidence(record).authority.before;
+  const root = await input.store.getMappingByNativeId(input.scope, before.nativeId);
+  if (!mount || mount.status !== 'detached' || !root || root.colpId !== before.colpId
+    || rejoinAttemptDigest(mount, await input.store.getScope(input.scope)) !== record.rejoinDecision?.attemptDigest) throw new Error('preview_stale');
+  const scoped = cachedRejoinAuthority({ ...input, mount });
+  return { input: scoped, candidate: await remoteRejoinDeleteCandidate(scoped, root) };
 }
 
 async function resumeRestore(input: RejoinOrderInput, record: ScopeCommandPlanRecord): Promise<boolean> {

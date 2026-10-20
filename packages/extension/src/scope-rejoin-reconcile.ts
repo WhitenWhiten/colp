@@ -1,6 +1,7 @@
 import { cachedRejoinAuthority, rejoinAttemptDigest, rejoinBoundaryDigest } from './scope-rejoin-authority.js';
 import { assertRejoinBoundary } from './scope-rejoin-boundary.js';
 import { currentRejoinDependencies } from './scope-rejoin-decisions.js';
+import { remoteRejoinDeleteCandidate, stageRemoteRejoinDelete } from './scope-rejoin-remote-delete.js';
 import { reconcileMissingRejoinDeletes } from './scope-rejoin-deletion.js';
 import { captureRejoinParents, createRejoinQueue } from './scope-rejoin-parents.js';
 import { reconcileRejoinOrders } from './scope-rejoin-order.js';
@@ -66,15 +67,16 @@ export async function applyRejoinObservations(input: {
   let deletionChanged = false;
   const considered: string[] = [];
   const removedNativeIds = new Set<string>();
+  const reviewedNativeIds = new Set<string>();
   if (!baselineKnown) unknown++;
   if (baselineKnown) for (const mapping of parentFirst(mappings, mount.remoteMountNodeId)) {
     if (mapping.nativeId === mount.nativeRootId || mapping.nativeId.startsWith('sidecar:')
-      || removedNativeIds.has(mapping.nativeId)) continue;
+      || removedNativeIds.has(mapping.nativeId) || reviewedNativeIds.has(mapping.nativeId)) continue;
     considered.push(mapping.colpId);
     if (isNonChromeNativeId(mapping.nativeId) || mapping.colpId.startsWith('pending-')) { unknown++; continue; }
     // A local-* revision or a live outbound op is not an authoritative pause baseline.
-    if (optimistic(mapping)) { unknown++; continue; }
     const observation = observations.get(mapping.colpId);
+    if (optimistic(mapping) && observation?.kind !== 'tombstone') { unknown++; continue; }
     const native = await input.getNative(mapping.nativeId);
     const baseline = contentOf(mapping.projection.content, mapping.nodeKind);
     const local = native ? contentOf(native, mapping.nodeKind) : null;
@@ -101,7 +103,12 @@ export async function applyRejoinObservations(input: {
     if (outcome === 'conflict') { conflicts++; continue; }
     if (outcome === 'retain_local_edit' || outcome === 'apply_delete_policy') {
       const policy = (await store.getRemoteDeletePolicy(scope)).policy;
-      if (localEdited || protectedDeletions.has(mapping.nativeId) || policy === 'confirm') { conflicts++; continue; }
+      if (optimistic(mapping) || localEdited || protectedDeletions.has(mapping.nativeId) || policy === 'confirm') {
+        const candidate = await remoteRejoinDeleteCandidate(input, mapping);
+        await stageRemoteRejoinDelete(input, candidate);
+        for (const member of candidate.evidence.members) reviewedNativeIds.add(member.nativeId);
+        conflicts++; continue;
+      }
       if (policy === 'keep_local') {
         await store.putLocalSyncExclusion(scope, { nativeId: mapping.nativeId, decisionId: commandId,
           rootNativeId: mount.nativeRootId, generation: scope.generation, priorColpId: mapping.colpId });
