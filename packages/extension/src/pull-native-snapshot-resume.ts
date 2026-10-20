@@ -28,6 +28,7 @@ export async function resumeSnapshotDeferredCreate(options: PullApplierOptions, 
   await options.assertCurrent?.();
   return applyRemoteMappingContentUpdate({ store: options.store, scope: options.scope, api,
     mapping: { ...original, parentNativeId: incoming.parentNativeId, parentColpId: incoming.parentColpId },
+    authorityMapping: latest,
     incomingMapping: incoming, effectDigest: event.effect.effectDigest, eventId,
     mounts: await options.store.listMountBindings(options.scope), now: options.now ?? Date.now,
     lookup: id => lookupBookmark(key => api.get(key), id),

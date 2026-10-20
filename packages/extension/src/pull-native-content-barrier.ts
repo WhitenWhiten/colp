@@ -78,6 +78,9 @@ interface RemoteContentUpdateInput {
   readonly scope: SyncScope;
   readonly api: PullBookmarkApi;
   readonly mapping: MappingInput;
+  /** A later Snapshot can own authority while the confirmed create supplies
+   * the older native content baseline. Neither value replaces the other. */
+  readonly authorityMapping?: MappingInput;
   readonly incomingMapping: MappingInput;
   readonly effectDigest: string;
   readonly eventId: string;
@@ -132,7 +135,8 @@ export async function applyRemoteMappingContentUpdate(input: RemoteContentUpdate
       const changes = Object.fromEntries(Object.entries(projectedContent)
         .filter(([key, value]) => current?.[key as 'title' | 'url'] !== value));
       if (Object.keys(changes).length && current) {
-        const check = await prepareNativeWriteCheck({ store, scope, api, mapping, preimage: current });
+        const check = await prepareNativeWriteCheck({ store, scope, api,
+          mapping: input.authorityMapping ?? mapping, preimage: current });
         await performCheckedNativeWrite(api, check, beforeNative => api.update(mapping.nativeId, changes, beforeNative));
       }
     }
