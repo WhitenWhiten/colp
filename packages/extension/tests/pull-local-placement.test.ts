@@ -11,6 +11,9 @@ import { runTransaction } from '../src/sync-state/idb.js';
 import { STORES } from '../src/sync-state/schema.js';
 import { installOutboundPushIndexedDb, scope, setupMove } from './outbound-push-worker-harness.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
+import { COLP_QUEUE_STAMP } from '../src/colp-queue-stamp.js';
+import { scopeKey } from '../src/sync-state/scope-key.js';
+import type { JsonObject } from '../src/sync-state-store.js';
 installOutboundPushIndexedDb();
 
 const target = { nativeId: 'native-bookmark', colpId: 'node-bookmark' };
@@ -102,4 +105,81 @@ function captureMove(f: Awaited<ReturnType<typeof setupMove>>, from: string, to:
     details: durableEventDetails({ operation: { type: 'move_node', targetId: target.colpId,
       baseRevision: 'node-r1', payload: {} }, context: { sourceParentNativeId: from, targetParentNativeId: to },
     mapping: { ...target, rootNativeId: 'root-native', parentNativeId: to } }) });
+}
+
+for (const field of ['opId', 'sequence', 'replicaId', 'collectionId'] as const) {
+  for (const defect of ['missing', 'mismatched'] as const) {
+    test(`a latest move with ${defect} ${field} cannot reuse an older placement proof`, async () => {
+      const f = await setupMove();
+      try {
+        const remote = event();
+        assert.equal(await pendingLocalMoveForEvent(f.store, scope, target, destination, remote), true);
+        const opId = 'later-legacy-move';
+        const payload: Record<string, JsonObject[string]> = { ...f.queued.payload, opId, sequence: 2 };
+        if (defect === 'missing') delete payload[field];
+        else payload[field] = field === 'sequence' ? 999 : `different-${field}`;
+        // Legacy/partial envelopes can still be read from storage. Production
+        // stamping below is tested separately; it must not repair this fixture.
+        const latest = await f.store.allocateSequenceAndEnqueue(scope, moveQueueInput(opId, payload),
+          { allowUnstamped: true });
+        assert.equal(latest.sequence, 2);
+        const before = await f.store.listQueue(scope);
+        assert.equal(before.length, 2);
+        assert.equal(await pendingLocalMoveForEvent(f.store, scope, target, destination, remote), false,
+          'an invalid latest move cannot borrow the older valid destination');
+        assert.deepEqual(await f.store.listQueue(scope), before);
+        assert.equal(await f.store.getQueueReceipt(scope, f.queued.sequence), null);
+        assert.equal(await f.store.getQueueReceipt(scope, latest.sequence), null);
+      } finally { f.store.close(); }
+    });
+  }
+}
+
+test('a production-stamped later move retains its own destination with the allocated identity', async () => {
+  const f = await setupMove();
+  try {
+    const latest = await f.store.allocateSequenceAndEnqueue(scope, moveQueueInput('later-stamped-move', {
+      ...f.queued.payload, payload: { newParentId: source.colpId,
+        baseSourceParentRevision: 'children-dest-old', baseTargetParentRevision: 'children-source-old' },
+    }), COLP_QUEUE_STAMP);
+    assert.deepEqual({ opId: latest.payload.opId, sequence: latest.payload.sequence,
+      replicaId: latest.payload.replicaId, collectionId: latest.payload.collectionId },
+    { opId: latest.opId, sequence: 2, replicaId: scope.replicaId, collectionId: scope.collectionId });
+    const before = await f.store.listQueue(scope);
+    assert.equal(await pendingLocalMoveForEvent(f.store, scope, target, source, event()), true);
+    assert.equal(await pendingLocalMoveForEvent(f.store, scope, target, destination, event()), false);
+    assert.deepEqual(await f.store.listQueue(scope), before);
+    assert.equal(await f.store.getQueueReceipt(scope, latest.sequence), null);
+  } finally { f.store.close(); }
+});
+
+test('a mismatched row scope cannot authorize placement or change a genuinely unknown attempt', async () => {
+  const f = await setupMove();
+  try {
+    const worker = createOutboundPushWorker({ ...f.options, fetch: async () => { throw new TypeError('Failed to fetch'); } });
+    assert.equal((await worker.drain()).outcome, 'unknown');
+    const before = await f.store.getQueueByOpId(scope, f.queued.opId);
+    assert.ok(before?.attempt);
+    let reads = 0;
+    // Inject a cross-scope reader result, while keeping the actual unknown
+    // queue row and its already-sent body untouched in the durable store.
+    const wrongScope = { ...f.store,
+      listQueueByTarget: async (...args: Parameters<typeof f.store.listQueueByTarget>) => {
+        reads += 1;
+        return (await f.store.listQueueByTarget(...args)).map(row => ({
+          ...row, scopeKey: scopeKey({ ...scope, generation: scope.generation + 1 }),
+        }));
+      } };
+    assert.equal(await pendingLocalMoveForEvent(wrongScope, scope, target, destination, event()), false);
+    assert.equal(reads, 1);
+    assert.deepEqual(await f.store.getQueueByOpId(scope, f.queued.opId), before);
+    assert.equal(await f.store.getQueueReceipt(scope, f.queued.sequence), null);
+  } finally { f.store.close(); }
+});
+
+function moveQueueInput(opId: string, payload: JsonObject) {
+  return { opId, batchId: opId, idempotencyKey: opId, digest: 'sha256:legacy-later-move',
+    endpointIdentity: 'syncPush' as const, mediaType: 'application/json',
+    baseRevision: 'node-r1', operationRevision: `local-${opId}`, status: 'pending' as const,
+    retry: { attempt: 0, notBefore: 0 }, payload };
 }

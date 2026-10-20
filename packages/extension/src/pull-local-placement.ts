@@ -6,6 +6,7 @@ import { NativeWriteNotStartedError } from './native-call-result.js';
 import { nativeWritePreimage, prepareNativeWriteCheck, storedNativeWritePreimage } from './pull-native-write-boundary.js';
 import { SyncFailureError } from './sync-failure-class.js';
 import { pendingLocalContentForEvent } from './pull-queue-facts.js';
+import { scopeKey } from './sync-state/scope-key.js';
 
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'listQueueByTarget' | 'listBookmarkEventsByNative' | 'pullOperationsCovered'>;
@@ -41,7 +42,12 @@ event: Extract<SyncPullEventV02, { kind: 'operation' }>): Promise<boolean> {
     for (const opId of event.operation.dependencies ?? []) covered.add(opId);
   }
   const latest = rows.filter(row => !covered.has(row.opId)).sort((left, right) => right.sequence - left.sequence)[0];
-  return object(latest?.payload.payload)?.newParentId === parent.colpId;
+  // Choose the latest move before checking its envelope. An invalid newer
+  // record must not turn an older placement into evidence for a later drag.
+  return latest !== undefined && latest.scopeKey === scopeKey(scope)
+    && latest.payload.opId === latest.opId && latest.payload.sequence === latest.sequence
+    && latest.payload.replicaId === scope.replicaId && latest.payload.collectionId === scope.collectionId
+    && object(latest.payload.payload)?.newParentId === parent.colpId;
 }
 
 /** Prepared move events must not overwrite an invocation reported by another
