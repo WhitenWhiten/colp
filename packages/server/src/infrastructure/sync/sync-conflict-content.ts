@@ -29,7 +29,14 @@ export function selectedResolutionFields(
 ): Readonly<{ base: Record<string, unknown>; value: Record<string, unknown> }> {
   const fields = pointers.map(pointer => pointer.slice(1))
     .filter(field => !['baseRevision', 'deletedAt'].includes(field));
-  if (fields.length < 1) throw new SyncConflictResolutionError('unsupported_operation');
+  if (fields.length < 1) {
+    if (command.resolution !== 'server') throw new SyncConflictResolutionError('unsupported_operation');
+    // An old meta-only conflict may have no retained incoming content. Closing
+    // it must publish the current node, without inventing a deletion or copy.
+    const value = privatePayload.nodeKind === 'separator'
+      ? { description: current.description ?? null } : { title: current.title };
+    return { base: { ...value }, value };
+  }
   const base: Record<string, unknown> = {};
   const value: Record<string, unknown> = {};
   const custom = command.resolution === 'custom' && fields.length > 1

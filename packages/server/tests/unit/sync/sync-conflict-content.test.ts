@@ -66,3 +66,12 @@ test.each(['folder', 'separator'] as const)('recovers the edited %s content with
   assert.equal('folderRole' in recovered, false);
   assert.equal('deletedAt' in recovered, false);
 });
+
+test('a legacy meta-only conflict can close against current content without inventing missing incoming intent', () => {
+  const legacy: PrivateConflictPayload = { nodeKind: 'bookmark', base: {}, current: {}, incoming: {} };
+  const current = { title: 'Current title', url: 'https://example.test/current' };
+  const selected = selectedResolutionFields(command('server'), current, legacy, ['/baseRevision']);
+  assert.deepEqual(selected, { base: { title: 'Current title' }, value: { title: 'Current title' } });
+  assert.throws(() => selectedResolutionFields(command('incoming'), current, legacy, ['/baseRevision']),
+    (error: unknown) => error instanceof SyncConflictResolutionError && error.code === 'unsupported_operation');
+});

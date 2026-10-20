@@ -9,6 +9,7 @@ import {
 } from '../../../src/modules/sync/sync-conflict-resolution.js';
 import {
   allowedSyncConflictResolutions,
+  executableSyncConflictResolutions,
   isSyncConflictPayloadKeyring,
   selectSyncConflictPayloadKey,
 } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
@@ -135,6 +136,14 @@ describe('FIX-M-015 per-type Conflict resolution menus', () => {
         assert.ok(menu.length >= 1);
       }
     }
+  });
+
+  test('historical rows without incoming intent expose only the executable server decision', () => {
+    const row = { conflict_type: 'unprovable_base' as const,
+      allowed_resolutions: ['server', 'incoming', 'custom', 'both'] as const };
+    assert.deepEqual(executableSyncConflictResolutions(row, 'bookmark', false), ['server']);
+    assert.deepEqual(executableSyncConflictResolutions(row, 'bookmark', true), row.allowed_resolutions);
+    assert.deepEqual(row.allowed_resolutions, ['server', 'incoming', 'custom', 'both']);
   });
 });
 

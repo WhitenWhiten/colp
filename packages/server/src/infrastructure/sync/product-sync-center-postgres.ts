@@ -9,7 +9,7 @@ import { createPostgresProductCommandReceiptPort } from '../database/product-com
 import { lockCollectionReplicaGate } from '../database/lock-order.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import { createUnitOfWork, type DatabaseTransaction } from '../database/unit-of-work.js';
-import { readProductConflictSafeSummary, resolveProductConflictInTransaction } from './sync-conflict-resolution-postgres.js';
+import { readProductConflictResolutions, readProductConflictSafeSummary, resolveProductConflictInTransaction } from './sync-conflict-resolution-postgres.js';
 import { isSyncConflictPayloadKeyring, selectSyncConflictPayloadKey,
   type SyncConflictPayloadKeyring } from './sync-conflict-postgres.js';
 import type { SyncConflictKeyringReadiness } from '../../modules/sync/index.js';
@@ -129,8 +129,12 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
       let query = transaction.selectFrom('sync_conflicts as conflict')
         .innerJoin('sync_replicas as replica', 'replica.replica_id', 'conflict.replica_id')
         .innerJoin('nodes as node', 'node.id', 'conflict.target_id')
+        .innerJoin('sync_session_bindings as binding', join => join
+          .onRef('binding.session_id', '=', 'conflict.session_id')
+          .onRef('binding.replica_id', '=', 'conflict.replica_id')
+          .onRef('binding.collection_id', '=', 'conflict.collection_id'))
         .selectAll('conflict')
-        .select(['replica.lease_generation','node.kind as node_kind'])
+        .select(['binding.lease_generation','node.kind as node_kind'])
         .where('replica.account_id', '=', accountId).where('conflict.status', '=', 'open');
       if (after) query = query.where((eb) => eb.or([
         eb('conflict.created_at', '<', new Date(after.createdAt)),
@@ -144,7 +148,8 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
           conflict.node_kind, conflict.lease_generation, field);
         return Object.freeze({ id: conflict.conflict_id,
           collectionId: conflict.collection_id, targetId: conflict.target_id, type: conflict.conflict_type, field,
-          status: 'open' as const, allowedResolutions: [...conflict.allowed_resolutions], revision: conflict.revision,
+          status: 'open' as const, allowedResolutions: readProductConflictResolutions(conflict, options.conflictPayloadKeyring,
+            conflict.node_kind, conflict.lease_generation), revision: conflict.revision,
           etag: `"${conflict.revision}"`, createdAt: conflict.created_at.toISOString(), summary: Object.freeze(summary) }); }), page: Object.freeze({ nextCursor: tail ? encodeCursor({ createdAt: tail.created_at.toISOString(),
           id: tail.conflict_id, limit: pageLimit }, accountId, options.cursorSecret) : null }) }) satisfies ProductConflictPage;
     },

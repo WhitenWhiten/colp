@@ -13,6 +13,7 @@ import {
   createPostgresSyncAckApplication,
 } from '../../../src/infrastructure/sync/index.js';
 import { createPostgresSyncConflictResolutionApplication } from '../../../src/infrastructure/sync/sync-conflict-resolution-postgres.js';
+import { createPostgresProductSyncCenterUnitOfWork } from '../../../src/infrastructure/sync/product-sync-center-postgres.js';
 import { encryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
 import { stableJson } from '../../../src/infrastructure/sync/sync-conflict-json.js';
 import { mintVerifiedExtensionCredentialFixture } from '../../support/extension-credential.js';
@@ -152,7 +153,32 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
     } finally { keys.destroy(); }
   });
 
-  async function resolve(conflictId: string, resolution: 'server' | 'incoming' = 'incoming'): Promise<{
+  test('current decision reads and execution agree for a legacy conflict with no retained incoming content', async () => {
+    const conflictId = await openConflict('legacy-no-intent', 'legacy-no-intent-operation', 1, 'unprovable_base');
+    const before = (await isolated.runtime.pool.query('select pull_wire_json,private_payload_digest from sync_conflicts where conflict_id=$1', [conflictId])).rows[0];
+    const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
+      cursorSecret: 'legacy-conflict-read-cursor-secret-long-enough', conflictPayloadKeyring: KEYRING,
+    });
+    const listed = await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }));
+    assert.deepEqual(listed.items.find(item => item.id === conflictId)?.allowedResolutions, ['server']);
+    const denied = await resolve(conflictId, 'both');
+    assert.equal(denied.outcome, 'refused');
+    assert.match(denied.error, /unsupported_operation/);
+    const closed = await resolve(conflictId, 'server');
+    assert.equal(closed.outcome, 'resolved', closed.error);
+    assert.equal(closed.nodeTitle, 'Target');
+    const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1', [closed.resolvedByOperationId])).rows[0].effect_json;
+    assert.equal(effect.kind, 'node_content_updated');
+    assert.equal(effect.node.title, 'Target');
+    const after = (await isolated.runtime.pool.query('select pull_wire_json,private_payload_digest,resolution_result_json from sync_conflicts where conflict_id=$1', [conflictId])).rows[0];
+    assert.deepEqual(after.pull_wire_json, before.pull_wire_json);
+    assert.equal(after.private_payload_digest, before.private_payload_digest);
+    assert.deepEqual(after.resolution_result_json.conflict.allowedResolutions, ['server']);
+    assert.equal((await resolve(conflictId, 'server')).resolvedByOperationId, closed.resolvedByOperationId);
+    assert.deepEqual((await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 20 }))).items, []);
+  });
+
+  async function resolve(conflictId: string, resolution: 'server' | 'incoming' | 'both' = 'incoming'): Promise<{
     outcome: 'resolved' | 'refused'; conflictStatus: string;
     resolvedByOperationId: string | null; nodeTitle: string | null; error: string;
   }> {
@@ -312,7 +338,7 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
   }
 
   /** Inserts a conflict whose private payload is genuinely decryptable. */
-  async function openConflict(conflictId: string, operationId: string, ordinal: number, type: 'concurrent_field_update' | 'delete_update' = 'concurrent_field_update'): Promise<string> {
+  async function openConflict(conflictId: string, operationId: string, ordinal: number, type: 'concurrent_field_update' | 'delete_update' | 'unprovable_base' = 'concurrent_field_update'): Promise<string> {
     await isolated.runtime.pool.query(
       "insert into resource_id_ledger(resource_id,resource_type) values ($1,'activity') on conflict do nothing",
       [`${conflictId}-seed`],
@@ -330,13 +356,14 @@ describeWithPostgres('Conflict resolution preserves Pull integrity and concurren
       "insert into resource_id_ledger(resource_id,resource_type) values ($1,'event')",
       [conflictId],
     );
-    const conflictingFields = type === 'delete_update' ? ['/deletedAt'] : ['/title'];
-    const menu = type === 'delete_update' ? ['server'] : ['server', 'incoming', 'custom'];
+    const conflictingFields = type === 'delete_update' ? ['/deletedAt'] : type === 'unprovable_base' ? ['/baseRevision'] : ['/title'];
+    const menu = type === 'delete_update' ? ['server'] : type === 'unprovable_base'
+      ? ['server', 'incoming', 'custom', 'both'] : ['server', 'incoming', 'custom'];
     const binding = (await isolated.runtime.pool.query(
       'select lease_generation from sync_session_bindings where session_id = $1', [sessionId],
     )).rows[0];
     const leaseGeneration = String(binding.lease_generation);
-    const plaintext = stableJson({
+    const plaintext = stableJson(type === 'unprovable_base' ? { nodeKind: 'bookmark', base: {}, current: {}, incoming: {} } : {
       base: { title: 'Target' }, current: { title: 'Target' },
       incoming: { title: 'Stale-epoch edit' }, nodeKind: 'bookmark',
     }, invalid);

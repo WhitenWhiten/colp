@@ -54,6 +54,7 @@ import {
 } from '../../../src/modules/sync/index.js';
 import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-update.js';
 import { syncNodeCreatePushRequest } from '../../fixtures/phase3/sync-push-admission.js';
+import { createPostgresProductSyncCenterUnitOfWork } from '../../../src/infrastructure/sync/product-sync-center-postgres.js';
 import { syncNodeMovePushRequest } from '../../fixtures/phase3/sync-node-move.js';
 import { syncNodeDeletePushRequest } from '../../fixtures/phase3/sync-node-delete.js';
 import { observeSubtree } from '../../support/subtree-observation.js';
@@ -355,6 +356,8 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     readonly base?: Record<string, unknown>;
     readonly current?: Record<string, unknown>;
     readonly incoming?: Record<string, unknown>;
+    readonly claimedBase?: Record<string, unknown>;
+    readonly unavailableBase?: boolean;
   } = {}) {
     const kind = input.kind ?? 'bookmark';
     const base = input.base ?? { title: 'P3-18 base' };
@@ -369,8 +372,9 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     const server = await start(value);
     const request = syncNodeUpdatePushRequest({
       sessionId: value.session.sessionId, replicaId: value.replica.replicaId,
-      collectionId: COLLECTION, targetId: node.id, baseRevision: node.revision,
-      opId: `p3-18-conflict-${randomUUID()}`, base,
+      collectionId: COLLECTION, targetId: node.id,
+      baseRevision: input.unavailableBase ? `unavailable-${randomUUID()}` : node.revision,
+      opId: `p3-18-conflict-${randomUUID()}`, base: input.claimedBase ?? base,
       value: input.incoming ?? { title: 'P3-18 incoming' },
     });
     const response = await blackBox(server.origin).push({
@@ -2106,6 +2110,62 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
         assert.equal(payload.title, resolution === 'server' ? 'Server' : resolution === 'custom' ? 'Custom' : 'Incoming');
       }
       assert.deepEqual(await app.resolve(command), resolved);
+    });
+
+  async function advertisedActions(conflictId: string) {
+    const product = createPostgresProductSyncCenterUnitOfWork(isolated.runtime.db, {
+      cursorSecret: 'p3-actions-cursor-secret-at-least-thirty-two-characters',
+      conflictPayloadKeyring: { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] },
+    });
+    const page = await product.execute(ports => ports.getConflicts({ accountId: ACCOUNT, limit: 100 }));
+    const item = page.items.find(item => item.id === conflictId);
+    assert.ok(item, 'the conflict must be visible to its owner');
+    return item.allowedResolutions;
+  }
+
+  test.each(['server', 'incoming', 'custom', 'both'] as const)(
+    'the advertised %s action on an unavailable base settles the full explicit operation domain', async resolution => {
+      const opened = await openConflict({ unavailableBase: true,
+        base: { title: 'Base', url: 'https://example.test/base-unavailable' },
+        current: { title: 'Server' }, incoming: { title: 'Incoming', url: 'https://example.test/incoming-unavailable' } });
+      const menu = await advertisedActions(opened.conflictId);
+      assert.ok(menu.includes(resolution));
+      const request = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: { title: 'Custom', url: 'https://example.test/custom-unavailable' } } : {}) });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      assert.equal(effect.node.title, resolution === 'server' ? 'Server' : resolution === 'custom' ? 'Custom' : 'Incoming');
+      assert.equal(effect.node.url, resolution === 'server' ? 'https://example.test/base-unavailable'
+        : resolution === 'custom' ? 'https://example.test/custom-unavailable' : 'https://example.test/incoming-unavailable');
+      assert.equal(effect.node.id === opened.node.id, resolution !== 'both');
+      assert.deepEqual(await app.resolve(request), resolved);
+    });
+
+  test.each(['description', 'extensions', 'untrusted-base'] as const)(
+    'the advertised both action retains complete incoming %s content as a new bookmark', async field => {
+      const namespace = 'https://extensions.example/both';
+      const opened = await openConflict(field === 'untrusted-base'
+        ? { base: { title: 'Base' }, claimedBase: { title: 'Untrusted claim' },
+          current: { title: 'Server' }, incoming: { title: 'Incoming' } }
+        : { base: { [field]: field === 'description' ? 'Base note' : { [namespace]: { value: 1 } } },
+          current: { [field]: field === 'description' ? 'Server note' : { [namespace]: { value: 2 } } },
+          incoming: { [field]: field === 'description' ? 'Incoming note' : { [namespace]: { value: 3 } } } });
+      assert.ok((await advertisedActions(opened.conflictId)).includes('both'));
+      const before = (await facts(opened.value.replica.replicaId, opened.node.id)).node;
+      const request = resolveInput(opened, { resolution: 'both', baseConflictRevision: opened.revision });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(request);
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      assert.equal(effect.kind, 'node_created');
+      assert.notEqual(effect.node.id, opened.node.id);
+      if (field === 'description') assert.equal(effect.node.description, 'Incoming note');
+      else if (field === 'extensions') assert.deepEqual(effect.node.extensions, { [namespace]: { value: 3 } });
+      else assert.equal(effect.node.title, 'Incoming');
+      assert.deepEqual((await facts(opened.value.replica.replicaId, opened.node.id)).node, before);
+      assert.deepEqual(await app.resolve(request), resolved);
     });
 
   test('P3-18 blocks conflict both-creation under managed-bookmarks ancestry unless the deployment capability allows', async () => {

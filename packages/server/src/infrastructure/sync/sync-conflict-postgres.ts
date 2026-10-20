@@ -27,6 +27,17 @@ export function allowedSyncConflictResolutions(
     : Object.freeze(['server', 'incoming', 'custom'] as const);
 }
 
+/** Historical rows keep their original wire/receipt bytes. Current decision
+ * surfaces intersect that menu with the content that can actually be read. */
+export function executableSyncConflictResolutions(
+  conflict: { readonly conflict_type: SyncConflictType; readonly allowed_resolutions: readonly SyncConflictResolutionName[] },
+  nodeKind: TrustedSyncNodeRevision['kind'],
+  hasIncomingIntent: boolean,
+): readonly SyncConflictResolutionName[] {
+  const supported = hasIncomingIntent ? allowedSyncConflictResolutions(conflict.conflict_type, nodeKind) : ['server'];
+  return Object.freeze(conflict.allowed_resolutions.filter(choice => supported.includes(choice)));
+}
+
 export type PostgresSyncConflictFaultPhase = 'conflict_ordinal' | 'conflict_operation'
   | 'conflict' | 'conflict_audit' | 'conflict_outbox';
 
@@ -319,8 +330,8 @@ function normalizedConflictFields(
   base: Readonly<Record<string, unknown>>,
 ): readonly string[] {
   const fields = type === 'delete_update' ? ['deletedAt', ...source, ...Object.keys(base)]
-    : source.length > 0 ? source
-      : type === 'unprovable_base' ? ['baseRevision', ...Object.keys(base)] : Object.keys(base);
+    : type === 'unprovable_base' ? ['baseRevision', ...source, ...Object.keys(base)]
+      : source.length > 0 ? source : Object.keys(base);
   const normalized = [...new Set(fields.map((field) => field.startsWith('/') ? field : `/${field}`))].sort();
   if (normalized.length < 1 || normalized.some((field) => !/^\/[A-Za-z][A-Za-z0-9]*$/u.test(field))) {
     persistenceError('invalid_document');

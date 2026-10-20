@@ -45,7 +45,7 @@ import {
   ManagedAncestryPolicyError,
 } from './managed-ancestry-policy.js';
 import type { SyncConflictPayloadKeyring } from './sync-conflict-postgres.js';
-import { encryptPrivatePayload, isSyncConflictPayloadKeyring, selectSyncConflictPayloadKey } from './sync-conflict-postgres.js';
+import { encryptPrivatePayload, executableSyncConflictResolutions, isSyncConflictPayloadKeyring, selectSyncConflictPayloadKey } from './sync-conflict-postgres.js';
 import { persistSyncOperationProjection } from './postgres/sync-pull-postgres.js';
 import { claimResolutionAuthor, hasResolutionClaim } from './sync-resolution-author-postgres.js';
 import {
@@ -212,6 +212,9 @@ async function resolveInTransaction(
   const privatePayload = decryptPrivatePayload(
     conflict, options.conflictPayloadKeyring, current.kind, conflictBinding.lease_generation,
   );
+  const executable = executableSyncConflictResolutions(conflict, current.kind,
+    Object.keys(privatePayload.incoming).length > 0);
+  if (!executable.includes(command.resolution)) deny('unsupported_operation');
 
   // A Conflict revision does not advance when another node update commits.
   // Reject an obsolete overwriting decision, while allowing unrelated fields
@@ -230,9 +233,7 @@ async function resolveInTransaction(
   let wireOperation: Operation;
   let effectTargetId: string | undefined;
   if (command.resolution === 'both' || recoveringDeleted) {
-    if (!recoveringDeleted && (current.kind !== 'bookmark' || privatePayload.nodeKind !== 'bookmark'
-        || conflict.conflict_type !== 'concurrent_field_update'
-        || conflict.conflicting_fields.some((field) => field !== '/title' && field !== '/url'))) {
+    if (!recoveringDeleted && (current.kind !== 'bookmark' || privatePayload.nodeKind !== 'bookmark')) {
       deny('unsupported_operation');
     }
     if (recoveringDeleted && Object.keys(privatePayload.incoming).length === 0) deny('unsupported_operation');
@@ -331,7 +332,7 @@ async function resolveInTransaction(
     ...(effectTargetId ? { targetId: effectTargetId } : {}),
     ...(options.faultInjector ? { faultInjector: options.faultInjector } : {}),
   });
-  const resolvedConflict = resolvedConflictWire(conflict, revision);
+  const resolvedConflict = resolvedConflictWire(conflict, revision, executable);
   const result: ConflictResolutionResult = { conflict: resolvedConflict, operation: wireOperation, cursor };
   if (!validators.validate('conflictResolutionResult', result).valid) deny('internal_error');
   await finalizeConflictResolution(transaction, options, conflict, command, authority,
@@ -413,13 +414,14 @@ async function dismissDeleteUpdateConflict(
   return Object.freeze(result);
 }
 
-function resolvedConflictWire(conflict: Selectable<SyncConflictTable>, revision: string): Conflict {
+function resolvedConflictWire(conflict: Selectable<SyncConflictTable>, revision: string,
+  menu: readonly string[] = conflict.allowed_resolutions): Conflict {
   return {
     id: conflict.conflict_id, collectionId: conflict.collection_id, targetId: conflict.target_id,
     type: conflict.conflict_type,
     ...(conflict.conflicting_fields.length === 1 ? { field: conflict.conflicting_fields[0] } : {}),
     incomingOpId: conflict.operation_id, createdAt: conflict.created_at.toISOString(),
-    status: 'resolved', allowedResolutions: [...conflict.allowed_resolutions] as Conflict['allowedResolutions'],
+    status: 'resolved', allowedResolutions: [...menu] as Conflict['allowedResolutions'],
     revision,
   };
 }
@@ -618,6 +620,14 @@ export function readProductConflictSafeSummary(
     return typeof value === 'string' ? value.slice(0, 256) : null;
   };
   return { current: summarize(payload.current), incoming: summarize(payload.incoming) };
+}
+
+export function readProductConflictResolutions(
+  conflict: Selectable<SyncConflictTable>, keyring: SyncConflictPayloadKeyring,
+  nodeKind: 'folder' | 'bookmark' | 'separator', leaseGeneration: bigint,
+) {
+  const payload = decryptPrivatePayload(conflict, keyring, nodeKind, leaseGeneration);
+  return executableSyncConflictResolutions(conflict, nodeKind, Object.keys(payload.incoming).length > 0);
 }
 
 async function databaseNow(transaction: DatabaseTransaction): Promise<Date> {
