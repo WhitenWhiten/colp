@@ -46,7 +46,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
   now: () => number) {
   const parentRevisionMapping = parentRevisionMappingFor(options);
   async function preflight(event: Extract<SyncPullEventV02, { kind: 'operation' }>, stagedCreates: ReadonlySet<string>): Promise<void> {
-    await preflightPullDependencies(options, event, stagedCreates, selfCreateProjection);
+    await preflightPullDependencies(options, event, stagedCreates, selfCreateProjection, lookup);
   }
   async function requireMapping(colpId: string, role: 'anchor' | 'deletion' | 'parent' | 'parent_revision' | 'target') {
     return requirePullMapping(options, colpId, role);
@@ -203,7 +203,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const effect = event.effect;
     if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
     if (effect.kind === 'node_created') {
-      const plan = await planCreated(options.store, options.scope, event);
+      const plan = await planCreated(options.store, options.scope, event, lookup);
       if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
       if (plan.kind === 'skip_unmounted') {
         return { eventKind: 'sidecar' as const, nativeId: unmountedNativeId(effect.node.id),
@@ -280,7 +280,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       observations.push(...applied.observations.map((row) => restoredMapping
         ? { ...row, ...pauseBindingForMapping(restoredMapping, mounts) } : row));
     } else if (effect.kind === 'node_created') {
-      const plan = await planCreated(options.store, options.scope, event);
+      const plan = await planCreated(options.store, options.scope, event, lookup);
       if (plan.kind === 'bind_structure') {
         mappings.push(bindStructureMapping(effect.node, plan.mapping, effect.placement.parentId, effect.nodeChildrenRevision));
       } else if (plan.kind === 'bind_mount') {

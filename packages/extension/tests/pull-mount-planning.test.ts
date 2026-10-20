@@ -14,12 +14,43 @@ const mount: Omit<MountBindingRecord, 'scopeKey'> = {
   mountId: 'selected-mount', nativeRootId: 'selected-folder', remoteMountNodeId: 'remote-selected',
   boundaryVersion: '1', materialized: false, status: 'active', customSourceKey: 'folder:selected',
 };
-function created(folderRole: string, parentId = 'remote-root', replicaId = scope.replicaId) {
+function created(folderRole?: string, parentId = 'remote-root', replicaId = scope.replicaId) {
   const event = pullFixtures.createEvent({ kind: 'Folder', sequence: 7,
     collectionId: scope.collectionId, parentId, folderRole, replicaId });
   if (event.kind !== 'operation' || event.effect.kind !== 'node_created') throw new Error('create fixture required');
   return event as Extract<Parameters<typeof planCreated>[2], { operation: { type: 'create_node' } }>;
 }
+
+test.each(['own', 'peer'] as const)('an ordinary selected folder keeps its exact mount under an unselected parent (%s)', async source => {
+  const event = created(undefined, 'remote-parent', source === 'peer' ? 'peer-replica' : scope.replicaId);
+  await store.putMountBinding(scope, { ...mount, remoteMountNodeId: event.effect.node.id });
+  await store.putMapping(scope, mapping('remote-parent', { nativeId: 'unmounted:remote-parent', rootNativeId: 'unselected' }));
+  await store.putMapping(scope, mapping(event.effect.node.id, { nativeId: mount.nativeRootId, parentColpId: 'remote-parent' }));
+  await store.configureBrowserRoots(scope, { discovered: [{ nativeId: 'browser-root', ancestorNativeIds: [] },
+    { nativeId: mount.nativeRootId, ancestorNativeIds: ['browser-root'] }],
+    selectedNativeIds: [mount.nativeRootId], privateNativeIds: [], status: 'ready' });
+  const lookup = async (id: string) => ({ class: 'present' as const, nodes: [{ id, parentId: id === mount.nativeRootId ? 'browser-root' : '0' }] });
+  expect(await planCreated(store, scope, event, lookup)).toMatchObject({ kind: 'bind_mount', mount: {
+    mountId: mount.mountId, nativeRootId: mount.nativeRootId, remoteMountNodeId: event.effect.node.id, status: 'active',
+  } });
+});
+
+test.each(['pending', 'detached'] as const)('an ordinary selected folder does not reactivate its %s mount', async status => {
+  const event = created();
+  await store.putMountBinding(scope, { ...mount, status, remoteMountNodeId: event.effect.node.id });
+  expect(await planCreated(store, scope, event)).toEqual({ kind: 'skip_unmounted' });
+  expect((await store.listMountBindings(scope))[0]?.status).toBe(status);
+});
+
+test('a different ordinary folder never adopts a selected mount through the same title or parent', async () => {
+  const event = created(undefined, 'remote-parent');
+  await store.putMountBinding(scope, { ...mount, remoteMountNodeId: 'different-cloud-id' });
+  await store.putMapping(scope, mapping('remote-parent', { nativeId: 'unmounted:remote-parent', rootNativeId: 'unselected' }));
+  await store.putMapping(scope, mapping('different-cloud-id', { nativeId: mount.nativeRootId,
+    projection: { revision: 'r1', digest: 'sha256:existing', content: { title: event.effect.node.title ?? '' } } }));
+  expect(await planCreated(store, scope, event)).toEqual({ kind: 'skip_unmounted' });
+  expect((await store.listMountBindings(scope))[0]?.remoteMountNodeId).toBe('different-cloud-id');
+});
 function mapping(colpId: string, extra: Partial<MappingInput> = {}): MappingInput {
   return { nativeId: `native-${colpId}`, colpId, nodeKind: 'folder', rootNativeId: mount.nativeRootId,
     projection: { revision: 'r1', digest: 'sha256:existing', content: { title: 'Existing' } }, ...extra };
