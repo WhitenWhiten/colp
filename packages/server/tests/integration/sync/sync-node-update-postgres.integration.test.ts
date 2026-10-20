@@ -361,6 +361,8 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
     const node = await seedNode(kind, {
       title: kind === 'separator' ? undefined : String(base.title ?? 'P3-18 base'),
       url: kind === 'bookmark' ? String(base.url ?? 'https://example.test/p3-18-base') : undefined,
+      description: typeof base.description === 'string' ? base.description : null,
+      extensions: (base.extensions ?? {}) as Record<string, unknown>,
     });
     await setCurrent(node, input.current ?? { title: 'P3-18 server' });
     const value = await context();
@@ -2057,6 +2059,53 @@ describeWithPostgres('P3-13 real Fastify/PostgreSQL typed Node updates', () => {
       assert.equal((await isolated.runtime.pool.query(
         'select count(*)::int count from sync_operation_effects where operation_id=$1', [resolved.operation.opId],
       )).rows[0].count, 1);
+    });
+
+  test.each(['incoming', 'custom', 'custom-remove'] as const)(
+    'persists the %s extensions choice, independent local title and remote note in effect and exact replay', async choice => {
+      const namespace = 'https://extensions.example/resolved';
+      const opened = await openConflict({
+        base: { title: 'Base title', extensions: { [namespace]: { value: 1 } } },
+        current: { description: 'Unrelated server note', extensions: { [namespace]: { value: 2 } } },
+        incoming: { title: 'Independent local title', extensions: { [namespace]: { value: 3 } } },
+      });
+      const extensions = choice === 'custom-remove' ? {} : { [namespace]: { value: choice === 'incoming' ? 3 : 4 } };
+      const command = resolveInput(opened, choice === 'incoming'
+        ? { resolution: 'incoming', baseConflictRevision: opened.revision }
+        : { resolution: 'custom', value: extensions, baseConflictRevision: opened.revision });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(command);
+      const row = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [opened.node.id])).rows[0];
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      for (const payload of [row.payload_json, effect.node]) {
+        assert.deepEqual(payload.extensions, extensions);
+        assert.equal(payload.title, 'Independent local title');
+        assert.equal(payload.description, 'Unrelated server note');
+      }
+      const after = await facts(opened.value.replica.replicaId, opened.node.id);
+      assert.deepEqual(await app.resolve(command), resolved);
+      assert.deepEqual(await facts(opened.value.replica.replicaId, opened.node.id), after);
+    });
+
+  test.each(['server', 'incoming', 'custom'] as const)(
+    '%s title resolution persists both independent extension namespaces', async resolution => {
+      const local = 'https://extensions.example/local', remote = 'https://extensions.example/remote';
+      const opened = await openConflict({ base: { title: 'Base', extensions: {} },
+        current: { title: 'Server', extensions: { [remote]: { value: 2 } } },
+        incoming: { title: 'Incoming', extensions: { [local]: { value: 1 } } } });
+      const command = resolveInput(opened, { resolution, baseConflictRevision: opened.revision,
+        ...(resolution === 'custom' ? { value: 'Custom' } : {}) });
+      const app = resolver(opened.value);
+      const resolved = await app.resolve(command);
+      const row = (await isolated.runtime.pool.query('select payload_json from nodes where id=$1', [opened.node.id])).rows[0];
+      const effect = (await isolated.runtime.pool.query('select effect_json from sync_operation_effects where operation_id=$1',
+        [resolved.operation.opId])).rows[0].effect_json;
+      for (const payload of [row.payload_json, effect.node]) {
+        assert.deepEqual(payload.extensions, { [local]: { value: 1 }, [remote]: { value: 2 } });
+        assert.equal(payload.title, resolution === 'server' ? 'Server' : resolution === 'custom' ? 'Custom' : 'Incoming');
+      }
+      assert.deepEqual(await app.resolve(command), resolved);
     });
 
   test('P3-18 blocks conflict both-creation under managed-bookmarks ancestry unless the deployment capability allows', async () => {

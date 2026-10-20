@@ -316,6 +316,7 @@ async function resolveInTransaction(
           resourceId: current.id, resourceKind: 'node' },
         parentId: current.parent_id, expectedResourceRevision: current.resource_revision,
         fields: evaluated.fields,
+        trustedFacts: { replaceExtensions: true },
       },
     });
   }
