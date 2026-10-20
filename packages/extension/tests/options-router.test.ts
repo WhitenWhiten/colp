@@ -4,6 +4,8 @@ import { resolve } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { parseHubRoute } from '../src/options-router.js';
 import { defaultView, hubHash } from '../src/options-tabs.js';
+import { bookmarkPreferencesScopeKey } from '../src/bookmark-preferences.js';
+import { manifest as syncManifest } from './auth-shell-fixture.js';
 /* Each pane's sections are real tab panels now, so a retired hash selects a
    tab rather than scrolling down a merged page. `anchor` survives only for
    the one deep link that targets a row inside a panel. */
@@ -36,72 +38,147 @@ it('keeps only supported task/filter parameters and normalizes unknown routes wi
   expect(parseHubRoute('').hash).toBe('#bookmarks');
 });
 
-it('opens the logout dialog from #sign-out and only sends logout on confirm', async () => {
+it('opens the logout dialog from #sign-out and awaits its signed-out render after confirmation', async () => {
   const html = await readFile(resolve(import.meta.dirname, '../options.html'), 'utf8');
   const body = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? '';
   document.body.innerHTML = body.replace(/<script[\s\S]*?<\/script>/gi, '');
+  const originalUrl = location.href;
+  const originalActivation = Object.getOwnPropertyDescriptor(navigator, 'userActivation');
+  const windowListeners: Array<() => void> = [];
+  const windowAdd = window.addEventListener;
+  vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+    windowAdd.call(window, type, listener, options);
+    windowListeners.push(() => window.removeEventListener(type, listener, options));
+  });
+  const clearIntervals: Array<() => void> = [];
+  const globalInterval = globalThis.setInterval.bind(globalThis);
+  const domTimers: Pick<Window, 'setInterval' | 'clearInterval'> = window;
+  const windowInterval = domTimers.setInterval.bind(window);
+  vi.spyOn(globalThis, 'setInterval').mockImplementation((handler, timeout, ...args) => {
+    const id = globalInterval(handler, timeout, ...args);
+    clearIntervals.push(() => globalThis.clearInterval(id));
+    return id;
+  });
+  // happy-dom owns window timers separately from the Node timer globals.
+  vi.spyOn(domTimers, 'setInterval').mockImplementation((handler, timeout, ...args) => {
+    const id = windowInterval(handler, timeout, ...args);
+    clearIntervals.push(() => domTimers.clearInterval(id));
+    return id;
+  });
   let actionClick: ((event: { isTrusted: boolean }) => void) | undefined;
   const originalAdd = HTMLButtonElement.prototype.addEventListener;
-  HTMLButtonElement.prototype.addEventListener = function (
-    this: HTMLButtonElement,
-    type: string,
-    listener: EventListenerOrEventListenerObject,
-    options?: boolean | AddEventListenerOptions,
+  vi.spyOn(HTMLButtonElement.prototype, 'addEventListener').mockImplementation(function (
+    this: HTMLButtonElement, type, listener, options,
   ) {
-    if (this.id === 'sign-out' && type === 'click') {
-      actionClick = listener as (event: { isTrusted: boolean }) => void;
-    }
+    if (this.id === 'sign-out' && type === 'click') actionClick = listener as (event: { isTrusted: boolean }) => void;
     return originalAdd.call(this, type, listener, options);
-  };
+  });
   const sent: Array<{ kind?: string }> = [];
-  const signedOut = { status: 'signed_out', environment: 'production', serverOrigin: 'https://know-n.com' };
+  const signedOut = { status: 'signed_out' as const, environment: 'production' as const, serverOrigin: 'https://know-n.com' };
+  const identity = bookmarkPreferencesScopeKey(signedOut.serverOrigin, null);
+  const unexpectedHttp: string[] = [];
+  const manifestResponse = new Response(JSON.stringify(syncManifest(signedOut.serverOrigin)), {
+    headers: { 'content-type': 'application/vnd.collection-protocol.manifest+json;version=0.2' },
+  });
+  const fetchFixture = vi.fn<typeof fetch>(async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+    if (url !== 'https://know-n.com/.well-known/collection-protocol' || method !== 'GET') {
+      unexpectedHttp.push(`${method} ${url}`);
+      throw new Error(`Undeclared options HTTP request: ${method} ${url}`);
+    }
+    return manifestResponse;
+  });
+  vi.stubGlobal('fetch', fetchFixture);
+  let finishLogout!: (response: { ok: true; state: typeof signedOut }) => void;
+  const logout = new Promise<{ ok: true; state: typeof signedOut }>(done => { finishLogout = done; });
+  const remove = vi.fn(async () => undefined);
+  const sendMessage = vi.fn(async (message: { kind?: string }) => {
+    sent.push(message);
+    if (message.kind === 'known.auth.logout') return logout;
+    if (message.kind === 'known.capture.navigation.get') return { ok: true, identity, hash: '#account' };
+    if (message.kind === 'known.sync.rejoinDecisions.get') return { ok: true, decisions: [] };
+    if (message.kind === 'known.bookmark.preferences.get') {
+      return { ok: true, preferences: { bookmarkInsertPosition: 'top', foldersFirst: false } };
+    }
+    if (message.kind === 'known.remoteDelete.pending.list') {
+      return { ok: true, pending: [], pendingCount: 0, policy: 'apply', casVersion: 0, conflictPending: false, conflictHref: '' };
+    }
+    if (message.kind === 'known.ingress.diagnostics') return { ok: true, diagnostics: [] };
+    return { ok: true, state: signedOut };
+  });
   vi.stubGlobal('chrome', {
-    runtime: {
-      sendMessage: vi.fn(async (message: { kind?: string }) => {
-        sent.push(message);
-        if (message.kind === 'known.bookmark.preferences.get') {
-          return { ok: true, preferences: { bookmarkInsertPosition: 'top', foldersFirst: false } };
-        }
-        if (message.kind === 'known.remoteDelete.pending.list') {
-          return { ok: true, pending: [], pendingCount: 0, policy: 'apply', casVersion: 0, conflictPending: false, conflictHref: '' };
-        }
-        if (message.kind === 'known.ingress.diagnostics') return { ok: true, diagnostics: [] };
-        return { ok: true, state: signedOut };
-      }),
-      onMessage: { addListener: vi.fn() },
-    },
+    runtime: { sendMessage, onMessage: { addListener: vi.fn() } },
     storage: {
-      local: { get: vi.fn(async () => ({})), set: vi.fn(async () => undefined), remove: vi.fn(async () => undefined) },
+      local: { get: vi.fn(async () => ({})), set: vi.fn(async () => undefined), remove },
+      session: { get: vi.fn(async () => ({})), set: vi.fn(async () => undefined), remove: vi.fn(async () => undefined) },
       onChanged: { addListener: vi.fn() },
     },
     tabs: { create: vi.fn(), query: vi.fn(async () => []) },
-    permissions: { contains: vi.fn(async () => true), request: vi.fn(async () => true) },
+    permissions: { contains: vi.fn(async () => true), request: vi.fn(async () => true),
+      onAdded: { addListener: vi.fn() }, onRemoved: { addListener: vi.fn() } },
     bookmarks: { getTree: vi.fn(async () => []), onCreated: { addListener: vi.fn() }, onChanged: { addListener: vi.fn() }, onMoved: { addListener: vi.fn() }, onRemoved: { addListener: vi.fn() } },
     alarms: { create: vi.fn(), onAlarm: { addListener: vi.fn() } },
   });
   Object.defineProperty(navigator, 'userActivation', { configurable: true, value: { isActive: true } });
-  await import('../src/options.js');
-  HTMLButtonElement.prototype.addEventListener = originalAdd;
-  await Promise.resolve();
-  const dialog = () => document.getElementById('logout-dialog') as HTMLDialogElement | null;
-  sent.length = 0;
-  actionClick!({ isTrusted: true });
-  expect(dialog()?.open).toBe(true);
-  expect(dialog()!.textContent).toContain('signing out here also signs you out of Know-N on the web');
-  expect(sent.some((message) => message.kind === 'known.auth.logout')).toBe(false);
-  document.getElementById('logout-cancel')!.click();
-  expect(dialog()).toBeNull();
-  expect(sent.some((message) => message.kind === 'known.auth.logout')).toBe(false);
-  actionClick!({ isTrusted: true });
-  expect(dialog()?.open).toBe(true);
-  document.getElementById('logout-confirm')!.click();
-  await vi.waitFor(() => {
-    expect(sent.some((message) => message.kind === 'known.auth.logout')).toBe(true);
-  });
+  const flushRender = () => new Promise<void>(done => setTimeout(done, 0));
+  try {
+    history.replaceState(null, '', '#account');
+    await import('../src/options.js');
+    await vi.waitFor(() => {
+      expect(document.body.dataset.state).toBe('signed_out');
+      expect(remove).toHaveBeenCalledWith('known.onboarding.installed.v1');
+      expect(sendMessage).toHaveBeenCalledWith({ kind: 'known.capture.navigation.get' });
+      expect(fetchFixture).toHaveBeenCalledTimes(1);
+    });
+    await flushRender();
+    expect(fetchFixture).toHaveBeenCalledTimes(1);
+    expect(unexpectedHttp).toEqual([]);
+    const dialog = () => document.getElementById('logout-dialog') as HTMLDialogElement | null;
+    const logoutRequests = () => sent.filter(message => message.kind === 'known.auth.logout');
+    expect(actionClick).toBeTypeOf('function');
+    actionClick!({ isTrusted: true });
+    expect(dialog()?.open).toBe(true);
+    expect(dialog()!.textContent).toContain('signing out here also signs you out of Know-N on the web');
+    expect(logoutRequests()).toHaveLength(0);
+    document.getElementById('logout-cancel')!.click();
+    expect(dialog()).toBeNull();
+    expect(logoutRequests()).toHaveLength(0);
+    actionClick!({ isTrusted: true });
+    expect(dialog()?.open).toBe(true);
+    document.getElementById('logout-confirm')!.click();
+    await vi.waitFor(() => expect(logoutRequests()).toHaveLength(1));
+    expect((document.getElementById('primary-action') as HTMLButtonElement).disabled).toBe(true);
+    const identityReads = sent.filter(message => message.kind === 'known.capture.navigation.get').length;
+    finishLogout({ ok: true, state: signedOut });
+    await vi.waitFor(() => {
+      expect(dialog()).toBeNull();
+      expect(document.body.dataset.state).toBe('signed_out');
+      expect((document.getElementById('primary-action') as HTMLButtonElement).disabled).toBe(false);
+      expect(document.getElementById('account')?.textContent).toBe('Not signed in');
+      expect(sent.filter(message => message.kind === 'known.capture.navigation.get')).toHaveLength(identityReads + 1);
+    });
+    await flushRender();
+    expect(logoutRequests()).toEqual([{ kind: 'known.auth.logout', userGesture: true }]);
+    expect(fetchFixture).toHaveBeenCalledTimes(1);
+    expect(unexpectedHttp).toEqual([]);
+  } finally {
+    finishLogout({ ok: true, state: signedOut });
+    // Resolve outstanding message/render jobs before globals or the DOM go away.
+    await flushRender();
+    window.dispatchEvent(new Event('pagehide'));
+    for (const clear of clearIntervals) clear();
+    for (const removeListener of windowListeners) removeListener();
+    history.replaceState(null, '', originalUrl);
+    await flushRender();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    if (originalActivation) Object.defineProperty(navigator, 'userActivation', originalActivation);
+    else Reflect.deleteProperty(navigator, 'userActivation');
+    document.body.replaceChildren();
+    for (const key of Object.keys(document.body.dataset)) delete document.body.dataset[key];
+  }
 });
-
-
-
 
 it('redirects the retired Saving tabs, Preferences and Diagnostics onto the page that owns their content', () => {
   for (const pane of ['saving', 'capture']) {
