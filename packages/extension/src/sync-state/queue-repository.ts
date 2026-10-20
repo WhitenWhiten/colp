@@ -122,13 +122,16 @@ export function createQueueRepository(ctx: SyncStoreRuntime) {
 
   async function listQueue(input: SyncScope, status?: QueueOperation['status'], afterSequence = 0, limit = 100): Promise<QueueOperation[]> {
     const key = scopeKey(validateScope(input)); safeInteger(afterSequence, 'afterSequence'); boundedLimit(limit);
+    if (afterSequence === Number.MAX_SAFE_INTEGER) return [];
     const db = await open(); const tx = db.transaction([STORES.queue, ...ISSUE_DEPENDENCY_STORES], 'readonly'); const store = tx.objectStore(STORES.queue);
     const completion = transactionDone(tx);
     const source = status ? store.index(INDEXES.queueByStatusSequence) : store.index(INDEXES.queueBySequence);
-    if (afterSequence === Number.MAX_SAFE_INTEGER) return [];
     const range = status ? IDBKeyRange.bound([key, status, afterSequence + 1], [key, status, Number.MAX_SAFE_INTEGER])
       : IDBKeyRange.bound([key, afterSequence + 1], [key, Number.MAX_SAFE_INTEGER]);
-    const values = await cursorPage<QueueOperation>(source, range, limit);
+    // A bounded index read preserves the same ordered page without one IDB
+    // callback and extra clone per historical row. Validation and receipt
+    // projection still run for every returned row in this fresh transaction.
+    const values = await requestValue<QueueOperation[]>(source.getAll(range, limit));
     for (let i = 0; i < values.length; i++) if (values[i]!.status === 'terminal') {
       const receipt = await requestValue(tx.objectStore(STORES.receipts).index(INDEXES.queueBySequence).get([key, values[i]!.sequence]));
       values[i] = withReceiptOutcome(values[i]!, receipt as never);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
 import { digestJson, validateOperation } from '../src/bookmark-event-codec.js';
 import { detachScopeMount, rejoinScopeMount } from '../src/scope-commands.js';
@@ -15,6 +15,7 @@ installKns05IndexedDb();
 
 test.each([100, 1_000])('a second rejoin preserves its own unuploaded edit after %s earlier rows', async count => {
   const f = await setup();
+  let stopBudget: (() => void) | undefined;
   try {
     await f.store.setFirstRun(scope, 'completed');
     await f.store.putMountBinding(scope, { mountId: 'mount-bar', nativeRootId: 'native-root',
@@ -59,6 +60,7 @@ test.each([100, 1_000])('a second rejoin preserves its own unuploaded edit after
         tx.objectStore(STORES.sequences).put({ scopeKey: captured.scopeKey, next: count + 1 });
       });
     }
+    const budget = queueReadBudget(); stopBudget = budget.stop;
     assert.equal((await f.store.listQueue(scope, undefined, 0, 1_000)).length, count);
     await detachScopeMount(f.store, scope, 'mount-bar');
     await f.api.update('native-node', { title: 'Edited while paused' });
@@ -82,5 +84,30 @@ test.each([100, 1_000])('a second rejoin preserves its own unuploaded edit after
     assert.equal(f.api.calls.length, beforeCalls, 'a later queue page protects the native edit before deletion');
     assert.deepEqual(await f.store.listQueue(scope, undefined, 0, 1_000), beforeQueue);
     assert.deepEqual(await f.store.getQueueByOpId(scope, subject!.opId), subject);
-  } finally { f.store.close(); }
+    // These limits measure IDB work, not host speed. The same 101/1001st real
+    // edit must remain protected without scheduling one callback per old row.
+    assert.ok(budget.callbacks() <= 12, `bounded queue pages used ${budget.callbacks()} cursor callbacks`);
+    assert.ok(budget.pages() <= 12, `queue history was scanned ${budget.pages()} times`);
+    assert.equal(budget.resolutions(), 0, 'pending uploads cannot have a completed rejection resolution');
+  } finally { stopBudget?.(); f.store.close(); }
 }, 15_000);
+
+function queueReadBudget() {
+  let callbacks = 0, pages = 0, resolutions = 0;
+  const advance = IDBCursor.prototype.continue, all = IDBIndex.prototype.getAll, get = IDBObjectStore.prototype.get;
+  const cursor = vi.spyOn(IDBCursor.prototype, 'continue').mockImplementation(function(this: IDBCursor, key?: IDBValidKey) {
+    if (this.source instanceof IDBIndex && this.source.objectStore.name === STORES.queue
+        && this.source.name === 'by_scope_sequence') callbacks++;
+    return advance.call(this, key);
+  });
+  const page = vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function(this: IDBIndex, ...args: Parameters<typeof all>) {
+    if (this.objectStore.name === STORES.queue && this.name === 'by_scope_sequence') pages++;
+    return all.apply(this, args);
+  });
+  const resolution = vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function(this: IDBObjectStore, key: IDBValidKey | IDBKeyRange) {
+    if (this.name === STORES.diagnostics && typeof key === 'string' && key.startsWith('rejoin-resolved:')) resolutions++;
+    return get.call(this, key);
+  });
+  return { callbacks: () => callbacks, pages: () => pages, resolutions: () => resolutions,
+    stop() { cursor.mockRestore(); page.mockRestore(); resolution.mockRestore(); } };
+}

@@ -14,7 +14,11 @@ const decisions = new WeakMap<IDBTransaction, Map<string, Promise<{ dependencies
 export async function unresolvedRejoinQueueRows(tx: IDBTransaction, key: string,
   rows: readonly QueueOperation[]): Promise<QueueOperation[]> {
   const diagnostics = tx.objectStore(STORES.diagnostics);
-  const values = await Promise.all(rows.map(row => requestValue<UnknownRecord | undefined>(diagnostics.get(rejoinResolutionId(key, row.opId)))));
+  // Only a refused terminal/local row can have been resolved. Pending,
+  // claimed or unknown uploads still need their real outcome even if an old
+  // diagnostic with the same identity exists.
+  const values = await Promise.all(rows.map(row => row.status === 'terminal' || row.status === 'rejected'
+    ? requestValue<UnknownRecord | undefined>(diagnostics.get(rejoinResolutionId(key, row.opId))) : undefined));
   return rows.filter((row, index) => {
     const value = values[index];
     return !value || value.kind !== 'rejoin_queue_resolution' || value.scopeKey !== key

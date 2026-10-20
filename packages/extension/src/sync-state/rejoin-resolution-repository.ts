@@ -34,7 +34,9 @@ export function writeRejoinResolutions(tx: IDBTransaction, key: string, plan: Sc
 }
 export function createRejoinResolutionRepository(ctx: SyncStoreRuntime) {
   async function filterResolvedQueueIssues(scope: SyncScope, rows: readonly QueueOperation[]): Promise<QueueOperation[]> {
-    const key = scopeKey(validateScope(scope)); const db = await ctx.open();
+    const key = scopeKey(validateScope(scope));
+    if (!rows.some(row => row.status === 'terminal' || row.status === 'rejected')) return [...rows];
+    const db = await ctx.open();
     const tx = db.transaction(STORES.diagnostics, 'readonly'); const done = transactionDone(tx);
     const values = await unresolvedRejoinQueueRows(tx, key, rows); await done; return values;
   }

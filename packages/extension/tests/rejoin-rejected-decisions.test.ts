@@ -193,3 +193,46 @@ test('warning resolution binds scope, opId, sequence and digest and never hides 
     assert.deepEqual(await f.getStore().listQueue(scope), originals);
   } finally { f.getStore().close(); }
 });
+
+test('a resolution diagnostic cannot settle an upload that still has no terminal outcome', async () => {
+  const f = await rejectedOrderFixture();
+  try {
+    await f.compare(); await f.resolve('keep_local_order');
+    const originals = await f.getStore().listQueue(scope), first = originals[0]!;
+    assert.equal(first.status, 'pending'); assert.equal(await f.getStore().getQueueReceipt(scope, first.sequence), null);
+    const tx = (await f.getStore().open()).transaction('diagnostics', 'readwrite');
+    tx.objectStore('diagnostics').put({ id: rejoinResolutionId(first.scopeKey, first.opId),
+      kind: 'rejoin_queue_resolution', scopeKey: first.scopeKey, opId: first.opId,
+      sequence: first.sequence, digest: first.digest });
+    await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+    assert.deepEqual(await f.getStore().filterResolvedQueueIssues(scope, originals), originals);
+    assert.deepEqual(await f.getStore().listQueue(scope), originals);
+    assert.equal(await f.getStore().getQueueReceipt(scope, first.sequence), null);
+  } finally { f.getStore().close(); }
+});
+
+test('bounded queue pages retain ordering, scope, detached values and validated refusal receipts', async () => {
+  const f = await rejectedOrderFixture();
+  try {
+    await f.compare(); await f.resolve('keep_local_order');
+    const store = f.getStore(), originals = await store.listQueue(scope), first = originals[0]!;
+    assert.ok(originals.length > 1);
+    await rejectQueueRow(store, first);
+    const [refusal] = await store.listQueue(scope, 'terminal', 0, 1);
+    assert.equal(refusal?.opId, first.opId); assert.equal(refusal?.recovery?.resultStatus, 'rejected');
+    assert.equal(refusal?.digest, first.digest); assert.deepEqual(refusal?.payload, first.payload);
+    assert.deepEqual((await store.listQueue(scope, undefined, first.sequence, 1)).map(row => row.sequence), [originals[1]!.sequence]);
+    assert.deepEqual(await store.listQueue({ ...scope, accountId: 'different-account' }), []);
+    assert.deepEqual(await store.listQueue(scope, undefined, Number.MAX_SAFE_INTEGER), []);
+    await assert.rejects(store.listQueue(scope, undefined, 0, 1_001), /limit_exceeded/);
+    await assert.rejects(store.listQueue(scope, undefined, 0, 0), /unsafe_integer/);
+    Object.assign(refusal!.payload, { targetId: 'caller-mutated' });
+    assert.deepEqual((await store.listQueue(scope, 'terminal'))[0]!.payload, first.payload);
+    // A bulk request cannot bypass the codec, including on a terminal row.
+    const tx = (await store.open()).transaction('outbound_queue', 'readwrite');
+    tx.objectStore('outbound_queue').put({ ...refusal, digest: '' });
+    await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
+    await assert.rejects(store.listQueue(scope, 'terminal'), /bounded_string_invalid/);
+    assert.equal((await store.listQueue(scope, undefined, first.sequence, 1))[0]?.opId, originals[1]!.opId);
+  } finally { f.getStore().close(); }
+});
