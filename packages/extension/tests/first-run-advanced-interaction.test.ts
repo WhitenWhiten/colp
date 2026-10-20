@@ -291,4 +291,3 @@ test('attention refresh drops an older page response and clears links not suppli
   expect(el('first-run-conflict-link').hidden).toBe(true);
   expect(f.send.mock.calls.filter(([request]) => request.kind === 'known.firstRun.attention.decide')).toHaveLength(0);
 });
-

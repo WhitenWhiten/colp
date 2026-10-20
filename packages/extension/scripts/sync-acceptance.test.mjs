@@ -60,6 +60,17 @@ test('release rejects a missing integration shard or missing browser lane', asyn
   }
 });
 
+for (const state of ['missing', 'skipped', 'in_progress']) {
+  test(`release rejects ${state} server audit coverage even when the aggregate CI gate is green`, async () => {
+    const jobs = successfulJobs().filter(job => state !== 'missing' || job.name !== 'server-sync-audit-coverage');
+    const coverage = jobs.find(job => job.name === 'server-sync-audit-coverage');
+    if (state === 'skipped') coverage.conclusion = 'skipped';
+    if (state === 'in_progress') { coverage.status = 'in_progress'; coverage.conclusion = null; }
+    assert.equal(jobs.find(job => job.name === 'ci-gate').conclusion, 'success');
+    await assert.rejects(verifyCiAcceptance({ repository, sha, fetchJson: lookup([run], jobs) }), /No complete/);
+  });
+}
+
 test('release follows job pagination and ignores stale attempts', async () => {
   const calls = [];
   const result = await verifyCiAcceptance({ repository, sha, fetchJson: async path => {
@@ -84,6 +95,7 @@ test('required browser journeys and all PostgreSQL shards cannot silently leave 
     'mv3-personal-sync-lifecycle', 'mv3-personal-sync-reconnect', 'mv3-library-web-flow',
     'mv3-sync-resilience', 'mv3-first-sync-recovery', 'mv3-rejoin-local-deletion']) assert.ok(specs.includes(`e2e/${name}.spec.ts`), name);
   for (const shard of [1, 2, 3, 4, 5, 6]) assert.ok(requiredReleaseJobs.includes(`server-integration (${shard})`));
+  assert.ok(requiredReleaseJobs.includes('server-sync-audit-coverage'));
 });
 
 test('release cannot use an earlier successful attempt when latest jobs are incomplete', async () => {

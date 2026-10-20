@@ -34,7 +34,7 @@ export function acceptanceNeedsWebProduct(group) {
 // Require actual successful jobs, including each shard. A docs-only ci-gate
 // success with skipped acceptance owners cannot qualify a release artifact.
 export const requiredReleaseJobs = Object.freeze([
-  'server', ...[1, 2, 3, 4, 5, 6].map(shard => `server-integration (${shard})`),
+  'server', 'server-sync-audit-coverage', ...[1, 2, 3, 4, 5, 6].map(shard => `server-integration (${shard})`),
   'extension', 'extension-coverage', 'extension-mv3', 'extension-sync-real-stack',
   'extension-kns-09-release', 'extension-kns-09-e2e',
   ...Object.keys(syncAcceptanceGroups).map(group => `extension-sync-lifecycle (${group})`),
