@@ -6,7 +6,7 @@ import { projectUnresolvedNativeWait } from './native-wait-open.js';
 import { collectNativeOccupancy, executeNativeCreate, type NativeWaitProjection } from './native-create-executor.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import { validNativeWaitTarget } from './native-wait-target.js';
-import { confirmMaterializationWait } from './native-wait-materialization.js';
+import { confirmMaterializationWait, observedNativeWaitCandidate } from './native-wait-materialization.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import type { IntentRecord, MappingInput, MountBindingRecord, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
@@ -212,6 +212,6 @@ async function putConfirmedMapping(input: ConfirmNativeWaitInput, intent: Intent
 }
 
 function confirmationCandidates(intent: IntentRecord): NativeWaitProjection['candidates'] {
-  const nativeId = intent.nativeResultConfirmation?.nativeId;
+  const nativeId = intent.nativeResultConfirmation?.nativeId ?? observedNativeWaitCandidate(intent);
   return nativeId ? [{ nativeId }] : [];
 }
