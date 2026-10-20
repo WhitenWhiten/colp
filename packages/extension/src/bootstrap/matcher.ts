@@ -191,10 +191,11 @@ export function matchLocalRemote(input: {
     for (const row of remaining) {
       const parentId = row.folderRole ? input.rootNodeId ?? undefined : mappedParent(row, mappingByNative, input.mounts, input.rootNodeId, remoteIndex, mountsByRoot);
       if (input.rootNodeId && parentId === input.rootNodeId && row.kind === 'bookmark') continue;
+      const folderRole = row.folderRole ?? (row.structureOnly && row.parentNativeId === null ? 'custom' : undefined);
       planned.push({
         opId: opId(input.confirmationId, 'create', row.nativeId), type: 'create_node', nativeId: row.nativeId,
         ...(parentId ? { parentId } : {}),
-        node: { kind: row.kind, title: row.folderRole ?? row.title, ...(row.url ? { url: row.url } : {}), ...(row.folderRole ? { folderRole: row.folderRole } : {}) }, reason: 'local-only',
+        node: { kind: row.kind, title: row.folderRole ?? row.title, ...(row.url ? { url: row.url } : {}), ...(folderRole ? { folderRole } : {}) }, reason: 'local-only',
       });
     }
   }
@@ -358,7 +359,7 @@ function mappedParent(local: LocalNodeFact, mappingByNative: ReadonlyMap<string,
   mounts: readonly MountFact[], rootNodeId: string | null,
   remoteIndex: ReturnType<typeof buildRemoteIndex>,
   mountsByRoot: ReadonlyMap<string, MountFact>): string | undefined {
-  if (local.parentNativeId === null && local.folderRole) return rootNodeId ?? undefined;
+  if (local.parentNativeId === null && (local.folderRole || local.structureOnly)) return rootNodeId ?? undefined;
   if (local.parentNativeId === null || local.parentNativeId === local.mountNativeRootId) {
     const bound = mountsByRoot.get(local.mountNativeRootId)?.remoteMountNodeId
       ?? mounts.find((item) => item.nativeRootId === local.mountNativeRootId)?.remoteMountNodeId;

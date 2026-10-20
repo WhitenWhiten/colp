@@ -2,12 +2,13 @@ import { scanBoundary } from '../bookmark-boundary.js';
 import { folderRoleForBrowserRoot, type NormalizedBookmarkNode, type NormalizedBookmarkRoot } from '../chrome-bookmark-tree.js';
 import type { BookmarkEventRecord } from '../sync-state/types.js';
 import type { LocalNodeFact } from './matcher.js';
-import type { ExistingBrowserMount } from '../browser-root-identity.js';
+import { browserRoleOwners, type ExistingBrowserMount } from '../browser-root-identity.js';
 
 export function localFactsFromRoots(roots: readonly NormalizedBookmarkRoot[],
   selectedNativeIds: readonly string[], excludedNativeIds: readonly string[] = [],
   privateNativeIds: readonly string[] = [], existingMounts: readonly ExistingBrowserMount[] = []): LocalNodeFact[] {
   const scan = scanBoundary({ roots, selectedNativeIds, excludedNativeIds, privateNativeIds, existingMounts });
+  const roleOwners = browserRoleOwners(roots, existingMounts);
   const selected = new Set(scan.selectedNativeIds);
   const structural = new Set<string>();
   const findAncestors = (node: NormalizedBookmarkNode, ancestors: readonly string[]) => {
@@ -28,7 +29,7 @@ export function localFactsFromRoots(roots: readonly NormalizedBookmarkRoot[],
       mountNativeRootId: [...ancestors, node.nativeId].find(id => selected.has(id)) ?? root.nativeId,
       parentNativeId: ancestors.at(-1) ?? null, kind: node.kind, title: node.title,
       ...(node.url ? { url: node.url } : {}), ...(structureOnly ? { structureOnly: true } : {}),
-      ...(rootRole && rootRole !== 'custom' && rootRole !== 'managed-bookmarks' ? { folderRole: rootRole } : {}) });
+      ...(rootRole && roleOwners.get(rootRole) === node.nativeId ? { folderRole: rootRole } : {}) });
     for (const child of node.children) visit(child, [...ancestors, node.nativeId], root);
   };
   for (const root of roots) {

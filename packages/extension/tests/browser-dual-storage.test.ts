@@ -23,8 +23,8 @@ async function dualRoots(withChildren = false) {
     getChildren: async () => [], getSubTree: async () => [] }).read()).roots;
 }
 
-async function setup() {
-  const store = createSyncStateStore({ indexedDB: new IDBFactory() });
+async function setup(indexedDB = new IDBFactory()) {
+  const store = createSyncStateStore({ indexedDB });
   await store.registerScope({ ...scope, lifecycle: 'active',
     lease: { leaseId: 'lease', expiresAt: Date.now() + 60_000 }, checkpoint: null,
     selectedRoots: [], privateRoots: [], rootStatus: 'ready', firstRun: 'none' });
@@ -151,5 +151,51 @@ test('bootstrap receipts and a reconstructed coordinator upload each bar child t
       .toEqual(['remote-account-bar', 'remote-local-bar']);
     await coordinator.resume(input);
     expect((await store.listQueue(scope)).map(row => row.opId)).toHaveLength(4);
+  } finally { await store.close(); }
+});
+
+test('selecting a folder on the secondary bar preserves its independent structural ancestor across restart', async () => {
+  const roots = (await dualRoots()).map(root => ({ ...root, children: [{ nativeId: `${root.nativeId}-folder`,
+    title: 'Selected', kind: 'folder' as const, managed: false, children: [{ nativeId: `${root.nativeId}-page`,
+      title: 'Page', kind: 'bookmark' as const, managed: false, url: 'https://example.test/page', children: [] }] },
+  { nativeId: `${root.nativeId}-sibling`, title: 'Unselected', kind: 'bookmark' as const,
+    managed: false, url: 'https://example.test/unselected', children: [] }] }));
+  const selectedNativeIds = ['local-bar-folder'];
+  const scan = scanBoundary({ roots, selectedNativeIds });
+  const localFacts = localFactsFromRoots(roots, selectedNativeIds);
+  expect(localFacts.map(row => row.nativeId)).toEqual(['local-bar', 'local-bar-folder', 'local-bar-page']);
+  expect(localFacts[0]).toMatchObject({ structureOnly: true, parentNativeId: null });
+  expect(localFacts[0]?.folderRole).toBeUndefined();
+  const input = { confirmationId: 'confirm-partial-device', treeDigest: scan.treeDigest, confirmationVersion: '1',
+    localFacts, remoteFacts: [{ nodeId: 'canonical-root', parentId: null, kind: 'folder' as const,
+      title: '', folderRole: 'root', revision: 'r0' }, { nodeId: 'account-remote', parentId: 'canonical-root',
+      kind: 'folder' as const, title: 'Bookmarks bar', folderRole: 'bookmarks-bar', revision: 'r1' }],
+    mounts: scan.mounts.map(row => ({ ...row, remoteMountNodeId: null })), rootNodeId: 'canonical-root' };
+  const indexedDB = new IDBFactory();
+  let store = await setup(indexedDB);
+  try {
+    const first = await createBootstrapCoordinator({ store, scope }).confirm(input);
+    expect(first.report?.matched).not.toContainEqual({ nativeId: 'local-bar', nodeId: 'account-remote' });
+    for (const [nativeId, expectedParent] of [['local-bar', 'canonical-root'],
+      ['local-bar-folder', 'remote-local-bar'], ['local-bar-page', 'remote-local-bar-folder']]) {
+      const pending = await store.listQueue(scope, 'pending');
+      expect(pending).toHaveLength(1);
+      const queued = pending[0]!;
+      expect(queued.payload).toMatchObject({ type: 'create_node', payload: { parentId: expectedParent } });
+      if (nativeId === 'local-bar') expect(queued.payload.payload).toMatchObject({
+        node: { title: 'Bookmarks bar', folderRole: 'custom' } });
+      await store.completeQueueWithReceipt(scope, queued.sequence, { opId: queued.opId,
+        operationDigest: queued.digest, kind: 'terminal', receiptId: `receipt-${nativeId}`,
+        resultDigest: `sha256:${nativeId}`, result: { results: [{ opId: queued.opId, sequence: queued.sequence,
+          status: 'applied', targetId: `remote-${nativeId}`, revision: `rev-${nativeId}` }] } });
+      await store.close();
+      store = createSyncStateStore({ indexedDB });
+      await createBootstrapCoordinator({ store, scope }).resume(input);
+    }
+    expect((await store.listQueue(scope)).map(row => row.status)).toEqual(['terminal', 'terminal', 'terminal']);
+    expect((await store.listMountBindings(scope)).map(row => row.remoteMountNodeId)).toEqual(['remote-local-bar-folder']);
+    expect((await store.listMappings(scope)).some(row => row.nativeId === 'local-bar' && row.rootRole)).toBe(false);
+    await createBootstrapCoordinator({ store, scope }).resume(input);
+    expect(await store.listQueue(scope)).toHaveLength(3);
   } finally { await store.close(); }
 });
