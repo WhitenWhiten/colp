@@ -455,8 +455,10 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const effect = event.effect;
     if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') return;
     const existing = await options.store.getMappingByColpId(options.scope, effect.node.id);
-    const provisional = existing ? null : await provisionalSelfCreateMapping(options, event,
-      await requireMapping(effect.placement.parentId, 'parent'));
+    const provisional = !existing && effect.kind === 'node_created'
+      && event.operation.replicaId === options.scope.replicaId
+      ? await provisionalSelfCreateMapping(options, event,
+        await requireMapping(effect.placement.parentId, 'parent')) : null;
     if (provisional) {
       const eventKey = `${event.cursor}:${event.operation.opId}`;
       const parent = await requireMapping(effect.placement.parentId, 'parent');
