@@ -78,3 +78,46 @@ test('an install marks the welcome state before opening Options', async () => {
   assert.equal((await f.local.get(f.runtime.WELCOME_FLAG))[f.runtime.WELCOME_FLAG], 'installed');
   assert.deepEqual(f.opened, [{ options: true }]);
 });
+
+test('a sync alarm reports failed admission and leaves the next wake executable', async () => {
+  f.local.fail = 'get'; f.alarms.emit({ name: 'known-sync-engine', scheduledTime: Date.now() });
+  await failures(['alarm.sync-engine-wake']);
+  f.local.fail = undefined;
+  await (await import('../src/sw/engine.js')).scheduleSyncEngineWake('alarm');
+  assert.deepEqual(f.api.calls, []);
+});
+
+for (const message of [{ kind: 'known.sync.engine.retry' },
+  { kind: 'known.bookmarkAnnotation.changed', nativeId: '1' },
+  { kind: 'known.folderDescription.changed', nativeId: '1' }]) {
+  test(`${message.kind} acknowledges its notification and separately reports a failed wake`, async () => {
+    f.local.fail = 'get'; assert.deepEqual(await f.send(message), { ok: true });
+    await failures(['message.sync-engine-wake']); assert.deepEqual(f.api.calls, []);
+  });
+}
+
+test('connectivity acknowledgement is usable offline and after a refused online wake', async () => {
+  vi.stubGlobal('navigator', { onLine: false });
+  const reads = f.local.calls.length;
+  assert.deepEqual(await f.send({ kind: 'known.connectivity.online' }), { ok: true });
+  assert.equal(f.local.calls.length, reads);
+  vi.stubGlobal('navigator', { onLine: true }); f.local.fail = 'get';
+  assert.deepEqual(await f.send({ kind: 'known.connectivity.online' }), { ok: true });
+  await failures(['message.bookmark-preferences']);
+  assert.equal(f.runtime.sw.confirmedOnlineWakePending, false);
+});
+
+test('the rule refresh alarm exposes both refused indexes instead of claiming a successful refresh', async () => {
+  const { RULE_SUBSCRIPTION_ALARM } = await import('../src/sw/automation-subscriptions.js');
+  f.idbFault.database = 'known-automation';
+  f.alarms.emit({ name: RULE_SUBSCRIPTION_ALARM, scheduledTime: Date.now() });
+  await failures(['alarm.subscriptions', 'alarm.risk-lists']); assert.deepEqual(f.api.calls, []);
+});
+
+test('the automation alarm reports failed durable account and observed-create reads independently', async () => {
+  await f.connect();
+  const { AUTOMATION_ALARM } = await import('../src/sw/automation.js');
+  f.idbFault.database = 'known-automation';
+  f.alarms.emit({ name: AUTOMATION_ALARM, scheduledTime: Date.now() });
+  await failures(['alarm.automation', 'alarm.observed-creates']); assert.deepEqual(f.api.calls, []);
+});

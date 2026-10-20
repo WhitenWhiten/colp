@@ -40,7 +40,7 @@ class StoragePort extends MemoryStorageArea {
 
 /** Import the whole worker graph. Chrome, packaged assets, HTTP and IndexedDB
  * are external ports; no domain handler, authority check or queue is mocked. */
-export async function liveWorker() {
+export async function liveWorker(options: { readonly bootFailure?: 'authority' | 'legacy-purge' | 'local-import' } = {}) {
   vi.resetModules();
   const config = JSON.parse(await readFile(new URL('../config/production.json', import.meta.url), 'utf8')) as BuildConfig;
   const local = new StoragePort(), session = new StoragePort(), managed = new StoragePort();
@@ -103,6 +103,11 @@ export async function liveWorker() {
     if (href.startsWith(`chrome-extension://${extensionId}/_locales/`)) return Response.json({});
     return new Response(null, { status: 503 });
   });
+  if (options.bootFailure === 'authority') local.fail = 'get';
+  if (options.bootFailure === 'legacy-purge') {
+    await local.set({ 'known.auth.credential.v1': { obsoleteFixture: true } }); local.fail = 'remove';
+  }
+  if (options.bootFailure === 'local-import') idbFault.database = 'known-local-import';
   await import('../src/service-worker.js');
   const runtime = await import('../src/sw/runtime.js');
   await runtime.credentialAreaReady;
@@ -135,7 +140,7 @@ export async function liveWorker() {
   return { config, runtime, local, session, managed, permission, api, nativeEvents, messages, external,
     startup, installed, alarms, alarmRegistry, online, notifications, opened, requests, tabs, listener, send, connect, idbFault,
     async close() {
-      local.fail = session.fail = managed.fail = undefined;
+      local.fail = local.failNext = session.fail = session.failNext = managed.fail = undefined;
       idbFault.database = ''; transactions.mockRestore();
       await runtime.workCoordinator.drain(); runtime.syncState.close();
       await (await import('../src/sw/capture.js')).captureStore.close();
