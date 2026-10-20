@@ -30,6 +30,7 @@ import { syncNodeDeletePushRequest } from '../../fixtures/phase3/sync-node-delet
 import { syncNodeUpdatePushRequest } from '../../fixtures/phase3/sync-node-update.js';
 import { mintVerifiedExtensionCredentialFixture } from '../../support/extension-credential.js';
 import { createSyncSessionBlackBoxClient } from '../../support/sync-session-black-box-client.js';
+import { SyncSessionIssueError } from '../../../src/modules/sync/index.js';
 import {
   createIsolatedPostgresRuntime,
   describeWithPostgres,
@@ -222,6 +223,20 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       await patch({ title: 'Server title' });
       const sync = await syncContext(owner, owned.collectionId, 'Refresh browser');
       const pushClient = await startPush(sync);
+      const peer = await syncContext(owner, owned.collectionId, 'Concurrent browser');
+      const peerClient = await startPush(peer);
+      let peerSequence = 0;
+      const patchFromPeer = async (value: Record<string, string>) => {
+        const current = (await runtime.pool.query('select resource_revision,payload_json from nodes where id=$1',
+          [owned.node.id])).rows[0];
+        const response = await peerClient.push({ idempotencyKey: `decision-peer-${randomUUID()}`,
+          request: syncNodeUpdatePushRequest({ sessionId: peer.session.sessionId,
+            replicaId: peer.replica.replicaId, collectionId: owned.collectionId, targetId: owned.node.id,
+            baseRevision: current.resource_revision, sequence: ++peerSequence, opId: `decision-peer-op-${randomUUID()}`,
+            base: Object.fromEntries(Object.keys(value).map(field => [field, current.payload_json[field] ?? null])), value }) });
+        assert.equal(response.status, 200, JSON.stringify(response.body));
+        assert.equal(syncResult(response.body).results[0]?.status, 'applied');
+      };
       const pushRequest = { idempotencyKey: `decision-push-${randomUUID()}`,
         request: syncNodeUpdatePushRequest({ sessionId: sync.session.sessionId,
           replicaId: sync.replica.replicaId, collectionId: owned.collectionId, targetId: owned.node.id,
@@ -254,7 +269,10 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       let decision = await getDecision();
       assert.equal(decision.field, '/title');
       for (const note of ['New server note', 'Newer server note']) {
-        await patch({ description: note });
+        // Product node PATCH intentionally fences all active replicas for
+        // Snapshot recovery. A concurrent Sync writer supplies wire effects
+        // and keeps this session valid for the external receipt replay below.
+        await patchFromPeer({ description: note });
         const before = await state();
         const refused = await api.inject(resolve(decision.etag));
         assert.equal(refused.statusCode, 412, refused.body);
@@ -281,8 +299,7 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       }
       assert.equal(resolvedState.counts.sync_receipts, 1);
       assert.equal(resolvedState.counts.product_receipts, 1);
-      nodeEtag = `"${resolvedState.node.resource_revision}"`;
-      await patch({ title: 'Later canonical title' });
+      await patchFromPeer({ title: 'Later canonical title' });
       const afterLaterEdit = await state();
       const replay = await api.inject(confirmedRequest);
       assert.equal(replay.statusCode, 200, replay.body);
@@ -307,6 +324,40 @@ describeWithPostgres('P3-36 real Product Sync Center HTTP/PostgreSQL', () => {
       assert.deepEqual(await state(), afterLaterEdit);
       assert.deepEqual((await runtime.pool.query(`select pull_wire_json,private_payload_digest,private_payload_ciphertext
         from sync_conflicts where conflict_id=$1`, [conflictId])).rows[0], admission);
+    } finally { await api.close(); }
+  }, 60_000);
+
+  test('a Product node edit keeps the main recovery fence and durably revokes the older Sync session', async () => {
+    const api = productApp();
+    try {
+      const owner = await login(`product-edit-fence-${randomUUID()}`);
+      const owned = await createCollectionAndNode(api, owner, 'Product recovery fence');
+      const sync = await syncContext(owner, owned.collectionId, 'Browser before Product edit');
+      const authority = async () => (await runtime.pool.query(`select r.status,r.lifecycle_revision::text,
+        r.lease_generation::text,c.policy_revision,s.status session_status,s.termination_reason
+        from sync_replicas r join collections c on c.id=r.collection_id
+        join sync_sessions s on s.session_id=$2 where r.replica_id=$1`,
+      [sync.replica.replicaId, sync.session.sessionId])).rows[0];
+      const before = await authority();
+      assert.equal(before.status, 'active');
+      const verified = await sync.issuer.verify({ credential: sync.credential,
+        sessionId: sync.session.sessionId, replicaId: sync.replica.replicaId, collectionId: owned.collectionId });
+      assert.ok(verified.authorizationScopes.includes('sync:push'));
+      const patched = await api.inject({ method: 'PATCH',
+        url: `/api/v1/collections/${owned.collectionId}/nodes/${owned.node.id}`,
+        headers: { ...mutation(owner, randomUUID(), 'application/merge-patch+json'), 'if-match': owned.node.etag },
+        payload: { title: 'Product edit requires a fresh Snapshot' } });
+      assert.equal(patched.statusCode, 200, patched.body);
+      const fenced = await authority();
+      assert.equal(fenced.status, 'recovery_required');
+      assert.equal(BigInt(fenced.lifecycle_revision), BigInt(before.lifecycle_revision) + 1n);
+      assert.equal(fenced.lease_generation, before.lease_generation);
+      assert.equal(fenced.policy_revision, before.policy_revision, 'a title edit is not a policy change');
+      assert.equal(fenced.session_status, 'active', 'verification commits the durable session denial');
+      await assert.rejects(sync.issuer.verify({ credential: sync.credential,
+        sessionId: sync.session.sessionId, replicaId: sync.replica.replicaId, collectionId: owned.collectionId }),
+      (error: unknown) => error instanceof SyncSessionIssueError && error.code === 'session_revoked');
+      assert.deepEqual(await authority(), { ...fenced, session_status: 'terminated', termination_reason: 'scope_reduced' });
     } finally { await api.close(); }
   }, 60_000);
 
