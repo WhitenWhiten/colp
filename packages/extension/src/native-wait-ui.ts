@@ -70,7 +70,7 @@ function hostOf(url: string): string {
 export function nativeWaitReasonCopy(reason: PublicNativeWait['waitReason']): string {
   return reason === 'waiting_dependency'
     ? t('nativeWait_waitingParentFolder', 'Waiting for the parent folder')
-    : t('nativeWait_browserCreatedBookmarkBut', 'This browser created the bookmark, but the result was not recorded');
+    : t('nativeWait_browserCreatedBookmarkBut', 'Bookmark creation could not be confirmed. Choose how to continue.');
 }
 
 export function nativeWaitTargetCopy(wait: PublicNativeWait): string {

@@ -41,7 +41,7 @@ test('a row shows at most two actions and keeps the destructive one in the menu'
   expect(visible(rows()[0]!).filter((button) => button.textContent).length).toBeLessThanOrEqual(2);
   expect(visible(rows()[1]!).map((button) => button.textContent)).toEqual(['Keep both', '']);
   expect(rows()[0]!.querySelector('.native-wait-target')!.textContent).toBe('Bookmark 1');
-  expect(rows()[0]!.querySelector('.native-wait-reason')!.textContent).toBe('site1.example · This browser created the bookmark, but the result was not recorded');
+  expect(rows()[0]!.querySelector('.native-wait-reason')!.textContent).toBe('site1.example · Bookmark creation could not be confirmed. Choose how to continue.');
   expect(document.querySelector('[data-native-wait-action="cancel"]')).toBeNull();
 });
 

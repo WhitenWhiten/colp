@@ -5136,7 +5136,7 @@
     "message": "Bound to an existing bookmark."
   },
   "nativeWait_browserCreatedBookmarkBut": {
-    "message": "This browser created the bookmark, but the result was not recorded"
+    "message": "Bookmark creation could not be confirmed. Choose how to continue."
   },
   "nativeWait_cancelledCloudItemWill": {
     "message": "Cancelled: this cloud item will not be placed on this device."

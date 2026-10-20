@@ -6556,8 +6556,8 @@
     "description": "Bound to an existing bookmark."
   },
   "nativeWait_browserCreatedBookmarkBut": {
-    "message": "此浏览器已创建书签，但结果未被记录",
-    "description": "This browser created the bookmark, but the result was not recorded"
+    "message": "无法确认书签的创建结果。请选择如何继续。",
+    "description": "Bookmark creation could not be confirmed. Choose how to continue."
   },
   "nativeWait_cancelledCloudItemWill": {
     "message": "已取消：此云端项目不会放置到此设备上。",
