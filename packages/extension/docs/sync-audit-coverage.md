@@ -8,7 +8,7 @@ Production entry points are listed even when their bootstrap work makes coverage
 
 ## Added owners
 
-This pass adds 102 executable owners, for 157 total.
+This pass adds 103 executable owners, for 158 total.
 
 - `src/advanced-first-run-ui.ts`
 - `src/bookmark-boundary.ts`
@@ -28,6 +28,7 @@ This pass adds 102 executable owners, for 157 total.
 - `src/first-run-preview-copy.ts`
 - `src/first-run-ui.ts`
 - `src/kns-09-release.ts`
+- `src/native-call-result.ts`
 - `src/options.ts`
 - `src/outbound-push-batch.ts`
 - `src/outbound-push-encoding.ts`

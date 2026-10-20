@@ -23,6 +23,7 @@ export const SYNC_AUDIT_COVERAGE_FILES = Object.freeze([
   'src/first-run-preview-copy.ts',
   'src/first-run-ui.ts',
   'src/kns-09-release.ts',
+  'src/native-call-result.ts',
   'src/options.ts',
   'src/outbound-push-batch.ts',
   'src/outbound-push-encoding.ts',
