@@ -42,8 +42,28 @@ interface SnapshotState {
   readonly maxDepth: number;
   readonly maxMembers: number;
   members: number;
+  observedDepth: number;
   readonly bytes: TextByteBudget;
   readonly omitUndefinedProperties?: boolean;
+}
+
+export interface ImmutableJsonProof {
+  readonly maxDepth: number;
+  readonly maxMembers: number;
+  readonly maxBytes: number;
+  readonly observedDepth: number;
+  readonly observedMembers: number;
+  readonly observedBytes: number;
+}
+
+const immutableJsonProofs = new WeakMap<object, ImmutableJsonProof>();
+
+/**
+ * Proof that this object was produced by an immutable JSON snapshot.
+ * Callers cannot forge the entry. A frozen object with no entry is not proof.
+ */
+export function readImmutableJsonProof(value: object): ImmutableJsonProof | undefined {
+  return immutableJsonProofs.get(value);
 }
 
 /** Whether a JS number is acceptable in protocol JSON clones. */
@@ -64,14 +84,11 @@ export function immutableJsonData<Value>(
   label: string,
   seen = new Set<object>(),
 ): Value {
-  return snapshotJsonValue(value, {
-    label,
-    seen,
+  return runImmutableSnapshot(value, label, {
     maxDepth: DEFAULT_IMMUTABLE_JSON_MAX_DEPTH,
     maxMembers: DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS,
-    members: 0,
-    bytes: new TextByteBudget(DEFAULT_IMMUTABLE_JSON_MAX_BYTES, label),
-  }, 0) as Value;
+    maxBytes: DEFAULT_IMMUTABLE_JSON_MAX_BYTES,
+  }, seen);
 }
 
 /**
@@ -83,15 +100,11 @@ export function immutableJsonData<Value>(
  * invokes accessors or retains aliases.
  */
 export function omitUndefinedJsonProperties<Value>(value: Value, label: string): Value {
-  return snapshotJsonValue(value, {
-    label,
-    seen: new Set<object>(),
+  return runImmutableSnapshot(value, label, {
     maxDepth: DEFAULT_IMMUTABLE_JSON_MAX_DEPTH,
     maxMembers: DEFAULT_IMMUTABLE_JSON_MAX_MEMBERS,
-    members: 0,
-    bytes: new TextByteBudget(DEFAULT_IMMUTABLE_JSON_MAX_BYTES, label),
-    omitUndefinedProperties: true,
-  }, 0) as Value;
+    maxBytes: DEFAULT_IMMUTABLE_JSON_MAX_BYTES,
+  }, new Set<object>(), true);
 }
 
 /** Deep-readonly variant for public trust boundaries with explicit budgets. */
@@ -112,20 +125,45 @@ export function immutableJsonSnapshot<Value>(
   if (!Number.isSafeInteger(maxMembers) || maxMembers < 0) {
     throw new TypeError(`${label} maxMembers must be a non-negative safe integer.`);
   }
-  return snapshotJsonValue(value, {
+  return runImmutableSnapshot(value, label, { maxDepth, maxMembers, maxBytes }, new Set<object>()) as DeepReadonly<Value>;
+}
+
+function runImmutableSnapshot<Value>(
+  value: Value,
+  label: string,
+  limits: { readonly maxDepth: number; readonly maxMembers: number; readonly maxBytes: number },
+  seen: Set<object>,
+  omitUndefinedProperties = false,
+): Value {
+  const state: SnapshotState = {
     label,
-    seen: new Set<object>(),
-    maxDepth,
-    maxMembers,
+    seen,
+    maxDepth: limits.maxDepth,
+    maxMembers: limits.maxMembers,
     members: 0,
-    bytes: new TextByteBudget(maxBytes, label),
-  }, 0) as DeepReadonly<Value>;
+    observedDepth: 0,
+    bytes: new TextByteBudget(limits.maxBytes, label),
+    ...(omitUndefinedProperties ? { omitUndefinedProperties: true } : {}),
+  };
+  const snapshot = snapshotJsonValue(value, state, 0) as Value;
+  if (snapshot !== null && typeof snapshot === 'object') {
+    immutableJsonProofs.set(snapshot, {
+      maxDepth: limits.maxDepth,
+      maxMembers: limits.maxMembers,
+      maxBytes: limits.maxBytes,
+      observedDepth: state.observedDepth,
+      observedMembers: state.members,
+      observedBytes: state.bytes.bytes,
+    });
+  }
+  return snapshot;
 }
 
 function snapshotJsonValue(value: unknown, state: SnapshotState, depth: number): unknown {
   if (depth > state.maxDepth) {
     throw new TypeError(`${state.label} exceeds the maximum JSON depth.`);
   }
+  if (depth > state.observedDepth) state.observedDepth = depth;
   if (value === null || typeof value === 'boolean') {
     state.bytes.charge(value === null || value === true ? 4 : 5);
     return value;

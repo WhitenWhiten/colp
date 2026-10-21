@@ -28,13 +28,11 @@ import {
   AUTHORITATIVE_EFFECT_MAX_MEMBERS,
   AUTHORITATIVE_EFFECT_SERIES_MAX_MEMBERS,
   assertAuthoritativeEffectPageUrlSafe,
-  canonicalAuthoritativeEffectDigest,
-  canonicalAuthoritativeEffectPageDigest,
   canonicalAuthoritativeMemberDigest,
   canonicalOperationDigest,
-  encodeCanonicalJson,
   expandAuthoritativeEffectPageUrl,
 } from './canonical.js';
+import { effectPageCanonicalMaterial } from './effect-canonical-material.js';
 import { assertEffectBinding } from './authoritative-effect-kind.js';
 import {
   nonEmptyString,
@@ -554,10 +552,11 @@ export function validateAuthoritativePullEventPage(
   if (page.members.length !== page.memberCount) {
     throw new TypeError('Authoritative Pull effect page memberCount is invalid.');
   }
-  if (page.pageDigest !== canonicalAuthoritativeEffectPageDigest(page)) {
+  const pageMaterial = effectPageCanonicalMaterial(page);
+  if (page.pageDigest !== pageMaterial.digest) {
     throw new TypeError('Authoritative Pull effect page digest is invalid.');
   }
-  if (Buffer.byteLength(encodeCanonicalJson(page, 'Canonical JSON input'), 'utf8') > AUTHORITATIVE_EFFECT_PAGE_MAX_BYTES) {
+  if (Buffer.byteLength(pageMaterial.encodedPage, 'utf8') > AUTHORITATIVE_EFFECT_PAGE_MAX_BYTES) {
     throw new RangeError('Authoritative Pull effect page exceeds its byte budget.');
   }
   return page;

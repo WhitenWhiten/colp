@@ -1,6 +1,13 @@
 import { isProxy } from 'node:util/types';
 
 import { cloneAndFreezeJsonData, createValidatorRegistry } from '../schema/index.js';
+import {
+  hasSchemaValidatedSnapshot,
+  publicationReuseDiagnostics,
+  readDeliveryObservation,
+  rememberDeliveryObservation,
+  rememberSchemaValidatedSnapshot,
+} from './publication-snapshot-reuse.js';
 import { validateSnapshotSemantics } from '../semantic/snapshot.js';
 import type { Snapshot } from '../types/index.js';
 import { assertPublicationSnapshotBookmarkUrls } from './publication-bookmark-url-guard.js';
@@ -153,10 +160,18 @@ export function planPublicationSnapshotDelivery(
     if (classification !== 'static' && classification !== 'dynamic') throw new TypeError();
 
     const query = canonicalQuery(dataProperty(record, 'query'));
-    const inspected = inspectSnapshotGraph(dataProperty(record, 'snapshot'), classification, limits);
-    const snapshot = cloneAndFreezeJsonData(dataProperty(record, 'snapshot')) as Readonly<Snapshot>;
-    if (!validators.validate('snapshot', snapshot).valid || snapshot.mode !== 'publication') throw new TypeError();
-    assertPublicationSnapshotBookmarkUrls(snapshot);
+    const rawSnapshot = dataProperty(record, 'snapshot');
+    const reused = reuseInspectedSnapshot(rawSnapshot, classification, limits);
+    const inspected = reused?.metrics ?? inspectSnapshotGraph(rawSnapshot, classification, limits);
+    const snapshot = reused?.snapshot ?? cloneAndFreezeJsonData(rawSnapshot) as Readonly<Snapshot>;
+    if (reused === undefined) {
+      publicationReuseDiagnostics.deliveryWalks += 1;
+      publicationReuseDiagnostics.schemaValidations += 1;
+      if (!validators.validate('snapshot', snapshot).valid || snapshot.mode !== 'publication') throw new TypeError();
+      assertPublicationSnapshotBookmarkUrls(snapshot);
+      rememberDeliveryObservation(snapshot, { utf8Bytes: inspected.utf8Bytes, objectCount: inspected.objectCount });
+      rememberSchemaValidatedSnapshot(snapshot);
+    }
 
     const metrics = Object.freeze(inspected);
     const completeLogicalSnapshot = querySelectsCompleteLogicalSnapshot(query);
@@ -193,6 +208,25 @@ export function createPublicationSnapshotSinglePageResponse(
     if (error instanceof RangeError) throw error;
     throw new TypeError(INVALID_INPUT);
   }
+}
+
+function reuseInspectedSnapshot(
+  raw: unknown,
+  classification: PublicationCollectionClassification,
+  limits: Readonly<PublicationSnapshotDeliveryLimits>,
+): { readonly snapshot: Readonly<Snapshot>; readonly metrics: PublicationSnapshotDeliveryMetrics } | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const observed = readDeliveryObservation(raw);
+  if (observed === undefined || !hasSchemaValidatedSnapshot(raw)) return undefined;
+  publicationReuseDiagnostics.deliveryReuses += 1;
+  if (observed.utf8Bytes > limits.hardMaxUtf8Bytes || observed.objectCount > limits.hardMaxObjects) {
+    if (classification === 'static') throw new StaticDeliveryLimitError();
+    throw new DeliveryInputLimitError();
+  }
+  return {
+    snapshot: raw as Readonly<Snapshot>,
+    metrics: Object.freeze({ utf8Bytes: observed.utf8Bytes, objectCount: observed.objectCount }),
+  };
 }
 
 function canonicalQuery(value: unknown): Readonly<Record<string, unknown>> {

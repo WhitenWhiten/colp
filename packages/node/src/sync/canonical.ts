@@ -9,10 +9,8 @@ import { parseTemplate } from 'url-template';
 
 import { assertEndpointExpansionKeepsPathSegments } from '../semantic/endpoint-path-segments.js';
 import { isPrivateOrLocalLiteralHostname } from '../shared/private-or-local-literal-host.js';
-import {
-  canonicalJsonSnapshot,
-  encodeCanonicalJson,
-} from './canonical-json.js';
+import { encodeCanonicalJson } from './canonical-json.js';
+import { effectCanonicalDigest, effectPageCanonicalDigest } from './effect-canonical-material.js';
 
 export { canonicalJsonSnapshot, encodeCanonicalJson } from './canonical-json.js';
 export { subtreeDeleteSource, subtreeMemberIdsDigest, subtreeObservationSummary, SUBTREE_OBSERVATION_EXTENSION } from './subtree-observation.js';
@@ -72,12 +70,7 @@ export function canonicalOperationDigest(operation: unknown): string {
 
 /** Canonical digest over an effect with its self-referential effectDigest member omitted. */
 export function canonicalAuthoritativeEffectDigest(effect: unknown): string {
-  const snapshot = canonicalJsonSnapshot(effect, 'Canonical authoritative effect digest input');
-  if (typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
-    throw new TypeError('Canonical authoritative effect digest input must be a plain object.');
-  }
-  const { effectDigest: _effectDigest, ...digestInput } = snapshot as Record<string, unknown>;
-  return contentDigest(digestInput, 'Canonical authoritative effect digest input');
+  return effectCanonicalDigest(effect);
 }
 
 export function canonicalAuthoritativeMemberDigest(members: unknown): string {
@@ -122,12 +115,7 @@ export function canonicalAuthoritativeMemberDigest(members: unknown): string {
 }
 
 export function canonicalAuthoritativeEffectPageDigest(page: unknown): string {
-  const snapshot = canonicalJsonSnapshot(page, 'Canonical authoritative effect page digest input');
-  if (typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
-    throw new TypeError('Canonical authoritative effect page digest input must be a plain object.');
-  }
-  const { pageDigest: _pageDigest, ...digestInput } = snapshot as Record<string, unknown>;
-  return contentDigest(digestInput, 'Canonical authoritative effect page digest input');
+  return effectPageCanonicalDigest(page);
 }
 
 export function assertAuthoritativeEffectPageUrlSafe(raw: string): void {

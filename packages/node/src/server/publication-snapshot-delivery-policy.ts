@@ -9,6 +9,11 @@ import {
   type PublicationSnapshotSinglePageResponseInit,
 } from './publication-snapshot-delivery-policy-core.js';
 import {
+  publicationReuseDiagnostics,
+  readProjectionCensus,
+  rememberProjectionCensus,
+} from './publication-snapshot-reuse.js';
+import {
   PublicationPublicProjectionError,
   type PublicationPublicProjectionLimits,
 } from './publication-public-projection.js';
@@ -28,16 +33,27 @@ export function planPublicationSnapshotDelivery(
   if (plan.delivery === 'single-page') {
     // Source data was already copied, deeply frozen and bounded by the planner.
     // Count every JSON value, not only objects: these are projection's units.
-    let maxDepth = 0;
-    let maxNodes = 0;
-    const pending: { value: unknown; depth: number }[] = [{ value: plan.snapshot, depth: 0 }];
-    while (pending.length > 0) {
-      const { value, depth } = pending.pop()!;
-      maxNodes += 1;
-      maxDepth = Math.max(maxDepth, depth);
-      if (value !== null && typeof value === 'object') {
-        for (const child of Object.values(value)) pending.push({ value: child, depth: depth + 1 });
+    const cachedCensus = readProjectionCensus(plan.snapshot);
+    let maxDepth: number;
+    let maxNodes: number;
+    if (cachedCensus !== undefined) {
+      publicationReuseDiagnostics.projectionCensusReuses += 1;
+      maxDepth = cachedCensus.maxDepth;
+      maxNodes = cachedCensus.maxNodes;
+    } else {
+      publicationReuseDiagnostics.projectionCensusWalks += 1;
+      maxDepth = 0;
+      maxNodes = 0;
+      const pending: { value: unknown; depth: number }[] = [{ value: plan.snapshot, depth: 0 }];
+      while (pending.length > 0) {
+        const { value, depth } = pending.pop()!;
+        maxNodes += 1;
+        maxDepth = Math.max(maxDepth, depth);
+        if (value !== null && typeof value === 'object') {
+          for (const child of Object.values(value)) pending.push({ value: child, depth: depth + 1 });
+        }
       }
+      rememberProjectionCensus(plan.snapshot, { maxDepth, maxNodes });
     }
     projectionBudgets.set(plan, Object.freeze({ maxNodes: Math.max(100_000, maxNodes), maxDepth: Math.max(64, maxDepth) }));
   }

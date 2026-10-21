@@ -92,6 +92,12 @@ import {
 } from './protocol-json-media.js';
 import { validatePublicationIfNoneMatchEtag } from './publication-conditional.js';
 import { updatePublicationResponseCache, type ClientCache, type ClientCacheEntry } from './publication-cache.js';
+import {
+  measureJsonUtf8Bytes,
+  ownedJsonUtf8Bytes,
+  rememberOwnedJsonUtf8Bytes,
+  representationByteDiagnostics,
+} from './representation-bytes.js';
 export type { ClientCache, ClientCacheEntry } from './publication-cache.js';
 export { compareOrderKeys } from '../semantic/index.js';
 export { buildCreateNodePayload, buildMoveNodePayload } from './node-placement.js';
@@ -621,11 +627,14 @@ interface PreparedPublicationEndpoint {
 }
 
 function cachedRepresentationBytes(value: unknown): number {
-  const source = JSON.stringify(value);
-  if (source === undefined) {
-    throw new TypeError('Cached representation is not JSON serializable.');
+  if (typeof value === 'object' && value !== null) {
+    const owned = ownedJsonUtf8Bytes(value);
+    if (owned !== undefined) {
+      representationByteDiagnostics.reuses += 1;
+      return owned;
+    }
   }
-  return new TextEncoder().encode(source).byteLength;
+  return measureJsonUtf8Bytes(value);
 }
 
 function assertProtocolJsonResponseMedia(response: Response, definition: DefinitionName): void {
@@ -1377,13 +1386,17 @@ export class ColpClient {
     if (cachedSource !== undefined) {
       try {
         const etag = validatePublicationIfNoneMatchEtag(cachedSource.etag);
-        const bytes = cachedRepresentationBytes(cachedSource.representation);
-        if (policy.maxBytes !== undefined && bytes > policy.maxBytes) {
+        // Measure the cache-owned value before cloning so an oversized entry
+        // is rejected without a second stringify of the isolated copy.
+        const sourceBytes = measureJsonUtf8Bytes(cachedSource.representation);
+        if (policy.maxBytes !== undefined && sourceBytes > policy.maxBytes) {
           throw new ColpClientLimitError('Cached response exceeds the response byte limit of ' + policy.maxBytes + '.');
         }
+        const isolated = immutableSnapshot(cachedSource.representation);
+        rememberOwnedJsonUtf8Bytes(isolated, sourceBytes);
         cached = Object.freeze({
           etag,
-          representation: immutableSnapshot(cachedSource.representation),
+          representation: isolated,
         });
       } catch (error) {
         cachedIsolationError = error;

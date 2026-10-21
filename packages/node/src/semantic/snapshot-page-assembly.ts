@@ -1,5 +1,7 @@
 import canonicalize from 'canonicalize';
 
+import { canonicalJsonUtf8ByteLength } from '../shared/canonical-json-utf8-length.js';
+
 import type { Snapshot } from '../types/index.js';
 import {
   preserveExtensionCarrier,
@@ -196,14 +198,14 @@ export function assembleSnapshotPagePayload(
   }
   let byteCount = 0;
   for (const [index, page] of pages.entries()) {
-    const canonical = canonicalize(page);
-    if (canonical === undefined) {
+    const canonicalBytes = canonicalJsonUtf8ByteLength(page);
+    if (canonicalBytes === undefined) {
       return {
         valid: false,
         issues: [issue('snapshot_assembly_byte_budget', `/pages/${index}`, 'Snapshot page could not be represented as canonical JSON.')],
       };
     }
-    byteCount += new TextEncoder().encode(canonical).byteLength;
+    byteCount += canonicalBytes;
     if (byteCount > maxBytes) {
       return {
         valid: false,

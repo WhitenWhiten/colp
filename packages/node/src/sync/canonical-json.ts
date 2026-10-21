@@ -27,8 +27,34 @@ interface SnapshotState {
   readonly maxDepth: number;
   readonly maxMembers: number;
   members: number;
+  observedDepth: number;
   readonly bytes: TextByteBudget;
 }
+
+interface CanonicalSnapshotProof {
+  readonly maxDepth: number;
+  readonly maxMembers: number;
+  readonly maxBytes: number;
+  readonly observedDepth: number;
+  readonly observedMembers: number;
+  readonly observedBytes: number;
+}
+
+const canonicalSnapshotProofs = new WeakMap<object, CanonicalSnapshotProof>();
+const canonicalSnapshotEncodings = new WeakMap<object, string>();
+
+export const canonicalJsonDiagnostics = {
+  snapshotWalks: 0,
+  snapshotReuses: 0,
+  encodes: 0,
+  encodeReuses: 0,
+  reset(): void {
+    this.snapshotWalks = 0;
+    this.snapshotReuses = 0;
+    this.encodes = 0;
+    this.encodeReuses = 0;
+  },
+};
 
 export function isCanonicalJsonSafeNumber(value: number): boolean {
   return Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER;
@@ -47,20 +73,78 @@ export function canonicalJsonSnapshot(
     || !Number.isSafeInteger(maxBytes) || maxBytes < 1) {
     throw new RangeError(`${label} limits are invalid.`);
   }
-  return snapshotJsonValue(value, {
+  if (value !== null && typeof value === 'object') {
+    const proof = canonicalSnapshotProofs.get(value);
+    if (
+      proof !== undefined
+      && proof.observedDepth <= maxDepth
+      && proof.observedMembers <= maxMembers
+      && proof.observedBytes <= maxBytes
+    ) {
+      canonicalJsonDiagnostics.snapshotReuses += 1;
+      return value;
+    }
+  }
+  canonicalJsonDiagnostics.snapshotWalks += 1;
+  const state: SnapshotState = {
     label,
     seen: new Set<object>(),
     maxDepth,
     maxMembers,
     members: 0,
+    observedDepth: 0,
     bytes: new TextByteBudget(maxBytes, label),
-  }, 0);
+  };
+  const snapshot = snapshotJsonValue(value, state, 0);
+  if (snapshot !== null && typeof snapshot === 'object') {
+    canonicalSnapshotProofs.set(snapshot, {
+      maxDepth,
+      maxMembers,
+      maxBytes,
+      observedDepth: state.observedDepth,
+      observedMembers: state.members,
+      observedBytes: state.bytes.bytes,
+    });
+  }
+  return snapshot;
 }
 
 export function encodeCanonicalJson(value: unknown, label: string): string {
-  const snapshot = canonicalJsonSnapshot(value, label);
+  return encodeKnownCanonicalSnapshot(canonicalJsonSnapshot(value, label), label);
+}
+
+/** Canonicalize a snapshot this module already produced, reusing its encoded bytes. */
+export function encodeKnownCanonicalSnapshot(snapshot: unknown, label: string): string {
+  if (snapshot !== null && typeof snapshot === 'object' && canonicalSnapshotProofs.has(snapshot)) {
+    const cached = canonicalSnapshotEncodings.get(snapshot);
+    if (cached !== undefined) {
+      canonicalJsonDiagnostics.encodeReuses += 1;
+      return cached;
+    }
+  }
+  canonicalJsonDiagnostics.encodes += 1;
   const encoded = canonicalize(snapshot);
   if (encoded === undefined) {
+    throw new TypeError(`${label} must contain only canonical I-JSON values.`);
+  }
+  if (snapshot !== null && typeof snapshot === 'object' && canonicalSnapshotProofs.has(snapshot)) {
+    canonicalSnapshotEncodings.set(snapshot, encoded);
+  }
+  return encoded;
+}
+
+/**
+ * Canonical form of a proven snapshot after one own key is removed.
+ * The omitted object's byte length is not the full value's byte budget.
+ */
+export function canonicalFormOmitting(snapshot: object, omitKey: string, label: string): string {
+  const digestInput: Record<string, unknown> = {};
+  for (const key of Object.keys(snapshot)) {
+    if (key === omitKey) continue;
+    digestInput[key] = (snapshot as Record<string, unknown>)[key];
+  }
+  const encoded = canonicalize(digestInput);
+  if (typeof encoded !== 'string') {
     throw new TypeError(`${label} must contain only canonical I-JSON values.`);
   }
   return encoded;
@@ -70,6 +154,7 @@ function snapshotJsonValue(value: unknown, state: SnapshotState, depth: number):
   if (depth > state.maxDepth) {
     throw new TypeError(`${state.label} exceeds the maximum JSON depth.`);
   }
+  if (depth > state.observedDepth) state.observedDepth = depth;
   if (value === null || typeof value === 'boolean') {
     state.bytes.charge(value === null || value === true ? 4 : 5);
     return value;

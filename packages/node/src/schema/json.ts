@@ -133,11 +133,12 @@ export function parseIJson(source: string, limits: IJsonParseLimits = {}): unkno
     },
   );
 
+  // The source budget scan rejects depth, member count, duplicate keys and
+  // prohibited names before the parser allocates. The reviver rejects escaped
+  // unpaired surrogates on every decoded string and member name. This walk is
+  // only the post-decode prototype and prohibited-member check; it does not
+  // repeat those scalar scans.
   const inspect = (item: unknown): void => {
-    if (typeof item === 'string') {
-      assertJsonUnicodeScalars(item);
-      return;
-    }
     if (typeof item !== 'object' || item === null) return;
     if (Array.isArray(item)) {
       item.forEach(inspect);
@@ -149,7 +150,6 @@ export function parseIJson(source: string, limits: IJsonParseLimits = {}): unkno
     }
     for (const [key, child] of Object.entries(item)) {
       if (prototypeKeys.has(key)) throw prohibitedMemberNameError(key);
-      assertJsonUnicodeScalars(key);
       inspect(child);
     }
   };

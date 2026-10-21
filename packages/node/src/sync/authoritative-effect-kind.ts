@@ -11,11 +11,11 @@ import {
   AUTHORITATIVE_EFFECT_MAX_BYTES,
   AUTHORITATIVE_EFFECT_MAX_DEPTH,
   AUTHORITATIVE_EFFECT_MAX_MEMBERS,
-  canonicalAuthoritativeEffectDigest,
   canonicalAuthoritativeMemberDigest,
   canonicalOperationDigest,
   encodeCanonicalJson,
 } from './canonical.js';
+import { effectCanonicalMaterial } from './effect-canonical-material.js';
 
 const authoritativeDigestPattern = /^sha-256=:[A-Za-z0-9+/]{43}=:$/u;
 
@@ -64,10 +64,13 @@ export function assertEffectBinding(
   if (effect.operationDigest !== canonicalOperationDigest(operation)) {
     throw new TypeError('Authoritative Pull operationDigest does not match the canonical Operation.');
   }
-  if (effect.effectDigest !== canonicalAuthoritativeEffectDigest(effect)) {
+  const effectMaterial = effectCanonicalMaterial(effect);
+  if (effect.effectDigest !== effectMaterial.digest) {
     throw new TypeError('Authoritative Pull effectDigest does not match the canonical effect.');
   }
-  if (Buffer.byteLength(encodeCanonicalJson(effect, 'Canonical JSON input'), 'utf8') > AUTHORITATIVE_EFFECT_MAX_BYTES) {
+  // The full effect encoding includes effectDigest. That byte budget is not
+  // the length of the digest input, which omits the self-referential field.
+  if (Buffer.byteLength(effectMaterial.encodedEffect, 'utf8') > AUTHORITATIVE_EFFECT_MAX_BYTES) {
     throw new RangeError('Authoritative Pull effect exceeds its byte budget.');
   }
   if ('node' in effect) {

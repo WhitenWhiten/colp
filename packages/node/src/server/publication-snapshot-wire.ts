@@ -7,6 +7,15 @@ import { assertPublicationSnapshotBookmarkUrls } from './publication-bookmark-ur
 import { assertAnonymousPublicationPrimaryVisibility } from './publication-anonymous-visibility.js';
 import { rememberPublicationJsonBytes } from './publication-prepared-json.js';
 import {
+  hasBoundedPublicationGraph,
+  hasSchemaValidatedSnapshot,
+  publicationReuseDiagnostics,
+  readOutboundProof,
+  rememberBoundedPublicationGraph,
+  rememberOutboundProof,
+  rememberSchemaValidatedSnapshot,
+} from './publication-snapshot-reuse.js';
+import {
   projectPublicationPublicWire, PublicationPublicProjectionError,
   type PublicationPublicWireOptions,
 } from './publication-public-projection.js';
@@ -27,10 +36,31 @@ export function preparePublicationSnapshotWire(
 ): Readonly<Snapshot> {
   try {
     if (access !== 'anonymous-public' && access !== 'authorized-private') throw new TypeError();
-    assertBoundedDataGraph(value);
-    const snapshot = cloneAndFreezeJsonData(value) as Readonly<Snapshot>;
-    if (!validators.validate('snapshot', snapshot).valid || snapshot.mode !== 'publication') throw new TypeError();
-    assertPublicationSnapshotBookmarkUrls(snapshot);
+    const projectionKey = publicationProjectionKey(access, projectionOptions);
+    if (typeof value === 'object' && value !== null) {
+      const cached = readOutboundProof(value);
+      if (cached !== undefined && cached.key === projectionKey) {
+        publicationReuseDiagnostics.outboundReuses += 1;
+        return cached.result as Readonly<Snapshot>;
+      }
+    }
+    const reusableClone = typeof value === 'object' && value !== null
+      && hasSchemaValidatedSnapshot(value)
+      && hasBoundedPublicationGraph(value);
+    let snapshot: Readonly<Snapshot>;
+    if (reusableClone) {
+      publicationReuseDiagnostics.schemaReuses += 1;
+      snapshot = value as Readonly<Snapshot>;
+      if (snapshot.mode !== 'publication') throw new TypeError();
+    } else {
+      assertBoundedDataGraph(value);
+      snapshot = cloneAndFreezeJsonData(value) as Readonly<Snapshot>;
+      publicationReuseDiagnostics.schemaValidations += 1;
+      if (!validators.validate('snapshot', snapshot).valid || snapshot.mode !== 'publication') throw new TypeError();
+      assertPublicationSnapshotBookmarkUrls(snapshot);
+      rememberSchemaValidatedSnapshot(snapshot);
+      rememberBoundedPublicationGraph(snapshot);
+    }
     assertPage(snapshot);
     // Authorized callers receive the safe publication projection, including
     // ACL-approved restricted sidecars. Synchronization metadata, secrets,
@@ -39,13 +69,59 @@ export function preparePublicationSnapshotWire(
       ? projectPublicationPublicWire(snapshot, projectionOptions)
       : projectPublicationAuthorizedWire(snapshot, projectionOptions);
     if (access === 'anonymous-public') assertAnonymousPublicationPrimaryVisibility(projected);
-    if (!validators.validate('snapshot', projected).valid) throw new TypeError();
-    return finalizePublicationSnapshotWire(projected as unknown as Readonly<Snapshot>);
+    // Projection materializes a new object even when the visible fields match.
+    // A proof for the pre-projection snapshot does not cover that result.
+    if (projected !== snapshot) {
+      publicationReuseDiagnostics.projectionValidations += 1;
+      if (!validators.validate('snapshot', projected).valid) throw new TypeError();
+    } else if (!hasSchemaValidatedSnapshot(projected)) {
+      publicationReuseDiagnostics.projectionValidations += 1;
+      if (!validators.validate('snapshot', projected).valid) throw new TypeError();
+    } else {
+      publicationReuseDiagnostics.schemaReuses += 1;
+    }
+    const finalized = finalizePublicationSnapshotWire(projected as unknown as Readonly<Snapshot>);
+    rememberOutboundProof(finalized, projectionKey, finalized);
+    if (
+      typeof value === 'object'
+      && value !== null
+      && value !== finalized
+      && (reusableClone || hasSchemaValidatedSnapshot(value))
+    ) {
+      rememberOutboundProof(value, projectionKey, finalized);
+    }
+    return finalized;
   } catch (error) {
     if (error instanceof PublicationPublicProjectionError) throw error;
     if (error instanceof SnapshotLimitError) throw new RangeError('Publication Snapshot page resource limit exceeded.');
     throw new TypeError('Publication Snapshot page is invalid.');
   }
+}
+
+function publicationProjectionKey(
+  access: PublicationSnapshotAccess,
+  options: PublicationPublicWireOptions | undefined,
+): string {
+  if (options === undefined) return access;
+  if (typeof options !== 'object' || options === null || Array.isArray(options)) return `${access}\ninvalid`;
+  const namespaces = readProjectionData(options, 'publicExtensionNamespaces');
+  const limits = readProjectionData(options, 'limits');
+  const namespaceKey = Array.isArray(namespaces)
+    ? namespaces.map((item) => typeof item === 'string' ? item : '').join('\n')
+    : '';
+  const limitKey = typeof limits === 'object' && limits !== null && !Array.isArray(limits)
+    ? ['maxDepth', 'maxNodes', 'maxBytes'].map((key) => {
+      const value = readProjectionData(limits, key);
+      return typeof value === 'number' ? String(value) : '';
+    }).join(',')
+    : '';
+  return `${access}\n${namespaceKey}\n${limitKey}`;
+}
+
+function readProjectionData(value: object, key: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) return undefined;
+  return descriptor.value;
 }
 
 /** Finalize only detached, deeply frozen Snapshot data that already passed schema validation. */
@@ -63,8 +139,9 @@ export function finalizePublicationSnapshotWire(snapshot: Readonly<Snapshot>): R
     });
   }
   const encoded = JSON.stringify(result);
-  if (Buffer.byteLength(encoded, 'utf8') > MAX_SNAPSHOT_BYTES) throw new SnapshotLimitError();
-  rememberPublicationJsonBytes(result, new TextEncoder().encode(encoded));
+  const bytes = new TextEncoder().encode(encoded);
+  if (bytes.byteLength > MAX_SNAPSHOT_BYTES) throw new SnapshotLimitError();
+  rememberPublicationJsonBytes(result, bytes);
   return result;
 }
 

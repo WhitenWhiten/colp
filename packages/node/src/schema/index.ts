@@ -14,7 +14,8 @@ import schemaV02 from './generated/v0.2/generated.js';
 import { parseIJson } from './json.js';
 import type { IJsonParseLimits } from './json.js';
 import { isRfc3986Uri } from './uri.js';
-import { immutableJsonSnapshot } from '../shared/immutable-json.js';
+import { immutableJsonSnapshot, readImmutableJsonProof } from '../shared/immutable-json.js';
+import { schemaValidationDiagnostics } from './validation-diagnostics.js';
 
 function deepFreeze<Value>(value: Value): Readonly<Value> {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -195,6 +196,46 @@ function compileSchemaValidators(ajv: Ajv2020): Map<DefinitionName, ValidateFunc
   return validators;
 }
 
+const schemaBoundaryBudget = Object.freeze({
+  maxDepth: MAX_STRUCTURED_VALIDATION_DEPTH,
+  maxMembers: MAX_STRUCTURED_VALIDATION_MEMBERS,
+  maxBytes: MAX_STRUCTURED_VALIDATION_BYTES,
+});
+
+const uniqueArrayProofs = new WeakMap<object, { readonly issue: ErrorObject | undefined }>();
+
+function schemaSnapshot(value: unknown, label: string): unknown {
+  if (value !== null && typeof value === 'object') {
+    const proof = readImmutableJsonProof(value);
+    if (
+      proof !== undefined
+      && proof.observedDepth <= schemaBoundaryBudget.maxDepth
+      && proof.observedMembers <= schemaBoundaryBudget.maxMembers
+      && proof.observedBytes <= schemaBoundaryBudget.maxBytes
+    ) {
+      schemaValidationDiagnostics.boundaryReuses += 1;
+      return value;
+    }
+  }
+  schemaValidationDiagnostics.boundaryWalks += 1;
+  return immutableJsonSnapshot(value, label, schemaBoundaryBudget);
+}
+
+function structuredUniqueArrayIssue(value: unknown): ErrorObject | undefined {
+  const proven = value !== null && typeof value === 'object' && readImmutableJsonProof(value) !== undefined;
+  if (proven) {
+    const cached = uniqueArrayProofs.get(value as object);
+    if (cached !== undefined) {
+      schemaValidationDiagnostics.uniqueReuses += 1;
+      return cached.issue;
+    }
+  }
+  schemaValidationDiagnostics.uniqueWalks += 1;
+  const issue = findStructuredUniqueArrayLimit(value);
+  if (proven) uniqueArrayProofs.set(value as object, { issue });
+  return issue;
+}
+
 function getCanonicalValidators(): ReadonlyMap<DefinitionName, ValidateFunction> {
   if (canonicalValidators === undefined) {
     const ajv = new Ajv2020({
@@ -231,17 +272,13 @@ export function createValidatorRegistry(ajv?: Ajv2020): ValidatorRegistry {
       const bounded = ((value: unknown) => {
         let snapshot: unknown;
         try {
-          snapshot = immutableJsonSnapshot(value, 'Schema input', {
-            maxDepth: MAX_STRUCTURED_VALIDATION_DEPTH,
-            maxMembers: MAX_STRUCTURED_VALIDATION_MEMBERS,
-            maxBytes: MAX_STRUCTURED_VALIDATION_BYTES,
-          });
+          snapshot = schemaSnapshot(value, 'Schema input');
         } catch {
           bounded.errors = [{ instancePath: '', schemaPath: '#/x-colp-boundary',
             keyword: 'x-colp-boundary', params: {}, message: 'Schema input must be bounded plain JSON data.' }];
           return false;
         }
-        const issue = findStructuredUniqueArrayLimit(snapshot);
+        const issue = structuredUniqueArrayIssue(snapshot);
         if (issue !== undefined) { bounded.errors = [issue]; return false; }
         const valid = existing(snapshot);
         bounded.errors = existing.errors ?? null;
@@ -264,7 +301,7 @@ export function createValidatorRegistry(ajv?: Ajv2020): ValidatorRegistry {
     definitionNames,
     get,
     validate(name: DefinitionName, value: unknown): ValidationResult {
-      const bounded = findStructuredUniqueArrayLimit(value);
+      const bounded = structuredUniqueArrayIssue(value);
       if (bounded !== undefined) return { valid: false, errors: [bounded] };
       // Always validate through the bounded snapshot wrapper. Calling the raw
       // canonical Ajv function here would let inherited fields or accessors
@@ -285,7 +322,7 @@ function validateWithCanonicalRegistry(
   definition: DefinitionName,
   value: unknown,
 ): ValidationResult {
-  const bounded = findStructuredUniqueArrayLimit(value);
+  const bounded = structuredUniqueArrayIssue(value);
   if (bounded !== undefined) return { valid: false, errors: [bounded] };
   const validator = getCanonicalValidators().get(definition);
   if (validator === undefined) {
@@ -456,24 +493,26 @@ export function validateWireDocument<Value, Issue>(
 ): WireDocumentValidationResult<Value, Issue> {
   // Preserve the legacy value identity (including frozen persistence candidates).
   // Only untrusted instrumentation receives a detached, mutable working copy.
-  const snapshotInput = () => immutableJsonSnapshot(value, 'Wire document', {
-      maxDepth: MAX_STRUCTURED_VALIDATION_DEPTH,
-      maxMembers: MAX_STRUCTURED_VALIDATION_MEMBERS,
-      maxBytes: MAX_STRUCTURED_VALIDATION_BYTES,
-    });
+  // The trusted path runs Ajv on this first bounded snapshot. Semantics and the
+  // success value stay the caller object. Untrusted registries still receive a
+  // detached candidate and a fresh source recheck; that recheck does not reuse
+  // the first snapshot.
+  const snapshotInput = () => schemaSnapshot(value, 'Wire document');
   const boundaryFailure = (): WireDocumentValidationResult<Value, Issue> => ({ valid: false, stage: 'structural', errors: [{
     instancePath: '', schemaPath: '#/x-colp-boundary', keyword: 'x-colp-boundary',
     params: {}, message: 'Wire document must be bounded plain JSON data.',
   }] });
   let snapshot: unknown;
   try { snapshot = snapshotInput(); } catch { return boundaryFailure(); }
-  const candidate = trustedValidatorRegistries.has(validators) ? value : JSON.parse(JSON.stringify(snapshot));
+  const trusted = trustedValidatorRegistries.has(validators);
+  // Ajv sees the bounded snapshot. Trusted semantics keep the caller object.
+  const candidate = trusted ? snapshot : JSON.parse(JSON.stringify(snapshot));
   const structural = validateWithCanonicalRegistry(validators, definition, candidate);
   if (!structural.valid) {
     return { valid: false, stage: 'structural', errors: structural.errors };
   }
 
-  if (!trustedValidatorRegistries.has(validators)) {
+  if (!trusted) {
     // A wrapper can retain a caller alias outside its detached argument.
     // Recheck that source without executing any newly installed accessor.
     try {
@@ -485,7 +524,7 @@ export function validateWireDocument<Value, Issue>(
   // can still mutate that candidate while it is running. Semantics must use
   // the already-snapshotted value rather than the caller alias so a raw
   // wrapper cannot bypass semantic checks through mutation or accessors.
-  const validatedValue = (trustedValidatorRegistries.has(validators) ? value : snapshot) as Value;
+  const validatedValue = (trusted ? value : snapshot) as Value;
   const semantic = validateSemantics(validatedValue);
   if (!semantic.valid) {
     return { valid: false, stage: 'semantic', issues: semantic.issues };
