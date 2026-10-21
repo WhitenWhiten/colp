@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { test } from 'vitest';
 import { isStaticContract, listDomainTestFilesSync } from '../../../scripts/shard-buckets.mjs';
@@ -230,7 +230,7 @@ test('local act reuses installs through committed helpers; GitHub still runs npm
   assert.match(gitignore, /\.act-install-stamps\//u);
 });
 
-test('product command receipt CI owner is focused-coverage, not a phantom workflow step', () => {
+test('product command receipt is not owned by a removed coverage config', () => {
   const integrationFile = 'tests/integration/product/product-command-receipt.integration.test.ts';
   const unitFile = 'tests/unit/product/product-command-receipt.test.ts';
   const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
@@ -252,50 +252,25 @@ test('product command receipt CI owner is focused-coverage, not a phantom workfl
     /--exclude tests\/integration\/product\/product-command-receipt\.integration\.test\.ts/u,
   );
 
-  // Local npm script remains developer convenience. CI named owner is
-  // focused-coverage (ci:focused-coverage); unit collect is a passenger.
-  const inner = packageJson.scripts['test:phase1:command-receipt:inner'] ?? '';
-  const outer = packageJson.scripts['test:phase1:command-receipt'] ?? '';
-  assert.ok(
-    inner.includes(unitFile) && inner.includes(integrationFile),
-    'local test:phase1:command-receipt:inner must still list the receipt unit and PostgreSQL suites',
-  );
-  assert.match(outer, /scripts\/with-postgres\.mjs/u);
-  assert.match(outer, /test:phase1:command-receipt:inner/u);
-
-  const workflow = readFileSync(resolve(root, '../.github/workflows/known-backend-ci.yml'), 'utf8');
+  assert.equal(existsSync(resolve(root, unitFile)), true);
+  for (const name of ['ci:focused-coverage', 'test:focused-coverage', 'test:focused-coverage:inner']) {
+    assert.equal(packageJson.scripts[name], undefined, name);
+  }
+  for (const file of [
+    'vitest.coverage.config.ts',
+    'vitest.focused-coverage.config.ts',
+    'vitest.phase4-5-coverage.config.ts',
+    'scripts/phase13-coverage-test-files.mjs',
+    'vitest.phase1-3-coverage-scope.ts',
+    'vitest.phase4-5-coverage-scope.ts',
+  ]) {
+    assert.equal(existsSync(resolve(root, file)), false, file);
+  }
+  const workflow = readFileSync(resolve(root, '../../.github/workflows/colp-ci.yml'), 'utf8');
+  assert.match(workflow, /name: Unit suite\n\s+run: npm run test:unit/u);
   assert.doesNotMatch(
     workflow,
-    /test:phase1:command-receipt/u,
-    'workflow must not name a test:phase1:command-receipt step; focused-coverage is the owner',
-  );
-  assert.match(
-    workflow,
-    /name: Focused coverage thresholds\n {8}run: npm run ci:focused-coverage/u,
-    'focused-coverage job must remain the named CI owner of the receipt suite',
-  );
-
-  const focusedConfig = readFileSync(resolve(root, 'vitest.focused-coverage.config.ts'), 'utf8');
-  assert.match(focusedConfig, /tests\/integration\/product\/product-command-receipt\.integration\.test\.ts/u);
-  assert.match(focusedConfig, /hookTimeout:\s*120_000/u);
-  assert.match(focusedConfig, /testTimeout:\s*60_000/u);
-
-  const coverageConfig = readFileSync(resolve(root, 'vitest.coverage.config.ts'), 'utf8');
-  const coverageFiles = readFileSync(resolve(root, 'scripts/phase13-coverage-test-files.mjs'), 'utf8');
-  assert.match(
-    coverageFiles,
-    /PHASE13_UNIT_COVERAGE_INCLUDE = Object\.freeze\(\[\s*'tests\/unit\/\*\*\/\*\.test\.ts',\s*'tests\/integration\/product\/product-command-receipt\.integration\.test\.ts',/u,
-    'phase1-3 unit coverage collect must include the receipt integration suite',
-  );
-  assert.match(
-    coverageConfig,
-    /hookTimeout:\s*120_000/u,
-    'unit coverage collect must share focused-coverage hookTimeout for receipt beforeAll',
-  );
-  assert.match(
-    coverageConfig,
-    /testTimeout:\s*coverageSuite === 'integration' \? 15_000 : 60_000/u,
-    'unit coverage collect must use 60s testTimeout because it carries the receipt suite',
+    /ci:focused-coverage|test:focused-coverage|vitest\.(?:coverage|focused-coverage|phase4-5-coverage)\.config\.ts/u,
   );
 });
 

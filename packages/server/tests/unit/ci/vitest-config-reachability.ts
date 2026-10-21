@@ -10,9 +10,8 @@
  *   2. workflow `run:` → npm script (transitive) → (mjs spawn) → `vitest --config`, or
  *   3. they sit on the size-1 allowlist.
  *
- * Coverage collect scripts still pass dedicated coverage configs. They are
- * not workspace projects (they intentionally collect the same behavior tests
- * with a different source inventory).
+ * The unloadable phase coverage configs were removed. They are not workspace
+ * projects and CI does not invoke them.
  */
 
 export const UNREACHABLE_VITEST_CONFIG_ALLOWLIST = [] as const;
@@ -25,12 +24,6 @@ export const WORKSPACE_PROJECT_CONFIGS = [
   'vitest.static.config.ts',
   'vitest.system.config.ts',
   'vitest.unit.config.ts',
-] as const;
-
-export const COVERAGE_VITEST_CONFIGS = [
-  'vitest.coverage.config.ts',
-  'vitest.focused-coverage.config.ts',
-  'vitest.phase4-5-coverage.config.ts',
 ] as const;
 
 /**
