@@ -358,18 +358,12 @@ async function markImportEngineRecovery(scope: SyncScope, code: string) {
   if (!recovery) return; const plans = await syncState.listImportPlans(scope);
   const plan = plans.filter((item) => item.state === 'active').sort((a, b) => b.updatedAt - a.updatedAt)[0];
   if (!plan) return; const nodes = await syncState.listImportNodes(scope, plan.planId);
-  const queue: QueueOperation[] = [];
-  for (const status of ['pending', 'claimed', 'deferred', 'gap', 'blocked', 'unknown', 'set_aside'] as const) {
-    let after = 0;
-    while (true) {
-      const page = await syncState.listQueue(scope, status, after, 1_000);
-      queue.push(...page);
-      if (page.length < 1_000) break;
-      after = page.at(-1)!.sequence;
-    }
+  let affected: (typeof nodes)[number] | undefined;
+  for (const node of nodes) {
+    if (node.choice !== 'import' || !node.opId) continue;
+    const queued = await syncState.getQueueByOpId(scope, node.opId);
+    if (queued?.status !== 'terminal') { affected = node; break; }
   }
-  const queued = new Map(queue.map((item) => [item.opId, item]));
-  const affected = nodes.find((node) => node.choice === 'import' && queued.get(node.opId)?.status !== 'terminal');
   if (affected) await createBookmarkImportCoordinator({ store: syncState, scope }).recordRecovery(plan.planId, affected.opId, recovery);
 }
 

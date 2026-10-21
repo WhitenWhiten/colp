@@ -308,8 +308,9 @@ export function createMappingRepository(ctx: SyncStoreRuntime) {
         const operation = queued ? validateQueueRecord(queued, maxRecordBytes) : null;
         if (!operation || operation.payload.type !== 'create_node') throw new SyncStateError('provisional_mapping_binding_invalid');
         const events = await cursorPage<BookmarkEventRecord>(tx.objectStore(STORES.bookmarkEvents)
-          .index(INDEXES.eventByOrdinal), IDBKeyRange.bound([key, 1], [key, Number.MAX_SAFE_INTEGER]),
-        Number.MAX_SAFE_INTEGER);
+          .index(INDEXES.eventByOperationOrdinal),
+          IDBKeyRange.bound([key, createOpId, 1], [key, createOpId, Number.MAX_SAFE_INTEGER]),
+          Number.MAX_SAFE_INTEGER);
         if (!events.some((event) => event.status === 'processed' && event.opId === createOpId
           && event.nativeId === nativeId && event.kind === 'create')) {
           throw new SyncStateError('provisional_mapping_binding_invalid');

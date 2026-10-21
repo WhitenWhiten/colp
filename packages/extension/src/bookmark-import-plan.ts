@@ -118,15 +118,15 @@ export function createBookmarkImportCoordinator(options: CoordinatorOptions) {
   }
 
   async function reconcileAuthority(planId: string) {
-    const exported = await options.store.exportScope(options.scope); const nodes = await options.store.listImportNodes(options.scope, planId);
-    const queue = new Map((exported.queue as QueueOperation[]).map((item) => [item.opId, item]));
-    const receipts = new Map((exported.receipts as Array<{ opId: string; result?: JsonObject }>).map((item) => [item.opId, item]));
+    const nodes = await options.store.listImportNodes(options.scope, planId);
     for (const node of nodes) {
-      const queued = queue.get(node.opId); if (node.authoritativeTarget) continue;
+      if (node.authoritativeTarget || !node.opId) continue;
+      const queued = await options.store.getQueueByOpId(options.scope, node.opId);
       if (queued?.status === 'rejected') { await options.store.setImportNodeRecovery(options.scope, planId, node.opId, 'push_rejected');
         await options.store.setImportPlanState(options.scope, planId, 'attention', now()); continue; }
       if (queued?.status !== 'terminal') continue;
-      const result = receipts.get(node.opId)?.result;
+      const receipt = await options.store.getQueueReceipt(options.scope, queued.sequence);
+      const result = receipt?.result;
       if (result?.status === 'conflict') { await options.store.setImportNodeRecovery(options.scope, planId, node.opId, 'conflict');
         await options.store.setImportPlanState(options.scope, planId, 'attention', now()); continue; }
       const mapping = await options.store.getMappingByNativeId(options.scope, importNativeId(planId, node.sourceNodeId));
@@ -145,7 +145,7 @@ export function createBookmarkImportCoordinator(options: CoordinatorOptions) {
     const plans = await options.store.listImportPlans(options.scope); const plan = planId
       ? plans.find((item) => item.planId === planId) : plans.sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (!plan) throw new Error('import_plan_not_found'); const nodes = await options.store.listImportNodes(options.scope, plan.planId);
-    const queue = new Map((await allQueue()).map((item) => [item.opId, item]));
+    const queue = await queueByOpId(nodes);
     const terminal = nodes.filter((node) => node.status === 'terminal' && queue.get(node.opId)?.status === 'terminal').length;
     return { planId: plan.planId, state: plan.state, sourceProfile: plan.sourceProfile, nodes,
       progress: { total: nodes.length, skipped: nodes.filter((node) => node.choice === 'skip').length,
@@ -179,9 +179,15 @@ export function createBookmarkImportCoordinator(options: CoordinatorOptions) {
     }
     return view;
   }
-  async function allQueue() { const output: QueueOperation[] = []; let after = 0;
-    while (true) { const page = await options.store.listQueue(options.scope, undefined, after, 1_000); output.push(...page);
-      if (page.length < 1_000) return output; after = page.at(-1)!.sequence; } }
+  async function queueByOpId(nodes: readonly ImportNodeRecord[]) {
+    const queue = new Map<string, QueueOperation>();
+    for (const node of nodes) {
+      if (!node.opId) continue;
+      const queued = await options.store.getQueueByOpId(options.scope, node.opId);
+      if (queued) queue.set(node.opId, queued);
+    }
+    return queue;
+  }
   return Object.freeze({ commit, advance, status, pause, resume, retry, recordRecovery });
 }
 
