@@ -487,13 +487,27 @@ export function createMappingReadContext(
     async read() {
       if (cached) return cached;
       const ticket = epoch;
-      const rows = Object.freeze([...(await store.listMappings(scope))]);
+      const listed = await store.listMappings(scope);
       if (ticket !== epoch) return context.read();
+      // Clone before freezing so a caller-owned row, and its projection, stay mutable.
+      const rows = deepFreeze(listed.map((row) => clone(row)));
       cached ??= rows;
       return cached;
     },
   };
   return context;
+}
+
+function deepFreeze<Value>(value: Value, seen = new WeakSet<object>()): Value {
+  if (value === null || typeof value !== 'object' || seen.has(value as object)) return value;
+  const record = value as object;
+  seen.add(record);
+  for (const key of Reflect.ownKeys(record)) {
+    if (Array.isArray(record) && key === 'length') continue;
+    const descriptor = Object.getOwnPropertyDescriptor(record, key);
+    if (descriptor !== undefined && 'value' in descriptor) deepFreeze(descriptor.value, seen);
+  }
+  return Object.freeze(value);
 }
 
 function validateQuarantine(input: unknown) {

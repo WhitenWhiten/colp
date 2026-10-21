@@ -15,6 +15,35 @@ const native = mapping('1', 'root');
 const virtual = mapping('recovery:child', 'child', { parentColpId: 'root', nodeKind: 'bookmark',
   projection: { revision: 'r', digest: 'd', content: { title: 'Child', url: 'https://child.test/' } } });
 
+test('a mapping snapshot freezes nested projection content without freezing the source', async () => {
+  const content = { title: 'Child', url: 'https://child.test/' };
+  const childrenOrder = ['child'];
+  const source = mapping('1', 'root', { projection: { revision: 'r', digest: 'd', content, childrenOrder } });
+  let lists = 0;
+  const store = {
+    async listMappings() {
+      lists += 1;
+      return [source];
+    },
+  };
+  const reads = createMappingReadContext(store, scope);
+  const rows = await reads.read();
+  assert.equal(Object.isFrozen(rows), true);
+  assert.equal(Object.isFrozen(rows[0]), true);
+  assert.equal(Object.isFrozen(rows[0]?.projection), true);
+  assert.equal(Object.isFrozen(rows[0]?.projection.content), true);
+  assert.equal(Object.isFrozen(rows[0]?.projection.childrenOrder), true);
+  assert.throws(() => {
+    (rows[0]!.projection.content as { title: string }).title = 'Changed';
+  }, TypeError);
+  assert.equal(content.title, 'Child');
+  assert.equal(Object.isFrozen(source), false);
+  assert.equal(Object.isFrozen(source.projection), false);
+  assert.equal(rows[0]?.projection.content?.title, 'Child');
+  assert.equal((await reads.read())[0]?.projection.content?.title, 'Child');
+  assert.equal(lists, 1);
+});
+
 test('one unchanged phase lists mappings once and a write is visible after invalidation', async () => {
   let rows = [native];
   let lists = 0;
