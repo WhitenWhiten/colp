@@ -36,6 +36,7 @@ export {
   createOidcTransactionSecrets,
   createSessionRotationSecrets,
   createTestOidcTransactionSecrets,
+  createUnconfiguredSessionRotationSecrets,
   createTestSessionRotationSecrets,
   deriveCsrfTokenRaw,
   encodeOidcEncryptionKeyBase64,

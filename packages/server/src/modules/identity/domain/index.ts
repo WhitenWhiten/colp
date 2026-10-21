@@ -41,6 +41,7 @@ export {
   deriveRotatedSessionTokenRaw,
   createSessionRotationSecrets,
   createTestSessionRotationSecrets,
+  createUnconfiguredSessionRotationSecrets,
   generateCsrfTokenRaw,
   generateOidcStateMaterial,
   generateOpaqueId,

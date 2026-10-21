@@ -3,7 +3,7 @@ import {
   IdentityError,
   createOidcTransactionSecrets,
   createSessionRotationSecrets,
-  generateSessionTokenRaw,
+  createUnconfiguredSessionRotationSecrets,
   type IdentityPorts,
   type IdentityUnitOfWork,
   type OidcTransactionSecretsConfig,
@@ -49,10 +49,7 @@ export function createPostgresIdentityUnitOfWork(
     faultInjector: options.faultInjector,
   });
   const oidcTransactionSecrets = resolveOidcTransactionSecrets(options.oidcTransactionSecrets);
-  const sessionRotationSecrets = resolveSessionRotationSecrets(
-    options.sessionRotationSecrets,
-    options.oidcTransactionSecrets,
-  );
+  const sessionRotationSecrets = resolveIdentitySessionRotationSecrets(options);
 
   return {
     async execute<Result>(work: (ports: IdentityPorts) => Promise<Result>): Promise<Result> {
@@ -75,16 +72,17 @@ export function createPostgresIdentityUnitOfWork(
   };
 }
 
-function resolveSessionRotationSecrets(
-  value: PostgresIdentityUnitOfWorkOptions['sessionRotationSecrets'],
-  oidcValue: PostgresIdentityUnitOfWorkOptions['oidcTransactionSecrets'],
+export function resolveIdentitySessionRotationSecrets(
+  options: Pick<PostgresIdentityUnitOfWorkOptions, 'sessionRotationSecrets' | 'oidcTransactionSecrets'>,
 ): SessionRotationSecretsPort {
+  const value = options.sessionRotationSecrets;
   if (typeof value === 'string') return createSessionRotationSecrets(value);
   if (value) return value;
+  const oidcValue = options.oidcTransactionSecrets;
   if (oidcValue && typeof (oidcValue as OidcTransactionSecretsConfig).hmacSecret === 'string') {
     return createSessionRotationSecrets((oidcValue as OidcTransactionSecretsConfig).hmacSecret);
   }
-  return createSessionRotationSecrets(generateSessionTokenRaw());
+  return createUnconfiguredSessionRotationSecrets();
 }
 
 /**

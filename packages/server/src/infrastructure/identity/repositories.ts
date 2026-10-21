@@ -16,8 +16,7 @@ import { createPostgresCollaborationStorePort } from '../access-policy/collabora
 import { createPostgresProductCommandReceiptPort } from '../database/product-command-receipt.js';
 import {
   IdentityError,
-  createSessionRotationSecrets,
-  generateSessionTokenRaw,
+  createUnconfiguredSessionRotationSecrets,
   type AccountIdentityRepository,
   type AccountRepository,
   type IdentityClock,
@@ -454,7 +453,7 @@ export function createPostgresIdentityClock(
 export function createPostgresIdentityPorts(
   transaction: DatabaseTransaction,
   oidcTransactionSecrets: OidcTransactionSecretsPort,
-  sessionRotationSecrets: SessionRotationSecretsPort = DEFAULT_SESSION_ROTATION_SECRETS,
+  sessionRotationSecrets: SessionRotationSecretsPort = createUnconfiguredSessionRotationSecrets(),
   options: { readonly reportSourceInvalidation?: ReportSourceInvalidationOutboxPort } = {},
 ): IdentityPorts {
   const store = createPostgresCollaborationStorePort(transaction);
@@ -477,5 +476,3 @@ export function createPostgresIdentityPorts(
     pendingUnboundInvites,
   };
 }
-
-const DEFAULT_SESSION_ROTATION_SECRETS = createSessionRotationSecrets(generateSessionTokenRaw());

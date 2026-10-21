@@ -60,6 +60,21 @@ export function createSessionRotationSecrets(serverSecret: string): SessionRotat
   };
 }
 
+/**
+ * Construction stays usable for identity work that never rotates a predecessor
+ * token. The first real rotation fails closed instead of minting a process-local
+ * random key that other instances cannot reproduce.
+ */
+export function createUnconfiguredSessionRotationSecrets(): SessionRotationSecretsPort {
+  return Object.freeze({
+    deriveSuccessorToken(): string {
+      throw new Error(
+        'sessionRotationSecrets is required: legacy session rotation was used without stable server secret material',
+      );
+    },
+  });
+}
+
 /** Deterministic test-only key; production composition supplies config-backed material. */
 export function createTestSessionRotationSecrets(): SessionRotationSecretsPort {
   return createSessionRotationSecrets('test-session-rotation-server-secret-v2');
