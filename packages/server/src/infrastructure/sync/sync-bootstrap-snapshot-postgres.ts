@@ -1,4 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
+import { snapshotCanCatchUp } from './snapshot-catchup.js';
 import type { PoolClient } from 'pg';
 import type {
   AuthoritativeParentRevision, Collection, SnapshotNode,
@@ -56,6 +57,7 @@ interface StoredRow {
  * read) until they expire.
  */
 interface SnapshotStoredDocument {
+  sourceCommitOrdinal?: string;
   collection: Collection;
   parentRevisions?: AuthoritativeParentRevision[];
   /** v2 header only: total node count of the persisted node rows. */
@@ -201,19 +203,20 @@ function createPostgresAuthority(
         if (authority.replica_state !== 'active' && authority.replica_state !== 'recovery_required') {
           throw new SyncBootstrapSnapshotError(authority.replica_state === 'retired' ? 'replica_retired' : 'stale_replica');
         }
+        const snapshot = await loadStored(client, input.snapshotId, authority, cursorKeyId, 0, 1, false);
         const result = await client.query(`update sync_bootstrap_snapshots set completed_at=${SNAPSHOT_COMPLETED_AT_SQL}
           where snapshot_id=$1 and session_id=$2 and account_id=$3 and collection_id=$4 and replica_id=$5
             and lease_generation=$6 and policy_revision=$7 and content_revision=$8
             and completed_at is null and expires_at>current_timestamp and ${SNAPSHOT_COMPLETED_AT_SQL}<expires_at`,
         [input.snapshotId, input.sessionId, authority.account_id, authority.collection_id, authority.replica_id,
-          authority.replica_generation, authority.policy_revision, authority.content_revision]);
+          authority.replica_generation, authority.policy_revision, snapshot.contentRevision]);
         if (result.rowCount !== 1) {
           const existing = await client.query(`select 1 from sync_bootstrap_snapshots
             where snapshot_id=$1 and session_id=$2 and account_id=$3 and collection_id=$4 and replica_id=$5
               and lease_generation=$6 and policy_revision=$7 and content_revision=$8
               and completed_at is not null and expires_at>current_timestamp`,
           [input.snapshotId, input.sessionId, authority.account_id, authority.collection_id, authority.replica_id,
-            authority.replica_generation, authority.policy_revision, authority.content_revision]);
+            authority.replica_generation, authority.policy_revision, snapshot.contentRevision]);
           if (existing.rowCount !== 1) throw new SyncBootstrapSnapshotError('snapshot_expired');
         }
         await client.query('commit');
@@ -315,7 +318,7 @@ async function materialize(
   maxSnapshotNodes = DEFAULT_MAX_SNAPSHOT_NODES,
   maxSnapshotBytes = DEFAULT_MAX_SNAPSHOT_BYTES,
 ): Promise<SyncBootstrapAuthorityResult> {
-  const collectionResult = await client.query<CollectionRow>(`select id,kind,title,summary,visibility,root_node_id,content_revision,
+  const collectionResult = await client.query<CollectionRow & { commit_ordinal: string }>(`select id,kind,title,summary,visibility,root_node_id,content_revision,commit_ordinal::text,
       created_at,updated_at,payload_json from collections where id=$1 and content_revision=$2 and policy_revision=$3`,
   [authority.collection_id, authority.content_revision, authority.policy_revision]);
   const row = collectionResult.rows[0];
@@ -368,7 +371,8 @@ async function materialize(
     values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,current_timestamp,${snapshotExpiresAtSql('$14')},$15,2,$16) on conflict(snapshot_id) do nothing`,
   [snapshotId, authority.session_id, authority.account_id, authority.collection_id, authority.replica_id, authority.lease_generation,
     authority.policy_revision, authority.content_revision, authority.binding_mode, authority.root_node_id,
-    JSON.stringify({ collection, parentRevisions, nodeCount: nodes.length }), bootstrapCursor, cursorKeyId, ttl,
+    JSON.stringify({ collection, parentRevisions, nodeCount: nodes.length,
+      ...(cursorFacts ? { sourceCommitOrdinal: row.commit_ordinal } : {}) }), bootstrapCursor, cursorKeyId, ttl,
     authority.replica_state === 'recovery_required' && pullCursorKeyring ? pullLimit : null, nodes.length]);
   if (inserted.rowCount !== 1) {
     // The Snapshot already exists (identical identity facts): the stored row
@@ -488,7 +492,11 @@ async function loadStored(client: PoolClient, snapshotId: string, authority: Aut
   if (stored.cursor_key_id !== cursorKeyId) {
     throw new SyncBootstrapSnapshotError('invalid_cursor_scope', 'stored_snapshot_cursor_key');
   }
-  if (stored.content_revision !== authority.content_revision || stored.policy_revision !== authority.policy_revision) throw new SyncBootstrapSnapshotError('snapshot_expired');
+  if (stored.policy_revision !== authority.policy_revision
+    || stored.content_revision !== authority.content_revision
+      && !await snapshotCanCatchUp(client, authority.collection_id, stored.snapshot_json)) {
+    throw new SyncBootstrapSnapshotError('snapshot_expired');
+  }
   if (stored.replica_id !== authority.replica_id || Number(stored.lease_generation) !== Number(authority.replica_generation)) throw new SyncBootstrapSnapshotError('stale_replica');
   const document = parseStoredDocument(stored.snapshot_json);
   if (Number(stored.storage_version) === 2) {

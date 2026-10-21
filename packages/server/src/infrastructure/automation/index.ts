@@ -29,3 +29,4 @@ export { convergeOwnerWork } from './owner-maintenance.js';
 export { createManualRunConsumer } from './manual-run-consumer.js';
 
 export { undoAutomationApproval } from './approval-undo.js';
+export { capturePlacementMoveFacts } from './canonical-placement.js';

@@ -5,51 +5,50 @@ import { sql, type Kysely } from 'kysely';
  * summary keeps id, kind, parentId, title, url, and the sibling index used by
  * that comparison. Folder children take their index from childIds (first
  * duplicate wins, omitted children are -1). Every other parent keeps snapshot
- * row order. Restore continues to read tree_json.
+ * row order. Expand each tree once; correlated rescans become quadratic on
+ * real bookmark libraries. Restore continues to read tree_json.
  */
 export const backfillCollectionTreeVersionChangeSummariesSql = `
-UPDATE collection_tree_versions AS version
-SET change_summary_json = (
-  SELECT COALESCE(
-    jsonb_agg(
-      jsonb_build_object(
-        'id', elem.node->>'id',
-        'kind', elem.node->>'kind',
-        'parentId', elem.node->>'parentId',
-        'title', elem.node->>'title',
-        'url', CASE
-          WHEN jsonb_typeof(elem.node->'url') = 'string' THEN elem.node->'url'
-          ELSE 'null'::jsonb
-        END,
-        'siblingIndex', CASE
-          WHEN parent_row.node->>'kind' = 'folder' THEN COALESCE((
-            SELECT (child.ord - 1)::int
-            FROM jsonb_array_elements_text(COALESCE(parent_row.node->'childIds', '[]'::jsonb))
-              WITH ORDINALITY AS child(child_id, ord)
-            WHERE child.child_id = elem.node->>'id'
-            ORDER BY child.ord
-            LIMIT 1
-          ), -1)
-          ELSE (
-            SELECT COUNT(*)::int
-            FROM jsonb_array_elements(version.tree_json) WITH ORDINALITY AS earlier(earlier_node, earlier_ord)
-            WHERE earlier.earlier_ord < elem.node_ord
-              AND earlier.earlier_node->>'parentId' IS NOT DISTINCT FROM elem.node->>'parentId'
-          )
-        END
-      )
-      ORDER BY elem.node_ord
-    ),
-    '[]'::jsonb
-  )
-  FROM jsonb_array_elements(version.tree_json) WITH ORDINALITY AS elem(node, node_ord)
-  LEFT JOIN LATERAL (
-    SELECT candidate AS node
-    FROM jsonb_array_elements(version.tree_json) AS candidate
-    WHERE candidate->>'id' = elem.node->>'parentId'
-    LIMIT 1
-  ) AS parent_row ON true
+WITH nodes AS MATERIALIZED (
+  SELECT version.version_id, elem.ord, elem.node->>'id' AS id,
+    elem.node->>'kind' AS kind, elem.node->>'parentId' AS parent_id,
+    elem.node->>'title' AS title,
+    CASE WHEN jsonb_typeof(elem.node->'url') = 'string' THEN elem.node->>'url' END AS url,
+    elem.node->'childIds' AS child_ids,
+    (row_number() OVER (PARTITION BY version.version_id, elem.node->>'parentId'
+      ORDER BY elem.ord) - 1)::int AS fallback_index
+  FROM collection_tree_versions version
+  CROSS JOIN LATERAL jsonb_array_elements(version.tree_json)
+    WITH ORDINALITY AS elem(node, ord)
+), parents AS MATERIALIZED (
+  SELECT DISTINCT ON (version_id, id) version_id, id, kind, child_ids
+  FROM nodes ORDER BY version_id, id, ord
+), child_indexes AS MATERIALIZED (
+  SELECT parent.version_id, parent.id AS parent_id, child.id AS child_id,
+    (min(child.ord) - 1)::int AS sibling_index
+  FROM parents parent
+  CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(parent.child_ids, '[]'::jsonb))
+    WITH ORDINALITY AS child(id, ord)
+  WHERE parent.kind = 'folder'
+  GROUP BY parent.version_id, parent.id, child.id
+), summaries AS (
+  SELECT node.version_id, jsonb_agg(jsonb_build_object(
+    'id', node.id, 'kind', node.kind, 'parentId', node.parent_id,
+    'title', node.title, 'url', node.url,
+    'siblingIndex', CASE WHEN parent.kind = 'folder'
+      THEN COALESCE(child.sibling_index, -1) ELSE node.fallback_index END
+  ) ORDER BY node.ord) AS summary
+  FROM nodes node
+  LEFT JOIN parents parent ON parent.version_id=node.version_id AND parent.id=node.parent_id
+  LEFT JOIN child_indexes child ON child.version_id=node.version_id
+    AND child.parent_id=node.parent_id AND child.child_id=node.id
+  GROUP BY node.version_id
 )
+UPDATE collection_tree_versions version
+SET change_summary_json = COALESCE(summary.summary, '[]'::jsonb)
+FROM collection_tree_versions source
+LEFT JOIN summaries summary ON summary.version_id=source.version_id
+WHERE version.version_id=source.version_id
 `;
 
 export async function up(db: Kysely<unknown>): Promise<void> {

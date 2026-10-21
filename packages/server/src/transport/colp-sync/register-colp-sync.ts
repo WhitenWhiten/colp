@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { syncTelemetryProblemOf, type SyncTelemetryProblem } from '../../infrastructure/telemetry/index.js';
 import {
   createSyncServerTelemetry,
   syncDurationBucket,
@@ -36,6 +37,15 @@ export function installSyncTelemetry(
 ): void {
   const telemetry = createSyncServerTelemetry({ metrics, logger: app.log });
   const started = new WeakMap<object, number>();
+  const problems = new WeakMap<object, SyncTelemetryProblem>();
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (started.has(request) && reply.statusCode >= 400 && typeof payload === 'string' && payload.length <= 131_072) {
+      try {
+        problems.set(request, syncTelemetryProblemOf(JSON.parse(payload)));
+      } catch { /* Non-JSON errors retain the bounded status classification below. */ }
+    }
+    return payload;
+  });
   app.addHook('onRequest', async (request) => {
     if (syncTelemetryEndpoint(request.url, routes) !== undefined) started.set(request, performance.now());
   });
@@ -49,10 +59,10 @@ export function installSyncTelemetry(
       : status === 408 ? 'timeout'
         : status >= 500 ? 'internal'
           : status >= 400 ? 'problem' : 'success';
-    const problem = status === 401 ? 'authentication_required'
+    const problem = problems.get(request) ?? (status === 401 ? 'authentication_required'
       : status === 403 ? 'authorization_denied'
         : status === 429 ? 'rate_limited'
-          : status >= 500 ? 'internal_error' : 'none';
+          : status >= 500 ? 'internal_error' : 'none');
     telemetry.record({ endpoint, outcome, problem, bucket: syncDurationBucket(durationMs), durationMs });
   });
 }

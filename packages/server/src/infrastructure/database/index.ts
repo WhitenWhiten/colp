@@ -300,7 +300,7 @@ export { isConcurrentCatalogRaceError } from './concurrent-catalog.js';
 // T-10 lock order (ADR-0027): bootstrap compositions whose canonical writes mark
 // replicas `recovery_required` acquire the Replica rows before the Collection
 // row through the single lock-order module instead of re-deriving the SELECT.
-export { lockCollectionForReplicaInvalidation } from './lock-order.js';
+export { lockCollectionForReplicaInvalidation, lockActiveSyncReplicasForCollection } from './lock-order.js';
 // Self-hosted entry and CLI open the maintenance (migrator) runtime.
 export { maintenanceDatabaseRuntimeOptions } from './maintenance-options.js';
 export { isAvatarPublicationRestricted, isFaviconHiddenPublic, isFaviconPubliclyAccessible, isFaviconReadableBySubject } from './publication-object-controls.js';

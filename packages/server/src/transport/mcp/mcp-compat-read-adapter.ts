@@ -73,6 +73,7 @@ export async function installMcpCompatReadCatalog(input: {
         tool.name,
         {
           description: tool.description,
+          ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
           ...(tool.title === undefined ? {} : { title: tool.title }),
           inputSchema: compatListedToolInputSchema(tool),
           ...(outputSchema === undefined ? {} : { outputSchema }),

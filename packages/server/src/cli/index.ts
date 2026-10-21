@@ -20,6 +20,7 @@ import type { AuthEmailSender } from '../modules/auth/index.js';
 import { createLogger } from '../infrastructure/telemetry/index.js';
 import { version } from '../version.js';
 import { ExportCliError, exportOwnedCollections } from './export.js';
+import { maintainPositions } from './maintain-positions.js';
 
 const NETWORK_CODES = new Set([
   'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT',
@@ -50,6 +51,7 @@ const USAGE = `usage: colp-server <command>
 
   start                                 run the self-hosted server
   migrate                               apply pending database migrations
+  maintain-positions --collection <id>   compact dense folder order keys without changing their order
   create-user --username <name> [--email <address>]
   reset-password --username <name>      (the password is prompted, never passed as an argument)
   export --username <name> --out <dir>  export the user's collections
@@ -62,6 +64,7 @@ const USAGE = `usage: colp-server <command>
 type Command =
   | { readonly kind: 'start' }
   | { readonly kind: 'migrate' }
+  | { readonly kind: 'maintain-positions'; readonly collectionId: string }
   | { readonly kind: 'version' }
   | { readonly kind: 'help' }
   | { readonly kind: 'setup-token' }
@@ -195,6 +198,14 @@ function parseCommand(argv: readonly string[]): Command {
   if (head === 'migrate') {
     if (args.length !== 1) throw new CliExit(2, 'usage: colp-server migrate');
     return { kind: 'migrate' };
+  }
+  if (head === 'maintain-positions') {
+    const flags = parseFlags(args.slice(1), new Set(['collection']));
+    const collectionId = flags.get('collection');
+    if (!collectionId || !/^[A-Za-z0-9._~-]{1,128}$/u.test(collectionId)) {
+      throw new CliExit(2, 'maintain-positions requires --collection <id>');
+    }
+    return { kind: 'maintain-positions', collectionId };
   }
   if (head === 'ready') {
     if (args.length !== 1) throw new CliExit(2, 'usage: colp-server ready');
@@ -485,6 +496,12 @@ async function main(): Promise<boolean> {
   }
   if (command.kind === 'migrate') {
     await migrate();
+    return false;
+  }
+  if (command.kind === 'maintain-positions') {
+    const runtime = openMigrator();
+    try { process.stdout.write(`${JSON.stringify(await maintainPositions(runtime.db, command.collectionId))}\n`); }
+    finally { await runtime.close(); }
     return false;
   }
   const password = await readConfirmedPassword();

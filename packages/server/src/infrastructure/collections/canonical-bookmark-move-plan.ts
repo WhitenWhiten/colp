@@ -9,6 +9,7 @@ import {
   collectionProjection, nodeProjection, type CollectionRow, type NodeRow,
 } from './canonical-mutation-postgres-ports.js';
 import { existingExtensions, existingNodePayloadFields } from './canonical-mutation-payload-fields.js';
+import { serverMoveOperation } from './server-move-operation.js';
 
 export class BookmarkMoveBatchFallback extends Error {}
 
@@ -19,6 +20,8 @@ export interface PlannedBookmarkMove {
   event: CanonicalDomainEvent<MoveFacts>;
   operation: CanonicalOperationRecord<MoveFacts>;
   after: NodeRow;
+  sourceParentId: string;
+  placement: { parentId: string; position: string; afterId: string | null; beforeId: null };
 }
 export interface BookmarkMovePlan {
   collection: CollectionRow;
@@ -34,7 +37,7 @@ const payloadFor = (row: NodeRow) => assertMaterialized('node', row.id, material
  * ordinal allocation contract. Folder moves and rebalances use the regular adapter.
  */
 export async function planBookmarkMoves(original: CollectionRow, rows: readonly NodeRow[],
-  inputs: readonly CanonicalMutationInput[], now: Date): Promise<BookmarkMovePlan> {
+  inputs: readonly CanonicalMutationInput[], now: Date, serverSync = false): Promise<BookmarkMovePlan> {
   let collection = { ...original };
   assertExistingCollectionAuthority(collection);
   const nodes = new Map(rows.map(row => [row.id, row]));
@@ -113,8 +116,19 @@ export async function planBookmarkMoves(original: CollectionRow, rows: readonly 
   };
   const app = createCanonicalMutationApplication(ports), moves: PlannedBookmarkMove[] = [];
   for (const input of inputs) {
-    const result = await app.execute({ transaction: undefined }, input);
-    moves.push({ input, result, event: event!, operation: operation!, after: nodes.get(input.mutation.target.resourceId)! });
+    const before = nodes.get(input.mutation.target.resourceId)!;
+    const parentId = input.mutation.parentId!;
+    const sourceParentId = before.parent_id!;
+    const afterId = siblings.get(parentId)?.at(-1)?.id ?? null;
+    const wire = serverSync ? serverMoveOperation({ operationId: input.operationId, collectionId: collection.id,
+      nodeId: before.id, revision: before.resource_revision, parentId,
+      sourceChildrenRevision: nodes.get(sourceParentId)!.children_revision,
+      targetChildrenRevision: nodes.get(parentId)!.children_revision, occurredAt: now }) : undefined;
+    const actual = wire ? { ...input, operationSyncWire: wire as unknown as import('../../modules/collections/index.js').JsonObject } : input;
+    const result = await app.execute({ transaction: undefined }, actual);
+    const after = nodes.get(input.mutation.target.resourceId)!;
+    moves.push({ input: actual, result, event: event!, operation: operation!, after, sourceParentId,
+      placement: { parentId, position: after.position_token!, afterId, beforeId: null } });
   }
   // Intermediate parent/collection revisions are retained in each allocation;
   // only their final payload is persisted, so materialize shared rows once.

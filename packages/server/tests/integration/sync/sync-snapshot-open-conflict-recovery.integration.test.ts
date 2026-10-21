@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { createCanonicalMutationApplication } from '../../../src/modules/collections/index.js';
+import { createPostgresCanonicalMutationPorts } from '../../../src/infrastructure/collections/canonical-mutation-postgres-ports.js';
 import { afterAll, beforeAll, test } from 'vitest';
 import { createPostgresSharedExposureFactsPort, createAttachmentExposurePolicyAdapter,
   runMigrations } from '../../../src/infrastructure/database/index.js';
@@ -8,6 +11,7 @@ import {
   createPostgresSyncConflictResolutionApplication,
   createPostgresSyncPullReadPort,
   createPostgresSyncRecoveryApplication,
+  persistAuthoritativeOperationEffect,
 } from '../../../src/infrastructure/sync/index.js';
 import { encryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
 import { stableJson } from '../../../src/infrastructure/sync/sync-conflict-json.js';
@@ -29,6 +33,55 @@ describeWithPostgres('P1-6 snapshot open conflict recovery', () => {
     await runMigrations(isolated.runtime.db, 'latest');
   }, 120_000);
   afterAll(async () => isolated?.close());
+
+  test('a paged recovery survives a server move and acknowledges only its original cut', async () => {
+    const suffix = 'move-during-snapshot';
+    const fixture = await seedRecoveryFixture(isolated, suffix, undefined, false, undefined, '0.2', 3);
+    await isolated.runtime.pool.query(`update sync_replicas set status='recovery_required',
+      wire_json=jsonb_set(wire_json,'{status}','"recovery_required"'::jsonb,true) where replica_id=$1`, [fixture.replicaId]);
+    const keys = cursorKeys();
+    try {
+      const recovery = createPostgresSyncRecoveryApplication(isolated.runtime.db, { ...fixture.options,
+        pullCursorKeyring: keys, recoveryProofRetentionMs: 2_592_000_000 });
+      const application = snapshotApp(keys, recovery);
+      const query = { origin: ORIGIN, credential: fixture.credential, request: { sessionId: fixture.sessionId, limit: 1 } };
+      const first = await application.query(query);
+      assert.ok(first.page.nextCursor);
+      const operationId = randomUUID();
+      await isolated.runtime.db.transaction().execute(async transaction => {
+        const canonical = createCanonicalMutationApplication(createPostgresCanonicalMutationPorts(transaction, {
+          invalidateSyncReplicasOnNodeMutation: true,
+          persistServerMoveEffect: (transaction, operation, commitOrdinal, sourceParentId) =>
+            persistAuthoritativeOperationEffect({ transaction, operation, commitOrdinal, sourceParentId,
+              terminalStatus: 'applied', cursor: `server-move-${commitOrdinal}` }),
+        }));
+        await canonical.execute({ transaction }, { operationId, collectionId: fixture.collectionId,
+          actor: { principalId: fixture.accountId, principalType: 'account' },
+          mutation: { action: 'move', target: { collectionId: fixture.collectionId,
+            resourceId: `recovery-paged-node-${suffix}-0`, resourceKind: 'node' },
+          parentId: `recovery-root-${suffix}`, expectedResourceRevision: 'paged-r0',
+          fields: { kindFields: {}, extensions: {} } } });
+      });
+      let page = first;
+      while (page.page.nextCursor) {
+        page = await application.query({ ...query, request: { ...query.request, pageCursor: page.page.nextCursor } });
+        assert.equal(page.snapshotId, first.snapshotId);
+        assert.equal(page.revision, first.revision);
+      }
+      const capability = page.protocolVersion === '0.2' ? page.recoveryCapability : undefined;
+      assert.ok(capability);
+      await recovery.bootstrapAcknowledge({ origin: ORIGIN, credential: fixture.credential,
+        sessionId: fixture.sessionId, idempotencyKey: 'catchup-ack', requestFingerprint: 'catchup-ack',
+        capability, requestCursor: page.syncCursor, explicitCapability: true });
+      const state = await isolated.runtime.db.selectFrom('sync_replicas').selectAll()
+        .where('replica_id', '=', fixture.replicaId).executeTakeFirstOrThrow();
+      assert.equal(state.status, 'active');
+      assert.ok(BigInt(state.checkpoint_commit_ordinal!) < 44n, 'the move must remain pending for incremental Pull');
+      const effect = await isolated.runtime.db.selectFrom('sync_operation_effects').select('operation_id')
+        .where('operation_id', '=', operationId).executeTakeFirst();
+      assert.ok(effect);
+    } finally { keys.destroy(); }
+  }, 60_000);
 
   test('keeps an open conflict resolvable, skips a dismiss at the cut, and delivers a later dismiss', async () => {
     const fixture = await seedRecoveryFixture(isolated, 'deliver', undefined, false, undefined, '0.2');

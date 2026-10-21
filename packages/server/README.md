@@ -64,6 +64,45 @@ Automation Undo compensates an individual move, tag update or added note while i
 recorded revisions still match. Later edits prevent Undo. Tag effects from older
 versions without a saved prior value cannot be undone automatically.
 
+`nodes.move` accepts up to 1,000 IDs in one atomic plan. Distinct bookmark
+moves to an existing folder in a private, unpublished library use bulk SQL and
+publish authoritative Pull effects; browsers keep their current synchronization
+session. Folder moves and explicit placement use the normal canonical writer.
+Unsupported server mutation effects still require Snapshot recovery. The separate
+browser Push limit remains 50, and mixed `changes.plan` requests remain limited to 50.
+Plans keep their content revision fence: a genuine intervening edit still requires
+a fresh plan. After an uncertain response, inspect `changes.get` with the plan ID
+and replay a commit with its original idempotency key before creating another plan.
+Trusted-plan history, Undo receipts and approval audit commit with the mutation;
+a failed commit cannot leave a new saved version. Undo checks the committed content
+revision, so a later saved snapshot alone does not block it.
+
+Read tools advertise `readOnlyHint: true`; write tools retain their actual write
+annotations. Host applications control their own confirmation dialogs separately
+from COLP's trusted-agent policy. A host may therefore still request confirmation.
+
+Socket inactivity defaults to 60 seconds (`HTTP_CONNECTION_TIMEOUT_MS`); the
+MCP request deadline and database statement/lock budgets remain bounded separately.
+Snapshot paging may survive content changes only when all intervening revisions
+have retained authoritative Pull effects. The final Ack stays at the snapshot's
+original cut, leaving those later changes for Pull. Policy changes, retention gaps,
+lease expiry and unsupported mutations still invalidate recovery. Update the
+extension as well: wrapped `snapshot_409_snapshot_expired` errors must discard the
+old recovery chain and start a new snapshot while preserving pending local edits.
+
+For libraries with legacy dense order keys, back up first and run:
+
+```sh
+docker compose exec -T server colp-server maintain-positions --collection COLLECTION_ID
+```
+
+This operator command compacts affected folders through canonical mutations, one
+atomic folder at a time. IDs, contents, parents and sibling order are preserved;
+resource revisions change and browser replicas enter Snapshot recovery. Re-running
+it skips already compact folders. Deploy the extension recovery fix before resuming
+an affected browser. A local allocation window that remains exhausted returns
+`position_context_stale` instead of an internal server error.
+
 The self-hosted web app does not send error or Web Vitals telemetry, and the server
 does not mount a browser telemetry endpoint.
 

@@ -22,7 +22,9 @@ const DEFAULT_BODY_LIMIT_BYTES = 131_072;
 /** Shipped default for `HTTP_REQUEST_TIMEOUT_MS`. Exported so the classification
  * run-apply transaction budget can pin that it stays below the HTTP cut-off. */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
+// Socket inactivity must not cut off an admitted handler before its request
+// deadline. This includes MCP writes whose durable outcome can outlive a socket.
+const DEFAULT_CONNECTION_TIMEOUT_MS = 60_000;
 const DEFAULT_KEEP_ALIVE_TIMEOUT_MS = 72_000;
 const DEFAULT_AUTH_RATE_LIMIT_MAX = 60;
 const DEFAULT_AUTH_RATE_LIMIT_WINDOW_MS = 60_000;

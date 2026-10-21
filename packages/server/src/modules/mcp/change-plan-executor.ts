@@ -87,6 +87,23 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
   }
 
   const results: OperationResult[] = [];
+  const batchPorts = createProductPorts(transaction);
+  if (operations.length > 1 && operations.every(isMoveNodeOperation)
+    && operations.every(op => op.collectionId === operations[0]!.collectionId && op.position === undefined)
+    && batchPorts.canonical.executeMoves) {
+    const moved = await batchPorts.canonical.executeMoves(operations.map(operation => ({
+      operationId: randomUUID(), collectionId: operation.collectionId,
+      actor: { principalId: ownedBinding.principalId, principalType: 'account' }, automationContext: { origin: 'mcp' },
+      mutation: { action: 'move', target: { collectionId: operation.collectionId, resourceId: operation.nodeId, resourceKind: 'node' },
+        parentId: operation.parentId, expectedResourceRevision: plan.baseRevisions[`node.${operation.nodeId}`],
+        fields: { kindFields: {}, extensions: {} } },
+    })));
+    if (moved) {
+      await recordCommittedContentRevisions?.(transaction, { planId: plan.planId, collectionIds: planCollectionIds(operations) });
+      return Object.freeze(moved.map(result => Object.freeze({ opId: result.resourceId, sequence: 1,
+        status: 'applied' as const, revision: result.allocation.resourceRevision!, cursor: result.operationId, warnings: Object.freeze([]) })));
+    }
+  }
   // Commit checked every base revision before the first operation. A plan
   // that moves several nodes then fences each later move on the revisions
   // the earlier moves left, not on the planned ones they replaced.

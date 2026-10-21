@@ -7,6 +7,7 @@ import { createPhase4bMcpWriteComposition, createMcpChangePlanRateLimitPort } fr
 import { createPhase4bMcpAgentApprovalApi } from '../../../src/infrastructure/collections/index.js';
 import { runWithMcpAccountSubjectId } from '../../../src/modules/mcp/account-context.js';
 import { policyCommitIdempotencyKey } from '../../../src/modules/mcp/agent-plan-policy.js';
+import { maintainPositions } from '../../../src/cli/maintain-positions.js';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import { createIsolatedPostgresRuntime, describeWithPostgres, type IsolatedPostgresRuntime } from '../../support/postgres-test-runtime.js';
 import { createMcpWriteFixture, nodeCreateContext } from '../../support/postgres-phase4b-mcp-write-tools.js';
@@ -91,6 +92,50 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     return tree;
   }
 
+  test('position maintenance compacts legacy keys canonically, preserves order and is repeatable', async () => {
+    const tree = await capacityFixture(100);
+    await isolated.runtime.pool.query(`update nodes set position_token=$2 || lpad(right(id, 5), 5, '0'),
+      payload_json=jsonb_set(payload_json,'{position}',to_jsonb($2 || lpad(right(id, 5), 5, '0')))
+      where collection_id=$1 and parent_id=$3 and deleted_at is null`,
+    [tree.collectionId, 'V'.repeat(120), tree.folderId]);
+    const read = () => isolated.runtime.pool.query(`select id,parent_id,position_token,resource_revision
+      from nodes where collection_id=$1 and deleted_at is null order by parent_id,position_token collate "C",id`, [tree.collectionId]);
+    const before = await read();
+    assert.deepEqual(await maintainPositions(isolated.runtime.db, tree.collectionId), { repairedFolders: 1 });
+    const after = await read();
+    assert.deepEqual(after.rows.map(row => [row.id, row.parent_id]), before.rows.map(row => [row.id, row.parent_id]));
+    assert.ok(after.rows.every(row => row.position_token === null || row.position_token.length < 32));
+    assert.deepEqual(await maintainPositions(isolated.runtime.db, tree.collectionId), { repairedFolders: 0 });
+    assert.deepEqual((await read()).rows, after.rows);
+    const operations = await isolated.runtime.pool.query('select count(*)::int n from operations where collection_id=$1 and operation_type=$2', [tree.collectionId, 'resource.move']);
+    assert.equal(operations.rows[0].n, 1);
+  });
+
+  test('152 bookmarks commit in one atomic bulk plan with intermediate Sync effects and replay', async () => {
+    const tree = await capacityFixture(2001);
+    const selected = await isolated.runtime.pool.query(`select id from nodes where collection_id=$1
+      and parent_id=$2 and kind='bookmark' order by position_token collate "C",id limit 152`, [tree.collectionId, tree.folderId]);
+    const nodeIds = selected.rows.map(row => row.id as string);
+    assert.equal(nodeIds.length, 152);
+    const planned = await composition.adapter.callTool(nodeCreateContext(BINDING, SCOPES), {
+      name: 'nodes.move', arguments: { nodeIds, parentId: tree.rootId },
+    });
+    const plan = planned.structuredContent as { planId: string };
+    await composition.changePlanService.recordOutOfBandApproval(plan.planId, BINDING);
+    const key = randomUUID(), first = await commit(plan.planId, key);
+    assert.equal(first.operations.length, 152);
+    assert.deepEqual(await commit(plan.planId, key), first);
+    const effects = await isolated.runtime.pool.query(`select e.effect_json, o.sync_wire_present
+      from sync_operation_effects e join operations o using(operation_id)
+      where e.collection_id=$1 order by e.commit_ordinal`, [tree.collectionId]);
+    assert.equal(effects.rows.length, 152);
+    assert.ok(effects.rows.every(row => row.sync_wire_present));
+    assert.equal(effects.rows[1].effect_json.placement.afterId, nodeIds[0]);
+    assert.notEqual(effects.rows[0].effect_json.parentRevisions.at(-1).childrenRevision,
+      effects.rows[151].effect_json.parentRevisions.at(-1).childrenRevision);
+    assert.equal((await planHistory(tree.collectionId, plan.planId)).versionIds.length, 1);
+  });
+
   test.each(['manual', 'trusted'] as const)('%s move at 2001 nodes saves history and supports Undo', async (policy) => {
     const tree = await capacityFixture(2001);
     if (policy === 'trusted') {
@@ -173,7 +218,7 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     );
     assert.equal(plans.rows.length, 1);
     const plan = plans.rows[0];
-    assert.equal(plan.status, policy === 'manual' ? 'approved' : 'pending');
+    assert.equal(plan.status, 'approved');
     assert.deepEqual(await planHistory(tree.collectionId, plan.plan_id), { versionIds: [], receipts: [] });
     assert.equal((await isolated.runtime.pool.query('select parent_id from nodes where id = $1', [tree.nodeId])).rows[0].parent_id, tree.rootId);
     const after = await isolated.runtime.pool.query('select content_revision from collections where id = $1', [tree.collectionId]);
@@ -295,6 +340,11 @@ describeWithPostgres('self-hosted production MCP composition', () => {
     const moved = await isolated.runtime.pool.query(
       'select id from nodes where parent_id = $1 and deleted_at is null order by position_token', [tree.folderId]);
     assert.deepEqual(moved.rows.map((row) => row.id), nodeIds);
+    const delivery = await isolated.runtime.pool.query(`select count(*)::int n,
+      bool_and(o.sync_wire_present) deliverable, count(e.effect_id)::int effects
+      from operations o left join sync_operation_effects e using(operation_id)
+      where o.collection_id=$1 and o.operation_type='resource.move'`, [tree.collectionId]);
+    assert.deepEqual(delivery.rows[0], { n: 3, deliverable: true, effects: 3 });
     assert.equal((await planHistory(tree.collectionId, plan.planId)).receipts[0]?.approved_by, 'owner');
   });
 

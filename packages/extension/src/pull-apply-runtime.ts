@@ -25,7 +25,7 @@ import { advancedSelfProjectionIsProven } from './pull-local-projection-evidence
 import { interceptStagedRemoteDelete, settleAppliedRemoteDelete, settleParkedRemoteDeletes } from './remote-delete-apply.js';
 import {
   commitMissingTerminalSelfDeletion, commitRemovedSelfProjection, missingTerminalSelfDeletion, preflightPullDependencies,
-  preflightPullMapping, requirePullMapping,
+  preflightPullMapping, requirePullMapping, requirePullAnchor,
 } from './pull-apply-decision.js';
 import {
   applyPlannedMove, frozenRangeAction, moveAnchors, planRemoteMove,
@@ -43,8 +43,9 @@ const INTENT_TTL_MS = 5 * 60_000;
 
 export function createPullApplyRuntime(options: PullApplierOptions, api: PullBookmarkApi,
   now: () => number) {
-  async function preflight(event: Extract<SyncPullEventV02, { kind: 'operation' }>, stagedCreates: ReadonlySet<string>): Promise<void> {
-    await preflightPullDependencies(options, event, stagedCreates, selfCreateProjection);
+  async function preflight(event: Extract<SyncPullEventV02, { kind: 'operation' }>, stagedCreates: ReadonlySet<string>,
+    stagedParents?: ReadonlyMap<string, string>): Promise<void> {
+    await preflightPullDependencies(options, event, stagedCreates, selfCreateProjection, stagedParents);
   }
   async function requireMapping(colpId: string, role: 'anchor' | 'deletion' | 'parent' | 'parent_revision' | 'target') {
     return requirePullMapping(options, colpId, role);
@@ -174,6 +175,12 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
         permissionConfirmed: (await options.store.getScope(options.scope))?.rootStatus !== 'permission_required',
         pendingLocalOperations: await queueHasPendingTarget(options.store, options.scope, mapping.colpId) });
       if (plan.action === 'await_dependency') throw new SyncFailureError('range_dependency_pending');
+      // A preceding move might have been set aside after page preflight.
+      // Validate its anchor against actual mappings before any Chrome mutation.
+      if (plan.chromeMutation) {
+        await requirePullAnchor(options, effect.placement.afterId, parent.nativeId, new Set());
+        await requirePullAnchor(options, effect.placement.beforeId, parent.nativeId, new Set());
+      }
       const index = plan.chromeMutation
         ? await nativeIndex(effect.placement.afterId, effect.placement.beforeId) : 0;
       if (plan.action === 'materialize_independent') {

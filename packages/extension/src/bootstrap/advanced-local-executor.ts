@@ -112,6 +112,7 @@ export async function executeAdvancedLocalStep(input: {
   } else {
     const parent = (await api.get(parentId))[0];
     if (!parent || parent.url || parent.unmodifiable) return changed();
+    if (desiredIndex === undefined) return changed();
     await api.move(current.id, { parentId, index: desiredIndex });
   }
   const verified = (await api.get(current.id))[0];

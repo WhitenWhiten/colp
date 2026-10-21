@@ -393,10 +393,15 @@ export class SyncFailureError extends Error {
 }
 
 /** Unknown external codes are bounded by the engine's durable circuit breaker. */
+export function normalizeSyncFailureCode(code: string): string {
+  const expiry = /^snapshot_[1-5][0-9]{2}_(sync_cursor_expired|snapshot_expired)$/u.exec(code);
+  return expiry?.[1] ?? code;
+}
+
 export function classifySyncFailure(code: string | undefined, subject?: SyncFailureSubject): SyncFailureEntry | undefined {
   if (code === undefined) return undefined;
   // Snapshot HTTP expiry is an explicit transport wrapper, not an arbitrary suffix match.
-  const normalized = /^snapshot_[1-5][0-9]{2}_sync_cursor_expired$/u.test(code) ? 'sync_cursor_expired' : code;
+  const normalized = normalizeSyncFailureCode(code);
   const policy = (SYNC_FAILURE_TABLE as Readonly<Record<string, SyncFailureEntry>>)[normalized];
   if (!policy) return undefined;
   // Class reflects the actual blast radius: an item requires a concrete subject.

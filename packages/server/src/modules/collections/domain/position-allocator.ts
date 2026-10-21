@@ -125,13 +125,17 @@ export function generateKeyBetween(a: string | null, b: string | null): string {
 }
 
 function getKeyAfter(a: string): string {
-  // Prefer appending mid digit so a + mid > a lexicographically.
+  // Reserve a fixed-width counter at the tail. Appending a character for every
+  // bookmark exhausted the 128-byte limit after only 128 ordinary appends.
+  // A shorter successor prefix also escapes legacy, densely packed long keys.
+  const counter = a.slice(0, 8).padEnd(8, MIN_CHAR);
+  const successor = tryIncrement(counter);
+  if (successor !== null && successor > a) return successor;
+  const incremented = tryIncrement(a);
+  if (incremented !== null) return incremented;
   if (Buffer.byteLength(a, 'utf8') + 1 <= POSITION_MAX_OCTETS) {
     return `${a}${MID_CHAR}`;
   }
-  // Increment last digit with carry; if overflow, append mid.
-  const incremented = tryIncrement(a);
-  if (incremented !== null) return incremented;
   return `${a}${MID_CHAR}`.slice(0, POSITION_MAX_OCTETS);
 }
 
@@ -399,22 +403,33 @@ export function planBoundedPositionRebalance(input: {
   };
 }
 
-function generateBoundedPositionTokens(
+export function generateBoundedPositionTokens(
   count: number,
   lowerBound: string | null,
   upperBound: string | null,
 ): readonly string[] {
-  const tokens: string[] = [];
-  let lower = lowerBound;
-  for (let index = 0; index < count; index += 1) {
-    const token = generateKeyBetween(lower, upperBound);
-    if (!isValidPositionToken(token) || !isStrictlyBetween(token, lower, upperBound)) {
-      throw new CollectionsError('invalid_node_anchor', 'bounded position window has no allocatable token');
-    }
-    tokens.push(token);
-    lower = token;
+  // Find the shortest fixed-width representation that can carry the whole
+  // window, then distribute it evenly. Sequential midpoints crowded the upper
+  // bound and could fail even when there was enough space for every sibling.
+  for (let width = 1; width <= POSITION_MAX_OCTETS; width += 1) {
+    const numberOf = (token: string) => [...token.slice(0, width).padEnd(width, MIN_CHAR)]
+      .reduce((value, character) => value * BigInt(BASE) + BigInt(indexOfChar(character)), 0n);
+    const lower = lowerBound === null ? 0n
+      : numberOf(lowerBound) + (lowerBound.length >= width ? 1n : 0n);
+    const upper = upperBound === null ? BigInt(BASE) ** BigInt(width)
+      : numberOf(upperBound) + (upperBound.length > width ? 1n : 0n);
+    if (upper - lower < BigInt(count)) continue;
+    return Array.from({ length: count }, (_, index) => {
+      let value = lower + (upper - lower) * BigInt(index + 1) / BigInt(count + 1);
+      let token = '';
+      for (let digit = 0; digit < width; digit += 1) {
+        token = CHARS[Number(value % BigInt(BASE))]! + token;
+        value /= BigInt(BASE);
+      }
+      return token;
+    });
   }
-  return tokens;
+  throw new CollectionsError('invalid_node_anchor', 'bounded position window has no allocatable token');
 }
 
 function isStrictlyBetween(

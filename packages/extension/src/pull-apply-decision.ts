@@ -35,8 +35,15 @@ export async function preflightPullMapping(options: PullApplierOptions, colpId: 
 }
 
 export async function requirePullAnchor(options: PullApplierOptions, colpId: string | null,
-  nativeParentId: string, stagedCreates: ReadonlySet<string>) {
-  if (!colpId || stagedCreates.has(colpId)) return;
+  nativeParentId: string, stagedCreates: ReadonlySet<string>, stagedParents?: ReadonlyMap<string, string>) {
+  if (!colpId) return;
+  const stagedParentId = stagedParents?.get(colpId);
+  if (stagedParentId !== undefined) {
+    const parent = await preflightPullMapping(options, stagedParentId, stagedCreates, 'parent');
+    if (parent?.nativeId !== nativeParentId) throw new SyncFailureError('anchor_parent_mismatch');
+    return;
+  }
+  if (stagedCreates.has(colpId)) return;
   const anchor = await requirePullMapping(options, colpId, 'anchor');
   if (anchor.parentNativeId !== nativeParentId) throw new SyncFailureError('anchor_parent_mismatch');
 }
@@ -44,6 +51,7 @@ export async function requirePullAnchor(options: PullApplierOptions, colpId: str
 export async function preflightPullDependencies(options: PullApplierOptions, event: OpEvent,
   stagedCreates: ReadonlySet<string>,
   selfCreateProjection: (event: OpEvent, existing: MappingInput, parent: MappingInput) => Promise<MappingInput>,
+  stagedParents?: ReadonlyMap<string, string>,
 ): Promise<void> {
   const effect = event.effect;
   if (await missingTerminalSelfDeletion(options, event)
@@ -65,7 +73,7 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
       });
     if (parent) {
       for (const anchor of [effect.placement.afterId, effect.placement.beforeId]) {
-        await requirePullAnchor(options, anchor, parent.nativeId, stagedCreates).catch((error: unknown) => {
+        await requirePullAnchor(options, anchor, parent.nativeId, stagedCreates, stagedParents).catch((error: unknown) => {
           if (error instanceof SyncFailureError && error.code === PULL_MAPPING_FAILURE.anchor) return;
           throw error;
         });
@@ -91,13 +99,13 @@ export async function preflightPullDependencies(options: PullApplierOptions, eve
       const provisional = await provisionalSelfCreateMapping(options, event, parent);
       if (provisional) { await selfCreateProjection(event, provisional, parent); return; }
     }
-    if (parent) { await requirePullAnchor(options, effect.placement.afterId, parent.nativeId, stagedCreates);
-      await requirePullAnchor(options, effect.placement.beforeId, parent.nativeId, stagedCreates); } return; }
+    if (parent) { await requirePullAnchor(options, effect.placement.afterId, parent.nativeId, stagedCreates, stagedParents);
+      await requirePullAnchor(options, effect.placement.beforeId, parent.nativeId, stagedCreates, stagedParents); } return; }
   if (effect.kind === 'node_content_updated' || effect.kind === 'node_moved' || effect.kind === 'node_deleted') {
     await preflightPullMapping(options, effect.kind === 'node_deleted' ? effect.tombstone.targetId : effect.node.id, stagedCreates, 'target');
     if (effect.kind === 'node_moved') { const parent = await preflightPullMapping(options, effect.placement.parentId, stagedCreates, 'parent');
-      if (parent) { await requirePullAnchor(options, effect.placement.afterId, parent.nativeId, stagedCreates);
-        await requirePullAnchor(options, effect.placement.beforeId, parent.nativeId, stagedCreates); }
+      if (parent) { await requirePullAnchor(options, effect.placement.afterId, parent.nativeId, stagedCreates, stagedParents);
+        await requirePullAnchor(options, effect.placement.beforeId, parent.nativeId, stagedCreates, stagedParents); }
       const target = await options.store.getMappingByColpId(options.scope,
         effect.node.id);
       if (target && parent) {

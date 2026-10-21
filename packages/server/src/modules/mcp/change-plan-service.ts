@@ -178,6 +178,7 @@ export interface Phase4bMcpChangePlanCommitCoordinatorOptions<
 
 /** A locked plan about to execute inside its commit transaction. */
 export interface McpPreCommitVersionFacts {
+  readonly policyApproved?: boolean;
   readonly planId: string;
   readonly principalId: string;
   readonly subjectId: string;
@@ -281,6 +282,7 @@ export function createPhase4bMcpChangePlanCommitCoordinator<
         // asynchronous executor failures into an opaque commit_failed.
         // Replays skip capture and keep returning their original result.
         await options.capturePreCommitVersions(transaction, {
+          policyApproved: input.idempotencyKey === `policy:${plan.planId}`,
           planId: plan.planId,
           principalId: input.binding.principalId,
           subjectId: requireMcpAccountSubjectId(),

@@ -56,14 +56,16 @@ export interface AutoApproveTrustedPlanDeps {
   readonly readPolicy: (principalId: string, clientId: string) => Promise<AgentPolicyName>;
   /** Re-check immediately before the commit side effect to close stale-policy windows. */
   readonly assertTrustedPolicy?: (principalId: string, clientId: string) => Promise<boolean>;
-  readonly captureVersion: (input: Readonly<{
+  /** Production reads the history receipt written by the commit transaction. */
+  readonly readCommittedReceipt?: (planId: string) => Promise<AgentPlanPolicyReceipt | undefined>;
+  readonly captureVersion?: (input: Readonly<{
     principalId: string;
     subjectId: string;
     collectionId: string;
     cause: `agent-plan:${string}`;
   }>) => Promise<{ readonly versionId: string }>;
-  readonly saveReceipt: (receipt: AgentPlanPolicyReceipt) => Promise<void>;
-  readonly audit: (input: Readonly<{
+  readonly saveReceipt?: (receipt: AgentPlanPolicyReceipt) => Promise<void>;
+  readonly audit?: (input: Readonly<{
     planId: string;
     principalId: string;
     collectionId: string;
@@ -128,6 +130,9 @@ export function policyCommitIdempotencyKey(planId: string): string {
 export function createAutoApproveTrustedPlan(
   deps: AutoApproveTrustedPlanDeps,
 ): AutoApproveTrustedPlan {
+  if (!deps.readCommittedReceipt && (!deps.captureVersion || !deps.saveReceipt || !deps.audit)) {
+    throw new TypeError('Trusted plans require transaction-owned receipts or complete legacy history ports.');
+  }
   return async (planned, binding, actions) => {
     const policy = await deps.readPolicy(binding.principalId, binding.clientId);
     if (policy !== 'trusted') return planned;
@@ -141,7 +146,7 @@ export function createAutoApproveTrustedPlan(
     if (collectionId === undefined) return planned;
     const subjectId = requireMcpAccountSubjectId();
     const cause = `agent-plan:${planned.planId}` as const;
-    const captured = await deps.captureVersion({
+    let captured = deps.readCommittedReceipt ? undefined : await deps.captureVersion!({
       principalId: binding.principalId,
       subjectId,
       collectionId,
@@ -157,30 +162,35 @@ export function createAutoApproveTrustedPlan(
     if (deps.assertTrustedPolicy !== undefined
       && !(await deps.assertTrustedPolicy(binding.principalId, binding.clientId))) return planned;
     await actions.commit(planned.planId, binding, policyCommitIdempotencyKey(planned.planId));
-    await deps.saveReceipt({
-      planId: planned.planId,
-      clientId: binding.clientId,
-      approvedBy: 'policy',
-      versionId: captured.versionId,
-      collectionId,
-      cause,
-    });
-    await deps.audit({
-      planId: planned.planId,
-      principalId: binding.principalId,
-      collectionId,
-      versionId: captured.versionId,
-      cause,
-      risk: planned.risk,
-      operationsDigest: planned.operationsDigest,
-    });
+    if (deps.readCommittedReceipt) {
+      captured = await deps.readCommittedReceipt(planned.planId);
+      if (!captured) throw new Error('Committed plan is missing its transaction-owned history receipt.');
+    } else {
+      await deps.saveReceipt!({
+        planId: planned.planId,
+        clientId: binding.clientId,
+        approvedBy: 'policy',
+        versionId: captured!.versionId,
+        collectionId,
+        cause,
+      });
+      await deps.audit!({
+        planId: planned.planId,
+        principalId: binding.principalId,
+        collectionId,
+        versionId: captured!.versionId,
+        cause,
+        risk: planned.risk,
+        operationsDigest: planned.operationsDigest,
+      });
+    }
     return Object.freeze({
       ...planned,
       requiresApproval: false,
       mode: 'ready',
       status: 'consumed',
       approvedBy: 'policy',
-      versionId: captured.versionId,
+      versionId: captured!.versionId,
     });
   };
 }
@@ -233,7 +243,10 @@ export async function undoAgentPlanVersion(
   if (!target) {
     throw new AgentPlanUndoError('not_found', 'The saved collection version was not found.');
   }
-  if (!input.force) {
+  // A snapshot is evidence, not a content mutation. Failed legacy plans and
+  // manual snapshots must not veto Undo when the transaction's content fence
+  // still proves that the successful plan is the last writer.
+  if (!input.force && input.committedContentRevision === null) {
     const newer = listed.some((version) => isNewerVersion(version, target));
     if (newer) throw new AgentPlanUndoError('newer_version', NEWER_VERSION_UNDO_MESSAGE);
   }

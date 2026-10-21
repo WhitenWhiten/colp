@@ -92,6 +92,15 @@ function baseBookmark(overrides: Record<string, unknown> = {}) {
   };
 }
 
+test('browser folder roles survive materialization and remain an authority check', () => {
+  const row = { ...baseFolder(), folderRole: 'bookmarks-bar' };
+  const materialized = materializeNodePayload(row);
+  assert.ok(materialized.ok);
+  assert.equal(materialized.payload.folderRole, 'bookmarks-bar');
+  assert.equal(compareNodePayloadToRelational(row, materialized.payload).equal, true);
+  assert.equal(compareNodePayloadToRelational({ ...row, folderRole: 'other-bookmarks' }, materialized.payload).equal, false);
+});
+
 describe('resource payload materialization (ADR-0007 expand)', () => {
   test('materializes all Phase 1 collection kinds deterministically', () => {
     for (const kind of ['bookmarks', 'reading_path', 'knowledge_collection', 'mixed'] as const) {

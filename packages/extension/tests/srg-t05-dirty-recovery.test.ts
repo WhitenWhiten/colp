@@ -267,7 +267,8 @@ describe('T-05 F006: cursor-window expiry gives recovery a rebuild path', () => 
     assert.equal(recovered.cursor?.cursor, 'cursor-recovered');
   }, 30_000);
 
-  test('a Snapshot denial naming the lapsed cursor rebuilds the chain in the same wake', async () => {
+  test.each([[410, 'sync_cursor_expired'], [409, 'snapshot_expired']] as const)(
+    'Snapshot %s %s rebuilds the expired chain in the same wake', async (status, code) => {
     const fixture = await createFixture();
     await stageIncompleteSnapshotChain(fixture.store);
 
@@ -276,7 +277,7 @@ describe('T-05 F006: cursor-window expiry gives recovery a rebuild path', () => 
     // (`snapshotFailure` renders it `snapshot_410_sync_cursor_expired`).
     await freezeScopeRecovery(fixture.store, scope, 'sync_cursor_expired', () => fixture.clock.now);
     fixture.forcedSessions.push({ sessionId: 'session-engine', state: 'active', snapshotRequired: true, cursor: 'cursor-0' });
-    fixture.snapshotResponses.push(problem(410, 'sync_cursor_expired', {}),
+    fixture.snapshotResponses.push(problem(status, code, {}),
       json(200, recoverySnapshot(1, false, null)));
     fixture.ackResponses.push(json(200, ack('bootstrap-cursor')));
     await fixture.engine.wake('manual');
@@ -289,7 +290,7 @@ describe('T-05 F006: cursor-window expiry gives recovery a rebuild path', () => 
     assert.equal(recovered.cursor?.cursor, 'cursor-recovered');
     assert.equal(recovered.engine.lastError, undefined);
     assert.equal((await diagnosticRecords(fixture)).some((row) => row.kind === 'recovery_staging_discarded'
-      && row.code === 'snapshot_410_sync_cursor_expired'), true);
+      && row.code === `snapshot_${status}_${code}`), true);
   }, 30_000);
 
   test('a bootstrap Ack denied for the lapsed capability drops the staging and recovers next wake', async () => {

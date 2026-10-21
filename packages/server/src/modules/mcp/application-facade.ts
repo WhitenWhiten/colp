@@ -6,6 +6,7 @@
  * module. Do not import Fastify, the official MCP SDK, or COLP MCP wire.
  */
 import type { GetOwnedCollectionsPagePorts } from '../collections/index.js';
+import { annotateMcpTool } from './tool-annotations.js';
 import type { McpApplicationContext } from './application-context.js';
 import {
   NODES_SEARCH_TOOL_DESCRIPTOR,
@@ -100,7 +101,7 @@ export function createPhase4bMcpApplicationFacade(
   const ownedCollectionsQuery = options.ownedCollectionsQuery;
   const nodesSearch = options.nodesSearch;
 
-  const getTool = async (context: McpApplicationContext, name: string) => {
+  const findTool = async (context: McpApplicationContext, name: string) => {
     context.abortSignal.throwIfAborted();
     if (name === PHASE4B_MCP_COLLECTIONS_LIST_TOOL_NAME) {
       return canListOwnedCollectionsTool(context, ownedCollectionsQuery)
@@ -116,6 +117,10 @@ export function createPhase4bMcpApplicationFacade(
         ? NODES_SEARCH_TOOL_DESCRIPTOR : undefined;
     }
     return findMcpApplicationTool(readPort, context, name);
+  };
+  const getTool = async (context: McpApplicationContext, name: string) => {
+    const tool = await findTool(context, name);
+    return tool === undefined ? undefined : annotateMcpTool(tool);
   };
 
   const listTools = async (
@@ -145,7 +150,7 @@ export function createPhase4bMcpApplicationFacade(
       }
     }
     tools.sort((left, right) => (left.name < right.name ? -1 : 1));
-    return Object.freeze({ tools: Object.freeze(tools) });
+    return Object.freeze({ tools: Object.freeze(tools.map(annotateMcpTool)) });
   };
 
   const callTool = async (

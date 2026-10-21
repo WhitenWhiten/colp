@@ -116,7 +116,7 @@ export const PHASE4B_MCP_WRITE_TOOL_DESCRIPTIONS: Readonly<Record<string, string
   'collections.update': 'Change a library\'s title or summary. Pass the revision you read as baseRevision (or ifMatch). Applies at once.',
   'nodes.create': 'Add a folder or bookmark to a library under parentId. Applies at once unless dryRun is true or confirmApply is false.',
   'nodes.update': 'Change a folder or bookmark title, URL, description or tags. Pass the node revision as baseRevision (or ifMatch). Applies at once. Set returnRepresentation true to receive the updated node. Visibility changes require a plan.',
-  'nodes.move': 'Move folders or bookmarks to another folder in the same library. Pass nodeId for one node, or nodeIds (up to 50, moved in order and appended to the destination) to move several in one plan. Returns a plan: unless the owner trusts this agent, they approve it on its approval link, then call changes.commit.',
+  'nodes.move': 'Move folders or bookmarks to another folder in the same library. Pass nodeId for one node, or nodeIds (up to 1000, moved in order and appended to the destination) for one atomic plan and one approval. Reuse the returned planId to check changes.get after a timeout; do not submit a new move until the original outcome is known. Unless the owner trusts this agent, they approve it on its approval link, then call changes.commit.',
   'nodes.delete_subtree': 'Delete a folder or bookmark with everything inside it. Returns a plan the owner must approve before changes.commit; deleted items go to the library\'s trash.',
   'annotations.create': 'Add a note to a bookmark or folder. Applies at once.',
   'annotations.update': 'Change one of your notes. Pass the revision you read as baseRevision (or ifMatch). Applies at once.',

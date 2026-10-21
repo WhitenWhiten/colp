@@ -35,6 +35,20 @@ describe('trusted plan commit admission', () => {
     expect(h.commit).toHaveBeenCalledOnce();
   });
 
+  it('production consumes only transaction-owned history, and failed commits leave none', async () => {
+    const readCommittedReceipt = vi.fn(async () => ({ planId: 'plan', clientId: 'agent', approvedBy: 'policy' as const,
+      versionId: 'committed-version', collectionId: 'collection', cause: 'agent-plan:plan' }));
+    const captureVersion = vi.fn(async () => ({ versionId: 'orphan' }));
+    const policy = createAutoApproveTrustedPlan({ readPolicy: async () => 'trusted', readCommittedReceipt, captureVersion });
+    const failing = { canCommit: true, approve: async () => {}, commit: async () => { throw new Error('revision drift'); } };
+    await expect(runWithMcpAccountSubjectId('subject', () => policy(planned, binding, failing))).rejects.toThrow('revision drift');
+    expect(captureVersion).not.toHaveBeenCalled();
+    expect(readCommittedReceipt).not.toHaveBeenCalled();
+    const result = await runWithMcpAccountSubjectId('subject', () => policy(planned, binding,
+      { ...failing, commit: async () => ({} as never) }));
+    expect(result.versionId).toBe('committed-version');
+  });
+
   it.each([
     { ...planned, operations: [{ type: 'delete_subtree', collectionId: 'collection' }] },
     { ...planned, baseRevisions: { 'content.collection': 'revision', 'content.other': 'revision' } },

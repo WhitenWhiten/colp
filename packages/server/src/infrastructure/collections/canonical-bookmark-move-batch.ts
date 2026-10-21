@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import type { NodeRow } from './canonical-mutation-postgres-ports.js';
 import { CollectionsError, type CanonicalMutationInput } from '../../modules/collections/index.js';
+import type { CanonicalMutationResult } from '../../modules/collections/index.js';
 import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
 import type { CanonicalTreeCapacityAdmission } from './canonical-tree-capacity.js';
@@ -11,7 +12,8 @@ import { writeBookmarkMoves, type BookmarkBatchFactWriter } from './canonical-bo
  * moves. Returning false means no write occurred and the normal adapter is needed.
  */
 export async function canonicalBookmarkMoveBatch(tx: DatabaseTransaction, collectionId: string,
-  inputs: readonly CanonicalMutationInput[], admission: CanonicalTreeCapacityAdmission, captureFacts?: BookmarkBatchFactWriter): Promise<boolean> {
+  inputs: readonly CanonicalMutationInput[], admission: CanonicalTreeCapacityAdmission, captureFacts?: BookmarkBatchFactWriter,
+  options?: { serverSync?: BookmarkBatchFactWriter; onResults?: (results: readonly CanonicalMutationResult[]) => void }): Promise<boolean> {
   if (!inputs.length) return true;
   if (inputs.length > 1000 || new Set(inputs.map(i => i.mutation.target.resourceId)).size !== inputs.length) return false;
   await lockActiveSyncReplicasForCollection(tx, collectionId);
@@ -40,12 +42,13 @@ export async function canonicalBookmarkMoveBatch(tx: DatabaseTransaction, collec
     || nodes.get(input.mutation.target.resourceId)?.parent_id === input.mutation.parentId)) return false;
   const now = (await sql<{ now: Date }>`SELECT current_timestamp AS now`.execute(tx)).rows[0]!.now;
   let plan;
-  try { plan = await planBookmarkMoves(collection, rows, inputs, now); }
+  try { plan = await planBookmarkMoves(collection, rows, inputs, now, !!options?.serverSync); }
   catch (error) {
     if (error instanceof BookmarkMoveBatchFallback) return false;
     if (error instanceof CollectionsError && error.code === 'invalid_node_anchor') return false;
     throw error;
   }
-  await admission.execute(tx, collectionId, () => writeBookmarkMoves(tx, plan, now, captureFacts));
+  await admission.execute(tx, collectionId, () => writeBookmarkMoves(tx, plan, now, captureFacts, options?.serverSync));
+  options?.onResults?.(plan.moves.map(move => move.result));
   return true;
 }

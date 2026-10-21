@@ -69,6 +69,9 @@ describe('registered sync failure policies', () => {
     }
     assert.equal(classifySyncFailure('anchor_parent_mismatch')?.stagesAsItem, undefined);
     assert.equal(classifySyncFailure('snapshot_409_sync_cursor_expired')?.class, 'authority');
+    assert.equal(classifySyncFailure('snapshot_409_snapshot_expired')?.class, 'authority');
+    assert.equal(freezesPullApply('snapshot_409_snapshot_expired'), true);
+    assert.equal(classifySyncFailure('arbitrary_snapshot_expired'), undefined);
     assert.equal(classifySyncFailure('arbitrary_sync_cursor_expired'), undefined);
   });
 

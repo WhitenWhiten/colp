@@ -11,6 +11,7 @@ export const SYNC_TELEMETRY_PROBLEMS = Object.freeze([
   'sequence_gap', 'sequence_blocked', 'conflict', 'precondition_failed', 'rate_limited',
   'replica_retired', 'recovery_required', 'service_unavailable', 'internal_error',
   'resource_not_found', 'invalid_cursor_scope', 'sync_cursor_expired', 'stale_replica',
+  'snapshot_expired', 'position_context_stale',
   'idempotency_key_reused', 'idempotency_in_progress', 'insufficient_scope', 'unsupported_version',
 ] as const);
 export const SYNC_TELEMETRY_BUCKETS = Object.freeze([

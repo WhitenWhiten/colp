@@ -1,6 +1,6 @@
 import { admitPushBatch } from './postgres/sync-push-batch-postgres.js';
 import { assertOperationIdClaimed } from './postgres/sync-push-repository-postgres.js';
-import { SnapshotTreeCapacityError } from '../../modules/collections/index.js';
+import { SnapshotTreeCapacityError, PositionRebalanceEscalationError } from '../../modules/collections/index.js';
 import { createHmac } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { VerifiedSyncSession } from '@know-n/colp/sync';
@@ -150,6 +150,7 @@ export function createPostgresSyncPushApplication(
       });
       return wrapPushAttemptResult(unwrapCoordinatedResult(coordinated.result), serverBatchId);
     } catch (error) {
+      if (error instanceof PositionRebalanceEscalationError) throw new SyncPushHttpError('position_context_stale');
       if (error instanceof SnapshotTreeCapacityError) throw new SyncPushHttpError('payload_too_large');
       if (error instanceof SyncPushHttpError) throw error;
       if (error instanceof ManagedAncestryPolicyError) throw new SyncPushHttpError(error.code);

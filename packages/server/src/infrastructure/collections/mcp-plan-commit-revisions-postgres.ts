@@ -7,19 +7,23 @@ import type {
 } from '../../modules/mcp/index.js';
 import type { DatabaseSchema } from '../database/runtime.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
+import { appendAuditEvent } from '../database/audit-event-payload.js';
 import { createPostgresCollectionVersionStore } from './collection-tree-version-postgres.js';
 
 /**
  * Runs inside the plan's commit transaction, before its first operation, so
  * the saved version is exactly the tree the plan changed. A plan the owner
- * approved gets an Undo receipt here; a trusted auto-approval has already
- * captured its version and saves its own receipt after the commit.
+ * approved gets an Undo receipt here, including trusted auto-approvals.
+ * Failed commits roll history, receipts and approval audit back together.
  */
 export async function captureMcpPlanPreCommitVersions(
   transaction: DatabaseTransaction,
   facts: McpPreCommitVersionFacts,
 ): Promise<void> {
   const cause = `agent-plan:${facts.planId}` as const;
+  const policy = facts.policyApproved ? await sql<{ policy: string }>`SELECT policy FROM agent_policies
+    WHERE principal_id=${facts.principalId} AND client_id=${facts.clientId}`.execute(transaction) : undefined;
+  const approvedBy = policy?.rows[0]?.policy === 'trusted' ? 'policy' : 'owner';
   const versions = createPostgresCollectionVersionStore(transaction);
   for (const collectionId of facts.collectionIds) {
     const prior = await transaction.selectFrom('collection_tree_versions')
@@ -48,10 +52,19 @@ export async function captureMcpPlanPreCommitVersions(
       INSERT INTO mcp_plan_policy_receipts (
         plan_id, client_id, approved_by, version_id, collection_id, cause
       ) VALUES (
-        ${facts.planId}, ${facts.clientId}, 'owner', ${versionId}, ${collectionId}, ${cause}
+        ${facts.planId}, ${facts.clientId}, ${approvedBy}, ${versionId}, ${collectionId}, ${cause}
       )
       ON CONFLICT (plan_id) DO NOTHING
     `.execute(transaction);
+    if (approvedBy === 'policy') {
+      const plan = await transaction.selectFrom('mcp_change_plans').select(['risk', 'operations_digest'])
+        .where('plan_id', '=', facts.planId).executeTakeFirstOrThrow();
+      await appendAuditEvent(transaction, { operationId: null, collectionId: null,
+        principalId: facts.principalId, eventType: 'mcp.approval_decision', details: {
+          planId: facts.planId, collectionId, decision: 'auto-approved', approvedBy,
+          status: 'consumed', versionId, cause, risk: plan.risk, operationsDigest: plan.operations_digest,
+        } });
+    }
   }
 }
 

@@ -1,4 +1,6 @@
 import { appendRevisions } from './canonical-revisions.js';
+import { serverMoveOperation } from './server-move-operation.js';
+import type { Operation } from '@know-n/colp/types';
 import { appendAutomationIngest } from '../outbox/automation-ingest.js';
 import { planAutomationFacts, captureAutomationFacts, automationCaptureEnabled } from '../automation/fact-capture.js';
 import { resourceKind, type ResourceKind, postgresPlanFacts, type PostgresCanonicalPlanFacts, type CascadedAnnotationRow, type CascadedRelationRow, type CascadedAnnotationPlan, type CascadedRelationPlan } from './canonical-execution-plan.js';
@@ -295,10 +297,14 @@ export interface PostgresCanonicalMutationPortOptions {
   readonly faultInjector?: PostgresCanonicalMutationFaultInjector;
   readonly metrics?: Metrics;
   readonly positionRebalanceWindow?: number;
+  /** Explicit offline maintenance only: preserve the whole folder's order in one canonical move. */
+  readonly positionMaintenance?: boolean;
   readonly operationIdClaimOwner?: PostgresCanonicalOperationIdClaimOwner;
   readonly resourceIdClaimOwner?: PostgresCanonicalResourceIdClaimOwner;
-  /** Non-Sync writers have no COLP Replica/Sequence identity, so force Snapshot recovery. */
+  /** Non-Sync writers use Snapshot recovery unless a supported effect writer is injected. */
   readonly invalidateSyncReplicasOnNodeMutation?: boolean;
+  readonly persistServerMoveEffect?: (transaction: DatabaseTransaction, operation: Operation,
+    commitOrdinal: bigint, sourceParentId: string) => Promise<unknown>;
   /** Product admission already holds this transaction's replica gate and row locks. */
   readonly replicaLocksAlreadyHeld?: (collectionId: string) => boolean;
   readonly socialRouteFaultInjector?: SocialCollectionChangeRouteFaultInjector;
@@ -1580,7 +1586,24 @@ export function createPostgresCanonicalMutationPorts(
             : await readBoundedPlacementContext(tx, placementRequest);
           const placement = bounded.placement;
           const collisionTokens = bounded.siblings.map((row) => row.positionToken);
-          try {
+          if (options.positionMaintenance) {
+            if (facts.resourceKind !== 'node' || request.mutation.action !== 'move'
+              || facts.reads.node?.parent_id !== request.mutation.parentId) {
+              invariant('position maintenance requires an in-place move');
+            }
+            const siblings = await tx.selectFrom('nodes').select(['id', 'position_token'])
+              .where('collection_id', '=', request.collection.collectionId)
+              .where('parent_id', '=', request.mutation.parentId!)
+              .where('deleted_at', 'is', null).where('id', '!=', request.mutation.target.resourceId)
+              .orderBy(sql`position_token collate "C"`).orderBy('id').forUpdate().execute();
+            const insertIndex = siblings.filter(row => row.position_token! < facts.reads.node!.position_token!).length;
+            const plan = planBoundedPositionRebalance({
+              siblings: siblings.map(row => ({ id: row.id, positionToken: row.position_token! })),
+              targetId: request.mutation.target.resourceId, insertIndex, windowSize: Math.max(1, siblings.length),
+            });
+            rebalancedSiblings = plan.siblingAssignments.map(row => ({ ...row, resourceRevision: generateRevisionToken() }));
+            positionToken = plan.targetPositionToken;
+          } else try {
             positionToken = allocatePosition(
               placement.beforeToken,
               placement.afterToken,
@@ -1659,6 +1682,18 @@ export function createPostgresCanonicalMutationPorts(
     },
     operations: {
       async appendCanonicalOperation(tx, record) {
+        const planned = postgresPlanFacts(record.plan);
+        const before = planned.resourceKind === 'node' ? planned.reads.node : null;
+        const source = planned.resourceKind === 'node' ? planned.reads.parents.find(row => row.id === before?.parent_id) : undefined;
+        const target = planned.resourceKind === 'node' ? planned.reads.parents.find(row => row.id === record.plan!.mutation.parentId) : undefined;
+        const serverMove = options.invalidateSyncReplicasOnNodeMutation && options.persistServerMoveEffect && !options.positionMaintenance
+          && !record.syncWire && planned.resourceKind === 'node' && planned.action === 'move'
+          && before?.parent_id && source && target ? serverMoveOperation({
+            operationId: record.operationId, collectionId: record.collectionId, nodeId: before.id,
+            revision: before.resource_revision, parentId: target.id,
+            sourceChildrenRevision: source.children_revision, targetChildrenRevision: target.children_revision,
+            occurredAt: planned.reads.now,
+          }) : undefined;
         const affectedAnnotationIds = (postgresPlanFacts(record.plan).annotations).map((row) => row.id),
           affectedRelationIds = (postgresPlanFacts(record.plan).relations).map((row) => row.id);
         if (options.operationIdClaimOwner) {
@@ -1674,16 +1709,16 @@ export function createPostgresCanonicalMutationPorts(
             ...(affectedAnnotationIds.length > 0 ? { affectedAnnotationIds } : {}),
             ...(affectedRelationIds.length > 0 ? { affectedRelationIds } : {}),
           } as Record<string, unknown>,
-          syncWireJson: record.syncWire ?? null,
+          syncWireJson: record.syncWire ?? (serverMove as unknown as JsonObject | undefined) ?? null,
           actorPrincipalId: record.actorPrincipalId,
         });
-        const planned = postgresPlanFacts(record.plan);
+        if (serverMove) await options.persistServerMoveEffect!(tx, serverMove, record.commitOrdinal, before!.parent_id!);
         if (planned.resourceKind === 'node' && planned.action === 'restore') {
           await sql`INSERT INTO sync_restored_tombstones
             (collection_id, operation_id, target_id, restore_operation_id)
             VALUES (${record.collectionId}, ${planned.consumedDeleteOperationId!}, ${record.target.resourceId}, ${record.operationId})`.execute(tx);
         }
-        if (options.invalidateSyncReplicasOnNodeMutation && record.target.resourceKind === 'node') {
+        if (options.invalidateSyncReplicasOnNodeMutation && !serverMove && record.target.resourceKind === 'node') {
           await tx.updateTable('sync_replicas').set({
             status: 'recovery_required',
             lifecycle_revision: sql<bigint>`lifecycle_revision + 1`,

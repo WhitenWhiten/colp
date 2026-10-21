@@ -93,7 +93,7 @@ export interface Phase4bMcpNodeMoveCatalogInput {
   readonly collectionId?: string;
   /** Exactly one of `nodeId` and `nodeIds`. */
   readonly nodeId?: string;
-  /** Moves up to 50 nodes of one collection, in order, in one plan. */
+  /** Moves up to 1000 nodes of one collection, in order, in one plan. */
   readonly nodeIds?: readonly string[];
   readonly parentId: string;
   readonly position?: number;
@@ -860,7 +860,7 @@ function readOptionalMovePosition(snapshot: Readonly<Record<string, unknown>>): 
 }
 
 /** Most nodes one `nodes.move` plan may move. */
-export const PHASE4B_MCP_MOVE_BATCH_LIMIT = 50;
+export const PHASE4B_MCP_MOVE_BATCH_LIMIT = 1000;
 
 function readMoveNodeIds(snapshot: Readonly<Record<string, unknown>>): readonly string[] {
   const single = Object.getOwnPropertyDescriptor(snapshot, 'nodeId');

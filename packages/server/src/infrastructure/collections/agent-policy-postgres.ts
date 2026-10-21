@@ -14,7 +14,6 @@ import type { RestoreCollectionVersionPorts } from '../../modules/collections/in
 import {
   AgentPlanUndoError,
   isAgentClientId,
-  captureAgentPlanCollectionVersion,
   createAutoApproveTrustedPlan,
   createPhase4bMcpWriteApprovalApi,
   undoAgentPlanVersion,
@@ -78,32 +77,7 @@ export function createPostgresAutoApproveTrustedPlan(
     readPolicy: (principalId, clientId) => readAgentPolicy(db, principalId, clientId),
     assertTrustedPolicy: async (principalId, clientId) =>
       (await readAgentPolicy(db, principalId, clientId)) === 'trusted',
-    captureVersion: (input) => captureAgentPlanCollectionVersion(
-      (work) => createPostgresCollectionVersionUnitOfWork(db).execute(
-        (ports) => work(ports as RestoreCollectionVersionPorts),
-      ),
-      input,
-    ),
-    saveReceipt: (receipt) => savePolicyReceipt(db, receipt),
-    audit: (input) => createUnitOfWork(db).execute(async ({ transaction }) => {
-      await appendAuditEvent(transaction, {
-        operationId: null,
-        collectionId: null,
-        principalId: input.principalId,
-        eventType: 'mcp.approval_decision',
-        details: {
-          planId: input.planId,
-          collectionId: input.collectionId,
-          decision: 'auto-approved',
-          approvedBy: 'policy',
-          status: 'consumed',
-          versionId: input.versionId,
-          cause: input.cause,
-          risk: input.risk,
-          operationsDigest: input.operationsDigest,
-        },
-      });
-    }),
+    readCommittedReceipt: planId => readPolicyReceipt(db, planId),
   });
 }
 
@@ -383,21 +357,6 @@ async function listPolicyReceipts(
     });
   }
   return receipts;
-}
-
-async function savePolicyReceipt(
-  db: Kysely<DatabaseSchema>,
-  receipt: AgentPlanPolicyReceipt,
-): Promise<void> {
-  await sql`
-    INSERT INTO mcp_plan_policy_receipts (
-      plan_id, client_id, approved_by, version_id, collection_id, cause
-    ) VALUES (
-      ${receipt.planId}, ${receipt.clientId}, ${receipt.approvedBy},
-      ${receipt.versionId}, ${receipt.collectionId}, ${receipt.cause}
-    )
-    ON CONFLICT (plan_id) DO UPDATE SET approved_by = EXCLUDED.approved_by
-  `.execute(db);
 }
 
 function assertClientId(clientId: string): void {

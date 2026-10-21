@@ -83,7 +83,7 @@ export function snapshotV02PagesFromStaging(input: {
   readonly nodes: ReadonlyArray<{
     readonly page: number; readonly colpId: string; readonly parentId: string | null;
     readonly kind: 'Folder' | 'Bookmark' | 'Separator'; readonly snapshotChildrenRevision?: string;
-    readonly mapping: { readonly projection: { readonly childrenRevision?: string } };
+    readonly mapping: { readonly projection: { readonly childrenRevision?: string | null } };
   }>;
 }): SnapshotV02Page[] {
   const grouped = new Map<number, Array<(typeof input.nodes)[number]>>();

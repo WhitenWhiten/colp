@@ -213,7 +213,7 @@ test('an unauthorized origin receives no bearer session, retire, or sync request
     /server_configuration_failed/);
   assert.equal(retireCalls.length, 0);
 
-  const inner = vi.fn(async () => new Response(null, { status: 204 }));
+  const inner = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 204 }));
   const syncScope: SyncScope = {
     environment: 'production', serverId: origin, serverOrigin: origin, accountId: 'account',
     browserProfileId: 'profile', collectionId: 'collection', replicaId: 'replica', generation: 1,

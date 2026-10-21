@@ -1,4 +1,4 @@
-import { SyncFailureError, freezesPullApply } from './sync-failure-class.js';
+import { SyncFailureError, freezesPullApply, normalizeSyncFailureCode } from './sync-failure-class.js';
 import { recordKns09Stop } from './kns-09-release.js';
 import type { PullApplierOptions } from './pull-applier-types.js';
 import { inheritFrozenEngineFacts } from './sync-state/engine-transition.js';
@@ -25,7 +25,7 @@ type StagingStore = Pick<ReturnType<typeof createSyncStateStore>,
 const CURSOR_EXPIRY = new Set(['sync_cursor_expired', 'snapshot_expired']);
 
 export function isCursorExpiryCode(code: string): boolean {
-  return CURSOR_EXPIRY.has(code) || code.endsWith('_sync_cursor_expired');
+  return CURSOR_EXPIRY.has(normalizeSyncFailureCode(code));
 }
 
 /**

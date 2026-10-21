@@ -57,6 +57,32 @@ function insertWithProductionFallback(
 }
 
 describe('bounded position rebalance', () => {
+  test('ordinary tail appends stay compact for large bookmark folders', () => {
+    let last = allocatePosition(null, null);
+    for (let index = 0; index < 10_000; index += 1) {
+      const next = allocatePosition(last, null, [last]);
+      assert.ok(next > last);
+      assert.ok(next.length <= 8);
+      last = next;
+    }
+  });
+
+  test('tail allocation escapes legacy 128-byte keys', () => {
+    const legacy = 'V'.repeat(128);
+    const next = allocatePosition(legacy, null, [legacy]);
+    assert.ok(next > legacy);
+    assert.ok(next.length <= 8);
+  });
+
+  test('a dense window uses all available fixed-width positions', () => {
+    const prefix = 'V'.repeat(127);
+    const siblings = [
+      { id: 'left', positionToken: prefix + '0' },
+      { id: 'inside', positionToken: prefix + '1' },
+      { id: 'right', positionToken: prefix + '4' },
+    ];
+    assertStrictOrder(applyPlan(siblings, 'target', 2, 1));
+  });
   test('all allocated positions are valid COLP order keys', () => {
     const positions = [
       allocatePosition(null, null),

@@ -400,7 +400,7 @@ describe('T-03 delete recovery and retained copies (SRG-04/07 / C-02/C-05)', () 
       parentId: 'root-colp', replicaId: t03Scope.replicaId, targetKind: 'folder',
     });
     await echo.store.allocateSequenceAndEnqueue(t03Scope, {
-      opId: event.operation.opId, batchId: 'batch-self-echo', idempotencyKey: 'key-self-echo',
+      opId: event.operation!.opId, batchId: 'batch-self-echo', idempotencyKey: 'key-self-echo',
       digest: 'sha256:self-echo', endpointIdentity: 'syncPush', mediaType: 'application/json',
       baseRevision: null, operationRevision: 'local-self-echo', status: 'pending',
       retry: { attempt: 0, notBefore: 0 },

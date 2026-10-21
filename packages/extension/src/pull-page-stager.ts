@@ -14,7 +14,7 @@ import { assertUniqueEvents, byteLength, digest, plainJson, record, validateEffe
 type PullOperationEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
 
 export interface PullPageApplyRuntime {
-  preflight(event: PullOperationEvent, stagedCreates: ReadonlySet<string>): Promise<void>;
+  preflight(event: PullOperationEvent, stagedCreates: ReadonlySet<string>, stagedParents?: ReadonlyMap<string, string>): Promise<void>;
   preflightMapping(colpId: string, stagedCreates: ReadonlySet<string>,
     role: 'member' | 'parent' | 'target'): Promise<unknown>;
   resume(): Promise<void>;
@@ -107,6 +107,7 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
     // Nodes created earlier in this page have no mapping yet; neither do nodes
     // set aside earlier. Events about either stage normally and are decided at apply.
     const stagedCreates = new Set<string>((await options.store.listPullIssues(options.scope)).map((issue) => issue.nodeId));
+    const stagedParents = new Map<string, string>();
     if (byteLength({ response, effectPages: suppliedPages })
         > sessionTransportBudget(options.session).effectAggregateBytes) throw new SyncFailureError('pull_page_invalid');
     const effectPages: AuthoritativeEffectPage[] = suppliedPages.map((page) => plainJson(page) as unknown as AuthoritativeEffectPage);
@@ -154,10 +155,13 @@ export function createPullPageStager(options: PullApplierOptions, now: () => num
           if (error !== undefined) tolerated.push({ position, ids: [member], error });
         }
       } else if (pages.length) throw new SyncFailureError('unexpected_effect_page');
-      const error = await itemPreflight(() => runtime.preflight(event, stagedCreates));
+      const error = await itemPreflight(() => runtime.preflight(event, stagedCreates, stagedParents));
       if (error !== undefined) tolerated.push({ position, ids: dependencyIds(event), error });
       if (event.effect.kind === 'node_created' || event.effect.kind === 'node_restored') {
         stagedCreates.add(event.effect.node.id); createdAt.set(event.effect.node.id, position);
+      }
+      if (event.effect.kind === 'node_created' || event.effect.kind === 'node_restored' || event.effect.kind === 'node_moved') {
+        stagedParents.set(event.effect.node.id, event.effect.placement.parentId);
       }
       const localEvent = event.effect.kind === 'subtree_deleted' && 'effectRef' in event.effect && event.effect.effectRef
         ? { ...event, verifiedMembers: pages.flatMap((page) => page.members) } : event;

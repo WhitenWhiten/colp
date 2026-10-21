@@ -5,6 +5,7 @@ import { createCanonicalMutationApplication, type CanonicalMutationInput } from 
 import { createPostgresCanonicalMutationPorts, canonicalBookmarkMoveBatch, type CanonicalTreeCapacityAdmission } from '../collections/index.js';
 import { lockActiveSyncReplicasForCollection } from '../database/lock-order.js';
 import type { DatabaseTransaction } from '../database/unit-of-work.js';
+import type { PlannedBookmarkMove } from '../collections/canonical-bookmark-move-plan.js';
 /** Transaction-local M1 Owner effect, with the same canonical authority as other writers. */
 export async function lockPlacementCollection(tx: DatabaseTransaction, actor: AutomationActor, collectionId: string) {
   await lockActiveSyncReplicasForCollection(tx, collectionId);
@@ -34,7 +35,11 @@ export function placementMoveInput(actor: AutomationActor, input: {
 
 export async function canonicalPlacementMoveBatch(tx: DatabaseTransaction, collectionId: string,
   inputs: readonly CanonicalMutationInput[], admission: CanonicalTreeCapacityAdmission): Promise<boolean> {
-  return canonicalBookmarkMoveBatch(tx, collectionId, inputs, admission, automationCaptureEnabled() ? async (tx, moves) => {
+  return canonicalBookmarkMoveBatch(tx, collectionId, inputs, admission,
+    automationCaptureEnabled() ? capturePlacementMoveFacts : undefined);
+}
+
+export async function capturePlacementMoveFacts(tx: DatabaseTransaction, moves: readonly PlannedBookmarkMove[]) {
     await captureAutomationFactsBatch(tx, moves.map(move => {
       const facts = move.event.plan!.facts!;
       const snapshot = (row: typeof move.after, ancestry: typeof facts.sourceAncestors): AutomationNodeSnapshot => ({
@@ -48,5 +53,4 @@ export async function canonicalPlacementMoveBatch(tx: DatabaseTransaction, colle
       return { event: move.event, input: move.input, allocation: move.result.allocation,
         planned: { before: snapshot(facts.before, facts.sourceAncestors), after: snapshot(move.after, facts.targetAncestors) } };
     }));
-  } : undefined);
 }

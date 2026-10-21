@@ -98,6 +98,7 @@ function mapCollectionRow(row: {
 }
 
 function mapNodeRow(row: {
+  folder_role?: string | null;
   id: string;
   collection_id: string;
   parent_id: string | null;
@@ -117,6 +118,7 @@ function mapNodeRow(row: {
   deleted_commit_ordinal: bigint | string | number | null;
 }): NodeRelationalProjection {
   return {
+    folderRole: row.folder_role,
     id: row.id,
     collectionId: row.collection_id,
     parentId: row.parent_id,
@@ -181,6 +183,7 @@ export function dualReadCollectionPayload(
  */
 export function dualReadNodePayload(
   row: {
+    folder_role?: string | null;
     id: string;
     collection_id: string;
     parent_id: string | null;
@@ -241,6 +244,7 @@ export async function scanResourceAuthorityMismatches(
   const nodeRows = await db
     .selectFrom('nodes')
     .select([
+      'folder_role',
       'id',
       'collection_id',
       'parent_id',
@@ -425,6 +429,7 @@ export async function backfillResourcePayloads(
   const nodeRows = await db
     .selectFrom('nodes')
     .select([
+      'folder_role',
       'id',
       'collection_id',
       'parent_id',

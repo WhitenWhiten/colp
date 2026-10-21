@@ -42,6 +42,7 @@ import {
   createPostgresSyncRecoveryApplication,
   createSyncPullCursorKeyring,
   createSyncRecoveryCapabilityKeyring,
+  persistServerBookmarkMoveEffects,
 } from '../../server/src/infrastructure/sync/index.js';
 import {
   createCompositeExtensionCredentialVerifier,
@@ -82,6 +83,9 @@ import { registerSessionMeRoutes } from '../../server/src/transport/auth/browser
 import { registerBookmarkPreferencesRoutes } from '../../server/src/transport/product/bookmark-preferences-routes.js';
 import { installProductAdmission } from '../../server/src/transport/product-admission.js';
 import { ProductHttpError, sendProductError } from '../../server/src/transport/product-error.js';
+import { createUnitOfWork } from '../../server/src/infrastructure/database/unit-of-work.js';
+import { canonicalBookmarkMoveBatch } from '../../server/src/infrastructure/collections/canonical-bookmark-move-batch.js';
+import { withCanonicalTreeCapacityBatch } from '../../server/src/infrastructure/collections/canonical-tree-capacity.js';
 
 const EXTENSION_ID = 'pplpnpegpnghcddhmpgkbfkdfadjiaen';
 const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
@@ -178,6 +182,8 @@ export interface RealStack {
   }>;
   seedCanonicalFixture(nestedBookmark?: boolean): Promise<CanonicalFixture>;
   concurrentlyUpdateCanonicalBookmark(fixture: CanonicalFixture): Promise<void>;
+  /** Exercise the same canonical server-origin bulk writer used by MCP commits. */
+  moveCanonicalBookmarks?(nodeIds: readonly string[], parentId: string): Promise<void>;
   commitAfterDisconnect(): Promise<void>;
   restorePushResponses(): Promise<void>;
   listDeletedCanonicalNodes(): Promise<ReadonlyArray<{
@@ -1029,6 +1035,24 @@ export async function startRealStack(options: {readonly classification?:boolean;
       await auxiliaryPush(authority, { type: 'update_node_content', targetId: fixture.bookmarkId,
         baseRevision: fixture.bookmarkRevision, payload: { base: { title: fixture.bookmarkTitle,
           url: fixture.bookmarkUrl }, value: { title: 'Concurrent authority update', url: fixture.bookmarkUrl } } });
+    },
+    async moveCanonicalBookmarks(nodeIds, parentId) {
+      await createUnitOfWork(isolated.runtime.db).execute(async ({ transaction }) => {
+        const rows = await transaction.selectFrom('nodes').select(['id', 'resource_revision'])
+          .where('collection_id', '=', activeLibraryId).where('id', 'in', [...nodeIds]).execute();
+        const revisions = new Map(rows.map(row => [row.id, row.resource_revision]));
+        const inputs = nodeIds.map(id => ({ operationId: randomUUID(), collectionId: activeLibraryId,
+          actor: { principalId: fixtureAccount!.subjectId, principalType: 'account' as const },
+          automationContext: { origin: 'mcp' as const },
+          mutation: { action: 'move' as const, target: { collectionId: activeLibraryId,
+            resourceId: id, resourceKind: 'node' as const }, parentId,
+          expectedResourceRevision: revisions.get(id)!, fields: { kindFields: {}, extensions: {} } },
+        }));
+        const applied = await withCanonicalTreeCapacityBatch(transaction, activeLibraryId, admission =>
+          canonicalBookmarkMoveBatch(transaction, activeLibraryId, inputs, admission, undefined,
+            { serverSync: persistServerBookmarkMoveEffects }));
+        if (!applied) throw new Error('server_move_batch_unexpected_fallback');
+      });
     },
     async commitAfterDisconnect() { disconnectPushResponses = true; },
     async restorePushResponses() { disconnectPushResponses = false; },

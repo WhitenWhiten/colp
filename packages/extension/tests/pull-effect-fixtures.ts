@@ -38,7 +38,8 @@ export const pullFixtures = Object.freeze({
       consumedTombstone });
   },
   mutationEvent(input: { kind: 'update' | 'move' | 'delete'; sequence: number; collectionId: string;
-    targetId: string; parentId: string; replicaId?: string; targetKind?: 'bookmark' | 'folder'; url?: string }) {
+    targetId: string; parentId: string; replicaId?: string; targetKind?: 'bookmark' | 'folder'; url?: string;
+    afterId?: string; beforeId?: string }) {
     const type = input.kind === 'update' ? 'update_node_content' : input.kind === 'move' ? 'move_node' : 'delete_node';
     const operation: any = baseOperation(type, input); operation.targetId = input.targetId; operation.baseRevision = 'revision-old';
     operation.payload = input.kind === 'update' ? { base: { title: 'node-1', url: 'https://example.test/' },
@@ -50,7 +51,7 @@ export const pullFixtures = Object.freeze({
       node: { ...fullNode(input.targetKind ?? 'bookmark', input.targetId, input.collectionId, input.parentId),
         position: `p${input.sequence}` },
       placement: { parentId: input.parentId,
-        afterId: null, beforeId: null, position: `p${input.sequence}` }, parentRevisions: [{ parentId: input.parentId,
+        afterId: input.afterId ?? null, beforeId: input.beforeId ?? null, position: `p${input.sequence}` }, parentRevisions: [{ parentId: input.parentId,
         childrenRevision: `children-${input.sequence}` }] });
     const tombstone = tombstoneFor(operation, 'single', 1); return boundEvent(operation, { kind: 'node_deleted',
       deletion: tombstone, tombstone, parentRevision: { parentId: input.parentId, childrenRevision: `children-${input.sequence}` } });

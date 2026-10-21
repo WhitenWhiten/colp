@@ -15,6 +15,7 @@ import {
   createAgentPolicyCommitGuard,
   createPhase4bMcpAgentApprovalApi,
   createPostgresAutoApproveTrustedPlan,
+  captureMcpPlanPreCommitVersions,
   recordMcpPlanCommitRevisions,
   writeAgentPolicy,
 } from '../../../src/infrastructure/collections/index.js';
@@ -442,6 +443,7 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
     );
     const serviceOptions: Phase4bMcpChangePlanServiceOptions = Object.freeze({
       autoApproveTrustedPlan: createPostgresAutoApproveTrustedPlan(runtime.db),
+      capturePreCommitVersions: captureMcpPlanPreCommitVersions,
       recordCommittedContentRevisions: recordMcpPlanCommitRevisions as unknown as NonNullable<
         Phase4bMcpChangePlanServiceOptions['recordCommittedContentRevisions']>,
       planner,
@@ -1054,7 +1056,7 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
     });
   });
 
-  test('E4 Undo refuses a newer version unless forced and refuses a sync tombstone conflict', async () => {
+  test('E4 Undo ignores a later snapshot without a content change and refuses a sync tombstone conflict', async () => {
     const fixture = await createFixture();
     await runtime.pool.query(
       `insert into agent_policies (principal_id, client_id, policy) values ($1, $2, 'trusted')`,
@@ -1075,25 +1077,15 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
       [fixture.collectionId],
     );
     const api = createPhase4bMcpAgentApprovalApi(runtime.db);
-    await assert.rejects(
-      api.undo({
-        accountId: PRINCIPAL_ID,
-        subjectId: PRINCIPAL_ID,
-        planId: planned.planId,
-        force: false,
-        commandId: randomUUID(),
-      }),
-      (error: unknown) => error instanceof AgentPlanUndoError && error.code === 'newer_version',
-    );
     assert.equal((await liveTitles(fixture.collectionId)).includes('W05 planned bookmark'), true);
-    const forced = await api.undo({
+    const restored = await api.undo({
       accountId: PRINCIPAL_ID,
       subjectId: PRINCIPAL_ID,
       planId: planned.planId,
-      force: true,
+      force: false,
       commandId: randomUUID(),
     });
-    assert.equal(forced.restored, true);
+    assert.equal(restored.restored, true);
     assert.equal((await liveTitles(fixture.collectionId)).includes('W05 planned bookmark'), false);
 
     const again = await createFixture();

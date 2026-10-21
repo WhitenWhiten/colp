@@ -1,5 +1,16 @@
 # Know-N for Chrome
 
+Version 0.1.1 restarts expired snapshot recovery (including
+`snapshot_409_snapshot_expired`) without discarding queued local edits. Pull
+preflight accounts for earlier moves on the same page before validating later
+placement anchors, then checks actual mappings again before a native move.
+For an unpacked installation, replace the files in the existing extension
+directory and reload it at `chrome://extensions`; keep the same directory and
+extension identity so its durable state remains available. Open the extension
+and resume sync after updating; do not clear its storage to recover an expired
+snapshot. `npm run package` creates `dist/known-extension-0.1.1.zip` using the
+production configuration.
+
 A bookmark manager for Chromium browsers. Save the page you are on, tag it, add a note, and organize the
 browser's own bookmarks from one place. Everything works on this browser without an account. When you want,
 sign in to Know-N to sync bookmarks you own across browsers, follow collections, and get AI folder suggestions.

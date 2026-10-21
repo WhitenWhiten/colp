@@ -339,6 +339,34 @@ describe('P3-32 durable Pull authority', () => {
     await assert.rejects(() => fixture.applier.stage(fixture.page([event])), /anchor_parent_mismatch/);
   });
 
+  test('a move can anchor to a bookmark moved earlier in the same page', async () => {
+    const fixture = await setup();
+    await fixture.store.putMapping(scope, { ...fixture.mapping('native-other', 'other-colp', 'native-root'), nodeKind: 'folder' });
+    fixture.api.seed({ id: 'native-other', parentId: 'native-root', index: 2, title: 'Destination' });
+    await fixture.store.putMapping(scope, fixture.mapping('native-second', 'node-2', 'native-root'));
+    fixture.api.seed({ id: 'native-second', parentId: 'native-root', index: 1, title: 'Second', url: 'https://example.test/second' });
+    const first = pullFixtures.mutationEvent({ kind: 'move', sequence: 1, collectionId: scope.collectionId,
+      targetId: 'node-1', parentId: 'other-colp' });
+    const second = pullFixtures.mutationEvent({ kind: 'move', sequence: 2, collectionId: scope.collectionId,
+      targetId: 'node-2', parentId: 'other-colp', afterId: 'node-1' });
+    await fixture.applier.stage(fixture.page([first, second]));
+    await fixture.applier.resume();
+    assert.deepEqual((await fixture.api.getChildren('native-other')).map(node => node.id), ['native-node', 'native-second']);
+    assert.equal((await fixture.store.exportScope(scope)).pullPages[0]?.state, 'page_complete');
+  });
+
+  test('a preceding move to another folder cannot validate a mismatched anchor', async () => {
+    const fixture = await setup();
+    await fixture.store.putMapping(scope, { ...fixture.mapping('native-other', 'other-colp', 'native-root'), nodeKind: 'folder' });
+    fixture.api.seed({ id: 'native-other', parentId: 'native-root', index: 2, title: 'Destination' });
+    const first = pullFixtures.mutationEvent({ kind: 'move', sequence: 1, collectionId: scope.collectionId,
+      targetId: 'node-1', parentId: 'other-colp' });
+    const second = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 2, collectionId: scope.collectionId,
+      parentId: 'root-colp', afterId: 'node-1' });
+    await assert.rejects(() => fixture.applier.stage(fixture.page([first, second])), /anchor_parent_mismatch/);
+    assert.equal(fixture.api.calls.length, 0);
+  });
+
   test('sets a create aside, unplaced, when its mapped after-anchor disappeared from Chrome', async () => {
     const fixture = await setup(); await fixture.api.remove('native-node');
     const event = pullFixtures.createEvent({ kind: 'Bookmark', sequence: 1, collectionId: scope.collectionId,

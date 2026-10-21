@@ -106,6 +106,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     findApplyIntent: pull.findApplyIntent, getApplyIntent: pull.getApplyIntent,
     listNativeWaitIntents: intentFacts.listNativeWaitIntents, listApplyIntents: intentFacts.listApplyIntents, persistApplyIntentFacts: intentFacts.persistApplyIntentFacts,
     hasActiveApplyIntentForNativeTarget: pull.hasActiveApplyIntentForNativeTarget,
+    pruneExpiredCompletedApplyIntents: pull.pruneExpiredCompletedApplyIntents,
     commitApplyIntent: pull.commitApplyIntent,
     stagePullPage: pull.stagePullPage, listPullEvents: pull.listPullEvents,
     listPullEventsByPage: pull.listPullEventsByPage,

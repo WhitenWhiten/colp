@@ -249,6 +249,7 @@ describe('P1-02 device remote-delete policy', () => {
     const fixture = await setup();
     await fixture.store.setRemoteDeletePolicy(scope, { policy: 'confirm', expectedCasVersion: 0, now: 10 });
     const event = selfReplicaDelete();
+    assert.ok(event.operation);
     const queued = await fixture.store.allocateSequenceAndEnqueue(scope, {
       opId: event.operation.opId, batchId: 'batch-self-delete', idempotencyKey: 'key-self-delete',
       digest: 'sha256:self-delete', endpointIdentity: 'syncPush', mediaType: 'application/json',

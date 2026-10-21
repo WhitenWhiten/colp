@@ -10,7 +10,8 @@ import { bookmarkMoveOutbox, appendBookmarkMoveOutbox } from './canonical-bookma
 export type BookmarkBatchFactWriter = (tx: DatabaseTransaction, moves: readonly PlannedBookmarkMove[]) => Promise<void>;
 
 /** Flush a fully planned batch inside the caller's existing transaction and gate. */
-export async function writeBookmarkMoves(tx: DatabaseTransaction, plan: BookmarkMovePlan, now: Date, captureFacts?: BookmarkBatchFactWriter) {
+export async function writeBookmarkMoves(tx: DatabaseTransaction, plan: BookmarkMovePlan, now: Date,
+  captureFacts?: BookmarkBatchFactWriter, persistEffects?: BookmarkBatchFactWriter) {
   const c = plan.collection, moves = plan.moves, outbox = bookmarkMoveOutbox(plan, !!captureFacts);
   const ids = [...moves.flatMap(m => [{ resource_id: m.input.operationId, resource_type: 'operation' },
     { resource_id: m.event.domainEventId, resource_type: 'domain-event' }]),
@@ -69,8 +70,10 @@ export async function writeBookmarkMoves(tx: DatabaseTransaction, plan: Bookmark
       AS i(id text,revision text,kind text,payload jsonb,ordinal bigint,operation_id text)`.execute(tx);
   await appendOperationsWithPayload(tx, moves.map(m => ({ operationId: m.input.operationId, collectionId: c.id,
     commitOrdinal: m.result.allocation.commitOrdinal, operationType: m.operation.operationType,
-    payloadJson: m.operation.canonicalPayload, actorPrincipalId: m.input.actor.principalId, createdAt: now })));
-  await tx.updateTable('sync_replicas').set({ status: 'recovery_required', lifecycle_revision: sql<bigint>`lifecycle_revision+1`,
+    payloadJson: m.operation.canonicalPayload, syncWireJson: m.input.operationSyncWire,
+    actorPrincipalId: m.input.actor.principalId, createdAt: now })));
+  if (persistEffects) await persistEffects(tx, moves);
+  else await tx.updateTable('sync_replicas').set({ status: 'recovery_required', lifecycle_revision: sql<bigint>`lifecycle_revision+1`,
     wire_json: sql<Record<string, unknown>>`jsonb_set(wire_json,'{status}','"recovery_required"'::jsonb,true)` })
     .where('collection_id', '=', c.id).where('status', '=', 'active').execute();
   await appendAuditEvents(tx, moves.map(m => ({ operationId: m.input.operationId, collectionId: c.id,

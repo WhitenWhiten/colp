@@ -37,3 +37,5 @@ export { REPLICA_LEASE_BOUNDS, TOMBSTONE_RETENTION_BOUNDS } from '../../modules/
 export type { AttachmentExposurePolicyPort } from '../../modules/sync/index.js';
 // E2: bootstrap composes the MCP subtree-delete tombstone writer through this surface.
 export { recordMcpDeleteSubtreeTombstones } from './mcp-delete-subtree-tombstone-postgres.js';
+export { persistAuthoritativeOperationEffect } from './sync-operation-effects-postgres.js';
+export { persistServerBookmarkMoveEffects } from './server-bookmark-move-effects.js';

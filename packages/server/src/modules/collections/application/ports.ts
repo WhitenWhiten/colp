@@ -421,6 +421,8 @@ export interface ProductCollectionCanonicalPorts {
   readonly accessPolicy: AccessPolicyFactsPort;
   readonly canonical: {
     execute(input: CanonicalMutationInput): Promise<CanonicalMutationResult>;
+    /** Optional atomic bulk path. Undefined means no effects and the normal path is required. */
+    executeMoves?(inputs: readonly CanonicalMutationInput[]): Promise<readonly CanonicalMutationResult[] | undefined>;
     bootstrapOwnedCollection(
       input: CanonicalOwnedCollectionBootstrapInput,
     ): Promise<CanonicalOwnedCollectionBootstrapResult>;

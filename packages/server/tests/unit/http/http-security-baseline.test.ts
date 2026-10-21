@@ -848,7 +848,7 @@ describe('bounded request settings', () => {
     const defaults = loadConfig(testEnv());
     assert.equal(defaults.httpSecurity.bodyLimitBytes, 131_072);
     assert.equal(defaults.httpSecurity.requestTimeoutMs, 30_000);
-    assert.equal(defaults.httpSecurity.connectionTimeoutMs, 10_000);
+    assert.equal(defaults.httpSecurity.connectionTimeoutMs, 60_000);
     assert.equal(defaults.httpSecurity.authRateLimit.maxRequests, 60);
     // FIX-M-006: independent anonymous Search budget (PUB-R03).
     assert.equal(defaults.httpSecurity.searchRateLimit.anonymousMaxRequests, 30);

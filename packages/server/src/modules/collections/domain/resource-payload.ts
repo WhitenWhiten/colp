@@ -60,6 +60,7 @@ export interface CollectionRelationalProjection {
 }
 
 export interface NodeRelationalProjection {
+  readonly folderRole?: string | null;
   readonly id: string;
   readonly collectionId: string;
   readonly parentId: string | null;
@@ -421,7 +422,7 @@ export function materializeNodePayload(row: NodeRelationalProjection): Materiali
     kind: wireKind,
     isRoot: row.isRoot,
     ...(row.isRoot ? { folderRole: 'root', title: row.title, url: null }
-      : row.kind === 'folder' ? { folderRole: null, title: row.title, url: null }
+      : row.kind === 'folder' ? { folderRole: row.folderRole ?? null, title: row.title, url: null }
         : row.kind === 'bookmark' ? { folderRole: null, title: row.title, url: row.url }
           : {}),
     description: row.description,

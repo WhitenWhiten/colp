@@ -1,4 +1,5 @@
 import { syncCredentialIsAuthorized } from '../sync-credential-authority.js';
+import { snapshotCanCatchUp } from '../snapshot-catchup.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { sql, type Kysely, type Selectable } from 'kysely';
 import { createValidatorRegistry } from '@know-n/colp/schema';
@@ -150,8 +151,9 @@ export function createPostgresSyncRecoveryApplication(db: Kysely<DatabaseSchema>
         const snapshot = await loadSnapshot(transaction, input.snapshotId, authority);
         const collection = await transaction.selectFrom('collections').select(['content_revision', 'policy_revision'])
           .where('id', '=', authority.collectionId).forUpdate().executeTakeFirst();
-        if (!collection || collection.content_revision !== snapshot.content_revision
-            || collection.policy_revision !== snapshot.policy_revision) deny('stale_replica');
+        if (!collection || collection.policy_revision !== snapshot.policy_revision
+          || collection.content_revision !== snapshot.content_revision
+            && !await snapshotCanCatchUp(transaction, authority.collectionId, snapshot.snapshot_json)) deny('stale_replica');
         const pages = await completePages(transaction, snapshot.snapshot_id, snapshotNodeCount(snapshot.snapshot_json));
         const boundary = await loadBoundary(transaction, authority.collectionId);
         const claims = claimsFrom(authority, snapshot, boundary, pages.length);
@@ -257,8 +259,9 @@ async function acknowledgeRecovery(transaction: DatabaseTransaction, input: Reco
   const collection = await transaction.selectFrom('collections')
     .select(['content_revision', 'policy_revision', 'commit_ordinal'])
     .where('id', '=', authority.collectionId).forUpdate().executeTakeFirst();
-  if (!collection || collection.content_revision !== snapshot.content_revision
-      || collection.policy_revision !== snapshot.policy_revision) deny('stale_replica');
+  if (!collection || collection.policy_revision !== snapshot.policy_revision
+    || collection.content_revision !== snapshot.content_revision
+      && !await snapshotCanCatchUp(transaction, authority.collectionId, snapshot.snapshot_json)) deny('stale_replica');
   const pages = await completePages(transaction, snapshot.snapshot_id, capability.snapshot_node_count);
   if (pages.length !== capability.snapshot_page_count
       || snapshotNodeCount(snapshot.snapshot_json) !== capability.snapshot_node_count
