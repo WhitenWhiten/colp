@@ -4,6 +4,7 @@ import * as packageBoundary from '../../src/server/index.js';
 import { isOpaqueId } from '../../src/semantic/index.js';
 import {
   NodeWriteGuardError,
+  authoritativeNodeWriteChildrenPage,
   executeGuardedNodeWrite,
   resolveNodeWriteLimits,
   type GuardedNodeWriteMutation,
@@ -52,7 +53,7 @@ function resolver(nodes: readonly StrictNode[]): NodeWriteResolver {
     },
     async resolveChildren(parentId, limit) {
       const children = nodes.filter((node) => node.parentId === parentId);
-      return { nodes: children.slice(0, limit), hasMore: children.length > limit };
+      return authoritativeNodeWriteChildrenPage(children.slice(0, limit), children.length > limit);
     },
   };
 }
@@ -275,7 +276,7 @@ describe('Phase 1 composed Node write guard [evidence:core.guarded-node-write]',
       async resolveNode(id) { return byId.get(id); },
       async resolveChildren(id, limit) {
         const children = childrenByParent.get(id) ?? [];
-        return { nodes: children.slice(0, limit), hasMore: children.length > limit };
+        return authoritativeNodeWriteChildrenPage(children.slice(0, limit), children.length > limit);
       },
     };
 
@@ -538,6 +539,78 @@ describe('Phase 1 composed Node write guard [evidence:core.guarded-node-write]',
     await expect(execute(
       { kind: 'delete-subtree', nodeId: parent.id }, duplicateChild,
     )).rejects.toSatisfy((error: unknown) => denialCode(error) === 'node_subtree_cycle');
+  });
+
+  it('reuses authoritative child pages and still rejects forged, conflicting, and incomplete pages', async () => {
+    const parent = folder('parent');
+    const child = folder('child', parent.id);
+    const nested = bookmark('nested', child.id);
+    const nodes = [root(), parent, child, nested];
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const resolveNode = vi.fn(async (id: string) => byId.get(id));
+    const authoritative: NodeWriteResolver = {
+      async resolveCollection(id) {
+        return id === collection.id ? collection : undefined;
+      },
+      resolveNode,
+      async resolveChildren(parentId, limit) {
+        const children = nodes.filter((node) => node.parentId === parentId);
+        return authoritativeNodeWriteChildrenPage(children.slice(0, limit), children.length > limit);
+      },
+    };
+    await expect(execute(
+      { kind: 'delete-subtree', nodeId: parent.id },
+      authoritative,
+    )).resolves.toMatchObject({
+      deletedNodeIds: ['parent', 'child', 'nested'],
+      deletedNodeCount: 3,
+    });
+    const lookedUp = resolveNode.mock.calls.map(([id]) => id);
+    expect(lookedUp).not.toContain('child');
+    expect(lookedUp).not.toContain('nested');
+
+    const forged = vi.fn(async (id: string) => byId.get(id));
+    const forgedPage: NodeWriteResolver = {
+      ...authoritative,
+      resolveNode: forged,
+      async resolveChildren(parentId) {
+        const children = nodes.filter((node) => node.parentId === parentId);
+        return { nodes: children, hasMore: false, authoritative: true };
+      },
+    };
+    await expect(execute(
+      { kind: 'delete-subtree', nodeId: parent.id },
+      forgedPage,
+    )).resolves.toMatchObject({ deletedNodeCount: 3 });
+    expect(forged.mock.calls.map(([id]) => id)).toEqual(expect.arrayContaining(['child', 'nested']));
+
+    const conflict: NodeWriteResolver = {
+      ...authoritative,
+      async resolveChildren(parentId) {
+        if (parentId === child.id) {
+          return authoritativeNodeWriteChildrenPage([{ ...parent, parentId: child.id }], false);
+        }
+        const children = nodes.filter((node) => node.parentId === parentId);
+        return authoritativeNodeWriteChildrenPage(children, false);
+      },
+    };
+    await expect(execute(
+      { kind: 'delete-subtree', nodeId: parent.id },
+      conflict,
+    )).rejects.toSatisfy((error: unknown) => denialCode(error) === 'node_subtree_unresolved');
+
+    const incomplete: NodeWriteResolver = {
+      ...authoritative,
+      async resolveChildren() {
+        return authoritativeNodeWriteChildrenPage([], true);
+      },
+    };
+    await expect(execute(
+      { kind: 'delete-subtree', nodeId: parent.id },
+      incomplete,
+      hooks(),
+      { maxVisitedNodes: 10 },
+    )).rejects.toSatisfy((error: unknown) => denialCode(error) === 'node_subtree_too_large');
   });
 
   it('cross-checks children against resolveNode while accepting detached equivalent rows', async () => {

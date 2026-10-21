@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as publisherModule from '../../src/publisher/index.js';
 import { mapPublisherNodeOperation } from '../../src/publisher/index.js';
-import { problemRegistry } from '../../src/server/index.js';
+import { authoritativeNodeWriteChildrenPage, problemRegistry } from '../../src/server/index.js';
 import type {
   DeleteOperationPayload,
   DeleteResult,
@@ -418,7 +418,7 @@ class AtomicDeleteAdapter {
         }
         const nodes = [...draft.nodes.values()].filter((node) => node.parentId === parentId)
           .sort((left, right) => (left.position ?? '').localeCompare(right.position ?? ''));
-        return { nodes: nodes.slice(0, limit), hasMore: nodes.length > limit };
+        return authoritativeNodeWriteChildrenPage(nodes.slice(0, limit), nodes.length > limit);
       },
       async bindNodeDeletionPlan(binding) {
         adapter.events.push(`bind:${binding.memberNodeIds.join(',')}`);

@@ -46,6 +46,28 @@ export interface NodeWriteChildrenPage {
   readonly hasMore: boolean;
 }
 
+/**
+ * Pages created here were read from the same authoritative snapshot as
+ * `resolveNode`. The membership is unforgeable: copying a field or freezing a
+ * caller-built page does not enter the set.
+ */
+const authoritativeChildrenPages = new WeakSet<object>();
+
+export function authoritativeNodeWriteChildrenPage(
+  nodes: readonly StrictNode[],
+  hasMore: boolean,
+): NodeWriteChildrenPage {
+  if (!Array.isArray(nodes) || typeof hasMore !== 'boolean') {
+    throw new TypeError('Authoritative Node write children page requires a node array and hasMore.');
+  }
+  const page: NodeWriteChildrenPage = Object.freeze({
+    nodes: Object.freeze(nodes.slice()),
+    hasMore,
+  });
+  authoritativeChildrenPages.add(page);
+  return page;
+}
+
 /** All reads must use the same transaction or locked snapshot as the writer. */
 export interface NodeWriteResolver {
   resolveCollection(collectionId: string): Promise<NodeWriteCollectionIdentity | undefined>;
@@ -592,7 +614,7 @@ async function resolveChildren<Context extends NodeWriteResolver>(
   denialCode: 'node_subtree_unresolved',
 ): Promise<readonly StrictNode[]> {
   const remaining = Math.max(0, state.limits.maxVisitedNodes - state.nodes.size);
-  const page = immutableSnapshot(await requirePromise(
+  const resolvedPage = await requirePromise(
     callResolver<NodeWriteChildrenPage>(
       state.context,
       'resolveChildren',
@@ -600,7 +622,11 @@ async function resolveChildren<Context extends NodeWriteResolver>(
       'Node write children resolver',
     ),
     'Node write children resolver',
-  )) as NodeWriteChildrenPage;
+  );
+  const authoritative = typeof resolvedPage === 'object'
+    && resolvedPage !== null
+    && authoritativeChildrenPages.has(resolvedPage);
+  const page = immutableSnapshot(resolvedPage) as NodeWriteChildrenPage;
   if (
     page === null
     || typeof page !== 'object'
@@ -646,6 +672,31 @@ async function resolveChildren<Context extends NodeWriteResolver>(
       });
     }
     seen.add(child.id);
+    if (authoritative) {
+      const cached = state.nodes.get(child.id);
+      if (state.nodes.has(child.id)) {
+        if (cached === undefined || !sameNodeIdentity(cached, child)) {
+          throw guardError(denialCode, 'The child resolver and Node resolver disagree on authoritative identity.', {
+            nodeId: parent.id,
+            collectionId: collection.id,
+            atNodeId: child.id,
+          });
+        }
+        children.push(cached);
+        continue;
+      }
+      if (state.nodes.size >= state.limits.maxVisitedNodes) {
+        throw guardError('node_subtree_too_large', 'Node traversal exceeds maxVisitedNodes.', {
+          nodeId: parent.id,
+          collectionId: collection.id,
+          atNodeId: child.id,
+        });
+      }
+      // The page snapshot is already this round's immutable view of the row.
+      state.nodes.set(child.id, child);
+      children.push(child);
+      continue;
+    }
     const resolved = await resolveNode(state, child.id);
     if (resolved === undefined || resolved !== child && !sameNodeIdentity(resolved, child)) {
       throw guardError(denialCode, 'The child resolver and Node resolver disagree on authoritative identity.', {
