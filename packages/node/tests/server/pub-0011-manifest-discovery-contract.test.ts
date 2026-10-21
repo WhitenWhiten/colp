@@ -235,6 +235,21 @@ describe(`PUB-0011 server Manifest discovery contract ${evidence}`, () => {
     expect(() => handle(source)).toThrow(TypeError);
   });
 
+  it(`accepts a dense protocolVersions array and rejects a missing index ${evidence}`, () => {
+    const dense = manifest();
+    dense.protocolVersions = ['0.1', '0.2'];
+    const document = JSON.parse(requireResponse(handle(dense)).body!) as { protocolVersions: string[] };
+    expect(document.protocolVersions).toEqual(['0.1', '0.2']);
+
+    const missing = manifest();
+    const versions = ['0.1', '0.2'];
+    delete versions[0];
+    Object.assign(versions, { extra: 'pad' });
+    missing.protocolVersions = versions;
+    expect(() => handle(missing)).toThrow(TypeError);
+    expect(() => handle(missing)).toThrow('Publication Manifest is invalid.');
+  });
+
   it(`accepts the exact Manifest byte limit and rejects the next UTF-8 byte ${evidence}`, () => {
     const source = manifest();
     source.title = '';

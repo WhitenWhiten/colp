@@ -239,10 +239,14 @@ function inspectJsonArray(
   if (keys.length !== length + 1 || !keys.includes('length')) {
     throw new TypeError(INVALID_MANIFEST_MESSAGE);
   }
+  const keySet = new Set<string>();
+  for (const key of keys) {
+    if (typeof key === 'string') keySet.add(key);
+  }
   const result: unknown[] = [];
   for (let index = 0; index < length; index += 1) {
     const key = String(index);
-    if (!keys.includes(key)) throw new TypeError(INVALID_MANIFEST_MESSAGE);
+    if (!keySet.has(key)) throw new TypeError(INVALID_MANIFEST_MESSAGE);
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new TypeError(INVALID_MANIFEST_MESSAGE);

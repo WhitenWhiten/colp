@@ -367,6 +367,21 @@ describe(`PUB-0009 anonymous Directory contract ${evidence}`, () => {
     expect(() => selectAnonymousDirectoryCandidates(createCandidates())).toThrow(TypeError);
   });
 
+  it(`accepts a dense candidate array and rejects a missing index ${evidence}`, () => {
+    const selected = selectAnonymousDirectoryCandidates([
+      collection('dense-a'),
+      collection('dense-b'),
+    ]);
+    expect(selected.collections.map((item) => item.id)).toEqual(['dense-a', 'dense-b']);
+
+    const missingIndex = [collection('kept'), collection('shifted')];
+    delete missingIndex[0];
+    Object.assign(missingIndex, { extra: 'pad' });
+    const error = captureError(() => selectAnonymousDirectoryCandidates(missingIndex));
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error.message).toBe('Anonymous Directory input is invalid.');
+  });
+
   it.each([
     ['an extra property', (): unknown => collection('extra', 'public', { internalOwner: 'principal:secret' })],
     ['a symbol property', (): unknown => collection('symbol', 'public', { [Symbol('secret')]: true })],

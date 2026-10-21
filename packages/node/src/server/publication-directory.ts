@@ -361,8 +361,12 @@ function assertDensePlainArray(value: unknown[], keys: readonly PropertyKey[]): 
   if (keys.length !== lengthDescriptor.value + 1 || !keys.includes('length')) {
     throw new TypeError(INVALID_INPUT_MESSAGE);
   }
+  const keySet = new Set<string>();
+  for (const key of keys) {
+    if (typeof key === 'string') keySet.add(key);
+  }
   for (let index = 0; index < lengthDescriptor.value; index += 1) {
-    if (!keys.includes(String(index))) throw new TypeError(INVALID_INPUT_MESSAGE);
+    if (!keySet.has(String(index))) throw new TypeError(INVALID_INPUT_MESSAGE);
   }
 }
 
