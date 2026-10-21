@@ -867,6 +867,9 @@ const transportTargets = new Set([
   'transport/session-auth.ts',
   // FIX-M-008: shared Sync TLS/trusted-ingress guard consumed by every Sync route.
   'transport/colp-sync/sync-transport-security.ts',
+  // Credential verifier dependency failures (JWKS, revocation database) shared
+  // by Sync routes and the MCP listen recheck.
+  'transport/credential-verifier-availability.ts',
   'transport/colp-sync/sync-colp-authorization.ts',
   'transport/colp-sync/sync-session-routes.ts',
   'transport/colp-sync/sync-conflict-routes.ts',

@@ -12,6 +12,7 @@ import {
   type SyncAdmissionPolicy,
 } from '../../infrastructure/rate-limit/index.js';
 import { rateLimitClientKey } from '../http-security.js';
+import { credentialVerificationHttpCode } from '../credential-verifier-availability.js';
 import { requireColpAuthorization } from './sync-colp-authorization.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 
@@ -85,7 +86,7 @@ export function registerSyncRetireRoutes(
       }
       let credential: VerifiedExtensionCredential;
       try { credential = await dependencies.credentialVerifier.verify({ authorization }); }
-      catch { throw new SyncRetireHttpError('authentication_required'); }
+      catch (error: unknown) { throw new SyncRetireHttpError(credentialVerificationHttpCode(error)); }
       const subjectOutcome = await admission.admitSubject({
         purpose: 'retire',
         subjectKey: syncAdmissionSubjectKey({ credential, sessionId }),

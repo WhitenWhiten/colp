@@ -28,6 +28,7 @@ import {
 } from '../../infrastructure/rate-limit/index.js';
 import { rateLimitClientKey } from '../http-security.js';
 import { ProductHttpError } from '../product-error.js';
+import { credentialVerificationHttpCode } from '../credential-verifier-availability.js';
 import { requireColpAuthorization } from './sync-colp-authorization.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 
@@ -132,8 +133,8 @@ export function registerSyncSessionRoutes(
         let credential: SyncSessionHttpApplicationInput['credential'];
         try {
           credential = await dependencies.credentialVerifier.verify({ authorization: admission.authorization });
-        } catch {
-          throw new SyncSessionHttpError('authentication_required');
+        } catch (error: unknown) {
+          throw new SyncSessionHttpError(credentialVerificationHttpCode(error));
         }
         const subjectOutcome = await policy.admitSubject({
           purpose: 'session',

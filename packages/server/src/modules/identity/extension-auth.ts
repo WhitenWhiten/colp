@@ -38,6 +38,8 @@ export type ExtensionAuthFailureReason =
   | 'missing_scope'
   | 'expired'
   | 'revoked'
+  // JWKS fetch, a non-2xx JWKS response, or another verifier dependency. Not a bad credential.
+  | 'verifier_unavailable'
   | 'device_code_expired'
   | 'device_authorization_denied'
   | 'device_poll_failed';
@@ -45,8 +47,8 @@ export type ExtensionAuthFailureReason =
 export class ExtensionAuthError extends Error {
   readonly reason: ExtensionAuthFailureReason;
 
-  constructor(reason: ExtensionAuthFailureReason, message?: string) {
-    super(message ?? `Extension authentication failed: ${reason}`);
+  constructor(reason: ExtensionAuthFailureReason, message?: string, options?: { cause?: unknown }) {
+    super(message ?? `Extension authentication failed: ${reason}`, options);
     this.name = 'ExtensionAuthError';
     this.reason = reason;
   }
@@ -608,7 +610,9 @@ async function verifySignedToken(input: {
   }
   const attempt = async (forceRefresh: boolean): Promise<JWTPayload> => {
     const document = await input.jwks.getKeySet({ forceRefresh });
-    if (!document || !Array.isArray(document.keys)) throw new ExtensionAuthError('invalid_token');
+    if (!document || !Array.isArray(document.keys)) {
+      throw new ExtensionAuthError('verifier_unavailable', 'Extension OAuth JWKS is invalid');
+    }
     const result = await jwtVerify(input.token, createLocalJWKSet(document), {
       issuer: input.config.issuer,
       audience: input.audience,
@@ -716,6 +720,12 @@ function mapJwtError(error: unknown): ExtensionAuthError {
     return new ExtensionAuthError('invalid_signature');
   }
   if (isUnknownKid(error)) return new ExtensionAuthError('unknown_kid');
+  // Plain failures from the JWKS provider (network, non-2xx, invalid document)
+  // and jose's own JWKS timeout are dependency outages. Other JOSE failures
+  // are still credential failures.
+  if (error instanceof joseErrors.JWKSTimeout || !(error instanceof joseErrors.JOSEError)) {
+    return new ExtensionAuthError('verifier_unavailable', undefined, { cause: error });
+  }
   return new ExtensionAuthError('invalid_token');
 }
 

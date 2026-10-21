@@ -11,6 +11,7 @@ import {
 import type { ExtensionCredentialEvidencePort } from '../../modules/identity/index.js';
 import { SyncEffectPageReadError, type SyncEffectPageReadPort } from '../../modules/sync/index.js';
 import { createMemoryEffectPageRateLimiter, rateLimitClientKey } from '../http-security.js';
+import { credentialVerificationHttpCode } from '../credential-verifier-availability.js';
 import { requireColpAuthorization } from './sync-colp-authorization.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 
@@ -103,7 +104,7 @@ export function registerSyncEffectPageRoutes(app: FastifyInstance, dependencies:
       const headerSessionId = opaque(exactlyOne(fields, 'known-sync-session', 'resource_not_found'));
       let credential;
       try { credential = await dependencies.credentialVerifier.verify({ authorization }); }
-      catch { throw new SyncEffectPageHttpError('authentication_required'); }
+      catch (error: unknown) { throw new SyncEffectPageHttpError(credentialVerificationHttpCode(error)); }
       const params = request.params as { readonly effectId?: unknown; readonly pageNumber?: unknown };
       const query = request.query as Record<string, unknown>;
       const legacyQuery = parseLegacyIdentityQuery(query);

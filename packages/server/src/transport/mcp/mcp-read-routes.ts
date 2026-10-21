@@ -90,6 +90,7 @@ import {
   type McpRateLimiter,
 } from '../../infrastructure/rate-limit/index.js';
 import { McpEventsError } from '@know-n/colp/mcp';
+import { isCredentialVerifierDependencyFailure } from '../credential-verifier-availability.js';
 import { mapMcpOauthChallengeToProductError } from './mcp-protected-resource-routes.js';
 import { ProductHttpError, productErrorEnvelope } from '../product-error.js';
 import {
@@ -1085,7 +1086,11 @@ function createAuthorizationRecheck(
         signal,
       );
       return bindingsEqual(result.binding, original);
-    } catch {
+    } catch (error: unknown) {
+      // Keep the binding from stream open. JWKS or database unavailability is
+      // not an authorization change; a credential that actually failed still
+      // returns false and the caller closes the listen session.
+      if (isCredentialVerifierDependencyFailure(error)) return true;
       return false;
     }
   };

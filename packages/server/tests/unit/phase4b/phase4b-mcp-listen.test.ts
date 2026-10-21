@@ -19,8 +19,10 @@ import {
   PHASE4B_MCP_NODE_RESOURCE_MIME_TYPE,
   PHASE4B_MCP_SNAPSHOT_RESOURCE_MIME_TYPE,
   PHASE4B_MCP_SERVER_INFO,
+  createMcpOauthVerifier,
   createPhase4bMcpChangeSignalSource,
   createPhase4bMcpResourceIdentity,
+  McpOauthVerificationError,
   type Phase4bMcpChangeSignalSource,
   type Phase4bMcpCollectionResourceProjection,
   type Phase4bMcpNodeResourceProjection,
@@ -36,7 +38,14 @@ import {
   createPostgresMcpChangeSignalSource,
 } from '../../../src/infrastructure/outbox/index.js';
 import type { McpReadTransportDependencies } from '../../../src/transport/mcp/mcp-read-routes.js';
-import { mcpHttpPost, withMcpTestHost } from '../../support/phase4b-mcp-transport-scaffold.js';
+import {
+  createKeyFixture,
+  mcpHttpPost,
+  mintCredential,
+  staticJwksProvider,
+  verifierOptions,
+  withMcpTestHost,
+} from '../../support/phase4b-mcp-transport-scaffold.js';
 import { waitForCondition } from '../../support/async-test-helpers.js';
 
 const SERVER_UUID = '019b3c67-a03c-7f02-9c7e-1ee8d50a77de';
@@ -878,6 +887,101 @@ test('authenticated credential/scope revocation ends the stream before the next 
     server.source.publish({ type: 'resource-list-changed' });
     assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
     authorized = false;
+    server.source.publish({ type: 'resource-list-changed' });
+    assert.equal(await reader.next(), null);
+    assert.equal(server.source.listenerCount(), 0);
+  } finally {
+    reader.close();
+  }
+});
+
+test('JWKS or database unavailability during listen recheck keeps the session', async () => {
+  const binding = mapOAuthEvidenceToAuthenticatedBinding(Object.freeze({
+    credentialKind: 'oauth',
+    principalId: SUBJECT,
+    clientId: CLIENT_ID,
+    credentialBindingId: 'credential-1',
+    resourceAudience: AUDIENCE,
+    securityEpoch: 'epoch-1',
+  }));
+  let mode: 'ok' | 'jwks' | 'database' | 'revoked' = 'ok';
+  const verifier = {
+    async verify(input: { readonly authorization?: string | readonly string[] | undefined }) {
+      if (input.authorization !== 'Bearer valid-token') {
+        throw new McpOauthVerificationError('invalid_token');
+      }
+      if (mode === 'jwks') throw new McpOauthVerificationError('jwks_fetch_failed');
+      if (mode === 'database') {
+        throw Object.assign(new Error('revocation store unreachable'), { code: '57P01' });
+      }
+      if (mode === 'revoked') throw new McpOauthVerificationError('revoked');
+      return { binding } as never;
+    },
+  };
+  const server = await startApi(mcpEnv(), { oauthVerifier: verifier });
+  const { reader } = await postListen(
+    server,
+    { resourcesListChanged: true },
+    'recheck-dependency',
+    { authorization: 'Bearer valid-token' },
+  );
+  try {
+    assert.equal((await reader.next())?.method, 'notifications/subscriptions/acknowledged');
+    server.source.publish({ type: 'resource-list-changed' });
+    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+
+    mode = 'jwks';
+    server.source.publish({ type: 'resource-list-changed' });
+    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+
+    mode = 'database';
+    server.source.publish({ type: 'resource-list-changed' });
+    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+
+    mode = 'revoked';
+    server.source.publish({ type: 'resource-list-changed' });
+    assert.equal(await reader.next(), null);
+    assert.equal(server.source.listenerCount(), 0);
+  } finally {
+    reader.close();
+  }
+});
+
+test('a revocation-store connection failure is not revocation and does not close listen', async () => {
+  const key = await createKeyFixture('listen-pg-connection');
+  const token = await mintCredential({ key: key.privateKey, kid: key.kid });
+  let mode: 'ok' | 'terminated' | 'timeout' | 'revoked' = 'ok';
+  const verifier = createMcpOauthVerifier(verifierOptions({
+    jwks: staticJwksProvider([key.jwk]),
+    isRevoked: async () => {
+      if (mode === 'terminated') throw new Error('Connection terminated unexpectedly');
+      if (mode === 'timeout') throw new Error('timeout exceeded when trying to connect');
+      return mode === 'revoked';
+    },
+  }));
+  const server = await startApi(mcpEnv(), { oauthVerifier: verifier });
+  const { reader } = await postListen(
+    server,
+    { resourcesListChanged: true },
+    'recheck-pg-connection',
+    { authorization: `Bearer ${token}` },
+  );
+  try {
+    assert.equal((await reader.next())?.method, 'notifications/subscriptions/acknowledged');
+    server.source.publish({ type: 'resource-list-changed' });
+    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+
+    mode = 'terminated';
+    server.source.publish({ type: 'resource-list-changed' });
+    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+    assert.ok(server.source.listenerCount() > 0);
+
+    mode = 'timeout';
+    server.source.publish({ type: 'resource-list-changed' });
+    assert.equal((await reader.next())?.method, 'notifications/resources/list_changed');
+    assert.ok(server.source.listenerCount() > 0);
+
+    mode = 'revoked';
     server.source.publish({ type: 'resource-list-changed' });
     assert.equal(await reader.next(), null);
     assert.equal(server.source.listenerCount(), 0);

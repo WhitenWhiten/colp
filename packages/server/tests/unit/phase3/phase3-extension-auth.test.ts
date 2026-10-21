@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, test } from 'vitest';
-import { SignJWT, exportJWK, generateKeyPair, type JSONWebKeySet } from 'jose';
+import { SignJWT, errors as joseErrors, exportJWK, generateKeyPair, type JSONWebKeySet } from 'jose';
 import {
   ExtensionAuthError,
   createExtensionCredentialEvidenceVerifier,
@@ -17,6 +17,7 @@ import {
   type ExtensionJwksProvider,
   type DevicePollResponse,
 } from '../../../src/modules/identity/extension-auth.js';
+import { credentialVerificationHttpCode } from '../../../src/transport/credential-verifier-availability.js';
 
 const FIXTURE_PATH = resolve('tests/fixtures/phase3/extension-auth.json');
 const MV3_PATH = resolve('tests/fixtures/phase3/mv3-extension');
@@ -327,6 +328,93 @@ describe('P3-01 Authorization header and verified credential evidence', () => {
       config: cfg, jwks, requiredScopes: ['known.sync'], isRevoked: async () => true, now: () => NOW,
     });
     await expectReason(() => revokedVerifier.verify({ authorization: `Bearer ${token}` }), 'revoked');
+  });
+
+  test('JWKS dependency failures are verifier_unavailable and a bad signature stays a credential failure', async () => {
+    const cfg = await config();
+    const keys = await generateKeyPair('RS256', { extractable: true });
+    const otherKeys = await generateKeyPair('RS256', { extractable: true });
+    const jwk = await exportJWK(keys.publicKey);
+    Object.assign(jwk, { kid: 'jwks-dependency', alg: 'RS256', use: 'sig' });
+    const token = await new SignJWT({ scope: 'known.sync', client_id: cfg.clientId })
+      .setProtectedHeader({ alg: 'RS256', kid: 'jwks-dependency' })
+      .setIssuer(cfg.issuer)
+      .setSubject('account-subject')
+      .setAudience(cfg.audience)
+      .setIssuedAt(NOW_SECONDS - 10)
+      .setExpirationTime(NOW_SECONDS + 300)
+      .setJti('jwks-dependency-token')
+      .sign(keys.privateKey);
+    const verifyWith = (
+      jwks: ExtensionJwksProvider,
+      isRevoked: () => Promise<boolean> = async () => false,
+    ) => createExtensionCredentialEvidenceVerifier({
+      config: cfg, jwks, requiredScopes: ['known.sync'], isRevoked, now: () => NOW,
+    });
+
+    for (const failure of [
+      new Error('Extension OAuth JWKS unavailable'),
+      new Error('Extension OAuth JWKS is invalid'),
+      new TypeError('fetch failed'),
+      new joseErrors.JWKSTimeout('timed out'),
+    ]) {
+      await expectReason(
+        () => verifyWith({ async getKeySet() { throw failure; } }).verify({ authorization: `Bearer ${token}` }),
+        'verifier_unavailable',
+      );
+    }
+    await expectReason(
+      () => verifyWith({ async getKeySet() { return {} as JSONWebKeySet; } })
+        .verify({ authorization: `Bearer ${token}` }),
+      'verifier_unavailable',
+    );
+
+    const liveKeys = { async getKeySet() { return { keys: [jwk] }; } };
+    const connectionFailures = [
+      new Error('Connection terminated unexpectedly'),
+      new Error('timeout exceeded when trying to connect'),
+    ];
+    for (const failure of connectionFailures) {
+      assert.equal('code' in failure, false);
+      await assert.rejects(
+        () => verifyWith(liveKeys, async () => { throw failure; }).verify({ authorization: `Bearer ${token}` }),
+        (error: unknown) => {
+          assert.equal(error, failure);
+          assert.equal(error instanceof ExtensionAuthError, false);
+          assert.equal(credentialVerificationHttpCode(error), 'service_unavailable');
+          return true;
+        },
+      );
+    }
+    const denied = new Error('denied');
+    assert.equal('code' in denied, false);
+    await assert.rejects(
+      () => verifyWith(liveKeys, async () => { throw denied; }).verify({ authorization: `Bearer ${token}` }),
+      (error: unknown) => {
+        assert.equal(error, denied);
+        assert.equal(credentialVerificationHttpCode(error), 'authentication_required');
+        return true;
+      },
+    );
+
+    const invalidSignature = await new SignJWT({ scope: 'known.sync', client_id: cfg.clientId })
+      .setProtectedHeader({ alg: 'RS256', kid: 'jwks-dependency' })
+      .setIssuer(cfg.issuer)
+      .setSubject('account-subject')
+      .setAudience(cfg.audience)
+      .setIssuedAt(NOW_SECONDS - 10)
+      .setExpirationTime(NOW_SECONDS + 300)
+      .setJti('bad-signature-dependency')
+      .sign(otherKeys.privateKey);
+    const liveJwks: ExtensionJwksProvider = { async getKeySet() { return { keys: [jwk] }; } };
+    await expectReason(
+      () => verifyWith(liveJwks).verify({ authorization: `Bearer ${invalidSignature}` }),
+      'invalid_signature',
+    );
+    await expectReason(
+      () => verifyWith(liveJwks).verify({ authorization: 'Bearer not-a-jwt' }),
+      'invalid_token',
+    );
   });
 });
 

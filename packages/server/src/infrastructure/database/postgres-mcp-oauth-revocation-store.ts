@@ -10,8 +10,9 @@
  * never the raw token or raw identity values.
  *
  * Fail closed: any query that cannot prove the credential is not revoked (DB
- * error, missing epoch row) throws; the OAuth verifier converts every thrown
- * error into a `revoked` verdict, so an outage can never widen access.
+ * error, missing epoch row) throws, so an outage can never widen access. The
+ * verifier maps driver connection failures to `dependency_unavailable` and
+ * every other thrown query error, including a missing epoch row, to `revoked`.
  */
 import { sql, type Kysely } from 'kysely';
 import {

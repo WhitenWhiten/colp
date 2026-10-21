@@ -269,22 +269,27 @@ test('over-limit and slow MCP requests are observable without exposing sensitive
   assert.equal(queuedResponse.status, 200);
 });
 
-test('OAuth/JWKS outage is classified as auth and never echoes the credential', async () => {
-  const server = await startApi(mcpEnv(), {
-    oauthVerifier: {
-      async verify() {
-        throw new McpOauthVerificationError('jwks_fetch_failed');
+test('OAuth dependency outages are 503 and never echo the credential', async () => {
+  for (const reason of ['jwks_fetch_failed', 'dependency_unavailable'] as const) {
+    const server = await startApi(mcpEnv(), {
+      oauthVerifier: {
+        async verify() {
+          throw new McpOauthVerificationError(reason);
+        },
       },
-    },
-  });
-  const response = await postJson(server, 'server/discover', 5, {
-    headers: { authorization: 'Bearer should-not-leak' },
-  });
-  const text = await response.text();
-  assert.equal(response.status, 401);
-  assert.match(text, /authentication_required/u);
-  assert.doesNotMatch(text, /should-not-leak|Bearer /u);
-  assert.equal((server.metrics as InMemoryMetrics).get('mcp.read.requests.error.auth'), 1);
+    });
+    const response = await postJson(server, 'server/discover', 5, {
+      headers: { authorization: 'Bearer should-not-leak' },
+    });
+    const text = await response.text();
+    const body = JSON.parse(text) as { readonly error?: { readonly code?: string } };
+    assert.equal(response.status, 503, reason);
+    assert.equal(body.error?.code, 'feature_temporarily_unavailable');
+    assert.doesNotMatch(text, /authentication_required|revoked/u);
+    assert.equal(response.headers.get('www-authenticate'), null);
+    assert.doesNotMatch(text, /should-not-leak|Bearer /u);
+    assert.equal((server.metrics as InMemoryMetrics).get('mcp.read.requests.error.auth'), 1);
+  }
 });
 
 test('feature readiness reports OAuth dependency degradation without affecting global readiness', async () => {

@@ -13,8 +13,9 @@
  * The store never retains raw credentials or raw identity fields: every
  * stored/compared field is a SHA-256 digest of the verified value. Query
  * failures fail closed: implementations must throw instead of returning
- * `false`, and the OAuth verifier converts any thrown error into a `revoked`
- * verdict. Multi-instance consistency comes from the shared PostgreSQL store
+ * `false`. The verifier never accepts the credential. A driver connection
+ * failure becomes `dependency_unavailable`; every other thrown query error
+ * stays `revoked`. Multi-instance consistency comes from the shared PostgreSQL store
  * (`createPostgresMcpOauthRevocationStore`); the in-memory store here is for
  * tests and single-process compositions only.
  */

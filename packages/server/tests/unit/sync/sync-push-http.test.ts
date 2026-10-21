@@ -14,6 +14,7 @@ import {
   createMemorySyncAdmissionPolicy,
   type SyncAdmissionPolicy,
 } from '../../../src/infrastructure/rate-limit/index.js';
+import { ExtensionAuthError } from '../../../src/modules/identity/index.js';
 import { registerSyncPushRoutes, SyncPushHttpError } from '../../../src/transport/colp-sync/sync-push-routes.js';
 import { mintVerifiedExtensionCredentialFixture } from '../../support/extension-credential.js';
 import { createSyncSessionBlackBoxClient } from '../../support/sync-session-black-box-client.js';
@@ -417,6 +418,97 @@ describe('P3-11 single-operation Sync Push HTTP admission', () => {
       assert.equal(response.statusCode, 503);
       assert.match(body, /service_unavailable/u);
       assert.doesNotMatch(body, /DATABASE-SECRET/u);
+    }
+  });
+
+  test('verifier dependency failures are service_unavailable and credential failures stay authentication_required', async () => {
+    const terminated = new Error('Connection terminated unexpectedly');
+    const connectTimeout = new Error('timeout exceeded when trying to connect');
+    assert.equal('code' in terminated, false);
+    assert.equal('code' in connectTimeout, false);
+    const failures = [
+      new ExtensionAuthError('verifier_unavailable'),
+      new DatabaseOperationError('unavailable', new Error('REVOKED-DB-SECRET')),
+      Object.assign(new Error('REVOKED-DB-SECRET'), { code: '57P01' }),
+      Object.assign(new Error('REVOKED-DB-SECRET'), { code: 'ECONNRESET' }),
+      terminated,
+      connectTimeout,
+      new Error('Connection terminated due to connection timeout', {
+        cause: new Error('socket hang up'),
+      }),
+      new Error('revocation query failed', {
+        cause: Object.assign(new Error('inner'), { code: 'ECONNRESET' }),
+      }),
+    ];
+    for (const failure of failures) {
+      const app = Fastify({ logger: false });
+      registerSyncPushRoutes(app, {
+        path: '/private-entry/operation-ingress', allowedOrigins: [ORIGIN],
+        credentialVerifier: { async verify() { throw failure; } },
+        application: {
+          runtimeOwnership: { operationIdReservationOwner: 'sequence', usesPushCoordinator: false,
+            maxBatchOperations: 1, evaluator: 'canonical_node_create' },
+          async admit(): Promise<never> { throw new Error('not called'); },
+        },
+        rateLimit: { maxRequests: 100, windowMs: 60_000 }, maxBatchOperations: 1,
+        allowInsecureLoopback: true,
+      });
+      apps.push(app);
+      const response = await app.inject({
+        method: 'POST',
+        url: '/private-entry/operation-ingress',
+        headers: {
+          authorization: `Bearer ${TOKEN}`,
+          origin: ORIGIN,
+          'content-type': 'application/json',
+          'idempotency-key': 'push-key-verifier-down',
+        },
+        payload: syncPushAdmissionRequest(),
+      });
+      const body = response.json() as { code: string; status: number; retryable: boolean };
+      assert.equal(response.statusCode, 503);
+      assert.equal(body.code, 'service_unavailable');
+      assert.equal(body.status, 503);
+      assert.equal(body.retryable, true);
+      assert.notEqual(response.statusCode, 401);
+      assert.equal(response.headers['www-authenticate'], undefined);
+      assert.doesNotMatch(response.body, /REVOKED-DB-SECRET|verifier_unavailable/u);
+    }
+
+    for (const failure of [
+      new ExtensionAuthError('invalid_signature'),
+      new Error('denied'),
+      new Error('Connection terminated'),
+    ]) {
+      const app = Fastify({ logger: false });
+      registerSyncPushRoutes(app, {
+        path: '/private-entry/operation-ingress', allowedOrigins: [ORIGIN],
+        credentialVerifier: { async verify() { throw failure; } },
+        application: {
+          runtimeOwnership: { operationIdReservationOwner: 'sequence', usesPushCoordinator: false,
+            maxBatchOperations: 1, evaluator: 'canonical_node_create' },
+          async admit(): Promise<never> { throw new Error('not called'); },
+        },
+        rateLimit: { maxRequests: 100, windowMs: 60_000 }, maxBatchOperations: 1,
+        allowInsecureLoopback: true,
+      });
+      apps.push(app);
+      const rejected = await app.inject({
+        method: 'POST',
+        url: '/private-entry/operation-ingress',
+        headers: {
+          authorization: `Bearer ${TOKEN}`,
+          origin: ORIGIN,
+          'content-type': 'application/json',
+          'idempotency-key': 'push-key-bad-signature',
+        },
+        payload: syncPushAdmissionRequest(),
+      });
+      const rejectedBody = rejected.json() as { code: string; status: number };
+      assert.equal(rejected.statusCode, 401);
+      assert.equal(rejectedBody.code, 'authentication_required');
+      assert.equal(rejectedBody.status, 401);
+      assert.equal(rejected.headers['www-authenticate'], 'Bearer');
     }
   });
 

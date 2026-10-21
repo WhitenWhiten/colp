@@ -17,6 +17,7 @@ import {
   syncAdmissionPolicyHeader,
   type SyncAdmissionPolicy,
 } from '../../infrastructure/rate-limit/index.js';
+import { credentialVerificationHttpCode } from '../credential-verifier-availability.js';
 import { requireColpAuthorization } from './sync-colp-authorization.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 
@@ -92,7 +93,7 @@ export function registerSyncPullRoutes(app: FastifyInstance, dependencies: SyncP
         if (outcome.kind === 'failed') throw new SyncPullHttpError('service_unavailable');
         let credential: VerifiedExtensionCredential;
         try { credential = await dependencies.credentialVerifier.verify({ authorization }); }
-        catch { throw new SyncPullHttpError('authentication_required'); }
+        catch (error: unknown) { throw new SyncPullHttpError(credentialVerificationHttpCode(error)); }
         cancellation.signal.throwIfAborted();
         const parsed = parseSyncPullQuery(request.raw.url ?? '');
         if (!parsed.valid) throw new SyncPullHttpError('invalid_query');

@@ -19,7 +19,9 @@ import {
   type McpReadFeatureConfigAssertOptions,
   type McpReadProtectedResourceMetadata,
 } from '../../modules/mcp/index.js';
+import { isCredentialVerifierDependencyFailure } from '../credential-verifier-availability.js';
 import { ProductHttpError } from '../product-error.js';
+import { productErrorStatus } from '../product-codes.js';
 
 export function registerMcpProtectedResourceRoutes(
   app: FastifyInstance,
@@ -87,7 +89,9 @@ export function createMcpOauthChallengeWwwAuthenticate(
 /**
  * Maps OAuth verification failures to the product HTTP boundary without
  * exposing internal reasons, tokens, issuer, client, audience, or other
- * config values. Unknown errors also fail closed as invalid token.
+ * config values. JWKS and revocation-store dependency failures are 503
+ * without an invalid_token challenge. Missing scope stays 403. Invalid
+ * tokens, bad signatures, and every other unknown error stay 401.
  */
 export function mapMcpOauthChallengeToProductError(
   error: unknown,
@@ -95,6 +99,19 @@ export function mapMcpOauthChallengeToProductError(
   surface: McpProtectedResourceMetadataSurface = 'strict',
 ): ProductHttpError {
   const reason = error instanceof McpOauthVerificationError ? error.reason : undefined;
+  if (isCredentialVerifierDependencyFailure(error)) {
+    return new ProductHttpError({
+      statusCode: productErrorStatus('feature_temporarily_unavailable'),
+      code: 'feature_temporarily_unavailable',
+      message: 'Credential verification is temporarily unavailable.',
+      recovery: 'same_request',
+      sameRequestRetrySafe: true,
+      headers: {
+        'Cache-Control': 'no-store',
+        'Vary': 'Authorization, Origin',
+      },
+    });
+  }
   const challenge = createMcpOauthChallengeWwwAuthenticate(
     reason === 'missing_scope' ? 'missing_scope' : 'invalid_token',
     config.oauth.scopes,

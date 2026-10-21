@@ -21,6 +21,7 @@ import {
   syncAdmissionPolicyHeader,
   type SyncAdmissionPolicy,
 } from '../../infrastructure/rate-limit/index.js';
+import { credentialVerificationHttpCode } from '../credential-verifier-availability.js';
 import { requireColpAuthorization } from './sync-colp-authorization.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 
@@ -149,8 +150,8 @@ export function registerSyncPushRoutes(app: FastifyInstance, dependencies: SyncP
         let credential: SyncPushHttpApplicationInput['credential'];
         try {
           credential = await dependencies.credentialVerifier.verify({ authorization: admission.authorization });
-        } catch {
-          throw new SyncPushHttpError('authentication_required');
+        } catch (error: unknown) {
+          throw new SyncPushHttpError(credentialVerificationHttpCode(error));
         }
         const subjectOutcome = await admissionPolicy.admitSubject({
           purpose: 'push',

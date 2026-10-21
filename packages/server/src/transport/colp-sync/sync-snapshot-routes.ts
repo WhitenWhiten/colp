@@ -13,6 +13,7 @@ import {
   type SyncAdmissionPolicy,
 } from '../../infrastructure/rate-limit/index.js';
 import { rateLimitClientKey } from '../http-security.js';
+import { isCredentialVerifierDependencyFailure } from '../credential-verifier-availability.js';
 import { requireColpAuthorization } from './sync-colp-authorization.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 import { registerSyncSnapshotConflictRoutes, type SyncSnapshotConflictApplication } from './sync-snapshot-conflict-routes.js';
@@ -66,7 +67,13 @@ export function registerSyncSnapshotRoutes(app: FastifyInstance, dependencies: S
       let credential: VerifiedExtensionCredential;
       try {
         credential = await dependencies.credentialVerifier.verify({ authorization });
-      } catch (error) {
+      } catch (error: unknown) {
+        // This catch only wraps credential verification. Unrecognized verifier
+        // errors stay authentication_required so internal detail is not a 500.
+        // A JWKS or database dependency failure is service_unavailable.
+        if (isCredentialVerifierDependencyFailure(error)) {
+          throw new SyncBootstrapSnapshotError('service_unavailable');
+        }
         const normalized = normalize(error);
         throw normalized.code === 'internal_error' ? new SyncBootstrapSnapshotError('authentication_required') : normalized;
       }

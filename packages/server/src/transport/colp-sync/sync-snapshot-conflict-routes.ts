@@ -7,6 +7,7 @@ import {
   resolveSyncAdmissionPolicy, syncAdmissionSubjectKey,
 } from '../../infrastructure/rate-limit/index.js';
 import { rateLimitClientKey } from '../http-security.js';
+import { isCredentialVerifierDependencyFailure } from '../credential-verifier-availability.js';
 import {
   requireColpAuthorization,
 } from './sync-colp-authorization.js';
@@ -102,7 +103,10 @@ async function admit(request: FastifyRequest, dependencies: SyncSnapshotRouteDep
   let credential: VerifiedExtensionCredential;
   try {
     credential = await dependencies.credentialVerifier.verify({ authorization });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (isCredentialVerifierDependencyFailure(error)) {
+      throw new SyncBootstrapSnapshotError('service_unavailable');
+    }
     const normalized = normalize(error);
     throw normalized.code === 'internal_error' ? new SyncBootstrapSnapshotError('authentication_required') : normalized;
   }

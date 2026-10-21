@@ -25,6 +25,7 @@ import {
   type JwksProvider,
 } from '../../../src/modules/identity/index.js';
 import { createCachingJwksClient } from '../../../src/infrastructure/identity/jwks-client.js';
+import { isCredentialVerifierDependencyFailure } from '../../../src/transport/credential-verifier-availability.js';
 import {
   classifyEgressAddress,
   createHardenedEgressFetch,
@@ -331,6 +332,55 @@ test('revocation store query failures fail closed as revoked', async () => {
   }));
 
   await expectReason(() => verifier.verify({ authorization: `Bearer ${token}` }), 'revoked');
+});
+
+test('revocation store connection failures are dependency_unavailable, not revoked', async () => {
+  const key = await createKeyFixture('key-1');
+  const token = await mintCredential({ key: key.privateKey, kid: key.kid });
+  const failures = [
+    new Error('Connection terminated unexpectedly'),
+    new Error('timeout exceeded when trying to connect'),
+    new Error('Connection terminated due to connection timeout', {
+      cause: new Error('connect ETIMEDOUT'),
+    }),
+    new Error('revocation query failed', {
+      cause: Object.assign(new Error('inner'), { code: 'ECONNRESET' }),
+    }),
+  ];
+  for (const failure of failures) {
+    if (
+      failure.message === 'Connection terminated unexpectedly'
+      || failure.message === 'timeout exceeded when trying to connect'
+    ) {
+      assert.equal('code' in failure, false);
+    }
+    const verifier = createMcpOauthVerifier(makeOptions({
+      jwks: staticJwksProvider([key.jwk]),
+      isRevoked: async () => { throw failure; },
+    }));
+    let caught: unknown;
+    try {
+      await verifier.verify({ authorization: `Bearer ${token}` });
+    } catch (error: unknown) {
+      caught = error;
+    }
+    assert.ok(caught instanceof McpOauthVerificationError);
+    assert.equal(caught.reason, 'dependency_unavailable');
+    assert.notEqual(caught.reason, 'revoked');
+    assert.equal(isCredentialVerifierDependencyFailure(caught), true);
+  }
+
+  const deniedVerifier = createMcpOauthVerifier(makeOptions({
+    jwks: staticJwksProvider([key.jwk]),
+    isRevoked: async () => { throw new Error('denied'); },
+  }));
+  await expectReason(() => deniedVerifier.verify({ authorization: `Bearer ${token}` }), 'revoked');
+
+  const revokedVerifier = createMcpOauthVerifier(makeOptions({
+    jwks: staticJwksProvider([key.jwk]),
+    isRevoked: async () => true,
+  }));
+  await expectReason(() => revokedVerifier.verify({ authorization: `Bearer ${token}` }), 'revoked');
 });
 
 test('security epoch read failures fail closed as revoked', async () => {

@@ -15,6 +15,7 @@ export * from './manifest-candidate.js';
 export * from './node-resources.js';
 export * from './account-context.js';
 export * from './oauth-verifier.js';
+export * from './credential-driver-failure.js';
 export * from './scope-requirements.js';
 export * from './oauth-revocation-store.js';
 export * from './account-security-boundary.js';

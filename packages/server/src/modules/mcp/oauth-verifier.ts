@@ -22,6 +22,7 @@ import {
 } from './machine-oauth-binding.js';
 import { grantsScope } from './scope-implications.js';
 import { mcpAccountSecurityBoundaryVerdict, type McpAccountSecurityBoundaryReader } from './account-security-boundary.js';
+import { isCredentialDriverDependencyFailure } from './credential-driver-failure.js';
 import {
   IdTokenVerificationError,
   type JwksProvider,
@@ -52,6 +53,7 @@ export type McpOauthVerificationFailureReason =
   | 'expired'
   | 'not_yet_valid'
   | 'revoked'
+  | 'dependency_unavailable'
   | 'jwks_timeout'
   | 'jwks_fetch_failed'
   | 'jwks_malformed';
@@ -267,9 +269,13 @@ export function createMcpOauthVerifier(options: McpOauthVerifierOptions): McpOau
           issuedAtSeconds: issuedAtValue,
           ...(typeof payload.known_incident_epoch === 'string' ? { issuedSecurityEpoch: payload.known_incident_epoch } : {}),
         });
-      } catch {
-        // FIX-L-042: revocation store query failures fail closed as revoked;
-        // a credential that could not be checked is never accepted.
+      } catch (error: unknown) {
+        // FIX-L-042: a credential that could not be checked is never accepted.
+        // Driver outages are dependency_unavailable (503; an open listen
+        // binding stays). Every other query failure still fails closed as revoked.
+        if (isCredentialDriverDependencyFailure(error)) {
+          throw new McpOauthVerificationError('dependency_unavailable');
+        }
         throw new McpOauthVerificationError('revoked');
       }
       if (revoked) throw new McpOauthVerificationError('revoked');

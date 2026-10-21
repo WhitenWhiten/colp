@@ -15,6 +15,7 @@ import {
   type SyncAdmissionPolicy,
 } from '../../infrastructure/rate-limit/index.js';
 import { rateLimitClientKey } from '../http-security.js';
+import { credentialVerificationHttpCode } from '../credential-verifier-availability.js';
 import { requireColpAuthorization } from './sync-colp-authorization.js';
 import { createSyncTransportSecurity } from './sync-transport-security.js';
 
@@ -94,7 +95,7 @@ export function registerSyncAckRoutes(app: FastifyInstance, dependencies: SyncAc
       }
       let credential: VerifiedExtensionCredential;
       try { credential = await dependencies.credentialVerifier.verify({ authorization }); }
-      catch { throw new SyncAckHttpError('authentication_required'); }
+      catch (error: unknown) { throw new SyncAckHttpError(credentialVerificationHttpCode(error)); }
       admissions.set(request, Object.freeze({ credential, idempotencyKey, origin,
         ...(sessionId ? { sessionId } : {}), mediaType: 'application/json' as const }));
     });
