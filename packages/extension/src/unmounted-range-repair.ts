@@ -3,6 +3,7 @@
  * Unprovable natives stay; already-Acked out-of-scope rows need a new Snapshot.
  */
 import { executeNativeCreate } from './native-create-executor.js';
+import { rejectedChromeBookmarkUrl } from './pull-projection.js';
 import { isNonChromeNativeId, UNMOUNTED_PREFIX } from './pull-mount-apply.js';
 import { parentFirstNodes, type IndependentSubtreeNode } from './pull-range-plan.js';
 import type { PullBookmarkApi } from './pull-applier-types.js';
@@ -90,6 +91,8 @@ async function createRepairedNative(store: Store, scope: SyncScope, api: PullBoo
   if (node.nodeKind === 'separator') return `sidecar:${node.colpId}`;
   const title = typeof node.content?.title === 'string' ? node.content.title : undefined;
   const url = node.nodeKind === 'bookmark' && typeof node.content?.url === 'string' ? node.content.url : undefined;
+  // One rejected URL stays virtual and counts as attention. Siblings still repair.
+  if (rejectedChromeBookmarkUrl(url)) return undefined;
   const outcome = await executeNativeCreate({
     scope, store, api, intentId: `${UNMOUNTED_RANGE_REPAIR_JOB}:${node.colpId}`,
     owner: {

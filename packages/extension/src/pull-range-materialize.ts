@@ -5,7 +5,7 @@ import { SyncFailureError } from './sync-failure-class.js';
  */
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import { executeNativeCreate, type NativeCreateOutcome } from './native-create-executor.js';
-import { mappingFor } from './pull-projection.js';
+import { assertChromeBookmarkWrite, mappingFor } from './pull-projection.js';
 import { isNonChromeNativeId } from './pull-mount-apply.js';
 import { digest } from './pull-codec.js';
 import { scopeKey } from './sync-state/scope-key.js';
@@ -97,6 +97,8 @@ async function createDestNative(input: {
   }
   const title = typeof node.content?.title === 'string' ? node.content.title : undefined;
   const url = node.nodeKind === 'bookmark' && typeof node.content?.url === 'string' ? node.content.url : undefined;
+  // A failed create already aborts this move before commit. Rejected URLs do the same.
+  assertChromeBookmarkWrite({ kind: node.nodeKind, ...(url === undefined ? {} : { url }) });
   const outcome = await executeNativeCreate({
     scope: input.scope, store: input.store, api: input.api,
     intentId: `intent:${input.eventId}:range:${node.colpId}`,

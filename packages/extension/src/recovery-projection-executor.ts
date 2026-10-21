@@ -19,6 +19,7 @@ import {
   type RecoveryOverlayNode,
 } from './recovery-overlay.js';
 import { executeNativeCreate } from './native-create-executor.js';
+import { rejectedChromeBookmarkUrl } from './pull-projection.js';
 import { scopeKey } from './sync-state/scope-key.js';
 import { pendingLocalDeletionIds, retainedDeletionMappings } from './recovery-local-deletes.js';
 import type { MappingInput, QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
@@ -439,6 +440,15 @@ async function perform(
       const owner = occupancy.get(resolution.nativeId);
       if (owner !== undefined && owner !== intent.colpId) return 'ambiguous';
       return resolution.nativeId;
+    }
+    // Chrome was not called, so this must not park the snapshot in recovery.
+    const rejectedUrl = intent.folder ? null : rejectedChromeBookmarkUrl(intent.url);
+    if (rejectedUrl) {
+      const nativeId = (snapshotMappings.get(intent.colpId) ?? mappings.get(intent.colpId))?.nativeId
+        ?? intent.nativeId ?? `recovery:${intent.colpId}`;
+      await ctx.store.recordLocalIssue(ctx.scope, { code: rejectedUrl, nativeId,
+        ...(intent.title ? { title: intent.title } : {}), now: Date.now() });
+      return undefined;
     }
     const index = clampRecoveryCreateIndex(intent.index, children.length);
     const outcome = await executeNativeCreate({

@@ -5,7 +5,7 @@ import type { BookmarkLookup } from './bookmark-api-error.js';
 import type { PullBookmarkApi, PullNode } from './pull-applier-types.js';
 import { digest } from './pull-codec.js';
 import { durableEventDetails } from './bookmark-event-codec.js';
-import { mappingFor, nativeContent } from './pull-projection.js';
+import { mappingFor, nativeContent, PullChromeUrlRejected, rejectedChromeBookmarkUrl } from './pull-projection.js';
 import { isNonChromeNativeId, isProtectedNativeRoot, mayMutateNative } from './pull-mount-apply.js';
 import { mappingMountActivity } from './pull-range-move.js';
 import { pauseBindingForMapping } from './sync-state/remote-observation.js';
@@ -105,6 +105,8 @@ export async function applyRemoteMappingContentUpdate(input: RemoteContentUpdate
 }> {
   const { store, scope, api, mapping, incomingMapping, mounts, now, lookup, queuedLocal } = input;
   const incoming = nativeContent(incomingMapping.projection.content ?? {});
+  const rejectedUrl = rejectedChromeBookmarkUrl(typeof incoming.url === 'string' ? incoming.url : undefined);
+  if (rejectedUrl) throw new PullChromeUrlRejected(rejectedUrl);
   const known = nativeContent(mapping.projection.content ?? {});
   const scopeRecord = await store.getScope(scope);
   const preserveMountTitle = scopeRecord?.selectedRoots.includes(incomingMapping.colpId) === true

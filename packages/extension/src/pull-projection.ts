@@ -1,7 +1,52 @@
+import { bookmarkRepresentability } from './bookmark-event-codec.js';
 import { SyncFailureError } from './sync-failure-class.js';
-import type { JsonObject, MappingInput } from './sync-state-store.js';
+import type { JsonObject, MappingInput, SyncScope } from './sync-state-store.js';
 import type { PullNode } from './pull-applier-types.js';
 import { digest, plainJson } from './pull-codec.js';
+
+export type ChromeBookmarkUrlRejection = 'unsupported_url_scheme' | 'invalid_url';
+
+/** Same writable-URL contract as local capture. Empty is the missing-url projection, not a scheme. */
+export function rejectedChromeBookmarkUrl(url: string | undefined): ChromeBookmarkUrlRejection | null {
+  if (url === undefined || url === '') return null;
+  const reason = bookmarkRepresentability({ type: 'bookmark', title: 'bookmark', url });
+  if (reason === 'supported') return null;
+  return reason === 'unsupported_url_scheme' ? reason : 'invalid_url';
+}
+
+export class PullChromeUrlRejected extends Error {
+  readonly code: ChromeBookmarkUrlRejection;
+  constructor(code: ChromeBookmarkUrlRejection) {
+    super(code); this.name = 'PullChromeUrlRejected'; this.code = code;
+  }
+}
+
+/** Folders and separators have no bookmark URL. A rejected bookmark URL must not be written. */
+export function assertChromeBookmarkWrite(node: { readonly kind: string; readonly url?: string }): void {
+  if (node.kind !== 'bookmark') return;
+  const code = rejectedChromeBookmarkUrl(node.url);
+  if (code) throw new PullChromeUrlRejected(code);
+}
+
+type AsideStore = {
+  getPullEvent(scope: SyncScope, eventId: string): Promise<{ readonly state?: unknown } | null | undefined>;
+  setAsidePullEvent(scope: SyncScope, eventId: string, issue: {
+    readonly code: string; readonly nodeId: string; readonly title?: string; readonly now: number;
+  }): Promise<void>;
+};
+
+/** One remote node, while its pull event is still staged or prepared. The rest of the page continues. */
+export async function setAsideRejectedChromeUrl(store: AsideStore, scope: SyncScope, eventId: string,
+  event: { readonly effect: object }, error: unknown, now: number): Promise<boolean> {
+  if (!(error instanceof PullChromeUrlRejected)) return false;
+  const node = (event.effect as { node?: { id?: unknown; title?: unknown } }).node;
+  if (!node || typeof node.id !== 'string') return false;
+  const current = await store.getPullEvent(scope, eventId);
+  if (!current || (current.state !== 'staged' && current.state !== 'intent_prepared')) return false;
+  const title = typeof node.title === 'string' && node.title ? node.title : undefined;
+  await store.setAsidePullEvent(scope, eventId, { code: error.code, nodeId: node.id, now, ...(title ? { title } : {}) });
+  return true;
+}
 
 export function nodeContent(node: PullNode): JsonObject {
   if (node.kind === 'root' || node.kind === 'alias') throw new SyncFailureError('pull_node_kind_invalid');
@@ -36,6 +81,7 @@ export function chromeCreate(node: PullNode) {
   if (node.kind === 'root' || node.kind === 'alias' || node.kind === 'separator') {
     throw new SyncFailureError('pull_node_kind_invalid');
   }
+  assertChromeBookmarkWrite(node);
   return node.kind === 'bookmark' ? { title: node.title, url: node.url ?? '' } : { title: node.title };
 }
 

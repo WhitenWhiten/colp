@@ -1,4 +1,5 @@
 import { occupancyByNative } from './projection-native-occupancy.js';
+import { rejectedChromeBookmarkUrl } from './pull-projection.js';
 import { executeNativeCreate } from './native-create-executor.js';
 import { isNonChromeNativeId, UNMOUNTED_PREFIX } from './pull-mount-apply.js';
 import { scopeKey } from './sync-state/scope-key.js';
@@ -107,12 +108,14 @@ async function liveChromeId(input: Input, nativeId: string | undefined): Promise
 async function createIndependentNative(input: Input, mapping: MappingInput, parentNativeId: string,
   observation: JsonObject | undefined, byColp: Map<string, MappingInput>): Promise<string | undefined> {
   if (!input.createNative) return undefined;
-  const recorded = await input.store.getScope(input.scope);
   const node = chromeNode(mapping, observation);
-  const index = input.getChildren ? (await input.getChildren(parentNativeId)).length : 0;
-  const intentId = `rejoin:${input.mount.mountId}:${mapping.colpId}`;
   const title = typeof node.title === 'string' ? node.title : undefined;
   const url = typeof node.url === 'string' ? node.url : undefined;
+  // One rejected URL counts as unknown. The rest of the rejoin still materializes.
+  if (node.kind !== 'folder' && rejectedChromeBookmarkUrl(url)) return undefined;
+  const recorded = await input.store.getScope(input.scope);
+  const index = input.getChildren ? (await input.getChildren(parentNativeId)).length : 0;
+  const intentId = `rejoin:${input.mount.mountId}:${mapping.colpId}`;
   const outcome = await executeNativeCreate({
     scope: input.scope, store: input.store, api: {
       create: input.createNative, update: async () => undefined, move: async () => undefined,

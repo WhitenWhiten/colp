@@ -12,7 +12,7 @@ import type { JsonObject, JsonValue, MappingInput, RemoteObservationRecord } fro
 import type { NativeEvent, PullApplierOptions, PullBookmarkApi } from './pull-applier-types.js';
 import { SyncStateError } from './sync-state/types.js';
 import { digest } from './pull-codec.js';
-import { chromeCreate, mappingFor, nativeContent, nodeContent } from './pull-projection.js';
+import { assertChromeBookmarkWrite, chromeCreate, mappingFor, nativeContent, nodeContent, setAsideRejectedChromeUrl } from './pull-projection.js';
 import { ordinaryPullEventAllowed, publishSupersededPullMappings, readPullApplyAuthority,
   recoverSupersededPullEvent } from './pull-authority-apply.js';
 import { assertPullApplierGate } from './pull-page-stager.js';
@@ -98,7 +98,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       if (!current) throw new SyncStateError('pull_event_state_invalid');
       const createLike = event.effect.kind === 'node_created' || event.effect.kind === 'node_restored';
       if (current.state === 'intent_prepared' && !createLike && event.effect.kind !== 'node_moved') {
-        await options.store.markPullBrowserCallStarted(options.scope, raw.eventId as string);
+        if (event.effect.kind === 'node_content_updated') assertChromeBookmarkWrite(event.effect.node); await options.store.markPullBrowserCallStarted(options.scope, raw.eventId as string);
       }
       if (current.state === 'browser_call_started' && createLike) {
         await recoverUncertainCreate(event);
@@ -111,7 +111,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
       else await callAndCommit(raw.eventId as string, event);
       } catch (error) {
         // B5: a failure about this event's own node sets that node aside; the page goes on.
-        if (!await setAsideFailedPullItem(options, raw, event, error, now())) throw error;
+        if (!await setAsideRejectedChromeUrl(options.store, options.scope, String(raw.eventId), event, error, now()) && !await setAsideFailedPullItem(options, raw, event, error, now())) throw error;
       }
     }
     await publishSupersededPullMappings(options, authority);
@@ -151,7 +151,7 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     if (effect.kind !== 'node_moved' && !mayMutateNative(mapping, mounts)) {
       return sidecarExpectation(effect.effectDigest, mapping);
     }
-    if (effect.kind === 'node_content_updated') {
+    if (effect.kind === 'node_content_updated') { assertChromeBookmarkWrite(effect.node);
       // SR-02: `not_found` here is not transport noise - the target of the remote update is gone
       // locally (deleted outside sync), so no local mutation can express the remote post-state.
       const looked = await lookup(mapping.nativeId);

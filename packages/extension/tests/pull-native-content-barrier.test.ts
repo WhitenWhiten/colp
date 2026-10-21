@@ -3,6 +3,7 @@ import { test } from 'vitest';
 import {
   applyRemoteNodeContentUpdate, unqueuedNativeContentFields,
 } from '../src/pull-native-content-barrier.js';
+import { PullChromeUrlRejected } from '../src/pull-projection.js';
 import type { MappingInput } from '../src/sync-state-store.js';
 
 const mapping: MappingInput = {
@@ -29,6 +30,52 @@ test('unqueued overlay keeps live values that match neither the projection nor t
     { title: 'Known', url: 'https://known.example/' },
     { title: 'Remote', url: 'https://known.example/' },
   ), {});
+});
+
+test('file and chrome urls are not passed to chrome.bookmarks.update; https still is', async () => {
+  const updates: unknown[] = [];
+  const apply = (url: string) => applyRemoteNodeContentUpdate({
+    store: {
+      getScope: async () => ({ selectedRoots: [] }),
+      stageBookmarkEvent: async () => undefined,
+      getPullEvent: async () => null,
+    } as never,
+    scope: {} as never,
+    api: { update: async (_id: string, changes: unknown) => { updates.push(changes); } } as never,
+    mapping, node: { ...node, url, title: 'Remote' }, effectDigest: 'sha256:effect', eventId: 'event-1',
+    mounts: [], now: () => 1,
+    lookup: async () => ({ class: 'present', nodes: [{ id: 'native-1', title: 'Known', url: 'https://known.example/' }] }),
+    targetMissingError: async () => new Error('missing'),
+    queuedLocal: {},
+  });
+  await apply('https://example.test/kept');
+  assert.deepEqual(updates, [{ title: 'Remote', url: 'https://example.test/kept' }]);
+  for (const url of ['file:///tmp/secret', 'chrome://settings']) {
+    updates.length = 0;
+    await assert.rejects(() => apply(url), (error: unknown) =>
+      error instanceof PullChromeUrlRejected && error.code === 'unsupported_url_scheme');
+    assert.deepEqual(updates, []);
+  }
+});
+
+test('a folder content update has no url and still reaches chrome.bookmarks.update', async () => {
+  const updates: unknown[] = [];
+  await applyRemoteNodeContentUpdate({
+    store: {
+      getScope: async () => ({ selectedRoots: [] }),
+      stageBookmarkEvent: async () => undefined,
+      getPullEvent: async () => null,
+    } as never,
+    scope: {} as never,
+    api: { update: async (_id: string, changes: unknown) => { updates.push(changes); } } as never,
+    mapping: { ...mapping, nodeKind: 'folder', projection: { ...mapping.projection, content: { title: 'Known' } } },
+    node: { ...node, kind: 'folder', title: 'Remote folder', url: undefined },
+    effectDigest: 'sha256:effect', eventId: 'event-folder', mounts: [], now: () => 1,
+    lookup: async () => ({ class: 'present', nodes: [{ id: 'native-1', title: 'Known' }] }),
+    targetMissingError: async () => new Error('missing'),
+    queuedLocal: {},
+  });
+  assert.deepEqual(updates, [{ title: 'Remote folder' }]);
 });
 
 test('a failed native content barrier does not call the Chrome update API', async () => {

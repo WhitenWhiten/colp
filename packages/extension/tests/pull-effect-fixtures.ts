@@ -5,14 +5,15 @@ import type { AuthoritativePullEffect, Operation, SyncPullEventV02 } from '@know
 export const pullFixtures = Object.freeze({
   createEvent(input: { kind: 'Folder' | 'Bookmark' | 'Separator'; sequence: number; collectionId: string;
     parentId: string; replicaId?: string; afterId?: string; beforeId?: string; folderRole?: string;
-    extensions?: Record<string, unknown>; opId?: string; title?: string }) {
+    extensions?: Record<string, unknown>; opId?: string; title?: string; url?: string }) {
     const kind = input.kind.toLowerCase(); const operation: any = baseOperation('create_node', input);
     if (input.opId) operation.opId = input.opId;
     const folderTitle = input.title ?? (input.folderRole === 'recovered' ? 'Recovered' : 'Remote');
+    const bookmarkUrl = input.url ?? 'https://example.test/';
     operation.payload = { parentId: input.parentId, node: kind === 'bookmark'
-      ? { kind, title: input.title ?? 'Remote', url: 'https://example.test/' }
+      ? { kind, title: input.title ?? 'Remote', url: bookmarkUrl }
       : kind === 'folder' ? { kind, title: folderTitle } : { kind } };
-    const node = { ...fullNode(kind, `node-created-${input.sequence}`, input.collectionId, input.parentId, folderTitle),
+    const node = { ...fullNode(kind, `node-created-${input.sequence}`, input.collectionId, input.parentId, folderTitle, bookmarkUrl),
       position: `p${input.sequence}`, ...(input.folderRole ? { folderRole: input.folderRole } : {}),
       ...(input.extensions ? { extensions: input.extensions } : {}) };
     if (input.extensions) operation.payload.node.extensions = input.extensions;
@@ -37,14 +38,14 @@ export const pullFixtures = Object.freeze({
       consumedTombstone });
   },
   mutationEvent(input: { kind: 'update' | 'move' | 'delete'; sequence: number; collectionId: string;
-    targetId: string; parentId: string; replicaId?: string; targetKind?: 'bookmark' | 'folder' }) {
+    targetId: string; parentId: string; replicaId?: string; targetKind?: 'bookmark' | 'folder'; url?: string }) {
     const type = input.kind === 'update' ? 'update_node_content' : input.kind === 'move' ? 'move_node' : 'delete_node';
     const operation: any = baseOperation(type, input); operation.targetId = input.targetId; operation.baseRevision = 'revision-old';
     operation.payload = input.kind === 'update' ? { base: { title: 'node-1', url: 'https://example.test/' },
       value: { title: 'Remote update' } } : input.kind === 'move' ? { newParentId: input.parentId,
       baseSourceParentRevision: 'children-old', baseTargetParentRevision: 'children-old' } : { reason: 'remote' };
     if (input.kind === 'update') return boundEvent(operation, { kind: 'node_content_updated',
-      node: fullNode(input.targetKind ?? 'bookmark', input.targetId, input.collectionId, input.parentId, 'Remote update') });
+      node: fullNode(input.targetKind ?? 'bookmark', input.targetId, input.collectionId, input.parentId, 'Remote update', input.url) });
     if (input.kind === 'move') return boundEvent(operation, { kind: 'node_moved',
       node: { ...fullNode(input.targetKind ?? 'bookmark', input.targetId, input.collectionId, input.parentId),
         position: `p${input.sequence}` },
@@ -88,10 +89,11 @@ export const pullFixtures = Object.freeze({
 function baseOperation(type: string, input: { sequence: number; collectionId: string; replicaId?: string }) { return { opId: `op-${input.sequence}`,
   replicaId: input.replicaId ?? 'replica-source', sequence: input.sequence, collectionId: input.collectionId, type, baseRevision: null,
   occurredAt: '2026-07-28T00:00:00.000Z', dependencies: [], payload: {} }; }
-function fullNode(kind: string, id: string, collectionId: string, parentId: string, title = 'Remote'): any {
+function fullNode(kind: string, id: string, collectionId: string, parentId: string, title = 'Remote',
+  url = 'https://example.test/'): any {
   const common = { id, collectionId, kind, parentId, position: 'p1', visibility: 'private', revision: `revision-${id}`,
     createdAt: '2026-07-28T00:00:00.000Z', updatedAt: '2026-07-28T00:00:00.000Z' };
-  return kind === 'bookmark' ? { ...common, title, url: 'https://example.test/' }
+  return kind === 'bookmark' ? { ...common, title, url }
     : kind === 'folder' ? { ...common, title } : common; }
 function boundEvent(operation: Operation, rawEffect: Record<string, unknown>): SyncPullEventV02 {
   const input: any = { effectId: operation.opId, status: 'applied', opId: operation.opId, replicaId: operation.replicaId,

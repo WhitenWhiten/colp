@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 import { chromeCreate, mappingFor, nativeContent, nodeContent, nodeCreate,
-  projectionContent } from '../src/pull-projection.js';
+  projectionContent, PullChromeUrlRejected } from '../src/pull-projection.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 
 const collectionId = 'collection-projection';
@@ -60,6 +60,19 @@ describe('Pull native projection', () => {
     assert.match(mapping.projection.contentDigest ?? '', /^sha256:[0-9a-f]{64}$/u);
     const detached = mappingFor(node, 'native-node', null, null, null, 'native-root');
     assert.equal('parentNativeId' in detached, false); assert.equal('parentColpId' in detached, false);
+  });
+
+  test('refuses file and chrome urls before they can be passed to chrome.bookmarks.create', () => {
+    const bookmark = created('Bookmark', 11);
+    assert.deepEqual(chromeCreate({ ...bookmark, url: 'https://example.test/kept' } as never),
+      { title: 'Remote', url: 'https://example.test/kept' });
+    assert.deepEqual(chromeCreate({ ...bookmark, url: 'http://example.test/kept' } as never),
+      { title: 'Remote', url: 'http://example.test/kept' });
+    assert.deepEqual(chromeCreate(created('Folder', 12)), { title: 'Remote' });
+    for (const url of ['file:///tmp/secret', 'FILE:///tmp/secret', 'chrome://settings', 'Chrome://bookmarks/']) {
+      assert.throws(() => chromeCreate({ ...bookmark, url } as never), (error: unknown) =>
+        error instanceof PullChromeUrlRejected && error.code === 'unsupported_url_scheme');
+    }
   });
 
   test('rejects root, alias and separator shapes that Chrome cannot create directly', () => {
