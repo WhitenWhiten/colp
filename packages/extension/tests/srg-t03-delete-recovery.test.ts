@@ -399,6 +399,13 @@ describe('T-03 delete recovery and retained copies (SRG-04/07 / C-02/C-05)', () 
       kind: 'delete', sequence: 7, collectionId: t03Scope.collectionId, targetId: 'node-1',
       parentId: 'root-colp', replicaId: t03Scope.replicaId, targetKind: 'folder',
     });
+    await echo.store.allocateSequenceAndEnqueue(t03Scope, {
+      opId: event.operation.opId, batchId: 'batch-self-echo', idempotencyKey: 'key-self-echo',
+      digest: 'sha256:self-echo', endpointIdentity: 'syncPush', mediaType: 'application/json',
+      baseRevision: null, operationRevision: 'local-self-echo', status: 'pending',
+      retry: { attempt: 0, notBefore: 0 },
+      payload: { type: 'delete_node', targetId: 'node-1' },
+    }, { allowUnstamped: true });
     await echo.applier.stage(echo.page([event]));
     await echo.applier.resume();
     assert.equal((await echo.store.listRemoteDeleteDecisions(t03Scope)).length, 0);

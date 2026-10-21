@@ -3,7 +3,7 @@ import { withinPrivateNativeBoundary } from './native-private-boundary.js';
 import { lookupBookmark } from './bookmark-api-error.js';
 import { currentPullMapping } from './pull-mapping-view.js';
 import { recordKns09Stop } from './kns-09-release.js';
-import { remoteDeleteDecisionId, remoteDeleteMemberIds } from './remote-delete-policy.js';
+import { isSelfEchoDelete, remoteDeleteDecisionId, remoteDeleteMemberIds } from './remote-delete-policy.js';
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import type { PullBookmarkApi } from './pull-applier-types.js';
 import { isNonChromeNativeId, isProtectedNativeRoot, mayMutateNative, unmountedNativeId } from './pull-mount-apply.js';
@@ -62,8 +62,8 @@ export async function applyRemoteDeletion(input: {
     };
   }
   const writable = mappings.some(row => !isNonChromeNativeId(row.nativeId) && mayMutateNative(row, mounts));
-  if (writable && event.operation.replicaId !== scope.replicaId
-      && (await store.getRemoteDeletePolicy(scope)).policy !== 'sync') {
+  if (writable && (await store.getRemoteDeletePolicy(scope)).policy !== 'sync'
+      && !isSelfEchoDelete(event, scope.replicaId, await store.getQueueByOpId(scope, event.operation.opId))) {
     const decision = await store.getRemoteDeleteDecision(scope, remoteDeleteDecisionId(`${event.cursor}:${event.operation.opId}`));
     if (decision?.state !== 'applying') {
       recordKns09Stop('unconfirmedDelete', scope); throw new SyncFailureError('remote_delete_confirmation_required');

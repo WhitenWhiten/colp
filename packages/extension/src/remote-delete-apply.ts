@@ -23,7 +23,9 @@ export async function settleParkedRemoteDeletes(options: PullApplierOptions, now
 
 export async function interceptStagedRemoteDelete(options: PullApplierOptions, api: PullBookmarkApi,
   eventId: string, pageId: string, event: OpEvent, now: () => number): Promise<'continue' | 'skip'> {
-  if (!isRemoteDeleteEffect(event.effect) || isSelfEchoDelete(event, options.scope.replicaId)) return 'continue';
+  if (!isRemoteDeleteEffect(event.effect)) return 'continue';
+  if (isSelfEchoDelete(event, options.scope.replicaId,
+    await options.store.getQueueByOpId(options.scope, event.operation.opId))) return 'continue';
   const mounts = await options.store.listMountBindings(options.scope);
   const members = remoteDeleteMemberIds(event);
   const mappings = await Promise.all(members.map((id) => options.store.getMappingByColpId(options.scope, id)));

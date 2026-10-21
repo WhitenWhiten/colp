@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, test } from 'vitest';
+import { CHROME_BOOKMARK_NOT_FOUND } from '../src/bookmark-api-error.js';
 import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
 import { createPullApplier, type PullBookmarkApi } from '../src/pull-applier.js';
 import { keepLocalFromDecision } from '../src/remote-delete-apply.js';
@@ -217,15 +218,62 @@ describe('P1-02 device remote-delete policy', () => {
     assert.equal(fixture.api.calls.filter((call) => call.kind === 'delete').length, 0);
   });
 
-  test('self-echo empty-folder delete is not parked under confirm', async () => {
+  test('confirm does not delete when replicaId is local but the op is not queued', async () => {
     const fixture = await setup();
     await fixture.store.setRemoteDeletePolicy(scope, { policy: 'confirm', expectedCasVersion: 0, now: 10 });
-    const event = pullFixtures.mutationEvent({ kind: 'delete', sequence: 7, collectionId: scope.collectionId,
-      targetId: 'node-1', parentId: 'root-colp', replicaId: scope.replicaId, targetKind: 'folder' });
+    await fixture.applier.stage(fixture.page([selfReplicaDelete()]));
+    await fixture.applier.resume();
+    assert.equal(fixture.api.calls.filter((call) => call.kind === 'delete').length, 0);
+    assert.equal((await fixture.api.get('native-node')).length, 1);
+    assert.ok(await fixture.store.getMappingByNativeId(scope, 'native-node'));
+    const pending = await fixture.store.listRemoteDeleteDecisions(scope, ['pending']);
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0]?.targetId, 'node-1');
+    const events = await fixture.store.listPullEvents(scope);
+    assert.ok(events.some((event) => event.state === 'awaiting_confirmation'));
+  });
+
+  test('keep_local does not delete when replicaId is local but the op is not queued', async () => {
+    const fixture = await setup();
+    await fixture.store.setRemoteDeletePolicy(scope, { policy: 'keep_local', expectedCasVersion: 0, now: 10 });
+    await fixture.applier.stage(fixture.page([selfReplicaDelete()]));
+    await fixture.applier.resume();
+    assert.equal(fixture.api.calls.filter((call) => call.kind === 'delete').length, 0);
+    assert.equal((await fixture.api.get('native-node')).length, 1);
+    assert.equal(await fixture.store.getMappingByNativeId(scope, 'native-node'), null);
+    assert.ok(await fixture.store.getLocalSyncExclusion(scope, 'native-node'));
+    assert.equal((await fixture.store.exportScope(scope)).cursor?.cursor, 'cursor-next');
+  });
+
+  test.each(['pending', 'terminal'] as const)('a %s local delete echo is not parked and does not delete the bookmark again', async (status) => {
+    const fixture = await setup();
+    await fixture.store.setRemoteDeletePolicy(scope, { policy: 'confirm', expectedCasVersion: 0, now: 10 });
+    const event = selfReplicaDelete();
+    const queued = await fixture.store.allocateSequenceAndEnqueue(scope, {
+      opId: event.operation.opId, batchId: 'batch-self-delete', idempotencyKey: 'key-self-delete',
+      digest: 'sha256:self-delete', endpointIdentity: 'syncPush', mediaType: 'application/json',
+      baseRevision: null, operationRevision: 'local-self-delete', status: 'pending',
+      retry: { attempt: 0, notBefore: 0 }, payload: { type: 'delete_node', targetId: 'node-1' },
+    }, { allowUnstamped: true });
+    if (status === 'terminal') {
+      await fixture.store.completeQueueWithReceipt(scope, queued.sequence, {
+        opId: queued.opId, operationDigest: queued.digest, kind: 'terminal', receiptId: 'receipt-self-delete',
+        resultDigest: 'sha256:self-delete-result',
+      });
+    }
+    const read = fixture.api.get.bind(fixture.api);
+    fixture.api.get = async (id: string) => {
+      if (id === 'native-node') throw new Error(CHROME_BOOKMARK_NOT_FOUND);
+      return read(id);
+    };
     await fixture.applier.stage(fixture.page([event]));
     await fixture.applier.resume();
+    fixture.api.get = read;
     assert.equal((await fixture.store.listRemoteDeleteDecisions(scope)).length, 0);
-    assert.ok(fixture.api.calls.some((call) => call.kind === 'delete' && call.nativeId === 'native-node'));
+    assert.equal(fixture.api.calls.filter((call) => call.kind === 'delete').length, 0);
+    assert.equal((await fixture.api.get('native-node')).length, 1);
+    const events = await fixture.store.listPullEvents(scope);
+    assert.equal(events.some((row) => row.state === 'awaiting_confirmation'), false);
     assert.equal((await fixture.store.exportScope(scope)).cursor?.cursor, 'cursor-next');
   });
 
@@ -279,6 +327,11 @@ async function setup(tree: { liveChild?: boolean; localExtra?: boolean } = {}) {
   const page = (events: readonly unknown[]) => pullFixtures.page({ events, nextCursor: 'cursor-next',
     collectionRevision: 'revision-next' });
   return { store, api, options, applier, createEvent, mutationEvent, subtreeEvent, page };
+}
+
+function selfReplicaDelete() {
+  return pullFixtures.mutationEvent({ kind: 'delete', sequence: 7, collectionId: scope.collectionId,
+    targetId: 'node-1', parentId: 'root-colp', replicaId: scope.replicaId, targetKind: 'folder' });
 }
 
 function fakeApi(): PullBookmarkApi & {

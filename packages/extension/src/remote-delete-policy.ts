@@ -1,6 +1,6 @@
 import type { SyncPullEventV02 } from '@know-n/colp/types';
 import { digestJson } from './bookmark-event-codec.js';
-import type { RemoteDeletePolicy } from './sync-state/types.js';
+import type { QueueOperation, RemoteDeletePolicy } from './sync-state/types.js';
 
 export type OpEvent = Extract<SyncPullEventV02, { kind: 'operation' }>;
 export const REMOTE_DELETE_POLICIES = ['sync', 'confirm', 'keep_local'] as const satisfies readonly RemoteDeletePolicy[];
@@ -45,6 +45,15 @@ export function remoteDeleteRestoreOpId(decisionId: string): string {
   return `rdr.${digestJson({ decisionId }).slice('sha256:'.length, 'sha256:'.length + 32)}`;
 }
 
-export function isSelfEchoDelete(event: OpEvent, replicaId: string): boolean {
-  return event.operation.replicaId === replicaId;
+const STANDING_LOCAL_DELETE = new Set(['pending', 'claimed', 'deferred', 'terminal', 'gap', 'blocked', 'unknown', 'set_aside']);
+
+/**
+ * A server-supplied replica id is not proof this browser deleted the bookmark.
+ * Skip confirmation only when the local queue still has this delete, committed or in flight.
+ */
+export function isSelfEchoDelete(event: OpEvent, replicaId: string, queued: QueueOperation | null): boolean {
+  if (event.operation.replicaId !== replicaId || !isRemoteDeleteEffect(event.effect) || !queued) return false;
+  if (queued.recovery?.resultStatus === 'rejected' || !STANDING_LOCAL_DELETE.has(queued.status)) return false;
+  const type = event.effect.kind === 'subtree_deleted' ? 'delete_subtree' : 'delete_node';
+  return queued.payload.type === type && queued.payload.targetId === remoteDeleteTargetId(event.effect);
 }
