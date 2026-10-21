@@ -65,6 +65,12 @@ export {
 } from './publication-cache-purge.js';
 export { RedisReportCacheInvalidator, REPORT_CACHE_EPOCH_TTL_MS, REPORT_CACHE_SOURCE_BATCH_LIMIT } from './redis-report-invalidator.js';
 export { createPostgresReportSourceInvalidationOutboxPort } from './report-source-invalidation-producer.js';
+export {
+  createPostgresReportInvalidationCursorStore,
+  createReportCacheInvalidationRoutes,
+  deliverReportSourceInvalidation,
+} from './report-source-invalidation-consumer.js';
+export type { ReportInvalidationCursorStore } from './report-source-invalidation-consumer.js';
 export type { ReportSeriesInvalidationInput, ReportSourceInvalidationInput, ReportSourceInvalidationOutboxPort } from './report-source-invalidation-producer.js';
 export {
   CompositePublicationCachePurgeProvider,

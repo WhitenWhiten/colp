@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { sql } from 'kysely';
 import { loadConfig } from '../../bootstrap/config.js';
+import { isReportCacheInvalidationEnabled } from '../../bootstrap/report-cache-enablement.js';
 import { createDatabaseRuntime } from '../database/runtime.js';
 import { maintenanceDatabaseRuntimeOptions } from '../database/maintenance-options.js';
 import { createUnitOfWork } from '../database/unit-of-work.js';
@@ -82,11 +83,7 @@ export async function seedCli(arguments_: readonly string[] = process.argv.slice
   const seedDir = resolve(options.seedDir);
   const manifest = loadManifest(seedDir);
   const config = loadConfig();
-  const reportSourceInvalidation = config.reports.enabled
-    && config.cache.redis.mode !== 'off'
-    && (config.cache.reports.metadataEnabled
-      || config.cache.reports.issuesEnabled
-      || config.cache.reports.directoryEnabled)
+  const reportSourceInvalidation = isReportCacheInvalidationEnabled(config)
     ? createPostgresReportSourceInvalidationOutboxPort() : undefined;
   const runtime = createDatabaseRuntime(config.databaseUrl, {
     applicationName: 'known-seed',

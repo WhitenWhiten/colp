@@ -7,6 +7,8 @@ import { createPostgresMcpOauthRevocationStore } from '../infrastructure/databas
 import { createAutomationDeviceUnitOfWork, createAutomationUnitOfWork, createAutomationHealthMonitor, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createPostgresBookmarkSubscriptionUnitOfWork } from '../infrastructure/bookmark-subscriptions/unit-of-work.js';
 import { loadConfig } from './config.js';
+import { isReportCacheInvalidationEnabled } from './report-cache-enablement.js';
+import { createPostgresReportSourceInvalidationOutboxPort } from '../infrastructure/outbox/index.js';
 import {
   createPostgresMcpWriteOperationsStore,
   createPostgresSharedExposureFactsPort,
@@ -154,7 +156,9 @@ export function createApiPostgresPorts(input: {
 }): ApiPostgresPorts {
   const { database, config, metrics, metricsLogger } = input;
   setAutomationCaptureEnabled(config.automationCaptureEnabled === true);
-  const reportSourceInvalidation = undefined;
+  const reportSourceInvalidation = isReportCacheInvalidationEnabled(config)
+    ? createPostgresReportSourceInvalidationOutboxPort()
+    : undefined;
   const identityUnitOfWork = createPostgresIdentityUnitOfWork(database.db, {
     // F2: Better Auth mode omits legacy transaction secrets; legacy mode keeps
     // the production config-backed material exactly as before.

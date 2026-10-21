@@ -66,6 +66,8 @@ import {
   syncConflictEnvelopeRegistration,
   collectionInviteCreatedEnvelopeRegistration,
   createCollectionInviteEmailOutboxRoute,
+  createPostgresReportInvalidationCursorStore,
+  createReportCacheInvalidationRoutes,
   type CollectionMutationProjectionSink,
   type PublicationCachePurgeProvider,
   type PublicationCachePurgeReadinessState,
@@ -76,6 +78,7 @@ import {
   composePublicationCachePurgeRoutes,
   resolvePublicationCachePurgeProvider,
 } from './publication-cache-purge-composition.js';
+import { isReportCacheInvalidationEnabled } from './report-cache-enablement.js';
 export { resolvePublicationCachePurgeProvider } from './publication-cache-purge-composition.js';
 import {
   createLinkHealthWorkerRuntime,
@@ -472,6 +475,7 @@ export function buildWorker(
     cdn: cdnPublicationCachePurgeProvider,
     metrics,
     environment: config.nodeEnv,
+    reportCacheEnabled: isReportCacheInvalidationEnabled(config),
     ...(options.createCacheStore === undefined ? {} : { createStore: options.createCacheStore }),
     ...(options.createCacheClient === undefined ? {} : { createClient: options.createCacheClient }),
     ...(options.cacheCloseTimeoutMs === undefined ? {} : { closeTimeoutMs: options.cacheCloseTimeoutMs }),
@@ -531,6 +535,12 @@ export function buildWorker(
       { runtimeEnabled: config.automationAdmissionEnabled === true, workerEnabled: config.automationWorkEnabled === true }))] : []),
     ...publicationCachePurgeRoutes,
     ...collectionInviteEmailRoutes,
+    ...(database && workerCacheComposition.reportCacheInvalidator
+      ? createReportCacheInvalidationRoutes({
+        invalidator: workerCacheComposition.reportCacheInvalidator,
+        store: createPostgresReportInvalidationCursorStore(database.db),
+      })
+      : []),
   ]);
   const durability = assertProductionOutboxRouteDurability(routes);
   metrics.gauge('outbox.projection_routes', durability.routeCount);

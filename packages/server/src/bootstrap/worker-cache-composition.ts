@@ -18,6 +18,7 @@ import {
 import {
   CompositePublicationCachePurgeProvider,
   RedisPublicationCacheInvalidator,
+  RedisReportCacheInvalidator,
   type PublicationCachePurgeProvider,
 } from '../infrastructure/outbox/index.js';
 import type { Metrics } from '../infrastructure/telemetry/index.js';
@@ -38,6 +39,11 @@ export interface WorkerCacheCompositionOptions {
   readonly metrics?: Metrics;
   /** Cache key environment namespace; worker.ts passes nodeEnv. */
   readonly environment?: string;
+  /**
+   * Shared report-cache enablement. The invalidator is constructed only when
+   * this is true and Redis mode is not off.
+   */
+  readonly reportCacheEnabled?: boolean;
   /** T11 test seam: replaces the Redis runtime factory. mode=off must never call it. */
   readonly createStore?: (config: RedisCacheConnectionConfig) => CacheStore;
   /** T11 test seam: pass through to createRedisCacheStore's createClient. */
@@ -53,7 +59,7 @@ export interface WorkerCacheComposition {
   readonly store?: CacheStore;
   /** Composite provider when shadow/serve; undefined for mode=off. */
   readonly publicationCachePurgeProvider?: PublicationCachePurgeProvider;
-  readonly reportCacheInvalidator?: undefined;
+  readonly reportCacheInvalidator?: RedisReportCacheInvalidator;
   /** Live readiness: disabled (off), healthy, or degraded (store health). */
   readiness(): Promise<CacheReadinessState>;
   /** Bounded, idempotent close; no-op for mode=off. */
@@ -100,7 +106,15 @@ export function createWorkerCacheComposition(
     },
     metrics,
   });
-  const reportCacheInvalidator = undefined;
+  const reportCacheInvalidator = options.reportCacheEnabled === true
+    ? new RedisReportCacheInvalidator({
+      store,
+      key: {
+        environment: options.environment ?? 'default',
+        keyPrefix: config.redis.keyPrefix,
+      },
+    })
+    : undefined;
   const publicationCachePurgeProvider = new CompositePublicationCachePurgeProvider({
     invalidator,
     ...(cdn === undefined ? {} : { cdn }),
