@@ -7,6 +7,36 @@ import { describeWithPostgres } from '../../support/postgres-test-runtime.js';
 describeWithPostgres('AW-26 authenticated worker bootstrap and pairing',() => {
   let f: Awaited<ReturnType<typeof automationWorkerFixture>>;
   afterEach(async () => { await f?.close(); });
+  test('ChatGPT CIMD identity can create, read, update and pair an Events worker',async () => {
+    f = await automationWorkerFixture('cimd_worker');
+    const clientId = 'https://chatgpt.com/oauth/client.json';
+    const profile = await f.ownerPost('/connection-profiles',{
+      name: 'ChatGPT',automationEnabled: true,authorizedClientId: clientId,
+      credentialBindingId: 'pending-owner-chose-agent',catalogs: ['standard','automationWorker'],
+    });
+    expect(profile.statusCode,profile.body).toBe(201);
+    expect(profile.json().configuration.authorizedClientId).toBe(clientId);
+    const target = await f.ownerPost('/targets',{
+      name: 'default-worker',providerLabel: '',broadcastOptIn: false,privacy: 'standard',
+      connectionProfileId: profile.json().id,wakeMode: 'events',
+    });
+    expect(target.statusCode,target.body).toBe(201);
+    const grant = await f.ownerPost(`/targets/${target.json().id}/pairings`,{ reason: 'Pair ChatGPT' },String(target.headers.etag));
+    expect(grant.statusCode,grant.body).toBe(201);
+    // The exact authenticated URL is the identity; another client cannot redeem its grant.
+    expect((await f.pair(grant.json())).statusCode).toBe(404);
+    const token = await f.mint({ clientId });
+    const paired = await f.pair(grant.json(),randomUUID(),token);
+    expect(paired.statusCode,paired.body).toBe(200);
+    expect(paired.json()).toMatchObject({ wakeMode: 'events',wakeReadiness: 'waitingForSubscription' });
+    const read = await f.app.inject({ url: `/api/v1/me/automations/connection-profiles/${profile.json().id}`,headers: { cookie: f.owner.cookie } });
+    expect(read.statusCode,read.body).toBe(200);
+    expect(read.json().configuration.authorizedClientId).toBe(clientId);
+    const renamed = await f.app.inject({ method: 'PUT',url: `/api/v1/me/automations/connection-profiles/${profile.json().id}`,
+      headers: f.ownerHeaders(randomUUID(),String(read.headers.etag)),payload: { ...read.json().configuration,name: 'ChatGPT summaries' } });
+    expect(renamed.statusCode,renamed.body).toBe(200);
+    expect(renamed.json().configuration.authorizedClientId).toBe(clientId);
+  });
   test('worker-only bootstrap pairs via real JWT without manager scope, code is hashed and secret-free replay is fenced',async () => {
     f = await automationWorkerFixture('aw26_bootstrap'); const setup = await f.setup();
     expect(f.actor.scopes).toEqual(['automation:work']); expect(setup.target.wakeReadiness).toBe('waitingForPairing');

@@ -29,4 +29,26 @@ describe('reviewed closed Automation schema', () => {
     const cycle: Record<string, unknown> = {}; cycle.self = cycle;
     expect(validateAutomation('RuleDefinition', cycle).valid).toBe(false);
   });
+
+  test('connection profiles accept opaque and HTTPS CIMD client identities without widening other IDs', () => {
+    const profile = { name: 'ChatGPT', automationEnabled: true, catalogs: ['standard', 'automationWorker'],
+      credentialBindingId: 'pending-owner-chose-agent' };
+    const valid = ['https://chatgpt.com/oauth/client.json', 'client-1._~', 'x'.repeat(256),
+      `https://agent.example/${'x'.repeat(2026)}`, 'HTTPS://agent.example/client.json?version=1'];
+    for (const authorizedClientId of valid) {
+      const input = { ...profile, authorizedClientId };
+      expect(validateAutomation('ConnectionProfileInput', input), authorizedClientId).toEqual({ valid: true, issues: [] });
+      expect(validateAutomation('ConnectionProfile', { id: 'profile', revision: '1', configuration: input, eventsSupport: 'unknown' }).valid).toBe(true);
+    }
+    for (const authorizedClientId of ['', 'x'.repeat(257), 'http://agent.example/client.json',
+      'https://', 'https://user:password@agent.example/client.json', 'https://agent.example/client.json#fragment',
+      'https://agent.example/client name.json', 'https://agent.example/client\n.json',
+      `https://agent.example/${'x'.repeat(2027)}`]) {
+      expect(validateAutomation('ConnectionProfileInput', { ...profile, authorizedClientId }).valid, authorizedClientId).toBe(false);
+    }
+    const input = { ...profile, authorizedClientId: valid[0] };
+    expect(validateAutomation('ConnectionProfileInput', { ...input, unexpected: true }).valid).toBe(false);
+    expect(validateAutomation('ConnectionProfileInput', { ...input, credentialBindingId: valid[0] }).valid).toBe(false);
+    expect(validateAutomation('OpaqueId', valid[0]).valid).toBe(false);
+  });
 });

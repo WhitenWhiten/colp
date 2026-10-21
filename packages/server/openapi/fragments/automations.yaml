@@ -6611,10 +6611,17 @@ components:
         automationEnabled:
           type: boolean
         authorizedClientId:
-          type: string
-          maxLength: 128
-          minLength: 1
-          pattern: ^[A-Za-z0-9._~-]+$
+          description: "OAuth client identity: an opaque registration ID or an HTTPS CIMD metadata URL, without userinfo or a
+            fragment. Preserve the exact authenticated identity."
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 256
+              pattern: ^[A-Za-z0-9._~-]+$
+            - type: string
+              maxLength: 2048
+              format: uri
+              pattern: ^[Hh][Tt][Tt][Pp][Ss]://[^\s\u0000-\u001f\u007f/@?#]+(?:[/?][^\s\u0000-\u001f\u007f#]*)?$
         credentialBindingId:
           type: string
           maxLength: 128

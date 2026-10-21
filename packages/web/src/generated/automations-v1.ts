@@ -1652,6 +1652,7 @@ export interface components {
         AutomationConnectionProfileInput: {
             name: string;
             automationEnabled: boolean;
+            /** @description OAuth client identity: an opaque registration ID or an HTTPS CIMD metadata URL, without userinfo or a fragment. Preserve the exact authenticated identity. */
             authorizedClientId: string;
             credentialBindingId: string;
             /** @description Explicit composable catalog membership. Each automation catalog requires Owner opt-in and its own scopes. Standard never implicitly enables automation. */

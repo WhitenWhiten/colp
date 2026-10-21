@@ -146,3 +146,10 @@ and its `ClientEventBatch`, `ClientEvent` and `ClientRouteTemplate` schemas.
 The self-hosted web app sends no error or Web Vitals telemetry and the server
 mounts no browser telemetry endpoint, so no client can depend on the route. The
 frozen snapshot is baselines/product-v1.1.99.0.yaml; 1.98.0 remains immutable.
+
+Product 1.100.0 corrects `AutomationConnectionProfileInput.authorizedClientId`
+to accept HTTPS CIMD metadata URLs and opaque OAuth client IDs up to 256 characters.
+Existing opaque IDs remain valid; credentials and resource IDs keep their original
+constraints. The conservative breaking checker treats the expanded string union as
+a shape change. See ../../../docs/automation/ADR-BE1.md. The accepted snapshot is
+baselines/product-v1.1.100.0.yaml; 1.99.0 remains immutable.

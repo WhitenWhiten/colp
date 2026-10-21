@@ -35,6 +35,11 @@ const assertions = `
   const rule = JSON.parse(readFileSync('../node/tests/fixtures/automation/m1-placement.json', 'utf8'));
   assert.equal(core.validateAutomation('PreviewInput', { rule: { definition: rule, bindingSetId: 'b' }, ruleId: 'owned-rule', mode: 'currentState' }).valid, true);
   assert.equal(core.validateAutomation('ChangeInput', { definition: rule, bindingSetId: 'b', executionPolicyId: null, pendingRuns: 'hold', counterPolicy: 'resetOnSemanticChange' }).valid, true);
+  const profile = { name: 'ChatGPT', automationEnabled: true, catalogs: ['standard', 'automationWorker'],
+    authorizedClientId: 'https://chatgpt.com/oauth/client.json', credentialBindingId: 'pending-owner-chose-agent' };
+  assert.equal(core.validateAutomation('ConnectionProfileInput', profile).valid, true,
+    'The installed Automation package must accept HTTPS CIMD client IDs.');
+  assert.equal(core.validateAutomation('ConnectionProfileInput', { ...profile, authorizedClientId: 'http://agent.example/client.json' }).valid, false);
   process.stdout.write('packaged-automation-ok');
 `;
 

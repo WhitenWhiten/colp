@@ -67,6 +67,10 @@ The deployment secret and existing Product session/CSRF configuration are reused
 * Added GET /pause to discover the revision required by the existing If-Match
   contract, DELETE /rules/{id} as archival (immutable history retained), and DELETE
   /binding-sets/{id} only for never-referenced sets to fulfill the requested CRUD.
+* Connection-profile `authorizedClientId` accepts opaque OAuth registrations (up to
+  256 characters) and HTTPS CIMD metadata URLs (up to 2,048 characters, without
+  userinfo or fragments), including ChatGPT's `https://chatgpt.com/oauth/client.json`.
+  The exact authenticated identity is retained; other resource IDs keep their original bounds.
 * Updating an enabled definition pauses that configuration; fresh preview/enable
   is required. Paused/archived operations remain available after dependency loss.
 * Current-state previews use clearly identified hypothetical current snapshots;
@@ -88,12 +92,13 @@ Product 1.95.0 adds dependency/incident read and revalidation operations, preser
 immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
 independently of the usable configuration API and the server's general readiness.
 
-The server depends on published `@know-n/colp` 0.2.1 with the updated editing and
-held-run usage contracts. To try unreleased shared-source changes,
+The server vendors `@know-n/colp` 0.2.2-automation-client-id.0 to include the CIMD
+connection-profile fix before a registry release. Both dependency locks and the
+Docker dependency stages use the checked-in tarball. To refresh unreleased shared-source changes,
 `node packages/server/scripts/refresh-automation-package.mjs` packs a prerelease
 into `packages/server/vendor/` and updates both locks. Restore
-`COPY packages/server/vendor ./vendor` in both Docker dependency stages while
-using a vendored build, then remove it when switching back to a registry release.
+the registry dependency and remove the vendor COPY steps when switching back to
+a published release.
 
 Editing previews carry the owned `ruleId` so competition excludes that rule by identity;
 other enabled rules still invalidate previews when they change. Replacement preserves

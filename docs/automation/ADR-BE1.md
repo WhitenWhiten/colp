@@ -64,6 +64,22 @@ contract while `product-v1.1.96.0.yaml` remains immutable historical evidence.
 Preview also accepts an optional owned `ruleId` to exclude the edited rule from
 competition and bind activation to that rule's identity.
 
+## OAuth client identity compatibility
+
+Product 1.100.0 corrects connection-profile `authorizedClientId` to accept both
+opaque OAuth registration IDs (1–256 characters) and HTTPS CIMD metadata URLs
+(up to 2,048 characters, without userinfo or fragments). ChatGPT authenticates as
+`https://chatgpt.com/oauth/client.json`; the previous opaque-resource-ID pattern
+rejected the UI's automatically selected identity before target creation.
+
+The identity is stored and compared verbatim, including during authenticated
+pairing. This adds no network fetch and does not broaden credential-binding,
+target or other resource ID schemas. Existing opaque-ID requests remain valid.
+The conservative breaking checker reports the expanded string union in both
+requests and returned configurations, so `product-v1.1.100.0.yaml` records the
+accepted correction; `product-v1.1.99.0.yaml` remains immutable. Schema boundary,
+installed-package and PostgreSQL pairing regressions cover the correction.
+
 ## AW-55 waiting work and cost observations
 
 Rule GET/list and Run GET/list expose `usage`, through the additive

@@ -690,6 +690,9 @@ export interface PairingClaimInput {
 export interface ConnectionProfileInput {
   name: string;
   automationEnabled: boolean;
+  /**
+   * OAuth client identity: an opaque registration ID or an HTTPS CIMD metadata URL, without userinfo or a fragment. Preserve the exact authenticated identity.
+   */
   authorizedClientId: string;
   credentialBindingId: string;
   /**
