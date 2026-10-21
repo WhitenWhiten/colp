@@ -1,4 +1,5 @@
 /** Pinned OpenAI webhook profile; deliberately excludes draft poll/stream methods. */
+import { isPrivateOrLocalLiteralHostname } from '../../shared/private-or-local-literal-host.js';
 export const MCP_AUTOMATION_EVENT = 'colp.automation.triggered' as const;
 export class McpEventsError extends Error {
   constructor(readonly code: -32601 | -32602 | -32603 | -32015, message: string) { super(message); }
@@ -33,6 +34,7 @@ export function parseMcpEventsParams(method: string, raw: unknown): McpEventSubs
     || (p.ttlMs !== undefined && p.ttlMs !== null && (!Number.isSafeInteger(p.ttlMs) || (p.ttlMs as number) < 1))) throw invalid();
   let url: URL; try { url = new URL(delivery.url); } catch { throw invalid(); }
   if (url.protocol !== 'https:' || url.username || url.password || url.hash) throw invalid();
+  if (isPrivateOrLocalLiteralHostname(url.hostname)) throw invalid();
   if (subscribe) {
     if (typeof delivery.secret !== 'string' || !/^whsec_[A-Za-z0-9+/]+={0,2}$/.test(delivery.secret) || delivery.secret.length > 256) throw invalid();
     const encoded = delivery.secret.slice(6), decoded = Buffer.from(encoded, 'base64');

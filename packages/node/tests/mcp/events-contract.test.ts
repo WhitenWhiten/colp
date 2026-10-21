@@ -21,6 +21,13 @@ test('OpenAI profile rejects replay, drafts, malformed secrets and credentials i
   expect(() => parseMcpEventsParams('events/unsubscribe',params)).toThrow();
   expect(parseMcpEventsParams('events/unsubscribe',{ ...params, delivery: { mode: 'webhook',url: params.delivery.url } })).toMatchObject({ arguments: params.arguments });
 });
+test('webhook delivery rejects literal private and local hosts', () => {
+  for (const url of ['https://127.0.0.1/', 'https://[::1]/', 'https://169.254.169.254/', 'https://localhost/']) {
+    expect(() => parseMcpEventsParams('events/subscribe', { ...params, delivery: { ...params.delivery, url } })).toThrow();
+  }
+  const url = 'https://callback.example/path';
+  expect(parseMcpEventsParams('events/subscribe', { ...params, delivery: { ...params.delivery, url } })).toMatchObject({ delivery: { mode: 'webhook', url } });
+});
 
 test('closed host extension definitions remain local across repeated wire materialization',()=>{
   const schema={type:'object',properties:{job:{$ref:'#/$defs/HostJob'}},$defs:{HostJob:{type:'object',properties:{id:{type:'string'}},additionalProperties:false}}};
