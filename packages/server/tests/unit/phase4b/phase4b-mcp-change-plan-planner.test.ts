@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { test } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
 import type { McpAuthenticatedAuthorizationBinding } from '@know-n/colp/mcp';
 import type {
   ChangePlanImpact,
@@ -18,6 +18,29 @@ import {
   type Phase4bMcpStoredPlan,
 } from '../../../src/modules/mcp/change-plan-planner.js';
 import type { Phase4bMcpCollectionVisibility } from '../../../src/modules/mcp/write-dependency-gate.js';
+
+const csprng = vi.hoisted(() => ({
+  randomBytes: vi.fn<(size: number) => Uint8Array>(),
+  actual: undefined as ((size: number) => Uint8Array) | undefined,
+}));
+
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>();
+  csprng.actual = (size: number) => actual.randomBytes(size);
+  csprng.randomBytes.mockImplementation((size: number) => actual.randomBytes(size));
+  return {
+    ...actual,
+    randomBytes: (size: number) => csprng.randomBytes(size),
+  };
+});
+
+afterEach(() => {
+  const actual = csprng.actual;
+  csprng.randomBytes.mockReset();
+  if (actual !== undefined) {
+    csprng.randomBytes.mockImplementation((size: number) => actual(size));
+  }
+});
 
 const BINDING: McpAuthenticatedAuthorizationBinding = Object.freeze({
   kind: 'authenticated',
@@ -172,6 +195,30 @@ function plannerWithCollectionVisibility(collectionVisibility: Phase4bMcpCollect
 
 function planner(overrides: Readonly<Partial<Phase4bMcpChangePlanPlannerOptions>> = Object.freeze({})) {
   return createPhase4bMcpChangePlanPlanner(options(overrides));
+}
+
+function plannerWithDefaultIds() {
+  const { ids: _ids, ...rest } = options();
+  return createPhase4bMcpChangePlanPlanner(rest);
+}
+
+function createdOperationId(result: Phase4bMcpPlannedChange): string {
+  const operation = result.operations[0];
+  if (operation === undefined || operation.type !== 'create_node') {
+    throw new Error('expected a create_node operation');
+  }
+  return operation.opId;
+}
+
+/** Former Date.now-seeded LCG. Tokens from randomBytes must not land on it. */
+function timeSeededLcgToken(seed: number): string {
+  const bytes = new Uint8Array(16);
+  let state = seed & 0xffffffff;
+  for (let index = 0; index < bytes.length; index += 1) {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    bytes[index] = state & 0xff;
+  }
+  return Buffer.from(bytes).toString('hex');
 }
 
 async function planned(
@@ -601,4 +648,70 @@ test('MCP-W03 conceals missing and unauthorized authoritative state without revi
 test('delete-subtree impact text counts items in plain English', () => {
   assert.equal(phase4bMcpDeleteSubtreeImpactText({ title: 'Hacker News', subtreeCount: 1 }), 'delete Hacker News (1 item)');
   assert.equal(phase4bMcpDeleteSubtreeImpactText({ title: 'Reading', subtreeCount: 4 }), 'delete Reading (4 items)');
+});
+
+test('MCP-W03 default ids are unique CSPRNG tokens, not a Date.now-seeded LCG', async () => {
+  const issued: string[] = [];
+  csprng.randomBytes.mockClear();
+  csprng.randomBytes.mockImplementation((size: number) => {
+    assert.equal(size, 16);
+    const actual = csprng.actual;
+    if (actual === undefined) throw new Error('node:crypto mock is not installed.');
+    const bytes = actual(size);
+    issued.push(Buffer.from(bytes).toString('hex'));
+    return bytes;
+  });
+
+  const started = Date.now();
+  const service = plannerWithDefaultIds();
+  const results = [];
+  for (let index = 0; index < 4; index += 1) {
+    results.push(await service.plan(CREATE_INPUT, BINDING));
+  }
+  const finished = Date.now();
+
+  const predicted = new Set<string>();
+  for (let seed = started; seed <= finished; seed += 1) {
+    predicted.add(timeSeededLcgToken(seed));
+  }
+
+  const ids = results.flatMap((result) => {
+    assert.match(result.planId, /^plan_[0-9a-f]{32}$/u);
+    const operationId = createdOperationId(result);
+    assert.match(operationId, /^op_[0-9a-f]{32}$/u);
+    return [result.planId, operationId];
+  });
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(issued.length, ids.length);
+  assert.equal(csprng.randomBytes.mock.calls.length, ids.length);
+  for (const id of ids) {
+    const token = id.slice(id.indexOf('_') + 1);
+    assert.equal(issued.includes(token), true);
+    assert.equal(predicted.has(token), false);
+  }
+
+  const source = await readFile(
+    new URL('../../../src/modules/mcp/change-plan-planner.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /randomBytes\(16\)/u);
+  assert.equal(source.includes('1103515245'), false);
+  assert.equal(source.includes('Date.now'), false);
+});
+
+test('MCP-W03 refuses to mint plan ids when the CSPRNG is unavailable', async () => {
+  csprng.randomBytes.mockImplementation(() => {
+    throw new Error('CSPRNG unavailable.');
+  });
+  await assert.rejects(
+    () => plannerWithDefaultIds().plan(CREATE_INPUT, BINDING),
+    (error: unknown) => error instanceof Error && error.message === 'CSPRNG unavailable.',
+  );
+
+  csprng.randomBytes.mockImplementation(() => new Uint8Array(0));
+  await assert.rejects(
+    () => plannerWithDefaultIds().plan(CREATE_INPUT, BINDING),
+    (error: unknown) => error instanceof Error
+      && error.message === 'MCP-W03 requires a cryptographically secure random source.',
+  );
 });

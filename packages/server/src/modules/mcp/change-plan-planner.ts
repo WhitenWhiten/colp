@@ -12,7 +12,7 @@ import { MCP_OWN_DATA_DEFAULT_BUDGET, snapshotMcpOwnData as snapshotPhase4bData 
  * canonical writes and never lets model input enter SQL, Outbox, Audit, Tool
  * descriptions, or approval summaries.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { types as nodeTypes } from 'node:util';
 
 import {
@@ -1885,16 +1885,9 @@ async function settle<Value>(candidate: Value | PromiseLike<Value>): Promise<Val
 }
 
 function randomToken(): string {
-  const bytes = new Uint8Array(16);
-  const crypto = globalThis.crypto;
-  if (crypto !== undefined && typeof crypto.getRandomValues === 'function') {
-    crypto.getRandomValues(bytes);
-  } else {
-    let seed = Date.now() & 0xffffffff;
-    for (let index = 0; index < bytes.length; index += 1) {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      bytes[index] = seed & 0xff;
-    }
+  const bytes = randomBytes(16);
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength !== 16) {
+    throw new Error('MCP-W03 requires a cryptographically secure random source.');
   }
   return Buffer.from(bytes).toString('hex');
 }
