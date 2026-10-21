@@ -6,7 +6,7 @@ import {
   resetKns09DurableMetricsForTests, restoreKns09Metrics, snapshotKns09DurableMetrics, clearCounter,
 } from './kns-09-metrics.js';
 
-export const KNS09_SCHEMA_VERSION = 20;
+export const KNS09_SCHEMA_VERSION = 21;
 export const KNS09_MUTATION_STORAGE_KEY = 'known.kns09.mutations.v1';
 export const KNS09_DEFAULT_MUTATIONS = Object.freeze({ coordinator: true, ui: true });
 

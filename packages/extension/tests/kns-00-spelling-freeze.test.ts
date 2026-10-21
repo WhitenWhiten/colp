@@ -32,14 +32,14 @@ describe('KNS-00 spelling freeze', () => {
     assert.match(types, /mountNativeId: null/);
   });
 
-  test('documents v10 store names with DATABASE_VERSION = 20', async () => {
+  test('documents v10 store names with the current DATABASE_VERSION', async () => {
     const authority = await readFromPackage('docs/indexeddb-sync-state-authority.md');
     const schema = await readFromPackage('src/sync-state/schema.ts');
     for (const store of ['mount_bindings', 'scope_previews', 'bootstrap_runs', 'deletion_journal']) {
       assert.match(authority, new RegExp(`\`${store}\``));
     }
     assert.match(authority, /firstRun: 'none' \| 'deferred' \| 'running' \| 'completed'/);
-    assert.match(schema, /DATABASE_VERSION = 20/);
+    assert.match(schema, /DATABASE_VERSION = 21/);
     assert.doesNotMatch(schema, /DATABASE_VERSION = 9/);
   });
 

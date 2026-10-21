@@ -1,4 +1,4 @@
-import { validatedPullDeferral } from '../pull-deferral.js';
+import { pullDeferral, validatedPullDeferral } from '../pull-deferral.js';
 import { createProjectionRepository } from './projection-repository.js';
 import { mergeRemoteObservation } from './remote-observation.js';
 import { classifyDurablePullCursorWrite, pullPageDiagnosticRow, type PullCursorWriteClass } from '../pull-ack-boundary.js';
@@ -10,12 +10,12 @@ import {
 import { boundedString, canonicalJson, clone, validateJson } from './codec.js';
 import { constraintError, inject } from './errors.js';
 import {
-  cursorPage, iterateCursor, pageEventsRange, requestValue, requireActiveScope, runTransaction, scopeRowsRange,
+  cursorPage, iterateCursor, iterateCursorSequentially, pageEventsRange, requestValue, requireActiveScope, runTransaction, scopeRowsRange,
   transactionDone,
 } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
-import { adoptBlockedPagesAtChainHead } from './recovery-repository.js';
+import { adoptBlockedPagesAtChainHead, pullEventCallFact } from './recovery-repository.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { planPullMappingWrites } from './pull-mapping-writes.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
@@ -70,9 +70,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   async function hasActiveApplyIntentForNativeTarget(input: SyncScope, nativeId: string) {
     const key = scopeKey(validateScope(input)); const target = boundedString(nativeId, 'nativeId'); const db = await open();
     const tx = db.transaction(STORES.intents, 'readonly'); const completion = transactionDone(tx);
-    // Query the complete scope. This predicate is correctness-critical: a live
-    // intent beyond the old window must still block a duplicate native apply.
-    const values = await cursorPage<IntentRecord>(tx.objectStore(STORES.intents), scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
+    const values = await intentsForNativeTarget(tx, key, target);
     await completion; const timestamp = Date.now();
     return values.some((intent) => intent.nativeTargetId === target && intent.expiresAt > timestamp
       && ['browser_call_started', 'native_event_observed', 'authority_committed', 'page_complete']
@@ -248,8 +246,8 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     evidence: JsonObject, allowCompletedChangeEcho = true): Promise<boolean> {
     assertWritable(); const key = scopeKey(validateScope(input)); const db = await writableDatabase(); let matched = false;
     await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
-      const intents = tx.objectStore(STORES.intents); const candidates = (await cursorPage<IntentRecord>(
-        intents, scopeRowsRange(key), Number.MAX_SAFE_INTEGER)).filter((intent) => intent.expiresAt > Date.now()
+      const intents = tx.objectStore(STORES.intents); const candidates = (await intentsForNativeTarget(
+        tx, key, nativeId)).filter((intent) => intent.expiresAt > Date.now()
           && intent.nativeTargetId === boundedString(nativeId, 'nativeId')
           && intent.expectedPostState?.digest === boundedString(postStateDigest, 'postStateDigest')
           && (allowCompletedChangeEcho || intent.expected.kind !== 'change' || intent.state !== 'page_complete')
@@ -273,8 +271,8 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     const entries = Object.entries(changes); if (entries.length === 0 || entries.some(([field]) => !['title', 'url'].includes(field))) return false;
     const db = await writableDatabase(); let matched = false;
     await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
-      const intents = tx.objectStore(STORES.intents); const candidates = (await cursorPage<IntentRecord>(
-        intents, scopeRowsRange(key), Number.MAX_SAFE_INTEGER)).filter((intent) => {
+      const intents = tx.objectStore(STORES.intents); const candidates = (await intentsForNativeTarget(
+        tx, key, target)).filter((intent) => {
           const expected = intent.expectedPostState?.nativeContent;
           return intent.expiresAt > Date.now() && intent.expected.kind === 'change' && intent.nativeTargetId === target
             && (allowCompletedChangeEcho || intent.state !== 'page_complete')
@@ -556,7 +554,60 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     });
   }
 
+  async function pruneExpiredCompletedApplyIntents(input: SyncScope, options: {
+    readonly limit?: number; readonly after?: { readonly expiresAt: number; readonly intentId: string };
+  } = {}): Promise<{ readonly deleted: number; readonly done: boolean; readonly after?: { readonly expiresAt: number; readonly intentId: string } }> {
+    assertWritable(); const key = scopeKey(validateScope(input)); const limit = Math.min(32, Math.max(1, options.limit ?? 32));
+    const now = Date.now(); const db = await writableDatabase();
+    let deleted = 0; let examined = 0; let done = true;
+    let cursorAfter = options.after;
+    await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
+      const range = IDBKeyRange.bound(
+        cursorAfter ? [key, 'page_complete', cursorAfter.expiresAt, cursorAfter.intentId] : [key, 'page_complete', 0, ''],
+        [key, 'page_complete', now, '\uffff'], Boolean(cursorAfter), false);
+      const index = tx.objectStore(STORES.intents).index(INDEXES.intentByCompletedExpiry);
+      const events = tx.objectStore(STORES.pullEvents);
+      await new Promise<void>((resolve, reject) => {
+        const request = index.openCursor(range);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor || examined >= limit) { done = !cursor; resolve(); return; }
+          const intent = cursor.value as IntentRecord;
+          void (async () => {
+            examined += 1;
+            cursorAfter = { expiresAt: intent.expiresAt, intentId: intent.intentId };
+            const event = intent.eventId
+              ? await requestValue(events.get([key, intent.eventId])) as UnknownRecord | undefined : undefined;
+            if (expiredCompletedIntentCanBeDeleted(intent, event)) { cursor.delete(); deleted += 1; }
+            cursor.continue();
+          })().catch(reject);
+        };
+      });
+    });
+    return done ? { deleted, done } : { deleted, done, after: cursorAfter };
+  }
+
+function intentsForNativeTarget(tx: IDBTransaction, key: string, nativeId: string): Promise<IntentRecord[]> {
+  const target = boundedString(nativeId, 'nativeId');
+  return cursorPage<IntentRecord>(tx.objectStore(STORES.intents).index(INDEXES.intentByNativeTarget),
+    IDBKeyRange.bound([key, target, ''], [key, target, '\uffff']), Number.MAX_SAFE_INTEGER);
+}
+
+function expiredCompletedIntentCanBeDeleted(intent: IntentRecord, event: UnknownRecord | undefined): boolean {
+  if (intent.state !== 'page_complete' || intent.expiresAt > Date.now()) return false;
+  if (intent.repairJobId || intent.waitReason || intent.nativeWaitDecision) return false;
+  if (intent.nativeResult === 'unknown' || intent.nativeResult === 'result_unknown') return false;
+  if ((intent.replayState === 'unknown' || intent.replayState === 'started' || intent.replayState === 'awaiting_receipt')
+      && intent.nativeResult !== 'applied_with_evidence' && intent.nativeResult !== 'absent'
+      && intent.nativeResult !== 'failed') return false;
+  if (!event) return true;
+  if (String(event.state) !== 'page_complete' || pullDeferral(event)) return false;
+  return pullEventCallFact(event, intent) === 'known';
+}
+
   return { getApplyIntent, createApplyIntent, findApplyIntent, hasActiveApplyIntentForNativeTarget,
+    pruneExpiredCompletedApplyIntents,
     stagePullPage, listPullEvents, listPullEventsByPage, hasPullEventsAwaitingConfirmation, getPullEvent,
     listPullPages, loadPullApplyWorkset, prunePullHistory, pullOperationsCovered, getCursor,
     preparePullIntent, markPullBrowserCallStarted, observeApplyIntentEvent,

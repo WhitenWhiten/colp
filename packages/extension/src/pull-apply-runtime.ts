@@ -59,8 +59,15 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
   // `pull-bookmark-evidence.ts` so this file never reads Chrome state unclassified.
   const { lookup, targetMissingError, parentChildren, nativeIndex } = createPullBookmarkEvidence(options, api);
 
+  let expiredIntentCursor: { readonly expiresAt: number; readonly intentId: string } | undefined;
   async function resumeApply(mode: { readonly recoveryOnly?: boolean }): Promise<void> {
     assertPullApplierGate(options);
+    if (options.store.pruneExpiredCompletedApplyIntents) {
+      const pruned = await options.store.pruneExpiredCompletedApplyIntents(options.scope, {
+        limit: 32, ...(expiredIntentCursor ? { after: expiredIntentCursor } : {}),
+      });
+      expiredIntentCursor = pruned.done ? undefined : pruned.after;
+    }
     if (await kns09Paused('pull')) throw new SyncFailureError('sync_paused');
     await options.store.resumeNativeWaitDependents(options.scope);
     await settleParkedRemoteDeletes(options, now);

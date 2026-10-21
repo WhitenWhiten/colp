@@ -19,7 +19,7 @@ describe('P3-28 static IndexedDB contract', () => {
   test('pins database identity, version, stores and required compound indexes', async () => {
     const source = await readSyncStateSource();
     for (const token of [
-      "DATABASE_NAME = 'known-phase3-indexeddb-entry'", 'DATABASE_VERSION = 20',
+      "DATABASE_NAME = 'known-phase3-indexeddb-entry'", 'DATABASE_VERSION = 21',
       "remoteObservations: 'remote_observations'", "scopeCommandPlans: 'scope_command_plans'",
       "batchPlans: 'bookmark_batch_plans'", "batchItems: 'bookmark_batch_items'",
       "scopes: 'sync_scopes'", "mappings: 'native_mappings'", "queue: 'outbound_queue'",
@@ -35,7 +35,7 @@ describe('P3-28 static IndexedDB contract', () => {
       "by_scope_sequence", "by_scope_op_id", "by_scope_status_sequence",
       "by_scope_claim_sequence", "by_scope_native_id", "by_scope_colp_id",
       "by_scope_correlation", "by_scope_native_result", "by_scope_wait_reason",
-      "by_scope_repair_job", "by_scope_live_work",
+      "by_scope_repair_job", "by_scope_live_work", "by_scope_native_target", "by_scope_completed_expiry",
       "by_scope_snapshot_page", "by_scope_event_ordinal", "by_scope_event_dedupe",
       "by_scope_event_status_ordinal", "by_scope_event_native_ordinal",
       "by_scope_pull_state", "by_scope_page_ordinal", "by_scope_pull_page_state", "by_scope_pull_operation",
@@ -43,7 +43,7 @@ describe('P3-28 static IndexedDB contract', () => {
       "by_scope_plan_order", "by_scope_updated", "by_scope_root_role",
       'extractOutstandingTarget', 'replaceProjectionIntents', 'projection-intent',
       'p3-36-compaction-v1', 'srg-v15-native-result-v1', 'srg-v16-pull-page-index-v1', 'srg-v17-diagnostic-park-index-v1',
-      'u18-v20-pull-workset-index-v1',
+      'u18-v20-pull-workset-index-v1', 'u21-apply-intent-target-index-v1',
       'compactScope', 'listBookmarkEventsByOperation', 'by_scope_event_operation_ordinal', 'listBookmarkEventsByStatus', 'hasQueueRevisionForTarget', 'listPullEventsByPage',
       'allowUnstamped', 'stampColpQueueRecord', 'operation_validator_missing',
     ]) assert.match(source, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));

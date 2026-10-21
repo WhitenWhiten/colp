@@ -436,7 +436,7 @@ describe('BF-06 source contracts', () => {
     const source = `${await readServiceWorkerGraph(root)}\n${(await Promise.all(files.map((file) => readFile(resolve(root, file), 'utf8')))).join('\n')}`;
     assert.doesNotMatch(source, /<all_urls>/);
     assert.doesNotMatch(source, /\/api\/v1\/collections\/.*\/favicon/);
-    assert.match(source, /DATABASE_VERSION = 20/);
+    assert.match(source, /DATABASE_VERSION = 21/);
     assert.match(source, /known-favicon-sidecar/);
     assert.match(source, /Known-Command-Id/);
     assert.match(source, /colp\/v0\.1\/sync\/collections/);

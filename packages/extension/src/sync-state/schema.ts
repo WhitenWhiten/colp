@@ -6,6 +6,8 @@
  * | 20 | `pull_pages` `by_scope_pull_page_state`; `pull_events` `by_scope_pull_operation`.
  *     Upgrade from v19 is createIndex only. Queue, intents, and pull history are
  *     not cursor-scanned. |
+ * | 21 | `apply_intents` `by_scope_native_target` and `by_scope_completed_expiry`.
+ *     Upgrade from v20 is createIndex only. Intent rows are not cursor-scanned. |
  * | 19 | Bookmark event operation/ordinal index for bounded upload evidence reads. |
  * | 18 | Durable Product classification confirmation intents; scoped cleanup. |
  * | 9 | compaction watermarks / compact summaries |
@@ -36,7 +38,8 @@
  *
  * Superseded authority digests, kept so past releases stay identifiable:
  * `srg-v16-pull-page-index-v1`, `srg-v17-diagnostic-park-index-v1`,
- * `clf-v18-confirmation-intents-v1`, `bsr-v19-bookmark-operation-index-v1`.
+ * `clf-v18-confirmation-intents-v1`, `bsr-v19-bookmark-operation-index-v1`,
+ * `u18-v20-pull-workset-index-v1`.
  */
 
 /** Set by the v16→v17 upgrade; clears once the adoption sweep has completed. */
@@ -47,9 +50,9 @@ import { stableCode } from './errors.js';
 import { scopeKey, validateScopeRecord } from './scope-key.js';
 
 export const DATABASE_NAME = 'known-phase3-indexeddb-entry';
-export const DATABASE_VERSION = 20;
+export const DATABASE_VERSION = 21;
 export const LARGE_QUEUE_CONTRACT_SIZE = 10_000;
-export const AUTHORITY_DIGEST = 'u18-v20-pull-workset-index-v1';
+export const AUTHORITY_DIGEST = 'u21-apply-intent-target-index-v1';
 export const V15_BACKFILL_KEY = 'v15-backfill';
 /**
  * The `parked` discriminator, and the key value of `by_scope_parked`.
@@ -86,6 +89,7 @@ export const INDEXES = Object.freeze({
   intentByCorrelation: 'by_scope_correlation',
   intentByNativeResult: 'by_scope_native_result', intentByWaitReason: 'by_scope_wait_reason',
   intentByRepairJob: 'by_scope_repair_job', intentByLiveWork: 'by_scope_live_work',
+  intentByNativeTarget: 'by_scope_native_target', intentByCompletedExpiry: 'by_scope_completed_expiry',
   recoveryByPage: 'by_scope_snapshot_page',
   eventByOrdinal: 'by_scope_event_ordinal', eventByDedupe: 'by_scope_event_dedupe',
   eventByStatusOrdinal: 'by_scope_event_status_ordinal', eventByNativeId: 'by_scope_event_native_ordinal',
@@ -131,7 +135,8 @@ export function structuralProblems(db: IDBDatabase): string[] {
     [STORES.mounts, [INDEXES.mountByRootRole]],
     [STORES.receipts, [INDEXES.queueBySequence]],
     [STORES.intents, [INDEXES.intentByCorrelation, INDEXES.intentByNativeResult, INDEXES.intentByWaitReason,
-      INDEXES.intentByRepairJob, INDEXES.intentByLiveWork]], [STORES.recoveryNodes, [INDEXES.recoveryByPage]],
+      INDEXES.intentByRepairJob, INDEXES.intentByLiveWork, INDEXES.intentByNativeTarget,
+      INDEXES.intentByCompletedExpiry]], [STORES.recoveryNodes, [INDEXES.recoveryByPage]],
     [STORES.bookmarkEvents, [INDEXES.eventByOrdinal, INDEXES.eventByDedupe, INDEXES.eventByStatusOrdinal,
       INDEXES.eventByNativeId, INDEXES.eventByOperationOrdinal]],
     [STORES.pullPages, [INDEXES.pullPageByState]],
@@ -197,6 +202,8 @@ function createStores(db: IDBDatabase) {
   intents?.createIndex(INDEXES.intentByWaitReason, ['scopeKey', 'waitReason', 'intentId'], { unique: true });
   intents?.createIndex(INDEXES.intentByRepairJob, ['scopeKey', 'repairJobId', 'intentId'], { unique: true });
   intents?.createIndex(INDEXES.intentByLiveWork, ['scopeKey', 'liveWorkKind', 'colpId', 'substep'], { unique: true });
+  intents?.createIndex(INDEXES.intentByNativeTarget, ['scopeKey', 'nativeTargetId', 'intentId'], { unique: true });
+  intents?.createIndex(INDEXES.intentByCompletedExpiry, ['scopeKey', 'state', 'expiresAt', 'intentId'], { unique: true });
   create(STORES.recovery, { keyPath: ['scopeKey', 'snapshotId'] });
   const recoveryNodes = create(STORES.recoveryNodes, { keyPath: ['scopeKey', 'snapshotId', 'colpId'] });
   recoveryNodes?.createIndex(INDEXES.recoveryByPage, ['scopeKey', 'snapshotId', 'page', 'colpId'], { unique: true });
@@ -287,6 +294,12 @@ function ensureLiveIndexes(tx: IDBTransaction) {
   }
   if (!intents.indexNames.contains(INDEXES.intentByLiveWork)) {
     intents.createIndex(INDEXES.intentByLiveWork, ['scopeKey', 'liveWorkKind', 'colpId', 'substep'], { unique: true });
+  }
+  if (!intents.indexNames.contains(INDEXES.intentByNativeTarget)) {
+    intents.createIndex(INDEXES.intentByNativeTarget, ['scopeKey', 'nativeTargetId', 'intentId'], { unique: true });
+  }
+  if (!intents.indexNames.contains(INDEXES.intentByCompletedExpiry)) {
+    intents.createIndex(INDEXES.intentByCompletedExpiry, ['scopeKey', 'state', 'expiresAt', 'intentId'], { unique: true });
   }
   const pullEvents = tx.objectStore(STORES.pullEvents);
   if (!pullEvents.indexNames.contains(INDEXES.pullEventByPage)) {

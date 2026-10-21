@@ -250,6 +250,7 @@ export async function pruneCompletedPullPages(tx: IDBTransaction, key: string, l
       if (protectedPage || typeof event.intentId !== 'string') continue;
       const intent = await requestValue(intents.get([key, event.intentId])) as IntentRecord | undefined;
       if (pullEventCallFact(event, intent) !== 'known') protectedPage = true;
+      if (intent && intent.expiresAt > Date.now()) protectedPage = true;
     }
     stats.push({ pageId, completedAt: Number(page.completedAt), eventCount: own.length, byteLength: bytes,
       protected: protectedPage });

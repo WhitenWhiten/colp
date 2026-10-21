@@ -26,6 +26,8 @@ describe('schema v15 native-result and live-work contract', () => {
     assert.ok(intents.indexNames.contains(INDEXES.intentByWaitReason));
     assert.ok(intents.indexNames.contains(INDEXES.intentByRepairJob));
     assert.ok(intents.indexNames.contains(INDEXES.intentByLiveWork));
+    assert.ok(intents.indexNames.contains(INDEXES.intentByNativeTarget));
+    assert.ok(intents.indexNames.contains(INDEXES.intentByCompletedExpiry));
     const pullEvents = database.transaction(STORES.pullEvents, 'readonly').objectStore(STORES.pullEvents);
     assert.ok(pullEvents.indexNames.contains(INDEXES.pullEventByPage));
     const queueStore = database.transaction(STORES.queue, 'readonly').objectStore(STORES.queue);
@@ -85,7 +87,7 @@ describe('schema v15 native-result and live-work contract', () => {
   test('onupgradeneeded does not cursor-scan queue or history', async () => {
     const source = await readSyncStateSource();
     const schema = await readFile(new URL('../src/sync-state/schema.ts', import.meta.url), 'utf8');
-    assert.match(schema, /DATABASE_VERSION = 20/);
+    assert.match(schema, /DATABASE_VERSION = 21/);
     const upgrade = source.match(/export function upgrade\([\s\S]*?\n\}/);
     assert.ok(upgrade);
     assert.doesNotMatch(upgrade[0]!, /objectStore\(STORES\.queue\)\.openCursor|objectStore\(STORES\.intents\)\.openCursor/);
