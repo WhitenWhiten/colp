@@ -13,6 +13,15 @@ export interface SnapshotV02Node {
   readonly id: string;
   readonly parentId: string | null;
   readonly kind: 'root' | 'folder' | 'bookmark' | 'separator';
+  /** Title retained from the snapshot body. Counted even when `content` omits it. */
+  readonly title?: string;
+  /** URL retained from the snapshot body. Counted even when `content` omits it. */
+  readonly url?: string;
+  /**
+   * Body kept for restart: description, tags, visibility, extensions,
+   * folderRole, and title/url when they still live only inside projection content.
+   */
+  readonly content?: Readonly<Record<string, unknown>>;
 }
 
 export interface SnapshotV02ParentRevision {
@@ -52,9 +61,40 @@ export type SnapshotV02Accumulation =
     }
   | { readonly ok: false; readonly code: SnapshotV02RejectCode };
 
-/** UTF-8 size of the fields the accumulator compares. A rejected duplicate page does not add to this. */
+const textEncoder = new TextEncoder();
+
+function utf8Bytes(value: string): number {
+  return textEncoder.encode(value).byteLength;
+}
+
+/**
+ * UTF-8 size of one node's identity and retained body.
+ * Title, URL, and projection content all count. A rejected duplicate page does not add to this.
+ */
 export function snapshotV02NodeBytes(node: SnapshotV02Node): number {
-  return new TextEncoder().encode(`${node.id}\0${node.parentId ?? ''}\0${node.kind}`).byteLength;
+  return utf8Bytes(JSON.stringify({
+    id: node.id,
+    parentId: node.parentId,
+    kind: node.kind,
+    title: node.title ?? null,
+    url: node.url ?? null,
+    content: node.content ?? null,
+  }));
+}
+
+/** UTF-8 size of the page envelope plus its nodes. Rejected pages are not added to the aggregate. */
+export function snapshotV02PageWireBytes(page: SnapshotV02Page): number {
+  return utf8Bytes(JSON.stringify({
+    snapshotId: page.snapshotId,
+    revision: page.revision,
+    collectionId: page.collectionId,
+    syncCursor: page.syncCursor,
+    pageSequence: page.pageSequence,
+    hasMore: page.hasMore,
+    nextCursor: page.nextCursor,
+    materializationVersion: page.materializationVersion ?? null,
+    parentRevisions: page.parentRevisions,
+  })) + page.nodes.reduce((total, node) => total + snapshotV02NodeBytes(node), 0);
 }
 
 export interface SnapshotV02Accumulator {
@@ -93,12 +133,11 @@ export function createSnapshotV02Accumulator(): SnapshotV02Accumulator {
         return { ok: false, code: seenSequences.has(page.pageSequence) ? 'page_mutation' : 'sequence_gap' };
       }
       const pageIds = new Set<string>();
-      let addedBytes = 0;
       for (const node of page.nodes) {
         if (pageIds.has(node.id) || seenIds.has(node.id)) return { ok: false, code: 'page_mutation' };
         pageIds.add(node.id);
-        addedBytes += snapshotV02NodeBytes(node);
       }
+      const addedBytes = snapshotV02PageWireBytes(page);
       if (seenIds.size + pageIds.size > SNAPSHOT_V02_SUPPORT.maxNodes
           || bytes + addedBytes > SNAPSHOT_V02_SUPPORT.maxAggregateBytes) {
         return { ok: false, code: 'budget_exceeded' };
@@ -120,20 +159,22 @@ export function createSnapshotV02Accumulator(): SnapshotV02Accumulator {
           return { ok: false, code: 'graph_invalid' };
         }
       }
-      for (const [parentId, revision] of pageParents) parentRevisions.set(parentId, revision);
+      const nextPages = [...pages, page];
+      const complete = page.hasMore === false && page.nextCursor === null;
+      // A rejected page leaves the pages already accepted in place.
+      if (complete && !graphValid(nextPages)) return { ok: false, code: 'graph_invalid' };
+      const nextParents = new Map(parentRevisions);
+      for (const [parentId, revision] of pageParents) nextParents.set(parentId, revision);
       for (const id of pageIds) seenIds.add(id);
       seenSequences.add(page.pageSequence);
       bytes += addedBytes;
-      pages = [...pages, page];
-      const complete = page.hasMore === false && page.nextCursor === null;
+      pages = nextPages;
+      parentRevisions = nextParents;
+      const publishedParents = new Map(nextParents);
       if (!complete) {
-        return { ok: true, complete: false, graphChecked: false, parentRevisions, pages };
+        return { ok: true, complete: false, graphChecked: false, parentRevisions: publishedParents, pages };
       }
-      if (!graphValid(pages)) {
-        accumulator.reset();
-        return { ok: false, code: 'graph_invalid' };
-      }
-      return { ok: true, complete: true, graphChecked: true, parentRevisions, pages };
+      return { ok: true, complete: true, graphChecked: true, parentRevisions: publishedParents, pages };
     },
   };
   return accumulator;

@@ -15,7 +15,7 @@ import { sessionTransportBudget } from './colp-transport-budget-browser.js';
 import { persistSnapshotOpenConflicts, snapshotOpenConflictDetails } from './snapshot-conflict-recovery.js';
 import { createSnapshotV02Accumulator } from './snapshot-v02-pages.js';
 import {
-  snapshotV02PagesFromStaging, snapshotV02RejectMessage, toSnapshotV02Page,
+  snapshotProjectionContent, snapshotV02PagesFromStaging, snapshotV02RejectMessage, toSnapshotV02Page,
   readSnapshotMaterializationVersion,
 } from './snapshot-v02-consume.js';
 import type { SessionAuthority } from './session-client.js';
@@ -272,9 +272,7 @@ async function commitPreparedRecovery(runtime: SnapshotRecoveryRuntime,
 function snapshotMapping(node: SnapshotNode, childrenRevision: string | null, digest: (value: unknown) => string): MappingInput {
   const nodeKind: MappingInput['nodeKind'] = node.kind === 'bookmark' ? 'bookmark'
     : node.kind === 'separator' ? 'separator' : 'folder';
-  const content = JSON.parse(JSON.stringify({ title: node.title ?? '', ...(node.url ? { url: node.url } : {}),
-    ...(node.description ? { description: node.description } : {}), ...(node.tags ? { tags: [...node.tags] } : {}),
-    visibility: node.visibility ?? 'private', extensions: node.extensions ?? {}, ...('folderRole' in node && node.folderRole ? { folderRole: node.folderRole } : {}) })) as JsonObject;
+  const content = snapshotProjectionContent(node) as JsonObject;
   return { nativeId: `recovery:${node.id}`, colpId: node.id, rootNativeId: 'recovery:root', nodeKind,
     ...(node.parentId ? { parentColpId: node.parentId } : {}), projection: { revision: node.revision,
       resourceRevision: node.revision, ...(nodeKind === 'folder' ? { childrenRevision } : {}),

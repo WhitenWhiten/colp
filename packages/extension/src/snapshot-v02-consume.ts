@@ -25,6 +25,19 @@ export function readSnapshotMaterializationVersion(page: {
     ? version : LEGACY_SNAPSHOT_MATERIALIZATION_VERSION;
 }
 
+/** Body stored on a recovery mapping. Live pages and staged restarts budget the same object. */
+export function snapshotProjectionContent(node: SnapshotNode): Readonly<Record<string, unknown>> {
+  return JSON.parse(JSON.stringify({
+    title: node.title ?? '',
+    ...(node.url ? { url: node.url } : {}),
+    ...(node.description ? { description: node.description } : {}),
+    ...(node.tags ? { tags: [...node.tags] } : {}),
+    visibility: node.visibility ?? 'private',
+    extensions: node.extensions ?? {},
+    ...('folderRole' in node && node.folderRole ? { folderRole: node.folderRole } : {}),
+  })) as Readonly<Record<string, unknown>>;
+}
+
 export function toSnapshotV02Page(page: DurableSyncSnapshot): SnapshotV02Page {
   return {
     snapshotId: page.snapshotId,
@@ -36,6 +49,7 @@ export function toSnapshotV02Page(page: DurableSyncSnapshot): SnapshotV02Page {
     nodes: page.nodes.map((node) => ({
       id: node.id, parentId: node.parentId,
       kind: node.kind === 'alias' ? 'folder' : node.kind,
+      content: snapshotProjectionContent(node),
     })),
     hasMore: page.page.hasMore,
     nextCursor: page.page.nextCursor,
@@ -83,7 +97,10 @@ export function snapshotV02PagesFromStaging(input: {
   readonly nodes: ReadonlyArray<{
     readonly page: number; readonly colpId: string; readonly parentId: string | null;
     readonly kind: 'Folder' | 'Bookmark' | 'Separator'; readonly snapshotChildrenRevision?: string;
-    readonly mapping: { readonly projection: { readonly childrenRevision?: string | null } };
+    readonly mapping: { readonly projection: {
+      readonly childrenRevision?: string | null;
+      readonly content?: Readonly<Record<string, unknown>>;
+    } };
   }>;
 }): SnapshotV02Page[] {
   const grouped = new Map<number, Array<(typeof input.nodes)[number]>>();
@@ -109,6 +126,7 @@ export function snapshotV02PagesFromStaging(input: {
         kind: node.parentId === null ? 'root' as const
           : node.kind === 'Folder' ? 'folder' as const
             : node.kind === 'Bookmark' ? 'bookmark' as const : 'separator' as const,
+        ...(node.mapping.projection.content ? { content: node.mapping.projection.content } : {}),
       })),
       hasMore, nextCursor: last ? input.header.nextCursor : `staged-${page + 1}`,
       materializationVersion: input.header.materializationVersion,

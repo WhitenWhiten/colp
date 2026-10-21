@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 import {
+  SNAPSHOT_MATERIALIZATION_EXTENSION,
+  snapshotProjectionContent,
+  snapshotV02PagesFromStaging,
+  toSnapshotV02Page,
+} from '../src/snapshot-v02-consume.js';
+import {
   SNAPSHOT_V02_SUPPORT,
   accumulateSnapshotV02Pages,
   createSnapshotV02Accumulator,
+  snapshotV02PageWireBytes,
   type SnapshotV02Page,
 } from '../src/snapshot-v02-pages.js';
+import type { DurableSyncSnapshot } from '../src/durable-sync-engine-types.js';
 
 function page(overrides: Partial<SnapshotV02Page> & Pick<SnapshotV02Page, 'pageSequence' | 'nodes' | 'parentRevisions'>): SnapshotV02Page {
   return {
@@ -120,6 +128,7 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
     assert.equal(duplicate.ok, false);
     if (!duplicate.ok) assert.equal(duplicate.code, 'page_mutation');
     assert.equal(accumulator.nodes, 1);
+    assert.equal(accumulator.bytes, snapshotV02PageWireBytes(root));
     const tooMany = accumulateSnapshotV02Pages([page({
       pageSequence: 1,
       parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
@@ -139,6 +148,127 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
     })]);
     assert.equal(huge.ok, false);
     if (!huge.ok) assert.equal(huge.code, 'budget_exceeded');
+
+    const titled = page({
+      pageSequence: 1,
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root', title: 'Hello' }],
+    });
+    const untitled = page({
+      pageSequence: 1,
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root' }],
+    });
+    assert.ok(snapshotV02PageWireBytes(titled) > snapshotV02PageWireBytes(untitled));
+    const linked = page({
+      pageSequence: 1,
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root', url: 'https://example.test/item' }],
+    });
+    assert.ok(snapshotV02PageWireBytes(linked) > snapshotV02PageWireBytes(untitled));
+
+    const hugeTitle = accumulateSnapshotV02Pages([page({
+      pageSequence: 1,
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root', title: 't'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes) }],
+    })]);
+    assert.equal(hugeTitle.ok, false);
+    if (!hugeTitle.ok) assert.equal(hugeTitle.code, 'budget_exceeded');
+    const hugeUrl = accumulateSnapshotV02Pages([page({
+      pageSequence: 1,
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root', url: `https://example.test/${'u'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes)}` }],
+    })]);
+    assert.equal(hugeUrl.ok, false);
+    if (!hugeUrl.ok) assert.equal(hugeUrl.code, 'budget_exceeded');
+    const hugeCursor = accumulateSnapshotV02Pages([page({
+      pageSequence: 1, syncCursor: 'c'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes),
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root' }],
+    })]);
+    assert.equal(hugeCursor.ok, false);
+    if (!hugeCursor.ok) assert.equal(hugeCursor.code, 'budget_exceeded');
+
+    const kept = createSnapshotV02Accumulator();
+    assert.equal(kept.add(root).ok, true);
+    const overflow = kept.add(page({
+      pageSequence: 2,
+      parentRevisions: [{ parentId: 'folder-a', childrenRevision: 'children-a' }],
+      nodes: [{ id: 'folder-a', parentId: 'root', kind: 'folder', title: 't'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes) }],
+    }));
+    assert.equal(overflow.ok, false);
+    if (!overflow.ok) assert.equal(overflow.code, 'budget_exceeded');
+    assert.equal(kept.nodes, 1);
+    assert.equal(kept.bytes, snapshotV02PageWireBytes(root));
+  });
+
+  test('a rejected final graph leaves accepted pages and published parent revisions unchanged', () => {
+    const accumulator = createSnapshotV02Accumulator();
+    const root = page({
+      pageSequence: 1, hasMore: true, nextCursor: 'p2',
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root' }],
+    });
+    const accepted = accumulator.add(root);
+    assert.equal(accepted.ok, true);
+    if (!accepted.ok) return;
+    const rejected = accumulator.add(page({
+      pageSequence: 2,
+      parentRevisions: [{ parentId: 'folder-a', childrenRevision: 'children-a' }],
+      nodes: [{ id: 'folder-a', parentId: 'folder-a', kind: 'folder' }],
+    }));
+    assert.equal(rejected.ok, false);
+    if (!rejected.ok) assert.equal(rejected.code, 'graph_invalid');
+    assert.equal(accumulator.nodes, 1);
+    assert.equal(accumulator.bytes, snapshotV02PageWireBytes(root));
+    assert.equal(accepted.parentRevisions.has('folder-a'), false);
+    const repaired = accumulator.add(page({
+      pageSequence: 2,
+      parentRevisions: [{ parentId: 'folder-a', childrenRevision: 'children-a' }],
+      nodes: [{ id: 'folder-a', parentId: 'root', kind: 'folder' }],
+    }));
+    assert.equal(repaired.ok, true);
+    if (!repaired.ok) return;
+    assert.equal(repaired.parentRevisions.get('folder-a'), 'children-a');
+    assert.equal(accepted.parentRevisions.has('folder-a'), false);
+    assert.equal(accumulator.nodes, 2);
+  });
+
+  test('live snapshot content and staged projection content share one byte budget', () => {
+    const title = 't'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes);
+    const source = {
+      id: 'root', collectionId: 'collection-a', createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z', revision: 'rev-node', kind: 'root' as const, parentId: null,
+      position: null, folderRole: 'root' as const, title,
+    };
+    const live = toSnapshotV02Page({
+      snapshotId: 'snap-1', revision: 'rev-1',
+      collection: { id: 'collection-a', extensions: { [SNAPSHOT_MATERIALIZATION_EXTENSION]: { sortAlgorithm: 'parent-first-v1' } } },
+      syncCursor: 'cut-1', page: { sequence: 1, hasMore: false, nextCursor: null },
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [source],
+    } as unknown as DurableSyncSnapshot);
+    assert.equal(live.nodes[0]?.content?.title, title);
+    const fromLive = accumulateSnapshotV02Pages([live]);
+    assert.equal(fromLive.ok, false);
+    if (!fromLive.ok) assert.equal(fromLive.code, 'budget_exceeded');
+
+    const content = snapshotProjectionContent(source as DurableSyncSnapshot['nodes'][number]);
+    const staged = snapshotV02PagesFromStaging({
+      collectionId: 'collection-a',
+      header: {
+        snapshotId: 'snap-1', revision: 'rev-1', syncCursor: 'cut-1', lastPage: 0,
+        nextCursor: null, complete: true, materializationVersion: 'parent-first-v1',
+      },
+      nodes: [{
+        page: 0, colpId: 'root', parentId: null, kind: 'Folder', snapshotChildrenRevision: 'children-root',
+        mapping: { projection: { childrenRevision: 'children-root', content } },
+      }],
+    });
+    const fromStaging = accumulateSnapshotV02Pages(staged);
+    assert.equal(fromStaging.ok, false);
+    if (!fromStaging.ok) assert.equal(fromStaging.code, 'budget_exceeded');
+    assert.equal(snapshotV02PageWireBytes(live), snapshotV02PageWireBytes(staged[0]!));
   });
 
   test('S-01 incremental parent-prefix rejects a folder that appears after its children', () => {
