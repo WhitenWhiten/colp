@@ -3,6 +3,7 @@ import { describe, test } from 'vitest';
 import {
   SNAPSHOT_V02_SUPPORT,
   accumulateSnapshotV02Pages,
+  createSnapshotV02Accumulator,
   type SnapshotV02Page,
 } from '../src/snapshot-v02-pages.js';
 
@@ -105,6 +106,39 @@ describe('C-04 complete Snapshot is one frozen tree', () => {
     assert.equal(SNAPSHOT_V02_SUPPORT.maxAggregateBytes, 2 * 1024 * 1024);
     const source = await import('../src/snapshot-v02-pages.js');
     assert.equal('assembleSnapshotPages' in source, false);
+  });
+
+  test('enforces node and byte budgets without counting a duplicate page twice', () => {
+    const accumulator = createSnapshotV02Accumulator();
+    const root = page({
+      pageSequence: 1, hasMore: true, nextCursor: 'p2',
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [{ id: 'root', parentId: null, kind: 'root' }],
+    });
+    assert.equal(accumulator.add(root).ok, true);
+    const duplicate = accumulator.add(root);
+    assert.equal(duplicate.ok, false);
+    if (!duplicate.ok) assert.equal(duplicate.code, 'page_mutation');
+    assert.equal(accumulator.nodes, 1);
+    const tooMany = accumulateSnapshotV02Pages([page({
+      pageSequence: 1,
+      parentRevisions: [{ parentId: 'root', childrenRevision: 'children-root' }],
+      nodes: [
+        { id: 'root', parentId: null, kind: 'root' },
+        ...Array.from({ length: SNAPSHOT_V02_SUPPORT.maxNodes }, (_, index) => ({
+          id: `bookmark-${index}`, parentId: 'root', kind: 'bookmark' as const,
+        })),
+      ],
+    })]);
+    assert.equal(tooMany.ok, false);
+    if (!tooMany.ok) assert.equal(tooMany.code, 'budget_exceeded');
+    const huge = accumulateSnapshotV02Pages([page({
+      pageSequence: 1,
+      parentRevisions: [{ parentId: 'x'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes), childrenRevision: 'children' }],
+      nodes: [{ id: 'x'.repeat(SNAPSHOT_V02_SUPPORT.maxAggregateBytes), parentId: null, kind: 'root' }],
+    })]);
+    assert.equal(huge.ok, false);
+    if (!huge.ok) assert.equal(huge.code, 'budget_exceeded');
   });
 
   test('S-01 incremental parent-prefix rejects a folder that appears after its children', () => {

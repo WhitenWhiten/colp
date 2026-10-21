@@ -13,7 +13,7 @@ import { discardExpiredRecoveryStaging, freezeScopeRecovery, isCursorExpiryCode,
 import { assertCompleteSnapshotStaging } from './snapshot-staging-assert.js';
 import { sessionTransportBudget } from './colp-transport-budget-browser.js';
 import { persistSnapshotOpenConflicts, snapshotOpenConflictDetails } from './snapshot-conflict-recovery.js';
-import { accumulateSnapshotV02Pages } from './snapshot-v02-pages.js';
+import { createSnapshotV02Accumulator } from './snapshot-v02-pages.js';
 import {
   snapshotV02PagesFromStaging, snapshotV02RejectMessage, toSnapshotV02Page,
   readSnapshotMaterializationVersion,
@@ -77,20 +77,35 @@ async function recoverSnapshotPages(
   const recoveryAuthority = classification === 'recovery';
   await runtime.transition('bootstrap', { sessionId: authority.session.sessionId, recoveryFrozen: true,
     authorityRefreshRequired: false });
-  let exported = await options.store.exportScope(options.scope);
-  if (exported.recovery && exported.recovery.sessionId !== authority.session.sessionId) {
+  let header = await options.store.getRecoveryHeader(options.scope);
+  let stagedNodes = header ? await options.store.listRecoveryNodes(options.scope, header.snapshotId) : [];
+  if (header && header.sessionId !== authority.session.sessionId) {
     await options.store.discardRecoveryStaging(options.scope);
-    exported = await options.store.exportScope(options.scope);
+    header = null;
+    stagedNodes = [];
   }
-  if (exported.recovery?.complete && exported.recovery.nextCursor === null) {
-    await commitPreparedRecovery(runtime, authority, exported.recovery.snapshotId, exported.recovery.syncCursor,
-      exported.recovery.capability);
+  if (header?.complete && header.nextCursor === null) {
+    await commitPreparedRecovery(runtime, authority, header.snapshotId, header.syncCursor, header.capability);
   } else {
-    let pageCursor: string | null = exported.recovery?.nextCursor ?? null;
-    let pageNumber = exported.recovery ? Number(exported.recovery.lastPage) + 1 : 0;
-    let previousDigest: string | null = exported.recovery?.lastPageDigest ?? null;
-    const stagedIds = new Set((exported.recoveryNodes as Array<{ colpId: string }>).map((item) => item.colpId));
+    let pageCursor: string | null = header?.nextCursor ?? null;
+    let pageNumber = header ? Number(header.lastPage) + 1 : 0;
+    let previousDigest: string | null = header?.lastPageDigest ?? null;
+    const stagedIds = new Set(stagedNodes.map((item) => item.colpId));
+    let stagedSnapshotId = header?.snapshotId;
     let replacedStaging = false;
+    const accumulator = createSnapshotV02Accumulator();
+    if (header && stagedNodes.length > 0) {
+      for (const page of snapshotV02PagesFromStaging({
+        collectionId: options.scope.collectionId, header, nodes: stagedNodes,
+      })) {
+        const seeded = accumulator.add(page);
+        if (!seeded.ok) throw new Error(snapshotV02RejectMessage(seeded.code));
+      }
+    }
+    const resetStaging = () => {
+      replacedStaging = true; pageCursor = null; pageNumber = 0; previousDigest = null;
+      stagedIds.clear(); stagedSnapshotId = undefined; header = null; accumulator.reset();
+    };
     let pageLimit = DEFAULT_PULL_LIMIT;
     while (true) {
       await options.boundary?.('before_snapshot_page');
@@ -113,8 +128,7 @@ async function recoverSnapshotPages(
           }
           pageLimit = Math.max(1, Math.floor(pageLimit / 2));
           await discardExpiredRecoveryStaging(options.store, options.scope, 'payload_too_large');
-          exported = await options.store.exportScope(options.scope);
-          replacedStaging = true; pageCursor = null; pageNumber = 0; previousDigest = null; stagedIds.clear();
+          resetStaging();
           continue;
         }
         const denial = await snapshotFailure(response, options.requestTimeoutMilliseconds);
@@ -122,10 +136,9 @@ async function recoverSnapshotPages(
         // `sync_cursor_expired`). Nothing that chain carries can be committed in place, so drop it
         // and rebuild once from page 0 under the same authority; a second denial escalates to the
         // freeze below instead of looping.
-        if (isCursorExpiryCode(denial) && !replacedStaging && exported.recovery) {
+        if (isCursorExpiryCode(denial) && !replacedStaging && header) {
           await discardExpiredRecoveryStaging(options.store, options.scope, denial);
-          exported = await options.store.exportScope(options.scope);
-          replacedStaging = true; pageCursor = null; pageNumber = 0; previousDigest = null; stagedIds.clear();
+          resetStaging();
           continue;
         }
         // F013: a chain staged at a halved page limit cannot resume under the
@@ -133,10 +146,9 @@ async function recoverSnapshotPages(
         // continuation is denied invalid_cursor_scope. Discard it once and
         // rebuild from page 0, exactly like the expiry restart above.
         if (denial === 'snapshot_400_invalid_cursor_scope' && !replacedStaging
-            && exported.recovery && pageCursor !== null) {
+            && header && pageCursor !== null) {
           await discardExpiredRecoveryStaging(options.store, options.scope, denial);
-          exported = await options.store.exportScope(options.scope);
-          replacedStaging = true; pageCursor = null; pageNumber = 0; previousDigest = null; stagedIds.clear();
+          resetStaging();
           continue;
         }
         throw new Error(denial);
@@ -149,10 +161,9 @@ async function recoverSnapshotPages(
         throw new SyncFailureError('recovery_capability_premature');
       }
       const version = readSnapshotMaterializationVersion(snapshot);
-      exported = await options.store.exportScope(options.scope);
-      if (exported.recovery && exported.recovery.snapshotId !== snapshot.snapshotId && !replacedStaging) {
+      if (stagedSnapshotId && stagedSnapshotId !== snapshot.snapshotId && !replacedStaging) {
         await options.store.discardRecoveryStaging(options.scope);
-        replacedStaging = true; pageCursor = null; pageNumber = 0; previousDigest = null; stagedIds.clear();
+        resetStaging();
         continue;
       }
       if (failedSnapshotByStore.get(options.store) === snapshot.snapshotId) {
@@ -170,16 +181,11 @@ async function recoverSnapshotPages(
             || (node.id === rootId ? node.position != null : typeof node.position !== 'string'))) {
         throw new SyncFailureError('snapshot_semantic_invalid');
       }
-      const stagedPages = exported.recovery
-        ? snapshotV02PagesFromStaging({
-          collectionId: options.scope.collectionId, header: exported.recovery,
-          nodes: exported.recoveryNodes as Parameters<typeof snapshotV02PagesFromStaging>[0]['nodes'],
-        }) : [];
-      const accumulated = accumulateSnapshotV02Pages([...stagedPages, toSnapshotV02Page(snapshot)]);
+      const accumulated = accumulator.add(toSnapshotV02Page(snapshot));
       if (!accumulated.ok) {
         if (!replacedStaging && (accumulated.code === 'graph_invalid' || accumulated.code === 'identity_conflict')) {
           await options.store.discardRecoveryStaging(options.scope);
-          replacedStaging = true; pageCursor = null; pageNumber = 0; previousDigest = null; stagedIds.clear();
+          resetStaging();
           continue;
         }
         failedSnapshotByStore.set(options.store, snapshot.snapshotId);
@@ -221,12 +227,13 @@ async function recoverSnapshotPages(
       pageCursor = snapshot.page.nextCursor; previousDigest = pageDigest; pageNumber += 1;
     }
   }
-  exported = await options.store.exportScope(options.scope); const ackedCursor = exported.cursor?.cursor;
+  const cursor = await options.store.getCursor(options.scope);
+  const ackedCursor = cursor?.cursor;
   if (!ackedCursor) throw new SyncFailureError('snapshot_cutover_missing');
-  const capability = recoveryCapabilityOf(exported.cursor) ?? ackedCursor;
+  const capability = recoveryCapabilityOf(cursor) ?? ackedCursor;
   const intent = await options.store.getPendingAckIntent(options.scope);
-  const durableIntent = intent ?? exported.ackIntents.find((item: AckIntentRecord) => item.kind === 'bootstrap'
-    && item.cursor === ackedCursor && item.state === 'complete');
+  const durableIntent = intent ?? (await options.store.listAckIntents(options.scope)).find((item: AckIntentRecord) =>
+    item.kind === 'bootstrap' && item.cursor === ackedCursor && item.state === 'complete');
   if (!durableIntent || durableIntent.kind !== 'bootstrap' || durableIntent.cursor !== ackedCursor) {
     throw new SyncFailureError('bootstrap_ack_intent_missing');
   }

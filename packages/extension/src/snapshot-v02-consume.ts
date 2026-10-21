@@ -55,6 +55,7 @@ export function snapshotV02RejectMessage(code: Exclude<SnapshotV02Accumulation, 
     case 'page_mutation': return 'snapshot_node_duplicate';
     case 'sequence_gap': return 'snapshot_chain_invalid';
     case 'graph_invalid': return 'snapshot_graph_incomplete';
+    case 'budget_exceeded': return 'payload_too_large';
     default: {
       const _exhaustive: never = code;
       return _exhaustive;

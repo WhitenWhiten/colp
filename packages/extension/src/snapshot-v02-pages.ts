@@ -39,7 +39,8 @@ export type SnapshotV02RejectCode =
   | 'missing_children_revision'
   | 'page_mutation'
   | 'sequence_gap'
-  | 'graph_invalid';
+  | 'graph_invalid'
+  | 'budget_exceeded';
 
 export type SnapshotV02Accumulation =
   | {
@@ -51,57 +52,102 @@ export type SnapshotV02Accumulation =
     }
   | { readonly ok: false; readonly code: SnapshotV02RejectCode };
 
-export function accumulateSnapshotV02Pages(pages: readonly SnapshotV02Page[]): SnapshotV02Accumulation {
-  if (pages.length === 0) return { ok: false, code: 'sequence_gap' };
-  const ordered = [...pages].sort((left, right) => left.pageSequence - right.pageSequence);
-  const first = ordered[0]!;
-  const seenSequences = new Set<number>();
-  const parentRevisions = new Map<string, string>();
-  const seenIds = new Set<string>();
-  for (const page of ordered) {
-    if (page.snapshotId !== first.snapshotId || page.revision !== first.revision
-        || page.collectionId !== first.collectionId || page.syncCursor !== first.syncCursor
-        || page.materializationVersion !== first.materializationVersion) {
-      return { ok: false, code: 'identity_conflict' };
-    }
-    if (page.hasMore !== (page.nextCursor !== null)) return { ok: false, code: 'sequence_gap' };
-    if (seenSequences.has(page.pageSequence)) return { ok: false, code: 'page_mutation' };
-    seenSequences.add(page.pageSequence);
-    const pageIds = new Set<string>();
-    for (const node of page.nodes) {
-      if (pageIds.has(node.id) || seenIds.has(node.id)) return { ok: false, code: 'page_mutation' };
-      pageIds.add(node.id);
-    }
-    const folderIds = page.nodes.filter((node) => node.kind === 'root' || node.kind === 'folder').map((node) => node.id);
-    const pageParents = new Map(page.parentRevisions.map((item) => [item.parentId, item.childrenRevision]));
-    if (new Set(pageParents.keys()).size !== page.parentRevisions.length) {
-      return { ok: false, code: 'parent_revision_conflict' };
-    }
-    for (const id of folderIds) {
-      if (!pageParents.has(id)) return { ok: false, code: 'missing_children_revision' };
-    }
-    for (const [parentId, revision] of pageParents) {
-      const prior = parentRevisions.get(parentId);
-      if (prior !== undefined && prior !== revision) return { ok: false, code: 'parent_revision_conflict' };
-      parentRevisions.set(parentId, revision);
-    }
-    for (const node of page.nodes) {
-      if (node.parentId !== null && !seenIds.has(node.parentId) && !pageIds.has(node.parentId)) {
+/** UTF-8 size of the fields the accumulator compares. A rejected duplicate page does not add to this. */
+export function snapshotV02NodeBytes(node: SnapshotV02Node): number {
+  return new TextEncoder().encode(`${node.id}\0${node.parentId ?? ''}\0${node.kind}`).byteLength;
+}
+
+export interface SnapshotV02Accumulator {
+  add(page: SnapshotV02Page): SnapshotV02Accumulation;
+  reset(): void;
+  readonly nodes: number;
+  readonly bytes: number;
+}
+
+export function createSnapshotV02Accumulator(): SnapshotV02Accumulator {
+  let seenSequences = new Set<number>();
+  let parentRevisions = new Map<string, string>();
+  let seenIds = new Set<string>();
+  let pages: SnapshotV02Page[] = [];
+  let bytes = 0;
+  const accumulator: SnapshotV02Accumulator = {
+    get nodes() { return seenIds.size; },
+    get bytes() { return bytes; },
+    reset() {
+      seenSequences = new Set();
+      parentRevisions = new Map();
+      seenIds = new Set();
+      pages = [];
+      bytes = 0;
+    },
+    add(page) {
+      if (pages.length === 0 && page.pageSequence !== 1) return { ok: false, code: 'sequence_gap' };
+      const first = pages[0] ?? page;
+      if (page.snapshotId !== first.snapshotId || page.revision !== first.revision
+          || page.collectionId !== first.collectionId || page.syncCursor !== first.syncCursor
+          || page.materializationVersion !== first.materializationVersion) {
+        return { ok: false, code: 'identity_conflict' };
+      }
+      if (page.hasMore !== (page.nextCursor !== null)) return { ok: false, code: 'sequence_gap' };
+      if (seenSequences.has(page.pageSequence) || page.pageSequence !== pages.length + 1) {
+        return { ok: false, code: seenSequences.has(page.pageSequence) ? 'page_mutation' : 'sequence_gap' };
+      }
+      const pageIds = new Set<string>();
+      let addedBytes = 0;
+      for (const node of page.nodes) {
+        if (pageIds.has(node.id) || seenIds.has(node.id)) return { ok: false, code: 'page_mutation' };
+        pageIds.add(node.id);
+        addedBytes += snapshotV02NodeBytes(node);
+      }
+      if (seenIds.size + pageIds.size > SNAPSHOT_V02_SUPPORT.maxNodes
+          || bytes + addedBytes > SNAPSHOT_V02_SUPPORT.maxAggregateBytes) {
+        return { ok: false, code: 'budget_exceeded' };
+      }
+      const folderIds = page.nodes.filter((node) => node.kind === 'root' || node.kind === 'folder').map((node) => node.id);
+      const pageParents = new Map(page.parentRevisions.map((item) => [item.parentId, item.childrenRevision]));
+      if (new Set(pageParents.keys()).size !== page.parentRevisions.length) {
+        return { ok: false, code: 'parent_revision_conflict' };
+      }
+      for (const id of folderIds) {
+        if (!pageParents.has(id)) return { ok: false, code: 'missing_children_revision' };
+      }
+      for (const [parentId, revision] of pageParents) {
+        const prior = parentRevisions.get(parentId);
+        if (prior !== undefined && prior !== revision) return { ok: false, code: 'parent_revision_conflict' };
+      }
+      for (const node of page.nodes) {
+        if (node.parentId !== null && !seenIds.has(node.parentId) && !pageIds.has(node.parentId)) {
+          return { ok: false, code: 'graph_invalid' };
+        }
+      }
+      for (const [parentId, revision] of pageParents) parentRevisions.set(parentId, revision);
+      for (const id of pageIds) seenIds.add(id);
+      seenSequences.add(page.pageSequence);
+      bytes += addedBytes;
+      pages = [...pages, page];
+      const complete = page.hasMore === false && page.nextCursor === null;
+      if (!complete) {
+        return { ok: true, complete: false, graphChecked: false, parentRevisions, pages };
+      }
+      if (!graphValid(pages)) {
+        accumulator.reset();
         return { ok: false, code: 'graph_invalid' };
       }
-    }
-    for (const id of pageIds) seenIds.add(id);
+      return { ok: true, complete: true, graphChecked: true, parentRevisions, pages };
+    },
+  };
+  return accumulator;
+}
+
+export function accumulateSnapshotV02Pages(pages: readonly SnapshotV02Page[]): SnapshotV02Accumulation {
+  if (pages.length === 0) return { ok: false, code: 'sequence_gap' };
+  const accumulator = createSnapshotV02Accumulator();
+  let result: SnapshotV02Accumulation = { ok: false, code: 'sequence_gap' };
+  for (const page of [...pages].sort((left, right) => left.pageSequence - right.pageSequence)) {
+    result = accumulator.add(page);
+    if (!result.ok) return result;
   }
-  for (let sequence = 1; sequence <= ordered.length; sequence += 1) {
-    if (!seenSequences.has(sequence)) return { ok: false, code: 'sequence_gap' };
-  }
-  const last = ordered[ordered.length - 1]!;
-  const complete = last.hasMore === false && last.nextCursor === null;
-  if (!complete) {
-    return { ok: true, complete: false, graphChecked: false, parentRevisions, pages: ordered };
-  }
-  if (!graphValid(ordered)) return { ok: false, code: 'graph_invalid' };
-  return { ok: true, complete: true, graphChecked: true, parentRevisions, pages: ordered };
+  return result;
 }
 
 function graphValid(pages: readonly SnapshotV02Page[]): boolean {

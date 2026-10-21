@@ -535,11 +535,16 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
     await completion; return rows[0] ? clone(rows[0]) : null;
   }
 
-  async function listRecoveryNodes(input: SyncScope): Promise<RecoveryNodeRecord[]> {
+  async function listRecoveryNodes(input: SyncScope, snapshotId?: string): Promise<RecoveryNodeRecord[]> {
     const key = scopeKey(validateScope(input)); const db = await open();
     const tx = db.transaction(STORES.recoveryNodes, 'readonly'); const completion = transactionDone(tx);
-    const rows = await cursorPage<RecoveryNodeRecord>(tx.objectStore(STORES.recoveryNodes),
-      scopeRowsRange(key), Number.MAX_SAFE_INTEGER);
+    const rows = snapshotId === undefined
+      ? await cursorPage<RecoveryNodeRecord>(tx.objectStore(STORES.recoveryNodes),
+        scopeRowsRange(key), Number.MAX_SAFE_INTEGER)
+      : await cursorPage<RecoveryNodeRecord>(
+        tx.objectStore(STORES.recoveryNodes).index(INDEXES.recoveryByPage),
+        IDBKeyRange.bound([key, snapshotId, 0], [key, snapshotId, Number.MAX_SAFE_INTEGER]),
+        Number.MAX_SAFE_INTEGER);
     await completion; return clone(rows);
   }
 
