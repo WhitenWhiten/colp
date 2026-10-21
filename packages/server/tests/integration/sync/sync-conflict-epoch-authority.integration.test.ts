@@ -26,6 +26,7 @@ import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import {
   createPostgresReplicaStore,
   createPostgresSyncSessionIssuer,
+  SyncSessionIssueError,
 } from '../../../src/infrastructure/sync/index.js';
 import { createPostgresSyncConflictResolutionApplication } from '../../../src/infrastructure/sync/sync-conflict-resolution-postgres.js';
 import { encryptPrivatePayload } from '../../../src/infrastructure/sync/sync-conflict-postgres.js';
@@ -47,6 +48,12 @@ const TARGET = 'W6-T13FfkW_Gli9WoaJXDg';
 const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
 const KEYRING = { active: { key: Buffer.alloc(32, 71), keyVersion: 7 }, retained: [] } as const;
 
+type AuthorityFixture = {
+  readonly replicaId: string;
+  readonly sessionId: string;
+  readonly credential: Awaited<ReturnType<typeof mintVerifiedExtensionCredentialFixture>>;
+};
+
 function invalid(): never {
   throw new Error('invalid');
 }
@@ -56,17 +63,23 @@ describeWithPostgres('COLP conflict resolution re-authorizes the account securit
   let replicaId: string;
   let sessionId: string;
   let credential: Awaited<ReturnType<typeof mintVerifiedExtensionCredentialFixture>>;
+  let resolutionAuthority: AuthorityFixture;
+  let verifyAuthority: AuthorityFixture;
 
   beforeAll(async () => {
     isolated = await createIsolatedPostgresRuntime('sync_conflict_epoch');
     await runMigrations(isolated.runtime.db, 'latest');
     await seedCollection();
-    await seedAuthority();
+    await seedOwner();
+    resolutionAuthority = await seedAuthority('resolution');
+    verifyAuthority = await seedAuthority('verify');
   }, 120_000);
 
   afterAll(async () => isolated?.close());
 
   test('a resolution whose locked session epoch is stale must not commit', async () => {
+    useAuthority(resolutionAuthority);
+    await realignAccountEpoch();
     // Control: with matching epochs the same fixture resolves normally, which
     // proves the fixture itself is valid and the refusal below is about the epoch.
     const controlConflict = await openConflict('sc-epoch-conflict-control', 'sc-epoch-op-control', 31);
@@ -76,10 +89,7 @@ describeWithPostgres('COLP conflict resolution re-authorizes the account securit
     // The security event: password reset / revoke-all bump the account epoch.
     // The credential stays non-revoked and the account stays active, so the
     // locked predicate's revoked_at and status checks cannot catch it.
-    await isolated.runtime.pool.query(
-      "update accounts set security_epoch = security_epoch + 1 where id = $1",
-      [ACCOUNT],
-    );
+    await bumpAccountEpoch();
     const stale = await resolve(await openConflict('sc-epoch-conflict-stale', 'sc-epoch-op-stale', 32));
 
     assert.equal(
@@ -92,12 +102,37 @@ describeWithPostgres('COLP conflict resolution re-authorizes the account securit
   });
 
   test('control: the entry session issuer does reject the same stale epoch', async () => {
-    // The entry check is what makes the window narrow; it is not a substitute for
-    // the locked re-check, because it already committed before this transaction.
+    // This session is issued before either test bumps the account, then this
+    // test makes that epoch stale itself. The entry check is what makes the
+    // window narrow; it is not a substitute for the locked re-check, because it
+    // already committed before the resolution transaction.
+    useAuthority(verifyAuthority);
+    await realignAccountEpoch();
+    await bumpAccountEpoch();
     const issuer = createPostgresSyncSessionIssuer(isolated.runtime.db, issuerOptions());
-    await assert.rejects(issuer.verify({ credential, sessionId, collectionId: COLLECTION, replicaId,
-    }));
+    await assert.rejects(
+      issuer.verify({ credential, sessionId, collectionId: COLLECTION, replicaId }),
+      (error: unknown) => error instanceof SyncSessionIssueError && error.code === 'credential_invalid',
+    );
   });
+
+  async function realignAccountEpoch(): Promise<void> {
+    await isolated.runtime.pool.query(
+      `update accounts
+          set security_epoch = (
+            select account_security_epoch from sync_sessions where session_id = $2
+          )
+        where id = $1`,
+      [ACCOUNT, sessionId],
+    );
+  }
+
+  async function bumpAccountEpoch(): Promise<void> {
+    await isolated.runtime.pool.query(
+      'update accounts set security_epoch = security_epoch + 1 where id = $1',
+      [ACCOUNT],
+    );
+  }
 
   async function resolve(conflictId: string, resolution: 'server' | 'incoming' = 'incoming'): Promise<{
     outcome: 'resolved' | 'refused'; conflictStatus: string;
@@ -205,7 +240,7 @@ describeWithPostgres('COLP conflict resolution re-authorizes the account securit
     }
   }
 
-  async function seedAuthority(): Promise<void> {
+  async function seedOwner(): Promise<void> {
     await isolated.runtime.pool.query(
       "insert into accounts(id,subject_id,status) values ($1,$2,'active')",
       [ACCOUNT, SUBJECT],
@@ -222,15 +257,24 @@ describeWithPostgres('COLP conflict resolution re-authorizes the account securit
       "insert into account_identities(id,account_id,issuer,subject) values ('sc-epoch-identity',$1,$2,'sc-epoch-oidc')",
       [ACCOUNT, ISSUER],
     );
+  }
+
+  function useAuthority(authority: AuthorityFixture): void {
+    replicaId = authority.replicaId;
+    sessionId = authority.sessionId;
+    credential = authority.credential;
+  }
+
+  async function seedAuthority(suffix: string): Promise<AuthorityFixture> {
     credential = await mintVerifiedExtensionCredentialFixture({
       issuer: ISSUER, audience: 'known-api', clientId: 'known-extension',
-      subject: 'sc-epoch-oidc', credentialId: 'sc-epoch-credential',
+      subject: 'sc-epoch-oidc', credentialId: `sc-epoch-credential-${suffix}`,
     });
     const replica = await createPostgresReplicaStore(isolated.runtime.db, {
       ids: {
-        deviceId: () => 'sc-epoch-device',
-        replicaId: () => 'sc-epoch-replica',
-        leaseId: () => 'sc-epoch-lease',
+        deviceId: () => `sc-epoch-device-${suffix}`,
+        replicaId: () => `sc-epoch-replica-${suffix}`,
+        leaseId: () => `sc-epoch-lease-${suffix}`,
       },
     }).create({
       accountId: ACCOUNT, collectionId: COLLECTION, deviceName: 'Epoch device',
@@ -241,21 +285,25 @@ describeWithPostgres('COLP conflict resolution re-authorizes the account securit
         annotations: 'sidecar', maxBatchOperations: 1,
       },
       binding: {
-        browserProfileId: 'sc-epoch-profile', mountMode: 'whole-profile',
-        browserGeneration: 'generation-1',
+        browserProfileId: `sc-epoch-profile-${suffix}`, mountMode: 'whole-profile',
+        browserGeneration: `generation-${suffix}`,
       },
       leaseDurationSeconds: 3_600,
     }, { actorAccountId: ACCOUNT });
     replicaId = replica.replicaId;
     const issued = await createPostgresSyncSessionIssuer(isolated.runtime.db, issuerOptions()).issue({
-      credential, idempotencyKey: 'sc-epoch-session',
-      requestFingerprint: 'sc-epoch-session-fingerprint',
+      credential, idempotencyKey: `sc-epoch-session-${suffix}`,
+      requestFingerprint: `sc-epoch-session-fingerprint-${suffix}`,
       collectionId: COLLECTION, replicaId: replica.replicaId,
       expectedLeaseGeneration: replica.leaseGeneration,
       expectedLifecycleRevision: replica.lifecycleRevision,
       binding: replica.binding, requestedScopes: ['sync:pull', 'sync:push'], origin: ORIGIN,
     });
-    sessionId = issued.session.sessionId;
+    return {
+      replicaId: replica.replicaId,
+      sessionId: issued.session.sessionId,
+      credential,
+    };
   }
 
   /** Inserts a conflict whose private payload is genuinely decryptable. */
