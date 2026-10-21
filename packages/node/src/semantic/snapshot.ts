@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isProxy } from 'node:util/types';
 
+import { MAX_IMMUTABLE_JSON_MAX_BYTES } from '../shared/immutable-json.js';
 import { preparePlainCanonicalJson } from '../shared/plain-canonical-json.js';
 
 import type {
@@ -181,7 +182,9 @@ export function validateSnapshotSemantics(
   const contentDigest = contentDigestProperty === undefined ? undefined : contentDigestProperty.value;
   const digestDocument = contentDigest === undefined
     ? undefined
-    : preparePlainCanonicalJson(snapshot, 'Snapshot logical content');
+    : preparePlainCanonicalJson(snapshot, 'Snapshot logical content', {
+        maxBytes: MAX_IMMUTABLE_JSON_MAX_BYTES,
+      });
   // Generated Snapshot DTOs have mutable arrays; validation only reads the frozen copy.
   if (digestDocument) snapshot = digestDocument.value as Snapshot;
   const issues: SemanticIssue[] = [];

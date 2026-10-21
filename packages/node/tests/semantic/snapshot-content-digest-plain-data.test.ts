@@ -6,6 +6,10 @@ import canonicalize from 'canonicalize';
 import { describe, expect, it } from 'vitest';
 
 import { validateSnapshotSemantics } from '../../src/semantic/index.js';
+import {
+  DEFAULT_IMMUTABLE_JSON_MAX_BYTES,
+  MAX_IMMUTABLE_JSON_MAX_BYTES,
+} from '../../src/shared/immutable-json.js';
 import type { Snapshot } from '../../src/types/index.js';
 
 /**
@@ -110,6 +114,20 @@ describe(`${evidence} U-16 snapshot logical digest plain-data boundary`, () => {
     expect(() => validateSnapshotSemantics(nested)).toThrow(TypeError);
     expect(calls).toBe(0);
   });
+
+  it(`${evidence} accepts a contentDigest snapshot above the default byte ceiling and far below the hard ceiling`, async () => {
+    const snapshot = await wireSnapshot();
+    const annotation = snapshot.annotations[0];
+    if (annotation === undefined) throw new Error('fixture annotation missing');
+    annotation.value = 'a'.repeat(DEFAULT_IMMUTABLE_JSON_MAX_BYTES + 1);
+    snapshot.contentDigest = digestOf(snapshot);
+    const canonical = canonicalize(snapshot);
+    if (canonical === undefined) throw new Error('Fixture is not canonical JSON.');
+    const canonicalBytes = Buffer.byteLength(canonical, 'utf8');
+    expect(canonicalBytes).toBeGreaterThan(DEFAULT_IMMUTABLE_JSON_MAX_BYTES);
+    expect(canonicalBytes * 4).toBeLessThan(MAX_IMMUTABLE_JSON_MAX_BYTES);
+    expect(validateSnapshotSemantics(snapshot)).toEqual({ valid: true, issues: [] });
+  }, 30_000);
 
   it(`${evidence} rejects an array hole instead of treating it as null`, async () => {
     const snapshot = await wireSnapshot();

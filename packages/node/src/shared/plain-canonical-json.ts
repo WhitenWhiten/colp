@@ -6,13 +6,25 @@ import { immutableJsonSnapshot, type DeepReadonly, type ImmutableJsonLimits } fr
  * Plain-data copy used before RFC 8785 canonicalize.
  * The copy rejects functions, special prototypes, sparse arrays, and accessors,
  * and does not call getters or toJSON. Array holes are rejected, not replaced
- * with null. Limits stay above ordinary protocol documents so legal JSON keeps
- * the same canonical bytes.
+ * with null. Depth and member limits stay above ordinary protocol documents so
+ * legal JSON keeps the same canonical bytes. `maxBytes` stays unset so callers
+ * keep the immutable JSON default unless they pass an override.
  */
+const PLAIN_CANONICAL_JSON_MAX_DEPTH = 512;
+const PLAIN_CANONICAL_JSON_MAX_MEMBERS = Number.MAX_SAFE_INTEGER;
+
 const PLAIN_CANONICAL_JSON_LIMITS: ImmutableJsonLimits = Object.freeze({
-  maxDepth: 512,
-  maxMembers: Number.MAX_SAFE_INTEGER,
+  maxDepth: PLAIN_CANONICAL_JSON_MAX_DEPTH,
+  maxMembers: PLAIN_CANONICAL_JSON_MAX_MEMBERS,
 });
+
+function plainCanonicalJsonLimits(limits?: ImmutableJsonLimits): ImmutableJsonLimits {
+  if (limits === undefined) return PLAIN_CANONICAL_JSON_LIMITS;
+  const maxDepth = limits.maxDepth ?? PLAIN_CANONICAL_JSON_MAX_DEPTH;
+  const maxMembers = limits.maxMembers ?? PLAIN_CANONICAL_JSON_MAX_MEMBERS;
+  if (limits.maxBytes === undefined) return { maxDepth, maxMembers };
+  return { maxDepth, maxMembers, maxBytes: limits.maxBytes };
+}
 
 /** Canonical JSON for a plain value, or undefined when the value is not plain data. */
 export function encodePlainCanonicalJson(
@@ -32,11 +44,15 @@ export function encodePlainCanonicalJsonOmitting(value: unknown, omitKey: string
 }
 
 /** Validate and copy once, then share that frozen data between semantic checks and encoding. */
-export function preparePlainCanonicalJson<Value>(value: Value, label: string): Readonly<{
+export function preparePlainCanonicalJson<Value>(
+  value: Value,
+  label: string,
+  limits?: ImmutableJsonLimits,
+): Readonly<{
   value: DeepReadonly<Value>;
   encode(omitKey?: string): string;
 }> {
-  const copied = immutableJsonSnapshot(value, label, PLAIN_CANONICAL_JSON_LIMITS);
+  const copied = immutableJsonSnapshot(value, label, plainCanonicalJsonLimits(limits));
   return Object.freeze({ value: copied, encode: (omitKey?: string) => encodeCopiedJson(copied, omitKey, label) });
 }
 
