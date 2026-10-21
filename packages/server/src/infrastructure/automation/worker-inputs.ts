@@ -27,7 +27,7 @@ async function readPinnedWorkInputs<T extends InputJob>(tx: DatabaseTransaction,
     ON p.policy_id=v.execution_policy_id AND p.revision::text=r.policy_revision WHERE r.id=${job.run_id}`.execute(tx)).rows[0];
   if (policy && hasUnsupportedCostLimit(policy.configuration_json))
     throw new AutomationError('automation_binding_unavailable','Pinned monetary limits are unsupported; review this work under an explicit supported policy.');
-  const node = await tx.selectFrom('nodes').select(['resource_revision','parent_id','payload_json','deleted_at']).where('id','=',job.node_id).where('collection_id','=',job.collection_id).executeTakeFirst();
+  const node = await tx.selectFrom('nodes').select(['resource_revision','parent_id','payload_json','tags','deleted_at']).where('id','=',job.node_id).where('collection_id','=',job.collection_id).executeTakeFirst();
   if (!node || node.deleted_at || !pin.input_json || node.resource_revision !== job.input_revision) throw new AutomationError('automation_stale_input','A canonical edit invalidated the pinned job input.');
   for(const [nodeId,revision] of Object.entries(pin.member_revisions_json ?? {})){
     const member=await tx.selectFrom('nodes').select('resource_revision').where('collection_id','=',job.collection_id).where('id','=',nodeId).where('deleted_at','is',null).executeTakeFirst();

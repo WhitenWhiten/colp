@@ -2,6 +2,7 @@ import { assertValidNodeTags, CollectionsError, ANNOTATION_MAX_VALUE_BYTES } fro
 import { advanceRunTasks } from './task-scheduler.js';
 import { createBindingReadPort } from './bindings.js';
 import { currentWorkInputs } from './worker-inputs.js';
+import { planAutomationTagUpdate, storedNodeTags } from './tag-effect.js';
 import { reconcileCommittedPlanEffect } from './reconcile-plan-effect.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
@@ -116,9 +117,11 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
         const rejected = new Set((await sql<{
           tag_key: string;
         }>`SELECT tag_key FROM automation_tag_rejections WHERE owner_id=${actor.accountId} AND rule_id=${job.rule_id}`.execute(tx)).rows.map(r => r.tag_key));
-        operation.tags = [...new Set([...(node.payload_json?.tags as string[] ?? []), ...input.output.add.map(tag => tag.key.normalize('NFC')).filter(tag => !rejected.has(tag))])];
-        const previousTags = node.payload_json?.tags as string[] ?? [];
-        operation.previousTags = [...previousTags];
+        const planned = planAutomationTagUpdate(node, input.output.add.map(tag => tag.key.normalize('NFC')).filter(tag => !rejected.has(tag)));
+        if (!planned) return retainForReview('Stored node tags are not a string array; review the retained output.');
+        operation.tags = planned.tags;
+        const previousTags = planned.previousTags;
+        operation.previousTags = previousTags;
         if (operation.tags.length === previousTags.length && operation.tags.every((tag, i) => tag === previousTags[i])) {
           await storeTypedResult(tx, job, input, digest, pin.authority_digest, 'succeeded', 'All proposed tags are already present or explicitly suppressed; no canonical effect.');
           return;
@@ -235,8 +238,10 @@ export function createResultSubmissionPort(db: Kysely<DatabaseSchema>, serverUui
         throw new AutomationError('automation_stale_input', 'The proposal is no longer eligible for canonical effects.');
       const operation = p.operations_json[0];
       if (operation?.type === 'update_node' && operation.tags) {
-        const current = await tx.selectFrom('nodes').select('payload_json').where('id', '=', operation.nodeId).where('collection_id', '=', operation.collectionId).executeTakeFirstOrThrow();
-        const existing = new Set(current.payload_json?.tags as string[] ?? []);
+        const current = await tx.selectFrom('nodes').select('tags').where('id', '=', operation.nodeId).where('collection_id', '=', operation.collectionId).executeTakeFirstOrThrow();
+        const stored = storedNodeTags(current.tags);
+        if (stored === undefined) throw new AutomationError('automation_stale_input', 'Stored node tags are not a string array.');
+        const existing = new Set(stored);
         const additions = operation.tags.filter(tag => !existing.has(tag));
         if (additions.length && (await sql`SELECT 1 FROM automation_tag_rejections WHERE owner_id=${actor.accountId}
      AND rule_id=${operation.ruleId} AND tag_key IN (${sql.join(additions)}) LIMIT 1`.execute(tx)).rows.length)
