@@ -22,7 +22,13 @@ import { stableJson } from './product-sync-stable-json.js';
 const CONTRACT_VERSION = '1.10.0';
 const JSON_TYPE = 'application/json; charset=utf-8';
 const CACHE = 'private, no-store';
+export interface ProductSyncConflictCursorPreviousKey {
+  readonly secret: string;
+  readonly retainUntilMs: number;
+}
+
 export interface ProductSyncCenterPostgresOptions { readonly cursorSecret: string;
+  readonly cursorPreviousSecrets?: readonly ProductSyncConflictCursorPreviousKey[];
   readonly conflictPayloadKeyring: SyncConflictPayloadKeyring;
   /** Optional report cache/source-fence fan-out for conflict mutations. */
   readonly reportSourceInvalidation?: ReportSourceInvalidationOutboxPort;
@@ -31,6 +37,11 @@ export interface ProductSyncCenterPostgresOptions { readonly cursorSecret: strin
 export function createPostgresProductSyncCenterUnitOfWork(db: Kysely<DatabaseSchema>,
   options: ProductSyncCenterPostgresOptions): ProductSyncCenterUnitOfWork {
   if (options.cursorSecret.length < 32) throw new TypeError('Product Sync cursor secret must contain at least 32 characters');
+  for (const key of options.cursorPreviousSecrets ?? []) {
+    if (key.secret.length < 32 || !Number.isFinite(key.retainUntilMs)) {
+      throw new TypeError('Product Sync cursor previous keys must contain at least 32 characters and a retention time');
+    }
+  }
   if (!isSyncConflictPayloadKeyring(options.conflictPayloadKeyring)) {
     throw new TypeError('Product Sync Conflict keyring configuration is invalid');
   }
@@ -124,7 +135,7 @@ function ports(transaction: DatabaseTransaction, options: ProductSyncCenterPostg
         ackWarningsAt: report?.ack_warnings_at?.toISOString() ?? null });
     },
     async getConflicts({ accountId, limit, cursor }) {
-      const after = cursor === undefined ? undefined : decodeCursor(cursor, accountId, options.cursorSecret);
+      const after = cursor === undefined ? undefined : decodeCursor(cursor, accountId, options.cursorSecret, options.cursorPreviousSecrets);
       const pageLimit = after?.limit ?? limit;
       let query = transaction.selectFrom('sync_conflicts as conflict')
         .innerJoin('sync_replicas as replica', 'replica.replica_id', 'conflict.replica_id')
@@ -316,22 +327,52 @@ async function command<T>(transaction: DatabaseTransaction,
   return { kind: 'committed', result };
 }
 
-function encodeCursor(value: { createdAt: string; id: string; limit: number }, accountId: string, secret: string): string {
-  const payload = Buffer.from(stableJson({ v: 1, p: 'product-sync-conflicts', exp: Date.now() + 15 * 60_000, ...value }, 'reject'), 'utf8').toString('base64url');
-  const signature = createHmac('sha256', secret).update('product-sync-conflicts\0').update(accountId).update('\0').update(payload).digest('base64url'); return `${payload}.${signature}`;
+const CONFLICT_CURSOR_TTL_MS = 15 * 60_000;
+const CONFLICT_CURSOR_PURPOSE = 'product-sync-conflicts';
+
+export function encodeProductSyncConflictCursor(value: { createdAt: string; id: string; limit: number }, accountId: string, secret: string, now = Date.now()): string {
+  const payload = Buffer.from(stableJson({ v: 1, p: CONFLICT_CURSOR_PURPOSE, exp: now + CONFLICT_CURSOR_TTL_MS, ...value }, 'reject'), 'utf8').toString('base64url');
+  const signature = createHmac('sha256', secret).update(`${CONFLICT_CURSOR_PURPOSE}\0`).update(accountId).update('\0').update(payload).digest('base64url');
+  return `${payload}.${signature}`;
 }
-function decodeCursor(cursor: string, accountId: string, secret: string): { createdAt: string; id: string; limit: number } {
-  try { const [payload, signature, extra] = cursor.split('.'); if (!payload || !signature || extra) throw new Error();
-    const expected = createHmac('sha256', secret).update('product-sync-conflicts\0').update(accountId).update('\0').update(payload).digest(); const actual = Buffer.from(signature, 'base64url');
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error();
+
+export function decodeProductSyncConflictCursor(cursor: string, accountId: string, currentSecret: string,
+  previous: readonly ProductSyncConflictCursorPreviousKey[] = [], now = Date.now()): { createdAt: string; id: string; limit: number } {
+  try {
+    const [payload, signature, extra] = cursor.split('.');
+    if (!payload || !signature || extra) throw new Error();
+    const keys = [
+      { secret: currentSecret, usable: true },
+      ...previous.map((key) => ({ secret: key.secret, usable: now < key.retainUntilMs })),
+    ];
+    let matched = false;
+    for (const key of keys) {
+      if (conflictCursorSignatureMatches(payload, signature, accountId, key.secret) && key.usable) matched = true;
+    }
+    if (!matched) throw new Error();
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>;
-    if (parsed.v !== 1 || parsed.p !== 'product-sync-conflicts' || typeof parsed.exp !== 'number'
-      || !Number.isSafeInteger(parsed.exp) || parsed.exp < Date.now()
+    if (parsed.v !== 1 || parsed.p !== CONFLICT_CURSOR_PURPOSE || typeof parsed.exp !== 'number'
+      || !Number.isSafeInteger(parsed.exp) || parsed.exp < now
       || typeof parsed.createdAt !== 'string' ||
       !Number.isFinite(Date.parse(parsed.createdAt)) || typeof parsed.id !== 'string'
       || !Number.isSafeInteger(parsed.limit) || (parsed.limit as number) < 1 || (parsed.limit as number) > 100) throw new Error();
     return { createdAt: parsed.createdAt, id: parsed.id, limit: parsed.limit as number };
   } catch { throw Object.assign(new Error('Invalid Product Sync cursor'), { code: 'invalid_cursor' }); }
+}
+
+function conflictCursorSignatureMatches(payload: string, signature: string, accountId: string, secret: string): boolean {
+  const expected = createHmac('sha256', secret).update(`${CONFLICT_CURSOR_PURPOSE}\0`).update(accountId).update('\0').update(payload).digest();
+  const actual = Buffer.from(signature, 'base64url');
+  if (actual.length !== expected.length) return false;
+  return timingSafeEqual(actual, expected);
+}
+
+function encodeCursor(value: { createdAt: string; id: string; limit: number }, accountId: string, secret: string): string {
+  return encodeProductSyncConflictCursor(value, accountId, secret);
+}
+function decodeCursor(cursor: string, accountId: string, secret: string,
+  previous?: readonly ProductSyncConflictCursorPreviousKey[]): { createdAt: string; id: string; limit: number } {
+  return decodeProductSyncConflictCursor(cursor, accountId, secret, previous);
 }
 function notFound() { return Object.assign(new Error('Replica not found'), { code: 'resource_not_found' }); }
 function preconditionFailed() { return Object.assign(new Error('Replica lifecycle revision changed'), { code: 'precondition_failed' }); }
