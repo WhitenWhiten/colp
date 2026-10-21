@@ -1,4 +1,5 @@
 import { validateAutomation, type BundleAckInput, type PauseState } from '@know-n/colp/automation';
+import { assertCredentialHostPermission } from '../server-origin-permission.js';
 import { acknowledgeRuleBundle, fetchRuleBundle, postIntakeReceipt, type DeviceAuthority, type DeviceProblem } from '../automation/device-client.js';
 import { readReplicaDeviceId } from '../automation/device-identity.js';
 import { projectRule, type ProjectionDeps } from '../automation/binding-projector.js';
@@ -247,8 +248,11 @@ async function replicaDeviceId(owner: AutomationOwner, replicaId: string): Promi
 /** Who paused and when, for "Paused by you on 12 Oct". The bundle only says that it is paused. */
 async function readPause(owner: AutomationOwner): Promise<void> {
   try {
-    const response = await fetch(`${owner.serverOrigin.replace(/\/$/u, '')}/api/v1/me/automations/pause`, { credentials: 'include',
-      redirect: 'error', cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+    const pauseUrl = `${owner.serverOrigin.replace(/\/$/u, '')}/api/v1/me/automations/pause`;
+    const pauseInit: RequestInit = { credentials: 'include',
+      redirect: 'error', cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) };
+    await assertCredentialHostPermission(pauseUrl, pauseInit);
+    const response = await fetch(pauseUrl, pauseInit);
     if (!response.ok) return;
     const body = await readBoundedJson(response, 16 * 1024, 'automation_pause_invalid');
     if (!validateAutomation('PauseState', body).valid) return;

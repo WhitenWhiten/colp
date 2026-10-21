@@ -1,5 +1,6 @@
 import { validateAutomation, type Rule, type RulePage, type Run, type RunPage } from '@know-n/colp/automation';
 import { readBoundedJson } from '../json-response.js';
+import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import type { AutomationStateArea } from './bundle-store.js';
 
 /**
@@ -72,10 +73,16 @@ function problemFor(status: number): ServerProblem {
 async function read(serverOrigin: string, path: string, schema: 'RulePage' | 'RunPage', fetcher: typeof fetch)
   : Promise<{ readonly ok: true; readonly body: unknown } | { readonly ok: false; readonly problem: ServerProblem }> {
   let response: Response;
+  const url = `${serverOrigin.replace(/\/$/u, '')}${path}`;
+  const init: RequestInit = { method: 'GET', credentials: 'include', redirect: 'error',
+    cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS), headers: { Accept: 'application/json' } };
   try {
-    response = await fetcher(`${serverOrigin.replace(/\/$/u, '')}${path}`, { method: 'GET', credentials: 'include', redirect: 'error',
-      cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS), headers: { Accept: 'application/json' } });
-  } catch { return { ok: false, problem: 'offline' }; }
+    await assertCredentialHostPermission(url, init);
+    response = await fetcher(url, init);
+  } catch (error) {
+    if (error instanceof Error && error.message === SERVER_HOST_PERMISSION_ERROR) throw error;
+    return { ok: false, problem: 'offline' };
+  }
   if (!response.ok) return { ok: false, problem: problemFor(response.status) };
   let body: unknown;
   try { body = await readBoundedJson(response, MAX_BYTES, 'automation_status_invalid'); } catch { return { ok: false, problem: 'invalid' }; }

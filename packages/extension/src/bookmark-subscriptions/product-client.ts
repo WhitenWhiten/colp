@@ -1,4 +1,5 @@
 import { readBoundedJson } from '../json-response.js';
+import { assertCredentialHostPermission } from '../server-origin-permission.js';
 export class SubscriptionError extends Error {
   constructor(readonly code:string, readonly status=0, readonly retryAfter=0){super(code);this.name='SubscriptionError';}
 }
@@ -18,7 +19,7 @@ export function createSubscriptionProductClient(options:{serverOrigin:string;acc
       delay-=slice;
     }
   }
-  async function raw(path:string,init:RequestInit={}){ await options.assertCurrent();const response=await fetcher(origin.origin+path,{...init,credentials:'include',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});await options.assertCurrent();return response; }
+  async function raw(path:string,init:RequestInit={}){ await options.assertCurrent();const url=origin.origin+path;const request:RequestInit={...init,credentials:'include',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)};await assertCredentialHostPermission(url,request);const response=await fetcher(url,request);await options.assertCurrent();return response; }
   async function identity(){
     const session=await readBoundedJson(await raw('/api/v1/session'),65536,'response_invalid') as {authenticated?:boolean;csrfToken?:string};
     const auth=await readBoundedJson(await raw('/api/v1/auth/get-session'),65536,'response_invalid') as {user?:{id?:string};session?:{id?:string}};

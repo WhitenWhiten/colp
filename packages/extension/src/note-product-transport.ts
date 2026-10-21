@@ -1,4 +1,5 @@
 import { readBoundedJson } from './json-response.js';
+import { assertCredentialHostPermission } from './server-origin-permission.js';
 
 export class NoteSyncError extends Error {
   constructor(readonly status: number, readonly code: string, readonly sameRequestRetrySafe = false) { super(code); }
@@ -33,8 +34,11 @@ export function createNoteProductTransport(options: NoteProductTransportOptions)
     await check();
     const send = async () => {
       await check();
-      return fetcher(origin.origin + path, { ...init, credentials: 'include', redirect: 'error', cache: 'no-store',
-        signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
+      const url = origin.origin + path;
+      const request: RequestInit = { ...init, credentials: 'include', redirect: 'error', cache: 'no-store',
+        signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) };
+      await assertCredentialHostPermission(url, request);
+      return fetcher(url, request);
     };
     const response = await (options.dispatch ? options.dispatch(send) : send());
     await check();

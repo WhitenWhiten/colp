@@ -1,6 +1,7 @@
 import { parseHttpsAvatarUrl, parseRemoteAvatarUrl } from './avatar-url.js';
 import { readBoundedJson } from './json-response.js';
 import { isLoopbackHttpHost } from './http-origin.js';
+import { assertCredentialHostPermission } from './server-origin-permission.js';
 
 export const SESSION_COOKIE_NAME = '__Host-known_session';
 /** Plain HTTP (`COLP_INSECURE_HTTP`) cannot set a `__Host-` cookie. */
@@ -41,9 +42,14 @@ export function createAuthClient(options: {
   const cookieName = sessionCookieName(options.serverOrigin);
   const sessionCookie = (response: Response) => readSessionCookie(response, cookieName);
 
+  async function transmit(url: string, init: RequestInit): Promise<Response> {
+    await assertCredentialHostPermission(url, init);
+    return fetcher(url, init);
+  }
+
   async function mutate(path: string, body: unknown): Promise<Response> {
     try {
-      return await fetcher(`${base}${path}`, {
+      return await transmit(`${base}${path}`, {
         method: 'POST',
         redirect: 'error',
         cache: 'no-store',
@@ -62,7 +68,7 @@ export function createAuthClient(options: {
 
   async function readSession(cookieValue: string): Promise<Response> {
     try {
-      return await fetcher(`${base}/get-session`, {
+      return await transmit(`${base}/get-session`, {
         method: 'GET',
         redirect: 'error',
         cache: 'no-store',
@@ -161,7 +167,7 @@ export function createAuthClient(options: {
       try {
         const origin = options.serverOrigin.replace(/\/$/u, '');
         const headers = { Accept: 'application/json', Cookie: cookieHeader(cookieValue, cookieName) };
-        const get = (path: string) => fetcher(`${origin}${path}`, {
+        const get = (path: string) => transmit(`${origin}${path}`, {
           method: 'GET', redirect: 'error', cache: 'no-store', credentials: 'include', headers,
         });
         const session = await get('/api/v1/session');
@@ -178,7 +184,7 @@ export function createAuthClient(options: {
     },
     async signOut(cookieValue, signal) {
       try {
-        await fetcher(`${base}/sign-out`, {
+        await transmit(`${base}/sign-out`, {
           method: 'POST',
           redirect: 'error',
           cache: 'no-store',

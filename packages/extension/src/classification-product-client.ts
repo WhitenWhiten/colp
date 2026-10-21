@@ -1,6 +1,7 @@
 import type { operations } from '../../server/generated/openapi/product-v1.js';
 import { captureCloudEnabled, manifestCloudEnabled } from './cloud-capability.js';
 import { readBoundedJson } from './json-response.js';
+import { assertCredentialHostPermission } from './server-origin-permission.js';
 
 type Preview = operations['previewCollectionBookmarkClassification'];
 export type ClassificationPreviewRequest = Preview['requestBody']['content']['application/json'];
@@ -71,7 +72,15 @@ export function createClassificationProductClient(options: {
     const signal = options.signal ? AbortSignal.any([deadline,options.signal]) : deadline;
     let response: Response;
     if (init.method === 'POST') await options.assertMutation?.();
-    try { const send = () => fetcher(`${origin.origin}${path}`,{...init,credentials:'include',redirect:'error',cache:'no-store',signal}); response = await (options.dispatch ? options.dispatch(send) : send()); }
+    try {
+      const send = async () => {
+        const url = `${origin.origin}${path}`;
+        const request: RequestInit = { ...init, credentials: 'include', redirect: 'error', cache: 'no-store', signal };
+        await assertCredentialHostPermission(url, request);
+        return fetcher(url, request);
+      };
+      response = await (options.dispatch ? options.dispatch(send) : send());
+    }
     catch { throw new ClassificationProductError('transport_error',0,true); }
     let body: unknown;
     try { body = await readBoundedJson(response,maxBytes,'classification_response_invalid'); }

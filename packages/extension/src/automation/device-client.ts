@@ -1,5 +1,6 @@
 import type { BundleAckInput, LocalReceiptInput } from '@know-n/colp/automation';
 import { colpCredentialHeaders } from '../auth-client.js';
+import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import { readBoundedJson } from '../json-response.js';
 
 /**
@@ -37,15 +38,21 @@ function retryAfter(response: Response): number | undefined {
 async function call(authority: DeviceAuthority, path: string, init: { method: 'GET' | 'POST'; body?: unknown; commandId?: string },
   fetcher: typeof fetch): Promise<DeviceResult> {
   let response: Response;
+  const url = `${authority.serverOrigin.replace(/\/$/u, '')}${BASE}${path}`;
+  const request: RequestInit = {
+    method: init.method, credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS),
+    headers: { Accept: 'application/json', ...colpCredentialHeaders(authority.accessToken), Origin: authority.origin,
+      'Known-Sync-Session': authority.sessionId,
+      ...(init.method === 'POST' ? { 'Content-Type': 'application/json', 'Known-Command-Id': init.commandId! } : {}) },
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+  };
   try {
-    response = await fetcher(`${authority.serverOrigin.replace(/\/$/u, '')}${BASE}${path}`, {
-      method: init.method, credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { Accept: 'application/json', ...colpCredentialHeaders(authority.accessToken), Origin: authority.origin,
-        'Known-Sync-Session': authority.sessionId,
-        ...(init.method === 'POST' ? { 'Content-Type': 'application/json', 'Known-Command-Id': init.commandId! } : {}) },
-      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-    });
-  } catch { return { ok: false, problem: 'offline', status: 0 }; }
+    await assertCredentialHostPermission(url, request);
+    response = await fetcher(url, request);
+  } catch (error) {
+    if (error instanceof Error && error.message === SERVER_HOST_PERMISSION_ERROR) throw error;
+    return { ok: false, problem: 'offline', status: 0 };
+  }
   let body: unknown;
   try { body = await readBoundedJson(response, MAX_BYTES, 'automation_device_response_invalid'); }
   catch { return response.ok ? { ok: false, problem: 'invalid', status: response.status } : { ok: false, problem: problemFor(response.status), status: response.status }; }

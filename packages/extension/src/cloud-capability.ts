@@ -3,6 +3,7 @@
  * reports capture automation off. Hosted manifests omit the key.
  */
 import { readBoundedJson } from './json-response.js';
+import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from './server-origin-permission.js';
 const MANIFEST_PATH = '/.well-known/collection-protocol';
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -122,21 +123,33 @@ export async function refreshCloudOptions(origin: string, hooks: Omit<CloudOptio
 
 async function probeStatus(origin: string, path: string, fetcher: typeof fetch): Promise<boolean> {
   try {
-    const response = await fetcher(`${origin.replace(/\/$/u, '')}${path}`, {
+    const url = `${origin.replace(/\/$/u, '')}${path}`;
+    const init: RequestInit = {
       credentials: 'include', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(5_000),
-    });
+    };
+    await assertCredentialHostPermission(url, init);
+    const response = await fetcher(url, init);
     void response.body?.cancel().catch(() => undefined);
     return response.status !== 404;
-  } catch { return true; }
+  } catch (error) {
+    if (error instanceof Error && error.message === SERVER_HOST_PERMISSION_ERROR) return false;
+    return true;
+  }
 }
 
 async function probeJson(origin: string, path: string, fetcher: typeof fetch, enabled: (body: unknown) => boolean): Promise<boolean> {
   try {
-    const response = await fetcher(`${origin.replace(/\/$/u, '')}${path}`, {
+    const url = `${origin.replace(/\/$/u, '')}${path}`;
+    const init: RequestInit = {
       credentials: 'include', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(5_000),
-    });
+    };
+    await assertCredentialHostPermission(url, init);
+    const response = await fetcher(url, init);
     if (response.status === 404) return false;
     if (!response.ok) return true;
     return enabled(await response.json());
-  } catch { return true; }
+  } catch (error) {
+    if (error instanceof Error && error.message === SERVER_HOST_PERMISSION_ERROR) return false;
+    return true;
+  }
 }

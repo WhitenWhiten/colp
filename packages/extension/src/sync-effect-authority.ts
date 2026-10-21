@@ -1,4 +1,5 @@
 import { AuthorityFencedError, type AuthorityContext } from './authority-fence.js';
+import { credentialGatedFetch } from './server-origin-permission.js';
 import { browserMetadataSyncPolicy, containsMetadataUpload } from './metadata-sync-policy.js';
 import { configuredPersonalSyncPolicy } from './personal-sync-fetch.js';
 import { scopeKey } from './sync-state/scope-key.js';
@@ -36,6 +37,7 @@ export function createSyncEffectAuthority(options: {
     get: id => run(() => options.api.get(id)),
     getChildren: id => run(() => options.api.getChildren(id)),
   };
+  const network = credentialGatedFetch(options.fetch ?? fetch);
   const fetcher: typeof fetch = async (input, init) => {
     await assertCurrent();
     const lease = await admitted;
@@ -43,7 +45,7 @@ export function createSyncEffectAuthority(options: {
     const send = () => {
       lease?.assertLive();
       if (signal.aborted) throw new AuthorityFencedError();
-      return (options.fetch ?? fetch)(input, { ...init, signal });
+      return network(input, { ...init, signal });
     };
     // COLP attempts have a bounded, immutable JSON string body. Retrying an old
     // attempt cannot bypass a later local-only decision. Never strip fields from

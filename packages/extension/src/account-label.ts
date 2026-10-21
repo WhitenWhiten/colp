@@ -2,6 +2,7 @@ import {
   parsePaintAvatarUrl, parseRemoteAvatarUrl, sniffImageType,
 } from './avatar-url.js';
 import { readBoundedJson } from './json-response.js';
+import { assertCredentialHostPermission } from './server-origin-permission.js';
 
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const ME_MAX_BYTES = 64 * 1_024;
@@ -82,10 +83,15 @@ async function hydrateFromMe(
 
 async function readMeAvatar(serverOrigin: string): Promise<string | undefined> {
   const origin = serverOrigin.replace(/\/$/u, '');
-  const get = (path: string): Promise<Response> => fetch(`${origin}${path}`, {
-    credentials: 'include', cache: 'no-store', redirect: 'error',
-    headers: { Accept: 'application/json' },
-  });
+  const get = async (path: string): Promise<Response> => {
+    const url = `${origin}${path}`;
+    const init: RequestInit = {
+      credentials: 'include', cache: 'no-store', redirect: 'error',
+      headers: { Accept: 'application/json' },
+    };
+    await assertCredentialHostPermission(url, init);
+    return fetch(url, init);
+  };
   const session = await get('/api/v1/session');
   if (!session.ok) return undefined;
   const sessionBody = await readBoundedJson(session, ME_MAX_BYTES, 'session_unavailable');

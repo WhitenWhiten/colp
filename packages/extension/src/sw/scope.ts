@@ -2,6 +2,7 @@ import { AuthorityFencedError, type AuthorityContext } from '../authority-fence.
 import { createAuthController } from '../auth-controller.js';
 import { colpCredentialHeaders } from '../auth-client.js';
 import { parseBuildConfig, resolveRuntimeConfig, RUNTIME_ORIGIN_KEY } from '../config.js';
+import { assertCredentialHostPermission, credentialGatedFetch } from '../server-origin-permission.js';
 import { enforceManagedConfiguration, managedServerOrigin } from '../managed-policy.js';
 import { fetchSyncEndpoints } from '../manifest-client.js';
 import { declaredClientTransportBudget, SYNC_TRANSPORT_BUDGET_EXTENSION } from '../colp-transport-budget-browser.js';
@@ -65,6 +66,9 @@ async function readPackagedJson(name: string): Promise<unknown> {
 }
 
 async function evidenceTransportFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  // Managed and saved origins both arrive through loadConfig. Neither may receive a password or cookie
+  // until this install already has that host, including a host declared in the build manifest.
+  await assertCredentialHostPermission(input, init);
   if (typeof __KNOWN_EXTENSION_EVIDENCE__ !== 'undefined' && __KNOWN_EXTENSION_EVIDENCE__) {
     const fault = await readPackagedJson('e2e-fault.json');
     const mode = fault && typeof fault === 'object' ? (fault as { mode?: unknown }).mode : undefined;
@@ -82,9 +86,11 @@ export async function enforceManagedPolicy(config: BuildConfig, action: Extensio
 
 export async function retire(endpoints: Awaited<ReturnType<typeof fetchSyncEndpoints>>, credential: StoredCredential,
   session: StoredSession, signal?: AbortSignal): Promise<void> {
-  const response = await fetch(endpoints.syncRetire, { method: 'DELETE', redirect: 'error', credentials: 'omit', headers: {
+  const init: RequestInit = { method: 'DELETE', redirect: 'error', credentials: 'omit', headers: {
     ...colpCredentialHeaders(credential.accessToken), Origin: extensionOrigin(),
-    'Known-Sync-Session': session.sessionId, 'Idempotency-Key': crypto.randomUUID() }, signal });
+    'Known-Sync-Session': session.sessionId, 'Idempotency-Key': crypto.randomUUID() }, signal };
+  await assertCredentialHostPermission(endpoints.syncRetire, init);
+  const response = await fetch(endpoints.syncRetire, init);
   if (response.status !== 204) throw new Error('retire_failed');
 }
 
@@ -290,9 +296,11 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
   if (effectiveForce || before?.accessToken !== credential.accessToken || !session || !sessionMatchesCredential
       || !sessionMatchesCollection || syncSessionNeedsRenewal(session)) {
     const prior = session;
+    const sessionFetch = credentialGatedFetch(credential.subject && target
+      ? personalSyncFetch({ serverOrigin: credential.serverOrigin, accountId: credential.subject, collectionId: target })
+      : fetch);
     try { session = await createSyncSession({ endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1),
-      origin: extensionOrigin(), signal: context.signal, fetch: credential.subject && target
-        ? personalSyncFetch({ serverOrigin: credential.serverOrigin, accountId: credential.subject, collectionId: target }) : undefined });
+      origin: extensionOrigin(), signal: context.signal, fetch: sessionFetch });
       sw.sessionRetryNotBefore = 0; }
     catch (error) {
       if (error instanceof SessionRequestError && error.code === 'rate_limited'
@@ -302,8 +310,7 @@ async function pushSessionAuthorityExclusive(forceRefresh = false, observedSessi
       if (!prior) { await clearSessionIfGeneration(context.generation); throw error; }
       try { session = await retryStaleReplicaSession(prior, error, async () => createSyncSession({
         endpoints: await endpoints(), credential, replicaProof: await loadBoundReplicaReportProof(), request: await sessionRequest(context.generation, (await endpoints()).maxBatchOperations ?? 1), origin: extensionOrigin(),
-        signal: context.signal, fetch: credential.subject && target
-          ? personalSyncFetch({ serverOrigin: credential.serverOrigin, accountId: credential.subject, collectionId: target }) : undefined,
+        signal: context.signal, fetch: sessionFetch,
       })); }
       catch {
         // Retention is for a TRANSIENT failure of a Session that is still this

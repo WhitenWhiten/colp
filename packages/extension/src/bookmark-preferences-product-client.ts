@@ -1,4 +1,5 @@
 import { readBoundedJson } from './json-response.js';
+import { assertCredentialHostPermission } from './server-origin-permission.js';
 import { normalizeBookmarkPreferences, type BookmarkPreferences } from './bookmark-preferences.js';
 
 const PATH = '/api/v1/me/bookmark-preferences';
@@ -48,8 +49,11 @@ export function createBookmarkPreferencesProductClient(options: {
     const deadline = AbortSignal.timeout(5_000);
     const signal = options.signal ? AbortSignal.any([deadline, options.signal]) : deadline;
     let response: Response;
+    const url = `${origin.origin}${path}`;
+    const request: RequestInit = { ...init, credentials: 'include', redirect: 'error', cache: 'no-store', signal };
     try {
-      response = await fetcher(`${origin.origin}${path}`, { ...init, credentials: 'include', redirect: 'error', cache: 'no-store', signal });
+      await assertCredentialHostPermission(url, request);
+      response = await fetcher(url, request);
     } catch { throw new BookmarkPreferencesProductError('transport_error', 0, true); }
     let body: unknown;
     try { body = await readBoundedJson(response, 64 * 1024, 'bookmark_preferences_response_invalid'); }

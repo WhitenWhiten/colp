@@ -1,4 +1,5 @@
 import { readBoundedJson } from './json-response.js';
+import { assertCredentialHostPermission } from './server-origin-permission.js';
 import type { components } from './generated/favicon-helper-api.js';
 
 export type IconPolicyDto = components['schemas']['FaviconOrderingIconPolicy'];
@@ -183,15 +184,18 @@ async function helperFetch(
   const headers = new Headers(init.headers);
   headers.set('Authorization', bearerOf(options.accessToken));
   headers.set('Origin', options.origin);
+  const url = `${base}${path}`;
+  const request: RequestInit = {
+    ...init,
+    redirect: 'error',
+    cache: 'no-store',
+    credentials: 'omit',
+    headers,
+    signal: options.signal,
+  };
   try {
-    return await fetcher(`${base}${path}`, {
-      ...init,
-      redirect: 'error',
-      cache: 'no-store',
-      credentials: 'omit',
-      headers,
-      signal: options.signal,
-    });
+    await assertCredentialHostPermission(url, request);
+    return await fetcher(url, request);
   } catch (error) {
     throw helperTransportError(error);
   }

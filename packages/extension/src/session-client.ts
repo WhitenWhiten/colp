@@ -1,6 +1,7 @@
 import type { StoredCredential, StoredSession } from './types.js';
 import type { SyncEndpoints } from './manifest-client.js';
 import { colpCredentialHeaders } from './auth-client.js';
+import { assertCredentialHostPermission } from './server-origin-permission.js';
 import { readBoundedJson } from './json-response.js';
 import {
   parseSyncTransportBudgetHeader,
@@ -67,13 +68,17 @@ export async function createSyncSession(input: { readonly endpoints: SyncEndpoin
   readonly signal?: AbortSignal }): Promise<StoredSession> {
   const timeout = new AbortController(); const timer = setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS);
   const signal = input.signal ? mergeAbortSignals(input.signal, timeout.signal) : timeout.signal;
-  const response = await (input.fetch ?? fetch)(input.endpoints.syncSessions, { method: 'POST', redirect: 'error',
+  const sessionInit: RequestInit = { method: 'POST', redirect: 'error',
     cache: 'no-store', credentials: 'omit', signal,
     headers: { Accept: 'application/json', ...colpCredentialHeaders(input.credential.accessToken),
       'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(),
       ...(input.replicaProof ? { 'Known-Sync-Replica-Proof': input.replicaProof } : {}),
-      ...(input.origin ? { Origin: input.origin } : {}) }, body: JSON.stringify(input.request) })
-    .finally(() => clearTimeout(timer));
+      ...(input.origin ? { Origin: input.origin } : {}) }, body: JSON.stringify(input.request) };
+  let response: Response;
+  try {
+    await assertCredentialHostPermission(input.endpoints.syncSessions, sessionInit);
+    response = await (input.fetch ?? fetch)(input.endpoints.syncSessions, sessionInit);
+  } finally { clearTimeout(timer); }
   if (response.status !== 201 || !/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) {
     if (response.status === 401) throw new SessionRequestError('credential_revoked');
     const problem = await readBoundedJson(response, SESSION_RESPONSE_MAX_BYTES, 'session_problem_invalid', { signal: input.signal })

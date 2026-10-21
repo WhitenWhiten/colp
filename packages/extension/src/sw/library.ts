@@ -1,4 +1,5 @@
 import { colpCredentialHeaders } from '../auth-client.js';
+import { assertCredentialHostPermission } from '../server-origin-permission.js';
 import { COLLECTION_BINDING, LIBRARY_STATE, parseLibrary, parseLibraryState, type Library, type LibraryState } from '../library.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
 import type { PersonalSyncIdentity } from '../personal-sync-policy.js';
@@ -9,10 +10,12 @@ import { createRuntimeAuth, loadConfig, boundCollectionId } from './scope.js';
 async function fetchLibrary() {
   const auth = createRuntimeAuth(await loadConfig());
   let credential = await auth.ensureFreshCredential();
-  const request = () => fetch(`${credential.serverOrigin.replace(/\/$/u, '')}/colp/v0.1/sync/library`, {
-    method: 'GET', redirect: 'error', cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(10_000),
-    headers: { Accept: 'application/json', ...colpCredentialHeaders(credential.accessToken), Origin: extensionOrigin() },
-  });
+  const request = () => {
+    const url = `${credential.serverOrigin.replace(/\/$/u, '')}/colp/v0.1/sync/library`;
+    const init: RequestInit = { method: 'GET', redirect: 'error', cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(10_000),
+      headers: { Accept: 'application/json', ...colpCredentialHeaders(credential.accessToken), Origin: extensionOrigin() } };
+    return assertCredentialHostPermission(url, init).then(() => fetch(url, init));
+  };
   let response = await request();
   if (response.status === 401) {
     const previous = credential;

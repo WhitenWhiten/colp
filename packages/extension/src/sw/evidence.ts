@@ -3,6 +3,7 @@ import type { AuthoritativePullEffect, Operation, StrictNode } from '@know-n/col
 import { canonicalAuthoritativeEffectDigest, canonicalOperationDigest } from '@know-n/colp/sync/canonical';
 import { createBookmarkImportCoordinator } from '../bookmark-import-plan.js';
 import { colpCredentialHeaders } from '../auth-client.js';
+import { credentialGatedFetch } from '../server-origin-permission.js';
 import { fetchSyncEndpoints } from '../manifest-client.js';
 import { createPullApplier } from '../pull-applier.js';
 import {
@@ -129,7 +130,7 @@ export async function handleSyncStateEvidence(message: SyncStateEvidenceRequest)
           collectionId: authority.session.collection.collectionId, conversionPolicy: authority.session.conversionPolicy,
           transportBudget: authority.session.transportBudget },
           endpoints, effectPageTemplate: endpoints.syncEffectPages, effectPageAuthority: endpoints.effectPageAuthority,
-          credential: authority.credential, origin: extensionOrigin() }).pull(current.checkpoint.cursor);
+          credential: authority.credential, origin: extensionOrigin(), fetch: credentialGatedFetch(fetch) }).pull(current.checkpoint.cursor);
         return { ok: true, value: await syncState.exportScope(scope) }; }
       case 'downloadEffectPagesEvidence': {
         const effectScope = await currentSyncScope(); const authority = await pushSessionAuthority();
@@ -144,7 +145,7 @@ export async function handleSyncStateEvidence(message: SyncStateEvidenceRequest)
             headers: { Accept: 'application/json', ...colpCredentialHeaders(authority.credential.accessToken),
               Origin: extensionOrigin(), 'Known-Sync-Session': authority.session.sessionId,
               'Collection-Protocol-Version': '0.2' },
-            remainingBytes: 2 * 1024 * 1024, fetch, now: Date.now,
+            remainingBytes: 2 * 1024 * 1024, fetch: credentialGatedFetch(fetch), now: Date.now,
           });
           return { ok: true, value: { status: 'complete', pageCount: pages.length,
             memberCount: pages.reduce<number>((total, page) => total + effectPageMemberCount(page), 0),
@@ -161,7 +162,7 @@ export async function handleSyncStateEvidence(message: SyncStateEvidenceRequest)
           session: { acceptedProtocolVersion: '0.2', sessionId: 'evidence-session', collectionId: evidenceScope.collectionId,
             conversionPolicy: { separator: 'preserve_remote' } },
           effectPageTemplate: 'https://known.example/effects/{effectId}/pages/{pageNumber}',
-          effectPageAuthority: 'https://known.example' });
+          effectPageAuthority: 'https://known.example', fetch: credentialGatedFetch(fetch) });
         await applier.stage(pullCreateEvidencePage(evidenceScope.collectionId, parent.colpId)); await applier.resume();
         await workCoordinator.run('bookmark', async () => undefined); return { ok: true, value: await syncState.exportScope(evidenceScope) }; }
       case 'stagePullCreateCrashEvidence': { const evidenceScope = scope; const nativeParentId = String(args[0]);
@@ -216,7 +217,7 @@ function evidencePullApplier(scope: SyncScope, crash?: (boundary: string) => voi
     session: { acceptedProtocolVersion: '0.2', sessionId: 'evidence-session', collectionId: scope.collectionId,
       conversionPolicy: { separator: 'preserve_remote' } },
     effectPageTemplate: 'https://known.example/effects/{effectId}/pages/{pageNumber}',
-    effectPageAuthority: 'https://known.example', ...(crash ? { crash: (boundary: string) => {
+    effectPageAuthority: 'https://known.example', fetch: credentialGatedFetch(fetch), ...(crash ? { crash: (boundary: string) => {
       // The evidence fixture interrupts the create after its Chrome call started, which is the
       // state `stagePullCreateCrashEvidence` asserts (`browser_call_started`). The runtime records
       // that state in `persistStarted`, immediately before `input.create()`

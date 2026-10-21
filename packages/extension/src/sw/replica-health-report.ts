@@ -20,6 +20,7 @@ import { REPLICA_HEALTH_MAX_BODY_BYTES, REPLICA_HEALTH_MAX_ITEMS, REPLICA_COMMAN
  * result goes back in the next report.
  */
 import { colpCredentialHeaders } from '../auth-client.js';
+import { assertCredentialHostPermission } from '../server-origin-permission.js';
 import { digestJson } from '../bookmark-event-codec.js';
 import type { StorageArea } from '../credential-store.js';
 import type { PersonalSyncMode } from '../personal-sync-policy.js';
@@ -246,12 +247,15 @@ async function post(deps: ReplicaHealthReporterDeps, body: Record<string, unknow
     throw new Error('health_authority_mismatch');
   }
   const proof = await deps.replicaProof?.(deps.scope);
-  return deps.fetch(`${credential.serverOrigin.replace(/\/$/u, '')}${REPLICA_HEALTH_PATH}`, {
+  const url = `${credential.serverOrigin.replace(/\/$/u, '')}${REPLICA_HEALTH_PATH}`;
+  const init: RequestInit = {
     method: 'POST', redirect: 'error', cache: 'no-store', credentials: 'omit', signal: AbortSignal.timeout(deps.requestTimeoutMilliseconds ?? 10_000),
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Origin: deps.origin,
       ...colpCredentialHeaders(credential.accessToken), ...(proof ? { 'Known-Sync-Replica-Proof': proof } : {}) },
     body: JSON.stringify(fitReplicaHealthBody(body)),
-  });
+  };
+  await assertCredentialHostPermission(url, init);
+  return deps.fetch(url, init);
 }
 
 async function readProjection(deps: ReplicaHealthReporterDeps): Promise<ReplicaHealthProjection> {

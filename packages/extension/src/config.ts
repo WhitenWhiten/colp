@@ -103,7 +103,11 @@ export function parseBuildConfig(input: unknown): BuildConfig {
     refreshBeforeExpirySeconds: Number(refreshBeforeExpirySeconds) });
 }
 
-/** Rewrite pinned URLs onto one runtime origin. Does not go through parseBuildConfig, which rejects anything but the build pin. */
+/**
+ * Rewrite pinned URLs onto one runtime origin. Does not go through parseBuildConfig, which rejects anything but the build pin.
+ * Saving or a managed policy does not make the origin trusted: a password, cookie, or bearer is sent only after
+ * `chrome.permissions.contains` confirms the extension already has that host, including hosts declared at build time.
+ */
 export function resolveRuntimeConfig(build: BuildConfig, override?: string): BuildConfig {
   if (override === undefined || override === '') return build;
   let url: URL;

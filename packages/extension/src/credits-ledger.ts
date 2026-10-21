@@ -1,7 +1,16 @@
 import type { components } from '../../server/generated/openapi/product-v1.js';
 import { readBoundedJson } from './json-response.js';
+import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from './server-origin-permission.js';
 import { formatMoment, localized, t, uiLanguage } from './i18n.js';
 import { paintSelectPills } from './select-pill.js';
+
+async function cookieGet(fetcher: typeof fetch, url: string, init: RequestInit): Promise<Response> {
+  try { await assertCredentialHostPermission(url, init); return await fetcher(url, init); }
+  catch (error) {
+    if (error instanceof Error && error.message === SERVER_HOST_PERMISSION_ERROR) throw error;
+    throw new CreditLedgerError('offline', 0);
+  }
+}
 
 export type GeneratedCreditOverview = components['schemas']['CreditOverview'];
 export type GeneratedCreditLedgerPage = components['schemas']['CreditLedgerPage'];
@@ -260,13 +269,8 @@ export function bindCreditsLedger(binding: CreditsLedgerBinding) {
 
   async function getJson(path: string, serverOrigin: string, signal?: AbortSignal): Promise<unknown> {
     if (binding.cloudEnabled?.() === false) throw new CreditLedgerError('unsupported', 404);
-    let response: Response;
-    try {
-      response = await fetcher(`${serverOrigin.replace(/\/$/u, '')}${path}`, {
-        method: 'GET', credentials: 'include', redirect: 'error', cache: 'no-store', signal,
-        headers: { Accept: 'application/json' },
-      });
-    } catch { throw new CreditLedgerError('offline', 0); }
+    const response = await cookieGet(fetcher, `${serverOrigin.replace(/\/$/u, '')}${path}`, {
+      method: 'GET', credentials: 'include', redirect: 'error', cache: 'no-store', signal, headers: { Accept: 'application/json' } });
     if (response.status === 404) throw new CreditLedgerError('unsupported', 404);
     let body: unknown;
     try { body = await readBoundedJson(response, 256 * 1024, 'invalid_response', { signal }); }
@@ -412,10 +416,8 @@ export function createCreditOverviewClient(options: {
       if (cloudOff()) return 'unsupported';
       const authority = await options.getAuthority(signal);
       if (authority.status !== 'connected' || !authority.serverOrigin || !authority.accountKey || !authority.businessAccountId) throw new CreditLedgerError('reconnect_required', 401);
-      let response: Response;
-      try {
-        response = await fetcher(`${authority.serverOrigin.replace(/\/$/u, '')}/api/v1/me/credits`, { credentials: 'include', cache: 'no-store', redirect: 'error', signal });
-      } catch { throw new CreditLedgerError('offline', 0); }
+      const response = await cookieGet(fetcher, `${authority.serverOrigin.replace(/\/$/u, '')}/api/v1/me/credits`, {
+        credentials: 'include', cache: 'no-store', redirect: 'error', signal });
       if (response.status === 404) return 'unsupported';
       let body: unknown;
       try { body = await readBoundedJson(response, 256 * 1024, 'invalid_response', { signal }); }
@@ -444,13 +446,8 @@ export async function resolveCreditBusinessAccountId(options: {
 }): Promise<string> {
   const fetcher = options.fetch ?? fetch;
   const get = async (path: string): Promise<unknown> => {
-    let response: Response;
-    try {
-      response = await fetcher(`${options.serverOrigin.replace(/\/$/u, '')}${path}`, {
-        credentials: 'include', cache: 'no-store', redirect: 'error', signal: options.signal,
-        headers: { Accept: 'application/json' },
-      });
-    } catch { throw new CreditLedgerError('offline', 0); }
+    const response = await cookieGet(fetcher, `${options.serverOrigin.replace(/\/$/u, '')}${path}`, {
+      credentials: 'include', cache: 'no-store', redirect: 'error', signal: options.signal, headers: { Accept: 'application/json' } });
     let body: unknown;
     try { body = await readBoundedJson(response, 256 * 1024, 'invalid_response', { signal: options.signal }); }
     catch { throw new CreditLedgerError('invalid_response', response.status); }

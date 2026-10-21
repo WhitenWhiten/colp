@@ -1,4 +1,5 @@
 import { readBoundedJson } from '../json-response.js';
+import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 
 /**
  * The server's device id for this browser's Sync replica.
@@ -13,10 +14,16 @@ const OPAQUE = /^[A-Za-z0-9._~-]{1,128}$/u;
 
 export async function readReplicaDeviceId(serverOrigin: string, replicaId: string, fetcher: typeof fetch = fetch): Promise<string | null> {
   let response: Response;
+  const url = `${serverOrigin.replace(/\/$/u, '')}/api/v1/sync/status`;
+  const init: RequestInit = { credentials: 'include', redirect: 'error',
+    cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) };
   try {
-    response = await fetcher(`${serverOrigin.replace(/\/$/u, '')}/api/v1/sync/status`, { credentials: 'include', redirect: 'error',
-      cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
-  } catch { return null; }
+    await assertCredentialHostPermission(url, init);
+    response = await fetcher(url, init);
+  } catch (error) {
+    if (error instanceof Error && error.message === SERVER_HOST_PERMISSION_ERROR) throw error;
+    return null;
+  }
   if (!response.ok) return null;
   let body: unknown;
   try { body = await readBoundedJson(response, 512 * 1024, 'sync_status_invalid'); } catch { return null; }

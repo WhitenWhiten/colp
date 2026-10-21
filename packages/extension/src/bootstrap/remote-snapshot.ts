@@ -1,6 +1,7 @@
 import type { Collection, SnapshotNode } from '@know-n/colp/types';
 import { syncSnapshotV02 } from '../generated/pull-effect-validators.js';
 import { colpCredentialHeaders } from '../auth-client.js';
+import { assertCredentialHostPermission, SERVER_HOST_PERMISSION_ERROR } from '../server-origin-permission.js';
 import { readBoundedJson } from '../json-response.js';
 import { sessionTransportBudget } from '../colp-transport-budget-browser.js';
 import type { SyncScope } from '../sync-state-store.js';
@@ -45,12 +46,15 @@ export async function loadCompleteRemoteSnapshot(input: {
     let response: Response; const timeout = new AbortController();
     const timer = setTimeout(() => timeout.abort(), timeoutMs);
     const signal = mergeSignals(input.signal, timeout.signal);
+    const snapshotInit: RequestInit = { method: 'GET', redirect: 'error', cache: 'no-store',
+      credentials: 'omit', signal, headers: { Accept: 'application/json',
+        ...colpCredentialHeaders(input.credential.accessToken), 'Known-Sync-Session': input.session.sessionId,
+        'Collection-Protocol-Version': '0.2', Origin: input.origin } };
     try {
-      response = await fetcher(url.toString(), { method: 'GET', redirect: 'error', cache: 'no-store',
-        credentials: 'omit', signal, headers: { Accept: 'application/json',
-          ...colpCredentialHeaders(input.credential.accessToken), 'Known-Sync-Session': input.session.sessionId,
-          'Collection-Protocol-Version': '0.2', Origin: input.origin } });
+      await assertCredentialHostPermission(url.toString(), snapshotInit);
+      response = await fetcher(url.toString(), snapshotInit);
     } catch (error) {
+      if (error instanceof Error && error.message === SERVER_HOST_PERMISSION_ERROR) throw error;
       if (timeout.signal.aborted && !input.signal?.aborted) throw new Error('snapshot_timeout');
       if (error instanceof Error && error.name === 'AbortError') throw error;
       throw new Error('offline');
