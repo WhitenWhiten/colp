@@ -370,7 +370,9 @@ function waitForHostCookie(dependencies: Dependencies, baseline: string): Promis
 }
 
 function cookieHostMatches(domain: string | undefined, host: string): boolean {
-  if (domain === undefined || domain === '') return true;
+  // onChanged is not scoped to the server URL. A missing domain is not the
+  // configured host; accepting it would finish OAuth from any host's cookie.
+  if (domain === undefined || domain === '') return false;
   return domain.replace(/^\./u, '') === host;
 }
 

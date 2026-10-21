@@ -24,6 +24,38 @@ import {
   sessionJson,
 } from './auth-shell-fixture.js';
 
+async function loginFromChangedCookie(domain: string | undefined, accept: boolean) {
+  const cookies = memoryCookies();
+  const controller = createAuthController({
+    config: config(),
+    store: createCredentialStore(new MemoryStorageArea(), () => NOW),
+    now: () => NOW,
+    origin: EXTENSION_ORIGIN,
+    cookies,
+    oauthTimeoutMs: accept ? 500 : 80,
+    oauthPollMs: accept ? 1_000 : 20,
+    openOAuthTab: async () => undefined,
+    fetch: async (url) => {
+      if (String(url).endsWith('/sign-in/social')) {
+        return Response.json({ url: 'https://accounts.google.com/o/oauth2' });
+      }
+      if (String(url).endsWith('/get-session')) return Response.json(sessionJson(NOW));
+      return new Response(null, { status: 404 });
+    },
+  });
+  const pending = controller.login({ method: 'oauth', provider: 'google' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  for (const listener of cookies.listeners) {
+    listener({ cookie: { name: SESSION_COOKIE_NAME, value: COOKIE_VALUE, domain }, removed: false });
+  }
+  const outcome = await pending;
+  return {
+    status: outcome.status,
+    errorCode: outcome.errorCode,
+    accessToken: (await controller.dependencies.store.loadCredential())?.accessToken,
+  };
+}
+
 describe('P3-27 Better Auth credential lifecycle', () => {
   test('completes password login from Set-Cookie and stores the session cookie as the bearer', async () => {
     const controller = fixtureController({ config: config(), now: () => NOW });
@@ -233,7 +265,7 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.deepEqual(opened, ['https://accounts.google.com/o/oauth2']);
     for (const listener of cookies.listeners) {
-      listener({ cookie: { name: SESSION_COOKIE_NAME, value: COOKIE_VALUE }, removed: false });
+      listener({ cookie: { name: SESSION_COOKIE_NAME, value: COOKIE_VALUE, domain: 'known.example' }, removed: false });
     }
     assert.equal((await pending).status, 'connected');
     assert.equal((await controller.dependencies.store.loadCredential())?.accessToken, COOKIE_VALUE);
@@ -263,7 +295,10 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     const pending = controller.login({ method: 'oauth', provider: 'google' });
     await new Promise((resolve) => setTimeout(resolve, 0));
     for (const listener of cookies.listeners) {
-      listener({ cookie: { name: SESSION_COOKIE_NAME, value: encodeURIComponent(COOKIE_VALUE) }, removed: false });
+      listener({
+        cookie: { name: SESSION_COOKIE_NAME, value: encodeURIComponent(COOKIE_VALUE), domain: 'known.example' },
+        removed: false,
+      });
     }
     assert.equal((await pending).status, 'connected');
     assert.equal((await controller.dependencies.store.loadCredential())?.accessToken, COOKIE_VALUE);
@@ -324,6 +359,34 @@ describe('P3-27 Better Auth credential lifecycle', () => {
     const outcome = await pending;
     assert.equal(outcome.status, 'error');
     assert.equal(outcome.errorCode, 'login_cancelled:oauth_timeout');
+  });
+
+  test('oauth does not finish login when the changed cookie has no domain', async () => {
+    const outcome = await loginFromChangedCookie(undefined, false);
+    assert.equal(outcome.status, 'error');
+    assert.equal(outcome.errorCode, 'login_cancelled:oauth_timeout');
+    assert.equal(outcome.accessToken, undefined);
+  });
+
+  test('oauth does not finish login when the changed cookie domain is empty', async () => {
+    const outcome = await loginFromChangedCookie('', false);
+    assert.equal(outcome.status, 'error');
+    assert.equal(outcome.errorCode, 'login_cancelled:oauth_timeout');
+    assert.equal(outcome.accessToken, undefined);
+  });
+
+  test('oauth finishes login when the changed cookie domain is the server host', async () => {
+    const host = new URL(config().serverOrigin).hostname;
+    const outcome = await loginFromChangedCookie(host, true);
+    assert.equal(outcome.status, 'connected');
+    assert.equal(outcome.accessToken, COOKIE_VALUE);
+  });
+
+  test('oauth finishes login when the changed cookie domain has a leading dot', async () => {
+    const host = new URL(config().serverOrigin).hostname;
+    const outcome = await loginFromChangedCookie(`.${host}`, true);
+    assert.equal(outcome.status, 'connected');
+    assert.equal(outcome.accessToken, COOKIE_VALUE);
   });
 
   test('a restarted profile is re-established from the cookie instead of signed out', async () => {
