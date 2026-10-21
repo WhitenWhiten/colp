@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   ColpClient,
+  ColpClientLimitError,
   ColpProblemError,
   ColpWireValidationError,
   PublicationQueryError,
@@ -555,17 +556,28 @@ describe('publication client', () => {
 
   it('rejects redirect loops using normalized request URLs', async () => {
     const manifest = await fixture('public-manifest.json');
+    const replayCursor = 'replay-cursor-secret';
     const fetch = vi.fn(async (input: string | URL | Request) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === '/.well-known/collection-protocol') return new Response(manifest, { headers: { 'Content-Type': 'application/json' } });
-      return new Response(null, { status: 302, headers: { Location: `${url.href}#ignored` } });
+      const loop = new URL(url);
+      loop.hash = '';
+      loop.searchParams.set('pageCursor', replayCursor);
+      return new Response(null, { status: 302, headers: { Location: `${loop.href}#ignored` } });
     });
     const client = new ColpClient({
       manifestUrl: 'https://alice.example/.well-known/collection-protocol',
       fetch: fetch as typeof globalThis.fetch,
     });
 
-    await expect(client.getSnapshot(fixtureCollectionId)).rejects.toThrow('repeated');
+    const repeated = `https://alice.example/collections/c/${fixtureCollectionId}/snapshot`;
+    await expect(client.getSnapshot(fixtureCollectionId)).rejects.toSatisfy((error: unknown) => (
+      error instanceof ColpClientLimitError
+      && error.message === `Request URL was repeated: ${repeated}`
+      && !error.message.includes(replayCursor)
+      && !error.message.includes('?')
+      && !error.message.includes('#')
+    ));
   });
 
   it('enforces Snapshot page, byte, object, and timeout limits', async () => {
@@ -646,7 +658,12 @@ describe('publication client', () => {
       fetch: fetch as typeof globalThis.fetch,
     });
 
-    await expect(client.getSnapshot(fixtureCollectionId)).rejects.toThrow('repeated');
+    await expect(client.getSnapshot(fixtureCollectionId)).rejects.toSatisfy((error: unknown) => (
+      error instanceof ColpClientLimitError
+      && error.message === 'Request URL was repeated: https://alice.example/page'
+      && !error.message.includes('page-2')
+      && !error.message.includes('?')
+    ));
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 

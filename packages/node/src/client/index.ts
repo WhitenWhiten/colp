@@ -463,6 +463,15 @@ function requestUrlKey(url: URL): string {
   return normalized.href.replace(/%[0-9a-f]{2}/giu, (value) => value.toUpperCase());
 }
 
+function requestUrlDiagnosticLabel(url: URL): string {
+  const label = new URL(url);
+  label.username = '';
+  label.password = '';
+  label.search = '';
+  label.hash = '';
+  return label.href;
+}
+
 function validateRequestUrl(url: URL): void {
   if (url.username !== '' || url.password !== '') {
     throw new TypeError('Request URLs must not contain user information.');
@@ -1217,7 +1226,8 @@ export class ColpClient {
       policy.signal?.throwIfAborted();
       const key = requestUrlKey(current);
       if (visitedUrls.has(key)) {
-        throw new ColpClientLimitError(`Request URL was repeated: ${key}`);
+        // The loop key still includes the sorted query. The message keeps only origin and path.
+        throw new ColpClientLimitError(`Request URL was repeated: ${requestUrlDiagnosticLabel(current)}`);
       }
       visitedUrls.add(key);
 
