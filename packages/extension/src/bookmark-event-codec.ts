@@ -110,12 +110,19 @@ export function liveCreateNativeId(nativeId: string | undefined): string | undef
       || nativeId.startsWith('local-')) return undefined;
   return nativeId;
 }
-export function isDescendant(candidate: MappingInput, ancestorNativeId: string, all: readonly MappingInput[]) {
-  const byNative = new Map(all.map((mapping) => [mapping.nativeId, mapping])); let parent = candidate.parentNativeId;
-  const seen = new Set<string>();
+/** nativeId → parentNativeId. Build once and reuse across parent-chain walks. */
+export function nativeParentIndex(all: readonly MappingInput[]): ReadonlyMap<string, string | undefined> {
+  return new Map(all.map((mapping) => [mapping.nativeId, mapping.parentNativeId]));
+}
+export function isDescendantIn(candidate: MappingInput, ancestorNativeId: string,
+  parents: ReadonlyMap<string, string | undefined>) {
+  let parent = candidate.parentNativeId; const seen = new Set<string>();
   while (parent) { if (parent === ancestorNativeId) return true; if (seen.has(parent)) return false;
-    seen.add(parent); parent = byNative.get(parent)?.parentNativeId; }
+    seen.add(parent); parent = parents.get(parent); }
   return false;
+}
+export function isDescendant(candidate: MappingInput, ancestorNativeId: string, all: readonly MappingInput[]) {
+  return isDescendantIn(candidate, ancestorNativeId, nativeParentIndex(all));
 }
 export function asObject(value: JsonValue | undefined, label: string): JsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label}_invalid`); return value;

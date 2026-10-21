@@ -1,4 +1,4 @@
-import { isDescendant } from './bookmark-event-codec.js';
+import { isDescendantIn, nativeParentIndex } from './bookmark-event-codec.js';
 import type { BookmarkEventRecord, MappingInput, SyncScope, createSyncStateStore } from './sync-state-store.js';
 
 export interface EligibleSyncNativeIdsInput {
@@ -27,7 +27,11 @@ export async function eligibleSyncNativeIds(input: EligibleSyncNativeIdsInput): 
     && !privateNative.has(mapping.nativeId) && !privateNative.has(mapping.rootNativeId)).map((mapping) => mapping.nativeId))];
 }
 
+/** One parent index per selector. A later `all` is not reindexed. */
 export function subtreeSelector(nativeId: string) {
-  return (mapping: MappingInput, all: readonly MappingInput[]) =>
-    mapping.nativeId === nativeId || isDescendant(mapping, nativeId, all);
+  let parents: ReadonlyMap<string, string | undefined> | undefined;
+  return (mapping: MappingInput, all: readonly MappingInput[]) => {
+    parents ??= nativeParentIndex(all);
+    return mapping.nativeId === nativeId || isDescendantIn(mapping, nativeId, parents);
+  };
 }

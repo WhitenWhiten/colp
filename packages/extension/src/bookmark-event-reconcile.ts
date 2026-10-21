@@ -1,4 +1,4 @@
-import { bookmarkKind, digestJson, isDescendant, nodeContent } from './bookmark-event-codec.js';
+import { bookmarkKind, digestJson, isDescendantIn, nativeParentIndex, nodeContent } from './bookmark-event-codec.js';
 import { identityFromCreateReceipt, inFlightCreateEvidence, plannedCreateOpIdForNative } from './bookmark-create-receipt-identity.js';
 import {
   authoritativeColpId, classifyObservedNative, identityFromMapping, type FirstRunPhase, type NodeIdentity,
@@ -63,6 +63,7 @@ export async function reconcileBookmarkTree(host: ReconcileHost): Promise<void> 
   const openIssues = await readOpenSyncIssues(host.store, host.scope);
   const parents = issueAncestry(mappings);
   const missingIds = new Set(missing.map((mapping) => mapping.nativeId));
+  const parentByNative = nativeParentIndex(missing);
   for (const mapping of missing) {
     if (dependsOnIssue([mapping.colpId], openIssues.roots, parents)) continue;
     if (mapping.parentNativeId && missingIds.has(mapping.parentNativeId)) continue;
@@ -75,7 +76,7 @@ export async function reconcileBookmarkTree(host: ReconcileHost): Promise<void> 
     const looked = await lookupBookmark(id => host.readNode(id), mapping.nativeId);
     if (looked.class === 'present') continue;
     if (looked.class !== 'not_found') throw new Error(looked.message);
-    const descendants = missing.filter((candidate) => isDescendant(candidate, mapping.nativeId, missing))
+    const descendants = missing.filter((candidate) => isDescendantIn(candidate, mapping.nativeId, parentByNative))
       .map((item) => item.nativeId);
     const identity = await host.identityFor(mapping.nativeId); if (!identity) continue;
     await host.stageDelete(mapping.nativeId, identity, mapping.nodeKind === 'folder',
