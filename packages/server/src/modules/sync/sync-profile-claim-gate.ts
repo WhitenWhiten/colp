@@ -203,6 +203,99 @@ export function claimPhase3SyncProfiles(input: {
   return claims;
 }
 
+export const RUNTIME_SYNC_DEPLOYMENT_EVIDENCE_FORMAT = 'known.runtime.sync-deployment.v1' as const;
+
+/**
+ * Current deployment evidence. This is not the historical Phase 3 artifact:
+ * `maxBatchOperations` must equal the running server configuration, and
+ * `migrationDigest` must equal {@link digestMigrationChain} of the migrations
+ * actually registered with the migrator.
+ */
+export interface RuntimeSyncDeploymentEvidence {
+  readonly format: typeof RUNTIME_SYNC_DEPLOYMENT_EVIDENCE_FORMAT;
+  readonly maxBatchOperations: number;
+  readonly configDigest: string;
+  readonly buildDigest: string;
+  readonly migrationDigest: string;
+}
+
+export function digestMigrationChain(names: readonly string[]): string {
+  return sha256Hex(canonicalJson({ migrations: [...names] }));
+}
+
+export function verifyRuntimeSyncDeploymentEvidence(input: {
+  readonly evidence: RuntimeSyncDeploymentEvidence;
+  readonly runtimeMaxBatchOperations: number;
+  readonly runtimeConfigDigest: string;
+  readonly runtimeBuildDigest: string;
+  readonly registeredMigrationNames: readonly string[];
+}): void {
+  const evidence = input.evidence;
+  if (!evidence || evidence.format !== RUNTIME_SYNC_DEPLOYMENT_EVIDENCE_FORMAT) {
+    throw new TypeError('Runtime Sync evidence format is not the current deployment format');
+  }
+  if (!Number.isSafeInteger(input.runtimeMaxBatchOperations) || input.runtimeMaxBatchOperations < 1) {
+    throw new TypeError('Runtime Sync maxBatchOperations configuration is invalid');
+  }
+  if (evidence.maxBatchOperations !== input.runtimeMaxBatchOperations) {
+    throw new TypeError('Runtime Sync evidence maxBatchOperations does not match the server configuration');
+  }
+  requireSha256(evidence.configDigest, 'Runtime Sync config');
+  requireSha256(evidence.buildDigest, 'Runtime Sync build');
+  requireSha256(evidence.migrationDigest, 'Runtime Sync migrations');
+  if (!constantTimeHexEqual(evidence.configDigest, input.runtimeConfigDigest)) {
+    throw new TypeError('Runtime Sync evidence configDigest does not match the server configuration');
+  }
+  if (!constantTimeHexEqual(evidence.buildDigest, input.runtimeBuildDigest)) {
+    throw new TypeError('Runtime Sync evidence buildDigest does not match the server build');
+  }
+  const migrationDigest = digestMigrationChain(input.registeredMigrationNames);
+  if (!constantTimeHexEqual(evidence.migrationDigest, migrationDigest)) {
+    throw new TypeError('Runtime Sync evidence migrationDigest does not match the registered migrations');
+  }
+}
+
+/**
+ * Issues a Sync profile claim only after current runtime evidence matches and
+ * deployment conformance evidence is present. Configuration alone does not
+ * grant the claim. Historical Phase 3 evidence is not accepted here.
+ */
+export function claimRuntimeSyncProfiles(input: {
+  readonly evidence: RuntimeSyncDeploymentEvidence;
+  readonly runtimeMaxBatchOperations: number;
+  readonly runtimeConfigDigest: string;
+  readonly runtimeBuildDigest: string;
+  readonly registeredMigrationNames: readonly string[];
+  readonly deploymentEvidence: VerifiedDeploymentConformanceEvidence;
+}): Phase3SyncProfileClaims {
+  verifyRuntimeSyncDeploymentEvidence(input);
+  const plan = PHASE3_SYNC_CONFORMANCE_PLAN;
+  if (input.deploymentEvidence.profiles.join('\0') !== plan.profiles.join('\0')
+      || input.deploymentEvidence.capabilities.join('\0') !== plan.capabilities.join('\0')
+      || input.deploymentEvidence.passedProbeIds.join('\0') !== plan.probeIds.join('\0')) {
+    throw new TypeError('Runtime Sync deployment conformance evidence is incomplete or has the wrong scope');
+  }
+  const profiles = assertProfileClaims(PHASE3_SYNC_PROFILE_CLAIMS, {
+    registeredEndpoints: new Set<EndpointKey>(PHASE3_SYNC_ENDPOINTS),
+    availablePorts: new Set<ConformancePort>(PHASE3_SYNC_PORTS),
+    deploymentEvidence: input.deploymentEvidence,
+  });
+  const claims = deepFreeze({
+    profiles,
+    sourceRevision: input.evidence.buildDigest.slice(0, 40),
+    sourceDigest: input.evidence.buildDigest,
+    aggregateDigest: sha256Hex(canonicalJson({
+      format: input.evidence.format,
+      maxBatchOperations: input.runtimeMaxBatchOperations,
+      configDigest: input.runtimeConfigDigest,
+      buildDigest: input.runtimeBuildDigest,
+      migrationDigest: input.evidence.migrationDigest,
+    })),
+  });
+  issuedClaims.add(claims);
+  return claims;
+}
+
 export function assertPhase3SyncProfileClaims(
   value: Phase3SyncProfileClaims,
 ): asserts value is Phase3SyncProfileClaims {

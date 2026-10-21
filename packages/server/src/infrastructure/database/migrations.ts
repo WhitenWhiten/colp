@@ -158,23 +158,34 @@ function stabilizeMigrator(
   return migrator;
 }
 
-export function createMigrator(
-  db: Kysely<DatabaseSchema>,
-  migrationDirectory = resolveMigrationDirectory(),
-  migrationTableSchema?: string,
-): Migrator {
+function orderedMigrationProvider(migrationDirectory: string) {
   const provider = new FileMigrationProvider({
     fs,
     path,
     migrationFolder: migrationDirectory,
     import: (filePath) => import(pathToFileURL(path.resolve(filePath)).href),
   });
-  const orderedProvider = {
+  return {
     async getMigrations() {
       const migrations = await provider.getMigrations();
       return Object.fromEntries(Object.entries(migrations).sort(([left], [right]) => compareMigrationNames(left, right)));
     },
   };
+}
+
+/** Names registered by the same ordered provider `createMigrator` loads. */
+export async function listRegisteredMigrationNames(
+  migrationDirectory = resolveMigrationDirectory(),
+): Promise<readonly string[]> {
+  return Object.keys(await orderedMigrationProvider(migrationDirectory).getMigrations());
+}
+
+export function createMigrator(
+  db: Kysely<DatabaseSchema>,
+  migrationDirectory = resolveMigrationDirectory(),
+  migrationTableSchema?: string,
+): Migrator {
+  const orderedProvider = orderedMigrationProvider(migrationDirectory);
   const factory = (connection: Kysely<DatabaseSchema>) => new Migrator({
     db: connection,
     ...(migrationTableSchema ? { migrationTableSchema } : {}),
