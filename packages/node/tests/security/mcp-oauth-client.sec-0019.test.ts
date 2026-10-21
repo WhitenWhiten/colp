@@ -385,9 +385,25 @@ describe(`${evidence} SEC-0019 MCP OAuth client security (COLP-MCP-10)`, () => {
       });
     });
 
-    it(`${evidence} rejects reuse of an already-rotated (old) refresh token`, () => {
+    it(`${evidence} rejects any unequal presented refresh token with refresh_token_reuse`, () => {
       expectDenied(
         rotateOAuthRefreshToken(refreshState(), 'revoked-old-token', nextRefreshToken, issuerA),
+        'refresh_token_reuse',
+      );
+    });
+
+    it(`${evidence} rejects the pre-rotation current token when it is presented again after rotation`, () => {
+      const rotated = rotateOAuthRefreshToken(refreshState(), currentRefreshToken, nextRefreshToken, issuerA);
+      expect(rotated).toMatchObject({
+        allowed: true,
+        reason: 'rotated',
+        nextState: { issuer: issuerA, currentRefreshToken: nextRefreshToken },
+      });
+      if (!rotated.allowed) {
+        throw new Error('expected a successful rotation before presenting the previous token');
+      }
+      expectDenied(
+        rotateOAuthRefreshToken(rotated.nextState, currentRefreshToken, 'later-refresh-token-Ff4', issuerA),
         'refresh_token_reuse',
       );
     });

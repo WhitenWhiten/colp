@@ -31,7 +31,7 @@
  * - stdio / API Key / local hosts are marked not-applicable so they stay on
  *   their non-OAuth paths.
  */
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 import { canonicalOAuthIssuer, isLoopbackHost } from './mcp-oauth-discovery.js';
 export {
@@ -613,6 +613,13 @@ function snapshotRefreshState(state: unknown): OAuthIssuerKeyedRefreshState {
   return Object.freeze({ issuer, currentRefreshToken });
 }
 
+/** Compare two secrets by SHA-256 digest so the check does not short-circuit on length. */
+function secretEqual(left: string, right: string): boolean {
+  const leftDigest = createHash('sha256').update(left, 'utf8').digest();
+  const rightDigest = createHash('sha256').update(right, 'utf8').digest();
+  return timingSafeEqual(leftDigest, rightDigest);
+}
+
 /**
  * Rotate the refresh token for an issuer-keyed state. The presented refresh
  * token must be the current one (reuse of an already-rotated token is denied),
@@ -651,7 +658,7 @@ export function rotateOAuthRefreshToken(
   if (stateKey !== exchangeKey) {
     return Object.freeze({ allowed: false, reason: 'refresh_issuer_mismatch' } as const);
   }
-  if (presentedRefreshToken !== snapshot.currentRefreshToken) {
+  if (!secretEqual(presentedRefreshToken, snapshot.currentRefreshToken)) {
     return Object.freeze({ allowed: false, reason: 'refresh_token_reuse' } as const);
   }
   if (nextRefreshToken === presentedRefreshToken) {
