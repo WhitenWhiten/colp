@@ -26,6 +26,7 @@ export const PULL_HISTORY_BYTE_KEEP = 8 * 1024 * 1024;
 
 const PULL_EVENT_STATES = ['staged', 'intent_prepared', 'browser_call_started', 'native_event_observed',
   'awaiting_confirmation', 'authority_committed', 'page_complete', 'blocked'] as const;
+const OPEN_PULL_EVENT_STATES = PULL_EVENT_STATES.filter((state) => state !== 'page_complete');
 const TERMINAL_PULL_STATES = new Set(['authority_committed', 'page_complete']);
 
 export interface PullHistoryBudget { readonly maxEvents?: number; readonly maxBytes?: number }
@@ -188,6 +189,38 @@ export function orderEventsByPageChain(events: readonly UnknownRecord[], pages: 
 interface CompletedPageStat {
   readonly pageId: string; readonly completedAt: number; readonly eventCount: number;
   readonly byteLength: number; readonly protected: boolean;
+}
+
+/**
+ * Intent ids an open event still names through `deferredNativeIntentId`.
+ * Completed history is not scanned; the intent's own event is checked separately.
+ */
+export async function openDeferredIntentIds(events: IDBObjectStore, scopeKeyValue: string): Promise<ReadonlySet<string>> {
+  const referenced = new Set<string>();
+  for (const state of OPEN_PULL_EVENT_STATES) {
+    const rows = await cursorPage<UnknownRecord>(events.index(INDEXES.pullEventByState),
+      IDBKeyRange.bound([scopeKeyValue, state], [scopeKeyValue, state, []]), Number.MAX_SAFE_INTEGER);
+    for (const event of rows) {
+      const binding = pullDeferral(event);
+      if (binding?.kind === 'native_result') referenced.add(binding.id);
+    }
+  }
+  return referenced;
+}
+
+/** Expired completed intents stay while their own outcome is unfinished or another open event still names them. */
+export function expiredCompletedIntentCanBeDeleted(intent: IntentRecord, event: UnknownRecord | undefined,
+  referencedIntentIds: ReadonlySet<string>): boolean {
+  if (referencedIntentIds.has(intent.intentId)) return false;
+  if (intent.state !== 'page_complete' || intent.expiresAt > Date.now()) return false;
+  if (intent.repairJobId || intent.waitReason || intent.nativeWaitDecision) return false;
+  if (intent.nativeResult === 'unknown' || intent.nativeResult === 'result_unknown') return false;
+  if ((intent.replayState === 'unknown' || intent.replayState === 'started' || intent.replayState === 'awaiting_receipt')
+      && intent.nativeResult !== 'applied_with_evidence' && intent.nativeResult !== 'absent'
+      && intent.nativeResult !== 'failed') return false;
+  if (!event) return true;
+  if (String(event.state) !== 'page_complete' || pullDeferral(event)) return false;
+  return pullEventCallFact(event, intent) === 'known';
 }
 
 /** Protected rows stay even when the page/event/byte caps are already full. */

@@ -1,4 +1,4 @@
-import { pullDeferral, validatedPullDeferral } from '../pull-deferral.js';
+import { validatedPullDeferral } from '../pull-deferral.js';
 import { createProjectionRepository } from './projection-repository.js';
 import { mergeRemoteObservation } from './remote-observation.js';
 import { classifyDurablePullCursorWrite, pullPageDiagnosticRow, type PullCursorWriteClass } from '../pull-ack-boundary.js';
@@ -15,7 +15,7 @@ import {
 } from './idb.js';
 import { INDEXES, STORES } from './schema.js';
 import { scopeKey, validateScope } from './scope-key.js';
-import { adoptBlockedPagesAtChainHead, pullEventCallFact } from './recovery-repository.js';
+import { adoptBlockedPagesAtChainHead } from './recovery-repository.js';
 import { validateMapping, validateMappingRecord } from './mapping-repository.js';
 import { planPullMappingWrites } from './pull-mapping-writes.js';
 import { validateQueueRecord, validateReceipt } from './queue-validate.js';
@@ -29,7 +29,8 @@ import { validateLocalSyncExclusion, type LocalSyncExclusionRecord } from './rem
 import { validateMountBinding } from './mount-repository.js';
 import { validateRemoteObservation, validateScopeCommandPlan } from './scope-facts-repository.js';
 import {
-  coveredPullOperationIds, probePullState, pruneCompletedPullPages, putPullTerminalFacts, pullHistoryLimits,
+  coveredPullOperationIds, expiredCompletedIntentCanBeDeleted, openDeferredIntentIds, probePullState,
+  pruneCompletedPullPages, putPullTerminalFacts, pullHistoryLimits,
   PULL_HISTORY_PAGE_KEEP, readOrderedPullEvents, readPullApplyWorkset, readPullPagesByState, type PullHistoryBudget,
 } from './pull-workset.js';
 import type { SyncStoreRuntime } from './runtime.js';
@@ -562,11 +563,12 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
     let deleted = 0; let examined = 0; let done = true;
     let cursorAfter = options.after;
     await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
+      const events = tx.objectStore(STORES.pullEvents);
+      const referenced = await openDeferredIntentIds(events, key);
       const range = IDBKeyRange.bound(
         cursorAfter ? [key, 'page_complete', cursorAfter.expiresAt, cursorAfter.intentId] : [key, 'page_complete', 0, ''],
         [key, 'page_complete', now, '\uffff'], Boolean(cursorAfter), false);
       const index = tx.objectStore(STORES.intents).index(INDEXES.intentByCompletedExpiry);
-      const events = tx.objectStore(STORES.pullEvents);
       await new Promise<void>((resolve, reject) => {
         const request = index.openCursor(range);
         request.onerror = () => reject(request.error);
@@ -579,7 +581,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
             cursorAfter = { expiresAt: intent.expiresAt, intentId: intent.intentId };
             const event = intent.eventId
               ? await requestValue(events.get([key, intent.eventId])) as UnknownRecord | undefined : undefined;
-            if (expiredCompletedIntentCanBeDeleted(intent, event)) { cursor.delete(); deleted += 1; }
+            if (expiredCompletedIntentCanBeDeleted(intent, event, referenced)) { cursor.delete(); deleted += 1; }
             cursor.continue();
           })().catch(reject);
         };
@@ -592,18 +594,6 @@ function intentsForNativeTarget(tx: IDBTransaction, key: string, nativeId: strin
   const target = boundedString(nativeId, 'nativeId');
   return cursorPage<IntentRecord>(tx.objectStore(STORES.intents).index(INDEXES.intentByNativeTarget),
     IDBKeyRange.bound([key, target, ''], [key, target, '\uffff']), Number.MAX_SAFE_INTEGER);
-}
-
-function expiredCompletedIntentCanBeDeleted(intent: IntentRecord, event: UnknownRecord | undefined): boolean {
-  if (intent.state !== 'page_complete' || intent.expiresAt > Date.now()) return false;
-  if (intent.repairJobId || intent.waitReason || intent.nativeWaitDecision) return false;
-  if (intent.nativeResult === 'unknown' || intent.nativeResult === 'result_unknown') return false;
-  if ((intent.replayState === 'unknown' || intent.replayState === 'started' || intent.replayState === 'awaiting_receipt')
-      && intent.nativeResult !== 'applied_with_evidence' && intent.nativeResult !== 'absent'
-      && intent.nativeResult !== 'failed') return false;
-  if (!event) return true;
-  if (String(event.state) !== 'page_complete' || pullDeferral(event)) return false;
-  return pullEventCallFact(event, intent) === 'known';
 }
 
   return { getApplyIntent, createApplyIntent, findApplyIntent, hasActiveApplyIntentForNativeTarget,
