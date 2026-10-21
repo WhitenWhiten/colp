@@ -1,4 +1,5 @@
 import { createHash, createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../../canonical-json.js';
 import type { SyncPullEvent, SyncPullEventV02 } from '@know-n/colp/types';
 import type { VerifiedExtensionCredential } from '../../identity/index.js';
 
@@ -479,12 +480,10 @@ function nonEmpty(value: unknown): string {
 }
 
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (isRecord(value)) return `{${Object.keys(value).sort().map((key) =>
-    `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) throw new TypeError('Sync Pull cursor scope is not canonical JSON');
-  return encoded;
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'utf16',
+    onInvalid: () => { throw new TypeError('Sync Pull cursor scope is not canonical JSON'); },
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

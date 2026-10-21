@@ -8,19 +8,15 @@
  * code rather than a generic error.
  */
 
+import { encodeThrowingCanonicalJson } from '../../modules/canonical-json.js';
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Deterministic JSON with sorted object keys; `invalid` runs when JSON.stringify yields nothing. */
+/** UTF-16 key order. `invalid` runs when JSON.stringify yields nothing. */
 export function stableJson(value: unknown, invalid: () => never): string {
-  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item, invalid)).join(',')}]`;
-  if (isRecord(value)) return `{${Object.entries(value).sort(([left], [right]) =>
-    left < right ? -1 : left > right ? 1 : 0).map(([key, item]) =>
-    `${JSON.stringify(key)}:${stableJson(item, invalid)}`).join(',')}}`;
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) invalid();
-  return encoded as string;
+  return encodeThrowingCanonicalJson(value, { keyOrder: 'utf16', onInvalid: invalid });
 }
 
 /** Reject class instances, arrays, accessors, and symbol keys before persisting user input. */

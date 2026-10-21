@@ -4,6 +4,7 @@
  * `scripts/acceptance` re-exports this file for existing script/test importers.
  */
 import { createHash } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../canonical-json.js';
 
 export const PHASE3_AUTHORITATIVE_PULL_ACCEPTANCE_FORMAT =
   'known.phase3.authoritative-pull-acceptance.v1' as const;
@@ -216,13 +217,8 @@ function assertExactOrderedSet(
 }
 
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(',')}}`;
-  }
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) throw new TypeError('P3-32C evidence contains non-JSON data');
-  return encoded;
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'locale',
+    onInvalid: () => { throw new TypeError('P3-32C evidence contains non-JSON data'); },
+  });
 }

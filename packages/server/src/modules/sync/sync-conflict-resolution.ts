@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../canonical-json.js';
 import type { ProblemCode } from '@know-n/colp/server';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { ConflictResolutionRequest, ConflictResolutionResult } from '@know-n/colp/types';
@@ -162,13 +163,8 @@ export function validateSyncResolutionLaneClaim(
 }
 
 function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(',')}}`;
-  }
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) deny('invalid_document');
-  return encoded;
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'utf16',
+    onInvalid: () => deny('invalid_document'),
+  });
 }

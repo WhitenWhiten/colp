@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { encodeLiteralUndefinedCanonicalJson } from '../canonical-json.js';
 import {
   assertProfileClaims,
   createDeploymentConformancePlan,
@@ -242,16 +243,7 @@ function deepEqual(left: unknown, right: unknown): boolean {
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === undefined) return 'undefined';
-  if (value === null || typeof value !== 'object') {
-    const primitive = JSON.stringify(value);
-    return primitive === undefined ? 'undefined' : primitive;
-  }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-    .join(',')}}`;
+  return encodeLiteralUndefinedCanonicalJson(value, 'utf16');
 }
 
 function canonicalInstant(value: unknown, label: string): string {

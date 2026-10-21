@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../canonical-json.js';
 import type { CreateSyncSessionInput, VerifiedSyncSession } from '@know-n/colp/sync';
 import {
   isVerifiedExtensionCredential,
@@ -326,15 +327,10 @@ export function validateSyncSessionVerifyInput(value: unknown): Readonly<SyncSes
 }
 
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-      left < right ? -1 : left > right ? 1 : 0).map(([key, item]) =>
-      `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  }
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) throw new TypeError('Sync Session fingerprint contains unsupported data');
-  return encoded;
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'utf16',
+    onInvalid: () => { throw new TypeError('Sync Session fingerprint contains unsupported data'); },
+  });
 }
 
 export function canonicalSyncSessionFingerprint(value: unknown): string {

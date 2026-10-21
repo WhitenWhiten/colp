@@ -1,5 +1,6 @@
 import { syncCredentialIsAuthorized } from '../sync-credential-authority.js';
 import { createHash } from 'node:crypto';
+import { encodeAckResultDigestJson } from '../../../modules/canonical-json.js';
 import { sql, type Kysely, type Selectable } from 'kysely';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { SyncAckResult } from '@know-n/colp/types';
@@ -431,8 +432,7 @@ function compareTuple(left: { ordinal: bigint; kind: number; id: string }, right
     : left.kind < right.kind ? -1 : left.kind > right.kind ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }
 function digestResult(result: SyncAckResult) {
-  const canonical = `{${Object.entries(result).sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${JSON.stringify(key)}:${JSON.stringify(value)}`).join(',')}}`;
+  const canonical = encodeAckResultDigestJson(result);
   return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 async function databaseNow(transaction: DatabaseTransaction): Promise<Date> {

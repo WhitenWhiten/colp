@@ -1,4 +1,5 @@
 import { createValidatorRegistry } from '@know-n/colp/schema';
+import { encodePassthroughCanonicalJson } from '../../../modules/canonical-json.js';
 import type { Operation } from '@know-n/colp/types';
 import { sql } from 'kysely';
 import { SYNC_PULL_STREAM_KIND_ORDER, SyncPullReadError,
@@ -238,10 +239,7 @@ export function resolveHotPullOperationRow(row: SyncPullStreamRow): SyncPullStre
 }
 
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.entries(value).sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
+  // Stored operation projections were digested with locale key order and
+  // JSON.stringify leaves, including the historical bare `undefined` spelling.
+  return encodePassthroughCanonicalJson(value, 'locale');
 }

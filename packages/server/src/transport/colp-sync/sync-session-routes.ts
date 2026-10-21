@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../../modules/canonical-json.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ProblemCode } from '@know-n/colp/server';
 import { createPublicationProblemDescriptor, parseIJson } from '@know-n/colp/server';
@@ -280,13 +281,8 @@ function validResponseSemantics(
 }
 
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-      left < right ? -1 : left > right ? 1 : 0).map(([key, item]) =>
-      `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  }
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) throw new SyncSessionHttpError('invalid_document');
-  return encoded;
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'utf16',
+    onInvalid: () => { throw new SyncSessionHttpError('invalid_document'); },
+  });
 }

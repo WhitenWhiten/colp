@@ -5,6 +5,7 @@
  * re-exports this file for existing script/test importers.
  */
 import { createHash } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../canonical-json.js';
 import { problemRegistry } from '@know-n/colp/server';
 
 export const PHASE3_SERVER_SYNC_ACCEPTANCE_FORMAT = 'known.phase3.server-sync-acceptance.v2';
@@ -273,8 +274,9 @@ function requireTime(value: string): void { if (!Number.isFinite(Date.parse(valu
 function sha256(value: string): string { return createHash('sha256').update(value).digest('hex'); }
 export function canonicalPhase3ServerSyncJson(value: unknown): string { return canonicalJson(value); }
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(',')}}`;
-  const encoded = JSON.stringify(value); if (encoded === undefined) throw new TypeError('P3-26 evidence is not canonical JSON'); return encoded;
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'locale',
+    onInvalid: () => { throw new TypeError('P3-26 evidence is not canonical JSON'); },
+  });
 }
 function deepFreeze<Value>(value: Value): Value { if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) { for (const child of Object.values(value)) deepFreeze(child); Object.freeze(value); } return value; }

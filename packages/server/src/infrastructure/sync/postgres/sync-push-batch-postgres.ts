@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { encodePassthroughCanonicalJson } from '../../../modules/canonical-json.js';
 import { sql, type Kysely } from 'kysely';
 import type { VerifiedSyncSession } from '@know-n/colp/sync';
 import type { SyncPushResult } from '@know-n/colp/types';
@@ -69,9 +70,5 @@ export async function admitPushBatch(
 }
 
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') return `{${Object.entries(value)
-    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  return JSON.stringify(value);
+  return encodePassthroughCanonicalJson(value, 'utf16');
 }

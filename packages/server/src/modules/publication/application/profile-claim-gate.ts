@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../../canonical-json.js';
 import {
   assertProfileClaims,
   createDeploymentConformancePlan,
@@ -421,14 +422,10 @@ function assertBoundedJson(value: unknown): void {
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== 'object') {
-    const primitive = JSON.stringify(value);
-    if (primitive === undefined) throw new TypeError('Phase 2 evidence contains a non-JSON value');
-    return primitive;
-  }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right));
-  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(',')}}`;
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'locale',
+    onInvalid: () => { throw new TypeError('Phase 2 evidence contains a non-JSON value'); },
+  });
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

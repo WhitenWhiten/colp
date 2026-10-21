@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../canonical-json.js';
 import {
   assertProfileClaims,
   createDeploymentConformancePlan,
@@ -325,15 +326,10 @@ function constantTimeHexEqual(left: string, right: string): boolean {
 }
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== 'object') {
-    const primitive = JSON.stringify(value);
-    if (primitive === undefined) throw new TypeError('Phase 3 evidence contains a non-JSON value');
-    return primitive;
-  }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'utf16',
+    onInvalid: () => { throw new TypeError('Phase 3 evidence contains a non-JSON value'); },
+  });
 }
 
 function deepFreeze<Value>(value: Value): Value {

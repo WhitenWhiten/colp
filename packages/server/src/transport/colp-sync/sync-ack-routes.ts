@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { encodeThrowingCanonicalJson } from '../../modules/canonical-json.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ProblemCode } from '@know-n/colp/server';
 import { createValidatorRegistry } from '@know-n/colp/schema';
@@ -199,8 +200,9 @@ function sendProblem(reply: FastifyReply, error: SyncAckHttpError) { const descr
   if (error.code === 'authentication_required') reply.header('WWW-Authenticate', 'Bearer');
   return reply.code(descriptor.status).header('Cache-Control', 'private, no-store')
     .type(descriptor.headers['content-type']).send(descriptor.problem); }
-function canonicalJson(value: unknown): string { if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
-  const encoded = JSON.stringify(value); if (encoded === undefined) throw new SyncAckHttpError('invalid_document'); return encoded; }
+function canonicalJson(value: unknown): string {
+  return encodeThrowingCanonicalJson(value, {
+    keyOrder: 'utf16',
+    onInvalid: () => { throw new SyncAckHttpError('invalid_document'); },
+  });
+}

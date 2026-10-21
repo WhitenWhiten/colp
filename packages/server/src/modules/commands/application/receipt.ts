@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { encodeReceiptCanonicalJson } from '../../canonical-json.js';
+
 export interface ProductCommandBinding {
   readonly principalId: string;
   readonly commandScope: string;
@@ -35,39 +37,7 @@ export function assertCanonicalCommandId(commandId: string): string {
 }
 
 export function canonicalJson(value: unknown): string {
-  const encode = (input: unknown): string => {
-    if (input === null) return 'null';
-    if (typeof input === 'string') {
-      for (let index = 0; index < input.length; index += 1) {
-        const unit = input.charCodeAt(index);
-        if (unit >= 0xd800 && unit <= 0xdbff) {
-          const next = input.charCodeAt(index + 1);
-          if (!(next >= 0xdc00 && next <= 0xdfff)) {
-            throw new TypeError('canonical JSON requires valid Unicode');
-          }
-          index += 1;
-        } else if (unit >= 0xdc00 && unit <= 0xdfff) {
-          throw new TypeError('canonical JSON requires valid Unicode');
-        }
-      }
-      return JSON.stringify(input);
-    }
-    if (typeof input === 'boolean') return JSON.stringify(input);
-    if (typeof input === 'number') {
-      if (!Number.isFinite(input)) throw new TypeError('canonical JSON does not allow non-finite numbers');
-      if (Number.isInteger(input) && !Number.isSafeInteger(input)) throw new TypeError('canonical JSON requires safe integers');
-      return JSON.stringify(input);
-    }
-    if (Array.isArray(input)) return `[${input.map(encode).join(',')}]`;
-    if (typeof input === 'object') {
-      const entries = Object.entries(input as Record<string, unknown>)
-        .filter(([, item]) => item !== undefined)
-        .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-      return `{${entries.map(([key, item]) => `${encode(key)}:${encode(item)}`).join(',')}}`;
-    }
-    throw new TypeError('canonical JSON does not allow this value');
-  };
-  return encode(value);
+  return encodeReceiptCanonicalJson(value);
 }
 
 export function stableReplayHeaders(headers: Readonly<Record<string, string>>): Readonly<Record<string, string>> {
