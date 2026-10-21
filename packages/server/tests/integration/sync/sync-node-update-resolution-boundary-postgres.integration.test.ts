@@ -437,6 +437,74 @@ describeWithPostgres('P3-18 conflict resolution rechecks and fault boundaries', 
         from sync_conflict_resolution_receipts where conflict_id=$1`, [opened.conflictId])).rows[0].count, 0);
     }
   }, 30_000);
+
+  test('P3-18 viewer resolve is rejected and the open conflict stays unchanged', async () => {
+    const opened = await openConflict();
+    const before = await resolutionSnapshot(opened.conflictId, opened.node.id);
+    assert.equal(before.conflict.status, 'open');
+    assert.equal(before.conflict.resolved_by_operation_id, null);
+    assert.ok(before.conflict.allowed_resolutions.includes('incoming'));
+    const viewer = await context('viewer');
+    const scopes = await isolated.runtime.pool.query(
+      'select scope from sync_session_scopes where session_id=$1 order by scope',
+      [viewer.session.sessionId],
+    );
+    assert.deepEqual(scopes.rows.map((row: { scope: string }) => row.scope), ['sync:pull']);
+    const membership = await isolated.runtime.pool.query(
+      `select members.role, replicas.capabilities_json->>'write' as write
+         from sync_sessions session
+         join accounts account on account.id = session.account_id
+         join collection_members members
+           on members.collection_id = session.collection_id
+          and members.subject_id = account.subject_id
+         join sync_replicas replicas on replicas.replica_id = session.replica_id
+        where session.session_id = $1`,
+      [viewer.session.sessionId],
+    );
+    assert.equal(membership.rows[0]?.role, 'viewer');
+    assert.equal(membership.rows[0]?.write, 'false');
+    await assert.rejects(resolver(viewer).resolve({
+      ...resolveInput({ value: viewer, conflictId: opened.conflictId, revision: opened.revision }, {
+        resolution: 'incoming', baseConflictRevision: opened.revision,
+      }),
+      origin: ORIGIN,
+    }), (error: unknown) => error instanceof SyncConflictResolutionError
+      && error.code === 'insufficient_scope');
+    assert.deepEqual(await resolutionSnapshot(opened.conflictId, opened.node.id), before);
+  }, 30_000);
+
+  async function resolutionSnapshot(conflictId: string, nodeId: string) {
+    const row = (await isolated.runtime.pool.query(
+      `select
+         (select jsonb_build_object(
+            'status', status,
+            'resolved_by_operation_id', resolved_by_operation_id,
+            'allowed_resolutions', allowed_resolutions
+          ) from sync_conflicts where conflict_id = $1) conflict,
+         (select jsonb_build_object(
+            'resource_revision', resource_revision,
+            'title', title,
+            'url', url,
+            'payload_json', payload_json
+          ) from nodes where id = $2) node`,
+      [conflictId, nodeId],
+    )).rows[0] as {
+      conflict: {
+        status: string;
+        resolved_by_operation_id: string | null;
+        allowed_resolutions: string[];
+      };
+      node: {
+        resource_revision: string;
+        title: string | null;
+        url: string | null;
+        payload_json: unknown;
+      };
+    };
+    assert.ok(row.conflict);
+    assert.ok(row.node);
+    return row;
+  }
 });
 
 function manifestFor(app: FastifyInstance): Manifest {
