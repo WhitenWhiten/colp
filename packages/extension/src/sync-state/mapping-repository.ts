@@ -466,6 +466,35 @@ export function createMappingRepository(ctx: SyncStoreRuntime) {
     rebindProvisionalBookmarkIdentity, configureBrowserRoots, reconcileBrowserRoots, setBrowserRootStatus };
 }
 
+/** One engine phase's mapping list. A write invalidates it; nothing is kept across wakes. */
+export interface MappingReadContext {
+  read(): Promise<readonly MappingInput[]>;
+  invalidate(): void;
+}
+
+export function createMappingReadContext(
+  store: { listMappings(scope: SyncScope): Promise<readonly MappingInput[]> },
+  scope: SyncScope,
+): MappingReadContext {
+  let epoch = 0;
+  let cached: readonly MappingInput[] | undefined;
+  const context: MappingReadContext = {
+    invalidate() {
+      epoch += 1;
+      cached = undefined;
+    },
+    async read() {
+      if (cached) return cached;
+      const ticket = epoch;
+      const rows = Object.freeze([...(await store.listMappings(scope))]);
+      if (ticket !== epoch) return context.read();
+      cached ??= rows;
+      return cached;
+    },
+  };
+  return context;
+}
+
 function validateQuarantine(input: unknown) {
   const row = strictObject(input, ['code', 'snapshotId', 'payloadDigest'], 'quarantine');
   return { code: boundedString(row.code, 'code'), snapshotId: boundedString(row.snapshotId, 'snapshotId'),

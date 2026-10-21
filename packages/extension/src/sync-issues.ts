@@ -22,7 +22,7 @@ export interface OpenSyncIssues {
   readonly total: number;
 }
 
-export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string> } = {}): Promise<OpenSyncIssues> {
+export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope, options: { readonly excludeDeleteEventId?: string; readonly resolvingRestoreOpId?: string; readonly excludeQueueOpIds?: ReadonlySet<string>; readonly mappings?: readonly MappingInput[] } = {}): Promise<OpenSyncIssues> {
   const queue: QueueOperation[] = [];
   if (store.listQueue) for (const status of ['blocked', 'rejected', 'set_aside', ...(store.listConsumedQueueIssues ? [] : ['terminal' as const])] as const) {
     let after = 0;
@@ -50,10 +50,12 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
   addQueueIssueRoots(roots, queue);
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
   const nativeRoots = new Set([...local.filter(ingressProtectsNode).map(row => row.nativeId), ...deletes.flatMap(row => row.nativeIds)]);
-  if (nativeRoots.size && store.listMappings) for (const row of await store.listMappings(scope)) {
+  const knownMappings = options.mappings ?? (nativeRoots.size && store.listMappings ? await store.listMappings(scope) : []);
+  if (nativeRoots.size) for (const row of knownMappings) {
     if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
   }
-  const bootstrap = store.listBootstrapRuns ? openBootstrapAttention(await store.listBootstrapRuns(scope), await store.listMappings?.(scope) ?? []) : [];
+  const bootstrap = store.listBootstrapRuns ? openBootstrapAttention(await store.listBootstrapRuns(scope),
+    options.mappings ?? await store.listMappings?.(scope) ?? []) : [];
   const operationalTotal = deletes.length + queue.length + pull.length + local.length + waits.length + replica.length;
   return { queue, pull, local, waits, replica, deletes, roots, nativeRoots, bootstrap, operationalTotal,
     total: operationalTotal + bootstrap.length };

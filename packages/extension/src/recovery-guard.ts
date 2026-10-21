@@ -81,12 +81,14 @@ export async function recoverVerifiedOrFreeze(input: {
 }
 
 export async function leftoverVirtualChildrenNeedReproject(store: Pick<Store, 'listMappings' | 'listMountBindings'>,
-  scope: SyncScope): Promise<boolean> {
-  const [live, mounts] = await Promise.all([store.listMappings(scope), store.listMountBindings(scope)]);
+  scope: SyncScope, live?: readonly MappingInput[]): Promise<boolean> {
+  const [rows, mounts] = live
+    ? [live, await store.listMountBindings(scope)] as const
+    : await Promise.all([store.listMappings(scope), store.listMountBindings(scope)]);
   // A remote-only subtree has no Chrome parent. It is durable sidecar state,
   // not pending native work. Account for mounts bound after Snapshot cutover.
-  return hasProjectableVirtualChildren(bindSnapshotMappings(live, live, mounts),
-    issueProtectionIds(live, (await readOpenSyncIssues(store, scope)).roots));
+  return hasProjectableVirtualChildren(bindSnapshotMappings(rows, rows, mounts),
+    issueProtectionIds(rows, (await readOpenSyncIssues(store, scope, { mappings: rows })).roots));
 }
 
 function stripScopeKey(mapping: MappingInput): MappingInput {
@@ -161,8 +163,12 @@ export async function readNativeIdentity(live: readonly MappingInput[], api: Pic
 }
 
 /** Issue-held native work keeps its original recovery record without claiming ownership of the whole scope. */
-export async function unprotectedProjectionIntents(store: Pick<Store, 'listMappings' | 'listProjectionIntents'>, scope: SyncScope) {
-  const [mappings, intents, issues] = await Promise.all([store.listMappings(scope), store.listProjectionIntents(scope), readOpenSyncIssues(store, scope)]);
-  const protectedIds = issueProtectionIds(mappings, issues.roots);
+export async function unprotectedProjectionIntents(store: Pick<Store, 'listMappings' | 'listProjectionIntents'>, scope: SyncScope,
+  mappings?: readonly MappingInput[]) {
+  const rows = mappings ?? await store.listMappings(scope);
+  const [intents, issues] = await Promise.all([
+    store.listProjectionIntents(scope), readOpenSyncIssues(store, scope, { mappings: rows }),
+  ]);
+  const protectedIds = issueProtectionIds(rows, issues.roots);
   return intents.filter(intent => intent.state !== 'terminal' && !protectedIds.has(intent.colpId) && !issues.roots.has(intent.colpId));
 }

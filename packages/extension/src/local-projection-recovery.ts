@@ -1,16 +1,21 @@
 import type { EngineOptions } from './durable-sync-engine-types.js';
 import { leftoverVirtualChildrenNeedReproject, unprotectedProjectionIntents } from './recovery-guard.js';
+import type { MappingReadContext } from './sync-state/mapping-repository.js';
+import type { MappingInput } from './sync-state-store.js';
 
 // The owner is the claiming engine revision, scoped by the durable record's key
 // (including replica/profile/generation). Protocol recovery writes omit it.
 export async function resumeLocalProjection(options: Pick<EngineOptions, 'store' | 'scope' | 'now' | 'snapshotProjector'>,
-  authority: EngineOptions['sessions']['get']): Promise<void> {
+  authority: EngineOptions['sessions']['get'], mappingReads?: MappingReadContext): Promise<void> {
   const { store, scope } = options;
   const now = options.now ?? Date.now;
   const initial = await store.getEngineState(scope);
   if (!initial || initial.recoveryFrozen && initial.localProjectionOwner === undefined) return;
-  const pending = async () => (await unprotectedProjectionIntents(store, scope)).length > 0;
-  const needsProjection = await leftoverVirtualChildrenNeedReproject(store, scope) || await pending();
+  const readMappings = async () => mappingReads?.read() ?? store.listMappings(scope);
+  let mappings = await readMappings();
+  const pending = (rows: readonly MappingInput[]) => unprotectedProjectionIntents(store, scope, rows);
+  const needsProjection = await leftoverVirtualChildrenNeedReproject(store, scope, mappings)
+    || (await pending(mappings)).length > 0;
   if (!needsProjection && initial.localProjectionOwner === undefined) return;
   if (!await eligible()) return;
   const claimed = initial.localProjectionOwner !== undefined ? initial : await store.transitionEngine(scope, {
@@ -18,12 +23,13 @@ export async function resumeLocalProjection(options: Pick<EngineOptions, 'store'
     expectedRevision: initial.revision, updatedAt: now(),
   });
   if (needsProjection) {
-    const mappings = (await store.listMappings(scope)).map(({ scopeKey: _key, ...mapping }) => mapping);
-    await options.snapshotProjector(mappings);
+    await options.snapshotProjector(mappings.map(stripScopeKey));
+    mappingReads?.invalidate();
+    mappings = await readMappings();
   }
   // A projector can freeze identity/protocol authority while performing native
   // work. Never consume that freeze, or a concurrent engine revision.
-  if (await pending() || !await eligible()) return;
+  if ((await pending(mappings)).length > 0 || !await eligible()) return;
   const current = await store.getEngineState(scope);
   if (!current || current.revision !== claimed.revision
       || current.localProjectionOwner !== claimed.localProjectionOwner) return;
@@ -44,4 +50,9 @@ export async function resumeLocalProjection(options: Pick<EngineOptions, 'store'
       && acks.some((ack) => ack.kind === 'bootstrap' && ack.state === 'complete')
       && !acks.some((ack) => ack.kind === 'bootstrap' && ack.state !== 'complete');
   }
+}
+
+function stripScopeKey(mapping: MappingInput): MappingInput {
+  const { scopeKey: _scopeKey, ...row } = mapping as MappingInput & { readonly scopeKey?: string };
+  return row;
 }

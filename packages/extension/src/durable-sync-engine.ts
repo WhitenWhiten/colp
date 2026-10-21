@@ -16,6 +16,7 @@ import { httpFailure, pullApplyAckState, retryAfterMilliseconds, stableError,
   recoveryCapability, recoveryCapabilityOf, responseProblemCode } from './durable-sync-engine-errors.js';
 import { leftoverVirtualChildrenNeedReproject } from './recovery-guard.js';
 import { resumeLocalProjection } from './local-projection-recovery.js';
+import { createMappingReadContext, type MappingReadContext } from './sync-state/mapping-repository.js';
 import { assertCompleteSnapshotStaging } from './snapshot-staging-assert.js';
 import { classifySessionAuthority, type SessionAuthority } from './session-client.js';
 import { sessionTransportBudget } from './colp-transport-budget-browser.js';
@@ -40,6 +41,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
   // every rebase in it (a drain can rebase several rows, and a wake can drain
   // twice), capping the extra Pull traffic at one per wake.
   let placementRefreshAttempt: Promise<PlacementRefreshOutcome> | undefined;
+  let activeMappingReads: MappingReadContext | undefined;
 
   function wake(reason: 'startup' | 'alarm' | 'online' | 'manual', context: {
     readonly connectivityRestored?: boolean;
@@ -62,6 +64,13 @@ export function createDurableSyncEngine(options: EngineOptions) {
 
   async function wakeOnce(reason: 'startup' | 'alarm' | 'online' | 'manual', confirmedOnline: boolean) {
     placementRefreshAttempt = undefined;
+    activeMappingReads = createMappingReadContext(options.store, options.scope);
+    try {
+    return await wakeOnceBody(reason, confirmedOnline);
+    } finally { activeMappingReads = undefined; }
+  }
+
+  async function wakeOnceBody(reason: 'startup' | 'alarm' | 'online' | 'manual', confirmedOnline: boolean) {
     const scope = await options.store.getScope(options.scope); if (!scope) return null;
     let current = await state();
     if (scope.lifecycle === 'retired') return transition('retired', { recoveryFrozen: true });
@@ -110,7 +119,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
         }
         current = claim.state; connectivityRestored = true;
       }
-      const leftover = !current.recoveryFrozen && await leftoverVirtualChildrenNeedReproject(options.store, options.scope);
+      const leftover = !current.recoveryFrozen && await leftoverVirtualChildrenNeedReproject(
+        options.store, options.scope, activeMappingReads ? await activeMappingReads.read() : undefined);
       const outstanding = await firstOutstanding();
       const explicitWake = reason === 'manual' || reason === 'startup' || confirmedOnline;
       const replicaReady = Boolean((await options.store.getCursor(options.scope))?.cursor
@@ -226,7 +236,9 @@ export function createDurableSyncEngine(options: EngineOptions) {
       }
       if (queue) {
         await transition('pushing', { sessionId: authority.session.sessionId });
+        activeMappingReads?.invalidate();
         const outcome = await options.pushWorker.drain(confirmConnectivityResponse);
+        activeMappingReads?.invalidate();
         // Contended yields; unknown/deferred/gap/blocked still Pull so mapping facts can rebase.
         if (outcome.outcome === 'contended') return sleep(authority.session);
         if (outcome.outcome === 'recovery') return state();
@@ -258,7 +270,9 @@ export function createDurableSyncEngine(options: EngineOptions) {
       const heldUploads = await options.store.listQueue(options.scope, 'set_aside', 0, 1);
       if (afterPull && !afterPull.attempt || heldUploads.length > 0) {
         await transition('pushing', { sessionId: authority.session.sessionId });
+        activeMappingReads?.invalidate();
         const outcome = await options.pushWorker.drain(confirmConnectivityResponse);
+        activeMappingReads?.invalidate();
         if (outcome.outcome === 'recovery') return state();
       }
       await reprojectLeftover();
@@ -280,6 +294,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
   }
 
   async function pull(authority: Awaited<ReturnType<typeof sessionAuthority>>, persistOffline = true): Promise<'complete' | 'recovery' | 'offline'> {
+    activeMappingReads?.invalidate();
     if (Date.parse(authority.session.expiresAt) <= now() + 60_000) authority = await sessionAuthority();
     // hasMore pages continue in this wake; the page budget hands any tail to the next alarm.
     for (let pages = 0; pages < MAX_PULL_PAGES_PER_WAKE; pages += 1) {
@@ -422,6 +437,7 @@ export function createDurableSyncEngine(options: EngineOptions) {
   }
 
   async function recover(authority: Awaited<ReturnType<typeof sessionAuthority>>, classification: Exclude<SessionAuthority, 'active'>) {
+    activeMappingReads?.invalidate();
     return recoverSnapshot({
       options, now, transition, networkFetch, headers, projectRecovery, sendAck, renewBootstrapAuthority,
       ackEnvelope, digest, state,
@@ -442,13 +458,14 @@ export function createDurableSyncEngine(options: EngineOptions) {
     await transition('applying', { recoveryFrozen: true });
     const projected = await options.snapshotProjector(staged);
     await options.store.finalizeRecoveryMappings(options.scope, snapshotId, projected);
+    activeMappingReads?.invalidate();
     await assertCompleteSnapshotStaging(options.store, options.scope,
       (exported.recoveryNodes as Array<{ parentId: string | null; colpId: string }>)
         .find((node) => node.parentId === null)?.colpId ?? '');
   }
 
   async function reprojectLeftover() {
-    await resumeLocalProjection(options, sessionAuthority);
+    await resumeLocalProjection(options, sessionAuthority, activeMappingReads);
   }
 
   async function sendAck(intent: AckIntentRecord, authority: Awaited<ReturnType<typeof sessionAuthority>>) {
