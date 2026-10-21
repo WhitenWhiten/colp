@@ -40,6 +40,18 @@ import { reportReplicaHealth } from './replica-health.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
 
+/**
+ * Manual wakes only trigger a pass; the edit is already in IndexedDB.
+ * Calls before that pass starts share it. After it starts, further calls arm
+ * one follow-up that runs when the pass finishes, so a paste cannot queue one
+ * pass per bookmark. Delayed alarms, startup, and confirmed-online wakes keep
+ * their own paths.
+ */
+let manualWake: Promise<unknown> | undefined;
+let manualWakeStarted = false;
+let manualWakeFollowUp: Promise<unknown> | undefined;
+let settleManualFollowUp: { resolve: () => void; reject: (error: unknown) => void } | undefined;
+
 export function scheduleSyncEngineWake(reason: 'startup' | 'alarm' | 'online' | 'manual', delayMilliseconds = 0,
   connectivityRestored = false, assertTarget?: () => Promise<void>) {
   if (delayMilliseconds > 0) {
@@ -49,6 +61,7 @@ export function scheduleSyncEngineWake(reason: 'startup' | 'alarm' | 'online' | 
     syncAlarmScheduler ??= createSyncAlarmScheduler(chrome.alarms);
     return syncAlarmScheduler(delayMilliseconds);
   }
+  if (reason === 'manual') return scheduleCoalescedManualWake(connectivityRestored, assertTarget);
   if (reason === 'online' && connectivityRestored) {
     if (sw.confirmedOnlineWakePending && sw.coalescedOnlineWake) return sw.coalescedOnlineWake;
     sw.confirmedOnlineWakePending = true;
@@ -69,6 +82,43 @@ export function scheduleSyncEngineWake(reason: 'startup' | 'alarm' | 'online' | 
     throw error;
   });
   if (reason === 'online' && connectivityRestored) sw.coalescedOnlineWake = operation;
+  return operation;
+}
+
+function scheduleCoalescedManualWake(connectivityRestored = false, assertTarget?: () => Promise<void>): Promise<unknown> {
+  if (manualWakeFollowUp) return manualWakeFollowUp;
+  if (manualWake && !manualWakeStarted) return manualWake;
+  if (manualWake && manualWakeStarted) {
+    manualWakeFollowUp = new Promise<void>((resolve, reject) => {
+      settleManualFollowUp = { resolve, reject };
+    });
+    return manualWakeFollowUp;
+  }
+  const operation = workCoordinator.run('engine', async (context) => {
+    manualWakeStarted = true;
+    try {
+      await assertTarget?.();
+      await runSyncEngine('manual', connectivityRestored, context);
+    } finally {
+      // Every pass, including one a stopped engine returns from at once, tells
+      // the Sync center where this browser stands.
+      void reportReplicaHealth();
+    }
+  }).catch((error: unknown) => {
+    if (error instanceof AuthorityFencedError) return;
+    throw error;
+  }).finally(() => {
+    const settle = settleManualFollowUp;
+    const needsFollowUp = manualWakeFollowUp !== undefined;
+    manualWake = undefined;
+    manualWakeStarted = false;
+    manualWakeFollowUp = undefined;
+    settleManualFollowUp = undefined;
+    if (!needsFollowUp) return;
+    const next = scheduleCoalescedManualWake(false);
+    void next.then(() => settle?.resolve(), (error: unknown) => settle?.reject(error));
+  });
+  manualWake = operation;
   return operation;
 }
 
