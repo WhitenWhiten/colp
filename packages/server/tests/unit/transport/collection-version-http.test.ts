@@ -4,6 +4,7 @@ import { afterEach, describe, test } from 'vitest';
 import { loadConfig } from '../../support/test-config.js';
 import {
   COLLECTION_TREE_VERSION_MAX_BYTES,
+  buildCollectionTreeChangeSummary,
   createProductCollectionVersionCursorSigner,
   strongEntityTag,
   type CollectionTreeLiveMember,
@@ -174,7 +175,10 @@ function memoryStore(input: {
           return row.versionId < query.after!.versionId;
         })
         : sorted;
-      return filtered.slice(0, query.limit + 1);
+      return filtered.slice(0, query.limit + 1).map((row) => {
+        const { treeJson, ...listed } = row;
+        return { ...listed, changeSummary: buildCollectionTreeChangeSummary(treeJson) };
+      });
     },
     async insert(row) { rows.push(row); },
     async count(_accountId, collectionId) {

@@ -1,11 +1,21 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, test } from 'vitest';
-import { createPostgresCollectionVersionUnitOfWork } from '../../../src/infrastructure/collections/index.js';
+import { backfillCollectionTreeVersionChangeSummariesSql } from '../../../migrations/202611010500_collection_tree_version_change_summary.js';
+import {
+  COLLECTION_VERSION_LIST_COLUMNS,
+  createPostgresCollectionVersionStore,
+  createPostgresCollectionVersionUnitOfWork,
+} from '../../../src/infrastructure/collections/collection-tree-version-postgres.js';
 import { runMigrations } from '../../../src/infrastructure/database/index.js';
 import {
   COLLECTION_TREE_VERSION_FIFO_LIMIT,
+  buildCollectionTreeChangeSummary,
+  countCollectionTreeChangesFromSummary,
+  countCollectionTreeChangesWithIndex,
   createCollectionVersion,
+  indexLiveCollectionTree,
   strongEntityTag,
   type CollectionTreeSnapshotNode,
 } from '../../../src/modules/collections/index.js';
@@ -180,8 +190,8 @@ describeWithPostgres('HV-01 PostgreSQL collection tree versions', () => {
         await client.query(
           `insert into collection_tree_versions (
              version_id, account_id, collection_id, content_revision, kind, label, etag,
-             node_count, tree_json, created_at
-           ) values ($1, $2, $3, $4, 'manual', $5, $6, 0, '[]'::jsonb, $7)`,
+             node_count, tree_json, change_summary_json, created_at
+           ) values ($1, $2, $3, $4, 'manual', $5, $6, 0, '[]'::jsonb, '[]'::jsonb, $7)`,
           [
             `ver-${String(index).padStart(2, '0')}`,
             PRINCIPAL,
@@ -208,5 +218,83 @@ describeWithPostgres('HV-01 PostgreSQL collection tree versions', () => {
     assert.equal(rows.rowCount, 50);
     assert.equal(rows.rows.some((row: { version_id: string }) => row.version_id === 'ver-00'), false);
     assert.equal(rows.rows.some((row: { version_id: string }) => row.version_id === created.version.versionId), true);
+  });
+
+  test('list reads the change summary and historical tree_json backfills to the same counts', async () => {
+    await resetLibrary();
+    const created = await create();
+    assert.equal(created.kind, 'succeeded');
+    if (created.kind !== 'succeeded') return;
+    const historical: CollectionTreeSnapshotNode[] = [
+      {
+        id: 'folder-1',
+        kind: 'folder',
+        parentId: ROOT,
+        title: '文件夹',
+        url: null,
+        childIds: ['bm-b', 'bm-a', 'bm-b'],
+      },
+      { id: 'bm-a', kind: 'bookmark', parentId: 'folder-1', title: '甲', url: 'https://example.test/书签' },
+      { id: 'bm-b', kind: 'bookmark', parentId: 'folder-1', title: '乙', url: 'https://example.test/b' },
+      { id: 'bm-omitted', kind: 'bookmark', parentId: 'folder-1', title: '丙', url: null },
+      { id: 'loose-b', kind: 'bookmark', parentId: 'missing', title: 'B', url: 'https://example.test/loose-b' },
+      { id: 'loose-a', kind: 'bookmark', parentId: 'missing', title: 'A', url: 'https://example.test/loose-a' },
+    ];
+    await isolated.runtime.pool.query(
+      `insert into collection_tree_versions (
+         version_id, account_id, collection_id, content_revision, kind, label, etag,
+         node_count, tree_json, change_summary_json, created_at
+       ) values ($1, $2, $3, $4, 'manual', 'Historical', $5, $6, $7::jsonb, '[]'::jsonb, $8)`,
+      [
+        'historical-summary',
+        PRINCIPAL,
+        COL,
+        'historical-summary-rev',
+        'etag-historical',
+        historical.length,
+        JSON.stringify(historical),
+        new Date(NOW.getTime() + 1000),
+      ],
+    );
+    const written = await isolated.runtime.pool.query(
+      'select tree_json, change_summary_json from collection_tree_versions where version_id = $1',
+      [created.version.versionId],
+    );
+    const writtenTree = written.rows[0]?.tree_json as CollectionTreeSnapshotNode[];
+    assert.deepEqual(
+      written.rows[0]?.change_summary_json,
+      JSON.parse(JSON.stringify(buildCollectionTreeChangeSummary(writtenTree))),
+    );
+    await isolated.runtime.pool.query(
+      `update collection_tree_versions set change_summary_json = '[]'::jsonb where version_id = $1`,
+      [created.version.versionId],
+    );
+    await sql.raw(backfillCollectionTreeVersionChangeSummariesSql).execute(isolated.runtime.db);
+    const compiled = isolated.runtime.db.selectFrom('collection_tree_versions')
+      .select(COLLECTION_VERSION_LIST_COLUMNS)
+      .where('collection_id', '=', COL)
+      .compile();
+    assert.equal(compiled.sql.includes('tree_json'), false);
+    assert.match(compiled.sql, /change_summary_json/);
+
+    await isolated.runtime.db.transaction().execute(async (transaction) => {
+      const store = createPostgresCollectionVersionStore(transaction);
+      const liveIndex = indexLiveCollectionTree(await store.loadLiveMembers(COL));
+      const listed = await store.list(PRINCIPAL, COL, { limit: 10 });
+      assert.equal(listed.length, 2);
+      for (const row of listed) {
+        assert.equal(Object.hasOwn(row, 'treeJson'), false);
+        const full = await store.getById(PRINCIPAL, COL, row.versionId);
+        assert.ok(full);
+        assert.deepEqual(
+          row.changeSummary,
+          JSON.parse(JSON.stringify(buildCollectionTreeChangeSummary(full.treeJson))),
+        );
+        assert.deepEqual(
+          countCollectionTreeChangesFromSummary(row.changeSummary, liveIndex),
+          countCollectionTreeChangesWithIndex(full.treeJson, liveIndex),
+        );
+      }
+    });
   });
 });

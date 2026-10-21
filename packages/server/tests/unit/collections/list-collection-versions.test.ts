@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, test } from 'vitest';
 import {
   CollectionVersionNotFoundError,
+  buildCollectionTreeChangeSummary,
   buildCollectionTreeJson,
   createProductCollectionVersionCursorSigner,
   getCollectionVersion,
@@ -121,7 +122,10 @@ function trackingStore(input: {
           return row.versionId < query.after!.versionId;
         })
         : sorted;
-      return filtered.slice(0, query.limit + 1);
+      return filtered.slice(0, query.limit + 1).map((row) => {
+        const { treeJson, ...listed } = row;
+        return { ...listed, changeSummary: buildCollectionTreeChangeSummary(treeJson) };
+      });
     },
     async insert(row: CollectionVersionRecord) { rows.push(row); },
     async count() { return rows.length; },

@@ -482,6 +482,7 @@ export interface CollectionTreeVersionTable {
   etag: string;
   node_count: number;
   tree_json: unknown;
+  change_summary_json: unknown;
   created_at: Date;
 }
 

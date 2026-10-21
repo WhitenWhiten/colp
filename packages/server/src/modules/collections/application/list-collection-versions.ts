@@ -2,7 +2,7 @@ import { formatUtcDateTime } from '../domain/index.js';
 import {
   CollectionVersionInputError,
   CollectionVersionNotFoundError,
-  countCollectionTreeChangesWithIndex,
+  countCollectionTreeChangesFromSummary,
   indexLiveCollectionTree,
   type CollectionVersionStorePort,
 } from './capture-collection-tree-version.js';
@@ -85,7 +85,7 @@ export async function listCollectionVersions(
   const liveIndex = indexLiveCollectionTree(live);
   const pageRows = rows.slice(0, limit);
   const items = pageRows.map((row) => {
-    const changeCounts = countCollectionTreeChangesWithIndex(row.treeJson, liveIndex);
+    const changeCounts = countCollectionTreeChangesFromSummary(row.changeSummary, liveIndex);
     return toCollectionVersionDto(row, changeCounts);
   });
   const hasMore = rows.length > limit;

@@ -16,6 +16,9 @@ import {
   type CollectionTreeSnapshotNode,
   type CollectionVersionLockedCollection,
   type CollectionVersionReceiptPort,
+  buildCollectionTreeChangeSummary,
+  type CollectionTreeChangeSummaryNode,
+  type CollectionVersionListRecord,
   type CollectionVersionRecord,
   type CollectionVersionRestoreInnerCommands,
   type CollectionVersionRestoreReceiptDto,
@@ -59,6 +62,35 @@ interface VersionRow {
   etag: string;
   node_count: number;
   tree_json: unknown;
+  created_at: Date;
+}
+
+/** List pages read the change summary. Restore and get still select tree_json. */
+export const COLLECTION_VERSION_LIST_COLUMNS = [
+  'version_id',
+  'account_id',
+  'collection_id',
+  'content_revision',
+  'kind',
+  'cause',
+  'label',
+  'etag',
+  'node_count',
+  'change_summary_json',
+  'created_at',
+] as const;
+
+interface VersionListRow {
+  version_id: string;
+  account_id: string;
+  collection_id: string;
+  content_revision: string;
+  kind: CollectionTreeVersionKind;
+  cause: CollectionVersionRecord['cause'];
+  label: string;
+  etag: string;
+  node_count: number;
+  change_summary_json: unknown;
   created_at: Date;
 }
 
@@ -125,7 +157,7 @@ export function createPostgresCollectionVersionStore(
     },
     async list(accountId, collectionId, input) {
       let query = transaction.selectFrom('collection_tree_versions')
-        .selectAll()
+        .select(COLLECTION_VERSION_LIST_COLUMNS)
         .where('account_id', '=', accountId)
         .where('collection_id', '=', collectionId);
       if (input.after) {
@@ -136,7 +168,7 @@ export function createPostgresCollectionVersionStore(
         .orderBy('version_id', 'desc')
         .limit(input.limit + 1)
         .execute();
-      return Object.freeze(rows.map((row) => mapVersionRow(row as VersionRow)));
+      return Object.freeze(rows.map((row) => mapVersionListRow(row as VersionListRow)));
     },
     async insert(row) {
       await transaction.insertInto('collection_tree_versions').values({
@@ -150,6 +182,7 @@ export function createPostgresCollectionVersionStore(
         etag: row.etag,
         node_count: row.nodeCount,
         tree_json: sql`${JSON.stringify(row.treeJson)}::jsonb`,
+        change_summary_json: sql`${JSON.stringify(buildCollectionTreeChangeSummary(row.treeJson))}::jsonb`,
         created_at: row.createdAt,
       }).execute();
     },
@@ -463,6 +496,22 @@ async function selectOwnedLive(
   } satisfies CollectionVersionLockedCollection);
 }
 
+function mapVersionListRow(row: VersionListRow): CollectionVersionListRecord {
+  return Object.freeze({
+    versionId: row.version_id,
+    accountId: row.account_id,
+    collectionId: row.collection_id,
+    contentRevision: row.content_revision,
+    kind: row.kind,
+    cause: row.cause,
+    label: row.label,
+    etag: row.etag,
+    nodeCount: row.node_count,
+    changeSummary: parseChangeSummary(row.change_summary_json),
+    createdAt: row.created_at,
+  });
+}
+
 function mapVersionRow(row: VersionRow): CollectionVersionRecord {
   return Object.freeze({
     versionId: row.version_id,
@@ -477,6 +526,32 @@ function mapVersionRow(row: VersionRow): CollectionVersionRecord {
     treeJson: parseTreeJson(row.tree_json),
     createdAt: row.created_at,
   });
+}
+
+function parseChangeSummary(value: unknown): readonly CollectionTreeChangeSummaryNode[] {
+  if (!Array.isArray(value)) throw new Error('collection_tree_versions.change_summary_json must be an array');
+  return Object.freeze(value.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error('collection_tree_versions.change_summary_json node is invalid');
+    }
+    const node = item as Record<string, unknown>;
+    if ((node.kind !== 'folder' && node.kind !== 'bookmark')
+      || typeof node.id !== 'string'
+      || typeof node.parentId !== 'string'
+      || typeof node.title !== 'string'
+      || typeof node.siblingIndex !== 'number'
+      || !Number.isInteger(node.siblingIndex)) {
+      throw new Error('collection_tree_versions.change_summary_json node is invalid');
+    }
+    return Object.freeze({
+      id: node.id,
+      kind: node.kind,
+      parentId: node.parentId,
+      title: node.title,
+      url: node.kind === 'bookmark' && typeof node.url === 'string' ? node.url : null,
+      siblingIndex: node.siblingIndex,
+    });
+  }));
 }
 
 function parseTreeJson(value: unknown): readonly CollectionTreeSnapshotNode[] {

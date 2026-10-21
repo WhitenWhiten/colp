@@ -72,6 +72,34 @@ export interface CollectionVersionRecord {
   readonly createdAt: Date;
 }
 
+/**
+ * Compared fields for a historical version versus the current live tree.
+ * Sibling index follows folder childIds, otherwise snapshot row order.
+ * node_count alone cannot reproduce added, removed, moved, renamed, or retargeted.
+ */
+export interface CollectionTreeChangeSummaryNode {
+  readonly id: string;
+  readonly kind: 'folder' | 'bookmark';
+  readonly parentId: string;
+  readonly title: string;
+  readonly url: string | null;
+  readonly siblingIndex: number;
+}
+
+export interface CollectionVersionListRecord {
+  readonly versionId: string;
+  readonly accountId: string;
+  readonly collectionId: string;
+  readonly contentRevision: string;
+  readonly kind: CollectionTreeVersionKind;
+  readonly cause: CollectionVersionCause;
+  readonly label: string;
+  readonly etag: string;
+  readonly nodeCount: number;
+  readonly changeSummary: readonly CollectionTreeChangeSummaryNode[];
+  readonly createdAt: Date;
+}
+
 export interface CollectionVersionChangeCounts {
   readonly added: number;
   readonly removed: number;
@@ -120,7 +148,7 @@ export interface CollectionVersionStorePort {
       readonly limit: number;
       readonly after?: { readonly createdAt: Date; readonly versionId: string };
     },
-  ): Promise<readonly CollectionVersionRecord[]>;
+  ): Promise<readonly CollectionVersionListRecord[]>;
   insert(row: CollectionVersionRecord): Promise<void>;
   count(accountId: string, collectionId: string): Promise<number>;
   deleteOldest(
@@ -277,6 +305,48 @@ export function countCollectionTreeChangesWithIndex(
   index: CollectionTreeLiveIndex,
 ): CollectionVersionChangeCounts {
   return compareCollectionTrees(snapshot, index);
+}
+
+export function buildCollectionTreeChangeSummary(
+  snapshot: readonly CollectionTreeSnapshotNode[],
+): readonly CollectionTreeChangeSummaryNode[] {
+  const snapshotById = new Map(snapshot.map((node) => [node.id, node]));
+  const siblingIndexes = indexSnapshotSiblingOrder(snapshot, snapshotById);
+  return Object.freeze(snapshot.map((node) => Object.freeze({
+    id: node.id,
+    kind: node.kind,
+    parentId: node.parentId,
+    title: node.title,
+    url: node.url,
+    siblingIndex: siblingIndexes.get(node.parentId)?.get(node.id) ?? -1,
+  })));
+}
+
+/** Same counts as countCollectionTreeChangesWithIndex, using a stored sibling index. */
+export function countCollectionTreeChangesFromSummary(
+  summary: readonly CollectionTreeChangeSummaryNode[],
+  index: CollectionTreeLiveIndex,
+): CollectionVersionChangeCounts {
+  const snapshotIds = new Set(summary.map((node) => node.id));
+  const counts = { added: 0, removed: 0, moved: 0, renamed: 0, retargeted: 0 };
+  for (const node of summary) {
+    const current = index.liveById.get(node.id);
+    if (!current) {
+      counts.removed += 1;
+      continue;
+    }
+    const liveIndex = index.liveSiblingIndexById.get(current.id) ?? -1;
+    if (node.parentId !== current.parentId || node.siblingIndex !== liveIndex) counts.moved += 1;
+    if (node.title !== current.title) counts.renamed += 1;
+    if (node.kind === 'bookmark' && current.kind === 'bookmark' && node.url !== current.url) {
+      counts.retargeted += 1;
+    }
+  }
+  for (const node of index.liveJson) {
+    if (snapshotIds.has(node.id)) continue;
+    counts.added += 1;
+  }
+  return Object.freeze(counts);
 }
 
 function compareCollectionTrees(

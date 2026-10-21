@@ -113,7 +113,8 @@ export function collectionVersionCreateFingerprint(input: {
 }
 
 export function toCollectionVersionDto(
-  record: CollectionVersionRecord,
+  record: Pick<CollectionVersionRecord,
+    'versionId' | 'etag' | 'collectionId' | 'contentRevision' | 'kind' | 'cause' | 'label' | 'nodeCount' | 'createdAt'>,
   changeCounts: CollectionVersionChangeCounts,
   extra: { readonly changes?: readonly CollectionVersionChange[]; readonly truncated?: boolean } = {},
 ): CollectionVersionDto {

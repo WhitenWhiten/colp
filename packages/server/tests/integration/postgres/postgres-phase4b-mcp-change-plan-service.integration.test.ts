@@ -1066,10 +1066,10 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
     await runtime.pool.query(
       `insert into collection_tree_versions (
          version_id, account_id, collection_id, content_revision, kind, label, etag,
-         node_count, tree_json, created_at, cause
+         node_count, tree_json, change_summary_json, created_at, cause
        )
        select 'newer-version-e4', account_id, collection_id, 'newer-content-revision', kind, label, etag,
-              node_count, tree_json, created_at + interval '1 second', 'web'
+              node_count, tree_json, change_summary_json, created_at + interval '1 second', 'web'
          from collection_tree_versions
         where collection_id = $1`,
       [fixture.collectionId],
