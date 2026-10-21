@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { test } from 'vitest';
 import { BookmarkApiError } from '../src/bookmark-api-error.js';
-import { planCreatePlacement, type PlacementIntent } from '../src/create-placement-rebase.js';
+import { planCreatePlacement, savedCreatePlacement, type PlacementIntent } from '../src/create-placement-rebase.js';
 import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
 import { replicaIssuesFromQueue } from '../src/sw/replica-health-report.js';
 import type { BookmarkEventRecord, MappingInput } from '../src/sync-state-store.js';
@@ -49,6 +49,35 @@ test('a top create retry anchors on its real native neighbour, after folders and
   const last = await planCreatePlacement(store(mappings.slice(0, 3), [created]), scope, created, single,
     ['native-folder', 'native-pinned', 'native-created']);
   assert.deepEqual(last, { kind: 'ready', parentId: 'parent-colp', afterId: 'pinned-colp' });
+});
+
+test('saved create placement reads that op id and skips earlier unrelated events', async () => {
+  const logStarts: number[] = [];
+  const opReads: Array<{ opId: string; after: number }> = [];
+  const placed = (mode: 'top' | 'bottom'): PlacementIntent => ({ ...intent, mode, batchOrder: 0, batchSize: 1 });
+  const row = (ordinal: number, opId: string, kind: BookmarkEventRecord['kind'], mode: 'top' | 'bottom') => ({
+    ...event(opId, `native-${ordinal}`, placed(mode)), ordinal, opId, kind,
+  });
+  const rows = [
+    ...Array.from({ length: 180 }, (_, index) => row(index + 1, `noise-${index}`, 'create', 'bottom')),
+    row(200, 'target', 'move', 'bottom'),
+    row(201, 'target', 'create', 'top'),
+    row(202, 'target', 'create', 'bottom'),
+  ];
+  const store = {
+    async listBookmarkEvents(_scope: unknown, after = 0, limit = 100) {
+      logStarts.push(after);
+      return rows.filter((item) => item.ordinal > after).slice(0, limit);
+    },
+    async listBookmarkEventsByOperation(_scope: unknown, opId: string, after = 0, limit = 100) {
+      opReads.push({ opId, after });
+      return rows.filter((item) => item.opId === opId && item.ordinal > after).slice(0, limit);
+    },
+  };
+  assert.equal((await savedCreatePlacement(store, scope, 'target'))?.mode, 'top');
+  assert.equal(await savedCreatePlacement(store, scope, 'absent'), undefined);
+  assert.deepEqual(logStarts, []);
+  assert.deepEqual(opReads, [{ opId: 'target', after: 0 }, { opId: 'absent', after: 0 }]);
 });
 
 function event(opId: string, nativeId: string, placement: PlacementIntent): BookmarkEventRecord {

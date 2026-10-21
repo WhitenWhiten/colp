@@ -4,12 +4,15 @@ import type {
   BookmarkEventRecord, JsonObject, MappingInput, QueueOperation, SyncScope, createSyncStateStore,
 } from './sync-state-store.js';
 
+type OperationEvents = Pick<ReturnType<typeof createSyncStateStore>, 'listBookmarkEventsByOperation'>;
+
 type Store = Pick<ReturnType<typeof createSyncStateStore>,
   'listBookmarkEvents' | 'listMappings' | 'getMappingByNativeId' | 'rebaseClaimedPush' | 'putScopeDiagnostic'
-  | 'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine' | 'setAsideClaimedPush'>;
+  | 'getScope' | 'registerScope' | 'getEngineState' | 'transitionEngine' | 'setAsideClaimedPush'>
+  & Partial<OperationEvents>;
 
 type PlacementReadStore = Store & Pick<ReturnType<typeof createSyncStateStore>,
-  'settleClaimedPush' | 'setBrowserRootStatus'>;
+  'settleClaimedPush' | 'setBrowserRootStatus' | 'listBookmarkEventsByOperation'>;
 
 export interface PlacementIntent {
   readonly version: 1; readonly mode: 'top' | 'bottom'; readonly targetParentNativeId: string;
@@ -22,10 +25,15 @@ type Plan = { readonly kind: 'ready'; readonly parentId: string; readonly before
 
 const MAX_PREDECESSOR_WAIT_ATTEMPTS = 3;
 
-export async function savedCreatePlacement(store: Pick<Store, 'listBookmarkEvents'>,
+function readProcessedBookmarkEvent(store: OperationEvents, scope: SyncScope, opId: string,
+  kind: 'create' | 'move' | 'remove') {
+  return findProcessedBookmarkEvent(
+    (id, after, limit) => store.listBookmarkEventsByOperation(scope, id, after, limit), opId, kind);
+}
+
+export async function savedCreatePlacement(store: OperationEvents,
   scope: SyncScope, opId: string): Promise<PlacementIntent | undefined> {
-  return placementOf(await findProcessedBookmarkEvent(
-    (after, limit) => store.listBookmarkEvents(scope, after, limit), opId, 'create'));
+  return placementOf(await readProcessedBookmarkEvent(store, scope, opId, 'create'));
 }
 
 /**
@@ -36,7 +44,10 @@ export async function setAsideDeletedSaveParent(input: {
   readonly store: Store; readonly scope: SyncScope; readonly queue: QueueOperation;
   readonly ownerId: string; readonly fence: number;
 }): Promise<boolean> {
-  const intent = await savedCreatePlacement(input.store, input.scope, input.queue.opId);
+  // Tombstone rebase does not list the index on its store type. Every live store has it.
+  const intent = await savedCreatePlacement({
+    listBookmarkEventsByOperation: input.store.listBookmarkEventsByOperation!,
+  }, input.scope, input.queue.opId);
   if (!intent) return false;
   await setAsideCreatePlacement(input, intent, 'create_placement_parent_deleted');
   return true;
@@ -50,8 +61,7 @@ export async function rebaseStaleCreatePlacement(input: {
   readonly defer: (code: string) => Promise<'unknown'>;
 }): Promise<QueueOperation | 'unknown' | 'terminal'> {
   if (input.queue.payload.type !== 'create_node' || input.queue.retry.attempt === 0) return input.queue;
-  const event = await findProcessedBookmarkEvent(
-    (after, limit) => input.store.listBookmarkEvents(input.scope, after, limit), input.queue.opId, 'create');
+  const event = await readProcessedBookmarkEvent(input.store, input.scope, input.queue.opId, 'create');
   const intent = placementOf(event);
   if (!event || !intent) return input.queue;
   const read = await readPlacementOrder(input.readChildrenOrder, intent.targetParentNativeId);

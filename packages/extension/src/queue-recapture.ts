@@ -31,7 +31,7 @@ export function createQueueRecapture(input: { store: ReturnType<typeof createSyn
     let event: BookmarkEventRecord | undefined;
     let after = 0;
     for (;;) {
-      const events = await store.listBookmarkEvents(scope, after, 100);
+      const events = await store.listBookmarkEventsByOperation(scope, row.opId, after, 100);
       event = events.find(candidate => candidate.opId === row.opId);
       if (event || events.length < 100) break;
       after = events.at(-1)!.ordinal;

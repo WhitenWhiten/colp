@@ -512,7 +512,7 @@ export function createOutboundPushWorker(options: WorkerOptions) {
   }
   async function authoredSourceParent(opId: string, destId: string) {
     const match = await findProcessedMoveEvent(
-      (afterOrdinal, limit) => options.store.listBookmarkEvents(options.scope, afterOrdinal, limit),
+      (id, after, limit) => options.store.listBookmarkEventsByOperation(options.scope, id, after, limit),
       opId,
     );
     if (!match) return null;

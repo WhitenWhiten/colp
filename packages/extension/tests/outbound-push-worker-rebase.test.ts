@@ -410,6 +410,71 @@ describe('P3-31 outbound Push 409 refresh and rebase', () => {
     assert.equal(rows[1]?.status, 'pending');
   });
 
+  test('a move reads its authored parent by op id, not from the oldest event', async () => {
+    const fixture = await setupMove();
+    try {
+      const scopeKey = (await fixture.store.getScope(scope))!.scopeKey;
+      const database = await fixture.store.open();
+      const transaction = database.transaction('bookmark_events', 'readwrite');
+      const events = transaction.objectStore('bookmark_events');
+      for (let ordinal = 1; ordinal <= 180; ordinal += 1) {
+        events.add({
+          scopeKey, eventId: `noise-${ordinal}`, ordinal, dedupeKey: `noise-${ordinal}`,
+          occurredAt: '2026-07-27T00:00:00Z', kind: 'create', nativeId: `noise-native-${ordinal}`,
+          details: {}, status: 'processed', opId: `noise-op-${ordinal}`,
+        });
+      }
+      events.add({
+        scopeKey, eventId: 'event-move-authored', ordinal: 181, dedupeKey: 'dedupe-move-authored',
+        occurredAt: '2026-07-27T00:00:00Z', kind: 'create', nativeId: 'native-bookmark',
+        details: {}, status: 'processed', opId: fixture.queued.opId,
+      });
+      events.add({
+        scopeKey, eventId: 'event-move-later', ordinal: 182, dedupeKey: 'dedupe-move-later',
+        occurredAt: '2026-07-27T00:00:00Z', kind: 'move', nativeId: 'native-bookmark',
+        details: { context: { sourceParentNativeId: 'native-source', targetParentNativeId: 'native-dest' } },
+        status: 'processed', opId: fixture.queued.opId,
+      });
+      await new Promise<void>((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+      await fixture.store.putMapping(scope, { nativeId: 'native-bookmark', colpId: 'node-bookmark',
+        rootNativeId: 'root-native', parentNativeId: 'native-dest', parentColpId: 'folder-dest', nodeKind: 'bookmark',
+        projection: { revision: fixture.queued.operationRevision, digest: 'sha256:bookmark',
+          content: { title: 'Moved' } } });
+      await fixture.store.putMapping(scope, { nativeId: 'native-source', colpId: 'folder-source',
+        rootNativeId: 'root-native', nodeKind: 'folder', projection: { revision: 'source-r2',
+          childrenRevision: 'children-source-authored', digest: 'sha256:source' } });
+      const logStarts: number[] = [];
+      const opReads: Array<{ opId: string; after: number }> = [];
+      const base = fixture.store;
+      const store = {
+        ...base,
+        listBookmarkEvents: async (...args: Parameters<typeof base.listBookmarkEvents>) => {
+          logStarts.push(args[1] ?? 0);
+          return base.listBookmarkEvents(...args);
+        },
+        listBookmarkEventsByOperation: async (...args: Parameters<typeof base.listBookmarkEventsByOperation>) => {
+          opReads.push({ opId: args[1], after: args[2] ?? 0 });
+          return base.listBookmarkEventsByOperation(...args);
+        },
+      };
+      const bodies: string[] = [];
+      const worker = createOutboundPushWorker({ ...fixture.options, store,
+        fetch: async (_url, init) => {
+          bodies.push(String(init?.body));
+          return problem(409, 'position_context_stale', { retryable: true });
+        } });
+      assert.equal((await worker.drain()).outcome, 'unknown');
+      const sent = JSON.parse(bodies[0]!) as { operations: Array<{ payload: { baseSourceParentRevision?: string } }> };
+      assert.equal(sent.operations[0]?.payload.baseSourceParentRevision, 'children-source-authored');
+      assert.deepEqual(logStarts, []);
+      assert.deepEqual(opReads, [{ opId: fixture.queued.opId, after: 0 }]);
+    } finally { fixture.store.close(); }
+  });
+
   test('applied local-only create_node receipt binds planned nativeId without a pending mapping', async () => {
     const store = createSyncStateStore({ indexedDB });
     await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease-server',

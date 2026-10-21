@@ -10,8 +10,8 @@ import type { JsonObject, QueueOperation, SyncScope, createSyncStateStore } from
  */
 export const DELETE_SUBTREE_CHANGED = 'delete_subtree_changed';
 
-type Store = Pick<ReturnType<typeof createSyncStateStore>, 'rebaseClaimedPush' | 'setAsideClaimedPush' | 'listBookmarkEvents'
-  | 'settleClaimedPush'>;
+type Store = Pick<ReturnType<typeof createSyncStateStore>, 'rebaseClaimedPush' | 'setAsideClaimedPush'
+  | 'listBookmarkEventsByOperation' | 'settleClaimedPush'>;
 
 /** A delete refused because the node was already gone on the server: the intent is met, not refused. */
 export const TARGET_ALREADY_DELETED = 'target_already_deleted';
@@ -78,7 +78,7 @@ export async function rebaseStaleDelete(input: {
 /** The member-ID digest the removal recorded at capture; absent for a recaptured or pending-member delete. */
 async function observedMemberIdsDigest(store: Store, scope: SyncScope, opId: string): Promise<string | undefined> {
   const event = await findProcessedBookmarkEvent(
-    (afterOrdinal, limit) => store.listBookmarkEvents(scope, afterOrdinal, limit), opId, 'remove');
+    (id, after, limit) => store.listBookmarkEventsByOperation(scope, id, after, limit), opId, 'remove');
   const digest = event?.details.subtreeMemberIdsDigest;
   return typeof digest === 'string' ? digest : undefined;
 }

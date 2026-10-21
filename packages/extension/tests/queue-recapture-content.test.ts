@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { test } from 'vitest';
 import { canonicalOperationDigest } from '@know-n/colp/sync';
 import { createQueueRecapture } from '../src/queue-recapture.js';
+import type { QueueOperation } from '../src/sync-state-store.js';
 import { honestChrome } from './kns-05-pull-harness.js';
 import { installOutboundPushIndexedDb, setup, scope } from './outbound-push-worker-harness.js';
 installOutboundPushIndexedDb();
@@ -92,6 +93,40 @@ test('a transaction constraint abort leaves the old row, mappings, sequences and
     const [fresh] = await f.store.releaseSetAsideQueue(scope, [f.queued.sequence], f.capture);
     assert.equal(fresh?.sequence, Math.max(...before.queue.map(row => row.sequence)) + 1);
   } finally { f.store.close(); }
+});
+
+test('recapture finds its op id on the operation index, not from ordinal 0', async () => {
+  const logStarts: number[] = [];
+  const opReads: Array<{ opId: string; after: number }> = [];
+  const rows = [
+    ...Array.from({ length: 220 }, (_, index) => ({
+      ordinal: index + 1, opId: `noise-${index}`, kind: 'create', nativeId: `noise-${index}`,
+      details: {}, status: 'processed' as const,
+    })),
+    { ordinal: 300, opId: 'op-target', kind: 'move', nativeId: 'native-old',
+      details: { hold: { code: 'recovery_identity_unproven' } }, status: 'processed' as const },
+    { ordinal: 301, opId: 'op-target', kind: 'create', nativeId: 'native-new', details: {}, status: 'processed' as const },
+  ];
+  const store = {
+    getScope: async () => ({ lifecycle: 'active', rootStatus: 'ready' }),
+    async listBookmarkEvents(_scope: unknown, after = 0, limit = 100) {
+      logStarts.push(after);
+      return rows.filter((row) => row.ordinal > after).slice(0, limit);
+    },
+    async listBookmarkEventsByOperation(_scope: unknown, opId: string, after = 0, limit = 100) {
+      opReads.push({ opId, after });
+      return rows.filter((row) => row.opId === opId && row.ordinal > after).slice(0, limit);
+    },
+  };
+  const capture = createQueueRecapture({
+    store: store as never, scope, api: { get: async () => [], getChildren: async () => [] },
+    permission: async () => true,
+  });
+  const row = { opId: 'op-target', status: 'set_aside', recovery: { code: 'held' },
+    payload: { type: 'create_node' } } as unknown as QueueOperation;
+  await assert.rejects(capture(row), /recovery_identity_unproven/);
+  assert.deepEqual(logStarts, []);
+  assert.deepEqual(opReads, [{ opId: 'op-target', after: 0 }]);
 });
 
 async function enqueue(f: Awaited<ReturnType<typeof fixture>>, opId: string, targetId: string, content: any) {
