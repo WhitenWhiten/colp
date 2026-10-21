@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, test, vi } from 'vitest';
+import { AuthorityFencedError } from '../src/authority-fence.js';
 import { parseBuildConfig } from '../src/config.js';
 import { MemoryStorageArea } from '../src/credential-store.js';
 import type { StoredSession } from '../src/types.js';
@@ -18,6 +19,11 @@ import type { StoredSession } from '../src/types.js';
  * discarded it, and left the engine to mint again on its next wake — double the
  * `lifecycle_revision` churn the lane exists to avoid — and the scope import
  * never ran. No behavioural test covered `src/sw/auth.ts` at all.
+ *
+ * Generation is live now, but any `ensureSyncScope` failure used to take the
+ * same cleanup: clear the Session the lane had just written, then answer
+ * `{ ok: true }`. The handler must answer `{ ok: false, state, error }` and
+ * leave that Session stored.
  */
 const cleanups: Array<() => void> = [];
 const mocks = vi.hoisted(() => ({ login: vi.fn(), session: vi.fn(), wake: vi.fn(),
@@ -103,6 +109,29 @@ async function loginFixture() {
   });
   return { ...runtime, api, local, binding, credential, minted, config };
 }
+
+test('a scope failure during login keeps the minted Session and reports failure', async () => {
+  const f = await loginFixture();
+  // The Session lane calls `ensureSyncScope` as a local binding and must still
+  // mint. Only the export this handler imports is the follow-up import.
+  const scope = await import('../src/sw/scope.js');
+  const failedScope = vi.spyOn(scope, 'ensureSyncScope').mockRejectedValue(new AuthorityFencedError());
+  try {
+    const before = await f.store.fence.capture();
+    const response = await f.api.handle({ kind: 'known.auth.login', method: 'password', userGesture: true,
+      email: 'login@example.test', password: 'secret' }, { generation: before.generation, signal: new AbortController().signal });
+
+    assert.equal(response.ok, false);
+    if (response.ok) assert.fail('scope failure must not report success');
+    assert.equal(response.error, 'authority_fenced');
+    assert.equal(response.state.status, 'error');
+    assert.equal(response.state.errorCode, 'authority_fenced');
+    assert.equal((await f.store.loadSession())?.sessionId, 'minted-1');
+    assert.equal(mocks.session.mock.calls.length, 1, 'a scope failure must not mint a second Session');
+  } finally {
+    failedScope.mockRestore();
+  }
+});
 
 test('a login keeps the Session the lane minted for it', async () => {
   const f = await loginFixture();

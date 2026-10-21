@@ -1,6 +1,7 @@
 import { showAutomationBadge } from '../action-badge.js';
 import { logBackgroundFailure } from './background-failure.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
+import { PersonalSyncStopped } from '../personal-sync-policy.js';
 import { suspendPersonalSyncForLogout } from './personal-sync.js';
 import { ensureLibraryBinding, libraryUnsupported, bindLibraryOnStartup } from './library.js';
 import { LIBRARY_STATE } from '../library.js';
@@ -11,9 +12,9 @@ import { clearSaveContextCache } from '../save-context-cache.js';
 import type { AuthExtensionRequest, ExtensionResponse, StoredCredential } from '../types.js';
 import { scheduleSyncEngineWake } from './engine.js';
 import { clearAccountAutomation } from './automation.js';
-import { COLLECTION_BINDING, WELCOME_FLAG, store, sw, syncState, workCoordinator } from './runtime.js';
+import { COLLECTION_BINDING, WELCOME_FLAG, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { createRuntimeAuth, currentSyncScope, enforceManagedPolicy, ensureSyncScope, hasBoundCollection,
-  loadConfig, pushSessionAuthority, retire, scheduleSessionFreshen } from './scope.js';
+  loadConfig, pushSessionAuthority, retire, scheduleSessionFreshen, stateAfterFailure } from './scope.js';
 
 export async function onExtensionInstalled(details: chrome.runtime.InstalledDetails): Promise<void> {
   await showAutomationBadge({ title: false });
@@ -122,16 +123,20 @@ export async function handle(message: AuthExtensionRequest, context: AuthorityCo
     // activated a new authority generation when it logged in (auth-controller
     // `persistSession` -> `activateAuthority`), so the generation the handler was
     // invoked under is stale by now. Passing it made `ensureSyncScope` throw
-    // `AuthorityFencedError`, and the catch below then deleted the Session the
-    // lane had just minted — every login minted, discarded, and minted again, and
-    // the scope import never happened.
+    // `AuthorityFencedError`. Clearing the Session on that failure minted,
+    // discarded, and minted again, and the scope import never happened. Leave
+    // the minted Session in place; report the failure instead of success.
     const live = await store.fence.capture();
-    try { await ensureSyncScope(config, authority.credential, authority.session, live.generation); }
-    catch { await store.clearSession(); }
+    await ensureSyncScope(config, authority.credential, authority.session, live.generation);
     await scheduleSyncEngineWakeIfRootConfigured();
     return { ok: true, state: await auth.status() };
-  } catch {
-    return { ok: true, state: await auth.status() };
+  } catch (error) {
+    // A user pause refuses the Session lane before any mint. Sign-in still
+    // succeeded; the pause itself stays, and no Session is cleared or minted.
+    if (error instanceof PersonalSyncStopped) return { ok: true, state: await auth.status() };
+    // The message channel already answers a thrown auth error as
+    // `{ ok: false, state, error }`. Swallowing it here used to report success.
+    return { ok: false, state: await stateAfterFailure(error), error: safeError(error) };
   }
 }
 
