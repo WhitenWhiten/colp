@@ -55,7 +55,7 @@ export type Kns09FaultFixture = {
   readonly stopCounts: Readonly<Record<Kns09StopReason, number>>;
 };
 export type Kns09Diagnosis = {
-  readonly readableSchema: boolean; readonly rollbackBinary: 'keep-v20' | 'do-not-install-older';
+  readonly readableSchema: boolean; readonly rollbackBinary: 'keep-v21' | 'do-not-install-older';
   readonly drainSafe: boolean; readonly silentDelete: boolean; readonly duplicatePushRisk: boolean;
   readonly stopExpansion: boolean; readonly conclusion: string;
 };
@@ -216,7 +216,7 @@ export async function hydrateKns09Metrics(): Promise<void> {
 
 export function diagnoseKns09Fault(fixture: Kns09FaultFixture): Kns09Diagnosis {
   const readableSchema = fixture.databaseVersion === KNS09_SCHEMA_VERSION;
-  const rollbackBinary = readableSchema ? 'keep-v20' : 'do-not-install-older';
+  const rollbackBinary = readableSchema ? 'keep-v21' : 'do-not-install-older';
   const drainSafe = fixture.coordinatorMutations === false && fixture.uiMutations === false;
   const deletes = fixture.queue.filter((row) => row.payloadType === 'delete_node' || row.payloadType === 'delete_subtree');
   const silentDelete = deletes.length > 0 && fixture.uiMutations === true;
