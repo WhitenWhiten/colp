@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 import { chromeCreate, mappingFor, nativeContent, nodeContent, nodeCreate,
-  projectionContent, PullChromeUrlRejected } from '../src/pull-projection.js';
+  projectionContent, PullChromeUrlRejected, rejectedChromeBookmarkUrl, setAsideRejectedChromeUrl } from '../src/pull-projection.js';
 import { pullFixtures } from './pull-effect-fixtures.js';
 
 const collectionId = 'collection-projection';
@@ -48,6 +48,12 @@ describe('Pull native projection', () => {
     assert.deepEqual(nativeContent(projectionContent(node)), { title: 'Remote' });
   });
 
+  test('keeps a folder role only when the remote node declares one', () => {
+    const node = { ...created('Folder', 13), folderRole: 'bookmarks-bar' } as never;
+    assert.deepEqual(projectionContent(node),
+      { title: 'Remote', folderRole: 'bookmarks-bar', description: null });
+  });
+
   test('creates a canonical mapping with stable content digests and optional parent identities', () => {
     const node = created('Bookmark', 5);
     const mapping = mappingFor(node, 'native-node', 'native-parent', 'parent', null, 'native-root');
@@ -84,6 +90,60 @@ describe('Pull native projection', () => {
       assert.throws(() => chromeCreate(candidate), /pull_node_kind_invalid/);
       assert.throws(() => mappingFor(candidate, 'native', null, null, null, 'native-root'),
         /pull_node_kind_invalid/);
+    }
+  });
+
+  test('classifies a representable but unfetchable URL as invalid_url', () => {
+    assert.equal(rejectedChromeBookmarkUrl('https://example.test/'), null);
+    assert.equal(rejectedChromeBookmarkUrl('https://user:password@example.test/'), 'invalid_url');
+  });
+
+  test('sets aside a rejected URL only on a still-open event with a node identity', async () => {
+    const writes: unknown[] = [];
+    let current: { readonly state: string } | null = { state: 'staged' };
+    const store = {
+      async getPullEvent() { return current; },
+      async setAsidePullEvent(_scope: unknown, _eventId: string, issue: unknown) { writes.push(issue); },
+    };
+    const scope = {} as never;
+    const rejected = (code: 'invalid_url' | 'unsupported_url_scheme') => new PullChromeUrlRejected(code);
+    const withNode = { effect: { kind: 'node_created', node: { id: 'colp-1', title: 'Remote' } } };
+
+    assert.equal(await setAsideRejectedChromeUrl(store as never, scope, 'event-1', withNode,
+      new Error('not-a-url-rejection'), 5), false);
+    assert.equal(await setAsideRejectedChromeUrl(store as never, scope, 'event-1', { effect: {} },
+      rejected('invalid_url'), 5), false);
+    assert.equal(await setAsideRejectedChromeUrl(store as never, scope, 'event-1',
+      { effect: { node: { id: 1 } } }, rejected('invalid_url'), 5), false);
+
+    current = null;
+    assert.equal(await setAsideRejectedChromeUrl(store as never, scope, 'event-1', withNode,
+      rejected('invalid_url'), 5), false);
+    current = { state: 'terminal' };
+    assert.equal(await setAsideRejectedChromeUrl(store as never, scope, 'event-1', withNode,
+      rejected('invalid_url'), 5), false);
+
+    current = { state: 'staged' };
+    assert.equal(await setAsideRejectedChromeUrl(store as never, scope, 'event-1', withNode,
+      rejected('unsupported_url_scheme'), 5), true);
+    assert.deepEqual(writes, [{ code: 'unsupported_url_scheme', nodeId: 'colp-1', title: 'Remote', now: 5 }]);
+  });
+
+  test('set-aside keeps a prepared event and omits empty or absent titles', async () => {
+    const writes: unknown[] = [];
+    const store = {
+      async getPullEvent() { return { state: 'intent_prepared' }; },
+      async setAsidePullEvent(_scope: unknown, _eventId: string, issue: unknown) { writes.push(issue); },
+    };
+    const scope = {} as never;
+    for (const [title, expected] of [
+      [undefined, { code: 'invalid_url', nodeId: 'colp-2', now: 7 }],
+      ['', { code: 'invalid_url', nodeId: 'colp-2', now: 7 }],
+    ] as const) {
+      assert.equal(await setAsideRejectedChromeUrl(store as never, scope, 'event-2',
+        { effect: { node: { id: 'colp-2', ...(title === undefined ? {} : { title }) } } },
+        new PullChromeUrlRejected('invalid_url'), 7), true);
+      assert.deepEqual(writes.at(-1), expected);
     }
   });
 });

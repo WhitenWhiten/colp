@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { resumeLocalProjection } from '../src/local-projection-recovery.js';
-import { leftoverVirtualChildrenNeedReproject } from '../src/recovery-guard.js';
+import { leftoverVirtualChildrenNeedReproject, unprotectedProjectionIntents } from '../src/recovery-guard.js';
 import { createMappingReadContext } from '../src/sync-state/mapping-repository.js';
 import type { MappingInput, SyncScope } from '../src/sync-state-store.js';
 
@@ -99,6 +99,30 @@ test('projection sees the pre-write snapshot and the following check sees the wr
   }, session, createMappingReadContext(store, scope));
   assert.deepEqual(generations, ['before-write', 'after-write']);
   assert.equal(store.unfrozen, true);
+});
+
+test('a live special root keeps its role when no mount binding matches', async () => {
+  const special = mapping('1', 'mount-bar', { rootRole: 'bookmarks-bar' });
+  const store = projectionStore(() => [special]);
+  assert.equal(await leftoverVirtualChildrenNeedReproject(store as never, scope), false);
+});
+
+test('unprotected projection intents read mappings when the caller did not preload them', async () => {
+  let lists = 0;
+  const store = projectionStore(() => {
+    lists += 1;
+    return [native];
+  }, {
+    async listProjectionIntents() {
+      return [
+        { intentId: 'free', colpId: 'free', state: 'executing', kind: 'update' },
+        { intentId: 'done', colpId: 'done', state: 'terminal', kind: 'update' },
+      ];
+    },
+  });
+  const rows = await unprotectedProjectionIntents(store as never, scope);
+  assert.deepEqual(rows.map((row) => row.intentId), ['free']);
+  assert.equal(lists, 1);
 });
 
 function mapping(nativeId: string, colpId: string, overrides: Partial<MappingInput> = {}): MappingInput {
