@@ -22,7 +22,7 @@ vi.mock('../src/sw/bookmark-metadata.js', () => ({ importBrowserMetadata: async 
   snapshot: CompleteRemoteSnapshot) => (mocked.importSnapshot as (snapshot: CompleteRemoteSnapshot) => Promise<unknown>)(snapshot) }));
 afterEach(() => vi.unstubAllGlobals());
 
-test.each([false, true])('large legacy collections migrate descriptions without the AI projection budget (local key: %s)', async hasKey => {
+test.each([false, true])('large supported legacy collections migrate descriptions (local key: %s)', async hasKey => {
   const factory = new IDBFactory(), f = await fixture(factory), descriptions = createFolderDescriptionStore({ indexedDB: factory });
   const native = { id: 'folder-parent', title: 'Parent', dateAdded: 100 }, tree = [native];
   const input = { scope, sync: f.store, descriptions, tree, queue: f.queue, assertCurrent: async () => undefined,
@@ -38,7 +38,9 @@ test.each([false, true])('large legacy collections migrate descriptions without 
     const root = { ...base.nodes[0]!, collectionId: scope.collectionId };
     const nodes = [root, ...Array.from({ length: 300 }, (_, i) => ({ id: i === 0 ? 'folder-colp' : `folder-${i}`,
       collectionId: scope.collectionId, kind: 'folder', parentId: root.id, position: `p${i}`, title: `Folder ${i}`,
-      description: 'd'.repeat(16_000), revision: `snapshot-r${i}`, createdAt: base.generatedAt, updatedAt: base.generatedAt, extensions: {} }))];
+      // 300 × 6 KB ≈ 1.8 MB: large, but inside the frozen 2 MiB Snapshot
+      // aggregate support bound shared with the server.
+      description: 'd'.repeat(6_000), revision: `snapshot-r${i}`, createdAt: base.generatedAt, updatedAt: base.generatedAt, extensions: {} }))];
     const pages = Array.from({ length: Math.ceil(nodes.length / 100) }, (_, i) => ({ ...base, collection,
       nodes: nodes.slice(i * 100, (i + 1) * 100),
       parentRevisions: nodes.slice(i * 100, (i + 1) * 100).map(node => ({ parentId: node.id, childrenRevision: `children-${node.id}` })),
@@ -51,7 +53,10 @@ test.each([false, true])('large legacy collections migrate descriptions without 
         credential: { accessToken: 'fixture' }, session, scope, classificationProjection,
         fetcher: async () => Response.json(pages[page++]) });
     };
-    await expect(read(true)).rejects.toThrow('local_projection_context_limit');
+    // The AI-context guard (4 MiB) sits above the frozen 2 MiB Snapshot
+    // aggregate, so a supported snapshot reads successfully on both paths.
+    const projectionSnapshot = await read(true);
+    expect(projectionSnapshot.classificationProjection?.nodes).toHaveLength(301);
     mocked.sync = { ...f.store, getEngineState: async () => ({ lastAckedCursor: 'cursor-3' }) };
     mocked.hasKey = hasKey; mocked.importSnapshot = (snapshot: CompleteRemoteSnapshot) => importFolderDescriptionSnapshot({ ...input, snapshot });
     const writeProjection = vi.fn(); vi.stubGlobal('chrome', { storage: { session: { set: writeProjection } } });
@@ -60,7 +65,7 @@ test.each([false, true])('large legacy collections migrate descriptions without 
     const saved = await descriptions.get(native);
     expect(saved).toMatchObject({ description: 'Offline description', state: 'dirty',
       remote: { colpId: 'folder-colp', revision: 'snapshot-r0' } });
-    expect(saved?.remote?.description?.length).toBe(16_000);
+    expect(saved?.remote?.description?.length).toBe(6_000);
     // Migrating a different nonempty cloud description must preserve the local draft until confirmation.
     expect(saved?.reviewVersion).toBe(saved?.version);
     expect(await reconcileFolderDescriptions(input)).toMatchObject({ staged: 0, needsSnapshot: false });
