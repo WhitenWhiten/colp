@@ -4,6 +4,7 @@ import { transactionIssueDependencies, ISSUE_DEPENDENCY_STORES } from './issue-d
 import { putPullIssueFact } from './pull-issue-repository.js';
 import { addQueueIssueRoots, blockedPullIssue } from './open-issue-facts.js';
 import { extractOutstandingTarget } from '../recovery-overlay.js';
+import { rebaseableRecoveryMoves, recoverMoveAuthority } from '../move-authority.js';
 import { markQueuePullEchoApplied } from './pull-queue-echo.js';
 import {
   SyncStateError, type AckIntentRecord, type DurableSyncEngineState, type IntentRecord, type MappingInput,
@@ -359,6 +360,7 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       addQueueIssueRoots(issueRoots, queued);
       const issueProtected = issueProtectionIds(priorMappings, issueRoots);
       const locallyAdvanced = new Set<string>(issueProtected);
+      const rebaseableMoves = rebaseableRecoveryMoves(queued);
       for (const item of queued) {
         const target = extractOutstandingTarget(item);
         if (target) for (const colpId of target.colpIds) locallyAdvanced.add(colpId);
@@ -383,7 +385,9 @@ export function createRecoveryRepository(ctx: SyncStoreRuntime) {
       const projectedByColpId = new Set<string>();
       await iterateCursor(nodes, IDBKeyRange.bound([key, snapshotId, 0], [key, snapshotId, Number.MAX_SAFE_INTEGER]), (value) => {
         const node = value as RecoveryNodeRecord; const staged = validateMappingRecord(key, node.mapping, maxRecordBytes);
-        const mapping = locallyAdvanced.has(staged.colpId) ? priorByColpId.get(staged.colpId) ?? staged : staged;
+        const prior = locallyAdvanced.has(staged.colpId) ? priorByColpId.get(staged.colpId) : undefined;
+        const mapping = prior && rebaseableMoves.has(staged.colpId) && !issueProtected.has(staged.colpId)
+          ? validateMappingRecord(key, recoverMoveAuthority(prior, staged), maxRecordBytes) : prior ?? staged;
         mappings.put(mapping); projectedByNativeId.set(mapping.nativeId, mapping.colpId);
         projectedByColpId.add(mapping.colpId);
       });

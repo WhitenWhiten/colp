@@ -13,6 +13,48 @@ import {
 installOutboundPushIndexedDb();
 
 describe('P3-31 outbound Push 409 refresh and rebase', () => {
+  test('lost-response move retries keep identical bytes and never request new authority', async () => {
+    const fixture = await setupMove(); const bodies: string[] = [];
+    const worker = createOutboundPushWorker({ ...fixture.options,
+      readMoveAuthority: async () => { throw new Error('must not rebase uncertain attempts'); },
+      fetch: async (_url, init) => { bodies.push(String(init?.body)); throw new Error('lost response'); } });
+    try {
+      for (let i = 0; i < 10; i += 1) {
+        assert.equal((await worker.drain()).outcome, 'unknown');
+        const row = (await fixture.store.listQueue(scope))[0]!;
+        assert.ok(row.attempt);
+        fixture.clock.now = row.retry.notBefore;
+      }
+      assert.equal(bodies.length, 10);
+      assert.equal(new Set(bodies).size, 1);
+    } finally { fixture.store.close(); }
+  });
+  test('repeated move conflicts recover from a full authority read even when Pull mappings stay stale', async () => {
+    const fixture = await setupMove(); let reads = 0; const bodies: any[] = [];
+    const worker = createOutboundPushWorker({ ...fixture.options, refreshPlacement: async () => 'continue',
+      readMoveAuthority: async () => { reads += 1; return [
+        { nodeId: 'node-bookmark', parentId: 'folder-dest', revision: 'node-fresh' },
+        { nodeId: 'folder-dest', parentId: 'root', revision: 'dest-fresh', childrenRevision: 'children-fresh' },
+      ]; }, fetch: async (_url, init) => {
+        const body = JSON.parse(String(init?.body)); bodies.push(body);
+        if (body.operations[0].baseRevision !== 'node-fresh') return problem(409, 'revision_conflict');
+        assert.equal(body.operations[0].payload.baseSourceParentRevision, 'children-fresh');
+        assert.equal(body.operations[0].payload.baseTargetParentRevision, 'children-fresh');
+        return json(200, { batchId: body.batchId, results: [{ opId: fixture.queued.opId, sequence: 1,
+          status: 'applied', revision: 'node-receipt', cursor: 'cursor-1', warnings: [] }], serverCursor: 'cursor-1' });
+      } });
+    try {
+      for (let i = 0; i < 8; i += 1) {
+        assert.equal((await worker.drain()).outcome, 'unknown');
+        fixture.clock.now = (await fixture.store.listQueue(scope))[0]!.retry.notBefore;
+      }
+      assert.equal(reads, 0);
+      assert.equal((await worker.drain()).outcome, 'terminal');
+      assert.equal(reads, 1);
+      assert.equal(bodies.at(-1).operations[0].opId, fixture.queued.opId);
+      assert.equal(bodies.at(-1).operations[0].sequence, fixture.queued.sequence);
+    } finally { fixture.store.close(); }
+  });
   test('stale create placement refreshes a live parent and sends a new anchor and identity', async () => {
     const fixture = await setup({ createPlacement: 'top' });
     const bodies: string[] = []; const idempotency: string[] = [];

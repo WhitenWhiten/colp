@@ -26,6 +26,7 @@ import { rebaseStaleCreatePlacement, savedCreatePlacement } from './create-place
 import { pushRecoveryBarrierActive, releaseClaimForRecovery } from './push-recovery-barrier.js';
 import { liveCreateNativeId, plannedCreateNativeId } from './bookmark-event-codec.js';
 import { findProcessedMoveEvent } from './bookmark-event-pages.js';
+import { needsMoveAuthorityRefresh, snapshotMoveFences, type MoveAuthorityNode } from './move-authority.js';
 import { repairSequenceReuseRejected, findSequenceReuseEvidence, sequenceReuseRepairAction } from './sequence-reuse-repair.js';
 import {
   assertUnchangedOperationBytes, classifyLocalSequenceReuse,
@@ -76,6 +77,7 @@ interface WorkerOptions {
   readonly onTerminal?: (queue: QueueOperation) => Promise<void>;
   /** Pull/mapping refresh before rebasing a retried move_node. Lost-response retries keep `attempt`. */
   readonly refreshPlacement?: () => Promise<PlacementRefreshOutcome | void>;
+  readonly readMoveAuthority?: () => Promise<readonly MoveAuthorityNode[] | undefined>;
   readonly readChildrenOrder?: (parentNativeId: string) => Promise<readonly string[]>;
   /** Advanced import owns its own recovery protocol and explicitly opts through this barrier. */
   readonly allowRecoveryFrozenPush?: () => boolean | Promise<boolean>;
@@ -480,12 +482,17 @@ export function createOutboundPushWorker(options: WorkerOptions) {
     const sourceRev = liveRevision(source?.projection.childrenRevision);
     const destRev = liveRevision(dest?.projection.childrenRevision);
     const nodeRev = liveRevision(target?.projection.revision);
-    const nextInner: JsonObject = {
+    let nextInner: JsonObject = {
       ...(retrying ? await retainValidPlacementAnchors(options.store, options.scope, inner, destId) : inner),
       ...(sourceRev ? { baseSourceParentRevision: sourceRev } : {}),
       ...(destRev ? { baseTargetParentRevision: destRev } : {}),
     };
-    const nextBase = nodeRev ?? (typeof queue.payload.baseRevision === 'string' ? queue.payload.baseRevision : null);
+    let nextBase = nodeRev ?? (typeof queue.payload.baseRevision === 'string' ? queue.payload.baseRevision : null);
+    if (needsMoveAuthorityRefresh(queue)) {
+      const nodes = await options.readMoveAuthority?.();
+      const fresh = nodes && snapshotMoveFences(nodes, targetId, inner);
+      if (fresh) { nextBase = fresh.baseRevision; nextInner = fresh.placement; }
+    }
     const changed = nextInner.baseSourceParentRevision !== inner.baseSourceParentRevision
       || nextInner.baseTargetParentRevision !== inner.baseTargetParentRevision
       || nextBase !== queue.payload.baseRevision

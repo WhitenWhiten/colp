@@ -4,6 +4,7 @@ All notable changes to the Know-N browser extension are documented here. The for
 
 ## [Unreleased]
 
+
 ### Added
 
 - The extension tells the server's Sync center how its sync stands: syncing, degraded (some items set aside), stopped (with the reason code) or paused. It reports after every sync pass when something changed and at least every 15 minutes (every 5 while something needs attention), through `POST /colp/v0.1/sync/replica-health`. A stopped engine still reports, and the report is the only request it makes: it needs no Sync Session and renews nothing. While paused it names no bookmarks; after a deliberate disconnect it reports nothing. A server without the route is asked again after six hours.
@@ -26,3 +27,11 @@ All notable changes to the Know-N browser extension are documented here. The for
 - Same-folder sorting during sync recovery now survives worker restart and uploads after recovery, instead of being discarded.
 - Changing or testing an AI provider preserves host permissions shared with the active COLP Server, including managed servers and different ports on the same host.
 - A bookmarklet or unsupported history URL no longer blocks the entire JSON backup. Supported data is exported and the dialog reports skipped records, with HTML export available to preserve the skipped bookmarks.
+
+## [0.1.2] - 2026-10-21
+
+### Fixed
+
+- Snapshot recovery refreshes server revision fences for pending local moves while preserving native placement and queued operation identities. Requests with uncertain outcomes retain their original replay bytes.
+- Moves repeatedly refused with `revision_conflict` or `position_context_stale` read a complete authenticated Snapshot for fresh node, parent and anchor authority, even when incremental Pull has nothing to return. This read does not apply browser changes or advance the Pull cursor.
+- Repeated move conflicts now appear in browser attention and server health reports instead of showing zero issues indefinitely.

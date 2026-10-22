@@ -173,6 +173,9 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   // while an advanced plan owns the tree or apply is not allowed.
   let placementRefresh: (() => Promise<'continue' | 'recovery'>) | undefined;
   let placementRefreshEnabled = false;
+  // A read for a repeatedly refused move supplies fences only. It must not
+  // project native changes, acknowledge a snapshot, or skip queued operations.
+  let moveAuthoritySnapshot: ReturnType<typeof loadCompleteRemoteSnapshot> | undefined;
   // EXT-01: the push network dispatch rides the same live-authority capability
   // as ordinary Pull, so a late Drain cannot POST under a revoked generation.
   const effects = syncEffects(scope, context);
@@ -195,6 +198,15 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
     ownerId: () => `replica:${scope.replicaId}`, schedule: (delay) => scheduleSyncEngineWake('alarm', delay),
     refreshPlacement: async () => placementRefreshEnabled
       ? (await placementRefresh?.() ?? 'continue') : 'continue',
+    readMoveAuthority: async () => {
+      if (!placementRefreshEnabled) return undefined;
+      moveAuthoritySnapshot ??= (async () => {
+        const authority = await sessions.get();
+        return loadCompleteRemoteSnapshot({ endpoint: (await endpoints()).syncSnapshot,
+          ...authority, scope, fetcher: effects.fetch, origin: extensionOrigin() });
+      })();
+      return (await moveAuthoritySnapshot).remoteFacts;
+    },
     allowRecoveryFrozenPush: () => !placementRefreshEnabled,
     ...(__KNOWN_EXTENSION_EVIDENCE__ && sw.outboundPushFaultEvidence ? { settlementFault: sw.outboundPushFaultEvidence } : {}),
     ...(__KNOWN_EXTENSION_EVIDENCE__ && sw.outboundLeaseDurationEvidence ? { leaseDurationMilliseconds: sw.outboundLeaseDurationEvidence } : {}),

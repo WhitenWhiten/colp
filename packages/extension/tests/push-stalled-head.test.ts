@@ -71,6 +71,27 @@ test('a deferral that never ends is a stalled upload too', async () => {
   f.store.close();
 });
 
+test('220 explicit move revision denials are visible even after the old attempt is cleared', async () => {
+  const f = await setup();
+  try {
+    await f.store.allocateSequenceAndEnqueue(scope, { opId: 'stale-move', batchId: 'move-batch',
+      idempotencyKey: 'move-key', digest: 'sha256:move', endpointIdentity: 'syncPush', mediaType: 'application/json',
+      baseRevision: 'old', operationRevision: 'local-move', status: 'pending',
+      retry: { attempt: 0, notBefore: 0 },
+      payload: { type: 'move_node', targetId: 'bookmark', payload: { newParentId: 'dest' } } }, { allowUnstamped: true });
+    const lease = await f.store.acquireLease(scope, 'owner', f.clock.now, 60_000);
+    const claimed = (await f.store.claimNextQueue(scope, 'owner', lease.fence, f.clock.now))!;
+    await f.store.settleClaimedPush(scope, claimed.sequence, 'owner', lease.fence, { outcome: 'unknown',
+      retry: { attempt: 220, notBefore: 0 }, recovery: { code: 'revision_conflict' }, clearAttempt: true });
+    const attention = await handleSyncAttentionRequest({ scope: async () => scope, store: f.store });
+    assert.equal(attention.ok && attention.attention.issueCount, 1);
+    const sent = await report(f);
+    assert.equal(sent.state, 'degraded');
+    assert.equal(sent.issues.items[0].code, 'revision_conflict');
+    assert.equal(sent.issues.items[0].count, 220);
+  } finally { f.store.close(); }
+});
+
 test('lost connectivity, a busy server, authority problems and ordinary retries are not stalled uploads', async () => {
   for (const [code, attempt] of [['push_network_failed', 20], ['rate_limited', 20], ['server_unavailable', 20],
     ['push_session_refresh_failed', 20], ['push_response_unrecognized', STALLED_UPLOAD_ATTEMPTS - 1]] as const) {

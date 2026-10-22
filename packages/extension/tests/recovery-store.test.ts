@@ -15,6 +15,50 @@ const scope: SyncScope = {
 let indexedDB: IDBFactory;
 beforeEach(() => { indexedDB = new IDBFactory(); });
 
+test.each([false, true])('Snapshot preserves move intent and refreshes only safe authority (bound attempt: %s)', async (bound) => {
+  const store = createSyncStateStore({ indexedDB });
+  try {
+    await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: 100 },
+      checkpoint: null, selectedRoots: [] });
+    const prior = { nativeId: 'native-bookmark', colpId: 'bookmark', rootNativeId: 'native-root', nodeKind: 'bookmark' as const,
+      parentNativeId: 'native-dest', parentColpId: 'dest',
+      projection: { revision: 'old-node', digest: 'sha256:local', content: { title: 'Local intent' } } };
+    await store.putMapping(scope, prior);
+    let queued = await store.allocateSequenceAndEnqueue(scope, { ...createOp(), opId: 'move',
+      payload: { type: 'move_node', targetId: 'bookmark', baseRevision: 'old-node', payload: { newParentId: 'dest' } } },
+    { allowUnstamped: true });
+    if (bound) {
+      const lease = await store.acquireLease(scope, 'owner', 1, 60_000);
+      const claimed = (await store.claimNextQueue(scope, 'owner', lease.fence, 1))!;
+      await store.bindPushAttempt(scope, claimed.sequence, 'owner', lease.fence, { sessionId: 'session',
+        batchId: claimed.batchId, idempotencyKey: claimed.idempotencyKey, endpointIdentity: 'syncPush',
+        mediaType: 'application/json', body: JSON.stringify({ sessionId: 'session', batchId: claimed.batchId,
+          operations: [claimed.payload] }), bodyDigest: claimed.digest });
+      await store.settleClaimedPush(scope, claimed.sequence, 'owner', lease.fence, { outcome: 'unknown',
+        retry: { attempt: 220, notBefore: 0 }, recovery: { code: 'push_network_failed' } });
+      queued = (await store.listQueue(scope))[0]!;
+    }
+    await store.stageRecoveryPage(scope, { snapshotId: 'move-snapshot', revision: 'r2', syncCursor: 'spc2.move',
+      identityDigest: 'identity-move', rootNodeId: 'source', page: 0, pageDigest: 'sha256:move-page',
+      previousPageDigest: null, nextCursor: null, complete: true, nodes: [
+        { colpId: 'source', parentId: null, position: 'a', kind: 'Folder', payloadDigest: 'sha256:source',
+          mapping: { nativeId: 'native-source', colpId: 'source', rootNativeId: 'native-root', nodeKind: 'folder',
+            projection: { revision: 'source-r2', childrenRevision: 'children-r2', digest: 'sha256:source' } } },
+        { colpId: 'bookmark', parentId: 'source', position: 'b', kind: 'Bookmark', payloadDigest: 'sha256:bookmark',
+          mapping: { ...prior, parentColpId: 'source', parentNativeId: 'native-source',
+            projection: { revision: 'fresh-node', digest: 'sha256:remote', content: { title: 'Remote' } } } },
+      ] });
+    await store.commitRecovery(scope, 'move-snapshot');
+    const mapping = await store.getMappingByColpId(scope, 'bookmark');
+    assert.equal(mapping?.projection.revision, bound ? 'old-node' : 'fresh-node');
+    assert.equal(mapping?.projection.resourceRevision, bound ? 'old-node' : 'fresh-node');
+    assert.equal(mapping?.parentColpId, bound ? 'dest' : 'source');
+    assert.equal(mapping?.parentNativeId, 'native-dest');
+    assert.deepEqual(mapping?.projection.content, prior.projection.content);
+    assert.deepEqual((await store.listQueue(scope))[0], queued);
+  } finally { store.close(); }
+});
+
 test('commitRecovery keeps a pending create mapping that Snapshot does not contain', async () => {
   const store = createSyncStateStore({ indexedDB });
   await store.registerScope({

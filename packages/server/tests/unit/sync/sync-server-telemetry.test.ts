@@ -12,7 +12,7 @@ import {
 } from '../../../src/infrastructure/telemetry/sync-server.js';
 
 describe('server Sync telemetry', () => {
-  test('an HTTP 409 records the bounded snapshot problem from the response body', async () => {
+  test.each(['snapshot_expired', 'revision_conflict', 'position_context_stale'])('HTTP 409 records %s from the response body', async (code) => {
     const records: string[] = [];
     const destination = new PassThrough();
     destination.on('data', chunk => records.push(chunk.toString('utf8')));
@@ -20,11 +20,11 @@ describe('server Sync telemetry', () => {
     installSyncTelemetry(app, new InMemoryMetrics(), {
       syncSnapshotRoutes: { path: '/test/snapshot' },
     } as Parameters<typeof installSyncTelemetry>[2]);
-    app.get('/test/snapshot', async (_request, reply) => reply.code(409).send({ code: 'snapshot_expired' }));
+    app.get('/test/snapshot', async (_request, reply) => reply.code(409).send({ code }));
     try {
       assert.equal((await app.inject({ method: 'GET', url: '/test/snapshot' })).statusCode, 409);
       const record = records.map(line => JSON.parse(line)).find(row => row.event === 'sync_request');
-      assert.equal(record?.problem, 'snapshot_expired');
+      assert.equal(record?.problem, code);
       assert.equal(record?.outcome, 'problem');
     } finally { await app.close(); }
   });

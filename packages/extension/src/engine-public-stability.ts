@@ -1,5 +1,6 @@
 import { isOpenQueueIssue } from './sync-state/open-issue-facts.js';
 import { classifySyncFailure } from './sync-failure-class.js';
+import { needsMoveAuthorityRefresh } from './move-authority.js';
 import type { QueueOperation } from './sync-state-store.js';
 export function cooldownIsPending(input: {
   readonly now: number | undefined;
@@ -63,7 +64,9 @@ const UNSETTLED_STATUSES: ReadonlySet<string> = new Set(['claimed', 'deferred', 
  */
 export function stalledUploadHead(rows: readonly QueueOperation[]): { readonly row: QueueOperation; readonly code: string } | undefined {
   const head = [...rows].filter((row) => UNSETTLED_STATUSES.has(row.status)).sort((left, right) => left.sequence - right.sequence)[0];
-  if (!head || head.attempt === undefined || head.retry.attempt < STALLED_UPLOAD_ATTEMPTS) return undefined;
+  if (!head || head.retry.attempt < STALLED_UPLOAD_ATTEMPTS) return undefined;
+  if (needsMoveAuthorityRefresh(head)) return { row: head, code: head.recovery!.code };
+  if (head.attempt === undefined) return undefined;
   const code = head.status === 'deferred' ? 'push_deferred' : head.recovery?.code;
   if (!code) return undefined;
   const policy = classifySyncFailure(code);
