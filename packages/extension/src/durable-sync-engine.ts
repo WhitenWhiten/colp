@@ -65,9 +65,8 @@ export function createDurableSyncEngine(options: EngineOptions) {
   async function wakeOnce(reason: 'startup' | 'alarm' | 'online' | 'manual', confirmedOnline: boolean) {
     placementRefreshAttempt = undefined;
     activeMappingReads = createMappingReadContext(options.store, options.scope);
-    try {
-    return await wakeOnceBody(reason, confirmedOnline);
-    } finally { activeMappingReads = undefined; }
+    try { return await wakeOnceBody(reason, confirmedOnline); }
+    finally { activeMappingReads = undefined; }
   }
 
   async function wakeOnceBody(reason: 'startup' | 'alarm' | 'online' | 'manual', confirmedOnline: boolean) {

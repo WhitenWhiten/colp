@@ -18,7 +18,7 @@ import { ordinaryPullEventAllowed, publishSupersededPullMappings, readPullApplyA
 import { assertPullApplierGate } from './pull-page-stager.js';
 import { freezePullApply, withPullFreeze } from './pull-recovery-freeze.js';
 import { bindMountMappings, boundNativeId, isNonChromeNativeId, isRecoveryPlaceholder,
-  bindStructureMapping, isVirtualNativeId, mayMutateNative, persistMountBinding, planCreated, planRestored,
+  bindStructureMapping, isVirtualNativeId, mayMutateNative, persistMountBinding, planCreated,
   unmountedNativeId } from './pull-mount-apply.js';
 import { materializeRestoredNode } from './pull-restore-apply.js';
 import { advancedSelfProjectionIsProven } from './pull-local-projection-evidence.js';
@@ -27,6 +27,7 @@ import {
   commitMissingTerminalSelfDeletion, commitRemovedSelfProjection, missingTerminalSelfDeletion, preflightPullDependencies,
   preflightPullMapping, requirePullMapping, requirePullAnchor,
 } from './pull-apply-decision.js';
+import { expectedCreateLike } from './pull-apply-created-expectation.js';
 import {
   applyPlannedMove, frozenRangeAction, moveAnchors, planRemoteMove,
   rangeActionOf, rangePlanFromAnchors, resolvePersistedMovePlan, type PlannedMoveApply,
@@ -147,7 +148,8 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     const effect = event.effect;
     if (await missingTerminalSelfDeletion(options, event)) return { eventKind: 'remove' as const, nativeId: '',
       details: { recovery: 'self_echo' }, anchors: {}, preStateDigest: digest(null) };
-    if (effect.kind === 'node_created' || effect.kind === 'node_restored') return expectedCreateLike(event);
+    if (effect.kind === 'node_created' || effect.kind === 'node_restored') return expectedCreateLike(event, {
+      options, requireMapping, selfCreateProjection, nativeIndex, parentChildren });
     const colpId = effect.kind === 'node_deleted' ? effect.tombstone.targetId
       : effect.kind === 'subtree_deleted' ? effect.rootTombstone.targetId : effect.node.id;
     if (effect.kind === 'subtree_deleted' && !await options.store.getMappingByColpId(options.scope, colpId)) {
@@ -209,64 +211,6 @@ export function createPullApplyRuntime(options: PullApplierOptions, api: PullBoo
     return { eventKind: 'remove', nativeId: mapping.nativeId,
       details: { parentId: before?.parentId ?? mapping.parentNativeId ?? '', index: before?.index ?? 0 }, anchors: {},
       preStateDigest: mapping.projection.digest };
-  }
-
-  async function expectedCreateLike(event: Extract<SyncPullEventV02, { kind: 'operation' }>) {
-    const effect = event.effect;
-    if (effect.kind !== 'node_created' && effect.kind !== 'node_restored') throw new SyncFailureError('pull_effect_kind_invalid');
-    if (effect.kind === 'node_created') {
-      const plan = await planCreated(options.store, options.scope, event);
-      if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
-      if (plan.kind === 'skip_unmounted') {
-        return { eventKind: 'sidecar' as const, nativeId: unmountedNativeId(effect.node.id),
-          parentNativeId: unmountedNativeId(effect.placement.parentId), details: { effectDigest: effect.effectDigest },
-          anchors: {}, preStateDigest: digest(null) };
-      }
-      if (plan.kind === 'bind_structure') return { eventKind: 'sidecar' as const, nativeId: plan.mapping.nativeId,
-        parentNativeId: plan.mapping.parentNativeId ?? plan.mapping.nativeId, details: { effectDigest: effect.effectDigest }, anchors: {}, preStateDigest: digest(null) };
-      if (plan.kind === 'bind_mount') {
-        return { eventKind: 'sidecar' as const, nativeId: plan.mount.nativeRootId, parentNativeId: plan.mount.nativeRootId,
-          details: { effectDigest: effect.effectDigest }, anchors: {}, preStateDigest: digest(null) };
-      }
-      if (plan.kind === 'recovered_folder') {
-        // Same evidence rule as the general create path: the recovered mount root is expected to
-        // exist, so a vanished one is a divergence and a read fault must not become an empty digest.
-        return createExpectation(effect, plan.mount.nativeRootId, 0,
-          await parentChildren(effect.placement.parentId, plan.mount.nativeRootId));
-      }
-    } else {
-      const plan = await planRestored(options.store, options.scope, effect.placement.parentId);
-      if (plan.kind === 'need_authority') throw new SyncFailureError('need_authority');
-      if (plan.kind === 'skip_unmounted') {
-        return { eventKind: 'sidecar' as const, nativeId: unmountedNativeId(effect.node.id),
-          parentNativeId: unmountedNativeId(effect.placement.parentId), details: { effectDigest: effect.effectDigest },
-          anchors: {}, preStateDigest: digest(null) };
-      }
-    }
-    const parent = await requireMapping(effect.placement.parentId, 'parent');
-    if (effect.kind === 'node_created' && event.operation.replicaId === options.scope.replicaId) {
-      const existing = await options.store.getMappingByColpId(options.scope, effect.node.id);
-      const own = await options.store.getQueueByOpId(options.scope, event.operation.opId);
-      if (existing && !isNonChromeNativeId(existing.nativeId) && own?.status === 'terminal'
-          && own.payload.type === 'create_node') {
-        const proven = await selfCreateProjection(event, existing, parent);
-        return sidecarExpectation(effect.effectDigest, proven, parent.nativeId);
-      }
-      const provisional = existing ? null : await provisionalSelfCreateMapping(options, event, parent);
-      if (provisional) {
-        const proven = await selfCreateProjection(event, provisional, parent);
-        return sidecarExpectation(effect.effectDigest, proven, parent.nativeId);
-      }
-    }
-    const index = await nativeIndex(effect.placement.afterId, effect.placement.beforeId);
-    if (effect.node.kind === 'separator' && options.session.conversionPolicy?.separator === 'preserve_remote') {
-      return { eventKind: 'sidecar' as const, nativeId: `sidecar:${effect.node.id}`, parentNativeId: parent.nativeId,
-        details: { effectDigest: effect.effectDigest }, anchors: { afterId: effect.placement.afterId,
-          beforeId: effect.placement.beforeId, index },
-        preStateDigest: digest(await parentChildren(effect.placement.parentId, parent.nativeId)) };
-    }
-    return createExpectation(effect, parent.nativeId, index,
-      await parentChildren(effect.placement.parentId, parent.nativeId));
   }
 
   async function applyRestored(eventId: string, event: Extract<SyncPullEventV02, { kind: 'operation' }>): Promise<{

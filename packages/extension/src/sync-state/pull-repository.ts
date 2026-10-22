@@ -29,10 +29,13 @@ import { validateLocalSyncExclusion, type LocalSyncExclusionRecord } from './rem
 import { validateMountBinding } from './mount-repository.js';
 import { validateRemoteObservation, validateScopeCommandPlan } from './scope-facts-repository.js';
 import {
-  coveredPullOperationIds, expiredCompletedIntentCanBeDeleted, openDeferredIntentIds, probePullState,
+  coveredPullOperationIds, probePullState,
   pruneCompletedPullPages, putPullTerminalFacts, pullHistoryLimits,
   PULL_HISTORY_PAGE_KEEP, readOrderedPullEvents, readPullApplyWorkset, readPullPagesByState, type PullHistoryBudget,
 } from './pull-workset.js';
+import {
+  intentsForNativeTarget, pruneExpiredCompletedIntents, type ExpiredIntentCursor, type ExpiredIntentPruneResult,
+} from './pull-intent-index.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
 function intentStateAfterObservation(eventState: unknown): 'native_event_observed' | 'authority_committed' | 'page_complete' {
@@ -556,45 +559,15 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   }
 
   async function pruneExpiredCompletedApplyIntents(input: SyncScope, options: {
-    readonly limit?: number; readonly after?: { readonly expiresAt: number; readonly intentId: string };
-  } = {}): Promise<{ readonly deleted: number; readonly done: boolean; readonly after?: { readonly expiresAt: number; readonly intentId: string } }> {
+    readonly limit?: number; readonly after?: ExpiredIntentCursor;
+  } = {}): Promise<ExpiredIntentPruneResult> {
     assertWritable(); const key = scopeKey(validateScope(input)); const limit = Math.min(32, Math.max(1, options.limit ?? 32));
-    const now = Date.now(); const db = await writableDatabase();
-    let deleted = 0; let examined = 0; let done = true;
-    let cursorAfter = options.after;
+    const db = await writableDatabase(); let result: ExpiredIntentPruneResult | undefined;
     await runTransaction(db, [STORES.intents, STORES.pullEvents], 'readwrite', async (tx) => {
-      const events = tx.objectStore(STORES.pullEvents);
-      const referenced = await openDeferredIntentIds(events, key);
-      const range = IDBKeyRange.bound(
-        cursorAfter ? [key, 'page_complete', cursorAfter.expiresAt, cursorAfter.intentId] : [key, 'page_complete', 0, ''],
-        [key, 'page_complete', now, '\uffff'], Boolean(cursorAfter), false);
-      const index = tx.objectStore(STORES.intents).index(INDEXES.intentByCompletedExpiry);
-      await new Promise<void>((resolve, reject) => {
-        const request = index.openCursor(range);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const cursor = request.result;
-          if (!cursor || examined >= limit) { done = !cursor; resolve(); return; }
-          const intent = cursor.value as IntentRecord;
-          void (async () => {
-            examined += 1;
-            cursorAfter = { expiresAt: intent.expiresAt, intentId: intent.intentId };
-            const event = intent.eventId
-              ? await requestValue(events.get([key, intent.eventId])) as UnknownRecord | undefined : undefined;
-            if (expiredCompletedIntentCanBeDeleted(intent, event, referenced)) { cursor.delete(); deleted += 1; }
-            cursor.continue();
-          })().catch(reject);
-        };
-      });
+      result = await pruneExpiredCompletedIntents(tx, key, Date.now(), limit, options.after);
     });
-    return done ? { deleted, done } : { deleted, done, after: cursorAfter };
+    return result!;
   }
-
-function intentsForNativeTarget(tx: IDBTransaction, key: string, nativeId: string): Promise<IntentRecord[]> {
-  const target = boundedString(nativeId, 'nativeId');
-  return cursorPage<IntentRecord>(tx.objectStore(STORES.intents).index(INDEXES.intentByNativeTarget),
-    IDBKeyRange.bound([key, target, ''], [key, target, '\uffff']), Number.MAX_SAFE_INTEGER);
-}
 
   return { getApplyIntent, createApplyIntent, findApplyIntent, hasActiveApplyIntentForNativeTarget,
     pruneExpiredCompletedApplyIntents,
