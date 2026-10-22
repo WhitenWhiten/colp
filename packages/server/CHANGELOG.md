@@ -4,6 +4,50 @@ All notable changes to COLP Server are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.1.0-rc.8] - 2026-10-21
+
+### Added
+
+- The rule editor can connect an agent and test it on one bookmark before the rule is turned on. `POST /api/v1/me/automations/agent-setup` (owner session) saves the draft rule, its binding, its execution policy and a standard connection in one command. It does not start a model or enable the rule, and pairing is not treated as proof that the agent ran. A connection that is still waiting returns a one-use pairing grant; the editor shows that request and checks until the agent pairs. The test runs the rule's tasks on a single bookmark and asks for a review of the result before the rule is enabled. Run once can name that same bookmark. Guided setup accepts a standard rule with one agent; a restricted rule stays on advanced configuration. Product API 1.101.0.
+- An agent can organize one library in a single plan. `changes.plan` with `collectionId`, `operations` (1 to 50 of `create_node`, `move_node` and `delete_subtree`), `reason` and `dryRun: true` is checked and stored as one approval. A folder created in the plan may be named with `ref` and used as `parentRef` by a later create or move. Nothing is written until the owner approves. If the collection changes while the plan is being built, the call is rejected and the agent reads the library again. The tool input stays one closed object, which MCP hosts accept.
+- `nodes.move` accepts up to 1,000 bookmark ids in one atomic plan when every move is a distinct bookmark into an existing folder of a private, unpublished library. Those moves publish authoritative Pull effects and leave the browser's Sync session in place. Folder moves, explicit placement and mixed `changes.plan` requests stay limited to 50. A genuine intervening edit still requires a fresh plan. After an uncertain response, read `changes.get` with the plan id and replay the commit with its original idempotency key before creating another plan.
+- `colp-server maintain-positions --collection <id>` compacts legacy dense folder order keys, one atomic folder at a time. Ids, contents, parents and sibling order stay; resource revisions change, and browser replicas enter Snapshot recovery. Running it again skips folders that are already compact. Back up first. A local allocation window that is still exhausted returns `position_context_stale` instead of an internal error.
+
+### Changed
+
+- Restoring a collection version brings back folders and bookmarks that are still retained as deletions, parents before children, with their original ids. A permanently purged item, or one whose retained deletion is gone, refuses the whole restore. No partial tree is applied.
+- Undoing an automation effect restores the previous tags of a tag update, or deletes the note that effect added, while the recorded revisions still match. A later edit blocks that Undo. A payload that omits tags leaves the tags already on the node; only an explicit list replaces them. A tag effect saved by an older server without the previous value cannot be undone automatically.
+- History lists compare a stored summary (`id`, `kind`, `parentId`, `title`, `url`, sibling index) instead of reading each full tree. Restore still reads `tree_json`. Apply migration `202611010500_collection_tree_version_change_summary` before deploying; startup backfills every saved version.
+- A browser Snapshot may continue across content changes when every intervening content revision still has a retained authoritative Pull effect. The final Ack stays at the snapshot's original cut, and later changes are left for Pull. Policy changes, retention gaps, lease expiry, a legacy snapshot without a pinned ordinal, and an unsupported mutation still invalidate recovery.
+- A delete refused because another device edited, moved or added under that node now carries `currentRevision` and, for a subtree delete, `currentSubtree` (`version`, `count`, `digest`, `memberIdsDigest`). A current browser can rebase a single delete, or rebase a subtree delete when the member-id digest still matches, instead of keeping a permanent rejection. This image vendors `@know-n/colp` `0.2.2-automation-client-id.1` (rc.7 used the published `0.2.1`). Update the browser extension as well: an expired snapshot chain has to be discarded and started again, and a move stuck on a stale snapshot revision has to refresh its authority, while pending local edits stay.
+- Conflict-list cursors are still signed with the current editor secret. A cursor signed with a previous key is accepted until that key's retention time.
+- An automation connection profile accepts an HTTPS client-metadata URL as `authorizedClientId`, and an opaque OAuth client id of up to 256 characters. Existing opaque ids stay valid. Product API 1.100.0.
+- Account export fails when the account mapping cannot be resolved, instead of writing an export under the auth-user id with an empty subject. An account that has no collections still exports empty.
+- A database failure while binding an account identity stays a database failure. Only a unique violation on a known binding constraint is recovered by reading the row again; it is no longer reported as an invalid token.
+- Web: Add bookmark, New folder, Import, a rule's folder and Run once use the folder picker — the chosen folder's name, search, and an indented tree. Recent folders are remembered in this browser. The library root is named All bookmarks.
+- Web: a browser card in Sync center stays short. Its set-aside items, acknowledgement warnings and raw diagnostics open in a dialog, and the card's buttons sit on one row.
+- Web: owner pages share one page head, section title, count pill, dialog footer and empty-list frame. Settings › Bookmarks uses the same rows as the extension's Saving page.
+
+### Security
+
+- Change-plan and operation ids come from a CSPRNG. Without Web Crypto they were derived from the clock and were predictable.
+- A credential-store or key-set outage is answered as unavailable, so clients retry. It is no longer reported as an invalid credential that signs them out.
+- Legacy session rotation no longer invents a process-local key. Deriving a successor without an explicit secret or the existing OIDC HMAC fails. Legacy OIDC in production no longer falls back to the fixed test AES key. A self-hosted server that already sets `COLP_SERVER_SECRET` and does not run legacy OIDC is unchanged.
+- Favicon item writes recheck the lease owner in the same transaction. A late holder cannot overwrite a bound icon or delete the new owner's restore snapshot. Upload, delete, helper and source commands require their own retention; the process-global 365-day default is gone.
+- The self-hosted web app sends no error or Web Vitals telemetry, and the server no longer mounts `POST /api/v1/client-events`. Product API 1.99.0 removes that path and the client-event schemas.
+
+### Upgrade notes
+
+From 0.1.0-rc.7, update the checkout and `deploy/` files from the same revision,
+set `COLP_IMAGE_TAG=0.1.0-rc.8`, and recreate the server. Compose files are
+unchanged. This additive migration runs at startup and rewrites every saved
+collection version, so the first start can take a while on a large library:
+
+- `202611010500_collection_tree_version_change_summary`
+
+`maintain-positions` does not run on its own. Back up, deploy the extension
+recovery fix, then run it only for a library that still has dense order keys.
+
 ## [0.1.0-rc.7] - 2026-10-18
 
 ### Added
