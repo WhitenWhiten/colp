@@ -18,6 +18,7 @@ import {
   createOidcLoginTransaction,
   createSession,
   createTestOidcTransactionSecrets,
+  createTestSessionRotationSecrets,
   ensureAccountFromOidcIdentity,
   getAccountWithProfile,
   hashSecret,
@@ -61,6 +62,10 @@ function randomHandle(prefix: string): string {
 }
 
 const oidcTransactionSecrets = createTestOidcTransactionSecrets();
+// Rotation fails closed without stable server secret material (0521591a). This
+// integration harness builds ports directly, so it supplies the deterministic
+// test secret the same way it supplies the OIDC transaction secret.
+const sessionRotationSecrets = createTestSessionRotationSecrets();
 
 async function withPorts<Result>(
   isolated: IsolatedPostgresRuntime,
@@ -68,7 +73,7 @@ async function withPorts<Result>(
   options: Parameters<typeof createUnitOfWork>[1] = {},
 ): Promise<Result> {
   return createUnitOfWork(isolated.runtime.db, options).execute(async ({ transaction }) => {
-    const ports = createPostgresIdentityPorts(transaction, oidcTransactionSecrets);
+    const ports = createPostgresIdentityPorts(transaction, oidcTransactionSecrets, sessionRotationSecrets);
     return work(ports);
   });
 }
