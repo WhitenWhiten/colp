@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { encodeThrowingCanonicalJson } from '../../canonical-json.js';
+import { encodeThrowingCanonicalJson } from '../../canonical-json/index.js';
 import {
   assertProfileClaims,
   createDeploymentConformancePlan,

@@ -1,6 +1,6 @@
 import { syncCredentialIsAuthorized } from '../sync-credential-authority.js';
 import { createHash } from 'node:crypto';
-import { encodeAckResultDigestJson } from '../../../modules/canonical-json.js';
+import { encodeAckResultDigestJson } from '../../../modules/canonical-json/index.js';
 import { sql, type Kysely, type Selectable } from 'kysely';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { SyncAckResult } from '@know-n/colp/types';

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { encodeThrowingCanonicalJson } from '../../modules/canonical-json.js';
+import { encodeThrowingCanonicalJson } from '../../modules/canonical-json/index.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ProblemCode } from '@know-n/colp/server';
 import { createPublicationProblemDescriptor, parseIJson } from '@know-n/colp/server';

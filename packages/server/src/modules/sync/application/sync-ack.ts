@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { encodeThrowingCanonicalJson } from '../../canonical-json.js';
+import { encodeThrowingCanonicalJson } from '../../canonical-json/index.js';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { ProblemCode } from '@know-n/colp/server';
 import type { SyncAckRequest, SyncAckResult } from '@know-n/colp/types';

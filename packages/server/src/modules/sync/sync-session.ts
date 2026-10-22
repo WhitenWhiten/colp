@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { encodeThrowingCanonicalJson } from '../canonical-json.js';
+import { encodeThrowingCanonicalJson } from '../canonical-json/index.js';
 import type { CreateSyncSessionInput, VerifiedSyncSession } from '@know-n/colp/sync';
 import {
   isVerifiedExtensionCredential,

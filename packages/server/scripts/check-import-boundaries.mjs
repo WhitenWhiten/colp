@@ -156,7 +156,10 @@ const moduleEdges = {
   // types + ports + handle reservation). Never a deep identity path.
   // Account-credential issuance/grants persist Product command receipts.
   auth: new Set(['identity', 'commands']),
-  commands: new Set(),
+  // Shared dependency-free canonical JSON codec (digests, receipts, ack results).
+  // Consumers use the public module facade; infrastructure and transport grants
+  // stay file-exact below.
+  commands: new Set(['canonical-json']),
   // Read-only browser subscriptions compose domain ports in infrastructure, never billing.
   'bookmark-subscriptions': new Set(['commands']),
   'access-policy': new Set(['identity', 'commands']),
@@ -182,15 +185,15 @@ const moduleEdges = {
   // the collections icon URL helper. Collections must not import publication.
   // COLP Server: publication/search/mcp read shared-exposure eligibility from
   // the exposure facade (deny-by-default until attachments ship).
-  publication: new Set(['access-policy', 'identity', 'sync', 'attachments', 'collections', 'commands', 'exposure']),
+  publication: new Set(['access-policy', 'identity', 'sync', 'attachments', 'collections', 'commands', 'exposure', 'canonical-json']),
   'reading-progress': new Set(['commands']),
-  sync: new Set(['collections', 'identity']),
+  sync: new Set(['collections', 'identity', 'canonical-json']),
   search: new Set(['access-policy', 'commands', 'attachments', 'exposure']),
   social: new Set(['commands']),
   // Report read tools content-load the public/owned report surfaces the reports
   // facade exports; MCP reads reports through that facade only.
   // nodes.search reads through the search facade.
-  mcp: new Set(['identity', 'publication', 'access-policy', 'commands', 'collections', 'attachments', 'community', 'reports', 'search', 'exposure', 'automation']),
+  mcp: new Set(['identity', 'publication', 'access-policy', 'commands', 'collections', 'attachments', 'community', 'reports', 'search', 'exposure', 'automation', 'canonical-json']),
   notifications: new Set(['commands']),
   // ND-02 reports application reuses the shared command cursor codec and
   // publication-owned canonical slug predicate through the public facade.
@@ -374,7 +377,7 @@ const infrastructureModuleEdges = {
     'module:notifications:facade',
     'module:publication:facade',
   ]),
-  sync: new Set(['module:collections:facade', 'module:identity:facade', 'module:sync:facade']),
+  sync: new Set(['module:collections:facade', 'module:identity:facade', 'module:sync:facade', 'module:canonical-json:facade']),
   // nodes.search ports are declared by the MCP facade.
   search: new Set(['module:search:facade', 'module:mcp:facade', 'module:exposure:facade']),
   // PERIPH-P1-b: seed Canonical 阶段经现有 annotation/relation 门面写写路径历史。
@@ -465,6 +468,9 @@ const bootstrapTargets = new Set([
   'bootstrap/config-classification.ts',
   'bootstrap/config-capacity-summary.ts',
   'bootstrap/config-reports.ts',
+  // Report-cache invalidation enablement is a pure config predicate shared by
+  // the API, worker and seed composition.
+  'bootstrap/report-cache-enablement.ts',
   'bootstrap/config-governance.ts',
   'infrastructure/governance/index.ts',
   'modules/governance/index.ts',
@@ -652,6 +658,7 @@ const transportTargets = new Set([
   // (modules/auth facade) for the Better Auth cutover path.
   'modules/auth/index.ts',
   'modules/access-policy/index.ts',
+  'modules/canonical-json/index.ts',
   'modules/collections/index.ts',
   'modules/commands/index.ts',
   // CS-01: community target resolution + vote command application facade.
@@ -949,12 +956,15 @@ function allowed(source, target) {
     ) return true;
     // The seed CLI is isomorphic with the migration CLI (loads environment
     // config before constructing the DB); keep the exception equally exact.
+    // It also composes the shared report-cache enablement predicate so seeded
+    // writes append invalidation events only for the same enabled topology.
     if (
       source.kind === 'infrastructure'
       && source.infrastructureName === 'seed'
       && source.relativePath === 'infrastructure/seed/run.ts'
       && target.kind === 'bootstrap'
-      && target.relativePath === 'bootstrap/config.ts'
+      && (target.relativePath === 'bootstrap/config.ts'
+        || target.relativePath === 'bootstrap/report-cache-enablement.ts')
     ) return true;
     // FIX-M-019: the shared hardened egress surface reuses the startup OIDC
     // endpoint policy (assertOidcEndpointUrl strict) on every hop; deliberate

@@ -4,7 +4,7 @@
  * `scripts/acceptance` re-exports this file for existing script/test importers.
  */
 import { createHash } from 'node:crypto';
-import { encodeThrowingCanonicalJson } from '../canonical-json.js';
+import { encodeThrowingCanonicalJson } from '../canonical-json/index.js';
 
 export const PHASE3_AUTHORITATIVE_PULL_ACCEPTANCE_FORMAT =
   'known.phase3.authoritative-pull-acceptance.v1' as const;

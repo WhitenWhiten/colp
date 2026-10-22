@@ -1,6 +1,6 @@
 import { createPhase4bMcpPackageEvidence } from './colp-package-evidence.js';
 import { createHash } from 'node:crypto';
-import { encodeLiteralUndefinedCanonicalJson } from '../canonical-json.js';
+import { encodeLiteralUndefinedCanonicalJson } from '../canonical-json/index.js';
 import {
   assertProfileClaims,
   bundledConformanceEvidence,

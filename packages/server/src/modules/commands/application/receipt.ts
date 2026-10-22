@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { encodeReceiptCanonicalJson } from '../../canonical-json.js';
+import { encodeReceiptCanonicalJson } from '../../canonical-json/index.js';
 
 export interface ProductCommandBinding {
   readonly principalId: string;

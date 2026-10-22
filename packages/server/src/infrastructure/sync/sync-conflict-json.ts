@@ -8,7 +8,7 @@
  * code rather than a generic error.
  */
 
-import { encodeThrowingCanonicalJson } from '../../modules/canonical-json.js';
+import { encodeThrowingCanonicalJson } from '../../modules/canonical-json/index.js';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

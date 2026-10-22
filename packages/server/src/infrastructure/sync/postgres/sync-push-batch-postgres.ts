@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { encodePassthroughCanonicalJson } from '../../../modules/canonical-json.js';
+import { encodePassthroughCanonicalJson } from '../../../modules/canonical-json/index.js';
 import { sql, type Kysely } from 'kysely';
 import type { VerifiedSyncSession } from '@know-n/colp/sync';
 import type { SyncPushResult } from '@know-n/colp/types';

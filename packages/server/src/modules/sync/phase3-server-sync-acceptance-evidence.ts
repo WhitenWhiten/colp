@@ -5,7 +5,7 @@
  * re-exports this file for existing script/test importers.
  */
 import { createHash } from 'node:crypto';
-import { encodeThrowingCanonicalJson } from '../canonical-json.js';
+import { encodeThrowingCanonicalJson } from '../canonical-json/index.js';
 import { problemRegistry } from '@know-n/colp/server';
 
 export const PHASE3_SERVER_SYNC_ACCEPTANCE_FORMAT = 'known.phase3.server-sync-acceptance.v2';

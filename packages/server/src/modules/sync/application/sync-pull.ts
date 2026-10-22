@@ -1,5 +1,5 @@
 import { createHash, createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
-import { encodeThrowingCanonicalJson } from '../../canonical-json.js';
+import { encodeThrowingCanonicalJson } from '../../canonical-json/index.js';
 import type { SyncPullEvent, SyncPullEventV02 } from '@know-n/colp/types';
 import type { VerifiedExtensionCredential } from '../../identity/index.js';
 

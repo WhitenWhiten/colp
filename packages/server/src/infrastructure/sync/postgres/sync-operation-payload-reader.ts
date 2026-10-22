@@ -1,5 +1,5 @@
 import { createValidatorRegistry } from '@know-n/colp/schema';
-import { encodePassthroughCanonicalJson } from '../../../modules/canonical-json.js';
+import { encodePassthroughCanonicalJson } from '../../../modules/canonical-json/index.js';
 import type { Operation } from '@know-n/colp/types';
 import { sql } from 'kysely';
 import { SYNC_PULL_STREAM_KIND_ORDER, SyncPullReadError,

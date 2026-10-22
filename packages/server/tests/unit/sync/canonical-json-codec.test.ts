@@ -9,7 +9,7 @@ import {
   encodeProductStableJson,
   encodeReceiptCanonicalJson,
   encodeThrowingCanonicalJson,
-} from '../../../src/modules/canonical-json.js';
+} from '../../../src/modules/canonical-json/index.js';
 import { stableJson as conflictJson } from '../../../src/infrastructure/sync/sync-conflict-json.js';
 
 const nested = {

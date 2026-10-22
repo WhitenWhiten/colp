@@ -18,4 +18,4 @@
 export {
   encodeProductStableJson as stableJson,
   type ProductStableJsonUndefinedPolicy as StableJsonUndefinedPolicy,
-} from '../../modules/canonical-json.js';
+} from '../../modules/canonical-json/index.js';

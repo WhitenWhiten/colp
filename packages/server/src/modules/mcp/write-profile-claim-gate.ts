@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { encodeLiteralUndefinedCanonicalJson } from '../canonical-json.js';
+import { encodeLiteralUndefinedCanonicalJson } from '../canonical-json/index.js';
 import {
   assertProfileClaims,
   createDeploymentConformancePlan,
