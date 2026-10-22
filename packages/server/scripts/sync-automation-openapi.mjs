@@ -5,6 +5,7 @@ const design = parse(await readFile(new URL('../../docs/automation/design/api/au
 const ids = new Set(JSON.parse(await readFile(new URL('openapi/automation-operations.json', root), 'utf8')));
 const adjustments = JSON.parse(await readFile(new URL('../../docs/automation/contract-adjustments.json', root), 'utf8'));
 for (const [name, patch] of Object.entries(adjustments)) {
+  if (patch.schema) { design.components.schemas[name] = JSON.parse(JSON.stringify(patch.schema).replaceAll('#/$defs/', '#/components/schemas/')); continue; }
   design.components.schemas[name].required = [...design.components.schemas[name].required.filter((key) => !patch.removeRequired.includes(key)), ...(patch.addRequired ?? [])];
   Object.assign(design.components.schemas[name].properties, JSON.parse(JSON.stringify(patch.addProperties ?? {}).replaceAll('#/$defs/', '#/components/schemas/')));
 }
@@ -31,6 +32,17 @@ for (const [path, item] of Object.entries(design.paths)) {
     paths[path][method].description += ' Backend surface; runtime availability is reported by capabilities. Historical preview has no fallback.';
   }
 }
+// Additive AW-16 bookmark history filter, with cursor binding to the exact filter.
+const setupOperation = structuredClone(paths['/api/v1/me/automations/connection-profiles'].post);
+setupOperation.operationId = 'prepareAutomationAgent';
+setupOperation.summary = 'Prepare an agent and a draft rule atomically';
+setupOperation.description = 'Owner-authorized setup creates or reuses a target, binds executors and folders, and saves a rule with approval-required execution. It never enables the rule or starts an agent. Pairing codes are returned once; replay returns a null code.';
+setupOperation.parameters = setupOperation.parameters.filter(parameter => !parameter.$ref?.endsWith('/IfMatch'));
+delete setupOperation.responses['201'].headers.ETag;
+setupOperation.requestBody.content['application/json'].schema = { $ref: '#/components/schemas/AgentSetupInput' };
+setupOperation.responses['201'].content['application/json'].schema = { $ref: '#/components/schemas/AgentSetupResult' };
+paths['/api/v1/me/automations/agent-setup'] = { post: setupOperation };
+
 // Additive AW-16 bookmark history filter, with cursor binding to the exact filter.
 if (paths['/api/v1/me/automations/runs']) {
   for (const name of ['collectionId', 'nodeId']) paths['/api/v1/me/automations/runs'].get.parameters.push({

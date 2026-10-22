@@ -12,7 +12,7 @@ const CLIENTS: ReadonlyArray<{ id: ConnectClient; label: string }> = [
   { id: 'key', label: 'API key' },
 ]
 
-const WORKER_CLIENT = { id: 'worker' as const, label: 'Automation worker' }
+const WORKER_CLIENT = { id: 'worker' as const, label: 'Developer setup' }
 
 /** The reference polling worker (docs/automation/agents.md), pointed at this server. */
 function workerCommand(origin: string): string {

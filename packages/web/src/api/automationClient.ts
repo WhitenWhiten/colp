@@ -4,6 +4,8 @@ import { ProductApiError } from './errors'
 import { parseProductError } from './product-error'
 import { getCsrfToken } from './sessionStore'
 import type {
+  AutomationAgentSetupInput,
+  AutomationAgentSetupResult,
   AutomationBindingSet,
   AutomationBindingSetInput,
   AutomationCapabilities,
@@ -59,6 +61,8 @@ export type RunQuery = {
 }
 
 export interface AutomationApi {
+  prepareAgent(input: AutomationAgentSetupInput): Promise<AutomationAgentSetupResult>
+  getTarget(id: string, signal?: AbortSignal): Promise<AutomationTarget>
   getCapabilities(signal?: AbortSignal): Promise<AutomationCapabilities>
   getPause(signal?: AbortSignal): Promise<AutomationPauseState>
   setPause(paused: boolean, revision: string): Promise<AutomationPauseState>
@@ -186,6 +190,7 @@ const JOB: ResponseShape = { id: 'string', revision: 'string', runId: 'string', 
 
 /** Check the fields required to identify and use each write result before releasing its retry key. */
 function writeResponseShape(method: string, path: string): ResponseShape | null {
+  if (/\/agent-setup$/u.test(path)) return { rule: 'object', binding: 'object', target: 'object' }
   if (method === 'DELETE' && /\/binding-sets\/[^/]+$/u.test(path)) return null
   if (/\/rules\/preview$/u.test(path)) return { previewId: 'string', sideEffects: 'boolean', decisions: 'array', diagnostics: 'array', plannedRunCount: 'number', remainderCount: 'number' }
   if (/\/run-once\/preview$/u.test(path)) return { id: 'string', previewDigest: 'string', canStart: 'boolean', sample: 'array', expiresAt: 'string' }
@@ -218,6 +223,12 @@ function validateWriteResponse(method: string, path: string, value: unknown): vo
     if (kind === 'array' ? !Array.isArray(field) : kind === 'object' ? !field || typeof field !== 'object' || Array.isArray(field) : typeof field !== kind) {
       throw badResponse(`The Automation response is missing a valid ${key}.`)
     }
+  }
+  if (/\/agent-setup$/u.test(path)) {
+    validateWriteResponse('POST', `${BASE}/rules`, record.rule)
+    validateWriteResponse('POST', `${BASE}/binding-sets`, record.binding)
+    validateWriteResponse('POST', `${BASE}/targets`, record.target)
+    if (record.pairing !== null) validateWriteResponse('POST', `${BASE}/targets/setup/pairings`, record.pairing)
   }
   if (/\/targets\/[^/]+\/pairings$/u.test(path) && record.code !== null && typeof record.code !== 'string') {
     throw badResponse('The pairing response is missing a valid code.')
@@ -409,6 +420,8 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       intent: `decide:${input.decision}`,
     }),
     exportAutomations: async (signal) => read(`${BASE}/export`, signal),
+    prepareAgent: async (input) => write('POST', `${BASE}/agent-setup`, { body: input, intent: 'prepare-agent' }),
+    getTarget: async (id, signal) => read(`${BASE}/targets/${opaqueId(id, 'worker')}`, signal),
     listConnectionProfiles: async (cursor, signal) => page<AutomationConnectionProfile>(
       await read(`${BASE}/connection-profiles${query({ cursor })}`, signal),
       'connection',

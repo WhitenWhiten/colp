@@ -5133,6 +5133,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/automations/agent-setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prepare an agent and a draft rule atomically
+         * @description Owner-authorized setup creates or reuses a target, binds executors and folders, and saves a rule with approval-required execution. It never enables the rule or starts an agent. Pairing codes are returned once; replay returns a null code.
+         */
+        post: operations["prepareAutomationAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/automations/jobs/{jobId}/retry": {
         parameters: {
             query?: never;
@@ -6179,6 +6199,10 @@ export interface components {
             moveFolderedBookmarks: boolean;
             /** @enum {string} */
             tasks: "none" | "all";
+            /** @description Optionally select exactly this bookmark within the authorized folder selection. */
+            nodeId?: components["schemas"]["AutomationOpaqueId"];
+            /** @description Run agent tasks without changing bookmark placement. Requires tasks=all. */
+            tasksOnly?: boolean;
         };
         /** @description Start exactly the unexpired persisted preview snapshot, bound to owner, rule, bindings, policy, member IDs/revisions and options. Request command ID supplies idempotency. Changed inputs require a fresh preview, never silent re-query. */
         AutomationRunOnceStartInput: {
@@ -6205,6 +6229,26 @@ export interface components {
             pairingId: string;
             code: string;
         };
+        AutomationAgentSetupResult: {
+            rule: components["schemas"]["AutomationRule"];
+            binding: components["schemas"]["AutomationBindingSet"];
+            target: components["schemas"]["AutomationTarget"];
+            pairing: components["schemas"]["AutomationPairingGrant"] | null;
+        };
+        AutomationAgentSetupInput: {
+            definition: components["schemas"]["AutomationRuleDefinition"];
+            bindings: components["schemas"]["AutomationBindingSetInput"];
+            agent?: {
+                name: string;
+                /** @description OAuth client identity: an opaque registration ID or an HTTPS CIMD metadata URL, without userinfo or a fragment. Preserve the exact authenticated identity. */
+                clientId: string;
+            };
+            targetId?: components["schemas"]["AutomationOpaqueId"];
+            /** @enum {string} */
+            wakeMode?: "events" | "poll";
+            ruleId?: components["schemas"]["AutomationOpaqueId"];
+            ruleRevision?: components["schemas"]["AutomationRevision"];
+        } & (unknown | unknown);
         ClassificationProfileId: string;
         CreateClassificationProviderProfileRequest: {
             /** @enum {string} */
@@ -26295,6 +26339,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutomationTarget"];
+                };
+            };
+            400: components["responses"]["Automation400"];
+            401: components["responses"]["Automation401"];
+            403: components["responses"]["Automation403"];
+            404: components["responses"]["Automation404"];
+            409: components["responses"]["Automation409"];
+            412: components["responses"]["Automation412"];
+            413: components["responses"]["Automation413"];
+            422: components["responses"]["Automation422"];
+            428: components["responses"]["Automation428"];
+            429: components["responses"]["Automation429"];
+            500: components["responses"]["Automation500"];
+            503: components["responses"]["Automation503"];
+        };
+    };
+    prepareAutomationAgent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable command identity. Scope: authenticated principal + operation + addressed resource. Same identity/different canonical body returns 409. */
+                "Known-Command-Id": components["parameters"]["AutomationCommandId"];
+                /** @description Verified host CSRF header (evidence R23): the server reads `x-csrf-token` together with the Origin allowlist on cookie-authenticated writes. Re-checked at AW-01. Never introduce a second CSRF scheme. */
+                "X-CSRF-Token": components["parameters"]["AutomationCsrf"];
+                /** @description Validate against existing host trusted-origin policy for cookie-authenticated mutations. */
+                Origin: components["parameters"]["AutomationOrigin"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationAgentSetupInput"];
+            };
+        };
+        responses: {
+            /** @description Successful response; inspect the returned state, not merely the HTTP status. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationAgentSetupResult"];
                 };
             };
             400: components["responses"]["Automation400"];

@@ -36,6 +36,24 @@ export type PreviewInput = {
   ruleId?: string;
 };
 export type TaskOutput = PlacementOutput | TagsOutput | TextOutput | MetadataOutput;
+export type AgentSetupInput = {
+  definition: RuleDefinition;
+  bindings: BindingSetInput;
+  agent?: {
+    name: string;
+    /**
+     * OAuth client identity: an opaque registration ID or an HTTPS CIMD metadata URL, without userinfo or a fragment. Preserve the exact authenticated identity.
+     */
+    clientId: string;
+  };
+  targetId?: OpaqueId;
+  wakeMode?: "events" | "poll";
+  ruleId?: OpaqueId;
+  ruleRevision?: Revision;
+} & AgentSetupInput1;
+export type AgentSetupInput1 = {
+  [k: string]: unknown;
+};
 
 export interface AutomationContracts {
   OpaqueId: OpaqueId;
@@ -160,6 +178,8 @@ export interface AutomationContracts {
   PortableRouteSpec: PortableRouteSpec;
   PortableRuleDefinition: PortableRuleDefinition;
   RuleUsageView: RuleUsageView1;
+  AgentSetupInput: AgentSetupInput;
+  AgentSetupResult: AgentSetupResult;
 }
 export interface FolderRef {
   serverUuid: string;
@@ -1491,6 +1511,14 @@ export interface RunOnceInput {
    */
   moveFolderedBookmarks: boolean;
   tasks: "none" | "all";
+  /**
+   * Optionally select exactly this bookmark within the authorized folder selection.
+   */
+  nodeId?: string;
+  /**
+   * Run agent tasks without changing bookmark placement. Requires tasks=all.
+   */
+  tasksOnly?: boolean;
 }
 export interface RunOnceSampleItem {
   nodeId: OpaqueId;
@@ -1560,4 +1588,10 @@ export interface RunOutputPage {
  */
 export interface MarkRunReadInput {
   throughOutputId: OpaqueId;
+}
+export interface AgentSetupResult {
+  rule: Rule;
+  binding: BindingSet;
+  target: Target;
+  pairing: PairingGrant | null;
 }

@@ -10,8 +10,8 @@ import type {
 } from '../../api/automationTypes'
 
 /* The form the editor shows, and its exact translation to and from the
-   reviewed rule contract (m1-rule-create.json). The form covers the M1
-   placement rule: finite conditions, one destination folder, no agent tasks.
+   reviewed rule contract (m1-rule-create.json). The form covers finite
+   conditions, one destination folder, and optional summary/tag tasks.
    A definition the form cannot show round-trips through Advanced (JSON)
    untouched; nothing here guesses at a rule's meaning. */
 
@@ -197,8 +197,9 @@ export function draftFromDefinition(
   definition: AutomationRuleDefinition,
   folder: Pick<AutomationFolderRef, 'collectionId' | 'nodeId'> | null,
 ): RuleDraft | null {
-  if (definition.tasks.length > 0 || definition.trigger.mode !== 'each' || definition.on !== 'bookmark.intake') return null
-  if (!definition.intake || definition.roles.length !== 1 || definition.scope.folderRole || definition.scope.includeDescendants !== undefined) return null
+  if (definition.tasks.some(task => !['summary.generate', 'tags.generate'].includes(task.type)) || definition.trigger.mode !== 'each' || definition.on !== 'bookmark.intake') return null
+  if (!definition.intake || definition.roles.filter(role => role.kind === 'folder').length !== 1
+    || definition.roles.some(role => !['folder', 'executor'].includes(role.kind)) || definition.scope.folderRole || definition.scope.includeDescendants !== undefined) return null
   const collectionId = definition.scope.collectionId
   if (!folder || !collectionId || folder.collectionId !== collectionId) return null
   const match = definition.match

@@ -153,3 +153,8 @@ Existing opaque IDs remain valid; credentials and resource IDs keep their origin
 constraints. The conservative breaking checker treats the expanded string union as
 a shape change. See ../../../docs/automation/ADR-BE1.md. The accepted snapshot is
 baselines/product-v1.1.100.0.yaml; 1.99.0 remains immutable.
+
+Product 1.101.0 adds the atomic Owner agent-setup command and optional single-bookmark,
+task-only run-once selection. Setup saves a draft/paused rule and requires approval
+for agent changes; it does not start a model or enable a rule. The accepted snapshot
+is baselines/product-v1.1.101.0.yaml; 1.100.0 remains immutable.

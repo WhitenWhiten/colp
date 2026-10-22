@@ -44,9 +44,12 @@ function record(request: Request, path: string): Write {
   }
 }
 
-async function mockOwnerWithAutomations(page: Page) {
+async function mockOwnerWithAutomations(page: Page, withAgent = false) {
   const writes: Write[] = []
   const state = { paused: false, pauseRevision: 1, rule: null as Record<string, unknown> | null, binding: null as Record<string, unknown> | null }
+  let paired = false, testCompleted = false, agentTarget: Record<string, unknown> | null = null
+  const currentTarget = () => agentTarget ? { ...agentTarget, status: paired ? 'active' : 'unpaired',
+    wakeReadiness: paired ? 'active' : 'waitingForPairing' } : null
   const pause = () => ({ paused: state.paused, pausedAt: state.paused ? T : null, pausedBy: state.paused ? 'owner' : null, revision: String(state.pauseRevision), heldJobs: 0 })
 
   await installPassiveFeatureMocks(page)
@@ -58,6 +61,8 @@ async function mockOwnerWithAutomations(page: Page) {
     account: { id: 'acc-automations', email: 'owner@colp.test' },
     profile: { id: 'prof-1', handle: 'owner', displayName: 'Owner', avatarUrl: null },
   }))
+  if (withAgent) await page.route('**/api/v1/me/agents', route => json(route, { agents: [{ id: 'https://chatgpt.com/oauth/client.json', name: 'ChatGPT', kind: 'oauth_client',
+    scopes: ['automation:work'], createdAt: T, lastSeenAt: T, policy: 'manual' }] }))
   await page.route((url) => url.pathname === '/api/v1/me/library', (route) => json(route, { ...collection, library: true }))
   await page.route((url) => url.pathname === '/api/v1/collections', (route) => json(route, {
     items: [{ collection, capabilities, bookmarkCount: 1 }],
@@ -76,6 +81,33 @@ async function mockOwnerWithAutomations(page: Page) {
     const sub = path.slice(A.length)
     const method = request.method()
     if (method !== 'GET') writes.push(record(request, path))
+    if (withAgent) {
+      if (sub === '/connection-profiles') return json(route, { items: agentTarget ? [{ id: 'profile-e2e', revision: '1', configuration: {
+        name: 'ChatGPT', authorizedClientId: 'https://chatgpt.com/oauth/client.json', credentialBindingId: 'pending-e2e', automationEnabled: true, catalogs: ['standard', 'automationWorker'],
+      }, eventsSupport: 'unknown' }] : [], nextCursor: null })
+      if (sub === '/targets') return json(route, { items: agentTarget ? [currentTarget()] : [], nextCursor: null })
+      if (sub === '/targets/target-e2e') return json(route, currentTarget())
+      if (sub === '/agent-setup') {
+        const input = writes.at(-1)!.body
+        agentTarget = { id: 'target-e2e', revision: '2', configuration: { name: 'ChatGPT', providerLabel: '', connectionProfileId: 'profile-e2e',
+          privacy: 'standard', broadcastOptIn: false, wakeMode: 'poll', pollIntervalMinutes: 1 }, wakeMode: 'poll', wakeReason: 'Pair this AI.', isolation: 'sharedCredential', subscriptionCount: 0 }
+        state.binding = { ...input.bindings as object, id: 'bind-ai', revision: '1', updatedAt: T }
+        state.rule = { id: 'rule-ai', revision: '1', desiredState: 'draft', effectiveState: 'draft', definition: { ...input.definition as object,
+          route: { mode: 'targets', execution: 'single', targetIds: ['target-e2e'] } }, bindingSetId: 'bind-ai', executionPolicyId: 'policy-ai', createdAt: T, updatedAt: T }
+        return json(route, { rule: state.rule, binding: state.binding, target: currentTarget(), pairing: { pairingId: 'pair-e2e', targetId: 'target-e2e', code: 'once-fixture-code', expiresAt: new Date(Date.now() + 300_000).toISOString() } }, 201)
+      }
+      if (sub === '/rules/rule-ai') return json(route, state.rule)
+      if (sub === '/binding-sets/bind-ai') return json(route, state.binding)
+      if (sub === '/rules/rule-ai/run-once/preview') return json(route, { id: 'preview-test', matchedCount: 1, blockedCount: 0, explicitChoiceCount: 1, maxMembers: 1000,
+        sample: [{ nodeId: 'b-1', title: 'Grid layout notes', decision: 'explicitChoice' }], expiresAt: new Date(Date.now() + 300_000).toISOString(), sideEffects: false, previewDigest: 'a'.repeat(64), canStart: paired })
+      if (sub === '/rules/rule-ai/run-once' || sub === '/runs/test-ai' || sub === '/runs/test-ai-child') return json(route, {
+        id: sub.endsWith('child') ? 'test-ai-child' : 'test-ai', revision: '1', ruleId: 'rule-ai', ruleRevision: '1', bindingRevision: '1',
+        kind: 'manual', status: testCompleted ? 'completed' : 'running', jobIds: sub.endsWith('child') ? ['job-ai'] : [],
+        childRunIds: sub.endsWith('child') ? [] : ['test-ai-child'], recipientTargetIds: ['target-e2e'], memberEventIds: ['event-test'], createdAt: T, updatedAt: T, causationRoot: 'test-ai', effects: [], unread: false, outputCount: 0,
+      }, sub.endsWith('/run-once') ? 201 : 200)
+      if (sub === '/jobs/job-ai') return json(route, { id: 'job-ai', revision: '1', runId: 'test-ai-child', task: (state.rule?.definition as { tasks: unknown[] }).tasks[0],
+        status: testCompleted ? 'succeeded' : 'ready', inputDigest: 'a'.repeat(64), allowedFolders: [], inputsPaged: false, attemptGeneration: 1, createdAt: T })
+    }
     if (sub === '/pause') {
       if (method === 'POST') {
         state.paused = Boolean(writes.at(-1)?.body.paused)
@@ -84,7 +116,7 @@ async function mockOwnerWithAutomations(page: Page) {
       return json(route, pause())
     }
     if (sub === '/capabilities') {
-      return json(route, { contractVersion: '0.2.1-design', ruleApiVersions: ['colp.automation/v1'], runtimeProfiles: [], triggerModes: ['each'], taskTypes: [], eventsEnabled: false, limits: { maxRules: 100, maxExpressionBytes: 4096, maxTasksPerRule: 8 } })
+      return json(route, { contractVersion: '0.2.1-design', ruleApiVersions: ['colp.automation/v1'], runtimeProfiles: [], triggerModes: ['each'], taskTypes: withAgent ? ['summary.generate', 'tags.generate'] : [], eventsEnabled: false, limits: { maxRules: 100, maxExpressionBytes: 4096, maxTasksPerRule: 8 } })
     }
     if (sub === '/rules' && method === 'GET') return json(route, { items: state.rule ? [state.rule] : [], nextCursor: null })
     if (sub === '/binding-sets' && method === 'GET') return json(route, { items: state.binding ? [state.binding] : [], nextCursor: null })
@@ -113,10 +145,53 @@ async function mockOwnerWithAutomations(page: Page) {
     if (sub === '/incidents' || sub === '/runs') return json(route, { items: [], nextCursor: null })
     return json(route, { error: { code: 'resource_not_found', message: 'Not found', recovery: 'user_action' } }, 404)
   })
-  return { writes }
+  return { writes, connectAgent: () => { paired = true }, completeTest: () => { testCompleted = true } }
 }
 
 test.describe('automations with mocked Product API', () => {
+  test('connects an AI in the rule editor, resumes its saved draft and waits for task success', async ({ page }, testInfo) => {
+    const setup = await mockOwnerWithAutomations(page, true)
+    await page.goto('/automations/new?collectionId=col-personal&folderId=f-academic&condition=siteIs:css.example')
+    await page.getByLabel('Generate a summary').check()
+    await expect(page.getByLabel('AI to use')).toHaveValue('agent:https://chatgpt.com/oauth/client.json')
+    await expect(page.getByLabel('Prepared binding set ID')).toBeHidden()
+    await page.getByRole('button', { name: 'Connect and test', exact: true }).click()
+    await expect(page).toHaveURL(/\/automations\/rules\/rule-ai\/edit$/u)
+    await expect(page.getByRole('button', { name: 'Copy connection request', exact: true })).toBeVisible()
+    await expect(page.getByLabel('AI to use')).toHaveValue('target:target-e2e')
+    await expect(page.getByRole('button', { name: 'Folder Academic' })).toHaveAttribute('value', 'f-academic')
+    await expect(page.getByRole('button', { name: 'Copy connection request', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Test on this bookmark' })).toBeHidden()
+    await expect(page.getByLabel('Rule definition JSON')).toBeHidden()
+    await page.screenshot({ path: testInfo.outputPath('agent-connection.png'), fullPage: true })
+    // A reload restores the saved draft and target, never the one-use code.
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Make a new connection request' })).toBeVisible()
+    expect(await page.locator('body').innerText()).not.toContain('once-fixture-code')
+    setup.connectAgent()
+    await expect(page.getByRole('button', { name: 'Test on this bookmark' })).toBeEnabled()
+    await page.getByRole('button', { name: 'Preview', exact: true }).click()
+    await expect(page.getByTestId('automation-turn-on')).toBeDisabled()
+    await page.getByRole('button', { name: 'Test on this bookmark' }).click()
+    await expect(page).toHaveURL(/agentTest=test-ai/u)
+    await expect(page.getByText('Ready', { exact: true })).toBeVisible()
+    await expect(page.getByTestId('automation-turn-on')).toBeDisabled()
+    // In-flight test identity survives a reload without creating another model job.
+    await page.reload()
+    await expect(page.getByText('Ready', { exact: true })).toBeVisible()
+    setup.completeTest()
+    await expect(page.getByText('Test completed. Review the result before turning on this rule.')).toBeVisible()
+    await page.getByRole('button', { name: 'Preview', exact: true }).click()
+    await expect(page.getByTestId('automation-turn-on')).toBeEnabled()
+    await page.setViewportSize({ width: 390, height: 844 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath('agent-test-mobile.png'), fullPage: true })
+    const starts = setup.writes.filter(write => write.path.endsWith('/run-once'))
+    expect(starts).toHaveLength(1)
+    expect(setup.writes.find(write => write.path.endsWith('/run-once/preview'))?.body).toMatchObject({ nodeId: 'b-1', tasksOnly: true, tasks: 'all', moveFolderedBookmarks: false })
+    expect(setup.writes.find(write => write.path.endsWith('/agent-setup'))?.body).toMatchObject({ agent: { name: 'ChatGPT', clientId: 'https://chatgpt.com/oauth/client.json' } })
+  })
+
   test('AC-41: Automate… on a folder to an enabled rule, without JSON, previewed first', async ({ page }) => {
     const { writes } = await mockOwnerWithAutomations(page)
     await page.goto('/library', { waitUntil: 'domcontentloaded' })

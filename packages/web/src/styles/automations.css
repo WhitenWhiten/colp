@@ -8,6 +8,25 @@
    never in a filled band. */
 
 @layer pages {
+.automation-form-fields {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.automation-agent-connection,
+.automation-agent-test,
+.automation-task-choices {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.automation-agent-test {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
 .automations-layout {
   display: grid;
   gap: var(--space-8);

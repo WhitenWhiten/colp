@@ -1,4 +1,4 @@
-import { AutomationError,parseContract,requireEtag,saveConnectionProfile,saveTarget,saveExecutor } from '../../modules/automation/index.js';
+import { AutomationError,parseContract,requireEtag,saveConnectionProfile,saveTarget,saveExecutor,prepareAutomationAgent } from '../../modules/automation/index.js';
 import { automationPathId,automationView,type AutomationRoute } from './automation-rule-routes.js';
 import { createAutomationPagination } from './automation-pagination.js';
 
@@ -24,6 +24,10 @@ export function automationTargetRoutes(cursorKey: string): AutomationRoute[] {
     );
   }
   routes.push(
+    { method: 'POST',path: '/agent-setup',action: async ({ ports,actor,request }) => {
+      const result = await prepareAutomationAgent(ports,actor,request.body);
+      return { body: result,status: 201,receiptBody: { ...result,pairing: result.pairing ? { ...result.pairing,code: null } : null } };
+    } },
     { method: 'POST',path: '/targets/:targetId/pairings',ifMatch: true,action: async ({ ports,request,ifMatch }) => {
       parseContract('CommandReason',request.body); const id = automationPathId(request.params,'targetId');
       const target = await ports.targets.targets.load(id); if (!target) throw new AutomationError('resource_not_found','Target is unavailable.'); requireEtag(target.revision,ifMatch);

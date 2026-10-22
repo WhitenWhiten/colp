@@ -37,6 +37,19 @@ describe('automation client', () => {
     expect(headers.get('Known-Command-Id')).toBeNull()
   })
 
+  it('keeps the setup command after a malformed nested response and accepts a secret-free replay', async () => {
+    const result = { rule: ruleResult, binding: { id: 'binding-1', revision: '1', name: 'Bindings', values: {}, updatedAt: '2026-10-21T00:00:00Z' },
+      target: { id: 'target-1', revision: '2', configuration: {}, status: 'unpaired' }, pairing: { pairingId: 'pair-1', targetId: 'target-1', code: null, expiresAt: '2099-01-01T00:00:00Z' } }
+    const responses = [json(201, { ...result, rule: {} }), json(201, result)]
+    const fetchImpl = vi.fn(async () => responses.shift()!)
+    const api = createAutomationApi(fetchImpl)
+    const input = { definition: {} as never, bindings: { name: 'Test', values: {} }, agent: { name: 'ChatGPT', clientId: 'https://chatgpt.com/oauth/client.json' } }
+    await expect(api.prepareAgent(input)).rejects.toMatchObject({ code: 'invalid_document' })
+    expect(await api.prepareAgent(input)).toEqual(result)
+    expect(headersOf(fetchImpl.mock.calls[0]).get('Known-Command-Id')).toBe(headersOf(fetchImpl.mock.calls[1]).get('Known-Command-Id'))
+    expect(headersOf(fetchImpl.mock.calls[1]).get('X-CSRF-Token')).toBe('csrf-auto')
+  })
+
   it('turns a rule on with CSRF, a command id, the revision as If-Match and the exact preview id', async () => {
     const fetchImpl = vi.fn(async () => json(200, ruleResult))
     await createAutomationApi(fetchImpl).setRuleLifecycle('rule-1', {

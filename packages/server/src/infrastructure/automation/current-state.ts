@@ -12,7 +12,7 @@ import type { CurrentSample } from '../../modules/automation/index.js';
 
 /** Bounded selection, then the existing canonical node reader. This is never event-time history. */
 export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: BindingReadPort, serverUuid: string,
-  actor: AutomationActor, definition: RuleDefinition, values: RoleBindings, selection?: { folderId: string; includeDescendants: boolean; limit: number }): Promise<CurrentSample> {
+  actor: AutomationActor, definition: RuleDefinition, values: RoleBindings, selection?: { folderId: string; includeDescendants: boolean; limit: number; nodeId?: string }): Promise<CurrentSample> {
   const collectionId = scopeCollectionId(definition, values);
   const collection = collectionId ? await reads.readCollection(actor, collectionId) : null;
   if (!collection || !collectionId) throw new AutomationError('resource_not_found', 'Authorized rule scope is unavailable.');
@@ -29,6 +29,7 @@ export async function readCurrentSample(db: Kysely<DatabaseSchema>, reads: Bindi
     )
     SELECT id,resource_revision,tags FROM nodes WHERE collection_id=${collectionId} AND kind='bookmark' AND deleted_at IS NULL
       AND (${folderId}::text IS NULL OR parent_id IN (SELECT id FROM subtree))
+      AND (${selection?.nodeId ?? null}::text IS NULL OR id=${selection?.nodeId ?? null})
     ORDER BY created_at DESC,id DESC LIMIT ${limit+1}
   `.execute(db);
   const canonical = createPostgresMcpOwnedCollectionReadPort({ db, accessPolicy: createPostgresAccessPolicyFactsPort(db) });

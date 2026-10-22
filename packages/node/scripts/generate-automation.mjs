@@ -4,6 +4,7 @@ const root = new URL('../', import.meta.url);
 const schema = JSON.parse(await readFile(new URL('../../docs/automation/design/schemas/rule-input.schema.json', root), 'utf8'));
 const adjustments = JSON.parse(await readFile(new URL('../../docs/automation/contract-adjustments.json', root), 'utf8'));
 for (const [name, patch] of Object.entries(adjustments)) {
+  if (patch.schema) { schema.$defs[name] = patch.schema; continue; }
   schema.$defs[name].required = [...schema.$defs[name].required.filter((key) => !patch.removeRequired.includes(key)), ...(patch.addRequired ?? [])];
   Object.assign(schema.$defs[name].properties, patch.addProperties ?? {});
 }

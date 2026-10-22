@@ -5,6 +5,7 @@ const patches = JSON.parse(await readFile(new URL('../../docs/automation/contrac
 const canonical = JSON.parse(await readFile(new URL('../../docs/automation/design/schemas/rule-input.schema.json',root),'utf8'));
 for (const [name,patch] of Object.entries(patches)) {
   for (const defs of [catalog.$defs,canonical.$defs]) {
+    if (patch.schema) { defs[name] = patch.schema; continue; }
     const schema = defs[name];
     if (!schema) throw new Error(`Missing catalog definition ${name}`);
     schema.required = [...schema.required.filter(key => !patch.removeRequired.includes(key)),...(patch.addRequired ?? [])];

@@ -1,6 +1,6 @@
 {
   "name": "@know-n/colp",
-  "version": "0.2.2-automation-client-id.0",
+  "version": "0.2.2-automation-client-id.1",
   "license": "Apache-2.0",
   "description": "Node.js implementation of The Collection Protocol (COLP)",
   "keywords": [

@@ -118,7 +118,7 @@ describe('rule draft', () => {
       id: 'summary', type: 'summary.generate' as const, after: [], executorRole: 'agent', required: true,
       outputContract: 'summary.sourced.v1', inputFields: ['url' as const], instruction: 'Summarize.',
     }] } }
-    expect(draftFromRule(withTask, binding)).toBeNull()
+    expect(draftFromRule(withTask, binding)).toMatchObject({ name: rule.definition.name })
     const negated = { ...rule, definition: { ...rule.definition, match: { kind: 'not' as const, item: rule.definition.match } } }
     expect(draftFromRule(negated, binding)).toBeNull()
   })

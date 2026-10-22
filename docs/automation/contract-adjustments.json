@@ -252,5 +252,147 @@
         "description": "Existing owned rule being edited; excluded by identity from competition and bound to activation."
       }
     }
+  },
+  "AgentSetupInput": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/RuleDefinition"
+        },
+        "bindings": {
+          "$ref": "#/$defs/BindingSetInput"
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "clientId": {
+              "description": "OAuth client identity: an opaque registration ID or an HTTPS CIMD metadata URL, without userinfo or a fragment. Preserve the exact authenticated identity.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9._~-]+$"
+                },
+                {
+                  "type": "string",
+                  "maxLength": 2048,
+                  "format": "uri",
+                  "pattern": "^[Hh][Tt][Tt][Pp][Ss]://[^\\s\\u0000-\\u001f\\u007f/@?#]+(?:[/?][^\\s\\u0000-\\u001f\\u007f#]*)?$"
+                }
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "clientId"
+          ],
+          "additionalProperties": false
+        },
+        "targetId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "wakeMode": {
+          "type": "string",
+          "enum": [
+            "events",
+            "poll"
+          ]
+        },
+        "ruleId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "ruleRevision": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": [
+        "definition",
+        "bindings"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "agent"
+          ],
+          "not": {
+            "required": [
+              "targetId"
+            ]
+          }
+        },
+        {
+          "required": [
+            "targetId"
+          ],
+          "not": {
+            "required": [
+              "agent"
+            ]
+          }
+        }
+      ],
+      "dependentRequired": {
+        "ruleId": [
+          "ruleRevision"
+        ],
+        "ruleRevision": [
+          "ruleId"
+        ]
+      }
+    }
+  },
+  "AgentSetupResult": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "rule": {
+          "$ref": "#/$defs/Rule"
+        },
+        "binding": {
+          "$ref": "#/$defs/BindingSet"
+        },
+        "target": {
+          "$ref": "#/$defs/Target"
+        },
+        "pairing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PairingGrant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "rule",
+        "binding",
+        "target",
+        "pairing"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "RunOnceInput": {
+    "removeRequired": [],
+    "addProperties": {
+      "nodeId": {
+        "$ref": "#/$defs/OpaqueId",
+        "description": "Optionally select exactly this bookmark within the authorized folder selection."
+      },
+      "tasksOnly": {
+        "type": "boolean",
+        "description": "Run agent tasks without changing bookmark placement. Requires tasks=all."
+      }
+    }
   }
 }

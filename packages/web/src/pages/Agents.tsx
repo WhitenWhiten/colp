@@ -78,7 +78,7 @@ export function Agents({
   const [keyError, setKeyError] = useState<string | null>(null)
   const [issuing, setIssuing] = useState(false)
   const [issued, setIssued] = useState<IssuedAgentKey | null>(null)
-  const [guideClient, setGuideClient] = useState<ConnectClient>('claude')
+  const [guideClient, setGuideClient] = useState<ConnectClient>(() => new URLSearchParams(window.location.search).get('connect') === 'worker' ? 'worker' : 'claude')
   /* Counts presses of "Show the worker steps", so a second press scrolls back
      to the guide even when its worker tab is already open. */
   const [workerStepsShown, setWorkerStepsShown] = useState(0)
@@ -407,7 +407,10 @@ export function Agents({
           )}
 
           {isLoggedIn && automationsOn && (
-            <AutomationWorkersSection
+            <details className="agents-section agents-example">
+              <summary>Developer automation connections</summary>
+              <p className="agents-note">For summaries and tags, <Link to="/automations/new">connect an AI while creating a rule</Link>.</p>
+              <AutomationWorkersSection
               workers={workers}
               agents={agents}
               origin={pageOrigin}
@@ -415,7 +418,8 @@ export function Agents({
                 setGuideClient('worker')
                 setWorkerStepsShown((count) => count + 1)
               }}
-            />
+              />
+            </details>
           )}
 
           <section className="agents-section" aria-labelledby="agents-connect">

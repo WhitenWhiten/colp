@@ -80,6 +80,25 @@ requests and returned configurations, so `product-v1.1.100.0.yaml` records the
 accepted correction; `product-v1.1.99.0.yaml` remains immutable. Schema boundary,
 installed-package and PostgreSQL pairing regressions cover the correction.
 
+## Guided agent setup and single-bookmark tests
+
+Product 1.101.0 adds the Owner `agent-setup` command. Its closed input chooses one
+existing target or connected client and supplies the rule definition and folder
+bindings. Inside the existing account-locked transaction it creates/reuses the
+connection and target, binds executors, creates an approval-required execution
+policy, and creates or replaces the draft/paused rule. Current Owner folder checks,
+optimistic rule revision fences and command replay remain authoritative. An error
+rolls back all setup resources; successful replay redacts the one-use pairing code.
+Existing paired credentials and their catalogs are not silently reauthorized.
+
+Run-once accepts optional `nodeId` and `tasksOnly`. Selection still intersects the
+authorized folder, pins current member revisions and uses the immutable preview
+start command. A task-only test requires exactly one bookmark and does not reparent
+it. Real accepted jobs, including any required Owner approval, establish test
+success. Pairing and wake readiness alone do not. Host scheduling remains external;
+no hosted availability or model-provider acceptance is inferred from local tests.
+The accepted snapshot is `product-v1.1.101.0.yaml`; 1.100.0 remains immutable.
+
 ## AW-55 waiting work and cost observations
 
 Rule GET/list and Run GET/list expose `usage`, through the additive

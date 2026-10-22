@@ -37,9 +37,12 @@ export async function manualConfiguration(ports: AutomationPorts, actor: Automat
 }
 export async function previewManualRun(tx: DatabaseTransaction, ports: AutomationPorts, actor: AutomationActor, serverUuid: string, ruleId: string, body: unknown): Promise<RunOncePreview> {
   const input = parseContract('RunOnceInput', body), { rule, inspected, digest, alternatives } = await manualConfiguration(ports, actor, ruleId, input);
+  if (input.tasksOnly && (input.tasks !== 'all' || !rule.view.definition.tasks.length || !input.nodeId))
+    throw new AutomationError('invalid_request', 'An agent test requires one bookmark and configured agent tasks.');
   if (!ports.runtimeEnabled)
     throw new AutomationError('automation_unsupported_capability', 'Execution runtime unavailable.');
-  const sample = await readCurrentSample(tx, ports.reads, serverUuid, actor, rule.view.definition, inspected.binding.values, { folderId: input.folder.nodeId, includeDescendants: input.includeDescendants, limit: 1000 });
+  const sample = await readCurrentSample(tx, ports.reads, serverUuid, actor, rule.view.definition, inspected.binding.values, { folderId: input.folder.nodeId, includeDescendants: input.includeDescendants, limit: 1000, nodeId: input.nodeId });
+  if (input.nodeId && !sample.events.length) throw new AutomationError('resource_not_found', 'The selected bookmark is unavailable in this folder.');
   const predicate = compilePredicate(rule.view.definition.match);
   if (!predicate.valid)
     throw new AutomationError('automation_invalid_graph', 'Predicate unavailable.');
@@ -47,7 +50,8 @@ export async function previewManualRun(tx: DatabaseTransaction, ports: Automatio
   const members = sample.events.map(event => {
     // Explicit one-time action reuses current-state predicates/scope, not event-trigger admission.
     const manual = { ...event, type: rule.view.definition.on, intakeDisposition: input.moveFolderedBookmarks || intakeRoots.has(event.bookmark.parent?.nodeId ?? '') ? 'userDefault' as const : 'userSelected' as const };
-    const plan = evaluateRuleEvent({ ruleId, definition: rule.view.definition, resolutions: inspected.resolutions, bindings: inspected.bindingAssessment, predicate }, alternatives, manual);
+    let plan = evaluateRuleEvent({ ruleId, definition: rule.view.definition, resolutions: inspected.resolutions, bindings: inspected.bindingAssessment, predicate }, alternatives, manual);
+    if (input.tasksOnly && ['placed', 'matched', 'preserved'].includes(plan.kind)) plan = { kind: 'preserved', reason: 'Agent test preserves bookmark placement.' };
     return { event: manual, revision: sample.revisions[event.nodeId]!, plan };
   });
   const snapshot: ManualSnapshot = { input, configurationDigest: digest, collectionId: inspected.collection.id, collectionRevision: inspected.collection.contentRevision,

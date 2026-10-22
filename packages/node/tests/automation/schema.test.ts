@@ -30,6 +30,17 @@ describe('reviewed closed Automation schema', () => {
     expect(validateAutomation('RuleDefinition', cycle).valid).toBe(false);
   });
 
+  test('guided setup has one agent destination and paired rule revision inputs', () => {
+    const input = { definition: rule, bindings: { name: 'Test', values: {} },
+      agent: { name: 'ChatGPT', clientId: 'https://chatgpt.com/oauth/client.json' } };
+    expect(validateAutomation('AgentSetupInput', input).valid).toBe(true);
+    expect(validateAutomation('AgentSetupInput', { ...input, targetId: 'target' }).valid).toBe(false);
+    expect(validateAutomation('AgentSetupInput', { ...input, ruleId: 'rule' }).valid).toBe(false);
+    expect(validateAutomation('AgentSetupInput', { ...input, ruleRevision: '1' }).valid).toBe(false);
+    expect(validateAutomation('AgentSetupInput', { ...input, ruleId: 'rule', ruleRevision: '1' }).valid).toBe(true);
+    expect(validateAutomation('AgentSetupInput', { ...input, allowAutomaticWrites: true }).valid).toBe(false);
+  });
+
   test('connection profiles accept opaque and HTTPS CIMD client identities without widening other IDs', () => {
     const profile = { name: 'ChatGPT', automationEnabled: true, catalogs: ['standard', 'automationWorker'],
       credentialBindingId: 'pending-owner-chose-agent' };

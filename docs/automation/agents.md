@@ -1,5 +1,9 @@
 # Local polling worker
 
+For ordinary summary and tag rules, connect an AI inside the rule editor. This
+guide is the developer path for a script you run yourself, under Agents →
+Developer automation connections → Developer setup.
+
 The reference adapter uses Node.js 22+ and the authenticated `/api/v1/automation-work`
 HTTP surface, which shares the application service and typed contracts with the MCP
 `automation.jobs.*` tools. Contract: `0.2.1-design`, execution rules in

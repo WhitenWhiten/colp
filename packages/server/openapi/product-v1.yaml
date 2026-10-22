@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Known Product API
-  version: 1.100.0
+  version: 1.101.0
   description: >-
     Version 1.70.0 intentionally removes browser credential management: parent
     keys are provisioned only through the database for official bots. Credential
@@ -16690,6 +16690,71 @@ paths:
       security:
         - DeviceBearer: []
       x-known-feature-gate: automation_runtime
+  /api/v1/me/automations/agent-setup:
+    post:
+      operationId: prepareAutomationAgent
+      tags:
+        - Automation
+      summary: Prepare an agent and a draft rule atomically
+      description: Owner-authorized setup creates or reuses a target, binds executors and folders, and saves a rule with
+        approval-required execution. It never enables the rule or starts an agent. Pairing codes are returned once; replay
+        returns a null code.
+      x-delivery-phase: M2
+      parameters:
+        - $ref: "#/components/parameters/AutomationCommandId"
+        - $ref: "#/components/parameters/AutomationCsrf"
+        - $ref: "#/components/parameters/AutomationOrigin"
+      responses:
+        "201":
+          description: Successful response; inspect the returned state, not merely the HTTP status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+                maxLength: 128
+                minLength: 1
+                pattern: ^[A-Za-z0-9._~-]+$
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationAgentSetupResult"
+        "400":
+          $ref: "#/components/responses/Automation400"
+        "401":
+          $ref: "#/components/responses/Automation401"
+        "403":
+          $ref: "#/components/responses/Automation403"
+        "404":
+          $ref: "#/components/responses/Automation404"
+        "409":
+          $ref: "#/components/responses/Automation409"
+        "412":
+          $ref: "#/components/responses/Automation412"
+        "413":
+          $ref: "#/components/responses/Automation413"
+        "422":
+          $ref: "#/components/responses/Automation422"
+        "428":
+          $ref: "#/components/responses/Automation428"
+        "429":
+          $ref: "#/components/responses/Automation429"
+        "500":
+          $ref: "#/components/responses/Automation500"
+        "503":
+          $ref: "#/components/responses/Automation503"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutomationAgentSetupInput"
+      x-known-feature-gate: automation_configuration
+      security:
+        - cookieAuth: []
   /api/v1/me/automations/jobs/{jobId}/retry:
     post:
       operationId: retryAutomationJob
@@ -21686,6 +21751,12 @@ components:
           enum:
             - none
             - all
+        nodeId:
+          $ref: "#/components/schemas/AutomationOpaqueId"
+          description: Optionally select exactly this bookmark within the authorized folder selection.
+        tasksOnly:
+          type: boolean
+          description: Run agent tasks without changing bookmark placement. Requires tasks=all.
       required:
         - folder
         - includeDescendants
@@ -21771,6 +21842,86 @@ components:
         - pairingId
         - code
       additionalProperties: false
+    AutomationAgentSetupResult:
+      type: object
+      properties:
+        rule:
+          $ref: "#/components/schemas/AutomationRule"
+        binding:
+          $ref: "#/components/schemas/AutomationBindingSet"
+        target:
+          $ref: "#/components/schemas/AutomationTarget"
+        pairing:
+          anyOf:
+            - $ref: "#/components/schemas/AutomationPairingGrant"
+            - type: "null"
+      required:
+        - rule
+        - binding
+        - target
+        - pairing
+      additionalProperties: false
+    AutomationAgentSetupInput:
+      type: object
+      properties:
+        definition:
+          $ref: "#/components/schemas/AutomationRuleDefinition"
+        bindings:
+          $ref: "#/components/schemas/AutomationBindingSetInput"
+        agent:
+          type: object
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 200
+            clientId:
+              description: "OAuth client identity: an opaque registration ID or an HTTPS CIMD metadata URL, without userinfo or a
+                fragment. Preserve the exact authenticated identity."
+              anyOf:
+                - type: string
+                  minLength: 1
+                  maxLength: 256
+                  pattern: ^[A-Za-z0-9._~-]+$
+                - type: string
+                  maxLength: 2048
+                  format: uri
+                  pattern: ^[Hh][Tt][Tt][Pp][Ss]://[^\s\u0000-\u001f\u007f/@?#]+(?:[/?][^\s\u0000-\u001f\u007f#]*)?$
+          required:
+            - name
+            - clientId
+          additionalProperties: false
+        targetId:
+          $ref: "#/components/schemas/AutomationOpaqueId"
+        wakeMode:
+          type: string
+          enum:
+            - events
+            - poll
+        ruleId:
+          $ref: "#/components/schemas/AutomationOpaqueId"
+        ruleRevision:
+          $ref: "#/components/schemas/AutomationRevision"
+      required:
+        - definition
+        - bindings
+      additionalProperties: false
+      oneOf:
+        - required:
+            - agent
+          not:
+            required:
+              - targetId
+        - required:
+            - targetId
+          not:
+            required:
+              - agent
+      dependentRequired:
+        ruleId:
+          - ruleRevision
+        ruleRevision:
+          - ruleId
 # END AUTOMATION schemas
     ClassificationProfileId:
       type: string

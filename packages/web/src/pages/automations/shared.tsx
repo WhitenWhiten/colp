@@ -4,11 +4,12 @@ import { ProductApiError } from '../../api/errors'
 import { StatusBadge } from '../../components/StatusBadge'
 import type { AutomationRule } from '../../api/automationTypes'
 import { defaultFolderSource, type FolderSource } from './folders'
+import { agentsApi, type AgentsApi } from '../../api/agentsClient'
 import { RULE_STATE } from './copy'
 
-export type AutomationDeps = { api: AutomationApi; folders: FolderSource }
+export type AutomationDeps = { api: AutomationApi; folders: FolderSource; agents?: Pick<AgentsApi, 'listAgents'> }
 
-const DepsContext = createContext<AutomationDeps>({ api: automationApi, folders: defaultFolderSource })
+const DepsContext = createContext<AutomationDeps>({ api: automationApi, folders: defaultFolderSource, agents: agentsApi })
 
 export function AutomationDepsProvider({ value, children }: { value: AutomationDeps; children: ReactNode }) {
   return <DepsContext.Provider value={value}>{children}</DepsContext.Provider>

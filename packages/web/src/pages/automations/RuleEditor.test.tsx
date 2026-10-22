@@ -337,11 +337,11 @@ describe('Rule editor', () => {
     typeInto(document.getElementById('automation-json') as HTMLTextAreaElement, JSON.stringify(definition))
     click(buttonNamed('Apply JSON'))
     await waitForDom(() => Boolean(document.getElementById('automation-worker-bindings')))
-    expect(document.body.textContent).toContain('pasting task JSON alone does not prepare them')
+    expect(document.body.textContent).toContain('You can connect an AI above instead.')
     // Preview stays available and points at what is missing instead of greying out.
     click(buttonNamed(/^Preview( again)?$/))
     expect(api.previewRule).not.toHaveBeenCalled()
-    expect(document.body.textContent).toContain('Enter both configuration IDs before previewing')
+    expect(document.body.textContent).toContain('Connect an AI before previewing agent tasks.')
     typeInto(document.getElementById('automation-worker-bindings') as HTMLInputElement, 'prepared-bindings')
     typeInto(document.getElementById('automation-execution-policy') as HTMLInputElement, 'policy-1')
     await preview(api)
@@ -389,7 +389,7 @@ describe('Rule editor', () => {
       return stored
     })
     mount('/automations/rules/worker/edit', api)
-    await waitForDom(() => Boolean(document.querySelector('[data-testid="automation-json-note"]')))
+    await waitForDom(() => Boolean(document.getElementById('automation-agent')) || document.body.textContent?.includes('Connect an AI') === true)
     const next = structuredClone(original.definition)
     next.name = 'Edited worker'
     next.tasks[0]!.instruction = 'Summarize with sources.'

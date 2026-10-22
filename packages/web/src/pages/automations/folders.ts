@@ -28,6 +28,7 @@ export interface FolderSource {
   loadFolders(collectionId: string, signal?: AbortSignal): Promise<CollectionFolders>
   /** The manifest's serverUuid, which every folder binding carries. */
   serverUuid(signal?: AbortSignal): Promise<string>
+  listBookmarks?(collectionId: string, signal?: AbortSignal): Promise<{ id: string; title: string }[]>
 }
 
 export function folderEntries(rootId: string, nodes: readonly EditableNodeView[]): FolderEntry[] {
@@ -55,6 +56,10 @@ export function folderEntries(rootId: string, nodes: readonly EditableNodeView[]
 let manifestUuid: Promise<string> | null = null
 
 export const defaultFolderSource: FolderSource = {
+  async listBookmarks(collectionId, signal) {
+    const snapshot = await productClient.loadEditorSnapshot(collectionId, { signal, maxRetries: 0 })
+    return snapshot.nodes.filter(node => node.kind === 'bookmark').map(node => ({ id: node.id, title: node.title }))
+  },
   async listCollections(signal) {
     const library = await productClient.getLibrary({ signal, maxRetries: 0 })
     // Rules watch the one library, whose stored title never shows: sentences

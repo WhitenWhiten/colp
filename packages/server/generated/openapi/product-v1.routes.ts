@@ -596,6 +596,11 @@ export const PRODUCT_ROUTE_MANIFEST = [
     "operationId": "revokeAgent"
   },
   {
+    "method": "POST",
+    "path": "/api/v1/me/automations/agent-setup",
+    "operationId": "prepareAutomationAgent"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/me/automations/binding-sets",
     "operationId": "listAutomationBindingSets"

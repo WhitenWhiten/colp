@@ -92,13 +92,34 @@ Product 1.95.0 adds dependency/incident read and revalidation operations, preser
 immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runtimeUnsupported
 independently of the usable configuration API and the server's general readiness.
 
-The server vendors `@know-n/colp` 0.2.2-automation-client-id.0 to include the CIMD
+The server vendors `@know-n/colp` 0.2.2-automation-client-id.1 to include the CIMD
 connection-profile fix before a registry release. Both dependency locks and the
 Docker dependency stages use the checked-in tarball. To refresh unreleased shared-source changes,
 `node packages/server/scripts/refresh-automation-package.mjs` packs a prerelease
 into `packages/server/vendor/` and updates both locks. Restore
 the registry dependency and remove the vendor COPY steps when switching back to
 a published release.
+
+## Guided AI connection
+
+The rule editor offers summary and tag tasks, selects a connected AI, and prepares
+its target, executor, folder bindings, execution policy and saved rule in one Owner
+command (`POST /api/v1/me/automations/agent-setup`). Failure rolls back the complete
+setup. Retries use the existing command receipts; pairing codes are omitted from
+stored receipts and replay as null. Profiles and targets are reused on reconnect.
+The policy allows only the chosen task inputs, one call per task, and requires
+approval for canonical changes; setup never enables a rule or starts an AI host.
+
+The UI provides a single copyable connection request, waits for server-reported
+pairing/subscription readiness, and tests one selected bookmark through the durable
+run-once path. `nodeId` pins the exact selection; `tasksOnly` preserves placement.
+The saved draft and in-flight test can resume after reload. A successful task is
+execution evidence; pairing alone is not. Test effects invalidate activation previews,
+so a fresh preview is still required. Polling hosts must arrange recurring execution;
+COLP does not install a schedule. Developer script setup remains under Agents.
+
+Browser tests use mocked transport and PostgreSQL tests use authenticated fixtures.
+Neither establishes production availability of a particular hosted AI platform.
 
 Editing previews carry the owned `ruleId` so competition excludes that rule by identity;
 other enabled rules still invalidate previews when they change. Replacement preserves
