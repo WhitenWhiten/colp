@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# Explicit audit steps below enforce the vulnerability gates. Install-time
+# audits only duplicate those requests and can exhaust job timeouts on a 503.
+env:
+  npm_config_audit: 'false'
+
 # Superseded pull request runs are cancelled. Pushes to main are not: a later
 # docs-only push would otherwise cancel the run that verifies earlier code.
 concurrency:
@@ -96,6 +101,8 @@ jobs:
       - name: Protocol assets, generated types, traceability and typecheck
         run: npm run check:automation && npm run check:protocol && npm run check:types && npm run check:traceability && npm run typecheck && npm run check:source-size
         working-directory: packages/node
+      - name: Dependency audit retry tests
+        run: node --test scripts/audit-dependencies.test.mjs
 
   test:
     needs: changes
@@ -397,7 +404,7 @@ jobs:
         run: npm run build
         working-directory: packages/web
       - name: Production dependency audit
-        run: npm audit --omit=dev --audit-level=high
+        run: node ../../scripts/audit-dependencies.mjs --omit=dev --audit-level=high
         working-directory: packages/web
 
   # The browser extension imports COLP Server's generated API types and runs its
@@ -435,7 +442,6 @@ jobs:
         run: npm test
         working-directory: packages/extension
       - name: Production and High dependency audit
-        # npm run scan:dependencies = npm audit --omit=dev --audit-level=high && npm audit --audit-level=high
         run: npm run scan:dependencies
         working-directory: packages/extension
 

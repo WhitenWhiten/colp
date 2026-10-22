@@ -245,7 +245,7 @@
     "test:mutation:publication": "stryker run stryker.publication.config.mjs",
     "build": "tsup && tsup --config tsup.unsafe-dts.config.ts && node scripts/copy-build-assets.mjs && node scripts/check-build-entry-identity.mjs",
     "check": "npm run check:automation && npm run check:protocol && npm run check:types && npm run check:traceability && npm run typecheck && npm run check:source-size && npm run test:coverage:publisher && npm run test:coverage:security && npm run test:coverage:sync-core && npm run build && node scripts/generate-conformance-evidence.mjs --check --coverage && npm run pack:check && npm run check:mcp-legacy-absence",
-    "scan:dependencies": "npm audit --omit=dev --audit-level=high && npm audit --audit-level=high",
+    "scan:dependencies": "node ../../scripts/audit-dependencies.mjs --omit=dev --audit-level=high && node ../../scripts/audit-dependencies.mjs --audit-level=high",
     "pack:consumer-smoke": "node scripts/packed-consumer-smoke.mjs",
     "pack:check": "npm pack --dry-run && publint && attw --pack . --ignore-rules no-resolution && npm run pack:consumer-smoke",
     "generate:automation": "node scripts/generate-automation.mjs",

@@ -22,7 +22,7 @@ const workflow = parse(
 describe('COLP dependency audit gate [SYNC-Q-005]', () => {
   it('blocks High findings on both the production and full trees', () => {
     expect(packageJson.scripts?.['scan:dependencies']).toBe(
-      'npm audit --omit=dev --audit-level=high && npm audit --audit-level=high',
+      'node ../../scripts/audit-dependencies.mjs --omit=dev --audit-level=high && node ../../scripts/audit-dependencies.mjs --audit-level=high',
     );
   });
 

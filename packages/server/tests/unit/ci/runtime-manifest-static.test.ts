@@ -84,7 +84,7 @@ describe('runtime manifest and lockfile', () => {
     assert.match(workflow, /npm run test:static/u);
 
     const scripts = (await readJson<{ scripts: Record<string, string> }>('package.json')).scripts;
-    assert.equal(scripts['scan:dependencies:runtime'], 'npm audit --omit=dev --omit=peer --audit-level=high --prefix runtime');
+    assert.equal(scripts['scan:dependencies:runtime'], 'node ../../scripts/audit-dependencies.mjs --omit=dev --omit=peer --audit-level=high --prefix runtime');
     assert.equal(scripts['runtime:manifest:check'], 'node scripts/build-runtime-manifest.mjs --check');
   });
 });

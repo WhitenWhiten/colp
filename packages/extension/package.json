@@ -55,7 +55,7 @@
     "test:phase3-bookmark-import": "vitest run tests/bookmark-import-plan.test.ts tests/bookmark-import-plan.contract.test.ts tests/options-import-ui.test.ts tests/import-commit-path.test.ts",
     "evidence:phase3-bookmark-import": "npm run test:phase3-bookmark-import && npm run build -- --config config/e2e-fixture.json && node ../server/scripts/with-postgres.mjs -- npm run evidence:phase3-bookmark-import:inner",
     "evidence:phase3-bookmark-import:inner": "node scripts/with-xvfb.mjs npx playwright test e2e/mv3-bookmark-import.spec.ts && node scripts/verify-release-artifact.mjs dist/production && node scripts/verify-bookmark-import-artifacts.mjs dist/production test-results && node scripts/verify-bookmark-privacy-artifacts.mjs test-results",
-    "scan:dependencies": "npm audit --omit=dev --audit-level=high && npm audit --audit-level=high",
+    "scan:dependencies": "node ../../scripts/audit-dependencies.mjs --omit=dev --audit-level=high && node ../../scripts/audit-dependencies.mjs --audit-level=high",
     "evidence:first-run-sync": "npm run build -- --config config/e2e-fixture.json && node ../server/scripts/with-postgres.mjs -- npm run evidence:first-run-sync:inner",
     "evidence:first-run-sync:inner": "node scripts/with-xvfb.mjs npx playwright test e2e/mv3-first-run-sync.spec.ts e2e/mv3-first-run-remediation.spec.ts && node scripts/verify-release-artifact.mjs dist/production && node scripts/verify-bookmark-privacy-artifacts.mjs test-results && node scripts/kns-08-archive-evidence.mjs first-run-sync",
     "evidence:advanced-first-run": "npm run build -- --config config/e2e-fixture.json && node ../server/scripts/with-postgres.mjs -- npm run evidence:advanced-first-run:inner",
@@ -96,6 +96,6 @@
     "fast-uri": "3.1.8",
     "js-yaml": "4.3.2",
     "nanoid": "3.3.18",
-    "vite": "7.3.6"
+    "vite": "7.3.7"
   }
 }

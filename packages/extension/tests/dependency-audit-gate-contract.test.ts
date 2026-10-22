@@ -17,15 +17,16 @@ const workflow = readFileSync(
 describe('Extension dependency audit gate [SYNC-Q-005]', () => {
   it('blocks High findings on both the production and full trees', () => {
     expect(packageJson.scripts?.['scan:dependencies']).toBe(
-      'npm audit --omit=dev --audit-level=high && npm audit --audit-level=high',
+      'node ../../scripts/audit-dependencies.mjs --omit=dev --audit-level=high && node ../../scripts/audit-dependencies.mjs --audit-level=high',
     );
   });
 
-  it('pins fast-uri past GHSA-qw65-cvwx-89v3, GHSA-58mr-gqgx-xq4g and GHSA-hrr3-gc8f-f4qj', () => {
+  it('pins transitive dependencies past their security advisories', () => {
     expect(packageJson.overrides?.['fast-uri']).toBe('3.1.8');
     expect(packageJson.overrides?.['brace-expansion']).toBe('5.0.12');
     expect(packageJson.overrides?.['js-yaml']).toBe('4.3.2');
     expect(packageJson.overrides?.['nanoid']).toBe('3.3.18');
+    expect(packageJson.overrides?.['vite']).toBe('7.3.7');
   });
 
   it('keeps a blocking workflow audit that fails if a vulnerable lock returns', () => {
