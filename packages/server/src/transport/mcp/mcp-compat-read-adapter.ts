@@ -57,7 +57,7 @@ export async function installMcpCompatReadCatalog(input: {
         asArgumentRecord(args),
       );
       input.observer.observeExecution(legacyCallToolExecutionClass(result));
-      return mapLegacyCallToolResult(result);
+      return mapLegacyCallToolResult(result, name);
     } catch (error) {
       input.observer.observeExecution(executionClassFromToolFailure(error));
       return mapLegacyCallToolResult(mapToolFailure(error));

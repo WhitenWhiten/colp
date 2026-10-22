@@ -172,6 +172,27 @@ test('legacy mapper preserves integer and absent annotation priorities', () => {
   }
 });
 
+test('compat snapshot mapping keeps JSON and pagination while leaving shared and other resource content intact', () => {
+  const structuredContent = Object.freeze({
+    nodes: Object.freeze([{ id: 'node-1' }]),
+    page: Object.freeze({ hasMore: true, nextCursor: 'own2.next-page', complete: false }),
+    continuation: Object.freeze({ cursor: 'own2.next-page' }),
+  });
+  const text = Object.freeze({ type: 'text' as const, text: JSON.stringify(structuredContent) });
+  const link = Object.freeze({
+    type: 'resource_link' as const, name: 'Snapshot', uri: 'colp://server/collections/collection-1/snapshot',
+  });
+  const content = Object.freeze([text, link]);
+  const result = Object.freeze({ kind: 'complete' as const, content, structuredContent });
+  const mapped = mapLegacyCallToolResult(result, 'collections.get_snapshot');
+  assert.deepEqual(mapped.content, [text]);
+  assert.equal(mapped.structuredContent, structuredContent);
+  assert.deepEqual(JSON.parse(text.text), structuredContent);
+  assert.deepEqual(result.content, [text, link]);
+  assert.deepEqual(mapLegacyCallToolResult(result, 'another.tool').content, [text, link]);
+  assert.deepEqual(mapLegacyCallToolResult({ kind: 'complete', content: [link] }, 'collections.get_snapshot').content, [link]);
+});
+
 test('compatListedToolInputSchema compiles COLP $ref write schemas', () => {
   assert.doesNotThrow(() => compatListedToolInputSchema({
     name: 'changes.commit',
@@ -272,7 +293,7 @@ test('compatListedToolInputSchema strips x-mcp-header without mutating the facad
   );
 });
 
-test('compat tools/list advertises real write input schemas without outputSchema or 07-28 keys', async () => {
+test('compat tools/list keeps mutating tools schema-less and advertises the read-only changes.get schema', async () => {
   const auth = await signedCompatWriteClient();
   const server = track(startCompatWriteApp({
     writeFixture: createWriteFixture(),
@@ -291,7 +312,8 @@ test('compat tools/list advertises real write input schemas without outputSchema
     const tool = listedTool(listed, name);
     assert.equal(tool?.inputSchema?.type, 'object');
     assert.notEqual(tool?.inputSchema?.additionalProperties, true);
-    assert.equal(tool?.outputSchema, undefined);
+    if (name === 'changes.get') assert.equal(tool?.outputSchema?.type, 'object');
+    else assert.equal(tool?.outputSchema, undefined);
   }
   const create = listedTool(listed, 'nodes.create');
   assert.ok(create?.inputSchema?.required?.includes('collectionId'));

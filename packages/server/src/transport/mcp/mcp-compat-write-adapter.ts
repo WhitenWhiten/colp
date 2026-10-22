@@ -6,11 +6,10 @@
  * compiles a clone with `x-mcp-header` stripped (MCP 2026-07-28 extension);
  * the facade object is not mutated so strict `/collections/-/mcp` still
  * advertises the header. Maps the era-neutral result union to 2025-11-25
- * CallToolResult. `outputSchema` is advertised only when a descriptor
- * declares one — the community compat tools carry the contract's
- * success-or-`ProductErrorEnvelope` union; tools without one stay schema-less
- * so their results keep the 2025-11-25 shape (the output projection that
- * would wrap a non-object root is never applied to them). Approval stays
+ * CallToolResult. Read tools advertise their structured JSON output schema;
+ * community compat tools carry the contract's success-or-`ProductErrorEnvelope`
+ * union. Other write tools retain their schema-less listing and legacy
+ * approval result shape. Approval stays
  * out-of-band: no elicitation, sampling, or server requests.
  */
 import { fromJsonSchema, type CallToolResult } from '@modelcontextprotocol/server';
@@ -47,17 +46,16 @@ export function compatListedToolInputSchema(
 }
 
 /**
- * JSON Schema → SDK output schema for the community compat tools — the
- * contract `x-mcp-tools` entries declare the success-or-`ProductErrorEnvelope`
- * union and compat `tools/list` must advertise it. Non-community descriptors
- * keep their historical schema-less compat listing (a declared `outputSchema`
- * would change the 2025-11-25 result projection), so this stays gated on
- * `compatOnly`.
+ * Read tools already return object-shaped structuredContent, so publish their
+ * declared schema alongside it. Community compat tools also publish their
+ * success-or-ProductErrorEnvelope union. Other write tools keep their legacy
+ * schema-less listing because pending approval may have a different shape.
  */
 export function compatListedToolOutputSchema(
   tool: McpApplicationToolDescriptor,
 ): ReturnType<typeof fromJsonSchema> | undefined {
-  const schema = tool.compatOnly === true ? tool.outputSchema : undefined;
+  const schema = tool.compatOnly === true || tool.annotations?.readOnlyHint === true
+    ? tool.outputSchema : undefined;
   if (schema === undefined) return undefined;
   const cached = compiledOutputSchemas.get(schema);
   if (cached !== undefined) return cached;
@@ -83,10 +81,19 @@ export function legacyCallToolExecutionClass(
  * both carry status/planId/approvalUri/expiresAt. Rejected is isError plus
  * the stable safeMessage. 07-28 envelope keys stay off this era.
  */
-export function mapLegacyCallToolResult(result: McpApplicationToolResult): CallToolResult {
+export function mapLegacyCallToolResult(
+  result: McpApplicationToolResult,
+  toolName?: string,
+): CallToolResult {
   if (result.kind === 'complete') {
     const content = Array.isArray(result.content)
-      ? (result.content as CallToolResult['content']).map(omitCompatFractionalPriority)
+      ? (result.content as CallToolResult['content'])
+        // The snapshot JSON (including pagination) is already inline. Its
+        // companion resource link can send ChatGPT down a file delivery path.
+        // Keep explicit resources/read and other tools' resource blocks intact.
+        .filter(block => !(toolName === 'collections.get_snapshot'
+          && result.structuredContent !== undefined && block.type === 'resource_link'))
+        .map(omitCompatFractionalPriority)
       : [{ type: 'text' as const, text: '' }];
     return {
       content,

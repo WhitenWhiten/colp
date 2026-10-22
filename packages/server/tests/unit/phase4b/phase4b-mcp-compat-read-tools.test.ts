@@ -76,6 +76,12 @@ function listedTool(
 ): {
   readonly name: string;
   readonly description?: string;
+  readonly outputSchema?: { readonly type?: string };
+  readonly annotations?: {
+    readonly readOnlyHint?: boolean;
+    readonly destructiveHint?: boolean;
+    readonly openWorldHint?: boolean;
+  };
   readonly inputSchema?: {
     readonly type?: string;
     readonly additionalProperties?: unknown;
@@ -107,6 +113,10 @@ test('compat tools/list advertises catalog names and required fields, not additi
     const tool = listedTool(listed, catalog.name);
     assert.equal(tool?.description, catalog.description);
     assert.equal(tool?.inputSchema?.type, 'object');
+    assert.equal(tool?.outputSchema?.type, 'object');
+    assert.equal(tool?.annotations?.readOnlyHint, true);
+    assert.equal(tool?.annotations?.destructiveHint, false);
+    assert.equal(tool?.annotations?.openWorldHint, false);
     assert.notEqual(tool?.inputSchema?.additionalProperties, true);
     assert.ok(tool?.inputSchema?.required?.includes('collectionId'));
     assert.equal(tool?.inputSchema?.properties?.collectionId?.type, 'string');
@@ -141,7 +151,7 @@ test('compat tools/call collections.get matches facade structured content withou
   assertNo0728WireFields(result);
 });
 
-test('compat tools/call collections.get_snapshot returns resource_link content without 07-28 keys', async () => {
+test('compat tools/call collections.get_snapshot returns inline JSON without a companion resource link', async () => {
   const server = startHostReadApp();
   const called = await injectCompatLegacyPost(
     server.app,
@@ -158,11 +168,9 @@ test('compat tools/call collections.get_snapshot returns resource_link content w
   }[] | undefined;
   assert.equal(content?.[0]?.type, 'text');
   assert.equal(JSON.parse(content?.[0]?.text ?? '{}').collection.id, 'collection-1');
-  assert.equal(content?.[1]?.type, 'resource_link');
-  assert.match(content?.[1]?.uri ?? '', /\/collections\/collection-1\/snapshot$/u);
-  assert.equal(content?.[1]?.annotations?.priority, undefined);
-  assert.deepEqual(content?.[1]?.annotations?.audience, ['user', 'assistant']);
-  assert.equal(typeof content?.[1]?.annotations?.lastModified, 'string');
+  assert.equal(content?.length, 1);
+  assert.deepEqual(JSON.parse(content?.[0]?.text ?? '{}'), result.structuredContent);
+  assert.equal(called.headers['content-disposition'], undefined);
   assert.equal(
     (result.structuredContent as { collection?: { id?: string } } | undefined)?.collection?.id,
     'collection-1',
