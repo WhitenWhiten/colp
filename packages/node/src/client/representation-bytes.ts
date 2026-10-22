@@ -28,3 +28,15 @@ export function rememberOwnedJsonUtf8Bytes(value: object, bytes: number): void {
 export function ownedJsonUtf8Bytes(value: object): number | undefined {
   return ownedByteCounts.get(value);
 }
+
+/** Reuse the count remembered for an isolated value; otherwise measure it. */
+export function cachedRepresentationBytes(value: unknown): number {
+  if (typeof value === 'object' && value !== null) {
+    const owned = ownedJsonUtf8Bytes(value);
+    if (owned !== undefined) {
+      representationByteDiagnostics.reuses += 1;
+      return owned;
+    }
+  }
+  return measureJsonUtf8Bytes(value);
+}

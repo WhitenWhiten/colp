@@ -12,7 +12,9 @@ import {
   snapshotGuardedNodeMutation,
   type GuardedNodeWriteMutation,
 } from './node-write-mutation.js';
+import { isAuthoritativeNodeWriteChildrenPage } from './node-write-authoritative-children.js';
 
+export { authoritativeNodeWriteChildrenPage } from './node-write-authoritative-children.js';
 export type { GuardedNodeKind, GuardedNodeWriteMutation } from './node-write-mutation.js';
 
 export const DEFAULT_NODE_WRITE_LIMITS: ResolvedNodeWriteLimits = Object.freeze({
@@ -44,28 +46,6 @@ export interface NodeWriteChildrenPage {
   readonly nodes: readonly StrictNode[];
   /** True when additional immediate children exist beyond this bounded page. */
   readonly hasMore: boolean;
-}
-
-/**
- * Pages created here were read from the same authoritative snapshot as
- * `resolveNode`. The membership is unforgeable: copying a field or freezing a
- * caller-built page does not enter the set.
- */
-const authoritativeChildrenPages = new WeakSet<object>();
-
-export function authoritativeNodeWriteChildrenPage(
-  nodes: readonly StrictNode[],
-  hasMore: boolean,
-): NodeWriteChildrenPage {
-  if (!Array.isArray(nodes) || typeof hasMore !== 'boolean') {
-    throw new TypeError('Authoritative Node write children page requires a node array and hasMore.');
-  }
-  const page: NodeWriteChildrenPage = Object.freeze({
-    nodes: Object.freeze(nodes.slice()),
-    hasMore,
-  });
-  authoritativeChildrenPages.add(page);
-  return page;
 }
 
 /** All reads must use the same transaction or locked snapshot as the writer. */
@@ -623,9 +603,7 @@ async function resolveChildren<Context extends NodeWriteResolver>(
     ),
     'Node write children resolver',
   );
-  const authoritative = typeof resolvedPage === 'object'
-    && resolvedPage !== null
-    && authoritativeChildrenPages.has(resolvedPage);
+  const authoritative = isAuthoritativeNodeWriteChildrenPage(resolvedPage);
   const page = immutableSnapshot(resolvedPage) as NodeWriteChildrenPage;
   if (
     page === null

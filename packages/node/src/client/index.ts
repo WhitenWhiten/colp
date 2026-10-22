@@ -93,10 +93,9 @@ import {
 import { validatePublicationIfNoneMatchEtag } from './publication-conditional.js';
 import { updatePublicationResponseCache, type ClientCache, type ClientCacheEntry } from './publication-cache.js';
 import {
+  cachedRepresentationBytes,
   measureJsonUtf8Bytes,
-  ownedJsonUtf8Bytes,
   rememberOwnedJsonUtf8Bytes,
-  representationByteDiagnostics,
 } from './representation-bytes.js';
 export type { ClientCache, ClientCacheEntry } from './publication-cache.js';
 export { compareOrderKeys } from '../semantic/index.js';
@@ -624,17 +623,6 @@ interface PreparedPublicationEndpoint {
   readonly transportBoundary: PublicationTransportBoundary;
   readonly operation: HttpOperationContract;
   readonly definition: DefinitionName;
-}
-
-function cachedRepresentationBytes(value: unknown): number {
-  if (typeof value === 'object' && value !== null) {
-    const owned = ownedJsonUtf8Bytes(value);
-    if (owned !== undefined) {
-      representationByteDiagnostics.reuses += 1;
-      return owned;
-    }
-  }
-  return measureJsonUtf8Bytes(value);
 }
 
 function assertProtocolJsonResponseMedia(response: Response, definition: DefinitionName): void {
