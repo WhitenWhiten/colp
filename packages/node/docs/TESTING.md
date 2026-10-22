@@ -86,6 +86,7 @@ Import-graph / export basis: package root re-exports Sync from `src/sync/index.j
 | `src/sync/pull-cursor-lifecycle.ts` | A core | Pull start cursor: initial issuance, same-Session continuation, adapter-verified cross-Session handoff | via `coordinateSyncPull` / `host.pull` | `sync-core` | New cursor transition → update |
 | `src/sync/canonical.ts` | A core | Browser-safe protocol digest + effect-page URL expansion; production `./sync` re-exports the same functions | `@know-n/colp/sync/canonical` | `sync-core` | Digest framing change → update corpus |
 | `src/sync/canonical-json.ts` | A core | Production dependency of canonical digest (I-JSON snapshot + RFC 8785) | (internal; `encodeCanonicalJson` via canonical) | `sync-core` | Follows canonical imports |
+| `src/sync/effect-canonical-material.ts` | A core | Production dependency of Pull-validated effect digests and page byte budgets (canonical + pull) | (internal; effect-page material via pull) | `sync-core` | Follows effect digest imports |
 | `src/sync/replica-lifecycle.ts` | A core | Replica active/expired/recovery/retired coordinator + VerifiedSession auth proof; system-initiated due expiry | `coordinateReplicaLifecycle`, `coordinateReplicaDueExpiry`, `createReplicaAuthProofFromVerifiedSession` | `sync-core` | New lifecycle command → update |
 | `src/sync/replica-lifecycle-transitions.ts` | A core | Production dependency of replica-lifecycle transitions | (internal; `transitionReplicaLifecycle` re-export) | `sync-core` | Follows lifecycle imports |
 | `src/sync/replica-lifecycle-parsing.ts` | A core | Production dependency of lifecycle parse/validate | (internal) | `sync-core` | Follows lifecycle imports |
@@ -133,6 +134,7 @@ Tier A files **deliberately omitted** from critical Sync mutation (still gated b
 - `src/sync/internal-guards.ts`
 - `src/sync/canonical.ts`
 - `src/sync/canonical-json.ts`
+- `src/sync/effect-canonical-material.ts`
 - `src/sync/subtree-observation.ts`
 - `src/sync/pull-page-budget.ts`
 

@@ -14,6 +14,7 @@ export const syncCriticalManifest = Object.freeze([
   Object.freeze({ path: 'src/sync/pull-cursor-lifecycle.ts', mutate: true }),
   Object.freeze({ path: 'src/sync/canonical.ts', mutate: false }),
   Object.freeze({ path: 'src/sync/canonical-json.ts', mutate: false }),
+  Object.freeze({ path: 'src/sync/effect-canonical-material.ts', mutate: false }),
   Object.freeze({ path: 'src/sync/replica-lifecycle.ts', mutate: true }),
   Object.freeze({ path: 'src/sync/replica-lifecycle-transitions.ts', mutate: true }),
   Object.freeze({ path: 'src/sync/replica-lifecycle-parsing.ts', mutate: false }),
