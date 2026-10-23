@@ -34,8 +34,20 @@ function observeReads() {
     intentPointReads: 0, diagnosticPointReads: 0,
   };
   const indexCursor = IDBIndex.prototype.openCursor;
+  const indexBulk = IDBIndex.prototype.getAll;
   const storeCursor = IDBObjectStore.prototype.openCursor;
   const get = IDBObjectStore.prototype.get;
+  vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function (this: IDBIndex, ...args) {
+    const request = indexBulk.apply(this, args);
+    request.addEventListener('success', () => {
+      const count = request.result.length;
+      if (this.objectStore.name === STORES.pullEvents) counts.pullEventRows += count;
+      if (this.objectStore.name === STORES.pullPages) counts.pullPageIndexRows += count;
+      if (this.objectStore.name === STORES.queue) counts.queueRows += count;
+      if (this.objectStore.name === STORES.bookmarkEvents) counts.bookmarkRows += count;
+    });
+    return request;
+  });
   vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementation(function (this: IDBIndex, query, direction) {
     const request = indexCursor.call(this, query, direction);
     const storeName = this.objectStore.name;

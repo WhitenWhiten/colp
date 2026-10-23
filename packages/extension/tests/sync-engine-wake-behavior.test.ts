@@ -70,7 +70,7 @@ vi.mock('../src/sw/scope.js', () => ({
 }));
 
 describe('durable engine wake uses one bounded MV3 alarm and one engine lane', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     observed.lanes.length = 0; observed.alarmNames.length = 0; observed.alarms.length = 0;
     observed.scopeReads = 0; observed.fetches = 0; observed.credentialRestored = true; observed.restores = 0;
     observed.passEntered = 0; observed.pauseEngine = false; observed.releaseEngineHold = () => undefined;
@@ -87,6 +87,9 @@ describe('durable engine wake uses one bounded MV3 alarm and one engine lane', (
         create: (name: string, options: { when?: number } = {}) => {
           observed.alarmNames.push(name); observed.alarms.push({ name, when: options.when ?? 0 }); } },
     };
+    // Module graph loading belongs to setup, outside the five-second behavior
+    // deadline. A timed-out first import poisons every later cached import.
+    await import('../src/sw/engine.js');
   });
 
   test('a delayed wake creates the durable known-sync-engine alarm at the MV3 floor', async () => {

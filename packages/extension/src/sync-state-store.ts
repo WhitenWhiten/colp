@@ -112,6 +112,7 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     pruneExpiredCompletedApplyIntents: pull.pruneExpiredCompletedApplyIntents,
     commitApplyIntent: pull.commitApplyIntent,
     stagePullPage: pull.stagePullPage, listPullEvents: pull.listPullEvents,
+    getCurrentPullMapping: pull.getCurrentPullMapping,
     listPullEventsByPage: pull.listPullEventsByPage,
     hasPullEventsAwaitingConfirmation: pull.hasPullEventsAwaitingConfirmation, getPullEvent: pull.getPullEvent,
     isPullOperationApplied: pull.isPullOperationApplied,

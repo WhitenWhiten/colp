@@ -1,6 +1,16 @@
 import { bootstrapBatchExclusion } from './outbound-push-batch.js';
 import type { QueueOperation, SyncScope, createSyncStateStore } from './sync-state-store.js';
-export const MAX_PUSH_DRAIN_OPERATIONS = 100;
+// The elapsed-time budget yields to Pull; this separate ceiling also bounds
+// exceptionally fast local transports without underfilling normal 50-op batches.
+export const MAX_PUSH_DRAIN_OPERATIONS = 500;
+
+/** A fresh suffix cannot wake past an earlier retry or conflict barrier. */
+export async function hasFreshPushQueueHead(store: Pick<ReturnType<typeof createSyncStateStore>, 'firstLaneQueue'>,
+  scope: SyncScope, now = Date.now()): Promise<boolean> {
+  const head = await store.firstLaneQueue(scope);
+  return head !== null && head.status === 'pending' && !head.attempt && head.retry.attempt === 0
+    && head.retry.notBefore <= now;
+}
 
 export async function recordPushBatchDecision(store: ReturnType<typeof createSyncStateStore>, scope: SyncScope,
   queue: QueueOperation, negotiatedLimit: number, dispatchLimit: number) {

@@ -184,7 +184,8 @@
         "Expired plans do not consume capacity, a second client cannot bypass the principal cap, another account remains independent and cancelling a plan releases a slot",
         "22 store/approval PostgreSQL cases pass across focused runs after correcting a fixture that attempted an illegal approved-state INSERT; 17 store/error-classification unit assertions pass",
         "Server TypeScript, targeted ESLint, import boundaries, append-only migration ordering and production build pass; MCP README documents the limits"
-      ]
+      ],
+      "commit": "a16a4837"
     },
     {
       "id": "security-06",
@@ -925,6 +926,20 @@
         "Real Chromium wizard preserves accidental foreign additions; logout/relogin restores the same subscription correctly; complete 20,000-node capacity rerun continues separately under extension CI validation"
       ],
       "commit": "2dd3bc6d"
+    },
+    {
+      "id": "performance-11",
+      "title": "Bound bootstrap drains and repeated Pull mapping-shadow reads",
+      "status": "resolved",
+      "validation": [
+        "Successful bootstrap drains continue ready unsent lane heads and postpone repeated whole-tree matching while confirmed work remains; a fresh suffix cannot bypass an earlier unknown/deferred retry or conflict barrier",
+        "Fast drains use the existing 20-second elapsed budget with a separate 500-operation ceiling and unchanged 50-operation/64-KiB HTTP batch bounds; 520-operation and lost-response head regressions verify yielding and retry scheduling",
+        "Pull state reads transfer at most 200 rows per request; a one-scope shadow reader checks current committed event keys on every read, transfers each immutable shadow payload once, re-reads page chain metadata and always reads durable fallbacks freshly",
+        "450-event regression fails under repeated full shadow transfers, then passes with the incremental reader; caller mutation is isolated, later commits and removed-state keys are observed",
+        "301 Pull/recovery/native-wait/engine assertions, 30 budget/batch/scheduler/permission assertions and focused mapping-shadow tests pass; extension TypeScript, source-size and changed-file lint pass",
+        "Real Chromium/Postgres 958-bookmark normal and lost-batch-response cases both converge (4.3/4.4 minutes), preserving exact native/canonical counts, immutable retry identities and empty queue/capture/Ack state",
+        "The previously unexecuted correctness scenarios use a measured six-minute convergence budget and now attach actual timings; no four-minute product latency target is claimed. Idle whole-library work remains separately tracked under performance-08"
+      ]
     }
   ],
   "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."

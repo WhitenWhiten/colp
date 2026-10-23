@@ -339,18 +339,15 @@ async function readStateIndex(db: IDBDatabase, storeName: string, indexName: str
     const tx = db.transaction(storeName, 'readonly');
     const completion = transactionDone(tx);
     const index = tx.objectStore(storeName).index(indexName);
-    const lower = after === null ? [scopeKeyValue, state] : [scopeKeyValue, state, after];
-    const page: UnknownRecord[] = []; let last: string | null = null;
-    await iterateCursor(index, IDBKeyRange.bound(lower, [scopeKeyValue, state, []]), (value, cursor) => {
-      const cursorKey = cursor.key as unknown as readonly [string, string, string];
-      if (after !== null && cursorKey[2] === after) return undefined;
-      page.push(value as UnknownRecord); last = String(cursorKey[2]);
-      return page.length < PULL_INDEX_PAGE;
-    });
+    const lower: IDBValidKey[] = after === null ? [scopeKeyValue, state] : [scopeKeyValue, state, after];
+    // A mapping shadow is read repeatedly while applying its page. Transfer a
+    // bounded page in one request instead of crossing the IDB boundary per row.
+    const page: UnknownRecord[] = await requestValue<UnknownRecord[]>(index.getAll(
+      IDBKeyRange.bound(lower, [scopeKeyValue, state, []], after !== null), PULL_INDEX_PAGE));
     await completion;
     rows.push(...page);
-    if (page.length < PULL_INDEX_PAGE || last === null) return rows;
-    after = last;
+    if (page.length < PULL_INDEX_PAGE) return rows;
+    after = String(page.at(-1)![storeName === STORES.pullEvents ? 'eventId' : 'pageId']);
   }
 }
 

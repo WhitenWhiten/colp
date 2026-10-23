@@ -36,6 +36,7 @@ import { resumeRunningBootstrap } from './first-run.js';
 import { hasBookmarkPermission, extensionOrigin, safeError, store, sw, syncState, workCoordinator } from './runtime.js';
 import { currentSyncScope, currentSyncStatusAuthority, loadConfig, pushSessionAuthority, restoredSyncScope } from './scope.js';
 import { createSyncAlarmScheduler } from '../sync-alarm.js';
+import { hasFreshPushQueueHead } from '../push-work-budget.js';
 import { reportReplicaHealth } from './replica-health.js';
 
 let syncAlarmScheduler: ReturnType<typeof createSyncAlarmScheduler> | undefined;
@@ -275,7 +276,12 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
   }
   if (!applyAllowed && !needsRecoveryProgress) {
     try {
-      await worker.drain();
+      const drained = await worker.drain();
+      // A successful bounded drain may leave already-queued bootstrap work.
+      // Continue through the coalesced lane; MV3 alarms have a 30-second floor.
+      if (drained.outcome === 'terminal' && await hasFreshPushQueueHead(syncState, scope)) {
+        scheduleSyncEngineWake('manual'); return;
+      }
       if (await resumeRunningBootstrap(scope)) scheduleSyncEngineWake('manual');
     }
     catch (error) {
@@ -324,6 +330,11 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
       const plans = await syncState.listImportPlans(scope); const latest = plans.sort((a, b) => b.updatedAt - a.updatedAt)[0];
       if (latest?.state === 'active') { const view = await createBookmarkImportCoordinator({ store: syncState, scope }).advance(latest.planId);
         if (view.progress.queued > 0) scheduleSyncEngineWake('manual'); }
+      // The confirmed bootstrap already owns these queued operations. Drain
+      // them before re-reading and matching the complete native/library trees.
+      if (recorded?.firstRun === 'running' && !result.lastError && await hasFreshPushQueueHead(syncState, scope)) {
+        scheduleSyncEngineWake('manual'); return;
+      }
       if (await resumeRunningBootstrap(scope)) scheduleSyncEngineWake('manual');
       await drainFaviconSidecarsForCurrentScope();
       const descriptions=await syncBrowserMetadata(scope,context,!result.lastError).catch(()=>({staged:0,needsSnapshot:false}));
@@ -333,12 +344,9 @@ export async function runSyncEngine(reason: 'startup' | 'alarm' | 'online' | 'ma
           signal:classificationProjection?AbortSignal.any([context.signal,AbortSignal.timeout(20000)]):context.signal,classificationProjection});
       },descriptions.needsSnapshot);
       if(descriptions.needsSnapshot&&!result.lastError)await syncBrowserMetadata(scope,context,false);
-      // The flush above can commit captured events into the outbound queue after
-      // the push phase already ran. Wake once more for never-attempted work so a
-      // popup save uploads immediately instead of waiting for the next alarm.
-      // Queue rows are never pruned, so page by sequence: a single bounded page
-      // stops seeing fresh work once the scope accumulates terminal history.
-      if (!result.lastError && await hasNeverAttemptedQueueWork(scope)) scheduleSyncEngineWake('manual');
+      // Flush may queue fresh work after Push. Only an unsent, ready lane head
+      // continues immediately; an earlier retry keeps its own alarm deadline.
+      if (!result.lastError && await hasFreshPushQueueHead(syncState, scope)) scheduleSyncEngineWake('manual');
     } }
   catch (error) {
     if (error instanceof AuthorityFencedError) return;
@@ -353,16 +361,6 @@ async function snapshotRecoveryInFlight(scope: SyncScope): Promise<boolean> {
     || engine?.authorityRefreshRequired === true
     || await syncState.hasRecoveryStaging(scope)
     || (await syncState.getPendingAckIntent(scope))?.kind === 'bootstrap';
-}
-
-async function hasNeverAttemptedQueueWork(scope: SyncScope): Promise<boolean> {
-  let after = 0;
-  for (;;) {
-    const page = await syncState.listQueue(scope, 'pending', after, 1_000);
-    if (page.some((row) => row.retry.attempt === 0)) return true;
-    if (page.length < 1_000) return false;
-    after = page.at(-1)!.sequence;
-  }
 }
 
 async function markImportEngineRecovery(scope: SyncScope, code: string) {

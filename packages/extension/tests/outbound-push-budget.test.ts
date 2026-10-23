@@ -1,9 +1,40 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { createOutboundPushWorker } from '../src/outbound-push-worker.js';
+import { hasFreshPushQueueHead } from '../src/push-work-budget.js';
 import { fixture, success } from './outbound-push-batch-harness.js';
 import { installOutboundPushIndexedDb, scope } from './outbound-push-worker-harness.js';
 installOutboundPushIndexedDb();
+
+test('a fast backlog uses the drain budget past 100 operations and still has a hard ceiling', async () => {
+  const f = await fixture(520); const sizes: number[] = [];
+  const worker = createOutboundPushWorker({ ...f.options, fetch: async (_url, init) => {
+    const body = String(init?.body); sizes.push(JSON.parse(body).operations.length); return success(body);
+  } });
+  try {
+    assert.equal((await worker.drain()).outcome, 'terminal');
+    assert.equal(sizes.reduce((total, size) => total + size, 0), 500);
+    assert.ok(sizes.every(size => size <= 50));
+    assert.equal((await f.store.listQueue(scope, 'pending')).length, 20);
+    assert.equal(await hasFreshPushQueueHead(f.store, scope, f.clock.now), true);
+    assert.equal((await worker.drain()).outcome, 'terminal');
+    assert.equal((await f.store.listQueue(scope, 'terminal', 0, 1000)).length, 520);
+    assert.equal(await hasFreshPushQueueHead(f.store, scope, f.clock.now), false);
+  } finally { f.store.close(); }
+}, 20_000);
+
+test('a fresh suffix does not schedule immediate wakes past an exact-retry head', async () => {
+  const f = await fixture(2, 1);
+  try {
+    assert.equal(await hasFreshPushQueueHead(f.store, scope, f.clock.now), true);
+    const worker = createOutboundPushWorker({ ...f.options, fetch: async () => { throw new TypeError('response lost'); } });
+    assert.equal((await worker.drain()).outcome, 'unknown');
+    assert.equal((await f.store.listQueue(scope, 'pending')).length, 1);
+    assert.equal(await hasFreshPushQueueHead(f.store, scope, f.clock.now), false);
+    f.clock.now += 60_000;
+    assert.equal(await hasFreshPushQueueHead(f.store, scope, f.clock.now), false);
+  } finally { f.store.close(); }
+});
 
 test('time-bounds a drain so a large fresh upload yields for Pull and resumes in order', async () => {
   const f = await fixture(40); const sizes: number[] = []; const sequences: number[] = [];

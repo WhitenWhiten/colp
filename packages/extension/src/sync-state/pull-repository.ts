@@ -1,4 +1,5 @@
 import { validatedPullDeferral } from '../pull-deferral.js';
+import { createPullShadowReader } from './pull-shadow-reader.js';
 import { createProjectionRepository } from './projection-repository.js';
 import { mergeRemoteObservation } from './remote-observation.js';
 import { classifyDurablePullCursorWrite, pullPageDiagnosticRow, type PullCursorWriteClass } from '../pull-ack-boundary.js';
@@ -118,7 +119,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
 
   async function listPullEvents(input: SyncScope, states?: readonly PullApplyState[]) {
     const key = scopeKey(validateScope(input)); const db = await open();
-    return clone(await readOrderedPullEvents(db, key, states));
+    return readOrderedPullEvents(db, key, states);
   }
 
   async function listPullEventsByPage(input: SyncScope, pageId: string) {
@@ -578,6 +579,7 @@ export function createPullRepository(ctx: SyncStoreRuntime) {
   return { getApplyIntent, createApplyIntent, findApplyIntent, hasActiveApplyIntentForNativeTarget,
     pruneExpiredCompletedApplyIntents,
     stagePullPage, listPullEvents, listPullEventsByPage, hasPullEventsAwaitingConfirmation, getPullEvent,
+    getCurrentPullMapping: createPullShadowReader(ctx, validateMappingRecord),
     listPullPages, loadPullApplyWorkset, prunePullHistory, pullOperationsCovered, getCursor,
     preparePullIntent, markPullBrowserCallStarted, observeApplyIntentEvent, isPullOperationApplied,
     observeApplyIntentPostState, observeApplyIntentChangeFields,
