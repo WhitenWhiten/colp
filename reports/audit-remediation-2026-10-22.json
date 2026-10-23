@@ -709,7 +709,25 @@
       "id": "code-34",
       "title": "文件夹加载失败被 .catch(() => undefined) 静默吞掉",
       "file": "packages/extension/src/automation/rule-editor-dialog.ts",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Completed the inherited loading-error fixes: the rule dialog now catches failures after a bookmark permission grant as well as initial load and retry. History detail initialization reports bookmark/tree/exclusion/annotation failures and offers retry; exclusion lookup failures no longer expose unfiltered subscription folders. Existing rules-pane failure notices and failed-migration connection reset were verified.",
+      "validation": [
+        "A revoked-permission-then-granted rule load reproduced an unhandled rejection and missing retry before the fix.",
+        "56 focused assertions passed across rule-dialog initial/tree/exclusion/permission-grant retry, history detail lookup/absent/tree/exclusion retries, ordinary rule editing and durable-store migration retry/concurrency.",
+        "TypeScript, focused ESLint, English/Chinese i18n catalog checks and diff checks passed."
+      ],
+      "existingFixes": [
+        "f27f8f1a",
+        "23f40a7f"
+      ],
+      "evidence": [
+        "packages/extension/src/automation/rule-editor-dialog.ts",
+        "packages/extension/src/capture/history-detail-fields.ts",
+        "packages/extension/src/automation/indexeddb-store.ts",
+        "packages/extension/tests/automation-folder-load-retry.test.ts",
+        "packages/extension/tests/history-detail.test.ts",
+        "packages/extension/tests/automation-durable-store.test.ts"
+      ]
     },
     {
       "id": "code-35",

@@ -277,7 +277,7 @@ export function openRuleEditor(rule: BrowserRuleView | null, trigger?: HTMLEleme
           if (!ok) return;
           if (typeof chrome.bookmarks?.getTree !== 'function') { location.reload(); return; }
           void chrome.runtime.sendMessage({ kind: 'known.roots.permissionChanged', userGesture: true, granted: true }).catch(() => undefined);
-          void loadFolders();
+          void loadFolders().catch(folderLoadFailed);
         });
       });
       access.replaceChildren(inlineAlert('warning', t('automation_needBookmarks', 'Know-N needs access to your bookmarks to file pages into a folder.'), allow));

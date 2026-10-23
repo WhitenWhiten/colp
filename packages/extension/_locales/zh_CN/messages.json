@@ -5659,6 +5659,10 @@
     "message": "无法加载你的历史记录。",
     "description": "Your history could not be loaded."
   },
+  "history_detailsCouldNotLoad": {
+    "message": "无法加载这条书签的文件夹和笔记。",
+    "description": "This bookmark’s folders and notes could not be loaded."
+  },
   "history_folderStep": {
     "message": "文件夹",
     "description": "Folder"

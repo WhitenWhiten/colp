@@ -9,7 +9,8 @@ import { captureDetail } from '../src/capture/history-detail.js';
 import type { CaptureTask } from '../src/capture/contracts.js';
 import { task as base } from './fixtures/capture.js';
 
-vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ exclusionIds: async () => new Set<string>() }));
+const exclusions = vi.hoisted(() => vi.fn());
+vi.mock('../src/bookmark-subscriptions/guards.js', () => ({ exclusionIds: exclusions }));
 
 const tree = [{ id: '0', title: '', children: [
   { id: '1', parentId: '0', title: 'Bookmarks bar', children: [
@@ -27,6 +28,7 @@ const sent = (): Message[] => send.mock.calls.map((call) => call[0] as Message)
   .filter((message) => message.kind !== 'known.capture.links' && message.kind !== BOOKMARK_ANNOTATION_NOTICE);
 
 beforeEach(() => {
+  exclusions.mockReset().mockResolvedValue(new Set<string>());
   vi.stubGlobal('indexedDB', new IDBFactory());
   setAnnotationStore(createBookmarkAnnotationStore());
   outcome = () => ({ ok: true });
@@ -34,7 +36,7 @@ beforeEach(() => {
   vi.stubGlobal('chrome', { runtime: { sendMessage: send, getURL: (path: string) => `chrome-extension://x${path}` },
     bookmarks: { get: async () => [{ id: 'bm', parentId: 'research', title: 'Agents', url: 'https://example.org/agents', dateAdded: 5 }], getTree: async () => tree } });
 });
-afterEach(() => { setAnnotationStore(undefined); vi.unstubAllGlobals(); document.body.replaceChildren(); });
+afterEach(() => { setAnnotationStore(undefined); vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
 function mount(task: CaptureTask, options: Partial<Parameters<typeof captureDetail>[1]> = {}) {
   const view = captureDetail(task, { close: () => undefined, ...options });
@@ -46,6 +48,26 @@ const pick = (view: HTMLElement, id: string) => {
   view.querySelector<HTMLButtonElement>('.folder-pill')!.click();
   view.querySelector<HTMLButtonElement>(`.folder-opt[data-folder-id="${id}"]`)!.click();
 };
+
+test.each(['bookmark lookup', 'bookmark absent', 'tree', 'exclusions'])('%s initialization failure stays visible and can retry safely', async (failure) => {
+  if (failure === 'bookmark lookup') vi.spyOn(chrome.bookmarks, 'get').mockRejectedValueOnce(new Error('permission_denied'));
+  if (failure === 'bookmark absent') vi.spyOn(chrome.bookmarks, 'get').mockResolvedValueOnce([]);
+  if (failure === 'tree') vi.spyOn(chrome.bookmarks, 'getTree').mockRejectedValueOnce(new Error('tree_unavailable'));
+  if (failure === 'exclusions') exclusions.mockRejectedValueOnce(new Error('exclusions_unavailable'));
+  const view = mount(saved());
+  await vi.waitFor(() => expect(view.querySelector('.detail-fields .inline-alert:not([hidden])')).not.toBeNull());
+  expect(view.querySelector('.detail-fields')?.textContent).toContain('This bookmark’s folders and notes could not be loaded.');
+  expect(view.querySelector('.folder-pill')).toBeNull();
+  expect(sent()).toEqual([]);
+  exclusions.mockResolvedValue(new Set(['reading']));
+  const retry = Array.from(view.querySelectorAll<HTMLButtonElement>('.detail-fields button')).find(button => button.textContent === 'Try again')!;
+  retry.click();
+  await ready(view);
+  expect(view.querySelector('.detail-fields .inline-alert:not([hidden])')).toBeNull();
+  expect(view.querySelector('.folder-opt[data-folder-id="research"]')).not.toBeNull();
+  expect(view.querySelector('.folder-opt[data-folder-id="reading"]')).toBeNull();
+  expect(sent()).toEqual([]);
+});
 
 test('the detail shows the title as its heading, a back button, and the three groups', async () => {
   const view = mount(saved());

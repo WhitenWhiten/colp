@@ -4442,6 +4442,9 @@
   "history_couldNotLoad": {
     "message": "Your history could not be loaded."
   },
+  "history_detailsCouldNotLoad": {
+    "message": "This bookmark’s folders and notes could not be loaded."
+  },
   "history_folderStep": {
     "message": "Folder"
   },

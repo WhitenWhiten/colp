@@ -26,6 +26,9 @@ export function createDetailFields(task: CaptureTask, context: { readonly editab
   if (!context.editable || !task.nativeId) return card;
 
   const nativeId = task.nativeId;
+  const retry = button(t('common_tryAgain', 'Try again'), 'btn btn-secondary btn-sm', () => { void loadWithFeedback(); });
+  const loadFailure = inlineAlert('warning',
+    t('history_detailsCouldNotLoad', 'This bookmark’s folders and notes could not be loaded.'), retry);
   const fields = createAnnotationFields({ onChange: () => paintFooter() });
   const fieldsRow = el('div', undefined, 'set-row set-row--stack'); fieldsRow.append(fields.element); fieldsRow.hidden = true;
   const foot = el('div', undefined, 'card-foot detail-foot'); foot.hidden = true;
@@ -61,11 +64,11 @@ export function createDetailFields(task: CaptureTask, context: { readonly editab
   }
 
   async function load(): Promise<void> {
-    const [node] = await chrome.bookmarks.get(nativeId).catch(() => []);
-    if (!node?.parentId) return;
+    const [node] = await chrome.bookmarks.get(nativeId);
+    if (!node?.parentId) throw new Error('bookmark_location_unavailable');
     original = node.parentId;
     reference = { id: nativeId, url: task.url, ...(node.dateAdded === undefined ? {} : { dateAdded: node.dateAdded }) };
-    const [tree, excluded, saved] = await Promise.all([chrome.bookmarks.getTree(), exclusionIds().catch(() => new Set<string>()), loadAnnotation(reference)]);
+    const [tree, excluded, saved] = await Promise.all([chrome.bookmarks.getTree(), exclusionIds(), loadAnnotation(reference)]);
     picker = createFolderPicker({ choices: folderChoices(tree, { exclude: excluded }), value: original, label: t('sync_folder', 'Folder'), onChange: () => paintFooter() });
     where.replaceWith(picker.element);
     baseline = { ...saved, sourceTags: saved.tags, tags: normalizeAnnotationEditTags([...saved.tags, ...decisionTags(task)], saved.tags) };
@@ -73,7 +76,13 @@ export function createDetailFields(task: CaptureTask, context: { readonly editab
     fieldsRow.hidden = false;
     paintFooter();
   }
-  void load().catch(() => undefined);
+  async function loadWithFeedback(): Promise<void> {
+    retry.disabled = true;
+    try { await load(); loadFailure.remove(); }
+    catch { folderRow.append(loadFailure); }
+    finally { retry.disabled = false; }
+  }
+  void loadWithFeedback();
 
   discard.addEventListener('click', () => {
     picker?.setValue(original);
