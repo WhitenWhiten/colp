@@ -193,7 +193,8 @@ export function createSyncSessionBlackBoxClient(options: SyncSessionBlackBoxClie
         const validation = createValidatorRegistry().validate('syncPushResult', document);
         if (!validation.valid) throw new Error('syncPush returned an invalid COLP result');
         const result = document as SyncPushResult;
-        if (result.results.length !== input.request.operations.length
+        if (result.results.length < 1 || result.results.length > input.request.operations.length
+            || (input.request.atomic && result.results.length !== input.request.operations.length)
             || result.results.some((item, index) => item.opId !== input.request.operations[index]?.opId
               || item.sequence !== input.request.operations[index]?.sequence)) {
           throw new Error('syncPush result identity does not match the request');

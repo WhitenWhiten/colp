@@ -309,7 +309,8 @@ function sendProblem(reply: FastifyReply, error: SyncPushHttpError) {
 }
 
 function validResponseSemantics(result: SyncPushResult, request: SyncPush): boolean {
-  return result.results.length === request.operations.length
+  return result.results.length > 0 && result.results.length <= request.operations.length
+    && (!request.atomic || result.results.length === request.operations.length)
     && result.results.every((item, index) => item.opId === request.operations[index]?.opId
       && item.sequence === request.operations[index]?.sequence);
 }

@@ -302,12 +302,16 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
     assert.equal(changed.status, 409); assert.equal(problem(changed.body).code, 'idempotency_key_reused');
   });
 
-  test('a batch failure preserves its committed prefix and singleton retries discover it', async () => {
+  test('a batch failure returns its committed prefix and only the uncommitted suffix needs retry', async () => {
     const value = await context(900, 50); const server = await start(value, { maxBatchOperations: 50 });
     const request = createBatch(value, 3);
     request.operations[1]!.payload = { ...request.operations[1]!.payload, parentId: 'missing-batch-parent' };
     const response = await client(server.origin).push({ idempotencyKey: 'batch-prefix', request });
-    assert.equal(response.status, 404);
+    assert.equal(response.status, 200);
+    assert.ok('results' in response.body);
+    assert.deepEqual(response.body.results.map(row => row.opId), [request.operations[0]!.opId]);
+    const replay = await client(server.origin).push({ idempotencyKey: 'batch-prefix', request });
+    assert.deepEqual(replay.body, response.body);
     const receipts = await isolated.runtime.pool.query(`select operation_id from sync_sequence_receipts where replica_id=$1`,
       [value.replica.replicaId]);
     assert.deepEqual(receipts.rows.map(row => row.operation_id), [request.operations[0]!.opId]);
@@ -317,6 +321,13 @@ describeWithPostgres('P3-11 real HTTP/PostgreSQL single-operation Push admission
     const count = await isolated.runtime.pool.query(`select count(*)::int count from operations where operation_id=$1`,
       [request.operations[0]!.opId]);
     assert.equal(count.rows[0].count, 1);
+    const suffix = await client(server.origin).push({ idempotencyKey: request.operations[1]!.opId,
+      request: { ...request, operations: [request.operations[1]!] } });
+    assert.equal(suffix.status, 404);
+    const skipped = await client(server.origin).push({ idempotencyKey: request.operations[2]!.opId,
+      request: { ...request, operations: [request.operations[2]!] } });
+    assert.equal(skipped.status, 409);
+    assert.equal(problem(skipped.body).code, 'sequence_gap');
   });
 
   test('batch preflight rejects atomic, mixed-scope, duplicate and non-contiguous arrays before mutations', async () => {

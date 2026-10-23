@@ -14,6 +14,29 @@ import { installOutboundPushIndexedDb, scope, json, problem } from './outbound-p
 installOutboundPushIndexedDb();
 
 describe('first-sync transport batches', () => {
+  test('a returned committed prefix is settled once and only the missing suffix is retried', async () => {
+    const f = await fixture(8); let calls = 0; const sequences: number[][] = [];
+    const fetcher: typeof fetch = async (_url, init) => {
+      const body = String(init?.body); const request = JSON.parse(body);
+      sequences.push(request.operations.map((row: JsonObject) => Number(row.sequence)));
+      calls += 1;
+      if (calls === 1) {
+        const response = await success(body).json(); response.results = response.results.slice(0, 3);
+        return json(200, response);
+      }
+      return success(body);
+    };
+    try {
+      assert.equal((await createOutboundPushWorker({ ...f.options, fetch: fetcher }).drain()).outcome, 'unknown');
+      assert.equal((await f.store.listQueue(scope, 'terminal')).length, 3);
+      assert.equal((await f.store.listQueue(scope, 'unknown')).length, 5);
+      f.clock.now += 60_000;
+      assert.equal((await createOutboundPushWorker({ ...f.options, fetch: fetcher }).drain()).outcome, 'terminal');
+      assert.deepEqual(sequences, [[1, 2, 3, 4, 5, 6, 7, 8], [4], [5], [6], [7], [8]]);
+      assert.equal((await f.store.listQueue(scope, 'terminal')).length, 8);
+    } finally { f.store.close(); }
+  });
+
   test('additive batch and operation fields still settle every committed receipt', async () => {
     const f = await fixture(2, 2);
     try {

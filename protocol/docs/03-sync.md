@@ -411,6 +411,8 @@ With `atomic=true`, the server must first complete preflight checks of scope, se
 
 With `atomic=false`, the server processes the array in order, and each operation commits in its own complete transaction boundary as described above. A dependency inside a batch must point to an operation that has already reached a terminal state or to an earlier operation in the array; when a dependency has not reached a terminal state, the current operation returns `deferred` / `dependency_pending` and must not execute ahead of it. When a dependency was `rejected`, the current operation may end as `rejected` / `dependency_failed` and consume its own sequence. When the transaction fails, the operation's resource state, receipt, cursor, and audit are all rolled back, and the client can safely retry the same sequence.
 
+If processing stops after one or more durable results, the server returns `200` with those results as an ordered prefix of the request and the last committed `serverCursor`. It must not invent results for unprocessed operations. Clients persist the returned receipts and retry only the remaining suffix (or the deferred operation before its successors). If no operation produced a durable result, the server returns the original Problem. Atomic requests always require a complete result array.
+
 <a id="colp-section-8"></a>
 
 ## 8. Pull

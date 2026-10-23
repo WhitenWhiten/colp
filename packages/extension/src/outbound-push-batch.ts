@@ -85,20 +85,22 @@ export async function sendBootstrapCreateBatch(input: {
     }
     const value = await Promise.race([readBoundedJson(response, RESPONSE_BYTES, 'push_batch_response_invalid'), timeout]);
     const document = value as { batchId?: unknown; results?: unknown; serverCursor?: unknown } | null;
-    if (!document || !Array.isArray(document.results) || document.results.length !== rows.length) {
+    if (!document || !Array.isArray(document.results) || document.results.length < 1
+        || document.results.length > rows.length) {
       throw new SyncFailureError('push_batch_response_invalid');
     }
     const results = document.results;
     // Validate every identity/status before publishing any local receipt.
-    const singles = rows.map((row, index) => parseSyncPushResult({ ...document, results: [results[index]] }, row).document);
+    const singles = results.map((result, index) => parseSyncPushResult({ ...document, results: [result] }, rows[index]!).document);
     let outcome: BatchOutcome = 'terminal';
-    for (let index = 0; index < rows.length; index += 1) {
+    for (let index = 0; index < singles.length; index += 1) {
       outcome = await input.settle(rows[index]!, new Response(JSON.stringify(singles[index]), {
         status: 200, headers: { 'Content-Type': 'application/json' } }));
       settled = index + 1;
       if (outcome !== 'terminal') break;
     }
     for (const row of rows.slice(settled)) await input.unknown(row, 'push_batch_prefix_pending');
+    if (outcome === 'terminal' && settled < rows.length) outcome = 'unknown';
     return { outcome, count: rows.length, sequence: rows[Math.max(0, settled - 1)]!.sequence };
   } catch (error) {
     const code = reasonCode(error, 'push_batch_response_unknown');

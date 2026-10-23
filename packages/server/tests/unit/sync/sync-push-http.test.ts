@@ -59,6 +59,7 @@ async function start(options: {
   readonly maxJsonMembers?: number;
   readonly allowInsecureLoopback?: boolean;
   readonly admitResult?: SyncPushResult;
+  readonly maxBatchOperations?: number;
   readonly admission?: SyncAdmissionPolicy;
 } = {}) {
   const calls: string[] = [];
@@ -74,7 +75,7 @@ async function start(options: {
     } },
     application: {
       runtimeOwnership: { operationIdReservationOwner: 'sequence', usesPushCoordinator: false,
-        maxBatchOperations: 1, evaluator: 'canonical_node_create' },
+        maxBatchOperations: options.maxBatchOperations ?? 1, evaluator: 'canonical_node_create' },
       async admit() {
         calls.push('admission');
         if (options.admitResult !== undefined) return options.admitResult;
@@ -82,7 +83,7 @@ async function start(options: {
       },
     },
     rateLimit: { maxRequests: options.maxRequests ?? 100, windowMs: 60_000 },
-    maxBatchOperations: 1,
+    maxBatchOperations: options.maxBatchOperations ?? 1,
     allowInsecureLoopback: options.allowInsecureLoopback ?? true,
     ...(options.bodyLimitBytes === undefined ? {} : { bodyLimitBytes: options.bodyLimitBytes }),
     ...(options.maxJsonDepth === undefined ? {} : { maxJsonDepth: options.maxJsonDepth }),
@@ -111,6 +112,21 @@ async function post(origin: string, request: SyncPush = syncPushAdmissionRequest
 }
 
 describe('P3-11 single-operation Sync Push HTTP admission', () => {
+  test.each(['prefix', 'atomic_prefix', 'empty', 'excess', 'reordered'])(
+    'validates ordered batch response boundaries: %s', async mode => {
+      const request = syncPushAdmissionRequest();
+      request.operations.push({ ...request.operations[0]!, sequence: 2, opId: 'push-operation-2' });
+      request.atomic = mode === 'atomic_prefix';
+      const item = { opId: request.operations[0]!.opId, sequence: 1,
+        status: 'noop' as const, warnings: [] };
+      const result = { batchId: request.batchId, serverCursor: 'sync-unchanged',
+        results: mode === 'empty' ? [] : mode === 'excess' ? [item, item, item]
+          : mode === 'reordered' ? [{ ...item, opId: 'push-operation-2', sequence: 2 }] : [item] };
+      const server = await start({ admitResult: result, maxBatchOperations: 3 });
+      const response = await post(server.origin, request);
+      assert.equal(response.status, mode === 'prefix' ? 200 : 500);
+    });
+
   test('registers unsupported_operation as a non-retryable COLP Problem', () => {
     assert.deepEqual(problemRegistry.unsupported_operation, { status: 422, retryable: false });
     assert.equal(createValidatorRegistry().validate('problem', {

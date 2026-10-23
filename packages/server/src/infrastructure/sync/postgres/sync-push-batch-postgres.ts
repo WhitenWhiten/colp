@@ -59,12 +59,18 @@ export async function admitPushBatch(
   const results: SyncPushResult['results'] = [];
   let serverCursor = 'sync-unchanged';
   for (const operation of operations) {
-    // Errors leave the committed prefix intact. No later operation is tried;
-    // callers replay singleton receipts to discover that prefix safely.
-    const result = await admitSingle({ ...input, idempotencyKey: operation.opId,
-      request: { ...input.request, operations: [operation] } }, session);
-    results.push(...result.results);
-    if (result.serverCursor !== 'sync-unchanged') serverCursor = result.serverCursor;
+    try {
+      const result = await admitSingle({ ...input, idempotencyKey: operation.opId,
+        request: { ...input.request, operations: [operation] } }, session);
+      results.push(...result.results);
+      if (result.serverCursor !== 'sync-unchanged') serverCursor = result.serverCursor;
+      if (result.results.some(item => item.status === 'deferred')) break;
+    } catch (error) {
+      // Return only durable receipts. The failed sequence remains unconsumed;
+      // retrying the suffix reveals its Problem without replaying the prefix.
+      if (!(error instanceof SyncPushHttpError) || results.length === 0) throw error;
+      break;
+    }
   }
   return { batchId: input.request.batchId, results, serverCursor };
 }

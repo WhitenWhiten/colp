@@ -73,7 +73,14 @@
     {
       "id": "sync-07",
       "title": "preserve committed-prefix receipts in non-atomic push batches",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Non-atomic batches return the durable ordered receipt prefix on a later per-operation denial; stop on deferred receipts; no result is fabricated for an uncommitted operation",
+        "Extension validates the complete returned prefix before settling it, retains its mappings and only replays unknown suffix members as singletons",
+        "Real PostgreSQL: prefix receipt replay is identical and only one canonical write exists; denied suffix remains unconsumed and skipped successor gets sequence_gap",
+        "13 real-Postgres integration tests, 27 HTTP unit tests and 46 extension tests pass; TypeScript, targeted ESLint, import boundaries and source-size checks pass",
+        "Protocol documents partial non-atomic result arrays; atomic responses still require complete identity-matched results"
+      ]
     },
     {
       "id": "sync-08",
@@ -626,7 +633,8 @@
         "Advanced mounts retain remote parent identity; the bootstrap run and executor follow the actual accepted cursor",
         "136 engine/session assertions plus 76 affected advanced/engine assertions pass; extension TypeScript, targeted ESLint and source-size gate pass",
         "Both real-Postgres Chromium advanced-first-run upload (lost response and profile restart) and download scenarios pass under xvfb (2.6 minutes)"
-      ]
+      ],
+      "commit": "b471c841"
     }
   ],
   "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."
