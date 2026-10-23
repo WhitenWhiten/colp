@@ -806,6 +806,19 @@
         "Verified Snapshot guard uses a linear graph walk from explicitly mounted native roots; structural ancestor identity cannot expand coverage; special/custom container placeholders retain their existing semantics",
         "91 related recovery/projection, local-delete, issue-preservation, mapping-lifecycle and real-Pull assertions pass; TypeScript, targeted ESLint, source-size gate and production build pass",
         "Real two-profile Chromium run now passes absence of the other profile’s unselected native root. The journey advances to a separate stale-token expectation after restart, still tracked under extension CI restoration"
+      ],
+      "commit": "2bea6054"
+    },
+    {
+      "id": "sync-20",
+      "title": "Bind ordinary selected-folder create echoes before rejecting their unselected structural parents",
+      "status": "resolved",
+      "validation": [
+        "Real coverage-expansion journey freezes with recovery_required/create_ambiguous when two ordinary selected folders share a structural bookmarks-bar ancestor",
+        "New full-applier regression reproduces an own mount-create being marked unmounted instead of retaining its existing native folder",
+        "Resolve ordinary folder mounts by exact remote identity or this replica’s own pending bootstrap mount operation before parent-range filtering; special-role and foreign-custom-key protections remain in force",
+        "All 650 assertions in 82 relevant Pull, mount, bootstrap and projection consumer suites pass; TypeScript, targeted lint, source-size and production build pass",
+        "Real Chromium coverage expansion from 12/28 to 28/28 folders now completes and verifies the entire preview and native/server convergence; stale-tree rejection also passes. Two-profile journey progresses to a separate existing private-root projection expectation, corrected in the CI restoration work"
       ]
     }
   ],

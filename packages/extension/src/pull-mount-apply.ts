@@ -65,10 +65,11 @@ export async function planCreated(store: Store, scope: SyncScope, event: OpEvent
   if (event.effect.kind !== 'node_created') return { kind: 'chrome' };
   const role = folderRoleOf(event.effect.node);
   const mounts = await store.listMountBindings(scope);
+  const ownOpId = event.operation.replicaId === scope.replicaId ? operationOpId(event) : undefined;
+  const match = event.effect.node.kind === 'folder'
+    ? matchMount(mounts, role, event.effect.node.id, ownOpId) : undefined;
+  if (match && match.status !== 'detached') return { kind: 'bind_mount', mount: match };
   if (isSpecialMountRole(role) || role === 'custom') {
-    const ownOpId = event.operation.replicaId === scope.replicaId ? operationOpId(event) : undefined;
-    const match = matchMount(mounts, role, event.effect.node.id, ownOpId);
-    if (match && match.status !== 'detached') return { kind: 'bind_mount', mount: match };
     const existing = await mappingByColp(store, scope, event.effect.node.id);
     const own = ownOpId ? await store.getQueueByOpId(scope, ownOpId) : null;
     if (existing && !isNonChromeNativeId(existing.nativeId) && existing.nodeKind === 'folder'
@@ -125,7 +126,7 @@ export async function persistMountBinding(store: Store, scope: SyncScope, mount:
 function matchMount(mounts: readonly MountBindingRecord[], role: string | undefined, colpId: string,
   opId?: string) {
   if (isSpecialMountRole(role)) return mounts.find((mount) => mount.rootRole === role);
-  if (role !== 'custom') return undefined;
+  if (role !== undefined && role !== 'custom') return undefined;
   const customs = mounts.filter((mount) => mount.customSourceKey !== undefined && mount.status !== 'detached');
   const byRemote = customs.find((mount) => mount.remoteMountNodeId === colpId);
   if (byRemote) return byRemote;

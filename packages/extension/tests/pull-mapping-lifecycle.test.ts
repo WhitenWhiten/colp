@@ -5,6 +5,7 @@ import 'fake-indexeddb/auto';
 import { test } from 'vitest';
 import { createPullApplier, type PullBookmarkApi } from '../src/pull-applier.js';
 import { boundNativeId } from '../src/pull-mount-apply.js';
+import { bootstrapOpId } from '../src/bootstrap/run-identity.js';
 import { createBookmarkEventQueue } from '../src/bookmark-event-queue.js';
 import { createOutboundPushWorker, type PushSessionController } from '../src/outbound-push-worker.js';
 import { recoverVerifiedOrFreeze, leftoverVirtualChildrenNeedReproject } from '../src/recovery-guard.js';
@@ -18,6 +19,24 @@ const scope: SyncScope = { environment: 'development', serverId: 'lifecycle-serv
   replicaId: 'replica-lifecycle', generation: 1 };
 const mountId = 'mount-colp';
 const collectionRoot = 'root-colp';
+
+test('an own ordinary selected-folder create binds its native root through an unselected ancestor', async () => {
+  const f = await setup();
+  try {
+    await f.store.putMountBinding(scope, { mountId: 'mount-bar', nativeRootId: '1', remoteMountNodeId: mountId,
+      boundaryVersion: '1', materialized: false, status: 'detached', rootRole: 'bookmarks-bar' });
+    await f.store.putMountBinding(scope, { mountId: 'selected', nativeRootId: '2', remoteMountNodeId: null,
+      boundaryVersion: '1', materialized: false, status: 'pending', customSourceKey: 'folder:2' });
+    f.nodes.set('2', { id: '2', parentId: '1', title: 'Selected' });
+    const event = pullFixtures.createEvent({ kind: 'Folder', sequence: 1, collectionId: scope.collectionId,
+      parentId: mountId, replicaId: scope.replicaId, title: 'Selected',
+      opId: bootstrapOpId('confirm', 'mount', 'folder:2') });
+    await f.apply([event]);
+    assert.equal((await f.store.getMappingByColpId(scope, 'node-created-1'))?.nativeId, '2');
+    assert.equal((await f.store.listMountBindings(scope)).find(row => row.mountId === 'selected')?.status, 'active');
+    assert.deepEqual(f.calls, []);
+  } finally { f.store.close(); }
+});
 
 test('an acknowledged create echo refreshes the source fence after its native anchor moved locally', async () => {
   const f = await setupMovedAnchor();
