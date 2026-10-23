@@ -124,12 +124,13 @@ export function createBookmarkSubscriptionSources(tx:DatabaseTransaction,options
     return {available:true,removeEditionIds,removeNodes,authorityRevision:digest([ref,editionIds,nodes,facts,removeNodes])};
   }
   return {get,project,check,async list(actor,filter,after,limit=20){
-    if(filter.sourceType!=='collection'&&options.reportsEnabled===false)fail('feature_temporarily_unavailable');
+    if(filter.sourceType==='digest_series'&&options.reportsEnabled===false)fail('feature_temporarily_unavailable');
     let anchor=after?JSON.parse(after) as [string,string,string]:null;const result:SourceView[]=[];
     while(result.length<limit) {
       const statement=[
         "with candidates as (select c.id as source_id,'collection'::text as source_type,date_trunc('milliseconds',c.updated_at) as updated_at,exists(select 1 from collection_follows f where f.collection_id=c.id and f.follower_profile_id=$1) as followed,exists(select 1 from collection_members m where m.collection_id=c.id and m.subject_id=$2 and c.owner_subject_id<>$2) as shared from collections c where c.deleted_at is null",
-        "union all select s.id,'digest_series',date_trunc('milliseconds',s.updated_at),exists(select 1 from digest_follows f where f.series_id=s.id and f.follower_profile_id=$1 and f.unfollowed_at is null),exists(select 1 from digest_members m where m.series_id=s.id and m.subject_id=$2 and m.revoked_at is null and s.owner_subject_id<>$2) from digest_series s where s.deleted_at is null and s.state='active')",
+        ...(options.reportsEnabled === false ? [] : ["union all select s.id,'digest_series',date_trunc('milliseconds',s.updated_at),exists(select 1 from digest_follows f where f.series_id=s.id and f.follower_profile_id=$1 and f.unfollowed_at is null),exists(select 1 from digest_members m where m.series_id=s.id and m.subject_id=$2 and m.revoked_at is null and s.owner_subject_id<>$2) from digest_series s where s.deleted_at is null and s.state='active'"]),
+        ")",
         "select source_id,source_type,updated_at from candidates where (followed or shared) and ($3::text is null or source_type=$3) and ($4::text is null or ($4='followed' and followed) or ($4='shared' and shared)) and ($5::timestamptz is null or updated_at<$5 or (updated_at=$5 and (source_type>$6 or (source_type=$6 and source_id>$7)))) order by updated_at desc,source_type,source_id limit 100"
       ].join(' ');
       const rows=(await tx.executeQuery<{source_id:string;source_type:SourceRef['sourceType'];updated_at:Date}>(CompiledQuery.raw(statement,[actor.accountId,actor.subjectId,filter.sourceType??null,filter.relation??null,anchor?.[0]??null,anchor?.[1]??null,anchor?.[2]??null]))).rows;
