@@ -16,6 +16,9 @@ export function useActivityInbox(api: ActivityApi, accountId: string | null) {
   const [version, setVersion] = useState(0)
   const [loaded, setLoaded] = useState({ key, filter, inbox: EMPTY })
   const [markingFor, setMarkingFor] = useState<string | null>(null)
+  /* The visit's automatic read has answered: until then Mark all read would
+     only flash in the head between the first page and that read. */
+  const [settledFor, setSettledFor] = useState<string | null>(null)
   const marking = markingFor === key
   const firstPageMarked = useRef<string | null>(null)
   const generation = useRef(0)
@@ -50,10 +53,13 @@ export function useActivityInbox(api: ActivityApi, accountId: string | null) {
     return () => controller.abort()
   }, [accountId, api, filter, key, version])
 
-  const markRead = useCallback(async (through: string) => {
+  const markRead = useCallback(async (shown: string, everything = false) => {
     setMarkingFor(key)
     try {
-      const result = await api.markActivityRead({ through })
+      // On demand, also what arrived after this page loaded: the summary
+      // names the newest item; the page's newest stands in if it can't.
+      const latest = everything ? (await api.getActivitySummary().catch(() => null))?.latest?.id : undefined
+      const result = await api.markActivityRead({ through: latest ?? shown })
       if (!mounted.current || key !== activeKey.current) return
       setLoaded((value) => value.key === key ? { ...value, inbox: { ...value.inbox, unreadCount: result.unreadCount } } : value)
       await refreshActivitySummary()
@@ -70,7 +76,8 @@ export function useActivityInbox(api: ActivityApi, accountId: string | null) {
     const newest = inbox.items[0]
     if (inbox.loading || inbox.error || !newest || firstPageMarked.current === key) return
     firstPageMarked.current = key
-    if (inbox.unreadCount > 0) void markRead(newest.id)
+    if (inbox.unreadCount === 0) setSettledFor(key)
+    else void markRead(newest.id).finally(() => { if (mounted.current && key === activeKey.current) setSettledFor(key) })
   }, [inbox, key, markRead])
 
   async function more() {
@@ -91,5 +98,10 @@ export function useActivityInbox(api: ActivityApi, accountId: string | null) {
     }
   }
 
-  return { inbox, filter, setFilter, marking, more, retry: () => setVersion((value) => value + 1), markAll: () => { if (!marking && inbox.items[0]) void markRead(inbox.items[0].id) } }
+  return {
+    inbox, filter, setFilter, marking, more,
+    canMarkAll: settledFor === key && inbox.unreadCount > 0 && inbox.items.length > 0,
+    retry: () => setVersion((value) => value + 1),
+    markAll: () => { if (!marking && inbox.items[0]) void markRead(inbox.items[0].id, true) },
+  }
 }

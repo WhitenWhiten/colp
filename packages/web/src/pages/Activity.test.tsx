@@ -40,7 +40,9 @@ describe('Activity inbox', () => {
     expect(document.querySelector('a[href="/automations/runs/run-1"]')).not.toBeNull()
     expect(document.querySelectorAll('time[title]').length).toBe(5)
     expect(document.querySelectorAll('[data-unread="true"]').length).toBe(5)
-    expect(document.querySelector('section[aria-label] h2')).not.toBeNull()
+    // Days are headings, not one landmark each.
+    expect(document.querySelector('section > h2')).not.toBeNull()
+    expect(document.querySelector('section[aria-label]')).toBeNull()
   })
 
   it('marks through the newest item after render exactly once, including after loading more', async () => {
@@ -79,6 +81,26 @@ describe('Activity inbox', () => {
     click('Mark all read')
     await waitForDom(() => api.markActivityRead.mock.calls.length === 2)
     expect(api.markActivityRead.mock.calls[1]).toEqual([{ through: 'activity-1' }])
+  })
+
+  it('offers Mark all read only after the automatic read, then reaches activity that arrived later', async () => {
+    const api = fakeActivityApi()
+    api.listActivity.mockResolvedValue({ items: [activityItem('shown')], nextCursor: null, unreadCount: 2 })
+    api.getActivitySummary.mockResolvedValue({ unreadCount: 1, latest: activityItem('arrived'), revision: '3' })
+    let finishRead: ((result: { readCount: number; unreadCount: number }) => void) | undefined
+    api.markActivityRead.mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve }))
+    renderWithRouter(<Activity api={api} />, { route: '/activity' })
+    await waitForDom(() => api.markActivityRead.mock.calls.length === 1)
+    const markAll = () => [...document.querySelectorAll('button')].find((button) => /Mark/u.test(button.textContent ?? ''))
+    expect(markAll()).toBeUndefined()
+    // Something arrived between the list and its read: the head offers the rest.
+    await act(async () => finishRead?.({ readCount: 1, unreadCount: 1 }))
+    await waitForDom(() => markAll()?.textContent === 'Mark all read')
+    click('Mark all read')
+    await waitForDom(() => api.markActivityRead.mock.calls.length === 2)
+    expect(api.markActivityRead.mock.calls[0]).toEqual([{ through: 'shown' }])
+    expect(api.markActivityRead.mock.calls[1]).toEqual([{ through: 'arrived' }])
+    await waitForDom(() => markAll() === undefined)
   })
 
   it('uses readable fallbacks and treats bookmark titles as text', async () => {

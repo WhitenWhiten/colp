@@ -185,19 +185,21 @@ export function TopNav() {
             </nav>
           )}
           <div className="nav-actions">
+            {/* A link, like the primary entries: the bell is a destination
+                and opens in a new tab like any other. The count rides on
+                its corner; the name says it in full. */}
             {showChrome && activityAvailable && (
-              <button
-                type="button"
-                className="nav-activity"
-                onClick={() => navigate('/activity')}
+              <NavLink
+                to="/activity"
+                end
+                className={() => 'nav-activity'}
                 aria-label={`Activity, ${activity.unreadCount} unread`}
-                aria-current={location.pathname === '/activity' ? 'page' : undefined}
                 onPointerEnter={() => prefetchRoute('/activity')}
                 onFocus={() => prefetchRoute('/activity')}
               >
                 <Icon name="bell" />
                 {activity.unreadCount > 0 && <span className="count-pill" data-tone="accent" aria-hidden>{activity.unreadCount > 99 ? '99+' : activity.unreadCount}</span>}
-              </button>
+              </NavLink>
             )}
             {showSearch && (
               <button

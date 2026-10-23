@@ -1,10 +1,13 @@
-/* Activity follows the Automations list anatomy: paper, hairlines, and
-   restrained state colour. Long agent names and titles wrap on phones. */
+/* Activity follows the automation lists' anatomy (Digests, Needs
+   attention): one bordered surface per day with hairline rows, a glyph tile
+   on --surface-sunken that takes tone only for a problem, and a fixed state
+   column for New. Read rows step back as read digests do. Long agent names,
+   folder names and titles wrap inside their column on phones. */
 @layer pages {
 .activity-toolbar {
   display: flex;
   align-items: center;
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-5);
 }
 
 .activity-feed {
@@ -12,32 +15,42 @@
   gap: var(--space-6);
 }
 
+.activity-group {
+  display: grid;
+  gap: var(--hair-55);
+  min-width: 0;
+}
+
 .activity-day {
   margin: 0;
   color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
 }
 
 .activity-list {
-  list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  list-style: none;
 }
 
 .activity-list > li + li {
   border-top: 1px solid var(--line);
 }
 
+/* Glyph, then the words; New takes a third column only when present, so a
+   read row's sentence keeps the full width. */
 .activity-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
-  gap: var(--hair-85);
-  padding: var(--hair-125);
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-4) var(--space-5);
 }
 
 .activity-icon {
@@ -45,112 +58,153 @@
   place-items: center;
   width: 2rem;
   height: 2rem;
-  border: 1px solid var(--line);
   border-radius: var(--radius);
-  color: var(--muted);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
 }
 
-.activity-item[data-unread='true'] .activity-icon {
-  color: var(--accent-ink);
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+.activity-icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
-.activity-item .activity-icon[data-kind='run_attention'],
-.activity-item .activity-icon[data-kind='run_partial'] {
+.activity-icon[data-tone='warning'] {
   color: var(--warning);
 }
 
-.activity-item .activity-icon[data-kind='run_failed'] {
+.activity-icon[data-tone='danger'] {
   color: var(--danger);
 }
 
+/* The top inset centres the sentence's first line on the 2rem glyph. */
 .activity-body {
   display: grid;
-  gap: var(--hair-40);
+  gap: var(--hair-30);
   min-width: 0;
+  padding-top: var(--hair-40);
 }
 
-.activity-item-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--hair-40) var(--hair-65);
-}
-
-.activity-item-head h3 {
-  margin: 0;
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-body);
-  overflow-wrap: anywhere;
+.activity-state {
+  grid-column: 3;
+  grid-row: 1;
+  margin-top: var(--hair-30);
 }
 
 .activity-title {
+  margin: 0;
   color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-ui);
+  overflow-wrap: anywhere;
+}
+
+.activity-item:not([data-unread]) .activity-title {
+  color: var(--ink-2);
+  font-weight: var(--weight-medium);
+}
+
+/* One box, so a wrapped sentence takes one focus ring, not one per line. */
+.activity-title a {
+  display: inline-block;
+  max-width: 100%;
+  color: inherit;
   text-decoration: none;
 }
 
-.activity-title:hover {
-  color: var(--accent-ink);
+.activity-title a:hover {
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
 
+/* Up to five of the bookmarks, newest first: each title on at most two
+   lines, its site after it. */
 .activity-samples {
   display: grid;
-  gap: var(--hair-35);
-  list-style: none;
+  gap: var(--hair-30);
   margin: var(--hair-40) 0 0;
   padding: 0 0 0 var(--hair-85);
   border-left: 1px solid var(--line-strong);
+  list-style: none;
+  color: var(--ink-2);
   font-size: var(--text-sm);
   line-height: var(--leading-copy);
 }
 
 .activity-samples li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--hair-20) var(--hair-65);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow-wrap: anywhere;
 }
 
-.activity-host,
-.activity-folder-count {
+/* A space before the site is the line's break point, so a long title
+   never drags its last word onto the site's line. */
+.activity-host {
+  margin-left: var(--hair-15);
   color: var(--muted);
   font-size: var(--text-xs);
 }
 
+/* Every folder the bookmarks went to, with its share: one glyph for the
+   line, the names as quiet links. */
 .activity-folders {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--hair-40) var(--hair-85);
-  margin: var(--hair-40) 0 0;
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
-.activity-folders > span {
-  display: inline-flex;
   align-items: baseline;
-  gap: var(--hair-30);
-  overflow-wrap: anywhere;
-  min-width: 0;
+  gap: var(--hair-40);
+  margin-top: var(--hair-30);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-meta);
 }
 
-.activity-folders svg {
-  align-self: center;
+.activity-folders > svg {
   flex-shrink: 0;
+  align-self: flex-start;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: var(--hair-15);
+  color: var(--faint);
+}
+
+.activity-folders ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hair-20) var(--hair-65);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-folders li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.activity-folders a {
+  color: var(--ink-2);
+  text-decoration: none;
 }
 
 .activity-folders a:hover {
   color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.activity-folder-count {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 639px) {
   .activity-item {
-    padding: var(--hair-85);
-    gap: var(--hair-65);
+    gap: var(--space-2) var(--hair-65);
+    padding: var(--space-4);
   }
 }
 }

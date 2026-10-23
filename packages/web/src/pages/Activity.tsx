@@ -14,13 +14,13 @@ import '../styles/activity.css'
 
 export function Activity({ api = activityApi }: { api?: ActivityApi } = {}) {
   const { isLoggedIn, user, bootstrapping } = useAuth()
-  const { inbox, filter, setFilter, marking, more, retry, markAll } = useActivityInbox(api, isLoggedIn ? user?.accountId ?? null : null)
+  const { inbox, filter, setFilter, marking, canMarkAll, more, retry, markAll } = useActivityInbox(api, isLoggedIn ? user?.accountId ?? null : null)
 
   return (
     <PageShell variant="narrow" data-testid="activity-inbox">
       <PageHead as="header" layout="split" variant="workbench" title="Activity" documentTitle="Activity"
-        lede="New bookmarks, finished work, and decisions waiting for you."
-        actions={isLoggedIn && inbox.unreadCount > 0 ? (
+        lede="New bookmarks from your agents, finished work, and decisions waiting for you."
+        actions={isLoggedIn && canMarkAll ? (
           <button className="btn btn-secondary btn-sm" type="button" onClick={markAll} disabled={marking}>
             {marking ? 'Marking read…' : 'Mark all read'}
           </button>

@@ -22,7 +22,9 @@ describe('Activity navigation', () => {
     renderWithRouter(<><TopNav /><Location /></>, { route: '/library' })
     expect(document.querySelector('[aria-label^="Activity,"]')).toBeNull()
     act(() => publishActivitySummary({ unreadCount: 107, latest: null, revision: '9' }))
-    const bell = document.querySelector<HTMLButtonElement>('[aria-label="Activity, 107 unread"]')
+    const bell = document.querySelector<HTMLAnchorElement>('[aria-label="Activity, 107 unread"]')
+    // A link to the inbox, so it opens in a new tab like any destination.
+    expect(bell?.getAttribute('href')).toBe('/activity')
     expect(bell?.querySelector('span[aria-hidden]')?.textContent).toBe('99+')
     act(() => bell?.click())
     expect(document.querySelector('output')?.textContent).toBe('/activity')

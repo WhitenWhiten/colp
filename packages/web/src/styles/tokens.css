@@ -407,8 +407,9 @@
 
      Registered local cut points (do not spread further):
      - 540/541px — topnav CTA chrome micro-cut (nav.css). Below 540
-       the secondary CTA, bell, account and tools drop into the drawer;
-       compact search stays in the bar so search is never drawer-only.
+       the secondary CTA, account and tools drop into the drawer;
+       compact search and the activity bell stay in the bar, so neither
+       search nor the unread count is drawer-only.
        541–1099 keeps the primary CTA (Get started) visible and hides only
        Log in until full chrome at 1100. auth.css reuses the same
        narrow-phone cut for full-bleed action-row buttons.

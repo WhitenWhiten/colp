@@ -4,19 +4,30 @@ import { Icon, type IconName } from '../../components/Icon'
 import { StatusBadge } from '../../components/StatusBadge'
 import { formatDate, formatDateTime, formatRelative } from '../../lib/formatDate'
 import { plural } from '../../lib/plural'
+import { runPath } from '../automations/paths'
+
+/* The owner's inbox: one bordered list per day, a glyph, the sentence, its
+   details and a New state column. The glyph uses the run page's vocabulary
+   and takes tone only for a problem, as the extension's Activity tab does. */
 
 const OUTCOME: Record<Exclude<ActivityKind, 'agent_bookmarks_added'>, string> = {
   run_completed: 'finished', run_partial: 'partly finished', run_failed: 'failed', run_attention: 'needs your decision',
 }
-const ICON: Record<ActivityKind, IconName> = {
-  agent_bookmarks_added: 'bookmark', run_completed: 'check', run_partial: 'alert', run_failed: 'alert', run_attention: 'pause',
+const GLYPH: Record<ActivityKind, [IconName, 'warning' | 'danger' | undefined]> = {
+  agent_bookmarks_added: ['bookmark', undefined],
+  run_completed: ['check', undefined],
+  run_partial: ['alert', 'warning'],
+  run_failed: ['alert', 'danger'],
+  run_attention: ['alert', 'warning'],
+}
+
+function folderHref(collectionId: string, folderId?: string): string {
+  return `/library/${encodeURIComponent(collectionId)}${folderId ? `?folder=${encodeURIComponent(folderId)}` : ''}`
 }
 
 function destination(item: ActivityItem): string | null {
-  if (item.run) return `/automations/runs/${encodeURIComponent(item.run.id)}`
-  if (!item.collection) return null
-  const folder = item.folders[0]
-  return `/library/${encodeURIComponent(item.collection.id)}${folder ? `?folder=${encodeURIComponent(folder.nodeId)}` : ''}`
+  if (item.run) return runPath(item.run.id)
+  return item.collection ? folderHref(item.collection.id, item.folders[0]?.nodeId) : null
 }
 
 function sentence(item: ActivityItem): string {
@@ -34,6 +45,52 @@ function day(value: string): string {
   return date.toDateString() === now.toDateString() ? 'Yesterday' : formatDate(value)
 }
 
+function Entry({ item }: { item: ActivityItem }) {
+  const href = destination(item)
+  const title = sentence(item)
+  const unread = item.state === 'unread'
+  const [glyph, tone] = GLYPH[item.kind]
+  const added = item.kind === 'agent_bookmarks_added'
+  return (
+    <article className="activity-item" data-activity-id={item.id} data-kind={item.kind} data-unread={unread ? 'true' : undefined}>
+      <span className="activity-icon" data-tone={tone} aria-hidden><Icon name={glyph} /></span>
+      <div className="activity-body">
+        <h3 className="activity-title">{href ? <Link to={href}>{title}</Link> : title}</h3>
+        <p className="automation-meta">
+          {!added && item.count > 0 && <>{plural(item.count, 'new digest')} · </>}
+          <time dateTime={item.updatedAt} title={formatDateTime(item.updatedAt)}>{formatRelative(item.updatedAt)}</time>
+        </p>
+        {added && item.items.length > 0 && (
+          <ul className="activity-samples" aria-label="Recent bookmarks">
+            {item.items.slice(0, 5).map((member) => (
+              <li key={member.nodeId} title={member.title ?? undefined}>
+                {member.title || member.host || 'Untitled bookmark'}
+                {member.title && member.host && <>{' '}<span className="activity-host">{member.host}</span></>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {added && item.folders.length > 1 && (
+          <div className="activity-folders">
+            <Icon name="folder" />
+            <ul aria-label="Folders">
+              {item.folders.map((folder) => (
+                <li key={folder.nodeId}>
+                  {item.collection
+                    ? <Link to={folderHref(item.collection.id, folder.nodeId)}>{folder.title || 'Untitled folder'}</Link>
+                    : folder.title || 'Untitled folder'}
+                  {'\u00a0'}<span className="activity-folder-count">{folder.count}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+      {unread && <StatusBadge tone="accent" className="activity-state">New</StatusBadge>}
+    </article>
+  )
+}
+
 export function ActivityFeed({ items }: { items: readonly ActivityItem[] }) {
   const groups = new Map<string, ActivityItem[]>()
   for (const item of items) {
@@ -43,51 +100,10 @@ export function ActivityFeed({ items }: { items: readonly ActivityItem[] }) {
   return (
     <div className="activity-feed">
       {[...groups].map(([label, entries]) => (
-        <section className="automations-section" aria-label={label} key={label}>
+        <section className="activity-group" key={label}>
           <h2 className="activity-day">{label}</h2>
           <ol className="activity-list">
-            {entries.map((item) => {
-              const href = destination(item)
-              const title = sentence(item)
-              return (
-                <li key={item.id}>
-                  <article className="activity-item" data-activity-id={item.id} data-kind={item.kind} data-unread={item.state === 'unread' ? 'true' : undefined}>
-                    <span className="activity-icon" data-kind={item.kind} aria-hidden><Icon name={ICON[item.kind]} /></span>
-                    <div className="activity-body">
-                      <header className="activity-item-head">
-                        <h3>{href ? <Link className="activity-title" to={href}>{title}</Link> : title}</h3>
-                        {item.state === 'unread' && <StatusBadge tone="accent">New</StatusBadge>}
-                      </header>
-                      <p className="automation-meta">
-                        {item.kind !== 'agent_bookmarks_added' && item.count > 0 && <>{plural(item.count, 'new digest')} · </>}
-                        <time dateTime={item.updatedAt} title={formatDateTime(item.updatedAt)}>{formatRelative(item.updatedAt)}</time>
-                      </p>
-                      {item.kind === 'agent_bookmarks_added' && item.items.length > 0 && (
-                        <ul className="activity-samples" aria-label="Recent bookmarks">
-                          {item.items.slice(0, 5).map((member) => (
-                            <li key={member.nodeId}>
-                              <span>{member.title || member.host || 'Untitled bookmark'}</span>
-                              {member.title && member.host && <span className="activity-host">{member.host}</span>}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {item.kind === 'agent_bookmarks_added' && item.folders.length > 1 && (
-                        <p className="activity-folders">
-                          {item.folders.map((folder) => (
-                            <span key={folder.nodeId}>
-                              <Icon name="folder" />
-                              {item.collection ? <Link to={`/library/${encodeURIComponent(item.collection.id)}?folder=${encodeURIComponent(folder.nodeId)}`}>{folder.title || 'Untitled folder'}</Link> : folder.title || 'Untitled folder'}
-                              <span className="activity-folder-count">{folder.count}</span>
-                            </span>
-                          ))}
-                        </p>
-                      )}
-                    </div>
-                  </article>
-                </li>
-              )
-            })}
+            {entries.map((item) => <li key={item.id}><Entry item={item} /></li>)}
           </ol>
         </section>
       ))}
