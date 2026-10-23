@@ -3266,9 +3266,6 @@
   "common_classification": {
     "message": "Classification"
   },
-  "common_classificationAction": {
-    "message": "Classification action"
-  },
   "common_classificationCancelled": {
     "message": "Classification cancelled"
   },
@@ -3283,9 +3280,6 @@
   },
   "common_classificationFailed": {
     "message": "Classification failed"
-  },
-  "common_classificationPreview": {
-    "message": "Classification preview"
   },
   "common_classificationRequested": {
     "message": "Classification requested"
@@ -3361,12 +3355,6 @@
   },
   "common_creditEntry": {
     "message": "Credit entry"
-  },
-  "common_creditExpiry": {
-    "message": "Credit expiry"
-  },
-  "common_creditGrant": {
-    "message": "Credit grant"
   },
   "common_credits": {
     "message": "Credits"

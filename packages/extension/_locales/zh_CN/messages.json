@@ -4135,10 +4135,6 @@
     "message": "分类",
     "description": "Classification"
   },
-  "common_classificationAction": {
-    "message": "分类操作",
-    "description": "Classification action"
-  },
   "common_classificationCancelled": {
     "message": "分类已取消",
     "description": "Classification cancelled"
@@ -4158,10 +4154,6 @@
   "common_classificationFailed": {
     "message": "分类失败",
     "description": "Classification failed"
-  },
-  "common_classificationPreview": {
-    "message": "分类预览",
-    "description": "Classification preview"
   },
   "common_classificationRequested": {
     "message": "已请求分类",
@@ -4262,14 +4254,6 @@
   "common_creditEntry": {
     "message": "积分记录",
     "description": "Credit entry"
-  },
-  "common_creditExpiry": {
-    "message": "积分到期",
-    "description": "Credit expiry"
-  },
-  "common_creditGrant": {
-    "message": "积分发放",
-    "description": "Credit grant"
   },
   "common_credits": {
     "message": "积分",

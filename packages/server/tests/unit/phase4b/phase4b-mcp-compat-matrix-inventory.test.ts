@@ -13,7 +13,7 @@ import { PRODUCT_ROUTE_MANIFEST } from '../../../generated/openapi/product-v1.ro
 const here = dirname(fileURLToPath(import.meta.url));
 const phase4bDir = here;
 const harnessPath = resolve(here, '../../support/phase4b-mcp-compat-matrix-harness.ts');
-const claimGatePath = resolve(here, '../../../src/modules/mcp/read-profile-claim-gate.ts');
+const colpPackagePath = resolve(here, '../../../node_modules/@know-n/colp/package.json');
 
 interface CoveredBullet {
   readonly id: string;
@@ -441,9 +441,16 @@ test('compat path is not a Product OpenAPI route and COLP SDK lock omits @modelc
     assert.equal(route.path.includes('mcp-compat'), false, route.path);
     assert.equal(route.path.includes('/collections/-/mcp'), false, route.path);
   }
-  const claimGate = readFileSync(claimGatePath, 'utf8');
-  assert.match(claimGate, /MCP_20260728_SDK_LOCK/u);
-  assert.doesNotMatch(claimGate, /@modelcontextprotocol\/node/u);
+  const colp = JSON.parse(readFileSync(colpPackagePath, 'utf8')) as {
+    readonly dependencies: Readonly<Record<string, string>>;
+    readonly devDependencies: Readonly<Record<string, string>>;
+  };
+  assert.equal(colp.dependencies['@modelcontextprotocol/core'], '2.3.1');
+  assert.equal(colp.devDependencies['@modelcontextprotocol/client'], '2.3.1');
+  assert.equal(colp.devDependencies['@modelcontextprotocol/server'], '2.3.1');
+  for (const dependencies of [colp.dependencies, colp.devDependencies]) {
+    assert.equal(dependencies['@modelcontextprotocol/node'], undefined);
+  }
 });
 
 test('on-disk phase4b-mcp-compat-*.test.ts files are the unit matrix glob', () => {
