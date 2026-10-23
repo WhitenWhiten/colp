@@ -17,7 +17,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspace = resolve(packageRoot, '../..');
 
 const schema = await readFile(join(packageRoot, 'src/sync-state/schema.ts'), 'utf8');
-const indexedDb = requireSchemaVersion(schema, 22);
+const indexedDb = requireSchemaVersion(schema, 23);
 
 const expectedCommit = await gitCommit();
 const resultsPath = process.env.KNS09_GATE_RESULTS

@@ -68,6 +68,8 @@ export function createSyncStateStore(options: StoreOptions = {}) {
     registerScope: scope.registerScope, getScope: scope.getScope,
     putMapping: mapping.putMapping, deleteMapping: mapping.deleteMapping, listMappings: mapping.listMappings,
     getMappingByNativeId: mapping.getMappingByNativeId, getMappingByColpId: mapping.getMappingByColpId,
+    hasMappingSibling: mapping.hasMappingSibling,
+    listMappingSubtree: mapping.listMappingSubtree,
     bindMountMapping: mapping.bindMountMapping,
     bindResolvedMountMapping: mapping.bindResolvedMountMapping,
     rebindProvisionalBookmarkIdentity: mapping.rebindProvisionalBookmarkIdentity,

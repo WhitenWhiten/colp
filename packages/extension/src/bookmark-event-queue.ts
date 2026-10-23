@@ -206,7 +206,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     if (await options.store.discardAppliedRemoteDeleteEcho(options.scope, nativeId)) {
       return { outcome: 'apply_intent_reserved' };
     }
-    const mappings = await options.store.listMappings(options.scope);
+    const mappings = await options.store.listMappingSubtree(options.scope, nativeId);
     const mapping = await options.store.getMappingByNativeId(options.scope, nativeId);
     const identity = await identityFor(nativeId) ?? await identityFromCreateReceipt(options.store, options.scope, nativeId);
     if (!identity && await hasRunningBootstrap(options.store, options.scope)) {
@@ -276,7 +276,7 @@ export function createBookmarkEventQueue(options: QueueOptions) {
     const boundaries = await boundaryRootNativeIds();
     const type = deletionOperationType(kind);
     const subtree = type === 'delete_subtree' ? capturePendingSubtreeDeletion(identity.colpId,
-      await options.store.listMappings(options.scope), await listPendingEvents()) : undefined;
+      await options.store.listMappingSubtree(options.scope, nativeId), await listPendingEvents()) : undefined;
     const eventId = uuid(); return stage('remove', nativeId, { operation: { type,
       targetId: identity.colpId, baseRevision: identity.revision, dependencies: [],
       ...(subtree?.source ? { source: subtree.source } : {}),
@@ -530,10 +530,13 @@ export function createBookmarkEventQueue(options: QueueOptions) {
   async function eligibleDeleteNativeIds(node: BookmarkEventNode) {
     const nativeIds = new Set(flattenNativeIds(node));
     return eligibleSyncNativeIds({ store: options.store, scope: options.scope, listPendingEvents,
+      mappings: (await Promise.all([...nativeIds].map(id => options.store.getMappingByNativeId(options.scope, id))))
+        .filter(mapping => mapping !== null),
       select: (mapping) => nativeIds.has(mapping.nativeId) });
   }
   async function eligibleMappedSubtreeNativeIds(nativeId: string) {
     return eligibleSyncNativeIds({ store: options.store, scope: options.scope, listPendingEvents,
+      mappings: await options.store.listMappingSubtree(options.scope, nativeId),
       select: subtreeSelector(nativeId) });
   }
   function correlationFor(kind: string, nativeId: string, details: JsonObject) {

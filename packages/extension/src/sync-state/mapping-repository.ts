@@ -1,4 +1,5 @@
 import { withCodecSubject } from './codec-subject.js';
+import { createMappingWorksetRepository } from './mapping-workset-repository.js';
 import { digestJson } from '../bookmark-event-codec.js';
 import { bootstrapOpId } from '../bootstrap/run-identity.js';
 import { normalizeBookmarkProjection } from '../bookmark-projection-metadata.js';
@@ -42,7 +43,7 @@ function validateMappingInput(key: string, input: MappingInput, maxBytes: number
       ...(projection.content === undefined ? {} : { content: validateJson(projection.content, 'projection.content') as JsonObject }) } };
   validateRecord(record, maxBytes); return record; }
 export function validateMappingRecord(key: string, input: unknown, maxBytes: number) {
-  const value = strictObject(clone(input), ['scopeKey', 'nativeId', 'colpId', 'rootNativeId', 'nodeKind', 'parentNativeId',
+  const value = strictObject(input, ['scopeKey', 'nativeId', 'colpId', 'rootNativeId', 'nodeKind', 'parentNativeId',
     'parentColpId', 'mountId', 'rootRole', 'quarantine', 'projection'], 'mapping record',
     ['nodeKind', 'parentNativeId', 'parentColpId', 'mountId', 'rootRole', 'quarantine']);
   if (value.scopeKey !== key) throw new SyncStateError('mapping_scope_invalid');
@@ -269,23 +270,25 @@ export function createMappingRepository(ctx: SyncStoreRuntime) {
 
   async function listMappings(input: SyncScope) {
     const key = scopeKey(validateScope(input)); const db = await open(); const tx = db.transaction(STORES.mappings, 'readonly');
-    const completion = transactionDone(tx); const values = await cursorPage<ReturnType<typeof validateMapping>>(
-      tx.objectStore(STORES.mappings), scopeRowsRange(key), Number.MAX_SAFE_INTEGER); await completion;
-    return values.map((value) => clone(validateMappingRecord(key, value, maxRecordBytes)));
+    const completion = transactionDone(tx); const values = await requestValue<unknown[]>(
+      tx.objectStore(STORES.mappings).getAll(scopeRowsRange(key))); await completion;
+    // IndexedDB already returns detached values; the codec constructs the
+    // validated projection. A cursor and another clone add work per mapping.
+    return values.map((value) => validateMappingRecord(key, value, maxRecordBytes));
   }
 
   async function getMappingByNativeId(input: SyncScope, nativeId: string) {
     const key = scopeKey(validateScope(input)); const db = await open(); const tx = db.transaction(STORES.mappings, 'readonly');
     const completion = transactionDone(tx); const value = await requestValue(tx.objectStore(STORES.mappings)
       .index(INDEXES.mappingByNativeId).get([key, boundedString(nativeId, 'nativeId')])); await completion;
-    return value ? clone(validateMappingRecord(key, value, maxRecordBytes)) : null;
+    return value ? validateMappingRecord(key, value, maxRecordBytes) : null;
   }
 
   async function getMappingByColpId(input: SyncScope, colpId: string) {
     const key = scopeKey(validateScope(input)); const db = await open(); const tx = db.transaction(STORES.mappings, 'readonly');
     const completion = transactionDone(tx); const value = await requestValue(tx.objectStore(STORES.mappings)
       .index(INDEXES.mappingByColpId).get([key, boundedString(colpId, 'colpId')])); await completion;
-    return value ? clone(validateMappingRecord(key, value, maxRecordBytes)) : null;
+    return value ? validateMappingRecord(key, value, maxRecordBytes) : null;
   }
 
   async function rebindProvisionalBookmarkIdentity(input: SyncScope, nativeId: string, createOpId: string,
@@ -461,7 +464,7 @@ export function createMappingRepository(ctx: SyncStoreRuntime) {
     return bound;
   }
 
-  return { putMapping, deleteMapping, listMappings, getMappingByNativeId, getMappingByColpId, bindMountMapping, bindResolvedMountMapping,
+  return { ...createMappingWorksetRepository(ctx, validateMappingRecord), putMapping, deleteMapping, listMappings, getMappingByNativeId, getMappingByColpId, bindMountMapping, bindResolvedMountMapping,
     rebindProvisionalBookmarkIdentity, configureBrowserRoots, reconcileBrowserRoots, setBrowserRootStatus };
 }
 

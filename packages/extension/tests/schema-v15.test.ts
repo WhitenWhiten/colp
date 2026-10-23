@@ -87,7 +87,7 @@ describe('schema v15 native-result and live-work contract', () => {
   test('onupgradeneeded does not cursor-scan queue or history', async () => {
     const source = await readSyncStateSource();
     const schema = await readFile(new URL('../src/sync-state/schema.ts', import.meta.url), 'utf8');
-    assert.match(schema, /DATABASE_VERSION = 22/);
+    assert.match(schema, /DATABASE_VERSION = 23/);
     const upgrade = source.match(/export function upgrade\([\s\S]*?\n\}/);
     assert.ok(upgrade);
     assert.doesNotMatch(upgrade[0]!, /objectStore\(STORES\.queue\)\.openCursor|objectStore\(STORES\.intents\)\.openCursor/);

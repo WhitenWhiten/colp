@@ -77,8 +77,11 @@ export async function findBlockingUnsettledAttempt(queue: IDBObjectStore, key: s
 async function unsettledAttempts(queue: IDBObjectStore, key: string): Promise<QueueOperation[]> {
   const candidates: QueueOperation[] = [];
   for (const status of UNSETTLED_STATUSES) {
-    await iterateCursor(queue.index(INDEXES.queueByStatusSequence),
-      IDBKeyRange.bound([key, status, 1], [key, status, Number.MAX_SAFE_INTEGER]),
+    // Claimed rows block before an attempt is bound; other rows only block
+    // once they own immutable request bytes. Never scan unsent pending work.
+    const index = status === 'claimed' ? INDEXES.queueByStatusSequence : INDEXES.queueByAttempt;
+    await iterateCursor(queue.index(index),
+      IDBKeyRange.bound([key, status], [key, status, []]),
       (value) => { const row = value as QueueOperation;
         if (row.attempt !== undefined || row.status === 'claimed') candidates.push(row); });
   }

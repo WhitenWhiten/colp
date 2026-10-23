@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "kns-09-offline-pending-queue",
-  "databaseVersion": 22,
+  "databaseVersion": 23,
   "coordinatorMutations": false,
   "uiMutations": false,
   "firstRun": "running",

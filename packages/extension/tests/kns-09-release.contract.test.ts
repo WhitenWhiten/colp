@@ -65,13 +65,13 @@ describe('KNS-09 AC-10 release gate contract', () => {
     // The disjunction made this vacuous: `DATABASE_VERSION` appears elsewhere in
     // the same document, so the pin could say `version **99**` and still pass. It
     // must name the version the release actually ships.
-    assert.match(pin, /version \*\*22\*\*/u, 'the release pin must name schema v22');
-    assert.doesNotMatch(pin, /version \*\*(?!22)\d+\*\*/u, 'no stale version pin may remain');
+    assert.match(pin, /version \*\*23\*\*/u, 'the release pin must name schema v23');
+    assert.doesNotMatch(pin, /version \*\*(?!23)\d+\*\*/u, 'no stale version pin may remain');
     assert.match(pin, /coordinator: false/);
-    assert.match(schema, /DATABASE_VERSION = 22/);
-    assert.equal(KNS09_SCHEMA_VERSION, 22);
+    assert.match(schema, /DATABASE_VERSION = 23/);
+    assert.equal(KNS09_SCHEMA_VERSION, 23);
     assert.equal(KNS09_MUTATION_STORAGE_KEY, 'known.kns09.mutations.v1');
-    assert.match(controls, /do-not-install-older|keep-v22/);
+    assert.match(controls, /do-not-install-older|keep-v23/);
     assert.doesNotMatch(`${runbook}\n${pin}`, /dashboard[^\n]*(?:https?:\/\/|title:)/iu);
     for (const name of [KNS09_METRICS.firstRun, KNS09_METRICS.queueBacklogAgeMs, KNS09_METRICS.pushReceiptLatencyMs,
       KNS09_METRICS.pullRecovery, KNS09_METRICS.duplicateCandidate, KNS09_METRICS.conflict,
@@ -82,11 +82,11 @@ describe('KNS-09 AC-10 release gate contract', () => {
     assert.equal(Object.keys(KNS09_STOP_METRICS).length, 6);
   });
 
-  test('receipt and manifest pin schema 22 and consume machine gate results', () => {
+  test('receipt and manifest pin schema 23 and consume machine gate results', () => {
     const manifest = readFileSync(resolve(packageRoot, 'scripts/kns-09-release-manifest.mjs'), 'utf8');
     const acceptance = readFileSync(resolve(packageRoot, 'scripts/kns-09-acceptance-receipt.mjs'), 'utf8');
-    assert.match(manifest, /requireSchemaVersion\(schema, 22\)/);
-    assert.match(acceptance, /requireSchemaVersion\(schema, 22\)/);
+    assert.match(manifest, /requireSchemaVersion\(schema, 23\)/);
+    assert.match(acceptance, /requireSchemaVersion\(schema, 23\)/);
     assert.match(manifest, /golden-scenarios\.json/);
     assert.match(manifest, /rollbackToV9Binary: false/);
     assert.match(manifest, /verdict: 'manifest'/);

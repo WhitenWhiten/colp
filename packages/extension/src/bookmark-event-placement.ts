@@ -4,7 +4,7 @@ import type { BookmarkEventRecord, JsonObject, MappingInput, SyncScope, createSy
 
 /** Capture native anchors once; queue preparation resolves their confirmed identities. */
 export function createBookmarkPlacement(input: {
-  store: Pick<ReturnType<typeof createSyncStateStore>, 'listMappings'>; scope: SyncScope;
+  store: Pick<ReturnType<typeof createSyncStateStore>, 'hasMappingSibling'>; scope: SyncScope;
   listPendingEvents(): Promise<readonly BookmarkEventRecord[]>;
   identityFor(nativeId: string, events: readonly BookmarkEventRecord[]): Promise<EventIdentity | null>;
   readChildren(parentNativeId: string): Promise<readonly BookmarkEventNode[]>;
@@ -17,11 +17,12 @@ export function createBookmarkPlacement(input: {
   }> {
     const preferCreateEventHistory = mode === 'create-history';
     const unmapped = mode === 'unmapped';
-    const mappings = await store.listMappings(scope); const events = await listPendingEvents();
-    const pendingMappings = events.flatMap((event) => event.details.mapping === undefined ? []
-      : [event.details.mapping as unknown as MappingInput]);
-    if (!unmapped && ![...mappings, ...pendingMappings].some((mapping) => mapping.nativeId !== nativeId
-      && mapping.parentNativeId === parentNativeId)) return { wire: {} };
+    const events = await listPendingEvents();
+    const pendingSibling = events.some(event => {
+      const mapping = event.details.mapping as unknown as MappingInput | undefined;
+      return mapping && mapping.nativeId !== nativeId && mapping.parentNativeId === parentNativeId;
+    });
+    if (!unmapped && !pendingSibling && !await store.hasMappingSibling(scope, parentNativeId, nativeId)) return { wire: {} };
     if (preferCreateEventHistory) {
       const historical = events.flatMap((event) => {
         const context = event.details.context; const mapping = event.details.mapping as unknown as MappingInput | undefined;

@@ -422,7 +422,16 @@
     {
       "id": "performance-06",
       "title": "avoid full mapping scans on every extension event and tick",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Ordinary bookmark capture resolves selected/private root identities through point indexes; placement checks at most two siblings; delete capture traverses only related native/canonical parent indexes, including optimistic moves",
+        "Per-operation issue admission no longer materializes all mappings for empty bootstrap attention; actual open issues resolve only named native/COLP identities",
+        "Full mapping exports use one scoped IndexedDB bulk read and one detached codec pass instead of a cursor and three record clones; caller mutation remains isolated",
+        "Queue admission indexes immutable attempts instead of scanning every never-sent pending operation, while preserving claims that have not yet bound an attempt; restoring the old scan fails the new 2,000-operation read budget and the indexed version passes",
+        "Six targeted regressions cover read bounds, native/canonical descendants, caller isolation and v22-to-v23 upgrades that preserve immutable request bytes; 185 capture/deletion/store, 106 related upload/read-boundary, 78 issue/native-wait/scheduler and 267 release/schema assertions pass across focused runs",
+        "Extension TypeScript, targeted ESLint, source-size gate, production build and schema-v23 release manifest generation pass",
+        "Idle pass reconciliation and cadence remain separately tracked under performance-08; the 958-node browser convergence deadline remains tracked under tests-03"
+      ]
     },
     {
       "id": "performance-07",
@@ -785,7 +794,7 @@
     },
     {
       "id": "tests-09",
-      "title": "Keep release diagnosis, rollback reader guidance and evidence scripts aligned with schema v22",
+      "title": "Keep release diagnosis, rollback reader guidance and evidence scripts aligned with the runtime schema",
       "status": "resolved",
       "evidence": [
         "DATABASE_VERSION is 22 but KNS09_SCHEMA_VERSION, scripts, diagnosis and docs still require v21; existing unit and index-upgrade guards fail",

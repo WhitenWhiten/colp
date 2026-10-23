@@ -24,7 +24,9 @@ type Store = ReturnType<typeof createSyncStateStore>;
 
 export async function resolveIngressBoundary(store: Store, scope: SyncScope): Promise<IngressBoundary> {
   const recorded = await store.getScope(scope);
-  const mappings = await store.listMappings(scope);
+  const rootIds = new Set([...(recorded?.selectedRoots ?? []), ...(recorded?.privateRoots ?? [])]);
+  const mappings = (await Promise.all([...rootIds].map(id => store.getMappingByColpId(scope, id))))
+    .filter((mapping) => mapping !== null);
   const byColp = new Map(mappings.map((mapping) => [mapping.colpId, mapping.nativeId]));
   const mounts = await store.listMountBindings(scope);
   const firstRun = recorded?.firstRun;

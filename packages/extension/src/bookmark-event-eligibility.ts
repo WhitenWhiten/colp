@@ -4,6 +4,7 @@ import type { BookmarkEventRecord, MappingInput, SyncScope, createSyncStateStore
 export interface EligibleSyncNativeIdsInput {
   readonly store: ReturnType<typeof createSyncStateStore>;
   readonly scope: SyncScope;
+  readonly mappings: readonly MappingInput[];
   readonly listPendingEvents: () => Promise<readonly BookmarkEventRecord[]>;
   readonly select: (mapping: MappingInput, all: readonly MappingInput[]) => boolean;
 }
@@ -16,12 +17,13 @@ export interface EligibleSyncNativeIdsInput {
  */
 export async function eligibleSyncNativeIds(input: EligibleSyncNativeIdsInput): Promise<string[]> {
   const scope = await input.store.getScope(input.scope);
-  const mappings = await input.store.listMappings(input.scope);
+  const mappings = input.mappings;
   const events = await input.listPendingEvents();
   const pending = events.flatMap((event) => event.details.mapping === undefined ? []
     : [event.details.mapping as unknown as MappingInput]);
   const all = [...mappings, ...pending];
-  const byColp = new Map(all.map((mapping) => [mapping.colpId, mapping]));
+  const privateMappings = await Promise.all((scope?.privateRoots ?? []).map(id => input.store.getMappingByColpId(input.scope, id)));
+  const byColp = new Map(privateMappings.flatMap(mapping => mapping ? [[mapping.colpId, mapping] as const] : []));
   const privateNative = new Set((scope?.privateRoots ?? []).map((id) => byColp.get(id)?.nativeId).filter(Boolean));
   return [...new Set(all.filter((mapping) => input.select(mapping, all)
     && !privateNative.has(mapping.nativeId) && !privateNative.has(mapping.rootNativeId)).map((mapping) => mapping.nativeId))];

@@ -3,6 +3,8 @@
  *
  * | Version | Authority |
  * | --- | --- |
+ * | 23 | Mapping sibling and queue attempt indexes. Upgrade creates indexes
+ *     without rewriting mapping, queue, receipt or intent records. |
  * | 20 | `pull_pages` `by_scope_pull_page_state`; `pull_events` `by_scope_pull_operation`.
  *     Upgrade from v19 is createIndex only. Queue, intents, and pull history are
  *     not cursor-scanned. |
@@ -40,7 +42,8 @@
  * Superseded authority digests, kept so past releases stay identifiable:
  * `srg-v16-pull-page-index-v1`, `srg-v17-diagnostic-park-index-v1`,
  * `clf-v18-confirmation-intents-v1`, `bsr-v19-bookmark-operation-index-v1`,
- * `u18-v20-pull-workset-index-v1`, `u21-apply-intent-target-index-v1`.
+ * `u18-v20-pull-workset-index-v1`, `u21-apply-intent-target-index-v1`,
+ * `u22-delete-member-journal-v1`.
  */
 
 /** Set by the v16→v17 upgrade; clears once the adoption sweep has completed. */
@@ -51,9 +54,9 @@ import { stableCode } from './errors.js';
 import { scopeKey, validateScopeRecord } from './scope-key.js';
 
 export const DATABASE_NAME = 'known-phase3-indexeddb-entry';
-export const DATABASE_VERSION = 22;
+export const DATABASE_VERSION = 23;
 export const LARGE_QUEUE_CONTRACT_SIZE = 10_000;
-export const AUTHORITY_DIGEST = 'u22-delete-member-journal-v1';
+export const AUTHORITY_DIGEST = 'u23-mapping-queue-workset-v1';
 export const V15_BACKFILL_KEY = 'v15-backfill';
 /**
  * The `parked` discriminator, and the key value of `by_scope_parked`.
@@ -87,6 +90,8 @@ export const INDEXES = Object.freeze({
   queueBySequence: 'by_scope_sequence', queueByOpId: 'by_scope_op_id',
   queueByStatusSequence: 'by_scope_status_sequence', queueByClaimSequence: 'by_scope_claim_sequence',
   mappingByNativeId: 'by_scope_native_id', mappingByColpId: 'by_scope_colp_id',
+  mappingByNativeParent: 'by_scope_native_parent', queueByAttempt: 'by_scope_status_attempt',
+  mappingByColpParent: 'by_scope_colp_parent',
   intentByCorrelation: 'by_scope_correlation',
   intentByNativeResult: 'by_scope_native_result', intentByWaitReason: 'by_scope_wait_reason',
   intentByRepairJob: 'by_scope_repair_job', intentByLiveWork: 'by_scope_live_work',
@@ -132,8 +137,8 @@ export function structuralProblems(db: IDBDatabase): string[] {
   const expected: Array<[string, readonly string[]]> = [
     [STORES.deleteMembers, ['by_scope_native_result']],
     [STORES.queue, [INDEXES.queueBySequence, INDEXES.queueByOpId, INDEXES.queueByStatusSequence,
-      INDEXES.queueByClaimSequence, INDEXES.queueByTargetRevision]],
-    [STORES.mappings, [INDEXES.mappingByNativeId, INDEXES.mappingByColpId]],
+      INDEXES.queueByClaimSequence, INDEXES.queueByTargetRevision, INDEXES.queueByAttempt]],
+    [STORES.mappings, [INDEXES.mappingByNativeId, INDEXES.mappingByColpId, INDEXES.mappingByNativeParent, INDEXES.mappingByColpParent]],
     [STORES.mounts, [INDEXES.mountByRootRole]],
     [STORES.receipts, [INDEXES.queueBySequence]],
     [STORES.intents, [INDEXES.intentByCorrelation, INDEXES.intentByNativeResult, INDEXES.intentByWaitReason,
@@ -190,12 +195,15 @@ function createStores(db: IDBDatabase) {
   const mappings = create(STORES.mappings, { keyPath: ['scopeKey', 'nativeId'] });
   mappings?.createIndex(INDEXES.mappingByNativeId, ['scopeKey', 'nativeId'], { unique: true });
   mappings?.createIndex(INDEXES.mappingByColpId, ['scopeKey', 'colpId'], { unique: true });
+  mappings?.createIndex(INDEXES.mappingByNativeParent, ['scopeKey', 'parentNativeId', 'nativeId']);
+  mappings?.createIndex(INDEXES.mappingByColpParent, ['scopeKey', 'parentColpId', 'nativeId']);
   const queue = create(STORES.queue, { keyPath: ['scopeKey', 'sequence'] });
   queue?.createIndex(INDEXES.queueBySequence, ['scopeKey', 'sequence'], { unique: true });
   queue?.createIndex(INDEXES.queueByOpId, ['scopeKey', 'opId'], { unique: true });
   queue?.createIndex(INDEXES.queueByStatusSequence, ['scopeKey', 'status', 'sequence'], { unique: true });
   queue?.createIndex(INDEXES.queueByClaimSequence, ['scopeKey', 'retry.ownerId', 'retry.fence', 'sequence']);
   queue?.createIndex(INDEXES.queueByTargetRevision, ['scopeKey', 'payload.targetId', 'operationRevision']);
+  queue?.createIndex(INDEXES.queueByAttempt, ['scopeKey', 'status', 'attempt.sessionId', 'sequence']);
   create(STORES.sequences, { keyPath: 'scopeKey' });
   create(STORES.receipts, { keyPath: ['scopeKey', 'receiptId'] })?.createIndex('by_scope_sequence',
     ['scopeKey', 'sequence'], { unique: true });
@@ -320,6 +328,16 @@ function ensureLiveIndexes(tx: IDBTransaction) {
   const queue = tx.objectStore(STORES.queue);
   if (!queue.indexNames.contains(INDEXES.queueByTargetRevision)) {
     queue.createIndex(INDEXES.queueByTargetRevision, ['scopeKey', 'payload.targetId', 'operationRevision']);
+  }
+  if (!queue.indexNames.contains(INDEXES.queueByAttempt)) {
+    queue.createIndex(INDEXES.queueByAttempt, ['scopeKey', 'status', 'attempt.sessionId', 'sequence']);
+  }
+  const mappings = tx.objectStore(STORES.mappings);
+  if (!mappings.indexNames.contains(INDEXES.mappingByNativeParent)) {
+    mappings.createIndex(INDEXES.mappingByNativeParent, ['scopeKey', 'parentNativeId', 'nativeId']);
+  }
+  if (!mappings.indexNames.contains(INDEXES.mappingByColpParent)) {
+    mappings.createIndex(INDEXES.mappingByColpParent, ['scopeKey', 'parentColpId', 'nativeId']);
   }
 }
 

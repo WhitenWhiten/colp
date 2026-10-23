@@ -50,15 +50,27 @@ export async function readOpenSyncIssues(store: SyncIssueStore, scope: SyncScope
   addQueueIssueRoots(roots, queue);
   for (const wait of waits) if (wait.colpId) roots.add(wait.colpId);
   const nativeRoots = new Set([...local.filter(ingressProtectsNode).map(row => row.nativeId), ...deletes.flatMap(row => row.nativeIds)]);
-  const knownMappings = options.mappings ?? (nativeRoots.size && store.listMappings ? await store.listMappings(scope) : []);
+  const runs = await store.listBootstrapRuns?.(scope) ?? [];
+  const bootstrapRefs = new Set(runs.flatMap(run => run.previewOnly ? [] : run.attention?.items
+    .filter(item => item.decision === 'open').flatMap(item => item.nodeRefs ?? []) ?? []));
+  const knownMappings = options.mappings ?? await issueMappings(store, scope, nativeRoots, bootstrapRefs);
   if (nativeRoots.size) for (const row of knownMappings) {
     if (nativeRoots.has(row.nativeId)) roots.add(row.colpId);
   }
-  const bootstrap = store.listBootstrapRuns ? openBootstrapAttention(await store.listBootstrapRuns(scope),
-    options.mappings ?? await store.listMappings?.(scope) ?? []) : [];
+  const bootstrap = openBootstrapAttention(runs, knownMappings);
   const operationalTotal = deletes.length + queue.length + pull.length + local.length + waits.length + replica.length;
   return { queue, pull, local, waits, replica, deletes, roots, nativeRoots, bootstrap, operationalTotal,
     total: operationalTotal + bootstrap.length };
+}
+
+/** Issue admission runs for each applied operation; read only identities an open issue names. */
+async function issueMappings(store: SyncIssueStore, scope: SyncScope, nativeRoots: ReadonlySet<string>,
+  bootstrapRefs: ReadonlySet<string>): Promise<readonly MappingInput[]> {
+  if (nativeRoots.size === 0 && bootstrapRefs.size === 0) return [];
+  if (!store.getMappingByNativeId || bootstrapRefs.size && !store.getMappingByColpId) return await store.listMappings?.(scope) ?? [];
+  const rows = await Promise.all([...new Set([...nativeRoots, ...bootstrapRefs])].map(async id =>
+    await store.getMappingByNativeId!(scope, id) ?? (bootstrapRefs.has(id) ? await store.getMappingByColpId!(scope, id) : null)));
+  return rows.filter(row => row !== null);
 }
 
 /** Parent edges include existing mappings and never-confirmed creates. */
