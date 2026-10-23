@@ -642,7 +642,16 @@
       "id": "code-18",
       "title": "批量周期只在页首续租，违反 FO-08 每项续租契约",
       "file": "packages/server/src/modules/collections/application/favicon-batch-execution.ts",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Verified the existing fix: processFaviconBatchClaim renews and checks the lease before every item, and every item success/retry/failure write uses runFencedBatchItemWrite to lock the job row and verify its lease owner. No duplicate implementation change was needed.",
+      "validation": [
+        "19 focused favicon lease-fence assertions passed, including a two-item page, lease transfer during slow fetch, stale retry and terminal-failure writes, and protected compensation."
+      ],
+      "existingFix": "10baf128",
+      "evidence": [
+        "packages/server/src/modules/collections/application/favicon-batch-execution.ts",
+        "packages/server/tests/unit/collections/favicon-lease-fence.test.ts"
+      ]
     },
     {
       "id": "code-19",
