@@ -272,6 +272,22 @@ describe('Node edit drawer', () => {
     expect(ifMatch).toBe('"revision-1"')
   })
 
+  it('retains the TL;DR draft and selected visibility after a concurrent revision conflict', async () => {
+    const { ProductApiError } = await import('../../api/errors')
+    mocks.loadAnnotations.mockResolvedValue([annotation()])
+    mocks.getAnnotation.mockResolvedValue(annotation({ value: 'Concurrent server edit', revision: 'revision-2' }))
+    mocks.updateAnnotation.mockRejectedValueOnce(new ProductApiError({ status: 412, code: 'precondition_failed', message: 'stale' }))
+    mountDrawer()
+    await waitForDom(domFinishedLoading)
+    type('nd-tldr', 'My unsaved draft')
+    setVisibility('TL;DR', 'Public')
+    await save()
+    expect(control('nd-tldr').value).toBe('My unsaved draft')
+    await save()
+    expect(mocks.updateAnnotation.mock.calls[1]?.[2]).toMatchObject({ value: 'My unsaved draft', visibility: 'public' })
+    expect(mocks.updateAnnotation.mock.calls[1]?.[3]).toBe('"revision-2"')
+  })
+
   it('saves note text and its visibility through the same workflow', async () => {
     mountDrawer()
     await waitForDom(() => !control('nd-note').disabled)

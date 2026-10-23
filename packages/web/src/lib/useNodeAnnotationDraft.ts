@@ -35,36 +35,41 @@ export function useNodeAnnotationDraft(annotation: AnnotationWorkflow, open: boo
   const noteDirty = annotation.dirty || noteVisibilityTouched
   const dirty = tldrDirty || noteDirty
 
-  /* Seed from what the server returned (the workflow loads on open); the
-     seeds follow the annotation identity, never the local draft. Closing
-     clears both seed marks — a retained mark would let a discarded draft
-     survive into the next session on the same subject and read as dirty. */
-  const tldrSeedRef = useRef<string | null>(null)
+  // A server revision updates the baseline; it must not replace dirty input.
+  // Closing or changing annotation identity starts a fresh editing session.
+  const tldrSeedRef = useRef<{ key: string; id: string | null; text: string } | null>(null)
   const tldrSeedKey = annotation.tldr ? `${annotation.tldr.id}:${annotation.tldr.revision}` : 'none'
   useEffect(() => {
     if (!open) {
       tldrSeedRef.current = null
       return
     }
-    if (tldrSeedRef.current === tldrSeedKey) return
-    tldrSeedRef.current = tldrSeedKey
-    setTldrDraft(annotation.tldr ? annotationText(annotation.tldr.value) : '')
+    const previous = tldrSeedRef.current
+    if (previous?.key === tldrSeedKey) return
+    const id = annotation.tldr?.id ?? null
+    const text = annotation.tldr ? annotationText(annotation.tldr.value) : ''
+    tldrSeedRef.current = { key: tldrSeedKey, id, text }
+    if (previous?.id === id && (tldrDraft.trim() !== previous.text.trim() || tldrVisibilityTouched)) return
+    setTldrDraft(text)
     setTldrVisibilityState(segmentOf(annotation.tldr?.visibility))
     setTldrVisibilityTouched(false)
-  }, [annotation.tldr, open, tldrSeedKey])
+  }, [annotation.tldr, open, tldrSeedKey, tldrDraft, tldrVisibilityTouched])
 
-  const noteSeedRef = useRef<string | null>(null)
+  const noteSeedRef = useRef<{ key: string; id: string | null } | null>(null)
   const noteSeedKey = annotation.note ? `${annotation.note.id}:${annotation.note.revision}` : 'none'
   useEffect(() => {
     if (!open) {
       noteSeedRef.current = null
       return
     }
-    if (noteSeedRef.current === noteSeedKey) return
-    noteSeedRef.current = noteSeedKey
+    const previous = noteSeedRef.current
+    if (previous?.key === noteSeedKey) return
+    const id = annotation.note?.id ?? null
+    noteSeedRef.current = { key: noteSeedKey, id }
+    if (previous?.id === id && noteVisibilityTouched) return
     setNoteVisibilityState(segmentOf(annotation.note?.visibility))
     setNoteVisibilityTouched(false)
-  }, [annotation.note, open, noteSeedKey])
+  }, [annotation.note, open, noteSeedKey, noteVisibilityTouched])
 
   const setTldrVisibility = useCallback((value: SegmentVisibility) => {
     setTldrVisibilityState(value)
