@@ -1,6 +1,6 @@
 {
   "source": "User-supplied comprehensive repository audit, 2026-10-22",
-  "approach": "One finding per commit, ordered by correctness, verification, security, capacity/performance and maintainability. Existing fixes are verified and recorded.",
+  "approach": "Findings are addressed by correctness, verification, security, capacity/performance and maintainability. Original fixes were committed individually; the five related Sync follow-ups share one implementation commit and are recorded separately with their verification evidence.",
   "issues": [
     {
       "id": "sync-01",
@@ -111,22 +111,70 @@
     {
       "id": "sync-10",
       "title": "recover moves into deleted parents",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Moves into retained deleted parents use the owning live mount recovered folder, or the Collection-root recovered folder when that mount is gone. Recovery-folder creation and the move share one transaction. Original operation bytes remain immutable; rebased effects carry the actual placement, preserving current content and ancestry guards. SDK and extension validators accept changed destinations only for rebased moves with consistent final parent authority.",
+      "validation": [
+        "Real PostgreSQL cases verify live-mount recovery, root fallback, atomic rollback after recovered-folder creation, unchanged content/extensions and exact restarted receipt replay.",
+        "Existing move, restore, managed-ancestry and transaction lock-order regressions pass.",
+        "SDK effect-binding checks and the extension full Pull applier verify recovered-folder creation precedes moving the existing native bookmark without duplication. The bundled server SDK and both lockfile integrities are updated.",
+        "Implemented before running validation, as requested. Server/SDK/extension TypeScript, focused server/extension ESLint, import boundaries, relevant source-size checks, SDK and extension development builds pass; the runtime manifest and lockfile check passes with Node 22/npm 10."
+      ],
+      "evidence": [
+        "packages/server/tests/integration/sync/sync-node-update-postgres.integration.test.ts",
+        "packages/node/tests/sync/authoritative-effect-binding-kinds.test.ts",
+        "packages/extension/tests/pull-codec.test.ts",
+        "packages/extension/tests/pull-applier.test.ts"
+      ],
+      "commit": "6a426a33"
     },
     {
       "id": "sync-11",
       "title": "enforce operation dependencies",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Push checks dependency receipts and canonical operations within the authorized Collection and the mutation transaction. Missing/deferred dependencies produce dependency_pending without consuming the sequence; rejected dependencies produce a terminal dependency_failed. Batch self/forward references fail preflight, and earlier batch operations are visible to later dependency checks.",
+      "validation": [
+        "Real PostgreSQL tests verify deferred receipt replay without writes, re-evaluation after another replica commits, rejected prerequisites, sequence advancement, same-batch ordering and rejection of self/forward references before receipts exist.",
+        "Existing batch prefix, savepoint rollback, lost-commit-response and exact-replay cases pass.",
+        "Implemented before running validation, as requested. Server/SDK/extension TypeScript, focused server/extension ESLint, import boundaries, relevant source-size checks, SDK and extension development builds pass; the runtime manifest and lockfile check passes with Node 22/npm 10."
+      ],
+      "evidence": [
+        "packages/server/tests/integration/sync/sync-push-http-postgres.integration.test.ts"
+      ],
+      "commit": "6a426a33"
     },
     {
       "id": "sync-12",
       "title": "enforce bootstrap session mode on the server",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "New Session bindings persist bootstrapMode and replay cannot change it. Before bootstrap acknowledgement, download/mirror deny Push and upload permits only creates; initial upload admission rejects existing live non-root nodes. Acknowledged replicas retain ordinary authorized writes. Omitted modes and legacy bindings retain merge behavior and legacy exact replay.",
+      "validation": [
+        "Real PostgreSQL tests verify all four modes are stored, mode-changing replay is denied, upload cannot overwrite existing server data, and non-create initial uploads are denied.",
+        "HTTP-to-persistence mode propagation is asserted. Download/mirror Push attempts leave no receipts before acknowledgement and identical requests succeed after the durable acknowledged checkpoint is installed.",
+        "Session HTTP, recovery, lock-order and existing Session admission unit tests pass. A stale Snapshot test now checks immutable replay separately from invalid live data using a fresh Session.",
+        "Implemented before running validation, as requested. Server/SDK/extension TypeScript, focused server/extension ESLint, import boundaries, relevant source-size checks, SDK and extension development builds pass; the runtime manifest and lockfile check passes with Node 22/npm 10."
+      ],
+      "evidence": [
+        "packages/server/tests/integration/sync/sync-session-postgres.integration.test.ts",
+        "packages/server/tests/integration/sync/sync-push-http-postgres.integration.test.ts",
+        "packages/server/tests/integration/sync/sync-session-http-postgres.integration.test.ts"
+      ],
+      "commit": "6a426a33"
     },
     {
       "id": "sync-13",
       "title": "allow conflicts on deleted nodes to be resolved",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Choosing server closes an open content conflict even when its Node was deleted afterward. The existing dismissal path preserves the deleted Node and tombstone, writes a durable resolution receipt, and publishes a resolved Conflict to Pull. Other choices cannot implicitly resurrect the Node.",
+      "validation": [
+        "Real PostgreSQL regression verifies server dismissal, exact receipt replay, preserved deleted Node bytes/tombstone and rejection of implicit incoming resurrection.",
+        "Both delete_update and concurrent_field_update dismissal cases verify resolved Conflict publication, cursor advancement and successful Ack. Existing resolution choice, concurrency and managed-ancestry cases pass.",
+        "Implemented before running validation, as requested. Server/SDK/extension TypeScript, focused server/extension ESLint, import boundaries, relevant source-size checks, SDK and extension development builds pass; the runtime manifest and lockfile check passes with Node 22/npm 10."
+      ],
+      "evidence": [
+        "packages/server/tests/integration/sync/sync-node-update-postgres.integration.test.ts",
+        "packages/server/tests/integration/sync/sync-conflict-resolution-regressions.integration.test.ts"
+      ],
+      "commit": "6a426a33"
     },
     {
       "id": "security-01",
@@ -574,73 +622,73 @@
     },
     {
       "id": "code-01",
-      "title": "change-plan.ts 2252 行，createChangePlanService 单函数 493 行并承担 4 类生命周期",
+      "title": "change-plan.ts has 2252 lines; createChangePlanService spans 493 lines and owns four lifecycle responsibilities",
       "file": "packages/node/src/mcp/change-plan.ts",
       "status": "pending"
     },
     {
       "id": "code-02",
-      "title": "own-data 校验原语复制 14 份，且副本已出现 Proxy 校验漂移",
+      "title": "Own-data validation primitives are duplicated 14 times, with divergent Proxy checks",
       "file": "packages/node/src/mcp/2026-07-28/write.ts",
       "status": "pending"
     },
     {
       "id": "code-03",
-      "title": "5 个同步核心源文件超过 600 行上限，最大 1048 行",
+      "title": "Five Sync core source files exceed the 600-line limit; the largest has 1048 lines",
       "file": "packages/node/src/sync/push-transaction.ts",
       "status": "pending"
     },
     {
       "id": "code-04",
-      "title": "协调器函数 100–236 行且深嵌套，结果经外层可变闭包变量传递",
+      "title": "Coordinator functions span 100–236 lines, nest deeply, and return results through mutable outer closures",
       "file": "packages/node/src/sync/push-transaction.ts",
       "status": "pending"
     },
     {
       "id": "code-05",
-      "title": "两个上帝文件越过 600 行上限：公共投影 720 行、Node 写入守卫 948 行",
+      "title": "Two oversized modules exceed 600 lines: public projection at 720 lines and Node write guards at 948 lines",
       "file": "packages/node/src/server/publication-public-projection.ts",
       "status": "pending"
     },
     {
       "id": "code-06",
-      "title": "buildPlan 单函数 170 行、7 路 switch，另有 2 个 100+ 行安全函数",
+      "title": "buildPlan spans 170 lines with a seven-way switch; two additional security functions exceed 100 lines",
       "file": "packages/node/src/server/node-write-guard.ts",
       "status": "pending"
     },
     {
       "id": "code-07",
-      "title": "安全/发布层规模失控：8 个超 600 行文件与 200 行级函数",
+      "title": "Security and publication layers contain eight files over 600 lines and functions around 200 lines",
       "file": "packages/node/src/feed/client-poll.ts",
       "status": "pending"
     },
     {
       "id": "code-08",
-      "title": "Publisher 端口快照在 6 个文件重复实现，安全硬化易漏改",
+      "title": "Publisher port snapshots are implemented separately in six files, making consistent security hardening difficult",
       "file": "packages/node/src/publisher/node-move.ts",
       "status": "pending"
     },
     {
       "id": "code-09",
-      "title": "ColpClient 是 1534 行文件中的上帝类，混合发现、传输、缓存与写操作",
+      "title": "ColpClient mixes discovery, transport, caching and writes in a 1534-line class module",
       "file": "packages/node/src/client/index.ts",
       "status": "pending"
     },
     {
       "id": "code-10",
-      "title": "validateSnapshotSemantics 单函数 564 行，内嵌 8 个闭包且最深 5 层",
+      "title": "validateSnapshotSemantics spans 564 lines with eight nested closures and five levels of nesting",
       "file": "packages/node/src/semantic/snapshot.ts",
       "status": "pending"
     },
     {
       "id": "code-11",
-      "title": "冲突解决事务核心是 192 行巨型函数，同文件分支函数还有 11 个位置参数",
+      "title": "The conflict resolution transaction spans 192 lines; a related branch helper takes 11 positional parameters",
       "file": "packages/server/src/infrastructure/sync/sync-conflict-resolution-postgres.ts",
       "status": "pending"
     },
     {
       "id": "code-12",
-      "title": "AES-GCM 的 AAD 由三处手工拼装，字段集与取值来源必须逐字一致",
+      "title": "AES-GCM AAD is assembled manually in three places that must agree exactly on fields and sources",
       "file": "packages/server/src/infrastructure/sync/sync-conflict-postgres.ts",
       "status": "resolved",
       "commit": "06a30f08",
@@ -651,19 +699,19 @@
     },
     {
       "id": "code-13",
-      "title": "writeNode 单函数 451 行、5 层嵌套，混合 delete/create/update/move/restore 五条写入路径",
+      "title": "writeNode spans 451 lines with five nesting levels and combines delete, create, update, move and restore",
       "file": "packages/server/src/infrastructure/collections/canonical-mutation-postgres-ports.ts",
       "status": "pending"
     },
     {
       "id": "code-14",
-      "title": "ancestor_restricted 用无环/深度/软删保护的递归 CTE 计算，与 WHERE 使用的规范谓词语义分叉",
+      "title": "ancestor_restricted uses a recursive CTE with cycle, depth and soft-delete guards that diverge from the canonical WHERE predicate",
       "file": "packages/server/src/infrastructure/publication/postgres-snapshot-read.ts",
       "status": "pending"
     },
     {
       "id": "code-15",
-      "title": "超 600 行上帝文件与超长工厂函数：schema、连接运行时、计划状态机混居",
+      "title": "Oversized modules and factory functions mix schema definitions, connection runtime and plan state machines",
       "file": "packages/server/src/infrastructure/database/runtime.ts",
       "status": "resolved",
       "commit": "386bee6f",
@@ -674,19 +722,19 @@
     },
     {
       "id": "code-16",
-      "title": "better-auth-runtime.ts 1035 行上帝模块，单文件承载 22 个顶层函数",
+      "title": "better-auth-runtime.ts spans 1035 lines and contains 22 top-level functions",
       "file": "packages/server/src/infrastructure/auth/better-auth-runtime.ts",
       "status": "pending"
     },
     {
       "id": "code-17",
-      "title": "favicon 单条与批量执行各写一套 CAS/补偿，护栏已分叉",
+      "title": "Single-item and batch favicon execution duplicate CAS and compensation logic with divergent guards",
       "file": "packages/server/src/modules/collections/application/favicon-job-execution.ts",
       "status": "pending"
     },
     {
       "id": "code-18",
-      "title": "批量周期只在页首续租，违反 FO-08 每项续租契约",
+      "title": "Batch processing renews its lease only at the page boundary, violating the FO-08 per-item renewal contract",
       "file": "packages/server/src/modules/collections/application/favicon-batch-execution.ts",
       "status": "resolved",
       "resolution": "Verified the existing fix: processFaviconBatchClaim renews and checks the lease before every item, and every item success/retry/failure write uses runFencedBatchItemWrite to lock the job row and verify its lease owner. No duplicate implementation change was needed.",
@@ -701,97 +749,97 @@
     },
     {
       "id": "code-19",
-      "title": "MCP 模块 13 个文件超 600 行，6 个已超过 baseline 自身 cap",
+      "title": "Thirteen MCP files exceed 600 lines; six also exceed their own baseline caps",
       "file": "packages/server/src/modules/mcp/change-plan-planner.ts",
       "status": "pending"
     },
     {
       "id": "code-20",
-      "title": "Read operations 工厂单函数 348 行，另有 175-218 行校验/聚合函数",
+      "title": "The read operations factory spans 348 lines, alongside validation and aggregation functions of 175–218 lines",
       "file": "packages/server/src/modules/mcp/operations.ts",
       "status": "pending"
     },
     {
       "id": "code-21",
-      "title": "低风险写工具的白名单与 scope 校验在 4 个模块逐字复制",
+      "title": "Low-risk write-tool allowlists and scope checks are copied verbatim across four modules",
       "file": "packages/server/src/modules/mcp/low-risk-node-update.ts",
       "status": "pending"
     },
     {
       "id": "code-22",
-      "title": "三个 application 文件逾 600 行，createBrowserSessionAuthority 单函数 251 行",
+      "title": "Three application files exceed 600 lines; createBrowserSessionAuthority spans 251 lines",
       "file": "packages/server/src/modules/auth/application/browser-session-authority.ts",
       "status": "pending"
     },
     {
       "id": "code-23",
-      "title": "MCP 读路由 1724 行、单函数 641 行，另有 644 行文件缺 600 行豁免",
+      "title": "MCP read routes span 1724 lines with a 641-line function; another 644-line file lacks a size exemption",
       "file": "packages/server/src/transport/mcp/mcp-read-routes.ts",
       "status": "pending"
     },
     {
       "id": "code-24",
-      "title": "7 套游标签名/封装并行实现，轮换、MAC 绑定与销毁语义互不一致",
+      "title": "Seven independent cursor signing and wrapping implementations differ in rotation, MAC binding and destruction semantics",
       "file": "packages/server/src/modules/commands/application/keyed-cursor.ts",
       "status": "pending"
     },
     {
       "id": "code-25",
-      "title": "853 行 node-routes：4 个路由 + 7 个手写解析器，folder/bookmark 校验整段复制",
+      "title": "node-routes spans 853 lines with four routes and seven handwritten parsers, duplicating folder and bookmark validation",
       "file": "packages/server/src/transport/product/node-routes.ts",
       "status": "pending"
     },
     {
       "id": "code-26",
-      "title": "buildApiApp 是 453 行上帝函数，app.ts 整体超过 600 行上限",
+      "title": "buildApiApp spans 453 lines and app.ts exceeds the 600-line limit",
       "file": "packages/server/src/transport/app.ts",
       "status": "pending"
     },
     {
       "id": "code-27",
-      "title": "http-security.ts 784 行，混合路由映射、限流器、memory 适配器与安全头",
+      "title": "http-security.ts spans 784 lines and mixes route mapping, rate limiting, memory adapters and security headers",
       "file": "packages/server/src/transport/http-security.ts",
       "status": "pending"
     },
     {
       "id": "code-28",
-      "title": "六个文件越过 600 行上限：api.ts 无历史豁免，config-social/mcp-write 已超出各自豁免值",
+      "title": "Six files exceed 600 lines; api.ts lacks a historical exemption and config-social/mcp-write exceed their exemption caps",
       "file": "packages/server/src/bootstrap/api.ts",
       "status": "pending"
     },
     {
       "id": "code-29",
-      "title": "四个组合根函数各 334–568 行，单函数完成整条启动装配",
+      "title": "Four composition-root functions span 334–568 lines and assemble the entire startup flow",
       "file": "packages/server/src/bootstrap/worker.ts",
       "status": "pending"
     },
     {
       "id": "code-30",
-      "title": "runSyncEngine 是 205 行、串行承担 12+ 职责的上帝函数",
+      "title": "runSyncEngine spans 205 lines and serially handles more than 12 responsibilities",
       "file": "packages/extension/src/sw/engine.ts",
       "status": "pending"
     },
     {
       "id": "code-31",
-      "title": "handleSyncStateEvidence 用 161 行、40 分支 switch 承载内嵌证据通道",
+      "title": "handleSyncStateEvidence embeds the evidence channel in a 161-line switch with 40 branches",
       "file": "packages/extension/src/sw/evidence.ts",
       "status": "pending"
     },
     {
       "id": "code-32",
-      "title": "核心同步仓库是 500+ 行工厂闭包，并内含 85–117 行超长事务函数",
+      "title": "Core Sync repositories use factory closures over 500 lines with transaction functions of 85–117 lines",
       "file": "packages/extension/src/sync-state/queue-repository.ts",
       "status": "pending"
     },
     {
       "id": "code-33",
-      "title": "openRuleEditor 是 308 行的上帝函数，混合授权、UI 构建与提交",
+      "title": "openRuleEditor spans 308 lines and mixes authorization, UI construction and submission",
       "file": "packages/extension/src/automation/rule-editor-dialog.ts",
       "status": "pending"
     },
     {
       "id": "code-34",
-      "title": "文件夹加载失败被 .catch(() => undefined) 静默吞掉",
+      "title": "Folder loading errors are silently swallowed by .catch(() => undefined)",
       "file": "packages/extension/src/automation/rule-editor-dialog.ts",
       "status": "resolved",
       "resolution": "Completed the inherited loading-error fixes: the rule dialog now catches failures after a bookmark permission grant as well as initial load and retry. History detail initialization reports bookmark/tree/exclusion/annotation failures and offers retry; exclusion lookup failures no longer expose unfiltered subscription folders. Existing rules-pane failure notices and failed-migration connection reset were verified.",
@@ -815,7 +863,7 @@
     },
     {
       "id": "code-35",
-      "title": "批量执行把 api.get 失败当作节点不存在，delete 项直接记为 applied",
+      "title": "Batch execution treats api.get failures as missing nodes and marks delete items applied",
       "file": "packages/extension/src/bookmark-batch-executor.ts",
       "status": "resolved",
       "resolution": "Verified the existing batch lookup fix: lookupBookmark distinguishes verified absence from permission, managed-tree and transient errors. Delete settles applied only for verified not_found; failed reads settle failed and neither delete nor rename/move mutates Chrome.",
@@ -830,25 +878,25 @@
     },
     {
       "id": "code-36",
-      "title": "first-run 引导绑定函数 506 行，混合 DOM 装配、轮询、预览、注意力列表与草稿状态",
+      "title": "The first-run binding function spans 506 lines and mixes DOM construction, polling, previews, attention lists and draft state",
       "file": "packages/extension/src/first-run-ui.ts",
       "status": "pending"
     },
     {
       "id": "code-37",
-      "title": "callAndCommit 139 行单一分派：五类 effect 分支内嵌建树/恢复逻辑并复制收尾代码",
+      "title": "callAndCommit spans 139 lines with five effect branches embedding tree construction, recovery and duplicated finalization",
       "file": "packages/extension/src/pull-apply-runtime.ts",
       "status": "pending"
     },
     {
       "id": "code-38",
-      "title": "启动/选项装配由 300–490 行巨型闭包承担，单函数串起全流程",
+      "title": "Startup and options assembly use 300–490-line closures that coordinate the complete flow",
       "file": "packages/extension/src/bootstrap/coordinator.ts",
       "status": "pending"
     },
     {
       "id": "code-39",
-      "title": "持久化 advanced plan 的读取用 `as unknown as` 绕过类型，无任何结构校验",
+      "title": "Persisted advanced plans bypass typing through as unknown as without structural validation",
       "file": "packages/extension/src/bootstrap/advanced-run.ts",
       "status": "resolved",
       "commit": "9180e36f",
@@ -859,13 +907,13 @@
     },
     {
       "id": "code-40",
-      "title": "核心引擎被少数 100+ 行巨型函数承载全部决策",
+      "title": "A few functions over 100 lines contain all core engine decisions",
       "file": "packages/extension/src/durable-sync-engine.ts",
       "status": "pending"
     },
     {
       "id": "code-41",
-      "title": "service-worker onMessage 是 293 行 if 链，重复同一响应模板",
+      "title": "The service-worker onMessage handler is a 293-line if chain with repeated response templates",
       "file": "packages/extension/src/service-worker.ts",
       "status": "pending"
     },
@@ -1066,15 +1114,22 @@
     {
       "id": "sync-23",
       "title": "Investigate replica registration and Session issuance lock inversion under concurrent authority setup",
-      "status": "pending",
+      "status": "resolved",
       "severity": "medium",
-      "confidence": "Reproduced through production persistence functions in integration authority setup; isolate the registration/Session interaction before choosing a fix.",
+      "confidence": "Confirmed lock inversion; fixed and covered by a deterministic production-persistence concurrency regression.",
       "discoveredDuring": "sync-09 concurrent folder move regression setup",
       "evidence": [
-        "Running two context(owner, 0.2) preparations concurrently in sync-node-update-postgres.integration.test.ts fails before either competing move is sent, with PostgreSQL 40P01.",
-        "The deadlock stack ends at replica-postgres.ts createReplica inserting sync_devices; the FK waits for KEY SHARE on accounts while the other transaction waits on an advisory lock.",
-        "Establishing both authorities sequentially permits the actual move requests to run concurrently and isolates their correctness. The independent registration/Session path remains open because the user requested stopping after sync-09."
-      ]
+        "packages/server/tests/integration/sync/sync-session-postgres.integration.test.ts",
+        "packages/server/tests/integration/sync/replica-postgres.integration.test.ts",
+        "packages/server/tests/integration/sync/sync-transaction-lock-order-postgres.integration.test.ts"
+      ],
+      "resolution": "Replica registration locks its active account before taking the collection replica gate, matching Session issuance. Device and replica foreign-key checks can no longer wait for account KEY SHARE while registration holds the gate needed by a Session owning account FOR UPDATE.",
+      "validation": [
+        "The regression pauses Session issuance after locking account authority, starts registration, and proves the blocked registration has not acquired the collection gate. Both operations complete after the barrier is released.",
+        "Existing real PostgreSQL Replica registration and transaction lock-order suites pass.",
+        "Implemented before running validation, as requested. Server/SDK/extension TypeScript, focused server/extension ESLint, import boundaries, relevant source-size checks, SDK and extension development builds pass; the runtime manifest and lockfile check passes with Node 22/npm 10."
+      ],
+      "commit": "6a426a33"
     }
   ],
   "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."
