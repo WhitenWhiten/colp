@@ -144,7 +144,8 @@
         "Actual Caddy image adapts and provisions all three configurations; real HTTP and TLS-internal responses carry the expected headers",
         "A real Chromium browser under xvfb loads the built login SPA through Caddy without CSP violations, then confirms an injected inline script is blocked",
         "Disposable browser and Caddy containers are closed and removed after validation"
-      ]
+      ],
+      "commit": "6114c034"
     },
     {
       "id": "security-03",
@@ -175,7 +176,15 @@
     {
       "id": "security-05",
       "title": "bound MCP approval backlog",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Unexpired pending/approved/committing MCP plans are capped at 20 per client and 100 per principal before insertion; an owner-scoped PostgreSQL advisory lock and the insertion share one unit-of-work transaction across server instances",
+        "A partial principal/expiry/client index bounds admission to active backlog instead of scanning retained terminal history; existing plan schema/transition guards and typed rate_limited failures remain intact",
+        "Real-Postgres race across two store instances admits exactly two of twelve concurrent attempts at a configured limit of two; overflows leave no plan rows",
+        "Expired plans do not consume capacity, a second client cannot bypass the principal cap, another account remains independent and cancelling a plan releases a slot",
+        "22 store/approval PostgreSQL cases pass across focused runs after correcting a fixture that attempted an illegal approved-state INSERT; 17 store/error-classification unit assertions pass",
+        "Server TypeScript, targeted ESLint, import boundaries, append-only migration ordering and production build pass; MCP README documents the limits"
+      ]
     },
     {
       "id": "security-06",

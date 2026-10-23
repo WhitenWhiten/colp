@@ -21,6 +21,10 @@ when the client implements URL prompts; otherwise pending writes return an
 `awaiting_approval` result with the approval link and plan ID. Answers to a
 prompt never grant approval: only the owner's browser decision does.
 
+Outstanding plans are capped at 20 per client and 100 per authenticated principal,
+shared across server instances. Completing, cancelling or expiring plans frees
+capacity; an agent that fills the backlog must let the owner review earlier work.
+
 For ChatGPT, the compatibility endpoint returns snapshot pages as inline JSON
 text plus `structuredContent`, without the companion snapshot `resource_link`.
 Read-only tools publish their existing `outputSchema` and read-only annotations.

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { admitPendingMcpPlan, pendingMcpPlanLimits, type McpPendingPlanLimits } from './mcp-plan-admission.js';
 
 import { sql, type Kysely } from 'kysely';
 import {
@@ -398,14 +399,20 @@ export function buildPostgresMcpChangePlanRow(
 
 export function createPostgresMcpChangePlanStore(
   db: Kysely<DatabaseSchema>,
+  options: Partial<McpPendingPlanLimits> = {},
 ): PostgresMcpChangePlanStore {
+  const limits = pendingMcpPlanLimits(options);
   const withUnitOfWork = <Result>(
     callback: (transaction: DatabaseTransaction) => Promise<Result>,
   ): Promise<Result> => createUnitOfWork(db).execute(({ transaction }) => callback(transaction));
 
   const planStore: PostgresMcpChangePlanStorePort = Object.freeze({
-    save(plan: PostgresMcpStoredPlan) {
-      return savePlan(db, plan);
+    async save(plan: PostgresMcpStoredPlan) {
+      const row = buildPostgresMcpChangePlanRow(plan);
+      return withUnitOfWork(async transaction => {
+        await admitPendingMcpPlan(transaction, row, limits);
+        await savePlan(transaction, row);
+      });
     },
     get(planId: string) {
       return getPlan(db, planId);
@@ -563,9 +570,8 @@ export async function purgeRetainedAt(
 
 async function savePlan(
   executor: DatabaseExecutor,
-  plan: PostgresMcpStoredPlan,
+  row: ReturnType<typeof buildPostgresMcpChangePlanRow>,
 ): Promise<void> {
-  const row = buildPostgresMcpChangePlanRow(plan);
   await sql`
     INSERT INTO mcp_change_plans (
       plan_id, binding_kind, principal_id, client_id, credential_binding_id,

@@ -289,7 +289,7 @@ const CHANGE_PLAN_REJECTION_MESSAGES: Readonly<Record<string, string>> = Object.
   plan_cancelled: 'This plan was denied or cancelled, so it cannot be committed. Make a new plan if the change is still wanted.',
   plan_already_consumed: 'This plan was already committed.',
   plan_not_found: 'No plan with this id is available to this agent.',
-  rate_limited: 'Too many plans in a short time. Wait a minute, then try again.',
+  rate_limited: 'Too many outstanding or recent plans. Review or cancel pending plans, or wait for temporary limits to reset.',
   impact_exceeded: MCP_PLAN_IMPACT_EXCEEDED_MESSAGE,
   commit_failed: 'The plan could not be committed. Nothing was changed.',
 });

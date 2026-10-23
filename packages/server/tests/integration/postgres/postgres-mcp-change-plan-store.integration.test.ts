@@ -110,6 +110,39 @@ describeWithPostgres('MCP-W02 session-free Change Plan/Approval/receipt authorit
     );
   });
 
+  test('pending-plan admission is shared across instances and concurrent requests', async () => {
+    const limits = { maxPendingPerPrincipal: 4, maxPendingPerClient: 2 };
+    const first = createPostgresMcpChangePlanStore(isolated.runtime.db, limits);
+    const second = createPostgresMcpChangePlanStore(isolated.runtime.db, limits);
+    const attempts = await Promise.allSettled(Array.from({ length: 12 }, (_, index) =>
+      Promise.resolve((index % 2 ? first : second).planStore.save(makePlan({ planId: `race-${index}` })))));
+    assert.equal(attempts.filter(result => result.status === 'fulfilled').length, 2);
+    for (const result of attempts) if (result.status === 'rejected') assert.equal(result.reason.code, 'rate_limited');
+    const count = await isolated.runtime.pool.query('SELECT count(*)::int AS count FROM mcp_change_plans');
+    assert.equal(count.rows[0].count, 2);
+  });
+
+  test('owner/client limits exclude expired work, isolate accounts and release cancelled slots', async () => {
+    const bounded = createPostgresMcpChangePlanStore(isolated.runtime.db,
+      { maxPendingPerPrincipal: 3, maxPendingPerClient: 2 });
+    await bounded.planStore.save(makePlan({ planId: 'old-expired', createdAt: '2020-01-01T00:00:00Z',
+      expiresAt: '2020-01-02T00:00:00Z' }));
+    const first = makePlan({ planId: 'owner-first' }); await bounded.planStore.save(first);
+    await bounded.planStore.save(makePlan({ planId: 'owner-second' }));
+    await assert.rejects(() => Promise.resolve(bounded.planStore.save(makePlan({ planId: 'client-overflow' }))),
+      (error: unknown) => (error as { code: string }).code === 'rate_limited');
+    const otherClient = { ...BINDING, clientId: 'other-client' };
+    const third = makePlan({ planId: 'owner-third', binding: otherClient });
+    await bounded.planStore.save(third);
+    await bounded.planStore.update({ ...third, status: 'approved' });
+    await assert.rejects(() => Promise.resolve(bounded.planStore.save(makePlan({ planId: 'owner-overflow', binding: otherClient }))),
+      (error: unknown) => (error as { code: string }).code === 'rate_limited');
+    await bounded.planStore.save(makePlan({ planId: 'separate-owner', binding: OTHER_BINDING }));
+    await bounded.planStore.update({ ...first, status: 'cancelled' });
+    await bounded.planStore.save(makePlan({ planId: 'released-slot', binding: otherClient }));
+    assert.ok(await bounded.planStore.get('released-slot'));
+  });
+
   test('Plan list is principal-scoped and does not compare MCP OAuth epochs', async () => {
     const current = makePlan({ planId: 'plan-current-epoch' });
     const olderOauthEpoch = makePlan({
