@@ -157,7 +157,9 @@ export function policyAllowsAutomaticCapture(policy: IconPolicyDto): boolean {
 export function sourceAllowsAutomaticCapture(source: IconSourceDto): boolean {
   const { sourceMode, effectiveMode } = source;
   if (sourceMode === 'uploaded' || sourceMode === 'none') return false;
-  if (effectiveMode === 'uploaded' || effectiveMode === 'none') return false;
+  // An automatic binding also renders as uploaded. Explicit sourceMode owns
+  // manual protection; the effective presentation cannot identify its author.
+  if (effectiveMode === 'none') return false;
   return true;
 }
 

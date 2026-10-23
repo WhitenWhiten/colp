@@ -294,7 +294,13 @@
         "Batch Undo old-ID assertion contradicted the intentionally profile-owned/native-only journal (sw-batch-local-first.test.ts explicitly requires colpId absent); update E2E to require one fresh canonical identity shared by both replicas plus the retained original tombstone. Legacy cloud-plan restore_node unit compatibility remains",
         "Restored favicon cases require an explicitly configured saving folder after the local-first default-destination change; fixture updated rather than inventing an implicit root default",
         "Do not rebuild or mutate dist/production while browser scenarios use it. Earlier parallel fixture results and the run interrupted by rebuilding are not counted as validation",
-        "Complete host unit run: 595 files / 4,526 assertions passed; six failures identify stale schema/release pins, migration inventory, coverage version pin, multi-device public-status anchor, and missing delete_journal_invalid policy. Handling the two runtime/release policy defects separately before the final routing commit. All three self-hosted browser scenarios pass serially in 7.0 minutes, including the full production CLI two-profile sync/web edit/move/reorder/delete/pause-resume/conflict/disconnect workflow."
+        "Complete host unit run: 595 files / 4,526 assertions passed; six failures identify stale schema/release pins, migration inventory, coverage version pin, multi-device public-status anchor, and missing delete_journal_invalid policy. Handling the two runtime/release policy defects separately before the final routing commit. All three self-hosted browser scenarios pass serially in 7.0 minutes, including the full production CLI two-profile sync/web edit/move/reorder/delete/pause-resume/conflict/disconnect workflow.",
+        "Final native batch-undo E2E passes: both profiles bind one fresh canonical identity and the original tombstone remains; signed-out offline placement case also passes",
+        "Complete self-hosted project passes serially: browser rule promotion, full two-profile/Web/conflict/disconnect journey and five-width/200%-zoom shared-control parity",
+        "Resolved all six failures from the complete 601-file/4,532-assertion unit run: invalid delete-journal policy and release-schema drift in separate commits, and three stale contract expectations with 19 affected assertions passing",
+        "Favicon fixture still had a second Know-N-only guard around mounting the restored helper. Removed that guard; rerun against a freshly loaded fixture is pending. Earlier in-flight worker results predate this fixture fix and are not counted as final verification",
+        "Keep browser runs serial against shared dist/production. Optional permission grant alone is not origin readiness: self-hosted sign-in fixtures now also await persisted validated runtimeServerOrigin and an enabled origin field",
+        "All restored favicon legs now pass individually (capture, offline replay, policy none and clear); a real shared-guard defect exposed by clear was fixed separately as sync-17. The self-contained multi-device recovery E2E, including public low-sensitivity status assertions, passes after full browser restart."
       ],
       "remaining": [
         "Rerun advanced first-run after root selection fix; prior upload evidence reported recovery_capability_invalid and missing local folder; download incorrectly included unselected sentinel",
@@ -736,6 +742,19 @@
         "20 release, rollback, acceptance and historical-index migration assertions pass, including refusal to claim compatibility with the previous schema",
         "Real manifest generation succeeds against the current source; manifest remains distinct from an acceptance verdict and no acceptance gate was bypassed",
         "Extension TypeScript and targeted ESLint pass"
+      ],
+      "commit": "a8b60a0e"
+    },
+    {
+      "id": "sync-17",
+      "title": "Distinguish automatic favicon bindings from manually protected uploads when clearing or refreshing",
+      "status": "resolved",
+      "validation": [
+        "Re-enabled Chromium favicon clear scenario reproduced protected instead of cleared after a successful automatic capture",
+        "Regression reproduced the same failure with explicit sourceMode=inherit and presentation effectiveMode=uploaded; the shared client guard now uses the explicit ownership mode for manual-upload protection",
+        "32 clear/upload assertions pass, preserving manual-upload, none, force-online, stale-validator and idempotent command checks",
+        "Both real-Postgres legacy backfill tests pass: pre-existing manual bindings are explicitly migrated to source_mode=uploaded and remain protected",
+        "The real Chromium capture-to-clear scenario now passes against actual HTTP/PostgreSQL helper routes; extension TypeScript and targeted ESLint pass"
       ]
     }
   ],

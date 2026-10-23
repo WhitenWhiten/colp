@@ -129,6 +129,14 @@ describe('FO-04 clearExtensionCapturedFavicon consumer', () => {
     assert.equal(await sidecar.get(NATIVE), null, 'the queued bytes must never replay the cleared icon');
   });
 
+  test('an automatic binding remains clearable when its rendered effective mode is uploaded', async () => {
+    const sidecar = createFaviconSidecarStore({ indexedDB });
+    const helper = createClearHelper({ source: capturableSource({ sourceMode: 'inherit',
+      effectiveMode: 'uploaded', iconVersion: 'automatic-object', status: 'ready' }) });
+    assert.deepEqual(await helper.run(sidecar), { status: 'cleared' });
+    assert.equal(helper.deletes.length, 1);
+  });
+
   test('uploaded and none sources refuse the clear with no DELETE', async () => {
     for (const source of [
       capturableSource({ sourceMode: 'uploaded', effectiveMode: 'uploaded', iconVersion: 'obj-1' }),
