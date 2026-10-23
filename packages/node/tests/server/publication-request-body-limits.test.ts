@@ -9,6 +9,19 @@ function request(body: NonNullable<RequestOptions['body']>, headers?: RequestOpt
 }
 
 describe('Publication request body budgets', () => {
+  it('preserves fragmented bytes even when the producer reuses its input buffer', async () => {
+    let sent = 0;
+    const length = 200_000;
+    const chunk = new Uint8Array(1);
+    const body = new ReadableStream<Uint8Array>({ pull(controller) {
+      if (sent === length) { controller.close(); return; }
+      chunk[0] = sent++ % 251;
+      controller.enqueue(chunk);
+    } }, { highWaterMark: 0 });
+    const bytes = await readPublicationRequestBytes(request(body), { maxBytes: length });
+    expect(bytes.length).toBe(length);
+    expect(bytes.every((value, index) => value === index % 251)).toBe(true);
+  });
   it('accepts an exact byte boundary and rejects one extra byte', async () => {
     await expect(readPublicationJsonRequest(request('null'), { maxBytes: 4 })).resolves.toBeNull();
     await expect(readPublicationJsonRequest(request('null '), { maxBytes: 4 })).rejects.toBeInstanceOf(RangeError);

@@ -45,7 +45,11 @@ export async function readPublicationRequestBytes(
     controller.signal.addEventListener('abort', onAbort, { once: true });
   });
   const consume = async (): Promise<Uint8Array> => {
+    // Bound retained allocations by payload bytes, even for one-byte chunks.
+    const blockSize = Math.min(maxBytes, 64 * 1024);
     const chunks: Uint8Array[] = [];
+    let pending = new Uint8Array(blockSize);
+    let pendingLength = 0;
     let total = 0;
     while (true) {
       controller.signal.throwIfAborted();
@@ -55,8 +59,20 @@ export async function readPublicationRequestBytes(
       if (!(value instanceof Uint8Array)) throw new TypeError('Publication body chunks must be bytes.');
       total += value.byteLength;
       if (total > maxBytes) throw tooLarge();
-      chunks.push(value.slice());
+      let offset = 0;
+      while (offset < value.byteLength) {
+        const amount = Math.min(blockSize - pendingLength, value.byteLength - offset);
+        pending.set(value.subarray(offset, offset + amount), pendingLength);
+        offset += amount;
+        pendingLength += amount;
+        if (pendingLength === blockSize) {
+          chunks.push(pending);
+          pending = new Uint8Array(blockSize);
+          pendingLength = 0;
+        }
+      }
     }
+    if (pendingLength > 0) chunks.push(pending.subarray(0, pendingLength));
     const bytes = new Uint8Array(total);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
