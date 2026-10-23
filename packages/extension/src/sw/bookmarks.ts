@@ -17,6 +17,7 @@ import { recoverPendingNativeSideEffects } from '../native-repair.js';
 import { currentSyncScope } from './scope.js';
 import { createBookmarkCreatePlacementStore } from '../bookmark-create-placement.js';
 import { configuredPersonalSyncPolicy } from '../personal-sync-fetch.js';
+import { hasFreshPushQueueHead } from '../push-work-budget.js';
 import { collectAnnotationGarbage, retainRemovedAnnotations, restoreCreatedAnnotations } from './bookmark-annotations.js';
 import { observeCreatedBookmark, observeRemovedBookmark } from './automation-observed.js';
 
@@ -151,39 +152,67 @@ export async function currentBookmarkEventQueue(captureOnly = false) {
   return sw.bookmarkEventQueue;
 }
 
-export async function recoverBookmarkEvents() {
-  if (!await hasBookmarkPermission()) return;
+/** Flushes the durable inbox and, unless `flushOnly`, walks the whole native tree. True once the queue ran. */
+export async function recoverBookmarkEvents(flushOnly = false): Promise<boolean> {
+  if (!await hasBookmarkPermission()) return false;
   bookmarkListenerLifecycle.install();
-  if (typeof chrome.bookmarks === 'undefined') return;
+  if (typeof chrome.bookmarks === 'undefined') return false;
   let scope: SyncScope | undefined;
   try {
     scope = (__KNOWN_EXTENSION_EVIDENCE__ ? sw.eventEvidenceScope : undefined) ?? await currentSyncScope();
-  } catch { return; }
-  if (!scope) return;
-  if (await activeAdvancedPlan(syncState, scope)) return;
+  } catch { return false; }
+  if (!scope) return false;
+  if (await activeAdvancedPlan(syncState, scope)) return false;
   const queue = await currentBookmarkEventQueue();
-  try { await queue?.recover(); }
+  if (!queue) return false;
+  try { await (flushOnly ? queue.flush() : queue.recover()); return true; }
   catch (error) {
-    if (error instanceof Error && error.message === 'queue_recovery_frozen') return;
+    if (error instanceof Error && error.message === 'queue_recovery_frozen') return false;
     throw error;
   }
+}
+
+/** `storage.session` empties when the browser restarts and when the extension is disabled, updated or reloaded. */
+const TREE_RECONCILED_KEY = 'known.bookmarks.tree-reconciled.v1';
+
+async function treeReconciledThisSession(): Promise<boolean> {
+  try { return (await chrome.storage.session.get(TREE_RECONCILED_KEY))[TREE_RECONCILED_KEY] === true; }
+  catch { return false; }
+}
+
+async function markTreeReconciled(): Promise<void> {
+  try { await chrome.storage.session.set({ [TREE_RECONCILED_KEY]: true }); }
+  catch { /* The next worker boot walks the tree again. */ }
 }
 
 /**
  * Recovery after a transient capture failure. Take the engine lane immediately
  * so an options status wake cannot Pull-create a second native before receipt
  * rebind. Skip the tree walk while a prior wake left pull/apply in flight.
+ *
+ * A worker boot walks the tree only once per extension session, for changes
+ * made while the extension was not running. A recycled worker missed nothing:
+ * Chrome wakes it for every bookmark event, staged events wait in the durable
+ * inbox, and a failed capture schedules the recovery alarm. The reconcile
+ * alarm still walks the tree every three hours.
  */
 export async function recoverBookmarkEventsAfterEngineSettles(
-  reason: 'startup' | 'alarm' | 'online' | 'manual' = 'manual',
+  reason: 'startup' | 'alarm' | 'online' | 'manual' = 'manual', options: { readonly workerBoot?: boolean } = {},
 ) {
+  const walkTree = !options.workerBoot || !await treeReconciledThisSession();
+  let freshWork = false;
   await workCoordinator.run('engine', async () => {
     await bookmarkListenerLifecycle.settled();
     let repairScope: SyncScope | undefined;
     try { repairScope = (__KNOWN_EXTENSION_EVIDENCE__ ? sw.eventEvidenceScope : undefined) ?? await currentSyncScope(); }
     catch { /* No connected scope has no native repair authority. */ }
     if (repairScope) await recoverPendingNativeSideEffects(syncState, repairScope,
-      typeof chrome.bookmarks === 'undefined' ? undefined : chrome.bookmarks);
+      typeof chrome.bookmarks === 'undefined' ? undefined : chrome.bookmarks, { wholeLibrary: walkTree });
+    if (!walkTree) {
+      freshWork = await recoverBookmarkEvents(true) && !!repairScope && await hasFreshPushQueueHead(syncState, repairScope);
+      await resumeActiveBatchPlans();
+      return;
+    }
     if (repairScope && !await activeAdvancedPlan(syncState, repairScope)) {
       await (await currentBookmarkEventQueue(true))?.captureMissingRemovals();
     }
@@ -193,7 +222,7 @@ export async function recoverBookmarkEventsAfterEngineSettles(
       // after edge for runSyncEngine's unfreeze reconciliation to observe.
       scheduleBookmarkRecovery(); return;
     }
-    await recoverBookmarkEvents();
+    if (await recoverBookmarkEvents()) await markTreeReconciled();
     await resumeActiveBatchPlans();
     await recoveryScheduler.reset().catch(() => console.warn('bookmark_recovery_retry_reset_failed'));
   }).catch(async (error: unknown) => {
@@ -208,7 +237,8 @@ export async function recoverBookmarkEventsAfterEngineSettles(
     } catch { console.warn('bookmark_recovery_scope_unavailable'); }
   });
   if (reason === 'startup' || reason === 'alarm') void collectAnnotationGarbage().catch(() => undefined);
-  scheduleSyncEngineWake(reason);
+  // A quiet recycled worker leaves Pull to its own deadline instead of forcing a full pass.
+  scheduleSyncEngineWake(walkTree || freshWork ? reason : 'alarm');
 }
 
 /** Bounded, non-secret error code for the durable recovery signal. */

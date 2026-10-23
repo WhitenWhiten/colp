@@ -22,13 +22,19 @@ test('MV3 survives worker termination and full browser restart with all durable 
     let page = await extensionPage(context);
     const seeded = await call<EvidenceExport>(page, 'seedEvidence', scope);
     expect(seeded.queue[0]!.sequence).toBe(1);
+    // A worker boot walks the native tree once per extension session, marked in storage.session:
+    // the mark must outlive a recycled worker and be gone after a browser restart.
+    const sessionProbe = () => chrome.storage.session.get('known.e2e.session-probe');
+    await page.evaluate(() => chrome.storage.session.set({ 'known.e2e.session-probe': true }));
     await stopWorker(context, page);
     page = await extensionPage(context);
     expect(await call<EvidenceExport>(page, 'exportScope', scope)).toEqual(seeded);
+    expect(await page.evaluate(sessionProbe)).toEqual({ 'known.e2e.session-probe': true });
     await context.close();
 
     context = await launch(profile);
     page = await extensionPage(context);
+    expect(await page.evaluate(sessionProbe)).toEqual({});
     const restarted = await call<EvidenceExport>(page, 'exportScope', scope);
     expect(restarted).toEqual(seeded);
     expect(restarted.receipts[0]!.operationDigest).toBe(restarted.queue[0]!.digest);

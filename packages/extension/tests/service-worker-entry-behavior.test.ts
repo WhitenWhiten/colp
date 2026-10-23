@@ -82,8 +82,8 @@ vi.mock('../src/sw/engine.js', () => ({
 vi.mock('../src/sw/bookmarks.js', async (importOriginal) => {
   const real = await importOriginal<typeof import('../src/sw/bookmarks.js')>();
   return { ...real,
-    recoverBookmarkEventsAfterEngineSettles: async (reason = 'manual') => {
-      observed.recoveries.push(reason); return real.recoverBookmarkEventsAfterEngineSettles(reason as 'manual'); } };
+    recoverBookmarkEventsAfterEngineSettles: async (reason = 'manual', options?: { readonly workerBoot?: boolean }) => {
+      observed.recoveries.push(reason); return real.recoverBookmarkEventsAfterEngineSettles(reason as 'manual', options); } };
 });
 
 vi.mock('../src/bookmark-event-queue.js', () => ({

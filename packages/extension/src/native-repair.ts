@@ -77,12 +77,15 @@ export async function repairNativeSideEffects(store: Store, scope: SyncScope,
   return { repaired, waiting };
 }
 
+/** `wholeLibrary: false` keeps the apply-intent repair and skips the three repairs that read every mapping. */
 export async function recoverPendingNativeSideEffects(store: Store, scope: SyncScope,
-  api?: PullBookmarkApi): Promise<void> {
+  api?: PullBookmarkApi, options: { readonly wholeLibrary?: boolean } = {}): Promise<void> {
   await repairNativeSideEffects(store, scope, api);
-  await repairTombstonedNativeMappings(store, scope, api);
-  await repairWronglyAckedUnmountedRestore(store, scope);
-  await repairUnmountedRangeMappings(store as ReturnType<typeof createSyncStateStore>, scope, api);
+  if (options.wholeLibrary !== false) {
+    await repairTombstonedNativeMappings(store, scope, api);
+    await repairWronglyAckedUnmountedRestore(store, scope);
+    await repairUnmountedRangeMappings(store as ReturnType<typeof createSyncStateStore>, scope, api);
+  }
   const intents = await store.listApplyIntents(scope);
   for (const intent of intents) {
     if (!hasReliableReceipt(intent) || intent.nativeResult === 'applied_with_evidence') continue;

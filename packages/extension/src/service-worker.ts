@@ -198,7 +198,7 @@ const ingressDiagnosticsDeps: IngressDiagnosticsDeps = { scope: currentSyncScope
 
 void workCoordinator.run('engine', () => replicaRebuilder().resume())
   .catch((error) => logBackgroundFailure('startup.replica-rebuild-resume', error))
-  .then(() => recoverBookmarkEventsAfterEngineSettles());
+  .then(() => recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true }));
 
 /**
  * Guarantees the reconciliation alarm exists, WITHOUT restarting its clock.

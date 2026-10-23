@@ -609,7 +609,8 @@
         "New idle-sync-pass-reads regressions fail with the index probes disabled; a leftover recovery mapping still takes the full projection path",
         "New sw-metadata-quiet-pass regressions drive the real worker pass: quiet alarms skip after one clean reconcile; manual passes, new cursors, staged or failed reconciles and lifted freezes still reconcile. Two of the three fail without the gate",
         "53 related engine, projection, recovery, metadata and worker suites pass (458 tests); extension TypeScript, targeted ESLint, source-size gate and development build pass"
-      ]
+      ],
+      "commit": "5829e93a"
     },
     {
       "id": "performance-09",
@@ -626,7 +627,14 @@
     {
       "id": "performance-10",
       "title": "avoid full native-tree reconciliation on every worker cold start",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Only the first worker boot of an extension session walks the native tree, captures missing removals and runs the three mapping repairs that read every mapping. That covers changes made while the extension was not running. The boot is marked in storage.session, which Chrome empties on browser restart and on extension disable, update or reload. A recycled worker missed no bookmark event: Chrome wakes it for each one, staged events wait in the durable inbox, and a failed capture schedules the recovery alarm. Its boot therefore runs the apply-intent repair, flushes the inbox and resumes batch plans. It no longer forces a manual engine pass, which also re-read the whole tree for metadata. It wakes Push at once only when the flush left fresh queue work; otherwise an alarm-reason wake keeps Pull on its own deadline and repairs a missing engine alarm. The three-hour reconcile alarm, the capture-recovery alarm and browser start-up still walk the tree.",
+      "validation": [
+        "New worker-boot-recovery regressions: the first boot walks once and wakes manually; three recycled boots flush only, skip the whole-library repairs and wake by alarm; fresh queue work after a flush still wakes Push at once; reconcile and start-up paths still walk; a first boot that could not walk leaves the next boot to walk. Two of the four fail with the gate disabled",
+        "The real-Chromium worker-termination spec now proves storage.session survives a terminated worker and is empty after a full browser restart; all 5 mv3-sync-state-store scenarios pass under xvfb and the browser and xvfb exit",
+        "25 worker, recovery, repair, entry-wiring and bootstrap suites pass (192 tests); the entry-wiring mock now forwards the boot option, so the first-boot walk and its single manual wake are exercised through the real module",
+        "Extension TypeScript, targeted ESLint, source-size gate and development build pass"
+      ]
     },
     {
       "id": "quality-01",
