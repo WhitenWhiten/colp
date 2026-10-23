@@ -7,7 +7,7 @@ import {
   type PublicationEndpointName,
 } from '../../../src/modules/publication/application/manifest-candidate.js';
 
-const SECRET = Buffer.alloc(32, 7).toString('base64');
+const SECRET = createHash('sha256').update('self-hosted-test-master-v1').digest('base64');
 
 function baseEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -218,10 +218,10 @@ describe('self-hosted preset', () => {
     })).toThrow(/read as UTF-8 text and is 31 bytes/u);
     // `openssl rand -base64 48` shape (64 characters, 48 bytes) is accepted.
     expect(() => applySelfHostedPreset(baseEnv({
-      COLP_SERVER_SECRET: Buffer.alloc(48, 9).toString('base64'),
+      COLP_SERVER_SECRET: createHash('sha384').update('self-hosted-test-master-48').digest('base64'),
     }))).not.toThrow();
     // 43 base64-alphabet characters are not a multiple of 4, so UTF-8 (43 bytes).
-    expect(() => applySelfHostedPreset(baseEnv({ COLP_SERVER_SECRET: 'a'.repeat(43) }))).not.toThrow();
+    expect(() => applySelfHostedPreset(baseEnv({ COLP_SERVER_SECRET: 'a'.repeat(43) }))).toThrow(/cryptographically random/u);
   });
 
   it('refuses the shipped COLP_SERVER_SECRET placeholder even though it is long enough', () => {
@@ -250,7 +250,7 @@ describe('self-hosted preset', () => {
   it('derives a stable setup token that differs per secret', () => {
     const left = baseEnv();
     const right = baseEnv();
-    const other = baseEnv({ COLP_SERVER_SECRET: Buffer.alloc(32, 8).toString('base64') });
+    const other = baseEnv({ COLP_SERVER_SECRET: createHash('sha256').update('self-hosted-test-master-v2').digest('base64') });
     for (const env of [left, right, other]) applySelfHostedPreset(env);
     expect(left.COLP_SETUP_TOKEN).toMatch(/^[A-Za-z0-9_-]{43}$/u);
     expect(left.COLP_SETUP_TOKEN).toBe(right.COLP_SETUP_TOKEN);

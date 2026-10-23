@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { afterEach, test } from 'vitest';
 import { loadConfig } from '../../../src/bootstrap/config.js';
 import { applySelfHostedPreset } from '../../../src/bootstrap/self-hosted-preset.js';
@@ -9,7 +10,7 @@ import { assertMcpReadFeatureConfig, mcpReadFeatureConfigAssertOptions } from '.
  * D26: COLP endpoints are HTTPS and the protocol allows http only on loopback
  * (protocol/docs/02). A LAN without a domain uses the tls-internal profile.
  */
-const SECRET = Buffer.alloc(32, 9).toString('base64');
+const SECRET = createHash('sha256').update('self-hosted-http-test-master').digest('base64');
 
 afterEach(() => {
   delete process.env.COLP_INSECURE_HTTP;

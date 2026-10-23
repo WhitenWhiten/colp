@@ -321,7 +321,7 @@ call; nothing keeps working elsewhere.
 |---|---|---|---|
 | `COLP_SERVER_ORIGIN` | yes | | Exact public origin |
 | `POSTGRES_PASSWORD` | yes | | Database password; compose builds `DATABASE_URL` from it |
-| `COLP_SERVER_SECRET` | yes | | ≥ 32 bytes base64; every key derives from it; changing it signs everyone out |
+| `COLP_SERVER_SECRET` | yes | | ≥ 32 random bytes; generate with `openssl rand -base64 48`; every key derives from it; changing it signs everyone out |
 | `COLP_INSECURE_HTTP` | no | `false` | Allow an `http://` origin on 127.0.0.1, localhost, or [::1] |
 | `COLP_ALLOWED_EXTENSION_IDS` | no | store ID | Extension IDs allowed to sign in |
 | `COLP_MULTI_USER` | no | `false` | Must stay `false`; invite-only accounts arrive in 0.3.0 |

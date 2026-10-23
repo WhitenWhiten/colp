@@ -14,7 +14,7 @@ import { sanitizedRuntimeCapacity } from '../../../src/bootstrap/config-capacity
 import type { DatabaseRuntime } from '../../../src/infrastructure/database/index.js';
 import type { StartedApi } from '../../../src/bootstrap/api.js';
 
-const SECRET = Buffer.alloc(32, 7).toString('base64');
+const SECRET = createHash('sha256').update('self-hosted-test-master-v1').digest('base64');
 const openApps: FastifyInstance[] = [];
 
 function baseEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {

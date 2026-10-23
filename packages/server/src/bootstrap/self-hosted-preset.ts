@@ -165,6 +165,7 @@ export function applySelfHostedPreset(env: NodeJS.ProcessEnv): void {
   if (secret.bytes.length < 32) {
     throw new Error(secretTooShortMessage(secret));
   }
+  assertNontrivialMasterSecret(secret.bytes);
   let url: URL;
   try {
     url = new URL(origin);
@@ -304,6 +305,17 @@ interface SecretMaterial {
   /** How the text was interpreted; drives the length error message. */
   readonly encoding: 'base64' | 'utf8';
   readonly textLength: number;
+}
+
+/** Reject obviously predictable material; key generation must still use a CSPRNG. */
+function assertNontrivialMasterSecret(bytes: Uint8Array): void {
+  const failure = () => new Error('COLP_SERVER_SECRET must be cryptographically random; generate one with `openssl rand -base64 48`');
+  if (new Set(bytes).size < 8) throw failure();
+  for (let period = 1; period <= Math.min(64, Math.floor(bytes.length / 2)); period++) {
+    if (bytes.every((value, index) => value === bytes[index % period])) throw failure();
+  }
+  const step = (bytes[1]! - bytes[0]! + 256) % 256;
+  if (bytes.every((value, index) => index === 0 || (value - bytes[index - 1]! + 256) % 256 === step)) throw failure();
 }
 
 /**
