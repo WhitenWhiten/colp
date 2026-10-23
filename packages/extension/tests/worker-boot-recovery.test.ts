@@ -1,12 +1,11 @@
 /**
- * performance-10: a recycled MV3 worker must not walk the whole native tree.
- *
- * Chrome wakes the worker for every bookmark event while the extension runs,
- * staged events wait in the durable inbox, and a failed capture schedules the
- * recovery alarm. So only the first worker boot of an extension session (an
- * empty `storage.session`: browser restart, enable, update or reload) walks the
- * tree for changes made while the extension was not running. Later boots flush
- * the inbox; the reconcile, recovery and start-up paths still walk.
+ * performance-10: a recycled MV3 worker must not walk the whole native tree on
+ * every boot, but FR-F2 still needs a walk to find an event Chrome delivered to
+ * a worker it then killed. A worker boot walks unless a walk finished in this
+ * extension session (`storage.session`: emptied by a browser restart, enable,
+ * update or reload) less than five minutes ago; recent boots flush the inbox.
+ * The reconcile, recovery and start-up paths always walk, and evidence builds
+ * walk on every boot so the FR-F2 e2e keeps proving restart recovery.
  */
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
@@ -14,12 +13,14 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, test, vi } from 'vitest';
 import { fixture, scope } from './bookmark-event-queue-harness.js';
 
-async function setup(options: { recover?: () => Promise<void> } = {}) {
+const WALKED_AT = 'known.bookmarks.tree-walked-at.v1';
+
+async function setup(options: { recover?: () => Promise<void>; evidence?: boolean } = {}) {
   vi.resetModules();
   const state = await fixture(new IDBFactory());
   const seen = { recovers: 0, flushes: 0, wakes: [] as string[], wholeLibrary: [] as Array<boolean | undefined> };
   const session = new Map<string, unknown>();
-  vi.stubGlobal('__KNOWN_EXTENSION_EVIDENCE__', false);
+  vi.stubGlobal('__KNOWN_EXTENSION_EVIDENCE__', options.evidence ?? false);
   vi.stubGlobal('chrome', { bookmarks: { ...state.api,
     onCreated: { addListener: () => undefined, hasListener: () => true },
     onChanged: { addListener: () => undefined, hasListener: () => true },
@@ -60,7 +61,7 @@ afterEach(() => {
   vi.resetModules();
 });
 
-test('only the first worker boot of an extension session walks the native tree', async () => {
+test('a worker boot within five minutes of a completed walk does not walk again', async () => {
   const f = await setup();
   await f.worker.recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true });
   assert.equal(f.seen.recovers, 1, 'the first boot walks the tree');
@@ -70,16 +71,35 @@ test('only the first worker boot of an extension session walks the native tree',
   for (let boot = 0; boot < 3; boot += 1) {
     await f.worker.recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true });
   }
-  assert.equal(f.seen.recovers, 1, 'a recycled worker never walks the tree again');
-  assert.equal(f.seen.flushes, 3, 'it still flushes events a stopped worker left in the inbox');
+  assert.equal(f.seen.recovers, 1, 'recycled workers inside the window do not walk');
+  assert.equal(f.seen.flushes, 3, 'they still flush events a stopped worker left in the inbox');
   assert.deepEqual(f.seen.wholeLibrary, [true, false, false, false], 'apply-intent repair runs; whole-library repairs wait');
   assert.deepEqual(f.seen.wakes, ['manual', 'alarm', 'alarm', 'alarm'],
     'a quiet boot leaves Pull to its own deadline instead of forcing a full pass');
+
+  f.session.set(WALKED_AT, Date.now() - f.worker.TREE_WALK_INTERVAL_MS - 1);
+  await f.worker.recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true });
+  assert.equal(f.seen.recovers, 2, 'a boot after the window walks again (FR-F2 capture loss)');
+  assert.deepEqual(f.seen.wholeLibrary.at(-1), true);
+});
+
+test('a clock stepped back behind the last walk makes the next boot walk', async () => {
+  const f = await setup();
+  f.session.set(WALKED_AT, Date.now() + 60_000);
+  await f.worker.recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true });
+  assert.equal(f.seen.recovers, 1);
+});
+
+test('evidence builds walk on every worker boot', async () => {
+  const f = await setup({ evidence: true });
+  await f.worker.recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true });
+  await f.worker.recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true });
+  assert.equal(f.seen.recovers, 2);
 });
 
 test('a recycled worker that flushed fresh local work wakes Push at once', async () => {
   const f = await setup();
-  f.session.set('known.bookmarks.tree-reconciled.v1', true);
+  f.session.set(WALKED_AT, Date.now());
   await f.state.store.allocateSequenceAndEnqueue(scope, {
     opId: 'op-fresh', batchId: 'batch-fresh', idempotencyKey: 'key-fresh', digest: 'sha256:fresh',
     endpointIdentity: 'syncPush', mediaType: 'application/json', baseRevision: null, operationRevision: 'local-fresh',
@@ -92,9 +112,9 @@ test('a recycled worker that flushed fresh local work wakes Push at once', async
   assert.deepEqual(f.seen.wakes, ['manual']);
 });
 
-test('reconcile, recovery and start-up paths still walk after the session was reconciled', async () => {
+test('reconcile, recovery and start-up paths still walk right after a walk', async () => {
   const f = await setup();
-  f.session.set('known.bookmarks.tree-reconciled.v1', true);
+  f.session.set(WALKED_AT, Date.now());
   await f.worker.recoverBookmarkEventsAfterEngineSettles('alarm');
   await f.worker.recoverBookmarkEventsAfterEngineSettles('startup');
   assert.equal(f.seen.recovers, 2);
@@ -109,9 +129,9 @@ test('a first boot that could not walk the tree leaves the next boot to walk it'
     f.seen.recovers += 1;
   } });
   await f.worker.recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true });
-  assert.equal(f.session.has('known.bookmarks.tree-reconciled.v1'), false);
+  assert.equal(f.session.has(WALKED_AT), false);
   frozen = false;
   await f.worker.recoverBookmarkEventsAfterEngineSettles('manual', { workerBoot: true });
   assert.equal(f.seen.recovers, 1, 'the second boot walks because the first one did not finish');
-  assert.equal(f.session.get('known.bookmarks.tree-reconciled.v1'), true);
+  assert.equal(typeof f.session.get(WALKED_AT), 'number');
 });

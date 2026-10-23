@@ -173,15 +173,21 @@ export async function recoverBookmarkEvents(flushOnly = false): Promise<boolean>
 }
 
 /** `storage.session` empties when the browser restarts and when the extension is disabled, updated or reloaded. */
-const TREE_RECONCILED_KEY = 'known.bookmarks.tree-reconciled.v1';
+const TREE_WALKED_AT_KEY = 'known.bookmarks.tree-walked-at.v1';
+/** How long a completed walk covers later worker boots. Evidence builds walk on every boot. */
+export const TREE_WALK_INTERVAL_MS = 5 * 60_000;
 
-async function treeReconciledThisSession(): Promise<boolean> {
-  try { return (await chrome.storage.session.get(TREE_RECONCILED_KEY))[TREE_RECONCILED_KEY] === true; }
-  catch { return false; }
+async function treeWalkedRecently(now = Date.now()): Promise<boolean> {
+  if (__KNOWN_EXTENSION_EVIDENCE__) return false;
+  try {
+    const at = (await chrome.storage.session.get(TREE_WALKED_AT_KEY))[TREE_WALKED_AT_KEY];
+    // A clock stepped back reads as stale, not as recent.
+    return typeof at === 'number' && now >= at && now - at < TREE_WALK_INTERVAL_MS;
+  } catch { return false; }
 }
 
-async function markTreeReconciled(): Promise<void> {
-  try { await chrome.storage.session.set({ [TREE_RECONCILED_KEY]: true }); }
+async function markTreeWalked(): Promise<void> {
+  try { await chrome.storage.session.set({ [TREE_WALKED_AT_KEY]: Date.now() }); }
   catch { /* The next worker boot walks the tree again. */ }
 }
 
@@ -190,16 +196,17 @@ async function markTreeReconciled(): Promise<void> {
  * so an options status wake cannot Pull-create a second native before receipt
  * rebind. Skip the tree walk while a prior wake left pull/apply in flight.
  *
- * A worker boot walks the tree only once per extension session, for changes
- * made while the extension was not running. A recycled worker missed nothing:
- * Chrome wakes it for every bookmark event, staged events wait in the durable
- * inbox, and a failed capture schedules the recovery alarm. The reconcile
- * alarm still walks the tree every three hours.
+ * A worker boot walks the tree unless another walk finished in this extension
+ * session less than TREE_WALK_INTERVAL_MS ago. Staged events wait in the
+ * durable inbox and a failed capture schedules the recovery alarm, but an
+ * event Chrome delivered to a worker it then killed, or a mapping lost with
+ * it, is only found by a walk (FR-F2), so it waits minutes, not the three
+ * hours until the reconcile alarm.
  */
 export async function recoverBookmarkEventsAfterEngineSettles(
   reason: 'startup' | 'alarm' | 'online' | 'manual' = 'manual', options: { readonly workerBoot?: boolean } = {},
 ) {
-  const walkTree = !options.workerBoot || !await treeReconciledThisSession();
+  const walkTree = !options.workerBoot || !await treeWalkedRecently();
   let freshWork = false;
   await workCoordinator.run('engine', async () => {
     await bookmarkListenerLifecycle.settled();
@@ -222,7 +229,7 @@ export async function recoverBookmarkEventsAfterEngineSettles(
       // after edge for runSyncEngine's unfreeze reconciliation to observe.
       scheduleBookmarkRecovery(); return;
     }
-    if (await recoverBookmarkEvents()) await markTreeReconciled();
+    if (await recoverBookmarkEvents()) await markTreeWalked();
     await resumeActiveBatchPlans();
     await recoveryScheduler.reset().catch(() => console.warn('bookmark_recovery_retry_reset_failed'));
   }).catch(async (error: unknown) => {
