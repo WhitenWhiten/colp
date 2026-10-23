@@ -276,6 +276,21 @@ describe('Sync production export surface', () => {
       expect(typeof canonicalCjs.canonicalOperationDigest).toBe('function');
       expect(canonicalEsm.canonicalOperationDigest).toBe(esm.canonicalOperationDigest);
       expect(distGraphContainsNodeBuiltin(join(distSyncDir, 'canonical.js'))).toBe(false);
+      for (const [api, canonical] of [[esm, canonicalEsm], [cjs, canonicalCjs]]) {
+        const validate = api!.validateAuthoritativePullEvent;
+        const operationDigest = canonical!.canonicalOperationDigest;
+        const effectDigest = canonical!.canonicalAuthoritativeEffectDigest;
+        const snapshot = canonical!.canonicalJsonSnapshot;
+        if (typeof validate !== 'function' || typeof operationDigest !== 'function'
+          || typeof effectDigest !== 'function' || typeof snapshot !== 'function') throw new Error('Missing packed Pull APIs');
+        const example = JSON.parse(readFileSync(join(packageRoot, 'fixtures/protocol/examples/sync-pull-v02.json'), 'utf8')).events[0];
+        const effect = { ...example.effect, operationDigest: operationDigest(example.operation) };
+        const owned = validate({ ...example, effect: { ...effect, effectDigest: effectDigest(effect) } }, '0.2');
+        expect(validate(owned, '0.2')).toBe(owned);
+        expect(snapshot(owned.operation, 'Operation')).toBe(owned.operation);
+        expect(api).not.toHaveProperty('recordJsonSnapshotProof');
+        expect(canonical).not.toHaveProperty('recordJsonSnapshotProof');
+      }
     },
     // Import the complete built graph in both module formats under coverage.
     30_000,

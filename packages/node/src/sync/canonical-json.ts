@@ -1,4 +1,5 @@
 import { TextByteBudget } from '../shared/text-budget.js';
+import { readJsonSnapshotProof, recordJsonSnapshotProof } from '../shared/json-snapshot-proof.js';
 
 /**
  * Browser-safe I-JSON snapshot + RFC 8785 canonical JSON.
@@ -28,19 +29,10 @@ interface SnapshotState {
   readonly maxMembers: number;
   members: number;
   observedDepth: number;
+  arrays: number;
   readonly bytes: TextByteBudget;
 }
 
-interface CanonicalSnapshotProof {
-  readonly maxDepth: number;
-  readonly maxMembers: number;
-  readonly maxBytes: number;
-  readonly observedDepth: number;
-  readonly observedMembers: number;
-  readonly observedBytes: number;
-}
-
-const canonicalSnapshotProofs = new WeakMap<object, CanonicalSnapshotProof>();
 const canonicalSnapshotEncodings = new WeakMap<object, string>();
 
 export const canonicalJsonDiagnostics = {
@@ -74,11 +66,11 @@ export function canonicalJsonSnapshot(
     throw new RangeError(`${label} limits are invalid.`);
   }
   if (value !== null && typeof value === 'object') {
-    const proof = canonicalSnapshotProofs.get(value);
+    const proof = readJsonSnapshotProof(value);
     if (
-      proof !== undefined
+      proof?.exact
       && proof.observedDepth <= maxDepth
-      && proof.observedMembers <= maxMembers
+      && proof.observedJsonMembers <= maxMembers
       && proof.observedBytes <= maxBytes
     ) {
       canonicalJsonDiagnostics.snapshotReuses += 1;
@@ -93,20 +85,10 @@ export function canonicalJsonSnapshot(
     maxMembers,
     members: 0,
     observedDepth: 0,
+    arrays: 0,
     bytes: new TextByteBudget(maxBytes, label),
   };
-  const snapshot = snapshotJsonValue(value, state, 0);
-  if (snapshot !== null && typeof snapshot === 'object') {
-    canonicalSnapshotProofs.set(snapshot, {
-      maxDepth,
-      maxMembers,
-      maxBytes,
-      observedDepth: state.observedDepth,
-      observedMembers: state.members,
-      observedBytes: state.bytes.bytes,
-    });
-  }
-  return snapshot;
+  return snapshotJsonValue(value, state, 0);
 }
 
 export function encodeCanonicalJson(value: unknown, label: string): string {
@@ -115,7 +97,7 @@ export function encodeCanonicalJson(value: unknown, label: string): string {
 
 /** Canonicalize a snapshot this module already produced, reusing its encoded bytes. */
 export function encodeKnownCanonicalSnapshot(snapshot: unknown, label: string): string {
-  if (snapshot !== null && typeof snapshot === 'object' && canonicalSnapshotProofs.has(snapshot)) {
+  if (snapshot !== null && typeof snapshot === 'object' && readJsonSnapshotProof(snapshot)) {
     const cached = canonicalSnapshotEncodings.get(snapshot);
     if (cached !== undefined) {
       canonicalJsonDiagnostics.encodeReuses += 1;
@@ -127,7 +109,7 @@ export function encodeKnownCanonicalSnapshot(snapshot: unknown, label: string): 
   if (encoded === undefined) {
     throw new TypeError(`${label} must contain only canonical I-JSON values.`);
   }
-  if (snapshot !== null && typeof snapshot === 'object' && canonicalSnapshotProofs.has(snapshot)) {
+  if (snapshot !== null && typeof snapshot === 'object' && readJsonSnapshotProof(snapshot)) {
     canonicalSnapshotEncodings.set(snapshot, encoded);
   }
   return encoded;
@@ -176,18 +158,38 @@ function snapshotJsonValue(value: unknown, state: SnapshotState, depth: number):
   if (state.seen.has(value)) {
     throw new TypeError(`${state.label} must not contain cycles.`);
   }
+  const proof = readJsonSnapshotProof(value);
+  if (proof?.exact && depth + proof.observedDepth <= state.maxDepth
+      && proof.observedJsonMembers <= state.maxMembers - state.members
+      && proof.observedBytes <= state.bytes.remaining) {
+    reserveMembers(state, proof.observedJsonMembers);
+    state.bytes.charge(proof.observedBytes);
+    state.arrays += proof.observedMembers - proof.observedJsonMembers;
+    state.observedDepth = Math.max(state.observedDepth, depth + proof.observedDepth);
+    return value;
+  }
   state.seen.add(value);
+  const outerDepth = state.observedDepth;
+  const membersBefore = state.members, arraysBefore = state.arrays, bytesBefore = state.bytes.bytes;
+  state.observedDepth = depth;
   try {
-    if (Array.isArray(value)) {
-      return snapshotArray(value, state, depth);
-    }
-    return snapshotObject(value, state, depth);
+    const snapshot = Array.isArray(value) ? snapshotArray(value, state, depth) : snapshotObject(value, state, depth);
+    const members = state.members - membersBefore;
+    const ownMembers = members + state.arrays - arraysBefore;
+    recordJsonSnapshotProof(snapshot, {
+      maxDepth: state.maxDepth - depth, maxMembers: Math.max(state.maxMembers, ownMembers), maxBytes: state.bytes.limit,
+      observedDepth: state.observedDepth - depth, observedMembers: ownMembers, observedJsonMembers: members,
+      observedBytes: state.bytes.bytes - bytesBefore, exact: true,
+    });
+    return snapshot;
   } finally {
+    state.observedDepth = Math.max(outerDepth, state.observedDepth);
     state.seen.delete(value);
   }
 }
 
 function snapshotArray(value: unknown[], state: SnapshotState, depth: number): readonly unknown[] {
+  state.arrays++;
   if (Object.getPrototypeOf(value) !== Array.prototype) {
     throw new TypeError(`${state.label} must contain only ordinary arrays.`);
   }

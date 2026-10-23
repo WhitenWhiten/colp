@@ -24,6 +24,7 @@ export const syncCriticalManifest = Object.freeze([
   Object.freeze({ path: 'src/sync/typed-operations.ts', mutate: false }),
   Object.freeze({ path: 'src/sync/typed-update-merge.ts', mutate: true }),
   Object.freeze({ path: 'src/shared/immutable-json.ts', mutate: false }),
+  Object.freeze({ path: 'src/shared/json-snapshot-proof.ts', mutate: false }),
   Object.freeze({ path: 'src/sync/internal-guards.ts', mutate: false }),
   Object.freeze({ path: 'src/sync/authoritative-effect-kind.ts', mutate: true }),
   Object.freeze({ path: 'src/sync/host-composition-recipe.ts', mutate: true }),

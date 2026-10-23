@@ -96,6 +96,7 @@ Import-graph / export basis: package root re-exports Sync from `src/sync/index.j
 | `src/sync/typed-operations.ts` | A core | Production dependency of Push typed-update payload assert (SYNC-0016) | `assertSyncTypedUpdateOperationPayload` | `sync-core` | Follows Push typed-update imports |
 | `src/sync/typed-update-merge.ts` | A core | Core Sync typed-update merge semantics for write planning (SYNC-0016); root-exported; without it hosts still push, but Core merge evidence lives here—not adapter | `mergeSyncTypedUpdate`, `mergeTypedUpdate` | `sync-core` | Merge rule change → update; do not demote to hide gaps |
 | `src/shared/immutable-json.ts` | A core | Production dependency of Session/Sequence/Push/Pull/Bootstrap/tombstone immutability | `immutableJsonData` (also tested directly) | `sync-core` | Follows Tier A imports |
+| `src/shared/json-snapshot-proof.ts` | A core | Private frozen-subtree provenance and observed budget facts shared by JSON factories | (internal) | `sync-core` | Follows immutable and canonical runtime imports |
 | `src/sync/internal-guards.ts` | A core | Production dependency of Tier A Promise/plain-object guards | (internal) | `sync-core` | Follows Tier A imports |
 
 | `src/sync/authoritative-effect-kind.ts` | A core | Runtime Pull effect domain/binding validation extracted from pull.ts | assertEffectBinding via authoritative Pull | sync-core | Follow runtime imports; semantic negatives must recompute digests |
@@ -131,6 +132,7 @@ Tier A files **deliberately omitted** from critical Sync mutation (still gated b
 - `src/sync/tombstone.ts`
 - `src/sync/typed-operations.ts`
 - `src/shared/immutable-json.ts`
+- `src/shared/json-snapshot-proof.ts`
 - `src/sync/internal-guards.ts`
 - `src/sync/canonical.ts`
 - `src/sync/canonical-json.ts`

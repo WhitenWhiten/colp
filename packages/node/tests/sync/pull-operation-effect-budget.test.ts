@@ -11,6 +11,9 @@ import {
   DurableContractHandle, type Audit, type Conflict, type Outbox, type TestTransaction,
 } from './push-transaction-harness.js';
 import { folderNode, placement, parentRevision, operationBase } from './authoritative-effect-binding-fixture.js';
+import { snapshotPullEventStorePage } from '../../src/sync/pull-page-budget.js';
+import { immutableJsonSnapshot } from '../../src/shared/immutable-json.js';
+import { canonicalJsonSnapshot } from '../../src/sync/canonical-json.js';
 
 function event(memberCount: number): Extract<SyncPullEventV02, { operation: { type: 'create_node' } }> {
   const extensions = { 'https://example.com/ext': Object.fromEntries(
@@ -52,6 +55,18 @@ function stores(source: SyncPullEventV02, request: SyncPullRequestContext) {
 }
 
 describe('0.2 Pull budgets operation and effect independently', () => {
+  it('reuses the detached page Operation and effect through validation and digest preparation', () => {
+    const source = event(6_000);
+    const page = snapshotPullEventStorePage({ entries: [{ commitOrdinal: '1', event: source }],
+      hasMore: false, collectionRevision: 'r2', recommendedPullAfterSeconds: 30 }, 1);
+    const owned = page.entries[0]!.event;
+    if (owned.kind !== 'operation' || !owned.operation || !('effect' in owned)) throw new Error('expected authoritative operation');
+    expect(validateAuthoritativePullEvent(owned, '0.2')).toBe(owned);
+    expect(canonicalJsonSnapshot(owned.operation, 'Operation')).toBe(owned.operation);
+    expect(immutableJsonSnapshot(owned.effect, 'effect', { maxDepth: 32, maxMembers: 10_000 })).toBe(owned.effect);
+    expect(Reflect.set(source.operation.payload.node, 'title', 'Caller mutation')).toBe(true);
+    expect(owned.operation.payload).toMatchObject({ node: { title: 'Node' } });
+  });
   it.each([6_000, 9_950])('delivers a Push accepted %i-member extension and continues from its cursor', async (members) => {
     const source = event(members);
     const adapter = new DurableContractHandle();

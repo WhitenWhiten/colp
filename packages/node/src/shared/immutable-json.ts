@@ -1,4 +1,5 @@
 import { TextByteBudget } from './text-budget.js';
+import { readJsonSnapshotProof, recordJsonSnapshotProof, type JsonSnapshotProof } from './json-snapshot-proof.js';
 
 import { isProxy } from 'node:util/types';
 
@@ -43,27 +44,20 @@ interface SnapshotState {
   readonly maxMembers: number;
   members: number;
   observedDepth: number;
+  arrays: number;
+  omitted: number;
   readonly bytes: TextByteBudget;
   readonly omitUndefinedProperties?: boolean;
 }
 
-export interface ImmutableJsonProof {
-  readonly maxDepth: number;
-  readonly maxMembers: number;
-  readonly maxBytes: number;
-  readonly observedDepth: number;
-  readonly observedMembers: number;
-  readonly observedBytes: number;
-}
-
-const immutableJsonProofs = new WeakMap<object, ImmutableJsonProof>();
+export type ImmutableJsonProof = JsonSnapshotProof;
 
 /**
  * Proof that this object was produced by an immutable JSON snapshot.
  * Callers cannot forge the entry. A frozen object with no entry is not proof.
  */
 export function readImmutableJsonProof(value: object): ImmutableJsonProof | undefined {
-  return immutableJsonProofs.get(value);
+  return readJsonSnapshotProof(value);
 }
 
 /** Whether a JS number is acceptable in protocol JSON clones. */
@@ -142,21 +136,12 @@ function runImmutableSnapshot<Value>(
     maxMembers: limits.maxMembers,
     members: 0,
     observedDepth: 0,
+    arrays: 0,
+    omitted: 0,
     bytes: new TextByteBudget(limits.maxBytes, label),
     ...(omitUndefinedProperties ? { omitUndefinedProperties: true } : {}),
   };
-  const snapshot = snapshotJsonValue(value, state, 0) as Value;
-  if (snapshot !== null && typeof snapshot === 'object') {
-    immutableJsonProofs.set(snapshot, {
-      maxDepth: limits.maxDepth,
-      maxMembers: limits.maxMembers,
-      maxBytes: limits.maxBytes,
-      observedDepth: state.observedDepth,
-      observedMembers: state.members,
-      observedBytes: state.bytes.bytes,
-    });
-  }
-  return snapshot;
+  return snapshotJsonValue(value, state, 0) as Value;
 }
 
 function snapshotJsonValue(value: unknown, state: SnapshotState, depth: number): unknown {
@@ -192,18 +177,39 @@ function snapshotJsonValue(value: unknown, state: SnapshotState, depth: number):
     throw new TypeError(`${state.label} must not contain cycles.`);
   }
 
+  const proof = readJsonSnapshotProof(value);
+  if (proof?.exact && depth + proof.observedDepth <= state.maxDepth
+      && proof.observedMembers <= state.maxMembers - state.members
+      && proof.observedBytes <= state.bytes.remaining) {
+    reserveMembers(state, proof.observedMembers);
+    state.bytes.charge(proof.observedBytes);
+    state.arrays += proof.observedMembers - proof.observedJsonMembers;
+    state.observedDepth = Math.max(state.observedDepth, depth + proof.observedDepth);
+    return value;
+  }
+
   state.seen.add(value);
+  const outerDepth = state.observedDepth;
+  const membersBefore = state.members, arraysBefore = state.arrays, bytesBefore = state.bytes.bytes, omittedBefore = state.omitted;
+  state.observedDepth = depth;
   try {
-    if (Array.isArray(value)) {
-      return snapshotArray(value, state, depth);
-    }
-    return snapshotObject(value, state, depth);
+    const snapshot = Array.isArray(value) ? snapshotArray(value, state, depth) : snapshotObject(value, state, depth);
+    const members = state.members - membersBefore;
+    recordJsonSnapshotProof(snapshot, {
+      maxDepth: state.maxDepth - depth, maxMembers: state.maxMembers, maxBytes: state.bytes.limit,
+      observedDepth: state.observedDepth - depth, observedMembers: members,
+      observedJsonMembers: members - (state.arrays - arraysBefore), observedBytes: state.bytes.bytes - bytesBefore,
+      exact: state.omitted === omittedBefore,
+    });
+    return snapshot;
   } finally {
+    state.observedDepth = Math.max(outerDepth, state.observedDepth);
     state.seen.delete(value);
   }
 }
 
 function snapshotArray(value: unknown[], state: SnapshotState, depth: number): readonly unknown[] {
+  state.arrays++;
   if (Object.getPrototypeOf(value) !== Array.prototype) {
     throw new TypeError(`${state.label} must contain only ordinary arrays.`);
   }
@@ -270,7 +276,7 @@ function snapshotObject(
     if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
       throw new TypeError(`${state.label} members must be enumerable data properties.`);
     }
-    if (state.omitUndefinedProperties && descriptor.value === undefined) continue;
+    if (state.omitUndefinedProperties && descriptor.value === undefined) { state.omitted++; continue; }
     Object.defineProperty(clone, key, {
       value: snapshotJsonValue(descriptor.value, state, depth + 1),
       enumerable: true,

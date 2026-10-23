@@ -462,7 +462,17 @@
     {
       "id": "performance-05",
       "title": "avoid repeated SDK pulled-operation clones",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "JSON and canonical factories now share private provenance for library-created frozen subtrees. The bounded Pull page owns the detached Operation/effect once; validation, canonical hashing and response assembly reuse those values while rechecking each boundary budget. Proofs track relative depth, exact bytes, both own-key/JSON-member counts and conservative sanitizer charges, and their metadata is frozen. Caller-frozen objects retain full inspection and mutable-input isolation. The server uses the refreshed private SDK tarball with matching development/runtime lock integrities.",
+      "validation": [
+        "Red API identity regressions reproduced repeated copies; frozen event/Operation/effect identity now survives page validation and digest preparation.",
+        "Complete SDK coverage: 455 files / 11,457 assertions passed; global branches 91.37%, lines 95.95%, functions 99.12%, with all existing domain gates retained.",
+        "Independent Sync core coverage: 103 files / 1,867 assertions passed; branches 91.96%, lines 95.82%, functions 98.94%. The new provenance module is included in the runtime coverage manifest.",
+        "Node 22 packed ESM/CJS/public-export and browser-safe canonical checks: all 23 assertions passed; both module formats share provenance across entry points and keep the proof registrar private.",
+        "All 5 installed-SDK/canonical unit assertions and 5 real PostgreSQL Pull/page-evidence/authority-cut/oversized-recovery assertions passed against the refreshed package.",
+        "SDK/server builds and TypeScript, source-size gates, server import boundaries, focused ESLint, npm 10 runtime manifest drift check, both vendor-integrity checks and diff checks passed."
+      ],
+      "artifact": "packages/server/vendor/know-n-colp-0.2.2-automation-client-id.1.tgz"
     },
     {
       "id": "performance-06",
