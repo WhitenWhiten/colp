@@ -193,6 +193,8 @@ apply, and explicit materialization quotas remain available to application ports
 Migration `202611020100_sync_snapshot_parent_revision_rows` adds page-local parent
 revision authority. Existing inline and paged Snapshots remain readable, and the
 complete parent header remains compatible with the preceding server binary.
+Continuation cursors use the Snapshot header's frozen expiry, so delayed page
+replays retain the same response digest across application restarts.
 
 Canonical size accounting uses an exact incremental ledger. Migration
 `202610280100_canonical_tree_capacity` installs transactional change tracking;

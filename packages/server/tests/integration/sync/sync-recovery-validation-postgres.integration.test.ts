@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { afterAll, beforeAll, test } from 'vitest';
 import { sql } from 'kysely';
-import { runMigrations } from '../../../src/infrastructure/database/index.js';
+import { runMigrations, createAttachmentExposurePolicyAdapter,
+  createPostgresSharedExposureFactsPort } from '../../../src/infrastructure/database/index.js';
 import {
   createPostgresSyncRecoveryApplication,
+  createPostgresSyncBootstrapSnapshotApplication,
   createSyncPullCursorKeyring,
   createSyncRecoveryCapabilityKeyring,
   type PostgresSyncRecoveryOptions,
@@ -20,6 +22,28 @@ describeWithPostgres('P3-24 recovery validation', () => {
     await runMigrations(isolated.runtime.db, 'latest');
   }, 20_000);
   afterAll(async () => isolated?.close());
+
+  test('a delayed Snapshot page replay retains its durable response digest across application restarts', async () => {
+    const fixture = await seedRecoveryFixture(isolated, 'page-replay', undefined, true, undefined, '0.2');
+    await fixture.application.requireRecoveryForStaleCursor({ credential: fixture.credential,
+      sessionId: fixture.sessionId, cursor: fixture.cursorBeforeBoundary });
+    let clock = Date.now();
+    const query = (pageCursor?: string) => createPostgresSyncBootstrapSnapshotApplication(isolated.runtime, {
+      cursorSecret: Buffer.alloc(32, 93), cursorKeyId: 'snapshot-v1', now: () => clock,
+      attachmentExposure: createAttachmentExposurePolicyAdapter(createPostgresSharedExposureFactsPort(isolated.runtime)),
+      recovery: fixture.application,
+    }).query({ credential: fixture.credential, origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
+      request: { sessionId: fixture.sessionId, limit: 100, ...(pageCursor ? { pageCursor } : {}) } });
+    const original = await query();
+    clock += 5_000;
+    assert.deepEqual(await query(), original);
+    const second = await query(original.page.nextCursor!);
+    clock += 5_000;
+    assert.deepEqual(await query(original.page.nextCursor!), second);
+    const pages = await isolated.runtime.db.selectFrom('sync_bootstrap_snapshot_pages')
+      .select('page_sequence').where('snapshot_id', '=', fixture.snapshotId).orderBy('page_sequence').execute();
+    assert.deepEqual(pages.map(page => page.page_sequence), [1, 2]);
+  });
 
   test('rejects malformed or conflicting Snapshot page evidence without changing recovery authority', async () => {
     const fixture = await seedRecoveryFixture(isolated, 'page-validation');

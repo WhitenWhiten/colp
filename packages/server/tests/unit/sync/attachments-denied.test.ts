@@ -23,6 +23,7 @@ function authority(nodes: readonly SnapshotNode[]): SyncBootstrapAuthority {
       return {
         sessionId: 'ses_1', collectionId: 'col_1', replicaId: 'rep_1', leaseGeneration: 3,
         sessionExpiresAt: '2099-07-25T10:15:00.000Z', replicaState: 'active',
+        snapshotExpiresAt: '2099-07-25T10:15:00.000Z',
         bindingMode: 'whole-profile', bindingRootNodeId: 'root_1',
         contentRevision: 'rev_7', policyRevision: 'policy_4', bootstrapCursor: 'ack_7',
         generatedAt: '2026-07-25T10:00:00.000Z',

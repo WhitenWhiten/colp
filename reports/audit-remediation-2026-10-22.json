@@ -960,6 +960,23 @@
         "The previously unexecuted correctness scenarios use a measured six-minute convergence budget and now attach actual timings; no four-minute product latency target is claimed. Idle whole-library work remains separately tracked under performance-08"
       ],
       "commit": "04be4781"
+    },
+    {
+      "id": "sync-22",
+      "title": "freeze Snapshot continuation expiry so delayed recovery page replay keeps its receipt digest",
+      "status": "resolved",
+      "discoveredDuring": "performance-01 follow-up replay verification",
+      "resolution": "Snapshot authority now supplies the immutable stored expiry. Continuation cursors use that frozen deadline rather than the current request time; expiry creation remains with the materialization owner. Invalid or elapsed Snapshot expiry fails closed.",
+      "validation": [
+        "A controlled-clock regression reproduced different nextCursor bytes and response evidence after a five-second retry and application restart before the fix.",
+        "26 focused Snapshot/clock/attachment assertions passed, including delayed identical replay and malformed/expired Snapshot authority.",
+        "All 5 real PostgreSQL recovery-validation cases passed, including repeated first and continuation page reads after simulated delays, unchanged response digests, and exactly two durable page receipts.",
+        "Production build/typecheck, focused ESLint, import boundaries and diff checks passed."
+      ],
+      "evidence": [
+        "packages/server/tests/unit/sync/sync-bootstrap-snapshot.test.ts",
+        "packages/server/tests/integration/sync/sync-recovery-validation-postgres.integration.test.ts"
+      ]
     }
   ],
   "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."

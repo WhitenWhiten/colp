@@ -119,7 +119,7 @@ export function createPostgresSyncBootstrapSnapshotApplication(
           options.cursorTtlMs ?? 900_000, options.cursorKeyId ?? 'v1', options.cursorSecret,
           options.pullCursorKeyring, options.recoveryProofRetentionMs, options.recovery,
           maxSnapshotNodes, maxSnapshotBytes);
-        return await createSyncBootstrapSnapshotService({ authority, cursorSecret: options.cursorSecret, ...(options.cursorKeyId ? { cursorKeyId: options.cursorKeyId } : {}), ...(options.cursorTtlMs ? { cursorTtlMs: options.cursorTtlMs } : {}), ...(options.now ? { now: options.now } : {}), attachmentExposure: options.attachmentExposure }).query(input.request);
+        return await createSyncBootstrapSnapshotService({ authority, cursorSecret: options.cursorSecret, ...(options.cursorKeyId ? { cursorKeyId: options.cursorKeyId } : {}), ...(options.now ? { now: options.now } : {}), attachmentExposure: options.attachmentExposure }).query(input.request);
       } catch (error: unknown) {
         if (error instanceof SyncBootstrapSnapshotError) throw error;
         if (isExpectedSnapshotAuthorityConstraint(error)) throw new SyncBootstrapSnapshotError('stale_replica');
@@ -527,6 +527,7 @@ function result(authority: AuthorityRow, stored: StoredRow, document: SnapshotSt
   pageNodes?: readonly SnapshotNode[], snapshotPageBytes?: number): SyncBootstrapAuthorityResult {
   return Object.freeze({ sessionId: stored.session_id, collectionId: stored.collection_id, replicaId: stored.replica_id,
     leaseGeneration: Number(stored.lease_generation), sessionExpiresAt: authority.expires_at.toISOString(),
+    snapshotExpiresAt: stored.expires_at.toISOString(),
     replicaState: authority.replica_state, bindingMode: stored.binding_mode, bindingRootNodeId: stored.binding_root_node_id,
     contentRevision: stored.content_revision, policyRevision: stored.policy_revision, bootstrapCursor: stored.bootstrap_cursor,
     collection: structuredClone(document.collection),

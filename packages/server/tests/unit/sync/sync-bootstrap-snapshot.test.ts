@@ -25,6 +25,7 @@ function authority(nodes: readonly SnapshotNode[], overrides: Partial<Awaited<Re
       return {
         sessionId: 'ses_1', collectionId: 'col_1', replicaId: 'rep_1', leaseGeneration: 3,
         sessionExpiresAt: '2099-07-25T10:15:00.000Z', replicaState: 'active',
+        snapshotExpiresAt: '2099-07-25T10:15:00.000Z',
         bindingMode: 'whole-profile', bindingRootNodeId: 'root_1',
         contentRevision: 'rev_7', policyRevision: 'policy_4', bootstrapCursor: 'ack_7',
         generatedAt: '2026-07-25T10:00:00.000Z',
@@ -52,6 +53,21 @@ const children: SnapshotNode[] = [
 ];
 
 describe('P3-09 authoritative Sync bootstrap Snapshot', () => {
+  it('replays identical recovery page evidence after a delayed retry and service restart', async () => {
+    let clock = Date.parse('2026-07-25T10:00:00Z');
+    const frozen = { ...authority([root, ...children], { replicaState: 'recovery_required',
+      snapshotExpiresAt: '2026-07-25T10:15:00Z' }),
+      recordPage: vi.fn(async () => undefined) };
+    const service = () => createSyncBootstrapSnapshotService({ authority: frozen,
+      cursorSecret: 'x'.repeat(32), now: () => clock, attachmentExposure: DENY_ATTACHMENTS });
+    const first = await service().query({ sessionId: 'ses_1', limit: 1 });
+    const original = await service().query({ sessionId: 'ses_1', limit: 1, pageCursor: first.page.nextCursor! });
+    const receipt = frozen.recordPage.mock.calls.at(-1);
+    clock += 5_000;
+    const replay = await service().query({ sessionId: 'ses_1', limit: 1, pageCursor: first.page.nextCursor! });
+    expect(replay).toEqual(original);
+    expect(frozen.recordPage.mock.calls.at(-1)).toEqual(receipt);
+  });
   it('publishes independent parent revisions in COLP 0.2 across Snapshot pages', async () => {
     const service = createSyncBootstrapSnapshotService({ authority: authority([root, ...children], {
       protocolVersion: '0.2', parentRevisions: [
@@ -178,6 +194,8 @@ describe('P3-09 authoritative Sync bootstrap Snapshot', () => {
 
   it.each([
     ['expired Session', { sessionExpiresAt: '2026-07-25T09:00:00.000Z' }, 'authentication_required'],
+    ['expired Snapshot', { snapshotExpiresAt: '2026-07-25T09:00:00.000Z' }, 'snapshot_expired'],
+    ['invalid Snapshot expiry', { snapshotExpiresAt: 'invalid' }, 'snapshot_expired'],
     ['generation mismatch', { leaseGeneration: 4 }, 'stale_replica'],
     ['policy change', { policyRevision: 'policy_5' }, 'snapshot_expired'],
   ] as const)('fails closed for %s without publishing mixed revisions', async (_name, drift, code) => {

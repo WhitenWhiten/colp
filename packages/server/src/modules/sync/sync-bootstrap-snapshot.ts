@@ -13,6 +13,8 @@ export interface SyncBootstrapAuthorityResult {
   readonly replicaId: string;
   readonly leaseGeneration: number;
   readonly sessionExpiresAt: string;
+  /** Frozen with the Snapshot header; retries must reproduce the same cursor and page digest. */
+  readonly snapshotExpiresAt: string;
   readonly replicaState: 'new' | 'active' | 'expired' | 'recovery_required' | 'retired';
   readonly bindingMode: 'whole-profile' | 'mounted-folder';
   readonly bindingRootNodeId: string;
@@ -95,7 +97,6 @@ export function createSyncBootstrapSnapshotService(options: {
   readonly cursorSecret: string | Uint8Array;
   readonly cursorKeyId?: string;
   readonly now?: () => number;
-  readonly cursorTtlMs?: number;
   readonly defaultLimit?: number;
   readonly maxLimit?: number;
   /**
@@ -110,7 +111,6 @@ export function createSyncBootstrapSnapshotService(options: {
   const now = options.now ?? Date.now;
   const defaultLimit = options.defaultLimit ?? 200;
   const maxLimit = options.maxLimit ?? 500;
-  const ttl = options.cursorTtlMs ?? 900_000;
   const cursorKeyId = options.cursorKeyId ?? 'v1';
   if (Buffer.byteLength(options.cursorSecret) < 32) throw new TypeError('Sync Snapshot cursor secret must be at least 32 bytes');
   // FIX-L-033 (SYNC-R17): an uncomposed policy port is a composition error and
@@ -160,7 +160,7 @@ export function createSyncBootstrapSnapshotService(options: {
         const hasMore = nextOffset < nodeCount;
         const nextCursor = hasMore ? signCursor({
           snapshotId, generation: source.leaseGeneration, scope: cursorScope(source, cursorKeyId),
-          offset: nextOffset, sequence: sequence + 1, limit, expiresAt: now() + ttl,
+          offset: nextOffset, sequence: sequence + 1, limit, expiresAt: Date.parse(source.snapshotExpiresAt),
         }, options.cursorSecret) : null;
         const pageNodeIds = new Set(pageNodes.map((node) => node.id));
         const snapshotBase = {
@@ -228,6 +228,9 @@ export function createSyncBootstrapSnapshotService(options: {
 
 function assertAuthority(source: SyncBootstrapAuthorityResult, now: number): void {
   if (Date.parse(source.sessionExpiresAt) <= now) throw new SyncBootstrapSnapshotError('authentication_required');
+  if (!Number.isFinite(Date.parse(source.snapshotExpiresAt)) || Date.parse(source.snapshotExpiresAt) <= now) {
+    throw new SyncBootstrapSnapshotError('snapshot_expired');
+  }
   if (source.replicaState !== 'active' && source.replicaState !== 'recovery_required') {
     throw new SyncBootstrapSnapshotError(source.replicaState === 'retired' ? 'replica_retired' : 'stale_replica');
   }
