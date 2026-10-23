@@ -6,8 +6,10 @@ import { productRequestCredentials } from './product-credentials'
  * Domain transport modules receive this instance; they do not call fetch themselves.
  */
 import { allocateCommandId } from './command-intent'
-import { parseProductError, requestTimeoutError } from './product-error'
-import { fetchWithTimeout, isTimeoutError, REQUEST_TIMEOUT_MS, TRANSFER_TIMEOUT_MS } from './requestTimeout'
+import { getApiBaseUrl } from './config'
+import { transportError } from './errors'
+import { requestJson, requestOrigin } from './json-request'
+import { REQUEST_TIMEOUT_MS, TRANSFER_TIMEOUT_MS } from './requestTimeout'
 import type { MutationCallOptions, ProductTransportOptions } from './product-transport-types'
 
 export type ProductRequestInit = {
@@ -35,19 +37,7 @@ export type ProductTransportHttp = {
 }
 
 function resolveBaseUrl(explicit?: string): string {
-  if (explicit != null && explicit !== '') {
-    return explicit.replace(/\/$/, '')
-  }
-  try {
-    const env =
-      typeof import.meta !== 'undefined'
-        ? (import.meta as ImportMeta & { env?: { VITE_API_ORIGIN?: string } }).env
-            ?.VITE_API_ORIGIN
-        : undefined
-    if (env && String(env).trim()) return String(env).replace(/\/$/, '')
-  } catch {
-  }
-  return ''
+  return explicit != null && explicit !== '' ? explicit.replace(/\/$/, '') : getApiBaseUrl()
 }
 
 function joinUrl(baseUrl: string, path: string, query?: Record<string, string | number | boolean | readonly string[] | undefined | null>): string {
@@ -82,37 +72,6 @@ function joinUrl(baseUrl: string, path: string, query?: Record<string, string | 
   return href
 }
 
-function resolveOrigin(baseUrl: string): string | undefined {
-  if (baseUrl) {
-    try {
-      return new URL(baseUrl).origin
-    } catch {
-    }
-  }
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin
-  }
-  return undefined
-}
-
-async function readBody(res: Response): Promise<unknown> {
-  const text = await res.text()
-  if (!text) return null
-  try {
-    return JSON.parse(text) as unknown
-  } catch {
-    return { raw: text }
-  }
-}
-
-function headersToRecord(res: Response): Record<string, string> {
-  const out: Record<string, string> = {}
-  res.headers.forEach((v, k) => {
-    out[k] = v
-  })
-  return out
-}
-
 const STRONG_ENTITY_TAG = /^"[^"\r\n]+"$/
 
 /**
@@ -136,7 +95,7 @@ export function createProductTransportHttp(
   // Resolve fetch at call time so test mocks replacing globalThis.fetch take effect.
   // Do not bind globalThis.fetch at construction — bind freezes the pre-mock function.
   const fetchImpl = options.fetchImpl
-  const origin = resolveOrigin(baseUrl)
+  const origin = requestOrigin(baseUrl)
 
   async function request<T>(init: ProductRequestInit): Promise<T> {
     const identity = privateSessionIdentity()
@@ -147,60 +106,30 @@ export function createProductTransportHttp(
     }
 
     const url = joinUrl(baseUrl, init.path, init.query)
-    let res: Response
-    try {
-      const doFetch = fetchImpl ?? globalThis.fetch
-      const timeoutMs = init.timeoutMs ?? (init.rawBody !== undefined ? TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS)
-      res = await fetchWithTimeout(doFetch, url, {
-        method: init.method,
-        credentials: init.credentials ?? productRequestCredentials(init.method),
-        headers,
-        body:
-          init.rawBody !== undefined
-            ? init.rawBody
-            : init.body === undefined
-              ? undefined
-              : typeof init.body === 'string'
-                ? init.body
-                : JSON.stringify(init.body),
-        signal: init.signal,
-      }, timeoutMs)
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') throw err
-      if (isTimeoutError(err)) throw requestTimeoutError()
-      throw parseProductError(
-        0,
-        {
-          error: {
-            code: 'transport_error',
-            message: err instanceof Error ? err.message : 'Network error',
-            recovery: 'same_request',
-            sameRequestRetrySafe: true,
-          },
-        },
-        {},
-      )
-    }
-
-    if (res.status === 204 || (init.emptyOk && res.status === 204)) {
-      invalidate()
-      return undefined as T
-    }
-
-    let body: unknown
-    try { body = await readBody(res) } catch (error) {
-      if (isTimeoutError(error)) throw requestTimeoutError()
-      throw error
-    }
-    if (!res.ok) {
-      throw parseProductError(res.status, body, headersToRecord(res))
-    }
+    const { status, headers: responseHeaders, body } = await requestJson(url, {
+      method: init.method,
+      credentials: init.credentials ?? productRequestCredentials(init.method),
+      headers,
+      body:
+        init.rawBody !== undefined
+          ? init.rawBody
+          : init.body === undefined
+            ? undefined
+            : typeof init.body === 'string'
+              ? init.body
+              : JSON.stringify(init.body),
+      signal: init.signal,
+    }, {
+      fetchImpl: fetchImpl ?? globalThis.fetch,
+      timeoutMs: init.timeoutMs ?? (init.rawBody !== undefined ? TRANSFER_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+    })
 
     invalidate()
+    if (status === 204) return undefined as T
     if (init.includeEtag) {
-      const etag = asStrongEntityTag(res.headers.get('etag') ?? '')
+      const etag = asStrongEntityTag(responseHeaders.get('etag') ?? '')
       if (!etag || !body || typeof body !== 'object') {
-        throw parseProductError(0, { error: { code: 'transport_error', message: 'Reading Progress response omitted its strong ETag.', recovery: 'same_request', sameRequestRetrySafe: true } }, {})
+        throw transportError('Reading Progress response omitted its strong ETag.')
       }
       return { ...(body as object), etag } as T
     }

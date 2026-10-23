@@ -15,9 +15,9 @@ import {
 } from '@known/product-v1-client'
 import { getApiBaseUrl } from './config'
 import { getOrCreateCommandId } from './commandId'
+import { wrapGeneratedClientError } from './errors'
 import {
   withSameRequestRetry,
-  wrapGeneratedFollowError,
   type MutationCall,
   type MutationOptions,
   type ReadOptions,
@@ -69,7 +69,7 @@ export function createProductGeneratedClient(
         return await libraryOrderClient(csrf, options?.signal).get()
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') throw error
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, { maxRetries: options?.maxRetries, signal: options?.signal })
   }
@@ -86,7 +86,7 @@ export function createProductGeneratedClient(
         )
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') throw error
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, libraryOrderMutationOptions(options))
   }
@@ -118,7 +118,7 @@ export function createProductGeneratedClient(
         return await collaborationClient(getCsrfToken() ?? '', options?.signal).listCollectionMembers(collectionId)
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') throw error
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, { maxRetries: options?.maxRetries, signal: options?.signal })
   }
@@ -132,7 +132,7 @@ export function createProductGeneratedClient(
         return await collaborationClient(getCsrfToken() ?? '', options?.signal).listSharedCollections(query)
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') throw error
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, { maxRetries: options?.maxRetries, signal: options?.signal })
   }
@@ -145,7 +145,7 @@ export function createProductGeneratedClient(
         return await collaborationClient(getCsrfToken() ?? '', options?.signal).listMyCollaborationInvites()
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') throw error
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, { maxRetries: options?.maxRetries, signal: options?.signal })
   }
@@ -161,7 +161,7 @@ export function createProductGeneratedClient(
           getOrCreateCommandId(intentId),
         )
       } catch (error) {
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, collaborationMutationOptions(options))
   }
@@ -177,7 +177,7 @@ export function createProductGeneratedClient(
           getOrCreateCommandId(intentId),
         )
       } catch (error) {
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, collaborationMutationOptions(options))
   }
@@ -197,7 +197,7 @@ export function createProductGeneratedClient(
           ifMatch,
         )
       } catch (error) {
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, collaborationMutationOptions(options))
   }
@@ -217,7 +217,7 @@ export function createProductGeneratedClient(
           ifMatch,
         )
       } catch (error) {
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, collaborationMutationOptions(options))
   }
@@ -239,7 +239,7 @@ export function createProductGeneratedClient(
           ifMatch,
         )
       } catch (error) {
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, collaborationMutationOptions(options))
   }
@@ -259,7 +259,7 @@ export function createProductGeneratedClient(
           ifMatch,
         )
       } catch (error) {
-        throw wrapGeneratedFollowError(error)
+        throw wrapGeneratedClientError(error)
       }
     }, collaborationMutationOptions(options))
   }

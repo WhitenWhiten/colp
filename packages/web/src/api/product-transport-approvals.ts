@@ -1,5 +1,5 @@
 import { allocateCommandId } from './command-intent'
-import { parseProductError } from './product-error'
+import { wrapGeneratedClientError } from './errors'
 import { createProductWriteApprovalClient } from '@known/product-v1-client'
 import type { ProductTransportHttp } from './product-transport-http'
 import type { MutationCallOptions, WriteApprovalListParams } from './product-transport-types'
@@ -28,23 +28,7 @@ export function createWriteApprovalTransport(http: ProductTransportHttp) {
     try {
       return await run()
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') throw error
-      const generated = error as { status?: number; problem?: unknown; headers?: Headers }
-      if (typeof generated?.status === 'number') {
-        throw parseProductError(generated.status, generated.problem, generated.headers ?? {})
-      }
-      throw parseProductError(
-        0,
-        {
-          error: {
-            code: 'transport_error',
-            message: error instanceof Error ? error.message : 'Network error',
-            recovery: 'same_request',
-            sameRequestRetrySafe: true,
-          },
-        },
-        {},
-      )
+      throw wrapGeneratedClientError(error)
     }
   }
   return {

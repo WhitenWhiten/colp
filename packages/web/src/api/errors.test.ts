@@ -16,7 +16,7 @@ import {
   isProductApiError,
 } from './errors'
 import { productErrorBody } from './test-helpers'
-import { parseProductError } from './product-error'
+import { parseProductError } from './errors'
 
 function apiError(
   status: number,

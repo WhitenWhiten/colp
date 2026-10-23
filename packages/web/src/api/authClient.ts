@@ -29,10 +29,9 @@
  * Product auth state (user / CSRF) must come from /api/v1/session and
  * /api/v1/me (AuthContext) — never from the Better Auth session shape.
  */
-import { apiUrl, getApiBaseUrl } from './config'
-import { parseProductError, ProductApiError, wrapProductError } from './errors'
+import { apiUrl } from './config'
+import { requestJson, requestOrigin } from './json-request'
 import { productClient } from './productClient'
-import { fetchWithTimeout } from './requestTimeout'
 import { clearSession, getCsrfToken } from './sessionStore'
 
 export type AuthCallOptions = {
@@ -134,22 +133,6 @@ type AuthRequestInit = {
   signal?: AbortSignal
 }
 
-/** Same-origin origin for the Origin header (mirrors product-transport). */
-function authOrigin(): string | undefined {
-  const base = getApiBaseUrl()
-  if (base) {
-    try {
-      return new URL(base).origin
-    } catch {
-    }
-  }
-  const loc = (globalThis as { location?: { origin?: string } }).location
-  if (typeof loc?.origin === 'string' && loc.origin) {
-    return loc.origin
-  }
-  return undefined
-}
-
 function buildAuthUrl(path: string, query?: Record<string, string | undefined>): string {
   const url = apiUrl(`${AUTH_BASE_PATH}${path}`)
   if (!query) return url
@@ -161,24 +144,6 @@ function buildAuthUrl(path: string, query?: Record<string, string | undefined>):
   return qs ? `${url}?${qs}` : url
 }
 
-async function readAuthBody(res: Response): Promise<unknown> {
-  const text = await res.text()
-  if (!text) return null
-  try {
-    return JSON.parse(text) as unknown
-  } catch {
-    return { raw: text }
-  }
-}
-
-function authHeadersToRecord(res: Response): Record<string, string> {
-  const out: Record<string, string> = {}
-  res.headers.forEach((value, key) => {
-    out[key] = value
-  })
-  return out
-}
-
 async function authRequest<T>(init: AuthRequestInit): Promise<T> {
   const headers = new Headers()
   if (init.body !== undefined) headers.set('Content-Type', 'application/json')
@@ -187,7 +152,7 @@ async function authRequest<T>(init: AuthRequestInit): Promise<T> {
     // absent token (first login, recovery) is omitted — never an empty header.
     const csrf = getCsrfToken()
     if (csrf) headers.set('X-CSRF-Token', csrf)
-    const origin = authOrigin()
+    const origin = requestOrigin()
     if (origin) headers.set('Origin', origin)
   }
   if (init.extraHeaders) {
@@ -196,31 +161,16 @@ async function authRequest<T>(init: AuthRequestInit): Promise<T> {
     }
   }
 
-  let res: Response
-  try {
-    res = await fetchWithTimeout(globalThis.fetch, buildAuthUrl(init.path, init.query), {
-      method: init.method,
-      credentials: 'include',
-      headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-      signal: init.signal,
-    })
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') throw err
-    throw wrapProductError(err)
-  }
-
-  let body: unknown
-  try { body = await readAuthBody(res) } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
-    throw wrapProductError(error)
-  }
-  if (!res.ok) {
-    // The shared envelope parser maps auth codes (invalid_credentials,
-    // verification_required, account_link_required, rate_limited, …) and
-    // retryAfterSeconds into ProductApiError; raw BA bodies fail closed.
-    throw new ProductApiError(parseProductError(res.status, body, authHeadersToRecord(res)))
-  }
+  // The shared envelope parser maps auth codes (invalid_credentials,
+  // verification_required, account_link_required, rate_limited, …) and
+  // retryAfterSeconds into ProductApiError; raw BA bodies fail closed.
+  const { body } = await requestJson(buildAuthUrl(init.path, init.query), {
+    method: init.method,
+    credentials: 'include',
+    headers,
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    signal: init.signal,
+  })
   return body as T
 }
 

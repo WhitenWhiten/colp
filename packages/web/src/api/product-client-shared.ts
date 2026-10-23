@@ -138,19 +138,17 @@ export function createRequireCsrf(getSession: SessionReader): () => Promise<stri
       csrf = getCsrfToken()
     }
     if (!csrf) {
-      throw new ProductApiError(
-        parseProductError(
-          401,
-          {
-            error: {
-              code: 'authentication_required',
-              message: 'Not authenticated (missing CSRF token). Sign in again.',
-              recovery: 'user_action',
-              sameRequestRetrySafe: false,
-            },
+      throw parseProductError(
+        401,
+        {
+          error: {
+            code: 'authentication_required',
+            message: 'Not authenticated (missing CSRF token). Sign in again.',
+            recovery: 'user_action',
+            sameRequestRetrySafe: false,
           },
-          {},
-        ),
+        },
+        {},
       )
     }
     return csrf
@@ -217,22 +215,4 @@ export function createAuthRetryRead(getSession: SessionReader) {
       return withSameRequestRetry(request, { maxRetries: options?.maxRetries, signal: options?.signal })
     }
   }
-}
-
-export type GeneratedFollowError = Error & {
-  status?: number
-  problem?: unknown
-  headers?: Headers
-}
-
-export function wrapGeneratedFollowError(error: unknown): ProductApiError {
-  const generated = error as GeneratedFollowError
-  if (typeof generated?.status === 'number') {
-    return new ProductApiError(parseProductError(
-      generated.status,
-      generated.problem,
-      generated.headers ?? {},
-    ))
-  }
-  return wrapProductError(error)
 }

@@ -1,22 +1,68 @@
 /**
- * App-facing Product API errors + recovery strategy for UI banners.
- * Transport parsing: product-error.ts (parseProductError / ProductClientError).
+ * The web client's one error type and its parsing.
+ *
+ * Every API client (Product transport, agents, automations, auth) throws
+ * ProductApiError. parseProductError turns a Product error envelope, a
+ * sign-up gate body or a bare status into one; recoveryStrategyFor maps it to
+ * the UI recovery.
+ *
+ * Client recovery enum (UX-facing, normalized from server RecoveryAction):
+ *   refresh_and_retry | same_request | user_action | reauthenticate
+ *
+ * Normalization vs server registry:
+ * - restart_from_first_page (snapshot_expired / invalid_cursor) → refresh_and_retry
+ * - authentication_required / csrf_failed (server: user_action) → reauthenticate
+ * - Code-based recovery wins over a mismatched envelope recovery field
  */
-import {
-  parseProductError,
-  ProductClientError,
-  recoveryForCode,
-  requestTimeoutError,
-  type ClientRecovery,
-} from './product-error'
 import { isTimeoutError } from './requestTimeout'
 
-export {
-  parseProductError,
-  ProductClientError,
-  recoveryForCode,
-  type ClientRecovery,
-} from './product-error'
+export type ClientRecovery =
+  | 'refresh_and_retry'
+  | 'same_request'
+  | 'user_action'
+  | 'reauthenticate'
+
+export type ProductErrorField = {
+  path: string
+  code: string
+  message: string
+}
+
+/** Map known Product error codes to client recovery (code wins over envelope). */
+export function recoveryForCode(code: string, envelopeRecovery?: string): ClientRecovery {
+  switch (code) {
+    case 'precondition_failed':
+    case 'precondition_required':
+    case 'revision_conflict':
+    case 'position_context_stale':
+    case 'snapshot_expired':
+    case 'invalid_cursor':
+      return 'refresh_and_retry'
+    case 'command_in_progress':
+    case 'rate_limited':
+    case 'internal_error':
+    case 'feature_temporarily_unavailable':
+    case 'transport_error':
+      return 'same_request'
+    case 'authentication_required':
+    case 'csrf_failed':
+      return 'reauthenticate'
+    case 'command_result_expired':
+    case 'command_id_reused':
+      return 'user_action'
+    default:
+      break
+  }
+
+  // Normalize server-only recovery values
+  if (envelopeRecovery === 'restart_from_first_page') return 'refresh_and_retry'
+  if (envelopeRecovery === 'same_request') return 'same_request'
+  if (envelopeRecovery === 'refresh_and_retry') return 'refresh_and_retry'
+  if (envelopeRecovery === 'reauthenticate') return 'reauthenticate'
+  if (envelopeRecovery === 'user_action' || envelopeRecovery === 'none') return 'user_action'
+
+  return 'user_action'
+}
 
 /** R15-23: plain copy for server-side failures (5xx, non-envelope errors). */
 export const SERVICE_TROUBLE = 'The server is having trouble right now. Try again in a minute.'
@@ -31,12 +77,11 @@ export class ProductApiError extends Error {
   readonly precondition: 'resource' | 'content' | null
   readonly currentEtag: string | null
   readonly retryAfterSeconds: number | null
-  readonly fieldErrors: ProductClientError['fieldErrors']
+  readonly fieldErrors: ProductErrorField[]
 
   constructor(
     source:
       | number
-      | ProductClientError
       | {
           status: number
           code: string
@@ -47,7 +92,7 @@ export class ProductApiError extends Error {
           precondition?: 'resource' | 'content' | null
           currentEtag?: string | null
           retryAfterSeconds?: number | null
-          fieldErrors?: ProductClientError['fieldErrors']
+          fieldErrors?: ProductErrorField[]
         },
     /** Legacy second arg: error object when first arg is status */
     legacyError?: {
@@ -59,7 +104,7 @@ export class ProductApiError extends Error {
       precondition?: 'resource' | 'content' | null
       currentEtag?: string | null
       retryAfterSeconds?: number | null
-      fieldErrors?: ProductClientError['fieldErrors']
+      fieldErrors?: ProductErrorField[]
     } | null,
     legacyMessage?: string,
   ) {
@@ -84,19 +129,6 @@ export class ProductApiError extends Error {
       return
     }
 
-    if (source instanceof ProductClientError) {
-      super(source.message)
-      this.status = source.status
-      this.code = source.code
-      this.requestId = source.requestId
-      this.recovery = source.recovery
-      this.sameRequestRetrySafe = source.sameRequestRetrySafe
-      this.precondition = source.precondition
-      this.currentEtag = source.currentEtag
-      this.retryAfterSeconds = source.retryAfterSeconds
-      this.fieldErrors = source.fieldErrors
-      return
-    }
     super(source.message)
     this.status = source.status
     this.code = source.code
@@ -209,25 +241,167 @@ export function isProductApiError(err: unknown): err is ProductApiError {
   return err instanceof ProductApiError
 }
 
+function headerMap(headers: Headers | Record<string, string> | undefined): Map<string, string> {
+  const map = new Map<string, string>()
+  if (!headers) return map
+  if (headers instanceof Headers) {
+    headers.forEach((v, k) => map.set(k.toLowerCase(), v))
+    return map
+  }
+  for (const [k, v] of Object.entries(headers)) {
+    map.set(k.toLowerCase(), v)
+  }
+  return map
+}
+
+function parseRetryAfter(
+  bodySeconds: unknown,
+  headers: Map<string, string>,
+): number | null {
+  if (typeof bodySeconds === 'number' && Number.isFinite(bodySeconds) && bodySeconds >= 0) {
+    return bodySeconds
+  }
+  const raw = headers.get('retry-after')
+  if (!raw) return null
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+const SIGN_UP_GATE_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  setup_token_required: 'That setup token does not match this server. Copy it again.',
+  registration_closed: 'Registration is closed on this server.',
+})
+
+/** Parse a Product error envelope (or non-envelope body) into ProductApiError. */
+export function parseProductError(
+  status: number,
+  body: unknown,
+  headers: Headers | Record<string, string> = {},
+): ProductApiError {
+  const hdrs = headerMap(headers)
+
+  if (body && typeof body === 'object' && 'error' in body) {
+    const env = body as { error?: Record<string, unknown> }
+    const error = env.error
+    if (error && typeof error === 'object' && typeof error.code === 'string') {
+      const code = error.code
+      const envelopeRecovery =
+        typeof error.recovery === 'string' ? error.recovery : undefined
+      const recovery = recoveryForCode(code, envelopeRecovery)
+      const message =
+        typeof error.message === 'string' && error.message
+          ? error.message
+          : code
+      const sameRequestRetrySafe =
+        typeof error.sameRequestRetrySafe === 'boolean'
+          ? error.sameRequestRetrySafe
+          : recovery === 'same_request'
+      const precondition =
+        error.precondition === 'resource' || error.precondition === 'content'
+          ? error.precondition
+          : null
+      const currentEtag =
+        typeof error.currentEtag === 'string' ? error.currentEtag : null
+      const requestId =
+        typeof error.requestId === 'string' ? error.requestId : null
+      const fieldErrors = Array.isArray(error.fieldErrors)
+        ? (error.fieldErrors as ProductErrorField[]).filter(
+            (f) => f && typeof f === 'object' && typeof f.message === 'string',
+          )
+        : []
+      const retryAfterSeconds = parseRetryAfter(error.retryAfterSeconds, hdrs)
+
+      return new ProductApiError({
+        status,
+        code,
+        recovery,
+        message,
+        sameRequestRetrySafe,
+        requestId,
+        precondition,
+        currentEtag,
+        retryAfterSeconds,
+        fieldErrors,
+      })
+    }
+  }
+
+  // The server's sign-up gates (G2 owner gate, D27 first-run token) answer
+  // 403 with a bare `{ code }` body, not the product envelope. Keep their
+  // codes so the register form can point at the right field; the copy is
+  // fixed here, never the server's message.
+  const gateCode = body && typeof body === 'object' && 'code' in body
+    ? (body as { code?: unknown }).code
+    : undefined
+  if (status === 403 && typeof gateCode === 'string' && Object.hasOwn(SIGN_UP_GATE_MESSAGES, gateCode)) {
+    return new ProductApiError({
+      status,
+      code: gateCode,
+      recovery: 'user_action',
+      message: SIGN_UP_GATE_MESSAGES[gateCode]!,
+      sameRequestRetrySafe: false,
+    })
+  }
+
+  // A bare 403 is not CSRF evidence: proxy/policy refusals must never trigger
+  // session recovery and automatic mutation replay.
+  // Non-envelope / transport fallback
+  const code =
+    status === 0
+      ? 'transport_error'
+      : status >= 500
+        ? 'internal_error'
+        : status === 401
+          ? 'authentication_required'
+          : 'unknown_error'
+  const recovery = recoveryForCode(code)
+  return new ProductApiError({
+    status,
+    code,
+    recovery,
+    message: `Product API error (${status})`,
+    sameRequestRetrySafe: recovery === 'same_request',
+    retryAfterSeconds: parseRetryAfter(null, hdrs),
+  })
+}
+
+/** A request that hit the client deadline (R15-12). Not retried: the reader
+    already waited, so the page shows its error and "Try again" instead. */
+export function requestTimeoutError(): ProductApiError {
+  return new ProductApiError({
+    status: 0,
+    code: 'transport_error',
+    recovery: 'same_request',
+    message: 'The request timed out.',
+    sameRequestRetrySafe: false,
+  })
+}
+
+/** No answer arrived; the same request is safe to send again. */
+export function transportError(message = 'The server could not be reached.'): ProductApiError {
+  return new ProductApiError({
+    status: 0,
+    code: 'transport_error',
+    message,
+    recovery: 'same_request',
+    sameRequestRetrySafe: true,
+  })
+}
+
 export function wrapProductError(err: unknown): ProductApiError {
   if (err instanceof ProductApiError) return err
-  if (err instanceof ProductClientError) return new ProductApiError(err)
   if (err instanceof DOMException && err.name === 'AbortError') throw err
-  if (isTimeoutError(err)) return new ProductApiError(requestTimeoutError())
-  return new ProductApiError(
-    parseProductError(
-      0,
-      {
-        error: {
-          code: 'transport_error',
-          message: err instanceof Error ? err.message : 'Network error',
-          recovery: 'same_request',
-          sameRequestRetrySafe: true,
-        },
-      },
-      {},
-    ),
-  )
+  if (isTimeoutError(err)) return requestTimeoutError()
+  return transportError(err instanceof Error ? err.message : 'Network error')
+}
+
+/** A generated client rejects with the response status, problem body and headers. */
+export function wrapGeneratedClientError(error: unknown): ProductApiError {
+  const generated = error as { status?: number; problem?: unknown; headers?: Headers }
+  if (typeof generated?.status === 'number') {
+    return parseProductError(generated.status, generated.problem, generated.headers ?? {})
+  }
+  return wrapProductError(error)
 }
 
 export type RecoveryStrategy =
@@ -287,7 +461,7 @@ export function parseProductErrorEnvelope(data: unknown): {
   precondition?: 'resource' | 'content' | null
   currentEtag?: string | null
   retryAfterSeconds?: number | null
-  fieldErrors?: ProductClientError['fieldErrors']
+  fieldErrors?: ProductErrorField[]
 } | null {
   if (!data || typeof data !== 'object') return null
   const env = data as { error?: unknown }
@@ -308,7 +482,7 @@ export function parseProductErrorEnvelope(data: unknown): {
     currentEtag: typeof e.currentEtag === 'string' ? e.currentEtag : null,
     retryAfterSeconds: typeof e.retryAfterSeconds === 'number' ? e.retryAfterSeconds : null,
     fieldErrors: Array.isArray(e.fieldErrors)
-      ? (e.fieldErrors as ProductClientError['fieldErrors'])
+      ? (e.fieldErrors as ProductErrorField[])
       : [],
   }
 }

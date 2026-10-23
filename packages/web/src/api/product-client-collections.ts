@@ -661,20 +661,18 @@ export function createProductCollectionsClient(
   ): Promise<DeleteNodeResult | void> {
     const recursive = options.recursive === true
     if (recursive && !options.ifContentMatch) {
-      throw new ProductApiError(
-        parseProductError(
-          428,
-          {
-            error: {
-              code: 'precondition_required',
-              message:
-                'Recursive folder delete requires If-Content-Match (collection contentEtag).',
-              recovery: 'user_action',
-              sameRequestRetrySafe: false,
-            },
+      throw parseProductError(
+        428,
+        {
+          error: {
+            code: 'precondition_required',
+            message:
+              'Recursive folder delete requires If-Content-Match (collection contentEtag).',
+            recovery: 'user_action',
+            sameRequestRetrySafe: false,
           },
-          {},
-        ),
+        },
+        {},
       )
     }
     return mutationCall(

@@ -1,9 +1,8 @@
 import { apiUrl } from './config'
 import { allocateCommandId, clearCommandId } from './commandId'
 import { ProductApiError } from './errors'
-import { parseProductError, requestTimeoutError } from './product-error'
-import { fetchWithTimeout, isTimeoutError } from './requestTimeout'
-import { getCsrfToken, getSessionSnapshot, privateSessionIdentity } from './sessionStore'
+import { badResponse, invalidRequest, requestJson, requestOrigin, requireCsrfToken } from './json-request'
+import { getSessionSnapshot, privateSessionIdentity } from './sessionStore'
 import type {
   AutomationAgentSetupInput,
   AutomationAgentSetupResult,
@@ -122,48 +121,9 @@ export function automationEtag(revision: string): string {
   return `"${revision}"`
 }
 
-function invalidRequest(message: string): ProductApiError {
-  return new ProductApiError({ status: 400, code: 'invalid_request', message, recovery: 'user_action' })
-}
-
-function badResponse(message: string): ProductApiError {
-  return new ProductApiError({
-    status: 502,
-    code: 'invalid_document',
-    message,
-    recovery: 'same_request',
-    sameRequestRetrySafe: true,
-  })
-}
-
 function opaqueId(value: string, what: string): string {
   if (!OPAQUE_ID.test(value)) throw invalidRequest(`That ${what} id is not valid.`)
   return encodeURIComponent(value)
-}
-
-function csrfToken(): string {
-  const token = getCsrfToken()
-  if (!token) {
-    throw new ProductApiError({
-      status: 401,
-      code: 'authentication_required',
-      message: 'Sign in again before changing automations.',
-      recovery: 'user_action',
-    })
-  }
-  return token
-}
-
-function browserOrigin(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  const origin = window.location?.origin
-  return origin && origin !== 'null' ? origin : undefined
-}
-
-function headerRecord(headers: Headers): Record<string, string> {
-  const out: Record<string, string> = {}
-  headers.forEach((value, key) => { out[key] = value })
-  return out
 }
 
 /** Small stable digest so an identical retry keeps its command and a changed body gets a new one. */
@@ -241,45 +201,20 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
 
   async function send(path: string, init: RequestInit): Promise<unknown> {
     const identity = privateSessionIdentity()
-    const assertCurrent = () => {
-      if (identity !== privateSessionIdentity()) throw new DOMException('Your session changed.', 'AbortError')
-      init.signal?.throwIfAborted()
-    }
-    let response: Response
-    try {
-      response = await fetchWithTimeout(doFetch, apiUrl(path), { ...init, credentials: getSessionSnapshot().authenticated ? 'include' : 'omit', cache: 'no-store' })
-      assertCurrent()
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') throw error
-      if (isTimeoutError(error)) throw new ProductApiError(requestTimeoutError())
-      throw new ProductApiError({
-        status: 0,
-        code: 'transport_error',
-        message: 'The server could not be reached.',
-        recovery: 'same_request',
-        sameRequestRetrySafe: true,
-      })
-    }
-    if (response.status === 204) {
+    const { status, body } = await requestJson(apiUrl(path), {
+      ...init, credentials: getSessionSnapshot().authenticated ? 'include' : 'omit', cache: 'no-store',
+    }, {
+      fetchImpl: doFetch,
+      assertCurrent: () => {
+        if (identity !== privateSessionIdentity()) throw new DOMException('Your session changed.', 'AbortError')
+        init.signal?.throwIfAborted()
+      },
+      strictJson: () => badResponse('The Automation response was not valid JSON.'),
+    })
+    if (status === 204) {
       if (init.method === 'DELETE' && /\/binding-sets\/[^/]+$/u.test(path)) return null
       throw badResponse('The Automation response had no body.')
     }
-    let text: string
-    try { text = await response.text() } catch (error) {
-      if (isTimeoutError(error)) throw new ProductApiError(requestTimeoutError())
-      throw error
-    }
-    assertCurrent()
-    let body: unknown = null
-    if (text) {
-      try {
-        body = JSON.parse(text) as unknown
-      } catch {
-        if (response.ok) throw badResponse('The Automation response was not valid JSON.')
-        body = { raw: text }
-      }
-    }
-    if (!response.ok) throw new ProductApiError(parseProductError(response.status, body, headerRecord(response.headers)))
     return body
   }
 
@@ -296,10 +231,10 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
     const commandId = allocateCommandId(intent)
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'X-CSRF-Token': csrfToken(),
+      'X-CSRF-Token': requireCsrfToken('automations'),
       'Known-Command-Id': commandId,
     }
-    const origin = browserOrigin()
+    const origin = requestOrigin()
     if (origin) headers.Origin = origin
     if (options.revision !== undefined) headers['If-Match'] = automationEtag(options.revision)
     if (options.body !== undefined) headers['Content-Type'] = 'application/json'

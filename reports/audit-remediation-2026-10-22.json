@@ -646,12 +646,18 @@
         "check:source-size reports 1,055 files checked with 49 shrinking-only exceptions",
         "The new static contract passes: a 601-line new file and a capped file that grows fail, the npm and CI wiring is present, and the live tree passes",
         "Server TypeScript, targeted ESLint and the unit CI-contract suites pass. The full static project has 2 failures that predate this change: outbox-retention-floors-migration-static and sync-conflict-migration-static still read the DatabaseSchema declaration that 386bee6f moved out of runtime.ts"
-      ]
+      ],
+      "commit": "abb9cfc3"
     },
     {
       "id": "quality-02",
       "title": "consolidate web transports and error handling",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "The web client has one error type and one fetch path. product-error.ts and ProductClientError are gone. errors.ts parses Product envelopes, sign-up gate bodies and bare statuses straight into ProductApiError, and owns the timeout, transport and generated-client mappings that four modules had copied. The new json-request.ts does the deadline, abort pass-through, network and timeout mapping, body decoding and envelope parsing for the Product transport, agents, automation and auth clients. It also owns the duplicated request helpers: origin, required CSRF token, invalid-request and bad-response errors. Each client keeps only its own rules: Product invalidation and ETags, the automation session fence and strict JSON, agent and auth headers. Two behaviours change on purpose. Agent calls now have the same 15-second deadline as every other client. A lost connection reads 'The server could not be reached.' in every client instead of the browser's raw text.",
+      "validation": [
+        "New json-request tests cover lost connections, envelopes and bare 5xx as ProductApiError, abort pass-through, 204 without a body read, raw versus strict JSON and dropping a stale answer. They also show agent and auth reads time out and that no client calls fetch, decodes bodies or parses errors itself; the agent deadline and boundary cases fail on the previous code",
+        "106 web API, auth, library-hook, agents, automations, approvals, consent and self-hosted page suites pass (827 tests); web TypeScript (tsc -b) and targeted ESLint pass"
+      ]
     },
     {
       "id": "quality-03",

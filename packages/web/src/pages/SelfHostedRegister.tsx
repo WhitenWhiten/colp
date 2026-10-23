@@ -46,7 +46,7 @@ function loadErrorMessage(err: unknown): string {
 /**
  * Server refusals that belong to one field stay on that field; the rest go
  * to the error toast. The server's username and password messages are a
- * frozen contract (product-error.ts), so matching on them is stable.
+ * frozen contract (api/errors.ts), so matching on them is stable.
  */
 function serverFieldError(err: unknown): { field: Field; message: string } | null {
   if (!isProductApiError(err)) return null

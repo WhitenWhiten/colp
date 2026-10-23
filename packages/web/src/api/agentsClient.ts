@@ -1,8 +1,6 @@
 import { apiUrl } from './config'
 import { allocateCommandId, clearCommandId } from './commandId'
-import { ProductApiError } from './errors'
-import { parseProductError } from './product-error'
-import { getCsrfToken } from './sessionStore'
+import { badResponse, invalidRequest, requestJson, requestOrigin, requireCsrfToken } from './json-request'
 
 /**
  * Owner agent directory and approval undo.
@@ -165,25 +163,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function badResponse(message: string): ProductApiError {
-  return new ProductApiError({
-    status: 502,
-    code: 'invalid_document',
-    message,
-    recovery: 'same_request',
-    sameRequestRetrySafe: true,
-  })
-}
-
-function invalidRequest(message: string): ProductApiError {
-  return new ProductApiError({
-    status: 400,
-    code: 'invalid_request',
-    message,
-    recovery: 'user_action',
-  })
-}
-
 function assertAgentId(id: string): string {
   if (!isAgentId(id)) throw invalidRequest('That agent id is not valid.')
   return id
@@ -202,75 +181,22 @@ function assertKeyName(name: string): string {
   return normalized
 }
 
-function browserOrigin(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  const origin = window.location?.origin
-  if (!origin || origin === 'null') return undefined
-  return origin
-}
-
-function csrfToken(): string {
-  const token = getCsrfToken()
-  if (!token) {
-    throw new ProductApiError({
-      status: 401,
-      code: 'authentication_required',
-      message: 'Sign in again before changing agents.',
-      recovery: 'user_action',
-    })
-  }
-  return token
-}
-
-function headersToRecord(headers: Headers): Record<string, string> {
-  const out: Record<string, string> = {}
-  headers.forEach((value, key) => {
-    out[key] = value
-  })
-  return out
-}
-
 async function send(
   path: string,
   init: RequestInit,
   fetchImpl: FetchLike,
 ): Promise<{ status: number; body: unknown }> {
-  let response: Response
-  try {
-    response = await fetchImpl(apiUrl(path), init)
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
-    throw new ProductApiError({
-      status: 0,
-      code: 'transport_error',
-      message: error instanceof Error ? error.message : 'Network error',
-      recovery: 'same_request',
-      sameRequestRetrySafe: true,
-    })
-  }
-  if (response.status === 204) return { status: 204, body: null }
-  const text = await response.text()
-  let body: unknown = null
-  if (text) {
-    try {
-      body = JSON.parse(text) as unknown
-    } catch {
-      body = { raw: text }
-    }
-  }
-  if (!response.ok) {
-    throw new ProductApiError(parseProductError(response.status, body, headersToRecord(response.headers)))
-  }
-  return { status: response.status, body }
+  const { status, body } = await requestJson(apiUrl(path), init, { fetchImpl })
+  return { status, body }
 }
 
 function mutationHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'X-CSRF-Token': csrfToken(),
+    'X-CSRF-Token': requireCsrfToken('agents'),
     ...extra,
   }
-  const origin = browserOrigin()
+  const origin = requestOrigin()
   if (origin) headers.Origin = origin
   return headers
 }
