@@ -1,3 +1,4 @@
+import { automationCaptureEnabled, setAutomationCaptureEnabled } from '../../../src/infrastructure/automation/index.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, test } from 'vitest';
@@ -97,6 +98,20 @@ describeWithPostgres('MCP-W04 low-risk Canonical Node create over PostgreSQL', (
     assert.equal(row.result_media_type, 'application/json');
     assert.equal(row.operation_links, 1);
     assert.equal(row.audit_links, 1);
+  });
+
+  test('nodes.create records the verified MCP client in private automation facts', async () => {
+    const fixture = await createFixture();
+    const captureBefore = automationCaptureEnabled();
+    setAutomationCaptureEnabled(true);
+    try {
+      const output = requireComplete(await service().execute(request(fixture), CONTEXT));
+      const fact = await runtime.db.selectFrom('automation_event_facts').select(['facts_json', 'origin', 'facts_version'])
+        .where('node_id', '=', output.node.id).executeTakeFirstOrThrow();
+      assert.equal(fact.origin, 'mcp');
+      assert.equal(fact.facts_version, 1);
+      assert.deepEqual((fact.facts_json as { agent: unknown }).agent, { clientId: BINDING.clientId, credentialBindingId: BINDING.credentialBindingId });
+    } finally { setAutomationCaptureEnabled(captureBefore); }
   });
 
   test('W04 idempotency returns the exact durable receipt without duplicate side effects', async () => {

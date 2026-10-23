@@ -1,3 +1,4 @@
+import { automationCaptureEnabled, setAutomationCaptureEnabled } from '../../../src/infrastructure/automation/index.js';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, test } from 'vitest';
@@ -638,6 +639,23 @@ describeWithPostgres('MCP-W05 approved Change Plan Commit over PostgreSQL', () =
         && (error as { code?: string }).code === 'plan_already_consumed',
     );
     assert.deepEqual(await counts(), after);
+  });
+
+  test('a committed nodes.create Plan records the verified MCP agent in private facts', async () => {
+    const fixture = await createFixture();
+    const harness = createHarness();
+    const planned = await harness.service.plan(createPlanInput(fixture), BINDING);
+    const captureBefore = automationCaptureEnabled();
+    setAutomationCaptureEnabled(true);
+    try {
+      await harness.service.commit(planned.planId, BINDING, 'idem-agent-facts');
+      const facts = await runtime.db.selectFrom('automation_event_facts').select(['facts_json', 'origin', 'facts_version'])
+        .where('collection_id', '=', fixture.collectionId).execute();
+      assert.equal(facts.length, 1);
+      assert.equal(facts[0]!.origin, 'mcp');
+      assert.equal(facts[0]!.facts_version, 1);
+      assert.deepEqual((facts[0]!.facts_json as { agent: unknown }).agent, { clientId: BINDING.clientId, credentialBindingId: BINDING.credentialBindingId });
+    } finally { setAutomationCaptureEnabled(captureBefore); }
   });
 
   test('deny, wrong binding, expiry, cancel, revision drift, digest drift, scope, rate, and impact fail closed', async () => {

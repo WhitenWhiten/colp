@@ -1,3 +1,4 @@
+import { withMcpAgentContext } from './agent-context.js';
 import { assertLibraryDestination } from '../collections/index.js';
 import { CollectionsError } from '../collections/index.js';
 import { createHash } from 'node:crypto';
@@ -46,7 +47,7 @@ export async function executeMcpNodeCreate(
   const binding = context.binding;
   const snapshot = await resolveCreateAdmission(ports, command, binding, accountSubjectId, { fence: false });
   return createCollectionNode({
-    ...ports,
+    ...withMcpAgentContext(ports, binding),
     receipts: {
       claim: async (receiptBinding, fingerprint) => {
         const claim = await ports.receipts.claim(receiptBinding, fingerprint);

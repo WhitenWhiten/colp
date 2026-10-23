@@ -1,3 +1,4 @@
+import { withMcpAgentContext } from './agent-context.js';
 /**
  * Low-risk MCP `annotations.create` / `annotations.update`. Notes are
  * Product annotations (`createAnnotation` / `updateAnnotation`), not
@@ -37,7 +38,6 @@ import {
   readDryRun,
   readRevisionFence,
 } from './low-risk-node-update.js';
-
 const ANNOTATIONS_WRITE_SCOPE = 'annotations:write' as const;
 
 export const PHASE4B_MCP_ANNOTATIONS_CREATE_TOOL_NAME = 'annotations.create' as const;
@@ -345,7 +345,7 @@ export function createPhase4bMcpLowRiskAnnotationCreateService(
           });
         }
         const outcome = await unitOfWork.execute((ports) =>
-          createAnnotation(ports, mutationInput));
+          createAnnotation(withMcpAgentContext(ports, binding), mutationInput));
         return projectCreateOutput(outcome);
       } catch (error) {
         mapAnnotationMutationError(error, PHASE4B_MCP_ANNOTATIONS_CREATE_TOOL_NAME);
@@ -425,7 +425,7 @@ export function createPhase4bMcpLowRiskAnnotationUpdateService(
           });
         }
         const outcome = await unitOfWork.execute((ports) =>
-          updateAnnotation(ports, mutationInput));
+          updateAnnotation(withMcpAgentContext(ports, binding), mutationInput));
         return projectUpdateOutput(outcome);
       } catch (error) {
         mapAnnotationMutationError(error, PHASE4B_MCP_ANNOTATIONS_UPDATE_TOOL_NAME);

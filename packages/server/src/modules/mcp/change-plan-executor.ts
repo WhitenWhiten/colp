@@ -1,3 +1,4 @@
+import { withMcpAgentContext } from './agent-context.js';
 import type { PlannedNodeCreate } from './organize-plan.js';
 import { isAutomationPlanOperation, executeAutomationPlanOperation } from './automation-plan-operations.js';
 import type { AnnotationMutationPorts } from '../collections/index.js';
@@ -6,7 +7,6 @@ import type { AnnotationMutationPorts } from '../collections/index.js';
  * Plan policy and approval stay in change-plan-service.ts.
  */
 import { createHash, randomUUID } from 'node:crypto';
-
 import {
   McpChangePlanError,
   requireAuthenticatedWriteBinding,
@@ -87,13 +87,13 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
   }
 
   const results: OperationResult[] = [];
-  const batchPorts = createProductPorts(transaction);
+  const batchPorts = withMcpAgentContext(createProductPorts(transaction), ownedBinding);
   if (operations.length > 1 && operations.every(isMoveNodeOperation)
     && operations.every(op => op.collectionId === operations[0]!.collectionId && op.position === undefined)
     && batchPorts.canonical.executeMoves) {
     const moved = await batchPorts.canonical.executeMoves(operations.map(operation => ({
       operationId: randomUUID(), collectionId: operation.collectionId,
-      actor: { principalId: ownedBinding.principalId, principalType: 'account' }, automationContext: { origin: 'mcp' },
+      actor: { principalId: ownedBinding.principalId, principalType: 'account' },
       mutation: { action: 'move', target: { collectionId: operation.collectionId, resourceId: operation.nodeId, resourceKind: 'node' },
         parentId: operation.parentId, expectedResourceRevision: plan.baseRevisions[`node.${operation.nodeId}`],
         fields: { kindFields: {}, extensions: {} } },
@@ -109,7 +109,7 @@ export async function executeCanonicalPlanOperations<Transaction extends object>
   // the earlier moves left, not on the planned ones they replaced.
   const revisions = new Map<string, string>(Object.entries(plan.baseRevisions));
   for (const operation of operations) {
-    const ports = createProductPorts(transaction);
+    const ports = withMcpAgentContext(createProductPorts(transaction), ownedBinding);
     let result: OperationResult;
     if (isAutomationPlanOperation(operation)) {
       if (!createAnnotationPorts) throw commitFailure('Automation operation ports unavailable.');

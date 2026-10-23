@@ -1,3 +1,4 @@
+import { withMcpAgentContext } from './agent-context.js';
 import { libraryFolderAllows } from '../collections/index.js';
 /**
  * Low-risk MCP `nodes.update`. Applies a closed node merge patch with
@@ -35,7 +36,6 @@ import {
   type Phase4bMcpWriteErrorHint,
 } from './low-risk-node-create.js';
 export const PHASE4B_MCP_NODES_UPDATE_TOOL_NAME = 'nodes.update' as const;
-
 export const PHASE4B_MCP_STALE_REVISION_MESSAGE =
   'Collection or parent revision is stale.' as const;
 
@@ -151,7 +151,7 @@ export function createPhase4bMcpLowRiskNodeUpdateService(
       );
       try {
         const outcome = await unitOfWork.execute((ports) =>
-          updateCollectionNode(ports, {
+          updateCollectionNode(withMcpAgentContext(ports, binding), {
             actor: {
               principalId: binding.principalId,
               principalType: 'account',

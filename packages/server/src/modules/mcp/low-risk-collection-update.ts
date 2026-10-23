@@ -1,3 +1,4 @@
+import { withMcpAgentContext } from './agent-context.js';
 /**
  * Low-risk MCP library metadata update. Publication attempts receive a typed refusal.
  */
@@ -192,7 +193,7 @@ export function createPhase4bMcpLowRiskCollectionUpdateService(
       );
       try {
         const outcome = await unitOfWork.execute((ports) =>
-          updateCollectionMetadataCanonical(ports, {
+          updateCollectionMetadataCanonical(withMcpAgentContext(ports, binding), {
             actor: {
               principalId: binding.principalId,
               principalType: 'account',

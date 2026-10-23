@@ -86,7 +86,7 @@ function automationFactValues(event: CanonicalDomainEvent, input: CanonicalMutat
   const context = input.automationContext ?? { origin: input.operationSyncWire ? 'sync' : 'system' };
   const origin = input.mutation.action === 'restore' ? 'restore' : context.origin;
   const facts = { ...planned, after: planned.after ? { ...planned.after, resourceRevision: allocation.resourceRevision! } : null,
-    intakeDisposition: input.intakeDisposition ?? 'unknown',
+    intakeDisposition: input.intakeDisposition ?? 'unknown', agent: context.agent ?? null,
     action: input.mutation.action, actorPrincipalId: input.actor.principalId,
     rootRunId: context.rootRunId ?? null, stageId: context.stageId ?? null, hopCount: context.hopCount ?? 0 };
   return { source_event_id: event.domainEventId, operation_id: event.operationId, collection_id: event.collectionId,
