@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@know-n/colp": "0.2.0",
+    "@know-n/colp": "file:../server/vendor/know-n-colp-0.2.2-automation-client-id.1.tgz",
     "@noble/hashes": "2.0.1",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",

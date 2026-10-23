@@ -657,12 +657,22 @@
       "validation": [
         "New json-request tests cover lost connections, envelopes and bare 5xx as ProductApiError, abort pass-through, 204 without a body read, raw versus strict JSON and dropping a stale answer. They also show agent and auth reads time out and that no client calls fetch, decodes bodies or parses errors itself; the agent deadline and boundary cases fail on the previous code",
         "106 web API, auth, library-hook, agents, automations, approvals, consent and self-hosted page suites pass (827 tests); web TypeScript (tsc -b) and targeted ESLint pass"
-      ]
+      ],
+      "commit": "ace25110"
     },
     {
       "id": "quality-03",
       "title": "use current generated protocol types and SDK versions",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Server, extension and web consumed @know-n/colp at three versions: the vendored 0.2.2 prerelease, registry 0.2.0 and registry 0.1.2. All three now pin the one tarball the server vendors (owner decision 2026-10-23: share it until 0.2.2 is published). refresh-automation-package.mjs reinstalls it in every consumer. The new scripts/check-sdk-pins.mjs fails the static CI job when a pin, lockfile resolution, integrity or tarball differs or falls behind packages/node. The image's web stage now copies the vendored SDK. Code now uses the SDK's generated protocol types instead of copies. The extension imports subtreeMemberIdsDigest, SubtreeObservationSummary and Problem, and its precompiled automation, operation, import-preview and Pull validators are regenerated from the current schema. The server drops its local member-ID digest and the probe that stripped currentSubtree for the old 0.2.1 pin. The web type generator had been broken since 9cdb2bca (the automations fragment names shared header components it does not carry). It now copies referenced components in from the trimmed document, gains --check, and npm run check:api-types runs in the web CI job. Remaining: about 40 web product-client and transport modules still hand-type Product API shapes instead of importing the generated ones.",
+      "validation": [
+        "check-sdk-pins passes with 3 consumers on one build; its tests reject a split pin, a stale tarball, a differing integrity and a missing file",
+        "check:api-types passes after regenerating automations-v1.ts (only the shared header types changed); before the fix the generator could not resolve the fragment",
+        "128 SDK-consuming extension suites pass (1,126 tests), including regenerated-validator, subtree digest, stale-delete rebase and automation core checks; the subtree digest vectors are unchanged under the SDK implementation",
+        "Server push HTTP unit suite now requires currentSubtree on the wire; the real-PostgreSQL sync-node-update suite (44 tests) passes with the SDK summary helper",
+        "Web bookmark import and automation suites pass (145 tests); server, extension and web TypeScript, targeted ESLint, the extension source-size gate and development build, the web production build and bundle budget pass",
+        "docker build --target web-build of packages/server/Dockerfile succeeds with the vendored SDK copy; the probe image was removed"
+      ]
     },
     {
       "id": "code-01",

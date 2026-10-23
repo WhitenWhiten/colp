@@ -1,5 +1,5 @@
 import type { ProblemCode } from '@know-n/colp/server';
-import type { SyncPush, SyncPushResult } from '@know-n/colp/types';
+import type { SubtreeObservationSummary, SyncPush, SyncPushResult } from '@know-n/colp/types';
 import type { VerifiedExtensionCredential } from '../identity/index.js';
 
 export interface SyncPushHttpApplicationInput {
@@ -50,12 +50,7 @@ export function probeSyncPushRuntimeOwnership(
 }
 
 /** A `delete_subtree` target's current members, in the shape the Problem's `currentSubtree` carries. */
-export interface SyncPushSubtreeSummary {
-  readonly version: 1;
-  readonly count: number;
-  readonly digest: string;
-  readonly memberIdsDigest: string;
-}
+export type SyncPushSubtreeSummary = Readonly<SubtreeObservationSummary>;
 
 /** What a stale delete was refused against, so the client can rebase or ask the user (03 §13.1). */
 export interface SyncPushStaleDeleteFacts {

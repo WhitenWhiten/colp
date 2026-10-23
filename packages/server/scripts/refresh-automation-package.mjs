@@ -1,5 +1,6 @@
-// Vendors the unpublished @know-n/colp build the automation server needs. The tarball is named after
+// Vendors the unpublished @know-n/colp build the server, extension and web share. The tarball is named after
 // the packed version, so it must carry a prerelease version that can never collide with an npm release.
+// scripts/check-sdk-pins.mjs keeps the three pins and lockfiles on this one build.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,6 +19,10 @@ try {
   }
   copyFileSync(join(scratch, packed.filename), join(server, 'vendor', packed.filename));
   execFileSync('npm', ['install', `./vendor/${packed.filename}`, '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: server, stdio: 'inherit' });
+  for (const consumer of ['extension', 'web']) {
+    execFileSync('npm', ['install', '--save-exact', `../server/vendor/${packed.filename}`, '--ignore-scripts', '--no-audit', '--no-fund'],
+      { cwd: fileURLToPath(new URL(`../../${consumer}/`, import.meta.url)), stdio: 'inherit' });
+  }
   execFileSync('node', ['scripts/write-version.mjs'], { cwd: server, stdio: 'inherit' });
   execFileSync('npm', ['run', 'runtime:manifest'], { cwd: server, stdio: 'inherit' });
   const manifest = JSON.parse(readFileSync(join(server, 'node_modules/@know-n/colp/package.json')));

@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import { resolveRecoveredParent } from '../sync-recovered-parent-postgres.js';
 import type { Operation } from '@know-n/colp/types';
-import { SUBTREE_OBSERVATION_EXTENSION, subtreeDeleteSource } from '@know-n/colp/sync';
+import { SUBTREE_OBSERVATION_EXTENSION, subtreeDeleteSource, subtreeObservationSummary } from '@know-n/colp/sync';
 import {
   createCanonicalMutationApplication,
   type JsonObject,
@@ -23,7 +23,6 @@ import {
   type ManagedAncestryCapabilities,
 } from '../managed-ancestry-policy.js';
 import { persistSyncOperationProjection } from './sync-pull-postgres.js';
-import { subtreeObservationSummary } from '../sync-stale-delete-facts.js';
 import { persistAuthoritativeOperationEffect } from '../sync-operation-effects-postgres.js';
 import { syncCanonicalMutationInput } from '../sync-canonical-mutation-input.js';
 import {

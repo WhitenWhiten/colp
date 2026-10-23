@@ -9,7 +9,11 @@
  *
  * Automations are optional and stay out of the trimmed document. Their types
  * come from the server's producer mirror, openapi/fragments/automations.yaml
- * (kept in step with product-v1.yaml by sync-automation-openapi.mjs).
+ * (kept in step with product-v1.yaml by sync-automation-openapi.mjs). Its
+ * responses name the server's shared transport headers, which this script
+ * copies in from the trimmed document.
+ *
+ * `--check` regenerates in memory and fails when a committed file differs.
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -37,7 +41,41 @@ function preserveAnyOfSiblings(value) {
   return result
 }
 
-const document = preserveAnyOfSiblings(parse(await readFile(documentPath, 'utf8')))
+const check = process.argv.includes('--check')
+const stale = []
+
+/** Write the file, or in check mode record that the committed one differs. */
+async function emit(target, content, source) {
+  const relative = path.relative(webRoot, target)
+  if (!check) {
+    await writeFile(target, content, 'utf8')
+    console.log(`Wrote ${relative} from ${source}`)
+  } else if (await readFile(target, 'utf8').catch(() => null) !== content) stale.push(relative)
+}
+
+/** Copy the components a fragment references but does not carry, and theirs, from the full document. */
+function withSharedComponents(fragment, shared) {
+  const components = structuredClone(fragment.components ?? {})
+  const pending = [fragment.paths, components]
+  while (pending.length) {
+    const value = pending.pop()
+    if (Array.isArray(value)) { pending.push(...value); continue }
+    if (!value || typeof value !== 'object') continue
+    const match = typeof value.$ref === 'string' ? /^#\/components\/([^/]+)\/([^/]+)$/u.exec(value.$ref) : null
+    if (match && !components[match[1]]?.[match[2]]) {
+      const [, category, name] = match
+      const definition = shared.components?.[category]?.[name]
+      if (!definition) throw new Error(`Unresolved shared component ${value.$ref}`)
+      components[category] = { ...components[category], [name]: structuredClone(definition) }
+      pending.push(components[category][name])
+    }
+    pending.push(...Object.values(value))
+  }
+  return { ...fragment, components }
+}
+
+const source = parse(await readFile(documentPath, 'utf8'))
+const document = preserveAnyOfSiblings(source)
 const typeAst = await openapiTS(document)
 const banner = `/**
  * Generated from packages/server/openapi/colp-server-v1.yaml.
@@ -45,11 +83,10 @@ const banner = `/**
  */
 
 `
-await writeFile(outputPath, `${banner}${COMMENT_HEADER}${astToString(typeAst)}`, 'utf8')
-console.log(`Wrote ${path.relative(webRoot, outputPath)} from packages/server/openapi/colp-server-v1.yaml`)
+await emit(outputPath, `${banner}${COMMENT_HEADER}${astToString(typeAst)}`, 'packages/server/openapi/colp-server-v1.yaml')
 
 // The fragment is paths + components only; wrap it as a document.
-const fragment = parse(await readFile(automationPath, 'utf8'))
+const fragment = withSharedComponents(parse(await readFile(automationPath, 'utf8')), source)
 const automationAst = await openapiTS(preserveAnyOfSiblings({
   openapi: '3.1.0',
   info: { title: 'COLP Automations', version: '0.2.1-design' },
@@ -61,5 +98,10 @@ const automationBanner = `/**
  */
 
 `
-await writeFile(automationOutputPath, `${automationBanner}${COMMENT_HEADER}${astToString(automationAst)}`, 'utf8')
-console.log(`Wrote ${path.relative(webRoot, automationOutputPath)} from packages/server/openapi/fragments/automations.yaml`)
+await emit(automationOutputPath, `${automationBanner}${COMMENT_HEADER}${astToString(automationAst)}`,
+  'packages/server/openapi/fragments/automations.yaml')
+
+if (stale.length > 0) {
+  console.error(`Generated API types are stale; run npm run generate:api-types:\n${stale.map((file) => `  ${file}`).join('\n')}`)
+  process.exitCode = 1
+}

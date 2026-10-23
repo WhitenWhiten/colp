@@ -99,8 +99,10 @@ jobs:
       - name: Protocol assets, generated types, traceability and typecheck
         run: npm run check:automation && npm run check:protocol && npm run check:types && npm run check:traceability && npm run typecheck && npm run check:source-size
         working-directory: packages/node
-      - name: Dependency audit retry tests
-        run: node --test scripts/audit-dependencies.test.mjs
+      - name: Dependency audit retry and SDK pin tests
+        run: node --test scripts/audit-dependencies.test.mjs scripts/check-sdk-pins.test.mjs
+      - name: One @know-n/colp build for server, extension and web
+        run: node scripts/check-sdk-pins.mjs
 
   test:
     needs: changes
@@ -474,6 +476,9 @@ jobs:
         working-directory: packages/web
       - name: Lint (TypeScript and CSS ratchets)
         run: npm run lint && npm run lint:css
+        working-directory: packages/web
+      - name: Generated API types match the server documents
+        run: npm run check:api-types
         working-directory: packages/web
       - name: Unit suite
         run: npm test

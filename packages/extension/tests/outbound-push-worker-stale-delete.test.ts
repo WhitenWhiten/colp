@@ -6,7 +6,7 @@ import { createOutboundPushWorker, type PushSessionController } from '../src/out
 import { createQueueRecapture } from '../src/queue-recapture.js';
 import { DELETE_SUBTREE_CHANGED, TARGET_ALREADY_DELETED } from '../src/push-delete-rebase.js';
 import { isOpenQueueIssue } from '../src/sync-state/open-issue-facts.js';
-import { subtreeMemberIdsDigest } from '../src/subtree-observation.js';
+import { subtreeMemberIdsDigest } from '@know-n/colp/sync/canonical';
 import { createSyncStateStore, type JsonObject } from '../src/sync-state-store.js';
 import { honestChrome } from './kns-05-pull-harness.js';
 import { endpoints, indexedDB, installOutboundPushIndexedDb, json, problem, scope } from './outbound-push-worker-harness.js';

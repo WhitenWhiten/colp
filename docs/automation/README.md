@@ -93,12 +93,15 @@ immutable 1.94.0 and 1.93.0 baselines. `/ready/features/automation` reports runt
 independently of the usable configuration API and the server's general readiness.
 
 The server vendors `@know-n/colp` 0.2.2-automation-client-id.1 to include the CIMD
-connection-profile fix before a registry release. Both dependency locks and the
-Docker dependency stages use the checked-in tarball. To refresh unreleased shared-source changes,
+connection-profile fix before a registry release. The extension and web pin the same
+tarball, so all three use one SDK build and its generated protocol types. Both server
+dependency locks, the extension and web locks and the Docker dependency stages use the
+checked-in tarball. To refresh unreleased shared-source changes,
 `node packages/server/scripts/refresh-automation-package.mjs` packs a prerelease
-into `packages/server/vendor/` and updates both locks. Restore
-the registry dependency and remove the vendor COPY steps when switching back to
-a published release.
+into `packages/server/vendor/` and updates all four locks; `node scripts/check-sdk-pins.mjs`
+(static CI job) fails if a pin, lock or tarball falls behind `packages/node`. Restore
+the registry dependency in all three packages and remove the vendor COPY steps when
+switching back to a published release.
 
 ## Guided AI connection
 

@@ -13,7 +13,7 @@
 #
 # Build context is the repository root: the server stage needs packages/server
 # plus the replica-health limit check inputs, and the web stage needs
-# packages/web plus packages/server/generated.
+# packages/web plus packages/server/generated and the vendored @know-n/colp.
 #
 # deploy/compose.yaml mounts the named volume colp-web on /srv/web (Caddy
 # mounts the same volume read-only and serves it). That mount hides the image
@@ -27,6 +27,8 @@ WORKDIR /src/packages/web
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY packages/web/package.json packages/web/package-lock.json packages/web/.npmrc ./
 COPY packages/web/vendor ./vendor
+# The web pins the server's vendored @know-n/colp (scripts/check-sdk-pins.mjs).
+COPY packages/server/vendor /src/packages/server/vendor
 RUN npm ci --ignore-scripts \
     && npm rebuild esbuild --ignore-scripts=false
 COPY packages/web/tsconfig.json packages/web/vite.config.ts packages/web/vitest.config.ts packages/web/index.html ./

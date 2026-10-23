@@ -6,7 +6,7 @@ import { syncNodeDeletePushRequest } from '../fixtures/phase3/sync-node-delete.j
 import { syncNodeUpdatePushRequest } from '../fixtures/phase3/sync-node-update.js';
 import { observeSubtree } from './subtree-observation.js';
 import { createPublicationProblemDescriptor } from '@know-n/colp/server';
-import { subtreeMemberIdsDigest } from '../../src/infrastructure/sync/sync-stale-delete-facts.js';
+import { subtreeMemberIdsDigest } from '@know-n/colp/sync';
 import type { IsolatedPostgresRuntime } from './postgres-test-runtime.js';
 import type { createSyncSessionBlackBoxClient } from './sync-session-black-box-client.js';
 

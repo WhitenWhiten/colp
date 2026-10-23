@@ -4,7 +4,7 @@ import { afterEach, describe, test } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { createValidatorRegistry } from '@know-n/colp/schema';
 import type { Manifest, Problem, SyncPush, SyncPushResult } from '@know-n/colp/types';
-import { createPublicationProblemDescriptor, problemRegistry } from '@know-n/colp/server';
+import { problemRegistry } from '@know-n/colp/server';
 import { prototypeMemberJsonBodies } from '../../support/prototype-member-json.js';
 import { createPublicationManifestCandidate } from '../../../src/modules/publication/index.js';
 import { loadConfig } from '../../support/test-config.js';
@@ -559,17 +559,12 @@ describe('P3-11 single-operation Sync Push HTTP admission', () => {
       payload: syncPushAdmissionRequest(),
     });
     assert.equal(response.statusCode, 409);
-    const body = response.json<Problem & { currentSubtree?: unknown }>();
+    const body = response.json<Problem>();
     assert.equal(body.code, 'revision_conflict');
     assert.equal(body.retryable, false);
     assert.equal(body.currentRevision, 'r_current');
-    // `currentSubtree` entered the wire with @know-n/colp 0.2.2; an older pin drops it instead of failing.
-    let wireCarriesSubtree = true;
-    try {
-      createPublicationProblemDescriptor({ code: 'revision_conflict',
-        recovery: { currentRevision: 'r', currentSubtree: subtree } as never });
-    } catch { wireCarriesSubtree = false; }
-    assert.deepEqual(body.currentSubtree, wireCarriesSubtree ? subtree : undefined);
+    // Server and extension share one SDK build, so the subtree summary is always on the wire.
+    assert.deepEqual(body.currentSubtree, subtree);
     assert.ok(createValidatorRegistry().validate('problem', body).valid);
   });
 

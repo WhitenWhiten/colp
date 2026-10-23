@@ -290,15 +290,7 @@ function problemDescriptor(error: SyncPushHttpError) {
       ...(error.staleDelete.currentSubtree === undefined ? {}
         : { currentSubtree: { ...error.staleDelete.currentSubtree } }) }),
   };
-  const input = Object.keys(recovery).length === 0 ? { code: error.code } : { code: error.code, recovery };
-  try { return createPublicationProblemDescriptor(input); }
-  catch (cause) {
-    // `currentSubtree` entered the wire with @know-n/colp 0.2.2. A pinned
-    // older package still reports the current revision, never a 500.
-    if (!('currentSubtree' in recovery) || !(cause instanceof TypeError)) throw cause;
-    const { currentSubtree: _unsupported, ...supported } = recovery;
-    return createPublicationProblemDescriptor({ code: error.code, recovery: supported });
-  }
+  return createPublicationProblemDescriptor(Object.keys(recovery).length === 0 ? { code: error.code } : { code: error.code, recovery });
 }
 
 function sendProblem(reply: FastifyReply, error: SyncPushHttpError) {

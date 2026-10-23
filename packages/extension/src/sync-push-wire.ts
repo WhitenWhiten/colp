@@ -1,4 +1,4 @@
-import type { SyncPushResult } from '@know-n/colp/types';
+import type { Problem, SubtreeObservationSummary, SyncPushResult } from '@know-n/colp/types';
 import type { JsonObject } from './sync-state-store.js';
 
 const OPAQUE_ID = /^[A-Za-z0-9._~-]{1,128}$/u;
@@ -63,13 +63,9 @@ export function parseSyncPushResult(value: unknown, binding: { readonly opId: st
     result: result as unknown as SyncPushResult['results'][number] & JsonObject, terminal: TERMINAL.has(status) };
 }
 
-/** The server's current view of a `delete_subtree` target, sent with `revision_conflict` (03 §13.1). */
-export interface ParsedSubtreeSummary {
-  readonly version: 1; readonly count: number; readonly digest: string; readonly memberIdsDigest: string;
-}
-export interface ParsedColpProblem { readonly code: string; readonly status: number; readonly expectedSequence?: number;
-  readonly retryAfterSeconds?: number; readonly retryable?: boolean; readonly conflictId?: string;
-  readonly currentRevision?: string; readonly currentSubtree?: ParsedSubtreeSummary }
+/** The Problem fields Push recovery reads. The code stays an open string: a newer server's code still parses. */
+export type ParsedColpProblem = Readonly<Pick<Problem, 'status' | 'expectedSequence' | 'retryAfterSeconds' | 'retryable'
+  | 'conflictId' | 'currentRevision' | 'currentSubtree'>> & { readonly code: string };
 const SUBTREE_DIGEST = /^sha-256=:[A-Za-z0-9+/]{43}=:$/u;
 export function parseColpProblem(value: unknown): ParsedColpProblem {
   const problem = responseRecord(value, ['type', 'title', 'status', 'detail', 'instance', 'code', 'expectedSequence',
@@ -96,7 +92,7 @@ export function parseColpProblem(value: unknown): ParsedColpProblem {
     ...(problem.currentSubtree === undefined ? {} : { currentSubtree: parseSubtreeSummary(problem.currentSubtree) }) };
 }
 
-function parseSubtreeSummary(value: unknown): ParsedSubtreeSummary {
+function parseSubtreeSummary(value: unknown): SubtreeObservationSummary {
   const summary = responseRecord(value, ['version', 'count', 'digest', 'memberIdsDigest'], 'push_problem');
   if (summary.version !== 1 || !Number.isSafeInteger(summary.count) || Number(summary.count) < 1
       || typeof summary.digest !== 'string' || !SUBTREE_DIGEST.test(summary.digest)

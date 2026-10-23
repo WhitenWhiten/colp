@@ -8,6 +8,7 @@
     "dev": "vite --host",
     "scan:dependencies": "node ../../scripts/audit-dependencies.mjs --omit=dev --audit-level=high && node ../../scripts/audit-dependencies.mjs --audit-level=high",
     "generate:api-types": "node scripts/generate-openapi-types.mjs",
+    "check:api-types": "node scripts/generate-openapi-types.mjs --check",
     "typecheck": "tsc -b",
     "build": "npm run typecheck && vite build",
     "analyze": "vite build --mode analyze",
@@ -29,7 +30,7 @@
     "@fontsource-variable/instrument-sans": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/newsreader": "^5.3.0",
-    "@know-n/colp": "0.1.2",
+    "@know-n/colp": "file:../server/vendor/know-n-colp-0.2.2-automation-client-id.1.tgz",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2"
