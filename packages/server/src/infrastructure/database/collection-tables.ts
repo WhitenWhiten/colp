@@ -65,3 +65,194 @@ export interface NodeTable {
   payload_schema_version: number | null;
   payload_authority_status: 'pending' | 'backfilled' | 'malformed' | null;
 }
+
+export interface BookmarkPreferencesTable {
+  subscription_on_unfollow: 'keep' | 'remove';
+  subscription_on_unsubscribe: 'keep' | 'remove';
+  subscription_default_check_interval_minutes: 5 | 15 | 60 | null;
+  subscription_default_digest_mode: 'latest' | 'recent';
+  subscription_default_edition_limit: number;
+  capture_mode: 'manual' | 'automatic';
+  result_panel_auto_dismiss_ms: number;
+  learn_from_corrections: boolean;
+  resume_classification_when_online: boolean;
+  ai_tag_mode: 'off' | 'suggest' | 'add';
+
+  account_id: string;
+  bookmark_insert_position: 'top' | 'bottom';
+  folders_first: boolean;
+  revision: string;
+  updated_at: Date;
+}
+
+export interface PublicationInsightEventTable {
+  id: string;
+  collection_id: string;
+  event_type: 'collection_view' | 'preview_open' | 'resource_open';
+  node_id: string | null;
+  visitor_hash: Buffer;
+  occurred_at: Date;
+}
+
+export interface PublicationInsightDailyTable {
+  collection_id: string;
+  day: Date;
+  event_type: 'collection_view' | 'preview_open' | 'resource_open';
+  node_id: Generated<string>;
+  count: bigint;
+}
+
+export interface BookmarkIconTable {
+  node_id: string;
+  collection_id: string;
+  object_id: string;
+  content_type: string;
+  byte_size: number;
+  digest_sha256: Buffer;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CollectionLinkHealthTable {
+  node_id: string;
+  collection_id: string;
+  status: 'pending' | 'healthy' | 'redirect' | 'broken';
+  http_status: number | null;
+  final_url: string | null;
+  checked_at: Date | null;
+  error_class: string | null;
+  lease_owner: string | null;
+  lease_until: Date | null;
+}
+
+export interface CollectionReadableReplicaTable {
+  node_id: string;
+  collection_id: string;
+  status: 'pending' | 'ready' | 'failed' | 'unsupported';
+  source_url: string;
+  title: string | null;
+  byline: string | null;
+  word_count: number;
+  sections: unknown;
+  failure_code: string | null;
+  etag: string;
+  extracted_at: Date | null;
+  updated_at: Date;
+  enqueued_at: Date | null;
+  lease_owner: string | null;
+  lease_until: Date | null;
+  enqueue_command_id: string | null;
+}
+
+export interface CollectionClassifyInboxDecisionTable {
+  node_id: string;
+  collection_id: string;
+  account_subject_id: string;
+  status: 'accepted' | 'skipped';
+  suggestion_id: string | null;
+  decided_at: Date;
+}
+
+export interface CollectionExportJobTable {
+  job_id: string;
+  owner_subject_id: string;
+  status: 'pending' | 'running' | 'ready' | 'failed' | 'expired';
+  object_key: string | null;
+  byte_size: number | null;
+  expires_at: Date;
+  ready_at: Date | null;
+  lease_owner: string | null;
+  lease_until: Date | null;
+  error_class: string | null;
+  created_at: Date;
+}
+
+export interface CollectionOrganizePlanTable {
+  plan_id: string;
+  account_id: string;
+  collection_id: string;
+  collection_revision: string;
+  planner_id: string;
+  status: 'open' | 'applied' | 'expired';
+  expires_at: Date;
+  etag: string;
+  truncated: boolean;
+  actions: unknown;
+  applied_action_ids: unknown;
+  apply_receipt: unknown;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CollectionTreeVersionTable {
+  version_id: string;
+  account_id: string;
+  collection_id: string;
+  content_revision: string;
+  kind: 'manual' | 'pre_restore' | 'pre_mutation';
+  cause: 'web' | 'sync' | 'agent-plan' | 'restore' | 'undo' | `agent-plan:${string}` | `automation:${string}`;
+  label: string;
+  etag: string;
+  node_count: number;
+  tree_json: unknown;
+  change_summary_json: unknown;
+  created_at: Date;
+}
+
+export interface CollectionVersionRestoreReceiptTable {
+  command_id: string;
+  version_id: string;
+  collection_id: string;
+  account_id: string;
+  inner_commands: unknown;
+  result_json: unknown;
+  created_at: Date;
+}
+
+export interface AnnotationTable {
+  id: string;
+  collection_id: string;
+  subject_type: 'collection' | 'node';
+  subject_id: string;
+  creator_principal_id: string;
+  type: 'note' | 'summary' | 'tldr' | 'highlight' | 'rating' | 'custom';
+  format: 'plain' | 'markdown' | 'html' | 'json' | null;
+  value_json: unknown;
+  annotation_search_text: Generated<string | null>;
+  annotation_search_vector: Generated<unknown | null>;
+  visibility: 'public' | 'unlisted' | 'protected' | 'private';
+  resource_revision: string;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+  deleted_commit_ordinal: bigint | null;
+  payload_json: Record<string, unknown>;
+  payload_schema_version: number;
+  payload_authority_status: 'backfilled';
+}
+
+export interface RelationTable {
+  id: string;
+  collection_id: string;
+  from_node_id: string;
+  to_node_id: string;
+  type: 'related' | 'precedes' | 'follows' | 'supports' | 'contradicts'
+    | 'duplicate_of' | 'derived_from' | 'mentions' | 'custom';
+  label: string | null;
+  visibility: 'public' | 'unlisted' | 'protected' | 'private';
+  resource_revision: string;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+  deleted_commit_ordinal: bigint | null;
+  payload_json: Record<string, unknown>;
+  payload_schema_version: number;
+  payload_authority_status: 'backfilled';
+}
+
+export interface LibrarySidebarOrderTable {
+  subject_id: string;
+  section: 'mine' | 'shared' | 'following';
+  collection_ids: unknown;
+  updated_at: Generated<Date>;
+}
