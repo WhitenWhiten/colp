@@ -1,3 +1,4 @@
+import { registerActivityRoutes } from './product/activity-routes.js';
 import { automationOutputRoutes } from './product/automation-output-routes.js';
 import { automationDeliveryRoutes } from './product/automation-delivery-routes.js';
 import { automationJobRoutes } from './product/automation-job-routes.js';
@@ -17,6 +18,9 @@ import { registerBookmarkPreferencesRoutes } from './product/bookmark-preference
 /** Account preferences share the authenticated Product surface. */
 export function registerAccountProductSurfaces(app: FastifyInstance, deps: AppDependencies): void {
   const { config, identityUnitOfWork, bookmarkPreferencesUnitOfWork, bookmarkPreferencesQuery } = deps;
+  if (config.agentActivityEnabled && identityUnitOfWork && deps.activity) registerActivityRoutes(app, {
+    identityUnitOfWork, activity: deps.activity, allowedOrigins: extensionProductAllowedOrigins(config),
+  });
   if (identityUnitOfWork && deps.automationUnitOfWork) registerAutomationRoutes(app, { identityUnitOfWork, unitOfWork: deps.automationUnitOfWork,
     allowedOrigins: config.allowedOrigins, cursorKey: config.productEditorCursor.current.key }, [...automationOutputRoutes(config.productEditorCursor.current.key),...automationDeliveryRoutes(config.productEditorCursor.current.key),...automationJobRoutes(deps.automationApprovals),...automationTargetRoutes(config.productEditorCursor.current.key), ...automationPolicyRoutes(config.productEditorCursor.current.key), ...automationHealthRoutes(config.productEditorCursor.current.key), ...automationRunRoutes(config.productEditorCursor.current.key)]);
   if (config.automationAdmissionEnabled && deps.automationDeviceUnitOfWork && deps.syncSessionRoutes) registerAutomationDeviceRoutes(app, {

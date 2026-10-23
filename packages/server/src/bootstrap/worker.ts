@@ -1,3 +1,4 @@
+import { activityAgentRegistration, createActivityAgentRoute, purgeActivity, setAgentActivityEnabled } from '../infrastructure/activity/index.js';
 import { createAutomationIngestRoute, createAutomationManualRoute, automationManualRegistration, automationIngestRegistration, automationResumeRegistration, AUTOMATION_RESUME_EVENT } from '../infrastructure/outbox/index.js';
 import { createAutomationSourceInspector, createManualRunConsumer, createAutomationRuntime, setAutomationCaptureEnabled } from '../infrastructure/automation/index.js';
 import { createAutomationHealthMonitor } from '../infrastructure/automation/index.js';
@@ -285,7 +286,6 @@ export interface BuildWorkerOptions {
    */
   readonly closeDatabase?: boolean;
 }
-
 function composeFaviconWorkerRuntime(
   config: AppConfig,
   database: DatabaseRuntime,
@@ -352,7 +352,6 @@ function composeFaviconWorkerRuntime(
     },
   });
 }
-
 /** Honest publication cache purge provider readiness state for worker composition. */
 export function resolvePublicationCachePurgeReadinessState(
   provider: PublicationCachePurgeProvider | undefined,
@@ -360,7 +359,6 @@ export function resolvePublicationCachePurgeReadinessState(
   if (provider === undefined) return 'missing';
   return provider.kind === 'stub' ? 'stubbed' : 'durable';
 }
-
 export function buildWorker(
   config: AppConfig = loadConfig(),
   database?: DatabaseRuntime,
@@ -369,6 +367,7 @@ export function buildWorker(
 ): WorkerRuntime {
   const logger: ReturnType<typeof createLogger> = options.logger ?? createLogger(config.logLevel);
   setAutomationCaptureEnabled(config.automationCaptureEnabled === true);
+  setAgentActivityEnabled(config.agentActivityEnabled === true);
   const capacity = sanitizedRuntimeCapacity(config);
   if (config.syncTombstonePurge.enabled && !database) {
     throw new Error('worker composition refused: Sync Tombstone purge requires PostgreSQL');
@@ -386,8 +385,7 @@ export function buildWorker(
       );
     }
   }
-  // Task 12: production default is the durable PostgreSQL collection mutation projection.
-  // Task 11 invariants still hold: never default to memory; refuse transient sinks.
+  // Production requires a durable PostgreSQL projection; transient sinks are refused.
   const originalProjectionSink = resolveProductionProjectionSink({
     database,
     projectionSink: options.projectionSink,
@@ -497,6 +495,7 @@ export function buildWorker(
     : Object.freeze([]);
   const routes = Object.freeze([
     ...projectionRoutes, ...syncConflictRoutes,
+    ...(database ? [createActivityAgentRoute(database.db)] : []),
     ...(database ? [undefined, AUTOMATION_RESUME_EVENT].map(eventType => createAutomationIngestRoute(createAutomationSourceInspector(database.db,
       // Shadow capture (admission off) only advances the source cursor: no account or Sync locks.
       config.automationAdmissionEnabled ? createAutomationRuntime(config.publication.serverUuid,config.automationWorkEnabled === true) : null), eventType)) : []),
@@ -563,6 +562,7 @@ export function buildWorker(
     envelopes: new EventEnvelopeRegistry([
       ...createCollectionMutationEnvelopeRegistrations(),
       syncConflictEnvelopeRegistration,
+      activityAgentRegistration,
       automationIngestRegistration,
       automationResumeRegistration,
       automationManualRegistration,
@@ -589,7 +589,7 @@ export function buildWorker(
   const inviteCleanup = options.inviteCleanup
     ?? (database ? createPostgresCollaborationInviteMaintenancePortFactory(database.db) : undefined);
   let inviteCleanupSchedule: CollaborationInviteCleanupSchedule | undefined;
-  let notificationOperationsTimer: NodeJS.Timeout | undefined;
+  let activityRetentionTimer: NodeJS.Timeout | undefined;
   let syncOperationsTimer: NodeJS.Timeout | undefined;
   const syncOperationsInspectionGate = { running: false };
   const linkHealthRuntime = (database && config.linkHealth.enabled)
@@ -795,9 +795,11 @@ export function buildWorker(
           'worker start refused: KNOWN_CACHE_REQUIRED=true requires a healthy '
           + `cache, got ${cacheReadinessState}`);
       }
-      // Validate the scheduler dependency before any worker loop is started;
-      // otherwise an enabled-but-unwired connector would leave outbox/email
-      // timers running after start() rejects.
+      // Validate scheduler dependencies before starting any worker timers.
+      if (database && !activityRetentionTimer) activityRetentionTimer = setInterval(() => {
+        void purgeActivity(database.db).catch((error: unknown) => logger.warn({ err: error }, 'activity retention failed'));
+      }, 3_600_000);
+      activityRetentionTimer?.unref();
       automationMaintenance?.start();
       outbox?.start();
       linkHealthRuntime?.loop.start();
@@ -879,8 +881,8 @@ export function buildWorker(
     async stop() {
       const failures: WorkerStopFailure[] = [];
       await attemptWorkerStop(failures, 'automationMaintenance', () => automationMaintenance?.stop());
-      if (notificationOperationsTimer) clearInterval(notificationOperationsTimer);
-      notificationOperationsTimer = undefined;
+      if (activityRetentionTimer) clearInterval(activityRetentionTimer);
+      activityRetentionTimer = undefined;
       if (syncOperationsTimer) clearInterval(syncOperationsTimer);
       syncOperationsTimer = undefined;
       await attemptWorkerStop(failures, 'replicaExpiryJob', () => replicaExpiryJob?.stop());
@@ -925,14 +927,12 @@ export function buildWorker(
     },
   };
 }
-
 export interface CreateWorkerProcessOptions {
   readonly logger?: ReturnType<typeof createLogger>;
   /** Default true. Self-hosted passes false so the shared pool outlives the worker. */
   readonly closeDatabase?: boolean;
   readonly env?: NodeJS.ProcessEnv;
 }
-
 export interface WorkerProcessHandle {
   readonly worker: WorkerRuntime;
   start(): Promise<void>;

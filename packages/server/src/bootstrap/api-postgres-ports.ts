@@ -1,3 +1,4 @@
+import { createActivityStore, setAgentActivityEnabled } from '../infrastructure/activity/index.js';
 import { createPostgresFolderShareUnitOfWork } from '../infrastructure/publication/index.js';
 import { createPostgresPublicFolderShareReadPort } from '../infrastructure/publication/index.js';
 import { createPostgresLibraryCollectionUnitOfWork } from '../infrastructure/collections/index.js';
@@ -154,6 +155,7 @@ export function createApiPostgresPorts(input: {
 }): ApiPostgresPorts {
   const { database, config, metrics, metricsLogger } = input;
   setAutomationCaptureEnabled(config.automationCaptureEnabled === true);
+  setAgentActivityEnabled(config.agentActivityEnabled === true);
   const reportSourceInvalidation = isReportCacheInvalidationEnabled(config)
     ? createPostgresReportSourceInvalidationOutboxPort()
     : undefined;
@@ -319,6 +321,7 @@ export function createApiPostgresAppDependencies(input: {
         database.db, config.syncSession.conflictPayloadKeyring,
       ),
     } : {}),
+    ...(config.agentActivityEnabled ? { activity: createActivityStore(database.db, config.productEditorCursor.current.key) } : {}),
     ...(config.automationRulesEnabled ? { automationUnitOfWork: createAutomationUnitOfWork(database.db, config.publication.serverUuid, { eventsEnabled:config.mcpEventsEnabled === true,runtimeEnabled: config.automationAdmissionEnabled === true,workerEnabled: config.automationWorkEnabled === true,verifyTargetBinding: createAutomationBindingVerifier(config,createMcpSecurityEpochReader(config,createPostgresMcpOauthRevocationStore({ db: database.db }))) }),
       automationDeviceUnitOfWork: createAutomationDeviceUnitOfWork(database.db, config.publication.serverUuid),
       automationHealthStartup: () => createAutomationHealthMonitor(database.db, config.publication.serverUuid, metrics, config.automationAdmissionEnabled, {

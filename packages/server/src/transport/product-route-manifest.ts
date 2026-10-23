@@ -72,6 +72,8 @@ export const AUTOMATION_WORK_JOB_OPERATION_IDS = PRODUCT_ROUTE_MANIFEST.filter((
 
 export const AUTOMATION_DEVICE_OPERATION_IDS = PRODUCT_ROUTE_MANIFEST.filter((entry) => entry.path.startsWith('/api/v1/automation-device/')).map((entry) => entry.operationId);
 
+export const ACTIVITY_OPERATION_IDS = PRODUCT_ROUTE_MANIFEST.filter(entry => entry.path.startsWith('/api/v1/me/activity')).map(entry => entry.operationId);
+
 const UNSUPPORTED_COLLECTION_OPERATION_IDS = ['listCollectionChildren'];
 
 function openApiPath(path: string): string {

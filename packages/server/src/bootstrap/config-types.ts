@@ -752,7 +752,6 @@ export interface AppConfig {
   readonly mcpWrite?: McpWriteFeatureConfig;
   readonly accountCredentials: import('./config-account-credentials.js').AccountCredentialsFeatureConfig;
 }
-
 export interface FollowFeatureConfig {
   /** Exposure control only; authority, migrations and ports remain production-wired while false. */
   readonly enabled: boolean;

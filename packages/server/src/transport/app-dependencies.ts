@@ -75,6 +75,7 @@ import type { McpReadTransportDependencies } from './mcp/mcp-read-routes.js';
 import type { McpWriteApprovalRoutesDependencies } from './mcp/mcp-write-approval-routes.js';
 
 export interface AppDependencies {
+  readonly activity?: import('../modules/activity/index.js').ActivityPorts;
   readonly automationWorker?: import('../modules/automation/index.js').AutomationWorkerService;
   readonly automationApprovals?: import('../modules/automation/index.js').ApprovedProposalApplier;
   readonly automationWorkAdmit?: (actor: import('../modules/automation/index.js').WorkPrincipal) => Promise<void>;
