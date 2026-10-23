@@ -1,337 +1,39 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { test } from 'vitest';
-import { isStaticContract, listDomainTestFilesSync } from '../../../scripts/shard-buckets.mjs';
-import { LIBRARY_MANAGEMENT_BACKEND_INTEGRATION_SPECS } from '../../../scripts/library-management-acceptance-bindings.mjs';
-import { INTEGRATION_SHARD_EXCLUDE } from '../../../scripts/vitest-project-files.mjs';
-import {
-  BROWSER_INCLUDE,
-  EVIDENCE_INCLUDE,
-  REDIS_INCLUDE,
-  SYSTEM_INCLUDE,
-} from '../../../vitest.workspace-projects.js';
+import { POSTGRES_EXCLUDE } from '../../../vitest.workspace-projects.js';
+import { discoverProjectFiles, serverRoot } from './vitest-test-routing.js';
 
-const root = process.cwd();
-const script = resolve(root, 'scripts/integration-shard.mjs');
-const unitScript = resolve(root, 'scripts/unit-shard.mjs');
-// Still excluded from default unit shards. Owner is the dedicated
-// phase5-free-social-dependencies CI job (see docs/devops/runbooks/phase5-free-social-dependencies-ci.md).
-const externallyProvisionedUnitTests = [
-  'phase5-free-social-dependencies.test.ts',
-];
-const browserBoundUnitTests = BROWSER_INCLUDE
-  .filter((file) => file.startsWith('tests/unit/'))
-  .map((file) => basename(file));
-// Playwright/Chromium-bound integration suite; it runs in the dedicated
-// phase4a-browser CI job, never in the shared postgres shards.
-const browserBoundIntegrationTests = BROWSER_INCLUDE
-  .filter((file) => file.startsWith('tests/integration/'))
-  .map((file) => basename(file));
-const evidenceBoundIntegrationTests = EVIDENCE_INCLUDE
-  .filter((file) => file.startsWith('tests/integration/'))
-  .map((file) => basename(file));
-const evidenceBoundUnitTests = EVIDENCE_INCLUDE
-  .filter((file) => file.startsWith('tests/unit/'))
-  .filter((file) => !externallyProvisionedUnitTests.includes(basename(file)))
-  .map((file) => basename(file));
+const packageJson = JSON.parse(readFileSync(resolve(serverRoot, 'package.json'), 'utf8')) as { scripts: Record<string, string> };
+const workflow = readFileSync(resolve(serverRoot, '../../.github/workflows/colp-ci.yml'), 'utf8');
 
-test('unit shards use a tighter budget than integration shards', () => {
-  const source = readFileSync(unitScript, 'utf8');
-  assert.match(source, /UNIT_SHARD_TEST_TIMEOUT_MS = 10_000/u);
-  assert.match(source, /UNIT_SHARD_HOOK_TIMEOUT_MS = 20_000/u);
-  assert.match(source, /UNIT_SHARD_MAX_WORKERS = 4/u);
-  assert.match(source, /--testTimeout=\$\{UNIT_SHARD_TEST_TIMEOUT_MS\}/u);
-  assert.match(source, /--hookTimeout=\$\{UNIT_SHARD_HOOK_TIMEOUT_MS\}/u);
-  assert.match(source, /--maxWorkers=\$\{UNIT_SHARD_MAX_WORKERS\}/u);
-  assert.match(
-    source,
-    /if \(list\) \{[\s\S]*process\.stdout\.write[\s\S]*\} else \{[\s\S]*spawn\(process\.execPath, \[[\s\S]*`--testTimeout=\$\{UNIT_SHARD_TEST_TIMEOUT_MS\}`/u,
-    '--list mode must stay list-only; timeout flags belong only on the vitest spawn',
-  );
+test('CI invokes native Vitest sharding with a complete contiguous matrix', () => {
+  const job = /^  server-integration:[\s\S]*?(?=^  [\w-]+:|(?![\s\S]))/mu.exec(workflow)?.[0];
+  assert.ok(job, 'server-integration must have a CI job');
+  const matrix = /shard:\s*(\[[\d,\s]+\])/u.exec(job)?.[1];
+  assert.ok(matrix, 'integration shard matrix must be explicit');
+  const shards = JSON.parse(matrix) as number[];
+  assert.deepEqual(shards, Array.from({ length: shards.length }, (_, i) => i + 1));
+  assert.ok(shards.length > 1);
+  assert.ok(job.includes(`npm run test:integration:inner -- --shard=${'${{ matrix.shard }}'}/${shards.length}`));
+  assert.ok(job.includes('node scripts/with-postgres.mjs --isolated-owner --'));
 });
 
-test('integration shards and host file runs share a 60s/120s timeout floor', () => {
-  const source = readFileSync(script, 'utf8');
-  assert.match(source, /INTEGRATION_SHARD_TEST_TIMEOUT_MS = 60_000/u);
-  assert.match(source, /INTEGRATION_SHARD_HOOK_TIMEOUT_MS = 120_000/u);
-  assert.match(source, /--testTimeout=\$\{INTEGRATION_SHARD_TEST_TIMEOUT_MS\}/u);
-  assert.match(source, /--hookTimeout=\$\{INTEGRATION_SHARD_HOOK_TIMEOUT_MS\}/u);
-
-  const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
-    scripts: Record<string, string>;
-  };
-  for (const name of ['test:integration:file', 'test:integration:inner'] as const) {
+test('integration commands select Postgres and retain database timeout floors', () => {
+  for (const name of ['test:integration:inner', 'test:integration:file']) {
     const command = packageJson.scripts[name] ?? '';
-    assert.match(command, /--testTimeout=60000/u, `${name} must apply the shard test-timeout floor`);
-    assert.match(command, /--hookTimeout=120000/u, `${name} must apply the shard hook-timeout floor`);
+    assert.match(command, /--project postgres/u);
+    assert.match(command, /--testTimeout=60000/u);
+    assert.match(command, /--hookTimeout=120000/u);
   }
 });
 
-test('integration shards are deterministic, complete and pairwise disjoint', () => {
-  const shards = [1, 2, 3, 4].map((index) => execFileSync(process.execPath, [
-    script,
-    `--shard=${index}/4`,
-    '--list',
-  ], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/u));
-  const flattened = shards.flat();
-  const expected = listDomainTestFilesSync(root, { kind: 'integration', suffix: '.integration.test.ts' })
-    .filter((file) => !INTEGRATION_SHARD_EXCLUDE.includes(file.path))
-    .map((file) => file.path);
-
-  for (const browserSuite of browserBoundIntegrationTests) {
-    assert.equal(
-      flattened.some((path) => path.endsWith(`/${browserSuite}`)),
-      false,
-      `${browserSuite} must never be selected by an integration shard`,
-    );
-  }
-
-  assert.ok(shards.every((files) => files.length > 0));
-  assert.equal(flattened.length, expected.length);
-  assert.equal(new Set(flattened).size, flattened.length);
-  assert.deepEqual([...flattened].sort(), expected);
-  for (const [index, files] of shards.entries()) {
-    const repeated = execFileSync(process.execPath, [
-      script,
-      `--shard=${index + 1}/4`,
-      '--list',
-    ], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/u);
-    assert.deepEqual(repeated, files);
-  }
-});
-
-test('Redis integration suites leave default postgres shards with an explicit owner', () => {
-  for (const path of REDIS_INCLUDE) {
-    assert.ok(INTEGRATION_SHARD_EXCLUDE.includes(path), `${path} must have an explicit owner transfer`);
-  }
-  assert.ok(INTEGRATION_SHARD_EXCLUDE.includes(
-    'tests/integration/phase2/phase2-publication-redis-evidence.integration.test.ts',
-  ));
-
-  const flattened = [1, 2, 3, 4].flatMap((index) => execFileSync(process.execPath, [
-    script,
-    `--shard=${index}/4`,
-    '--list',
-  ], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/u));
-  for (const path of REDIS_INCLUDE) {
-    assert.equal(
-      flattened.includes(path),
-      false,
-      `${path} must ride redis-rate-limit, not a postgres shard`,
-    );
-  }
-  assert.equal(
-    flattened.some((path) => path.endsWith('/phase2-publication-redis-evidence.integration.test.ts')),
-    false,
-    'publication Redis evidence must stay on evidence:phase2-publication',
-  );
-  assert.equal(
-    flattened.filter((path) => path.endsWith('/redis-runtime.integration.test.ts')).length,
-    1,
-    'redis-runtime has no dedicated job; it stays on default postgres shards',
-  );
-  assert.equal(
-    flattened.filter((path) => path.endsWith('/publication-redis-cache-postgres.integration.test.ts')).length,
-    1,
-    'publication-redis-cache postgres has no dedicated job; it stays on default shards',
-  );
-});
-
-test('tenant-isolation postgres suites appear in default shards; dedicated jobs remain extra-evidence owners', () => {
-  const searchAuthFile = 'search-authorization-postgres.integration.test.ts';
-  const searchAuthPath = `tests/integration/search/${searchAuthFile}`;
-  const ownedPostgresFile = 'owned-collections-postgres.integration.test.ts';
-  const ownedPostgresPath = 'tests/integration/collections/owned-collections-postgres.integration.test.ts';
-
-  assert.equal(
-    INTEGRATION_SHARD_EXCLUDE.includes(searchAuthPath),
-    false,
-    'excludedFiles must not contain search-authorization postgres; default shards must catch a deleted tenant predicate',
-  );
-  assert.equal(
-    INTEGRATION_SHARD_EXCLUDE.includes(ownedPostgresPath),
-    false,
-    'excludedFiles must not contain owned-collections postgres; default shards must catch a deleted tenant predicate',
-  );
-
-  const runner = readFileSync(resolve(root, 'scripts/library-management-acceptance.mjs'), 'utf8');
-  assert.match(
-    runner,
-    /LIBRARY_MANAGEMENT_BACKEND_INTEGRATION_SPECS/u,
-    'library-management-acceptance must run the bindings-owned extra-evidence specs',
-  );
-  assert.equal(
-    LIBRARY_MANAGEMENT_BACKEND_INTEGRATION_SPECS.includes(ownedPostgresPath),
-    true,
-    'library-management-acceptance remains the extra-evidence owner; do not add a third CI job',
-  );
-
-  const flattened = [1, 2, 3, 4].flatMap((index) => execFileSync(process.execPath, [
-    script,
-    `--shard=${index}/4`,
-    '--list',
-  ], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/u));
-  assert.equal(
-    flattened.filter((path) => path.endsWith(`/${searchAuthFile}`)).length,
-    1,
-    'search-authorization postgres must appear in exactly one postgres-integration shard',
-  );
-  assert.equal(
-    flattened.filter((path) => path.endsWith(`/${ownedPostgresFile}`)).length,
-    1,
-    'owned-collections postgres must appear in exactly one postgres-integration shard',
-  );
-});
-
-test('local act reuses installs through committed helpers; GitHub still runs npm ci', () => {
-  const reuse = readFileSync(resolve(root, '../scripts/act-reuse-install.py'), 'utf8');
-  assert.match(reuse, /ACT_FORCE_INSTALL/u);
-  assert.match(reuse, /colp\|colp-dev\|backend\|frontend\|extension/u);
-  const applyShim = readFileSync(resolve(root, '../scripts/act-apply-shim.py'), 'utf8');
-  assert.match(applyShim, /act-reuse-install\.py/u);
-  assert.match(
-    applyShim,
-    /Skip COLP artifact download \(act\)/u,
-    'act shim must not leave uses: actions/download-artifact@v7 for act to clone',
-  );
-  assert.match(
-    applyShim,
-    /Skip Playwright cache \(act\)[\s\S]{0,120}run: 'true'/u,
-    'act shim must not leave uses: actions/cache@v6 for act to clone',
-  );
-  assert.doesNotMatch(
-    applyShim,
-    /Skip Playwright cache \(act\)[\s\S]{0,200}\n      with:/u,
-    'act Playwright skip is a composite run step and cannot carry with:',
-  );
-  const workflow = readFileSync(resolve(root, '../.github/workflows/known-backend-ci.yml'), 'utf8');
-  assert.match(
-    workflow,
-    /uses: \.\/\.github\/actions\/known-backend-setup/u,
-    'GitHub postgres/quality jobs must use known-backend-setup',
-  );
-  const setupAction = readFileSync(
-    resolve(root, '../.github/actions/known-backend-setup/action.yml'),
-    'utf8',
-  );
-  assert.match(
-    setupAction,
-    /name: Frozen backend install/u,
-    'known-backend-setup must keep a fresh Frozen backend install',
-  );
-  assert.match(
-    setupAction,
-    /run: npm ci/u,
-    'GitHub hosted runners must still run npm ci inside known-backend-setup',
-  );
-  const gitignore = readFileSync(resolve(root, '../.gitignore'), 'utf8');
-  assert.match(gitignore, /\.act-install-stamps\//u);
-});
-
-test('product command receipt is not owned by a removed coverage config', () => {
-  const integrationFile = 'tests/integration/product/product-command-receipt.integration.test.ts';
-  const unitFile = 'tests/unit/product/product-command-receipt.test.ts';
-  const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
-    scripts: Record<string, string>;
-  };
-
-  // The PostgreSQL receipt suite owns its own schema + migration chain, so it
-  // stays out of the parallel shared shards and the local full integration gate
-  // to avoid same-database contention with the canonical mutation suites.
-  const shards = [1, 2, 3, 4].map((index) => execFileSync(process.execPath, [
-    script,
-    `--shard=${index}/4`,
-    '--list',
-  ], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/u));
-  const flattened = shards.flat();
-  assert.equal(flattened.includes(integrationFile), false);
-  assert.match(
-    packageJson.scripts['test:integration:inner'] ?? '',
-    /--exclude tests\/integration\/product\/product-command-receipt\.integration\.test\.ts/u,
-  );
-
-  assert.equal(existsSync(resolve(root, unitFile)), true);
-  for (const name of ['ci:focused-coverage', 'test:focused-coverage', 'test:focused-coverage:inner']) {
-    assert.equal(packageJson.scripts[name], undefined, name);
-  }
-  for (const file of [
-    'vitest.coverage.config.ts',
-    'vitest.focused-coverage.config.ts',
-    'vitest.phase4-5-coverage.config.ts',
-    'scripts/phase13-coverage-test-files.mjs',
-    'vitest.phase1-3-coverage-scope.ts',
-    'vitest.phase4-5-coverage-scope.ts',
-  ]) {
-    assert.equal(existsSync(resolve(root, file)), false, file);
-  }
-  const workflow = readFileSync(resolve(root, '../../.github/workflows/colp-ci.yml'), 'utf8');
-  assert.match(workflow, /name: Unit suite\n\s+run: npm run test:unit/u);
-  assert.doesNotMatch(
-    workflow,
-    /ci:focused-coverage|test:focused-coverage|vitest\.(?:coverage|focused-coverage|phase4-5-coverage)\.config\.ts/u,
-  );
-});
-
-test('unit shards are deterministic, complete and pairwise disjoint', () => {
-  const shards = [1, 2, 3, 4].map((index) => execFileSync(process.execPath, [
-    unitScript,
-    `--shard=${index}/4`,
-    '--list',
-  ], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/u));
-  const flattened = shards.flat();
-  const expected = listDomainTestFilesSync(root, { kind: 'unit', suffix: '.test.ts' })
-    .filter((file) => !isStaticContract(file.name))
-    .filter((file) => !externallyProvisionedUnitTests.includes(file.name))
-    .filter((file) => !browserBoundUnitTests.includes(file.name))
-    .filter((file) => !evidenceBoundUnitTests.includes(file.name))
-    .filter((file) => !SYSTEM_INCLUDE.some((path) => path.endsWith(`/${file.name}`)))
-    .map((file) => file.path);
-
-  assert.ok(shards.every((files) => files.length > 0));
-  assert.equal(flattened.length, expected.length);
-  assert.equal(new Set(flattened).size, flattened.length);
-  assert.deepEqual([...flattened].sort(), expected);
-  for (const browser of browserBoundUnitTests) {
-    assert.equal(flattened.some((path) => path.endsWith(`/${browser}`)), false);
-  }
-  const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
-    scripts: Record<string, string>;
-  };
-  const externalAcceptanceScript = packageJson.scripts['test:phase5:free-social-acceptance:contract'] ?? '';
-  for (const external of externallyProvisionedUnitTests) {
-    assert.equal(flattened.some((path) => path.endsWith(`/${external}`)), false);
-    assert.match(externalAcceptanceScript, new RegExp(`tests/unit/[^/]+/${external.replaceAll('.', '\\.')}`, 'u'));
-  }
-  const evidenceUnitScript = packageJson.scripts['test:evidence:unit'] ?? '';
-  const evidenceIntegrationScript = packageJson.scripts['test:evidence:integration'] ?? '';
-  for (const name of evidenceBoundUnitTests) {
-    assert.equal(flattened.some((path) => path.endsWith(`/${name}`)), false);
-    assert.match(
-      evidenceUnitScript,
-      new RegExp(`tests/unit/[^/\\s]+/${name.replaceAll('.', '\\.')}`),
-      `test:evidence:unit must own ${name}`,
-    );
-  }
-  for (const name of evidenceBoundIntegrationTests) {
-    assert.equal(flattened.some((path) => path.endsWith(`/${name}`)), false);
-    assert.match(
-      evidenceIntegrationScript,
-      new RegExp(`tests/integration/[^/\\s]+/${name.replaceAll('.', '\\.')}`),
-      `test:evidence:integration must own ${name}`,
-    );
-  }
-  const workflow = readFileSync(resolve(root, '../.github/workflows/known-backend-ci.yml'), 'utf8');
-  assert.match(workflow, /backend-evidence:/u);
-  assert.match(workflow, /npm run test:evidence/u);
-
-  for (const [index, files] of shards.entries()) {
-    const repeated = execFileSync(process.execPath, [
-      unitScript,
-      `--shard=${index + 1}/4`,
-      '--list',
-    ], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/u);
-    assert.deepEqual(repeated, files);
+test('every test excluded from Postgres has a real, exclusive alternate project', () => {
+  const projects = discoverProjectFiles();
+  for (const file of POSTGRES_EXCLUDE) {
+    assert.ok(!projects.postgres?.includes(file), `${file} must not run in Postgres shards`);
+    assert.equal(Object.entries(projects).filter(([name, paths]) => name !== 'postgres' && paths.includes(file)).length,
+      1, `${file} must have one alternate project`);
   }
 });

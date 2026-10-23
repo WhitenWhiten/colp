@@ -11,7 +11,8 @@
         "Purge gate excludes leases at or past their expiry independently of stored lifecycle status",
         "24 real-Postgres lifecycle/purge integration tests and 4 job/worker unit tests pass",
         "Server TypeScript, targeted ESLint and import boundaries pass"
-      ]
+      ],
+      "commit": "1d1de6c2"
     },
     {
       "id": "sync-02",
@@ -128,7 +129,13 @@
     {
       "id": "tests-01",
       "title": "restore live CI routing contracts and remove stale path declarations",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "Replaced obsolete custom-shard contracts with independent Vitest discovery of every on-disk server test",
+        "Routing guards now execute in the ordinary CI unit project; negative controls detect omissions, duplicates and stale paths",
+        "Removed 45 nonexistent path declarations and obsolete dedicated-job ownership exports",
+        "7 targeted contract assertions, server TypeScript, targeted ESLint and whitespace checks pass"
+      ]
     },
     {
       "id": "tests-02",
