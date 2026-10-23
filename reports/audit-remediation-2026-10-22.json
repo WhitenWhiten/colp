@@ -419,7 +419,13 @@
     {
       "id": "performance-09",
       "title": "stop completed local-import alarms",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "The local-import worker now ensures a recovery alarm only while a plan is running and clears it for completed, cancelled, attention and absent plans",
+        "An interrupted running import retains its periodic retry through an exception; successful retry and completion remove it without resetting an existing alarm",
+        "22 local-import, backup, view and alarm assertions pass; TypeScript, targeted lint, source-size and development build pass",
+        "Real signed-out Chromium under xvfb imports offline, verifies chrome.alarms.get returns no recovery alarm after completion, and preserves the completed import across full browser restart (18.2 seconds)"
+      ]
     },
     {
       "id": "performance-10",
@@ -832,7 +838,8 @@
         "An exact create receipt is re-read independently of ownership visibility before classifying an intrusion; it suppresses only the journalled native id",
         "All 162 assertions in 28 subscription suites pass; TypeScript, targeted lint, source-size, production and development builds pass",
         "Real Chromium wizard preserves accidental foreign additions; logout/relogin restores the same subscription correctly; complete 20,000-node capacity rerun continues separately under extension CI validation"
-      ]
+      ],
+      "commit": "2dd3bc6d"
     }
   ],
   "workspaceNote": "Concurrent change in packages/extension/docs/site-adapters/README.md is unrelated user work. Preserve it and do not stage/revert it."

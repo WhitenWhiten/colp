@@ -32,6 +32,7 @@ test('a fresh guest imports an HTML file offline and keeps the completed import 
     expect(await page.evaluate(() => chrome.bookmarks.search({ title: 'My offline import' }))).toHaveLength(0);
     await page.locator('#local-import-commit').click();
     await expect(page.locator('#local-import-status')).toHaveText('Imported 4 items to this browser.');
+    await expect.poll(() => page.evaluate(() => chrome.alarms.get('known-local-import-recovery'))).toBeUndefined();
     expect(await page.evaluate(() => chrome.bookmarks.search({ url: 'https://example.org/local-import' }))).toHaveLength(2);
     const auth = await page.evaluate(() => chrome.runtime.sendMessage({ kind: 'known.auth.status' }));
     expect(auth).toMatchObject({ state: { status: 'signed_out' } });

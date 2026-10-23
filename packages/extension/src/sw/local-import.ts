@@ -30,7 +30,9 @@ function serial<T>(work: () => Promise<T>): Promise<T> {
 export function wakeLocalImports(): Promise<void> {
   return serial(async () => {
     let plan = await journal.plan();
+    if (plan?.state === 'running') await ensurePeriodicAlarm(chrome, LOCAL_IMPORT_ALARM, 1);
     while (plan?.state === 'running' && !stopRequests.has(plan.commandId)) plan = await importer.run(plan.commandId, 1);
+    if (plan?.state !== 'running') await chrome.alarms.clear(LOCAL_IMPORT_ALARM);
   });
 }
 export async function handleLocalImport(request: LocalImportRequest): Promise<LocalImportResponse> {
