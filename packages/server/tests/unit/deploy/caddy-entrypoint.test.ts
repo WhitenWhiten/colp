@@ -67,3 +67,16 @@ test('both TLS Compose services derive SNI without an extra operator setting', (
   }
   assert.equal(compose.services['caddy-http']!.command, undefined);
 });
+
+test.each(['http', 'tls-auto', 'tls-internal'])('SPA security policy is present in the %s deployment profile', profile => {
+  const config = readFileSync(new URL(`Caddyfile.${profile}`, deploy), 'utf8');
+  const policy = config.match(/Content-Security-Policy "([^"]+)"/u)?.[1];
+  assert.ok(policy);
+  for (const directive of ["default-src 'self'", "script-src 'self'", "object-src 'none'",
+    "frame-ancestors 'none'", "base-uri 'self'", "connect-src 'self'"]) assert.ok(policy.includes(directive));
+  assert.doesNotMatch(policy.match(/script-src[^;]*/u)?.[0] ?? '', /unsafe-inline|unsafe-eval|https:/u);
+  assert.match(config, /X-Frame-Options "DENY"/u);
+  assert.match(config, /X-Content-Type-Options "nosniff"/u);
+  if (profile === 'http') assert.doesNotMatch(config, /Strict-Transport-Security/u);
+  else assert.match(config, /Strict-Transport-Security "max-age=31536000"/u);
+});
