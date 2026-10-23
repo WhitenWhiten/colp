@@ -2,7 +2,7 @@ import { apiUrl } from './config'
 import { allocateCommandId, clearCommandId } from './commandId'
 import { ProductApiError } from './errors'
 import { parseProductError } from './product-error'
-import { getCsrfToken } from './sessionStore'
+import { getCsrfToken, getSessionSnapshot, privateSessionIdentity } from './sessionStore'
 import type {
   AutomationAgentSetupInput,
   AutomationAgentSetupResult,
@@ -239,9 +239,15 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
   const doFetch: FetchLike = (input, init) => (fetchImpl ?? globalThis.fetch)(input, init)
 
   async function send(path: string, init: RequestInit): Promise<unknown> {
+    const identity = privateSessionIdentity()
+    const assertCurrent = () => {
+      if (identity !== privateSessionIdentity()) throw new DOMException('Your session changed.', 'AbortError')
+      init.signal?.throwIfAborted()
+    }
     let response: Response
     try {
-      response = await doFetch(apiUrl(path), { credentials: 'include', cache: 'no-store', ...init })
+      response = await doFetch(apiUrl(path), { ...init, credentials: getSessionSnapshot().authenticated ? 'include' : 'omit', cache: 'no-store' })
+      assertCurrent()
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') throw error
       throw new ProductApiError({
@@ -257,6 +263,7 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       throw badResponse('The Automation response had no body.')
     }
     const text = await response.text()
+    assertCurrent()
     let body: unknown = null
     if (text) {
       try {

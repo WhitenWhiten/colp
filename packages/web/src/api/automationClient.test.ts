@@ -248,3 +248,18 @@ describe('automation client', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 })
+
+it('retires an in-flight private read and omits a surviving server cookie after local sign-out', async () => {
+  applySessionView({ authenticated: true, csrfToken: 'old-session', idleExpiresAt: '', absoluteExpiresAt: '' })
+  let resolve!: (response: Response) => void
+  const fetchImpl = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => new Promise<Response>(done => { resolve = done }))
+  const api = createAutomationApi(fetchImpl)
+  const pending = api.listRules().catch(error => error)
+  clearSession()
+  resolve(json(200, { items: [{ id: 'private-rule' }], nextCursor: null }))
+  expect(await pending).toMatchObject({ name: 'AbortError' })
+  const anonymous = api.listRules()
+  expect(fetchImpl.mock.calls[1]?.[1]?.credentials).toBe('omit')
+  resolve(json(200, { items: [], nextCursor: null }))
+  expect(await anonymous).toEqual({ items: [], nextCursor: null })
+})

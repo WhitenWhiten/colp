@@ -1,10 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { automationApi, type AutomationApi } from '../../api/automationClient'
 import { ProductApiError } from '../../api/errors'
 import { StatusBadge } from '../../components/StatusBadge'
 import type { AutomationRule } from '../../api/automationTypes'
 import { defaultFolderSource, type FolderSource } from './folders'
 import { agentsApi, type AgentsApi } from '../../api/agentsClient'
+import { privateSessionIdentity, subscribeSession } from '../../api/sessionStore'
 import { RULE_STATE } from './copy'
 
 export type AutomationDeps = { api: AutomationApi; folders: FolderSource; agents?: Pick<AgentsApi, 'listAgents'> }
@@ -30,7 +31,8 @@ export type Load<T> =
  * write returned. Responses for an older key are dropped.
  */
 export function useLoad<T>(key: string | null, loader: (signal: AbortSignal) => Promise<T>) {
-  const [state, setState] = useState<Load<T>>({ status: 'loading' })
+  const identity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
+  const [loaded, setLoaded] = useState<{ identity: string; key: string | null; state: Load<T> }>({ identity, key, state: { status: 'loading' } })
   const [version, setVersion] = useState(0)
   const loaderRef = useRef(loader)
   loaderRef.current = loader
@@ -38,37 +40,41 @@ export function useLoad<T>(key: string | null, loader: (signal: AbortSignal) => 
   const generation = useRef(0)
 
   useEffect(() => {
-    if (key === null) return
+    if (key === null || identity !== privateSessionIdentity()) return
+    const setState = (state: Load<T>) => setLoaded({ identity, key, state })
     const controller = new AbortController()
     const request = ++generation.current
     active.current = controller
     void loaderRef.current(controller.signal)
       .then((data) => {
-        if (!controller.signal.aborted && request === generation.current) setState({ status: 'ready', data })
+        if (!controller.signal.aborted && request === generation.current && identity === privateSessionIdentity()) setState({ status: 'ready', data })
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted && request === generation.current) setState({ status: 'error', error })
+        if (!controller.signal.aborted && request === generation.current && identity === privateSessionIdentity()) setState({ status: 'error', error })
       })
     return () => {
       controller.abort()
       if (active.current === controller) active.current = null
     }
-  }, [key, version])
+  }, [key, version, identity])
 
   useEffect(() => {
-    setState({ status: 'loading' })
-  }, [key])
+    setLoaded({ identity, key, state: { status: 'loading' } })
+  }, [key, identity])
 
   const reload = useCallback(() => {
+    if (identity !== privateSessionIdentity()) return
     generation.current += 1
     active.current?.abort()
     setVersion((value) => value + 1)
-  }, [])
+  }, [identity])
   const replace = useCallback((data: T) => {
+    if (identity !== privateSessionIdentity()) return
     generation.current += 1
     active.current?.abort()
-    setState({ status: 'ready', data })
-  }, [])
+    setLoaded({ identity, key, state: { status: 'ready', data } })
+  }, [identity, key])
+  const state: Load<T> = loaded.identity === identity && loaded.key === key ? loaded.state : { status: 'loading' }
   return { state, reload, replace }
 }
 

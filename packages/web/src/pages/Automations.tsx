@@ -1,3 +1,5 @@
+import { Fragment, useSyncExternalStore } from 'react'
+import { privateSessionIdentity, subscribeSession } from '../api/sessionStore'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AutomationsHome } from './automations/AutomationsHome'
 import { Digests } from './automations/Digests'
@@ -11,6 +13,7 @@ import '../styles/automations.css'
 
 /** `/automations/*`: the rule list, a rule, its editor, running it once, one run, and what runs wrote. */
 export function Automations({ deps }: { deps?: AutomationDeps } = {}) {
+  const identity = useSyncExternalStore(subscribeSession, privateSessionIdentity, privateSessionIdentity)
   const routes = (
     <Routes>
       <Route index element={<AutomationsHome />} />
@@ -23,5 +26,5 @@ export function Automations({ deps }: { deps?: AutomationDeps } = {}) {
       <Route path="*" element={<Navigate to="/automations" replace />} />
     </Routes>
   )
-  return deps ? <AutomationDepsProvider value={deps}>{routes}</AutomationDepsProvider> : routes
+  return <Fragment key={identity}>{deps ? <AutomationDepsProvider value={deps}>{routes}</AutomationDepsProvider> : routes}</Fragment>
 }
