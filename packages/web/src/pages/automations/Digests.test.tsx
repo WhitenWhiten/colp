@@ -5,6 +5,7 @@ import { Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AutomationRunOutput } from '../../api/automationTypes'
 import { ProductApiError } from '../../api/errors'
+import { refreshActivitySummary } from '../../lib/activityStatus'
 import { cleanup, renderWithRouter, waitForDom } from '../../test/render'
 import { Automations } from '../Automations'
 import { buttonNamed, click, deps, fakeApi, rule, run } from './automations.test-helper'
@@ -27,6 +28,7 @@ if (!digest || !review) throw new Error('fixture pages are empty')
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), toast: vi.fn(), warning: vi.fn() }))
 vi.mock('../../components/AppToast', () => ({ useToast: () => toast }))
+vi.mock('../../lib/activityStatus', () => ({ refreshActivitySummary: vi.fn() }))
 
 function mount(api = fakeApi(), route = '/automations/runs/run_batch') {
   renderWithRouter(
@@ -89,6 +91,7 @@ describe('What a run wrote', () => {
     mount(api)
     await waitForDom(() => api.markRunRead.mock.calls.length === 1)
     expect(api.markRunRead).toHaveBeenCalledWith('run_batch', handoff.markReadRequest.throughOutputId, '5')
+    await waitForDom(() => vi.mocked(refreshActivitySummary).mock.calls.length > 0)
     expect(outputs()).toEqual([digest.id])
 
     // Showing the later page reads through that one too; nothing past it.

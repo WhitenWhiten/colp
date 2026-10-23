@@ -6,6 +6,7 @@ import { LoadMoreButton } from '../../components/LoadMoreButton'
 import { RouteState } from '../../components/RouteState'
 import { StatusBadge } from '../../components/StatusBadge'
 import { formatDateTime, formatRelative } from '../../lib/formatDate'
+import { refreshActivitySummary } from '../../lib/activityStatus'
 import { errorMessage, isStale, useAutomationDeps } from './shared'
 
 /* AU-24: the text a run wrote (digests, reviews, summaries), oldest first,
@@ -124,7 +125,10 @@ export function RunOutputs({
     if (marked.current.has(attempt)) return
     marked.current.add(attempt)
     api.markRunRead(run.id, last, run.revision)
-      .then(() => onRunChanged())
+      .then(() => {
+        onRunChanged()
+        void refreshActivitySummary()
+      })
       .catch((error: unknown) => {
         // A new output changed the run's revision: read it again, then mark through the same output.
         if (isStale(error)) onRunChanged()
