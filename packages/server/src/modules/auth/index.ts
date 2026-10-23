@@ -17,6 +17,7 @@ export * from './application/auth-email-templates.js';
 export * from './application/auth-email-port.js';
 export * from './application/auth-token-policy.js';
 export * from './application/password-hasher.js';
+export * from './application/oauth-client-name.js';
 export * from './application/business-account-mapping.js';
 export * from './application/ensure-business-account.js';
 export * from './application/ports.js';

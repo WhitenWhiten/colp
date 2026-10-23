@@ -1,3 +1,5 @@
+import { validOAuthClientName } from '../../modules/auth/index.js';
+
 export interface DcrClientMetadataPolicyError {
   readonly error: 'invalid_client_metadata';
   readonly error_description: string;
@@ -34,6 +36,9 @@ export function validateDcrPublicClientMetadata(
   }
   if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
   const record = metadata as Record<string, unknown>;
+  if (record.client_name !== undefined && !validOAuthClientName(record.client_name)) {
+    return invalidClientMetadata('client_name must be a string of at most 128 Unicode characters');
+  }
   if (record.token_endpoint_auth_method !== 'none') {
     return invalidClientMetadata('token_endpoint_auth_method must be explicitly set to none');
   }

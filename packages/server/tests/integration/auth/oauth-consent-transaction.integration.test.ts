@@ -155,6 +155,23 @@ describeWithPostgres('OAuth consent-transaction signed redirect lookup', () => {
     assert.equal(response.body.includes('Evil App'), false);
   });
 
+  test('stored client names are bounded before reaching the consent UI', async () => {
+    const clientId = 'legacy-oversized-name';
+    await isolated.runtime.pool.query(`INSERT INTO auth_oauth_client(id, "clientId", name, "redirectUris")
+      VALUES ($1, $1, $2, '[]'::jsonb)`, [clientId, '🌳'.repeat(1000)]);
+    try {
+      const query = new URLSearchParams(oauthQuery); query.delete('sig'); query.set('client_id', clientId);
+      query.set('exp', String(Math.floor(Date.now() / 1000) + 600));
+      query.set('sig', await makeSignature(canonicalizeOAuthQueryParams(query).toString(), BA_SECRET));
+      const response = await lookup(query.toString(), sessionCookie);
+      assert.equal(response.statusCode, 200, response.body);
+      assert.equal(response.json().client_name, '🌳'.repeat(128));
+      assert.equal(response.json().client_id, clientId);
+    } finally {
+      await isolated.runtime.pool.query('DELETE FROM auth_oauth_client WHERE "clientId" = $1', [clientId]);
+    }
+  });
+
   test('tampering redirect_uri without a new sig fails closed with no URI in the body', async () => {
     const tampered = new URLSearchParams(oauthQuery);
     tampered.set('redirect_uri', EVIL_REDIRECT);

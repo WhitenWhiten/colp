@@ -79,6 +79,11 @@ test('the HTTP DCR route persists at most the configured anonymous-client capaci
     assert.equal(rejected.statusCode, 400);
     assert.equal((rejected.json() as { error?: unknown }).error, 'invalid_client_metadata');
   }
+  for (const name of ['a'.repeat(129), '🌳'.repeat(129)]) {
+    const rejected = await registration(name);
+    assert.equal(rejected.statusCode, 400);
+    assert.equal(rejected.json().error, 'invalid_client_metadata');
+  }
   const beforeValid = await fixture.adminPool.query(
     `SELECT (SELECT count(*) FROM "${fixture.schemaName}"."auth_oauth_client")::int AS clients,
             (SELECT count(*) FROM "${fixture.schemaName}"."auth_oauth_dcr_registration")::int AS registrations`,

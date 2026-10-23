@@ -232,6 +232,10 @@ describeWithPostgres('MCP-W07 approval API over PostgreSQL and real Fastify', ()
       assert.deepEqual(item.agent, { clientId: 'mcp-client', name: 'Research assistant' });
       assert.equal(item.reason, 'do not show this prompt injection marker in the approval summary');
       assert.match(item.etag, /^"approval:[^"]+"$/u);
+      await isolated.runtime.pool.query('UPDATE auth_oauth_client SET name = $1 WHERE "clientId" = $2',
+        ['A'.repeat(1000), 'mcp-client']);
+      const boundedName = await client.approval(planId);
+      assert.equal(boundedName.agent.name, 'A'.repeat(200));
       await isolated.runtime.pool.query(`UPDATE auth_oauth_client SET name = 'Renamed research assistant' WHERE "clientId" = 'mcp-client'`);
       const renamed = await client.approval(planId);
       assert.notEqual(renamed.etag, item.etag);

@@ -1,3 +1,5 @@
+import { oauthClientDisplayName } from '../../modules/auth/index.js';
+
 /**
  * Consent-page lookup for a server-verified, authorization-transaction-bound
  * redirect URI.
@@ -99,8 +101,7 @@ async function issuerClientName(
   try {
     const client = await getOAuthProviderApi(ctx, plugin.options as OAuthProviderApiOptions).getClient(clientId);
     if (client === null || client.disabled === true) return undefined;
-    const name = client.name?.trim();
-    return name !== undefined && name.length > 0 ? name : undefined;
+    return oauthClientDisplayName(client.name);
   } catch {
     return undefined;
   }

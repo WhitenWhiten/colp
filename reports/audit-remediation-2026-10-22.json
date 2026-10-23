@@ -141,7 +141,14 @@
     {
       "id": "security-03",
       "title": "bound DCR client names",
-      "status": "pending"
+      "status": "resolved",
+      "validation": [
+        "DCR admission rejects non-string names and names longer than 128 Unicode code points before the upstream handler and capacity reservation; omitted and short names preserve existing behavior",
+        "Consent transaction lookup bounds legacy registrations and discovered client names to 128 code points without splitting surrogate pairs",
+        "Verified the approval projection already bounds agent names to 200 UTF-16 code units; a new real-Postgres API regression confirms a legacy 1,000-character name remains bounded and ETag decisions still work",
+        "11 policy/signed-consent unit assertions and 10 real-Postgres registration-capacity, consent lookup and approval API assertions pass; malformed/oversized registrations leave both client and reservation tables empty",
+        "Server TypeScript, targeted ESLint and import boundaries pass"
+      ]
     },
     {
       "id": "security-04",
@@ -162,7 +169,8 @@
         "Strict and relaxed endpoint policies now reject WireServer literals before DNS; shared egress address classification rejects it in all resolved A/AAAA sets and redirect hops",
         "77 targeted address, public-HTTP, downstream-consumer and redirect assertions pass; literal HTTPS, opted-in HTTP, hexadecimal URL spelling, mixed DNS answers, mapped IPv6 and public-neighbor preservation covered",
         "Server TypeScript and targeted ESLint pass"
-      ]
+      ],
+      "commit": "b3032a44"
     },
     {
       "id": "security-07",

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { validateDcrPublicClientMetadata } from '../../../src/infrastructure/auth/dcr-public-client-policy.js';
+import { oauthClientDisplayName } from '../../../src/modules/auth/index.js';
 
 function validate(metadata: Record<string, unknown>) {
   return validateDcrPublicClientMetadata(
@@ -42,4 +43,22 @@ test('non-JSON registration cannot bypass the metadata policy', () => {
       error_description: 'dynamic client registration requires application/json',
     },
   );
+});
+
+test('DCR bounds names by Unicode characters before any client or reservation is created', () => {
+  for (const name of ['a'.repeat(128), '书'.repeat(128), '🌳'.repeat(128), '']) {
+    assert.equal(validate({ token_endpoint_auth_method: 'none', application_type: 'native', client_name: name }), null);
+  }
+  for (const name of ['a'.repeat(129), '书'.repeat(129), '🌳'.repeat(129), null, 1, {}]) {
+    assert.equal(validate({ token_endpoint_auth_method: 'none', application_type: 'native', client_name: name })?.error,
+      'invalid_client_metadata');
+  }
+});
+
+test('legacy or discovered consent labels are trimmed and bounded without splitting Unicode characters', () => {
+  assert.equal(oauthClientDisplayName('  Research assistant  '), 'Research assistant');
+  assert.equal(oauthClientDisplayName('🌳'.repeat(1000)), '🌳'.repeat(128));
+  assert.equal(oauthClientDisplayName('a'.repeat(1000)), 'a'.repeat(128));
+  assert.equal(oauthClientDisplayName('   '), undefined);
+  assert.equal(oauthClientDisplayName(undefined), undefined);
 });
