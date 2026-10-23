@@ -119,7 +119,32 @@ function bindSnapshotMappings(staged: readonly MappingInput[], live: readonly Ma
       ...(mount?.rootRole || liveHit?.rootRole ? { rootRole: mount?.rootRole ?? liveHit?.rootRole } : {}),
     });
   }
-  return projected;
+  return constrainVirtualSnapshotToMounts(projected, mounts);
+}
+
+/** A known native ancestor proves identity, never coverage of its other children. */
+function constrainVirtualSnapshotToMounts(rows: readonly MappingInput[], mounts: readonly MountBindingRecord[]): readonly MappingInput[] {
+  if (mounts.length === 0) return rows;
+  const native = new Map(rows.filter(row => !virtualNativeId(row.nativeId)).map(row => [row.nativeId, row.colpId]));
+  const children = new Map<string, string[]>();
+  for (const row of rows) if (row.parentColpId) {
+    const siblings = children.get(row.parentColpId) ?? [];
+    siblings.push(row.colpId); children.set(row.parentColpId, siblings);
+  }
+  const allowed = new Set<string>();
+  const pending = mounts.filter(mount => mount.status !== 'detached')
+    .flatMap(mount => native.get(mount.nativeRootId) ?? []);
+  for (let index = 0; index < pending.length; index++) {
+    const id = pending[index]!;
+    if (allowed.has(id)) continue;
+    allowed.add(id); pending.push(...children.get(id) ?? []);
+  }
+  return rows.map(row => {
+    const role = folderRoleOf(row);
+    const container = isSpecialMountRole(role) || role === 'root' || role === 'custom' || role === 'managed-bookmarks';
+    return !container && row.nativeId.startsWith('recovery:') && !allowed.has(row.colpId)
+      ? { ...row, nativeId: `unmounted:${row.colpId}` } : row;
+  });
 }
 
 function folderRoleOf(mapping: MappingInput): string | undefined {

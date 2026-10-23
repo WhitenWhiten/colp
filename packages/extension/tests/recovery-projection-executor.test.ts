@@ -435,6 +435,32 @@ test('terminal native history cannot rematerialize a Node that is now outside th
   assert.equal(chrome.creates, 1);
 });
 
+test('snapshot projection does not grant subtree coverage to a selected subfolder’s structural ancestor', async () => {
+  const store = createSyncStateStore({ indexedDB });
+  await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: 99_999 },
+    checkpoint: null, selectedRoots: ['selected'], rootStatus: 'ready' });
+  const folder = (nativeId: string, colpId: string, parentColpId?: string): MappingInput => ({
+    ...lifecycleMapping(nativeId, colpId, parentColpId), nodeKind: 'folder',
+    projection: { revision: 'r1', digest: 'sha256:folder', content: { title: colpId } },
+  });
+  const root = folder('recovery:root', 'root');
+  const bar = { ...folder('1', 'bar', 'root'), rootRole: 'bookmarks-bar' as const };
+  const selected = { ...folder('2', 'selected', 'bar'), parentNativeId: '1', rootNativeId: '2', mountId: 'selected-mount' };
+  await store.putMapping(scope, bar); await store.putMapping(scope, selected);
+  await store.putMountBinding(scope, { mountId: 'selected-mount', nativeRootId: '2', remoteMountNodeId: 'selected',
+    customSourceKey: 'folder:2', boundaryVersion: '1', materialized: false, status: 'active' });
+  const chrome = fakeChrome([{ id: '1', title: 'bar' }, { id: '2', parentId: '1', title: 'selected' }]);
+  const outside = folder('recovery:outside', 'outside', 'bar');
+  const inside = lifecycleMapping('recovery:inside', 'inside', 'selected');
+  const result = await recoverVerifiedOrFreeze({ scope, store, api: chrome.api,
+    staged: [root, { ...bar, nativeId: 'recovery:bar' }, { ...selected, nativeId: 'recovery:selected' }, outside, inside],
+    freezeUnprovenIdentity: true });
+  assert.equal([...chrome.nodes.values()].some(node => node.title === 'outside'), false);
+  assert.equal([...chrome.nodes.values()].filter(node => node.title === 'inside').length, 1);
+  assert.equal(result.find(row => row.colpId === 'outside')?.nativeId, 'unmounted:outside');
+  store.close();
+});
+
 test('the verified guard retains the legacy selected-root overlay for an entirely native projection', async () => {
   const store = createSyncStateStore({ indexedDB });
   await store.registerScope({ ...scope, lifecycle: 'active', lease: { leaseId: 'lease', expiresAt: 99_999 },

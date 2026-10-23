@@ -351,7 +351,8 @@
         "Shared production fixture closes child processes and force-drops its owned database on success/failure/signal; documentation paths match packages/server/Dockerfile",
         "Updated obsolete UI selectors/copy and strict mock declarations; undeclared API calls still fail closed; no generic mock success fallback",
         "Web TypeScript, 3 browser CI/discovery contracts, CSS stylelint, JavaScript syntax and whitespace checks pass. Existing ESLint configuration intentionally covers src only, so E2E/acceptance TypeScript is exercised by Playwright rather than claimed as linted"
-      ]
+      ],
+      "commit": "b8c0cb99"
     },
     {
       "id": "tests-05",
@@ -798,11 +799,13 @@
     {
       "id": "sync-19",
       "title": "Constrain virtual Snapshot projection to selected mounts rather than structural ancestors",
-      "status": "in_progress",
+      "status": "resolved",
       "validation": [
-        "Real two-profile root-authority browser case downloads an unselected sibling into the second browser",
-        "New valid-snapshot unit regression reproduces native creation of an outside folder below a shared structural ancestor",
-        "Verified Snapshot guard now marks unmounted ordinary virtual subtrees remote-only using a linear ancestry walk; true container identities retain their existing placeholders; related tests and browser validation in progress"
+        "Restored two-profile root-authority browser coverage reproduces an unselected sibling being downloaded into the second native browser tree",
+        "New valid-snapshot regression fails before the fix and passes afterward: existing native ancestors retain identity, the selected descendant materializes exactly once, an unselected sibling remains unmounted remote-only state",
+        "Verified Snapshot guard uses a linear graph walk from explicitly mounted native roots; structural ancestor identity cannot expand coverage; special/custom container placeholders retain their existing semantics",
+        "91 related recovery/projection, local-delete, issue-preservation, mapping-lifecycle and real-Pull assertions pass; TypeScript, targeted ESLint, source-size gate and production build pass",
+        "Real two-profile Chromium run now passes absence of the other profile’s unselected native root. The journey advances to a separate stale-token expectation after restart, still tracked under extension CI restoration"
       ]
     }
   ],
