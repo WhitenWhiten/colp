@@ -18,7 +18,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: 'list',
+  reporter: [['list'], ['json', { outputFile: 'test-results/results.json' }]],
   timeout: 60_000,
   expect: {
     toHaveScreenshot: { animations: 'disabled', maxDiffPixelRatio: 0.01 },

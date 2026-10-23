@@ -342,11 +342,15 @@
     {
       "id": "tests-04",
       "title": "execute all web E2E and acceptance tests in CI",
-      "status": "in_progress",
-      "progress": [
-        "Initial real Chromium shard 1/4 under xvfb: 39 passed, 2 failed, 2 deliberate viewport-condition skips; mocked Web tests do not require a real Product backend",
-        "Failures identify stale No collections yet copy and missing /me/library and favicon-job-list mocks. Shared mock now serves the owner library endpoint and the fixture explicitly handles public Manifest reads",
-        "Web E2E package scripts now require xvfb, JSON reports are enabled, and a full production CLI/owner acceptance entry uses the shared isolated fixture; required CI routing still to be added after the extension fixture/routing commit"
+      "status": "resolved",
+      "validation": [
+        "All 26 web E2E specs and the production acceptance spec are independently collected by real Playwright; executable script contracts compare discovery against physical files and require both CI jobs in ci-gate",
+        "Required web-browser job executes all desktop and responsive cases across four shards; required web-acceptance builds the production CLI and web application against disposable PostgreSQL and an isolated real owner",
+        "Full final Chromium run under xvfb: 161 passed, 3 intentional viewport-condition skips, zero failures or retries (2.7 minutes)",
+        "Real production HTTP/PostgreSQL acceptance passes (12.9 seconds): library navigation, folder/bookmark/private-note editing and reopen, HTML import and exact repeated-import dedup, anonymous subtree share with no private note, immediate revocation, empty Sync center, installed versions and Docker-shipped Markdown documentation",
+        "Shared production fixture closes child processes and force-drops its owned database on success/failure/signal; documentation paths match packages/server/Dockerfile",
+        "Updated obsolete UI selectors/copy and strict mock declarations; undeclared API calls still fail closed; no generic mock success fallback",
+        "Web TypeScript, 3 browser CI/discovery contracts, CSS stylelint, JavaScript syntax and whitespace checks pass. Existing ESLint configuration intentionally covers src only, so E2E/acceptance TypeScript is exercised by Playwright rather than claimed as linted"
       ]
     },
     {
@@ -787,7 +791,18 @@
         "Reproduced duplicate folder and bookmark on reconnect in real Chromium",
         "New unit regression proves selected local mount keys prevent pairing inside an already authoritative remote parent",
         "Parent identity, node kind and exact title/URL now bind structural matches; true custom browser roots retain their separate eligibility rules",
-        "238 assertions in all 26 matcher/coordinator consumer suites pass; TypeScript, targeted lint and source-size gate pass; real Chromium reconnect preserves the identical canonical id set and native tree across disconnect, fresh replica, reload and re-confirmation. That test subsequently reaches an unrelated outdated range-preview copy assertion, updated with the CI fixture work."
+        "238 assertions in all 26 matcher/coordinator consumer suites pass; TypeScript, targeted lint and source-size gate pass; the complete real Chromium selected-subfolder reconnect journey passes, including preserved canonical/native ids and later coverage expansion."
+      ],
+      "commit": "a10f3ee2"
+    },
+    {
+      "id": "sync-19",
+      "title": "Constrain virtual Snapshot projection to selected mounts rather than structural ancestors",
+      "status": "in_progress",
+      "validation": [
+        "Real two-profile root-authority browser case downloads an unselected sibling into the second browser",
+        "New valid-snapshot unit regression reproduces native creation of an outside folder below a shared structural ancestor",
+        "Verified Snapshot guard now marks unmounted ordinary virtual subtrees remote-only using a linear ancestry walk; true container identities retain their existing placeholders; related tests and browser validation in progress"
       ]
     }
   ],

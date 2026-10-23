@@ -17,6 +17,7 @@ type MockNode = {
 
 export type MockState = {
   authenticated: boolean
+  library: boolean
   collectionTitle: string
   collectionEtag: string
   collectionVisibility: 'private' | 'protected' | 'unlisted' | 'public'
@@ -67,6 +68,7 @@ const MOCK_TIME = '2026-07-22T00:00:00.000Z'
 function createMockState(partial?: Partial<MockState>): MockState {
   return {
     authenticated: true,
+    library: false,
     collectionTitle: 'E2E Collection',
     collectionEtag: '"c-1"',
     collectionVisibility: 'private',
@@ -135,6 +137,7 @@ function collectionView(state: MockState) {
   return {
     id: MOCK_COLLECTION_ID,
     kind: 'bookmarks',
+    library: state.library,
     title: state.collectionTitle,
     summary: null,
     visibility: state.collectionVisibility,
@@ -376,7 +379,12 @@ export class ProductApiMock {
   private async fulfillOwnedCollectionList(route: Route): Promise<boolean> {
     const request = route.request()
     const path = new URL(request.url()).pathname
-    if (request.method() !== 'GET' || path !== '/api/v1/collections') return false
+    if (request.method() !== 'GET' || !['/api/v1/collections', '/api/v1/me/library'].includes(path)) return false
+    if (path === '/api/v1/me/library') {
+      await json(route, { id: MOCK_COLLECTION_ID, title: this.state.collectionTitle, rootNodeId: MOCK_ROOT_ID,
+        library: true, bookmarksBarId: `${MOCK_ROOT_ID}-bar`, otherBookmarksId: `${MOCK_ROOT_ID}-other` })
+      return true
+    }
     const snapshot = editorPage(this.state)
     await json(route, {
       items: [{

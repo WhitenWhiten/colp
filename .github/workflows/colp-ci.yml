@@ -405,6 +405,56 @@ jobs:
         run: xvfb-run --auto-servernum node scripts/with-postgres.mjs --isolated-owner -- node node_modules/vitest/vitest.mjs run --project ${{ matrix.project }}
         working-directory: packages/server
 
+  web-browser:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/web/package-lock.json
+      - run: npm ci && npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/web
+      - name: Install Chromium and browser dependencies
+        run: npx playwright install --with-deps chromium
+        working-directory: packages/web
+      - name: Complete desktop and responsive browser suite
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+        working-directory: packages/web
+
+  web-acceptance:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/web/package-lock.json
+            packages/server/package-lock.json
+      - run: npm ci && npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/web
+      - run: npm ci && npm rebuild esbuild --ignore-scripts=false
+        working-directory: packages/server
+      - name: Install Chromium and browser dependencies
+        run: npx playwright install --with-deps chromium
+        working-directory: packages/web
+      - name: Production CLI, PostgreSQL and built-web acceptance
+        run: npm run test:acceptance
+        working-directory: packages/web
+
   web:
     needs: changes
     if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
@@ -675,6 +725,8 @@ jobs:
       - server-integration
       - server-capabilities
       - web
+      - web-browser
+      - web-acceptance
       - extension
       - extension-coverage
       - extension-mv3
@@ -700,6 +752,8 @@ jobs:
           SERVER_INTEGRATION_RESULT: ${{ needs.server-integration.result }}
           SERVER_CAPABILITIES_RESULT: ${{ needs.server-capabilities.result }}
           WEB_RESULT: ${{ needs.web.result }}
+          WEB_BROWSER_RESULT: ${{ needs.web-browser.result }}
+          WEB_ACCEPTANCE_RESULT: ${{ needs.web-acceptance.result }}
           EXTENSION_RESULT: ${{ needs.extension.result }}
           EXTENSION_COVERAGE_RESULT: ${{ needs.extension-coverage.result }}
           EXTENSION_MV3_RESULT: ${{ needs.extension-mv3.result }}
@@ -707,7 +761,7 @@ jobs:
           EXTENSION_KNS09_RELEASE_RESULT: ${{ needs.extension-kns-09-release.result }}
           EXTENSION_KNS09_E2E_RESULT: ${{ needs.extension-kns-09-e2e.result }}
         run: |
-          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$SERVER_CAPABILITIES_RESULT" "$WEB_RESULT" \
+          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$SERVER_CAPABILITIES_RESULT" "$WEB_RESULT" "$WEB_BROWSER_RESULT" "$WEB_ACCEPTANCE_RESULT" \
             "$EXTENSION_RESULT" "$EXTENSION_COVERAGE_RESULT" "$EXTENSION_MV3_RESULT" "$EXTENSION_SYNC_REAL_STACK_RESULT" \
             "$EXTENSION_KNS09_RELEASE_RESULT" "$EXTENSION_KNS09_E2E_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then

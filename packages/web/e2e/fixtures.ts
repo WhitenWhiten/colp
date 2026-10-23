@@ -12,6 +12,7 @@ type StrictApiFixtures = {
 export const test = base.extend<StrictApiFixtures>({
   rejectUnexpectedApiRequests: [async ({ context }, use) => {
     const unexpected: string[] = []
+    await context.route('**/.well-known/collection-protocol', route => route.fulfill({ status: 404, json: {} }))
     await context.route(/\/api(?:\/|$)/u, async (route) => {
       const request = route.request()
       const url = new URL(request.url())

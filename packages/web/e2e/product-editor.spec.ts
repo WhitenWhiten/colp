@@ -272,20 +272,17 @@ test.describe('Product editor with strict mocked API', () => {
     mock.acknowledgeExpectedViolations(/unconsumed deliberately unconsumed editor request/u)
   })
 
-  test('creates a collection through the Product UI with admitted command traffic', async ({ page }) => {
-    mock = await installProductApiMocks(page)
+  test('opens the existing personal library through the Product UI without creating another collection', async ({ page }) => {
+    mock = await installProductApiMocks(page, { library: true })
     mock
       .expectBootstrap()
-      .expect({ method: 'POST', path: '/api/v1/collections', label: 'create collection' })
       .expectDeskMount()
 
-    await page.goto('/library/new', { waitUntil: 'domcontentloaded' })
-    await page.getByLabel('Title').fill('Created in browser')
-    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await page.goto('/library', { waitUntil: 'domcontentloaded' })
 
-    await expect(page).toHaveURL(`/library/${MOCK_COLLECTION_ID}`)
+    await expect(page).toHaveURL('/library')
     await expect(page.getByTestId('library-workspace')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Created in browser' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'All bookmarks', exact: true })).toBeVisible()
     await expect(page.getByTestId('collection-settings')).toHaveCount(0)
     await expect.poll(() => mock.pendingExpectationCount()).toBe(0)
   })

@@ -29,6 +29,15 @@ Open the URL Vite prints. The dev server proxies `/api` to `VITE_API_PROXY`
 Session and CSRF state never go to `localStorage`. Command-intent IDs use
 `sessionStorage` only so a retry can reuse its `Known-Command-Id`.
 
+`npm run test:e2e` runs every desktop and responsive Playwright test under
+xvfb; CI requires all four shards. `npm run test:acceptance` builds the real
+server and web application, creates a disposable PostgreSQL database and owner,
+and verifies sign-in, editing, private notes, repeated HTML imports, anonymous
+sharing and revocation, Sync center, versions and shipped documentation. The
+fixture stops its server and removes the database on success, failure or
+interruption. `npm run test:scripts` checks actual Playwright discovery against
+both test directories and requires both browser jobs in the CI gate.
+
 ## Routes
 
 | Route | Page |

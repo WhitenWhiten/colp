@@ -44,6 +44,12 @@ export async function fulfillPassiveFeatureRequest(route: Route): Promise<boolea
     await json(route, { sections: { mine: [], shared: [], following: [] } })
     return true
   }
+  if (path === '/api/v1/me/favicon-policy') {
+    await route.fulfill({ json: { revision: '1', newDefault: 'capture',
+      providerTemplate: 'https://favicone.com/{hostname}', fillMissing: false, forceAllOnline: false },
+    headers: { ETag: '"favicon-policy:1"' } })
+    return true
+  }
   /* The desk's comfort rows lazily pull note/TL;DR snippets per visible
      bookmark; an empty page keeps that sidecar silent under strict mocks. */
   if (/^\/api\/v1\/collections\/[^/]+\/annotations$/u.test(path)) {

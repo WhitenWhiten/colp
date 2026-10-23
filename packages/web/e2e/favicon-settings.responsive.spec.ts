@@ -16,16 +16,22 @@ test('favicon settings use the shared form layout and persist missing-icon filli
     }
   })
   await page.route('**/api/v1/me/favicon-jobs/*', (route) => route.fulfill({ json: { status: 'succeeded', succeeded: 1, total: 1, failed: 0, skipped: 0 } }))
+  await page.route('**/api/v1/me/favicon-jobs', route => route.fulfill({ json: {
+    items: [], page: { returnedCount: 0, hasMore: false, nextCursor: null },
+  } }))
   await page.goto('/library?settings=favicon')
   const section = page.getByTestId('settings-favicon')
   await expect(section.getByText('Default for new bookmarks')).toBeVisible()
   await expect(section.getByTestId('favicon-provider-template')).toBeVisible()
-  expect(await section.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+  const geometry = await section.evaluate(element => ({
+    width: element.clientWidth, scrollWidth: element.scrollWidth,
+  }))
+  expect(geometry.scrollWidth, JSON.stringify(geometry)).toBeLessThanOrEqual(geometry.width + 1)
   await section.getByTestId('favicon-fill-missing').click()
   await expect.poll(() => fillMissing).toBe(true)
   await expect(section.getByTestId('favicon-fill-missing')).toBeChecked()
   await page.screenshot({ path: test.info().outputPath('favicon-settings.png'), fullPage: true })
-  await expect(page.getByText('No collections yet', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Actions for Cascade notes' })).toBeVisible()
   await section.getByTestId('favicon-provider-template').fill('https://draft.example/{hostname}')
   await page.getByRole('button', { name: 'Close settings' }).click()
   const guard = page.getByRole('dialog', { name: 'Discard changes?' })
