@@ -445,7 +445,19 @@
     {
       "id": "performance-04",
       "title": "bound owner maintenance work",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Verified existing commit 3461c944: production composes a durable queue of owners with automation records, with indexed due claims, SKIP LOCKED distributed leases and generation-fenced release. Each sweep claims at most 128 owner slots with concurrency four; unused accounts are not scanned or account-locked. Per-owner convergence separately bounds ready jobs and pending/reconcile runs.",
+      "existingFix": "3461c944",
+      "validation": [
+        "All 3 owner-batch unit cases passed: a blocked owner leaves the other slots progressing, the 128-owner / four-slot bounds hold, failed owners release for retry, and queue failures drain started work.",
+        "Both real PostgreSQL cases passed: 1,000 unused accounts never enter the queue, existing/new automation owners are registered, concurrent replicas claim different owners, and stale generations cannot release a replacement lease.",
+        "Production worker registration and start/awaited-stop callers were verified in worker.ts and worker-automation-maintenance.ts."
+      ],
+      "evidence": [
+        "packages/server/src/bootstrap/worker-automation-maintenance.ts",
+        "packages/server/src/infrastructure/automation/owner-maintenance-queue.ts",
+        "packages/server/tests/integration/automation/owner-maintenance-queue.integration.test.ts"
+      ]
     },
     {
       "id": "performance-05",
