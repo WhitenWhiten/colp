@@ -266,7 +266,9 @@ export function createBootstrapCoordinator(options: {
         rootNodeId: headerRoot ?? remote.find((row) => row.folderRole === 'root')?.nodeId ?? input.rootNodeId ?? null,
       };
     }
-    const remote = (await store.listMappings(scope)).flatMap((row) => liveRemoteFromMapping(row));
+    const tombstoned = new Set((await store.listRemoteObservations(scope))
+      .filter((row) => row.kind === 'tombstone').map((row) => row.colpId));
+    const remote = (await store.listMappings(scope)).flatMap((row) => liveRemoteFromMapping(row, tombstoned));
     if (remote.length > 0) {
       return {
         run, remote, fromRecovery: false,

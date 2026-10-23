@@ -76,9 +76,16 @@ export function remoteFromRecovery(node: RecoveryNodeRecord): RemoteNodeFact {
     : node.kind === 'Separator' ? 'separator' : 'folder', node.mapping);
 }
 
-export function liveRemoteFromMapping(mapping: MappingInput): RemoteNodeFact[] {
+/**
+ * An `unmounted:` mapping is a live remote node outside this browser's mounted
+ * coverage unless a tombstone observation proves it gone (a kept-local copy
+ * after a remote delete). Live ones stay pairable, so a reconnected selection
+ * binds its existing canonical nodes instead of uploading them again.
+ */
+export function liveRemoteFromMapping(mapping: MappingInput, tombstoned: ReadonlySet<string>): RemoteNodeFact[] {
   if (mapping.projection.revision === 'local-root' || !authoritativeColp(mapping.colpId) || mapping.colpId.startsWith('unmounted:')
-      || mapping.nativeId.startsWith('unmounted:') || mapping.nativeId.startsWith('pending-')) {
+      || (mapping.nativeId.startsWith('unmounted:') && tombstoned.has(mapping.colpId))
+      || mapping.nativeId.startsWith('pending-')) {
     return [];
   }
   const kind = mapping.nodeKind === 'bookmark' ? 'bookmark'

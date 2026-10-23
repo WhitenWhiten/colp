@@ -6,8 +6,10 @@ import { scanBoundary } from '../src/bookmark-boundary.js';
 import { localFactsFromRoots } from '../src/bootstrap/local-facts.js';
 import { recordBoundaryDiagnostics } from '../src/bootstrap/boundary-diagnostics.js';
 import { createBootstrapCoordinator, type ConfirmInput } from '../src/bootstrap/coordinator.js';
+import { liveRemoteFromMapping } from '../src/bootstrap/coordinator-operations.js';
 import { matchLocalRemote } from '../src/bootstrap/matcher.js';
 import type { NormalizedBookmarkNode, NormalizedBookmarkRoot } from '../src/chrome-bookmark-tree.js';
+import type { MappingInput } from '../src/sync-state-store.js';
 import { bar, scope, setup } from './sync-recovery-hardening-fixture.js';
 
 const bookmark = (nativeId: string, url: string): NormalizedBookmarkNode =>
@@ -125,4 +127,14 @@ describe('bootstrap privacy and representability match its preview', () => {
     assert.equal((await store.listIngressDiagnostics(scope))[0]?.count, 1);
     store.close();
   });
+});
+
+test('a live unmounted remote node stays pairable for a reconnect; a tombstoned one does not', () => {
+  // Snapshot coverage marks remote nodes outside every resolved mount `unmounted:`.
+  // Bootstrap must still pair a reconnected selection with them (audit sync-18).
+  const outside = (colpId: string): MappingInput => ({ nativeId: `unmounted:${colpId}`, colpId,
+    rootNativeId: `unmounted:${colpId}`, nodeKind: 'folder', parentColpId: 'bar',
+    projection: { revision: 'r1', digest: colpId, content: { title: colpId } } });
+  assert.deepEqual(liveRemoteFromMapping(outside('selected'), new Set()).map(fact => fact.nodeId), ['selected']);
+  assert.deepEqual(liveRemoteFromMapping(outside('kept-local'), new Set(['kept-local'])), []);
 });
