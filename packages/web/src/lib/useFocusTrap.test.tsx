@@ -68,6 +68,13 @@ describe('useFocusTrap', () => {
     expect(document.activeElement).toBe(buttons()[1])
   })
 
+  it('leaves focus on a control chosen inside the container before the first frame', () => {
+    mountTree(<Trap active initialFocus="[data-initial]" />)
+    buttons()[0]!.focus()
+    act(() => vi.runOnlyPendingTimers())
+    expect(document.activeElement).toBe(buttons()[0])
+  })
+
   it('falls back to the first focusable when the initialFocus selector matches nothing', () => {
     mountTree(<Trap active initialFocus="[data-missing]" />)
     act(() => vi.runOnlyPendingTimers())

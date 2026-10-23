@@ -81,6 +81,11 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
 
     document.addEventListener('keydown', handleKeyDown)
     const frame = requestAnimationFrame(() => {
+      // Someone already chose a control inside (a fast click, or typing into a
+      // field that became enabled before this frame): moving focus now would
+      // send their next keystrokes into a different field.
+      const current = document.activeElement
+      if (current instanceof HTMLElement && current !== trapRoot && trapRoot.contains(current)) return
       const target = resolveInitialFocus() ?? getFocusable()[0]
       // preventScroll: trap containers are overlays that may still be
       // animating in from off-screen; a reveal-scroll here pans the whole
