@@ -63,4 +63,17 @@ describeWithPostgres('AW-44 retention and restore',()=>{
     expect(queries.join(' ')).not.toMatch(/automation_pairings|automation_event_subscriptions|automation_event_deliveries/);
   });
 
+  test('old unreferenced terminal subscriptions expire without erasing delivery history', async () => {
+    await setup();
+    const subscription = await f.db.selectFrom('automation_event_subscriptions').selectAll().executeTakeFirstOrThrow();
+    await sql`INSERT INTO automation_event_subscriptions(id,owner_id,target_id,profile_id,identity_digest,callback_url,profile_revision,pairing_generation,state,refresh_before)
+      SELECT 'unreferenced',owner_id,target_id,profile_id,'unreferenced',callback_url,profile_revision,pairing_generation,
+        'expired',clock_timestamp()-interval '31 days' FROM automation_event_subscriptions WHERE id=${subscription.id}`.execute(f.db);
+    await sql`UPDATE automation_event_subscriptions SET state='revoked',refresh_before=clock_timestamp()-interval '31 days'
+      WHERE id=${subscription.id}`.execute(f.db);
+    await retainAutomationHistory(f.db, f.owner.accountId);
+    expect((await sql<{id:string}>`SELECT id FROM automation_event_subscriptions`.execute(f.db)).rows).toEqual([{ id: subscription.id }]);
+    expect((await sql`SELECT id FROM automation_event_deliveries`.execute(f.db)).rows).toHaveLength(1);
+  });
+
 });

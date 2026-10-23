@@ -8,6 +8,7 @@ import { AutomationError, type WorkPrincipal } from '../../modules/automation/in
 import type { AutomationEventsService } from '../../modules/mcp/index.js';
 import type { TargetWorkerService } from './target-worker.js';
 import type { TargetRow } from './target-store.js';
+export const MAX_RETAINED_AUTOMATION_SUBSCRIPTIONS = 1000;
 export interface SubscriptionVerifier {
   verify(input: {
     id: string;
@@ -56,13 +57,15 @@ export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: Tar
       const pending = await db.transaction().execute(async (tx) => {
         const { profile, target } = await authority(tx, actor, input.arguments.targetId);
         const count = (await sql<{
-          n: number;
-        }>`SELECT count(*)::int AS n FROM automation_event_subscriptions WHERE owner_id=${actor.accountId}
-     AND state IN ('active','verifying') AND refresh_before>clock_timestamp()`.execute(tx)).rows[0]!.n;
+          n: number; retained: number;
+        }>`SELECT count(*) FILTER (WHERE state IN ('active','verifying') AND refresh_before>clock_timestamp())::int AS n,
+          count(*)::int AS retained FROM automation_event_subscriptions WHERE owner_id=${actor.accountId}`.execute(tx)).rows[0]!;
         const existing = (await sql<SubscriptionRow>`SELECT *,state IN ('active','verifying') AND refresh_before>clock_timestamp() AS occupies_slot
      FROM automation_event_subscriptions WHERE identity_digest=${identity(actor, input)}`.execute(tx)).rows[0];
-        if (!existing?.occupies_slot && count >= 100)
+        if (!existing?.occupies_slot && count.n >= 100)
           throw new AutomationError('payload_too_large', 'Subscription limit reached.');
+        if (!existing && count.retained >= MAX_RETAINED_AUTOMATION_SUBSCRIPTIONS)
+          throw new AutomationError('payload_too_large', 'Retained subscription limit reached.');
         // Renewal verification has its own fence. A live subscription continues
         // delivering and receiving queued wakes until the new key is verified.
         const live = sql`automation_event_subscriptions.state='active'
@@ -87,7 +90,15 @@ export function createSubscriptionStore(db: Kysely<DatabaseSchema>, targets: Tar
         await verifier.verify({ id: pending.id, url: input.delivery.url, secret: input.delivery.secret! });
       }
       catch {
-        await sql`UPDATE automation_event_subscriptions SET state='revoked',generation=generation+1,secret_ciphertext=NULL,previous_secret_ciphertext=NULL WHERE id=${pending.id} AND generation=${pending.generation}::bigint AND verification_generation=${pending.verification_generation}::bigint AND state='verifying'`.execute(db);
+        await db.transaction().execute(async tx => {
+          await tx.selectFrom('accounts').select('id').where('id', '=', actor.accountId).forUpdate().executeTakeFirst();
+          const revoked = (await sql`UPDATE automation_event_subscriptions SET state='revoked',generation=generation+1,
+            secret_ciphertext=NULL,previous_secret_ciphertext=NULL WHERE id=${pending.id}
+            AND generation=${pending.generation}::bigint AND verification_generation=${pending.verification_generation}::bigint
+            AND state='verifying' RETURNING id`.execute(tx)).rows;
+          if (revoked.length) await sql`DELETE FROM automation_event_subscriptions s WHERE s.id=${pending.id}
+            AND NOT EXISTS(SELECT 1 FROM automation_event_deliveries d WHERE d.subscription_id=s.id)`.execute(tx);
+        });
         throw new McpEventsError(-32015, 'Callback verification failed.');
       }
       return db.transaction().execute(async (tx) => {

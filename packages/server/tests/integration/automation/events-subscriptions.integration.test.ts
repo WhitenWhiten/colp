@@ -75,4 +75,24 @@ describeWithPostgres('AW-27 durable Events subscriptions', () => {
     expect((await store.subscribe(f.actor,input)).id).toBe(original.id);
   });
 
+  test('failed callback variants leave no unreferenced durable reservations', async () => {
+    const input = await setup();
+    const store = createSubscriptionStore(f.db, f.worker, { ...verifier, verify: async () => { throw new Error('challenge failed'); } });
+    for (let i = 0; i < 105; i++) {
+      await expect(store.subscribe(f.actor, { ...input, delivery: { ...input.delivery, url: `https://receiver.example/hook?nonce=${i}` } }))
+        .rejects.toMatchObject({ code: -32015 });
+    }
+    expect((await sql`SELECT id FROM automation_event_subscriptions`.execute(f.db)).rows).toHaveLength(0);
+  });
+  test('the retained-row cap is separate from live slots and allows an existing renewal', async () => {
+    const input = await setup(), store = createSubscriptionStore(f.db, f.worker, verifier);
+    const original = await store.subscribe(f.actor, input);
+    await sql`INSERT INTO automation_event_subscriptions(id,owner_id,target_id,profile_id,identity_digest,callback_url,profile_revision,pairing_generation,state,refresh_before)
+      SELECT 'history-'||n,owner_id,target_id,profile_id,'history-digest-'||n,callback_url,profile_revision,pairing_generation,
+        'expired',clock_timestamp()-interval '1 day' FROM automation_event_subscriptions CROSS JOIN generate_series(1,999) n WHERE id=${original.id}`.execute(f.db);
+    await expect(store.subscribe(f.actor, { ...input, delivery: { ...input.delivery, url: 'https://receiver.example/new' } }))
+      .rejects.toMatchObject({ code: 'payload_too_large', message: 'Retained subscription limit reached.' });
+    expect((await store.subscribe(f.actor, input)).id).toBe(original.id);
+  });
+
 });

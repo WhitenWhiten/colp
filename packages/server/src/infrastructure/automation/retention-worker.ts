@@ -4,6 +4,7 @@ import type { DatabaseSchema } from '../database/runtime.js';
 /** Captured facts are private bookmark copies; inspected, unreferenced ones expire after this window. */
 export const AUTOMATION_FACTS_RETENTION_DAYS = 30;
 export const AUTOMATION_BUNDLE_RETENTION_DAYS = 30;
+export const AUTOMATION_SUBSCRIPTION_RETENTION_DAYS = 30;
 
 /**
  * Bounded housekeeping. Run members, job inputs, result/effect, batch members and matched dedup
@@ -50,6 +51,11 @@ export async function retainAutomationHistory(db: Kysely<DatabaseSchema>,ownerId
       WHERE owner_id=${ownerId} AND previous_secret_until<=clock_timestamp()`.execute(tx);
     await sql`UPDATE automation_event_subscriptions SET state='expired',generation=generation+1,secret_ciphertext=NULL,previous_secret_ciphertext=NULL
       WHERE owner_id=${ownerId} AND refresh_before<=clock_timestamp() AND state IN ('active','verifying')`.execute(tx);
+    await sql`DELETE FROM automation_event_subscriptions WHERE id IN (SELECT s.id FROM automation_event_subscriptions s
+      WHERE s.owner_id=${ownerId} AND s.state IN ('revoked','expired','revalidation')
+        AND s.refresh_before<clock_timestamp()-make_interval(days => ${AUTOMATION_SUBSCRIPTION_RETENTION_DAYS})
+        AND NOT EXISTS(SELECT 1 FROM automation_event_deliveries d WHERE d.subscription_id=s.id)
+      ORDER BY s.refresh_before,s.id LIMIT 100)`.execute(tx);
     const expired=(await sql<{ id:string;rule_id:string }>`SELECT d.id,v.rule_id FROM automation_event_deliveries d
       JOIN automation_runs r ON r.id=d.run_id JOIN automation_rule_revisions v ON v.id=r.rule_revision_id
       WHERE d.owner_id=${ownerId} AND d.state IN ('pending','retrying','sending') AND d.created_at<clock_timestamp()-interval '7 days'
