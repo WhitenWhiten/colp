@@ -253,6 +253,8 @@ function manifest(app: FastifyInstance): Manifest {
         minPollIntervalSeconds: 10, recommendedPollIntervalSeconds: 30 } }] } as Manifest;
 }
 
+// These replicas Push before their first Ack. Like the extension, they bind
+// `merge`: until bootstrap is acknowledged a `download` Session cannot Push.
 function sessionRequest(replica: { readonly replicaId: string; readonly binding: {
   readonly browserProfileId: string; readonly browserGeneration: string } }): SyncSessionRequest {
   return { protocolVersion: '0.1', scope: 'collection', clientTime: '2026-07-26T12:00:00.000Z',
@@ -261,5 +263,5 @@ function sessionRequest(replica: { readonly replicaId: string; readonly binding:
         events: true, separator: true, alias: false, annotations: 'sidecar', maxBatchOperations: 1 },
       binding: { browserProfileId: replica.binding.browserProfileId, mountMode: 'whole-profile',
         mountNativeId: 'ack-http-native-root', generation: replica.binding.browserGeneration }, extensions: {} },
-    collection: { collectionId: COLLECTION, lastCursor: null, lastRevision: null, bootstrapMode: 'download' } };
+    collection: { collectionId: COLLECTION, lastCursor: null, lastRevision: null, bootstrapMode: 'merge' } };
 }
