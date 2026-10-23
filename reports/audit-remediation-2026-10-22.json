@@ -672,7 +672,8 @@
         "Server push HTTP unit suite now requires currentSubtree on the wire; the real-PostgreSQL sync-node-update suite (44 tests) passes with the SDK summary helper",
         "Web bookmark import and automation suites pass (145 tests); server, extension and web TypeScript, targeted ESLint, the extension source-size gate and development build, the web production build and bundle budget pass",
         "docker build --target web-build of packages/server/Dockerfile succeeds with the vendored SDK copy; the probe image was removed"
-      ]
+      ],
+      "commit": "9366587a"
     },
     {
       "id": "code-01",
@@ -987,11 +988,17 @@
     {
       "id": "tests-08",
       "title": "Investigate transient zero-row second receipt purge in the restored PostgreSQL suite",
-      "status": "pending",
+      "status": "resolved",
       "evidence": [
         "First complete isolated run failed second ceiling purge: expected 5, received 0",
         "Isolated ceiling case and two subsequent complete runs pass without runtime changes",
         "Failure-only diagnostic now records remaining rows, expiry flags and active test connections without weakening the assertion"
+      ],
+      "resolution": "Root cause: the host wall clock, not the purge. PostgreSQL current_timestamp follows the wall clock, and the WSL2 development host steps it backwards. Between 01:32 and 04:50 PDT on 2026-10-23 its journal shows 372 backward steps of 1 to 6.5 s, about one every 30 s (no journal survives from the failing run on 2026-10-22). The ceiling case seeds receipts that expired only one second earlier. A backward step of more than about 1.5 s between the first and second purge makes the five leftover rows unexpired again, so the second purge correctly finds nothing. A step before the first purge would fail it the same way. Lock interference was ruled out: the unit of work never retries, no background purger or other connection uses the test schema, every earlier test awaits or rolls back its transactions, and the purge statement returns exactly the expired, unlocked rows. Fix: every receipt the suite expires (six seeded batches and four ageing updates) is now an hour past its expiry, held in one EXPIRED_AGE constant that explains why. The failure-only diagnostic is removed and the plain 5-row assertion is back.",
+      "validation": [
+        "Journal clock analysis (realtime minus monotonic per entry): 372 backward steps over 50 ms between 01:32 and 04:50 PDT, all but one over 1 s, largest 6.5 s; since 09:00 the steps are under 0.5 s, which is why reruns pass",
+        "A temporary 60-iteration loop of the ceiling case under five busy CPU cores passed while the clock was quiet; the harness was deleted",
+        "product-command-receipt PostgreSQL suite passes twice after the change (26 tests each); targeted ESLint passes"
       ]
     },
     {

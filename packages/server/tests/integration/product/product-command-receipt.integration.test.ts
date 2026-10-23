@@ -19,6 +19,11 @@ import { httpCommandScopeV1 } from '../../../src/transport/http-command-scope.js
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const ACTIVE_CLAIM_LATENCY_BOUND_MS = 1_000;
+// tests-08: an expired receipt is an hour past its expiry, not a second.
+// PostgreSQL's current_timestamp follows the host wall clock, and a WSL2 host
+// has been seen stepping it back 1-6.5 s every 30 s. A one-second-old expiry
+// then reads as unexpired again, and a purge between two steps finds nothing.
+const EXPIRED_AGE = '1 hour';
 
 function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
   let resolve!: () => void;
@@ -90,7 +95,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
 
     await runtime.pool.query(`update product_command_receipts
       set completed_at = current_timestamp - interval '31 days',
-          result_expires_at = current_timestamp - interval '1 second'
+          result_expires_at = current_timestamp - interval '${EXPIRED_AGE}'
       where principal_id = $1 and command_scope = $2 and command_id = $3`,
     [first.principalId, first.commandScope, first.commandId]);
     assert.equal(await port.purgeExpired({ limit: 1 }), 1);
@@ -533,7 +538,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
 
     await runtime.pool.query(`update product_command_receipts
       set completed_at = current_timestamp - interval '31 days',
-          result_expires_at = current_timestamp - interval '1 second'
+          result_expires_at = current_timestamp - interval '${EXPIRED_AGE}'
       where principal_id = $1 and command_scope = $2 and command_id = $3`,
     [seen.principalId, seen.commandScope, seen.commandId]);
     const purged = await createUnitOfWork(runtime.db).execute(({ transaction }) =>
@@ -569,7 +574,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
 
     await runtime.pool.query(`update product_command_receipts
       set completed_at = current_timestamp - interval '31 days',
-          result_expires_at = current_timestamp - interval '1 second'
+          result_expires_at = current_timestamp - interval '${EXPIRED_AGE}'
       where principal_id = $1 and command_scope = $2 and command_id = $3`,
     [seen.principalId, seen.commandScope, seen.commandId]);
     await createUnitOfWork(runtime.db).execute(({ transaction }) =>
@@ -681,7 +686,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
   async function ageReceipt(seen: ProductCommandBinding): Promise<void> {
     await runtime.pool.query(`update product_command_receipts
       set completed_at = current_timestamp - interval '31 days',
-          result_expires_at = current_timestamp - interval '1 second'
+          result_expires_at = current_timestamp - interval '${EXPIRED_AGE}'
       where principal_id = $1 and command_scope = $2 and command_id = $3`,
     [seen.principalId, seen.commandScope, seen.commandId]);
   }
@@ -734,7 +739,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
   test('purgeExpired compacts exactly the requested limit and floors zero and negative limits to one', async () => {
     const prefix = `exact-limit-${randomUUID().replaceAll('-', '_')}`;
     await seedCompletedReceipts(5, {
-      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: '-1 seconds',
+      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: `-${EXPIRED_AGE}`,
     });
 
     assert.equal(await purgeExpired(2), 2);
@@ -758,7 +763,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
   test('purgeExpired clamps the batch ceiling at 10,000 receipts', async () => {
     const prefix = `ceiling-${randomUUID().replaceAll('-', '_')}`;
     await seedCompletedReceipts(10_005, {
-      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: '-1 seconds',
+      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: `-${EXPIRED_AGE}`,
     });
 
     assert.equal(await purgeExpired(20_000), 10_000);
@@ -767,16 +772,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
        where principal_id like $1 and not compact_claim and result_bytes is not null`,
       [`${prefix}-%`]);
     assert.equal(remaining.rows[0]!.count, '5');
-    const second = await purgeExpired(10_000);
-    if (second !== 5) {
-      const diagnostics = await runtime.pool.query(`select principal_id, result_bytes is not null as full_result,
-        result_expires_at <= current_timestamp as expired, compact_claim, xmin::text,
-        (select json_agg(json_build_object('state',state,'wait',wait_event_type,'query',query))
-          from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid()
-            and application_name='known-command-receipt-test') as connections
-        from product_command_receipts where principal_id like $1 and not compact_claim`, [`${prefix}-%`]);
-      assert.equal(second, 5, JSON.stringify(diagnostics.rows));
-    }
+    assert.equal(await purgeExpired(10_000), 5);
   }, 120_000);
 
   test('already compacted receipts re-purge to zero and leave the row byte-identical', async () => {
@@ -890,7 +886,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
   test('onPurged receives the exact purged count including zero', async () => {
     const prefix = `callback-${randomUUID().replaceAll('-', '_')}`;
     await seedCompletedReceipts(3, {
-      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: '-1 seconds',
+      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: `-${EXPIRED_AGE}`,
     });
     const reported: number[] = [];
     const purge = (limit: number) => createUnitOfWork(runtime.db).execute(({ transaction }) =>
@@ -946,7 +942,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
   test('two concurrent purgers partition the batch via FOR UPDATE SKIP LOCKED and never double-compact', async () => {
     const prefix = `concurrent-${randomUUID().replaceAll('-', '_')}`;
     await seedCompletedReceipts(100, {
-      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: '-1 seconds',
+      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: `-${EXPIRED_AGE}`,
     });
 
     // Barrier fixes the interleaving: purger A runs its candidate CTE + UPDATE and
@@ -1022,7 +1018,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
   test('purge emits exactly one candidate CTE + UPDATE statement for N=1 and N=1000', async () => {
     const prefix = `statements-${randomUUID().replaceAll('-', '_')}`;
     await seedCompletedReceipts(1_000, {
-      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: '-1 seconds',
+      principalPrefix: prefix, completedAtAgeDays: '31 days', expiresAtOffset: `-${EXPIRED_AGE}`,
     });
 
     const baseExecutor = runtime.db.getExecutor();
@@ -1077,7 +1073,7 @@ describeWithPostgres('Product command receipt PostgreSQL semantics', () => {
       principalPrefix: `${prefix}-live`, completedAtAgeDays: '31 days', expiresAtOffset: '1 day',
     });
     await seedCompletedReceipts(50, {
-      principalPrefix: `${prefix}-expired`, completedAtAgeDays: '31 days', expiresAtOffset: '-1 seconds',
+      principalPrefix: `${prefix}-expired`, completedAtAgeDays: '31 days', expiresAtOffset: `-${EXPIRED_AGE}`,
     });
     await runtime.pool.query('analyze product_command_receipts');
 
