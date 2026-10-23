@@ -66,8 +66,14 @@ describe('Extension named Sync CI owners [SYNC-Q-021]', () => {
     expect(packageJson.scripts?.['test:e2e:self-hosted']).toContain('with-self-hosted-browser.mjs');
     expect(packageJson.scripts?.['test:e2e:self-hosted']).toContain('--project=self-hosted');
     expect(workflow).toContain('run: npm run test:e2e:self-hosted');
-    expect(job).toContain('BS_CAPACITY_NODES: 20000');
+    // The 20,000-node capacity measurement is opt-in (evidence:bookmark-subscriptions:capacity).
+    expect(job).not.toContain('BS_CAPACITY_NODES');
     expect(workflow).toContain('run: npm run test:sync-model');
+    // Model vectors execute the compiled Lean exporter; CI must build it first.
+    const extensionJob = workflow.split('\n  extension:')[1]?.split(/\n  [a-z]/u)[0] ?? '';
+    expect(extensionJob.indexOf('run: lake build sync_export')).toBeGreaterThan(-1);
+    expect(extensionJob.indexOf('run: lake build sync_export'))
+      .toBeLessThan(extensionJob.indexOf('run: npm run test:sync-model'));
     const gate = workflow.slice(workflow.indexOf('  ci-gate:'));
     expect(gate).toContain('- extension-browser');
     expect(gate).toContain('${{ needs.extension-browser.result }}');

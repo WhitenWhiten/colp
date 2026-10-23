@@ -141,7 +141,7 @@ npm run test:e2e            # everything, against COLP Server in a temporary Pos
 ```
 
 The unit and browser tests import `packages/server`, so run `npm ci` there too; cross-application browser fixtures also require `npm ci` in `packages/web`. Browser tests run a real Chromium
-and must run under xvfb (`scripts/with-xvfb.mjs`). The required `extension-browser` CI job runs every core spec across six shards, including multi-device recovery and subscription capacity.
+and must run under xvfb (`scripts/with-xvfb.mjs`). The required `extension-browser` CI job runs every core spec across six shards, including multi-device recovery. The subscription capacity measurement is opt-in: `npm run evidence:bookmark-subscriptions:capacity`.
 The `self-hosted-browser` job runs the cross-application and layout specs against the production CLI and built Web application, with a disposable database and owner; `npm run test:e2e:self-hosted` runs it locally. It closes the application and removes the database even when a browser test fails. No external server or saved owner credentials are required.
 
 Sync Snapshot validation applies its 500-node / 2 MiB limits to each page.
