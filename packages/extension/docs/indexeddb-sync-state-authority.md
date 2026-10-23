@@ -211,9 +211,19 @@ store counts, digest, and native-id boundary snapshots only.
   events bound to a terminal queue row, may have large payload/details replaced with a compact marker in one
   transaction with their summary and watermark. Pending, claimed, deferred, gap, blocked, and unknown rows are
   never compacted. A fault after summary, payload strip, or watermark aborts the whole batch.
-- **terminal retention**: the accepted retention policy (September 2026)
-  adds no age/count-based deletion of terminal or rejected rows. Compaction preserves required evidence;
-  retired/drained/acked alone does not authorize new automatic GC. Storage growth remains capacity debt.
+- **completed history retention** (October 2026 audit remediation): idle maintenance scans at most 200 rows
+  per history, persists its continuation keys in the compaction watermark, and wraps on later wakes.
+  The first eligible observation starts a 24-hour grace period, including for pre-existing records.
+  It removes processed bookmark events before their matching, successful terminal queue rows and receipts;
+  a completed authoritative Pull echo is required. Pending uploads/inbox events, open native results,
+  repair/wait references, active bootstrap/recovery, unconfirmed Acks and frozen authority protect that history.
+  Server-refused operations and unproven records remain available for repair.
+  Superseded/already-deleted rejections require a higher durably consumed server sequence before reclamation.
+  The current cursor's receipt, latest completed Ack of each kind and bootstrap Acks referenced by retained plans remain durable.
+  Settled local deletion journals are reclaimed only after the acknowledged queue drains; native mappings
+  protect restored identities. Source rows, retention marks and resume positions commit or roll back together.
+  Retention marks use the existing scoped summary store; no IndexedDB upgrade or history scan occurs at open.
+  Pull operation/effect replay facts are separate authority and are never removed by this maintenance.
 - **logout and retire**: immutable archive creation and removal of the live scope/lease authority in one transaction. Account cleanup
   removes only matching non-retired authority and preserves other accounts, servers, profiles, archives and diagnostics. Compaction watermarks and summaries are archived then deleted with the live scope.
 - **root configuration**: `sync_scopes` selection/private boundaries and required `native_mappings` are replaced

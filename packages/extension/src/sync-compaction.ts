@@ -2,7 +2,7 @@ import { compactNativePayload } from './compacted-native-facts.js';
 export const COMPACTION_BATCH = 200;
 export const COMPACTED_MARK = Object.freeze({ compacted: true as const });
 
-export type CompactFault = 'after_summary' | 'after_delete' | 'after_watermark';
+export type CompactFault = 'after_summary' | 'after_delete' | 'after_watermark' | 'after_retention';
 
 interface CompactableQueueRow {
   readonly status: string;
@@ -28,6 +28,8 @@ export interface CompactionWatermark {
   readonly eventThroughOrdinal: number;
   readonly compactedAt: number;
   readonly remainingEligible: boolean;
+  readonly retention?: import('./sync-state/history-retention.js').HistoryRetentionState;
+  readonly latestCompleteAck?: Partial<Record<'pull' | 'bootstrap', string>>;
 }
 
 export interface CompactSummary {
@@ -45,6 +47,7 @@ export interface CompactReport {
   readonly compactedQueue: number;
   readonly compactedEvents: number;
   readonly summaries: readonly CompactSummary[];
+  readonly pruned?: import('./sync-state/history-retention.js').HistoryRetentionReport;
 }
 
 export interface CompactStoreNames {
@@ -201,6 +204,7 @@ export async function compactScopeTransaction(
   });
 
   const watermark: CompactionWatermark = {
+    ...prior,
     scopeKey: key,
     queueThroughSequence: queueThrough,
     eventThroughOrdinal: eventThrough,

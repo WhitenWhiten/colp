@@ -41,6 +41,7 @@ export const SYNC_STATE_EVIDENCE_METHODS: readonly string[] = Object.freeze([
   'registerEvidenceScope',
   'resumePullApplyEvidence',
   'seedEvidence',
+  'compactEvidenceScope',
   'seedOutboundPushEvidence',
   'stagePullCreateCrashEvidence',
   'stagePullCreateEvidence',

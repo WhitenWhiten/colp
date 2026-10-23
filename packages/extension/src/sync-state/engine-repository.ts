@@ -11,6 +11,7 @@ import { validateQueueRecord } from './queue-validate.js';
 import { sameAckIntent } from './engine-validate.js';
 import { inheritFrozenEngineFacts } from './engine-transition.js';
 import { validateAckIntent, validateEngineState, validateImportNode, validateImportPlan } from './pull-validate.js';
+import type { CompactionWatermark } from '../sync-compaction.js';
 import type { SyncStoreRuntime } from './runtime.js';
 
 export function createEngineRepository(ctx: SyncStoreRuntime) {
@@ -238,7 +239,7 @@ export function createEngineRepository(ctx: SyncStoreRuntime) {
 
   async function completeAckIntent(input: SyncScope, intentId: string, resultInput: JsonObject): Promise<void> {
     assertWritable(); const key = scopeKey(validateScope(input)); const result = validateJson(resultInput, 'ack result') as JsonObject;
-    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.ackIntents], 'readwrite', async (tx) => {
+    const db = await writableDatabase(); await runTransaction(db, [STORES.scopes, STORES.ackIntents, STORES.compactionWatermarks], 'readwrite', async (tx) => {
       await requireActiveScope(tx, key); const intents = tx.objectStore(STORES.ackIntents);
       const intent = await requestValue(intents.get([key, boundedString(intentId, 'intentId')])) as AckIntentRecord | undefined;
       if (!intent) throw new SyncStateError('ack_intent_missing');
@@ -246,6 +247,11 @@ export function createEngineRepository(ctx: SyncStoreRuntime) {
       if (intent.state === 'complete') { if (canonicalJson(intent.result) !== canonicalJson(result)) {
         throw new SyncStateError('ack_result_mismatch'); } return; }
       intents.put(validateAckIntent({ ...intent, state: 'complete', result }));
+      const watermarks = tx.objectStore(STORES.compactionWatermarks);
+      const prior = await requestValue(watermarks.get(key)) as CompactionWatermark | undefined;
+      watermarks.put({ scopeKey: key, queueThroughSequence: 0, eventThroughOrdinal: 0,
+        compactedAt: 0, remainingEligible: false, ...prior,
+        latestCompleteAck: { ...prior?.latestCompleteAck, [intent.kind]: intent.intentId } });
     });
   }
 

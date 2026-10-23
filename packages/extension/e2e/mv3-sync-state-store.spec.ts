@@ -58,6 +58,52 @@ test('real Chromium unique indexes and lease fences arbitrate independent extens
   } finally { await context.close(); }
 });
 
+test('bounded history retention resumes after a real worker restart and preserves unapplied echoes', async () => {
+  const context = await launch('');
+  try {
+    let page = await extensionPage(context);
+    await call(page, 'registerEvidenceScope', scope);
+    const exported = await call<{ scope: { scopeKey: string } }>(page, 'exportScope', scope);
+    await page.evaluate(async key => {
+      const request = indexedDB.open('known-phase3-indexeddb-entry');
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+      });
+      try {
+        const tx = db.transaction(['outbound_queue', 'receipts', 'bookmark_events', 'cursors', 'durable_sequences'], 'readwrite');
+        const done = new Promise<void>((resolve, reject) => {
+          tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
+        });
+        for (let sequence = 1; sequence <= 2; sequence += 1) {
+          tx.objectStore('outbound_queue').put({ scopeKey: key, sequence, opId: `op-${sequence}`, batchId: `batch-${sequence}`,
+            idempotencyKey: `idem-${sequence}`, digest: `sha256:op-${sequence}`, endpointIdentity: 'syncPush', mediaType: 'application/json',
+            baseRevision: 'rev', operationRevision: `local-${sequence}`, status: 'terminal',
+            retry: { attempt: 0, notBefore: 0 }, ...(sequence === 2 ? { echoApplied: true } : {}),
+            payload: { type: 'update_node_content', targetId: `node-${sequence}` } });
+          tx.objectStore('receipts').put({ scopeKey: key, receiptId: `receipt-${sequence}`, sequence, opId: `op-${sequence}`,
+            operationDigest: `sha256:op-${sequence}`, kind: 'terminal', resultDigest: 'sha256:result' });
+          tx.objectStore('bookmark_events').put({ scopeKey: key, eventId: `event-${sequence}`, ordinal: sequence,
+            dedupeKey: `dedupe-${sequence}`, occurredAt: '2026-10-23T00:00:00Z', kind: 'change', nativeId: `native-${sequence}`,
+            status: 'processed', opId: `op-${sequence}`, details: { title: 'old' } });
+        }
+        tx.objectStore('cursors').put({ scopeKey: key, cursor: 'snapshot', checkpoint: 'rev',
+          evidence: { snapshotId: 'snapshot', pageDigest: 'sha256:page' } });
+        tx.objectStore('durable_sequences').put({ scopeKey: key, next: 3 });
+        await done;
+      } finally { db.close(); }
+    }, exported.scope.scopeKey);
+    for (let pass = 0; pass < 4; pass += 1) await call(page, 'compactEvidenceScope', scope, 100, 1);
+    await stopWorker(context, page);
+    page = await extensionPage(context);
+    for (let pass = 0; pass < 4; pass += 1) await call(page, 'compactEvidenceScope', scope, 24 * 60 * 60_000 + 100, 1);
+    const retained = await call<{ queue: { sequence: number }[]; receipts: { sequence: number }[];
+      bookmarkEvents: { ordinal: number }[] }>(page, 'exportScope', scope);
+    expect(retained.queue.map(row => row.sequence)).toEqual([1]);
+    expect(retained.receipts.map(row => row.sequence)).toEqual([1]);
+    expect(retained.bookmarkEvents.map(row => row.ordinal)).toEqual([1]);
+  } finally { await context.close(); }
+});
+
 test('blocked/versionchange closes connections and reopens without clearing state', async () => {
   const context = await launch('');
   try {

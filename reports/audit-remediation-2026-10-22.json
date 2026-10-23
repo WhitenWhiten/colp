@@ -492,7 +492,17 @@
     {
       "id": "performance-07",
       "title": "prune completed extension queue and journal records",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "Idle compaction now reclaims completed queue/receipt/event/Ack/local-deletion history in bounded resumable transactions after a full 24-hour eligibility grace period. Required recovery and replay authority stays durable; referenced and unresolved records are retained.",
+      "validation": [
+        "18 new retention checks cover grace periods, rollback after deletions, bounded continuation over protected heads, store restart, current-cursor receipts, real Ack completion order, legacy rejected receipts, superseded sequence proof, open recovery/native/Pull/bootstrap work and clock rollback.",
+        "265 relevant assertions pass across 32 extension storage, engine, Ack, undo, integrity and evidence-channel suites. The one-hundred-thousand historical lookup contract and evidence-method allowlist add 4 passing checks.",
+        "All 5 real Chromium IndexedDB/MV3 scenarios pass under xvfb, including a new worker-restart retention case. The final rebuilt retention scenario passes again in 6 seconds; owned browsers and xvfb exit.",
+        "Queue reclamation requires a matching successful terminal receipt and completed Pull echo; events are reclaimed first. Superseded rejections additionally require a higher durably consumed server sequence. Current cursor receipts, pending exact Ack bytes, latest activation proofs and plan-referenced bootstrap Acks are preserved.",
+        "Deletion journals wait for settled acknowledged authority and drained queue history; unresolved outcomes, native mappings and bootstrap/recovery work protect them. Existing indexed remote-delete member cleanup remains tied to expired unreferenced page-complete intents.",
+        "Source rows, summaries, grace markers and maintenance positions share one atomic transaction. Old orphan summaries are removed; operation/effect replay facts survive. Existing stores support lazy adoption without a schema migration or open-time history scan.",
+        "Extension TypeScript, focused ESLint, source-size gate and development build pass. The authority document now records this explicit retention policy instead of the prior storage-growth debt."
+      ]
     },
     {
       "id": "performance-08",

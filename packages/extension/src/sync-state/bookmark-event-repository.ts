@@ -23,6 +23,7 @@ import {
   COMPACTION_BATCH, compactScopeTransaction, type CompactFault, type CompactReport,
 } from '../sync-compaction.js';
 import type { SyncStoreRuntime } from './runtime.js';
+import { HISTORY_RETENTION_STORES, pruneSyncHistory } from './history-retention.js';
 /**
  * SR-10: the largest ingress ledger `listIngressDiagnostics` serves in one call.
  *
@@ -172,17 +173,18 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
   } = {}): Promise<CompactReport> {
     assertWritable(); const key = scopeKey(validateScope(input));
     const batch = safeInteger(options.batch ?? COMPACTION_BATCH, 'batch', 1);
+    const now = safeInteger(options.now ?? Date.now(), 'now');
     if (batch > COMPACTION_BATCH) throw new SyncStateError('limit_exceeded');
     const db = await writableDatabase();
     let report!: CompactReport;
     try {
       await runTransaction(db, [
         STORES.scopes, STORES.queue, STORES.receipts, STORES.cursors, STORES.bookmarkEvents,
-        STORES.compactionWatermarks, STORES.compactSummaries,
+        STORES.compactionWatermarks, STORES.compactSummaries, ...HISTORY_RETENTION_STORES,
       ], 'readwrite', async (tx) => {
         await requireActiveScope(tx, key);
         report = await compactScopeTransaction(tx, {
-          scopeKey: key, batch, now: options.now ?? Date.now(), fault: options.fault,
+          scopeKey: key, batch, now, fault: options.fault,
           stores: {
             queue: STORES.queue, receipts: STORES.receipts, cursors: STORES.cursors,
             events: STORES.bookmarkEvents, watermarks: STORES.compactionWatermarks,
@@ -193,6 +195,8 @@ export function createBookmarkEventRepository(ctx: SyncStoreRuntime) {
             eventByStatus: INDEXES.eventByStatusOrdinal,
           },
         });
+        report = { ...report, pruned: await pruneSyncHistory(tx, key, now, batch) };
+        if (options.fault === 'after_retention') { tx.abort(); throw new SyncStateError('fault_injected'); }
       });
     } catch (error: unknown) {
       if (error instanceof Error && (error.message === 'fault_injected' || (error as { code?: string }).code === 'fault_injected')) {

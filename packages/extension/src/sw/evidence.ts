@@ -57,6 +57,8 @@ export async function handleSyncStateEvidence(message: SyncStateEvidenceRequest)
       case 'exportArchive': return { ok: true, value: await syncState.exportArchive(scope) };
       case 'exportLegacyDiagnostic': return { ok: true, value: await syncState.exportLegacyDiagnostic() };
       case 'seedEvidence': return { ok: true, value: await seedEvidence(scope) };
+      case 'compactEvidenceScope': return { ok: true, value: await syncState.compactScope(scope,
+        { now: Number(args[0]), batch: Number(args[1] ?? 200) }) };
       case 'configureEventEvidence': return { ok: true, value: await configureEventEvidence(scope, String(args[0]),
         args[1] === null ? null : String(args[1]), args[2] === undefined ? undefined : String(args[2]) as typeof sw.eventEvidenceFault) };
       case 'configureCaptureFaultEvidence': {
