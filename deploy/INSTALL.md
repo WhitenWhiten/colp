@@ -228,9 +228,13 @@ On a fresh install (section 3 done) or on this machine:
 docker compose stop server
 ./restore.sh colp-backup-20261007T030000.dump
 ```
-`restore.sh` drops and recreates the database before loading the backup, so
-nothing from the current database survives, then starts the stack and waits
-until the server is ready. Older `.sql.gz` backups restore the same way.
+`restore.sh` loads the backup into a separate database and applies restore
+revalidation there. Only after both succeed does it atomically swap database
+names, then start the stack and wait until the server is ready. A failed import
+leaves the current database intact. The previous database is retained under the
+`colp_before_restore_…` name printed by the script; remove it with `dropdb` after
+verifying the restored installation. Allow disk space for both databases.
+Older `.sql.gz` backups restore the same way.
 Sign in with the credentials from the backup. Browsers keep syncing without
 re-login when the origin is unchanged.
 

@@ -2,8 +2,8 @@
 # Replaces the COLP database with a backup from backup.sh, then starts the
 # stack and waits until the server is ready.
 #
-# The database is dropped and recreated first, so tables that a newer
-# version's migrations added cannot survive and break the next upgrade.
+# Restore and revalidate in a separate database before replacing the live name.
+# Keep the previous database so a bad archive or failed upgrade cannot erase it.
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
@@ -41,9 +41,16 @@ fi
 
 docker compose up -d --wait --wait-timeout 120 db
 
+stamp=$(date +%Y%m%dT%H%M%S)_$$
+staging_db="colp_restore_${stamp}"
+previous_db="colp_before_restore_${stamp}"
+cleanup() {
+  docker compose exec -T db psql -U "${db_user}" -d postgres -v ON_ERROR_STOP=1 \
+    -c "DROP DATABASE IF EXISTS ${staging_db} WITH (FORCE)" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 docker compose exec -T db psql -U "${db_user}" -d postgres -v ON_ERROR_STOP=1 \
-  -c "DROP DATABASE IF EXISTS ${db_name} WITH (FORCE)" \
-  -c "CREATE DATABASE ${db_name} OWNER ${db_user}"
+  -c "CREATE DATABASE ${staging_db} OWNER ${db_user}"
 
 # Backups from before 0.1.0 were gzip-wrapped (.sql.gz); current ones are plain .dump.
 if [[ ${backup_file} == *.gz ]]; then
@@ -51,11 +58,11 @@ if [[ ${backup_file} == *.gz ]]; then
 else
   reader=(cat "${backup_file}")
 fi
-"${reader[@]}" | docker compose exec -T db pg_restore -U "${db_user}" -d "${db_name}" \
+"${reader[@]}" | docker compose exec -T db pg_restore -U "${db_user}" -d "${staging_db}" \
   --exit-on-error --single-transaction
 
 # Restored rules never resume admission before the Owner revalidates them.
-docker compose exec -T db psql -U "${db_user}" -d "${db_name}" -v ON_ERROR_STOP=1 <<'SQL'
+docker compose exec -T db psql -U "${db_user}" -d "${staging_db}" -v ON_ERROR_STOP=1 <<'SQL'
 DO $$ BEGIN
   IF to_regclass('automation_settings') IS NOT NULL THEN
     INSERT INTO automation_settings (owner_id, paused, paused_at, paused_by, revision)
@@ -85,6 +92,14 @@ DO $$ BEGIN
   END IF;
 END $$;
 SQL
+
+# Both renames commit together. A failed cutover leaves the original name intact.
+docker compose exec -T db psql -U "${db_user}" -d postgres -v ON_ERROR_STOP=1 --single-transaction \
+  -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${db_name}' AND pid<>pg_backend_pid()" \
+  -c "ALTER DATABASE ${db_name} RENAME TO ${previous_db}" \
+  -c "ALTER DATABASE ${staging_db} RENAME TO ${db_name}"
+trap - EXIT
+echo "Previous database retained as ${previous_db}"
 
 docker compose up -d
 

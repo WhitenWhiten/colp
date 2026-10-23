@@ -344,7 +344,7 @@ jobs:
         run: npm run test:static
         working-directory: packages/server
       - name: Production ingress TLS handshakes (IPv4, IPv6 and DNS)
-        run: node --test deploy/tests/tls-handshake.test.mjs
+        run: node --test deploy/tests/restore.test.mjs deploy/tests/tls-handshake.test.mjs
 
   # Each integration file builds its own migrated database, so the serial suite
   # runs for hours on one runner; six shards keep each job under the timeout.
