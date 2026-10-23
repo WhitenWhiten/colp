@@ -1,8 +1,8 @@
 import { sql, type Kysely } from 'kysely';
 import type { DatabaseSchema } from './runtime.js';
 import {
-  accountRestrictPublicationExistsSql,
   buildPublicationTargetAncestorRestrictionSql,
+  collectionPublicationAllowedSql,
 } from './collection-control-sql.js';
 
 const UUID_OBJECT_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -30,14 +30,12 @@ export async function isFaviconPubliclyAccessible(
          AND n.collection_id = i.collection_id
         JOIN collections c
           ON c.id = i.collection_id
-        LEFT JOIN accounts owner_account
-          ON owner_account.subject_id = c.owner_subject_id
        WHERE i.object_id = ${objectId}::uuid
          AND n.kind = 'bookmark'
          AND n.deleted_at IS NULL
          AND c.deleted_at IS NULL
          AND c.visibility = 'public'
-         AND NOT (owner_account.id IS NOT NULL AND ${sql.raw(accountRestrictPublicationExistsSql('owner_account.id'))})
+         AND ${sql.raw(collectionPublicationAllowedSql('c'))}
          AND n.visibility = 'inherit'
          AND NOT ${sql.raw(ancestorRestriction)}
          AND NOT EXISTS (
@@ -45,13 +43,6 @@ export async function isFaviconPubliclyAccessible(
             WHERE ma.target_kind = 'bookmark'
               AND ma.target_id = n.id
               AND ma.parent_id = c.id
-              AND ma.state = 'active'
-              AND ma.action = 'hide_public'
-         )
-         AND NOT EXISTS (
-           SELECT 1 FROM moderation_actions ma
-            WHERE ma.target_kind = 'collection'
-              AND ma.target_id = c.id
               AND ma.state = 'active'
               AND ma.action = 'hide_public'
          )

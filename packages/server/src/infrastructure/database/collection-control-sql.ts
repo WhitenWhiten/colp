@@ -101,6 +101,15 @@ export function collectionOwnerLiveSql(ownerSubjectIdSql: string): string {
 /** Owner lifecycle fence bound to the conventional `c` collection alias. */
 export const COLLECTION_OWNER_LIVE_SQL = collectionOwnerLiveSql('c.owner_subject_id');
 
+/** Shared account and collection controls for anonymous published objects. */
+export function collectionPublicationAllowedSql(collectionAlias = 'c'): string {
+  return `(${collectionOwnerLiveSql(`${collectionAlias}.owner_subject_id`)}
+    AND ${collectionHidePublicControlSql(collectionAlias)}
+    AND NOT EXISTS (SELECT 1 FROM accounts publication_owner
+      WHERE publication_owner.subject_id = ${collectionAlias}.owner_subject_id
+        AND ${accountRestrictPublicationExistsSql('publication_owner.id')}))`;
+}
+
 /**
  * Maximum parent walk used by every anonymous publication projection.  Keep
  * this SQL fragment in the database layer so low-level object and collection

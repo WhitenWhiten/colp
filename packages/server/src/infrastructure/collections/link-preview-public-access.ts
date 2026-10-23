@@ -12,9 +12,9 @@ import type { DatabaseSchema } from '../database/runtime.js';
 import { createUnitOfWork, type DatabaseTransaction, type UnitOfWorkOptions } from '../database/unit-of-work.js';
 import {
   bookmarkHidePublicExistsSql,
-  collectionHidePublicExistsSql,
+  buildPublicationTargetAncestorRestrictionSql,
+  collectionPublicationAllowedSql,
 } from '../database/collection-control-sql.js';
-import { PUBLICATION_TARGET_ACCESS_MAX_DEPTH } from '../publication/target-access-facts.js';
 
 type Executor = Kysely<DatabaseSchema> | DatabaseTransaction;
 
@@ -74,7 +74,6 @@ export function createPostgresLinkPreviewPublicAccess(
 
 async function readServable(executor: Executor, objectId: string): Promise<boolean> {
       const hiddenBookmark = bookmarkHidePublicExistsSql('n.id', 'n.collection_id');
-      const hiddenCollection = collectionHidePublicExistsSql('c.id');
       const result = await sql<{ servable: boolean }>`
         SELECT EXISTS (
           SELECT 1
@@ -92,29 +91,9 @@ async function readServable(executor: Executor, objectId: string): Promise<boole
              AND t.status = 'ready'
              AND t.generic = false
              AND n.visibility NOT IN ('private', 'protected')
-             AND NOT EXISTS (
-               WITH RECURSIVE ancestors AS (
-                 -- Same numbering as readParentAncestry: the parent is depth 0.
-                 -- A root reached by depth 256 is legal; depth 256 with a parent is not.
-                 SELECT p.id, p.parent_id, p.visibility, ARRAY[p.id] AS path, 0 AS depth, false AS cycle
-                   FROM nodes p
-                  WHERE p.collection_id = n.collection_id
-                    AND p.id = n.parent_id
-                 UNION ALL
-                 SELECT p.id, p.parent_id, p.visibility, a.path || p.id, a.depth + 1, p.id = ANY(a.path)
-                   FROM nodes p
-                   JOIN ancestors a ON p.id = a.parent_id
-                  WHERE p.collection_id = n.collection_id
-                    AND NOT a.cycle
-                    AND a.depth < ${PUBLICATION_TARGET_ACCESS_MAX_DEPTH}
-               )
-               SELECT 1 FROM ancestors
-                WHERE visibility IN ('private', 'protected')
-                   OR cycle
-                   OR (depth = ${PUBLICATION_TARGET_ACCESS_MAX_DEPTH} AND parent_id IS NOT NULL)
-             )
+             AND NOT ${sql.raw(buildPublicationTargetAncestorRestrictionSql('n'))}
              AND NOT ${sql.raw(hiddenBookmark)}
-             AND NOT ${sql.raw(hiddenCollection)}
+             AND ${sql.raw(collectionPublicationAllowedSql('c'))}
              AND NOT EXISTS (
                SELECT 1 FROM bookmark_preview_prefs prefs
                 WHERE prefs.node_id = n.id AND prefs.mode = 'none'
