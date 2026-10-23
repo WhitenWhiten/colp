@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
@@ -442,10 +442,10 @@ describe('MCP 2026-07-28 Plan/Approval desession contract (COLP-MCP-05)', () => 
   });
 
   describe('public type absence', () => {
-    const changePlanSource = readFileSync(
-      resolve(import.meta.dirname, '..', '..', 'src', 'mcp', 'change-plan.ts'),
-      'utf8',
-    );
+    const coreDirectory = resolve(import.meta.dirname, '..', '..', 'src', 'mcp');
+    const changePlanSource = readdirSync(coreDirectory)
+      .filter(name => name.startsWith('change-plan') && name.endsWith('.ts'))
+      .map(name => readFileSync(resolve(coreDirectory, name), 'utf8')).join('\n');
     const mcpIndexSource = readFileSync(
       resolve(import.meta.dirname, '..', '..', 'src', 'mcp', 'index.ts'),
       'utf8',
