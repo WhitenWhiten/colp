@@ -253,8 +253,7 @@ export function createScopeRepository(ctx: SyncStoreRuntime) {
           const currentCursor = await requestValue(cursorStore.get(scope.scopeKey)) as UnknownRecord | undefined;
           const ackIntents = await cursorPage<AckIntentRecord>(tx.objectStore(STORES.ackIntents),
             scopeRowsRange(scope.scopeKey), Number.MAX_SAFE_INTEGER);
-          const deleteMembers = await cursorPage<UnknownRecord>(tx.objectStore(STORES.deleteMembers), null, Number.MAX_SAFE_INTEGER);
-    const recovery = await cursorPage<RecoveryHeader>(tx.objectStore(STORES.recovery),
+          const recovery = await cursorPage<RecoveryHeader>(tx.objectStore(STORES.recovery),
             scopeRowsRange(scope.scopeKey), 1);
           const engineStore = tx.objectStore(STORES.engine);
           const engine = await requestValue(engineStore.get(scope.scopeKey)) as DurableSyncEngineState | undefined;
