@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'vitest';
-import { BROWSER_INCLUDE, EVIDENCE_INCLUDE, REDIS_INCLUDE, SYSTEM_INCLUDE } from '../../../vitest.workspace-projects.js';
+import { EVIDENCE_INCLUDE, REDIS_INCLUDE, SYSTEM_INCLUDE } from '../../../vitest.workspace-projects.js';
 import { discoverProjectFiles, ownershipProblems, serverRoot } from './vitest-test-routing.js';
 
-const declared = { browser: BROWSER_INCLUDE, evidence: EVIDENCE_INCLUDE, redis: REDIS_INCLUDE, system: SYSTEM_INCLUDE };
+const declared = { evidence: EVIDENCE_INCLUDE, redis: REDIS_INCLUDE, system: SYSTEM_INCLUDE };
 const projects = discoverProjectFiles();
 const onDisk = ['unit', 'integration'].flatMap(kind => readdirSync(resolve(serverRoot, 'tests', kind), { recursive: true })
   .map(String).filter(file => file.endsWith('.test.ts')).map(file => `tests/${kind}/${file.replaceAll('\\', '/')}`));

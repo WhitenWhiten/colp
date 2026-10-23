@@ -7711,6 +7711,8 @@ paths:
         '200':
           description: Current live share, or null after revocation or before sharing.
           headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
             Cache-Control:
               $ref: '#/components/headers/PrivateNoStore'
           content:
@@ -7726,12 +7728,22 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: A command is in progress, was reused, or the link address is already reserved.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductErrorEnvelope'
         '410':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: The stored command result expired.
           content:
             application/json:
@@ -7767,6 +7779,8 @@ paths:
         '200':
           description: Current live share, or null after revocation or before sharing.
           headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
             Cache-Control:
               $ref: '#/components/headers/PrivateNoStore'
           content:
@@ -7782,12 +7796,22 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: A command is in progress, was reused, or the link address is already reserved.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductErrorEnvelope'
         '410':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: The stored command result expired.
           content:
             application/json:
@@ -7815,6 +7839,8 @@ paths:
         '200':
           description: Current live share, or null after revocation or before sharing.
           headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
             Cache-Control:
               $ref: '#/components/headers/PrivateNoStore'
           content:
@@ -7830,12 +7856,22 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: A command is in progress, was reused, or the link address is already reserved.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductErrorEnvelope'
         '410':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: The stored command result expired.
           content:
             application/json:
@@ -7859,6 +7895,8 @@ paths:
         '200':
           description: The private library and its browser role folders.
           headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
             Cache-Control:
               $ref: '#/components/headers/PrivateNoStore'
           content:
@@ -9235,6 +9273,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '405':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: Collection deletion is unsupported.
         '409':
           $ref: '#/components/responses/MutationConflict'
@@ -14388,6 +14431,11 @@ paths:
                   maxLength: 80
       responses:
         '201':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: Key issued; the secret is returned once
           content:
             application/json:
@@ -14406,10 +14454,25 @@ paths:
                   secret:
                     type: string
         '400':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: Invalid key request
         '401':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: Browser sign-in required
         '412':
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
           description: This command already issued a key; its secret cannot be recovered
   /api/v1/me/automations/capabilities:
     get:
@@ -14425,15 +14488,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -14482,15 +14539,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -14545,15 +14596,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -14607,15 +14652,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -14664,15 +14703,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -14737,15 +14770,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -14807,15 +14834,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -14883,15 +14904,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -14954,15 +14969,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -15027,15 +15036,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -15089,15 +15092,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -15154,15 +15151,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -15216,15 +15207,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -15273,15 +15258,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -15346,15 +15325,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -15416,15 +15389,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -15490,6 +15457,11 @@ paths:
       responses:
         '204':
           description: Unreferenced binding set removed.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
         '400':
           $ref: '#/components/responses/Automation400'
         '401':
@@ -15533,15 +15505,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -15590,15 +15556,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -15663,15 +15623,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -15733,15 +15687,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -15800,15 +15748,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -15857,15 +15799,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -15930,15 +15866,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16000,15 +15930,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16067,15 +15991,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -16124,15 +16042,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16197,15 +16109,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16267,15 +16173,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16334,15 +16234,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -16391,15 +16285,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16464,15 +16352,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16534,15 +16416,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16611,15 +16487,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16688,15 +16558,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -16755,15 +16619,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -16820,15 +16678,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -16900,15 +16752,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -16962,15 +16808,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -17033,15 +16873,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -17110,15 +16944,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -17183,15 +17011,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -17254,15 +17076,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -17321,15 +17137,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17386,15 +17196,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17461,15 +17265,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -17529,15 +17327,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17598,15 +17390,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17666,15 +17452,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17728,15 +17508,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17792,15 +17566,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17855,15 +17623,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17924,15 +17686,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -17993,15 +17749,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -18062,15 +17812,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -18126,15 +17870,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -18190,15 +17928,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -18249,15 +17981,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -18311,15 +18037,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -18380,15 +18100,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -18455,15 +18169,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -18526,15 +18234,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -18592,15 +18294,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -18655,15 +18351,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -18727,15 +18417,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -18811,15 +18495,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string
@@ -18894,15 +18572,9 @@ paths:
           description: Successful response; inspect the returned state, not merely the HTTP status.
           headers:
             Cache-Control:
-              schema:
-                type: string
-                const: private, no-store
+              $ref: '#/components/headers/PrivateNoStore'
             X-Request-Id:
-              schema:
-                type: string
-                maxLength: 128
-                minLength: 1
-                pattern: ^[A-Za-z0-9._~-]+$
+              $ref: '#/components/headers/XRequestId'
             ETag:
               schema:
                 type: string

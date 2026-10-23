@@ -135,12 +135,102 @@
         "Routing guards now execute in the ordinary CI unit project; negative controls detect omissions, duplicates and stale paths",
         "Removed 45 nonexistent path declarations and obsolete dedicated-job ownership exports",
         "7 targeted contract assertions, server TypeScript, targeted ESLint and whitespace checks pass"
-      ]
+      ],
+      "commit": "0f129f29"
     },
     {
       "id": "tests-02",
       "title": "execute all server test projects in CI",
-      "status": "pending"
+      "status": "resolved",
+      "retiredTests": [
+        {
+          "file": "tests/integration/phase4a/phase4a-p08-browser-postgres.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-p09-redis-postgres.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-p10-pitr-capacity-http-redis.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-p10-recovery-http-redis.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-rl03-redis.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-rl04-http-redis.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-rl05-redis-atomicity.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-rl05-redis-failure.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-rl05-redis-isolation.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-rl05-redis-maxmemory.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-rl06-multi-replica-http-redis.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/integration/phase4a/phase4a-rl06-outage-recovery-http-redis.integration.test.ts",
+          "reason": "Attachments/delivery module is explicitly excluded by tests/EXTRACTION.md"
+        },
+        {
+          "file": "tests/unit/phase2b/phase2b-acceptance-contract.test.ts",
+          "reason": "Know-N-only evidence runner, documentation or commit-history assertion references sources not shipped by this extraction"
+        },
+        {
+          "file": "tests/unit/phase4b/phase4b-mcp-compat-real-clients.test.ts",
+          "reason": "Know-N-only evidence runner, documentation or commit-history assertion references sources not shipped by this extraction"
+        },
+        {
+          "file": "tests/integration/phase0/phase0-exit-evidence.integration.test.ts",
+          "reason": "Know-N-only evidence runner, documentation or commit-history assertion references sources not shipped by this extraction"
+        },
+        {
+          "file": "tests/integration/postgres/postgres-editor-paging-evidence.integration.test.ts",
+          "reason": "Know-N-only evidence runner, documentation or commit-history assertion references sources not shipped by this extraction"
+        },
+        {
+          "file": "tests/unit/phase2/phase2-closeout-contract.test.ts",
+          "reason": "Know-N-only evidence runner, documentation or commit-history assertion references sources not shipped by this extraction"
+        },
+        {
+          "file": "tests/unit/phase3/phase3-multi-device-recovery-evidence.test.ts",
+          "reason": "Know-N-only evidence runner, documentation or commit-history assertion references sources not shipped by this extraction"
+        },
+        {
+          "file": "tests/unit/phase3/phase3-sync-http-documentation.test.ts",
+          "reason": "Know-N-only evidence runner, documentation or commit-history assertion references sources not shipped by this extraction"
+        },
+        {
+          "file": "tests/unit/phase0/phase0-exit-evidence.test.ts",
+          "reason": "Retained public conformance and all three runtime credential redaction checks in runtime/credential-redaction.test.ts; removed only deleted Know-N evidence runners and documentation checks"
+        }
+      ],
+      "validation": [
+        "Executed all 216 assertions across 24 live system/evidence/Redis suites using an isolated real PostgreSQL owner and xvfb",
+        "After repairing the remaining response-header assertion and generated automation headers, all 32 affected OpenAPI assertions pass",
+        "12 ordinary discovery/routing/redaction assertions pass",
+        "Full openapi:ci, server TypeScript, targeted ESLint, YAML parsing and whitespace checks pass",
+        "Retired the empty browser project with the removed delivery module, following tests/EXTRACTION.md; all shipped capability projects are required by ci-gate"
+      ]
     },
     {
       "id": "tests-03",

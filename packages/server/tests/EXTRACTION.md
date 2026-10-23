@@ -1,5 +1,31 @@
 # Self-hosted test scope
 
+## Capability CI reconciliation (2026-10-22)
+
+The `system`, `evidence` and `redis` projects run in required CI jobs. Ordinary
+unit tests independently enumerate every on-disk test with Vitest and reject
+missing files, missing ownership and duplicate ownership.
+
+The reconciliation executed all previously unowned capability projects before
+removing obsolete tests. Twelve suites imported the removed attachments or
+isolated delivery modules; they are removed with that feature as specified
+below. The browser project contained only one of those retired delivery suites,
+so the empty project is retired. The real Sync effect-page Redis admission
+suite remains and runs in CI.
+
+Seven Know-N-only suites tested deleted phase closeout documents, historical
+commit messages, private acceptance runners or the external-client evidence
+CLI. Those historical checks are removed; shipped runtime acceptance suites
+remain. The phase-0 suite's public conformance and three credential-redaction
+tests move to `runtime/credential-redaction.test.ts` in the ordinary unit lane;
+only its references to removed evidence scripts and fixtures are retired.
+
+Live contracts now point to this server's Agents guidance and distinguish
+historical additive releases from documented compatibility resets. The current
+OpenAPI bundle must still match its own frozen release baseline. Missing request
+ID and cache-policy response headers exposed by the re-enabled OpenAPI contract
+are corrected in the authored schemas and generated artifacts.
+
 The extraction keeps runtime tests for the shipped modules. Tests of social,
 reports, governance, attachments and delivery are removed with those modules.
 Know-N host acceptance scripts, private-extension fixtures and demo seed bundles

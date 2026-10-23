@@ -37,3 +37,16 @@ test('every test excluded from Postgres has a real, exclusive alternate project'
       1, `${file} must have one alternate project`);
   }
 });
+
+test('all server capability projects execute in CI and participate in the required gate', () => {
+  const job = /^  server-capabilities:[\s\S]*?(?=^  [\w-]+:|(?![\s\S]))/mu.exec(workflow)?.[0];
+  assert.ok(job);
+  const matrix = /project:\s*\[([^\]]+)\]/u.exec(job)?.[1]?.split(',').map(value => value.trim()).sort();
+  assert.deepEqual(matrix, Object.keys(discoverProjectFiles()).filter(name => !['unit', 'static', 'postgres'].includes(name)).sort());
+  assert.ok(job.includes('xvfb-run --auto-servernum node scripts/with-postgres.mjs --isolated-owner --'));
+  assert.ok(job.includes('run --project ${{ matrix.project }}'));
+  const gate = workflow.slice(workflow.indexOf('  ci-gate:'));
+  assert.match(gate, /- server-capabilities/u);
+  assert.ok(gate.includes('${{ needs.server-capabilities.result }}'));
+  assert.ok(gate.includes('"$SERVER_CAPABILITIES_RESULT"'));
+});

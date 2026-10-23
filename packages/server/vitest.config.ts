@@ -7,7 +7,6 @@ export default defineConfig({
       'vitest.static.config.ts',
       'vitest.postgres.config.ts',
       'vitest.redis.config.ts',
-      'vitest.browser.config.ts',
       'vitest.evidence.config.ts',
       'vitest.system.config.ts',
     ],

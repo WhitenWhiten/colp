@@ -231,7 +231,7 @@ test('an opaque client_id gets CIMD guidance instead of a misleading error (MCP-
   assert.equal(wire.includes('code='), false, `opaque client_id must not issue a code: ${wire}`);
   assert.match(wire, /Client(?:%20|\+| )ID(?:%20|\+| )Metadata(?:%20|\+| )Document/iu, `expected CIMD guidance, got ${response.statusCode} ${wire}`);
   assert.match(wire, /oauth2(?:%2F|\/)register/iu, `expected DCR register guidance, got ${response.statusCode} ${wire}`);
-  assert.match(wire, /know-n\.com(?:%2F|\/)mcp/iu, 'the guidance must link the /mcp walkthrough');
+  assert.match(wire, /(?:%2F|\/)agents/iu, 'the guidance must link this server’s Agents page');
   assert.doesNotMatch(wire, /client_id(?:%20|\+| )is(?:%20|\+| )required/iu, 'the misleading message must be gone');
 });
 

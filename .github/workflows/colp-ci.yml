@@ -375,6 +375,36 @@ jobs:
         run: node scripts/with-postgres.mjs --isolated-owner -- npm run test:integration:inner -- --shard=${{ matrix.shard }}/6
         working-directory: packages/server
 
+  server-capabilities:
+    needs: changes
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [system, evidence, redis]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/server/package-lock.json
+            packages/extension/package-lock.json
+      - name: Frozen server install
+        run: npm ci
+        working-directory: packages/server
+      - name: Frozen extension harness install
+        run: npm ci
+        working-directory: packages/extension
+      - name: Run every test in the capability project
+        run: xvfb-run --auto-servernum node scripts/with-postgres.mjs --isolated-owner -- node node_modules/vitest/vitest.mjs run --project ${{ matrix.project }}
+        working-directory: packages/server
+
   web:
     needs: changes
     if: needs.changes.outputs.full == 'true' || needs.changes.outputs.quality == 'true'
@@ -643,6 +673,7 @@ jobs:
       - conformance
       - server
       - server-integration
+      - server-capabilities
       - web
       - extension
       - extension-coverage
@@ -667,6 +698,7 @@ jobs:
           CONFORMANCE_RESULT: ${{ needs.conformance.result }}
           SERVER_RESULT: ${{ needs.server.result }}
           SERVER_INTEGRATION_RESULT: ${{ needs.server-integration.result }}
+          SERVER_CAPABILITIES_RESULT: ${{ needs.server-capabilities.result }}
           WEB_RESULT: ${{ needs.web.result }}
           EXTENSION_RESULT: ${{ needs.extension.result }}
           EXTENSION_COVERAGE_RESULT: ${{ needs.extension-coverage.result }}
@@ -675,7 +707,7 @@ jobs:
           EXTENSION_KNS09_RELEASE_RESULT: ${{ needs.extension-kns-09-release.result }}
           EXTENSION_KNS09_E2E_RESULT: ${{ needs.extension-kns-09-e2e.result }}
         run: |
-          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$WEB_RESULT" \
+          for result in "$CHANGES_RESULT" "$STATIC_RESULT" "$TEST_RESULT" "$PUBLISHER_RESULT" "$SECURITY_RESULT" "$SYNC_CORE_RESULT" "$PACKAGE_RESULT" "$DEPENDENCY_AUDIT_RESULT" "$CONFORMANCE_RESULT" "$SERVER_RESULT" "$SERVER_INTEGRATION_RESULT" "$SERVER_CAPABILITIES_RESULT" "$WEB_RESULT" \
             "$EXTENSION_RESULT" "$EXTENSION_COVERAGE_RESULT" "$EXTENSION_MV3_RESULT" "$EXTENSION_SYNC_REAL_STACK_RESULT" \
             "$EXTENSION_KNS09_RELEASE_RESULT" "$EXTENSION_KNS09_E2E_RESULT"; do
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then

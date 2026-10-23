@@ -4,16 +4,14 @@
  */
 
 import {
-  BROWSER_INCLUDE,
   EVIDENCE_INCLUDE,
   REDIS_INCLUDE,
   SYSTEM_INCLUDE,
 } from './scripts/vitest-project-files.mjs';
 
-export { BROWSER_INCLUDE, EVIDENCE_INCLUDE, REDIS_INCLUDE, SYSTEM_INCLUDE };
+export { EVIDENCE_INCLUDE, REDIS_INCLUDE, SYSTEM_INCLUDE };
 
 export const WORKSPACE_PROJECT_NAMES = [
-  'browser',
   'evidence',
   'postgres',
   'redis',
@@ -28,7 +26,6 @@ export const UNIT_INCLUDE = ['tests/unit/**/*.test.ts'] as const;
 
 export const UNIT_EXCLUDE = [
   'tests/unit/**/*-static.test.ts',
-  ...BROWSER_INCLUDE.filter((file) => file.startsWith('tests/unit/')),
   ...EVIDENCE_INCLUDE.filter((file) => file.startsWith('tests/unit/')),
   ...SYSTEM_INCLUDE,
 ] as const;
@@ -41,6 +38,5 @@ export const POSTGRES_INCLUDE = ['tests/integration/**/*.integration.test.ts'] a
 
 export const POSTGRES_EXCLUDE = [
   ...REDIS_INCLUDE,
-  ...BROWSER_INCLUDE.filter((file) => file.startsWith('tests/integration/')),
   ...EVIDENCE_INCLUDE.filter((file) => file.startsWith('tests/integration/')),
 ] as const;

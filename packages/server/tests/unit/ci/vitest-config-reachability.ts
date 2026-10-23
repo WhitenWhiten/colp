@@ -17,7 +17,6 @@
 export const UNREACHABLE_VITEST_CONFIG_ALLOWLIST = [] as const;
 
 export const WORKSPACE_PROJECT_CONFIGS = [
-  'vitest.browser.config.ts',
   'vitest.evidence.config.ts',
   'vitest.postgres.config.ts',
   'vitest.redis.config.ts',

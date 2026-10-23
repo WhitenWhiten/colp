@@ -104,6 +104,18 @@ function prefix(value) {
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, prefix(item)]));
 }
 const fragment = { paths: prefix(paths), components };
+// Mount the producer's private responses using the server's shared transport headers.
+for (const item of Object.values(fragment.paths)) for (const operation of Object.values(item)) {
+  for (const response of Object.values(operation.responses ?? {})) {
+    if (response.$ref) continue;
+    response.headers ??= {};
+    response.headers['X-Request-Id'] = { $ref: '#/components/headers/XRequestId' };
+    const cache = response.headers['Cache-Control'];
+    if (!cache || cache.schema?.const === 'private, no-store') {
+      response.headers['Cache-Control'] = { $ref: '#/components/headers/PrivateNoStore' };
+    }
+  }
+}
 if ([...ids].some(id => id === 'ingestAutomationIntakeReceipt')) {
   components.securitySchemes ??= {};
   components.securitySchemes.DeviceBearer = design.components.securitySchemes.DeviceBearer;

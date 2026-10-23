@@ -24,12 +24,18 @@ paths:
         - cookieAuth: []
       responses:
         '200':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Agents visible to the current account.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AgentListResponse'
         '401':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Authentication is required.
   /api/v1/me/agents/{id}/audit:
     get:
@@ -48,14 +54,23 @@ paths:
         - $ref: '#/components/parameters/AgentAuditLimit'
       responses:
         '200':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Recent audit records for the agent.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AgentAuditResponse'
         '401':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Authentication is required.
         '404':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: The agent was not found for this account.
   /api/v1/me/agents/{id}/revoke:
     post:
@@ -75,16 +90,28 @@ paths:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '200':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: The agent was revoked and its pending plans were cancelled.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AgentRevokeResponse'
         '401':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Authentication is required.
         '403':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Origin or CSRF validation failed.
         '404':
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: The agent was not found for this account.
   /api/v1/me/agents/keys:
     post:
@@ -114,6 +141,9 @@ paths:
                   maxLength: 80
       responses:
         "201":
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Key issued; the secret is returned once
           content:
             application/json:
@@ -129,10 +159,19 @@ paths:
                   secret:
                     type: string
         "400":
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Invalid key request
         "401":
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: Browser sign-in required
         "412":
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
           description: This command already issued a key; its secret cannot be recovered
 
 components:

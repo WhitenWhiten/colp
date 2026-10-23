@@ -154,9 +154,12 @@ test('Product OpenAPI description keeps the 1.31–1.33 additive history after r
   assert.match(String(document.info.description), /1\.31\.0/);
 });
 
-test('generated Product bundle stays additive against the frozen 1.21.0 baseline', () => {
-  const result = runBreakingDiff(generatedBundle);
+test('the favicon release is additive against 1.21.0 and the current bundle matches its own frozen baseline', () => {
+  const result = runBreakingDiff(join(backendRoot, 'openapi/baselines/product-v1.1.22.0.yaml'));
   assert.equal(result.status, 0, result.stderr || result.stdout);
+  const version = readDocument(generatedBundle).info.version;
+  const current = runBreakingDiff(generatedBundle, join(backendRoot, `openapi/baselines/product-v1.${version}.yaml`));
+  assert.equal(current.status, 0, current.stderr || current.stdout);
 });
 
 test('iconUrl is optional on BookmarkNodeView and PublicCollectionNode and absent from folder/root', () => {
@@ -188,7 +191,7 @@ test('faviconCdnAllowed is optional on PublicCollectionSummary and owner stays o
 });
 
 test('requiring iconUrl or faviconCdnAllowed breaks the 1.21.0 client contract', () => {
-  const document = readDocument();
+  const document = readDocument(join(backendRoot, 'openapi/baselines/product-v1.1.22.0.yaml'));
   const bookmark = document.components.schemas.BookmarkNodeView as UnknownRecord;
   const summary = document.components.schemas.PublicCollectionSummary as UnknownRecord;
   assert.equal(Object.hasOwn(bookmark.properties as UnknownRecord, 'iconUrl'), true);

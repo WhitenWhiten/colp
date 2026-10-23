@@ -17917,6 +17917,7 @@ export interface operations {
             /** @description Current live share, or null after revocation or before sharing. */
             200: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
@@ -17931,6 +17932,8 @@ export interface operations {
             /** @description A command is in progress, was reused, or the link address is already reserved. */
             409: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -17940,6 +17943,8 @@ export interface operations {
             /** @description The stored command result expired. */
             410: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -17979,6 +17984,7 @@ export interface operations {
             /** @description Current live share, or null after revocation or before sharing. */
             200: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
@@ -17993,6 +17999,8 @@ export interface operations {
             /** @description A command is in progress, was reused, or the link address is already reserved. */
             409: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -18002,6 +18010,8 @@ export interface operations {
             /** @description The stored command result expired. */
             410: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -18037,6 +18047,7 @@ export interface operations {
             /** @description Current live share, or null after revocation or before sharing. */
             200: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
@@ -18051,6 +18062,8 @@ export interface operations {
             /** @description A command is in progress, was reused, or the link address is already reserved. */
             409: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -18060,6 +18073,8 @@ export interface operations {
             /** @description The stored command result expired. */
             410: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -18083,6 +18098,7 @@ export interface operations {
             /** @description The private library and its browser role folders. */
             200: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
@@ -19200,6 +19216,8 @@ export interface operations {
             /** @description Collection deletion is unsupported. */
             405: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -23583,6 +23601,8 @@ export interface operations {
             /** @description Key issued; the secret is returned once */
             201: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -23596,6 +23616,8 @@ export interface operations {
             /** @description Invalid key request */
             400: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -23603,6 +23625,8 @@ export interface operations {
             /** @description Browser sign-in required */
             401: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -23610,6 +23634,8 @@ export interface operations {
             /** @description This command already issued a key; its secret cannot be recovered */
             412: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -23628,8 +23654,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -23673,8 +23699,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -23718,8 +23744,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -23755,8 +23781,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -23802,8 +23828,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             201: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -23840,8 +23866,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -23891,8 +23917,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -23938,8 +23964,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -23989,8 +24015,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24027,8 +24053,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -24063,8 +24089,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -24110,8 +24136,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -24147,8 +24173,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -24194,8 +24220,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             201: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24232,8 +24258,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24283,8 +24309,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24330,6 +24356,8 @@ export interface operations {
             /** @description Unreferenced binding set removed. */
             204: {
                 headers: {
+                    "X-Request-Id": components["headers"]["XRequestId"];
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
                     [name: string]: unknown;
                 };
                 content?: never;
@@ -24363,8 +24391,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -24410,8 +24438,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             201: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24448,8 +24476,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24499,8 +24527,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24538,8 +24566,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -24585,8 +24613,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             201: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24623,8 +24651,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24674,8 +24702,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24713,8 +24741,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -24760,8 +24788,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             201: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24798,8 +24826,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24849,8 +24877,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24888,8 +24916,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -24935,8 +24963,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             201: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -24973,8 +25001,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25024,8 +25052,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25075,8 +25103,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             201: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25126,8 +25154,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25165,8 +25193,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25212,8 +25240,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25253,8 +25281,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25289,8 +25317,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25340,8 +25368,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25391,8 +25419,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25429,8 +25457,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25480,8 +25508,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25519,8 +25547,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25566,8 +25594,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25607,8 +25635,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -25653,8 +25681,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25697,8 +25725,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             202: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25736,8 +25764,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25772,8 +25800,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25811,8 +25839,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25854,8 +25882,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25897,8 +25925,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25940,8 +25968,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -25983,8 +26011,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -26017,8 +26045,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -26066,8 +26094,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -26102,8 +26130,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -26149,8 +26177,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -26198,8 +26226,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -26239,8 +26267,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -26290,8 +26318,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -26333,8 +26361,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -26378,8 +26406,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             201: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -26427,8 +26455,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -26479,8 +26507,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
@@ -26531,8 +26559,8 @@ export interface operations {
             /** @description Successful response; inspect the returned state, not merely the HTTP status. */
             200: {
                 headers: {
-                    "Cache-Control"?: "private, no-store";
-                    "X-Request-Id"?: string;
+                    "Cache-Control": components["headers"]["PrivateNoStore"];
+                    "X-Request-Id": components["headers"]["XRequestId"];
                     /** @description Strong ETag for this automation resource. */
                     ETag?: string;
                     [name: string]: unknown;
