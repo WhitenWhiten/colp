@@ -321,6 +321,9 @@ jobs:
         env:
           MIGRATION_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD' }}
         working-directory: packages/server
+      - name: Source-size ratchet
+        run: npm run check:source-size
+        working-directory: packages/server
       - name: Runtime manifest drift
         run: npm run runtime:manifest:check
         working-directory: packages/server

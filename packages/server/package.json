@@ -32,6 +32,7 @@
     "runtime:manifest:check": "node scripts/build-runtime-manifest.mjs --check",
     "evidence:phase3-extension-auth:logic": "vitest run tests/unit/phase3/phase3-extension-auth.test.ts",
     "check:imports": "node scripts/check-import-boundaries.mjs",
+    "check:source-size": "node scripts/check-source-file-sizes.mjs",
     "openapi:lint": "redocly lint openapi/colp-server-v1.yaml",
     "openapi:catalog": "node scripts/check-openapi-catalog.mjs",
     "openapi:examples": "node scripts/validate-openapi-examples.mjs --document openapi/colp-server-v1.yaml",

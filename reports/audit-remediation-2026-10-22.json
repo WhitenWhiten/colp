@@ -634,12 +634,19 @@
         "The real-Chromium worker-termination spec now proves storage.session survives a terminated worker and is empty after a full browser restart; all 5 mv3-sync-state-store scenarios pass under xvfb and the browser and xvfb exit",
         "25 worker, recovery, repair, entry-wiring and bootstrap suites pass (192 tests); the entry-wiring mock now forwards the boot option, so the first-boot walk and its single manual wake are exercised through the real module",
         "Extension TypeScript, targeted ESLint, source-size gate and development build pass"
-      ]
+      ],
+      "commit": "432c3132"
     },
     {
       "id": "quality-01",
       "title": "restore server source-size gate",
-      "status": "pending"
+      "status": "resolved",
+      "resolution": "The server has the same shrinking-only ratchet as the node and extension packages again. scripts/check-source-file-sizes.mjs uses the shared production-source-size helper. Its baseline caps the 49 files that exceed 600 lines at their current sizes. A new file over 600 lines, a capped file that grows, and a stale or shrunken cap all fail. npm run check:source-size runs as its own step in the server CI job, and a static-project contract pins the evaluator, the npm script and that step.",
+      "validation": [
+        "check:source-size reports 1,055 files checked with 49 shrinking-only exceptions",
+        "The new static contract passes: a 601-line new file and a capped file that grows fail, the npm and CI wiring is present, and the live tree passes",
+        "Server TypeScript, targeted ESLint and the unit CI-contract suites pass. The full static project has 2 failures that predate this change: outbox-retention-floors-migration-static and sync-conflict-migration-static still read the DatabaseSchema declaration that 386bee6f moved out of runtime.ts"
+      ]
     },
     {
       "id": "quality-02",
