@@ -1,51 +1,88 @@
-/**
- * Request timeouts (R15-12). No Product or auth fetch may hang for nginx's
- * 60 s upstream wait: a request that has not answered in 15 s rejects with a
- * `TimeoutError`, which the error layer maps to a non-retried
- * `transport_error`, so pages reach their error state instead of skeletons.
- */
+/** Deadlines cover headers and the complete response body, including generated clients. */
 export const REQUEST_TIMEOUT_MS = 15_000
-/** Uploads and export downloads move real bytes; give them longer. */
 export const TRANSFER_TIMEOUT_MS = 120_000
 
 export function isTimeoutError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'TimeoutError'
 }
 
-/**
- * Runs one fetch under a deadline. The caller's own signal still aborts it
- * (rejecting with AbortError as before); only the deadline yields
- * `TimeoutError`. The timer is cleared once the response headers arrive.
- */
+/** Preserve streaming/backpressure while retaining the deadline until EOF or cancellation. */
+function deadlineResponse(response: Response, signal: AbortSignal, cleanup: () => void): Response {
+  if (!response.body) { cleanup(); return response }
+  const reader = response.body.getReader()
+  let finished = false
+  let onAbort: () => void
+  const finish = () => {
+    if (finished) return false
+    finished = true
+    cleanup()
+    signal.removeEventListener('abort', onAbort)
+    return true
+  }
+  const cancel = (reason: unknown) => {
+    void reader.cancel(reason).finally(() => reader.releaseLock()).catch(() => {})
+  }
+  const body = new ReadableStream<Uint8Array>({
+    start(stream) {
+      onAbort = () => {
+        if (!finish()) return
+        stream.error(signal.reason)
+        cancel(signal.reason)
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+      if (signal.aborted) onAbort()
+    },
+    async pull(stream) {
+      try {
+        const chunk = await reader.read()
+        if (finished) return
+        if (chunk.done) {
+          finish(); reader.releaseLock(); stream.close()
+        } else stream.enqueue(chunk.value)
+      } catch (error) {
+        if (finish()) { reader.releaseLock(); stream.error(signal.aborted ? signal.reason : error) }
+      }
+    },
+    cancel(reason) { if (finish()) cancel(reason) },
+  })
+  const result = new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers })
+  for (const property of ['url', 'redirected', 'type'] as const) {
+    Object.defineProperty(result, property, { value: response[property] })
+  }
+  return result
+}
+
+/** One deadline for fetch and body consumption; caller cancellation remains active after headers. */
 export async function fetchWithTimeout(
   doFetch: typeof globalThis.fetch,
   input: RequestInfo | URL,
   init: RequestInit = {},
   ms = REQUEST_TIMEOUT_MS,
 ): Promise<Response> {
-  const outer = init.signal ?? undefined
+  const outer = init.signal ?? (input instanceof Request ? input.signal : undefined)
   const controller = new AbortController()
-  let timedOut = false
-  const timer = globalThis.setTimeout(() => {
-    timedOut = true
-    controller.abort()
-  }, ms)
+  const timer = globalThis.setTimeout(() => controller.abort(new DOMException('The request timed out.', 'TimeoutError')), ms)
   const forward = () => controller.abort(outer?.reason)
-  if (outer?.aborted) forward()
-  else outer?.addEventListener('abort', forward, { once: true })
-  try {
-    return await doFetch(input, { ...init, signal: controller.signal })
-  } catch (error) {
-    if (timedOut && !outer?.aborted) throw new DOMException('The request timed out.', 'TimeoutError')
-    throw error
-  } finally {
+  const cleanup = () => {
     globalThis.clearTimeout(timer)
     outer?.removeEventListener('abort', forward)
   }
+  if (outer?.aborted) forward()
+  else outer?.addEventListener('abort', forward, { once: true })
+  try {
+    controller.signal.throwIfAborted()
+    const response = await doFetch(input, { ...init, signal: controller.signal })
+    if (controller.signal.aborted) {
+      void response.body?.cancel(controller.signal.reason).catch(() => {})
+      controller.signal.throwIfAborted()
+    }
+    return deadlineResponse(response, controller.signal, cleanup)
+  } catch (error) {
+    cleanup()
+    throw controller.signal.aborted ? controller.signal.reason : error
+  }
 }
 
-/** A `fetch` for generated clients: the caller's signal plus the deadline. */
 export function timedFetch(signal?: AbortSignal, ms = REQUEST_TIMEOUT_MS): typeof globalThis.fetch {
-  return (input, init) =>
-    fetchWithTimeout(globalThis.fetch, input, { ...init, ...(signal ? { signal } : {}) }, ms)
+  return (input, init) => fetchWithTimeout(globalThis.fetch, input, { ...init, ...(signal ? { signal } : {}) }, ms)
 }

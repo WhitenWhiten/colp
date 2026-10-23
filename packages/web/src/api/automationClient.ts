@@ -1,7 +1,8 @@
 import { apiUrl } from './config'
 import { allocateCommandId, clearCommandId } from './commandId'
 import { ProductApiError } from './errors'
-import { parseProductError } from './product-error'
+import { parseProductError, requestTimeoutError } from './product-error'
+import { fetchWithTimeout, isTimeoutError } from './requestTimeout'
 import { getCsrfToken, getSessionSnapshot, privateSessionIdentity } from './sessionStore'
 import type {
   AutomationAgentSetupInput,
@@ -246,10 +247,11 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
     }
     let response: Response
     try {
-      response = await doFetch(apiUrl(path), { ...init, credentials: getSessionSnapshot().authenticated ? 'include' : 'omit', cache: 'no-store' })
+      response = await fetchWithTimeout(doFetch, apiUrl(path), { ...init, credentials: getSessionSnapshot().authenticated ? 'include' : 'omit', cache: 'no-store' })
       assertCurrent()
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') throw error
+      if (isTimeoutError(error)) throw new ProductApiError(requestTimeoutError())
       throw new ProductApiError({
         status: 0,
         code: 'transport_error',
@@ -262,7 +264,11 @@ export function createAutomationApi(fetchImpl?: FetchLike): AutomationApi {
       if (init.method === 'DELETE' && /\/binding-sets\/[^/]+$/u.test(path)) return null
       throw badResponse('The Automation response had no body.')
     }
-    const text = await response.text()
+    let text: string
+    try { text = await response.text() } catch (error) {
+      if (isTimeoutError(error)) throw new ProductApiError(requestTimeoutError())
+      throw error
+    }
     assertCurrent()
     let body: unknown = null
     if (text) {

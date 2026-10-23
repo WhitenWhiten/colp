@@ -210,7 +210,11 @@ async function authRequest<T>(init: AuthRequestInit): Promise<T> {
     throw wrapProductError(err)
   }
 
-  const body = await readAuthBody(res)
+  let body: unknown
+  try { body = await readAuthBody(res) } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw wrapProductError(error)
+  }
   if (!res.ok) {
     // The shared envelope parser maps auth codes (invalid_credentials,
     // verification_required, account_link_required, rate_limited, …) and

@@ -187,7 +187,11 @@ export function createProductTransportHttp(
       return undefined as T
     }
 
-    const body = await readBody(res)
+    let body: unknown
+    try { body = await readBody(res) } catch (error) {
+      if (isTimeoutError(error)) throw requestTimeoutError()
+      throw error
+    }
     if (!res.ok) {
       throw parseProductError(res.status, body, headersToRecord(res))
     }
